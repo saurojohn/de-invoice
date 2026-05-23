@@ -1,0 +1,82 @@
+{
+  "common": {
+    "appName": "德文发票系统",
+    "welcome": "欢迎使用德国发票系统",
+    "loading": "加载中...",
+    "save": "保存",
+    "cancel": "取消",
+    "delete": "删除",
+    "edit": "编辑",
+    "create": "创建",
+    "search": "搜索",
+    "filter": "筛选",
+    "export": "导出",
+    "import": "导入"
+  },
+  "nav": {
+    "dashboard": "仪表盘",
+    "invoices": "发票",
+    "customers": "客户",
+    "products": "商品",
+    "accounting": "会计",
+    "reports": "报表",
+    "settings": "设置"
+  },
+  "invoice": {
+    "title": "发票管理",
+    "create": "创建发票",
+    "edit": "编辑发票",
+    "number": "发票号",
+    "date": "开票日期",
+    "dueDate": "到期日期",
+    "customer": "客户",
+    "status": "状态",
+    "total": "总额",
+    "subtotal": "净额",
+    "vat": "税额",
+    "items": "项目",
+    "notes": "备注",
+    "draft": "草稿",
+    "sent": "已发送",
+    "paid": "已付款",
+    "overdue": "逾期",
+    "cancelled": "已取消",
+    "send": "发送发票",
+    "download": "下载PDF",
+    "markAsSent": "标记为已发送",
+    "markAsPaid": "标记为已付款"
+  },
+  "customer": {
+    "title": "客户管理",
+    "create": "添加客户",
+    "edit": "编辑客户",
+    "name": "公司名称",
+    "vatId": "VAT号",
+    "address": "地址",
+    "contact": "联系方式",
+    "paymentTerms": "付款期限"
+  },
+  "product": {
+    "title": "商品管理",
+    "create": "添加商品",
+    "name": "商品名称",
+    "sku": "SKU",
+    "price": "价格",
+    "unit": "单位",
+    "category": "分类"
+  },
+  "auth": {
+    "login": "登录",
+    "register": "注册",
+    "email": "邮箱",
+    "password": "密码",
+    "companyName": "公司名称",
+    "logout": "退出"
+  },
+  "errors": {
+    "required": "此字段为必填项",
+    "invalidEmail": "请输入有效的邮箱地址",
+    "notFound": "未找到",
+    "serverError": "服务器错误"
+  }
+}

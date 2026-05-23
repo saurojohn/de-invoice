@@ -1,0 +1,82 @@
+{
+  "common": {
+    "appName": "German Invoice System",
+    "welcome": "Welcome to German Invoice System",
+    "loading": "Loading...",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "search": "Search",
+    "filter": "Filter",
+    "export": "Export",
+    "import": "Import"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "invoices": "Invoices",
+    "customers": "Customers",
+    "products": "Products",
+    "accounting": "Accounting",
+    "reports": "Reports",
+    "settings": "Settings"
+  },
+  "invoice": {
+    "title": "Invoice Management",
+    "create": "Create Invoice",
+    "edit": "Edit Invoice",
+    "number": "Invoice Number",
+    "date": "Issue Date",
+    "dueDate": "Due Date",
+    "customer": "Customer",
+    "status": "Status",
+    "total": "Total",
+    "subtotal": "Subtotal",
+    "vat": "VAT",
+    "items": "Items",
+    "notes": "Notes",
+    "draft": "Draft",
+    "sent": "Sent",
+    "paid": "Paid",
+    "overdue": "Overdue",
+    "cancelled": "Cancelled",
+    "send": "Send Invoice",
+    "download": "Download PDF",
+    "markAsSent": "Mark as Sent",
+    "markAsPaid": "Mark as Paid"
+  },
+  "customer": {
+    "title": "Customer Management",
+    "create": "Add Customer",
+    "edit": "Edit Customer",
+    "name": "Company Name",
+    "vatId": "VAT ID",
+    "address": "Address",
+    "contact": "Contact",
+    "paymentTerms": "Payment Terms"
+  },
+  "product": {
+    "title": "Product Management",
+    "create": "Add Product",
+    "name": "Product Name",
+    "sku": "SKU",
+    "price": "Price",
+    "unit": "Unit",
+    "category": "Category"
+  },
+  "auth": {
+    "login": "Login",
+    "register": "Register",
+    "email": "Email",
+    "password": "Password",
+    "companyName": "Company Name",
+    "logout": "Logout"
+  },
+  "errors": {
+    "required": "This field is required",
+    "invalidEmail": "Please enter a valid email address",
+    "notFound": "Not found",
+    "serverError": "Server error"
+  }
+}
