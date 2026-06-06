@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { useI18n } from "@/components/useI18n"
+import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { apiGet, apiPost, ApiError } from "@/lib/api"
 
 type InvoiceType = 'INV' | 'CN' | 'PI' | 'RCV'
@@ -247,7 +248,10 @@ export default function CreateInvoicePage() {
       <header className="bg-white border-b shadow-sm">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <h1 className="text-2xl font-bold text-blue-600">{t("invoice.create")}</h1>
-          <Button variant="outline" onClick={() => router.push("/dashboard/invoices")}>{t("common.cancel")}</Button>
+          <div className="flex items-center gap-2">
+            <LanguageSwitcher />
+            <Button variant="outline" onClick={() => router.push("/dashboard/invoices")}>{t("common.cancel")}</Button>
+          </div>
         </div>
       </header>
 
