@@ -144,10 +144,9 @@ export async function generateInvoicePDF(
     let detailsRow = 0
     doc.text("Ausstellungsdatum:", detailsLabelX, detailsY + detailsRow * 15, { width: 100, align: "right", lineBreak: false })
     detailsRow++
-    if (!isCompact) {
-      doc.text("Währung:", detailsLabelX, detailsY + detailsRow * 15, { width: 100, align: "right", lineBreak: false })
-      detailsRow++
-    }
+    // (Währung removed — invoice.currency is always EUR and the field
+    //  added visual noise without information. Keep the schema column
+    //  in case multi-currency is reintroduced later.)
     // For credit notes, link back to the original invoice so the
     // customer knows what is being reversed.
     if ((invoice as any).type === "CN" && (invoice as any).referenceInvoiceId) {
@@ -160,10 +159,6 @@ export async function generateInvoicePDF(
     detailsRow = 0
     doc.text(formatDate(invoice.issueDate), detailsValueX, detailsY + detailsRow * 15, { width: 60, align: "right", lineBreak: false })
     detailsRow++
-    if (!isCompact) {
-      doc.text(invoice.currency, detailsValueX, detailsY + detailsRow * 15, { width: 60, align: "right", lineBreak: false })
-      detailsRow++
-    }
     if ((invoice as any).type === "CN" && (invoice as any).referenceInvoiceId) {
       const ref = (invoice as any).referenceInvoice
       const refNumber = ref?.invoiceNumber || "—"
@@ -212,7 +207,7 @@ export async function generateInvoicePDF(
       doc.moveTo(leftMargin, y + compactHeaderHeight).lineTo(rightMargin, y + compactHeaderHeight).lineWidth(0.8).stroke()
       doc.fillColor("#000000")
         .fontSize(9).font("Helvetica-Bold")
-        .text("Beschreibung", leftMargin + 5, y + 6, { width: compactColWidths.desc - 10, lineBreak: false })
+        .text("Artikel Nr. / Beschreibung", leftMargin + 5, y + 6, { width: compactColWidths.desc - 10, lineBreak: false })
         .text("Menge", leftMargin + compactColWidths.desc, y + 6, { width: compactColWidths.qty, align: "center", lineBreak: false })
         .text("Einzelpreis", leftMargin + compactColWidths.desc + compactColWidths.qty, y + 6, { width: compactColWidths.price, align: "center", lineBreak: false })
 
@@ -247,7 +242,7 @@ export async function generateInvoicePDF(
       doc.moveTo(leftMargin, y + headerHeight).lineTo(rightMargin, y + headerHeight).lineWidth(0.8).stroke()
       doc.fillColor("#000000")
         .fontSize(10).font("Helvetica-Bold")
-        .text("Beschreibung", leftMargin + 5, y + 8, { width: colWidths.desc - 10, lineBreak: false })
+        .text("Artikel Nr. / Beschreibung", leftMargin + 5, y + 8, { width: colWidths.desc - 10, lineBreak: false })
         .text("Menge", leftMargin + colWidths.desc, y + 8, { width: colWidths.qty, align: "center", lineBreak: false })
         .text("Einzelpreis", leftMargin + colWidths.desc + colWidths.qty, y + 8, { width: colWidths.price, align: "center", lineBreak: false })
         .text("MwSt", leftMargin + colWidths.desc + colWidths.qty + colWidths.price, y + 8, { width: colWidths.vat, align: "center", lineBreak: false })
