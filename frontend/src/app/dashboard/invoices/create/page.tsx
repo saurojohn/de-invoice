@@ -66,6 +66,11 @@ export default function CreateInvoicePage() {
     discountAmount: 0,
     paymentMethod: "bank_transfer",
     paymentTerms: 0,
+    // Rechnungssprache — default to the current UI locale so the
+    // user doesn't have to change anything when their UI is already
+    // in the language they want the invoice in. They can still
+    // override per-invoice (e.g. UI in DE, customer in EN).
+    language: getDateLocale(),
     items: [{ description: "", quantity: 1, unit: t("common2.unit"), unitPrice: 0, vatRate: 0.19 }] as InvoiceItem[],
   })
   const [loading, setLoading] = useState(false)
@@ -227,7 +232,6 @@ export default function CreateInvoicePage() {
         ...form,
         type: invoiceType,
         templateType,
-        language: getDateLocale(),
       })
       router.push("/dashboard/invoices")
     } catch (err) {
@@ -369,7 +373,7 @@ export default function CreateInvoicePage() {
                 </div>
               )}
 
-              <div className="grid md:grid-cols-2 gap-4">
+              <div className="grid md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-medium mb-1">{t("invoice.date")} *</label>
                   <Input
@@ -391,6 +395,21 @@ export default function CreateInvoicePage() {
                     <option value={14}>{t("paymentTerm.days14")}</option>
                     <option value={30}>{t("paymentTerm.days30")}</option>
                     <option value={60}>{t("paymentTerm.days60")}</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    {t("invoice.language") || "Rechnungssprache"}
+                  </label>
+                  <select
+                    className="w-full h-10 border rounded-md px-3"
+                    value={form.language}
+                    onChange={(e) => setForm({ ...form, language: e.target.value })}
+                    title={t("invoice.languageHint") || "Sprache der Rechnung (kann von der UI-Sprache abweichen)"}
+                  >
+                    <option value="de-DE">Deutsch</option>
+                    <option value="en-US">English</option>
+                    <option value="zh-CN">中文</option>
                   </select>
                 </div>
               </div>
