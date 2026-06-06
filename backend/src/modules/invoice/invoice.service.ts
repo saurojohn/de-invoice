@@ -214,18 +214,42 @@ export class InvoiceService {
       }
     }
 
-    // Calculate amounts
+    // Calculate amounts.
+    //
+    // VAT is computed on the DISCOUNTED net (per § 12 UStG — the tax
+    // base / Bemessungsgrundlage is the net consideration actually
+    // received, i.e. subtotal minus any discount granted on the
+    // invoice). The previous code applied the discount only to the
+    // grand total, which understated VAT and over-reported revenue
+    // (e.g. 10% discount with 19% VAT on a €100 line was charged as
+    // 19% VAT instead of 19% on €90). The discount is allocated
+    // proportionally to each line so per-item tax stays correct.
     const subtotal = dto.items?.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0) || 0;
     const discountPercent = dto.discountPercent || 0;
     const discountAmount = dto.discountAmount || (discountPercent > 0 ? subtotal * (discountPercent / 100) : 0);
+    const discountRatio =
+      discountPercent > 0
+        ? discountPercent / 100
+        : subtotal > 0
+        ? discountAmount / subtotal
+        : 0;
     const totalVat = dto.items?.reduce((sum, item) => {
       const itemNet = item.quantity * item.unitPrice;
-      return sum + (itemNet * (item.vatRate || 0.19));
+      const discountedNet = itemNet * (1 - discountRatio);
+      return sum + (discountedNet * (item.vatRate || 0.19));
     }, 0) || 0;
     const total = subtotal - discountAmount + totalVat;
 
-    // For Credit Notes, total is negative
-    const finalTotal = type === 'CN' ? -total : total;
+    // For Credit Notes, total / subtotal / totalVat are all negative
+    // — the line items already get negated below. Apply the same sign
+    // to the invoice-level totals so the PDF, CSV and dashboard
+    // displays stay consistent (previously the items were negative
+    // but the header totals were positive, producing visually broken
+    // Gutschriften that didn't add up).
+    const isCN = type === 'CN';
+    const finalSubtotal = isCN ? -subtotal : subtotal;
+    const finalTotalVat = isCN ? -totalVat : totalVat;
+    const finalTotal = isCN ? -total : total;
 
     // Parse dates safely
     const issueDate = dto.issueDate ? new Date(dto.issueDate) : new Date();
@@ -244,9 +268,9 @@ export class InvoiceService {
         language: dto.language || 'de-DE',
         notes: dto.notes,
         templateType: dto.templateType || 'standard',
-        subtotal,
-        totalVat,
-        total,
+        subtotal: finalSubtotal,
+        totalVat: finalTotalVat,
+        total: finalTotal,
         discountPercent: dto.discountPercent || null,
         discountAmount: discountAmount > 0 ? discountAmount : null,
         // For credit notes, store the link back to the original invoice.

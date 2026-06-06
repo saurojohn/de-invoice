@@ -75,6 +75,10 @@ export class InvoiceController {
     @Res() res: Response,
   ) {
     let ids: string[] = []
+    if (!companyId) {
+      res.status(400).json({ message: 'companyId ist erforderlich' })
+      return
+    }
     if (Array.isArray(body?.invoiceIds) && body.invoiceIds.length > 0) {
       ids = body.invoiceIds
     } else if (body?.dateFrom || body?.dateTo) {
@@ -201,6 +205,10 @@ export class InvoiceController {
     @Query('status') status: string,
     @Res() res: Response,
   ) {
+    if (!companyId) {
+      res.status(400).json({ message: 'companyId ist erforderlich' })
+      return
+    }
     if (!dateFrom && !dateTo) {
       res.status(400).json({ message: 'dateFrom oder dateTo ist erforderlich' })
       return
@@ -254,8 +262,14 @@ export class InvoiceController {
           inv.customer?.customerNumber || '',
           inv.customer?.name || '',
           inv.customer?.vatId || '',
-          Number(inv.netAmount || 0).toFixed(2),
-          Number(inv.vatAmount || 0).toFixed(2),
+          // Per-line money values are stored on `items[].netAmount /
+          // items[].vatAmount`, but the invoice-level columns in the
+          // Prisma model are `subtotal` and `totalVat`. The previous
+          // code read `inv.netAmount` / `inv.vatAmount` (always
+          // undefined) and the CSV always exported 0.00 for Netto and
+          // USt. Use the correct column names here.
+          Number(inv.subtotal || 0).toFixed(2),
+          Number(inv.totalVat || 0).toFixed(2),
           total.toFixed(2),
           inv.currency || 'EUR',
           inv.referenceInvoice?.invoiceNumber || '',

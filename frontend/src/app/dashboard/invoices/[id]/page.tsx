@@ -151,7 +151,18 @@ export default function InvoiceDetailPage() {
     }
   }
 
-  const formatDate = (s: string) => new Date(s).toLocaleDateString(getDateLocale())
+  const formatDate = (s: string) => {
+    if (!s) return ""
+    const d = new Date(s)
+    if (isNaN(d.getTime())) return s
+    // Force dd.mm.yyyy with leading zeros — `toLocaleDateString` returns
+    // "6.6.2026" on some ICU versions, which looks inconsistent next to
+    // the list page (which always zero-pads via formatDateDE).
+    const dd = String(d.getDate()).padStart(2, "0")
+    const mm = String(d.getMonth() + 1).padStart(2, "0")
+    const yyyy = d.getFullYear()
+    return `${dd}.${mm}.${yyyy}`
+  }
 
   const paymentMethodLabel = (m: string) => {
     const labels: Record<string, string> = {
@@ -414,8 +425,8 @@ export default function InvoiceDetailPage() {
             <CardHeader><CardTitle>Rechnungsinformationen</CardTitle></CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 gap-4">
-                <div><div className="text-sm text-gray-500">Ausstellungsdatum</div><div>{new Date(invoice.issueDate).toLocaleDateString("de-DE")}</div></div>
-                <div><div className="text-sm text-gray-500">Fälligkeitsdatum</div><div>{new Date(invoice.dueDate).toLocaleDateString("de-DE")}</div></div>
+                <div><div className="text-sm text-gray-500">Ausstellungsdatum</div><div>{formatDate(invoice.issueDate)}</div></div>
+                <div><div className="text-sm text-gray-500">Fälligkeitsdatum</div><div>{formatDate(invoice.dueDate)}</div></div>
                 <div><div className="text-sm text-gray-500">Rechnungsart</div><div>{invoice.type}</div></div>
                 <div><div className="text-sm text-gray-500">Währung</div><div>{invoice.currency}</div></div>
               </div>

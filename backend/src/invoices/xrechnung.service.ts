@@ -109,7 +109,7 @@ export function generateXRechnung(data: XRechnungData): string {
         <cbc:CityName>${escapeXml(data.supplier.address.city || '')}</cbc:CityName>
         <cbc:PostalZone>${escapeXml(data.supplier.address.postalCode || '')}</cbc:PostalZone>
         <cac:Country>
-          <cbc:IdentificationCode>${escapeXml(data.supplier.address.country || 'DE')}</cbc:IdentificationCode>
+          <cbc:IdentificationCode>${escapeXml(normalizeCountryCode(data.supplier.address.country))}</cbc:IdentificationCode>
         </cac:Country>
       </cac:PostalAddress>
       <cac:Contact>
@@ -137,7 +137,7 @@ export function generateXRechnung(data: XRechnungData): string {
         <cbc:CityName>${escapeXml(data.customer.address.city || '')}</cbc:CityName>
         <cbc:PostalZone>${escapeXml(data.customer.address.postalCode || '')}</cbc:PostalZone>
         <cac:Country>
-          <cbc:IdentificationCode>${escapeXml(data.customer.address.country || 'DE')}</cbc:IdentificationCode>
+          <cbc:IdentificationCode>${escapeXml(normalizeCountryCode(data.customer.address.country))}</cbc:IdentificationCode>
         </cac:Country>
       </cac:PostalAddress>
       ${data.customer.vatId ? `
@@ -261,6 +261,82 @@ function mapUnitToUNECE(unit?: string): string {
     'liter': 'LTR',
   };
   return unitMap[unit?.toLowerCase() || ''] || 'C62';
+}
+
+/**
+ * Normalize a country name to its ISO 3166-1 alpha-2 code.
+ *
+ * XRechnung (and the underlying UBL 2.1 spec) require country codes
+ * in the supplier/customer `Country/IdentificationCode` element to be
+ * a 2-letter ISO 3166-1 code (e.g. "DE", "AT", "FR"). Company
+ * addresses in our system sometimes store the full German name
+ * ("Deutschland", "Österreich") because that's what the form
+ * collects. The XRechnung validators (KoSIT) reject any value that
+ * is not a valid 2-letter code, so we translate the common names
+ * before emitting the XML.
+ */
+const COUNTRY_NAME_TO_ISO: Record<string, string> = {
+  'deutschland': 'DE',
+  'germany': 'DE',
+  'österreich': 'AT',
+  'oesterreich': 'AT',
+  'austria': 'AT',
+  'schweiz': 'CH',
+  'switzerland': 'CH',
+  'frankreich': 'FR',
+  'france': 'FR',
+  'niederlande': 'NL',
+  'netherlands': 'NL',
+  'italien': 'IT',
+  'italy': 'IT',
+  'spanien': 'ES',
+  'spain': 'ES',
+  'vereinigtes königreich': 'GB',
+  'vereinigtes koenigreich': 'GB',
+  'united kingdom': 'GB',
+  'großbritannien': 'GB',
+  'grossbritannien': 'GB',
+  'usa': 'US',
+  'vereinigte staaten': 'US',
+  'united states': 'US',
+  'polen': 'PL',
+  'poland': 'PL',
+  'tschechien': 'CZ',
+  'czechia': 'CZ',
+  'czech republic': 'CZ',
+  'belgien': 'BE',
+  'belgium': 'BE',
+  'luxemburg': 'LU',
+  'luxembourg': 'LU',
+  'dänemark': 'DK',
+  'daenemark': 'DK',
+  'denmark': 'DK',
+  'schweden': 'SE',
+  'sweden': 'SE',
+  'norwegen': 'NO',
+  'norway': 'NO',
+  'finnland': 'FI',
+  'finland': 'FI',
+  'portugal': 'PT',
+  'irland': 'IE',
+  'ireland': 'IE',
+  'griechenland': 'GR',
+  'greece': 'GR',
+};
+
+function normalizeCountryCode(raw?: string | null): string {
+  if (!raw) return 'DE';
+  const trimmed = String(raw).trim();
+  if (!trimmed) return 'DE';
+  // Already an ISO code (2 uppercase letters)
+  if (/^[A-Z]{2}$/.test(trimmed)) return trimmed;
+  const mapped = COUNTRY_NAME_TO_ISO[trimmed.toLowerCase()];
+  if (mapped) return mapped;
+  // Unknown — return the original trimmed value rather than silently
+  // swapping to "DE". Validators will flag the unknown code, but
+  // that's the correct outcome (and visible in QA) rather than
+  // silently mis-attributing the country.
+  return trimmed;
 }
 
 function formatXRechnungDate(date: string | Date): string {

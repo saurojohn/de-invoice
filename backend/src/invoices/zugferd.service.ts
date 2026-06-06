@@ -195,9 +195,11 @@ function generateTradeParty(
         <ram:PostcodeCode>${escapeXml(party.address?.postalCode || '')}</ram:PostcodeCode>
         <ram:CountryID>${escapeXml(party.address?.country || 'DE')}</ram:CountryID>
       </ram:DefinedTradeAddress>
-      ${party.email ? `<ram:Universal通讯地址>
-        <ram:URIID>${escapeXml(party.email)}</ram:URIID>
-      </ram:Universal通讯地址>` : ''}
+      ${party.email ? `<ram:DefinedTradeContact>
+        <ram:EmailURIUniversalCommunication>
+          <ram:URIID>${escapeXml(party.email)}</ram:URIID>
+        </ram:EmailURIUniversalCommunication>
+      </ram:DefinedTradeContact>` : ''}
     </ram:${type}TradeParty>`;
 }
 

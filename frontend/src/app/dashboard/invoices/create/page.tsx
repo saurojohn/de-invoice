@@ -29,6 +29,7 @@ interface Product {
 interface Invoice {
   id: string
   invoiceNumber: string
+  customerId: string
   customer: { name: string }
 }
 

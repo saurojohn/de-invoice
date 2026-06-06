@@ -331,10 +331,19 @@ export async function generateInvoicePDF(
       doc.text(`UST-IDNr.: ${company.vatId}`, leftMargin, footerY + 60, { lineBreak: false })
     }
 
-    // Add page number in footer
+    // Add page number in footer. `doc.page.number` can be undefined
+    // in some PDFKit builds (notably when the doc is being torn down
+    // asynchronously after `doc.end()`), which previously caused the
+    // literal string "undefined" to appear at the right margin of the
+    // PDF footer next to the company VAT number. Fall back to the
+    // buffered page count from PDFKit's own helper, which is always
+    // populated while writing.
+    const pageCount = doc.bufferedPageRange
+      ? doc.bufferedPageRange().count
+      : doc.page?.number ?? 1
     doc.text(
-      `${doc.page.number}`,
-      rightMargin - 20,
+      `Seite ${pageCount}`,
+      rightMargin - 40,
       footerY + 60,
       { align: "right", lineBreak: false }
     )
