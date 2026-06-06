@@ -183,9 +183,13 @@ export default function SettingsPage() {
                 defaultCurrency: settings.defaultCurrency || "EUR",
                 defaultLanguage: settings.defaultLanguage || "de",
               },
-              logoPath: data.logoPath || "",
-              invoicePrefix: data.invoicePrefix || "INV",
-              defaultPaymentDays: data.defaultPaymentDays || 30,
+              logoPath: data.logoPath ?? "",
+              // Use `??` (nullish coalescing), not `||`, for these —
+              // `||` would silently rewrite 0 (Sofort fällig) to 30
+              // and "" to "INV", making it look like the user's save
+              // was ignored on the next page load.
+              invoicePrefix: data.invoicePrefix ?? "INV",
+              defaultPaymentDays: data.defaultPaymentDays ?? 30,
             })
 
             if (data.logoPath) {
@@ -317,6 +321,44 @@ export default function SettingsPage() {
     try {
       const { apiPut, ApiError } = await import("@/lib/api")
       await apiPut(`/api/v1/companies/${companyId}`, form)
+      // Refetch so the form reflects the canonical stored value —
+      // without this, a user who just changed defaultPaymentDays from
+      // 0 (Sofort fällig) to 14 would see "14" stay, but a user who
+      // didn't touch it would see whatever the server sent back. The
+      // `|| 30` → `?? 30` fix in the load function was the other half
+      // of this same bug.
+      const fresh = await apiGet<any>(`/api/v1/companies/${companyId}`)
+      if (fresh && fresh.id) {
+        const address = fresh.address || {}
+        const bankInfo = fresh.bankInfo || {}
+        const settings = fresh.settings || {}
+        setForm({
+          name: fresh.name ?? "",
+          legalName: fresh.legalName ?? "",
+          taxId: fresh.taxId ?? "",
+          vatId: fresh.vatId ?? "",
+          email: fresh.email ?? "",
+          phone: fresh.phone ?? "",
+          address: {
+            street: address.street ?? "",
+            postalCode: address.postalCode ?? "",
+            city: address.city ?? "",
+            country: address.country ?? "Deutschland",
+          },
+          bankInfo: {
+            bankName: bankInfo.bankName ?? "",
+            iban: bankInfo.iban ?? "",
+            bic: bankInfo.bic ?? "",
+          },
+          settings: {
+            defaultCurrency: settings.defaultCurrency ?? "EUR",
+            defaultLanguage: settings.defaultLanguage ?? "de",
+          },
+          logoPath: fresh.logoPath ?? "",
+          invoicePrefix: fresh.invoicePrefix ?? "INV",
+          defaultPaymentDays: fresh.defaultPaymentDays ?? 30,
+        })
+      }
       alert(t("settings.saved"))
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : t("settings.saveError")
