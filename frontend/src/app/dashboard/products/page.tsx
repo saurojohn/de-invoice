@@ -266,22 +266,24 @@ export default function ProductsPage() {
       </header>
 
       <div className="container mx-auto px-4 py-8">
-        {!loading && (
-          <div className="mb-4">
-            <input
-              type="text"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              placeholder={t("product.searchPlaceholder") || "Name, SKU, Kategorie suchen..."}
-              className="w-full md:w-1/2 px-3 py-2 border border-gray-300 rounded-md text-sm"
-            />
-            {search && (
-              <p className="text-xs text-gray-500 mt-1">
-                {products.length} Treffer
-              </p>
-            )}
-          </div>
-        )}
+        {/* Search input lives OUTSIDE the !loading gate below — the
+            input must stay mounted (and keep focus / cursor position)
+            while a fetch is in flight, otherwise the user can't keep
+            typing once a search has been triggered. */}
+        <div className="mb-4">
+          <input
+            type="text"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder={t("product.searchPlaceholder") || "Name, SKU, Kategorie suchen..."}
+            className="w-full md:w-1/2 px-3 py-2 border border-gray-300 rounded-md text-sm"
+          />
+          {search && (
+            <p className="text-xs text-gray-500 mt-1">
+              {products.length} Treffer
+            </p>
+          )}
+        </div>
         {loading ? (
           <div className="text-center py-8">{t("common.loading")}</div>
         ) : products.length === 0 && !search ? (
