@@ -164,6 +164,13 @@ export default function InvoiceDetailPage() {
     return `${dd}.${mm}.${yyyy}`
   }
 
+  // Date-only compare (ignores time-of-day). Used to gate edit /
+  // hard-delete on "invoice was created today".
+  const isSameDayDE = (a: Date, b: Date) =>
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+
   const paymentMethodLabel = (m: string) => {
     const labels: Record<string, string> = {
       bank_transfer: "Überweisung",
@@ -330,14 +337,17 @@ export default function InvoiceDetailPage() {
     }
   }
 
+  // Hard delete. Only allowed on the issueDate (same-day rule on
+  // the backend). For past-date invoices the backend returns 403;
+  // we surface that to the user and direct them to "Stornieren"
+  // (status = cancelled) via the status dropdown instead.
   const deleteInvoice = async () => {
     if (!invoice) return
-    if (!confirm(`Rechnung ${invoice.invoiceNumber} wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.`)) return
+    if (!confirm(`Rechnung ${invoice.invoiceNumber} wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden. Bezahlungen und Positionen werden ebenfalls entfernt.`)) return
     setDeleting(true)
     try {
       const companyId = localStorage.getItem("companyId")
-      // Backend doesn't have DELETE — cancellation via PUT /:id/status with status=cancelled
-      await apiPut(`/api/v1/invoices/${invoice.id}/status?companyId=${companyId}`, { status: "cancelled" })
+      await apiDelete(`/api/v1/invoices/${invoice.id}?companyId=${companyId}`)
       router.push("/dashboard/invoices")
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : `Netzwerkfehler: ${err}`
@@ -346,6 +356,12 @@ export default function InvoiceDetailPage() {
       setDeleting(false)
     }
   }
+
+  // Same-day check: today == invoice.issueDate (date-only compare).
+  // Both edit and hard-delete require it.
+  const isToday = invoice
+    ? isSameDayDE(new Date(invoice.issueDate), new Date())
+    : false
 
   if (loading) return <div className="p-8 text-center">Laden...</div>
   if (!invoice) return <div className="p-8 text-center">Rechnung nicht gefunden</div>
@@ -391,14 +407,37 @@ export default function InvoiceDetailPage() {
               ZUGFeRD herunterladen
             </Button>
             <Button onClick={downloadPDF}>PDF herunterladen</Button>
-            <Button
-              variant="outline"
-              onClick={deleteInvoice}
-              disabled={deleting}
-              className="text-red-600 border-red-300 hover:bg-red-50"
-            >
-              {deleting ? "..." : "Löschen"}
-            </Button>
+            {/* Edit + Hard-delete are only allowed on the invoice's
+                issueDate. For past-date invoices the backend returns
+                403 — we hide the buttons and show a hint pointing
+                the user at "Stornieren" via the status dropdown. */}
+            {isToday && (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={() => router.push(`/dashboard/invoices/create?id=${invoice.id}`)}
+                  className="text-blue-600 border-blue-300 hover:bg-blue-50"
+                >
+                  Bearbeiten
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={deleteInvoice}
+                  disabled={deleting}
+                  className="text-red-600 border-red-300 hover:bg-red-50"
+                >
+                  {deleting ? "..." : "Löschen"}
+                </Button>
+              </>
+            )}
+            {!isToday && invoice && (
+              <span
+                className="text-xs text-gray-500"
+                title="Diese Rechnung ist eingefroren. Nur der Status kann noch geändert werden (Stornieren etc.)."
+              >
+                Eingefroren (Status änderbar)
+              </span>
+            )}
           </div>
         </div>
       </header>

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateInvoiceDto, UpdateInvoiceDto } from './dto/invoice.dto';
 
@@ -327,10 +327,146 @@ export class InvoiceService {
   }
 
   async update(id: string, companyId: string, dto: UpdateInvoiceDto) {
+    // Same-day edit rule. Once the calendar flips, the invoice is
+    // considered "frozen" — the user might have already sent the
+    // PDF / email to the customer, and a back-dated edit would
+    // silently mismatch the version in the customer's inbox. Only
+    // the issueDate-equals-today path is allowed.
+    const existing = await this.prisma.invoice.findFirst({
+      where: { id, companyId },
+    });
+    if (!existing) {
+      throw new NotFoundException('Rechnung nicht gefunden');
+    }
+    if (!this.isToday(existing.issueDate)) {
+      throw new ForbiddenException(
+        'Rechnung kann nur am Ausstellungstag bearbeitet werden. Ältere Rechnungen sind eingefroren — stattdessen eine Gutschrift (CN) erstellen.',
+      );
+    }
+
+    // Recompute totals from items if items were provided. The old
+    // items are wiped and replaced (no partial edit — keeps the
+    // math simple and matches the create flow).
+    let itemsData: any = undefined;
+    let totalsData: any = {};
+    if (dto.items && dto.items.length > 0) {
+      const type = existing.type as InvoiceType;
+      const isCN = type === 'CN';
+      const discountPercent = dto.discountPercent ?? Number(existing.discountPercent ?? 0);
+      const discountAmount = dto.discountAmount ?? Number(existing.discountAmount ?? 0);
+      const discountRatio =
+        discountPercent > 0
+          ? discountPercent / 100
+          : dto.items.reduce((s, i) => s + i.quantity * i.unitPrice, 0) > 0
+            ? discountAmount / dto.items.reduce((s, i) => s + i.quantity * i.unitPrice, 0)
+            : 0;
+      const subtotal = dto.items.reduce((s, i) => s + i.quantity * i.unitPrice, 0);
+      const totalVat = dto.items.reduce((s, i) => {
+        const net = i.quantity * i.unitPrice * (1 - discountRatio);
+        return s + net * (i.vatRate || 0.19);
+      }, 0);
+      const total = subtotal - discountAmount + totalVat;
+
+      itemsData = {
+        deleteMany: {},
+        create: dto.items.map((item, index) => ({
+          description: item.description,
+          productId: item.productId || null,
+          quantity: item.quantity,
+          unit: item.unit || 'Stück',
+          unitPrice: item.unitPrice,
+          vatRate: item.vatRate || 0.19,
+          netAmount: isCN ? -(item.quantity * item.unitPrice) : (item.quantity * item.unitPrice) * (1 - discountRatio),
+          vatAmount: isCN ? -(item.quantity * item.unitPrice * (item.vatRate || 0.19)) : (item.quantity * item.unitPrice * (1 - discountRatio)) * (item.vatRate || 0.19),
+          grossAmount: isCN
+            ? -(item.quantity * item.unitPrice * (1 + (item.vatRate || 0.19)))
+            : (item.quantity * item.unitPrice * (1 + (item.vatRate || 0.19))),
+          sortOrder: index,
+        })),
+      };
+      totalsData = {
+        subtotal: isCN ? -subtotal : subtotal,
+        totalVat: isCN ? -totalVat : totalVat,
+        total: isCN ? -total : total,
+        discountPercent: discountPercent || null,
+        discountAmount: discountAmount > 0 ? discountAmount : null,
+      };
+    }
+
     return this.prisma.invoice.update({
       where: { id },
-      data: dto,
-      include: { items: true },
+      data: {
+        // Issue date is the same-day anchor — never editable.
+        customerId: dto.customerId ?? undefined,
+        dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined,
+        notes: dto.notes ?? undefined,
+        currency: dto.currency ?? undefined,
+        language: dto.language ?? undefined,
+        templateType: dto.templateType ?? undefined,
+        paymentTerms: dto.paymentTerms ?? undefined,
+        paymentMethod: dto.paymentMethod ?? undefined,
+        discountPercent: dto.discountPercent ?? undefined,
+        discountAmount: dto.discountAmount ?? undefined,
+        ...totalsData,
+        ...(itemsData ? { items: itemsData } : {}),
+      },
+      include: { items: true, customer: true },
+    });
+  }
+
+  /**
+   * Returns true if the given date is today (local server time).
+   * Used by the same-day edit gate in update() and by the frontend
+   * "is the edit button visible" check — both compare against the
+   * invoice's own issueDate, not creation timestamp.
+   */
+  private isToday(d: Date | string | null): boolean {
+    if (!d) return false
+    const date = new Date(d)
+    if (isNaN(date.getTime())) return false
+    const now = new Date()
+    return (
+      date.getFullYear() === now.getFullYear() &&
+      date.getMonth() === now.getMonth() &&
+      date.getDate() === now.getDate()
+    )
+  }
+
+  /**
+   * Hard-delete an invoice + everything that hangs off it.
+   * - InvoiceItem: relation has onDelete:Cascade, auto-deleted.
+   * - Payment: no cascade in the schema (would need a migration),
+   *   so we delete them explicitly inside the same transaction so
+   *   the FK constraint on Payment.invoiceId doesn't block us.
+   * - EmailSend: no FK to invoice (just a free-form invoiceId string
+   *   for joining), so it survives — that's fine, it's an audit log.
+   * - Inventory: stock movements recorded against this invoice are
+   *   also not FK-cascaded, but they're audit records too and stay.
+   *   We could add a "revert inventory" step later if needed.
+   */
+  async delete(id: string, companyId: string) {
+    const existing = await this.prisma.invoice.findFirst({
+      where: { id, companyId },
+    });
+    if (!existing) {
+      throw new NotFoundException('Rechnung nicht gefunden');
+    }
+    // Same-day rule applies to delete too. After the calendar
+    // flips, the customer may have already received the PDF/email;
+    // a hard delete would silently wipe a record that exists in
+    // the customer's inbox. Use status='cancelled' for past-date
+    // removal of intent (the "soft delete" we had before).
+    if (!this.isToday(existing.issueDate)) {
+      throw new ForbiddenException(
+        'Rechnung kann nur am Ausstellungstag gelöscht werden. Für ältere Rechnungen den Status auf "Storniert" setzen.',
+      );
+    }
+    return this.prisma.$transaction(async (tx) => {
+      await tx.payment.deleteMany({ where: { invoiceId: id } });
+      // deleteMany items explicitly even though cascade exists —
+      // it's a no-op then, but future-proofs if cascade is removed.
+      await tx.invoiceItem.deleteMany({ where: { invoiceId: id } });
+      return tx.invoice.delete({ where: { id } });
     });
   }
 

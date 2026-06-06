@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
@@ -45,6 +45,9 @@ interface InvoiceItem {
 
 export default function CreateInvoicePage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const editId = searchParams.get("id") || null
+  const isEdit = !!editId
   const { t, locale, getDateLocale } = useI18n()
   const [customers, setCustomers] = useState<Customer[]>([])
   const [products, setProducts] = useState<Product[]>([])
@@ -75,12 +78,54 @@ export default function CreateInvoicePage() {
     items: [{ description: "", quantity: 1, unit: t("common2.unit"), unitPrice: 0, vatRate: 0.19 }] as InvoiceItem[],
   })
   const [loading, setLoading] = useState(false)
+  // Top-of-page error from the initial-load fetch (e.g. 403 when
+  // opening an old invoice in edit mode). Set here so we don't
+  // crash when the user lands on /create?id=<old> directly.
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   useEffect(() => {
     const companyId = localStorage.getItem("companyId")
     if (!companyId) {
       router.push("/login")
       return
+    }
+
+    // If we're in edit mode, prefill the form from the existing
+    // invoice BEFORE the dropdown fetch effect. Without this the
+    // page would render a blank create form and then suddenly
+    // populate once the edit fetch resolves, which flashes the
+    // wrong state.
+    if (editId) {
+      apiGet<any>(`/api/v1/invoices/${editId}?companyId=${companyId}`)
+        .then((inv) => {
+          if (!inv || !inv.id) return
+          setInvoiceType(inv.type || 'INV')
+          setTemplateType(inv.templateType || 'standard')
+          setForm({
+            customerId: inv.customerId || '',
+            referenceInvoiceId: inv.referenceInvoiceId || '',
+            issueDate: inv.issueDate ? String(inv.issueDate).slice(0, 10) : new Date().toISOString().slice(0, 10),
+            notes: inv.notes || '',
+            discountPercent: Number(inv.discountPercent || 0),
+            discountAmount: Number(inv.discountAmount || 0),
+            paymentMethod: inv.paymentMethod || 'bank_transfer',
+            paymentTerms: inv.paymentTerms ?? 0,
+            language: inv.language || getDateLocale(),
+            items: (inv.items || []).map((it: any) => ({
+              description: it.description || '',
+              quantity: Number(it.quantity || 1),
+              unit: it.unit || t("common2.unit"),
+              unitPrice: Number(it.unitPrice || 0),
+              vatRate: Number(it.vatRate ?? 0.19),
+            })),
+          })
+        })
+        .catch((err) => {
+          // 403 = not same day (or wrong permissions). Show the
+          // error inline rather than silently redirecting.
+          const msg = err instanceof ApiError ? err.message : 'Rechnung konnte nicht geladen werden.'
+          setLoadError(msg)
+        })
     }
 
     Promise.all([
@@ -229,12 +274,25 @@ export default function CreateInvoicePage() {
 
     try {
       const companyId = localStorage.getItem("companyId") || "7de697d5-64a2-4632-9a87-d18b4e2a0214"
-      await apiPost(`/api/v1/invoices?companyId=${companyId}`, {
-        ...form,
-        type: invoiceType,
-        templateType,
-      })
-      router.push("/dashboard/invoices")
+      if (isEdit && editId) {
+        // Edit mode: PUT replaces items wholesale and recomputes
+        // totals. The service enforces same-day on the existing
+        // invoice; if you landed here with a stale link the 403
+        // will be surfaced in the alert below.
+        await apiPut(`/api/v1/invoices/${editId}?companyId=${companyId}`, {
+          ...form,
+          type: invoiceType,
+          templateType,
+        })
+        router.push(`/dashboard/invoices/${editId}`)
+      } else {
+        await apiPost(`/api/v1/invoices?companyId=${companyId}`, {
+          ...form,
+          type: invoiceType,
+          templateType,
+        })
+        router.push("/dashboard/invoices")
+      }
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : `Netzwerkfehler: ${err}`
       alert(msg)
@@ -247,7 +305,9 @@ export default function CreateInvoicePage() {
     <main className="min-h-screen bg-gray-50">
       <header className="bg-white border-b shadow-sm">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-blue-600">{t("invoice.create")}</h1>
+          <h1 className="text-2xl font-bold text-blue-600">
+            {isEdit ? (t("invoice.edit") || "Rechnung bearbeiten") : t("invoice.create")}
+          </h1>
           <div className="flex items-center gap-2">
             <LanguageSwitcher />
             <Button variant="outline" onClick={() => router.push("/dashboard/invoices")}>{t("common.cancel")}</Button>
@@ -256,6 +316,21 @@ export default function CreateInvoicePage() {
       </header>
 
       <div className="container mx-auto px-4 py-8 max-w-4xl">
+        {/* Load error (e.g. opening an old invoice for edit). The
+            form is still rendered below so the user can read
+            what's there and back out via "Abbrechen". */}
+        {loadError && (
+          <div className="mb-4 bg-red-50 border border-red-200 text-red-800 text-sm rounded-lg px-4 py-2">
+            ⚠ {loadError}{" "}
+            <button
+              type="button"
+              onClick={() => router.push("/dashboard/invoices")}
+              className="ml-2 underline"
+            >
+              {t("common.back") || "Zurück zur Liste"}
+            </button>
+          </div>
+        )}
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Basic Info Card */}
           <Card>
@@ -691,8 +766,12 @@ export default function CreateInvoicePage() {
 
           {/* Submit */}
           <div className="flex gap-4">
-            <Button type="submit" className="flex-1" disabled={loading}>
-              {loading ? (t("common2.creating")) : t("invoice.createInvoice")}
+            <Button type="submit" className="flex-1" disabled={loading || !!loadError}>
+              {loading
+                ? (t("common2.saving") || "Wird gespeichert...")
+                : isEdit
+                  ? (t("invoice.saveChanges") || "Änderungen speichern")
+                  : t("invoice.createInvoice")}
             </Button>
           </div>
         </form>

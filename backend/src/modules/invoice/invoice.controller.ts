@@ -432,6 +432,26 @@ export class InvoiceController {
     return this.invoiceService.update(id, companyId, dto);
   }
 
+  // Hard delete: invoice + items + payments, all inside a transaction.
+  // Only invoices from the SAME day are deletable — past-day invoices
+  // are considered "frozen" because the customer may already have
+  // received the PDF / email; a same-day delete is treated as a typo
+  // correction (the user hadn't sent it out yet).
+  // The earlier pseudo-delete (status='cancelled') is kept as a
+  // soft-cancel option via PUT /:id/status; this is the real one.
+  @Delete(':id')
+  @Require('invoice.delete')
+  async delete(
+    @Param('id') id: string,
+    @Query('companyId') companyId: string,
+  ) {
+    if (!companyId) {
+      return { error: 'companyId ist erforderlich' }
+    }
+    const result = await this.invoiceService.delete(id, companyId)
+    return { success: true, deleted: result }
+  }
+
   @Put(':id/status')
   @Require('invoice.update')
   async updateStatus(
