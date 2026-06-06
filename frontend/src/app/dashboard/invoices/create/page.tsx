@@ -386,8 +386,7 @@ export default function CreateInvoicePage() {
                     value={form.paymentTerms}
                     onChange={(e) => setForm({ ...form, paymentTerms: Number(e.target.value) })}
                   >
-                    <option value={-1}>{t("paymentTerm.immediate")}</option>
-                    <option value={0}>{t("paymentTerm.none")}</option>
+                    <option value={0}>{t("paymentTerm.immediate")}</option>
                     <option value={7}>{t("paymentTerm.days7")}</option>
                     <option value={14}>{t("paymentTerm.days14")}</option>
                     <option value={30}>{t("paymentTerm.days30")}</option>
