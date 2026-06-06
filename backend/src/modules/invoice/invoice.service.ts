@@ -255,6 +255,13 @@ export class InvoiceService {
         items: {
           create: dto.items?.map((item, index) => ({
             description: item.description,
+            // productId is optional on the DTO (manual line items may
+            // not have a product reference) but when the frontend
+            // picks a product from the dropdown we MUST persist it.
+            // Otherwise the product's usage history is lost and we
+            // can't refuse to delete a product that's still on past
+            // invoices.
+            productId: item.productId || null,
             quantity: item.quantity,
             unit: item.unit || 'Stück',
             unitPrice: item.unitPrice,

@@ -121,6 +121,9 @@ const messages = {
       taxExempt: "Steuerbefreit",
       lastInvoice: "Letzte Rechnung",
       invoiceCountHint: "Rechnungen insgesamt",
+      statusActive: "Aktiv",
+      statusInactive: "Inaktiv",
+      inactiveHint: "Letzte Rechnung älter als 90 Tage oder nie beauftragt",
       noCustomers: "Keine Kunden vorhanden",
       addFirst: "Ersten Kunden hinzufügen",
       country: "Land",
@@ -142,6 +145,7 @@ const messages = {
       typeService: "Dienstleistung",
       basePrice: "Grundpreis",
       vatRate: "MwSt-Satz",
+      description: "Beschreibung",
       noProducts: "Keine Produkte vorhanden",
       addFirst: "Erstes Produkt hinzufügen",
       searchPlaceholder: "Name, SKU, Kategorie suchen...",
@@ -532,7 +536,8 @@ const messages = {
       summary: "Zusammenfassung",
       additionalNotes: "Zusätzliche Hinweise...",
       creating: "Erstelle Rechnung...",
-      productUnit: "Stück"
+      productUnit: "Stück",
+      exportCsv: "CSV"
     }
   },
   en: {
@@ -653,6 +658,9 @@ const messages = {
       taxExempt: "Tax Exempt",
       lastInvoice: "Last Invoice",
       invoiceCountHint: "total invoices",
+      statusActive: "Active",
+      statusInactive: "Inactive",
+      inactiveHint: "No invoice in the last 90 days (or never invoiced)",
       noCustomers: "No customers found",
       addFirst: "Add your first customer",
       country: "Country",
@@ -674,6 +682,7 @@ const messages = {
       typeService: "Service",
       basePrice: "Base Price",
       vatRate: "VAT Rate",
+      description: "Description",
       noProducts: "No products found",
       addFirst: "Add your first product",
       searchPlaceholder: "Search by name, SKU, category...",
@@ -1064,7 +1073,8 @@ const messages = {
       summary: "Summary",
       additionalNotes: "Additional notes...",
       creating: "Creating invoice...",
-      productUnit: "Piece"
+      productUnit: "Piece",
+      exportCsv: "CSV"
     }
   },
   zh: {
@@ -1185,6 +1195,9 @@ const messages = {
       taxExempt: "免税",
       lastInvoice: "最后发票",
       invoiceCountHint: "发票总数",
+      statusActive: "活跃",
+      statusInactive: "不活跃",
+      inactiveHint: "90天内无发票(或从未开过票)",
       noCustomers: "暂无客户",
       addFirst: "添加第一个客户",
       country: "国家",
@@ -1206,6 +1219,7 @@ const messages = {
       typeService: "服务",
       basePrice: "基础价格",
       vatRate: "税率",
+      description: "描述",
       noProducts: "暂无商品",
       addFirst: "添加第一个商品",
       searchPlaceholder: "按名称、SKU、分类搜索...",
@@ -1596,7 +1610,8 @@ const messages = {
       summary: "汇总",
       additionalNotes: "附加说明...",
       creating: "创建中...",
-      productUnit: "件"
+      productUnit: "件",
+      exportCsv: "CSV"
     }
   }
 }

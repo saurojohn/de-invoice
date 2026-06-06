@@ -21,9 +21,12 @@ interface Customer {
   paymentTerms: number
   createdAt: string
   // Backend-augmented fields: the most recent issueDate from any
-  // invoice for this customer, plus the total invoice count.
+  // invoice for this customer, plus the total invoice count, plus
+  // a derived `isActive` flag (true when the most recent invoice
+  // is younger than 90 days).
   lastInvoiceDate?: string | null
   invoiceCount?: number
+  isActive?: boolean
 }
 
 export default function CustomersPage() {
@@ -479,9 +482,23 @@ export default function CustomersPage() {
                   🗑
                 </button>
                 <CardHeader>
-                  <CardTitle className="flex justify-between items-center pr-6">
-                    <span>{customer.name}</span>
-                    <span className="text-xs px-2 py-1 bg-gray-100 rounded">{getTypeLabel(customer.type)}</span>
+                  <CardTitle className="flex justify-between items-center pr-6 gap-2">
+                    <span className="truncate">{customer.name}</span>
+                    <div className="flex gap-1 shrink-0">
+                      <span
+                        className={`text-[10px] px-2 py-1 rounded font-medium ${
+                          customer.isActive
+                            ? "bg-emerald-100 text-emerald-700"
+                            : "bg-gray-100 text-gray-500"
+                        }`}
+                        title={t("customer.inactiveHint") || (customer.isActive ? "" : "Inaktiv")}
+                      >
+                        {customer.isActive
+                          ? (t("customer.statusActive") || "Aktiv")
+                          : (t("customer.statusInactive") || "Inaktiv")}
+                      </span>
+                      <span className="text-xs px-2 py-1 bg-gray-100 rounded">{getTypeLabel(customer.type)}</span>
+                    </div>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>

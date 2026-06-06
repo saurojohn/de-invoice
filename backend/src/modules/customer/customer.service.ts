@@ -29,6 +29,15 @@ export class CustomerService {
 
   /**
    * Paginated list. Returns `{ data, total, page, pageSize, totalPages }`.
+   *
+   * Each customer in `data` is enriched with:
+   *   - `lastInvoiceDate` — most recent `issueDate` from any invoice
+   *   - `invoiceCount`    — total number of invoices
+   *   - `isActive`        — derived boolean: false when the customer
+   *                         hasn't received an invoice in the last
+   *                         90 days (or never), true otherwise. Lets
+   *                         the UI show an "inactive" badge without
+   *                         a second round-trip.
    */
   async findAll(
     companyId: string,
@@ -40,10 +49,16 @@ export class CustomerService {
     const where: any = { companyId }
     if (opts.search && opts.search.trim()) {
       const q = opts.search.trim()
+      // The UI search box advertises "Name, USt-ID, Stadt, PLZ"
+      // so we actually have to look at all four. Postgres JSON
+      // path queries (string_contains) are case-sensitive — for
+      // postal code that doesn't matter, for city we coerce the
+      // search term to lower before matching.
       where.OR = [
         { name: { contains: q, mode: 'insensitive' } },
         { vatId: { contains: q, mode: 'insensitive' } },
         { address: { path: ['city'], string_contains: q } },
+        { address: { path: ['postalCode'], string_contains: q } },
       ]
     }
     const [data, total] = await Promise.all([
@@ -81,11 +96,26 @@ export class CustomerService {
         ]),
       )
     }
-    const enriched = data.map((c: any) => ({
-      ...c,
-      lastInvoiceDate: lastInvoiceByCustomer[c.id]?.lastInvoiceDate || null,
-      invoiceCount: lastInvoiceByCustomer[c.id]?.invoiceCount || 0,
-    }))
+
+    // "Active" = has at least one invoice AND the most recent one
+    // is younger than 90 days. Everything else is inactive (never
+    // invoiced, or stale).
+    const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000
+    const now = Date.now()
+    const enriched = data.map((c: any) => {
+      const lastDate = lastInvoiceByCustomer[c.id]?.lastInvoiceDate || null
+      const count = lastInvoiceByCustomer[c.id]?.invoiceCount || 0
+      const isActive =
+        count > 0 && lastDate
+          ? now - new Date(lastDate).getTime() < NINETY_DAYS_MS
+          : false
+      return {
+        ...c,
+        lastInvoiceDate: lastDate,
+        invoiceCount: count,
+        isActive,
+      }
+    })
 
     return {
       data: enriched,

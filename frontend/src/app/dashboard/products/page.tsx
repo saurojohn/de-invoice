@@ -9,6 +9,7 @@ import { ExportCSVButton } from "@/components/ExportCSVButton"
 import { Switch } from "@/components/ui/switch"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
+import { apiGet, apiPost, apiPut, apiDelete, ApiError } from "@/lib/api"
 
 interface Product {
   id: string
@@ -18,7 +19,8 @@ interface Product {
   unit: string
   basePrice: string
   vatRate: string
-  category?: { name: string }
+  description?: string | null
+  category?: { name: string } | null
   active: boolean
   stockQuantity?: string
   lowStockThreshold?: string
@@ -39,6 +41,12 @@ export default function ProductsPage() {
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
 
+  // Save / error state for the modal
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [saveSuccess, setSaveSuccess] = useState<string | null>(null)
+
+  // Re-fetch whenever page or debounced search changes.
   useEffect(() => {
     const companyId = localStorage.getItem("companyId")
     if (!companyId) { router.push("/login"); return }
@@ -49,12 +57,17 @@ export default function ProductsPage() {
     })
     if (search.trim()) params.append('search', search.trim())
     setLoading(true)
-    fetch(`http://localhost:3001/api/v1/products?${params}`)
-      .then((r) => r.json())
+    apiGet<any>(`/api/v1/products?${params}`)
       .then((data) => {
         setProducts(data.data || [])
         setTotal(data.total || 0)
         setTotalPages(data.totalPages || 1)
+      })
+      .catch((err) => {
+        console.error('Products list fetch failed:', err)
+        setProducts([])
+        setTotal(0)
+        setTotalPages(1)
       })
       .finally(() => setLoading(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -76,22 +89,14 @@ export default function ProductsPage() {
     unit: "Stück",
     basePrice: "",
     vatRate: "0.19",
+    description: "",
     stockQuantity: "0",
     lowStockThreshold: "",
     trackInventory: false,
   })
 
-  useEffect(() => {
-    const companyId = localStorage.getItem("companyId")
-    if (!companyId) {
-      router.push("/login")
-      return
-    }
-
-    // (Old plain fetch removed — handled by the paginated useEffect above)
-  }, [router])
-
   const openModal = (product?: Product) => {
+    setSaveError(null)
     if (product) {
       setEditingProduct(product)
       setForm({
@@ -101,6 +106,7 @@ export default function ProductsPage() {
         unit: product.unit,
         basePrice: product.basePrice,
         vatRate: product.vatRate,
+        description: product.description || "",
         stockQuantity: product.stockQuantity || "0",
         lowStockThreshold: product.lowStockThreshold || "",
         trackInventory: product.trackInventory || false,
@@ -114,6 +120,7 @@ export default function ProductsPage() {
         unit: "Stück",
         basePrice: "",
         vatRate: "0.19",
+        description: "",
         stockQuantity: "0",
         lowStockThreshold: "",
         trackInventory: false,
@@ -122,39 +129,101 @@ export default function ProductsPage() {
     setShowModal(true)
   }
 
+  /**
+   * Reload the list (page 1, no search) — used after every mutation
+   * so the user sees the new state immediately.
+   */
+  const reload = async () => {
+    const companyId = localStorage.getItem("companyId")
+    if (!companyId) return
+    const params = new URLSearchParams({
+      companyId,
+      page: "1",
+      pageSize: String(pageSize),
+    })
+    try {
+      const d = await apiGet<any>(`/api/v1/products?${params}`)
+      setProducts(d.data || [])
+      setTotal(d.total || 0)
+      setTotalPages(d.totalPages || 1)
+      setPage(1)
+    } catch (err) {
+      console.error('Products reload failed:', err)
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    const companyId = localStorage.getItem("companyId")!
+    const companyId = localStorage.getItem("companyId")
+    if (!companyId) {
+      setSaveError("Kein Unternehmen ausgewählt")
+      return
+    }
+    setSaving(true)
+    setSaveError(null)
+    setSaveSuccess(null)
+
     const data = {
       name: form.name,
       sku: form.sku || null,
       type: form.type,
       unit: form.unit,
-      basePrice: parseFloat(form.basePrice),
-      vatRate: parseFloat(form.vatRate),
+      basePrice: parseFloat(form.basePrice) || 0,
+      vatRate: parseFloat(form.vatRate) || 0,
+      description: form.description || null,
       stockQuantity: parseFloat(form.stockQuantity) || 0,
       lowStockThreshold: form.lowStockThreshold ? parseFloat(form.lowStockThreshold) : null,
       trackInventory: form.trackInventory,
     }
 
-    if (editingProduct) {
-      await fetch(`http://localhost:3001/api/v1/products/${editingProduct.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      })
-    } else {
-      await fetch(`http://localhost:3001/api/v1/products?companyId=${companyId}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      })
+    try {
+      if (editingProduct) {
+        await apiPut(`/api/v1/products/${editingProduct.id}?companyId=${companyId}`, data)
+        setSaveSuccess(t("common.save") + " ✓")
+      } else {
+        await apiPost(`/api/v1/products?companyId=${companyId}`, data)
+        setSaveSuccess(t("common.create") + " ✓")
+      }
+      setShowModal(false)
+      setSearch("")
+      setSearchInput("")
+      await reload()
+      setTimeout(() => setSaveSuccess(null), 3000)
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setSaveError(err.message)
+      } else {
+        setSaveError(`Netzwerkfehler: ${err}`)
+      }
+    } finally {
+      setSaving(false)
     }
+  }
 
-    const res = await fetch(`http://localhost:3001/api/v1/products?companyId=${companyId}`)
-    const updated = await res.json()
-    setProducts(updated)
-    setShowModal(false)
+  const handleDelete = async (product: Product) => {
+    const companyId = localStorage.getItem("companyId")
+    if (!companyId) return
+    if (!confirm(`${t("common.delete")} — ${product.name}?`)) return
+    try {
+      const result = await apiDelete<{ ok?: boolean; soft?: boolean; usedInInvoices?: number }>(
+        `/api/v1/products/${product.id}?companyId=${companyId}`
+      )
+      // Soft-deleted products disappear from the list (the API only
+      // returns active=true), so just refetch. Show a hint if the
+      // backend soft-archived it because of historical references.
+      if (result?.soft) {
+        alert(
+          `Produkt wird in ${result.usedInInvoices} Rechnung(en) verwendet und wurde archiviert (nicht endgültig gelöscht).`
+        )
+      }
+      await reload()
+    } catch (err) {
+      if (err instanceof ApiError) {
+        alert(err.message)
+      } else {
+        alert(`Netzwerkfehler: ${err}`)
+      }
+    }
   }
 
   const getVatLabel = (rate: string) => {
@@ -183,7 +252,7 @@ export default function ProductsPage() {
                 { header: "Artikelnummer", accessor: (p) => p.sku || "" },
                 { header: "Name", accessor: (p) => p.name },
                 { header: "Typ", accessor: (p) => p.type },
-                { header: "Kategorie", accessor: (p) => p.category || "" },
+                { header: "Kategorie", accessor: (p) => p.category?.name || "" },
                 { header: "Einheit", accessor: (p) => p.unit || "" },
                 { header: "Grundpreis", accessor: (p) => p.basePrice },
                 { header: "MwSt-Satz", accessor: (p) => p.vatRate },
@@ -215,7 +284,8 @@ export default function ProductsPage() {
         )}
         {loading ? (
           <div className="text-center py-8">{t("common.loading")}</div>
-        ) : products.length === 0 ? (
+        ) : products.length === 0 && !search ? (
+          // Empty state — no products AND no search active
           <Card>
             <CardContent className="text-center py-12">
               <p className="text-gray-500 mb-4">{t("product.noProducts")}</p>
@@ -223,6 +293,7 @@ export default function ProductsPage() {
             </CardContent>
           </Card>
         ) : products.length === 0 ? (
+          // Empty state — search yielded no results
           <Card>
             <CardContent className="text-center py-12">
               <p className="text-gray-500 mb-4">{t("product.noMatching") || "Keine Produkte entsprechen der Suche."}</p>
@@ -249,9 +320,14 @@ export default function ProductsPage() {
               </thead>
               <tbody className="divide-y">
                 {products.map((product) => (
-                  <tr key={product.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => openModal(product)}>
+                  <tr key={product.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3">{product.sku || "-"}</td>
-                    <td className="px-4 py-3 font-medium">{product.name}</td>
+                    <td
+                      className="px-4 py-3 font-medium cursor-pointer"
+                      onClick={() => openModal(product)}
+                    >
+                      {product.name}
+                    </td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-1 rounded text-xs ${product.type === "good" ? "bg-blue-100 text-blue-700" : "bg-purple-100 text-purple-700"}`}>
                         {getTypeLabel(product.type)}
@@ -277,7 +353,24 @@ export default function ProductsPage() {
                       )}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <Button size="sm" variant="ghost">{t("common.edit")}</Button>
+                      <div className="flex justify-end gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => openModal(product)}
+                        >
+                          {t("common.edit")}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-red-600 hover:text-red-800 hover:bg-red-50"
+                          onClick={() => handleDelete(product)}
+                          title={t("common.delete") || "Löschen"}
+                        >
+                          🗑
+                        </Button>
+                      </div>
                     </td>
                    </tr>
                  ))}
@@ -311,6 +404,13 @@ export default function ProductsPage() {
              </div>
            </div>
          )}
+
+         {/* Page-level success toast — appears after a successful create/update */}
+         {saveSuccess && (
+           <div className="fixed bottom-6 right-6 bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded-lg shadow-lg z-50">
+             ✓ {saveSuccess}
+           </div>
+         )}
        </div>
 
       {/* Modal */}
@@ -329,6 +429,14 @@ export default function ProductsPage() {
                     onChange={(e) => setForm({ ...form, name: e.target.value })}
                     placeholder="z.B. Beratungsleistung"
                     required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">{t("product.description") || "Beschreibung"}</label>
+                  <Input
+                    value={form.description}
+                    onChange={(e) => setForm({ ...form, description: e.target.value })}
+                    placeholder="Optional"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -426,12 +534,31 @@ export default function ProductsPage() {
                   )}
                 </div>
 
+                {/* Inline error feedback inside the modal */}
+                {saveError && (
+                  <div
+                    className="bg-red-50 border border-red-200 text-red-800 px-3 py-2 rounded text-sm"
+                    role="alert"
+                  >
+                    ⚠ {saveError}
+                  </div>
+                )}
+
                 <div className="flex gap-4 pt-4">
-                  <Button type="button" variant="outline" className="flex-1" onClick={() => setShowModal(false)}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => {
+                      setShowModal(false)
+                      setSaveError(null)
+                    }}
+                    disabled={saving}
+                  >
                     {t("common.cancel")}
                   </Button>
-                  <Button type="submit" className="flex-1">
-                    {editingProduct ? t("common.save") : t("common.create")}
+                  <Button type="submit" className="flex-1" disabled={saving}>
+                    {saving ? "…" : (editingProduct ? t("common.save") : t("common.create"))}
                   </Button>
                 </div>
               </form>
