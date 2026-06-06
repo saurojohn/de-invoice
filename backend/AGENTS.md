@@ -86,3 +86,18 @@ When working with `backend/src/invoices/invoice-pdf.service.ts`:
 - Symptom of this bug: a logged-in user gets random 429 "ThrottlerException:
   Too Many Requests" on normal navigation, and the list pages show empty
   because frontend treats 429 like a generic error.
+
+## HeaderAuthGuard — DENY by default, NEVER return true on failure — discovered 2026-06-06
+- The guard at `backend/src/auth/header-auth.guard.ts` MUST be DENY-default.
+  Every failure path (no header / unknown user / cross-tenant / inactive /
+  DB exception) must throw `UnauthorizedException`. A `return true` on
+  any failure path is a CRITICAL security bug — it lets an attacker
+  with a single valid `x-user-id` UUID dump the entire company, or
+  read cross-tenant data.
+- The original implementation had 5 `return true` paths that should
+  have been `return false` (or throws). It allowed `GET /customers`
+  with ONLY `x-user-id` (no `x-company-id`) to return 200, exposing
+  the full customer list. Fixed in commit 5765821.
+- When modifying or copy-pasting this guard, keep the symmetry:
+  every `if` that finds a problem throws — no early `return true` on
+  failure. The "happy path" is the only `return true`.
