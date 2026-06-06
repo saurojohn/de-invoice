@@ -1,12 +1,13 @@
 "use client"
 
-import { useEffect, useState, useRef } from "react"
+import { useEffect, useState, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
+import { apiGet, apiPost, apiDelete, ApiError } from "@/lib/api"
 
 interface StorageSettings {
   localPath: string
@@ -68,7 +69,7 @@ interface CompanySettings {
 
 export default function SettingsPage() {
   const router = useRouter()
-  const { t, locale } = useI18n()
+  const { t, locale, getDateLocale } = useI18n()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [companyId, setCompanyId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -80,6 +81,8 @@ export default function SettingsPage() {
   const [storedFiles, setStoredFiles] = useState<StoredFile[]>([])
   const [storageSaving, setStorageSaving] = useState(false)
   const [storageSavedMsg, setStorageSavedMsg] = useState<string | null>(null)
+  const [storageError, setStorageError] = useState<string | null>(null)
+  const [storageLoading, setStorageLoading] = useState(false)
 
   const [form, setForm] = useState<CompanySettings>({
     name: "",
@@ -196,9 +199,9 @@ export default function SettingsPage() {
         })
     })
 
-    // Fetch storage config
-    fetch("http://localhost:3001/api/v1/storage/config")
-      .then((r) => r.json())
+    // Fetch storage config (read by every authenticated user — no
+    // @Require('company.update') on /storage/config GET)
+    apiGet<any>("/api/v1/storage/config")
       .then((config) => {
         setStorageForm({
           localPath: config.localPath || "",
@@ -206,29 +209,56 @@ export default function SettingsPage() {
           cloudProvider: config.cloudProvider || "local",
         })
       })
-      .catch(() => {})
+      .catch((err) => {
+        // 403/404 are common here if the user is on a role that
+        // can't see storage config; surface the message so the user
+        // isn't left wondering why the form is empty.
+        const msg = err instanceof ApiError ? err.message : "Konfiguration konnte nicht geladen werden."
+        setStorageError(msg)
+      })
 
-    // Fetch storage stats + health + file list
+    // Fetch storage stats + health + file list. All three go through
+    // apiGet/apiPost/etc so the x-user-id/x-company-id headers are
+    // injected automatically — raw fetch() was the bug that made
+    // every storage call return 401.
     if (storedCompanyId) {
-      Promise.all([
-        fetch(`http://localhost:3001/api/v1/storage/stats?companyId=${storedCompanyId}`).then(r => r.json()),
-        fetch(`http://localhost:3001/api/v1/storage/health`).then(r => r.json()),
-        fetch(`http://localhost:3001/api/v1/storage/list?companyId=${storedCompanyId}`).then(r => r.json()),
-      ]).then(([stats, health, files]) => {
-        setStorageStats(stats)
-        setStorageHealth(health)
-        setStoredFiles(Array.isArray(files) ? files : [])
-      }).catch(() => {})
-
-      // Fetch mail config
-      fetch(`http://localhost:3001/api/v1/mail/config?companyId=${storedCompanyId}`)
-        .then((r) => r.json())
-        .then((cfg) => {
-          if (cfg) setMailForm((f) => ({ ...f, ...cfg }))
-        })
-        .catch(() => {})
+      refetchStorage(storedCompanyId)
     }
+
+    // Fetch mail config
+    apiGet<any>(`/api/v1/mail/config?companyId=${storedCompanyId}`)
+      .then((cfg) => {
+        if (cfg) setMailForm((f) => ({ ...f, ...cfg }))
+      })
+      .catch(() => {})
   }, [router])
+
+  // Re-load stats / health / file list. Used both on first mount
+  // and after a successful save (so the new localPath shows up
+  // immediately without a manual refresh).
+  const refetchStorage = useCallback(async (cid: string) => {
+    setStorageLoading(true)
+    setStorageError(null)
+    try {
+      const [stats, health, files] = await Promise.all([
+        apiGet<StorageStats>(`/api/v1/storage/stats?companyId=${cid}`),
+        apiGet<StorageHealth>(`/api/v1/storage/health`),
+        apiGet<StoredFile[]>(`/api/v1/storage/list?companyId=${cid}`),
+      ])
+      setStorageStats(stats)
+      setStorageHealth(health)
+      setStoredFiles(Array.isArray(files) ? files : [])
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : "Speicherstatistik konnte nicht geladen werden."
+      setStorageError(msg)
+      // Clear stale data so the user doesn't act on numbers from a
+      // previous successful load.
+      setStorageStats(null)
+      setStoredFiles([])
+    } finally {
+      setStorageLoading(false)
+    }
+  }, [])
 
   const saveMailConfig = async () => {
     if (!companyId) return
@@ -354,34 +384,28 @@ export default function SettingsPage() {
 
   const deleteFile = async (f: StoredFile) => {
     if (!confirm(t("storage.fileDeleteConfirm"))) return
+    const cid = localStorage.getItem("companyId")
+    if (!cid) return
     try {
-      const companyId = localStorage.getItem("companyId")
-      const userId = localStorage.getItem("userId")
-      const res = await fetch(
-        `http://localhost:3001/api/v1/storage/files/${encodeURIComponent(f.path.replace(/\//g, ","))}?companyId=${companyId}`,
-        {
-          method: "DELETE",
-          headers: {
-            "x-user-id": userId || "",
-            "x-company-id": companyId || "",
-          },
-        }
-      )
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        alert(data.message || "Löschen fehlgeschlagen")
-        return
-      }
+      // The backend's *splat route expects the path segments joined
+      // by commas (see controller's `.replace(/,/g, '/')`), but our
+      // f.path uses real slashes. Convert here, then pass the raw
+      // string — apiFetch will URL-encode the slashes for us so the
+      // server receives the comma-joined path intact.
+      const splatPath = f.path.replace(/\//g, ",")
+      await apiDelete(`/api/v1/storage/files/${splatPath}`)
       setStoredFiles((prev) => prev.filter((x) => x.path !== f.path))
-      // Refresh stats too
-      if (companyId) {
-        const stats = await fetch(
-          `http://localhost:3001/api/v1/storage/stats?companyId=${companyId}`
-        ).then((r) => r.json())
+      // Refresh stats so the deleted file's size disappears from
+      // the totals immediately.
+      try {
+        const stats = await apiGet<StorageStats>(`/api/v1/storage/stats?companyId=${cid}`)
         setStorageStats(stats)
+      } catch {
+        // non-fatal
       }
     } catch (err) {
-      alert(`Netzwerkfehler: ${err}`)
+      const msg = err instanceof ApiError ? err.message : "Löschen fehlgeschlagen"
+      alert(msg)
     }
   }
 
@@ -720,6 +744,22 @@ export default function SettingsPage() {
               <CardTitle>{t("storage.title")}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Top-level error banner (load failures, etc.) — shown
+                  above the health banner so the user always sees
+                  what's wrong. */}
+              {storageError && !storageLoading && (
+                <div className="bg-red-50 border border-red-200 text-red-800 text-sm rounded-lg px-4 py-2">
+                  ⚠ {storageError}{" "}
+                  <button
+                    type="button"
+                    onClick={() => companyId && refetchStorage(companyId)}
+                    className="ml-2 underline"
+                  >
+                    {t("common.retry") || "Erneut versuchen"}
+                  </button>
+                </div>
+              )}
+
               {/* Health status banner */}
               {storageHealth && (
                 <div
@@ -879,36 +919,30 @@ export default function SettingsPage() {
                 {storageSavedMsg && (
                   <span className="text-sm text-emerald-700">✓ {storageSavedMsg}</span>
                 )}
+                {storageError && (
+                  <span className="text-sm text-red-700">⚠ {storageError}</span>
+                )}
                 <Button
                   type="button"
                   variant="outline"
                   disabled={storageSaving}
                   onClick={async () => {
-                    const companyId = localStorage.getItem("companyId")
-                    const userId = localStorage.getItem("userId")
+                    const cid = localStorage.getItem("companyId")
+                    if (!cid) return
                     setStorageSaving(true)
                     setStorageSavedMsg(null)
+                    setStorageError(null)
                     try {
-                      const res = await fetch(
-                        `http://localhost:3001/api/v1/storage/config`,
-                        {
-                          method: "POST",
-                          headers: {
-                            "Content-Type": "application/json",
-                            "x-user-id": userId || "",
-                            "x-company-id": companyId || "",
-                          },
-                          body: JSON.stringify(storageForm),
-                        }
-                      )
-                      if (!res.ok) {
-                        const data = await res.json().catch(() => ({}))
-                        alert(data.message || "Speichern fehlgeschlagen")
-                        return
-                      }
+                      await apiPost("/api/v1/storage/config", storageForm)
                       setStorageSavedMsg(t("storage.saveSuccess"))
-                    } catch {
-                      alert("Netzwerkfehler")
+                      // After saving, the new localPath takes effect
+                      // immediately for new uploads but stats/files
+                      // are still served from the old path. Refresh
+                      // everything so the UI matches reality.
+                      await refetchStorage(cid)
+                    } catch (err) {
+                      const msg = err instanceof ApiError ? err.message : "Speichern fehlgeschlagen"
+                      setStorageError(msg)
                     } finally {
                       setStorageSaving(false)
                     }

@@ -195,7 +195,21 @@ export class StorageService {
   }
 
   /**
-   * Get storage statistics for a company
+   * Get storage statistics for a company.
+   *
+   * Scans the year/month/type tree and ONLY counts files inside the
+   * caller's company directory. The previous implementation scanned
+   * the whole base dir and summed every file in every company, which
+   * was a multi-tenant leak — Company A would see Company B's storage
+   * usage in the dashboard.
+   *
+   * The directory layout is {year}/{month}/{type}/{companyId}/, so
+   * we walk the tree and count a file only when its path ends with
+   * /{companyId}/{filename}. Earlier draft (2026-06-06) tried to
+   * short-circuit on the first companyId match, which truncated
+   * counting as soon as one year/month/type triple was processed —
+   * fixed by visiting every (year, month, type) leaf and checking
+   * if it contains a matching companyId.
    */
   async getStorageStats(companyId: string): Promise<StorageStats> {
     const stats: StorageStats = {
@@ -204,49 +218,36 @@ export class StorageService {
       usageByType: {},
     };
 
-    // Recursively scan all company directories
-    const scanDir = (dir: string, type?: string) => {
-      if (!fs.existsSync(dir)) return;
+    if (!companyId || !fs.existsSync(this.config.localPath)) return stats;
 
-      const entries = fs.readdirSync(dir, { withFileTypes: true });
+    const base = this.config.localPath
 
-      for (const entry of entries) {
-        const fullPath = path.join(dir, entry.name);
-
-        if (entry.isDirectory()) {
-          // Check if this looks like a type directory
-          if (['pdf', 'images', 'attachments'].includes(entry.name)) {
-            scanDir(fullPath, entry.name);
-          } else if (/^\d{4}$/.test(entry.name)) {
-            // Year directory
-            scanDir(fullPath);
-          } else if (/^\d{2}$/.test(entry.name)) {
-            // Month directory
-            scanDir(fullPath);
-          } else {
-            // Likely a company directory or other
-            scanDir(fullPath, type);
-          }
-        } else if (entry.isFile()) {
-          const filePath = path.join(dir, entry.name);
-          const fileSize = fs.statSync(filePath).size;
-
-          stats.totalFiles++;
-          stats.totalSize += fileSize;
-
-          if (type) {
+    // Year → Month → Type → companyId; we visit every (year, month, type)
+    // triple and check if a matching companyId subdir exists.
+    const years = this.safeReaddir(base, /^\d{4}$/)
+    for (const year of years) {
+      const months = this.safeReaddir(path.join(base, year), /^\d{2}$/)
+      for (const month of months) {
+        const types = this.safeReaddir(path.join(base, year, month))
+          .filter((n) => ['pdf', 'images', 'attachments', 'image'].includes(n))
+        for (const type of types) {
+          const companyDir = path.join(base, year, month, type, companyId)
+          if (!fs.existsSync(companyDir)) continue
+          const items = fs.readdirSync(companyDir, { withFileTypes: true })
+          for (const it of items) {
+            if (!it.isFile()) continue
+            const size = fs.statSync(path.join(companyDir, it.name)).size
+            stats.totalFiles++
+            stats.totalSize += size
             if (!stats.usageByType[type]) {
-              stats.usageByType[type] = { count: 0, size: 0 };
+              stats.usageByType[type] = { count: 0, size: 0 }
             }
-            stats.usageByType[type].count++;
-            stats.usageByType[type].size += fileSize;
+            stats.usageByType[type].count++
+            stats.usageByType[type].size += size
           }
         }
       }
-    };
-
-    scanDir(this.config.localPath);
-
+    }
     return stats;
   }
 
@@ -389,6 +390,22 @@ export class StorageService {
   private isPathSafe(filePath: string): boolean {
     const normalizedPath = path.normalize(filePath);
     return normalizedPath.startsWith(this.config.localPath);
+  }
+
+  /**
+   * List directory entries whose name matches a regex, returning [] on
+   * any error. Used by getStorageStats when walking year/month dirs —
+   * a missing or non-readable dir is a normal "no files for this period"
+   * situation, not a 500.
+   */
+  private safeReaddir(dir: string, match?: RegExp): string[] {
+    try {
+      if (!fs.existsSync(dir)) return []
+      const names = fs.readdirSync(dir)
+      return match ? names.filter((n) => match.test(n)) : names
+    } catch {
+      return []
+    }
   }
 
   /**

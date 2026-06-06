@@ -172,9 +172,12 @@ export class StorageController {
   /**
    * Health check for the storage backend
    * GET /api/v1/storage/health
+   *
+   * No @Require: any authenticated user can see storage health. It's
+   * informational only (returns disk free space, reachability, write
+   * permission) and doesn't expose any other company's data.
    */
   @Get('health')
-  @Require('company.update')
   async getHealth() {
     const health = await this.storageService.getHealth()
     return {
