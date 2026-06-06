@@ -23,12 +23,41 @@ export class ProductService {
     const where: any = { companyId, active: true }
     if (opts.search && opts.search.trim()) {
       const q = opts.search.trim()
-      where.OR = [
-        { name: { contains: q, mode: 'insensitive' } },
-        { sku: { contains: q, mode: 'insensitive' } },
-        { category: { contains: q, mode: 'insensitive' } },
-        { description: { contains: q, mode: 'insensitive' } },
-      ]
+      // Smart SKU lookup: if the input looks like an exact SKU, match
+      // that one product first. Same two-stage pattern as the customer
+      // number lookup — an OR can't tell apart "exact SKU" from
+      // "SKU contains substring", so we count first and only fall
+      // through to substring if the exact SKU doesn't exist.
+      const exactSku = q.trim()
+      const looksLikeExactSku = exactSku.length > 0 && exactSku.length <= 64
+      if (looksLikeExactSku) {
+        const exactCount = await this.prisma.product.count({
+          where: { companyId, active: true, sku: exactSku },
+        })
+        if (exactCount > 0) {
+          where.sku = exactSku
+        } else {
+          where.OR = [
+            { name: { contains: q, mode: 'insensitive' } },
+            { sku: { contains: q, mode: 'insensitive' } },
+            // `category` is a relation, not a string field — to
+            // search the joined category name we have to nest
+            // through the relation. The old `category: { contains: q }`
+            // here was a real bug: Prisma rejects it with
+            // "Unknown argument `contains`" and 500'd every search
+            // that hit this branch. Fixed 2026-06-06.
+            { category: { is: { name: { contains: q, mode: 'insensitive' } } } },
+            { description: { contains: q, mode: 'insensitive' } },
+          ]
+        }
+      } else {
+        where.OR = [
+          { name: { contains: q, mode: 'insensitive' } },
+          { sku: { contains: q, mode: 'insensitive' } },
+          { category: { is: { name: { contains: q, mode: 'insensitive' } } } },
+          { description: { contains: q, mode: 'insensitive' } },
+        ]
+      }
     }
     const [data, total] = await Promise.all([
       this.prisma.product.findMany({

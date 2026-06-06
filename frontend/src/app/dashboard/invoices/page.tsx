@@ -466,7 +466,7 @@ export default function InvoicesPage() {
         <div className="mb-4 grid grid-cols-1 md:grid-cols-4 gap-2">
           <input
             type="text"
-            value={search}
+            value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             placeholder={t("common2.searchInvoiceOrCustomer") || "Rechnung oder Kunde suchen..."}
             className="px-3 py-2 border border-gray-300 rounded-md text-sm"
