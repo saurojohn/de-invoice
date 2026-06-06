@@ -2,19 +2,24 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
+import LanguageSwitcher from "@/components/LanguageSwitcher"
+import { RevenueChart } from "@/components/RevenueChart"
+import { useI18n } from "@/components/useI18n"
 
-interface Stats {
-  invoicesCount: number
-  customersCount: number
-  totalRevenue: number
+interface DashboardStats {
+  totalInvoices: number
+  pendingAmount: number
   overdueAmount: number
+  paidAmount: number
 }
 
 export default function DashboardPage() {
   const router = useRouter()
-  const [stats, setStats] = useState<Stats>({ invoicesCount: 0, customersCount: 0, totalRevenue: 0, overdueAmount: 0 })
+  const { t } = useI18n()
+  const [stats, setStats] = useState<DashboardStats | null>(null)
+  const [monthlyRevenue, setMonthlyRevenue] = useState<Array<{ month: string; totalAmount: number; invoiceCount?: number }>>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -24,107 +29,174 @@ export default function DashboardPage() {
       return
     }
 
-    // 获取统计数据
-    fetch(`http://localhost:3001/api/v1/invoices?companyId=${companyId}`)
-      .then((res) => res.json())
-      .then((invoices) => {
-        const overdue = invoices
-          .filter((inv: any) => inv.status === "overdue")
-          .reduce((sum: number, inv: any) => sum + Number(inv.total), 0)
-        const revenue = invoices
-          .filter((inv: any) => inv.status === "paid")
-          .reduce((sum: number, inv: any) => sum + Number(inv.total), 0)
-        setStats({
-          invoicesCount: invoices.length,
-          customersCount: 0,
-          totalRevenue: revenue,
-          overdueAmount: overdue,
-        })
-      })
-      .finally(() => setLoading(false))
-  }, [router])
+    // Default date range: last 12 months
+    const now = new Date()
+    const startDate = new Date(now.getFullYear() - 1, now.getMonth() + 1, 1)
+      .toISOString().split("T")[0]
+    const endDate = now.toISOString().split("T")[0]
 
-  const handleLogout = () => {
-    localStorage.clear()
-    router.push("/")
-  }
+    Promise.all([
+      fetch(`http://localhost:3001/api/v1/invoices?companyId=${companyId}`).then(r => r.json()),
+      fetch(`http://localhost:3001/api/v1/companies/${companyId}`).then(r => r.json()),
+      fetch(`http://localhost:3001/api/v1/reports/sales?companyId=${companyId}&startDate=${startDate}&endDate=${endDate}`).then(r => r.json()),
+    ])
+      .then(([invoices, _company, salesReport]) => {
+        const total = (invoices || []).reduce(
+          (sum: number, inv: any) => sum + Number(inv.total || 0),
+          0
+        )
+        const pending = (invoices || [])
+          .filter((inv: any) => inv.status === "sent" || inv.status === "draft")
+          .reduce((sum: number, inv: any) => sum + Number(inv.total || 0), 0)
+        const overdue = (invoices || [])
+          .filter((inv: any) => inv.status === "overdue")
+          .reduce((sum: number, inv: any) => sum + Number(inv.total || 0), 0)
+        const paid = (invoices || [])
+          .filter((inv: any) => inv.status === "paid")
+          .reduce((sum: number, inv: any) => sum + Number(inv.total || 0), 0)
+
+        setStats({
+          totalInvoices: (invoices || []).length,
+          pendingAmount: pending,
+          overdueAmount: overdue,
+          paidAmount: paid,
+        })
+        setMonthlyRevenue(salesReport?.byMonth || [])
+        setLoading(false)
+      })
+      .catch(() => setLoading(false))
+  }, [router])
 
   return (
     <main className="min-h-screen bg-gray-50">
-      {/* Header */}
       <header className="bg-white border-b shadow-sm">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-blue-600">德国发票系统</h1>
-          <div className="flex gap-4 items-center">
-            <span className="text-gray-600">仪表盘</span>
-            <Button variant="outline" onClick={handleLogout}>退出</Button>
+          <h1 className="text-2xl font-bold text-blue-600">{t("dashboard.title")}</h1>
+          <div className="flex items-center gap-4">
+            <LanguageSwitcher />
+            <Button variant="outline" onClick={() => {
+              localStorage.clear()
+              router.push("/login")
+            }}>
+              {t("dashboard.logout")}
+            </Button>
+            <Button onClick={() => router.push("/dashboard/invoices/create")}>
+              {t("dashboard.newInvoice")}
+            </Button>
           </div>
         </div>
       </header>
 
-      {/* Content */}
       <div className="container mx-auto px-4 py-8">
-        <h2 className="text-2xl font-bold mb-6">概览</h2>
-
-        {/* Stats Grid */}
-        <div className="grid md:grid-cols-4 gap-6 mb-8">
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <Card>
             <CardContent className="pt-6">
-              <div className="text-3xl font-bold text-blue-600">{stats.invoicesCount}</div>
-              <div className="text-gray-600">发票总数</div>
+              <div className="text-3xl font-bold text-blue-600">{stats?.totalInvoices || 0}</div>
+              <div className="text-gray-500 mt-1">{t("dashboard.totalInvoices")}</div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="pt-6">
-              <div className="text-3xl font-bold text-green-600">
-                €{stats.totalRevenue.toFixed(2)}
-              </div>
-              <div className="text-gray-600">已收款</div>
+              <div className="text-3xl font-bold text-yellow-600">€{(stats?.pendingAmount || 0).toFixed(2)}</div>
+              <div className="text-gray-500 mt-1">{t("dashboard.pending")}</div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="pt-6">
-              <div className="text-3xl font-bold text-orange-600">
-                €{stats.overdueAmount.toFixed(2)}
-              </div>
-              <div className="text-gray-600">逾期金额</div>
+              <div className="text-3xl font-bold text-red-600">€{(stats?.overdueAmount || 0).toFixed(2)}</div>
+              <div className="text-gray-500 mt-1">{t("dashboard.overdue")}</div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="pt-6">
-              <div className="text-3xl font-bold text-purple-600">{stats.customersCount}</div>
-              <div className="text-gray-600">客户数量</div>
+              <div className="text-3xl font-bold text-green-600">€{(stats?.paidAmount || 0).toFixed(2)}</div>
+              <div className="text-gray-500 mt-1">{t("dashboard.paid")}</div>
             </CardContent>
           </Card>
         </div>
 
+        {/* Revenue trend (last 12 months) */}
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle>Umsatzentwicklung (letzte 12 Monate)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <RevenueChart data={monthlyRevenue} height={220} />
+          </CardContent>
+        </Card>
+
         {/* Quick Actions */}
-        <div className="grid md:grid-cols-3 gap-6">
-          <Card className="cursor-pointer hover:shadow-lg transition" onClick={() => router.push("/dashboard/invoices")}>
+        <h2 className="text-xl font-semibold mb-4">{t("dashboard.quickActions")}</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <Card
+            className="cursor-pointer hover:shadow-lg transition-shadow border-blue-300 bg-blue-50/50"
+            onClick={() => router.push("/dashboard/invoices/create")}
+          >
             <CardHeader>
-              <CardTitle>发票管理</CardTitle>
+              <CardTitle className="text-blue-700 flex items-center gap-2">
+                <span className="text-2xl leading-none">+</span>
+                {t("dashboard.cardCreateInvoiceTitle")}
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-gray-600 mb-4">创建、编辑和发送发票</p>
-              <Button>管理发票</Button>
+              <p className="text-gray-600">{t("dashboard.cardCreateInvoiceDesc")}</p>
             </CardContent>
           </Card>
-          <Card className="cursor-pointer hover:shadow-lg transition" onClick={() => router.push("/dashboard/customers")}>
+          <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/invoices")}>
             <CardHeader>
-              <CardTitle>客户管理</CardTitle>
+              <CardTitle>{t("dashboard.cardInvoiceTitle")}</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-gray-600 mb-4">管理客户信息和联系方式</p>
-              <Button>管理客户</Button>
+              <p className="text-gray-600">{t("dashboard.cardInvoiceDesc")}</p>
             </CardContent>
           </Card>
-          <Card className="cursor-pointer hover:shadow-lg transition" onClick={() => router.push("/dashboard/products")}>
+          <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/customers")}>
             <CardHeader>
-              <CardTitle>商品管理</CardTitle>
+              <CardTitle>{t("dashboard.cardCustomerTitle")}</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-gray-600 mb-4">管理商品目录和定价</p>
-              <Button>管理商品</Button>
+              <p className="text-gray-600">{t("dashboard.cardCustomerDesc")}</p>
+            </CardContent>
+          </Card>
+          <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/products")}>
+            <CardHeader>
+              <CardTitle>{t("dashboard.cardProductTitle")}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-gray-600">{t("dashboard.cardProductDesc")}</p>
+            </CardContent>
+          </Card>
+          <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/accounting")}>
+            <CardHeader>
+              <CardTitle>{t("dashboard.cardAccountingTitle")}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-gray-600">{t("dashboard.cardAccountingDesc")}</p>
+            </CardContent>
+          </Card>
+          <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/reports")}>
+            <CardHeader>
+              <CardTitle>{t("dashboard.cardReportsTitle")}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-gray-600">{t("dashboard.cardReportsDesc")}</p>
+            </CardContent>
+          </Card>
+          <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/reminders")}>
+            <CardHeader>
+              <CardTitle className="text-red-600">{t("dashboard.cardRemindersTitle")}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-gray-600">{t("dashboard.cardRemindersDesc")}</p>
+            </CardContent>
+          </Card>
+          <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/settings")}>
+            <CardHeader>
+              <CardTitle>{t("dashboard.cardSettingsTitle")}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-gray-600">{t("dashboard.cardSettingsDesc")}</p>
             </CardContent>
           </Card>
         </div>

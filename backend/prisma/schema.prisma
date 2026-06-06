@@ -12,16 +12,21 @@ datasource db {
 // ==================== 组织与用户 ====================
 
 model Company {
-  id          String   @id @default(uuid())
-  name        String
-  legalName   String?
-  taxId       String?
-  vatId       String?
-  address     Json
-  bankInfo    Json?
-  settings    Json?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                String   @id @default(uuid())
+  name              String
+  legalName         String?
+  taxId             String?
+  vatId             String?
+  email             String?
+  phone             String?
+  address           Json
+  bankInfo          Json?
+  settings          Json?
+  logoPath          String?
+  invoicePrefix     String?
+  defaultPaymentDays Int     @default(30)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   users       User[]
   customers   Customer[]
@@ -33,8 +38,12 @@ model Company {
   vouchers    Voucher[]
   auditLogs   AuditLog[]
   emailSends  EmailSend[]
+  mailConfig  MailConfig?
+  expenses    Expense[]
+  ustvaFilings UStvaFiling[]
   vatRates    VatRate[]
   vatRateHistories VatRateHistory[]
+  invitations UserInvitation[]
 
   @@index([name])
 }
@@ -45,11 +54,17 @@ model User {
   company          Company?  @relation(fields: [companyId], references: [id])
   email            String    @unique
   passwordHash     String
-  role             String    @default("user")
+  // Role within the company: "admin" | "accountant" | "viewer"
+  // The first user of a company is always "admin". Admins can change roles.
+  role             String    @default("viewer")
+  status           String    @default("active")  // "active" | "inactive"
   profile          Json?
   preferences      Json?
   createdAt        DateTime  @default(now())
   lastLogin        DateTime?
+  // Password reset — token is stored hashed, expires 1h after issue
+  passwordResetToken       String?
+  passwordResetExpires     DateTime?
 
   createdInvoices  Invoice[] @relation("CreatedBy")
   createdVouchers  Voucher[] @relation("CreatedBy")
@@ -57,6 +72,26 @@ model User {
   emailSends       EmailSend[]
   createdVatRates   VatRate[] @relation("VatRateCreator")
   changedVatRates   VatRateHistory[] @relation("VatRateChanger")
+  sentInvitations  UserInvitation[] @relation("InvitedBy")
+}
+
+// Pending invitations — admin invites employee by email, employee clicks link to register
+model UserInvitation {
+  id          String   @id @default(uuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+  email       String
+  role        String   @default("accountant")  // "admin" | "accountant" | "viewer"
+  // Token — random URL-safe string, also stored hashed (bcrypt) in tokenHash
+  tokenHash   String
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  createdById String
+  createdBy   User     @relation("InvitedBy", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+
+  @@index([companyId, email])
+  @@index([expiresAt])
 }
 
 model Customer {
@@ -96,7 +131,64 @@ model Supplier {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  expenses     Expense[]
+
   @@index([companyId, name])
+}
+
+// Eingangsrechnung / Expense — for input tax (Vorsteuer) calculation
+// Used to compute UStVA: payables (Umsatzsteuer) minus input tax (Vorsteuerabzug)
+model Expense {
+  id              String   @id @default(uuid())
+  companyId       String
+  company         Company  @relation(fields: [companyId], references: [id])
+  supplierId      String?
+  supplier        Supplier? @relation(fields: [supplierId], references: [id])
+  invoiceNumber   String?
+  description     String
+  invoiceDate     DateTime
+  netAmount       Decimal  @db.Decimal(12,4)
+  vatRate         Decimal  @db.Decimal(5,4)    // 0.19, 0.07, 0
+  vatAmount       Decimal  @db.Decimal(12,4)
+  grossAmount     Decimal  @db.Decimal(12,4)
+  category        String?  // e.g. "Material", "Miete", "Bürobedarf"
+  isIntraEU       Boolean  @default(false)      // igE — reverse charge
+  isReverseCharge Boolean  @default(false)      // §13b UStG
+  status          String   @default("booked")  // booked|deductible|blocked
+  notes           String?
+  attachmentPath  String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([companyId, invoiceDate])
+  @@index([companyId, vatRate])
+  @@index([supplierId])
+}
+
+// UStVA filing record — track submitted VAT returns
+model UStvaFiling {
+  id              String   @id @default(uuid())
+  companyId       String
+  company         Company  @relation(fields: [companyId], references: [id])
+  year            Int
+  quarter         Int?     // 1-4, or null for monthly (Dauerfristverlängerung)
+  month           Int?     // 1-12
+  periodLabel     String   // e.g. "2026 Q1" or "2026-03"
+  outputVat       Decimal  @db.Decimal(12,4)   // Umsatzsteuer (from sales)
+  inputVat        Decimal  @db.Decimal(12,4)   // Vorsteuer (from expenses)
+  payableVat      Decimal  @db.Decimal(12,4)   // Differenzbetrag (positive = owe, negative = refund)
+  intraEUSales    Decimal  @db.Decimal(12,4) @default(0)   // igL
+  intraEUPurchase Decimal  @db.Decimal(12,4) @default(0)   // igE
+  status          String   @default("draft")    // draft|submitted|accepted|rejected
+  submittedAt     DateTime?
+  taxNumber       String?                       // Steuernummer
+  notes           String?
+  pdfPath         String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([companyId, year, quarter, month])
+  @@index([companyId, year])
 }
 
 model Category {
@@ -132,15 +224,33 @@ model Product {
   vatRate           Decimal   @db.Decimal(5,4) @default(0.19)
   stockQuantity     Decimal   @db.Decimal(12,4) @default(0)
   lowStockThreshold Decimal?  @db.Decimal(12,4)
+  trackInventory    Boolean   @default(false)
   active            Boolean   @default(true)
   metadata          Json?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
   invoiceItems      InvoiceItem[]
+  stockHistory     ProductStockHistory[]
 
   @@index([companyId, sku])
   @@index([companyId, name])
+}
+
+model ProductStockHistory {
+  id           String    @id @default(uuid())
+  productId    String
+  product      Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  changeType   String    // 'sale', 'purchase', 'adjustment', 'return', 'initial'
+  quantity     Decimal   @db.Decimal(12,4)
+  previousQty  Decimal   @db.Decimal(12,4) @default(0)
+  newQty       Decimal   @db.Decimal(12,4)
+  reference    String?   // invoiceId, purchaseOrderId, etc.
+  referenceType String?  // 'invoice', 'purchase', 'manual'
+  notes        String?
+  createdAt    DateTime  @default(now())
+
+  @@index([productId, createdAt])
 }
 
 model Invoice {
@@ -160,11 +270,13 @@ model Invoice {
   status         String    @default("draft")
 
   issueDate      DateTime
-  dueDate        DateTime
+  dueDate        DateTime?
 
   subtotal       Decimal   @db.Decimal(12,4) @default(0)
   totalVat       Decimal   @db.Decimal(12,4) @default(0)
   total          Decimal   @db.Decimal(12,4) @default(0)
+  discountPercent Decimal?  @db.Decimal(5,2)
+  discountAmount Decimal?   @db.Decimal(12,4)
 
   currency       String    @default("EUR")
   language       String    @default("de-DE")
@@ -175,6 +287,7 @@ model Invoice {
 
   notes          String?
   internalNotes  String?
+  templateType   String    @default("standard")
 
   pdfPath        String?
   attachments    Json?
@@ -189,11 +302,15 @@ model Invoice {
   emailSends    EmailSend[]
   voucherRef     Voucher?  @relation(fields: [voucherRefId], references: [id])
   voucherRefId   String?   @unique
+  referenceInvoiceId String?
+  referenceInvoice Invoice? @relation("InvoiceReferences", fields: [referenceInvoiceId], references: [id])
+  creditNotes    Invoice[] @relation("InvoiceReferences")
 
   @@unique([companyId, invoiceNumber])
   @@index([companyId, issueDate])
   @@index([companyId, customerId])
   @@index([companyId, status])
+  @@index([companyId, type])
   @@index([dueDate])
 }
 
@@ -209,9 +326,6 @@ model InvoiceItem {
   unit            String?
   unitPrice       Decimal   @db.Decimal(12,4)
   vatRate         Decimal   @db.Decimal(5,4) @default(0.19)
-
-  discountPercent Decimal?  @db.Decimal(5,2)
-  discountAmount Decimal?   @db.Decimal(12,4)
 
   netAmount       Decimal   @db.Decimal(12,4)
   vatAmount      Decimal   @db.Decimal(12,4)
@@ -335,6 +449,23 @@ model VatRateHistory {
   changeReason    String?
 
   @@index([vatRateId])
+}
+
+// Per-company mail (SMTP) configuration. If no row exists, falls back to env vars.
+model MailConfig {
+  id            String   @id @default(uuid())
+  companyId     String   @unique
+  company       Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  smtpHost      String
+  smtpPort      Int      @default(587)
+  smtpSecure    Boolean  @default(false)
+  smtpUser      String
+  smtpPassword  String   // stored as-is; not encrypted at this layer (TODO: KMS)
+  fromName      String
+  fromEmail     String
+  enabled       Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 
 model EmailSend {

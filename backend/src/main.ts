@@ -2,21 +2,75 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AppModule } from './app.module';
+import helmet from 'helmet';
+import type { Multer } from 'multer';
+
+// Re-export Multer.File type used by controllers (Multer is a namespace in @types/multer)
+declare global {
+  namespace Express {
+    interface Multer {
+      File: Multer.File;
+    }
+  }
+}
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
-  
+
   // 全局前缀
   app.setGlobalPrefix('api/v1');
-  
-  // CORS
+
+  // Security headers via helmet
+  app.use(helmet({
+    contentSecurityPolicy: false, // Disable CSP — Next.js handles its own
+    crossOriginEmbedderPolicy: false,
+    crossOriginResourcePolicy: { policy: 'cross-origin' }, // Allow frontend to load PDFs/images
+  }));
+
+  // CORS — explicit whitelist (no wildcard)
+  const frontendUrl = configService.get<string>('FRONTEND_URL', 'http://localhost:3000');
+  const allowedOrigins = frontendUrl.split(',').map((s) => s.trim()).filter(Boolean);
   app.enableCors({
-    origin: configService.get('FRONTEND_URL', 'http://localhost:3000'),
+    origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+      // Allow same-origin (no Origin header) + explicit whitelist
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('CORS: origin not allowed'), false);
+      }
+    },
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-Requested-With',
+      // HeaderAuthGuard shim — frontend sends these so the backend
+      // can identify the calling user. Without them, browsers will
+      // block the preflight and the request never reaches the API.
+      'x-user-id',
+      'x-company-id',
+    ],
+    maxAge: 86400, // Cache preflight 24h
   });
-  
-  // 全局验证管道
+
+  // Body size limit (10MB) for JSON payloads — Express default is 100kb which is too small
+  const expressApp = app.getHttpAdapter().getInstance();
+  // Trust X-Forwarded-* headers from local proxies so req.ip reflects real client
+  // (only enable in production OR behind a known proxy)
+  if (process.env.TRUST_PROXY === 'true') {
+    expressApp.set('trust proxy', true);
+  }
+  // @ts-ignore - express types
+  expressApp.use((req: any, res: any, next: any) => {
+    if (req.headers['content-length'] && parseInt(req.headers['content-length']) > 10 * 1024 * 1024) {
+      return res.status(413).json({ error: 'Payload too large' });
+    }
+    next();
+  });
+
+  // Global validation pipe
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -27,7 +81,7 @@ async function bootstrap() {
       },
     }),
   );
-  
+
   const port = configService.get('PORT', 3001);
   await app.listen(port);
   console.log(`Backend running on http://localhost:${port}`);

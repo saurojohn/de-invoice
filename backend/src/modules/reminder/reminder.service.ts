@@ -1,0 +1,332 @@
+import { Injectable } from '@nestjs/common';
+import { PrismaService } from '../../prisma/prisma.service';
+
+export interface OverdueInvoice {
+  id: string;
+  invoiceNumber: string;
+  customer: {
+    name: string;
+    contact: {
+      email?: string;
+      name?: string;
+    };
+    address: {
+      street?: string;
+      postalCode?: string;
+      city?: string;
+      country?: string;
+    };
+  };
+  total: string;
+  dueDate: string;
+  daysOverdue: number;
+  language: string;
+  reminderCount: number;
+}
+
+export interface ReminderTemplate {
+  subject: string;
+  body: string;
+  level?: 'first' | 'second' | 'final';
+}
+
+@Injectable()
+export class ReminderService {
+  constructor(private prisma: PrismaService) {}
+
+  /**
+   * Find all overdue invoices for a company
+   * Overdue = status is 'sent' and dueDate < today
+   */
+  async findOverdueInvoices(companyId: string): Promise<OverdueInvoice[]> {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const invoices = await this.prisma.invoice.findMany({
+      where: {
+        companyId,
+        status: 'sent',
+        dueDate: {
+          lt: today,
+        },
+        type: 'INV', // Only standard invoices, not credit notes
+      },
+      include: {
+        customer: true,
+        emailSends: {
+          where: {
+            templateType: {
+              in: ['reminder_first', 'reminder_second', 'reminder_final'],
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+      orderBy: { dueDate: 'asc' },
+    });
+
+    return invoices.map((inv) => {
+      const dueDate = new Date(inv.dueDate!);
+      const diffTime = today.getTime() - dueDate.getTime();
+      const daysOverdue = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+      // Count reminders by type
+      const reminderCounts = inv.emailSends.reduce(
+        (acc, email) => {
+          if (email.templateType === 'reminder_first') acc.first++;
+          else if (email.templateType === 'reminder_second') acc.second++;
+          else if (email.templateType === 'reminder_final') acc.final++;
+          return acc;
+        },
+        { first: 0, second: 0, final: 0 },
+      );
+
+      const totalReminders = reminderCounts.first + reminderCounts.second + reminderCounts.final;
+
+      return {
+        id: inv.id,
+        invoiceNumber: inv.invoiceNumber,
+        customer: {
+          name: inv.customer.name,
+          contact: inv.customer.contact as any,
+          address: inv.customer.address as any,
+        },
+        total: inv.total.toString(),
+        dueDate: inv.dueDate!.toISOString(),
+        daysOverdue,
+        language: inv.language || 'de-DE',
+        reminderCount: totalReminders,
+      };
+    });
+  }
+
+  /**
+   * Generate reminder email content based on reminder level
+   */
+  generateReminderEmail(
+    invoice: OverdueInvoice,
+    company: { name: string; email?: string; address?: any; bankInfo?: any },
+    level: 'first' | 'second' | 'final',
+  ): ReminderTemplate {
+    const customerName = invoice.customer.contact?.name || invoice.customer.name;
+    const totalAmount = parseFloat(invoice.total).toFixed(2);
+    const dueDateFormatted = new Date(invoice.dueDate).toLocaleDateString('de-DE', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+    });
+
+    const templates: Record<'first' | 'second' | 'final', ReminderTemplate> = {
+      first: {
+        subject: `Erinnerung: Rechnung ${invoice.invoiceNumber} ist überfällig`,
+        body: `Sehr geehrte/r ${customerName},
+
+hiermit möchten wir Sie freundlich daran erinnern, dass die Rechnung ${invoice.invoiceNumber} vom ${dueDateFormatted} mit einem Betrag von EUR ${totalAmount} bereits überfällig ist.
+
+Die Zahlung ist seit ${invoice.daysOverdue} Tag(en) überfällig.
+
+Bitte begleichen Sie den offenen Betrag innerhalb von 14 Tagen auf folgendes Konto:
+
+${company.bankInfo ? `Bank: ${company.bankInfo.bankName || ''}
+Kontoinhaber: ${company.bankInfo.accountHolder || company.name}
+IBAN: ${company.bankInfo.iban || ''}
+BIC: ${company.bankInfo.bic || ''}` : ''}
+
+Bei Rückfragen stehen wir Ihnen gerne zur Verfügung.
+
+Mit freundlichen Grüßen,
+${company.name}`,
+      },
+      second: {
+        subject: `2. Mahnung: Rechnung ${invoice.invoiceNumber} - Zahlung sofort erforderlich`,
+        body: `Sehr geehrte/r ${customerName},
+
+leider mussten wir feststellen, dass die Rechnung ${invoice.invoiceNumber} vom ${dueDateFormatted} trotz unserer ersten Erinnerung noch nicht beglichen wurde.
+
+Fälliger Betrag: EUR ${totalAmount}
+Überfällig seit: ${invoice.daysOverdue} Tag(en)
+
+Wir bitten Sie, den offenen Betrag unverzüglich, spätestens jedoch innerhalb von 7 Tagen, auf folgendes Konto zu überweisen:
+
+${company.bankInfo ? `Bank: ${company.bankInfo.bankName || ''}
+Kontoinhaber: ${company.bankInfo.accountHolder || company.name}
+IBAN: ${company.bankInfo.iban || ''}
+BIC: ${company.bankInfo.bic || ''}` : ''}
+
+Sollte die Zahlung nicht innerhalb der genannten Frist erfolgen, sehen wir uns gezwungen, weitere Schritte einzuleiten.
+
+Mit freundlichen Grüßen,
+${company.name}`,
+      },
+      final: {
+        subject: `Letzte Mahnung: Rechnung ${invoice.invoiceNumber} - Außergerichtliches Inkasso`,
+        body: `Sehr geehrte/r ${customerName},
+
+trotz mehrfacher Aufforderung bleibt die Rechnung ${invoice.invoiceNumber} vom ${dueDateFormatted} weiterhin unbeglichen.
+
+Offener Betrag: EUR ${totalAmount}
+Überfällig seit: ${invoice.daysOverdue} Tag(en)
+
+Dies ist unsere LETZTE Mahnung. Wir fordern Sie auf, den offenen Betrag innerhalb von 5 Tagen auf folgendes Konto zu überweisen:
+
+${company.bankInfo ? `Bank: ${company.bankInfo.bankName || ''}
+Kontoinhaber: ${company.bankInfo.accountHolder || company.name}
+IBAN: ${company.bankInfo.iban || ''}
+BIC: ${company.bankInfo.bic || ''}` : ''}
+
+Erfolgt keine Zahlung innerhalb dieser Frist, werden wir die Angelegenheit an ein Inkassobüro übergeben. Die daraus entstehenden Kosten werden Ihnen in Rechnung gestellt.
+
+Wir bitten Sie, die Zahlung umgehend zu veranlassen.
+
+Mit freundlichen Grüßen,
+${company.name}`,
+      },
+    };
+
+    return templates[level];
+  }
+
+  /**
+   * Determine the appropriate reminder level based on previous reminders
+   */
+  getNextReminderLevel(previousReminders: number): 'first' | 'second' | 'final' {
+    if (previousReminders === 0) return 'first';
+    if (previousReminders === 1) return 'second';
+    return 'final';
+  }
+
+  /**
+   * Record a reminder email send
+   */
+  async recordReminderSend(
+    companyId: string,
+    invoiceId: string,
+    recipientEmail: string,
+    recipientName: string,
+    subject: string,
+    body: string,
+    level: 'first' | 'second' | 'final',
+    createdById?: string,
+  ) {
+    return this.prisma.emailSend.create({
+      data: {
+        companyId,
+        invoiceId,
+        templateType: `reminder_${level}`,
+        recipientEmail,
+        recipientName,
+        subject,
+        bodyPreview: body.substring(0, 500),
+        status: 'sent',
+        sentAt: new Date(),
+        createdById,
+      },
+    });
+  }
+
+  /**
+   * Get email data for a specific reminder level
+   */
+  async getReminderEmailData(
+    invoiceId: string,
+    companyId: string,
+    level: 'first' | 'second' | 'final',
+  ) {
+    const invoice = await this.prisma.invoice.findFirst({
+      where: { id: invoiceId, companyId },
+      include: { customer: true },
+    });
+
+    if (!invoice) {
+      throw new Error('Invoice not found');
+    }
+
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+    });
+
+    if (!company) {
+      throw new Error('Company not found');
+    }
+
+    const overdueInvoice: OverdueInvoice = {
+      id: invoice.id,
+      invoiceNumber: invoice.invoiceNumber,
+      customer: {
+        name: invoice.customer.name,
+        contact: invoice.customer.contact as any,
+        address: invoice.customer.address as any,
+      },
+      total: invoice.total.toString(),
+      dueDate: invoice.dueDate!.toISOString(),
+      daysOverdue: Math.floor(
+        (new Date().getTime() - new Date(invoice.dueDate!).getTime()) / (1000 * 60 * 60 * 24),
+      ),
+      language: invoice.language || 'de-DE',
+      reminderCount: 0,
+    };
+
+    const template = this.generateReminderEmail(overdueInvoice, {
+      name: company.name,
+      address: company.address,
+      bankInfo: company.bankInfo,
+    }, level);
+
+    const recipientEmail = (invoice.customer.contact as any)?.email || '';
+    const recipientName = (invoice.customer.contact as any)?.name || invoice.customer.name;
+
+    return {
+      invoiceId,
+      invoiceNumber: invoice.invoiceNumber,
+      recipientEmail,
+      recipientName,
+      subject: template.subject,
+      body: template.body,
+      level,
+      pdfUrl: `/api/v1/invoices/${invoiceId}/pdf?companyId=${companyId}`,
+    };
+  }
+
+  /**
+   * Get reminder statistics for dashboard
+   */
+  async getReminderStats(companyId: string) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const [overdueCount, totalOverdueAmount, recentReminders] = await Promise.all([
+      this.prisma.invoice.count({
+        where: {
+          companyId,
+          status: 'sent',
+          dueDate: { lt: today },
+          type: 'INV',
+        },
+      }),
+      this.prisma.invoice.aggregate({
+        where: {
+          companyId,
+          status: 'sent',
+          dueDate: { lt: today },
+          type: 'INV',
+        },
+        _sum: { total: true },
+      }),
+      this.prisma.emailSend.count({
+        where: {
+          companyId,
+          templateType: { startsWith: 'reminder_' },
+          createdAt: {
+            gte: new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000), // Last 30 days
+          },
+        },
+      }),
+    ]);
+
+    return {
+      overdueCount,
+      totalOverdueAmount: totalOverdueAmount._sum.total?.toString() || '0',
+      recentReminders,
+    };
+  }
+}

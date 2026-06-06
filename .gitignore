@@ -37,3 +37,9 @@ backend/dist/
 
 # Docker
 docker-compose.yml
+
+# Mavis runtime state (per-session planning / scratchpads)
+.mavis/
+
+# Stray logo upload path (artifacts accidentally created during testing)
+backend/frontend/

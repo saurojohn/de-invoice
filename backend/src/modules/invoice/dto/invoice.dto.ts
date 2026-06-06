@@ -18,6 +18,10 @@ export class InvoiceItemDto {
   @IsNumber()
   @IsOptional()
   vatRate?: number;
+
+  @IsString()
+  @IsOptional()
+  productId?: string;
 }
 
 export class CreateInvoiceDto {
@@ -28,11 +32,16 @@ export class CreateInvoiceDto {
   issueDate!: string;
   
   @IsDateString()
-  dueDate!: string;
+  @IsOptional()
+  dueDate?: string;
   
   @IsString()
   @IsOptional()
   type?: string;
+
+  @IsString()
+  @IsOptional()
+  referenceInvoiceId?: string;
   
   @IsString()
   @IsOptional()
@@ -45,6 +54,26 @@ export class CreateInvoiceDto {
   @IsString()
   @IsOptional()
   notes?: string;
+
+  @IsNumber()
+  @IsOptional()
+  discountPercent?: number;
+
+  @IsNumber()
+  @IsOptional()
+  discountAmount?: number;
+
+  @IsNumber()
+  @IsOptional()
+  paymentTerms?: number;
+
+  @IsString()
+  @IsOptional()
+  paymentMethod?: string;
+  
+  @IsString()
+  @IsOptional()
+  templateType?: string;
   
   @IsArray()
   @ValidateNested({ each: true })
