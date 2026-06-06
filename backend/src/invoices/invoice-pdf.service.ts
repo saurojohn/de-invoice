@@ -224,7 +224,14 @@ export async function generateInvoicePDF(
         if (i > 0) {
           doc.moveTo(leftMargin, y).lineTo(rightMargin, y).stroke()
         }
-        doc.text(item.description, leftMargin + 5, y + 5, { width: compactColWidths.desc - 10, lineBreak: false })
+        // Two-line cell: top line = Artikel Nr. (SKU), bottom = Beschreibung
+        const sku = (item as any).product?.sku
+        if (sku) {
+          doc.font("Helvetica-Bold").fontSize(8)
+            .text(`Art.-Nr. ${sku}`, leftMargin + 5, y + 2, { width: compactColWidths.desc - 10, lineBreak: false })
+        }
+        doc.font("Helvetica").fontSize(9)
+          .text(item.description, leftMargin + 5, y + (sku ? 11 : 5), { width: compactColWidths.desc - 10, lineBreak: false })
         doc.text(`${formatNumber(toFloat(item.quantity))} ${item.unit || ''}`, cQtyX, y + 5, { width: cQtyW, align: "center", lineBreak: false })
         doc.text(formatCurrency(toFloat(item.unitPrice)), cPriceX, y + 5, { width: cPriceW, align: "center", lineBreak: false })
         y += rowHeight
@@ -265,8 +272,15 @@ export async function generateInvoicePDF(
         if (i > 0) {
           doc.moveTo(leftMargin, y).lineTo(rightMargin, y).stroke()
         }
-        doc.fillColor("#000000").font("Helvetica")
-        doc.text(item.description, leftMargin + 5, y + 7, { width: colWidths.desc - 10, lineBreak: false })
+        // Two-line cell: top = Artikel Nr. (SKU), bottom = Beschreibung
+        const sku = (item as any).product?.sku
+        doc.fillColor("#000000")
+        if (sku) {
+          doc.font("Helvetica-Bold").fontSize(8)
+            .text(`Art.-Nr. ${sku}`, leftMargin + 5, y + 3, { width: colWidths.desc - 10, lineBreak: false })
+        }
+        doc.font("Helvetica").fontSize(10)
+          .text(item.description, leftMargin + 5, y + (sku ? 13 : 7), { width: colWidths.desc - 10, lineBreak: false })
         doc.text(`${formatNumber(toFloat(item.quantity))} ${item.unit || ''}`, sQtyX, y + 7, { width: sQtyW, align: "center", lineBreak: false })
         doc.text(formatCurrency(toFloat(item.unitPrice)), sPriceX, y + 7, { width: sPriceW, align: "center", lineBreak: false })
         doc.text(formatVatRate(toFloat(item.vatRate)), sVatX, y + 7, { width: sVatW, align: "center", lineBreak: false })

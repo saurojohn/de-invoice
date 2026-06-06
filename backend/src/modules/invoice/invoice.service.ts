@@ -109,7 +109,12 @@ export class InvoiceService {
   async findOne(id: string, companyId: string) {
     const invoice = await this.prisma.invoice.findFirst({
       where: { id, companyId },
-      include: { customer: true, items: true, payments: true, referenceInvoice: true },
+      include: {
+        customer: true,
+        items: { include: { product: { select: { sku: true, name: true } } } },
+        payments: true,
+        referenceInvoice: true,
+      },
     });
     if (!invoice) throw new NotFoundException('Invoice not found');
     return invoice;
