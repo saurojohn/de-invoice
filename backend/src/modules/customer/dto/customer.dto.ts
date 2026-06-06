@@ -6,13 +6,14 @@ import {
   IsInt,
   Min,
   Max,
-  IsBoolean,
-  IsObject,
   ValidateNested,
-  IsArray,
-  IsNotEmpty,
+  IsObject,
   ValidateIf,
   MinLength,
+  MaxLength,
+  IsNotEmpty,
+  IsBoolean,
+  IsArray,
 } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 
@@ -55,6 +56,14 @@ export class CreateCustomerDto {
   @IsNotEmpty({ message: 'Name ist erforderlich' })
   @MinLength(1, { message: 'Name ist erforderlich' })
   name!: string;
+
+  // Customer number (K-0001...). If omitted, the service auto-assigns
+  // the next sequential number for this company. Importer-supplied
+  // numbers are accepted and validated for per-company uniqueness.
+  @IsString()
+  @IsOptional()
+  @MaxLength(20)
+  customerNumber?: string;
 
   @IsString()
   @IsIn(['business', 'individual'])

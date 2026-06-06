@@ -168,9 +168,43 @@ export class CustomerService {
       address: data.address ?? {},
       contact: data.contact ?? {},
     }
+    // Auto-assign a per-company sequential customer number if the
+    // caller didn't supply one (CSV import, manual form, etc.). Format
+    // is "K-0001" with 4-digit zero-padding. Importer-provided numbers
+    // are kept as-is and validated for per-company uniqueness.
+    if (!safeData.customerNumber || !safeData.customerNumber.trim()) {
+      safeData.customerNumber = await this.nextCustomerNumber(companyId)
+    }
     return this.prisma.customer.create({
       data: { ...safeData, companyId },
     });
+  }
+
+  /**
+   * Compute the next available customer number for a company.
+   * Format: "K-0001", "K-0002", ... (4-digit zero-padded).
+   * Looks at the highest existing number in this company and adds 1.
+   * Gaps in numbering are tolerated (a deleted K-0005 won't shift
+   * subsequent numbers down).
+   */
+  private async nextCustomerNumber(companyId: string): Promise<string> {
+    // Find the max numeric suffix among this company's customers.
+    // The .customerNumber column is optional + unique-per-company, so
+    // a manual reset to a higher number is the only way to "skip"
+    // ahead, which is the intended escape hatch.
+    const rows = await this.prisma.customer.findMany({
+      where: { companyId, customerNumber: { startsWith: 'K-' } },
+      select: { customerNumber: true },
+    })
+    let max = 0
+    for (const r of rows) {
+      const m = r.customerNumber?.match(/^K-(\d+)$/)
+      if (m) {
+        const n = parseInt(m[1], 10)
+        if (n > max) max = n
+      }
+    }
+    return `K-${String(max + 1).padStart(4, '0')}`
   }
 
   async update(id: string, companyId: string, data: any) {

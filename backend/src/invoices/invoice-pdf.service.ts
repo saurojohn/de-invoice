@@ -142,6 +142,13 @@ export async function generateInvoicePDF(
     const detailsValueX = rightMargin - 60   // value column starts here, right-aligned
     doc.fontSize(10).font("Helvetica")
     let detailsRow = 0
+    // Customer number (K-0001...) — printed above the issue date so
+    // the customer's own reference is the first thing visible.
+    const customerNumber = (invoice as any).customer?.customerNumber
+    if (customerNumber) {
+      doc.text("Kundennummer:", detailsLabelX, detailsY + detailsRow * 15, { width: 100, align: "right", lineBreak: false })
+      detailsRow++
+    }
     doc.text("Ausstellungsdatum:", detailsLabelX, detailsY + detailsRow * 15, { width: 100, align: "right", lineBreak: false })
     detailsRow++
     // (Währung removed — invoice.currency is always EUR and the field
@@ -157,6 +164,10 @@ export async function generateInvoicePDF(
     }
 
     detailsRow = 0
+    if (customerNumber) {
+      doc.text(customerNumber, detailsValueX, detailsY + detailsRow * 15, { width: 60, align: "right", lineBreak: false })
+      detailsRow++
+    }
     doc.text(formatDate(invoice.issueDate), detailsValueX, detailsY + detailsRow * 15, { width: 60, align: "right", lineBreak: false })
     detailsRow++
     if ((invoice as any).type === "CN" && (invoice as any).referenceInvoiceId) {

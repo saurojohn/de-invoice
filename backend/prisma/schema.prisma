@@ -95,26 +95,32 @@ model UserInvitation {
 }
 
 model Customer {
-  id           String   @id @default(uuid())
-  companyId    String
-  company      Company  @relation(fields: [companyId], references: [id])
-  type         String   @default("business")
-  name         String
-  vatId        String?
-  taxExempt    Boolean  @default(false)
-  address      Json
-  contact      Json?
-  paymentTerms Int      @default(30)
-  creditLimit  Decimal? @db.Decimal(12,2)
-  tags         String[]
-  metadata     Json?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id             String   @id @default(uuid())
+  companyId      String
+  company        Company  @relation(fields: [companyId], references: [id])
+  type           String   @default("business")
+  name           String
+  // Per-company sequential customer number (e.g. "K-0001"), auto-
+  // assigned by the service on create if not provided. Unique per
+  // company so importers can keep their own numbering scheme.
+  customerNumber String?
+  vatId          String?
+  taxExempt      Boolean  @default(false)
+  address        Json
+  contact        Json?
+  paymentTerms   Int      @default(30)
+  creditLimit    Decimal? @db.Decimal(12,2)
+  tags           String[]
+  metadata       Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   invoices     Invoice[]
 
   @@index([companyId, name])
   @@index([companyId, vatId])
+  @@index([companyId, customerNumber])
+  @@unique([companyId, customerNumber])
 }
 
 model Supplier {
