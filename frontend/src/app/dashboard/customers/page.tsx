@@ -93,7 +93,12 @@ export default function CustomersPage() {
     country: "DE",
     email: "",
     phone: "",
-    paymentTerms: 30,
+    // New customers default to "Sofort fällig" (paymentTerms = 0).
+    // Most B2B customers that go through manual approval / Net-30
+    // terms can be changed at create-time; defaulting to 0 avoids
+    // silently creating a customer with a 30-day window the user
+    // didn't ask for.
+    paymentTerms: 0,
     taxExempt: false,
   })
 
@@ -148,7 +153,10 @@ export default function CustomersPage() {
         country: "DE",
         email: "",
         phone: "",
-        paymentTerms: 30,
+        // Reset path also defaults to 0 (Sofort fällig) so reopening
+        // the "+ Neuer Kunde" modal after cancelling gives the same
+        // fresh state as the first open.
+        paymentTerms: 0,
         taxExempt: false,
       })
     }
