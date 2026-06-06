@@ -200,23 +200,27 @@ export async function generateInvoicePDF(
 
     if (isCompact) {
       // Compact table with fewer columns (Brutto column removed)
-      const compactColWidths = { desc: 320, qty: 80, price: 130 }
+      // sku + desc are two independent columns so the SKU gets its own
+      // header. SKU width 80 holds typical "ART-001" / "SMK-001"; remaining
+      // 240px goes to the description.
+      const compactColWidths = { sku: 80, desc: 240, qty: 80, price: 130 }
       const compactHeaderHeight = 20
 
       // Compact table header - no fill, just bottom border
       doc.moveTo(leftMargin, y + compactHeaderHeight).lineTo(rightMargin, y + compactHeaderHeight).lineWidth(0.8).stroke()
       doc.fillColor("#000000")
         .fontSize(9).font("Helvetica-Bold")
-        .text("Artikel Nr. / Beschreibung", leftMargin + 5, y + 6, { width: compactColWidths.desc - 10, lineBreak: false })
-        .text("Menge", leftMargin + compactColWidths.desc, y + 6, { width: compactColWidths.qty, align: "center", lineBreak: false })
-        .text("Einzelpreis", leftMargin + compactColWidths.desc + compactColWidths.qty, y + 6, { width: compactColWidths.price, align: "center", lineBreak: false })
+        .text("Artikel Nr.", leftMargin + 5, y + 6, { width: compactColWidths.sku - 10, lineBreak: false })
+        .text("Beschreibung", leftMargin + compactColWidths.sku, y + 6, { width: compactColWidths.desc - 10, lineBreak: false })
+        .text("Menge", leftMargin + compactColWidths.sku + compactColWidths.desc, y + 6, { width: compactColWidths.qty, align: "center", lineBreak: false })
+        .text("Einzelpreis", leftMargin + compactColWidths.sku + compactColWidths.desc + compactColWidths.qty, y + 6, { width: compactColWidths.price, align: "center", lineBreak: false })
 
       y += compactHeaderHeight
       doc.fillColor("#000000").font("Helvetica").fontSize(9).lineWidth(0.3)
       // Center amounts in their columns
-      const cQtyX = leftMargin + compactColWidths.desc
+      const cQtyX = leftMargin + compactColWidths.sku + compactColWidths.desc
       const cQtyW = compactColWidths.qty
-      const cPriceX = leftMargin + compactColWidths.desc + compactColWidths.qty
+      const cPriceX = leftMargin + compactColWidths.sku + compactColWidths.desc + compactColWidths.qty
       const cPriceW = compactColWidths.price
       invoice.items.forEach((item, i) => {
         const rowHeight = 20
@@ -224,23 +228,21 @@ export async function generateInvoicePDF(
         if (i > 0) {
           doc.moveTo(leftMargin, y).lineTo(rightMargin, y).stroke()
         }
-        // Two-line cell: top line = Artikel Nr. (SKU), bottom = Beschreibung
-        const sku = (item as any).product?.sku
-        if (sku) {
-          doc.font("Helvetica-Bold").fontSize(8)
-            .text(`Art.-Nr. ${sku}`, leftMargin + 5, y + 2, { width: compactColWidths.desc - 10, lineBreak: false })
-        }
+        // SKU in its own column (centered); if no linked product, show "—"
+        const sku = (item as any).product?.sku || "—"
+        doc.font("Helvetica-Bold").fontSize(9)
+          .text(sku, leftMargin + 5, y + 5, { width: compactColWidths.sku - 10, align: "center", lineBreak: false })
         doc.font("Helvetica").fontSize(9)
-          .text(item.description, leftMargin + 5, y + (sku ? 11 : 5), { width: compactColWidths.desc - 10, lineBreak: false })
+          .text(item.description, leftMargin + compactColWidths.sku, y + 5, { width: compactColWidths.desc - 10, lineBreak: false })
         doc.text(`${formatNumber(toFloat(item.quantity))} ${item.unit || ''}`, cQtyX, y + 5, { width: cQtyW, align: "center", lineBreak: false })
         doc.text(formatCurrency(toFloat(item.unitPrice)), cPriceX, y + 5, { width: cPriceW, align: "center", lineBreak: false })
         y += rowHeight
       })
     } else {
       // Standard table (Brutto column removed; Netto kept as the per-line total)
-      // Column widths: desc + qty + price + vat + net must end at rightMargin
+      // Column widths: sku + desc + qty + price + vat + net must end at rightMargin
       // so the right edge of "Gesamt" column aligns with the totals area on the right.
-      const colWidths = { desc: 220, qty: 55, price: 75, vat: 55, net: 90 }
+      const colWidths = { sku: 70, desc: 150, qty: 55, price: 75, vat: 55, net: 90 }
       // (sum: 495; rightMargin - leftMargin = 495 → last column ends exactly at rightMargin)
       const headerHeight = 25
       const rowHeight = 24
@@ -249,38 +251,37 @@ export async function generateInvoicePDF(
       doc.moveTo(leftMargin, y + headerHeight).lineTo(rightMargin, y + headerHeight).lineWidth(0.8).stroke()
       doc.fillColor("#000000")
         .fontSize(10).font("Helvetica-Bold")
-        .text("Artikel Nr. / Beschreibung", leftMargin + 5, y + 8, { width: colWidths.desc - 10, lineBreak: false })
-        .text("Menge", leftMargin + colWidths.desc, y + 8, { width: colWidths.qty, align: "center", lineBreak: false })
-        .text("Einzelpreis", leftMargin + colWidths.desc + colWidths.qty, y + 8, { width: colWidths.price, align: "center", lineBreak: false })
-        .text("MwSt", leftMargin + colWidths.desc + colWidths.qty + colWidths.price, y + 8, { width: colWidths.vat, align: "center", lineBreak: false })
+        .text("Artikel Nr.", leftMargin + 5, y + 8, { width: colWidths.sku - 10, lineBreak: false })
+        .text("Beschreibung", leftMargin + colWidths.sku, y + 8, { width: colWidths.desc - 10, lineBreak: false })
+        .text("Menge", leftMargin + colWidths.sku + colWidths.desc, y + 8, { width: colWidths.qty, align: "center", lineBreak: false })
+        .text("Einzelpreis", leftMargin + colWidths.sku + colWidths.desc + colWidths.qty, y + 8, { width: colWidths.price, align: "center", lineBreak: false })
+        .text("MwSt", leftMargin + colWidths.sku + colWidths.desc + colWidths.qty + colWidths.price, y + 8, { width: colWidths.vat, align: "center", lineBreak: false })
         // Gesamt header: right-aligned within net column → right edge = rightMargin
-        const sNetX = leftMargin + colWidths.desc + colWidths.qty + colWidths.price + colWidths.vat
+        const sNetX = leftMargin + colWidths.sku + colWidths.desc + colWidths.qty + colWidths.price + colWidths.vat
         const sNetW = colWidths.net
         doc.text("Gesamt", sNetX, y + 8, { width: sNetW, align: "right", lineBreak: false })
 
       y += headerHeight
       doc.font("Helvetica").fontSize(10).lineWidth(0.3)
       // Pre-compute column positions
-      const sQtyX = leftMargin + colWidths.desc
+      const sQtyX = leftMargin + colWidths.sku + colWidths.desc
       const sQtyW = colWidths.qty
-      const sPriceX = leftMargin + colWidths.desc + colWidths.qty
+      const sPriceX = leftMargin + colWidths.sku + colWidths.desc + colWidths.qty
       const sPriceW = colWidths.price
-      const sVatX = leftMargin + colWidths.desc + colWidths.qty + colWidths.price
+      const sVatX = leftMargin + colWidths.sku + colWidths.desc + colWidths.qty + colWidths.price
       const sVatW = colWidths.vat
       invoice.items.forEach((item, i) => {
         // Light dotted line between rows
         if (i > 0) {
           doc.moveTo(leftMargin, y).lineTo(rightMargin, y).stroke()
         }
-        // Two-line cell: top = Artikel Nr. (SKU), bottom = Beschreibung
-        const sku = (item as any).product?.sku
+        // SKU in its own column (centered); if no linked product, show "—"
+        const sku = (item as any).product?.sku || "—"
         doc.fillColor("#000000")
-        if (sku) {
-          doc.font("Helvetica-Bold").fontSize(8)
-            .text(`Art.-Nr. ${sku}`, leftMargin + 5, y + 3, { width: colWidths.desc - 10, lineBreak: false })
-        }
+        doc.font("Helvetica-Bold").fontSize(10)
+          .text(sku, leftMargin + 5, y + 7, { width: colWidths.sku - 10, align: "center", lineBreak: false })
         doc.font("Helvetica").fontSize(10)
-          .text(item.description, leftMargin + 5, y + (sku ? 13 : 7), { width: colWidths.desc - 10, lineBreak: false })
+          .text(item.description, leftMargin + colWidths.sku, y + 7, { width: colWidths.desc - 10, lineBreak: false })
         doc.text(`${formatNumber(toFloat(item.quantity))} ${item.unit || ''}`, sQtyX, y + 7, { width: sQtyW, align: "center", lineBreak: false })
         doc.text(formatCurrency(toFloat(item.unitPrice)), sPriceX, y + 7, { width: sPriceW, align: "center", lineBreak: false })
         doc.text(formatVatRate(toFloat(item.vatRate)), sVatX, y + 7, { width: sVatW, align: "center", lineBreak: false })
