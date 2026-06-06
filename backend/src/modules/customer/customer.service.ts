@@ -182,9 +182,9 @@ export class CustomerService {
 
   /**
    * Compute the next available customer number for a company.
-   * Format: "K-0001", "K-0002", ... (4-digit zero-padded).
+   * Format: "K-00001", "K-00002", ... (5-digit zero-padded).
    * Looks at the highest existing number in this company and adds 1.
-   * Gaps in numbering are tolerated (a deleted K-0005 won't shift
+   * Gaps in numbering are tolerated (a deleted K-00005 won't shift
    * subsequent numbers down).
    */
   private async nextCustomerNumber(companyId: string): Promise<string> {
@@ -204,7 +204,7 @@ export class CustomerService {
         if (n > max) max = n
       }
     }
-    return `K-${String(max + 1).padStart(4, '0')}`
+    return `K-${String(max + 1).padStart(5, '0')}`
   }
 
   async update(id: string, companyId: string, data: any) {
