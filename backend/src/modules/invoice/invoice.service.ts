@@ -397,14 +397,24 @@ export class InvoiceService {
       where: { id },
       data: {
         // Issue date is the same-day anchor — never editable.
-        customerId: dto.customerId ?? undefined,
+        // Use the relation field (`customer: { connect: {...} }`)
+        // instead of the raw `customerId` scalar — Prisma's default
+        // checked `InvoiceUpdateInput` doesn't expose customerId
+        // directly (it only offers the relation), and the unchecked
+        // variant isn't what `.update()` uses by default. Setting
+        // `customerId` directly throws "Unknown argument customerId.
+        // Did you mean `customer`?".
+        ...(dto.customerId ? { customer: { connect: { id: dto.customerId } } } : {}),
         dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined,
         notes: dto.notes ?? undefined,
         currency: dto.currency ?? undefined,
         language: dto.language ?? undefined,
         templateType: dto.templateType ?? undefined,
-        paymentTerms: dto.paymentTerms ?? undefined,
-        paymentMethod: dto.paymentMethod ?? undefined,
+        // paymentTerms is on Customer, paymentMethod is on Payment
+        // — neither lives on Invoice. The frontend form keeps them
+        // for UX continuity with the create flow, but Invoice's
+        // checked UpdateInput rejects them with "Unknown argument".
+        // Drop them here so the update actually persists.
         discountPercent: dto.discountPercent ?? undefined,
         discountAmount: dto.discountAmount ?? undefined,
         ...totalsData,

@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { useI18n } from "@/components/useI18n"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
-import { apiGet, apiPost, ApiError } from "@/lib/api"
+import { apiGet, apiPost, apiPut, ApiError } from "@/lib/api"
 
 type InvoiceType = 'INV' | 'CN' | 'PI' | 'RCV'
 type InvoiceTemplateType = 'standard' | 'simplified' | 'compact'
@@ -101,6 +101,23 @@ export default function CreateInvoicePage() {
           if (!inv || !inv.id) return
           setInvoiceType(inv.type || 'INV')
           setTemplateType(inv.templateType || 'standard')
+          // The customer "select" is actually a custom search
+          // input (value=customerSearch) with a click-list below.
+          // The hidden form.customerId is the real field, but
+          // the input's `required` HTML5 validation looks at the
+          // input's *visible* value. Without setting customerSearch
+          // here, the input shows the placeholder ("Kunde wählen"
+          // / "选择客户") and submit gets blocked with "Please
+          // fill out this field." — even though customerId IS set.
+          // Use the customer name from the API response so the
+          // visible text matches the hidden id.
+          if (inv.customer?.name) {
+            setCustomerSearch(inv.customer.name)
+          } else {
+            // Fallback: show the id so the user at least sees
+            // something is selected.
+            setCustomerSearch(inv.customerId || '')
+          }
           setForm({
             customerId: inv.customerId || '',
             referenceInvoiceId: inv.referenceInvoiceId || '',
