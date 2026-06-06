@@ -20,13 +20,13 @@ interface Customer {
   contact?: { email?: string; phone?: string }
   paymentTerms: number
   createdAt: string
+  // Backend-assigned per-company sequential customer number (K-00001...).
+  // Auto-generated on create if not supplied by the importer.
+  customerNumber?: string | null
   // Backend-augmented fields: the most recent issueDate from any
-  // invoice for this customer, plus the total invoice count, plus
-  // a derived `isActive` flag (true when the most recent invoice
-  // is younger than 90 days).
+  // invoice for this customer, plus the total invoice count.
   lastInvoiceDate?: string | null
   invoiceCount?: number
-  isActive?: boolean
 }
 
 export default function CustomersPage() {
@@ -483,7 +483,14 @@ export default function CustomersPage() {
                 </button>
                 <CardHeader>
                   <CardTitle className="flex justify-between items-center pr-6 gap-2">
-                    <span className="truncate">{customer.name}</span>
+                    <div className="min-w-0">
+                      <div className="truncate">{customer.name}</div>
+                      {customer.customerNumber && (
+                        <div className="text-xs text-gray-500 font-normal mt-0.5">
+                          {t("customer.customerNumber") || "Kundennummer"}: <span className="font-mono font-medium text-gray-700">{customer.customerNumber}</span>
+                        </div>
+                      )}
+                    </div>
                     <div className="flex gap-1 shrink-0">
                       <span
                         className={`text-[10px] px-2 py-1 rounded font-medium ${
@@ -768,7 +775,7 @@ export default function CustomersPage() {
                         setForm({ ...form, paymentTerms: Number(e.target.value) })
                       }
                     >
-                      <option value={0}>{t("paymentTerm.none")}</option>
+                      <option value={0}>{t("paymentTerm.immediate")}</option>
                       <option value={7}>{t("paymentTerm.days7")}</option>
                       <option value={14}>{t("paymentTerm.days14")}</option>
                       <option value={30}>{t("paymentTerm.days30")}</option>
