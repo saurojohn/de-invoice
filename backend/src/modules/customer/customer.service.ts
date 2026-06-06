@@ -158,8 +158,18 @@ export class CustomerService {
         )
       }
     }
+    // Defensive: Prisma's `address` column is `Json` (NOT NULL) but
+    // the global ValidationPipe strips @IsOptional() fields when the
+    // payload omits them. Without this default, a minimal payload
+    // like {"name":"X","contact":{"email":""}} produces a 500
+    // "Argument `address` is missing". Same risk exists for `contact`.
+    const safeData = {
+      ...data,
+      address: data.address ?? {},
+      contact: data.contact ?? {},
+    }
     return this.prisma.customer.create({
-      data: { ...data, companyId },
+      data: { ...safeData, companyId },
     });
   }
 
