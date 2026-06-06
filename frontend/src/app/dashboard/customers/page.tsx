@@ -427,7 +427,7 @@ export default function CustomersPage() {
               type="text"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              placeholder={t("customer.searchPlaceholder") || "Name, USt-ID, Stadt, PLZ suchen..."}
+              placeholder={t("customer.searchPlaceholder") || "Name, USt-ID, Kundennummer, Stadt, PLZ suchen..."}
               className="w-full md:w-1/2 px-3 py-2 border border-gray-300 rounded-md text-sm"
             />
             {search && (

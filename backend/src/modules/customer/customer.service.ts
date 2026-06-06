@@ -49,17 +49,51 @@ export class CustomerService {
     const where: any = { companyId }
     if (opts.search && opts.search.trim()) {
       const q = opts.search.trim()
-      // The UI search box advertises "Name, USt-ID, Stadt, PLZ"
-      // so we actually have to look at all four. Postgres JSON
-      // path queries (string_contains) are case-sensitive — for
-      // postal code that doesn't matter, for city we coerce the
-      // search term to lower before matching.
-      where.OR = [
-        { name: { contains: q, mode: 'insensitive' } },
-        { vatId: { contains: q, mode: 'insensitive' } },
-        { address: { path: ['city'], string_contains: q } },
-        { address: { path: ['postalCode'], string_contains: q } },
-      ]
+      // Smart customer-number lookup: if the user types a string that
+      // looks like a customer number (e.g. "K-0001" or just "K0001"),
+      // match the exact number FIRST. The free-text fields and the
+      // two generated text columns all have pg_trgm GIN indexes (see
+      // prisma/init.sql), so substring search is also fast.
+      //
+      // Why a two-stage lookup instead of a single OR: Postgres'
+      // OR-of-mixed-clauses uses BitmapOr and returns the UNION of
+      // all matching rows, so "K-0001" substring matches K-00010..K-
+      // 00019 and the exact K-00001 would just be one row among 11.
+      // A two-stage query guarantees the exact match wins when it
+      // exists, with substring fallback when it doesn't.
+      const stripped = q.replace(/^K-?/i, '')
+      const looksLikeNumber = /^\d{1,6}$/.test(stripped)
+      const padded = looksLikeNumber ? stripped.padStart(5, '0') : null
+      const exactNumber = padded ? `K-${padded}` : null
+
+      if (exactNumber) {
+        const exactCount = await this.prisma.customer.count({
+          where: { companyId, customerNumber: exactNumber },
+        })
+        if (exactCount > 0) {
+          // Exact match wins — restrict the search to just that row
+          // (still OR'd, but a single clause, so the query is cheap).
+          where.customerNumber = exactNumber
+        } else {
+          // Fall through to substring search so the user still gets
+          // useful "did you mean" results instead of an empty list.
+          where.OR = [
+            { name: { contains: q, mode: 'insensitive' } },
+            { vatId: { contains: q, mode: 'insensitive' } },
+            { customerNumber: { contains: q, mode: 'insensitive' } },
+            { cityText: { contains: q, mode: 'insensitive' } },
+            { postalCodeText: { contains: q, mode: 'insensitive' } },
+          ]
+        }
+      } else {
+        where.OR = [
+          { name: { contains: q, mode: 'insensitive' } },
+          { vatId: { contains: q, mode: 'insensitive' } },
+          { customerNumber: { contains: q, mode: 'insensitive' } },
+          { cityText: { contains: q, mode: 'insensitive' } },
+          { postalCodeText: { contains: q, mode: 'insensitive' } },
+        ]
+      }
     }
     const [data, total] = await Promise.all([
       this.prisma.customer.findMany({

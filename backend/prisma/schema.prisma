@@ -115,6 +115,15 @@ model Customer {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
+  // Generated text columns + trigram indexes are defined in
+  // prisma/init.sql (pg_trgm GIN on name/vatId/customerNumber plus
+  // city_text / postal_code_text pulled out of `address`). Prisma
+  // doesn't have first-class syntax for STORED generated columns,
+  // so they live in raw SQL — `prisma db pull` would otherwise drop
+  // them.
+  cityText           String? @map("city_text")
+  postalCodeText     String? @map("postal_code_text")
+
   invoices     Invoice[]
 
   @@index([companyId, name])

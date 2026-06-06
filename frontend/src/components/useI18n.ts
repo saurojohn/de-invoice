@@ -129,7 +129,7 @@ const messages = {
       addFirst: "Ersten Kunden hinzufügen",
       country: "Land",
       countryPlaceholder: "z.B. Deutschland",
-      searchPlaceholder: "Name, USt-ID, Stadt, PLZ suchen...",
+      searchPlaceholder: "Name, USt-ID, Kundennummer, Stadt, PLZ suchen...",
       noMatching: "Keine Kunden entsprechen der Suche."
     },
     product: {
@@ -667,7 +667,7 @@ const messages = {
       addFirst: "Add your first customer",
       country: "Country",
       countryPlaceholder: "e.g. Germany",
-      searchPlaceholder: "Search by name, VAT ID, city, postal code...",
+      searchPlaceholder: "Search by name, VAT ID, customer number, city, postal code...",
       noMatching: "No customers match your search."
     },
     product: {
@@ -1205,7 +1205,7 @@ const messages = {
       addFirst: "添加第一个客户",
       country: "国家",
       countryPlaceholder: "例如：德国",
-      searchPlaceholder: "按名称、税号、城市、邮编搜索...",
+      searchPlaceholder: "按名称、税号、客户编号、城市、邮编搜索...",
       noMatching: "没有符合搜索条件的客户。"
     },
     product: {
