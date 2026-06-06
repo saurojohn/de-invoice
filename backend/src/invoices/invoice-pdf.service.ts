@@ -231,7 +231,7 @@ export async function generateInvoicePDF(
         // SKU in its own column (centered); if no linked product, show "—"
         const sku = (item as any).product?.sku || "—"
         doc.font("Helvetica-Bold").fontSize(9)
-          .text(sku, leftMargin + 5, y + 5, { width: compactColWidths.sku - 10, align: "center", lineBreak: false })
+          .text(sku, leftMargin, y + 5, { width: compactColWidths.sku, align: "center", lineBreak: false })
         doc.font("Helvetica").fontSize(9)
           .text(item.description, leftMargin + compactColWidths.sku, y + 5, { width: compactColWidths.desc - 10, lineBreak: false })
         doc.text(`${formatNumber(toFloat(item.quantity))} ${item.unit || ''}`, cQtyX, y + 5, { width: cQtyW, align: "center", lineBreak: false })
@@ -279,7 +279,7 @@ export async function generateInvoicePDF(
         const sku = (item as any).product?.sku || "—"
         doc.fillColor("#000000")
         doc.font("Helvetica-Bold").fontSize(10)
-          .text(sku, leftMargin + 5, y + 7, { width: colWidths.sku - 10, align: "center", lineBreak: false })
+          .text(sku, leftMargin, y + 7, { width: colWidths.sku, align: "center", lineBreak: false })
         doc.font("Helvetica").fontSize(10)
           .text(item.description, leftMargin + colWidths.sku, y + 7, { width: colWidths.desc - 10, lineBreak: false })
         doc.text(`${formatNumber(toFloat(item.quantity))} ${item.unit || ''}`, sQtyX, y + 7, { width: sQtyW, align: "center", lineBreak: false })
