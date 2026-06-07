@@ -43,3 +43,11 @@ docker-compose.yml
 
 # Stray logo upload path (artifacts accidentally created during testing)
 backend/frontend/
+
+# Test PDFs generated during invoice layout debugging.
+# These are created by `node -e "...generateInvoicePDF(...)"` calls
+# and live at the repo root. They're not part of the app — the
+# real PDF goes through the HTTP API. Keep them out of git so
+# `git status` stays clean during PDF iteration.
+test_invoice_*.pdf
+test_zugferd_*.pdf
