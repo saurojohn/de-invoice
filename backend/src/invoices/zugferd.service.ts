@@ -501,7 +501,18 @@ function createZUGFeRDPdf(
       rightFooterY += 12;
     }
     if (other) {
-      doc.text(other, leftMargin, rightFooterY, { width: rightFooterWidth, align: 'right', lineBreak: true });
+      // Render otherInfo line-by-line (split on user-typed \n)
+      // instead of passing the whole multi-line string with
+      // lineBreak:true. The latter caused PDFKit to collapse
+      // the \n separators in some right-alignment scenarios,
+      // making the second line draw on top of the first.
+      // 9pt per line keeps the block compact so the page
+      // number still fits on page 1 (maxY 791.89pt).
+      const otherLines = other.split(/\r?\n/).filter((l: string) => l.length > 0);
+      for (const line of otherLines) {
+        doc.text(line, leftMargin, rightFooterY, { width: rightFooterWidth, align: 'right', lineBreak: false });
+        rightFooterY += 9;
+      }
     }
 
     // Page number — bottom-right corner, on the same row as the

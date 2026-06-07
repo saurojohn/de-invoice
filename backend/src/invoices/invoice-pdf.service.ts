@@ -520,24 +520,56 @@ export async function generateInvoicePDF(
       rightFooterY += 12
     }
     if (other) {
-      // Render verbatim with width-bound wrapping so the right
-      // edge of the text always lands at rightMargin. We pass
-      // the string through unchanged (including user-typed \n)
-      // so multi-line free text like
-      //   "WEEE-Reg.-Nr. DE 12345\nMitglied IHK Offenbach"
-      // keeps its intended line breaks.
-      doc.text(other, leftMargin, rightFooterY, { width: rightFooterWidth, align: "right", lineBreak: true })
+      // Render the otherInfo block line-by-line. We split on
+      // the user-typed newlines and write each line with
+      // lineBreak:false + a fixed Y offset, instead of passing
+      // the whole multi-line string to doc.text with
+      // lineBreak:true.
+      //
+      // Why: PDFKit's `lineBreak: true` + `align: "right"` can
+      // collapse user-typed \n separators when the text width
+      // interacts with the right-alignment bounding box,
+      // causing the second and following lines to draw on top
+      // of the first line. Writing each line as a separate
+      // fixed-Y doc.text call is more predictable — each line
+      // has its own Y, right-edge, and no wrap logic to fight
+      // with the user's \n.
+      //
+      // We use 9pt per line (not 10) so a 2-line otherInfo
+      // block ends at rightFooterY + 18, leaving headroom for
+      // the page number to still fit on page 1 (maxY = 791.89
+      // on A4 with 50pt margin). With 10pt the page number
+      // was pushed to a 2nd page.
+      const otherLines = other.split(/\r?\n/).filter((l: string) => l.length > 0)
+      for (const line of otherLines) {
+        doc.text(line, leftMargin, rightFooterY, { width: rightFooterWidth, align: "right", lineBreak: false })
+        rightFooterY += 9
+      }
     }
 
     // Page number is also non-bold for the same reason — keeps
     // the footer at a consistent visual weight.
+    //
+    // Y position: rightFooterY + 6 — always 6pt below the last
+    // right-footer line, regardless of how many otherInfo
+    // lines the user typed. This gives consistent 6pt spacing
+    // whether otherInfo is 0, 1, or 4 lines.
+    //
+    // To avoid triggering an addPage when the right block is
+    // tall, we cap the page number Y at maxY - 12 (= 779.89pt
+    // on A4 with 50pt margin), which is 12pt above maxY and
+    // leaves enough headroom for the 8pt lineHeight (~9.6pt
+    // with leading) to fit on page 1. The cap is the
+    // "emergency brake" — it kicks in only when otherInfo
+    // would otherwise push the page number past the page edge.
     const pageCount = doc.bufferedPageRange
       ? doc.bufferedPageRange().count
       : doc.page?.number ?? 1
+    const pageNumberY = Math.min(rightFooterY + 6, doc.page.height - 62)
     doc.text(
       `Seite ${pageCount}`,
       leftMargin,
-      Math.min(footerY + 50, rightFooterY),
+      pageNumberY,
       { width: rightFooterWidth, align: "right", lineBreak: false }
     )
 
