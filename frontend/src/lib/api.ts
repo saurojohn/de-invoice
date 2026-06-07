@@ -60,7 +60,13 @@ export async function apiFetch(path: string, opts: ApiFetchOptions = {}): Promis
     }
   }
   const url = path.startsWith("http") ? path : `${API_BASE}${path}`
-  const res = await fetch(url, { ...rest, headers: finalHeaders, body: finalBody })
+  // Pass cache: 'no-store' so the browser NEVER serves a stale
+  // PDF / JSON response from its HTTP cache. The server is
+  // authoritative — even with the cache-bust ?t= query
+  // parameter, some browsers (notably Safari) and service
+  // workers can still return a cached body. 'no-store' is
+  // the explicit opt-out.
+  const res = await fetch(url, { cache: "no-store", ...rest, headers: finalHeaders, body: finalBody })
   if (throwOnError && !res.ok) {
     const data = await res.json().catch(() => ({}))
     const msg = Array.isArray(data.message)
