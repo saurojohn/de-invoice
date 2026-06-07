@@ -47,6 +47,10 @@ interface CompanySettings {
   vatId: string
   email: string
   phone: string
+  fax: string
+  website: string
+  registerEntry: string
+  managingDirector: string
   address: {
     street: string
     postalCode: string
@@ -91,6 +95,10 @@ export default function SettingsPage() {
     vatId: "",
     email: "",
     phone: "",
+    fax: "",
+    website: "",
+    registerEntry: "",
+    managingDirector: "",
     address: {
       street: "",
       postalCode: "",
@@ -168,6 +176,10 @@ export default function SettingsPage() {
               vatId: data.vatId || "",
               email: data.email || "",
               phone: data.phone || "",
+              fax: data.fax || "",
+              website: data.website || "",
+              registerEntry: data.registerEntry || "",
+              managingDirector: data.managingDirector || "",
               address: {
                 street: address.street || "",
                 postalCode: address.postalCode || "",
@@ -339,6 +351,10 @@ export default function SettingsPage() {
           vatId: fresh.vatId ?? "",
           email: fresh.email ?? "",
           phone: fresh.phone ?? "",
+          fax: fresh.fax ?? "",
+          website: fresh.website ?? "",
+          registerEntry: fresh.registerEntry ?? "",
+          managingDirector: fresh.managingDirector ?? "",
           address: {
             street: address.street ?? "",
             postalCode: address.postalCode ?? "",
@@ -627,6 +643,60 @@ export default function SettingsPage() {
                     value={form.phone}
                     onChange={(e) => setForm({ ...form, phone: e.target.value })}
                     placeholder="+49 6181 12345"
+                  />
+                </div>
+              </div>
+
+              {/* Extended contact info — fax + website.
+                  Both shown in the PDF letterhead contact line. */}
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    {t("settings.fax")}
+                  </label>
+                  <Input
+                    type="tel"
+                    value={form.fax}
+                    onChange={(e) => setForm({ ...form, fax: e.target.value })}
+                    placeholder="+49 6181 12345-99"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    {t("settings.website")}
+                  </label>
+                  <Input
+                    type="url"
+                    value={form.website}
+                    onChange={(e) => setForm({ ...form, website: e.target.value })}
+                    placeholder="www.shleder.de"
+                  />
+                </div>
+              </div>
+
+              {/* Legal info (Rechtliches / Impressum) — required by
+                  §5 TMG for B2B invoices in Germany. Handelsregister
+                  entry + managing director are the two pieces most
+                  often requested on German invoices. */}
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    {t("settings.registerEntry")}
+                  </label>
+                  <Input
+                    value={form.registerEntry}
+                    onChange={(e) => setForm({ ...form, registerEntry: e.target.value })}
+                    placeholder="HRB 12345 Amtsgericht Offenbach am Main"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    {t("settings.managingDirector")}
+                  </label>
+                  <Input
+                    value={form.managingDirector}
+                    onChange={(e) => setForm({ ...form, managingDirector: e.target.value })}
+                    placeholder="Max Mustermann"
                   />
                 </div>
               </div>

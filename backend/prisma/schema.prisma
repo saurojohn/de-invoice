@@ -19,6 +19,10 @@ model Company {
   vatId             String?
   email             String?
   phone             String?
+  fax               String?
+  website           String?
+  registerEntry     String?  // e.g. "HRB 12345 Amtsgericht Offenbach am Main"
+  managingDirector  String?  // Geschäftsführer / Inhaber
   address           Json
   bankInfo          Json?
   settings          Json?

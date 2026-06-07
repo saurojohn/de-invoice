@@ -133,12 +133,36 @@ export async function generateInvoicePDF(
         doc.text(compAddr.country, leftMargin, cy, { width: rightBlockWidth, align: "right", lineBreak: false })
         cy += 12
       }
-      // Optional contact line under the address.
+      // Optional contact line under the address. We pack up to
+      // four channels (email / phone / fax / website) onto a
+      // single line, joined with " · ". Skip empties so a company
+      // that hasn't filled in fax/website still renders cleanly.
       const contactParts: string[] = []
       if (company.email) contactParts.push(company.email)
       if (company.phone) contactParts.push(company.phone)
+      if ((company as any).fax) contactParts.push(`Fax: ${(company as any).fax}`)
+      if ((company as any).website) contactParts.push((company as any).website)
       if (contactParts.length) {
         doc.fontSize(8).font("Helvetica").text(contactParts.join("  ·  "), leftMargin, cy + 2, { width: rightBlockWidth, align: "right", lineBreak: false })
+        cy += 10
+      }
+      // Rechtliches / Impressum block (§5 TMG requirement for
+      // German B2B invoices). Two lines, right-aligned, 7pt.
+      // Handelsregister entry + Geschäftsführer — only render if
+      // the company has filled them in; otherwise this block is
+      // empty and the letterhead collapses back to the original
+      // size.
+      const reg = (company as any).registerEntry
+      const md = (company as any).managingDirector
+      if (reg || md) {
+        cy += 2
+        if (reg) {
+          doc.fontSize(7).font("Helvetica").text(`HR: ${reg}`, leftMargin, cy, { width: rightBlockWidth, align: "right", lineBreak: false })
+          cy += 9
+        }
+        if (md) {
+          doc.fontSize(7).font("Helvetica").text(`GF: ${md}`, leftMargin, cy, { width: rightBlockWidth, align: "right", lineBreak: false })
+        }
       }
     } else {
       // No logo path on this company. Fall back to a left-aligned

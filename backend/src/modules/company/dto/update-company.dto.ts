@@ -89,6 +89,38 @@ export class UpdateCompanyDto {
   @MaxLength(50)
   phone?: string;
 
+  // Fax number (rarely used in modern invoices but required for
+  // some B2B/government forms and for legal company records).
+  // Free-text, German format expected: "+49 6181 12345-12".
+  @IsString()
+  @IsOptional()
+  @MaxLength(50)
+  fax?: string;
+
+  // Company website URL. Free-text — we don't validate URL syntax
+  // strictly because invoices often show bare domains
+  // ("www.shleder.de") without the https:// scheme.
+  @IsString()
+  @IsOptional()
+  @MaxLength(200)
+  website?: string;
+
+  // Handelsregister / company register entry, e.g.
+  // "HRB 12345 Amtsgericht Offenbach am Main".
+  // Required by §5 TMG (Telemediengesetz) for the Impressum on
+  // most B2B invoices in Germany.
+  @IsString()
+  @IsOptional()
+  @MaxLength(200)
+  registerEntry?: string;
+
+  // Geschäftsführer / managing director / sole proprietor.
+  // Required by §5 TMG for the Impressum.
+  @IsString()
+  @IsOptional()
+  @MaxLength(200)
+  managingDirector?: string;
+
   @IsObject()
   @ValidateNested()
   @Type(() => CompanyAddressDto)

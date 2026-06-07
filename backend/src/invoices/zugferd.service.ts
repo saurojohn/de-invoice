@@ -261,13 +261,29 @@ function createZUGFeRDPdf(
       doc.text(`${compAddr.postalCode || ''} ${compAddr.city || ''}`.trim(), leftMargin, 87, { width: rightBlockWidth, align: 'right', lineBreak: false });
     }
     if (compAddr.country) doc.text(compAddr.country, leftMargin, 99, { width: rightBlockWidth, align: 'right', lineBreak: false });
-    // Contact line (below the address)
+    // Contact line (below the address). Packs email / phone /
+    // fax / website onto a single line, joined with " · ".
+    // Empty channels are skipped so a company that hasn't
+    // filled in fax/website still renders cleanly.
     const contactY = 113;
-    let contactLine = '';
-    if (company.email) contactLine += company.email;
-    if (company.phone) contactLine += (contactLine ? '  ·  ' : '') + company.phone;
-    if (contactLine) {
-      doc.fontSize(8).font('Helvetica').text(contactLine, leftMargin, contactY, { width: rightBlockWidth, align: 'right', lineBreak: false });
+    const contactParts: string[] = [];
+    if (company.email) contactParts.push(company.email);
+    if (company.phone) contactParts.push(company.phone);
+    if ((company as any).fax) contactParts.push(`Fax: ${(company as any).fax}`);
+    if ((company as any).website) contactParts.push((company as any).website);
+    if (contactParts.length) {
+      doc.fontSize(8).font('Helvetica').text(contactParts.join('  ·  '), leftMargin, contactY, { width: rightBlockWidth, align: 'right', lineBreak: false });
+    }
+    // Rechtliches / Impressum block (§5 TMG).
+    const reg = (company as any).registerEntry;
+    const md = (company as any).managingDirector;
+    let legalY = contactY + 12;
+    if (reg) {
+      doc.fontSize(7).font('Helvetica').text(`HR: ${reg}`, leftMargin, legalY, { width: rightBlockWidth, align: 'right', lineBreak: false });
+      legalY += 9;
+    }
+    if (md) {
+      doc.fontSize(7).font('Helvetica').text(`GF: ${md}`, leftMargin, legalY, { width: rightBlockWidth, align: 'right', lineBreak: false });
     }
 
     // Invoice title (right aligned to rightMargin). Switch by type so
