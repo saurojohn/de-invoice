@@ -195,23 +195,43 @@ export class InvoiceService {
     const stockWarnings = await this.checkStockForItems(dto.items || []);
     const hasStockWarnings = stockWarnings.length > 0;
 
-    // Generate invoice number based on type
-    const count = await this.prisma.invoice.count({ where: { companyId, type } });
-    let invoiceNumber: string;
-
-    if (type === 'CN') {
-      // Credit Note number format: CN-YYYY-XXXXXX
-      invoiceNumber = `CN-${new Date().getFullYear()}-${String(count + 1).padStart(6, '0')}`;
-    } else if (type === 'PI') {
-      // Proforma Invoice number format: PI-YYYY-XXXXXX
-      invoiceNumber = `PI-${new Date().getFullYear()}-${String(count + 1).padStart(6, '0')}`;
-    } else if (type === 'RCV') {
-      // Receipt number format: RCV-YYYY-XXXXXX
-      invoiceNumber = `RCV-${new Date().getFullYear()}-${String(count + 1).padStart(6, '0')}`;
-    } else {
-      // Standard Invoice number format: INV-YYYY-XXXXXX
-      invoiceNumber = `INV-${new Date().getFullYear()}-${String(count + 1).padStart(6, '0')}`;
+    // Generate invoice number. The user wants the delete-last-
+    // invoice rule to mean the freed-up number is REUSED on
+    // the next create (no permanent gap). Combined with the
+    // "only the last invoice can be deleted" rule, the
+    // simplest correct algorithm is: pick the lowest
+    // available sequence number within the current year.
+    // That is, find the smallest positive integer s such
+    // that (TYPE-YYYY-zeroPad(s)) is not currently in the
+    // DB; if all 1..max are taken, use max+1.
+    //
+    // In SQL terms: a single round-trip with a CTE that
+    // generates 1..max and finds the first missing one. We
+    // do it in two round-trips (fetch used set + pick gap
+    // in JS) because Prisma's raw query for generate_series
+    // is awkward and the existing invoice count for a
+    // single company+type is small (< 100k in practice).
+    const currentYear = new Date().getFullYear()
+    const prefix = type === 'CN'
+      ? 'CN-'
+      : type === 'PI'
+      ? 'PI-'
+      : type === 'RCV'
+      ? 'RCV-'
+      : 'INV-'
+    const sameYear = await this.prisma.invoice.findMany({
+      where: { companyId, type, invoiceNumber: { startsWith: `${prefix}${currentYear}-` } },
+      select: { invoiceNumber: true },
+    })
+    const usedSeqs = new Set<number>()
+    for (const inv of sameYear) {
+      const m = new RegExp(`^${prefix}${currentYear}-(\\d+)$`).exec(inv.invoiceNumber)
+      if (m) usedSeqs.add(parseInt(m[1], 10))
     }
+    let nextSeq = 1
+    while (usedSeqs.has(nextSeq)) nextSeq++
+    const padded = String(nextSeq).padStart(6, '0')
+    const invoiceNumber = `${prefix}${currentYear}-${padded}`
 
     // For Credit Notes, copy customer info from reference invoice if not provided
     let customerId = dto.customerId;
@@ -475,6 +495,43 @@ export class InvoiceService {
       throw new ForbiddenException(
         'Rechnung kann nur am Ausstellungstag gelöscht werden. Für ältere Rechnungen den Status auf "Storniert" setzen.',
       );
+    }
+    // Last-invoice rule: only the invoice with the highest
+    // invoiceNumber within its (companyId, type) bucket can be
+    // deleted. This prevents the user from deleting invoice N
+    // and leaving invoice N+1 in the DB — which would create a
+    // gap in the sequential numbering and break the
+    // "lückenlose fortlaufende Nummerierung" requirement
+    // (§146 AO / GoBD).
+    //
+    // We compare by (year DESC, sequence DESC) so a 2026
+    // invoice outranks a 2025 invoice even if the 2025
+    // sequence number happens to be numerically larger
+    // (e.g. INV-2025-000999 vs INV-2026-000001).
+    const sameType = await this.prisma.invoice.findMany({
+      where: { companyId, type: existing.type },
+      select: { id: true, invoiceNumber: true },
+    })
+    const parseNumber = (s: string): { year: number; seq: number } => {
+      // Format: "INV-2026-000042" → { year: 2026, seq: 42 }
+      const m = /^([A-Z]+)-(\d{4})-(\d+)$/.exec(s)
+      if (!m) return { year: 0, seq: 0 }
+      return { year: parseInt(m[2], 10), seq: parseInt(m[3], 10) }
+    }
+    const maxEntry = sameType.reduce<{ id: string; year: number; seq: number } | null>(
+      (acc, inv) => {
+        const p = parseNumber(inv.invoiceNumber)
+        if (!acc) return { id: inv.id, ...p }
+        if (p.year > acc.year) return { id: inv.id, ...p }
+        if (p.year === acc.year && p.seq > acc.seq) return { id: inv.id, ...p }
+        return acc
+      },
+      null
+    )
+    if (!maxEntry || maxEntry.id !== id) {
+      throw new ForbiddenException(
+        'Es kann nur die zuletzt erstellte Rechnung gelöscht werden. Für ältere Rechnungen den Status auf "Storniert" setzen.',
+      )
     }
     return this.prisma.$transaction(async (tx) => {
       await tx.payment.deleteMany({ where: { invoiceId: id } });
