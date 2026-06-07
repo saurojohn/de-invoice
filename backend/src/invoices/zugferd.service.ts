@@ -309,7 +309,11 @@ function createZUGFeRDPdf(
     //   - Sender line: single line, 50% smaller (5pt) — acts as the
     //     return-address line for window envelopes.
     //   - Customer block: 11pt (+10% from the 10pt baseline).
-    let custY = middleRowY;
+    //   - Sender + customer block offset down 2 rows (2 × 14pt =
+    //     28pt) so the address area sits clearly below the logo
+    //     band, matching the PDF service's offset.
+    const senderOffsetY = 28;
+    let custY = middleRowY + senderOffsetY;
     const custAddr = invoice.customer?.address || {};
     // Sender line: "Name · Straße · PLZ Ort · Land"
     const senderParts: string[] = [company.name];

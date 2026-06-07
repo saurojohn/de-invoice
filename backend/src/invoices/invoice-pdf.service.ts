@@ -168,11 +168,19 @@ export async function generateInvoicePDF(
     // block (headerStartY + 68 + 14 = 132 — that's roughly where
     // the company name USED to be in the v3/v4 layout).
     const middleRowY = headerStartY + 68 + 14  // 132
+    // Sender + customer block gets offset down 2 rows
+    // (2 × 14pt = 28pt) so the address area sits clearly below
+    // the logo/letterhead band and doesn't crowd the right-side
+    // RECHNUNG block. Matches the title block's 3-row offset
+    // visually (a touch less so the address tops just under
+    // the invoice number on the right).
+    const senderOffsetY = 28
+    const senderStartY = middleRowY + senderOffsetY  // 160
 
     // Customer address — left side of the middle row. Sits at
     // the same Y as the RECHNUNG title to its right.
     const custAddr = invoice.customer.address || {}
-    let custY = middleRowY
+    let custY = senderStartY
     // Sender line ("Absenderzeile"). Per user request:
     //   - "sender 公司名+地址 只要一行" — single-line format
     //   - "缩小50%，方便用于寄信封" — 50% smaller (10pt → 5pt) so
