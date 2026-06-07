@@ -7,7 +7,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
-import { apiGet, apiPost, apiDelete, ApiError } from "@/lib/api"
+import { apiGet, apiPost, apiDelete, apiFetch, ApiError } from "@/lib/api"
 
 interface StorageSettings {
   localPath: string
@@ -391,13 +391,24 @@ export default function SettingsPage() {
       formData.append("file", file)
       formData.append("companyId", companyId)
 
-      const res = await fetch("http://localhost:3001/api/v1/companies/upload-logo", {
+      // Use apiFetch so the x-user-id / x-company-id auth headers
+      // are injected automatically. The old raw fetch() call
+      // dropped them, AND the upload endpoint had no @Auth()
+      // guard — so the request "succeeded" but bypassed
+      // authentication entirely (anyone could overwrite any
+      // company's logo). Adding @Auth() to the backend endpoint
+      // and using apiFetch here closes both holes.
+      //
+      // apiFetch detects FormData and skips the default
+      // Content-Type so the browser can set the multipart
+      // boundary itself.
+      const res = await apiFetch("/api/v1/companies/upload-logo", {
         method: "POST",
         body: formData,
       })
+      const data = await res.json()
 
       if (res.ok) {
-        const data = await res.json()
         setCurrentLogo(`/images/${data.filename}`)
         setForm({ ...form, logoPath: data.filename })
         alert(t("settings.logoUploaded"))
@@ -405,7 +416,8 @@ export default function SettingsPage() {
         alert(t("settings.uploadError"))
       }
     } catch (error) {
-      alert(t("settings.uploadError"))
+      const msg = error instanceof ApiError ? error.message : t("settings.uploadError")
+      alert(msg)
     } finally {
       setUploadProgress(false)
     }
