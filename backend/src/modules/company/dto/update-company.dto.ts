@@ -52,6 +52,24 @@ export class CompanyPreferencesDto {
   @IsString()
   @IsOptional()
   defaultLanguage?: string;
+
+  // Free-text name of the default printer the user wants to
+  // use for invoice printing. The browser JS sandbox can't
+  // actually force the OS print dialog to pre-select this
+  // printer (window.print() doesn't accept a printer arg,
+  // and chrome.printing requires enterprise kiosk mode), so
+  // this field is INFORMATIONAL — the user's OS print
+  // dialog still shows the system default printer. The
+  // value is displayed in the settings page so the user
+  // can confirm what they typed, and shown as a hint
+  // in the toast that fires after window.print() returns.
+  // Free-text (max 200 chars) so it accepts both macOS
+  // printer names ("Brother HL-L2350DW series") and
+  // Windows share names ("\\\\PRINTSERVER\\Rechnungsdrucker").
+  @IsString()
+  @IsOptional()
+  @MaxLength(200)
+  defaultPrinter?: string;
 }
 
 export class UpdateCompanyDto {

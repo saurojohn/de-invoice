@@ -66,6 +66,7 @@ interface CompanySettings {
   settings: {
     defaultCurrency: string
     defaultLanguage: string
+    defaultPrinter: string
   }
   logoPath: string
   invoicePrefix: string
@@ -115,6 +116,7 @@ export default function SettingsPage() {
     settings: {
       defaultCurrency: "EUR",
       defaultLanguage: "de",
+      defaultPrinter: "",
     },
     logoPath: "",
     invoicePrefix: "INV",
@@ -197,6 +199,7 @@ export default function SettingsPage() {
               settings: {
                 defaultCurrency: settings.defaultCurrency || "EUR",
                 defaultLanguage: settings.defaultLanguage || "de",
+                defaultPrinter: settings.defaultPrinter || "",
               },
               logoPath: data.logoPath ?? "",
               // Use `??` (nullish coalescing), not `||`, for these —
@@ -373,6 +376,7 @@ export default function SettingsPage() {
           settings: {
             defaultCurrency: settings.defaultCurrency ?? "EUR",
             defaultLanguage: settings.defaultLanguage ?? "de",
+            defaultPrinter: settings.defaultPrinter ?? "",
           },
           logoPath: fresh.logoPath ?? "",
           invoicePrefix: fresh.invoicePrefix ?? "INV",
@@ -883,6 +887,35 @@ export default function SettingsPage() {
                     <option value="CHF">CHF - Schweizer Franken</option>
                   </select>
                 </div>
+              </div>
+
+              {/* Default printer — free-text. The browser JS
+                  sandbox can't actually pre-select a printer in
+                  the OS print dialog (window.print() ignores any
+                  printer argument), so this value is informational
+                  only: the settings page shows it back, the PDF
+                  download toast mentions it, and the user can
+                  copy-paste it from the system print dialog. The
+                  point is to make the preference visible and
+                  reproducible across sessions — not to force the
+                  OS. */}
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  {t("settings.defaultPrinter")}
+                </label>
+                <Input
+                  value={form.settings.defaultPrinter}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      settings: { ...form.settings, defaultPrinter: e.target.value },
+                    })
+                  }
+                  placeholder={t("settings.defaultPrinterPlaceholder")}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  {t("settings.defaultPrinterHelp")}
+                </p>
               </div>
             </CardContent>
           </Card>
