@@ -137,6 +137,12 @@ export async function generateInvoicePDF(
       // four channels (email / phone / fax / website) onto a
       // single line, joined with " · ". Skip empties so a company
       // that hasn't filled in fax/website still renders cleanly.
+      // The HR / Geschäftsführer / Sonstige Angaben used to live
+      // here too, but they got too long and crowded the right
+      // side; they now live in the right footer instead, where
+      // they have more room and look like the standard
+      // German invoice footer (§14 UStG doesn't require them
+      // in the header — just somewhere visible on the invoice).
       const contactParts: string[] = []
       if (company.email) contactParts.push(company.email)
       if (company.phone) contactParts.push(company.phone)
@@ -144,25 +150,6 @@ export async function generateInvoicePDF(
       if ((company as any).website) contactParts.push((company as any).website)
       if (contactParts.length) {
         doc.fontSize(8).font("Helvetica").text(contactParts.join("  ·  "), leftMargin, cy + 2, { width: rightBlockWidth, align: "right", lineBreak: false })
-        cy += 10
-      }
-      // Rechtliches / Impressum block (§5 TMG requirement for
-      // German B2B invoices). Two lines, right-aligned, 7pt.
-      // Handelsregister entry + Geschäftsführer — only render if
-      // the company has filled them in; otherwise this block is
-      // empty and the letterhead collapses back to the original
-      // size.
-      const reg = (company as any).registerEntry
-      const md = (company as any).managingDirector
-      if (reg || md) {
-        cy += 2
-        if (reg) {
-          doc.fontSize(7).font("Helvetica").text(`HR: ${reg}`, leftMargin, cy, { width: rightBlockWidth, align: "right", lineBreak: false })
-          cy += 9
-        }
-        if (md) {
-          doc.fontSize(7).font("Helvetica").text(`GF: ${md}`, leftMargin, cy, { width: rightBlockWidth, align: "right", lineBreak: false })
-        }
       }
     } else {
       // No logo path on this company. Fall back to a left-aligned
@@ -273,9 +260,17 @@ export async function generateInvoicePDF(
 
     // Invoice details — right side, just below RECHNUNG title.
     // Anchored to right margin, two columns (label + value).
+    //
+    // §14 UStG requires the company USt-IDNr. and Steuernummer
+    // to appear on every invoice. Per the user, they live
+    // directly underneath Ausstellungsdatum on the right, in the
+    // same column (same right-aligned value column as the date).
     const detailsY = titleY + 54
     const detailsLabelX = rightMargin - 180
     const detailsValueX = rightMargin - 60
+    // Widen the value column slightly so a long USt-ID like
+    // "DE308630106" + label fit comfortably without clipping.
+    const detailsValueWidth = 100
     doc.fontSize(10).font("Helvetica")
     let detailsRow = 0
     const customerNumber = (invoice as any).customer?.customerNumber
@@ -285,6 +280,14 @@ export async function generateInvoicePDF(
     }
     doc.text("Ausstellungsdatum:", detailsLabelX, detailsY + detailsRow * 15, { width: 100, align: "right", lineBreak: false })
     detailsRow++
+    if (company.vatId) {
+      doc.text("USt-IDNr.:", detailsLabelX, detailsY + detailsRow * 15, { width: 100, align: "right", lineBreak: false })
+      detailsRow++
+    }
+    if (company.taxId) {
+      doc.text("Steuernummer:", detailsLabelX, detailsY + detailsRow * 15, { width: 100, align: "right", lineBreak: false })
+      detailsRow++
+    }
     if ((invoice as any).type === "CN" && (invoice as any).referenceInvoiceId) {
       const ref = (invoice as any).referenceInvoice
       doc.text("Bezug zu Rechnung:", detailsLabelX, detailsY + detailsRow * 15, { width: 100, align: "right", lineBreak: false })
@@ -298,6 +301,14 @@ export async function generateInvoicePDF(
     }
     doc.text(formatDate(invoice.issueDate), detailsValueX, detailsY + detailsRow * 15, { width: 60, align: "right", lineBreak: false })
     detailsRow++
+    if (company.vatId) {
+      doc.text(company.vatId, detailsValueX, detailsY + detailsRow * 15, { width: detailsValueWidth, align: "right", lineBreak: false })
+      detailsRow++
+    }
+    if (company.taxId) {
+      doc.text(company.taxId, detailsValueX, detailsY + detailsRow * 15, { width: detailsValueWidth, align: "right", lineBreak: false })
+      detailsRow++
+    }
     if ((invoice as any).type === "CN" && (invoice as any).referenceInvoiceId) {
       const ref = (invoice as any).referenceInvoice
       const refNumber = ref?.invoiceNumber || "—"
@@ -444,7 +455,12 @@ export async function generateInvoicePDF(
       doc.font("Helvetica").text(invoice.notes, leftMargin, notesY + 15, { width: isCompact ? 300 : 400, lineBreak: true })
     }
 
-    // Footer with bank info
+    // Footer — left side keeps the bank info (Zahlungsinformationen).
+    // The old USt-IDNr. line that used to live here has moved up
+    // into the right-side details block (under Ausstellungsdatum)
+    // per the user's request. The right side of the footer now
+    // carries the Impressum (§5 TMG) and other misc. info that
+    // used to clutter the right corner of the letterhead.
     const footerY = doc.page.height - (isCompact ? 80 : 100)
     doc.fontSize(8).fillColor("#000000")
     if (company.bankInfo && typeof company.bankInfo === 'object') {
@@ -454,25 +470,67 @@ export async function generateInvoicePDF(
       if (company.bankInfo.bic) doc.text(`BIC: ${company.bankInfo.bic}`, leftMargin, footerY + 41, { lineBreak: false })
     }
 
-    if (company.vatId) {
-      doc.text(`UST-IDNr.: ${company.vatId}`, leftMargin, footerY + 60, { lineBreak: false })
+    // Right footer — Impressum / Rechtliches / Sonstige Angaben.
+    // Anchored to rightMargin, right-aligned. We pack everything
+    // the user asked for (Handelsregister, Geschäftsführer,
+    // Sonstige Angaben) into a single right column. The
+    // otherInfo block is multi-line free text and is rendered
+    // verbatim with its own line breaks, so it doesn't have to
+    // fit on a single line.
+    const reg = (company as any).registerEntry
+    const md = (company as any).managingDirector
+    const other = (company as any).otherInfo
+    const rightFooterWidth = rightMargin - leftMargin
+    let rightFooterY = footerY
+    if (reg) {
+      doc.text(`Handelsregister: ${reg}`, leftMargin, rightFooterY, { width: rightFooterWidth, align: "right", lineBreak: false })
+      rightFooterY += 12
+    }
+    if (md) {
+      doc.text(`Geschäftsführer: ${md}`, leftMargin, rightFooterY, { width: rightFooterWidth, align: "right", lineBreak: false })
+      rightFooterY += 12
+    }
+    if (other) {
+      // Render verbatim with width-bound wrapping so the right
+      // edge of the text always lands at rightMargin. We pass
+      // the string through unchanged (including user-typed \n)
+      // so multi-line free text like
+      //   "WEEE-Reg.-Nr. DE 12345\nMitglied IHK Offenbach"
+      // keeps its intended line breaks.
+      doc.text(other, leftMargin, rightFooterY, { width: rightFooterWidth, align: "right", lineBreak: true })
     }
 
-    // Add page number in footer. `doc.page.number` can be undefined
-    // in some PDFKit builds (notably when the doc is being torn down
-    // asynchronously after `doc.end()`), which previously caused the
-    // literal string "undefined" to appear at the right margin of the
-    // PDF footer next to the company VAT number. Fall back to the
-    // buffered page count from PDFKit's own helper, which is always
-    // populated while writing.
+    // Page number — bottom-right corner, on the LAST line of the
+    // left-side Zahlungsinformationen block. We previously tried
+    // to place it directly under the right-side Impressum block
+    // by reading doc.y after the right-block writes, but that
+    // caused a 2nd page whenever otherInfo wrapped to 2+ lines
+    // (the page number text was written at y ≈ 790, lineHeight
+    // pushed doc.y to ≈ 802, which exceeded maxY 792 and forced
+    // an addPage). Pinning the page number to a fixed Y
+    // (footerY + 60 — same row as the old USt-IDNr. line that
+    // used to live there) is robust to any otherInfo length.
+    //
+    // `doc.page.number` can be undefined in some PDFKit builds
+    // (notably when the doc is being torn down asynchronously
+    // after `doc.end()`), which previously caused the literal
+    // string "undefined" to appear at the right margin. Fall
+    // back to the buffered page count from PDFKit's own helper,
+    // which is always populated while writing.
     const pageCount = doc.bufferedPageRange
       ? doc.bufferedPageRange().count
       : doc.page?.number ?? 1
+    // Place page number on the SAME Y as the otherInfo block
+    // (rightFooterY after writes) so it never falls below maxY
+    // (page.height - margin = 791.89pt on A4) even when otherInfo
+    // is empty / 1 line / 4 lines. Pinning to a hard footerY+60
+    // (801.89) was just past maxY and triggered an unwanted
+    // addPage when otherInfo had content.
     doc.text(
       `Seite ${pageCount}`,
-      rightMargin - 40,
-      footerY + 60,
-      { align: "right", lineBreak: false }
+      leftMargin,
+      Math.min(footerY + 50, rightFooterY),
+      { width: rightFooterWidth, align: "right", lineBreak: false }
     )
 
     doc.end()

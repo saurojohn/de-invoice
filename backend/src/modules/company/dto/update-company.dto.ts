@@ -121,6 +121,18 @@ export class UpdateCompanyDto {
   @MaxLength(200)
   managingDirector?: string;
 
+  // Misc. Impressum / footer info — anything that doesn't fit a
+  // dedicated field. Typical uses:
+  //   - WEEE/LUCID registration number (mandatory for e-commerce)
+  //   - Kleinunternehmer §19 UStG disclaimer
+  //   - Verpackungsregister / dual-system registration
+  //   - Industry-specific chamber memberships (IHK, Handwerkskammer)
+  // Free-text, multi-line, displayed verbatim in the PDF footer.
+  @IsString()
+  @IsOptional()
+  @MaxLength(500)
+  otherInfo?: string;
+
   @IsObject()
   @ValidateNested()
   @Type(() => CompanyAddressDto)

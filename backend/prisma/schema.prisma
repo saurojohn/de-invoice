@@ -23,6 +23,8 @@ model Company {
   website           String?
   registerEntry     String?  // e.g. "HRB 12345 Amtsgericht Offenbach am Main"
   managingDirector  String?  // Geschäftsführer / Inhaber
+  otherInfo         String?  // misc. Impressum / footer info: WEEE number,
+                             // Kleinunternehmer §19 UStG disclaimer, etc.
   address           Json
   bankInfo          Json?
   settings          Json?

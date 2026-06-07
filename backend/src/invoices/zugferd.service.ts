@@ -264,7 +264,12 @@ function createZUGFeRDPdf(
     // Contact line (below the address). Packs email / phone /
     // fax / website onto a single line, joined with " · ".
     // Empty channels are skipped so a company that hasn't
-    // filled in fax/website still renders cleanly.
+    // filled in fax/website still renders cleanly. The HR /
+    // Geschäftsführer / Sonstige Angaben used to live here too,
+    // but they got too long and crowded the right side; they
+    // now live in the right footer instead, where they have
+    // more room and look like the standard German invoice
+    // footer.
     const contactY = 113;
     const contactParts: string[] = [];
     if (company.email) contactParts.push(company.email);
@@ -273,17 +278,6 @@ function createZUGFeRDPdf(
     if ((company as any).website) contactParts.push((company as any).website);
     if (contactParts.length) {
       doc.fontSize(8).font('Helvetica').text(contactParts.join('  ·  '), leftMargin, contactY, { width: rightBlockWidth, align: 'right', lineBreak: false });
-    }
-    // Rechtliches / Impressum block (§5 TMG).
-    const reg = (company as any).registerEntry;
-    const md = (company as any).managingDirector;
-    let legalY = contactY + 12;
-    if (reg) {
-      doc.fontSize(7).font('Helvetica').text(`HR: ${reg}`, leftMargin, legalY, { width: rightBlockWidth, align: 'right', lineBreak: false });
-      legalY += 9;
-    }
-    if (md) {
-      doc.fontSize(7).font('Helvetica').text(`GF: ${md}`, leftMargin, legalY, { width: rightBlockWidth, align: 'right', lineBreak: false });
     }
 
     // Invoice title (right aligned to rightMargin). Switch by type so
@@ -310,15 +304,34 @@ function createZUGFeRDPdf(
     doc.fontSize(20).font('Helvetica-Bold').text(invoiceTitle, leftMargin, titleY, { width: titleWidth, align: 'right', lineBreak: false });
     doc.fontSize(16).text(invoice.invoiceNumber, leftMargin, titleY + 24, { width: titleWidth, align: 'right', lineBreak: false });
 
-    // Invoice details (right side, below RECHNUNG title)
+    // Invoice details (right side, below RECHNUNG title).
+    // §14 UStG requires the company USt-IDNr. and Steuernummer
+    // to appear on every invoice. Per the user, they live
+    // directly underneath Ausstellungsdatum on the right, in
+    // the same column (same right-aligned value column as the
+    // date). Currency sits after the tax IDs.
     const detailsY = titleY + 54;
     const detailsLabelX = rightMargin - 180;
     const detailsValueX = rightMargin - 60;
+    const detailsValueWidth = 100;
     doc.fontSize(10).font('Helvetica').fillColor('#000000');
-    doc.text('Ausstellungsdatum:', detailsLabelX, detailsY, { width: 100, align: 'right', lineBreak: false });
-    doc.text(formatDate(invoice.issueDate), detailsValueX, detailsY, { width: 60, align: 'right', lineBreak: false });
-    doc.text('Währung:', detailsLabelX, detailsY + 15, { width: 100, align: 'right', lineBreak: false });
-    doc.text(invoice.currency, detailsValueX, detailsY + 15, { width: 60, align: 'right', lineBreak: false });
+    let detailsRowY = detailsY;
+    doc.text('Ausstellungsdatum:', detailsLabelX, detailsRowY, { width: 100, align: 'right', lineBreak: false });
+    doc.text(formatDate(invoice.issueDate), detailsValueX, detailsRowY, { width: 60, align: 'right', lineBreak: false });
+    detailsRowY += 15;
+    if (company.vatId) {
+      doc.text('USt-IDNr.:', detailsLabelX, detailsRowY, { width: 100, align: 'right', lineBreak: false });
+      doc.text(company.vatId, detailsValueX, detailsRowY, { width: detailsValueWidth, align: 'right', lineBreak: false });
+      detailsRowY += 15;
+    }
+    if (company.taxId) {
+      doc.text('Steuernummer:', detailsLabelX, detailsRowY, { width: 100, align: 'right', lineBreak: false });
+      doc.text(company.taxId, detailsValueX, detailsRowY, { width: detailsValueWidth, align: 'right', lineBreak: false });
+      detailsRowY += 15;
+    }
+    doc.text('Währung:', detailsLabelX, detailsRowY, { width: 100, align: 'right', lineBreak: false });
+    doc.text(invoice.currency, detailsValueX, detailsRowY, { width: 60, align: 'right', lineBreak: false });
+    detailsRowY += 15;
 
     // Customer address — left side of middle row. Per latest user
     // request:
@@ -432,10 +445,40 @@ function createZUGFeRDPdf(
     doc.text('Gesamtbetrag:', gesamtBoxX + 5, gesamtY + 6, { lineBreak: false });
     doc.text(formatCurrency(toFloat(invoice.total)), totalsAmountX, gesamtY + 6, { width: totalsAmountWidth, align: 'right', lineBreak: false });
 
-    // ZUGFeRD compliance note
+    // Footer — left side keeps the ZUGFeRD/Factur-X compliance
+    // note. The right side carries the Impressum (§5 TMG) and
+    // other misc. info that used to clutter the right corner of
+    // the letterhead.
     const footerY = doc.page.height - 100;
     doc.fontSize(8).fillColor('#000000');
     doc.text(`ZUGFeRD ${version} konform / Factur-X ${version}`, leftMargin, footerY + 60, { lineBreak: false });
+
+    // Right footer — Impressum / Rechtliches / Sonstige Angaben.
+    // Anchored to rightMargin, right-aligned, mirrors the layout
+    // in invoice-pdf.service.ts. Handelsregister + Geschäftsführer
+    // are single lines; otherInfo is multi-line free text and
+    // is rendered verbatim with PDFKit's wrapping at rightMargin.
+    const reg = (company as any).registerEntry;
+    const md = (company as any).managingDirector;
+    const other = (company as any).otherInfo;
+    const rightFooterWidth = rightMargin - leftMargin;
+    let rightFooterY = footerY;
+    if (reg) {
+      doc.text(`Handelsregister: ${reg}`, leftMargin, rightFooterY, { width: rightFooterWidth, align: 'right', lineBreak: false });
+      rightFooterY += 12;
+    }
+    if (md) {
+      doc.text(`Geschäftsführer: ${md}`, leftMargin, rightFooterY, { width: rightFooterWidth, align: 'right', lineBreak: false });
+      rightFooterY += 12;
+    }
+    if (other) {
+      doc.text(other, leftMargin, rightFooterY, { width: rightFooterWidth, align: 'right', lineBreak: true });
+    }
+
+    // Page number — bottom-right corner, on the same row as the
+    // ZUGFeRD compliance note on the left. Pinned to a fixed
+    // Y (footerY + 60) so a long otherInfo block above it can't
+    // push the page number onto a 2nd page.
 
     // Notes
     if (invoice.notes) {

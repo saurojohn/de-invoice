@@ -51,6 +51,7 @@ interface CompanySettings {
   website: string
   registerEntry: string
   managingDirector: string
+  otherInfo: string
   address: {
     street: string
     postalCode: string
@@ -99,6 +100,7 @@ export default function SettingsPage() {
     website: "",
     registerEntry: "",
     managingDirector: "",
+    otherInfo: "",
     address: {
       street: "",
       postalCode: "",
@@ -180,6 +182,7 @@ export default function SettingsPage() {
               website: data.website || "",
               registerEntry: data.registerEntry || "",
               managingDirector: data.managingDirector || "",
+              otherInfo: data.otherInfo || "",
               address: {
                 street: address.street || "",
                 postalCode: address.postalCode || "",
@@ -355,6 +358,7 @@ export default function SettingsPage() {
           website: fresh.website ?? "",
           registerEntry: fresh.registerEntry ?? "",
           managingDirector: fresh.managingDirector ?? "",
+          otherInfo: fresh.otherInfo ?? "",
           address: {
             street: address.street ?? "",
             postalCode: address.postalCode ?? "",
@@ -699,6 +703,27 @@ export default function SettingsPage() {
                     placeholder="Max Mustermann"
                   />
                 </div>
+              </div>
+
+              {/* Misc. Impressum info that doesn't have a dedicated
+                  field: WEEE/LUCID, Kleinunternehmer §19 UStG
+                  disclaimer, Verpackungsregister, chamber memberships.
+                  Multi-line free-text; rendered verbatim in the PDF
+                  right footer. */}
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  {t("settings.otherInfo")}
+                </label>
+                <textarea
+                  className="w-full min-h-[80px] border rounded-md px-3 py-2 text-sm"
+                  value={form.otherInfo}
+                  onChange={(e) => setForm({ ...form, otherInfo: e.target.value })}
+                  placeholder={t("settings.otherInfoPlaceholder")}
+                  rows={3}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  {t("settings.otherInfoHelp")}
+                </p>
               </div>
 
               <div className="grid md:grid-cols-2 gap-4">
