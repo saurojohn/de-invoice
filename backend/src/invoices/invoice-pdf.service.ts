@@ -62,7 +62,15 @@ export async function generateInvoicePDF(
     // bottom of the page. A4 = 841.89pt, so with 10pt
     // margin the maxY is 831.89pt — enough for 4-5 footer
     // lines + 1 page-number line + a 10pt buffer.
-    const doc = new PDFKit({ margin: 10, size: "A4" }) as any
+    // Page margins: top/left/right restored to the original
+    // 50pt (the user wanted the "upper, left, right margins
+    // back to the original values"). Bottom margin stays at
+    // 10pt so the 4-row bank info + 4-row Impressum + bottom-
+    // center "Seite X" still fit on a single A4 page without
+    // triggering an addPage. PDFKit's `margins` option takes
+    // a per-side object — `margin` (singular) is the all-sides
+    // shortcut and would clobber this.
+    const doc = new PDFKit({ margins: { top: 50, left: 50, right: 50, bottom: 10 }, size: "A4" }) as any
     const chunks: Buffer[] = []
 
     doc.on("data", (chunk: Buffer) => chunks.push(chunk))
@@ -70,10 +78,11 @@ export async function generateInvoicePDF(
     doc.on("error", reject)
 
     const pageWidth = doc.page.width
-    // Match the smaller page margin so layout coordinates
-    // stay inside the writable area on all four sides.
-    const leftMargin = 10
-    const rightMargin = pageWidth - 10
+    // Match the original (pre-v36) left/right margins — 50pt
+    // on each side. The top margin is also 50pt, the bottom
+    // is 10pt (see the PDFKit options above).
+    const leftMargin = 50
+    const rightMargin = pageWidth - 50
 
     // Calculate layout based on template
     const isCompact = template === "compact"
@@ -96,7 +105,7 @@ export async function generateInvoicePDF(
     // USED to be) + RECHNUNG title + details (right).
     // Bottom: items table starts at a Y that follows the
     // customer block's bottom.
-    const headerStartY = 10
+    const headerStartY = 50
 
     // Draw logo if available and template allows. Logo lives in
     // the top band, centered horizontally, height 68 (3-round
