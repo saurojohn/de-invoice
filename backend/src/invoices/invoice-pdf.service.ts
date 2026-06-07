@@ -44,6 +44,23 @@ interface CompanyInfo {
   // the invoice (printed as email · phone on a single line).
   email?: string
   phone?: string
+  // Extended contact info — used by the letterhead (fax and
+  // website, each on their own row) and by the right-side
+  // Impressum / footer block in the bottom-right corner of
+  // the PDF (Handelsregister, Geschäftsführer, otherInfo).
+  // Earlier versions of the CompanyInfo type omitted these,
+  // so the invoice controller couldn't forward them to the
+  // PDF generator (TypeScript would reject unknown
+  // properties), and the Impressum block rendered as empty
+  // because `(company as any).registerEntry` was always
+  // undefined. Adding them here lets the controller actually
+  // pass the full company record down.
+  legalName?: string
+  fax?: string
+  website?: string
+  registerEntry?: string
+  managingDirector?: string
+  otherInfo?: string
 }
 
 export type InvoiceTemplateType = "standard" | "simplified" | "compact"

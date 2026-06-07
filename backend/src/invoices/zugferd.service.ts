@@ -45,9 +45,17 @@ export async function generateZUGFeRD(
   },
   company: {
     name: string;
+    legalName?: string;
     vatId?: string | null;
     taxId?: string | null;
     address: any;
+    email?: string;
+    phone?: string;
+    fax?: string;
+    website?: string;
+    registerEntry?: string;
+    managingDirector?: string;
+    otherInfo?: string;
     bankInfo?: any;
     logoPath?: string | null;
   },

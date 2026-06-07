@@ -304,11 +304,30 @@ export class InvoiceController {
       const invoice = await this.invoiceService.findOne(id, companyId);
       const company = await this.prisma.company.findUnique({ where: { id: companyId } });
 
+      // Pass the FULL company object to generateInvoicePDF. The
+      // PDF generator reads many fields off the company object
+      // (registerEntry, managingDirector, otherInfo, fax,
+      // website, etc.) for the right-side Impressum block and
+      // the letterhead contact line. Earlier versions of this
+      // controller only forwarded a 6-field subset (name,
+      // address, vatId, taxId, bankInfo, logoPath), which made
+      // the Impressum block render as empty (the if-conditions
+      // in the PDF service short-circuited because the fields
+      // were undefined). User reported the right-footer
+      // Impressum was missing in downloaded PDFs.
       const pdfBuffer = await generateInvoicePDF(invoice, {
         name: company?.name || '',
+        legalName: company?.legalName || undefined,
         address: company?.address || {},
         vatId: company?.vatId || undefined,
         taxId: company?.taxId || undefined,
+        email: company?.email || undefined,
+        phone: company?.phone || undefined,
+        fax: company?.fax || undefined,
+        website: company?.website || undefined,
+        registerEntry: company?.registerEntry || undefined,
+        managingDirector: company?.managingDirector || undefined,
+        otherInfo: company?.otherInfo || undefined,
         bankInfo: company?.bankInfo || undefined,
         logoPath: company?.logoPath || undefined,
       }, invoice.templateType || 'standard');
@@ -391,9 +410,17 @@ export class InvoiceController {
 
       const pdfBuffer = await generateZUGFeRD(invoice, {
         name: company.name,
+        legalName: company.legalName || undefined,
+        address: company.address || {},
         vatId: company.vatId || undefined,
         taxId: company.taxId || undefined,
-        address: company.address || {},
+        email: company.email || undefined,
+        phone: company.phone || undefined,
+        fax: company.fax || undefined,
+        website: company.website || undefined,
+        registerEntry: company.registerEntry || undefined,
+        managingDirector: company.managingDirector || undefined,
+        otherInfo: company.otherInfo || undefined,
         bankInfo: company.bankInfo || undefined,
         logoPath: company.logoPath || undefined,
       }, { version: '2.1', conformanceLevel: 'EN16931' });
