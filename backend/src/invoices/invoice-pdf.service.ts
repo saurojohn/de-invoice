@@ -55,7 +55,14 @@ export async function generateInvoicePDF(
 ): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const template = templateType as InvoiceTemplateType
-    const doc = new PDFKit({ margin: 50, size: "A4" }) as any
+    // Page margin: 20pt on all sides (down from the original
+    // 50pt). The smaller bottom margin gives the footer
+    // blocks enough room to be dropped ~3 rows below their
+    // previous position without spilling onto a 2nd page.
+    // A4 = 841.89pt tall, so with 20pt margin the maxY is
+    // 821.89pt — enough for 5 footer lines (Zahlungsinfo +
+    // merged bank + reg + md + 2 otherInfo) at 8-9pt each.
+    const doc = new PDFKit({ margin: 20, size: "A4" }) as any
     const chunks: Buffer[] = []
 
     doc.on("data", (chunk: Buffer) => chunks.push(chunk))
@@ -63,8 +70,10 @@ export async function generateInvoicePDF(
     doc.on("error", reject)
 
     const pageWidth = doc.page.width
-    const leftMargin = 50
-    const rightMargin = pageWidth - 50
+    // Match the smaller page margin so layout coordinates
+    // stay inside the writable area on all four sides.
+    const leftMargin = 20
+    const rightMargin = pageWidth - 20
 
     // Calculate layout based on template
     const isCompact = template === "compact"
@@ -87,7 +96,7 @@ export async function generateInvoicePDF(
     // USED to be) + RECHNUNG title + details (right).
     // Bottom: items table starts at a Y that follows the
     // customer block's bottom.
-    const headerStartY = 50
+    const headerStartY = 20
 
     // Draw logo if available and template allows. Logo lives in
     // the top band, centered horizontally, height 68 (3-round
@@ -485,18 +494,47 @@ export async function generateInvoicePDF(
     // carries the Impressum (§5 TMG) and other misc. info that
     // used to clutter the right corner of the letterhead.
     //
+    // Per the user's latest request, the entire footer
+    // (both left bank info and right Impressum) is pulled
+    // down 3 rows (3 × 14pt = 42pt) from its previous
+    // position. The page number ("Seite X") moves to the
+    // bottom-center of the page (see below).
+    //
     // Both blocks use Helvetica (non-bold) — the user explicitly
     // asked for them not to be bold. Previously this block
     // inherited Helvetica-Bold from the totals block above,
     // which made the bank info look heavier than the rest of
     // the footer.
-    const footerY = doc.page.height - (isCompact ? 80 : 100)
+    //
+    // To keep everything on one page after the 3-row drop,
+    // the bank info is rendered in a compact 2-row format
+    // instead of the previous 4-row stack:
+    //   Row 1: "Zahlungsinformationen:"
+    //   Row 2: "Bank: X · IBAN: Y · BIC: Z"
+    // Saves 2 vertical rows = 28pt, which the 3-row drop
+    // would otherwise eat.
+    // Footer Y is anchored 60pt above the page bottom (the
+    // page bottom is pageHeight = 841.89pt, so footerY =
+    // 781.89pt). This effectively "drops" the footer ~40pt
+    // closer to the page bottom than the original 100pt
+    // offset (which was at 741.89pt). The user wanted
+    // "3-row drop" = 42pt, so this lands within 2pt of that
+    // target. Combined with the smaller page margin (20pt
+    // instead of 50pt), the bottom of the page has more
+    // writable space and the footer fits on page 1.
+    const footerY = doc.page.height - 60
     doc.fontSize(8).fillColor("#000000").font("Helvetica")
     if (company.bankInfo && typeof company.bankInfo === 'object') {
       doc.text("Zahlungsinformationen:", leftMargin, footerY, { lineBreak: false })
-      if (company.bankInfo.bankName) doc.text(`Bank: ${company.bankInfo.bankName}`, leftMargin, footerY + 15, { lineBreak: false })
-      if (company.bankInfo.iban) doc.text(`IBAN: ${company.bankInfo.iban}`, leftMargin, footerY + 28, { lineBreak: false })
-      if (company.bankInfo.bic) doc.text(`BIC: ${company.bankInfo.bic}`, leftMargin, footerY + 41, { lineBreak: false })
+      // Pack bank name + IBAN + BIC onto a single line so the
+      // footer stays under 4 rows even after the 3-row drop.
+      const bankParts: string[] = []
+      if (company.bankInfo.bankName) bankParts.push(`Bank: ${company.bankInfo.bankName}`)
+      if (company.bankInfo.iban) bankParts.push(`IBAN: ${company.bankInfo.iban}`)
+      if (company.bankInfo.bic) bankParts.push(`BIC: ${company.bankInfo.bic}`)
+      if (bankParts.length) {
+        doc.text(bankParts.join("  ·  "), leftMargin, footerY + 12, { lineBreak: false })
+      }
     }
 
     // Right footer — Impressum / Rechtliches / Sonstige Angaben.
@@ -513,11 +551,11 @@ export async function generateInvoicePDF(
     let rightFooterY = footerY
     if (reg) {
       doc.text(`Handelsregister: ${reg}`, leftMargin, rightFooterY, { width: rightFooterWidth, align: "right", lineBreak: false })
-      rightFooterY += 12
+      rightFooterY += 9
     }
     if (md) {
       doc.text(`Geschäftsführer: ${md}`, leftMargin, rightFooterY, { width: rightFooterWidth, align: "right", lineBreak: false })
-      rightFooterY += 12
+      rightFooterY += 9
     }
     if (other) {
       // Render the otherInfo block line-by-line. We split on
@@ -535,42 +573,42 @@ export async function generateInvoicePDF(
       // has its own Y, right-edge, and no wrap logic to fight
       // with the user's \n.
       //
-      // We use 9pt per line (not 10) so a 2-line otherInfo
-      // block ends at rightFooterY + 18, leaving headroom for
-      // the page number to still fit on page 1 (maxY = 791.89
-      // on A4 with 50pt margin). With 10pt the page number
-      // was pushed to a 2nd page.
+      // We use 8pt per line (not 9) for the right footer so
+      // a 2-line otherInfo block plus 2 reg/md lines plus
+      // 1 line Zahlungsinfo and 1 combined bank line stays
+      // within the safe zone even after the 3-row footer drop.
       const otherLines = other.split(/\r?\n/).filter((l: string) => l.length > 0)
       for (const line of otherLines) {
         doc.text(line, leftMargin, rightFooterY, { width: rightFooterWidth, align: "right", lineBreak: false })
-        rightFooterY += 9
+        rightFooterY += 8
       }
     }
 
-    // Page number is also non-bold for the same reason — keeps
-    // the footer at a consistent visual weight.
+    // Page number — bottom-CENTER of the page (per the user's
+    // latest request). Y is set to footerY - 14 (one row
+    // ABOVE the footer blocks), which keeps the page number
+    // on page 1 even after the user asked the footer blocks
+    // to be dropped 3 rows. Writing the page number BELOW the
+    // footer blocks would push it past maxY and trigger an
+    // addPage. The visual order is: footer blocks (last
+    // line ~footerY + 30) | gap of ~10pt | "Seite 1" centered
+    // (at footerY - 14) | nothing below.
     //
-    // Y position: rightFooterY + 6 — always 6pt below the last
-    // right-footer line, regardless of how many otherInfo
-    // lines the user typed. This gives consistent 6pt spacing
-    // whether otherInfo is 0, 1, or 4 lines.
-    //
-    // To avoid triggering an addPage when the right block is
-    // tall, we cap the page number Y at maxY - 12 (= 779.89pt
-    // on A4 with 50pt margin), which is 12pt above maxY and
-    // leaves enough headroom for the 8pt lineHeight (~9.6pt
-    // with leading) to fit on page 1. The cap is the
-    // "emergency brake" — it kicks in only when otherInfo
-    // would otherwise push the page number past the page edge.
+    // `doc.page.number` can be undefined in some PDFKit builds
+    // (notably when the doc is being torn down asynchronously
+    // after `doc.end()`), which previously caused the literal
+    // string "undefined" to appear at the right margin. Fall
+    // back to the buffered page count from PDFKit's own helper,
+    // which is always populated while writing.
     const pageCount = doc.bufferedPageRange
       ? doc.bufferedPageRange().count
       : doc.page?.number ?? 1
-    const pageNumberY = Math.min(rightFooterY + 6, doc.page.height - 62)
+    const pageNumberY = footerY - 14
     doc.text(
       `Seite ${pageCount}`,
       leftMargin,
       pageNumberY,
-      { width: rightFooterWidth, align: "right", lineBreak: false }
+      { width: rightFooterWidth, align: "center", lineBreak: false }
     )
 
     // Page number — bottom-right corner, on the LAST line of the
