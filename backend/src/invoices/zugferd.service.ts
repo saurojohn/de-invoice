@@ -267,17 +267,33 @@ function createZUGFeRDPdf(
     // filled in fax/website still renders cleanly. The HR /
     // Geschäftsführer / Sonstige Angaben used to live here too,
     // but they got too long and crowded the right side; they
-    // now live in the right footer instead, where they have
-    // more room and look like the standard German invoice
-    // footer.
-    const contactY = 113;
-    const contactParts: string[] = [];
-    if (company.email) contactParts.push(company.email);
-    if (company.phone) contactParts.push(company.phone);
-    if ((company as any).fax) contactParts.push(`Fax: ${(company as any).fax}`);
-    if ((company as any).website) contactParts.push((company as any).website);
-    if (contactParts.length) {
-      doc.fontSize(8).font('Helvetica').text(contactParts.join('  ·  '), leftMargin, contactY, { width: rightBlockWidth, align: 'right', lineBreak: false });
+    // Per user request: phone + fax share one line (joined
+    // with " · "), email and website each get their own line.
+    // Three single-line right-aligned blocks at 8pt. Skip
+    // empty channels entirely — a company that hasn't filled
+    // in website just gets the first two (or one) lines.
+    // The HR / Geschäftsführer / Sonstige Angaben used to live
+    // here too, but they got too long and crowded the right
+    // side; they now live in the right footer instead, where
+    // they have more room.
+    let contactY = 113;
+    doc.fontSize(8).font('Helvetica');
+    // Row 1: phone · fax
+    const phoneFax: string[] = [];
+    if (company.phone) phoneFax.push(company.phone);
+    if ((company as any).fax) phoneFax.push(`Fax: ${(company as any).fax}`);
+    if (phoneFax.length) {
+      doc.text(phoneFax.join('  ·  '), leftMargin, contactY, { width: rightBlockWidth, align: 'right', lineBreak: false });
+      contactY += 10;
+    }
+    // Row 2: email
+    if (company.email) {
+      doc.text(company.email, leftMargin, contactY, { width: rightBlockWidth, align: 'right', lineBreak: false });
+      contactY += 10;
+    }
+    // Row 3: website
+    if ((company as any).website) {
+      doc.text((company as any).website, leftMargin, contactY, { width: rightBlockWidth, align: 'right', lineBreak: false });
     }
 
     // Invoice title (right aligned to rightMargin). Switch by type so
@@ -450,7 +466,14 @@ function createZUGFeRDPdf(
     // other misc. info that used to clutter the right corner of
     // the letterhead.
     const footerY = doc.page.height - 100;
-    doc.fontSize(8).fillColor('#000000');
+    // Both blocks below use Helvetica (non-bold) — the user
+    // explicitly asked for the right-footer Impressum to not be
+    // bold. The ZUGFeRD service doesn't have a left-side
+    // bank-info block (it has a ZUGFeRD compliance note on the
+    // left instead), but the right-side Impressum mirrors the
+    // PDF service's, and both need to be non-bold for visual
+    // consistency.
+    doc.fontSize(8).fillColor('#000000').font('Helvetica');
     doc.text(`ZUGFeRD ${version} konform / Factur-X ${version}`, leftMargin, footerY + 60, { lineBreak: false });
 
     // Right footer — Impressum / Rechtliches / Sonstige Angaben.

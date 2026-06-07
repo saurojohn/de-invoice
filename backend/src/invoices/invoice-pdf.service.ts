@@ -134,22 +134,32 @@ export async function generateInvoicePDF(
         cy += 12
       }
       // Optional contact line under the address. We pack up to
-      // four channels (email / phone / fax / website) onto a
-      // single line, joined with " · ". Skip empties so a company
-      // that hasn't filled in fax/website still renders cleanly.
+      // Per user request: phone + fax share one line (joined
+      // with " · "), email and website each get their own line.
+      // Three single-line right-aligned blocks at 8pt. Skip
+      // empty channels entirely — a company that hasn't filled
+      // in website just gets the first two (or one) lines.
       // The HR / Geschäftsführer / Sonstige Angaben used to live
       // here too, but they got too long and crowded the right
-      // side; they now live in the right footer instead, where
-      // they have more room and look like the standard
-      // German invoice footer (§14 UStG doesn't require them
-      // in the header — just somewhere visible on the invoice).
-      const contactParts: string[] = []
-      if (company.email) contactParts.push(company.email)
-      if (company.phone) contactParts.push(company.phone)
-      if ((company as any).fax) contactParts.push(`Fax: ${(company as any).fax}`)
-      if ((company as any).website) contactParts.push((company as any).website)
-      if (contactParts.length) {
-        doc.fontSize(8).font("Helvetica").text(contactParts.join("  ·  "), leftMargin, cy + 2, { width: rightBlockWidth, align: "right", lineBreak: false })
+      // side; they now live in the right footer instead.
+      doc.fontSize(8).font("Helvetica")
+      let contactY = cy + 2
+      // Row 1: phone · fax
+      const phoneFax: string[] = []
+      if (company.phone) phoneFax.push(company.phone)
+      if ((company as any).fax) phoneFax.push(`Fax: ${(company as any).fax}`)
+      if (phoneFax.length) {
+        doc.text(phoneFax.join("  ·  "), leftMargin, contactY, { width: rightBlockWidth, align: "right", lineBreak: false })
+        contactY += 10
+      }
+      // Row 2: email
+      if (company.email) {
+        doc.text(company.email, leftMargin, contactY, { width: rightBlockWidth, align: "right", lineBreak: false })
+        contactY += 10
+      }
+      // Row 3: website
+      if ((company as any).website) {
+        doc.text((company as any).website, leftMargin, contactY, { width: rightBlockWidth, align: "right", lineBreak: false })
       }
     } else {
       // No logo path on this company. Fall back to a left-aligned
@@ -461,8 +471,14 @@ export async function generateInvoicePDF(
     // per the user's request. The right side of the footer now
     // carries the Impressum (§5 TMG) and other misc. info that
     // used to clutter the right corner of the letterhead.
+    //
+    // Both blocks use Helvetica (non-bold) — the user explicitly
+    // asked for them not to be bold. Previously this block
+    // inherited Helvetica-Bold from the totals block above,
+    // which made the bank info look heavier than the rest of
+    // the footer.
     const footerY = doc.page.height - (isCompact ? 80 : 100)
-    doc.fontSize(8).fillColor("#000000")
+    doc.fontSize(8).fillColor("#000000").font("Helvetica")
     if (company.bankInfo && typeof company.bankInfo === 'object') {
       doc.text("Zahlungsinformationen:", leftMargin, footerY, { lineBreak: false })
       if (company.bankInfo.bankName) doc.text(`Bank: ${company.bankInfo.bankName}`, leftMargin, footerY + 15, { lineBreak: false })
@@ -500,6 +516,18 @@ export async function generateInvoicePDF(
       doc.text(other, leftMargin, rightFooterY, { width: rightFooterWidth, align: "right", lineBreak: true })
     }
 
+    // Page number is also non-bold for the same reason — keeps
+    // the footer at a consistent visual weight.
+    const pageCount = doc.bufferedPageRange
+      ? doc.bufferedPageRange().count
+      : doc.page?.number ?? 1
+    doc.text(
+      `Seite ${pageCount}`,
+      leftMargin,
+      Math.min(footerY + 50, rightFooterY),
+      { width: rightFooterWidth, align: "right", lineBreak: false }
+    )
+
     // Page number — bottom-right corner, on the LAST line of the
     // left-side Zahlungsinformationen block. We previously tried
     // to place it directly under the right-side Impressum block
@@ -517,22 +545,6 @@ export async function generateInvoicePDF(
     // string "undefined" to appear at the right margin. Fall
     // back to the buffered page count from PDFKit's own helper,
     // which is always populated while writing.
-    const pageCount = doc.bufferedPageRange
-      ? doc.bufferedPageRange().count
-      : doc.page?.number ?? 1
-    // Place page number on the SAME Y as the otherInfo block
-    // (rightFooterY after writes) so it never falls below maxY
-    // (page.height - margin = 791.89pt on A4) even when otherInfo
-    // is empty / 1 line / 4 lines. Pinning to a hard footerY+60
-    // (801.89) was just past maxY and triggered an unwanted
-    // addPage when otherInfo had content.
-    doc.text(
-      `Seite ${pageCount}`,
-      leftMargin,
-      Math.min(footerY + 50, rightFooterY),
-      { width: rightFooterWidth, align: "right", lineBreak: false }
-    )
-
     doc.end()
   })
 }
