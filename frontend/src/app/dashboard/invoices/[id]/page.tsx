@@ -267,7 +267,20 @@ export default function InvoiceDetailPage() {
 
     try {
       const { apiFetch } = await import("@/lib/api")
-      const response = await apiFetch(`/api/v1/invoices/${invoice.id}/pdf?companyId=${companyId}`, { throwOnError: false })
+      // Append a cache-busting timestamp to the PDF URL.
+      // Without this, the browser can serve a stale PDF from
+      // its HTTP cache (Chrome caches GET responses with
+      // Cache-Control: max-age or Last-Modified by default,
+      // and NestJS often returns a Last-Modified header that
+      // the browser then uses to validate cached responses).
+      // The user reported "I printed the invoice and don't
+      // see the new layout" multiple times — the fix is to
+      // make every PDF request a fresh one.
+      const cacheBust = `t=${Date.now()}`
+      const response = await apiFetch(
+        `/api/v1/invoices/${invoice.id}/pdf?companyId=${companyId}&${cacheBust}`,
+        { throwOnError: false }
+      )
       const blob = await response.blob()
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement("a")
