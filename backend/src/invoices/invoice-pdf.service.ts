@@ -219,6 +219,13 @@ export async function generateInvoicePDF(
     // RECHNUNG title + invoice number — right side of the middle
     // row. Same Y as the customer block on the left, so the two
     // blocks share the same horizontal band.
+    //
+    // Sizes: RECHNUNG title is 20pt (was 24pt — user asked for it
+    // closer to the invoice number's size), invoice number is
+    // 16pt (was 14pt — bumped up so the two lines form a balanced
+    // header block). The whole block is offset down 3 rows
+    // (3 × 14pt = 42pt) from middleRowY so the title sits clearly
+    // below the customer name on the left.
     const invoiceTitle = (() => {
       switch ((invoice as any).type) {
         case "CN": return "GUTSCHRIFT"
@@ -227,12 +234,14 @@ export async function generateInvoicePDF(
         default: return "RECHNUNG"
       }
     })()
-    doc.fontSize(24).font("Helvetica-Bold").text(invoiceTitle, leftMargin, middleRowY, { width: rightBlockWidth, align: "right", lineBreak: false })
-    doc.fontSize(14).text(invoice.invoiceNumber, leftMargin, middleRowY + 28, { width: rightBlockWidth, align: "right", lineBreak: false })
+    const titleOffsetY = 42  // 3 rows down
+    const titleY = middleRowY + titleOffsetY
+    doc.fontSize(20).font("Helvetica-Bold").text(invoiceTitle, leftMargin, titleY, { width: rightBlockWidth, align: "right", lineBreak: false })
+    doc.fontSize(16).text(invoice.invoiceNumber, leftMargin, titleY + 24, { width: rightBlockWidth, align: "right", lineBreak: false })
 
     // Invoice details — right side, just below RECHNUNG title.
     // Anchored to right margin, two columns (label + value).
-    const detailsY = middleRowY + 58
+    const detailsY = titleY + 54
     const detailsLabelX = rightMargin - 180
     const detailsValueX = rightMargin - 60
     doc.fontSize(10).font("Helvetica")

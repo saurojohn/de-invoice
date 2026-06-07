@@ -285,11 +285,17 @@ function createZUGFeRDPdf(
     // right. Y = headerStartY + logoHeight + 14 = 132.
     const middleRowY = 132;
     const titleWidth = rightMargin - leftMargin
-    doc.fontSize(24).font('Helvetica-Bold').text(invoiceTitle, leftMargin, middleRowY, { width: titleWidth, align: 'right', lineBreak: false });
-    doc.fontSize(14).text(invoice.invoiceNumber, leftMargin, middleRowY + 28, { width: titleWidth, align: 'right', lineBreak: false });
+    // Title block offset down 3 rows (3 × 14pt = 42pt) so the
+    // RECHNUNG title sits clearly below the customer name on the
+    // left. RECHNUNG 20pt (was 24pt), invoice number 16pt
+    // (was 14pt) — more balanced header pair.
+    const titleOffsetY = 42;
+    const titleY = middleRowY + titleOffsetY;
+    doc.fontSize(20).font('Helvetica-Bold').text(invoiceTitle, leftMargin, titleY, { width: titleWidth, align: 'right', lineBreak: false });
+    doc.fontSize(16).text(invoice.invoiceNumber, leftMargin, titleY + 24, { width: titleWidth, align: 'right', lineBreak: false });
 
     // Invoice details (right side, below RECHNUNG title)
-    const detailsY = middleRowY + 58;
+    const detailsY = titleY + 54;
     const detailsLabelX = rightMargin - 180;
     const detailsValueX = rightMargin - 60;
     doc.fontSize(10).font('Helvetica').fillColor('#000000');
