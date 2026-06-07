@@ -327,13 +327,19 @@ function createZUGFeRDPdf(
     // the same column (same right-aligned value column as the
     // date). Currency sits after the tax IDs.
     const detailsY = titleY + 54;
+    // Both label and value columns are right-aligned at fixed X
+    // offsets so the right edge of every label lands at the
+    // same X as the right edge of every value (with an 80pt
+    // gap between them). USt-IDNr and Steuernummer now line
+    // up exactly with Ausstellungsdatum, which is what the
+    // user asked for.
     const detailsLabelX = rightMargin - 180;
-    const detailsValueX = rightMargin - 60;
+    const detailsValueX = rightMargin - 100;
     const detailsValueWidth = 100;
     doc.fontSize(10).font('Helvetica').fillColor('#000000');
     let detailsRowY = detailsY;
     doc.text('Ausstellungsdatum:', detailsLabelX, detailsRowY, { width: 100, align: 'right', lineBreak: false });
-    doc.text(formatDate(invoice.issueDate), detailsValueX, detailsRowY, { width: 60, align: 'right', lineBreak: false });
+    doc.text(formatDate(invoice.issueDate), detailsValueX, detailsRowY, { width: detailsValueWidth, align: 'right', lineBreak: false });
     detailsRowY += 15;
     if (company.vatId) {
       doc.text('USt-IDNr.:', detailsLabelX, detailsRowY, { width: 100, align: 'right', lineBreak: false });
@@ -346,7 +352,7 @@ function createZUGFeRDPdf(
       detailsRowY += 15;
     }
     doc.text('Währung:', detailsLabelX, detailsRowY, { width: 100, align: 'right', lineBreak: false });
-    doc.text(invoice.currency, detailsValueX, detailsRowY, { width: 60, align: 'right', lineBreak: false });
+    doc.text(invoice.currency, detailsValueX, detailsRowY, { width: detailsValueWidth, align: 'right', lineBreak: false });
     detailsRowY += 15;
 
     // Customer address — left side of middle row. Per latest user

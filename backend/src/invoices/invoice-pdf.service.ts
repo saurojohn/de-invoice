@@ -275,11 +275,24 @@ export async function generateInvoicePDF(
     // to appear on every invoice. Per the user, they live
     // directly underneath Ausstellungsdatum on the right, in the
     // same column (same right-aligned value column as the date).
+    //
+    // Layout: label column on the left, value column on the
+    // right. Both are right-aligned so the right edge of every
+    // label lands at the same X as the right edge of every
+    // value — that's what "对起" (line up) means here: the
+    // user wants USt-IDNr and Steuernummer's right edge to
+    // match Ausstellungsdatum's right edge exactly.
+    //
+    // detailsLabelX sits 80pt in from rightMargin, with a 100pt
+    // label width → label text right edge lands at rightMargin -
+    // 80. detailsValueX sits 100pt in from rightMargin, with a
+    // 100pt value width → value text right edge lands exactly
+    // at rightMargin. So every value's right edge is 80pt to
+    // the right of every label's right edge — a clean 80pt gap
+    // between the longest label and the longest value.
     const detailsY = titleY + 54
     const detailsLabelX = rightMargin - 180
-    const detailsValueX = rightMargin - 60
-    // Widen the value column slightly so a long USt-ID like
-    // "DE308630106" + label fit comfortably without clipping.
+    const detailsValueX = rightMargin - 100
     const detailsValueWidth = 100
     doc.fontSize(10).font("Helvetica")
     let detailsRow = 0
@@ -306,10 +319,10 @@ export async function generateInvoicePDF(
 
     detailsRow = 0
     if (customerNumber) {
-      doc.text(customerNumber, detailsValueX, detailsY + detailsRow * 15, { width: 60, align: "right", lineBreak: false })
+      doc.text(customerNumber, detailsValueX, detailsY + detailsRow * 15, { width: detailsValueWidth, align: "right", lineBreak: false })
       detailsRow++
     }
-    doc.text(formatDate(invoice.issueDate), detailsValueX, detailsY + detailsRow * 15, { width: 60, align: "right", lineBreak: false })
+    doc.text(formatDate(invoice.issueDate), detailsValueX, detailsY + detailsRow * 15, { width: detailsValueWidth, align: "right", lineBreak: false })
     detailsRow++
     if (company.vatId) {
       doc.text(company.vatId, detailsValueX, detailsY + detailsRow * 15, { width: detailsValueWidth, align: "right", lineBreak: false })
@@ -322,7 +335,7 @@ export async function generateInvoicePDF(
     if ((invoice as any).type === "CN" && (invoice as any).referenceInvoiceId) {
       const ref = (invoice as any).referenceInvoice
       const refNumber = ref?.invoiceNumber || "—"
-      doc.text(refNumber, detailsValueX, detailsY + detailsRow * 15, { width: 60, align: "right", lineBreak: false })
+      doc.text(refNumber, detailsValueX, detailsY + detailsRow * 15, { width: detailsValueWidth, align: "right", lineBreak: false })
       detailsRow++
     }
 
