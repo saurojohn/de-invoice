@@ -110,6 +110,11 @@ export class InvoiceService {
     const invoice = await this.prisma.invoice.findFirst({
       where: { id, companyId },
       include: {
+        // Company is included so the detail page can render the
+        // sender letterhead (logo, name, address) — both on screen
+        // and for browser print. Excluding it would force a second
+        // round-trip to /companies/:id from the frontend.
+        company: true,
         customer: true,
         items: { include: { product: { select: { sku: true, name: true } } } },
         payments: true,

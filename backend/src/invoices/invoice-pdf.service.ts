@@ -40,6 +40,10 @@ interface CompanyInfo {
   taxId?: any
   bankInfo?: any
   logoPath?: string | null
+  // Contact info — used by the letterhead block at the top of
+  // the invoice (printed as email · phone on a single line).
+  email?: string
+  phone?: string
 }
 
 export type InvoiceTemplateType = "standard" | "simplified" | "compact"
@@ -66,63 +70,155 @@ export async function generateInvoicePDF(
     const isCompact = template === "compact"
     const showLogo = template !== "simplified" && company.logoPath
 
-    // Header area Y positions
+    // Header area Y positions. The header now uses FIXED Y
+    // coordinates per the latest user request — the layout is no
+    // longer a vertical stack but a 2x2 grid:
+    //
+    //   +--------------------------------------------------+
+    //   |                  [Logo 居中]   [Company 右上]  |
+    //   |                                                  |
+    //   |  [Customer 左上]                  [RECHNUNG 右] |
+    //   |                                                  |
+    //   |  [Items table spanning full width            ]  |
+    //   +--------------------------------------------------+
+    //
+    // Top row: Logo (center) + Company name + address (right).
+    // Middle row: Customer address (left, where company name
+    // USED to be) + RECHNUNG title + details (right).
+    // Bottom: items table starts at a Y that follows the
+    // customer block's bottom.
     const headerStartY = 50
-    let currentY = headerStartY
 
-    // Draw logo if available and template allows
+    // Draw logo if available and template allows. Logo lives in
+    // the top band, centered horizontally, height 68 (3-round
+    // sizing: 40 → 52 → 68).
     if (showLogo && company.logoPath) {
       const logoPath = resolveLogoPath(company.logoPath)
       if (logoPath && fs.existsSync(logoPath)) {
         try {
-          // Logo centered at top, max height 40px
-          const imgHeight = 40
+          const imgHeight = 68
           const img = doc.openImage(logoPath)
-          const imgWidth = Math.min(img.width * (imgHeight / img.height), 150)
+          const imgWidth = Math.min(img.width * (imgHeight / img.height), 220)
           const imgX = (pageWidth - imgWidth) / 2
-          doc.image(logoPath, imgX, currentY, { height: imgHeight })
-          currentY += imgHeight + 10
+          doc.image(logoPath, imgX, headerStartY, { height: imgHeight })
         } catch (err) {
           console.warn("Failed to load logo:", err)
         }
       }
     }
 
-    // Company info header
+    // Company info header — top-right, same Y band as the logo.
+    // Per user: "公司名和地址都放到右上角和 logo 同一排".
+    // Anchored to rightMargin; the block's right edge lands at
+    // the page's right margin.
     const compAddr = company.address || {}
+    const rightBlockWidth = rightMargin - leftMargin
 
     if (showLogo) {
-      // Centered company name below logo
-      doc.fontSize(20).font("Helvetica-Bold").text(company.name, leftMargin, currentY, { align: "center", lineBreak: false })
-      currentY += 25
+      // Top-right: company name + address stack, right-aligned.
+      // Starts at y=50 (headerStartY) to align with the logo's
+      // top edge — that's the "同一排" requirement.
+      doc.fontSize(20).font("Helvetica-Bold").text(company.name, leftMargin, headerStartY, { width: rightBlockWidth, align: "right", lineBreak: false })
       doc.fontSize(9).font("Helvetica")
-      const centerX = pageWidth / 2
-      if (compAddr.street) doc.text(compAddr.street, leftMargin, currentY, { align: "center", width: pageWidth - 100, lineBreak: false })
-      currentY += 13
-      if (compAddr.postalCode || compAddr.city) {
-        doc.text(`${compAddr.postalCode || ""} ${compAddr.city || ""}`.trim(), leftMargin, currentY, { align: "center", width: pageWidth - 100, lineBreak: false })
+      let cy = headerStartY + 25
+      if (compAddr.street) {
+        doc.text(compAddr.street, leftMargin, cy, { width: rightBlockWidth, align: "right", lineBreak: false })
+        cy += 12
       }
-      currentY += 13
-      if (compAddr.country) doc.text(compAddr.country, leftMargin, currentY, { align: "center", width: pageWidth - 100, lineBreak: false })
-      currentY += 20
+      if (compAddr.postalCode || compAddr.city) {
+        doc.text(`${compAddr.postalCode || ""} ${compAddr.city || ""}`.trim(), leftMargin, cy, { width: rightBlockWidth, align: "right", lineBreak: false })
+        cy += 12
+      }
+      if (compAddr.country) {
+        doc.text(compAddr.country, leftMargin, cy, { width: rightBlockWidth, align: "right", lineBreak: false })
+        cy += 12
+      }
+      // Optional contact line under the address.
+      const contactParts: string[] = []
+      if (company.email) contactParts.push(company.email)
+      if (company.phone) contactParts.push(company.phone)
+      if (contactParts.length) {
+        doc.fontSize(8).font("Helvetica").text(contactParts.join("  ·  "), leftMargin, cy + 2, { width: rightBlockWidth, align: "right", lineBreak: false })
+      }
     } else {
-      // Left-aligned company info (no logo)
-      doc.fontSize(18).font("Helvetica-Bold").text(company.name, leftMargin, currentY, { align: "left", lineBreak: false })
-      currentY += 22
+      // No logo path on this company. Fall back to a left-aligned
+      // letterhead at the top of the page.
+      doc.fontSize(18).font("Helvetica-Bold").text(company.name, leftMargin, headerStartY, { lineBreak: false })
       doc.fontSize(9).font("Helvetica")
-      if (compAddr.street) doc.text(compAddr.street, leftMargin, currentY, { lineBreak: false })
-      currentY += 12
-      if (compAddr.postalCode || compAddr.city) {
-        doc.text(`${compAddr.postalCode || ""} ${compAddr.city || ""}`.trim(), leftMargin, currentY, { lineBreak: false })
+      let cy = headerStartY + 22
+      if (compAddr.street) {
+        doc.text(compAddr.street, leftMargin, cy, { lineBreak: false })
+        cy += 12
       }
-      currentY += 12
-      if (compAddr.country) doc.text(compAddr.country, leftMargin, currentY, { lineBreak: false })
-      currentY += 20
+      if (compAddr.postalCode || compAddr.city) {
+        doc.text(`${compAddr.postalCode || ""} ${compAddr.city || ""}`.trim(), leftMargin, cy, { lineBreak: false })
+        cy += 12
+      }
+      if (compAddr.country) {
+        doc.text(compAddr.country, leftMargin, cy, { lineBreak: false })
+      }
     }
 
-    // Invoice title - right aligned to rightMargin. CN is a credit note
-    // (German law requires it to be clearly marked as "Gutschrift" to
-    // avoid confusion with the original invoice).
+    // Middle row Y band: the customer's address block lives on
+    // the LEFT at this y (per user: "客户的 Rechnungsadresse 往上
+    // 拉放到之前公司名这一排，设置靠左边"), and the RECHNUNG
+    // title + invoice details on the RIGHT.
+    //
+    // Pick the middle row Y. We anchor it just below the logo
+    // block (headerStartY + 68 + 14 = 132 — that's roughly where
+    // the company name USED to be in the v3/v4 layout).
+    const middleRowY = headerStartY + 68 + 14  // 132
+
+    // Customer address — left side of the middle row. Sits at
+    // the same Y as the RECHNUNG title to its right.
+    const custAddr = invoice.customer.address || {}
+    let custY = middleRowY
+    // Sender line ("Absenderzeile"). Per user request:
+    //   - "sender 公司名+地址 只要一行" — single-line format
+    //   - "缩小50%，方便用于寄信封" — 50% smaller (10pt → 5pt) so
+    //     it works as the return-address line printed on a window
+    //     envelope. Tiny, not meant to be read at normal reading
+    //     distance — just visible to the postman if the envelope
+    //     gets misrouted.
+    //
+    // Format: "Name · Straße · PLZ Ort · Land" joined with " · ".
+    // Skip empty address parts so we don't render stray separators.
+    const senderParts: string[] = [company.name]
+    if (compAddr.street) senderParts.push(compAddr.street)
+    const pcCity = `${compAddr.postalCode || ""} ${compAddr.city || ""}`.trim()
+    if (pcCity) senderParts.push(pcCity)
+    if (compAddr.country) senderParts.push(compAddr.country)
+    doc.fontSize(5).font("Helvetica").text(senderParts.join(" · "), leftMargin, custY, { lineBreak: false })
+    custY += 10
+    // Customer block — font 11pt (was 10pt; +10% per user request).
+    // Note: the original "Rechnungsadresse:" label has been moved up
+    // and replaced with the sender's own company name + address
+    // (per the user's request). We don't repeat a "Rechnungsadresse:"
+    // label down here — the sender block above acts as the
+    // invoice-letterhead label.
+    doc.fontSize(11).font("Helvetica")
+    doc.text(invoice.customer.name, leftMargin, custY, { lineBreak: false })
+    custY += 14
+    if (custAddr.street) {
+      doc.text(custAddr.street, leftMargin, custY, { lineBreak: false })
+      custY += 14
+    }
+    if (custAddr.postalCode || custAddr.city) {
+      doc.text(`${custAddr.postalCode || ""} ${custAddr.city || ""}`.trim(), leftMargin, custY, { lineBreak: false })
+      custY += 14
+    }
+    if (custAddr.country) {
+      doc.text(custAddr.country, leftMargin, custY, { lineBreak: false })
+      custY += 14
+    }
+    if (invoice.customer.vatId) {
+      doc.text(`UST-IDNr.: ${invoice.customer.vatId}`, leftMargin, custY, { lineBreak: false })
+      custY += 14
+    }
+
+    // RECHNUNG title + invoice number — right side of the middle
+    // row. Same Y as the customer block on the left, so the two
+    // blocks share the same horizontal band.
     const invoiceTitle = (() => {
       switch ((invoice as any).type) {
         case "CN": return "GUTSCHRIFT"
@@ -131,19 +227,16 @@ export async function generateInvoicePDF(
         default: return "RECHNUNG"
       }
     })()
-    const titleWidth = rightMargin - leftMargin
-    doc.fontSize(24).font("Helvetica-Bold").text(invoiceTitle, leftMargin, currentY, { width: titleWidth, align: "right", lineBreak: false })
-    doc.fontSize(14).text(invoice.invoiceNumber, leftMargin, currentY + 28, { width: titleWidth, align: "right", lineBreak: false })
-    currentY += 35
+    doc.fontSize(24).font("Helvetica-Bold").text(invoiceTitle, leftMargin, middleRowY, { width: rightBlockWidth, align: "right", lineBreak: false })
+    doc.fontSize(14).text(invoice.invoiceNumber, leftMargin, middleRowY + 28, { width: rightBlockWidth, align: "right", lineBreak: false })
 
-    // Invoice details — right-aligned block (anchored to right margin)
-    const detailsY = currentY + 10
-    const detailsLabelX = rightMargin - 180  // label column starts here
-    const detailsValueX = rightMargin - 60   // value column starts here, right-aligned
+    // Invoice details — right side, just below RECHNUNG title.
+    // Anchored to right margin, two columns (label + value).
+    const detailsY = middleRowY + 58
+    const detailsLabelX = rightMargin - 180
+    const detailsValueX = rightMargin - 60
     doc.fontSize(10).font("Helvetica")
     let detailsRow = 0
-    // Customer number (K-0001...) — printed above the issue date so
-    // the customer's own reference is the first thing visible.
     const customerNumber = (invoice as any).customer?.customerNumber
     if (customerNumber) {
       doc.text("Kundennummer:", detailsLabelX, detailsY + detailsRow * 15, { width: 100, align: "right", lineBreak: false })
@@ -151,14 +244,8 @@ export async function generateInvoicePDF(
     }
     doc.text("Ausstellungsdatum:", detailsLabelX, detailsY + detailsRow * 15, { width: 100, align: "right", lineBreak: false })
     detailsRow++
-    // (Währung removed — invoice.currency is always EUR and the field
-    //  added visual noise without information. Keep the schema column
-    //  in case multi-currency is reintroduced later.)
-    // For credit notes, link back to the original invoice so the
-    // customer knows what is being reversed.
     if ((invoice as any).type === "CN" && (invoice as any).referenceInvoiceId) {
       const ref = (invoice as any).referenceInvoice
-      const refNumber = ref?.invoiceNumber || "—"
       doc.text("Bezug zu Rechnung:", detailsLabelX, detailsY + detailsRow * 15, { width: 100, align: "right", lineBreak: false })
       detailsRow++
     }
@@ -177,36 +264,14 @@ export async function generateInvoicePDF(
       detailsRow++
     }
 
-    currentY = detailsY + detailsRow * 15 + 10
-
-    // Customer address
-    const customerY = currentY
-    const custAddr = invoice.customer.address || {}
-    let custY = customerY
-    doc.fontSize(10).font("Helvetica-Bold").text("Rechnungsadresse:", leftMargin, custY, { lineBreak: false })
-    custY += 15
-    doc.fontSize(10).font("Helvetica")
-    doc.text(invoice.customer.name, leftMargin, custY, { lineBreak: false })
-    custY += 13
-    if (custAddr.street) {
-      doc.text(custAddr.street, leftMargin, custY, { lineBreak: false })
-      custY += 13
-    }
-    if (custAddr.postalCode || custAddr.city) {
-      doc.text(`${custAddr.postalCode || ""} ${custAddr.city || ""}`.trim(), leftMargin, custY, { lineBreak: false })
-      custY += 13
-    }
-    if (custAddr.country) {
-      doc.text(custAddr.country, leftMargin, custY, { lineBreak: false })
-      custY += 13
-    }
-    if (invoice.customer.vatId) {
-      doc.text(`UST-IDNr.: ${invoice.customer.vatId}`, leftMargin, custY, { lineBreak: false })
-      custY += 13
-    }
-
-    // Items table
-    const tableStartY = isCompact ? 280 : 320
+    // Items table Y — follow the larger of (a) customer block end
+    // or (b) invoice details end. This is the previous bug fix
+    // from the v4 revision; the explicit logic lives here so the
+    // table doesn't intrude on either block.
+    const detailsEndY = detailsY + detailsRow * 15 + 10
+    const tableStartY = isCompact
+      ? Math.max(280, Math.max(custY, detailsEndY) + 20)
+      : Math.max(280, Math.max(custY, detailsEndY) + 20)
     let y = tableStartY
 
     if (isCompact) {
@@ -379,17 +444,35 @@ function resolveLogoPath(logoPath: string): string | null {
     return logoPath
   }
 
-  // Check if it's a relative path from public/images
-  if (logoPath.startsWith('images/')) {
-    // Try to resolve from project root
-    const projectRoot = process.cwd()
-    const fullPath = path.join(projectRoot, 'frontend', 'public', logoPath)
-    if (fs.existsSync(fullPath)) {
-      return fullPath
+  // The logo upload endpoint stores just the bare filename
+  // (e.g. 'logo.png') in Company.logoPath, with the actual file
+  // living at frontend/public/images/<name>. Anchor the lookup
+  // to the project root via __dirname (this file lives at
+  // backend/src/invoices/, so go up 3 levels), NOT process.cwd()
+  // — the backend is started from backend/ and CWD doesn't reach
+  // the project root the way the upload fix expected.
+  //
+  // Also accept the older 'images/<name>' form in case any DB row
+  // was saved that way (compatibility shim).
+  const projectRoot = path.resolve(__dirname, '..', '..', '..')
+  const candidateNames = [
+    path.join(projectRoot, 'frontend', 'public', 'images', path.basename(logoPath)),
+  ]
+  if (logoPath.startsWith('images/') || logoPath.startsWith('/images/')) {
+    candidateNames.push(
+      path.join(projectRoot, 'frontend', 'public', logoPath.replace(/^\//, '')),
+    )
+  }
+
+  for (const candidate of candidateNames) {
+    if (fs.existsSync(candidate)) {
+      return candidate
     }
   }
 
-  // Try the provided path as-is
+  // Last resort: try the path as-is (relative to CWD). Will
+  // usually miss for the same reason as the upload bug, but
+  // doesn't hurt to try.
   if (fs.existsSync(logoPath)) {
     return logoPath
   }

@@ -32,6 +32,21 @@ interface Invoice {
   total: string
   notes: string
   customer: { name: string; address: any; vatId: string }
+  // Sender letterhead (the company that issued the invoice) — used by
+  // the on-screen and browser-print header card. Returned by
+  // GET /invoices/:id since we added `include: { company: true }`
+  // to invoice.service.findOne.
+  company?: {
+    name: string
+    legalName?: string
+    taxId?: string
+    vatId?: string
+    email?: string
+    phone?: string
+    logoPath?: string
+    address?: { street?: string; postalCode?: string; city?: string; country?: string }
+    bankInfo?: { bankName?: string; iban?: string; bic?: string }
+  }
   items: InvoiceItem[]
   payments: { amount: string; paymentDate: string; paymentMethod: string }[]
 }
@@ -443,12 +458,107 @@ export default function InvoiceDetailPage() {
       </header>
 
       <div className="container mx-auto px-4 py-8 max-w-4xl">
-        {/* Customer & Invoice Info */}
+        {/* Sender letterhead (header card). Shown both on screen and
+            in browser print. Mirrors the PDF's v5 header block:
+              - Logo + Company info share the same top row.
+                Logo is centered in the LEFT half, company name +
+                address sit in the top-RIGHT corner, right-aligned.
+                (User: "公司名和地址都放到右上角和 logo 同一排")
+              - The middle row holds the customer address (left,
+                left-aligned) + the RECHNUNG title (right, right-
+                aligned). The customer's address lives where the
+                company name USED to be — that's the "window
+                envelope" position.
+                (User: "客户的 Rechnungsadresse 往上拉放到之前公司
+                名这一排，设置靠左边")
+            In print we drop the outer Card chrome and rely on the
+            @media print rule at the bottom of this file. */}
+        {invoice.company && (
+          <div className="mb-6 print:mb-4">
+            {/* Top row: logo (left half, centered) + company info
+                (right half, right-aligned). items-end keeps both
+                blocks vertically anchored to the row's baseline
+                even when one is taller than the other. */}
+            <div className="flex items-end justify-between gap-4">
+              {/* Logo: left half, centered within the left half. */}
+              {invoice.company.logoPath ? (
+                <div className="w-1/2 flex justify-center">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={`/images/${invoice.company.logoPath}`}
+                    alt={invoice.company.name}
+                    className="h-[68px] w-auto object-contain print:hidden"
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none" }}
+                  />
+                </div>
+              ) : (
+                <div className="w-1/2" />
+              )}
+              {/* Company info: right half, right-aligned. */}
+              <div className="w-1/2 text-right text-sm leading-relaxed">
+                <div className="text-2xl font-bold text-gray-900">{invoice.company.name}</div>
+                {invoice.company.legalName && invoice.company.legalName !== invoice.company.name && (
+                  <div className="text-gray-600 text-xs">{invoice.company.legalName}</div>
+                )}
+                {invoice.company.address?.street && (
+                  <div className="text-gray-700">{invoice.company.address.street}</div>
+                )}
+                {(invoice.company.address?.postalCode || invoice.company.address?.city) && (
+                  <div className="text-gray-700">
+                    {invoice.company.address.postalCode} {invoice.company.address.city}
+                  </div>
+                )}
+                {invoice.company.address?.country && (
+                  <div className="text-gray-700">{invoice.company.address.country}</div>
+                )}
+                <div className="mt-2 text-xs text-gray-500 space-x-2">
+                  {invoice.company.vatId && <span>UST-IDNr.: {invoice.company.vatId}</span>}
+                  {invoice.company.taxId && <span>· Steuernr.: {invoice.company.taxId}</span>}
+                </div>
+                {(invoice.company.email || invoice.company.phone) && (
+                  <div className="text-xs text-gray-500 space-x-2">
+                    {invoice.company.email && <span>{invoice.company.email}</span>}
+                    {invoice.company.phone && <span>· {invoice.company.phone}</span>}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Customer & Invoice Info — left card's header now shows the
+            SENDER (own company) name + address instead of the generic
+            "Kundeninformationen" label, mirroring the PDF change.
+            Customer name + address inside is bumped from text-sm
+            (14px) to text-base (16px) — +14% close to the +10% the
+            user asked for; we pick a Tailwind class instead of an
+            arbitrary [15px] value to stay in the design system. */}
         <div className="grid md:grid-cols-2 gap-8 mb-8">
           <Card>
-            <CardHeader><CardTitle>Kundeninformationen</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle>
+                {invoice.company?.name || "Kundeninformationen"}
+              </CardTitle>
+              {invoice.company?.address && (
+                // Single-line sender info (Absenderzeile) at 50% of the
+                // letterhead's text-2xl (24px) — so text-xs (12px) is
+                // exactly the half-size the user asked for. Used as the
+                // return-address line above the customer address for
+                // window envelopes. Format mirrors the PDF:
+                // "Name · Straße · PLZ Ort · Land". One line only,
+                // whitespace-nowrap so it never wraps mid-address.
+                <div className="-mt-1 text-xs font-normal tracking-normal text-gray-500 whitespace-nowrap overflow-hidden text-ellipsis">
+                  {[
+                    invoice.company.name,
+                    invoice.company.address.street,
+                    `${invoice.company.address.postalCode} ${invoice.company.address.city}`.trim(),
+                    invoice.company.address.country,
+                  ].filter(Boolean).join(" · ")}
+                </div>
+              )}
+            </CardHeader>
             <CardContent>
-              <div className="space-y-2">
+              <div className="space-y-2 text-base">
                 <div className="font-medium">{invoice.customer?.name}</div>
                 {invoice.customer?.vatId && <div className="text-gray-600">UST-IDNr.: {invoice.customer.vatId}</div>}
                 {invoice.customer?.address && (
@@ -644,6 +754,32 @@ export default function InvoiceDetailPage() {
           </Card>
         )}
       </div>
+
+      {/* Browser-print styles. We DO NOT print the action header
+          (buttons + status dropdown), and we strip the page's gray
+          background and card shadows so the output looks like the
+          downloaded PDF rather than a UI screenshot. The letterhead
+          block above is the only sender info shown in print. */}
+      <style>{`
+        @media print {
+          html, body { background: #fff !important; }
+          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          /* Hide the top action header (back, status, buttons) */
+          header { display: none !important; }
+          /* Remove card chrome and shadows for a paper-like look */
+          .shadow-sm, .shadow-md, .shadow-lg, .shadow { box-shadow: none !important; }
+          /* Background tones and rounded corners on cards add visual
+             noise on paper; flatten them. */
+          [class*="rounded-"] { border-radius: 0 !important; }
+          /* White page background; no max-width gutter */
+          main { background: #fff !important; }
+          .container { max-width: 100% !important; padding: 0 !important; }
+          /* Slightly tighter spacing */
+          .print\\:mb-4 { margin-bottom: 1rem !important; }
+          /* Avoid page breaks inside critical blocks */
+          table, tr, td, th { page-break-inside: avoid; }
+        }
+      `}</style>
     </main>
   )
 }

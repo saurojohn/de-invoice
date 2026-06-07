@@ -1,36 +1,165 @@
+# de-invoice — Deutsches Rechnungs- & Buchhaltungssystem
 # de-invoice — German Invoice & Accounting System
+# de-invoice — 德国发票与会计管理系统
+
+---
+
+## 🌐 Sprache / Language / 语言
+
+| Deutsch (Standard) | English | 中文 |
+|---|---|---|
+| [↓ Deutsche Dokumentation](#deutsch) | [↓ English documentation](#english) | [↓ 中文文档](#中文) |
+
+---
+
+<a id="deutsch"></a>
+
+## 🇩🇪 Deutsch
+
+Eine Webanwendung für kleine und mittelständische Unternehmen in Deutschland
+zur **GoBD-konformen** Erstellung, Versendung und Verbuchung von Rechnungen
+sowie zur Erfüllung der Anforderungen an **XRechnung** und
+**ZUGFeRD/Factur-X**. Entwickelt für SH Leder GmbH (und vergleichbare
+B2B-Anwendungsfälle im DACH-Raum).
+
+### Funktionen
+
+#### Rechnungserstellung (Kern)
+- Rechnungstypen: Standardrechnung (INV), Gutschrift (CN), Proforma (PI) und
+  Quittung (RCV)
+- Mehrzeilige Positionen mit deutschen USt-Sätzen (0 %, 7 %, 19 %)
+- Rabatte, Zahlungsziele (Sofort fällig / 14 / 30 / 60 Tage), Bankverbindung
+  auf dem PDF
+- Fortlaufende Rechnungsnummern pro Unternehmen
+- Nummernformat: `RE-2026-000001`, `GS-2026-000001` usw.
+- Statusworkflow: Entwurf → versendet → bezahlt / überfällig / storniert
+- GoBD-konformes 1-Seiten-PDF (keine Farbflächen, dünne schwarze Linien,
+  deutsches Zahlen-/Datumsformat `€ 1.234,56` / `dd.mm.yyyy`)
+
+#### Compliance & E-Invoicing
+- **XRechnung** (XML, UBL 2.1) — Pflicht im öffentlichen B2G-Bereich
+- **ZUGFeRD 2.1 / Factur-X 2.1** — hybrides PDF mit eingebettetem XML für B2B
+- **UStVA** (Umsatzsteuervoranmeldung) mit allen Kennzahlen
+  (Zeilen 20–23 Umsätze, 26–29 steuerfrei, 36 Reverse Charge,
+  50–66 Vorsteuer, 81 Differenzbetrag)
+- Ausgabenverwaltung mit Zuordnung zu UStVA-Zeilen
+- Audit-Log
+
+#### Kunden- und Produktverwaltung
+- Kunden-Stammdaten mit USt-ID, freiem Ländertext, deutscher Adressformat
+- CSV-Import/Export (RFC 4180 + UTF-8-BOM für Excel)
+- Pro Kunde: Datum der letzten Rechnung + Anzahl Rechnungen (effizientes
+  groupBy)
+- Produktkatalog mit Artikelnummer (SKU), Grundpreis, USt-Satz, Einheit
+- Artikel-Positionen automatisch aus Produktwahl übernehmen
+
+#### Mehrbenutzer & Zugriffskontrolle
+- 3 Rollen: `admin` (Vollzugriff), `accountant` (Rechnungen/Buchhaltung),
+  `viewer` (read-only)
+- Benutzer-Einladung per E-Mail (bcrypt-gehashter Token, 1 h Gültigkeit)
+- Passwort-Reset (constant-time bcrypt, generische Antworten, keine
+  Benutzer-Enumeration)
+- Login-Throttler (Anti-Brute-Force), IP-basierte Sperre nach Fehlversuchen
+- Alle sensiblen Routen geschützt durch `@Auth()` + `@Require(action)`
+
+#### Produktivität
+- Sammel-Download: bis zu 100 Rechnungen als ZIP (PDF oder ZUGFeRD,
+  eindeutige Dateinamen, Manifest)
+- Sammel-E-Mail-Versand
+- CSV-Export nach Zeitraum (18 Spalten, Excel-kompatibel)
+- ZIP-Export nach Zeitraum
+- Mehrfachauswahl in der Rechnungsliste mit Sammelaktions-Toolbar
+- Mahn-Workflow mit Mehrfachversand
+- Zahlungsverfolgung mit Auto-Statuswechsel (bezahlt, sobald Summe
+  Gesamtsumme deckt)
+- **Mehrsprachige Oberfläche: Deutsch, Englisch, Chinesisch** (1 500+ Schlüssel)
+- Mehrwährungsfähig (Standard: EUR)
+
+#### Speicher
+- Pro Unternehmen lokaler Speicherordner
+  (`{Jahr}/{Monat}/{Typ}/{companyId}`)
+- Gesundheitsprüfung (erreichbar/beschreibbar/Speicherplatz)
+- Dateiliste mit Download/Löschen
+- Logo-Upload (Bilddatei pro Unternehmen)
+
+### Schnellstart (Entwicklung)
+
+#### Voraussetzungen
+- Node.js 22 LTS
+- PostgreSQL 16
+- npm 10+
+
+#### 1. Datenbank
+```bash
+docker run -d --name de-invoice-postgres \
+  -e POSTGRES_USER=postgres \
+  -e POSTGRES_PASSWORD=postgres \
+  -e POSTGRES_DB=de_invoice \
+  -p 5432:5432 postgres:16
+```
+
+#### 2. Backend
+```bash
+cd backend
+cp .env.example .env       # DATABASE_URL, JWT_SECRET, SMTP_* anpassen
+npm install
+npx prisma db push
+npx prisma generate
+npx ts-node src/main.ts   # → http://localhost:3001
+```
+
+#### 3. Frontend
+```bash
+cd frontend
+npm install
+npm run dev               # → http://localhost:3000
+```
+
+Ersten Benutzer im Browser unter <http://localhost:3000> registrieren
+(legt automatisch ein Unternehmen an und vergibt die Admin-Rolle), dann
+loslegen.
+
+### API-Konventionen
+
+Alle Dashboard-Routen benötigen diese zwei Header:
+```
+x-user-id:    <uuid>
+x-company-id: <uuid>
+```
+Der Frontend-Helper `@/lib/api` fügt sie automatisch aus `localStorage` ein —
+niemals direktes `fetch()` für API-Aufrufe verwenden.
+
+### Entwicklerhinweise
+Siehe **`backend/AGENTS.md`** für projektspezifische Stolperfallen
+(PDF-Layout-Invarianten, Throttler-Pitfall, Frontend-Auth-Header).
+
+### Lizenz
+Proprietär — für den internen Gebrauch von SH Leder GmbH.
+
+---
+
+<a id="english"></a>
+
+## 🇬🇧 English
 
 A web application for German small/medium businesses to issue, send, and
 account invoices in full compliance with **GoBD**, **XRechnung**, and
 **ZUGFeRD/Factur-X** standards. Built for SH Leder GmbH (and any similar
 B2B invoicing use-case in the DACH region).
 
-## Tech Stack
+### Features
 
-| Layer       | Technology                                         |
-|-------------|----------------------------------------------------|
-| Frontend    | Next.js 16, React 19, TypeScript, Tailwind CSS     |
-| Backend     | Node.js 22 LTS, NestJS 10, TypeScript              |
-| Database    | PostgreSQL 16 (via Prisma ORM 5)                   |
-| PDF         | PDFKit (1-page ink-saving layout)                  |
-| E-Invoice   | Custom XRechnung (UBL 2.1) + ZUGFeRD 2.1 / Factur-X 2.1 generators |
-| Email       | Nodemailer (SMTP), per-company config              |
-| Storage     | Local filesystem (S3/MinIO planned)                |
-| Auth        | Custom header-based shim + RBAC roles             |
-
-## Features
-
-### Core invoicing
-- Standard invoice (INV), credit note (CN), proforma (PI), and receipt (RCV) types
+#### Core invoicing
+- Standard invoice (INV), credit note (CN), proforma (PI), and receipt (RCV)
 - Multi-line items with German VAT rates (0%, 7%, 19%)
 - Discounts, payment terms (Net 0/14/30/60), bank info on PDF
 - Auto-generated sequential invoice numbers per company
-- Invoice number formats: `INV-2026-000001`, `CN-2026-000001`, etc.
+- Number formats: `INV-2026-000001`, `CN-2026-000001`, etc.
 - Status workflow: draft → sent → paid / overdue / cancelled
 - GoBD-compliant 1-page PDF (no colored fills, thin black lines, German
   number/date format `€ 1.234,56` / `dd.mm.yyyy`)
 
-### Compliance & e-invoicing
+#### Compliance & e-invoicing
 - **XRechnung** (XML, UBL 2.1) — required for federal B2G invoicing
 - **ZUGFeRD 2.1 / Factur-X 2.1** — hybrid PDF + embedded XML for B2B
 - UStVA (Umsatzsteuervoranmeldung) declaration with full Kennzahlen
@@ -39,14 +168,14 @@ B2B invoicing use-case in the DACH region).
 - Expense tracking with UStVA line assignment
 - Audit log
 
-### Customer & product management
+#### Customer & product management
 - Customer CRUD with VAT ID, free-text country, German address format
-- CSV import/export for customers (RFC 4180 + UTF-8 BOM for Excel)
+- CSV import/export (RFC 4180 + UTF-8 BOM for Excel)
 - Per-customer last-invoice date + total invoice count (efficient groupBy)
 - Product catalog with SKU, base price, VAT rate, unit
 - Auto-fill invoice items from product selection
 
-### Multi-user & access control
+#### Multi-user & access control
 - 3 roles: `admin` (full access), `accountant` (invoicing/bookkeeping),
   `viewer` (read-only)
 - User invitation via email (bcrypt-hashed token, 1h expiry)
@@ -55,25 +184,210 @@ B2B invoicing use-case in the DACH region).
 - Login throttler (anti-brute-force), per-IP failed-attempt lockout
 - All sensitive routes guarded by `@Auth()` + `@Require(action)` decorators
 
-### Productivity
-- Bulk invoice download — select up to 100 invoices and bundle as ZIP
+#### Productivity
+- Bulk invoice download — up to 100 invoices bundled as ZIP
   (PDF or ZUGFeRD format, deduplicated filenames, manifest)
 - Bulk invoice email sending
-- Date-range CSV export (18 columns, German Excel compatible)
+- Date-range CSV export (18 columns, Excel compatible)
 - Date-range ZIP export
 - Multi-select invoice list with bulk-action toolbar
 - Reminder / dunning workflow with multi-send
 - Payment tracking with auto-status transition (paid when sum covers total)
-- German/English/Chinese UI translations (1,500+ keys)
+- **Trilingual UI: German, English, Chinese** (1,500+ keys)
 - Multi-currency ready (defaults to EUR)
 
-### Storage
+#### Storage
 - Per-company local storage folder (`{year}/{month}/{type}/{companyId}`)
 - Health check (reachable/writable/free space)
 - File list with download/delete
-- Logo upload (image upload per company)
+- Logo upload (image per company)
 
-## Repository Layout
+### Quick Start (Development)
+
+#### Prerequisites
+- Node.js 22 LTS
+- PostgreSQL 16
+- npm 10+
+
+#### 1. Database
+```bash
+docker run -d --name de-invoice-postgres \
+  -e POSTGRES_USER=postgres \
+  -e POSTGRES_PASSWORD=postgres \
+  -e POSTGRES_DB=de_invoice \
+  -p 5432:5432 postgres:16
+```
+
+#### 2. Backend
+```bash
+cd backend
+cp .env.example .env       # adjust DATABASE_URL, JWT_SECRET, SMTP_*
+npm install
+npx prisma db push
+npx prisma generate
+npx ts-node src/main.ts   # → http://localhost:3001
+```
+
+#### 3. Frontend
+```bash
+cd frontend
+npm install
+npm run dev               # → http://localhost:3000
+```
+
+Open <http://localhost:3000>, register the first user (which auto-creates a
+company and assigns you admin role), and start invoicing.
+
+### API Conventions
+
+All dashboard routes require these two headers:
+```
+x-user-id:    <uuid>
+x-company-id: <uuid>
+```
+The frontend helper `@/lib/api` injects them automatically from
+`localStorage` — never use raw `fetch()` for API calls.
+
+### Development Notes
+See **`backend/AGENTS.md`** for project-specific gotchas
+(PDF layout invariants, throttler pitfall, frontend auth headers).
+
+### License
+Proprietary — built for SH Leder GmbH internal use.
+
+---
+
+<a id="中文"></a>
+
+## 🇨🇳 中文
+
+为德国中小企业打造的发票与会计管理系统,完全符合 **GoBD**、**XRechnung** 和
+**ZUGFeRD/Factur-X** 标准。为 SH Leder GmbH 开发(同样适用于德语区 B2B
+开票场景)。
+
+### 功能特性
+
+#### 核心开票
+- 发票类型:普通发票 (INV)、贷项凭证 (CN)、形式发票 (PI)、收据 (RCV)
+- 多行项目,支持德国增值税税率(0%、7%、19%)
+- 支持折扣、付款条件(立即/14/30/60天)、PDF 上展示银行信息
+- 每个公司独立的连续发票编号
+- 编号格式:`RE-2026-000001`、`GS-2026-000001` 等
+- 状态流转:草稿 → 已发送 → 已付款 / 逾期 / 已作废
+- GoBD 合规的单页 PDF(无彩色填充、黑色细线、
+  德式数字/日期格式 `€ 1.234,56` / `dd.mm.yyyy`)
+
+#### 合规与电子发票
+- **XRechnung**(XML, UBL 2.1)— 联邦 B2G 必选
+- **ZUGFeRD 2.1 / Factur-X 2.1** — B2B 混合 PDF + 嵌入 XML
+- **UStVA**(增值税预申报)含完整 Kennzahlen
+  (20–23 行销售额、26–29 行免税、36 行反向征收、
+  50–66 行进项税、81 行差额)
+- 费用管理,可对应到 UStVA 行
+- 审计日志
+
+#### 客户与产品管理
+- 客户增删改查,含增值税 ID、自由国家文本、德式地址格式
+- CSV 导入/导出(RFC 4180 + UTF-8 BOM,Excel 兼容)
+- 每客户最近开票日期 + 累计开票数量(高效 groupBy)
+- 产品目录含 SKU、基础价、税率、单位
+- 选择产品后自动填充发票项目
+
+#### 多用户与权限控制
+- 3 种角色:`admin`(完全权限)、`accountant`(开票/记账)、
+  `viewer`(只读)
+- 邮件邀请用户(bcrypt 哈希 token,1 小时过期)
+- 密码重置(恒定时间 bcrypt、通用响应、避免用户枚举)
+- 登录限流(防暴力破解),按 IP 失败次数锁定
+- 所有敏感路由通过 `@Auth()` + `@Require(action)` 装饰器保护
+
+#### 效率工具
+- 批量下载:最多 100 张发票打包为 ZIP
+  (PDF 或 ZUGFeRD,文件名去重,带清单)
+- 批量邮件发送
+- 按时间区间 CSV 导出(18 列,Excel 兼容)
+- 按时间区间 ZIP 导出
+- 发票列表多选 + 批量操作工具栏
+- 催收/逾期提醒工作流,支持多次发送
+- 付款跟踪,自动状态切换(收款金额覆盖总额后自动置为已付)
+- **三语界面:德语 / 英语 / 中文**(1500+ 翻译键)
+- 多币种就绪(默认 EUR)
+
+#### 存储
+- 每个公司独立的本地存储目录(`{年}/{月}/{类型}/{公司ID}`)
+- 健康检查(可达 / 可写 / 剩余空间)
+- 文件列表(下载 / 删除)
+- Logo 上传(每个公司一张图)
+
+### 快速开始(开发环境)
+
+#### 环境要求
+- Node.js 22 LTS
+- PostgreSQL 16
+- npm 10+
+
+#### 1. 数据库
+```bash
+docker run -d --name de-invoice-postgres \
+  -e POSTGRES_USER=postgres \
+  -e POSTGRES_PASSWORD=postgres \
+  -e POSTGRES_DB=de_invoice \
+  -p 5432:5432 postgres:16
+```
+
+#### 2. 后端
+```bash
+cd backend
+cp .env.example .env       # 修改 DATABASE_URL, JWT_SECRET, SMTP_*
+npm install
+npx prisma db push
+npx prisma generate
+npx ts-node src/main.ts   # → http://localhost:3001
+```
+
+#### 3. 前端
+```bash
+cd frontend
+npm install
+npm run dev               # → http://localhost:3000
+```
+
+浏览器打开 <http://localhost:3000>,注册第一个用户(自动创建公司并授予
+admin 角色),即可开始开票。
+
+### API 约定
+
+所有 Dashboard 路由需要以下两个请求头:
+```
+x-user-id:    <uuid>
+x-company-id: <uuid>
+```
+前端辅助函数 `@/lib/api` 会从 `localStorage` 自动注入 — 切勿直接使用
+`fetch()` 调 API。
+
+### 开发提示
+项目特有的"坑"请参考 **`backend/AGENTS.md`**
+(PDF 布局约束、限流器陷阱、前端鉴权头)。
+
+### 许可证
+专有软件 — 仅供 SH Leder GmbH 内部使用。
+
+---
+
+## Tech Stack / 技术栈
+
+| Layer / 层 | Technology / 技术 |
+|------------|-------------------|
+| Frontend / 前端 | Next.js 16, React 19, TypeScript, Tailwind CSS |
+| Backend / 后端 | Node.js 22 LTS, NestJS 10, TypeScript |
+| Database / 数据库 | PostgreSQL 16 (Prisma ORM 5) |
+| PDF | PDFKit (1-page ink-saving layout) |
+| E-Invoice / 电子发票 | Custom XRechnung (UBL 2.1) + ZUGFeRD 2.1 / Factur-X 2.1 generators |
+| Email / 邮件 | Nodemailer (SMTP), per-company config |
+| Storage / 存储 | Local filesystem (S3/MinIO planned) |
+| Auth / 鉴权 | Custom header-based shim + RBAC roles |
+
+## Repository Layout / 仓库结构
 
 ```
 de-invoice/
@@ -93,77 +407,5 @@ de-invoice/
 │   │   ├── components/           # shared UI: ExportCSVButton, RevenueChart, ...
 │   │   └── lib/api.ts            # apiFetch / apiGet / apiPost / apiPut / apiDelete
 │   └── package.json
-└── README.md                     # this file
+└── README.md                     # this file / 本文件 / diese Datei
 ```
-
-## Quick Start (Development)
-
-### Prerequisites
-- Node.js 22 LTS
-- PostgreSQL 16
-- npm 10+
-
-### 1. Database
-
-```bash
-docker run -d --name de-invoice-postgres \
-  -e POSTGRES_USER=postgres \
-  -e POSTGRES_PASSWORD=postgres \
-  -e POSTGRES_DB=de_invoice \
-  -p 5432:5432 postgres:16
-```
-
-### 2. Backend
-
-```bash
-cd backend
-cp .env.example .env       # adjust DATABASE_URL, JWT_SECRET, SMTP_*
-npm install
-npx prisma db push
-npx prisma generate
-npx ts-node src/main.ts   # → http://localhost:3001
-```
-
-### 3. Frontend
-
-```bash
-cd frontend
-npm install
-npm run dev               # → http://localhost:3000
-```
-
-Open <http://localhost:3000>, register the first user (which auto-creates a
-company and assigns you admin role), and start invoicing.
-
-## API Conventions
-
-All dashboard routes require these two headers:
-
-```
-x-user-id:    <uuid>
-x-company-id: <uuid>
-```
-
-The frontend helper `@/lib/api` injects them automatically from
-`localStorage` — never use raw `fetch()` for API calls.
-
-Pagination response shape:
-```ts
-{ data: T[], total: number, page: number, pageSize: number, totalPages: number }
-```
-
-Frontend always defends with `Array.isArray(d) ? d : (d.data || [])` to
-handle both shapes (auth errors return `{ statusCode, message }` without
-`.data`).
-
-## Development Notes
-
-See **`backend/AGENTS.md`** for project-specific gotchas:
-- PDF layout invariants (1 page, ink-saving, German number format)
-- Throttler pitfall (multi-bucket config caps all routes, not just the named one)
-- Frontend auth headers (every dashboard call must include `x-user-id` +
-  `x-company-id`)
-
-## License
-
-Proprietary — built for SH Leder GmbH internal use.

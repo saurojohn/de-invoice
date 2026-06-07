@@ -232,9 +232,14 @@ function createZUGFeRDPdf(
       const logoPath = resolveLogoPath(company.logoPath);
       if (logoPath) {
         try {
-          const imgHeight = 40;
+          // Logo centered horizontally at the top, height 68px
+          // (52 → 68, another +30% per user request). Width capped
+          // at 220px. The company name + address block below now
+          // sits in the top-right corner (was below the logo in
+          // earlier layouts).
+          const imgHeight = 68;
           const img = doc.openImage(logoPath);
-          const imgWidth = Math.min(img.width * (imgHeight / img.height), 150);
+          const imgWidth = Math.min(img.width * (imgHeight / img.height), 220);
           const imgX = (pageWidth - imgWidth) / 2;
           doc.image(logoPath, imgX, 50, { height: imgHeight });
         } catch (e) {
@@ -243,15 +248,27 @@ function createZUGFeRDPdf(
       }
     }
 
-    // Company info
+    // Company info — right-anchored block in the top-right corner
+    // (per user request — logo moved to top-center, so the company
+    // info shifts to the right corner to keep the header balanced).
+    // Y starts at 50 to sit at the same top band as the logo.
     const compAddr = company.address || {};
-    doc.fontSize(20).font('Helvetica-Bold').text(company.name, leftMargin, 120, { align: 'left', lineBreak: false });
+    const rightBlockWidth = rightMargin - leftMargin;
+    doc.fontSize(20).font('Helvetica-Bold').text(company.name, leftMargin, 50, { width: rightBlockWidth, align: 'right', lineBreak: false });
     doc.fontSize(9).font('Helvetica');
-    if (compAddr.street) doc.text(compAddr.street, leftMargin, 142, { lineBreak: false });
+    if (compAddr.street) doc.text(compAddr.street, leftMargin, 75, { width: rightBlockWidth, align: 'right', lineBreak: false });
     if (compAddr.postalCode || compAddr.city) {
-      doc.text(`${compAddr.postalCode || ''} ${compAddr.city || ''}`.trim(), leftMargin, 154, { lineBreak: false });
+      doc.text(`${compAddr.postalCode || ''} ${compAddr.city || ''}`.trim(), leftMargin, 87, { width: rightBlockWidth, align: 'right', lineBreak: false });
     }
-    if (compAddr.country) doc.text(compAddr.country, leftMargin, 166, { lineBreak: false });
+    if (compAddr.country) doc.text(compAddr.country, leftMargin, 99, { width: rightBlockWidth, align: 'right', lineBreak: false });
+    // Contact line (below the address)
+    const contactY = 113;
+    let contactLine = '';
+    if (company.email) contactLine += company.email;
+    if (company.phone) contactLine += (contactLine ? '  ·  ' : '') + company.phone;
+    if (contactLine) {
+      doc.fontSize(8).font('Helvetica').text(contactLine, leftMargin, contactY, { width: rightBlockWidth, align: 'right', lineBreak: false });
+    }
 
     // Invoice title (right aligned to rightMargin). Switch by type so
     // CN is printed as "GUTSCHRIFT" etc.
@@ -263,12 +280,16 @@ function createZUGFeRDPdf(
         default: return 'RECHNUNG'
       }
     })()
+    // Middle row Y band — same layout as invoice-pdf.service.ts.
+    // Customer block on the left, RECHNUNG title + details on the
+    // right. Y = headerStartY + logoHeight + 14 = 132.
+    const middleRowY = 132;
     const titleWidth = rightMargin - leftMargin
-    doc.fontSize(24).font('Helvetica-Bold').text(invoiceTitle, leftMargin, 210, { width: titleWidth, align: 'right', lineBreak: false });
-    doc.fontSize(14).text(invoice.invoiceNumber, leftMargin, 238, { width: titleWidth, align: 'right', lineBreak: false });
+    doc.fontSize(24).font('Helvetica-Bold').text(invoiceTitle, leftMargin, middleRowY, { width: titleWidth, align: 'right', lineBreak: false });
+    doc.fontSize(14).text(invoice.invoiceNumber, leftMargin, middleRowY + 28, { width: titleWidth, align: 'right', lineBreak: false });
 
-    // Invoice details (right aligned to rightMargin)
-    const detailsY = 220;
+    // Invoice details (right side, below RECHNUNG title)
+    const detailsY = middleRowY + 58;
     const detailsLabelX = rightMargin - 180;
     const detailsValueX = rightMargin - 60;
     doc.fontSize(10).font('Helvetica').fillColor('#000000');
@@ -277,38 +298,50 @@ function createZUGFeRDPdf(
     doc.text('Währung:', detailsLabelX, detailsY + 15, { width: 100, align: 'right', lineBreak: false });
     doc.text(invoice.currency, detailsValueX, detailsY + 15, { width: 60, align: 'right', lineBreak: false });
 
-    // Customer address
-    const customerY = 330;
+    // Customer address — left side of middle row. Per latest user
+    // request:
+    //   - Sender line: single line, 50% smaller (5pt) — acts as the
+    //     return-address line for window envelopes.
+    //   - Customer block: 11pt (+10% from the 10pt baseline).
+    let custY = middleRowY;
     const custAddr = invoice.customer?.address || {};
-    let custY = customerY;
-    doc.fontSize(10).font('Helvetica-Bold').text('Rechnungsadresse:', leftMargin, custY, { lineBreak: false });
-    custY += 15;
-    doc.fontSize(10).font('Helvetica');
+    // Sender line: "Name · Straße · PLZ Ort · Land"
+    const senderParts: string[] = [company.name];
+    if (compAddr.street) senderParts.push(compAddr.street);
+    const pcCity = `${compAddr.postalCode || ''} ${compAddr.city || ''}`.trim();
+    if (pcCity) senderParts.push(pcCity);
+    if (compAddr.country) senderParts.push(compAddr.country);
+    doc.fontSize(5).font('Helvetica').text(senderParts.join(' · '), leftMargin, custY, { lineBreak: false });
+    custY += 10;
+    // Customer block — 11pt (was 10pt; +10% per user request).
+    doc.fontSize(11).font('Helvetica');
     doc.text(invoice.customer?.name || '', leftMargin, custY, { lineBreak: false });
-    custY += 13;
+    custY += 14;
     if (custAddr.street) {
       doc.text(custAddr.street, leftMargin, custY, { lineBreak: false });
-      custY += 13;
+      custY += 14;
     }
     if (custAddr.postalCode || custAddr.city) {
       doc.text(`${custAddr.postalCode || ''} ${custAddr.city || ''}`.trim(), leftMargin, custY, { lineBreak: false });
-      custY += 13;
+      custY += 14;
     }
     if (custAddr.country) {
       doc.text(custAddr.country, leftMargin, custY, { lineBreak: false });
-      custY += 13;
+      custY += 14;
     }
     if (invoice.customer?.vatId) {
       doc.text(`UST-IDNr.: ${invoice.customer.vatId}`, leftMargin, custY, { lineBreak: false });
+      custY += 14;
     }
 
-    // Items table — same layout as invoice-pdf.service.ts
-    // Columns sum: 220 + 55 + 75 + 55 + 90 = 495
-    // → right edge of net column = leftMargin + 495 = rightMargin ✓
+    // Items table — start Y must follow the larger of (a) customer
+    // block end or (b) invoice details end, with a minimum floor
+    // so a near-empty invoice doesn't collapse the table.
     const colWidths = { desc: 220, qty: 55, price: 75, vat: 55, net: 90 };
     const headerHeight = 25;
     const rowHeight = 24;
-    const tableStartY = 440;
+    const detailsEndY = detailsY + 30;  // 2 detail rows × 15
+    const tableStartY = Math.max(280, Math.max(custY, detailsEndY) + 20);
     let y = tableStartY;
 
     doc.moveTo(leftMargin, y + headerHeight).lineTo(rightMargin, y + headerHeight).lineWidth(0.8).stroke();
@@ -462,11 +495,23 @@ function resolveLogoPath(logoPath: string): string | null {
     return fs.existsSync(logoPath) ? logoPath : null;
   }
 
-  if (logoPath.startsWith('images/')) {
-    const projectRoot = process.cwd();
-    const fullPath = path.join(projectRoot, 'frontend', 'public', logoPath);
-    if (fs.existsSync(fullPath)) return fullPath;
+  // The logo upload endpoint stores just the bare filename
+  // (e.g. 'logo.png') in Company.logoPath, with the actual file
+  // living at frontend/public/images/<name>. Anchor the lookup
+  // to the project root via __dirname (this file lives at
+  // backend/src/invoices/, so go up 3 levels), NOT process.cwd()
+  // — see commit 88f03fe for the matching upload fix.
+  const projectRoot = path.resolve(__dirname, '..', '..', '..')
+  const candidateNames = [
+    path.join(projectRoot, 'frontend', 'public', 'images', path.basename(logoPath)),
+  ]
+  if (logoPath.startsWith('images/') || logoPath.startsWith('/images/')) {
+    candidateNames.push(
+      path.join(projectRoot, 'frontend', 'public', logoPath.replace(/^\//, '')),
+    )
   }
-
-  return fs.existsSync(logoPath) ? logoPath : null;
+  for (const candidate of candidateNames) {
+    if (fs.existsSync(candidate)) return candidate
+  }
+  return fs.existsSync(logoPath) ? logoPath : null
 }
