@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
+import { Switch } from "@/components/ui/switch"
 import { useI18n } from "@/components/useI18n"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { apiGet, apiPost, apiPut, apiFetch, ApiError } from "@/lib/api"
@@ -70,13 +71,24 @@ export default function CreateInvoicePage() {
   const [productNumberSearch, setProductNumberSearch] = useState("")
   const [showProductNumberDropdown, setShowProductNumberDropdown] = useState(false)
   // Inline modal for "create a new product from the line item".
-  // open=false means modal is hidden. index tracks which line
-  // item should receive the new product once the API call
-  // succeeds (the user might have multiple line items queued).
+  // The field set mirrors the products page's create/edit
+  // form 1:1 (see src/app/dashboard/products/page.tsx) so the
+  // user gets the same UX in both places — no surprise gaps
+  // when they later edit the product on the products page.
+  // The "open" flag is just for visibility; the rest is
+  // initialized to the same defaults the products form uses.
   const [newProductModal, setNewProductModal] = useState<{
     open: boolean
-    sku: string
     name: string
+    description: string
+    sku: string
+    type: "good" | "service"
+    unit: string
+    basePrice: string
+    vatRate: string
+    trackInventory: boolean
+    stockQuantity: string
+    lowStockThreshold: string
     index: number
     loading: boolean
   } | null>(null)
@@ -237,20 +249,29 @@ export default function CreateInvoicePage() {
 
   // Open the "create new product" modal. Triggered from the
   // product-number dropdown when 0 products match the typed
-  // SKU. The user will be asked for a name (the SKU is
-  // pre-filled from whatever they typed); other fields use
-  // safe defaults (basePrice 0, vatRate 19%, type 'good',
-  // unit 'Stück') and can be edited later from the
-  // products page.
+  // SKU. Mirrors the products page's "create" form layout
+  // 1:1 so the user sees the same fields in both places.
+  // Defaults match the products page exactly.
   const openNewProductModal = (index: number) => {
     const sku = (form.items[index]?.productNumber || "").trim()
     setNewProductModal({
       open: true,
-      sku,
       // Pre-fill the name with the SKU so the user can just
       // press Enter if the SKU is descriptive enough. They
       // can still edit it.
       name: sku,
+      description: "",
+      sku,
+      type: "good",
+      unit: t("common2.unit") || "Stück",
+      // basePrice is a string in the products form so the
+      // input can be empty without becoming NaN; the service
+      // handles the empty-string → 0 coercion.
+      basePrice: "",
+      vatRate: "0.19",
+      trackInventory: false,
+      stockQuantity: "0",
+      lowStockThreshold: "",
       index,
       loading: false,
     })
@@ -261,9 +282,13 @@ export default function CreateInvoicePage() {
   // auto-select it for the originating line item. Mirrors
   // the user-flow of typing the SKU → not finding it →
   // creating it on the spot → it instantly being available.
+  // The payload shape matches the products page's create
+  // form 1:1 (no fields renamed, no defaults omitted) so
+  // a product created here behaves identically to one
+  // created from /dashboard/products.
   const createProductFromSku = async () => {
     if (!newProductModal) return
-    const { sku, name, index } = newProductModal
+    const { name, index } = newProductModal
     if (!name.trim()) {
       alert(t("invoice.newProductName"))
       return
@@ -271,23 +296,34 @@ export default function CreateInvoicePage() {
     setNewProductModal({ ...newProductModal, loading: true })
     try {
       const companyId = localStorage.getItem("companyId") || "7de697d5-64a2-4632-9a87-d18b4e2a0214"
+      // Same payload shape as the products page's handleSubmit:
+      // string basePrice (server coerces to Decimal), string
+      // vatRate (server normalizes >1 to decimal), string
+      // stockQuantity + lowStockThreshold, all optional except
+      // name + basePrice.
       const created = await apiPost<{ id: string; name: string; sku: string; unit: string; basePrice: string; vatRate: string }>(
         `/api/v1/products?companyId=${companyId}`,
         {
-          // The DTO trims the name and rejects empty strings;
-          // we already guarded above.
-          name: name.trim(),
-          // SKU is optional in the DTO but per-company unique
-          // (enforced at the service layer). Send empty if the
-          // user never typed one — that's fine, products can
-          // exist without a SKU.
-          sku: sku.trim() || undefined,
-          // Sensible defaults so the new product is usable on
-          // the invoice without further editing.
-          type: "good",
-          basePrice: 0,
-          vatRate: 0.19,
-          unit: t("common2.unit") || "Stück",
+          name: newProductModal.name.trim(),
+          description: newProductModal.description.trim() || undefined,
+          sku: newProductModal.sku.trim() || undefined,
+          type: newProductModal.type,
+          unit: newProductModal.unit.trim() || undefined,
+          // basePrice: empty string is acceptable for "0" — the
+          // server's @Min(0) validator rejects negatives. Send
+          // 0 (not "") so the products page can later display
+          // the product with a clean price column.
+          basePrice: newProductModal.basePrice === "" ? 0 : Number(newProductModal.basePrice),
+          vatRate: Number(newProductModal.vatRate),
+          trackInventory: newProductModal.trackInventory,
+          stockQuantity: Number(newProductModal.stockQuantity) || 0,
+          // lowStockThreshold: send null when the user hasn't
+          // filled it in (so the product has no threshold),
+          // and a number otherwise. Don't send 0 — that's a
+          // real threshold of "alert when stock is 0 or below".
+          lowStockThreshold: newProductModal.lowStockThreshold.trim() === ""
+            ? null
+            : Number(newProductModal.lowStockThreshold),
         }
       )
       // Refresh the in-memory products list so the user can
@@ -1136,7 +1172,7 @@ export default function CreateInvoicePage() {
           <div className="flex gap-4">
             <Button type="submit" className="flex-1" disabled={loading || !!loadError}>
               {loading
-                ? (t("common2.saving") || "Wird gespeichert...")
+                ? (t("common.saving") || "Wird gespeichert...")
                 : isEdit
                   ? (t("invoice.saveChanges") || "Änderungen speichern")
                   : t("invoice.createInvoice")}
@@ -1158,74 +1194,189 @@ export default function CreateInvoicePage() {
 
       {/* "Create new product" modal. Shown when the user
           clicks the "Create new product ..." link in the
-          product-number dropdown. Asks for a product name
-          (the SKU is pre-filled from whatever they typed
-          into the Artikelnr. input). On save, POSTs to
-          /api/v1/products and auto-selects the new
-          product for the originating line item. The
-          overlay uses a semi-transparent black layer so
-          the underlying form is dimmed but still visible
-          (helps the user keep their place in the form). */}
+          product-number dropdown. The field set mirrors the
+          products page's create/edit form 1:1 so the user
+          can fill in everything they need without having to
+          come back later to add inventory / description /
+          type etc. on the products page. POSTs to
+          /api/v1/products on save and auto-selects the new
+          product for the originating line item. The overlay
+          uses a semi-transparent black layer so the
+          underlying invoice form is dimmed but still
+          visible (helps the user keep their place). */}
       {newProductModal?.open && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
           onClick={() => !newProductModal.loading && setNewProductModal(null)}
         >
           <div
-            className="bg-white rounded-lg shadow-2xl max-w-md w-full p-6 space-y-4"
+            className="bg-white rounded-lg shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            <div>
-              <h2 className="text-lg font-bold text-gray-900">{t("invoice.newProductModalTitle")}</h2>
-              <p className="text-sm text-gray-500 mt-1">
-                {t("invoice.createNewProductWithSku").replace("{sku}", newProductModal.sku || "—")}
-              </p>
-            </div>
-            <div className="space-y-3">
-              <div>
-                <label className="block text-sm font-medium mb-1">{t("invoice.newProductName")} *</label>
-                <Input
-                  autoFocus
-                  value={newProductModal.name}
-                  onChange={(e) => setNewProductModal({ ...newProductModal, name: e.target.value })}
-                  onKeyDown={(e) => {
-                    // Enter to submit (a11y / keyboard flow).
-                    if (e.key === "Enter" && !newProductModal.loading) {
-                      e.preventDefault()
-                      createProductFromSku()
-                    }
+            <Card>
+              <CardHeader>
+                <CardTitle>{t("invoice.newProductModalTitle")}</CardTitle>
+                <p className="text-xs text-gray-500 mt-1">
+                  {t("invoice.createNewProductWithSku").replace("{sku}", newProductModal.sku || "—")}
+                </p>
+              </CardHeader>
+              <CardContent>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    createProductFromSku()
                   }}
-                  placeholder={t("invoice.newProductNamePlaceholder")}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">{t("invoice.newProductSku")}</label>
-                <Input
-                  value={newProductModal.sku}
-                  onChange={(e) => setNewProductModal({ ...newProductModal, sku: e.target.value })}
-                  className="font-mono"
-                />
-              </div>
-            </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setNewProductModal(null)}
-                disabled={newProductModal.loading}
-              >
-                {t("invoice.newProductCancel")}
-              </Button>
-              <Button
-                type="button"
-                onClick={createProductFromSku}
-                disabled={newProductModal.loading || !newProductModal.name.trim()}
-              >
-                {newProductModal.loading
-                  ? (t("common2.saving") || "...")
-                  : t("invoice.newProductCreate")}
-              </Button>
-            </div>
+                  className="space-y-4"
+                >
+                  {/* Name — required. Mirrors the products form's
+                      first field. Autofocus so the user can start
+                      typing immediately. Enter on this field (or
+                      on any field below) submits the form. */}
+                  <div>
+                    <label className="block text-sm font-medium mb-1">{t("product.name")} *</label>
+                    <Input
+                      autoFocus
+                      value={newProductModal.name}
+                      onChange={(e) => setNewProductModal({ ...newProductModal, name: e.target.value })}
+                      placeholder="z.B. Beratungsleistung"
+                      required
+                    />
+                  </div>
+                  {/* Description — optional, same as products form. */}
+                  <div>
+                    <label className="block text-sm font-medium mb-1">
+                      {t("product.description") || "Beschreibung"}
+                    </label>
+                    <Input
+                      value={newProductModal.description}
+                      onChange={(e) => setNewProductModal({ ...newProductModal, description: e.target.value })}
+                      placeholder="Optional"
+                    />
+                  </div>
+                  {/* SKU + type — same row layout as products form.
+                      SKU is pre-filled from the Artikelnr. input
+                      the user typed into. */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-1">{t("product.sku")}</label>
+                      <Input
+                        value={newProductModal.sku}
+                        onChange={(e) => setNewProductModal({ ...newProductModal, sku: e.target.value })}
+                        placeholder="PRD-001"
+                        className="font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">{t("product.type")}</label>
+                      <select
+                        className="w-full h-10 border rounded-md px-3"
+                        value={newProductModal.type}
+                        onChange={(e) => setNewProductModal({ ...newProductModal, type: e.target.value as "good" | "service" })}
+                      >
+                        <option value="good">{t("product.typeGood")}</option>
+                        <option value="service">{t("product.typeService")}</option>
+                      </select>
+                    </div>
+                  </div>
+                  {/* Unit + price + VAT — 3-col grid matching the
+                      products form. basePrice is required. */}
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-1">{t("product.unit")}</label>
+                      <Input
+                        value={newProductModal.unit}
+                        onChange={(e) => setNewProductModal({ ...newProductModal, unit: e.target.value })}
+                        placeholder="Stück/Stunde/Projekt"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">{t("product.price")} (€) *</label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={newProductModal.basePrice}
+                        onChange={(e) => setNewProductModal({ ...newProductModal, basePrice: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">{t("product.vatRate")}</label>
+                      <select
+                        className="w-full h-10 border rounded-md px-3"
+                        value={newProductModal.vatRate}
+                        onChange={(e) => setNewProductModal({ ...newProductModal, vatRate: e.target.value })}
+                      >
+                        <option value="0.19">19% {t("product.standard")}</option>
+                        <option value="0.07">7% {t("product.reduced")}</option>
+                        <option value="0">0% {t("product.zero")}</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Inventory section — same as the products
+                      form. Hidden when trackInventory is off
+                      (matches the products page behavior). */}
+                  <div className="border-t pt-4 mt-4">
+                    <h3 className="text-sm font-medium mb-3">{t("inventory.tracking")}</h3>
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <p className="font-medium">{t("inventory.trackProduct")}</p>
+                        <p className="text-xs text-gray-500">{t("inventory.trackHint")}</p>
+                      </div>
+                      <Switch
+                        checked={newProductModal.trackInventory}
+                        onCheckedChange={(checked) => setNewProductModal({ ...newProductModal, trackInventory: checked })}
+                      />
+                    </div>
+                    {newProductModal.trackInventory && (
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium mb-1">{t("inventory.currentStock")}</label>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={newProductModal.stockQuantity}
+                            onChange={(e) => setNewProductModal({ ...newProductModal, stockQuantity: e.target.value })}
+                            placeholder="0"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium mb-1">{t("inventory.threshold")}</label>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={newProductModal.lowStockThreshold}
+                            onChange={(e) => setNewProductModal({ ...newProductModal, lowStockThreshold: e.target.value })}
+                            placeholder="10"
+                          />
+                          <p className="text-xs text-gray-500 mt-1">{t("inventory.thresholdHint")}</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setNewProductModal(null)}
+                      disabled={newProductModal.loading}
+                    >
+                      {t("invoice.newProductCancel")}
+                    </Button>
+                    <Button
+                      type="submit"
+                      disabled={newProductModal.loading || !newProductModal.name.trim()}
+                    >
+                      {newProductModal.loading
+                        ? (t("common.saving") || "...")
+                        : t("invoice.newProductCreate")}
+                    </Button>
+                  </div>
+                </form>
+              </CardContent>
+            </Card>
           </div>
         </div>
       )}
