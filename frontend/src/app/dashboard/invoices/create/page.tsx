@@ -548,10 +548,37 @@ export default function CreateInvoicePage() {
     return colors[type]
   }
 
+  // Append a new empty item to the END of the items list.
+  // Kept for backward compatibility (no longer wired to a
+  // button, but callers might still depend on the shape).
+  // The per-row "+" buttons now use addItemAt(index) which
+  // inserts a new row AFTER the clicked row, which is the
+  // more useful behavior for building up an invoice.
   const addItem = () => {
     setForm({
       ...form,
       items: [...form.items, { description: "", productNumber: "", quantity: 1, unit: t("common2.unit"), unitPrice: 0, vatRate: 0.19 }],
+    })
+  }
+
+  // Insert a new empty item row directly AFTER the row at
+  // \`index\`. The new row inherits the same defaults as
+  // addItem() (description + productNumber empty, quantity
+  // 1, unit from i18n, price 0, VAT 19%). Splicing after
+  // the clicked row is the "insert below" pattern \u2014
+  // useful when the user wants to add a related line below
+  // a specific item rather than always at the end of the
+  // list. If the clicked index is out of range, falls back
+  // to appending at the end so we never end up with a
+  // broken state.
+  const addItemAt = (index: number) => {
+    setForm({
+      ...form,
+      items: [
+        ...form.items.slice(0, index + 1),
+        { description: "", productNumber: "", quantity: 1, unit: t("common2.unit"), unitPrice: 0, vatRate: 0.19 },
+        ...form.items.slice(index + 1),
+      ],
     })
   }
 
@@ -1048,11 +1075,15 @@ export default function CreateInvoicePage() {
             </CardContent>
           </Card>
 
-          {/* Line Items Card */}
+          {/* Line Items Card. The "+" add button used to live
+              here in the CardHeader, but the user asked for
+              it to be moved into the per-row actions column
+              (right of the "Remove" button) so each row has
+              both controls. Clicking "+" on a row inserts a
+              new empty row directly below it. */}
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
+            <CardHeader>
               <CardTitle>{t("invoice.items")}</CardTitle>
-              <Button type="button" variant="outline" size="sm" onClick={addItem}>+ {t("invoice.addItem")}</Button>
             </CardHeader>
             {invoiceType === "CN" && form.referenceInvoiceId && (
               <div className="px-6 pb-2 text-xs text-amber-700 bg-amber-50 border-t border-amber-100 -mt-2 pt-2">
@@ -1060,13 +1091,21 @@ export default function CreateInvoicePage() {
               </div>
             )}
             <CardContent className="space-y-4">
+              {/* Header row mirrors the per-row column
+                  distribution: 2 productNo | 4 desc | 2
+                  qty+unit | 1 price | 1 vat | 1 remove | 1
+                  add. The "Remove" / "Add" header cells
+                  have no label (the icons in the rows are
+                  self-explanatory) but keep the columns
+                  aligned with the rows below. */}
               <div className="grid grid-cols-12 gap-2 text-sm font-medium text-gray-600 px-2">
                 <div className="col-span-2">{t("invoice.productNumber")}</div>
                 <div className="col-span-4">{t("invoice.description")}</div>
                 <div className="col-span-2">{t("invoice.quantity")}</div>
                 <div className="col-span-1">{t("invoice.unitPrice")} (€)</div>
                 <div className="col-span-1">{t("invoice.vatRate")}</div>
-                <div className="col-span-2">{t("common.actions")}</div>
+                <div className="col-span-1"></div>
+                <div className="col-span-1"></div>
               </div>
               {form.items.map((item, index) => (
                 <div key={index} className="grid grid-cols-12 gap-2 items-end">
@@ -1267,11 +1306,43 @@ export default function CreateInvoicePage() {
                       <option value={0}>0%</option>
                     </select>
                   </div>
-                  <div className="col-span-2">
-                    <Button type="button" variant="ghost" size="sm" onClick={() => {
-                      const items = form.items.filter((_, i) => i !== index)
-                      setForm({ ...form, items })
-                    }}>{t("invoice.removeItem")}</Button>
+                  {/* Per-row "Remove" button \u2014 right of the
+                      VAT rate column, 1 col wide. Variant
+                      ghost so it doesn't compete visually
+                      with the inputs. */}
+                  <div className="col-span-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="w-full text-red-600 hover:text-red-700 hover:bg-red-50 px-1"
+                      onClick={() => {
+                        const items = form.items.filter((_, i) => i !== index)
+                        setForm({ ...form, items })
+                      }}
+                      title={t("invoice.removeItem")}
+                    >
+                      ✕
+                    </Button>
+                  </div>
+                  {/* Per-row "Add" button \u2014 right of the
+                      Remove button, 1 col wide. Inserts a
+                      new empty row directly BELOW this row
+                      via addItemAt(index), so the user can
+                      build up a list of related items in
+                      the order they want, not always at the
+                      end. */}
+                  <div className="col-span-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="w-full text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-1"
+                      onClick={() => addItemAt(index)}
+                      title={t("invoice.addItem")}
+                    >
+                      +
+                    </Button>
                   </div>
                 </div>
               ))}
