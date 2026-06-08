@@ -16,7 +16,27 @@ type InvoiceTemplateType = 'standard' | 'simplified' | 'compact'
 interface Customer {
   id: string
   name: string
-  vatId?: string
+  // Backend-assigned per-company sequential number (K-00001...).
+  // Shown in the dropdown so the user can pick by either
+  // name or number.
+  customerNumber?: string | null
+  vatId?: string | null
+  type?: string
+  taxExempt?: boolean
+  // Address is stored as a JSON object on Customer.
+  // The fields most useful in the picker dropdown are
+  // street, postalCode, city and country.
+  address?: { street?: string; postalCode?: string; city?: string; country?: string } | null
+  // Contact info (email + phone) — also stored as JSON.
+  contact?: { email?: string; phone?: string } | null
+  paymentTerms?: number
+  // Pre-extracted by the backend for search:
+  //   cityText       — the value of address.city
+  //   postalCodeText — the value of address.postalCode
+  // (defined as STORED GENERATED columns in the DB so the
+  // trigram GIN index can search them; see prisma/init.sql).
+  cityText?: string | null
+  postalCodeText?: string | null
 }
 
 interface Product {
@@ -96,6 +116,28 @@ export default function CreateInvoicePage() {
     stockQuantity: string
     lowStockThreshold: string
     index: number
+    loading: boolean
+  } | null>(null)
+  // Inline modal for "create a new customer from the invoice".
+  // Field set mirrors the customers page's create/edit form
+  // 1:1 (see src/app/dashboard/customers/page.tsx) so the
+  // user gets the same UX in both places. Triggered by
+  // clicking the "+ Neuen Kunden anlegen" link in the
+  // customer picker dropdown when 0 customers match the
+  // typed search.
+  const [newCustomerModal, setNewCustomerModal] = useState<{
+    open: boolean
+    name: string
+    vatId: string
+    type: "business" | "individual"
+    street: string
+    postalCode: string
+    city: string
+    country: string
+    taxExempt: boolean
+    paymentTerms: number
+    email: string
+    phone: string
     loading: boolean
   } | null>(null)
   const [invoiceType, setInvoiceType] = useState<InvoiceType>('INV')
@@ -212,9 +254,25 @@ export default function CreateInvoicePage() {
     })
   }, [router])
 
-  const filteredCustomers = customers.filter(c =>
-    c.name.toLowerCase().includes(customerSearch.toLowerCase())
-  )
+  // Search customers by name, customer number, VAT ID, city,
+  // and postal code. Mirrors the backend's pg_trgm search
+  // (which is the source of truth for ranked results) but
+  // does the fuzzy match client-side for instant feedback as
+  // the user types. The backend also exposes cityText and
+  // postalCodeText as STORED GENERATED columns specifically
+  // so this kind of cross-field search can read them
+  // without parsing the address JSON each keystroke.
+  const filteredCustomers = customers.filter(c => {
+    const q = customerSearch.trim().toLowerCase()
+    if (!q) return true
+    return (
+      (c.name || "").toLowerCase().includes(q) ||
+      (c.customerNumber || "").toLowerCase().includes(q) ||
+      (c.vatId || "").toLowerCase().includes(q) ||
+      (c.cityText || c.address?.city || "").toLowerCase().includes(q) ||
+      (c.postalCodeText || c.address?.postalCode || "").toLowerCase().includes(q)
+    )
+  })
 
   const filteredProducts = products.filter(p =>
     p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
@@ -229,6 +287,82 @@ export default function CreateInvoicePage() {
     setForm({ ...form, customerId: customer.id })
     setCustomerSearch(customer.name)
     setShowCustomerDropdown(false)
+  }
+
+  // Open the "create new customer" modal. Triggered from
+  // the customer picker dropdown when 0 customers match
+  // the typed search. The name field is pre-filled with
+  // whatever the user typed (so they don't have to retype
+  // it), and all other fields use the same defaults the
+  // customers page's "create" form uses.
+  const openNewCustomerModal = () => {
+    const name = customerSearch.trim()
+    setNewCustomerModal({
+      open: true,
+      name,
+      vatId: "",
+      type: "business",
+      street: "",
+      postalCode: "",
+      city: "",
+      country: "DE",  // match the customers page's default
+      taxExempt: false,
+      paymentTerms: 30,  // match the customers page's default
+      email: "",
+      phone: "",
+      loading: false,
+    })
+    setShowCustomerDropdown(false)
+  }
+
+  // Save the new customer via POST /api/v1/customers and
+  // auto-select it for the invoice. Mirrors the
+  // createProductFromSku flow above: same UX, same
+  // field-shape parity with the customers page, same
+  // immediate-pick-up after save.
+  const createCustomerFromName = async () => {
+    if (!newCustomerModal) return
+    if (!newCustomerModal.name.trim()) {
+      alert(t("invoice.newCustomerName"))
+      return
+    }
+    setNewCustomerModal({ ...newCustomerModal, loading: true })
+    try {
+      const companyId = localStorage.getItem("companyId") || "7de697d5-64a2-4632-9a87-d18b4e2a0214"
+      const created = await apiPost<Customer>(
+        `/api/v1/customers?companyId=${companyId}`,
+        {
+          name: newCustomerModal.name.trim(),
+          vatId: newCustomerModal.vatId.trim() || undefined,
+          type: newCustomerModal.type,
+          // Address: only send non-empty sub-fields so the
+          // backend doesn't store empty strings. The DTO
+          // trims and accepts all of these as @IsOptional.
+          address: {
+            street: newCustomerModal.street.trim() || undefined,
+            postalCode: newCustomerModal.postalCode.trim() || undefined,
+            city: newCustomerModal.city.trim() || undefined,
+            country: newCustomerModal.country.trim() || undefined,
+          },
+          contact: {
+            email: newCustomerModal.email.trim() || undefined,
+            phone: newCustomerModal.phone.trim() || undefined,
+          },
+          taxExempt: newCustomerModal.taxExempt,
+          paymentTerms: newCustomerModal.paymentTerms,
+        }
+      )
+      // Add the new customer to the in-memory list so any
+      // future search can see it (no refetch).
+      setCustomers((prev) => [...prev, created])
+      // Auto-pick the new customer on the invoice.
+      selectCustomer(created)
+      setNewCustomerModal(null)
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : `Netzwerkfehler: ${err}`
+      alert(msg)
+      setNewCustomerModal({ ...newCustomerModal, loading: false })
+    }
   }
 
   const selectProduct = (product: Product, index: number) => {
@@ -679,23 +813,75 @@ export default function CreateInvoicePage() {
                     setForm({ ...form, customerId: "" })
                   }}
                   onFocus={() => setShowCustomerDropdown(customerSearch.length > 0 || true)}
+                  onBlur={() => {
+                    // Delay close so a click on a dropdown item
+                    // (which fires AFTER blur) still registers.
+                    // 200ms is the standard "let the click
+                    // happen" delay.
+                    setTimeout(() => setShowCustomerDropdown(false), 200)
+                  }}
                   placeholder={t("invoice.selectCustomer")}
                   required={invoiceType !== 'CN'}
                   readOnly={invoiceType === 'CN' && !!form.customerId}
                 />
                 {showCustomerDropdown && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg max-h-48 overflow-y-auto z-10">
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg max-h-64 overflow-y-auto z-10">
                     {filteredCustomers.length === 0 ? (
-                      <div className="px-3 py-2 text-gray-500 text-sm">{t("common2.noCustomersFound")}</div>
+                      <>
+                        <div className="px-3 py-2 text-gray-500 text-sm border-b">
+                          {t("common2.noCustomersFound")}
+                        </div>
+                        {/* No match: offer to create a new
+                            customer with the typed name. The
+                            name is pre-filled in the modal so
+                            the user doesn't have to retype. */}
+                        <div
+                          className="px-3 py-2 hover:bg-blue-50 cursor-pointer text-blue-700 text-sm font-medium border-t"
+                          onMouseDown={(e) => {
+                            // Use onMouseDown so the click
+                            // fires BEFORE the input's blur
+                            // handler closes the dropdown.
+                            e.preventDefault()
+                            openNewCustomerModal()
+                          }}
+                        >
+                          + {t("invoice.createNewCustomerWithName").replace("{name}", customerSearch.trim() || "")}
+                        </div>
+                      </>
                     ) : (
                       filteredCustomers.map((c) => (
                         <div
                           key={c.id}
-                          className="px-3 py-2 hover:bg-blue-50 cursor-pointer"
-                          onClick={() => selectCustomer(c)}
+                          className="px-3 py-2 hover:bg-blue-50 cursor-pointer border-b last:border-b-0"
+                          onMouseDown={(e) => {
+                            // onMouseDown so the click fires
+                            // before the input's blur closes
+                            // the dropdown.
+                            e.preventDefault()
+                            selectCustomer(c)
+                          }}
                         >
+                          {/* Show all the customer info the
+                              user might use to disambiguate:
+                              name (primary), customer number
+                              (K-00001), VAT ID, full address
+                              (street, postal + city, country),
+                              email. Each is on its own line
+                              so the dropdown stays scannable
+                              even with 4-5 fields visible. */}
                           <div className="font-medium text-sm">{c.name}</div>
-                          {c.vatId && <div className="text-xs text-gray-500">UST-IDNr.: {c.vatId}</div>}
+                          <div className="text-xs text-gray-500 font-mono mt-0.5">
+                            {c.customerNumber && `${c.customerNumber} · `}
+                            {c.vatId ? `USt-IDNr. ${c.vatId}` : (t("customer.noVatId") || "keine USt-ID")}
+                          </div>
+                          {c.address && (c.address.street || c.address.postalCode || c.address.city) && (
+                            <div className="text-xs text-gray-600 mt-0.5">
+                              {[c.address.street, [c.address.postalCode, c.address.city].filter(Boolean).join(" "), c.address.country].filter(Boolean).join(", ")}
+                            </div>
+                          )}
+                          {c.contact?.email && (
+                            <div className="text-xs text-gray-500 mt-0.5">{c.contact.email}</div>
+                          )}
                         </div>
                       ))
                     )}
@@ -1396,6 +1582,192 @@ export default function CreateInvoicePage() {
                       {newProductModal.loading
                         ? (t("common.saving") || "...")
                         : t("invoice.newProductCreate")}
+                    </Button>
+                  </div>
+                </form>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      )}
+
+      {/* "Create new customer" modal. Shown when the user
+          clicks the "+ Neuen Kunden anlegen" link in the
+          customer picker dropdown. The field set mirrors
+          the customers page's create/edit form 1:1 (see
+          src/app/dashboard/customers/page.tsx) so the user
+          can fill in everything they need without having
+          to come back later. POSTs to /api/v1/customers on
+          save and auto-selects the new customer for the
+          invoice. The overlay uses a semi-transparent
+          black layer so the underlying invoice form is
+          dimmed but still visible. */}
+      {newCustomerModal?.open && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => !newCustomerModal.loading && setNewCustomerModal(null)}
+        >
+          <div
+            className="bg-white rounded-lg shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Card>
+              <CardHeader>
+                <CardTitle>{t("invoice.newCustomerModalTitle")}</CardTitle>
+                <p className="text-xs text-gray-500 mt-1">
+                  {t("invoice.createNewCustomerWithName").replace("{name}", newCustomerModal.name || "—")}
+                </p>
+              </CardHeader>
+              <CardContent>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    createCustomerFromName()
+                  }}
+                  className="space-y-4"
+                >
+                  {/* Name — required. Mirrors the customers form's
+                      first field. Autofocus so the user can
+                      start typing immediately. Enter on any
+                      field submits. */}
+                  <div>
+                    <label className="block text-sm font-medium mb-1">{t("customer.name")} *</label>
+                    <Input
+                      autoFocus
+                      value={newCustomerModal.name}
+                      onChange={(e) => setNewCustomerModal({ ...newCustomerModal, name: e.target.value })}
+                      placeholder={t("settings.placeholderCompanyName") || "z.B. Muster GmbH"}
+                      required
+                    />
+                  </div>
+                  {/* VAT ID + type — same row layout as the
+                      customers form. */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-1">{t("customer.vatId")}</label>
+                      <Input
+                        value={newCustomerModal.vatId}
+                        onChange={(e) => setNewCustomerModal({ ...newCustomerModal, vatId: e.target.value })}
+                        placeholder="DE123456789"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">{t("customer.type")}</label>
+                      <select
+                        className="w-full h-10 border rounded-md px-3"
+                        value={newCustomerModal.type}
+                        onChange={(e) => setNewCustomerModal({ ...newCustomerModal, type: e.target.value as "business" | "individual" })}
+                      >
+                        <option value="business">{t("customer.typeBusiness")}</option>
+                        <option value="individual">{t("customer.typePrivate")}</option>
+                      </select>
+                    </div>
+                  </div>
+                  {/* Street — full row. */}
+                  <div>
+                    <label className="block text-sm font-medium mb-1">{t("customer.street")}</label>
+                    <Input
+                      value={newCustomerModal.street}
+                      onChange={(e) => setNewCustomerModal({ ...newCustomerModal, street: e.target.value })}
+                      placeholder="Musterstraße 123"
+                    />
+                  </div>
+                  {/* Postal code + city — 3-col grid, postal
+                      code 1, city 2 (matches the customers
+                      form's layout). */}
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-1">{t("customer.postalCode")}</label>
+                      <Input
+                        value={newCustomerModal.postalCode}
+                        onChange={(e) => setNewCustomerModal({ ...newCustomerModal, postalCode: e.target.value })}
+                        placeholder="12345"
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="block text-sm font-medium mb-1">{t("customer.city")}</label>
+                      <Input
+                        value={newCustomerModal.city}
+                        onChange={(e) => setNewCustomerModal({ ...newCustomerModal, city: e.target.value })}
+                        placeholder={t("settings.placeholderCity") || "Berlin"}
+                      />
+                    </div>
+                  </div>
+                  {/* Country — full row. Default "DE" so the
+                      customer has at least a country set on
+                      creation. */}
+                  <div>
+                    <label className="block text-sm font-medium mb-1">{t("customer.country")}</label>
+                    <Input
+                      value={newCustomerModal.country}
+                      onChange={(e) => setNewCustomerModal({ ...newCustomerModal, country: e.target.value })}
+                      placeholder={t("customer.countryPlaceholder") || "z.B. Deutschland"}
+                    />
+                  </div>
+                  {/* taxExempt + paymentTerms — side-by-side,
+                      same as the customers form. */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <label className="flex items-center gap-2 text-sm h-10">
+                      <input
+                        type="checkbox"
+                        checked={newCustomerModal.taxExempt}
+                        onChange={(e) => setNewCustomerModal({ ...newCustomerModal, taxExempt: e.target.checked })}
+                        className="w-4 h-4"
+                      />
+                      {t("customer.taxExempt") || "Steuerbefreit"}
+                    </label>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">{t("customer.paymentTerms")}</label>
+                      <select
+                        className="w-full h-10 border rounded-md px-3"
+                        value={newCustomerModal.paymentTerms}
+                        onChange={(e) => setNewCustomerModal({ ...newCustomerModal, paymentTerms: Number(e.target.value) })}
+                      >
+                        <option value={0}>{t("paymentTerm.immediate")}</option>
+                        <option value={7}>{t("paymentTerm.days7")}</option>
+                        <option value={14}>{t("paymentTerm.days14")}</option>
+                        <option value={30}>{t("paymentTerm.days30")}</option>
+                        <option value={60}>{t("paymentTerm.days60")}</option>
+                      </select>
+                    </div>
+                  </div>
+                  {/* Email + phone — 2-col grid, same as the
+                      customers form. */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-1">{t("customer.email")}</label>
+                      <Input
+                        type="email"
+                        value={newCustomerModal.email}
+                        onChange={(e) => setNewCustomerModal({ ...newCustomerModal, email: e.target.value })}
+                        placeholder="info@example.de"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">{t("customer.phone")}</label>
+                      <Input
+                        value={newCustomerModal.phone}
+                        onChange={(e) => setNewCustomerModal({ ...newCustomerModal, phone: e.target.value })}
+                        placeholder="+49 123 456789"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-2 pt-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setNewCustomerModal(null)}
+                      disabled={newCustomerModal.loading}
+                    >
+                      {t("invoice.newCustomerCancel")}
+                    </Button>
+                    <Button
+                      type="submit"
+                      disabled={newCustomerModal.loading || !newCustomerModal.name.trim()}
+                    >
+                      {newCustomerModal.loading
+                        ? (t("common.saving") || "...")
+                        : t("invoice.newCustomerCreate")}
                     </Button>
                   </div>
                 </form>
