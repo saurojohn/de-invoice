@@ -5,3 +5,56 @@
   --color-foreground: oklch(0.15 0.03 260);
   --color-border: oklch(0.92 0.01 260);
 }
+
+/*
+ * Font fallback chain for German + Chinese + English coverage.
+ *
+ * Order matters: the browser walks the list and uses the first
+ * font that has a glyph for the character being rendered.
+ *
+ *  1. Geist (via --font-geist-sans, loaded by next/font/google)
+ *     — Latin + Latin-Ext: covers German ä/ö/ü/ß, French accents,
+ *       Polish letters, etc. Plus the standard English A-Z a-z.
+ *  2. System sans (San Francisco on macOS, Segoe UI on Windows,
+ *     Roboto on Android) — same Latin coverage, just in case Geist
+ *     hasn't loaded yet (display: swap).
+ *  3. PingFang SC / Hiragino Sans GB — Apple's Simplified Chinese
+ *     fonts on macOS / older iOS. Also handles Traditional Chinese
+ *     for free.
+ *  4. Microsoft YaHei — Windows default Simplified Chinese.
+ *  5. Source Han Sans CN — Adobe's open-source CJK family, usually
+ *     preinstalled on Linux distros and bundled with some Adobe
+ *     products.
+ *  6. sans-serif — generic fallback (the OS picks something).
+ *
+ * Apply this to body so every element inherits it via the normal
+ * CSS cascade. Don't apply to specific elements — that fragments
+ * the font system and breaks ligatures / kerning across the UI.
+ */
+body {
+  font-family:
+    var(--font-geist-sans),
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    "Helvetica Neue",
+    Arial,
+    "PingFang SC",
+    "Hiragino Sans GB",
+    "Microsoft YaHei",
+    "Source Han Sans CN",
+    "Noto Sans CJK SC",
+    sans-serif;
+  font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Inputs and buttons also need the CJK fallback — native form
+ * controls otherwise default to a font that may not have CJK
+ * glyphs, producing tofu boxes in Chinese-language mode. */
+input, button, select, textarea {
+  font-family: inherit;
+}

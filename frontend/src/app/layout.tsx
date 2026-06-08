@@ -2,14 +2,31 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
+// Geist only ships Latin glyphs by default. We need:
+//   - "latin"      for English (A-Z, a-z, basic punctuation)
+//   - "latin-ext"  for German umlauts ä/ö/ü/ß, French accents, etc.
+//                    (the project is a German invoice app, so the
+//                    primary UI language is German and umlauts appear
+//                    all over the labels: "Fälligkeitsdatum",
+//                    "Geschäftsführer", "Rechnungsempfänger", etc.)
+//
+// For Chinese characters we fall back to system CJK fonts in
+// globals.css (body { font-family: ... }) — Geist doesn't include
+// CJK glyphs, and Noto Sans SC (the main web-CJK alternative) is
+// 3+ MB bundled, too heavy for a German primary-language app.
+// The OS CJK fonts (PingFang SC on macOS, Microsoft YaHei on
+// Windows, Source Han Sans CN on Linux) are decent and already
+// installed on every developer's machine.
 const geistSans = Geist({
   variable: "--font-geist-sans",
-  subsets: ["latin"],
+  subsets: ["latin", "latin-ext"],
+  display: "swap",
 });
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
-  subsets: ["latin"],
+  subsets: ["latin", "latin-ext"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
