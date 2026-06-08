@@ -284,6 +284,7 @@ export class InvoiceService {
     // Parse dates safely
     const issueDate = dto.issueDate ? new Date(dto.issueDate) : new Date();
     const dueDate = dto.dueDate ? new Date(dto.dueDate) : null;
+    const deliveryDate = dto.deliveryDate ? new Date(dto.deliveryDate) : null;
 
     const invoice = await this.prisma.invoice.create({
       data: {
@@ -292,6 +293,7 @@ export class InvoiceService {
         invoiceNumber,
         issueDate,
         dueDate,
+        deliveryDate,
         type: dto.type || 'INV',
         status: 'draft',
         currency: dto.currency || 'EUR',
@@ -431,6 +433,7 @@ export class InvoiceService {
         // Did you mean `customer`?".
         ...(dto.customerId ? { customer: { connect: { id: dto.customerId } } } : {}),
         dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined,
+        deliveryDate: dto.deliveryDate ? new Date(dto.deliveryDate) : undefined,
         notes: dto.notes ?? undefined,
         currency: dto.currency ?? undefined,
         language: dto.language ?? undefined,

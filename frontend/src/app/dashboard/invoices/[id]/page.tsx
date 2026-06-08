@@ -26,6 +26,7 @@ interface Invoice {
   type: string
   issueDate: string
   dueDate: string
+  deliveryDate?: string
   currency: string
   subtotal: string
   totalVat: string
@@ -589,6 +590,9 @@ export default function InvoiceDetailPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div><div className="text-sm text-gray-500">Ausstellungsdatum</div><div>{formatDate(invoice.issueDate)}</div></div>
                 <div><div className="text-sm text-gray-500">Fälligkeitsdatum</div><div>{formatDate(invoice.dueDate)}</div></div>
+                {invoice.deliveryDate && (
+                  <div><div className="text-sm text-gray-500">Liefertermin</div><div>{formatDate(invoice.deliveryDate)}</div></div>
+                )}
                 <div><div className="text-sm text-gray-500">Rechnungsart</div><div>{invoice.type}</div></div>
                 <div><div className="text-sm text-gray-500">Währung</div><div>{invoice.currency}</div></div>
               </div>

@@ -65,6 +65,8 @@ export default function CreateInvoicePage() {
     customerId: "",
     referenceInvoiceId: "",
     issueDate: new Date().toISOString().split("T")[0],
+    dueDate: "",
+    deliveryDate: "",
     notes: "",
     discountPercent: 0,
     discountAmount: 0,
@@ -121,7 +123,9 @@ export default function CreateInvoicePage() {
           setForm({
             customerId: inv.customerId || '',
             referenceInvoiceId: inv.referenceInvoiceId || '',
-            issueDate: inv.issueDate ? String(inv.issueDate).slice(0, 10) : new Date().toISOString().slice(0, 10),
+            issueDate: inv.issueDate ? String(inv.issueDate).slice(0, 10) : new Date().toISOString().split("T")[0],
+            dueDate: inv.dueDate ? String(inv.dueDate).slice(0, 10) : "",
+            deliveryDate: inv.deliveryDate ? String(inv.deliveryDate).slice(0, 10) : "",
             notes: inv.notes || '',
             discountPercent: Number(inv.discountPercent || 0),
             discountAmount: Number(inv.discountAmount || 0),
@@ -273,7 +277,26 @@ export default function CreateInvoicePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    await saveAndNavigate(false)
+  }
 
+  // "Erstellen & Drucken" — same as handleSubmit but after
+  // creating the invoice we open its PDF in a new tab and
+  // immediately trigger window.print() so the user lands
+  // straight in the system print dialog. Faster workflow for
+  // B2B where most invoices go straight to the printer.
+  const handleSaveAndPrint = async (e: React.MouseEvent) => {
+    e.preventDefault()
+    await saveAndNavigate(true)
+  }
+
+  // Shared body for both submit handlers. When `printAfter` is
+  // true, we open the generated PDF in a hidden iframe and
+  // fire window.print() — the system print dialog appears
+  // over the page. We navigate to the invoice detail page in
+  // parallel so the user can also see the created invoice in
+  // the dashboard.
+  const saveAndNavigate = async (printAfter: boolean) => {
     // Validation — credit notes (CN) need a reference invoice, NOT
     // a directly-picked customer (the customer is copied from the
     // reference). For all other types, customer is required.
@@ -282,6 +305,82 @@ export default function CreateInvoicePage() {
         alert(t("common2.referenceInvoice") + " " + t("common.required"))
         return
       }
+    } else if (!form.customerId) {
+      alert(t("common2.selectCustomer"))
+      return
+    }
+
+    setLoading(true)
+
+    try {
+      const companyId = localStorage.getItem("companyId") || "7de697d5-64a2-4632-9a87-d18b4e2a0214"
+      let createdId: string | null = null
+      if (isEdit && editId) {
+        // Edit mode: PUT replaces items wholesale and recomputes
+        // totals. The service enforces same-day on the existing
+        // invoice; if you landed here with a stale link the 403
+        // will be surfaced in the alert below.
+        await apiPut(`/api/v1/invoices/${editId}?companyId=${companyId}`, {
+          ...form,
+          type: invoiceType,
+          templateType,
+        })
+        createdId = editId
+      } else {
+        const result = await apiPost<{ id: string }>(`/api/v1/invoices?companyId=${companyId}`, {
+          ...form,
+          type: invoiceType,
+          templateType,
+        })
+        createdId = result.id
+      }
+
+      if (printAfter && createdId) {
+        // Build the PDF URL with cache-bust so the browser never
+        // re-uses a stale body, then open it in a new tab and
+        // print. The new tab's window.print() fires after the
+        // PDF viewer loads the document.
+        const cacheBust = `t=${Date.now()}`
+        const pdfUrl = `/api/v1/invoices/${createdId}/pdf?companyId=${companyId}&${cacheBust}`
+        const printWindow = window.open(pdfUrl, "_blank")
+        if (printWindow) {
+          // Wait for the PDF to load in the new tab before firing
+          // print. PDF viewers vary in load timing, so a 1.5s
+          // delay is a safe middle ground. The user can also
+          // hit Cmd+P manually if the print dialog doesn't auto-
+          // appear (most do).
+          setTimeout(() => {
+            try {
+              printWindow.focus()
+              printWindow.print()
+            } catch (e) {
+              // If the popup was blocked or the viewer disallows
+              // script-driven print, fall back to downloading the
+              // PDF in the same tab.
+              window.location.href = pdfUrl
+            }
+          }, 1500)
+        } else {
+          // Popup blocked — fall back to navigating this tab to
+          // the PDF URL so the user can print manually.
+          window.location.href = pdfUrl
+        }
+      }
+
+      // Always navigate back to the invoice detail (or list)
+      // so the user has the invoice in their history.
+      if (isEdit && editId) {
+        router.push(`/dashboard/invoices/${editId}`)
+      } else {
+        router.push("/dashboard/invoices")
+      }
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : `Netzwerkfehler: ${err}`
+      alert(msg)
+    } finally {
+      setLoading(false)
+    }
+  }
     } else if (!form.customerId) {
       alert(t("common2.selectCustomer"))
       return
@@ -507,6 +606,34 @@ export default function CreateInvoicePage() {
                     <option value="en-US">English</option>
                     <option value="zh-CN">中文</option>
                   </select>
+                </div>
+              </div>
+
+              {/* Second row: dueDate (computed from paymentTerms by
+                  default but can be overridden) + deliveryDate
+                  (Liefertermin — optional, shown on the PDF). */}
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    {t("invoice.dueDate") || "Fälligkeitsdatum"}
+                  </label>
+                  <Input
+                    type="date"
+                    value={form.dueDate}
+                    onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
+                    title={t("invoice.dueDateHint") || "Wird automatisch aus dem Zahlungsziel berechnet, kann aber überschrieben werden"}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    {t("invoice.deliveryDate") || "Liefertermin"}
+                  </label>
+                  <Input
+                    type="date"
+                    value={form.deliveryDate}
+                    onChange={(e) => setForm({ ...form, deliveryDate: e.target.value })}
+                    title={t("invoice.deliveryDateHint") || "Optional — wird auf der Rechnung angezeigt"}
+                  />
                 </div>
               </div>
             </CardContent>
@@ -781,7 +908,15 @@ export default function CreateInvoicePage() {
             </CardContent>
           </Card>
 
-          {/* Submit */}
+          {/* Submit — two actions:
+                "Erstellen"   — save + navigate to detail/list
+                "Erstellen & Drucken" — save + open the PDF in a
+                  new tab and fire window.print() so the user
+                  lands in the system print dialog. Faster B2B
+                  workflow where most invoices go straight to
+                  the printer. In edit mode only "Save changes"
+                  shows (reprinting is one click away on the
+                  detail page). */}
           <div className="flex gap-4">
             <Button type="submit" className="flex-1" disabled={loading || !!loadError}>
               {loading
@@ -790,6 +925,17 @@ export default function CreateInvoicePage() {
                   ? (t("invoice.saveChanges") || "Änderungen speichern")
                   : t("invoice.createInvoice")}
             </Button>
+            {!isEdit && (
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1"
+                disabled={loading || !!loadError}
+                onClick={handleSaveAndPrint}
+              >
+                {t("invoice.createAndPrint") || "Erstellen & Drucken"}
+              </Button>
+            )}
           </div>
         </form>
       </div>

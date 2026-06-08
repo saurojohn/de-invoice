@@ -338,6 +338,16 @@ export async function generateInvoicePDF(
     }
     doc.text("Ausstellungsdatum:", detailsLabelX, detailsY + detailsRow * 15, { width: 100, align: "right", lineBreak: false })
     detailsRow++
+    // Liefertermin / delivery date — optional. Only shown on
+    // the PDF (and on the invoice detail page) when set, so
+    // invoices without a delivery date look identical to
+    // before. §14 UStG doesn't mandate this; it's a
+    // common B2B request so the customer knows when to
+    // expect the goods/service.
+    if ((invoice as any).deliveryDate) {
+      doc.text("Liefertermin:", detailsLabelX, detailsY + detailsRow * 15, { width: 100, align: "right", lineBreak: false })
+      detailsRow++
+    }
     if (company.vatId) {
       doc.text("USt-IDNr.:", detailsLabelX, detailsY + detailsRow * 15, { width: 100, align: "right", lineBreak: false })
       detailsRow++
@@ -359,6 +369,10 @@ export async function generateInvoicePDF(
     }
     doc.text(formatDate(invoice.issueDate), detailsValueX, detailsY + detailsRow * 15, { width: detailsValueWidth, align: "right", lineBreak: false })
     detailsRow++
+    if ((invoice as any).deliveryDate) {
+      doc.text(formatDate((invoice as any).deliveryDate), detailsValueX, detailsY + detailsRow * 15, { width: detailsValueWidth, align: "right", lineBreak: false })
+      detailsRow++
+    }
     if (company.vatId) {
       doc.text(company.vatId, detailsValueX, detailsY + detailsRow * 15, { width: detailsValueWidth, align: "right", lineBreak: false })
       detailsRow++

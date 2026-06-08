@@ -30,10 +30,14 @@ export class CreateInvoiceDto {
   
   @IsDateString()
   issueDate!: string;
-  
+
   @IsDateString()
   @IsOptional()
   dueDate?: string;
+
+  @IsDateString()
+  @IsOptional()
+  deliveryDate?: string;
   
   @IsString()
   @IsOptional()
@@ -92,6 +96,7 @@ export class UpdateInvoiceDto {
   @IsString() @IsOptional() customerId?: string;
   @IsDateString() @IsOptional() issueDate?: string;
   @IsDateString() @IsOptional() dueDate?: string;
+  @IsDateString() @IsOptional() deliveryDate?: string;
   @IsString() @IsOptional() type?: string;
   @IsString() @IsOptional() referenceInvoiceId?: string;
   @IsString() @IsOptional() currency?: string;
