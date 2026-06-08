@@ -62,6 +62,24 @@ export default function CreateInvoicePage() {
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false)
   const [showProductDropdown, setShowProductDropdown] = useState(false)
   const [activeItemIndex, setActiveItemIndex] = useState<number | null>(null)
+  // Product-number search: a SEPARATE picker from the description-
+  // triggered one. Triggered by typing into the Artikelnr. input
+  // (see item row). When the user types a SKU that doesn't exist
+  // yet, the dropdown shows a "Create new product" suggestion
+  // that opens the newProductModal.
+  const [productNumberSearch, setProductNumberSearch] = useState("")
+  const [showProductNumberDropdown, setShowProductNumberDropdown] = useState(false)
+  // Inline modal for "create a new product from the line item".
+  // open=false means modal is hidden. index tracks which line
+  // item should receive the new product once the API call
+  // succeeds (the user might have multiple line items queued).
+  const [newProductModal, setNewProductModal] = useState<{
+    open: boolean
+    sku: string
+    name: string
+    index: number
+    loading: boolean
+  } | null>(null)
   const [invoiceType, setInvoiceType] = useState<InvoiceType>('INV')
   const [showInvoiceDropdown, setShowInvoiceDropdown] = useState(false)
   const [invoiceSearch, setInvoiceSearch] = useState("")
@@ -211,8 +229,79 @@ export default function CreateInvoicePage() {
     }
     setForm({ ...form, items })
     setProductSearch("")
+    setProductNumberSearch("")
     setShowProductDropdown(false)
+    setShowProductNumberDropdown(false)
     setActiveItemIndex(null)
+  }
+
+  // Open the "create new product" modal. Triggered from the
+  // product-number dropdown when 0 products match the typed
+  // SKU. The user will be asked for a name (the SKU is
+  // pre-filled from whatever they typed); other fields use
+  // safe defaults (basePrice 0, vatRate 19%, type 'good',
+  // unit 'Stück') and can be edited later from the
+  // products page.
+  const openNewProductModal = (index: number) => {
+    const sku = (form.items[index]?.productNumber || "").trim()
+    setNewProductModal({
+      open: true,
+      sku,
+      // Pre-fill the name with the SKU so the user can just
+      // press Enter if the SKU is descriptive enough. They
+      // can still edit it.
+      name: sku,
+      index,
+      loading: false,
+    })
+    setShowProductNumberDropdown(false)
+  }
+
+  // Save the new product via POST /api/v1/products, then
+  // auto-select it for the originating line item. Mirrors
+  // the user-flow of typing the SKU → not finding it →
+  // creating it on the spot → it instantly being available.
+  const createProductFromSku = async () => {
+    if (!newProductModal) return
+    const { sku, name, index } = newProductModal
+    if (!name.trim()) {
+      alert(t("invoice.newProductName"))
+      return
+    }
+    setNewProductModal({ ...newProductModal, loading: true })
+    try {
+      const companyId = localStorage.getItem("companyId") || "7de697d5-64a2-4632-9a87-d18b4e2a0214"
+      const created = await apiPost<{ id: string; name: string; sku: string; unit: string; basePrice: string; vatRate: string }>(
+        `/api/v1/products?companyId=${companyId}`,
+        {
+          // The DTO trims the name and rejects empty strings;
+          // we already guarded above.
+          name: name.trim(),
+          // SKU is optional in the DTO but per-company unique
+          // (enforced at the service layer). Send empty if the
+          // user never typed one — that's fine, products can
+          // exist without a SKU.
+          sku: sku.trim() || undefined,
+          // Sensible defaults so the new product is usable on
+          // the invoice without further editing.
+          type: "good",
+          basePrice: 0,
+          vatRate: 0.19,
+          unit: t("common2.unit") || "Stück",
+        }
+      )
+      // Refresh the in-memory products list so the user can
+      // see the new entry in any future search.
+      setProducts((prev) => [...prev, created])
+      // Auto-fill the originating line item with the new
+      // product's data.
+      selectProduct(created, index)
+      setNewProductModal(null)
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : `Netzwerkfehler: ${err}`
+      alert(msg)
+      setNewProductModal({ ...newProductModal, loading: false })
+    }
   }
 
   const selectReferenceInvoice = (invoice: Invoice) => {
@@ -735,24 +824,113 @@ export default function CreateInvoicePage() {
               </div>
               {form.items.map((item, index) => (
                 <div key={index} className="grid grid-cols-12 gap-2 items-end">
-                  <div className="col-span-2">
-                    {/* Artikelnr. / SKU. Auto-filled when a product
-                        is picked from the description dropdown below,
-                        but the user can override it (e.g. to enter a
-                        customer-specific part number for a manual
-                        line item). Independent of the product picker
-                        — typing here does NOT trigger the dropdown. */}
+                  <div className="col-span-2 relative">
+                    {/* Artikelnr. / SKU with a product search
+                        dropdown. Typing here opens a list of
+                        matching products (filtered by name or
+                        SKU). Click a result to fill the whole
+                        line item, same as the description picker.
+                        If 0 products match, a "Create new
+                        product" link appears at the bottom of
+                        the dropdown to add a new product
+                        without leaving the invoice. */}
                     <Input
                       value={item.productNumber || ""}
                       onChange={(e) => {
                         const items = [...form.items]
                         items[index].productNumber = e.target.value
                         setForm({ ...form, items })
+                        // Trigger the search dropdown. We use
+                        // the SKU text as the search string —
+                        // filteredProducts already matches by
+                        // name OR sku.
+                        setProductNumberSearch(e.target.value)
+                        setShowProductNumberDropdown(e.target.value.trim().length > 0)
+                        setActiveItemIndex(index)
+                        // Close the description-triggered
+                        // dropdown to avoid two competing
+                        // pickers on the same row.
+                        setShowProductDropdown(false)
+                      }}
+                      onFocus={() => {
+                        // Show dropdown if there's already a
+                        // value (so the user can refine an
+                        // existing SKU). Don't auto-clear it.
+                        if ((item.productNumber || "").trim().length > 0) {
+                          setProductNumberSearch(item.productNumber || "")
+                          setShowProductNumberDropdown(true)
+                          setActiveItemIndex(index)
+                        }
+                      }}
+                      onBlur={() => {
+                        // Delay close so a click on a dropdown
+                        // item (which fires after blur) still
+                        // registers. 200ms is the standard
+                        // "let the click happen" delay.
+                        setTimeout(() => setShowProductNumberDropdown(false), 200)
                       }}
                       placeholder={t("invoice.productNumber")}
-                      title={t("invoice.productNumberHint")}
+                      title={t("invoice.productNumberSearchHint")}
                       className="font-mono text-sm"
                     />
+                    {showProductNumberDropdown && activeItemIndex === index && productNumberSearch && (
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg max-h-56 overflow-y-auto z-20">
+                        {(() => {
+                          // Filter by SKU first (exact prefix
+                          // match) then by name. The user is
+                          // typing into a SKU field, so
+                          // SKU-prefix matches are most
+                          // relevant.
+                          const q = productNumberSearch.trim().toLowerCase()
+                          const matches = products.filter(p =>
+                            (p.sku && p.sku.toLowerCase().includes(q)) ||
+                            (p.name && p.name.toLowerCase().includes(q))
+                          ).slice(0, 5)
+                          if (matches.length === 0) {
+                            return (
+                              <>
+                                <div className="px-3 py-2 text-gray-500 text-sm border-b">
+                                  {t("errors.noProductsFound")}
+                                </div>
+                                {/* No match: offer to create a
+                                    new product with the typed
+                                    SKU. Pre-filled with the
+                                    SKU; user can edit before
+                                    saving. */}
+                                <div
+                                  className="px-3 py-2 hover:bg-blue-50 cursor-pointer text-blue-700 text-sm font-medium border-t"
+                                  onMouseDown={(e) => {
+                                    // Use onMouseDown so the
+                                    // click fires BEFORE the
+                                    // input's blur handler
+                                    // closes the dropdown.
+                                    e.preventDefault()
+                                    openNewProductModal(index)
+                                  }}
+                                >
+                                  + {t("invoice.createNewProductWithSku").replace("{sku}", productNumberSearch.trim() || "")}
+                                </div>
+                              </>
+                            )
+                          }
+                          return matches.map((p) => (
+                            <div
+                              key={p.id}
+                              className="px-3 py-2 hover:bg-blue-50 cursor-pointer"
+                              onMouseDown={(e) => {
+                                e.preventDefault()
+                                selectProduct(p, index)
+                              }}
+                            >
+                              <div className="font-medium text-sm">{p.name}</div>
+                              <div className="text-xs text-gray-500 font-mono">
+                                {p.sku && `${p.sku} · `}€{parseFloat(p.basePrice).toFixed(2)}
+                              </div>
+                            </div>
+                          ))
+                        })()}
+                      </div>
+                    )}
                   </div>
                   <div className="col-span-4 relative">
                     <Input
@@ -977,6 +1155,80 @@ export default function CreateInvoicePage() {
           </div>
         </form>
       </div>
+
+      {/* "Create new product" modal. Shown when the user
+          clicks the "Create new product ..." link in the
+          product-number dropdown. Asks for a product name
+          (the SKU is pre-filled from whatever they typed
+          into the Artikelnr. input). On save, POSTs to
+          /api/v1/products and auto-selects the new
+          product for the originating line item. The
+          overlay uses a semi-transparent black layer so
+          the underlying form is dimmed but still visible
+          (helps the user keep their place in the form). */}
+      {newProductModal?.open && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => !newProductModal.loading && setNewProductModal(null)}
+        >
+          <div
+            className="bg-white rounded-lg shadow-2xl max-w-md w-full p-6 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">{t("invoice.newProductModalTitle")}</h2>
+              <p className="text-sm text-gray-500 mt-1">
+                {t("invoice.createNewProductWithSku").replace("{sku}", newProductModal.sku || "—")}
+              </p>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium mb-1">{t("invoice.newProductName")} *</label>
+                <Input
+                  autoFocus
+                  value={newProductModal.name}
+                  onChange={(e) => setNewProductModal({ ...newProductModal, name: e.target.value })}
+                  onKeyDown={(e) => {
+                    // Enter to submit (a11y / keyboard flow).
+                    if (e.key === "Enter" && !newProductModal.loading) {
+                      e.preventDefault()
+                      createProductFromSku()
+                    }
+                  }}
+                  placeholder={t("invoice.newProductNamePlaceholder")}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">{t("invoice.newProductSku")}</label>
+                <Input
+                  value={newProductModal.sku}
+                  onChange={(e) => setNewProductModal({ ...newProductModal, sku: e.target.value })}
+                  className="font-mono"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setNewProductModal(null)}
+                disabled={newProductModal.loading}
+              >
+                {t("invoice.newProductCancel")}
+              </Button>
+              <Button
+                type="button"
+                onClick={createProductFromSku}
+                disabled={newProductModal.loading || !newProductModal.name.trim()}
+              >
+                {newProductModal.loading
+                  ? (t("common2.saving") || "...")
+                  : t("invoice.newProductCreate")}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   )
 }
