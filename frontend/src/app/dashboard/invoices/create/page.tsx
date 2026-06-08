@@ -381,41 +381,6 @@ export default function CreateInvoicePage() {
       setLoading(false)
     }
   }
-    } else if (!form.customerId) {
-      alert(t("common2.selectCustomer"))
-      return
-    }
-
-    setLoading(true)
-
-    try {
-      const companyId = localStorage.getItem("companyId") || "7de697d5-64a2-4632-9a87-d18b4e2a0214"
-      if (isEdit && editId) {
-        // Edit mode: PUT replaces items wholesale and recomputes
-        // totals. The service enforces same-day on the existing
-        // invoice; if you landed here with a stale link the 403
-        // will be surfaced in the alert below.
-        await apiPut(`/api/v1/invoices/${editId}?companyId=${companyId}`, {
-          ...form,
-          type: invoiceType,
-          templateType,
-        })
-        router.push(`/dashboard/invoices/${editId}`)
-      } else {
-        await apiPost(`/api/v1/invoices?companyId=${companyId}`, {
-          ...form,
-          type: invoiceType,
-          templateType,
-        })
-        router.push("/dashboard/invoices")
-      }
-    } catch (err) {
-      const msg = err instanceof ApiError ? err.message : `Netzwerkfehler: ${err}`
-      alert(msg)
-    } finally {
-      setLoading(false)
-    }
-  }
 
   return (
     <main className="min-h-screen bg-gray-50">
