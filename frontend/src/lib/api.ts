@@ -77,10 +77,19 @@ export async function apiFetch(path: string, opts: ApiFetchOptions = {}): Promis
   return res
 }
 
-/** GET and parse JSON. */
+/** GET and parse JSON. Returns \`null\` (typed as T) when
+ *  the response body is empty — this happens when a
+ *  backend endpoint returns 200 with no body (e.g. an
+ *  empty collection). Without this guard, res.json() on
+ *  an empty body throws SyntaxError "The string did not
+ *  match the expected pattern". Caller code that does
+ *  \`Array.isArray(data) ? data : (data?.data || [])\`
+ *  still works because \`null\` is not an array. */
 export async function apiGet<T = any>(path: string): Promise<T> {
   const res = await apiFetch(path, { method: "GET" })
-  return res.json()
+  const text = await res.text()
+  if (!text) return null as unknown as T
+  return JSON.parse(text)
 }
 
 /** POST JSON and parse JSON. */

@@ -1,3 +1,32 @@
+/**
+ * Inventory Management page
+ *
+ * Renders the /dashboard/inventory route. Three concerns:
+ *   1. Top "low stock" warning card (lists products below
+ *      their threshold, click to select)
+ *   2. Master list of products with inventory tracking on
+ *      (click to select)
+ *   3. Detail panel (current stock + threshold + history
+ *      table) for the currently selected product, with an
+ *      "Adjust" button to open the adjust-stock modal
+ *
+ * i18n: every user-visible string goes through t() so the
+ * page renders in DE / EN / ZH per the user's locale. The
+ * previous version of this file had all strings hardcoded
+ * in German and additionally had mojibake characters in
+ * two of the adjust-type option labels (line 388-389 in
+ * the old version, the "(zug受加了)" fragments). Those
+ * were copy-paste artifacts from an editor that mangled
+ * UTF-8 \u2014 the rewrite drops them entirely in favor of
+ * t() lookups.
+ *
+ * Network: uses apiGet / apiPut from @/lib/api so the
+ * x-user-id + x-company-id auth headers from localStorage
+ * are attached automatically. The previous version used
+ * raw fetch() with the hardcoded backend URL, which would
+ * have produced 403 "Unzureichende Berechtigung" as soon
+ * as the HeaderAuthGuard checked the headers.
+ */
 "use client"
 
 import { useEffect, useState } from "react"
@@ -6,6 +35,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { useI18n } from "@/components/useI18n"
+import { apiGet, apiPut, ApiError } from "@/lib/api"
 
 interface ProductStock {
   id: string
@@ -31,6 +62,7 @@ interface StockHistory {
 
 export default function InventoryPage() {
   const router = useRouter()
+  const { t, getDateLocale } = useI18n()
   const [products, setProducts] = useState<ProductStock[]>([])
   const [lowStockProducts, setLowStockProducts] = useState<ProductStock[]>([])
   const [loading, setLoading] = useState(true)
@@ -52,15 +84,25 @@ export default function InventoryPage() {
 
     loadProducts(companyId)
     loadLowStock(companyId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router])
 
+  // Load all products with trackInventory=true. We fetch
+  // the full products list (rather than only the tracked
+  // ones from a dedicated endpoint) because the inventory
+  // page needs product name + sku + unit alongside the
+  // stock fields, and the products endpoint already joins
+  // everything.
+  //
+  // The apiGet<T> helper returns the parsed JSON typed as
+  // T, so we use \`as any\` and handle the two backend
+  // response shapes (raw array vs paginated {data,total}
+  // envelope) at runtime.
   const loadProducts = async (companyId: string) => {
     try {
-      const res = await fetch(`http://localhost:3001/api/v1/products?companyId=${companyId}`)
-      const data = await res.json()
-      // Filter to only products with trackInventory enabled
-      const trackedProducts = data.filter((p: any) => p.trackInventory)
-      setProducts(trackedProducts)
+      const data: any = await apiGet<any>(`/api/v1/products?companyId=${companyId}`)
+      const list: any[] = Array.isArray(data) ? data : (data?.data || [])
+      setProducts(list.filter((p: any) => p.trackInventory))
     } catch (error) {
       console.error("Error loading products:", error)
     } finally {
@@ -68,11 +110,14 @@ export default function InventoryPage() {
     }
   }
 
+  // Load the low-stock list. The backend computes this
+  // server-side (filters by stockQuantity <= lowStockThreshold
+  // AND trackInventory=true) so the page can show a
+  // separate "needs attention" panel.
   const loadLowStock = async (companyId: string) => {
     try {
-      const res = await fetch(`http://localhost:3001/api/v1/inventory/low-stock?companyId=${companyId}`)
-      const data = await res.json()
-      setLowStockProducts(data)
+      const data: any = await apiGet<any>(`/api/v1/inventory/low-stock?companyId=${companyId}`)
+      setLowStockProducts(Array.isArray(data) ? data : (data?.data || []))
     } catch (error) {
       console.error("Error loading low stock products:", error)
     }
@@ -80,9 +125,8 @@ export default function InventoryPage() {
 
   const loadHistory = async (productId: string) => {
     try {
-      const res = await fetch(`http://localhost:3001/api/v1/inventory/${productId}/history`)
-      const data = await res.json()
-      setHistory(data)
+      const data: any = await apiGet<any>(`/api/v1/inventory/${productId}/history`)
+      setHistory(Array.isArray(data) ? data : (data?.data || []))
     } catch (error) {
       console.error("Error loading history:", error)
     }
@@ -95,74 +139,72 @@ export default function InventoryPage() {
 
   const handleAdjustStock = async () => {
     if (!selectedProduct || !adjustForm.quantity) return
-
     const companyId = localStorage.getItem("companyId")!
 
     try {
-      await fetch(`http://localhost:3001/api/v1/inventory/${selectedProduct.id}/adjust`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      await apiPut(
+        `/api/v1/inventory/${selectedProduct.id}/adjust`,
+        {
           quantity: parseFloat(adjustForm.quantity),
           changeType: adjustForm.changeType,
           notes: adjustForm.notes || null,
           referenceType: "manual",
-        }),
-      })
+        }
+      )
 
-      // Reload data
-      loadProducts(companyId)
-      loadLowStock(companyId)
-      loadHistory(selectedProduct.id)
+      // Reload data so the new stock level + the new
+      // history entry both show up immediately.
+      await loadProducts(companyId)
+      await loadLowStock(companyId)
+      await loadHistory(selectedProduct.id)
 
-      // Refresh selected product
-      const res = await fetch(`http://localhost:3001/api/v1/inventory/${selectedProduct.id}`)
-      const updated = await res.json()
+      // Refresh the selected product card so the "current
+      // stock" number updates without the user having to
+      // re-click the row.
+      const updated = await apiGet<ProductStock>(`/api/v1/inventory/${selectedProduct.id}`)
       setSelectedProduct(updated)
 
       setShowAdjustModal(false)
       setAdjustForm({ quantity: "", changeType: "adjustment", notes: "" })
-    } catch (error) {
-      console.error("Error adjusting stock:", error)
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : `Netzwerkfehler: ${err}`
+      alert(msg)
     }
   }
 
-  const getChangeTypeLabel = (type: string) => {
+  // Look up the localized label for a stock change type.
+  // t(\`inventory.stockChangeType_${type}\`) returns the
+  // translation for "sale" / "purchase" / etc. Falls back
+  // to the raw type if the key is missing (e.g. a new
+  // type added server-side before the i18n file is
+  // updated).
+  const getChangeTypeLabel = (type: string): string => {
+    const key = `inventory.stockChangeType_${type}` as const
+    const v = t(key as any)
+    return v === key ? type : v
+  }
+
+  // Color-coded badge for each change type. Sale = red
+  // (stock decreases), Purchase / Return = green/blue
+  // (stock increases), Adjustment = yellow (could go
+  // either way), Initial = gray (setup).
+  const getChangeTypeBadge = (type: string): string => {
     switch (type) {
-      case "sale":
-        return "Verkauf"
-      case "purchase":
-        return "Einkauf"
-      case "return":
-        return "Retoure"
-      case "adjustment":
-        return "Korrektur"
-      case "initial":
-        return "Erstbestand"
-      default:
-        return type
+      case "sale": return "bg-red-100 text-red-700"
+      case "purchase": return "bg-green-100 text-green-700"
+      case "return": return "bg-blue-100 text-blue-700"
+      case "adjustment": return "bg-yellow-100 text-yellow-700"
+      case "initial": return "bg-gray-100 text-gray-700"
+      default: return "bg-gray-100 text-gray-700"
     }
   }
 
-  const getChangeTypeBadge = (type: string) => {
-    switch (type) {
-      case "sale":
-        return "bg-red-100 text-red-700"
-      case "purchase":
-        return "bg-green-100 text-green-700"
-      case "return":
-        return "bg-blue-100 text-blue-700"
-      case "adjustment":
-        return "bg-yellow-100 text-yellow-700"
-      case "initial":
-        return "bg-gray-100 text-gray-700"
-      default:
-        return "bg-gray-100 text-gray-700"
-    }
-  }
-
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleString("de-DE", {
+  // Format a date in the user's active locale, not a
+  // hardcoded "de-DE" (the previous version was de-only).
+  // getDateLocale() returns "de-DE" / "en-US" / "zh-CN"
+  // based on the in-app language.
+  const formatDate = (dateStr: string): string => {
+    return new Date(dateStr).toLocaleString(getDateLocale(), {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
@@ -175,23 +217,24 @@ export default function InventoryPage() {
     <main className="min-h-screen bg-gray-50">
       <header className="bg-white border-b shadow-sm">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-blue-600">Bestandsverwaltung</h1>
+          <h1 className="text-2xl font-bold text-blue-600">{t("inventory.title")}</h1>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => router.push("/dashboard")}>
-              Zurück
+              {t("inventory.back")}
             </Button>
           </div>
         </div>
       </header>
 
       <div className="container mx-auto px-4 py-8">
-        {/* Low Stock Warnings */}
+        {/* Low Stock Warnings — server-computed list, click
+            a card to select that product. */}
         {lowStockProducts.length > 0 && (
           <Card className="mb-8 border-red-300 bg-red-50">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-red-700">
                 <span className="text-xl">⚠️</span>
-                Niedriger Bestand - {lowStockProducts.length} Produkte
+                {t("inventory.lowStockCount").replace("{count}", String(lowStockProducts.length))}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -203,13 +246,13 @@ export default function InventoryPage() {
                     onClick={() => selectProduct(product)}
                   >
                     <p className="font-medium">{product.name}</p>
-                    <p className="text-sm text-gray-500">{product.sku || "Keine Artikelnummer"}</p>
+                    <p className="text-sm text-gray-500">{product.sku || t("inventory.noSku")}</p>
                     <div className="mt-2 flex items-center justify-between">
                       <span className="text-red-600 font-bold">
                         {parseFloat(product.stockQuantity).toFixed(2)} {product.unit}
                       </span>
                       <span className="text-sm text-gray-500">
-                        Schwelle: {parseFloat(product.lowStockThreshold || "0").toFixed(2)}
+                        {t("inventory.threshold")}: {parseFloat(product.lowStockThreshold || "0").toFixed(2)}
                       </span>
                     </div>
                   </div>
@@ -220,17 +263,17 @@ export default function InventoryPage() {
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Product List */}
+          {/* Product List — every product with trackInventory=true */}
           <Card>
             <CardHeader>
-              <CardTitle>Produkte mit Bestandsverfolgung</CardTitle>
+              <CardTitle>{t("inventory.trackedProducts")}</CardTitle>
             </CardHeader>
             <CardContent>
               {loading ? (
-                <div className="text-center py-8">Laden...</div>
+                <div className="text-center py-8">{t("inventory.loading")}</div>
               ) : products.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
-                  Keine Produkte mit Bestandsverfolgung
+                  {t("inventory.noTrackedProducts")}
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -255,7 +298,7 @@ export default function InventoryPage() {
                         <div className="flex items-center justify-between">
                           <div>
                             <p className="font-medium">{product.name}</p>
-                            <p className="text-sm text-gray-500">{product.sku || "Keine Artikelnr."}</p>
+                            <p className="text-sm text-gray-500">{product.sku || t("inventory.noSku")}</p>
                           </div>
                           <div className="text-right">
                             <p className={`font-bold ${isBelowThreshold ? "text-red-600" : "text-gray-900"}`}>
@@ -263,7 +306,7 @@ export default function InventoryPage() {
                             </p>
                             {isBelowThreshold && (
                               <Badge variant="destructive" className="text-xs">
-                                Niedriger Bestand
+                                {t("inventory.lowStockBadge")}
                               </Badge>
                             )}
                           </div>
@@ -284,37 +327,39 @@ export default function InventoryPage() {
                   <CardHeader className="flex flex-row items-center justify-between">
                     <CardTitle>{selectedProduct.name}</CardTitle>
                     <Button onClick={() => setShowAdjustModal(true)} size="sm">
-                      Bestand anpassen
+                      {t("inventory.adjustStock")}
                     </Button>
                   </CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="bg-gray-50 p-4 rounded-lg">
-                        <p className="text-sm text-gray-500">Aktueller Bestand</p>
+                        <p className="text-sm text-gray-500">{t("inventory.currentStock")}</p>
                         <p className="text-2xl font-bold">
                           {parseFloat(selectedProduct.stockQuantity).toFixed(2)} {selectedProduct.unit}
                         </p>
                       </div>
                       <div className="bg-gray-50 p-4 rounded-lg">
-                        <p className="text-sm text-gray-500">Meldeschwelle</p>
+                        <p className="text-sm text-gray-500">{t("inventory.threshold")}</p>
                         <p className="text-2xl font-bold">
                           {parseFloat(selectedProduct.lowStockThreshold || "0").toFixed(2)} {selectedProduct.unit}
                         </p>
                       </div>
                     </div>
                     {selectedProduct.sku && (
-                      <p className="mt-4 text-sm text-gray-500">Artikelnummer: {selectedProduct.sku}</p>
+                      <p className="mt-4 text-sm text-gray-500">
+                        {t("product.sku")}: {selectedProduct.sku}
+                      </p>
                     )}
                   </CardContent>
                 </Card>
 
                 <Card>
                   <CardHeader>
-                    <CardTitle>Bestandsverlauf</CardTitle>
+                    <CardTitle>{t("inventory.stockHistory")}</CardTitle>
                   </CardHeader>
                   <CardContent>
                     {history.length === 0 ? (
-                      <p className="text-center py-4 text-gray-500">Kein Verlauf vorhanden</p>
+                      <p className="text-center py-4 text-gray-500">{t("inventory.noHistory")}</p>
                     ) : (
                       <div className="space-y-3">
                         {history.map((entry) => (
@@ -325,7 +370,9 @@ export default function InventoryPage() {
                               </span>
                               <div>
                                 <p className="text-sm">
-                                  {parseFloat(entry.previousQty).toFixed(2)} → {parseFloat(entry.newQty).toFixed(2)}
+                                  {t("inventory.previousToNew")
+                                    .replace("{prev}", parseFloat(entry.previousQty).toFixed(2))
+                                    .replace("{new}", parseFloat(entry.newQty).toFixed(2))}
                                 </p>
                                 {entry.notes && (
                                   <p className="text-xs text-gray-500">{entry.notes}</p>
@@ -335,7 +382,7 @@ export default function InventoryPage() {
                             <div className="text-right">
                               <p className="text-xs text-gray-500">{formatDate(entry.createdAt)}</p>
                               {entry.reference && (
-                                <p className="text-xs text-blue-600">Ref: {entry.reference}</p>
+                                <p className="text-xs text-blue-600">{t("inventory.reference")}: {entry.reference}</p>
                               )}
                             </div>
                           </div>
@@ -348,7 +395,7 @@ export default function InventoryPage() {
             ) : (
               <Card>
                 <CardContent className="text-center py-12 text-gray-500">
-                  <p>Wählen Sie ein Produkt aus, um Details anzuzeigen</p>
+                  <p>{t("inventory.selectProductHint")}</p>
                 </CardContent>
               </Card>
             )}
@@ -356,12 +403,17 @@ export default function InventoryPage() {
         </div>
       </div>
 
-      {/* Adjust Stock Modal */}
+      {/* Adjust Stock Modal — opens when the user clicks
+          "Bestand anpassen" on the selected product card.
+          Supports two modes: 'adjustment' (set the new
+          total stock directly) and the delta modes
+          ('purchase' / 'return' / 'initial') where the
+          quantity is a delta to add to the current stock. */}
       {showAdjustModal && selectedProduct && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <Card className="w-full max-w-md">
             <CardHeader>
-              <CardTitle>Bestand anpassen</CardTitle>
+              <CardTitle>{t("inventory.adjustStock")}</CardTitle>
             </CardHeader>
             <CardContent>
               <form
@@ -372,26 +424,25 @@ export default function InventoryPage() {
                 className="space-y-4"
               >
                 <div>
-                  <label className="block text-sm font-medium mb-1">Aktueller Bestand</label>
+                  <label className="block text-sm font-medium mb-1">{t("inventory.currentStock")}</label>
                   <p className="text-lg font-bold">
                     {parseFloat(selectedProduct.stockQuantity).toFixed(2)} {selectedProduct.unit}
                   </p>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Art der Anpassung</label>
+                  <label className="block text-sm font-medium mb-1">{t("inventory.adjustType")}</label>
                   <select
                     className="w-full h-10 border rounded-md px-3"
                     value={adjustForm.changeType}
                     onChange={(e) => setAdjustForm({ ...adjustForm, changeType: e.target.value })}
                   >
-                    <option value="adjustment">Korrektur (Neuer Bestand)</option>
-                    <option value="purchase">Einkauf (zug受加了)</option>
-                    <option value="return">Retoure (zug受加了)</option>
-                    <option value="initial">Erstbestand</option>
+                    {(["adjustment", "purchase", "return", "initial"] as const).map((k) => (
+                      <option key={k} value={k}>{t(`inventory.adjustTypeOption_${k}` as any)}</option>
+                    ))}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Menge</label>
+                  <label className="block text-sm font-medium mb-1">{t("inventory.quantity")}</label>
                   <Input
                     type="number"
                     step="0.01"
@@ -399,23 +450,23 @@ export default function InventoryPage() {
                     onChange={(e) => setAdjustForm({ ...adjustForm, quantity: e.target.value })}
                     placeholder={
                       adjustForm.changeType === "adjustment"
-                        ? "Neuer Gesamtbestand"
-                        : "Zu- oder Abnahme"
+                        ? t("inventory.quantityPlaceholderAdjustment")
+                        : t("inventory.quantityPlaceholderDelta")
                     }
                     required
                   />
                   <p className="text-xs text-gray-500 mt-1">
                     {adjustForm.changeType === "adjustment"
-                      ? "Geben Sie den neuen Gesamtbestand ein"
-                      : "Positive Zahl für Zugang, negative für Abgang"}
+                      ? t("inventory.stockChangeHint_adjustment")
+                      : t("inventory.stockChangeHint_delta")}
                   </p>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Notiz (optional)</label>
+                  <label className="block text-sm font-medium mb-1">{t("inventory.notes")}</label>
                   <Input
                     value={adjustForm.notes}
                     onChange={(e) => setAdjustForm({ ...adjustForm, notes: e.target.value })}
-                    placeholder="Grund für die Anpassung"
+                    placeholder={t("inventory.notesPlaceholder")}
                   />
                 </div>
                 <div className="flex gap-4 pt-4">
@@ -428,10 +479,10 @@ export default function InventoryPage() {
                       setAdjustForm({ quantity: "", changeType: "adjustment", notes: "" })
                     }}
                   >
-                    Abbrechen
+                    {t("inventory.cancel")}
                   </Button>
                   <Button type="submit" className="flex-1">
-                    Bestand anpassen
+                    {t("inventory.save")}
                   </Button>
                 </div>
               </form>
