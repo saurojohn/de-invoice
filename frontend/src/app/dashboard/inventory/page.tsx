@@ -74,6 +74,23 @@ export default function InventoryPage() {
     changeType: "adjustment",
     notes: "",
   })
+  // Goods-receipt (Wareneingang) state — a separate
+  // modal dedicated to the purchase / incoming-stock
+  // workflow. The user wanted a quick dedicated entry
+  // point for deliveries, distinct from the generic
+  // adjust-stock modal (which is for manual corrections
+  // and the like). The shape mirrors the adjust modal
+  // but pre-fills changeType=purchase and adds business
+  // fields (supplier, PO number) that the generic
+  // adjust modal doesn't have.
+  const [showPurchaseModal, setShowPurchaseModal] = useState(false)
+  const [purchaseForm, setPurchaseForm] = useState({
+    quantity: "",
+    supplier: "",
+    orderNumber: "",
+    notes: "",
+  })
+  const [purchaseLoading, setPurchaseLoading] = useState(false)
 
   useEffect(() => {
     const companyId = localStorage.getItem("companyId")
@@ -213,6 +230,71 @@ export default function InventoryPage() {
     })
   }
 
+  // Record a goods receipt (Wareneingang) — calls the
+  // existing PUT /api/v1/inventory/:id/adjust with
+  // changeType='purchase' so the backend's stock +
+  // history logic is reused. The PO number goes into
+  // the \`reference\` field, and the supplier + free
+  // notes go into the \`notes\` field. Both reference
+  // and notes are shown in the history panel.
+  const recordPurchase = async () => {
+    if (!selectedProduct) return
+    const qty = parseFloat(purchaseForm.quantity)
+    if (!qty || qty <= 0) {
+      alert(t("inventory.purchaseQuantity"))
+      return
+    }
+    setPurchaseLoading(true)
+    try {
+      const companyId = localStorage.getItem("companyId")!
+      // Compose the notes field so the supplier + PO
+      // number are both visible in the history row.
+      // The backend's reference field is a single
+      // string, so we put the PO number there and
+      // keep the supplier in notes.
+      const notesParts: string[] = []
+      if (purchaseForm.supplier.trim()) notesParts.push(`${t("inventory.purchaseSupplier").replace(" (optional)", "").replace("（可选）", "")}: ${purchaseForm.supplier.trim()}`)
+      if (purchaseForm.notes.trim()) notesParts.push(purchaseForm.notes.trim())
+      const composedNotes = notesParts.join(" · ") || null
+
+      await apiPut(
+        `/api/v1/inventory/${selectedProduct.id}/adjust`,
+        {
+          quantity: qty,
+          changeType: "purchase",
+          notes: composedNotes,
+          reference: purchaseForm.orderNumber.trim() || null,
+          referenceType: "purchase_order",
+        }
+      )
+
+      // Reload everything so the new stock + the new
+      // history row both appear.
+      await loadProducts(companyId)
+      await loadLowStock(companyId)
+      await loadHistory(selectedProduct.id)
+      const updated = await apiGet<ProductStock>(`/api/v1/inventory/${selectedProduct.id}`)
+      setSelectedProduct(updated)
+
+      setShowPurchaseModal(false)
+      setPurchaseForm({ quantity: "", supplier: "", orderNumber: "", notes: "" })
+
+      // Friendly success toast via the same alert path
+      // the adjust modal uses. Could be replaced with a
+      // proper toast component later.
+      alert(
+        t("inventory.purchaseSuccess")
+          .replace("{qty}", qty.toString())
+          .replace("{unit}", selectedProduct.unit || "")
+      )
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : `Netzwerkfehler: ${err}`
+      alert(msg)
+    } finally {
+      setPurchaseLoading(false)
+    }
+  }
+
   return (
     <main className="min-h-screen bg-gray-50">
       <header className="bg-white border-b shadow-sm">
@@ -326,9 +408,30 @@ export default function InventoryPage() {
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between">
                     <CardTitle>{selectedProduct.name}</CardTitle>
-                    <Button onClick={() => setShowAdjustModal(true)} size="sm">
-                      {t("inventory.adjustStock")}
-                    </Button>
+                    {/* Two actions: a quick "goods receipt"
+                        button for incoming deliveries (the
+                        most common action in B2B) and a
+                        general "adjust" button for manual
+                        corrections / counts. The Wareneingang
+                        button is primary-styled so the
+                        common case (deliveries) is the
+                        visually default action. */}
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={() => setShowPurchaseModal(true)}
+                        size="sm"
+                        title={t("inventory.purchaseEntryDesc")}
+                      >
+                        📦 {t("inventory.purchaseEntry")}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => setShowAdjustModal(true)}
+                        size="sm"
+                      >
+                        {t("inventory.adjustStock")}
+                      </Button>
+                    </div>
                   </CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-2 gap-4">
@@ -483,6 +586,130 @@ export default function InventoryPage() {
                   </Button>
                   <Button type="submit" className="flex-1">
                     {t("inventory.save")}
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Goods-Receipt (Wareneingang) Modal. A focused
+          alternative to the generic adjust modal, pre-
+          configured for incoming deliveries:
+          - changeType is fixed to 'purchase' (the user
+            doesn't have to pick from a dropdown)
+          - the form has dedicated business fields
+            (supplier + PO number) that the generic
+            adjust modal doesn't
+          - the quantity placeholder says "Eingehende
+            Menge" so the user knows they should enter
+            a positive delta, not a new total
+
+          The backend's PUT /inventory/:id/adjust handles
+          'purchase' by ADDING the quantity to the
+          current stock and writing a ProductStockHistory
+          row with the supplier + PO number preserved
+          (PO in `reference`, supplier in `notes`). */}
+      {showPurchaseModal && selectedProduct && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle>📦 {t("inventory.purchaseEntryTitle")}</CardTitle>
+              <p className="text-xs text-gray-500 mt-1">
+                {t("inventory.purchaseEntryDesc")}
+              </p>
+            </CardHeader>
+            <CardContent>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  recordPurchase()
+                }}
+                className="space-y-4"
+              >
+                {/* Current stock shown read-only so the
+                    user knows the baseline they're adding
+                    to. Highlighted in blue so it stands
+                    out from the input fields. */}
+                <div className="bg-blue-50 p-3 rounded-lg">
+                  <p className="text-sm text-gray-600">{t("inventory.currentStock")}</p>
+                  <p className="text-2xl font-bold text-blue-700">
+                    {parseFloat(selectedProduct.stockQuantity).toFixed(2)} {selectedProduct.unit}
+                  </p>
+                </div>
+                {/* Quantity — required, must be > 0. This
+                    is a DELTA, not a total (the user
+                    entering "24" means "24 units just
+                    arrived", not "set stock to 24"). The
+                    backend's 'purchase' branch does
+                    newQty = previousQty + quantity. */}
+                <div>
+                  <label className="block text-sm font-medium mb-1">{t("inventory.purchaseQuantity")} *</label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    value={purchaseForm.quantity}
+                    onChange={(e) => setPurchaseForm({ ...purchaseForm, quantity: e.target.value })}
+                    placeholder={t("inventory.purchaseQuantityPlaceholder")}
+                    required
+                    autoFocus
+                  />
+                </div>
+                {/* Supplier + PO number — both optional but
+                    typically the user wants to record
+                    them for audit purposes. The PO number
+                    goes into the `reference` column of
+                    the history row; the supplier goes
+                    into `notes` together with the user's
+                    free-form notes. */}
+                <div>
+                  <label className="block text-sm font-medium mb-1">{t("inventory.purchaseSupplier")}</label>
+                  <Input
+                    value={purchaseForm.supplier}
+                    onChange={(e) => setPurchaseForm({ ...purchaseForm, supplier: e.target.value })}
+                    placeholder={t("inventory.purchaseSupplierPlaceholder")}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">{t("inventory.purchaseOrderNumber")}</label>
+                  <Input
+                    value={purchaseForm.orderNumber}
+                    onChange={(e) => setPurchaseForm({ ...purchaseForm, orderNumber: e.target.value })}
+                    placeholder={t("inventory.purchaseOrderNumberPlaceholder")}
+                    className="font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">{t("inventory.notes")}</label>
+                  <Input
+                    value={purchaseForm.notes}
+                    onChange={(e) => setPurchaseForm({ ...purchaseForm, notes: e.target.value })}
+                    placeholder={t("inventory.notesPlaceholder")}
+                  />
+                </div>
+                <div className="flex gap-4 pt-4">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => {
+                      setShowPurchaseModal(false)
+                      setPurchaseForm({ quantity: "", supplier: "", orderNumber: "", notes: "" })
+                    }}
+                    disabled={purchaseLoading}
+                  >
+                    {t("inventory.cancel")}
+                  </Button>
+                  <Button
+                    type="submit"
+                    className="flex-1"
+                    disabled={purchaseLoading || !purchaseForm.quantity || parseFloat(purchaseForm.quantity) <= 0}
+                  >
+                    {purchaseLoading
+                      ? (t("inventory.loading"))
+                      : t("inventory.save")}
                   </Button>
                 </div>
               </form>
