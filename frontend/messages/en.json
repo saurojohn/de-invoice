@@ -39,7 +39,8 @@
     "reports": "Reports",
     "settings": "Settings",
     "vouchers": "Vouchers",
-    "accounts": "Chart of Accounts"
+    "accounts": "Chart of Accounts",
+    "inventory": "Inventory"
   },
   "invoice": {
     "title": "Invoice Management",
@@ -309,7 +310,9 @@
     "cardRemindersTitle": "Payment Reminders",
     "cardRemindersDesc": "Overdue invoices and dunning",
     "cardSettingsTitle": "Settings",
-    "cardSettingsDesc": "Company and brand configuration"
+    "cardSettingsDesc": "Company info, bank details, logo, default printer",
+    "cardInventoryTitle": "Inventory",
+    "cardInventoryDesc": "Check stock levels, plan replenishment, make adjustments"
   },
   "reminder": {
     "title": "Payment Reminders",

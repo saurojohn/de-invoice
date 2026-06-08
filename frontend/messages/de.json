@@ -39,7 +39,8 @@
     "reports": "Berichte",
     "settings": "Einstellungen",
     "vouchers": "Buchungsbelege",
-    "accounts": "Kontenplan"
+    "accounts": "Kontenplan",
+    "inventory": "Inventar"
   },
   "invoice": {
     "title": "Rechnungsverwaltung",
@@ -236,7 +237,9 @@
     "cardRemindersTitle": "Zahlungserinnerungen",
     "cardRemindersDesc": "Überfällige Rechnungen und Mahnungen",
     "cardSettingsTitle": "Einstellungen",
-    "cardSettingsDesc": "Firmeneinstellungen und Markenkonfiguration"
+    "cardSettingsDesc": "Firmendaten, Bankverbindung, Logo, Standarddrucker",
+    "cardInventoryTitle": "Inventar",
+    "cardInventoryDesc": "Lagerbestand prüfen, Nachschub planen, Anpassungen vornehmen"
   },
   "settings": {
     "title": "Einstellungen",

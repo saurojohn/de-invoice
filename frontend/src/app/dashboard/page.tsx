@@ -167,6 +167,24 @@ export default function DashboardPage() {
               <p className="text-gray-600">{t("dashboard.cardProductDesc")}</p>
             </CardContent>
           </Card>
+          {/* Inventory card — placed right after Products
+              because the inventory is per-product (you
+              adjust stock on a product, see a list of
+              products that are below their threshold, and
+              view the stock-change history). The backend
+              /dashboard/inventory page has been there
+              for a while (with its own /api/v1/inventory
+              routes) but it was previously only reachable
+              via the URL — no nav entry. This card fixes
+              that. */}
+          <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/inventory")}>
+            <CardHeader>
+              <CardTitle>{t("dashboard.cardInventoryTitle")}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-gray-600">{t("dashboard.cardInventoryDesc")}</p>
+            </CardContent>
+          </Card>
           <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/accounting")}>
             <CardHeader>
               <CardTitle>{t("dashboard.cardAccountingTitle")}</CardTitle>

@@ -39,7 +39,8 @@
     "reports": "报表",
     "settings": "设置",
     "vouchers": "记账凭证",
-    "accounts": "科目表"
+    "accounts": "会计科目表",
+    "inventory": "库存"
   },
   "invoice": {
     "title": "发票管理",
@@ -238,7 +239,9 @@
     "cardRemindersTitle": "付款提醒",
     "cardRemindersDesc": "逾期发票和催款",
     "cardSettingsTitle": "设置",
-    "cardSettingsDesc": "公司设置和品牌配置"
+    "cardSettingsDesc": "公司信息、银行账号、Logo、默认打印机",
+    "cardInventoryTitle": "库存",
+    "cardInventoryDesc": "查看库存水位、补货计划、调整库存"
   },
   "settings": {
     "title": "设置",
