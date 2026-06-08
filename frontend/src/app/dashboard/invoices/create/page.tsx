@@ -66,7 +66,12 @@ export default function CreateInvoicePage() {
     referenceInvoiceId: "",
     issueDate: new Date().toISOString().split("T")[0],
     dueDate: "",
-    deliveryDate: "",
+    // Default the Liefertermin to today. Most invoices are
+    // issued and delivered the same day, and a pre-filled date
+    // is easier to clear than to type. The PDF will show
+    // "Liefertermin: <today>" by default; the user can clear
+    // the input to hide the row on the PDF.
+    deliveryDate: new Date().toISOString().split("T")[0],
     notes: "",
     discountPercent: 0,
     discountAmount: 0,
@@ -125,7 +130,10 @@ export default function CreateInvoicePage() {
             referenceInvoiceId: inv.referenceInvoiceId || '',
             issueDate: inv.issueDate ? String(inv.issueDate).slice(0, 10) : new Date().toISOString().split("T")[0],
             dueDate: inv.dueDate ? String(inv.dueDate).slice(0, 10) : "",
-            deliveryDate: inv.deliveryDate ? String(inv.deliveryDate).slice(0, 10) : "",
+            // Default the Liefertermin to today when the stored
+            // invoice has no value, so editing an old invoice
+            // doesn't suddenly hide the row.
+            deliveryDate: inv.deliveryDate ? String(inv.deliveryDate).slice(0, 10) : new Date().toISOString().split("T")[0],
             notes: inv.notes || '',
             discountPercent: Number(inv.discountPercent || 0),
             discountAmount: Number(inv.discountAmount || 0),
@@ -321,24 +329,31 @@ export default function CreateInvoicePage() {
 
     try {
       const companyId = localStorage.getItem("companyId") || "7de697d5-64a2-4632-9a87-d18b4e2a0214"
+      // Strip empty-string date fields before sending. Backend's
+      // @IsOptional() only skips null/undefined, not "" — and
+      // @IsDateString() rejects "". We removed the Fälligkeits-
+      // datum input from the form (it's auto-computed from the
+      // Zahlungsziel dropdown on the backend), so dueDate is
+      // always empty here. deliveryDate is pre-filled with
+      // today's date by default, but the user can clear it; if
+      // cleared, treat it as "not set" instead of "set to empty".
+      const payload = {
+        ...form,
+        type: invoiceType,
+        templateType,
+        dueDate: form.dueDate || undefined,
+        deliveryDate: form.deliveryDate || undefined,
+      }
       let createdId: string | null = null
       if (isEdit && editId) {
         // Edit mode: PUT replaces items wholesale and recomputes
         // totals. The service enforces same-day on the existing
         // invoice; if you landed here with a stale link the 403
         // will be surfaced in the alert below.
-        await apiPut(`/api/v1/invoices/${editId}?companyId=${companyId}`, {
-          ...form,
-          type: invoiceType,
-          templateType,
-        })
+        await apiPut(`/api/v1/invoices/${editId}?companyId=${companyId}`, payload)
         createdId = editId
       } else {
-        const result = await apiPost<{ id: string }>(`/api/v1/invoices?companyId=${companyId}`, {
-          ...form,
-          type: invoiceType,
-          templateType,
-        })
+        const result = await apiPost<{ id: string }>(`/api/v1/invoices?companyId=${companyId}`, payload)
         createdId = result.id
       }
 
