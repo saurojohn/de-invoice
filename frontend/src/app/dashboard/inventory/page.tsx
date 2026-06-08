@@ -36,7 +36,7 @@ import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { useI18n } from "@/components/useI18n"
-import { apiGet, apiPut, ApiError } from "@/lib/api"
+import { apiGet, apiPost, apiPut, ApiError } from "@/lib/api"
 
 interface ProductStock {
   id: string
@@ -91,6 +91,32 @@ export default function InventoryPage() {
     notes: "",
   })
   const [purchaseLoading, setPurchaseLoading] = useState(false)
+  // Inline "create new product" modal — the user
+  // reported that the inventory page had no way to
+  // add a new product. The previous workflow required
+  // a side-trip to /dashboard/products, creating the
+  // product there (with trackInventory enabled), then
+  // coming back to inventory. The new inline modal
+  // cuts that round-trip: pick name + sku + unit +
+  // initial stock + (optional) threshold, save, and
+  // the new product shows up in the inventory list
+  // immediately, already stocked.
+  //
+  // Mirrors the products page's create form 1:1 (same
+  // POST payload shape) but stripped down to the
+  // fields the inventory context needs. Defaults:
+  // trackInventory=true, type='good', basePrice=0,
+  // vatRate=0.19, unit=translated 'Stück'/'piece'/'件'
+  // (via the common2.unit key).
+  const [showNewProductModal, setShowNewProductModal] = useState(false)
+  const [newProductForm, setNewProductForm] = useState({
+    name: "",
+    sku: "",
+    unit: "",
+    initialStock: "",
+    lowStockThreshold: "",
+  })
+  const [newProductLoading, setNewProductLoading] = useState(false)
 
   useEffect(() => {
     const companyId = localStorage.getItem("companyId")
@@ -295,6 +321,82 @@ export default function InventoryPage() {
     }
   }
 
+  // Create a brand-new product directly from the
+  // inventory page, with the initial stock already
+  // booked. Defaults to trackInventory=true so the
+  // new product shows up in the inventory list
+  // immediately. POST payload shape matches the
+  // /dashboard/products create form 1:1 (the same
+  // backend DTO is used; we just send the minimum
+  // set of fields the inventory flow needs).
+  //
+  // After save, we refresh the local products /
+  // low-stock lists so the new entry is visible
+  // without a page reload, and auto-select it so the
+  // user can immediately do further actions (history
+  // view, adjust, etc.).
+  const createProductInline = async () => {
+    if (!newProductForm.name.trim()) {
+      alert(t("customer.name") + " *")
+      return
+    }
+    const initialStock = parseFloat(newProductForm.initialStock) || 0
+    setNewProductLoading(true)
+    try {
+      const companyId = localStorage.getItem("companyId")!
+      const created: any = await apiPost(
+        `/api/v1/products?companyId=${companyId}`,
+        {
+          name: newProductForm.name.trim(),
+          // SKU is optional in the DTO; trim+omit if
+          // empty so the backend doesn't store ''.
+          sku: newProductForm.sku.trim() || undefined,
+          // Inventory-specific defaults:
+          trackInventory: true,
+          stockQuantity: initialStock,
+          // lowStockThreshold is optional; null when
+          // the user didn't fill it in.
+          lowStockThreshold: newProductForm.lowStockThreshold.trim()
+            ? parseFloat(newProductForm.lowStockThreshold)
+            : null,
+          // Sensible defaults for the other fields the
+          // products page would ask for, so the new
+          // product is usable on invoices too. The user
+          // can edit them later on /dashboard/products.
+          type: "good",
+          basePrice: 0,
+          vatRate: 0.19,
+          unit: newProductForm.unit.trim() || t("common2.unit") || "Stück",
+        }
+      )
+
+      // Refresh the local lists so the new product
+      // shows up in the inventory table immediately.
+      await loadProducts(companyId)
+      await loadLowStock(companyId)
+
+      // Auto-select the new product so the user can
+      // immediately see its history card and continue
+      // working with it.
+      setSelectedProduct(created)
+      await loadHistory(created.id)
+
+      setShowNewProductModal(false)
+      setNewProductForm({ name: "", sku: "", unit: "", initialStock: "", lowStockThreshold: "" })
+
+      alert(
+        t("inventory.newProductSuccess")
+          .replace("{qty}", initialStock.toString())
+          .replace("{unit}", created.unit || "")
+      )
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : `Netzwerkfehler: ${err}`
+      alert(msg)
+    } finally {
+      setNewProductLoading(false)
+    }
+  }
+
   return (
     <main className="min-h-screen bg-gray-50">
       <header className="bg-white border-b shadow-sm">
@@ -345,10 +447,21 @@ export default function InventoryPage() {
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Product List — every product with trackInventory=true */}
+          {/* Product List — every product with trackInventory=true.
+              The CardHeader has an '+ Neues Produkt' button
+              that opens the inline createProductInline modal,
+              so the user can add a new inventory-tracked
+              product without leaving the inventory page. */}
           <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>{t("inventory.trackedProducts")}</CardTitle>
+              <Button
+                size="sm"
+                onClick={() => setShowNewProductModal(true)}
+                title={t("inventory.addNewProductDesc")}
+              >
+                + {t("inventory.addNewProduct")}
+              </Button>
             </CardHeader>
             <CardContent>
               {loading ? (
@@ -715,6 +828,149 @@ export default function InventoryPage() {
               </form>
             </CardContent>
           </Card>
+        </div>
+      )}
+
+      {/* Inline "Create new product" modal — opens when
+          the user clicks the '+ Neues Produkt' button on
+          the tracked-products card. A focused,
+          inventory-only subset of the /dashboard/products
+          create form: name (required), sku (optional),
+          unit (defaults to translated 'Stück'), initial
+          stock (the value the new product starts with,
+          '0' if left empty), and an optional low-stock
+          threshold. All other product fields (price,
+          VAT, type, description, inventory tracking) are
+          filled with sensible defaults server-side; the
+          user can edit them later on the products page.
+
+          Mirrors the createProductFromSku flow on the
+          create-invoice page (commit 87da439) so the
+          two 'add product' entry points behave the
+          same: select the new entry after save, refresh
+          the in-memory list, surface a success toast. */}
+      {showNewProductModal && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+          onClick={() => !newProductLoading && setShowNewProductModal(false)}
+        >
+          <div
+            className="bg-white rounded-lg shadow-2xl max-w-md w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Card>
+              <CardHeader>
+                <CardTitle>{t("inventory.newProductModalTitle")}</CardTitle>
+                <p className="text-xs text-gray-500 mt-1">
+                  {t("inventory.addNewProductDesc")}
+                </p>
+              </CardHeader>
+              <CardContent>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    createProductInline()
+                  }}
+                  className="space-y-4"
+                >
+                  {/* Name (required, autofocus). Mirrors
+                      the products-page create form's first
+                      field. Autofocus so the user can
+                      start typing immediately. */}
+                  <div>
+                    <label className="block text-sm font-medium mb-1">
+                      {t("customer.name") || t("product.name")} *
+                    </label>
+                    <Input
+                      autoFocus
+                      value={newProductForm.name}
+                      onChange={(e) => setNewProductForm({ ...newProductForm, name: e.target.value })}
+                      placeholder={t("settings.placeholderCompanyName") || "z.B. Lederpflege 250ml"}
+                      required
+                    />
+                  </div>
+                  {/* SKU (optional). Monospace font in the
+                      input so the user can visually confirm
+                      the SKU pattern. */}
+                  <div>
+                    <label className="block text-sm font-medium mb-1">{t("product.sku")}</label>
+                    <Input
+                      value={newProductForm.sku}
+                      onChange={(e) => setNewProductForm({ ...newProductForm, sku: e.target.value })}
+                      placeholder="PRD-001"
+                      className="font-mono"
+                    />
+                  </div>
+                  {/* Unit (optional, defaults to translated
+                      'Stück'). Used in the inventory list
+                      and on the printed invoice. */}
+                  <div>
+                    <label className="block text-sm font-medium mb-1">{t("inventory.newProductUnit")}</label>
+                    <Input
+                      value={newProductForm.unit}
+                      onChange={(e) => setNewProductForm({ ...newProductForm, unit: e.target.value })}
+                      placeholder={t("inventory.newProductUnitPlaceholder")}
+                    />
+                  </div>
+                  {/* Initial stock + low-stock threshold
+                      — the two inventory-specific fields.
+                      Initial stock defaults to '0' if left
+                      empty; the threshold is optional (no
+                      alert when stock falls below 0). Both
+                      are numeric inputs with step 0.01 so
+                      the user can enter fractional units
+                      (e.g. kg, meters). */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-1">{t("inventory.newProductInitialStock")}</label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={newProductForm.initialStock}
+                        onChange={(e) => setNewProductForm({ ...newProductForm, initialStock: e.target.value })}
+                        placeholder={t("inventory.newProductInitialStockPlaceholder")}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">{t("inventory.newProductThreshold")}</label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={newProductForm.lowStockThreshold}
+                        onChange={(e) => setNewProductForm({ ...newProductForm, lowStockThreshold: e.target.value })}
+                        placeholder={t("inventory.newProductThresholdPlaceholder")}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex gap-4 pt-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="flex-1"
+                      onClick={() => {
+                        setShowNewProductModal(false)
+                        setNewProductForm({ name: "", sku: "", unit: "", initialStock: "", lowStockThreshold: "" })
+                      }}
+                      disabled={newProductLoading}
+                    >
+                      {t("inventory.cancel")}
+                    </Button>
+                    <Button
+                      type="submit"
+                      className="flex-1"
+                      disabled={newProductLoading || !newProductForm.name.trim()}
+                    >
+                      {newProductLoading
+                        ? (t("inventory.loading"))
+                        : t("inventory.save")}
+                    </Button>
+                  </div>
+                </form>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       )}
     </main>
