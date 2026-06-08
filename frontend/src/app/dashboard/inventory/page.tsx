@@ -117,6 +117,37 @@ export default function InventoryPage() {
     lowStockThreshold: "",
   })
   const [newProductLoading, setNewProductLoading] = useState(false)
+  // New-product modal: dual-mode UI.
+  //   mode='search'  — search bar + dropdown of existing
+  //                    products. Picking a match reuses
+  //                    the product (no new product
+  //                    created).
+  //   mode='create'  — 5-field create form for new
+  //                    products.
+  // Initial mode is 'search' so the user is gently
+  // guided to pick an existing product first (avoiding
+  // duplicates). 0-match dropdown shows a 'Create new
+  // product "{name}"' link that switches to 'create'
+  // mode with the name pre-filled.
+  const [newProductMode, setNewProductMode] = useState<"search" | "create">("search")
+  const [newProductSearch, setNewProductSearch] = useState("")
+  const [showNewProductDropdown, setShowNewProductDropdown] = useState(false)
+  // Re-use the already-loaded `products` list
+  // (trackInventory=true items). We don't re-fetch the
+  // full catalog here because (a) the inventory page
+  // only cares about tracked products, and (b) any
+  // un-tracked product wouldn't make sense to add stock
+  // to anyway. If the user wants to start tracking a
+  // new SKU, they can do it on the products page.
+  const newProductMatches = newProductSearch.trim()
+    ? products.filter(p => {
+        const q = newProductSearch.toLowerCase()
+        return (
+          (p.name || "").toLowerCase().includes(q) ||
+          (p.sku || "").toLowerCase().includes(q)
+        )
+      }).slice(0, 5)
+    : []
 
   useEffect(() => {
     const companyId = localStorage.getItem("companyId")
@@ -335,6 +366,62 @@ export default function InventoryPage() {
   // without a page reload, and auto-select it so the
   // user can immediately do further actions (history
   // view, adjust, etc.).
+  //
+  // Apply the modal to an EXISTING product (called when
+  // the user picked a match from the search dropdown).
+  // We don't POST a new product; instead we PUT
+  // /api/v1/inventory/:id/adjust with changeType=
+  // 'initial' to set the stock to the user-entered
+  // initialStock value (if any). After the call, we
+  // close the modal, refresh the lists, and auto-select
+  // the existing product so the user can see the new
+  // state in the detail card.
+  //
+  // If the user didn't enter an initial stock, we just
+  // refresh the lists and select the product — the
+  // modal effectively becomes a 'go to this product'
+  // shortcut.
+  const useExistingProductInline = async (p: ProductStock) => {
+    setNewProductLoading(true)
+    try {
+      const companyId = localStorage.getItem("companyId")!
+      const initialStock = parseFloat(newProductForm.initialStock) || 0
+      if (initialStock > 0) {
+        await apiPut(
+          `/api/v1/inventory/${p.id}/adjust`,
+          {
+            quantity: initialStock,
+            changeType: "initial",
+            referenceType: "manual",
+            notes: t("inventory.useExistingProductHint"),
+          }
+        )
+      }
+      await loadProducts(companyId)
+      await loadLowStock(companyId)
+      const updated: any = await apiGet<ProductStock>(`/api/v1/inventory/${p.id}`)
+      setSelectedProduct(updated)
+      await loadHistory(p.id)
+      setShowNewProductModal(false)
+      setNewProductMode("search")
+      setNewProductSearch("")
+      setShowNewProductDropdown(false)
+      setNewProductForm({ name: "", sku: "", unit: "", initialStock: "", lowStockThreshold: "" })
+      if (initialStock > 0) {
+        alert(
+          t("inventory.purchaseSuccess")
+            .replace("{qty}", initialStock.toString())
+            .replace("{unit}", p.unit || "")
+        )
+      }
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : `Netzwerkfehler: ${err}`
+      alert(msg)
+    } finally {
+      setNewProductLoading(false)
+    }
+  }
+
   const createProductInline = async () => {
     if (!newProductForm.name.trim()) {
       alert(t("customer.name") + " *")
@@ -866,63 +953,91 @@ export default function InventoryPage() {
                 </p>
               </CardHeader>
               <CardContent>
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault()
-                    createProductInline()
-                  }}
-                  className="space-y-4"
-                >
-                  {/* Name (required, autofocus). Mirrors
-                      the products-page create form's first
-                      field. Autofocus so the user can
-                      start typing immediately. */}
-                  <div>
-                    <label className="block text-sm font-medium mb-1">
-                      {t("customer.name") || t("product.name")} *
-                    </label>
-                    <Input
-                      autoFocus
-                      value={newProductForm.name}
-                      onChange={(e) => setNewProductForm({ ...newProductForm, name: e.target.value })}
-                      placeholder={t("settings.placeholderCompanyName") || "z.B. Lederpflege 250ml"}
-                      required
-                    />
-                  </div>
-                  {/* SKU (optional). Monospace font in the
-                      input so the user can visually confirm
-                      the SKU pattern. */}
-                  <div>
-                    <label className="block text-sm font-medium mb-1">{t("product.sku")}</label>
-                    <Input
-                      value={newProductForm.sku}
-                      onChange={(e) => setNewProductForm({ ...newProductForm, sku: e.target.value })}
-                      placeholder="PRD-001"
-                      className="font-mono"
-                    />
-                  </div>
-                  {/* Unit (optional, defaults to translated
-                      'Stück'). Used in the inventory list
-                      and on the printed invoice. */}
-                  <div>
-                    <label className="block text-sm font-medium mb-1">{t("inventory.newProductUnit")}</label>
-                    <Input
-                      value={newProductForm.unit}
-                      onChange={(e) => setNewProductForm({ ...newProductForm, unit: e.target.value })}
-                      placeholder={t("inventory.newProductUnitPlaceholder")}
-                    />
-                  </div>
-                  {/* Initial stock + low-stock threshold
-                      — the two inventory-specific fields.
-                      Initial stock defaults to '0' if left
-                      empty; the threshold is optional (no
-                      alert when stock falls below 0). Both
-                      are numeric inputs with step 0.01 so
-                      the user can enter fractional units
-                      (e.g. kg, meters). */}
-                  <div className="grid grid-cols-2 gap-4">
+                {/* Dual-mode UI. Mode 'search' (default) shows a
+                    search bar + dropdown of existing products;
+                    picking a match reuses the product. Mode
+                    'create' shows the 5-field form for new
+                    products. Both modes share the same
+                    'initialStock' field so the user can stock
+                    the product (existing or new) at creation
+                    time. The two modes are mutually exclusive;
+                    the user can switch via the 'Create new' link
+                    in search mode or the back arrow in create
+                    mode. The drop-down search uses the same UX
+                    pattern as the product/customer pickers on
+                    the create-invoice page (commits 87da439,
+                    fd79838): onBlur 200ms delay, onMouseDown
+                    preventDefault for the click. */}
+                {newProductMode === "search" ? (
+                  <div className="space-y-4">
+                    <div className="relative">
+                      <label className="block text-sm font-medium mb-1">
+                        {t("inventory.searchExistingProduct")}
+                      </label>
+                      <Input
+                        autoFocus
+                        value={newProductSearch}
+                        onChange={(e) => {
+                          setNewProductSearch(e.target.value)
+                          setShowNewProductDropdown(e.target.value.trim().length > 0)
+                          // Pre-fill the create-mode name so
+                          // the user can switch without losing
+                          // their typing.
+                          setNewProductForm(f => ({ ...f, name: e.target.value }))
+                        }}
+                        onFocus={() => {
+                          if (newProductSearch.trim().length > 0) {
+                            setShowNewProductDropdown(true)
+                          }
+                        }}
+                        onBlur={() => {
+                          setTimeout(() => setShowNewProductDropdown(false), 200)
+                        }}
+                        placeholder={t("inventory.searchProductPlaceholder")}
+                        title={t("inventory.searchExistingProductHint")}
+                      />
+                      {showNewProductDropdown && (
+                        <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg max-h-56 overflow-y-auto z-20">
+                          {newProductMatches.length === 0 ? (
+                            <>
+                              <div className="px-3 py-2 text-gray-500 text-sm border-b">
+                                {t("inventory.noProductsFound")}
+                              </div>
+                              <div
+                                className="px-3 py-2 hover:bg-blue-50 cursor-pointer text-blue-700 text-sm font-medium border-t"
+                                onMouseDown={(e) => {
+                                  e.preventDefault()
+                                  setNewProductMode("create")
+                                  setShowNewProductDropdown(false)
+                                }}
+                              >
+                                + {t("inventory.createNewProductWithName").replace("{name}", newProductSearch.trim() || "")}
+                              </div>
+                            </>
+                          ) : (
+                            newProductMatches.map((p) => (
+                              <div
+                                key={p.id}
+                                className="px-3 py-2 hover:bg-blue-50 cursor-pointer"
+                                onMouseDown={(e) => {
+                                  e.preventDefault()
+                                  useExistingProductInline(p)
+                                }}
+                              >
+                                <div className="font-medium text-sm">{p.name}</div>
+                                <div className="text-xs text-gray-500 font-mono">
+                                  {p.sku && `${p.sku} · `}Aktueller Bestand: {parseFloat(p.stockQuantity).toFixed(2)} {p.unit}
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      )}
+                    </div>
                     <div>
-                      <label className="block text-sm font-medium mb-1">{t("inventory.newProductInitialStock")}</label>
+                      <label className="block text-sm font-medium mb-1">
+                        {t("inventory.newProductInitialStock")}
+                      </label>
                       <Input
                         type="number"
                         step="0.01"
@@ -930,44 +1045,122 @@ export default function InventoryPage() {
                         value={newProductForm.initialStock}
                         onChange={(e) => setNewProductForm({ ...newProductForm, initialStock: e.target.value })}
                         placeholder={t("inventory.newProductInitialStockPlaceholder")}
+                        title={t("inventory.useExistingProductHint")}
+                      />
+                    </div>
+                    <div className="flex gap-2 pt-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="flex-1"
+                        onClick={() => setShowNewProductModal(false)}
+                        disabled={newProductLoading}
+                      >
+                        {t("inventory.cancel")}
+                      </Button>
+                      <Button
+                        type="button"
+                        className="flex-1"
+                        onClick={() => setNewProductMode("create")}
+                        disabled={newProductLoading}
+                      >
+                        + {t("inventory.addNewProduct")}
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault()
+                      createProductInline()
+                    }}
+                    className="space-y-4"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setNewProductMode("search")}
+                      className="text-sm text-blue-600 hover:text-blue-700 hover:underline"
+                    >
+                      ← {t("inventory.searchExistingProduct")}
+                    </button>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">
+                        {t("customer.name") || t("product.name")} *
+                      </label>
+                      <Input
+                        value={newProductForm.name}
+                        onChange={(e) => setNewProductForm({ ...newProductForm, name: e.target.value })}
+                        placeholder={t("settings.placeholderCompanyName") || "z.B. Lederpflege 250ml"}
+                        required
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium mb-1">{t("inventory.newProductThreshold")}</label>
+                      <label className="block text-sm font-medium mb-1">{t("product.sku")}</label>
                       <Input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={newProductForm.lowStockThreshold}
-                        onChange={(e) => setNewProductForm({ ...newProductForm, lowStockThreshold: e.target.value })}
-                        placeholder={t("inventory.newProductThresholdPlaceholder")}
+                        value={newProductForm.sku}
+                        onChange={(e) => setNewProductForm({ ...newProductForm, sku: e.target.value })}
+                        placeholder="PRD-001"
+                        className="font-mono"
                       />
                     </div>
-                  </div>
-                  <div className="flex gap-4 pt-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="flex-1"
-                      onClick={() => {
-                        setShowNewProductModal(false)
-                        setNewProductForm({ name: "", sku: "", unit: "", initialStock: "", lowStockThreshold: "" })
-                      }}
-                      disabled={newProductLoading}
-                    >
-                      {t("inventory.cancel")}
-                    </Button>
-                    <Button
-                      type="submit"
-                      className="flex-1"
-                      disabled={newProductLoading || !newProductForm.name.trim()}
-                    >
-                      {newProductLoading
-                        ? (t("inventory.loading"))
-                        : t("inventory.save")}
-                    </Button>
-                  </div>
-                </form>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">{t("inventory.newProductUnit")}</label>
+                      <Input
+                        value={newProductForm.unit}
+                        onChange={(e) => setNewProductForm({ ...newProductForm, unit: e.target.value })}
+                        placeholder={t("inventory.newProductUnitPlaceholder")}
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium mb-1">{t("inventory.newProductInitialStock")}</label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={newProductForm.initialStock}
+                          onChange={(e) => setNewProductForm({ ...newProductForm, initialStock: e.target.value })}
+                          placeholder={t("inventory.newProductInitialStockPlaceholder")}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1">{t("inventory.newProductThreshold")}</label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={newProductForm.lowStockThreshold}
+                          onChange={(e) => setNewProductForm({ ...newProductForm, lowStockThreshold: e.target.value })}
+                          placeholder={t("inventory.newProductThresholdPlaceholder")}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex gap-4 pt-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="flex-1"
+                        onClick={() => {
+                          setShowNewProductModal(false)
+                          setNewProductForm({ name: "", sku: "", unit: "", initialStock: "", lowStockThreshold: "" })
+                          setNewProductMode("search")
+                        }}
+                        disabled={newProductLoading}
+                      >
+                        {t("inventory.cancel")}
+                      </Button>
+                      <Button
+                        type="submit"
+                        className="flex-1"
+                        disabled={newProductLoading || !newProductForm.name.trim()}
+                      >
+                        {newProductLoading
+                          ? (t("inventory.loading"))
+                          : t("inventory.save")}
+                      </Button>
+                    </div>
+                  </form>
+                )}
               </CardContent>
             </Card>
           </div>
