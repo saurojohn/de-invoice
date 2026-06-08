@@ -1325,24 +1325,35 @@ export default function CreateInvoicePage() {
                       ✕
                     </Button>
                   </div>
-                  {/* Per-row "Add" button \u2014 right of the
-                      Remove button, 1 col wide. Inserts a
-                      new empty row directly BELOW this row
-                      via addItemAt(index), so the user can
-                      build up a list of related items in
-                      the order they want, not always at the
-                      end. */}
+                  {/* Per-row "Add" button — right of the
+                      Remove button, 1 col wide. Renders
+                      ONLY on the LAST row of the items
+                      table (per the user's preference —
+                      having + on every row was visually
+                      noisy and the user just wants one
+                      place to add the next row). For all
+                      other rows we still render an empty
+                      col-span-1 so the grid columns stay
+                      aligned across rows. The addItemAt
+                      helper accepts the index but the call
+                      site always passes the last index, so
+                      the "insert below" behavior is
+                      effectively the same as "append to
+                      end" since the last row's index IS
+                      the end. */}
                   <div className="col-span-1">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="w-full text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-1"
-                      onClick={() => addItemAt(index)}
-                      title={t("invoice.addItem")}
-                    >
-                      +
-                    </Button>
+                    {index === form.items.length - 1 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="w-full text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-1"
+                        onClick={() => addItemAt(index)}
+                        title={t("invoice.addItem")}
+                      >
+                        +
+                      </Button>
+                    )}
                   </div>
                 </div>
               ))}
