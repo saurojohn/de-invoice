@@ -22,6 +22,12 @@ interface Customer {
 interface Product {
   id: string
   name: string
+  // Rich description used as the line-item text on the
+  // invoice (selectProduct picks this over name when set,
+  // because many products use the `name` field as an
+  // internal code and put the customer-facing label in
+  // `description`).
+  description?: string | null
   sku: string
   unit: string
   basePrice: string
@@ -229,7 +235,25 @@ export default function CreateInvoicePage() {
     const items = [...form.items]
     items[index] = {
       productId: product.id,
-      description: product.name,
+      // Use the product's rich description as the line-item
+      // description, not the product's internal name. Many
+      // products in this app use the `name` field as a short
+      // code (e.g. "T13", "Mutter M5") and put the real
+      // customer-facing label in `description` (e.g.
+      // "Damentasche", "Sechskant-Stahlmutter M5 verzinkt").
+      // For products with no description, fall back to the
+      // name so the line item is never empty.
+      //
+      // This applies to ALL three picker flows:
+      //   1. Description-dropdown picker (typing into the
+      //      description field)
+      //   2. Artikelnr.-dropdown picker (typing into the
+      //      SKU field)
+      //   3. Inline "Create new product" modal — when the
+      //      user fills in the description field of the
+      //      modal, that description now flows to the
+      //      invoice line item as expected.
+      description: (product.description?.trim() || product.name),
       // Auto-fill the SKU from the product master. The user can
       // still override this in the line-item row (e.g. to carry
       // a customer-specific part number on the invoice).
