@@ -280,7 +280,7 @@ export default function CreateInvoicePage() {
     await saveAndNavigate(false)
   }
 
-  // "Erstellen & Drucken" — same as handleSubmit but after
+  // "Speichern und drucken" — same as handleSubmit but after
   // creating the invoice we open its PDF in a new tab and
   // immediately trigger window.print() so the user lands
   // straight in the system print dialog. Faster workflow for
@@ -291,9 +291,16 @@ export default function CreateInvoicePage() {
   }
 
   // Shared body for both submit handlers. When `printAfter` is
-  // true, we open the generated PDF in a hidden iframe and
-  // fire window.print() — the system print dialog appears
-  // over the page. We navigate to the invoice detail page in
+  // true, we fetch the generated PDF with auth headers, turn
+  // it into a same-origin blob URL, open that in a new tab
+  // and fire window.print(). Using a blob URL (instead of a
+  // relative `/api/v1/...` path) avoids the 404 trap: a
+  // relative path opened in a new tab is resolved against the
+  // CURRENT origin (the frontend dev server on :3000), not
+  // the backend on :3001, and Next.js has no such route. The
+  // blob URL is served from the frontend's own origin, so the
+  // PDF viewer can display it and the print dialog fires
+  // correctly. We navigate to the invoice detail page in
   // parallel so the user can also see the created invoice in
   // the dashboard.
   const saveAndNavigate = async (printAfter: boolean) => {
@@ -336,34 +343,61 @@ export default function CreateInvoicePage() {
       }
 
       if (printAfter && createdId) {
-        // Build the PDF URL with cache-bust so the browser never
-        // re-uses a stale body, then open it in a new tab and
-        // print. The new tab's window.print() fires after the
-        // PDF viewer loads the document.
+        // Fetch the PDF with auth headers (apiFetch attaches
+        // x-user-id + x-company-id from localStorage), then
+        // build a same-origin blob URL the new tab can load.
         const cacheBust = `t=${Date.now()}`
-        const pdfUrl = `/api/v1/invoices/${createdId}/pdf?companyId=${companyId}&${cacheBust}`
-        const printWindow = window.open(pdfUrl, "_blank")
-        if (printWindow) {
-          // Wait for the PDF to load in the new tab before firing
-          // print. PDF viewers vary in load timing, so a 1.5s
-          // delay is a safe middle ground. The user can also
-          // hit Cmd+P manually if the print dialog doesn't auto-
-          // appear (most do).
-          setTimeout(() => {
-            try {
-              printWindow.focus()
-              printWindow.print()
-            } catch (e) {
-              // If the popup was blocked or the viewer disallows
-              // script-driven print, fall back to downloading the
-              // PDF in the same tab.
-              window.location.href = pdfUrl
-            }
-          }, 1500)
+        const pdfPath = `/api/v1/invoices/${createdId}/pdf?companyId=${companyId}&${cacheBust}`
+        const response = await apiFetch(pdfPath, { throwOnError: false })
+        if (!response.ok) {
+          // The invoice was created (we have createdId) but the
+          // PDF fetch failed — surface the error but still
+          // navigate to the detail page so the user can
+          // download manually from there.
+          const msg = response.status === 401 || response.status === 403
+            ? "Sitzung abgelaufen — bitte neu anmelden"
+            : `PDF konnte nicht geladen werden (HTTP ${response.status})`
+          alert(msg)
+          // Fall through to the navigation below
         } else {
-          // Popup blocked — fall back to navigating this tab to
-          // the PDF URL so the user can print manually.
-          window.location.href = pdfUrl
+          const blob = await response.blob()
+          const blobUrl = URL.createObjectURL(blob)
+          const printWindow = window.open(blobUrl, "_blank")
+          if (printWindow) {
+            // Give the PDF viewer ~1.5s to load before firing
+            // print. Most PDF viewers (Chrome/Edge/Firefox
+            // built-in, plus the Adobe extension) will then
+            // show the system print dialog automatically.
+            // The user can also hit Cmd/Ctrl+P manually if
+            // the dialog doesn't auto-appear.
+            setTimeout(() => {
+              try {
+                printWindow.focus()
+                printWindow.print()
+              } catch (e) {
+                // The blob URL is same-origin, so print() should
+                // succeed; if it doesn't (very rare — e.g. user
+                // closed the new tab), we silently no-op. The
+                // blob is still downloadable from the new tab.
+                console.error("Auto-print failed:", e)
+              }
+              // Revoke the blob URL after the print dialog has
+              // had a chance to read the blob. The PDF is fully
+              // rendered in the new tab by now, so this is safe.
+              setTimeout(() => URL.revokeObjectURL(blobUrl), 5000)
+            }, 1500)
+          } else {
+            // Popup blocked — fall back to triggering a
+            // download in the current tab. The user can then
+            // open the downloaded PDF and print from there.
+            const a = document.createElement("a")
+            a.href = blobUrl
+            a.download = `rechnung-${createdId}.pdf`
+            document.body.appendChild(a)
+            a.click()
+            document.body.removeChild(a)
+            setTimeout(() => URL.revokeObjectURL(blobUrl), 10000)
+          }
         }
       }
 
@@ -574,30 +608,23 @@ export default function CreateInvoicePage() {
                 </div>
               </div>
 
-              {/* Second row: dueDate (computed from paymentTerms by
-                  default but can be overridden) + deliveryDate
-                  (Liefertermin — optional, shown on the PDF). */}
+              {/* Liefertermin (delivery date) — optional, shown on
+                  the PDF when set. Fälligkeitsdatum is intentionally
+                  not editable here: it is auto-computed from the
+                  Zahlungsziel dropdown at the top of this section
+                  and stored when the invoice is created. The user
+                  can override per-invoice on the detail page if
+                  they really need to. */}
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium mb-1">
-                    {t("invoice.dueDate") || "Fälligkeitsdatum"}
-                  </label>
-                  <Input
-                    type="date"
-                    value={form.dueDate}
-                    onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
-                    title={t("invoice.dueDateHint") || "Wird automatisch aus dem Zahlungsziel berechnet, kann aber überschrieben werden"}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    {t("invoice.deliveryDate") || "Liefertermin"}
+                    {t("invoice.deliveryDate")}
                   </label>
                   <Input
                     type="date"
                     value={form.deliveryDate}
                     onChange={(e) => setForm({ ...form, deliveryDate: e.target.value })}
-                    title={t("invoice.deliveryDateHint") || "Optional — wird auf der Rechnung angezeigt"}
+                    title={t("invoice.deliveryDateHint")}
                   />
                 </div>
               </div>
