@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { useI18n } from "@/components/useI18n"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
-import { apiGet, apiPost, apiPut, ApiError } from "@/lib/api"
+import { apiGet, apiPost, apiPut, apiFetch, ApiError } from "@/lib/api"
 
 type InvoiceType = 'INV' | 'CN' | 'PI' | 'RCV'
 type InvoiceTemplateType = 'standard' | 'simplified' | 'compact'
