@@ -350,6 +350,16 @@ model InvoiceItem {
   productId       String?
   product         Product?  @relation(fields: [productId], references: [id])
 
+  // Produktnummer / SKU as it appears on this specific invoice
+  // line. Distinct from Product.sku (the master article
+  // number): the invoice value is a snapshot taken at issue
+  // time, so editing the product later doesn't rewrite the
+  // historical invoice. Also allows per-customer part numbers
+  // — the user can override what the product picker auto-
+  // filled. Optional because not every line item carries a
+  // SKU (e.g. "Beratungsleistungen" on a service invoice).
+  productNumber   String?
+
   description     String
   quantity        Decimal   @db.Decimal(12,4) @default(1)
   unit            String?

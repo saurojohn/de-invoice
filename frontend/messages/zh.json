@@ -81,6 +81,8 @@
     "markAsSent": "标记为已发送",
     "markAsPaid": "标记为已付款",
     "description": "描述",
+    "productNumber": "产品编号",
+    "productNumberHint": "自动从产品库带入，可手动修改",
     "quantity": "数量",
     "unit": "单位",
     "unitPrice": "单价",

@@ -22,6 +22,16 @@ export class InvoiceItemDto {
   @IsString()
   @IsOptional()
   productId?: string;
+
+  // Produktnummer / SKU. Distinct from productId (FK to the
+  // Product master) — this is the value the user wants to
+  // PRINT on this line of the invoice. The product picker
+  // auto-fills it from Product.sku, but the user can override
+  // it (e.g. for a customer-specific part number on a manual
+  // line). Optional: not every invoice has SKUs.
+  @IsString()
+  @IsOptional()
+  productNumber?: string;
 }
 
 export class CreateInvoiceDto {

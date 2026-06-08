@@ -36,6 +36,11 @@ interface Invoice {
 
 interface InvoiceItem {
   productId?: string
+  // Produktnummer / SKU. Auto-filled when a product is picked
+  // from the dropdown, but user-editable so manual line items
+  // can carry a custom reference. Optional because the field
+  // is only shown when non-empty in the PDF line item table.
+  productNumber?: string
   description: string
   quantity: number
   unit: string
@@ -82,7 +87,7 @@ export default function CreateInvoicePage() {
     // in the language they want the invoice in. They can still
     // override per-invoice (e.g. UI in DE, customer in EN).
     language: getDateLocale(),
-    items: [{ description: "", quantity: 1, unit: t("common2.unit"), unitPrice: 0, vatRate: 0.19 }] as InvoiceItem[],
+    items: [{ description: "", productNumber: "", quantity: 1, unit: t("common2.unit"), unitPrice: 0, vatRate: 0.19 }] as InvoiceItem[],
   })
   const [loading, setLoading] = useState(false)
   // Top-of-page error from the initial-load fetch (e.g. 403 when
@@ -142,6 +147,7 @@ export default function CreateInvoicePage() {
             language: inv.language || getDateLocale(),
             items: (inv.items || []).map((it: any) => ({
               description: it.description || '',
+              productNumber: it.productNumber || '',
               quantity: Number(it.quantity || 1),
               unit: it.unit || t("common2.unit"),
               unitPrice: Number(it.unitPrice || 0),
@@ -194,6 +200,10 @@ export default function CreateInvoicePage() {
     items[index] = {
       productId: product.id,
       description: product.name,
+      // Auto-fill the SKU from the product master. The user can
+      // still override this in the line-item row (e.g. to carry
+      // a customer-specific part number on the invoice).
+      productNumber: product.sku || "",
       quantity: 1,
       unit: product.unit,
       unitPrice: parseFloat(product.basePrice),
@@ -216,6 +226,7 @@ export default function CreateInvoicePage() {
     const refCustomerName = invoice.customer?.name || ""
     const refItems = (invoice.items || []).map((it) => ({
       description: it.description,
+      productNumber: it.productNumber || "",
       quantity: Number(it.quantity),
       unit: it.unit,
       unitPrice: Number(it.unitPrice),
@@ -227,7 +238,7 @@ export default function CreateInvoicePage() {
       customerId: refCustomerId,
       items: refItems.length > 0
         ? refItems
-        : [{ description: "", quantity: 1, unit: t("common2.unit"), unitPrice: 0, vatRate: 0.19 }],
+        : [{ description: "", productNumber: "", quantity: 1, unit: t("common2.unit"), unitPrice: 0, vatRate: 0.19 }],
     })
     setInvoiceSearch(invoice.invoiceNumber)
     setCustomerSearch(refCustomerName)
@@ -257,7 +268,7 @@ export default function CreateInvoicePage() {
   const addItem = () => {
     setForm({
       ...form,
-      items: [...form.items, { description: "", quantity: 1, unit: t("common2.unit"), unitPrice: 0, vatRate: 0.19 }],
+      items: [...form.items, { description: "", productNumber: "", quantity: 1, unit: t("common2.unit"), unitPrice: 0, vatRate: 0.19 }],
     })
   }
 
@@ -715,15 +726,35 @@ export default function CreateInvoicePage() {
             )}
             <CardContent className="space-y-4">
               <div className="grid grid-cols-12 gap-2 text-sm font-medium text-gray-600 px-2">
-                <div className="col-span-5">{t("invoice.description")}</div>
+                <div className="col-span-2">{t("invoice.productNumber")}</div>
+                <div className="col-span-4">{t("invoice.description")}</div>
                 <div className="col-span-2">{t("invoice.quantity")}</div>
-                <div className="col-span-2">{t("invoice.unitPrice")} (€)</div>
+                <div className="col-span-1">{t("invoice.unitPrice")} (€)</div>
                 <div className="col-span-1">{t("invoice.vatRate")}</div>
                 <div className="col-span-2">{t("common.actions")}</div>
               </div>
               {form.items.map((item, index) => (
                 <div key={index} className="grid grid-cols-12 gap-2 items-end">
-                  <div className="col-span-5 relative">
+                  <div className="col-span-2">
+                    {/* Artikelnr. / SKU. Auto-filled when a product
+                        is picked from the description dropdown below,
+                        but the user can override it (e.g. to enter a
+                        customer-specific part number for a manual
+                        line item). Independent of the product picker
+                        — typing here does NOT trigger the dropdown. */}
+                    <Input
+                      value={item.productNumber || ""}
+                      onChange={(e) => {
+                        const items = [...form.items]
+                        items[index].productNumber = e.target.value
+                        setForm({ ...form, items })
+                      }}
+                      placeholder={t("invoice.productNumber")}
+                      title={t("invoice.productNumberHint")}
+                      className="font-mono text-sm"
+                    />
+                  </div>
+                  <div className="col-span-4 relative">
                     <Input
                       value={item.description}
                       onChange={(e) => {

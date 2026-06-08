@@ -81,6 +81,8 @@
     "markAsSent": "Mark as Sent",
     "markAsPaid": "Mark as Paid",
     "description": "Description",
+    "productNumber": "Item No.",
+    "productNumberHint": "Auto-filled from the product master, can be overridden",
     "quantity": "Quantity",
     "unit": "Unit",
     "unitPrice": "Unit Price",

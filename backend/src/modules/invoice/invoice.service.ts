@@ -318,6 +318,10 @@ export class InvoiceService {
             // can't refuse to delete a product that's still on past
             // invoices.
             productId: item.productId || null,
+            // Produktnummer / SKU snapshot. Empty string is
+            // normalized to null so the column reads cleanly in
+            // the DB; the PDF only renders it when set.
+            productNumber: item.productNumber?.trim() || null,
             quantity: item.quantity,
             unit: item.unit || 'Stück',
             unitPrice: item.unitPrice,
@@ -399,6 +403,7 @@ export class InvoiceService {
         create: dto.items.map((item, index) => ({
           description: item.description,
           productId: item.productId || null,
+          productNumber: item.productNumber?.trim() || null,
           quantity: item.quantity,
           unit: item.unit || 'Stück',
           unitPrice: item.unitPrice,

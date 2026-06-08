@@ -81,6 +81,8 @@
     "markAsSent": "Als versendet markieren",
     "markAsPaid": "Als bezahlt markieren",
     "description": "Beschreibung",
+    "productNumber": "Artikelnr.",
+    "productNumberHint": "Wird automatisch aus dem Produktstamm übernommen, kann aber überschrieben werden",
     "quantity": "Menge",
     "unit": "Einheit",
     "unitPrice": "Einzelpreis",
