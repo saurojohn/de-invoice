@@ -9,7 +9,9 @@
     "dev": "ts-node src/main.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:push": "prisma db push"
+    "prisma:push": "prisma db push",
+    "test:e2e": "bash e2e/run-all.sh",
+    "test:e2e:gobd": "bash e2e/run-all.sh"
   },
   "keywords": [
     "german",

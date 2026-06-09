@@ -340,14 +340,29 @@ export class KassenbuchService {
     if (original.reversesId) {
       throw new BadRequestException('Diese Buchung ist bereits eine Storno-Buchung und kann nicht selbst storniert werden. Stornieren Sie stattdessen die Originalbuchung.')
     }
-    // Create the reversal
+    // The reversal carries the NEGATIVE of the original
+    // amount. Same type, same vatRate — that way the row
+    // stays categorically correct in the by-type breakdown
+    // (an einnahme storno is still tracked under einnahmen),
+    // but the negative sign means the aggregation loop
+    // (`einnahmen += a`) actually subtracts it.
+    //
+    // Example: original einnahme 100 → reversal einnahme
+    // -100 → einnahmen sum = 100 + (-100) = 0. ✓
+    //
+    // The previous implementation stored the reversal with
+    // the same positive amount, which silently doubled
+    // the einnahmen/ausgaben sum. Caught by GoBD e2e
+    // test 03-storno-net-zero.sh.
+    const originalAmount = Number(original.amount)
+    const reversalAmount = -originalAmount
     const reversal = await this.prisma.cashBookEntry.create({
       data: {
         companyId,
         businessDate: original.businessDate,
         type: original.type as CashBookEntryType,
         description: `STORNO: ${original.description}`,
-        amount: original.amount, // positive, same type → opposite sign on the balance
+        amount: reversalAmount.toFixed(4),
         vatRate: original.vatRate,
         counterparty: original.counterparty,
         belegNumber: original.belegNumber,
@@ -389,6 +404,18 @@ export class KassenbuchService {
       throw new BadRequestException('Keine Buchungen an diesem Tag — Z-Bericht nicht erforderlich (oder leerer Tag).')
     }
     const differenz = Math.round((physicalCount - day.ende) * 100) / 100
+    // GoBD §146 AO: a non-zero cash differenz must be
+    // documented at close time. Without a note we have
+    // an unexplained Kassenfehlbetrag / Kassenüberschuss
+    // in the audit trail, which is exactly what the
+    // Betriebsprüfer will flag in the next tax audit.
+    // (Caught by e2e/04-zbericht-differenz.sh.)
+    if (Math.abs(differenz) > 0.001 && !differenzNote?.trim()) {
+      throw new BadRequestException(
+        'Bei einer Differenz ist eine Begründung erforderlich (GoBD §146 AO). ' +
+        `Differenz: ${differenz} EUR. Bitte DifferenzNote angeben.`
+      )
+    }
     const snapshot = {
       entries: day.entries.map((e: any) => ({
         id: e.id,
