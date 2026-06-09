@@ -1,10 +1,22 @@
-import PDFKit from 'pdfkit';
 import { generateXRechnung, transformToXRechnungData, XRechnungData } from './xrechnung.service';
+import { embedFacturX } from './zugferd-embed';
+import { generateInvoicePDF } from './invoice-pdf.service';
 
 /**
  * ZUGFeRD Service
  * Generates electronic invoices in ZUGFeRD 1.0 / 2.0 format
  * ZUGFeRD = PDF/A-3 with embedded XML (Factur-X standard)
+ *
+ * Pipeline:
+ *   1. PDFKit draws a visually-pleasant PDF (same layout as
+ *      invoice-pdf.service.ts)
+ *   2. The ZUGFeRD 2.x XML (CrossIndustryInvoice) is generated
+ *      by generateZUGFeRDXml()
+ *   3. zugferd-embed.ts loads the PDF with pdf-lib, attaches
+ *      the XML as `factur-x.xml` with AFRelationship=Source+Data,
+ *      and writes the Factur-X XMP metadata
+ *   4. The result is a single PDF that humans can read AND
+ *      ERP systems (Lexware, SevDesk, Datev, etc.) can parse
  */
 
 export interface ZUGFeRDOptions {
@@ -75,8 +87,20 @@ export async function generateZUGFeRD(
   // Generate ZUGFeRD XML (Factur-X profile)
   const zugferdXml = generateZUGFeRDXml(xrechnungData, version, conformanceLevel);
 
-  // Create PDF with embedded XML
-  return createZUGFeRDPdf(invoice, company, zugferdXml, xmlContent, version);
+  // Create the visual PDF — humans read this part.
+  // Reuse the canonical invoice-pdf generator instead of
+  // maintaining a duplicate PDFKit layout (which drifted out
+  // of sync with the invoice PDF in earlier revisions — see
+  // git history).
+  //
+  // The footer's "ZUGFeRD konform" line is rendered on top of
+  // the standard PDF via the ZUGFeRD layer below.
+  const visualPdf = await generateInvoicePDF(invoice as any, company as any, 'standard');
+
+  // Embed the XML into the PDF — machines read this part.
+  // This is the step that turns a "PDF with a ZUGFeRD footer"
+  // into a real ZUGFeRD / Factur-X document.
+  return embedFacturX(visualPdf, zugferdXml, version, conformanceLevel);
 }
 
 function generateZUGFeRDXml(
@@ -211,332 +235,6 @@ function generateTradeParty(
     </ram:${type}TradeParty>`;
 }
 
-function createZUGFeRDPdf(
-  invoice: any,
-  company: any,
-  zugferdXml: string,
-  xrechnungXml: string,
-  version: string
-): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    const doc = new PDFKit({ margin: 50, size: 'A4' }) as any;
-    const chunks: Buffer[] = [];
-
-    doc.on('data', (chunk: Buffer) => chunks.push(chunk));
-    doc.on('end', () => {
-      // Note: Full PDF/A-3 compliance requires additional processing
-      // For production use, consider using a dedicated PDF library like pdf-lib
-      // or integrate with a pre-flight PDF processor
-      resolve(Buffer.concat(chunks));
-    });
-    doc.on('error', reject);
-
-    const pageWidth = doc.page.width;
-    const leftMargin = 50;
-    const rightMargin = pageWidth - 50;
-
-    // ===== HEADER =====
-    if (company.logoPath) {
-      const logoPath = resolveLogoPath(company.logoPath);
-      if (logoPath) {
-        try {
-          // Logo centered horizontally at the top, height 68px
-          // (52 → 68, another +30% per user request). Width capped
-          // at 220px. The company name + address block below now
-          // sits in the top-right corner (was below the logo in
-          // earlier layouts).
-          const imgHeight = 68;
-          const img = doc.openImage(logoPath);
-          const imgWidth = Math.min(img.width * (imgHeight / img.height), 220);
-          const imgX = (pageWidth - imgWidth) / 2;
-          doc.image(logoPath, imgX, 50, { height: imgHeight });
-        } catch (e) {
-          console.warn('Logo loading failed:', e);
-        }
-      }
-    }
-
-    // Company info — right-anchored block in the top-right corner
-    // (per user request — logo moved to top-center, so the company
-    // info shifts to the right corner to keep the header balanced).
-    // Y starts at 50 to sit at the same top band as the logo.
-    const compAddr = company.address || {};
-    const rightBlockWidth = rightMargin - leftMargin;
-    doc.fontSize(20).font('Helvetica-Bold').text(company.name, leftMargin, 50, { width: rightBlockWidth, align: 'right', lineBreak: false });
-    doc.fontSize(9).font('Helvetica');
-    if (compAddr.street) doc.text(compAddr.street, leftMargin, 75, { width: rightBlockWidth, align: 'right', lineBreak: false });
-    if (compAddr.postalCode || compAddr.city) {
-      doc.text(`${compAddr.postalCode || ''} ${compAddr.city || ''}`.trim(), leftMargin, 87, { width: rightBlockWidth, align: 'right', lineBreak: false });
-    }
-    if (compAddr.country) doc.text(compAddr.country, leftMargin, 99, { width: rightBlockWidth, align: 'right', lineBreak: false });
-    // Contact line (below the address). Packs email / phone /
-    // fax / website onto a single line, joined with " · ".
-    // Empty channels are skipped so a company that hasn't
-    // filled in fax/website still renders cleanly. The HR /
-    // Geschäftsführer / Sonstige Angaben used to live here too,
-    // but they got too long and crowded the right side; they
-    // Per user request: phone + fax share one line (joined
-    // with " · "), email and website each get their own line.
-    // Three single-line right-aligned blocks at 8pt. Skip
-    // empty channels entirely — a company that hasn't filled
-    // in website just gets the first two (or one) lines.
-    // The HR / Geschäftsführer / Sonstige Angaben used to live
-    // here too, but they got too long and crowded the right
-    // side; they now live in the right footer instead, where
-    // they have more room.
-    let contactY = 113;
-    doc.fontSize(8).font('Helvetica');
-    // Row 1: phone · fax
-    const phoneFax: string[] = [];
-    if (company.phone) phoneFax.push(company.phone);
-    if ((company as any).fax) phoneFax.push(`Fax: ${(company as any).fax}`);
-    if (phoneFax.length) {
-      doc.text(phoneFax.join('  ·  '), leftMargin, contactY, { width: rightBlockWidth, align: 'right', lineBreak: false });
-      contactY += 10;
-    }
-    // Row 2: email
-    if (company.email) {
-      doc.text(company.email, leftMargin, contactY, { width: rightBlockWidth, align: 'right', lineBreak: false });
-      contactY += 10;
-    }
-    // Row 3: website
-    if ((company as any).website) {
-      doc.text((company as any).website, leftMargin, contactY, { width: rightBlockWidth, align: 'right', lineBreak: false });
-    }
-
-    // Invoice title (right aligned to rightMargin). Switch by type so
-    // CN is printed as "GUTSCHRIFT" etc.
-    const invoiceTitle = (() => {
-      switch ((invoice as any).type) {
-        case 'CN': return 'GUTSCHRIFT'
-        case 'PI': return 'PROFORMARECHNUNG'
-        case 'RCV': return 'QUITTUNG'
-        default: return 'RECHNUNG'
-      }
-    })()
-    // Middle row Y band — same layout as invoice-pdf.service.ts.
-    // Customer block on the left, RECHNUNG title + details on the
-    // right. Y = headerStartY + logoHeight + 14 = 132.
-    const middleRowY = 132;
-    const titleWidth = rightMargin - leftMargin
-    // Title block offset down 3 rows (3 × 14pt = 42pt) so the
-    // RECHNUNG title sits clearly below the customer name on the
-    // left. RECHNUNG 20pt (was 24pt), invoice number 16pt
-    // (was 14pt) — more balanced header pair.
-    const titleOffsetY = 42;
-    const titleY = middleRowY + titleOffsetY;
-    doc.fontSize(20).font('Helvetica-Bold').text(invoiceTitle, leftMargin, titleY, { width: titleWidth, align: 'right', lineBreak: false });
-    doc.fontSize(16).text(invoice.invoiceNumber, leftMargin, titleY + 24, { width: titleWidth, align: 'right', lineBreak: false });
-
-    // Invoice details (right side, below RECHNUNG title).
-    // §14 UStG requires the company USt-IDNr. and Steuernummer
-    // to appear on every invoice. Per the user, they live
-    // directly underneath Ausstellungsdatum on the right, in
-    // the same column (same right-aligned value column as the
-    // date). Currency sits after the tax IDs.
-    const detailsY = titleY + 54;
-    // Both label and value columns are right-aligned at fixed X
-    // offsets so the right edge of every label lands at the
-    // same X as the right edge of every value (with an 80pt
-    // gap between them). USt-IDNr and Steuernummer now line
-    // up exactly with Ausstellungsdatum, which is what the
-    // user asked for.
-    const detailsLabelX = rightMargin - 180;
-    const detailsValueX = rightMargin - 100;
-    const detailsValueWidth = 100;
-    doc.fontSize(10).font('Helvetica').fillColor('#000000');
-    let detailsRowY = detailsY;
-    doc.text('Ausstellungsdatum:', detailsLabelX, detailsRowY, { width: 100, align: 'right', lineBreak: false });
-    doc.text(formatDate(invoice.issueDate), detailsValueX, detailsRowY, { width: detailsValueWidth, align: 'right', lineBreak: false });
-    detailsRowY += 15;
-    if (company.vatId) {
-      doc.text('USt-IDNr.:', detailsLabelX, detailsRowY, { width: 100, align: 'right', lineBreak: false });
-      doc.text(company.vatId, detailsValueX, detailsRowY, { width: detailsValueWidth, align: 'right', lineBreak: false });
-      detailsRowY += 15;
-    }
-    if (company.taxId) {
-      doc.text('Steuernummer:', detailsLabelX, detailsRowY, { width: 100, align: 'right', lineBreak: false });
-      doc.text(company.taxId, detailsValueX, detailsRowY, { width: detailsValueWidth, align: 'right', lineBreak: false });
-      detailsRowY += 15;
-    }
-    doc.text('Währung:', detailsLabelX, detailsRowY, { width: 100, align: 'right', lineBreak: false });
-    doc.text(invoice.currency, detailsValueX, detailsRowY, { width: detailsValueWidth, align: 'right', lineBreak: false });
-    detailsRowY += 15;
-
-    // Customer address — left side of middle row. Per latest user
-    // request:
-    //   - Sender line: single line, 50% smaller (5pt) — acts as the
-    //     return-address line for window envelopes.
-    //   - Customer block: 11pt (+10% from the 10pt baseline).
-    //   - Sender + customer block offset down 2 rows (2 × 14pt =
-    //     28pt) so the address area sits clearly below the logo
-    //     band, matching the PDF service's offset.
-    const senderOffsetY = 28;
-    let custY = middleRowY + senderOffsetY;
-    const custAddr = invoice.customer?.address || {};
-    // Sender line: "Name · Straße · PLZ Ort · Land"
-    const senderParts: string[] = [company.name];
-    if (compAddr.street) senderParts.push(compAddr.street);
-    const pcCity = `${compAddr.postalCode || ''} ${compAddr.city || ''}`.trim();
-    if (pcCity) senderParts.push(pcCity);
-    if (compAddr.country) senderParts.push(compAddr.country);
-    doc.fontSize(5).font('Helvetica').text(senderParts.join(' · '), leftMargin, custY, { lineBreak: false });
-    custY += 10;
-    // Customer block — 11pt (was 10pt; +10% per user request).
-    doc.fontSize(11).font('Helvetica');
-    doc.text(invoice.customer?.name || '', leftMargin, custY, { lineBreak: false });
-    custY += 14;
-    if (custAddr.street) {
-      doc.text(custAddr.street, leftMargin, custY, { lineBreak: false });
-      custY += 14;
-    }
-    if (custAddr.postalCode || custAddr.city) {
-      doc.text(`${custAddr.postalCode || ''} ${custAddr.city || ''}`.trim(), leftMargin, custY, { lineBreak: false });
-      custY += 14;
-    }
-    if (custAddr.country) {
-      doc.text(custAddr.country, leftMargin, custY, { lineBreak: false });
-      custY += 14;
-    }
-    if (invoice.customer?.vatId) {
-      doc.text(`UST-IDNr.: ${invoice.customer.vatId}`, leftMargin, custY, { lineBreak: false });
-      custY += 14;
-    }
-
-    // Items table — start Y must follow the larger of (a) customer
-    // block end or (b) invoice details end, with a minimum floor
-    // so a near-empty invoice doesn't collapse the table.
-    const colWidths = { desc: 220, qty: 55, price: 75, vat: 55, net: 90 };
-    const headerHeight = 25;
-    const rowHeight = 24;
-    const detailsEndY = detailsY + 30;  // 2 detail rows × 15
-    const tableStartY = Math.max(280, Math.max(custY, detailsEndY) + 20);
-    let y = tableStartY;
-
-    doc.moveTo(leftMargin, y + headerHeight).lineTo(rightMargin, y + headerHeight).lineWidth(0.8).stroke();
-    doc.fillColor('#000000')
-      .fontSize(10).font('Helvetica-Bold')
-      .text('Beschreibung', leftMargin + 5, y + 8, { width: colWidths.desc - 10, lineBreak: false })
-      .text('Menge', leftMargin + colWidths.desc, y + 8, { width: colWidths.qty, align: 'center', lineBreak: false })
-      .text('Einzelpreis', leftMargin + colWidths.desc + colWidths.qty, y + 8, { width: colWidths.price, align: 'center', lineBreak: false })
-      .text('MwSt', leftMargin + colWidths.desc + colWidths.qty + colWidths.price, y + 8, { width: colWidths.vat, align: 'center', lineBreak: false })
-      // Gesamt header: right-aligned so it lines up vertically with numbers below
-      .text('Gesamt', leftMargin + colWidths.desc + colWidths.qty + colWidths.price + colWidths.vat, y + 8, { width: colWidths.net, align: 'right', lineBreak: false });
-
-    y += headerHeight;
-    doc.font('Helvetica').fontSize(10).lineWidth(0.3);
-    const sQtyX = leftMargin + colWidths.desc;
-    const sQtyW = colWidths.qty;
-    const sPriceX = leftMargin + colWidths.desc + colWidths.qty;
-    const sPriceW = colWidths.price;
-    const sVatX = leftMargin + colWidths.desc + colWidths.qty + colWidths.price;
-    const sVatW = colWidths.vat;
-    const sNetX = leftMargin + colWidths.desc + colWidths.qty + colWidths.price + colWidths.vat;
-    const sNetW = colWidths.net;
-    for (let i = 0; i < invoice.items.length; i++) {
-      const item = invoice.items[i];
-      if (i > 0) {
-        doc.moveTo(leftMargin, y).lineTo(rightMargin, y).stroke();
-      }
-      doc.fillColor('#000000').font('Helvetica');
-      doc.text(item.description, leftMargin + 5, y + 7, { width: colWidths.desc - 10, lineBreak: false });
-      doc.text(`${toFloat(item.quantity)} ${item.unit || ''}`, sQtyX, y + 7, { width: sQtyW, align: 'center', lineBreak: false });
-      doc.text(formatCurrency(toFloat(item.unitPrice)), sPriceX, y + 7, { width: sPriceW, align: 'center', lineBreak: false });
-      doc.text(formatVatRate(toFloat(item.vatRate)), sVatX, y + 7, { width: sVatW, align: 'center', lineBreak: false });
-      // Per-line total: right-aligned, normal weight, right edge = rightMargin
-      doc.text(formatCurrency(toFloat(item.netAmount)), sNetX, y + 7, { width: sNetW, align: 'right', lineBreak: false });
-      y += rowHeight;
-    }
-
-    // Totals — same column alignment as the table's Gesamt column
-    // (right edge anchored to rightMargin)
-    const totalsY = y + 20;
-    const totalsLabelX = leftMargin + 220;
-    const totalsAmountX = rightMargin - 100;
-    const totalsAmountWidth = 100;
-    doc.moveTo(totalsAmountX, totalsY).lineTo(rightMargin, totalsY).lineWidth(0.8).stroke();
-
-    const totalsFontSize = 11;
-    const totalsLineHeight = 22;
-    doc.fillColor('#000000').font('Helvetica').fontSize(totalsFontSize).lineWidth(0.3);
-    doc.text('Zwischensumme (Netto):', totalsLabelX, totalsY + 5, { lineBreak: false });
-    doc.text(formatCurrency(toFloat(invoice.subtotal)), totalsAmountX, totalsY + 5, { width: totalsAmountWidth, align: 'right', lineBreak: false });
-    doc.text('Gesamtbetrag USt:', totalsLabelX, totalsY + totalsLineHeight, { lineBreak: false });
-    doc.text(formatCurrency(toFloat(invoice.totalVat)), totalsAmountX, totalsY + totalsLineHeight, { width: totalsAmountWidth, align: 'right', lineBreak: false });
-
-    // Gesamtbetrag: outlined box (no fill), bigger font, right edge aligned
-    const gesamtY = totalsY + totalsLineHeight * 2;
-    const gesamtHeight = totalsLineHeight + 4;
-    const gesamtBoxX = totalsLabelX - 5;
-    const gesamtBoxWidth = rightMargin - gesamtBoxX;
-    doc.lineWidth(1.0);
-    doc.rect(gesamtBoxX, gesamtY, gesamtBoxWidth, gesamtHeight).stroke();
-    doc.fillColor('#000000').font('Helvetica-Bold').fontSize(totalsFontSize + 2);
-    doc.text('Gesamtbetrag:', gesamtBoxX + 5, gesamtY + 6, { lineBreak: false });
-    doc.text(formatCurrency(toFloat(invoice.total)), totalsAmountX, gesamtY + 6, { width: totalsAmountWidth, align: 'right', lineBreak: false });
-
-    // Footer — left side keeps the ZUGFeRD/Factur-X compliance
-    // note. The right side carries the Impressum (§5 TMG) and
-    // other misc. info that used to clutter the right corner of
-    // the letterhead.
-    const footerY = doc.page.height - 100;
-    // Both blocks below use Helvetica (non-bold) — the user
-    // explicitly asked for the right-footer Impressum to not be
-    // bold. The ZUGFeRD service doesn't have a left-side
-    // bank-info block (it has a ZUGFeRD compliance note on the
-    // left instead), but the right-side Impressum mirrors the
-    // PDF service's, and both need to be non-bold for visual
-    // consistency.
-    doc.fontSize(8).fillColor('#000000').font('Helvetica');
-    doc.text(`ZUGFeRD ${version} konform / Factur-X ${version}`, leftMargin, footerY + 60, { lineBreak: false });
-
-    // Right footer — Impressum / Rechtliches / Sonstige Angaben.
-    // Anchored to rightMargin, right-aligned, mirrors the layout
-    // in invoice-pdf.service.ts. Handelsregister + Geschäftsführer
-    // are single lines; otherInfo is multi-line free text and
-    // is rendered verbatim with PDFKit's wrapping at rightMargin.
-    const reg = (company as any).registerEntry;
-    const md = (company as any).managingDirector;
-    const other = (company as any).otherInfo;
-    const rightFooterWidth = rightMargin - leftMargin;
-    let rightFooterY = footerY;
-    if (reg) {
-      doc.text(`Handelsregister: ${reg}`, leftMargin, rightFooterY, { width: rightFooterWidth, align: 'right', lineBreak: false });
-      rightFooterY += 12;
-    }
-    if (md) {
-      doc.text(`Geschäftsführer: ${md}`, leftMargin, rightFooterY, { width: rightFooterWidth, align: 'right', lineBreak: false });
-      rightFooterY += 12;
-    }
-    if (other) {
-      // Render otherInfo line-by-line (split on user-typed \n)
-      // instead of passing the whole multi-line string with
-      // lineBreak:true. The latter caused PDFKit to collapse
-      // the \n separators in some right-alignment scenarios,
-      // making the second line draw on top of the first.
-      // 9pt per line keeps the block compact so the page
-      // number still fits on page 1 (maxY 791.89pt).
-      const otherLines = other.split(/\r?\n/).filter((l: string) => l.length > 0);
-      for (const line of otherLines) {
-        doc.text(line, leftMargin, rightFooterY, { width: rightFooterWidth, align: 'right', lineBreak: false });
-        rightFooterY += 9;
-      }
-    }
-
-    // Page number — bottom-right corner, on the same row as the
-    // ZUGFeRD compliance note on the left. Pinned to a fixed
-    // Y (footerY + 60) so a long otherInfo block above it can't
-    // push the page number onto a 2nd page.
-
-    // Notes
-    if (invoice.notes) {
-      doc.fontSize(9).font('Helvetica-Bold').text('Bemerkungen:', leftMargin, totalsY + 90, { lineBreak: false });
-      doc.font('Helvetica').text(invoice.notes, leftMargin, totalsY + 105, { width: 400, lineBreak: true });
-    }
-
-    doc.end();
-  });
-}
 
 function groupVatByRate(items: XRechnungData['items']): { rate: number; taxableAmount: number; taxAmount: number }[] {
   const grouped: Map<number, { taxableAmount: number; taxAmount: number }> = new Map();
