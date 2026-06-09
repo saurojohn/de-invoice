@@ -475,8 +475,14 @@ export async function generateInvoicePDF(
         if (i > 0) {
           doc.moveTo(leftMargin, y).lineTo(rightMargin, y).stroke()
         }
-        // SKU in its own column (centered); if no linked product, show "—"
-        const sku = (item as any).product?.sku || "—"
+        // SKU in its own column (centered); priority:
+        //   1. item.productNumber (snapshot at issue time — survives
+        //      later product edits, which is the whole point of the
+        //      field, see commit f708fa2)
+        //   2. (item as any).product?.sku (live link fallback for
+        //      older invoices that predate productNumber)
+        //   3. em-dash placeholder for blank
+        const sku = (item as any).productNumber || (item as any).product?.sku || "—"
         doc.fillColor("#000000")
         doc.font("Helvetica-Bold").fontSize(10)
           .text(sku, leftMargin, y + 7, { width: colWidths.sku, align: "center", lineBreak: false })
