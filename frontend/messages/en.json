@@ -28,7 +28,8 @@
     "notFound": "Not found",
     "networkError": "Network error",
     "companyLogoAlt": "Company logo",
-    "saveError": "Save failed"
+    "saveError": "Save failed",
+    "amount": "Amount"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -125,7 +126,8 @@
     "typeInvoice": "Invoice",
     "typeCreditNote": "Credit Note",
     "typeProforma": "Proforma Invoice",
-    "typeReceipt": "Receipt"
+    "typeReceipt": "Receipt",
+    "issueDate": "Issue Date"
   },
   "customer": {
     "title": "Customer Management",

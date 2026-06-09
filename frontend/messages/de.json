@@ -28,7 +28,8 @@
     "errorWithDetail": "Fehler: {detail}",
     "networkError": "Netzwerkfehler",
     "companyLogoAlt": "Firmenlogo",
-    "saveError": "Fehler beim Speichern"
+    "saveError": "Fehler beim Speichern",
+    "amount": "Betrag"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -133,7 +134,8 @@
     "installInstallments": "Ratenzahlung",
     "installInstallmentPlan": "Ratenzahlungsplan",
     "saveChanges": "Änderungen speichern",
-    "basicInfo": "Grundinformationen"
+    "basicInfo": "Grundinformationen",
+    "issueDate": "Rechnungsdatum"
   },
   "customer": {
     "title": "Kundenverwaltung",

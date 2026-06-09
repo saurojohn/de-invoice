@@ -28,7 +28,8 @@
     "notFound": "未找到",
     "networkError": "网络错误",
     "companyLogoAlt": "公司Logo",
-    "saveError": "保存失败"
+    "saveError": "保存失败",
+    "amount": "金额"
   },
   "nav": {
     "dashboard": "仪表盘",
@@ -135,7 +136,8 @@
     "installInstallments": "分期付款",
     "installInstallmentPlan": "分期计划",
     "saveChanges": "保存修改",
-    "basicInfo": "基本信息"
+    "basicInfo": "基本信息",
+    "issueDate": "开票日期"
   },
   "customer": {
     "title": "客户管理",
