@@ -31,7 +31,11 @@
     "saveError": "Save failed",
     "amount": "Amount",
     "pause": "Pause",
-    "resume": "Resume"
+    "resume": "Resume",
+    "view": "View",
+    "prev": "Previous",
+    "next": "Next",
+    "page": "Page"
   },
   "nav": {
     "dashboard": "Dashboard",

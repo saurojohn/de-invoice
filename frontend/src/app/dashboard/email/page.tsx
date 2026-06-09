@@ -65,9 +65,9 @@ export default function EmailCenterPage() {
     setLoading(true)
     Promise.all([
       apiGet<{ data: EmailRow[]; total: number; page: number; pageSize: number }>(
-        `/mail/emails?companyId=${companyId}&page=${page}&pageSize=${pageSize}${statusFilter ? `&status=${statusFilter}` : ""}${search ? `&q=${encodeURIComponent(search)}` : ""}`
+        `/api/v1/mail/emails?companyId=${companyId}&page=${page}&pageSize=${pageSize}${statusFilter ? `&status=${statusFilter}` : ""}${search ? `&q=${encodeURIComponent(search)}` : ""}`
       ),
-      apiGet<EmailStats>(`/mail/emails/stats?companyId=${companyId}`),
+      apiGet<EmailStats>(`/api/v1/mail/emails/stats?companyId=${companyId}`),
     ])
       .then(([list, s]) => {
         setEmails(list?.data || [])
@@ -82,7 +82,7 @@ export default function EmailCenterPage() {
     const companyId = localStorage.getItem("companyId")
     if (!companyId) return
     setLoadingDetail(true)
-    apiGet<EmailRow>(`/mail/emails/${id}?companyId=${companyId}`)
+    apiGet<EmailRow>(`/api/v1/mail/emails/${id}?companyId=${companyId}`)
       .then((e) => setSelected(e))
       .catch((err) => console.error("Email detail failed:", err))
       .finally(() => setLoadingDetail(false))

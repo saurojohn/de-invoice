@@ -31,7 +31,11 @@
     "saveError": "Fehler beim Speichern",
     "amount": "Betrag",
     "pause": "Pause",
-    "resume": "Fortsetzen"
+    "resume": "Fortsetzen",
+    "view": "Ansehen",
+    "prev": "Zurück",
+    "next": "Weiter",
+    "page": "Seite"
   },
   "nav": {
     "dashboard": "Dashboard",

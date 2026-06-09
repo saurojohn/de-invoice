@@ -31,7 +31,11 @@
     "saveError": "保存失败",
     "amount": "金额",
     "pause": "暂停",
-    "resume": "恢复"
+    "resume": "恢复",
+    "view": "查看",
+    "prev": "上一页",
+    "next": "下一页",
+    "page": "第"
   },
   "nav": {
     "dashboard": "仪表盘",
