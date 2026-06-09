@@ -92,31 +92,38 @@ export default function ReportsPage() {
   const loadReports = async (companyId: string) => {
     setLoading(true)
     try {
+      // Use apiFetch so x-user-id / x-company-id get
+      // injected. Raw fetch() against HeaderAuthGuard
+      // returns 401 and res.json() throws — the page
+      // would have shown nothing. This was the same bug
+      // the dashboard had before commit 8b696b0.
       // Load sales report
-      const salesRes = await fetch(
-        `http://localhost:3001/api/v1/reports/sales?companyId=${companyId}&startDate=${startDate}&endDate=${endDate}`
+      const salesRes = await apiFetch(
+        `/api/v1/reports/sales?companyId=${companyId}&startDate=${startDate}&endDate=${endDate}`,
+        { throwOnError: false }
       )
-      const salesData = await salesRes.json()
+      const salesData = salesRes.ok ? await salesRes.json() : null
       setSalesReport(salesData)
 
       // Load VAT report
-      let vatUrl = `http://localhost:3001/api/v1/reports/vat?companyId=${companyId}&year=${vatYear}`
+      let vatPath = `/api/v1/reports/vat?companyId=${companyId}&year=${vatYear}`
       if (vatPeriod !== "year") {
         if (vatPeriod.startsWith("q")) {
-          vatUrl += `&quarter=${vatPeriod.slice(1)}`
+          vatPath += `&quarter=${vatPeriod.slice(1)}`
         } else if (vatPeriod.startsWith("m")) {
-          vatUrl += `&month=${vatPeriod.slice(1)}`
+          vatPath += `&month=${vatPeriod.slice(1)}`
         }
       }
-      const vatRes = await fetch(vatUrl)
-      const vatData = await vatRes.json()
+      const vatRes = await apiFetch(vatPath, { throwOnError: false })
+      const vatData = vatRes.ok ? await vatRes.json() : null
       setVatReport(vatData)
 
       // Load customer report
-      const customerRes = await fetch(
-        `http://localhost:3001/api/v1/reports/customers?companyId=${companyId}&startDate=${startDate}&endDate=${endDate}`
+      const customerRes = await apiFetch(
+        `/api/v1/reports/customers?companyId=${companyId}&startDate=${startDate}&endDate=${endDate}`,
+        { throwOnError: false }
       )
-      const customerData = await customerRes.json()
+      const customerData = customerRes.ok ? await customerRes.json() : null
       setCustomerReport(customerData)
     } catch (err) {
       console.error("Fehler beim Laden der Berichte:", err)
@@ -184,7 +191,7 @@ export default function ReportsPage() {
     try {
       const year = new Date().getFullYear()
       const res = await apiFetch(
-        `/reports/datev-export?companyId=${companyId}&startDate=${year}-01-01&endDate=${year}-12-31`,
+        `/api/v1/reports/datev-export?companyId=${companyId}&startDate=${year}-01-01&endDate=${year}-12-31`,
         { method: "GET" }
       )
       const blob = await res.blob()

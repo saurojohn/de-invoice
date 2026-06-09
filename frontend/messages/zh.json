@@ -35,7 +35,8 @@
     "view": "查看",
     "prev": "上一页",
     "next": "下一页",
-    "page": "第"
+    "page": "第",
+    "exportCsv": "导出 CSV"
   },
   "nav": {
     "dashboard": "仪表盘",

@@ -35,7 +35,8 @@
     "view": "Ansehen",
     "prev": "Zurück",
     "next": "Weiter",
-    "page": "Seite"
+    "page": "Seite",
+    "exportCsv": "CSV exportieren"
   },
   "nav": {
     "dashboard": "Dashboard",

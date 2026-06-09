@@ -57,7 +57,7 @@ export default function AgingReportPage() {
       router.push("/login")
       return
     }
-    apiGet<AgingReport>(`/reports/aging?companyId=${companyId}`)
+    apiGet<AgingReport>(`/api/v1/reports/aging?companyId=${companyId}`)
       .then((d) => setReport(d))
       .catch((err) => console.error("Aging report load failed:", err))
       .finally(() => setLoading(false))
