@@ -209,6 +209,30 @@ export default function DashboardPage() {
               <p className="text-gray-600">{t("dashboard.cardRemindersDesc")}</p>
             </CardContent>
           </Card>
+          <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/email")}>
+            <CardHeader>
+              <CardTitle>{t("dashboard.cardEmailTitle")}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-gray-600">{t("dashboard.cardEmailDesc")}</p>
+            </CardContent>
+          </Card>
+          <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/recurring-invoices")}>
+            <CardHeader>
+              <CardTitle>{t("dashboard.cardRecurringTitle")}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-gray-600">{t("dashboard.cardRecurringDesc")}</p>
+            </CardContent>
+          </Card>
+          <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/cashbook")}>
+            <CardHeader>
+              <CardTitle className="text-emerald-700">{t("dashboard.cardCashbookTitle")}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-gray-600">{t("dashboard.cardCashbookDesc")}</p>
+            </CardContent>
+          </Card>
           <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/settings")}>
             <CardHeader>
               <CardTitle>{t("dashboard.cardSettingsTitle")}</CardTitle>
