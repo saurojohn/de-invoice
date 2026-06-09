@@ -24,6 +24,13 @@ export class CustomerController {
     });
   }
 
+  @Get('next-number')
+  @Require('customer.read')
+  async previewNextNumber(@Query('companyId') companyId: string) {
+    this.assertCompanyId(companyId)
+    return this.customerService.previewNextCustomerNumber(companyId)
+  }
+
   @Get(':id')
   @Require('customer.read')
   async findOne(@Param('id') id: string, @Query('companyId') companyId: string) {

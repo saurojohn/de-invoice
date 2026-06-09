@@ -206,8 +206,45 @@ export class CustomerService {
     // caller didn't supply one (CSV import, manual form, etc.). Format
     // is "K-0001" with 4-digit zero-padding. Importer-provided numbers
     // are kept as-is and validated for per-company uniqueness.
+    //
+    // Race: two parallel create calls would both pick the same
+    // next-number, and the second would crash on the
+    // @@unique([companyId, customerNumber]) constraint. We retry
+    // up to 3 times — each retry re-reads the current max, so
+    // a concurrent winner causes us to step forward by 1.
     if (!safeData.customerNumber || !safeData.customerNumber.trim()) {
-      safeData.customerNumber = await this.nextCustomerNumber(companyId)
+      // Race: parallel create calls all pick the same
+      // next-number, only one survives the
+      // @@unique([companyId, customerNumber]) constraint.
+      // We retry with an exponential backoff AND a fresh
+      // next-number read. The retry will see the row the
+      // winner just committed and step forward by 1.
+      //
+      // Bump the cap to 8 — in the worst case 5 parallel
+      // callers can collide. The +1 jitter prevents two
+      // retries from re-aligning on the same number.
+      let lastError: any = null
+      for (let attempt = 0; attempt < 8; attempt++) {
+        try {
+          safeData.customerNumber = await this.nextCustomerNumber(companyId)
+          // Don't `return` inside the try — let the
+          // for-loop own the control flow so a thrown
+          // P2002 lands in the catch below.
+          const created = await this.prisma.customer.create({
+            data: { ...safeData, companyId },
+          })
+          return created
+        } catch (e: any) {
+          lastError = e
+          // P2002 = unique constraint violation. The
+          // other concurrent creator beat us — wait a
+          // short jittered backoff, then retry with a
+          // fresh next-number read.
+          if (e?.code !== 'P2002') throw e
+          await new Promise((r) => setTimeout(r, 5 + Math.random() * 20))
+        }
+      }
+      throw lastError
     }
     return this.prisma.customer.create({
       data: { ...safeData, companyId },
@@ -239,6 +276,18 @@ export class CustomerService {
       }
     }
     return `K-${String(max + 1).padStart(5, '0')}`
+  }
+
+  /**
+   * Public version of nextCustomerNumber, exposed via
+   * GET /api/v1/customers/next-number?companyId=... for the UI
+   * to show "the next number will be K-00024" before the user
+   * hits save. Does NOT reserve or consume the number.
+   */
+  async previewNextCustomerNumber(companyId: string): Promise<{ nextNumber: string; totalCustomers: number }> {
+    const nextNumber = await this.nextCustomerNumber(companyId)
+    const totalCustomers = await this.prisma.customer.count({ where: { companyId } })
+    return { nextNumber, totalCustomers }
   }
 
   async update(id: string, companyId: string, data: any) {
