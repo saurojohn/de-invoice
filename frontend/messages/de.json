@@ -29,7 +29,9 @@
     "networkError": "Netzwerkfehler",
     "companyLogoAlt": "Firmenlogo",
     "saveError": "Fehler beim Speichern",
-    "amount": "Betrag"
+    "amount": "Betrag",
+    "pause": "Pause",
+    "resume": "Fortsetzen"
   },
   "nav": {
     "dashboard": "Dashboard",

@@ -136,6 +136,12 @@ export class RecurringService {
           take: 25,
           select: { id: true, invoiceNumber: true, issueDate: true, total: true, status: true },
         },
+        // _count is included on list() — adding it here
+        // too so the expanded view in the UI doesn't
+        // break (the row tile accesses tpl._count.runs
+        // and a partial record here would crash the
+        // entire page with a TypeError).
+        _count: { select: { runs: true, invoices: true } },
       },
     })
     if (!r) throw new BadRequestException('Recurring invoice not found')

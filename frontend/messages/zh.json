@@ -29,7 +29,9 @@
     "networkError": "网络错误",
     "companyLogoAlt": "公司Logo",
     "saveError": "保存失败",
-    "amount": "金额"
+    "amount": "金额",
+    "pause": "暂停",
+    "resume": "恢复"
   },
   "nav": {
     "dashboard": "仪表盘",

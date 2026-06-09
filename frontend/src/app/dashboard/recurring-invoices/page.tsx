@@ -331,7 +331,7 @@ export default function RecurringInvoicesPage() {
 
                     {/* Counts */}
                     <div className="text-xs text-gray-500">
-                      {tpl._count.runs} runs / {tpl._count.invoices} inv.
+                      {tpl._count?.runs ?? 0} runs / {tpl._count?.invoices ?? 0} inv.
                     </div>
 
                     {/* Actions */}
