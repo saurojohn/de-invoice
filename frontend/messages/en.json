@@ -154,7 +154,8 @@
     "inactiveHint": "No invoice in the last 90 days (or never invoiced)",
     "countryPlaceholder": "e.g. Germany",
     "searchPlaceholder": "Search by name, VAT ID, customer number, city, postal code...",
-    "noMatching": "No customers match your search."
+    "noMatching": "No customers match your search.",
+    "nextCustomerNumber": "Next customer number"
   },
   "product": {
     "title": "Product Management",
@@ -406,7 +407,9 @@
     "lineNet": "Taxable amount",
     "lineVat": "Tax",
     "exportCsv": "Export CSV",
-    "hintVoranmeldung": "Note: Late filing (after the 10th of the following month) may incur late surcharges (§ 152 AO)."
+    "hintVoranmeldung": "Note: Late filing (after the 10th of the following month) may incur late surcharges (§ 152 AO).",
+    "downloadElster": "ELSTER XML",
+    "elsterTooltip": "Download ELSTER XML for Mein-ELSTER upload"
   },
   "users": {
     "title": "User Management",
@@ -551,7 +554,7 @@
     "title": "Inventory Management",
     "back": "Back to Dashboard",
     "lowStock": "Low Stock",
-    "lowStockCount": "Low stock \u2014 {count} products",
+    "lowStockCount": "Low stock — {count} products",
     "noSku": "No item number",
     "trackedProducts": "Products with inventory tracking",
     "noTrackedProducts": "No products with inventory tracking. Enable inventory tracking on a product page to get started.",
@@ -581,7 +584,7 @@
     "save": "Adjust",
     "loading": "Loading...",
     "reference": "Ref",
-    "previousToNew": "{prev} \u2192 {new}",
+    "previousToNew": "{prev} → {new}",
     "purchaseEntry": "Goods receipt",
     "purchaseEntryDesc": "Quick entry for incoming deliveries: enter quantity + PO number, stock is automatically increased.",
     "purchaseEntryTitle": "Record goods receipt",
@@ -594,7 +597,7 @@
     "purchaseDate": "Receipt date",
     "purchaseSuccess": "Goods receipt recorded: {qty} {unit} added",
     "addNewProduct": "Add new product",
-    "addNewProductDesc": "Create a product directly from the inventory page \u2014 with initial stock so it appears in the stock list immediately.",
+    "addNewProductDesc": "Create a product directly from the inventory page — with initial stock so it appears in the stock list immediately.",
     "newProductModalTitle": "Create product & book initial stock",
     "newProductInitialStock": "Initial stock",
     "newProductInitialStockPlaceholder": "e.g. 50",
@@ -604,7 +607,7 @@
     "newProductThresholdPlaceholder": "e.g. 10",
     "newProductSuccess": "Product created and stocked with {qty} {unit}",
     "searchExistingProduct": "Search existing product",
-    "searchExistingProductHint": "Type a name or SKU \u2014 if 0 matches, you can create a new product on the spot",
+    "searchExistingProductHint": "Type a name or SKU — if 0 matches, you can create a new product on the spot",
     "searchProductPlaceholder": "Product name or SKU...",
     "useExistingProduct": "Use this one",
     "useExistingProductHint": "Set the existing product's stock to the entered value",

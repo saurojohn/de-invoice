@@ -164,7 +164,8 @@
     "inactiveHint": "90天内无发票(或从未开过票)",
     "countryPlaceholder": "例如：德国",
     "searchPlaceholder": "按名称、税号、客户编号、城市、邮编搜索...",
-    "noMatching": "没有符合搜索条件的客户。"
+    "noMatching": "没有符合搜索条件的客户。",
+    "nextCustomerNumber": "下一个客户编号"
   },
   "product": {
     "title": "商品管理",
@@ -416,7 +417,9 @@
     "lineNet": "计税基础",
     "lineVat": "税额",
     "exportCsv": "导出 CSV",
-    "hintVoranmeldung": "提示：超过下月10日提交可能产生滞纳金 (§ 152 AO)。"
+    "hintVoranmeldung": "提示：超过下月10日提交可能产生滞纳金 (§ 152 AO)。",
+    "downloadElster": "ELSTER XML",
+    "elsterTooltip": "下载 ELSTER XML 以上传到 Mein-ELSTER"
   },
   "users": {
     "title": "用户管理",
@@ -561,7 +564,7 @@
     "title": "库存管理",
     "back": "返回仪表盘",
     "lowStock": "库存不足",
-    "lowStockCount": "库存不足 \u2014 {count} 件商品",
+    "lowStockCount": "库存不足 — {count} 件商品",
     "noSku": "无产品编号",
     "trackedProducts": "启用了库存追踪的商品",
     "noTrackedProducts": "没有启用了库存追踪的商品。请在商品页面启用库存追踪后开始。",
@@ -591,7 +594,7 @@
     "save": "调整",
     "loading": "加载中...",
     "reference": "参考",
-    "previousToNew": "{prev} \u2192 {new}",
+    "previousToNew": "{prev} → {new}",
     "purchaseEntry": "进货入库",
     "purchaseEntryDesc": "快速录入到货：填写数量 + 采购单号，库存自动增加。",
     "purchaseEntryTitle": "登记进货入库",
@@ -604,7 +607,7 @@
     "purchaseDate": "入库日期",
     "purchaseSuccess": "已登记进货：新增 {qty} {unit}",
     "addNewProduct": "新建产品",
-    "addNewProductDesc": "直接在库存页创建产品 \u2014 带初始库存,创建后立即出现在库存列表中。",
+    "addNewProductDesc": "直接在库存页创建产品 — 带初始库存,创建后立即出现在库存列表中。",
     "newProductModalTitle": "新建产品并入库",
     "newProductInitialStock": "初始库存",
     "newProductInitialStockPlaceholder": "例如 50",
@@ -614,7 +617,7 @@
     "newProductThresholdPlaceholder": "例如 10",
     "newProductSuccess": "已创建产品并入库 {qty} {unit}",
     "searchExistingProduct": "搜索现有产品",
-    "searchExistingProductHint": "输入名称或编号 \u2014 如未找到可立即新建",
+    "searchExistingProductHint": "输入名称或编号 — 如未找到可立即新建",
     "searchProductPlaceholder": "产品名称或编号...",
     "useExistingProduct": "使用此产品",
     "useExistingProductHint": "将现有产品的库存设为输入值",

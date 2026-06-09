@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
+import { apiFetch } from "@/lib/api"
 
 interface UstvaData {
   companyId: string
@@ -80,6 +81,7 @@ export default function UstvaPage() {
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [loading, setLoading] = useState(false)
+  const [downloadError, setDownloadError] = useState<string | null>(null)
 
   const [taxNumber, setTaxNumber] = useState("")
   const [notes, setNotes] = useState("")
@@ -257,6 +259,36 @@ export default function UstvaPage() {
     } finally {
       setSaving(false)
     }
+  }
+
+  const downloadElster = (filingId: string, periodLabel: string) => {
+    // Use a hidden <a> with the API endpoint + download=1. The
+    // server sets Content-Disposition: attachment with a
+    // sanitised filename, and apiFetch already adds the auth
+    // headers. We use apiFetch + blob URL pattern instead of a
+    // direct <a href> so x-user-id / x-company-id are included
+    // (a plain <a> would skip the apiFetch authHeaders).
+    const companyId = localStorage.getItem("companyId")
+    if (!companyId) return
+    ;(async () => {
+      try {
+        const res = await apiFetch(
+          `/ustva/filings/${encodeURIComponent(filingId)}/elster-xml?companyId=${encodeURIComponent(companyId)}&format=xml&download=1`,
+          { method: "GET" },
+        )
+        const blob = await res.blob()
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement("a")
+        a.href = url
+        a.download = `UStVA_${periodLabel.replace(/[^A-Za-z0-9-]/g, "_")}.xml`
+        document.body.appendChild(a)
+        a.click()
+        a.remove()
+        URL.revokeObjectURL(url)
+      } catch (e: any) {
+        setDownloadError(e?.message || "ELSTER-XML konnte nicht heruntergeladen werden")
+      }
+    })()
   }
 
   const downloadCsv = () => {
@@ -817,8 +849,11 @@ export default function UstvaPage() {
                             {t("ustva.differenzbetrag")}
                           </th>
                           <th className="text-center py-2 font-medium">{t("ustva.status")}</th>
-                          <th className="text-left py-2 font-medium">
+                           <th className="text-left py-2 font-medium">
                             {t("ustva.steuernummer")}
+                          </th>
+                          <th className="text-right py-2 font-medium">
+                            {t("ustva.actions") || "Aktionen"}
                           </th>
                         </tr>
                       </thead>
@@ -865,6 +900,16 @@ export default function UstvaPage() {
                               </span>
                             </td>
                             <td className="py-2 text-gray-600">{f.taxNumber || "—"}</td>
+                            <td className="py-2 text-right">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => downloadElster(f.id, f.periodLabel)}
+                                title={t("ustva.elsterTooltip") || "ELSTER-XML für Mein-ELSTER-Upload herunterladen"}
+                              >
+                                {t("ustva.downloadElster") || "ELSTER XML"}
+                              </Button>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -874,6 +919,11 @@ export default function UstvaPage() {
               </CardContent>
             </Card>
           </>
+        )}
+        {downloadError && (
+          <div className="mt-4 p-3 bg-red-50 border border-red-200 text-red-800 rounded text-sm">
+            {downloadError}
+          </div>
         )}
       </div>
     </div>
