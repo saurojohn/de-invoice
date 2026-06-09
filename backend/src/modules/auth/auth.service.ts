@@ -43,7 +43,21 @@ export class AuthService {
       },
     });
 
-    return { company, user };
+    // SECURITY: never return passwordHash / passwordResetToken to the client.
+    return {
+      company: {
+        id: company.id,
+        name: company.name,
+        address: company.address,
+      },
+      user: {
+        id: user.id,
+        email: user.email,
+        companyId: user.companyId,
+        role: user.role,
+        status: user.status,
+      },
+    };
   }
 
   /**

@@ -133,7 +133,22 @@ export class AuthController {
         },
       });
     } catch { /* ignore */ }
-    return user;
+    // SECURITY: never leak passwordHash / passwordResetToken /
+    // passwordResetExpires to the client. The login route is
+    // public; even authenticated users should not see their own
+    // bcrypt hash in the response. We only return what the
+    // frontend needs to populate x-user-id / x-company-id.
+    return {
+      id: user.id,
+      email: user.email,
+      companyId: user.companyId,
+      role: user.role,
+      status: user.status,
+      profile: user.profile,
+      preferences: user.preferences,
+      createdAt: user.createdAt,
+      lastLogin: user.lastLogin,
+    };
   }
 
   /**
