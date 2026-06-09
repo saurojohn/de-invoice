@@ -108,9 +108,31 @@ assert_status() {
   fi
 }
 
-# Extract a JSON field via python
+# Extract a JSON field via python. Supports dotted paths
+# (e.g. "config.bank" → json['config']['bank']) because
+# plain bracket access only handles a single key.
+#
+# Usage: json_field "$BODY" config.bank
+# (keeps the old $body $path call signature for callers)
 json_field() {
-  echo "$1" | python3 -c "import json,sys;print(json.load(sys.stdin)['$2'])" 2>/dev/null
+  local body="$1" path="$2"
+  python3 -c "
+import json, sys
+d = json.loads(sys.stdin.read())
+for k in '$path'.split('.'):
+    d = d.get(k) if isinstance(d, dict) else None
+    if d is None: break
+print(d if d is not None else '')
+" <<< "$body" 2>/dev/null
+}
+
+# file_contains — like grep -q but works on ISO-8859 / Windows-1252
+# files (DATEV export uses Latin-1, and a UTF-8 default locale
+# would have grep silently skip the file as 'binary'). We
+# match on a raw byte string, no locale awareness needed.
+file_contains() {
+  local pattern="$1" file="$2"
+  LC_ALL=C grep -q -- "$pattern" "$file" 2>/dev/null
 }
 
 # Assert that a JSON value (passed as $1) equals $2 within rounding
@@ -119,7 +141,7 @@ assert_eq() {
   if [[ "$actual" == "$expected" ]]; then
     pass "$what = $actual"
   else
-    fail "$should_be = $expected but got $actual"
+    fail "$what expected=$expected actual=$actual"
   fi
 }
 

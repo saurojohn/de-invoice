@@ -130,12 +130,13 @@ async getSalesReport(
         id: company.id,
         name: company.name,
         taxId: company.taxId,
-        // Berater-Nr and Mandanten-Nr aren't on the
-        // Company model yet. The Berater overwrites
-        // these on import — we default to 00000 /
-        // 00001 so the column count stays at 25.
-        beraterNr: '00000',
-        mandantenNr: '00001',
+        // Per-company Berater-Nr / Mandanten-Nr. Stored
+        // alongside the account map in Company.settings.
+        // The Berater hands these to the client; without
+        // them we fall back to placeholders that the
+        // Berater overwrites on import.
+        beraterNr: (company as any).settings?.datev?.beraterNr || '00000',
+        mandantenNr: (company as any).settings?.datev?.mandantenNr || '00001',
       },
       startDate,
       endDate,

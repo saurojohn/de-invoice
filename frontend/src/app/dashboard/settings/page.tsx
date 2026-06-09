@@ -7,7 +7,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
-import { apiGet, apiPost, apiDelete, apiFetch, ApiError } from "@/lib/api"
+import { apiGet, apiPost, apiPut, apiDelete, apiFetch, ApiError } from "@/lib/api"
 
 interface StorageSettings {
   localPath: string
@@ -89,6 +89,16 @@ export default function SettingsPage() {
   const [storageSavedMsg, setStorageSavedMsg] = useState<string | null>(null)
   const [storageError, setStorageError] = useState<string | null>(null)
   const [storageLoading, setStorageLoading] = useState(false)
+
+  // DATEV-Konten (per-company SKR03 overrides)
+  const [datevConfig, setDatevConfig] = useState<Record<string, string>>({})
+  const [datevDefaults, setDatevDefaults] = useState<Record<string, string>>({})
+  const [datevBeraterNr, setDatevBeraterNr] = useState("")
+  const [datevMandantenNr, setDatevMandantenNr] = useState("")
+  const [datevSaving, setDatevSaving] = useState(false)
+  const [datevSavedMsg, setDatevSavedMsg] = useState<string | null>(null)
+  const [datevError, setDatevError] = useState<string | null>(null)
+  const [datevLoading, setDatevLoading] = useState(false)
 
   const [form, setForm] = useState<CompanySettings>({
     name: "",
@@ -253,6 +263,20 @@ export default function SettingsPage() {
         if (cfg) setMailForm((f) => ({ ...f, ...cfg }))
       })
       .catch(() => {})
+
+    // Fetch DATEV account config (per-company SKR03 overrides)
+    setDatevLoading(true)
+    apiGet<any>(`/api/v1/companies/${storedCompanyId}/datev-config`)
+      .then((cfg) => {
+        if (cfg) {
+          setDatevDefaults(cfg.defaults || {})
+          setDatevConfig(cfg.overrides || {})
+          setDatevBeraterNr(cfg.overrides?.beraterNr || "")
+          setDatevMandantenNr(cfg.overrides?.mandantenNr || "")
+        }
+      })
+      .catch(() => {})
+      .finally(() => setDatevLoading(false))
   }, [router])
 
   // Re-load stats / health / file list. Used both on first mount
@@ -306,6 +330,45 @@ export default function SettingsPage() {
       setMailMessage({ ok: false, text: e?.message || t("common.networkError") })
     } finally {
       setMailSaving(false)
+    }
+  }
+
+  // Save the per-company DATEV account map. Anything the
+  // user has blanked out is dropped from the override so
+  // the SKR03 default takes over again on the next export.
+  async function saveDatevConfig() {
+    if (!companyId) return
+    setDatevSaving(true)
+    setDatevSavedMsg(null)
+    setDatevError(null)
+    try {
+      // Build a clean accounts object: only include keys
+      // where the user typed something. The backend
+      // sanitizer will further validate (3-5 digit numeric
+      // only), so empty strings or garbage here just get
+      // dropped — that's intentional.
+      const accounts: Record<string, string> = {}
+      for (const k of Object.keys(datevDefaults)) {
+        const v = (datevConfig[k] || "").trim()
+        if (v) accounts[k] = v
+      }
+      await apiPut(`/api/v1/companies/${companyId}/datev-config`, {
+        accounts,
+        beraterNr: datevBeraterNr.trim(),
+        mandantenNr: datevMandantenNr.trim(),
+      })
+      setDatevSavedMsg(t("settings.datevSaved"))
+      const fresh = await apiGet<any>(`/api/v1/companies/${companyId}/datev-config`)
+      if (fresh) {
+        setDatevDefaults(fresh.defaults || {})
+        setDatevConfig(fresh.overrides || {})
+        setDatevBeraterNr(fresh.overrides?.beraterNr || "")
+        setDatevMandantenNr(fresh.overrides?.mandantenNr || "")
+      }
+    } catch (err) {
+      setDatevError(err instanceof ApiError ? err.message : t("settings.datevSaveError"))
+    } finally {
+      setDatevSaving(false)
     }
   }
 
@@ -917,6 +980,97 @@ export default function SettingsPage() {
                   {t("settings.defaultPrinterHelp")}
                 </p>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* DATEV-Konten (per-company SKR03 overrides) */}
+          <Card>
+            <CardHeader>
+              <CardTitle>{t("settings.datevTitle")}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-gray-600">{t("settings.datevSubtitle")}</p>
+              <p className="text-xs text-gray-500">{t("settings.datevDefaultsHint")}</p>
+
+              {datevSavedMsg && (
+                <div className="text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded p-2">
+                  {datevSavedMsg}
+                </div>
+              )}
+              {datevError && (
+                <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded p-2">
+                  {datevError}
+                </div>
+              )}
+
+              {datevLoading ? (
+                <div className="text-sm text-gray-500">{t("common.loading")}</div>
+              ) : (
+                <>
+                  <div className="grid md:grid-cols-2 gap-3">
+                    {Object.keys(datevDefaults).map((k) => (
+                      <div key={k}>
+                        <label className="block text-xs text-gray-600 mb-1">
+                          {t(`settings.datevAccount_${k}`) || k}
+                        </label>
+                        <Input
+                          value={datevConfig[k] || ""}
+                          onChange={(e) => setDatevConfig({ ...datevConfig, [k]: e.target.value })}
+                          placeholder={datevDefaults[k] || ""}
+                          maxLength={5}
+                          className="font-mono"
+                        />
+                        <div className="text-xs text-gray-400 mt-0.5">
+                          Standard: {datevDefaults[k]}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="grid md:grid-cols-2 gap-3 pt-3 border-t">
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">
+                        {t("settings.datevBeraterNr")}
+                      </label>
+                      <Input
+                        value={datevBeraterNr}
+                        onChange={(e) => setDatevBeraterNr(e.target.value)}
+                        placeholder="12345"
+                        maxLength={5}
+                        className="font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">
+                        {t("settings.datevMandantenNr")}
+                      </label>
+                      <Input
+                        value={datevMandantenNr}
+                        onChange={(e) => setDatevMandantenNr(e.target.value)}
+                        placeholder="67890"
+                        maxLength={5}
+                        className="font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2 pt-2">
+                    <Button onClick={saveDatevConfig} disabled={datevSaving}>
+                      {datevSaving ? "..." : t("common.save")}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setDatevConfig({})
+                        setDatevBeraterNr("")
+                        setDatevMandantenNr("")
+                      }}
+                    >
+                      {t("settings.datevReset")}
+                    </Button>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
 

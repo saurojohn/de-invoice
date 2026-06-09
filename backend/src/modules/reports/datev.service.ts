@@ -35,10 +35,32 @@ import { PrismaService } from '../../prisma/prisma.service';
 const DELIM = ';'
 const QUOTE = '"'
 
-/** DATEV SKR03 default mapping. The Berater can re-map
- *  via the column-to-account assignment dialog, so a
- *  sensible default is enough here. */
-const SKR03_DEFAULTS = {
+/** Per-company DATEV account mapping. Stored as
+ *  `Company.settings.datev` in the DB. Fields the user
+ *  doesn't override fall back to SKR03_DEFAULTS via
+ *  `resolveDatevAccounts()`. */
+export interface DatevAccountMap {
+  bank: string
+  receivable: string
+  payable: string
+  revenue19: string
+  revenue7: string
+  revenue0: string
+  vatPayable19: string
+  vatPayable7: string
+  inputVat19: string
+  inputVat7: string
+  inputVatIgE: string
+  inputVatReverseCharge: string
+  expenseDefault: string
+}
+
+/** DATEV SKR03 default mapping. Stored on the company
+ *  (`Company.settings.datev`) so the Berater can override
+ *  individual accounts without forking the app. Used as
+ *  fallback when a field is missing from the per-company
+ *  config. */
+export const SKR03_DEFAULTS: DatevAccountMap = {
   bank: '1200',                 // Bank (Sparkasse etc.)
   receivable: '1406',           // Forderungen aus L+L
   payable: '1600',              // Verbindlichkeiten
@@ -51,6 +73,35 @@ const SKR03_DEFAULTS = {
   inputVat7: '1577',           // Vorsteuer 7%
   inputVatIgE: '1578',         // Vorsteuer igE
   inputVatReverseCharge: '1780', // Vorsteuer §13b
+  expenseDefault: '4900',      // Sonstige betriebliche Aufwendungen
+}
+
+/** Merge a partial per-company config over the SKR03
+ *  defaults. Anything the user hasn't filled in keeps
+ *  the default. This is what `buildBuchungenFromDb`
+ *  actually uses. */
+export function resolveDatevAccounts(overrides: Partial<DatevAccountMap> | null | undefined): DatevAccountMap {
+  if (!overrides) return { ...SKR03_DEFAULTS }
+  return { ...SKR03_DEFAULTS, ...overrides }
+}
+
+/** Type guard: pick valid 4-digit numeric account numbers
+ *  out of an arbitrary user-submitted object. Reject
+ *  anything that's not exactly 4 digits, because DATEV
+ *  reserves the field width and a malformed number
+ *  would shift every subsequent column. */
+export function sanitizeDatevConfig(input: any): Partial<DatevAccountMap> {
+  if (!input || typeof input !== 'object') return {}
+  const out: Partial<DatevAccountMap> = {}
+  for (const k of Object.keys(SKR03_DEFAULTS) as (keyof DatevAccountMap)[]) {
+    const v = input[k]
+    if (typeof v === 'string' && /^\d{3,5}$/.test(v)) {
+      // Right-pad to exactly 4 chars (DATEV Sachkontenlänge
+      // is 4 in the header for SKR03; SKR04 also uses 4).
+      out[k] = v.padEnd(4, '0').substring(0, 5)
+    }
+  }
+  return out
 }
 
 export interface DatevExportInput {
@@ -219,6 +270,12 @@ export function generateDatevBuchungsstapel(input: DatevExportInput): string {
  * data sources (Invoice for revenue, Expense for input
  * tax / cost). Pulled out of the controller so it's
  * unit-testable without a Prisma handle.
+ *
+ * Account mapping is read from `Company.settings.datev`,
+ * falling back to `SKR03_DEFAULTS` for any missing field.
+ * A company can override any subset of the 13 accounts
+ * (e.g. just the revenue accounts, or just the bank
+ * account) without having to re-enter the whole map.
  */
 export async function buildBuchungenFromDb(
   prisma: PrismaService,
@@ -226,6 +283,19 @@ export async function buildBuchungenFromDb(
   startDate: Date,
   endDate: Date,
 ): Promise<BuchungsSatz[]> {
+  // Read the per-company override. We `findUnique` rather
+  // than passing the company in because that way the
+  // service signature stays the same and the e2e tests
+  // don't have to fabricate a company object.
+  const company = await prisma.company.findUnique({
+    where: { id: companyId },
+    select: { settings: true },
+  })
+  const settings = (company?.settings && typeof company.settings === 'object')
+    ? (company.settings as any)
+    : {}
+  const accounts = resolveDatevAccounts(settings.datev)
+
   const out: BuchungsSatz[] = []
 
   // 1) Revenue side: paid invoices only (DATEV bucht
@@ -249,26 +319,26 @@ export async function buildBuchungenFromDb(
     const total = Number(inv.total)
     const vatRate = net > 0 ? vat / net : 0
 
-    // Pick the SKR03 revenue account by VAT rate.
+    // Pick the revenue account by VAT rate.
     const revenueKonto =
-      Math.abs(vatRate - 0.19) < 0.001 ? SKR03_DEFAULTS.revenue19
-      : Math.abs(vatRate - 0.07) < 0.001 ? SKR03_DEFAULTS.revenue7
-      : SKR03_DEFAULTS.revenue0
+      Math.abs(vatRate - 0.19) < 0.001 ? accounts.revenue19
+      : Math.abs(vatRate - 0.07) < 0.001 ? accounts.revenue7
+      : accounts.revenue0
     const ustSchluessel =
       Math.abs(vatRate - 0.19) < 0.001 ? '3'
       : Math.abs(vatRate - 0.07) < 0.001 ? '2'
       : '0'
     const vatKonto =
-      Math.abs(vatRate - 0.19) < 0.001 ? SKR03_DEFAULTS.vatPayable19
-      : SKR03_DEFAULTS.vatPayable7
+      Math.abs(vatRate - 0.19) < 0.001 ? accounts.vatPayable19
+      : accounts.vatPayable7
 
     // Buchung 1: Bank an Forderung (Zahlungseingang)
     //   Bank  S  total    Forderung  H  total
     out.push({
       belegdatum: inv.payments[0]?.paymentDate || inv.issueDate,
       belegfeld1: inv.invoiceNumber,
-      konto: SKR03_DEFAULTS.bank,
-      gegenkonto: SKR03_DEFAULTS.receivable,
+      konto: accounts.bank,
+      gegenkonto: accounts.receivable,
       betrag: total,
       shVz: 'S',
       buchungstext: `Zahlungseingang ${inv.invoiceNumber}`,
@@ -281,7 +351,7 @@ export async function buildBuchungenFromDb(
       out.push({
         belegdatum: inv.payments[0]?.paymentDate || inv.issueDate,
         belegfeld1: inv.invoiceNumber,
-        konto: SKR03_DEFAULTS.receivable,
+        konto: accounts.receivable,
         gegenkonto: revenueKonto,
         betrag: net,
         shVz: 'H',
@@ -294,7 +364,7 @@ export async function buildBuchungenFromDb(
         out.push({
           belegdatum: inv.payments[0]?.paymentDate || inv.issueDate,
           belegfeld1: inv.invoiceNumber,
-          konto: SKR03_DEFAULTS.receivable,
+          konto: accounts.receivable,
           gegenkonto: vatKonto,
           betrag: vat,
           shVz: 'H',
@@ -324,23 +394,18 @@ export async function buildBuchungenFromDb(
     const isIntraEU = exp.isIntraEU
 
     const inputVatKonto =
-      isIntraEU ? SKR03_DEFAULTS.inputVatIgE
-      : isReverseCharge ? SKR03_DEFAULTS.inputVatReverseCharge
-      : Math.abs(vatRate - 0.19) < 0.001 ? SKR03_DEFAULTS.inputVat19
-      : Math.abs(vatRate - 0.07) < 0.001 ? SKR03_DEFAULTS.inputVat7
+      isIntraEU ? accounts.inputVatIgE
+      : isReverseCharge ? accounts.inputVatReverseCharge
+      : Math.abs(vatRate - 0.19) < 0.001 ? accounts.inputVat19
+      : Math.abs(vatRate - 0.07) < 0.001 ? accounts.inputVat7
       : ''
 
-    // Bank an Aufwands-Konto (placeholder: "Aufwendungen
-    // für ..."). DATEV requires a specific expense Konto
-    // (e.g. 4200 for Wareneinsatz) — we use 4900
-    // (Sonstige betriebliche Aufwendungen) as a default
-    // if the category hasn't been mapped.
-    const expenseKonto = '4900'
+    const expenseKonto = accounts.expenseDefault
 
     out.push({
       belegdatum: exp.invoiceDate,
       belegfeld1: exp.invoiceNumber || `EXP-${exp.id.substring(0, 8)}`,
-      konto: SKR03_DEFAULTS.bank,
+      konto: accounts.bank,
       gegenkonto: expenseKonto,
       betrag: total,
       shVz: 'H',
@@ -352,7 +417,7 @@ export async function buildBuchungenFromDb(
       out.push({
         belegdatum: exp.invoiceDate,
         belegfeld1: exp.invoiceNumber || `EXP-${exp.id.substring(0, 8)}`,
-        konto: inputVatKonto || SKR03_DEFAULTS.inputVat19,
+        konto: inputVatKonto || accounts.inputVat19,
         gegenkonto: expenseKonto,
         betrag: vat,
         shVz: 'S',
