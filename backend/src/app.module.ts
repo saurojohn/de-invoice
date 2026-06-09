@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { ScheduleModule } from '@nestjs/schedule';
 import { APP_GUARD } from '@nestjs/core';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -16,6 +17,8 @@ import { InventoryModule } from './modules/inventory/inventory.module';
 import { ReminderModule } from './modules/reminder/reminder.module';
 import { MailModule } from './modules/mail/mail.module';
 import { UsersModule } from './modules/users/users.module';
+import { RecurringModule } from './modules/recurring/recurring.module';
+import { CashBookModule } from './modules/cashbook/cashbook.module';
 
 @Module({
   imports: [
@@ -49,6 +52,9 @@ import { UsersModule } from './modules/users/users.module';
     InventoryModule,
     ReminderModule,
     UsersModule,
+    RecurringModule,
+    CashBookModule,
+    ScheduleModule.forRoot(),
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

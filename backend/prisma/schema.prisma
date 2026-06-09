@@ -40,6 +40,10 @@ model Company {
   products    Product[]
   categories  Category[]
   invoices    Invoice[]
+  recurringInvoices RecurringInvoice[]
+  recurringRuns RecurringRun[]
+  cashBookEntries CashBookEntry[]
+  cashBookDailyCloses CashBookDailyClose[]
   accounts    Account[]
   vouchers    Voucher[]
   auditLogs   AuditLog[]
@@ -47,6 +51,7 @@ model Company {
   mailConfig  MailConfig?
   expenses    Expense[]
   ustvaFilings UStvaFiling[]
+  reminderTemplates ReminderTemplate[]
   vatRates    VatRate[]
   vatRateHistories VatRateHistory[]
   invitations UserInvitation[]
@@ -79,6 +84,9 @@ model User {
   createdVatRates   VatRate[] @relation("VatRateCreator")
   changedVatRates   VatRateHistory[] @relation("VatRateChanger")
   sentInvitations  UserInvitation[] @relation("InvitedBy")
+  createdRecurringInvoices RecurringInvoice[] @relation("RecurringCreator")
+  createdCashBookEntries CashBookEntry[] @relation("CashBookEntryCreator")
+  closedCashBookDays CashBookDailyClose[] @relation("CashBookDayCloser")
 }
 
 // Pending invitations — admin invites employee by email, employee clicks link to register
@@ -131,6 +139,7 @@ model Customer {
   postalCodeText     String? @map("postal_code_text")
 
   invoices     Invoice[]
+  recurringInvoices RecurringInvoice[]
 
   @@index([companyId, name])
   @@index([companyId, vatId])
@@ -180,6 +189,8 @@ model Expense {
   attachmentPath  String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  cashBookEntries CashBookEntry[]
 
   @@index([companyId, invoiceDate])
   @@index([companyId, vatRate])
@@ -334,6 +345,10 @@ model Invoice {
   referenceInvoiceId String?
   referenceInvoice Invoice? @relation("InvoiceReferences", fields: [referenceInvoiceId], references: [id])
   creditNotes    Invoice[] @relation("InvoiceReferences")
+  recurringInvoiceId String?
+  recurringInvoice   RecurringInvoice? @relation(fields: [recurringInvoiceId], references: [id], onDelete: SetNull)
+  recurringRuns  RecurringRun[]
+  cashBookEntries CashBookEntry[]
 
   @@unique([companyId, invoiceNumber])
   @@index([companyId, issueDate])
@@ -543,8 +558,275 @@ model AuditLog {
   newData     Json?
   ipAddress   String?
   userAgent   String?
-  createdAt   DateTime  @default(now())
+  createdAt   DateTime @default(now())
 
   @@index([companyId, createdAt])
   @@index([entityType, entityId])
+}
+
+/// Per-company customizable reminder (Mahnung) templates.
+/// One row per (companyId, level) tuple; level ∈ {first, second, final}.
+/// Both subject and body are templates with `{{...}}` placeholders
+/// resolved at send time — see reminder.service.renderTemplate().
+/// Defaults are seeded on first request via getOrCreateDefaults().
+model ReminderTemplate {
+  id         String   @id @default(uuid())
+  companyId  String
+  company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  level      String   // "first" | "second" | "final"
+  subject    String   @db.Text
+  body       String   @db.Text
+  isDefault  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([companyId, level])
+  @@index([companyId])
+}
+
+/// Recurring invoice (Abo-Rechnung) template. The scheduler
+/// reads `nextRunAt` daily and materialises a new Invoice
+/// (linked via `recurringInvoiceId`) when today ≥ nextRunAt
+/// and `isActive=true`. The snapshot of line items lives in
+/// `RecurringInvoiceItem` so editing the template doesn't
+/// retroactively rewrite already-sent invoices.
+model RecurringInvoice {
+  id            String   @id @default(uuid())
+  companyId     String
+  company       Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customerId    String
+  customer      Customer @relation(fields: [customerId], references: [id])
+  // human label for the subscription, e.g. "Wartungsvertrag 2026"
+  name          String
+  // monthly / quarterly / yearly / weekly
+  interval      String
+  // interval count: 1 = every month, 2 = every 2 months, etc.
+  intervalCount Int      @default(1)
+  // The day-of-month the invoice should be issued. For
+  // monthly: 1-28 (clamped at 28 to avoid 31st-on-30th-month
+  // surprises). Ignored for weekly.
+  dayOfMonth    Int      @default(1)
+  // First day this template is allowed to generate. The
+  // scheduler uses max(startDate, lastRunAt + interval).
+  startDate     DateTime
+  // Optional end. Once nextRunAt > endDate, the template
+  // auto-disables (isActive=false) and won't fire again.
+  endDate       DateTime?
+  // nextRunAt is updated on every successful run. Compared
+  // against "today" in the cron tick.
+  nextRunAt     DateTime
+  lastRunAt     DateTime?
+  // Currency + language snapshot. (Most templates stick
+  // to EUR / de-DE; the field is here for completeness.)
+  currency      String   @default("EUR")
+  language      String   @default("de-DE")
+  // Free-text notes copied to every generated invoice.
+  notes         String?
+  // Default status of generated invoices. "draft" leaves
+  // the user to review; "sent" marks them ready immediately.
+  invoiceStatus String   @default("draft")
+  // Paused templates don't fire. UI toggles this when the
+  // customer pays ahead, the contract is on hold, etc.
+  isActive      Boolean  @default(true)
+  createdById   String?
+  createdBy     User?    @relation("RecurringCreator", fields: [createdById], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  items   RecurringInvoiceItem[]
+  runs    RecurringRun[]
+  invoices Invoice[]
+
+  @@index([companyId, isActive, nextRunAt])
+  @@index([customerId])
+}
+
+/// Snapshot of one line item on a RecurringInvoice. The
+/// per-run Invoice copies these into InvoiceItem at
+/// generation time — so later edits to the template only
+/// affect future invoices, not already-issued ones.
+model RecurringInvoiceItem {
+  id                String   @id @default(uuid())
+  recurringInvoiceId String
+  recurringInvoice  RecurringInvoice @relation(fields: [recurringInvoiceId], references: [id], onDelete: Cascade)
+  description       String
+  productNumber     String?
+  quantity          Decimal  @db.Decimal(12, 4)
+  unit              String?  @default("Stück")
+  unitPrice         Decimal  @db.Decimal(12, 4)
+  vatRate           Decimal  @db.Decimal(5, 4)
+  // Sort order so reordering the UI rows works without
+  // relying on insert-order (Postgres doesn't guarantee
+  // that for ties).
+  position          Int      @default(0)
+
+  @@index([recurringInvoiceId])
+}
+
+/// History log of every run the scheduler (or manual
+/// trigger) executed. `success=false` rows record the
+/// error message so the user can see WHY a run failed.
+model RecurringRun {
+  id                String   @id @default(uuid())
+  recurringInvoiceId String
+  recurringInvoice  RecurringInvoice @relation(fields: [recurringInvoiceId], references: [id], onDelete: Cascade)
+  companyId         String
+  company           Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  // "scheduled" (cron) or "manual" (button on the UI)
+  trigger           String
+  // The intended period start. For monthly: 1st of the
+  // month; for quarterly: 1st of the quarter month, etc.
+  periodStart       DateTime
+  periodEnd         DateTime
+  // The invoice this run materialised. NULL on failure.
+  invoiceId         String?
+  invoice           Invoice? @relation(fields: [invoiceId], references: [id])
+  // "success" | "failed" | "skipped" (e.g. endDate in past)
+  status            String
+  errorMessage      String?
+  createdAt         DateTime @default(now())
+
+  @@index([recurringInvoiceId, periodStart])
+  @@index([companyId, status])
+  // Idempotency: the same template can never have two
+  // runs for the same periodStart. A duplicate insert
+  // (from a parallel cron tick) raises a P2002, which
+  // the service catches and treats as "already ran".
+  @@unique([recurringInvoiceId, periodStart])
+}
+
+/// Kassenbuch — German cash journal per §146 AO.
+///
+/// Every cash movement (Einnahme / Ausgabe / Umbuchung
+/// between cash and bank) is a row here. The cash book
+/// is GoBD-relevant: once a Tagesabschluss has been
+/// recorded, the entries of that day can no longer be
+/// edited — corrections must be made as a new Storno-
+/// Buchung that negates the original amount.
+///
+/// The schema separates the immutable book (CashBookEntry)
+/// from the day-end snapshot (CashBookDailyClose). The
+/// daily close captures Anfangsbestand + ΣEinnahmen +
+/// ΣAusgaben = Endbestand at the moment of closing, and
+/// is the value the Berater / auditor compares against
+/// the physical cash count (Kassensturz).
+model CashBookEntry {
+  id           String   @id @default(uuid())
+  companyId    String
+  company      Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  // The business date the entry belongs to, not the
+  // timestamp of when the row was written. Cash book
+  // entries are dated by transaction date (Belegdatum)
+  // — a receipt dated 28.01 still lands in the 28.01
+  // daily close, even if you type it in on 02.02.
+  businessDate DateTime @db.Date
+  // "einnahme" | "ausgabe" | "umbuchung" | "eroeffnung"
+  // (Anfangsbestand, one per cash book lifetime).
+  type         String
+  // Free-text description. Required by §22 UStG.
+  description  String
+  // Gross amount in EUR, always positive. The type
+  // column decides whether the cash balance increases
+  // or decreases.
+  amount       Decimal  @db.Decimal(12, 4)
+  // Optional VAT rate (0 / 0.07 / 0.19). When non-zero
+  // the entry counts as a taxable movement for the
+  // UStVA. Net amount is derived: amount / (1 + rate).
+  vatRate      Decimal? @db.Decimal(5, 4)
+  // Counterparty: customer or supplier, optional. We
+  // don't FK-restrict (cash from anonymous walk-ins is
+  // perfectly legal) but the field is denormalised for
+  // audit reporting.
+  counterparty String?
+  // Receipt / voucher number, e.g. "Bon-2026-00123".
+  // Free-form, not unique — the same number across
+  // two years is fine, and the user can leave it
+  // blank for petty cash.
+  belegNumber  String?
+  // FK to Expense when this entry was created from an
+  // expense bookkeeping (optional). For an Ausgabe the
+  // user can promote the entry to a booked Expense.
+  expenseId    String?
+  expense      Expense? @relation(fields: [expenseId], references: [id])
+  // FK to Invoice when this entry was created from an
+  // invoice payment (Barzahlung at the counter).
+  invoiceId    String?
+  invoice      Invoice? @relation(fields: [invoiceId], references: [id])
+  // ISO 4217 — EUR for the German market. The column
+  // is here so multi-currency can be added later.
+  currency     String   @default("EUR")
+  // Set when this entry is a Storno / reversal of
+  // another entry. The original stays in the book;
+  // the Storno just nets the effect to zero. Reversal
+  // is the only way to "edit" a closed day.
+  reversesId   String?  @unique
+  reverses     CashBookEntry? @relation("CashBookReversal", fields: [reversesId], references: [id])
+  reversedBy   CashBookEntry? @relation("CashBookReversal")
+  // Free-form notes (1-2 lines), e.g. reason for
+  // a correction, receipt scan reference, etc.
+  notes        String?
+  createdById  String?
+  createdBy    User?    @relation("CashBookEntryCreator", fields: [createdById], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([companyId, businessDate])
+  @@index([companyId, type])
+}
+
+/// Tagesabschluss (Z-Bericht) — snapshot of the cash
+/// position at end-of-day. Written once and treated as
+/// immutable per GoBD §146 AO Abs. 4. The
+/// `entriesSnapshot` is a JSON copy of every entry id +
+/// amount that was on the book at close-time, so a
+/// later audit can replay the close without re-running
+/// the SUM aggregate (which would be wrong if any
+/// Storno on the closed day has been added since).
+model CashBookDailyClose {
+  id              String   @id @default(uuid())
+  companyId       String
+  company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  // The day being closed. Unique per company — a day
+  // can only be closed once. (Re-open = delete this
+  // row, which the service does explicitly with audit
+  // logging.)
+  businessDate    DateTime @db.Date @unique
+  // Cached aggregates at close-time. Re-computed on
+  // read by the service if the snapshot looks stale.
+  anfangsbestand  Decimal  @db.Decimal(12, 4)
+  einnahmenSum    Decimal  @db.Decimal(12, 4)
+  ausgabenSum     Decimal  @db.Decimal(12, 4)
+  umbuchungenSum  Decimal  @db.Decimal(12, 4)
+  endbestand      Decimal  @db.Decimal(12, 4)
+  // The physical count of cash in the till. The user
+  // types this in at Z-Bericht time. Diff vs.
+  // endbestand is the "Differenz" (Kassensturz-
+  // Differenz) — usually 0.00, but a small positive
+  // means Mehrbestand (over) and negative means
+  // Fehlbestand (shortage / Diebstahl).
+  physicalCount   Decimal  @db.Decimal(12, 4)
+  differenz       Decimal  @db.Decimal(12, 4)
+  // Free-text note for non-zero differs ("Differenz
+  // aufgeklärt: Bon vergessen, Beleg folgt").
+  differenzNote   String?
+  // Snapshot of all entry ids on this date at close
+  // time. Format: { entries: [{id, type, amount, vatRate,
+  // description}], totalCount: N }. Used for audit
+  // replay — even after Storno entries are added, the
+  // close still shows the original (pre-Storno) state.
+  entriesSnapshot Json
+  // Set when a Storno / reversal entry has been added
+  // AFTER close-time. The close itself stays valid;
+  // this flag tells the UI to surface "this day has
+  // been amended since close" instead of treating the
+  // numbers as final.
+  amendedAt       DateTime?
+  // User who closed the day + their comment, if any.
+  closedById      String?
+  closedBy        User?    @relation("CashBookDayCloser", fields: [closedById], references: [id])
+  closedAt        DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([companyId, businessDate])
 }
