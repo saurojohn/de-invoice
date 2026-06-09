@@ -27,6 +27,12 @@ interface ReminderStats {
   overdueCount: number
   totalOverdueAmount: string
   recentReminders: number
+  // Per-level reminder counts surfaced by /reminders/stats.
+  // Optional because the seed-stat set in the catch handler
+  // also uses this shape (see the empty-fallback below).
+  firstReminder?: number
+  secondReminder?: number
+  finalReminder?: number
 }
 
 export default function RemindersPage() {
@@ -74,7 +80,14 @@ export default function RemindersPage() {
       .catch((err) => {
         console.error('Reminders load failed:', err)
         setOverdueInvoices([])
-        setStats({ firstReminder: 0, secondReminder: 0, finalReminder: 0 })
+        setStats({
+          overdueCount: 0,
+          totalOverdueAmount: '0',
+          recentReminders: 0,
+          firstReminder: 0,
+          secondReminder: 0,
+          finalReminder: 0,
+        })
       })
       .finally(() => setLoading(false))
   }, [router])

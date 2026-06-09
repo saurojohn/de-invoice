@@ -19,6 +19,11 @@ interface Customer {
   address: { street?: string; city?: string; postalCode?: string; country?: string }
   contact?: { email?: string; phone?: string }
   paymentTerms: number
+  // "active" = usable, anything else = deactivated by admin.
+  // Match against the literal value, not truthiness, so an
+  // accidentally-set "inactive" / "suspended" string renders
+  // the same way as `status === 'inactive'`.
+  status: 'active' | 'inactive' | string
   createdAt: string
   // Backend-assigned per-company sequential customer number (K-00001...).
   // Auto-generated on create if not supplied by the importer.
@@ -83,6 +88,7 @@ export default function CustomersPage() {
     if (page !== 1) setPage(1)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search])
+  const [nextCustomerNumber, setNextCustomerNumber] = useState<string | null>(null)
   const [form, setForm] = useState({
     name: "",
     vatId: "",
@@ -128,6 +134,7 @@ export default function CustomersPage() {
   const openModal = (customer?: Customer) => {
     if (customer) {
       setEditingCustomer(customer)
+      setNextCustomerNumber(null)  // editing doesn't need the preview
       setForm({
         name: customer.name,
         vatId: customer.vatId || "",
@@ -159,6 +166,20 @@ export default function CustomersPage() {
         paymentTerms: 0,
         taxExempt: false,
       })
+      // Fetch the next K-NNNNN from the server so the user can
+      // see what the auto-generated number will be. Best-effort:
+      // if it fails (offline / 500), the modal still works — the
+      // server will assign the number on save.
+      const companyId = localStorage.getItem("companyId")
+      if (companyId) {
+        apiGet<{ nextNumber: string; totalCustomers: number }>(
+          `/customers/next-number?companyId=${encodeURIComponent(companyId)}`
+        )
+          .then((data) => {
+            if (data?.nextNumber) setNextCustomerNumber(data.nextNumber)
+          })
+          .catch(() => { /* non-fatal */ })
+      }
     }
     setShowModal(true)
   }
@@ -504,13 +525,13 @@ export default function CustomersPage() {
                     <div className="flex gap-1 shrink-0">
                       <span
                         className={`text-[10px] px-2 py-1 rounded font-medium ${
-                          customer.isActive
+                          customer.status === "active"
                             ? "bg-emerald-100 text-emerald-700"
                             : "bg-gray-100 text-gray-500"
                         }`}
-                        title={t("customer.inactiveHint") || (customer.isActive ? "" : "Inaktiv")}
+                        title={t("customer.inactiveHint") || (customer.status === "active" ? "" : "Inaktiv")}
                       >
-                        {customer.isActive
+                        {customer.status === "active"
                           ? (t("customer.statusActive") || "Aktiv")
                           : (t("customer.statusInactive") || "Inaktiv")}
                       </span>
@@ -695,6 +716,20 @@ export default function CustomersPage() {
           <Card className="w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <CardHeader>
               <CardTitle>{editingCustomer ? t("customer.edit") : t("customer.create")}</CardTitle>
+              {!editingCustomer && nextCustomerNumber && (
+                <p className="text-sm text-gray-500 mt-1">
+                  {t("customer.nextCustomerNumber") || "Nächste Kundennummer"}:{" "}
+                  <span className="font-mono font-medium text-gray-700">{nextCustomerNumber}</span>
+                </p>
+              )}
+              {editingCustomer && (
+                <p className="text-sm text-gray-500 mt-1">
+                  {t("customer.customerNumber") || "Kundennummer"}:{" "}
+                  <span className="font-mono font-medium text-gray-700">
+                    {editingCustomer.customerNumber || "—"}
+                  </span>
+                </p>
+              )}
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-4">

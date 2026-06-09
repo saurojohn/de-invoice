@@ -59,6 +59,10 @@ interface Invoice {
   invoiceNumber: string
   customerId: string
   customer: { name: string }
+  // Reference-copy fields used by "Vorlage kopieren" and the
+  // per-row prefill on item copy. Optional because we don't
+  // load the full nested set in every list view.
+  items?: InvoiceItem[]
 }
 
 interface InvoiceItem {

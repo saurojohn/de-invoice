@@ -104,8 +104,10 @@ export async function apiPut<T = any>(path: string, body?: any): Promise<T> {
   return res.json()
 }
 
-/** DELETE. */
-export async function apiDelete(path: string): Promise<any> {
+/** DELETE. Returns the parsed JSON body typed as T (defaults
+ *  to `any` for callers that don't care). Like apiGet, an
+ *  empty body parses to {} — never throws on `res.json()`. */
+export async function apiDelete<T = any>(path: string): Promise<T> {
   const res = await apiFetch(path, { method: "DELETE" })
-  return res.json().catch(() => ({}))
+  return res.json().catch(() => ({} as T))
 }
