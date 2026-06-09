@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
+import { apiFetch } from "@/lib/api"
 
 type TabType = "sales" | "vat" | "customers"
 
@@ -169,6 +170,38 @@ export default function ReportsPage() {
     exportToCSV(data, "umsatzbericht_nach_kunde", Object.keys(data[0] || {}))
   }
 
+  /**
+   * Download the DATEV Buchungsstapel for the current
+   * calendar year. Goes through apiFetch so x-user-id /
+   * x-company-id are attached (a plain <a href> would
+   * skip the auth headers). The server already sets
+   * Content-Disposition: attachment, so blob + click
+   * just saves the file.
+   */
+  const exportDatev = async () => {
+    const companyId = localStorage.getItem("companyId")
+    if (!companyId) return
+    try {
+      const year = new Date().getFullYear()
+      const res = await apiFetch(
+        `/reports/datev-export?companyId=${companyId}&startDate=${year}-01-01&endDate=${year}-12-31`,
+        { method: "GET" }
+      )
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `DATEV_Buchungsstapel_${year}.csv`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+    } catch (e: any) {
+      console.error("DATEV export failed:", e)
+      alert(e?.message || "DATEV-Export fehlgeschlagen")
+    }
+  }
+
   const getSalesByMonthCSV = () => {
     if (!salesReport?.byMonth) return
     const data = salesReport.byMonth.map((m) => ({
@@ -210,6 +243,12 @@ export default function ReportsPage() {
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <h1 className="text-2xl font-bold text-blue-600">Berichtscenter</h1>
           <div className="flex gap-2 items-center">
+            <Button variant="outline" onClick={() => router.push("/dashboard/reports/aging")}>
+              Altersstruktur
+            </Button>
+            <Button variant="outline" onClick={exportDatev}>
+              DATEV Export
+            </Button>
             <LanguageSwitcher />
             <Button variant="outline" onClick={() => router.push("/dashboard")}>
               Zurück

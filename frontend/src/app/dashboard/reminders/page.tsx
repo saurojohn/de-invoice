@@ -220,6 +220,9 @@ export default function RemindersPage() {
             {t("reminder.title")}
           </h1>
           <div className="flex gap-2 items-center">
+            <Button variant="outline" onClick={() => router.push("/dashboard/reminders/templates")}>
+              {t("reminder.templatesButton") || "Vorlagen bearbeiten"}
+            </Button>
             <LanguageSwitcher />
             <Button variant="outline" onClick={() => router.push("/dashboard")}>
               {t("common.back")}

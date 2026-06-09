@@ -32,7 +32,47 @@ export interface ReminderTemplate {
 
 @Injectable()
 export class ReminderService {
-  constructor(private prisma: PrismaService) {}
+  constructor(protected prisma: PrismaService) {}
+
+  /**
+   * Update a reminder template row directly. Used by the
+   * controller's PUT /templates/:level route — exposed as
+   * a service method so the controller doesn't have to
+   * reach into `prisma` (which would require making the
+   * PrismaService field public).
+   */
+  async updateTemplateRow(
+    companyId: string,
+    level: 'first' | 'second' | 'final',
+    data: { subject: string; body: string; isDefault: boolean },
+  ) {
+    return this.prisma.reminderTemplate.update({
+      where: { companyId_level: { companyId, level } },
+      data,
+    });
+  }
+
+  /**
+   * Delete any user-customised template so the next call
+   * to getOrCreateTemplate re-seeds the default.
+   */
+  async deleteTemplate(companyId: string, level: 'first' | 'second' | 'final') {
+    return this.prisma.reminderTemplate.deleteMany({ where: { companyId, level } });
+  }
+
+  /**
+   * Return the most recent invoice id for the company, used
+   * by the template preview route when the caller doesn't
+   * supply an invoiceId.
+   */
+  async latestInvoiceId(companyId: string): Promise<string | null> {
+    const r = await this.prisma.invoice.findFirst({
+      where: { companyId },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true },
+    });
+    return r?.id || null;
+  }
 
   /**
    * Find all overdue invoices for a company
@@ -225,6 +265,168 @@ ${company.name}`,
   }
 
   /**
+   * Get the per-company template for a level. If the
+   * company has never saved one, seed the three default
+   * German templates (matching the previous hard-coded
+   * wording) so the page works out of the box. The seeded
+   * rows are flagged `isDefault=true` so the UI can
+   * distinguish "unedited" from "edited by the user".
+   */
+  async getOrCreateTemplate(companyId: string, level: 'first' | 'second' | 'final') {
+    const existing = await this.prisma.reminderTemplate.findUnique({
+      where: { companyId_level: { companyId, level } },
+    })
+    if (existing) return existing
+
+    // Seed defaults for the level the caller asked for.
+    // Use the same wording the previous generateReminderEmail
+    // hard-coded — preserves the user-visible behaviour.
+    const defaults = this.defaultTemplates()
+    return this.prisma.reminderTemplate.create({
+      data: {
+        companyId,
+        level,
+        subject: defaults[level].subject,
+        body: defaults[level].body,
+        isDefault: true,
+      },
+    })
+  }
+
+  /**
+   * Default German templates. These are the seed values
+   * for new companies; the user can edit them in the UI
+   * and the override persists in ReminderTemplate.
+   */
+  private defaultTemplates(): Record<'first' | 'second' | 'final', { subject: string; body: string }> {
+    return {
+      first: {
+        subject: 'Erinnerung: Rechnung {{invoiceNumber}} ist überfällig',
+        body: `Sehr geehrte/r {{customerName}},
+
+hiermit möchten wir Sie freundlich daran erinnern, dass die Rechnung {{invoiceNumber}} vom {{dueDateFormatted}} mit einem Betrag von EUR {{totalAmount}} bereits überfällig ist.
+
+Die Zahlung ist seit {{daysOverdue}} Tag(en) überfällig.
+
+Bitte begleichen Sie den offenen Betrag innerhalb von 14 Tagen auf folgendes Konto:
+
+{{bankInfo}}
+
+Bei Rückfragen stehen wir Ihnen gerne zur Verfügung.
+
+Mit freundlichen Grüßen,
+{{companyName}}`,
+      },
+      second: {
+        subject: '2. Mahnung: Rechnung {{invoiceNumber}} - Zahlung sofort erforderlich',
+        body: `Sehr geehrte/r {{customerName}},
+
+leider mussten wir feststellen, dass die Rechnung {{invoiceNumber}} vom {{dueDateFormatted}} trotz unserer ersten Erinnerung noch nicht beglichen wurde.
+
+Fälliger Betrag: EUR {{totalAmount}}
+Überfällig seit: {{daysOverdue}} Tag(en)
+
+Wir bitten Sie, den offenen Betrag unverzüglich, spätestens jedoch innerhalb von 7 Tagen, auf folgendes Konto zu überweisen:
+
+{{bankInfo}}
+
+Sollte die Zahlung nicht innerhalb der genannten Frist erfolgen, sehen wir uns gezwungen, weitere Schritte einzuleiten.
+
+Mit freundlichen Grüßen,
+{{companyName}}`,
+      },
+      final: {
+        subject: 'Letzte Mahnung: Rechnung {{invoiceNumber}} - Außergerichtliches Inkasso',
+        body: `Sehr geehrte/r {{customerName}},
+
+trotz mehrfacher Aufforderung bleibt die Rechnung {{invoiceNumber}} vom {{dueDateFormatted}} weiterhin unbeglichen.
+
+Offener Betrag: EUR {{totalAmount}}
+Überfällig seit: {{daysOverdue}} Tag(en)
+
+Dies ist unsere LETZTE Mahnung. Wir fordern Sie auf, den offenen Betrag innerhalb von 5 Tagen auf folgendes Konto zu überweisen:
+
+{{bankInfo}}
+
+Nach fruchtlosem Ablauf der Frist werden wir weitere rechtliche Schritte einleiten.
+
+Mit freundlichen Grüßen,
+{{companyName}}`,
+      },
+    }
+  }
+
+  /**
+   * Render a template by replacing {{placeholder}} tokens
+   * with values from the context. Unknown placeholders are
+   * left as-is so the user can spot typos in their custom
+   * template.
+   */
+  renderTemplate(template: string, ctx: Record<string, string | number>): string {
+    return template.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (match, key: string) => {
+      const v = ctx[key]
+      if (v === undefined || v === null) return match
+      return String(v)
+    })
+  }
+
+  /**
+   * Render the per-level template for an invoice, using
+   * the company's saved template (or the default if none).
+   * Returns the rendered subject + body.
+   */
+  async renderForInvoice(
+    invoiceId: string,
+    companyId: string,
+    level: 'first' | 'second' | 'final',
+  ): Promise<{ subject: string; body: string }> {
+    const invoice = await this.prisma.invoice.findFirst({
+      where: { id: invoiceId, companyId },
+      include: { customer: true },
+    })
+    if (!invoice) throw new Error('Invoice not found')
+
+    const company = await this.prisma.company.findUnique({ where: { id: companyId } })
+    if (!company) throw new Error('Company not found')
+
+    const template = await this.getOrCreateTemplate(companyId, level)
+
+    const customerName =
+      (invoice.customer.contact as any)?.name || invoice.customer.name
+    const totalAmount = parseFloat(invoice.total.toString()).toFixed(2)
+    const dueDateFormatted = new Date(invoice.dueDate!).toLocaleDateString('de-DE', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+    })
+    const daysOverdue = Math.floor(
+      (Date.now() - new Date(invoice.dueDate!).getTime()) / (1000 * 60 * 60 * 24),
+    )
+    const bank = (company as any).bankInfo || {}
+    const bankInfo = [
+      bank.bankName && `Bank: ${bank.bankName}`,
+      bank.accountHolder && `Kontoinhaber: ${bank.accountHolder}`,
+      bank.iban && `IBAN: ${bank.iban}`,
+      bank.bic && `BIC: ${bank.bic}`,
+    ].filter(Boolean).join('\n')
+
+    const ctx: Record<string, string | number> = {
+      customerName,
+      invoiceNumber: invoice.invoiceNumber,
+      totalAmount,
+      dueDateFormatted,
+      daysOverdue,
+      bankInfo: bankInfo || '(Bankverbindung fehlt — bitte unter Einstellungen ergänzen)',
+      companyName: company.name,
+    }
+
+    return {
+      subject: this.renderTemplate(template.subject, ctx),
+      body: this.renderTemplate(template.body, ctx),
+    }
+  }
+
+  /**
    * Get email data for a specific reminder level
    */
   async getReminderEmailData(
@@ -266,11 +468,11 @@ ${company.name}`,
       reminderCount: 0,
     };
 
-    const template = this.generateReminderEmail(overdueInvoice, {
-      name: company.name,
-      address: company.address,
-      bankInfo: company.bankInfo,
-    }, level);
+    // Render from the per-company DB template (or the
+    // default seeded on first request). Replaces the old
+    // hard-coded generateReminderEmail — see renderForInvoice
+    // for the placeholder context.
+    const rendered = await this.renderForInvoice(invoiceId, companyId, level);
 
     const recipientEmail = (invoice.customer.contact as any)?.email || '';
     const recipientName = (invoice.customer.contact as any)?.name || invoice.customer.name;
@@ -280,8 +482,8 @@ ${company.name}`,
       invoiceNumber: invoice.invoiceNumber,
       recipientEmail,
       recipientName,
-      subject: template.subject,
-      body: template.body,
+      subject: rendered.subject,
+      body: rendered.body,
       level,
       pdfUrl: `/api/v1/invoices/${invoiceId}/pdf?companyId=${companyId}`,
     };
