@@ -95,6 +95,55 @@ export class VoucherService {
           include: { account: true },
           orderBy: { sortOrder: 'asc' },
         },
+        // Audit-trail links: the Voucher may be the
+        // cash side of a BankReconciliation, a
+        // BankTransaction expense booking, a
+        // BankReconciliation reversal (Storno), or
+        // the legacy invoice-side path. Each Voucher
+        // is reachable from one of these — the
+        // detail page renders the links so the
+        // Berater can pivot in either direction.
+        bankReconciliations: {
+          select: {
+            id: true,
+            status: true,
+            appliedAmount: true,
+            invoice: { select: { id: true, invoiceNumber: true, total: true } },
+            bankTransaction: {
+              select: {
+                id: true,
+                valueDate: true,
+                amount: true,
+                counterpartyName: true,
+                purpose: true,
+                endToEndId: true,
+                statement: { select: { id: true, fileName: true, format: true } },
+              },
+            },
+          },
+        },
+        reversalOf: {
+          select: {
+            id: true,
+            status: true,
+            appliedAmount: true,
+            invoice: { select: { id: true, invoiceNumber: true } },
+            bankTransaction: {
+              select: { id: true, valueDate: true, amount: true, counterpartyName: true },
+            },
+          },
+        },
+        bankTransactions: {
+          select: {
+            id: true,
+            valueDate: true,
+            amount: true,
+            counterpartyName: true,
+            purpose: true,
+            statement: { select: { id: true, fileName: true, format: true } },
+          },
+        },
+        invoiceRef: { select: { id: true, invoiceNumber: true, total: true } },
       },
     });
     if (!voucher) {

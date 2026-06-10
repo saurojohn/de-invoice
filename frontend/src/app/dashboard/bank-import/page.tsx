@@ -882,20 +882,31 @@ export default function BankImportPage() {
                               Belegnummer. */}
                           {r.voucher ? (
                             <span>
-                              {r.voucher.voucherNumber}
+                              <button
+                                onClick={() => router.push(`/dashboard/accounting/vouchers/${r.voucher!.id}`)}
+                                className="font-mono text-blue-700 hover:underline"
+                              >
+                                {r.voucher.voucherNumber}
+                              </button>
                               {r.reversalVoucher && (
                                 <>
                                   <br />
-                                  <span className="text-amber-700 text-[10px]">
+                                  <button
+                                    onClick={() => router.push(`/dashboard/accounting/vouchers/${r.reversalVoucher!.id}`)}
+                                    className="text-amber-700 text-[10px] hover:underline"
+                                  >
                                     Storno {r.reversalVoucher.voucherNumber}
-                                  </span>
+                                  </button>
                                 </>
                               )}
                             </span>
                           ) : r.reversalVoucher ? (
-                            <span className="text-amber-700">
+                            <button
+                              onClick={() => router.push(`/dashboard/accounting/vouchers/${r.reversalVoucher!.id}`)}
+                              className="text-amber-700 hover:underline"
+                            >
                               Storno {r.reversalVoucher.voucherNumber}
-                            </span>
+                            </button>
                           ) : (
                             "—"
                           )}
