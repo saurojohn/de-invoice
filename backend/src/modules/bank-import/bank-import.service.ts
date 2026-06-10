@@ -116,7 +116,16 @@ export class BankImportService {
     return this.prisma.bankStatement.findFirst({
       where: { id, companyId },
       include: {
-        transactions: { orderBy: { valueDate: 'asc' } },
+        transactions: {
+          orderBy: { valueDate: 'asc' },
+          // voucher: present for transactions that were
+          // booked as an expense (BankTransaction.voucherId).
+          // Reconciliations (the customer-payment path) carry
+          // their own voucherId and aren't joined here.
+          include: {
+            voucher: { select: { id: true, voucherNumber: true, date: true } },
+          },
+        },
       },
     });
   }
@@ -149,6 +158,13 @@ export class BankImportService {
 
     const amount = Number(txn.amount);
     const valueDate = txn.valueDate;
+
+    // Debit (money leaving the account) cannot match
+    // a customer invoice (which is money owed to us).
+    // The caller should use bookExpense() instead.
+    if (amount < 0) {
+      return { transaction: txn, candidates: [] };
+    }
 
     // Open invoices: status = 'sent' (draft is too early,
     // paid/cancelled is final). We also include 'overdue'.
@@ -551,6 +567,134 @@ export class BankImportService {
       },
     });
     return this.confirmMatch(companyId, created.id, userId);
+  }
+
+  /**
+   * List all reconciliations for a statement — used by
+   * the frontend to render the matching status panel
+   * (suggested / confirmed / rejected counts).
+   */
+  /**
+   * Book a debit bank transaction (money leaving the
+   * account) as a GoBD expense voucher when no
+   * matching vendor invoice is found.
+   *
+   * The standard booking is:
+   *   Debit  4900 Aufwandskonto     amount + vat
+   *   Debit  1576 Vorsteuer 19%     vat (if applicable)
+   *   Credit 1200 Bank              amount + vat
+   *
+   * For now we only support expenses without VAT
+   * (the user can edit the Voucher in the
+   * Buchungsbeleg UI to add a VAT line — Vorsteuer
+   * recovery is the Berater's call anyway). v1 books
+   * the simple 2-line case:
+   *   Debit  4900 Aufwand            amount
+   *   Credit 1200 Bank               amount
+   *
+   * The transaction's `voucherId` is set so the UI
+   * can show the Belegnummer in the txn list.
+   */
+  async bookExpense(
+    companyId: string,
+    bankTransactionId: string,
+    userId: string | undefined,
+    opts: {
+      expenseAccountNumber?: string
+      description?: string
+    } = {},
+  ) {
+    const txn = await this.prisma.bankTransaction.findFirst({
+      where: { id: bankTransactionId, companyId },
+    });
+    if (!txn) throw new NotFoundException('Transaktion nicht gefunden');
+
+    const amount = Number(txn.amount);
+    if (amount >= 0) {
+      throw new BadRequestException(
+        'Diese Funktion ist nur für Ausgänge (negative Beträge). Eingänge bitte als Zuordnung zu einer Rechnung buchen.',
+      );
+    }
+
+    // Refuse if a reconciliation already exists —
+    // the user can either confirm it (invoice path) or
+    // reject it first, then book as expense.
+    const existingRecon = await this.prisma.bankReconciliation.findFirst({
+      where: { bankTransactionId, companyId },
+    });
+    if (existingRecon) {
+      throw new BadRequestException(
+        'Diese Buchung hat bereits eine Zuordnung — bitte zuerst ablehnen, dann als Aufwand buchen.',
+      );
+    }
+
+    // Refuse if already booked as expense (idempotency).
+    if (txn.voucherId) {
+      throw new BadRequestException('Diese Buchung wurde bereits als Aufwand gebucht');
+    }
+
+    // Resolve accounts (per-company DATEV config).
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { settings: true },
+    });
+    const settings = (company?.settings as any) || {};
+    const accts = resolveDatevAccounts(settings.datev);
+
+    const expenseNumber = opts.expenseAccountNumber || accts.expenseDefault;
+    const bankAccount = await this.ensureAccount(companyId, accts.bank, 'Bank', 'asset', 'liquidity');
+    const expenseAccount = await this.ensureAccount(
+      companyId,
+      expenseNumber,
+      'Sonstige betriebliche Aufwendungen',
+      'expense',
+      'operating',
+    );
+
+    // absoluteValue — the voucher must always carry
+    // positive debit/credit values per GoBD.
+    const absAmount = Math.abs(amount);
+
+    const counterparty = txn.counterpartyName || '—';
+    const description = opts.description
+      || txn.purpose
+      || `Bankausgang ${counterparty}`;
+
+    const voucher = await this.voucherService.create({
+      companyId,
+      date: txn.valueDate,
+      description,
+      referenceType: 'BankTransaction',
+      lines: [
+        {
+          accountId: expenseAccount.id,
+          description: counterparty,
+          debit: absAmount,
+          credit: 0,
+        },
+        {
+          accountId: bankAccount.id,
+          description: `Bank ${counterparty}`,
+          debit: 0,
+          credit: absAmount,
+        },
+      ],
+    });
+
+    // Link voucher back to the transaction.
+    await this.prisma.bankTransaction.update({
+      where: { id: bankTransactionId },
+      data: { voucherId: voucher.id },
+    });
+
+    this.logger.log(
+      `booked expense txn=${bankTransactionId} voucher=${voucher.id} amount=${absAmount} account=${expenseNumber}`,
+    );
+    return {
+      transactionId: bankTransactionId,
+      voucherId: voucher.id,
+      appliedAmount: absAmount,
+    };
   }
 
   /**

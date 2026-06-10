@@ -16,8 +16,8 @@ docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"BankReconciliation\" WHERE \"companyId\" = '$COMPANY_ID';
    DELETE FROM \"BankTransaction\" WHERE \"companyId\" = '$COMPANY_ID';
    DELETE FROM \"BankStatement\" WHERE \"companyId\" = '$COMPANY_ID';
-   DELETE FROM \"VoucherLine\" WHERE \"voucherId\" IN (SELECT id FROM \"Voucher\" WHERE \"companyId\" = '$COMPANY_ID' AND \"referenceType\" = 'BankReconciliation');
-   DELETE FROM \"Voucher\" WHERE \"companyId\" = '$COMPANY_ID' AND \"referenceType\" = 'BankReconciliation';
+   DELETE FROM \"VoucherLine\" WHERE \"voucherId\" IN (SELECT id FROM \"Voucher\" WHERE \"companyId\" = '$COMPANY_ID' AND \"referenceType\" IN ('BankReconciliation', 'BankTransaction'));
+   DELETE FROM \"Voucher\" WHERE \"companyId\" = '$COMPANY_ID' AND \"referenceType\" IN ('BankReconciliation', 'BankTransaction');
    DELETE FROM \"Payment\" WHERE \"invoiceId\" IN (SELECT id FROM \"Invoice\" WHERE \"invoiceNumber\" IN ('INV-2026-TEST-E2E', 'INV-2026-TEST-002', 'INV-2026-TEST-003', 'INV-2026-TEST-CAMT'));
    DELETE FROM \"Invoice\" WHERE \"invoiceNumber\" IN ('INV-2026-TEST-E2E', 'INV-2026-TEST-002', 'INV-2026-TEST-003', 'INV-2026-TEST-CAMT');" >/dev/null 2>&1
 
@@ -404,13 +404,132 @@ if d: print(d[0].get('confidence', 0))
   fi
 fi
 
+# === Expense booking (debit txn → 4900 + 1200) ===
+# Upload a statement with ONLY a debit transaction.
+cat > /tmp/e2e-exp.mt940 <<'EOF'
+:1:F01BANKBICAXXX0000000000
+:20:STEXP001
+:25:DE89370400440532013000
+:28C:1/1
+:60F:C260601EUR500,00
+:61:2606020602D85,50NTRFNONREF//Strom April
+Stadtwerke
+:62F:C260602EUR414,50
+-
+EOF
+UPLOAD4=$(curl -sS -X POST -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
+  "$API/api/v1/bank-statements/import?companyId=$COMPANY_ID" \
+  -F "file=@/tmp/e2e-exp.mt940;type=text/plain" \
+  -F "companyId=$COMPANY_ID" \
+  -F "userId=$USER_ID")
+SID4=$(json_field "$UPLOAD4" id)
+TXN_ID4=$(echo "$UPLOAD4" | python3 -c "
+import json, sys
+d = json.loads(sys.stdin.read())
+for t in d['transactions']:
+    if float(t['amount']) == -85.5: print(t['id']); break
+")
+note "debit txn: $TXN_ID4"
+
+# Book as expense (default 4900)
+api_post "/api/v1/bank-statements/$SID4/transactions/$TXN_ID4/book-expense?companyId=$COMPANY_ID" '{}'
+assert_status "201" "book expense (default 4900)"
+EXP_VCH_ID=$(json_field "$BODY" voucherId)
+if [[ -n "$EXP_VCH_ID" && "$EXP_VCH_ID" != "null" ]]; then
+  pass "expense voucher: ${EXP_VCH_ID:0:8}..."
+fi
+
+# Verify voucher shape
+EXP_REFTYPE=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT \"referenceType\" FROM \"Voucher\" WHERE id = '$EXP_VCH_ID';" 2>/dev/null | tr -d ' ')
+assert_eq "expense voucher referenceType" "$EXP_REFTYPE" "BankTransaction"
+
+EXP_DEBIT_ACCT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT a.\"accountNumber\" || '|' || vl.debit
+   FROM \"VoucherLine\" vl JOIN \"Account\" a ON a.id = vl.\"accountId\"
+   WHERE vl.\"voucherId\" = '$EXP_VCH_ID' AND vl.debit > 0;" 2>/dev/null | tr -d ' ')
+assert_eq "expense debit line is 4900" "$EXP_DEBIT_ACCT" "4900|85.5000"
+
+EXP_CREDIT_ACCT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT a.\"accountNumber\" || '|' || vl.credit
+   FROM \"VoucherLine\" vl JOIN \"Account\" a ON a.id = vl.\"accountId\"
+   WHERE vl.\"voucherId\" = '$EXP_VCH_ID' AND vl.credit > 0;" 2>/dev/null | tr -d ' ')
+assert_eq "expense credit line is 1200" "$EXP_CREDIT_ACCT" "1200|85.5000"
+
+# Verify txn has voucherId linked
+EXP_LINK=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT \"voucherId\" IS NOT NULL FROM \"BankTransaction\" WHERE id = '$TXN_ID4';" 2>/dev/null | tr -d ' ')
+assert_eq "txn linked to voucher" "$EXP_LINK" "t"
+
+# Double-book should fail
+api_post "/api/v1/bank-statements/$SID4/transactions/$TXN_ID4/book-expense?companyId=$COMPANY_ID" '{}'
+assert_status "400" "double-book returns 400"
+
+# Try to book a credit txn as expense — should fail
+# (use INV-2026-TEST-002's recon statement's earlier txns, but easier: upload a new one)
+cat > /tmp/e2e-credit.mt940 <<'EOF'
+:1:F01BANKBICAXXX0000000000
+:20:STCRED001
+:25:DE89370400440532013000
+:28C:1/1
+:60F:C260601EUR100,00
+:61:2606020602C50,00NTRFNONREF//Test
+:62F:C260602EUR150,00
+-
+EOF
+UPLOAD_C=$(curl -sS -X POST -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
+  "$API/api/v1/bank-statements/import?companyId=$COMPANY_ID" \
+  -F "file=@/tmp/e2e-credit.mt940;type=text/plain" \
+  -F "companyId=$COMPANY_ID" \
+  -F "userId=$USER_ID")
+SID_C=$(json_field "$UPLOAD_C" id)
+TXN_ID_C=$(echo "$UPLOAD_C" | python3 -c "
+import json, sys
+d = json.loads(sys.stdin.read())
+for t in d['transactions']:
+    if float(t['amount']) == 50: print(t['id']); break
+")
+api_post "/api/v1/bank-statements/$SID_C/transactions/$TXN_ID_C/book-expense?companyId=$COMPANY_ID" '{}'
+assert_status "400" "book-expense on credit txn returns 400"
+
+# Custom account number
+cat > /tmp/e2e-exp2.mt940 <<'EOF'
+:1:F01BANKBICAXXX0000000000
+:20:STEXP002
+:25:DE89370400440532013000
+:28C:1/1
+:60F:C260602EUR414,50
+:61:2606030603D200,00NTRFNONREF//Büromaterial
+Amazon
+:62F:C260603EUR214,50
+-
+EOF
+UPLOAD5=$(curl -sS -X POST -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
+  "$API/api/v1/bank-statements/import?companyId=$COMPANY_ID" \
+  -F "file=@/tmp/e2e-exp2.mt940;type=text/plain" \
+  -F "companyId=$COMPANY_ID" \
+  -F "userId=$USER_ID")
+SID5=$(json_field "$UPLOAD5" id)
+TXN_ID5=$(echo "$UPLOAD5" | python3 -c "
+import json, sys
+d = json.loads(sys.stdin.read())
+for t in d['transactions']:
+    if float(t['amount']) == -200: print(t['id']); break
+")
+api_post "/api/v1/bank-statements/$SID5/transactions/$TXN_ID5/book-expense?companyId=$COMPANY_ID" '{"expenseAccountNumber":"4960","description":"Büromaterial Q2"}'
+assert_status "201" "book expense with custom account 4960"
+EXP2_VCH_ID=$(json_field "$BODY" voucherId)
+EXP2_ACCT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT a.\"accountNumber\" FROM \"VoucherLine\" vl JOIN \"Account\" a ON a.id = vl.\"accountId\" WHERE vl.\"voucherId\" = '$EXP2_VCH_ID' AND vl.debit > 0;" 2>/dev/null | tr -d ' ')
+assert_eq "custom expense account used" "$EXP2_ACCT" "4960"
+
 # Cleanup
 docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"BankReconciliation\" WHERE \"companyId\" = '$COMPANY_ID';
    DELETE FROM \"BankTransaction\" WHERE \"companyId\" = '$COMPANY_ID';
    DELETE FROM \"BankStatement\" WHERE \"companyId\" = '$COMPANY_ID';
-   DELETE FROM \"VoucherLine\" WHERE \"voucherId\" IN (SELECT id FROM \"Voucher\" WHERE \"companyId\" = '$COMPANY_ID' AND \"referenceType\" = 'BankReconciliation');
-   DELETE FROM \"Voucher\" WHERE \"companyId\" = '$COMPANY_ID' AND \"referenceType\" = 'BankReconciliation';
+   DELETE FROM \"VoucherLine\" WHERE \"voucherId\" IN (SELECT id FROM \"Voucher\" WHERE \"companyId\" = '$COMPANY_ID' AND \"referenceType\" IN ('BankReconciliation', 'BankTransaction'));
+   DELETE FROM \"Voucher\" WHERE \"companyId\" = '$COMPANY_ID' AND \"referenceType\" IN ('BankReconciliation', 'BankTransaction');
    DELETE FROM \"Payment\" WHERE \"invoiceId\" IN (SELECT id FROM \"Invoice\" WHERE \"invoiceNumber\" IN ('INV-2026-TEST-E2E', 'INV-2026-TEST-002', 'INV-2026-TEST-003', 'INV-2026-TEST-CAMT'));
    DELETE FROM \"Invoice\" WHERE \"invoiceNumber\" IN ('INV-2026-TEST-E2E', 'INV-2026-TEST-002', 'INV-2026-TEST-003', 'INV-2026-TEST-CAMT');" >/dev/null 2>&1
 

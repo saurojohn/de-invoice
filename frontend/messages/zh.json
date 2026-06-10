@@ -899,6 +899,9 @@
     "reconInvoice": "发票",
     "reconCustomer": "客户",
     "reconAmount": "金额",
-    "reconStatus": "状态"
+    "reconStatus": "状态",
+    "tableAction": "操作",
+    "bookExpense": "记为费用",
+    "expenseAccountPrompt": "费用科目 (SKR03):"
   }
 }

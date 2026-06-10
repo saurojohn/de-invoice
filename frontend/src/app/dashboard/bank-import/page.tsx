@@ -33,6 +33,15 @@ interface BankTransaction {
   counterpartyIban: string | null
   purpose: string | null
   endToEndId: string | null
+  // voucher: present when this debit transaction was
+  // booked as an expense (the auto VoucherService flow).
+  // Credit transactions carry their voucher on the
+  // BankReconciliation row, not on the txn itself.
+  voucher: {
+    id: string
+    voucherNumber: string
+    date: string
+  } | null
 }
 
 interface Candidate {
@@ -160,6 +169,37 @@ export default function BankImportPage() {
       await loadReconciliations(openId)
     } catch (err: any) {
       alert(err?.message || "Ablehnen fehlgeschlagen")
+    } finally {
+      setBusyRecon(null)
+    }
+  }
+
+  /** Book a debit transaction as a GoBD expense. The
+   *  server picks the SKR03 4900 (Aufwandskonto)
+   *  default; the user can override with a custom
+   *  account number from the prompt. */
+  const bookExpense = async (txnId: string) => {
+    if (!openId) return
+    const acct = prompt(t("bankImport.expenseAccountPrompt"), "4900")
+    if (acct === null) return
+    const companyId = localStorage.getItem("companyId")!
+    setBusyRecon(txnId)
+    try {
+      await apiPost(
+        `/api/v1/bank-statements/${openId}/transactions/${txnId}/book-expense?companyId=${companyId}`,
+        { expenseAccountNumber: acct || undefined }
+      )
+      // Reload the statement to pick up the txn.voucher
+      const detail = await apiGet<{ transactions: BankTransaction[] }>(
+        `/api/v1/bank-statements/${openId}?companyId=${companyId}`
+      )
+      setTransactions(detail.transactions || [])
+      // Clear the selected txn (the candidates list is
+      // empty for debit txns anyway).
+      setSelectedTxn(null)
+      setCandidates([])
+    } catch (err: any) {
+      alert(err?.message || "Buchen fehlgeschlagen")
     } finally {
       setBusyRecon(null)
     }
@@ -429,28 +469,30 @@ export default function BankImportPage() {
                           <th className="py-2">{t("bankImport.tableDate")}</th>
                           <th>{t("bankImport.tableDescription")}</th>
                           <th className="text-right">{t("bankImport.tableAmount")}</th>
+                          <th className="text-right">{t("bankImport.tableAction")}</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {transactions.map((t) => {
-                          const isSel = selectedTxn?.id === t.id
-                          const amt = Number(t.amount)
+                        {transactions.map((txn) => {
+                          const isSel = selectedTxn?.id === txn.id
+                          const amt = Number(txn.amount)
+                          const isDebit = amt < 0
                           return (
                             <tr
-                              key={t.id}
-                              onClick={() => selectTxn(t)}
+                              key={txn.id}
+                              onClick={() => selectTxn(txn)}
                               className={`border-b cursor-pointer ${
                                 isSel ? "bg-blue-50" : "hover:bg-gray-50"
                               }`}
                             >
-                              <td className="py-2 font-mono text-xs">{fmtDate(t.valueDate, dl)}</td>
+                              <td className="py-2 font-mono text-xs">{fmtDate(txn.valueDate, dl)}</td>
                               <td>
                                 <div className="font-medium">
-                                  {t.counterpartyName || t.endToEndId || "—"}
+                                  {txn.counterpartyName || txn.endToEndId || "—"}
                                 </div>
-                                {t.purpose && (
+                                {txn.purpose && (
                                   <div className="text-xs text-gray-500 truncate max-w-[400px]">
-                                    {t.purpose}
+                                    {txn.purpose}
                                   </div>
                                 )}
                               </td>
@@ -458,6 +500,37 @@ export default function BankImportPage() {
                                 amt >= 0 ? "text-emerald-700" : "text-red-700"
                               }`}>
                                 € {fmtMoney(amt)}
+                              </td>
+                              <td className="text-right text-xs">
+                                {/* Debit txn: show "Als Aufwand
+                                    buchen" button (only if not
+                                    already booked). Credit txn:
+                                    no action here — the
+                                    candidates panel handles
+                                    the matching. */}
+                                {isDebit && !txn.voucher && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={busyRecon === txn.id}
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      bookExpense(txn.id)
+                                    }}
+                                  >
+                                    {busyRecon === txn.id
+                                      ? t("common.loading")
+                                      : t("bankImport.bookExpense")}
+                                  </Button>
+                                )}
+                                {/* Expense already booked:
+                                    show the voucher number as
+                                    the audit-trail reference. */}
+                                {txn.voucher && (
+                                  <span className="font-mono text-emerald-700">
+                                    {txn.voucher.voucherNumber}
+                                  </span>
+                                )}
                               </td>
                             </tr>
                           )

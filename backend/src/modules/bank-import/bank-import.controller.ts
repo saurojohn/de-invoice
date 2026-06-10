@@ -162,4 +162,33 @@ export class BankImportController {
     if (!companyId) throw new BadRequestException('companyId is required');
     return this.svc.listReconciliations(companyId, id);
   }
+
+  /** Book a debit bank transaction (money leaving
+   *  the account) as a GoBD expense voucher. Used
+   *  when no matching customer invoice is found and
+   *  the user wants to record it as Aufwand
+   *  (e.g. tax payment, supplier bill without a
+   *  vendor-invoice flow, bank fees). */
+  @Post(':id/transactions/:txnId/book-expense')
+  @Require('invoice.create')
+  async bookExpense(
+    @Req() req: any,
+    @Query('companyId') companyId: string,
+    @Param('id') id: string,
+    @Param('txnId') txnId: string,
+    @Body('expenseAccountNumber') expenseAccountNumber?: string,
+    @Body('description') description?: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId is required');
+    const stmt = await this.svc.getStatement(companyId, id);
+    if (!stmt) throw new BadRequestException('Kontoauszug nicht gefunden');
+    if (!stmt.transactions.some((t) => t.id === txnId)) {
+      throw new BadRequestException('Transaktion gehört nicht zu diesem Kontoauszug');
+    }
+    const userId = req?.headers?.['x-user-id'] || undefined;
+    return this.svc.bookExpense(companyId, txnId, userId, {
+      expenseAccountNumber,
+      description,
+    });
+  }
 }

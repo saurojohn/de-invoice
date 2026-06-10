@@ -447,6 +447,7 @@ model Voucher {
   lines         VoucherLine[]
   invoiceRef    Invoice?
   bankReconciliations BankReconciliation[]
+  bankTransactions BankTransaction[]
 
   @@unique([companyId, voucherNumber])
   @@index([companyId, date])
@@ -908,6 +909,14 @@ model BankTransaction {
   endToEndId      String?
   // Notes the user added after import.
   notes           String?
+  // Auto-generated Voucher for an expense booking on
+  // this transaction (e.g. debit txn with no matching
+  // invoice → book as Aufwand). NULL when the txn
+  // either has no booking yet, or the booking is via
+  // a BankReconciliation (in which case the voucherId
+  // is on the recon row, not on the txn).
+  voucherId       String?
+  voucher         Voucher? @relation(fields: [voucherId], references: [id])
   createdAt       DateTime @default(now())
 
   matches BankReconciliation[]

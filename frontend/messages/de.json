@@ -897,6 +897,9 @@
     "reconInvoice": "Rechnung",
     "reconCustomer": "Kunde",
     "reconAmount": "Betrag",
-    "reconStatus": "Status"
+    "reconStatus": "Status",
+    "tableAction": "Aktion",
+    "bookExpense": "Als Aufwand buchen",
+    "expenseAccountPrompt": "Aufwandskonto (SKR03):"
   }
 }
