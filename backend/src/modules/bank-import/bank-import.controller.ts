@@ -209,6 +209,10 @@ export class BankImportController {
     @Param('txnId') txnId: string,
     @Body('expenseAccountNumber') expenseAccountNumber?: string,
     @Body('description') description?: string,
+    @Body('supplierId') supplierId?: string,
+    @Body('expenseId') expenseId?: string,
+    @Body('vatRate') vatRate?: number,
+    @Body('vatAmount') vatAmount?: number,
   ) {
     if (!companyId) throw new BadRequestException('companyId is required');
     const stmt = await this.svc.getStatement(companyId, id);
@@ -220,6 +224,10 @@ export class BankImportController {
     return this.svc.bookExpense(companyId, txnId, userId, {
       expenseAccountNumber,
       description,
+      supplierId,
+      expenseId,
+      vatRate: typeof vatRate === 'number' ? vatRate : undefined,
+      vatAmount: typeof vatAmount === 'number' ? vatAmount : undefined,
     });
   }
 }

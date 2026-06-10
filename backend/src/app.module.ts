@@ -20,6 +20,8 @@ import { UsersModule } from './modules/users/users.module';
 import { RecurringModule } from './modules/recurring/recurring.module';
 import { CashBookModule } from './modules/cashbook/cashbook.module';
 import { BankImportModule } from './modules/bank-import/bank-import.module';
+import { SupplierModule } from './modules/supplier/supplier.module';
+import { ExpenseModule } from './modules/expense/expense.module';
 
 @Module({
   imports: [
@@ -56,6 +58,8 @@ import { BankImportModule } from './modules/bank-import/bank-import.module';
     RecurringModule,
     CashBookModule,
     BankImportModule,
+    SupplierModule,
+    ExpenseModule,
     ScheduleModule.forRoot(),
   ],
   providers: [

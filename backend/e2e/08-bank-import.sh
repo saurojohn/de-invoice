@@ -765,6 +765,101 @@ EXP2_ACCT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA
   "SELECT a.\"accountNumber\" FROM \"VoucherLine\" vl JOIN \"Account\" a ON a.id = vl.\"accountId\" WHERE vl.\"voucherId\" = '$EXP2_VCH_ID' AND vl.debit > 0;" 2>/dev/null | tr -d ' ')
 assert_eq "custom expense account used" "$EXP2_ACCT" "4960"
 
+# === Vendor bill path: Supplier + Expense + Vorsteuer ===
+# A real Eingangsrechnung has 3 lines on the voucher:
+#   Debit  4900 Aufwand    (net)
+#   Debit  1576 Vorsteuer  (input VAT)
+#   Credit 1200 Bank       (gross)
+# The supplier + expense rows are linked so the
+# Berater can pivot from the Voucher to the vendor
+# bill and back.
+SUP_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "INSERT INTO \"Supplier\" (id, \"companyId\", name, \"vatId\", address, \"createdAt\", \"updatedAt\")
+   VALUES (gen_random_uuid()::text, '$COMPANY_ID', 'Stadtwerke Test', 'DE999888777', '{\"city\":\"Dreieich\"}'::jsonb, now(), now())
+   RETURNING id;" 2>/dev/null | grep -E '^[0-9a-f-]{36}$' | head -1)
+
+EXP_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "INSERT INTO \"Expense\" (id, \"companyId\", \"supplierId\", \"invoiceNumber\", description, \"invoiceDate\", \"netAmount\", \"vatRate\", \"vatAmount\", \"grossAmount\", status, \"createdAt\", \"updatedAt\")
+   VALUES (gen_random_uuid()::text, '$COMPANY_ID', '$SUP_ID', 'SW-2026-04', 'Strom April', '2026-04-30', 72.31, 0.19, 13.74, 86.05, 'booked', now(), now())
+   RETURNING id;" 2>/dev/null | grep -E '^[0-9a-f-]{36}$' | head -1)
+
+cat > /tmp/e2e-vendor.mt940 <<'EOF'
+:1:F01BANKBICAXXX0000000000
+:20:STVND001
+:25:DE89370400440532013000
+:28C:1/1
+:60F:C260604EUR913,95
+:61:2606050605D86,05NTRFNONREF//Rechnung SW-2026-04
+Stadtwerke
+:62F:C260605EUR827,90
+-
+EOF
+UPLOAD_VND=$(curl -sS -X POST -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
+  "$API/api/v1/bank-statements/import?companyId=$COMPANY_ID" \
+  -F "file=@/tmp/e2e-vendor.mt940;type=text/plain" \
+  -F "companyId=$COMPANY_ID" \
+  -F "userId=$USER_ID")
+SID_VND=$(json_field "$UPLOAD_VND" id)
+TXN_ID_VND=$(echo "$UPLOAD_VND" | python3 -c "
+import json, sys
+d = json.loads(sys.stdin.read())
+for t in d['transactions']:
+    if float(t['amount']) == -86.05: print(t['id']); break
+")
+
+# Book with supplier + expense + VAT
+VND_BODY=$(printf '{"supplierId":"%s","expenseId":"%s","vatRate":0.19,"vatAmount":13.74}' "$SUP_ID" "$EXP_ID")
+api_post "/api/v1/bank-statements/$SID_VND/transactions/$TXN_ID_VND/book-expense?companyId=$COMPANY_ID" "$VND_BODY"
+assert_status "201" "book expense with supplier + VAT"
+VND_VCH_ID=$(json_field "$BODY" voucherId)
+VND_NET=$(json_field "$BODY" netAmount)
+VND_VAT=$(json_field "$BODY" vatAmount)
+assert_eq "vendor-bill net amount" "$VND_NET" "72.31"
+assert_eq "vendor-bill VAT amount" "$VND_VAT" "13.74"
+
+# Verify voucher has 3 lines: 4900 + 1576 + 1200
+VND_LINE_COUNT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT count(*) FROM \"VoucherLine\" WHERE \"voucherId\" = '$VND_VCH_ID';" 2>/dev/null | tr -d ' ')
+assert_eq "vendor-bill voucher has 3 lines" "$VND_LINE_COUNT" "3"
+
+VND_DEBIT_ACCT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT a.\"accountNumber\" || '|' || vl.debit
+   FROM \"VoucherLine\" vl JOIN \"Account\" a ON a.id = vl.\"accountId\"
+   WHERE vl.\"voucherId\" = '$VND_VCH_ID' AND a.\"accountNumber\" = '4900';" 2>/dev/null | tr -d ' ')
+assert_eq "vendor-bill debit 4900 = net" "$VND_DEBIT_ACCT" "4900|72.3100"
+
+VND_VORSTEUER=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT a.\"accountNumber\" || '|' || vl.debit
+   FROM \"VoucherLine\" vl JOIN \"Account\" a ON a.id = vl.\"accountId\"
+   WHERE vl.\"voucherId\" = '$VND_VCH_ID' AND a.\"accountNumber\" = '1576';" 2>/dev/null | tr -d ' ')
+assert_eq "vendor-bill Vorsteuer 1576 = VAT" "$VND_VORSTEUER" "1576|13.7400"
+
+VND_CREDIT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT a.\"accountNumber\" || '|' || vl.credit
+   FROM \"VoucherLine\" vl JOIN \"Account\" a ON a.id = vl.\"accountId\"
+   WHERE vl.\"voucherId\" = '$VND_VCH_ID' AND vl.credit > 0;" 2>/dev/null | tr -d ' ')
+assert_eq "vendor-bill credit 1200 = gross" "$VND_CREDIT" "1200|86.0500"
+
+# Sum of Soll = Sum of Haben
+VND_SUM_D=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT SUM(debit) FROM \"VoucherLine\" WHERE \"voucherId\" = '$VND_VCH_ID';" 2>/dev/null | tr -d ' ')
+VND_SUM_C=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT SUM(credit) FROM \"VoucherLine\" WHERE \"voucherId\" = '$VND_VCH_ID';" 2>/dev/null | tr -d ' ')
+assert_eq "vendor-bill Soll" "$VND_SUM_D" "86.0500"
+assert_eq "vendor-bill Haben" "$VND_SUM_C" "86.0500"
+
+# Expense referenceType on the voucher
+VND_REFTYPE=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT \"referenceType\" FROM \"Voucher\" WHERE id = '$VND_VCH_ID';" 2>/dev/null | tr -d ' ')
+assert_eq "vendor-bill voucher referenceType" "$VND_REFTYPE" "Expense"
+
+# Cleanup the test supplier
+docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+  "DELETE FROM \"VoucherLine\" WHERE \"voucherId\" = '$VND_VCH_ID';
+   DELETE FROM \"Voucher\" WHERE id = '$VND_VCH_ID';
+   DELETE FROM \"Expense\" WHERE id = '$EXP_ID';
+   DELETE FROM \"Supplier\" WHERE id = '$SUP_ID';" >/dev/null 2>&1
+
 # Cleanup
 docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"BankReconciliation\" WHERE \"companyId\" = '$COMPANY_ID';

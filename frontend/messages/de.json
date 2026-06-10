@@ -260,7 +260,9 @@
     "cardCashbookTitle": "Kassenbuch",
     "cardCashbookDesc": "GoBD-konformes Kassenbuch mit Tagesabschluss",
     "cardBankImportTitle": "Bankimport",
-    "cardBankImportDesc": "MT940 / CAMT.053 hochladen — offene Rechnungen automatisch zuordnen"
+    "cardBankImportDesc": "MT940 / CAMT.053 hochladen — offene Rechnungen automatisch zuordnen",
+    "cardSuppliersTitle": "Lieferanten",
+    "cardSuppliersDesc": "Lieferanten verwalten — Stammdaten, USt-ID, Bankverbindung"
   },
   "settings": {
     "title": "Einstellungen",
@@ -937,5 +939,25 @@
     "statement": "Quelldatei",
     "noAuditLink": "Keine Verknüpfung — manuell erstellter Buchungsbeleg",
     "downloadPdf": "PDF herunterladen"
+  },
+  "suppliers": {
+    "title": "Lieferanten",
+    "subtitle": "Lieferantenstammdaten — Name, USt-ID, Adresse, Bankverbindung",
+    "add": "Lieferant hinzufügen",
+    "searchPlaceholder": "Suche nach Name oder USt-ID...",
+    "count": "Einträge",
+    "name": "Name",
+    "vatId": "USt-ID",
+    "city": "Stadt",
+    "street": "Straße",
+    "postalCode": "PLZ",
+    "email": "E-Mail",
+    "iban": "IBAN",
+    "paymentTerms": "Zahlungsziel",
+    "expenses": "Eingangsrechnungen",
+    "empty": "Noch keine Lieferanten angelegt.",
+    "editTitle": "Lieferant bearbeiten",
+    "addTitle": "Neuen Lieferanten anlegen",
+    "deleteConfirm": "Lieferant „{name}\" wirklich löschen?"
   }
 }

@@ -354,7 +354,9 @@
     "cardCashbookTitle": "Cash Journal",
     "cardCashbookDesc": "GoBD-compliant cash book with daily close",
     "cardBankImportTitle": "Bank Import",
-    "cardBankImportDesc": "Upload MT940 / CAMT.053 — auto-match open invoices"
+    "cardBankImportDesc": "Upload MT940 / CAMT.053 — auto-match open invoices",
+    "cardSuppliersTitle": "Suppliers",
+    "cardSuppliersDesc": "Manage suppliers — master data, VAT ID, bank info"
   },
   "reminder": {
     "title": "Payment Reminders",
@@ -929,5 +931,25 @@
     "statement": "Source file",
     "noAuditLink": "No link — manually-created voucher",
     "downloadPdf": "Download PDF"
+  },
+  "suppliers": {
+    "title": "Suppliers",
+    "subtitle": "Supplier master data — name, VAT ID, address, bank info",
+    "add": "Add supplier",
+    "searchPlaceholder": "Search by name or VAT ID...",
+    "count": "entries",
+    "name": "Name",
+    "vatId": "VAT ID",
+    "city": "City",
+    "street": "Street",
+    "postalCode": "Postal code",
+    "email": "E-mail",
+    "iban": "IBAN",
+    "paymentTerms": "Payment terms",
+    "expenses": "Vendor bills",
+    "empty": "No suppliers yet.",
+    "editTitle": "Edit supplier",
+    "addTitle": "Add new supplier",
+    "deleteConfirm": "Really delete supplier \"{name}\"?"
   }
 }

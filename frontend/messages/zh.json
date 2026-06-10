@@ -262,7 +262,9 @@
     "cardCashbookTitle": "现金日记账",
     "cardCashbookDesc": "符合 GoBD 的现金账,含日结",
     "cardBankImportTitle": "银行流水导入",
-    "cardBankImportDesc": "上传 MT940 / CAMT.053 — 自动匹配未付发票"
+    "cardBankImportDesc": "上传 MT940 / CAMT.053 — 自动匹配未付发票",
+    "cardSuppliersTitle": "供应商",
+    "cardSuppliersDesc": "管理供应商主数据、税号、银行信息"
   },
   "settings": {
     "title": "设置",
@@ -939,5 +941,25 @@
     "statement": "源文件",
     "noAuditLink": "无关联 — 手工创建的凭证",
     "downloadPdf": "下载 PDF"
+  },
+  "suppliers": {
+    "title": "供应商",
+    "subtitle": "供应商主数据 — 名称、增值税号、地址、银行信息",
+    "add": "新增供应商",
+    "searchPlaceholder": "按名称或税号搜索...",
+    "count": "条",
+    "name": "名称",
+    "vatId": "税号",
+    "city": "城市",
+    "street": "街道",
+    "postalCode": "邮编",
+    "email": "邮箱",
+    "iban": "IBAN",
+    "paymentTerms": "账期",
+    "expenses": "进项发票",
+    "empty": "暂无供应商。",
+    "editTitle": "编辑供应商",
+    "addTitle": "新增供应商",
+    "deleteConfirm": "确认删除供应商「{name}」？"
   }
 }

@@ -326,6 +326,14 @@ export default function DashboardPage() {
               <p className="text-gray-600">{t("dashboard.cardBankImportDesc")}</p>
             </CardContent>
           </Card>
+          <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/suppliers")}>
+            <CardHeader>
+              <CardTitle className="text-orange-700">{t("dashboard.cardSuppliersTitle")}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-gray-600">{t("dashboard.cardSuppliersDesc")}</p>
+            </CardContent>
+          </Card>
           <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/settings")}>
             <CardHeader>
               <CardTitle>{t("dashboard.cardSettingsTitle")}</CardTitle>

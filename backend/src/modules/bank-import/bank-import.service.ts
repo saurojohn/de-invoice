@@ -803,6 +803,16 @@ export class BankImportService {
     opts: {
       expenseAccountNumber?: string
       description?: string
+      // Vendor bill / Eingangsrechnung path:
+      // attach this booking to a Supplier + an
+      // Expense row, and book Vorsteuer (input
+      // VAT) when vatAmount > 0. When these are
+      // omitted, the original 2-line booking
+      // (expense + bank) is used.
+      supplierId?: string
+      expenseId?: string
+      vatRate?: number
+      vatAmount?: number
     } = {},
   ) {
     const txn = await this.prisma.bankTransaction.findFirst({
@@ -861,25 +871,70 @@ export class BankImportService {
       || txn.purpose
       || `Bankausgang ${counterparty}`;
 
+    // VAT line (Vorsteuer) — only when the user
+    // supplies a positive vatAmount. 0% VAT books
+    // the legacy 2-line voucher.
+    const vatAmount = Math.max(0, Number(opts.vatAmount ?? 0));
+    const vatRate = Math.max(0, Number(opts.vatRate ?? 0));
+    const netAmount = Math.max(0, absAmount - vatAmount);
+
+    // Pick the right Vorsteuer account per the
+    // VAT rate (19% / 7% / igE / reverse-charge).
+    let vorsteuerNumber: string | null = null;
+    if (vatAmount > 0) {
+      if (Math.abs(vatRate - 0.19) < 0.001) vorsteuerNumber = accts.inputVat19;
+      else if (Math.abs(vatRate - 0.07) < 0.001) vorsteuerNumber = accts.inputVat7;
+      else if (Math.abs(vatRate - 0) < 0.001) vorsteuerNumber = null; // 0% has no Vorsteuer
+      // (igE / reverse-charge flows are not in v1)
+    }
+
+    // Build the voucher lines. The simple case
+    // (no VAT) is 2 lines. With Vorsteuer, it's 3.
+    const lines: Array<{
+      accountId: string
+      description?: string
+      debit: number
+      credit: number
+      vatRate?: number
+      vatAmount?: number
+    }> = [
+      {
+        accountId: expenseAccount.id,
+        description: counterparty,
+        debit: netAmount,
+        credit: 0,
+      },
+    ]
+    if (vorsteuerNumber) {
+      const vorsteuerAccount = await this.ensureAccount(
+        companyId,
+        vorsteuerNumber,
+        'Vorsteuer',
+        'asset',
+        'vat'
+      )
+      lines.push({
+        accountId: vorsteuerAccount.id,
+        description: `Vorsteuer ${(vatRate * 100).toFixed(0)}%`,
+        debit: vatAmount,
+        credit: 0,
+        vatRate,
+        vatAmount,
+      })
+    }
+    lines.push({
+      accountId: bankAccount.id,
+      description: `Bank ${counterparty}`,
+      debit: 0,
+      credit: absAmount,
+    })
+
     const voucher = await this.voucherService.create({
       companyId,
       date: txn.valueDate,
       description,
-      referenceType: 'BankTransaction',
-      lines: [
-        {
-          accountId: expenseAccount.id,
-          description: counterparty,
-          debit: absAmount,
-          credit: 0,
-        },
-        {
-          accountId: bankAccount.id,
-          description: `Bank ${counterparty}`,
-          debit: 0,
-          credit: absAmount,
-        },
-      ],
+      referenceType: opts.expenseId ? 'Expense' : 'BankTransaction',
+      lines,
     });
 
     // Link voucher back to the transaction.
@@ -888,13 +943,27 @@ export class BankImportService {
       data: { voucherId: voucher.id },
     });
 
+    // Vendor-bill path: if an existing Expense was
+    // selected, mark it as 'booked' and link the
+    // voucher back to it. The Expense row already
+    // holds the supplier + invoice# + dates — this
+    // turn just makes the booking official.
+    if (opts.expenseId) {
+      await this.prisma.expense.update({
+        where: { id: opts.expenseId, companyId },
+        data: { status: 'booked' },
+      });
+    }
+
     this.logger.log(
-      `booked expense txn=${bankTransactionId} voucher=${voucher.id} amount=${absAmount} account=${expenseNumber}`,
+      `booked expense txn=${bankTransactionId} voucher=${voucher.id} amount=${absAmount} account=${expenseNumber}${opts.expenseId ? ` expense=${opts.expenseId}` : ''}`,
     );
     return {
       transactionId: bankTransactionId,
       voucherId: voucher.id,
       appliedAmount: absAmount,
+      vatAmount: vatAmount || undefined,
+      netAmount: netAmount,
     };
   }
 
