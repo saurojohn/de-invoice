@@ -264,7 +264,9 @@
     "cardBankImportTitle": "银行流水导入",
     "cardBankImportDesc": "上传 MT940 / CAMT.053 — 自动匹配未付发票",
     "cardSuppliersTitle": "供应商",
-    "cardSuppliersDesc": "管理供应商主数据、税号、银行信息"
+    "cardSuppliersDesc": "管理供应商主数据、税号、银行信息",
+    "cardVouchersTitle": "凭证",
+    "cardVouchersDesc": "凭证日志 — 全部记账、借贷平衡校验、可筛选。"
   },
   "settings": {
     "title": "设置",
@@ -398,6 +400,12 @@
     "total": "合计",
     "balanced": "借贷平衡",
     "unbalanced": "借贷不平衡",
+    "voucherJournalHint": "凭证日志 — 所有记账，可搜索可筛选。",
+    "searchVoucher": "搜索凭证号 …",
+    "allTypes": "全部来源",
+    "allStatuses": "全部状态",
+    "countShown": "显示 / 总计",
+    "primaryAccount": "主科目",
     "generate": "生成凭证",
     "void": "作废",
     "viewPdf": "查看PDF",

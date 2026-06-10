@@ -262,7 +262,9 @@
     "cardBankImportTitle": "Bankimport",
     "cardBankImportDesc": "MT940 / CAMT.053 hochladen — offene Rechnungen automatisch zuordnen",
     "cardSuppliersTitle": "Lieferanten",
-    "cardSuppliersDesc": "Lieferanten verwalten — Stammdaten, USt-ID, Bankverbindung"
+    "cardSuppliersDesc": "Lieferanten verwalten — Stammdaten, USt-ID, Bankverbindung",
+    "cardVouchersTitle": "Buchungsbelege",
+    "cardVouchersDesc": "Buchungsjournal — alle Belege mit Soll/Haben-Ausgleich, filterbar."
   },
   "settings": {
     "title": "Einstellungen",
@@ -396,6 +398,12 @@
     "total": "Gesamt",
     "balanced": "Ausgeglichen",
     "unbalanced": "Nicht ausgeglichen",
+    "voucherJournalHint": "Buchungsjournal — alle Buchungen, gefiltert und durchsuchbar.",
+    "searchVoucher": "Belegnummer suchen …",
+    "allTypes": "Alle Belegarten",
+    "allStatuses": "Alle Status",
+    "countShown": "Angezeigt / Gesamt",
+    "primaryAccount": "Hauptkonto",
     "generate": "Beleg erstellen",
     "void": "Stornieren",
     "viewPdf": "PDF ansehen",

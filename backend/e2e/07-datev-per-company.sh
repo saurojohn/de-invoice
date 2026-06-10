@@ -114,16 +114,20 @@ else
   echo "  header: $(head -1 /tmp/datev-e2e.csv | cut -c1-80)"
 fi
 
-# Default accounts (untouched) should still be present. The
-# test data has no 7% VAT invoices (all are 19%) so we can't
-# assert on 8300 directly — instead verify the SKR03 default
-# for Vorsteuer (1576) is still used, which IS present because
-# the test data has expenses.
-if file_contains "1576" /tmp/datev-e2e.csv; then
-  pass "Default inputVat19 1576 still in export (untouched override)"
-else
-  fail "Default inputVat19 1576 missing — override may have wiped defaults"
-fi
+# Default accounts (untouched) should still be present in
+# the *config* — the test only overrode bank (1200→9999)
+# and revenue19 (8400→8888). The 7% revenue (8300) and
+# the input-VAT accounts (1576, 1780) should still be the
+# SKR03 defaults. Verify via the config endpoint, not the
+# export (the export doesn't contain a Vorsteuer line for
+# a sale-only test like this one).
+api_get "/api/v1/companies/$COMPANY_ID/datev-config"
+assert_eq "default config.inputVat19 unchanged" \
+  "$(json_field "$BODY" config.inputVat19)" "1576"
+assert_eq "default config.inputVat7 unchanged" \
+  "$(json_field "$BODY" config.inputVat7)" "1577"
+assert_eq "default config.revenue7 unchanged" \
+  "$(json_field "$BODY" config.revenue7)" "8300"
 
 # Sanitisation: invalid account number should be dropped silently
 api_put "/api/v1/companies/$COMPANY_ID/datev-config" "{

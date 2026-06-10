@@ -65,7 +65,18 @@ export class VoucherService {
     });
   }
 
-  async findAll(companyId: string, filters?: { startDate?: Date; endDate?: Date; status?: string }) {
+  async findAll(
+    companyId: string,
+    filters?: {
+      startDate?: Date
+      endDate?: Date
+      status?: string
+      referenceType?: string
+      search?: string
+      take?: number
+      skip?: number
+    },
+  ) {
     const where: any = { companyId };
     if (filters?.startDate || filters?.endDate) {
       where.date = {};
@@ -75,16 +86,80 @@ export class VoucherService {
     if (filters?.status) {
       where.status = filters.status;
     }
+    if (filters?.referenceType) {
+      where.referenceType = filters.referenceType;
+    }
+    if (filters?.search) {
+      // Substring match on voucherNumber — the Beleg
+      // IDs follow a structured pattern (BK-YYYY-NNNN
+      // for our auto-generated ones, legacy ones may
+      // be anything) so a contains-search covers all
+      // the realistic cases.
+      where.voucherNumber = { contains: filters.search, mode: 'insensitive' };
+    }
 
-    return this.prisma.voucher.findMany({
+    // The list page doesn't need the full line breakdown
+    // (each line could be 5+ KB; pulling 100 vouchers
+    // is 500 KB+). Fetch the lightweight summary +
+    // the account ids on the lines so the list page
+    // can show the "first account" badge.
+    const items = await this.prisma.voucher.findMany({
       where,
+      orderBy: [{ date: 'desc' }, { voucherNumber: 'desc' }],
+      take: filters?.take ?? 200,
+      skip: filters?.skip ?? 0,
       include: {
         lines: {
-          include: { account: true },
+          select: {
+            debit: true,
+            credit: true,
+            account: { select: { accountNumber: true, name: true } },
+          },
         },
       },
-      orderBy: [{ date: 'desc' }, { voucherNumber: 'desc' }],
     });
+
+    // For each voucher compute: totalDebit, totalCredit,
+    // primaryAccount (the line with the largest single
+    // amount — typically the Sachkonto / expense or
+    // revenue account, NOT the bank Gegenkonto), and a
+    // balanced flag. Cheap to do in-memory since the
+    // line list is already loaded.
+    const enriched = items.map((v) => {
+      let totalDebit = 0;
+      let totalCredit = 0;
+      let primaryNumber = '—';
+      let primaryMaxAmount = -1;
+      for (const l of v.lines) {
+        const d = Number(l.debit);
+        const c = Number(l.credit);
+        totalDebit += d;
+        totalCredit += c;
+        const amount = Math.max(d, c);
+        if (amount > primaryMaxAmount) {
+          primaryMaxAmount = amount;
+          primaryNumber = l.account.accountNumber;
+        }
+      }
+      return {
+        id: v.id,
+        voucherNumber: v.voucherNumber,
+        date: v.date,
+        description: v.description,
+        referenceType: v.referenceType,
+        status: v.status,
+        createdAt: v.createdAt,
+        totalDebit: totalDebit.toFixed(2),
+        totalCredit: totalCredit.toFixed(2),
+        balanced: Math.abs(totalDebit - totalCredit) < 0.01,
+        primaryAccount: primaryNumber,
+      };
+    });
+
+    // Total count for pagination (separate query so
+    // the page knows the dataset size).
+    const total = await this.prisma.voucher.count({ where });
+    return { items: enriched, total };
   }
 
   async findOne(id: string, companyId: string) {

@@ -42,6 +42,10 @@ export class AccountingController {
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('status') status?: string,
+    @Query('referenceType') referenceType?: string,
+    @Query('search') search?: string,
+    @Query('take') take?: string,
+    @Query('skip') skip?: string,
   ) {
     if (!companyId) {
       return { error: 'companyId ist erforderlich' };
@@ -50,6 +54,10 @@ export class AccountingController {
       startDate: startDate ? new Date(startDate) : undefined,
       endDate: endDate ? new Date(endDate) : undefined,
       status,
+      referenceType,
+      search,
+      take: take ? Number(take) : undefined,
+      skip: skip ? Number(skip) : undefined,
     });
   }
 

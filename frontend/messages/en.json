@@ -212,6 +212,12 @@
     "total": "Total",
     "balanced": "Balanced",
     "unbalanced": "Unbalanced",
+    "voucherJournalHint": "Voucher journal — all postings, searchable and filterable.",
+    "searchVoucher": "Search voucher number …",
+    "allTypes": "All reference types",
+    "allStatuses": "All statuses",
+    "countShown": "Shown / Total",
+    "primaryAccount": "Primary account",
     "generate": "Generate Voucher",
     "void": "Void",
     "viewPdf": "View PDF",
@@ -356,7 +362,9 @@
     "cardBankImportTitle": "Bank Import",
     "cardBankImportDesc": "Upload MT940 / CAMT.053 — auto-match open invoices",
     "cardSuppliersTitle": "Suppliers",
-    "cardSuppliersDesc": "Manage suppliers — master data, VAT ID, bank info"
+    "cardSuppliersDesc": "Manage suppliers — master data, VAT ID, bank info",
+    "cardVouchersTitle": "Vouchers",
+    "cardVouchersDesc": "Voucher journal — all postings with debit/credit balance, filterable."
   },
   "reminder": {
     "title": "Payment Reminders",
