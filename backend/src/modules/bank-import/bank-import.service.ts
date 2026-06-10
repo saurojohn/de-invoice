@@ -390,6 +390,15 @@ export class BankImportService {
       },
     });
 
+    // Also link the voucher back to the invoice. The
+    // DATEV export uses this to know "the cash side of
+    // this paid invoice is in the Voucher, don't
+    // double-emit it from the Invoice path".
+    await this.prisma.invoice.update({
+      where: { id: recon.invoiceId },
+      data: { voucherRefId: voucher.id },
+    });
+
     this.logger.log(
       `confirmed match recon=${reconciliationId} invoice=${recon.invoiceId} payment=${payment.id} voucher=${voucher.id} amount=${applied}`,
     );

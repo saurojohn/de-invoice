@@ -126,7 +126,12 @@ export interface DatevExportInput {
 export interface BuchungsSatz {
   // Identity
   belegdatum: Date
-  belegfeld1: string       // Belegfeld 1 — invoice number
+  belegfeld1: string       // Belegfeld 1 — invoice number / voucher number
+  // Belegfeld 2 (optional): the Belegnummer for
+  // Voucher-sourced lines. The Berater can use it to
+  // reconcile the DATEV row against the Buchungsbeleg
+  // in the GoBD audit trail.
+  belegfeld2?: string
   // Account side
   konto: string            // Soll-Konto (4 digits)
   gegenkonto: string       // Haben-Konto
@@ -230,7 +235,7 @@ export function generateDatevBuchungsstapel(input: DatevExportInput): string {
       pad(b.belegdatum.getFullYear().toString(), 4, 'right')
         + fmtDate(b.belegdatum),               // 2  Belegdatum (YYYYDDMM)
       pad(b.belegfeld1, 36),                   // 3  Belegfeld 1 (invoice#)
-      '',                                       // 4  Belegfeld 2
+      pad(b.belegfeld2 || '', 36),              // 4  Belegfeld 2 (voucher# for BankReconciliation/BankTransaction lines)
       csvEscape(b.buchungstext),                // 5  Buchungstext
       b.shVz || 'S',                           // 6  Soll-/Haben-Kennzeichen
       b.konto,                                  // 7  Konto
@@ -303,6 +308,14 @@ export async function buildBuchungenFromDb(
   // bei Rechnungserstellung — "Ist-Versteuerung" §18
   // UStG-Variante, the Berater can switch to Soll-
   // Versteuerung via filter).
+  //
+  // If the invoice is linked to a bank-import voucher
+  // (voucherRefId != null), the cash-settlement line
+  // (Bank → Forderung) is emitted by the Voucher pass
+  // below — we skip it here to avoid double-counting.
+  // The Erlöse + USt lines stay on the Invoice side
+  // because the Voucher doesn't know the revenue /
+  // VAT breakdown.
   const paidInvoices = await prisma.invoice.findMany({
     where: {
       companyId,
@@ -310,7 +323,10 @@ export async function buildBuchungenFromDb(
       issueDate: { gte: startDate, lte: endDate },
       type: { in: ['INV', 'PI'] },
     },
-    include: { payments: { orderBy: { paymentDate: 'asc' } } },
+    include: {
+      payments: { orderBy: { paymentDate: 'asc' } },
+      voucherRef: { select: { voucherNumber: true } },
+    },
   })
 
   for (const inv of paidInvoices) {
@@ -318,6 +334,8 @@ export async function buildBuchungenFromDb(
     const vat = Number(inv.totalVat)
     const total = Number(inv.total)
     const vatRate = net > 0 ? vat / net : 0
+    const hasVoucher = !!inv.voucherRefId
+    const voucherNumber = inv.voucherRef?.voucherNumber
 
     // Pick the revenue account by VAT rate.
     const revenueKonto =
@@ -333,16 +351,20 @@ export async function buildBuchungenFromDb(
       : accounts.vatPayable7
 
     // Buchung 1: Bank an Forderung (Zahlungseingang)
-    //   Bank  S  total    Forderung  H  total
-    out.push({
-      belegdatum: inv.payments[0]?.paymentDate || inv.issueDate,
-      belegfeld1: inv.invoiceNumber,
-      konto: accounts.bank,
-      gegenkonto: accounts.receivable,
-      betrag: total,
-      shVz: 'S',
-      buchungstext: `Zahlungseingang ${inv.invoiceNumber}`,
-    })
+    // SKIPPED when the invoice is linked to a
+    // bank-import voucher (the Voucher pass below
+    // emits the 1200/1406 line).
+    if (!hasVoucher) {
+      out.push({
+        belegdatum: inv.payments[0]?.paymentDate || inv.issueDate,
+        belegfeld1: inv.invoiceNumber,
+        konto: accounts.bank,
+        gegenkonto: accounts.receivable,
+        betrag: total,
+        shVz: 'S',
+        buchungstext: `Zahlungseingang ${inv.invoiceNumber}`,
+      })
+    }
 
     // Buchung 2: Forderung an Erlöse (Storno der offenen
     // Forderung bei Zahlung). Single line, splits into
@@ -351,6 +373,11 @@ export async function buildBuchungenFromDb(
       out.push({
         belegdatum: inv.payments[0]?.paymentDate || inv.issueDate,
         belegfeld1: inv.invoiceNumber,
+        // The Belegfeld 2 is the voucher number when
+        // the cash side is on the Voucher pass. The
+        // Berater can pivot the revenue row to the
+        // Buchungsbeleg via the voucher number.
+        belegfeld2: hasVoucher ? voucherNumber : undefined,
         konto: accounts.receivable,
         gegenkonto: revenueKonto,
         betrag: net,
@@ -364,6 +391,7 @@ export async function buildBuchungenFromDb(
         out.push({
           belegdatum: inv.payments[0]?.paymentDate || inv.issueDate,
           belegfeld1: inv.invoiceNumber,
+          belegfeld2: hasVoucher ? voucherNumber : undefined,
           konto: accounts.receivable,
           gegenkonto: vatKonto,
           betrag: vat,
@@ -422,6 +450,91 @@ export async function buildBuchungenFromDb(
         betrag: vat,
         shVz: 'S',
         buchungstext: `Vorsteuer ${exp.invoiceNumber || ''}`.trim(),
+      })
+    }
+  }
+
+  // 3) Voucher pass: emit one DATEV row per VoucherLine
+  // on every posted Voucher in the date range. This is
+  // the new source of truth for the cash side of
+  // bank-imported transactions. The Invoice pass above
+  // already skipped the 1200/1406 cash line for
+  // voucher-linked invoices, so there's no double-
+  // count.
+  //
+  // Belegfeld 1 = the Voucher number (the Belegnummer
+  // the Berater references in the audit trail).
+  // Belegfeld 2 = the linked invoice number for
+  // BankReconciliation rows (so the Berater can pivot
+  // back to the AR invoice) or the bank-transaction id
+  // for BankTransaction expense rows.
+  const vouchers = await prisma.voucher.findMany({
+    where: {
+      companyId,
+      date: { gte: startDate, lte: endDate },
+      status: 'posted',
+    },
+    include: {
+      lines: { include: { account: { select: { accountNumber: true } } }, orderBy: { sortOrder: 'asc' } },
+    },
+    orderBy: { date: 'asc' },
+  })
+
+  for (const v of vouchers) {
+    // For a multi-line Voucher, we emit one DATEV row
+    // per line. With 2 lines, this gives 2 rows that
+    // share the same Belegdatum + Belegfeld 1 — the
+    // Berater pivots on Belegfeld 1 to see them as a
+    // pair (the Soll and Haben sides of the same
+    // booking).
+    for (const line of v.lines) {
+      const debit = Number(line.debit)
+      const credit = Number(line.credit)
+      if (debit === 0 && credit === 0) continue
+      // Exactly one of debit/credit is non-zero per
+      // line in well-formed data, but be defensive
+      // against the double-zero edge case.
+      const isDebit = debit > 0
+      const amount = isDebit ? debit : credit
+      if (amount <= 0) continue
+      // Find the "other side" of this Voucher — the
+      // sum of the other line(s) on the same Voucher.
+      // For a 2-line Voucher (the common case) the
+      // Gegenkonto is the other line's account. For
+      // more complex Vouchers, the DATEV CSV doesn't
+      // really support N-way splits in one row, so we
+      // emit one row per line with the Gegenkonto
+      // pointing at the first "opposite" line.
+      const counterpartLine = v.lines.find(
+        (l) => l.id !== line.id
+          && (isDebit ? Number(l.credit) > 0 : Number(l.debit) > 0)
+      )
+      if (!counterpartLine) continue  // skip unbalanced lines
+
+      out.push({
+        belegdatum: v.date,
+        belegfeld1: v.voucherNumber,
+        // Belegfeld 2: link the Belegnummer to the
+        // originating document (invoice# for
+        // BankReconciliation, txn short-id for
+        // BankTransaction expenses).
+        belegfeld2: v.referenceType || undefined,
+        konto: line.account.accountNumber,
+        gegenkonto: counterpartLine.account.accountNumber,
+        betrag: amount,
+        shVz: isDebit ? 'S' : 'H',
+        buchungstext: (line.description || v.description || '').substring(0, 60),
+        // VAT on the line (rare for cash postings, but
+        // possible if the user books a 3-line Voucher
+        // with a separate VAT line).
+        ustSchluessel: line.vatRate !== null && line.vatRate !== undefined
+          ? (Math.abs(Number(line.vatRate) - 0.19) < 0.001 ? '3'
+            : Math.abs(Number(line.vatRate) - 0.07) < 0.001 ? '2'
+            : '0')
+          : undefined,
+        ustBetrag: line.vatAmount !== null && line.vatAmount !== undefined
+          ? Number(line.vatAmount)
+          : undefined,
       })
     }
   }

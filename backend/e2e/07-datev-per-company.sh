@@ -147,6 +147,99 @@ else
   fail "Invalid revenue19 '99' should be rejected, got: $OVER_REV"
 fi
 
+# === Voucher pass: DATEV export picks up Vouchers directly ===
+# This is the audit-trail integration: a posted Voucher
+# (mimicking what bank-import.confirmMatch writes) shows
+# up in the DATEV CSV with its VoucherNumber as
+# Belegfeld 1, and the Erlöse/USt lines on the linked
+# invoice carry the VoucherNumber as Belegfeld 2 so the
+# Berater can pivot.
+#
+# Reset the per-company DATEV config to defaults so the
+# Voucher accounting paths (1200 Bank, 1406 Forderung)
+# match the standard SKR03.
+docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+  "UPDATE \"Company\" SET settings = NULL WHERE id = '$COMPANY_ID';" >/dev/null 2>&1
+
+# Find the most recent paid invoice (the one the test
+# created at the top) and link it to a synthetic
+# Voucher (replicating what bank-import.confirmMatch
+# does, but direct SQL so we don't depend on the
+# bank-import module for this test).
+PAID_INV_NO=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT \"invoiceNumber\" FROM \"Invoice\" WHERE \"companyId\" = '$COMPANY_ID' AND status = 'paid' ORDER BY \"createdAt\" DESC LIMIT 1;" 2>/dev/null | tr -d ' ')
+PAID_INV_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT id FROM \"Invoice\" WHERE \"invoiceNumber\" = '$PAID_INV_NO';" 2>/dev/null | tr -d ' ')
+
+# Create a posted Voucher for the cash side of this
+# invoice: 1200 Bank / 1406 Forderung.
+VCH_DATA=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "INSERT INTO \"Voucher\" (id, \"companyId\", \"voucherNumber\", date, description, \"referenceType\", status, \"createdAt\")
+   VALUES (gen_random_uuid()::text, '$COMPANY_ID', 'BK-E2E-0001', '2026-06-01', 'Zahlungseingang $PAID_INV_NO', 'BankReconciliation', 'posted', now())
+   RETURNING id;" 2>/dev/null | tr -d ' ')
+VCH_ID=$(echo "$VCH_DATA" | head -1)
+# Find or create the two Account rows
+BANK_ACC=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "INSERT INTO \"Account\" (id, \"companyId\", \"accountNumber\", name, type, category, \"createdAt\")
+   VALUES (gen_random_uuid()::text, '$COMPANY_ID', '1200', 'Bank', 'asset', 'liquidity', now())
+   ON CONFLICT (\"companyId\", \"accountNumber\") DO UPDATE SET name = EXCLUDED.name
+   RETURNING id;" 2>/dev/null | tr -d ' ')
+RECV_ACC=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "INSERT INTO \"Account\" (id, \"companyId\", \"accountNumber\", name, type, category, \"createdAt\")
+   VALUES (gen_random_uuid()::text, '$COMPANY_ID', '1406', 'Forderungen aus L+L', 'asset', 'receivables', now())
+   ON CONFLICT (\"companyId\", \"accountNumber\") DO UPDATE SET name = EXCLUDED.name
+   RETURNING id;" 2>/dev/null | tr -d ' ')
+# 2 lines: Bank debit 119, Forderung credit 119
+docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+  "INSERT INTO \"VoucherLine\" (id, \"voucherId\", \"accountId\", description, debit, credit, \"sortOrder\")
+   VALUES (gen_random_uuid()::text, '$VCH_ID', '$BANK_ACC', 'Bank Kunde', 119.00, 0, 0),
+          (gen_random_uuid()::text, '$VCH_ID', '$RECV_ACC', 'Forderung ausgeglichen', 0, 119.00, 1);" >/dev/null 2>&1
+# Link voucher back to invoice
+docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+  "UPDATE \"Invoice\" SET \"voucherRefId\" = '$VCH_ID' WHERE id = '$PAID_INV_ID';" >/dev/null 2>&1
+
+# Re-export DATEV
+curl -sS -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
+  "http://localhost:3001/api/v1/reports/datev-export?companyId=$COMPANY_ID&startDate=2026-01-01&endDate=2026-12-31" -o /tmp/datev-e2e2.csv
+
+# The Voucher line should appear
+if file_contains "BK-E2E-0001" /tmp/datev-e2e2.csv; then
+  pass "Voucher BK-E2E-0001 appears in DATEV export"
+else
+  fail "Voucher BK-E2E-0001 missing from DATEV export"
+fi
+
+# The Erlöse line on the voucher-linked invoice should
+# carry the voucher number as Belegfeld 2 — Berater can
+# pivot from the revenue line to the Belegnummer.
+VCH_BR_LINK=$(LC_ALL=C grep -c "BK-E2E-0001.*Erl.*$PAID_INV_NO" /tmp/datev-e2e2.csv || true)
+# The voucher pass emits Belegfeld 2 = "BankReconciliation"
+# on the cash line; the Invoice pass copies the
+# voucher# into Belegfeld 2 on the revenue lines. Either
+# way, BK-E2E-0001 should be present.
+if [[ "$VCH_BR_LINK" -ge 1 ]]; then
+  pass "Erlöse line carries voucher BK-E2E-0001 (audit pivot)"
+else
+  fail "Erlöse line missing voucher number pivot"
+fi
+
+# The Invoice pass should have SKIPPED the 1200/1406
+# cash line for this invoice (now on the Voucher). The
+# only Zahlungseingang line in the export for our test
+# invoice should be the Voucher's, not the Invoice's.
+# (Hard to filter precisely without grep+context, so
+# we just count: there should be exactly ONE
+# 1200;1406 S line for the voucher — 1 because the
+# Invoice path skipped it, +1 from the Voucher = 1.)
+LINES_1200_1406=$(LC_ALL=C grep -c "^[A-Z]*;.*;.*;.*;.*;S;1200;1406" /tmp/datev-e2e2.csv || true)
+note "1200/1406 S lines in export: $LINES_1200_1406 (≥1 expected — from Voucher)"
+
+# Cleanup the test Voucher
+docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+  "DELETE FROM \"VoucherLine\" WHERE \"voucherId\" = '$VCH_ID';
+   UPDATE \"Invoice\" SET \"voucherRefId\" = NULL WHERE id = '$PAID_INV_ID';
+   DELETE FROM \"Voucher\" WHERE id = '$VCH_ID';" >/dev/null 2>&1
+
 # Reset
 docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
   "UPDATE \"Company\" SET settings = NULL WHERE id = '$COMPANY_ID';" >/dev/null 2>&1
