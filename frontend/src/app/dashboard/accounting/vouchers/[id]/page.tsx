@@ -75,6 +75,16 @@ interface Voucher {
   reversalOf: ReconLink[]
   bankTransactions: DirectBankTxnLink[]
   invoiceRef: { id: string; invoiceNumber: string; total: string } | null
+  // GoBD self-relation. Non-null on a Korrekturbeleg
+  // (Storno-Buchung): points back to the original
+  // Voucher that this one is the Storno of. Null
+  // on the original itself.
+  reversedById: string | null
+  // Symmetric back-relation: on an ORIGINAL Voucher
+  // that has been corrected, this contains the
+  // Storno vouchers. Empty array on a Voucher with
+  // no Storno.
+  reversals: { id: string; voucherNumber: string; date: string }[]
 }
 
 const fmtMoney = (n: number) =>
@@ -171,6 +181,82 @@ export default function VoucherDetailPage() {
                 {t("voucher.downloadPdf")}
               </Button>
             )}
+            {voucher &&
+              voucher.status === "posted" &&
+              !voucher.reversedById &&
+              voucher.referenceType !== "VoucherReversal" &&
+              (voucher.reversals?.length ?? 0) === 0 && (
+                <Button
+                  onClick={async () => {
+                    const reason = window.prompt(
+                      t("accounting.reverseReason") ||
+                        "Stornogrund (optional)",
+                    )
+                    // The user can cancel the prompt — null
+                    // means "I changed my mind". Allow it.
+                    const companyId =
+                      localStorage.getItem("companyId") || ""
+                    try {
+                      const res = await fetch(
+                        `/api/v1/accounting/vouchers/${voucher.id}/reversal?companyId=${companyId}`,
+                        {
+                          method: "POST",
+                          headers: {
+                            "Content-Type": "application/json",
+                            "x-user-id":
+                              localStorage.getItem("userId") || "",
+                            "x-company-id": companyId,
+                          },
+                          body: JSON.stringify({ reason: reason || "" }),
+                        },
+                      )
+                      if (!res.ok) {
+                        const err = await res
+                          .json()
+                          .catch(() => ({ message: res.statusText }))
+                        alert(
+                          (err.message || "Fehler") +
+                            "\n\n" +
+                            (t("accounting.reverseHint") || ""),
+                        )
+                        return
+                      }
+                      const data = await res.json()
+                      // Navigate to the new Storno so the
+                      // user can see the result immediately.
+                      router.push(
+                        `/dashboard/accounting/vouchers/${data.id}`,
+                      )
+                    } catch (e: any) {
+                      alert("Fehler: " + (e?.message || String(e)))
+                    }
+                  }}
+                  className="bg-red-600 text-white hover:bg-red-700"
+                >
+                  {t("accounting.reverseVoucher") || "Stornieren"}
+                </Button>
+              )}
+            {voucher &&
+              voucher.reversals &&
+              voucher.reversals.length > 0 && (
+                // On an ORIGINAL Voucher that has already
+                // been corrected, surface the existing
+                // Korrekturbeleg as a link rather than
+                // offering another Stornieren button
+                // (would just return the same one).
+                <Button
+                  variant="outline"
+                  onClick={() =>
+                    router.push(
+                      `/dashboard/accounting/vouchers/${voucher.reversals[0].id}`,
+                    )
+                  }
+                  className="border-red-300 text-red-700"
+                  title="Bereits storniert — Korrekturbeleg öffnen"
+                >
+                  ↪ Storno: {voucher.reversals[0].voucherNumber}
+                </Button>
+              )}
             <LanguageSwitcher />
             <Button variant="outline" onClick={() => router.push("/dashboard")}>
               {t("common.back")}

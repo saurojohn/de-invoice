@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Param, Query, Body, Res, Header } from '@nestjs/common';
+import { Controller, Get, Post, Put, Param, Query, Body, Res, Header, Req } from '@nestjs/common';
 import { Response } from 'express';
 import { AccountService } from './account.service';
 import { VoucherService } from './voucher.service';
@@ -70,9 +70,22 @@ export class AccountingController {
   }
 
   @Post('vouchers')
-  async createVoucher(@Body() body: any) {
+  async createVoucher(
+    @Body() body: any,
+    @Req() req: any,
+  ) {
+    // Pick up the user id from the auth context.
+    // HeaderAuthGuard is opt-in (not global), so
+    // req.user may be unset — fall back to the
+    // x-user-id header directly. If neither is
+    // present, leave createdById undefined; the
+    // Voucher is still created and the Berater
+    // column just shows blank.
+    const createdById =
+      req?.user?.id || req?.headers?.['x-user-id'] || body.createdById;
     return this.voucherService.create({
       ...body,
+      createdById,
       date: new Date(body.date),
     });
   }
@@ -101,6 +114,31 @@ export class AccountingController {
       return this.voucherService.void(id, companyId);
     }
     return this.voucherService.findOne(id, companyId);
+  }
+
+  /**
+   * Create a GoBD Korrekturbeleg (Storno-Buchung) for
+   * a Voucher. The original Voucher is NOT mutated —
+   * a new Voucher is created with all lines negated
+   * and referenceType='VoucherReversal', linked back
+   * to the original via the Voucher.reversedById
+   * self-relation. Body carries an optional reason
+   * that gets prepended to the Storno description.
+   */
+  @Post('vouchers/:id/reversal')
+  async createReversal(
+    @Param('id') id: string,
+    @Query('companyId') companyId: string,
+    @Body() body: { reason?: string },
+  ) {
+    if (!companyId) {
+      return { error: 'companyId ist erforderlich' };
+    }
+    return this.voucherService.createReversal(
+      id,
+      companyId,
+      body?.reason,
+    );
   }
 
   /**

@@ -7,6 +7,12 @@ interface CreateVoucherDto {
   date: Date;
   description?: string;
   referenceType?: string;
+  // Default 'posted' for auto-generated vouchers
+  // (BankReconciliation / Expense) and the typical
+  // Berater manual entry. 'draft' is reserved for
+  // unfinished in-progress vouchers.
+  status?: 'draft' | 'posted';
+  createdById?: string;
   lines: {
     accountId: string;
     description?: string;
@@ -43,7 +49,12 @@ export class VoucherService {
         date: dto.date,
         description: dto.description,
         referenceType: dto.referenceType,
-        status: 'posted',
+        // Default to 'posted' — manual Vouchers
+        // created by the Berater are immediately
+        // final (drafts would be visible in the
+        // journal and confusing).
+        status: dto.status ?? 'posted',
+        createdById: dto.createdById,
         lines: {
           create: dto.lines.map((line, idx) => ({
             accountId: line.accountId,
@@ -53,6 +64,118 @@ export class VoucherService {
             vatRate: line.vatRate,
             vatAmount: line.vatAmount,
             sortOrder: idx,
+          })),
+        },
+      },
+      include: {
+        lines: {
+          include: { account: true },
+          orderBy: { sortOrder: 'asc' },
+        },
+      },
+    });
+  }
+
+  /**
+   * GoBD Korrekturbeleg (Storno-Buchung) for a manual
+   * Voucher. The original is NEVER mutated — instead
+   * a new Voucher is created with:
+   *   - voucherNumber = originalNumber + "-S<n>"
+   *     where n is the next sequence for that
+   *     original. This keeps the human-readable
+   *     pairing ("BK-2026-0001 ↔ BK-2026-0001-S1")
+   *     so the Berater can spot the relationship
+   *     in the journal.
+   *   - date = today (the day of the correction)
+   *   - referenceType = 'VoucherReversal'
+   *   - description prefixed with "Storno: " and
+   *     optionally "Grund: <reason>"
+   *   - lines with debit ↔ credit SWAPPED
+   *     (so a 100 debit becomes 100 credit).
+   *     A negation of all amounts nets the books
+   *     back to zero across the original + Storno.
+   *   - reversedById = original.id
+   *
+   * Why a NEW voucher, not a status flip:
+   *   GoBD §146 AO + §257 HGB require bookkeeping
+   *   records to be immutable once posted. The
+   *   correction is a SEPARATE entry, not an edit
+   *   of the original. This pattern matches the
+   *   existing bank-import reopenMatch behavior.
+   */
+  async createReversal(
+    originalId: string,
+    companyId: string,
+    reason?: string,
+  ) {
+    const original = await this.findOne(originalId, companyId);
+    if (!original) {
+      throw new NotFoundException(`Voucher ${originalId} not found`);
+    }
+    // Don't allow reversing a voucher that's
+    // already a Storno of something else (chain
+    // of corrections would muddy the audit).
+    // The user should reverse the ORIGINAL.
+    if (original.reversedById) {
+      throw new BadRequestException(
+        'Bereits ein Korrekturbeleg — Storno nur vom Originalbeleg aus möglich',
+      );
+    }
+    // Idempotency: if there's already a reversal
+    // for this Voucher, return it instead of
+    // creating a duplicate. The list view + the
+    // user can both click "Stornieren" multiple
+    // times.
+    const existing = await this.prisma.voucher.findFirst({
+      where: {
+        companyId,
+        referenceType: 'VoucherReversal',
+        reversedById: originalId,
+      },
+    });
+    if (existing) {
+      return this.findOne(existing.id, companyId);
+    }
+
+    // Compute the suffix -S1, -S2, … based on
+    // existing reversals of this original.
+    const existingReversals = await this.prisma.voucher.count({
+      where: {
+        companyId,
+        reversedById: originalId,
+      },
+    });
+    const seq = existingReversals + 1;
+    const newVoucherNumber = `${original.voucherNumber}-S${seq}`;
+
+    // Build description prefix.
+    const reasonPart = reason ? ` Grund: ${reason}` : '';
+    const newDescription = `Storno: ${original.voucherNumber}${reasonPart}`;
+
+    return this.prisma.voucher.create({
+      data: {
+        companyId,
+        voucherNumber: newVoucherNumber,
+        date: new Date(),
+        description: newDescription,
+        referenceType: 'VoucherReversal',
+        status: 'posted',
+        reversedById: originalId,
+        // Negate every line. Soll ↔ Haben swap so
+        // the new Voucher has the same accounts but
+        // opposite amounts — the two together net
+        // to zero in the books.
+        lines: {
+          create: original.lines.map((l) => ({
+            accountId: l.accountId,
+            description: l.description
+              ? `Storno: ${l.description}`
+              : 'Storno',
+            debit: Number(l.credit),
+            credit: Number(l.debit),
+            vatRate: l.vatRate,
+            vatAmount: l.vatAmount,
+            sortOrder: l.sortOrder,
           })),
         },
       },
@@ -219,6 +342,18 @@ export class VoucherService {
           },
         },
         invoiceRef: { select: { id: true, invoiceNumber: true, total: true } },
+        // Back-relation: when THIS Voucher is the
+        // original of a Korrekturbeleg, this list
+        // contains the Storno vouchers pointing
+        // back at it. Empty on a Voucher that
+        // hasn't been corrected.
+        reversals: {
+          select: {
+            id: true,
+            voucherNumber: true,
+            date: true,
+          },
+        },
       },
     });
     if (!voucher) {
@@ -227,12 +362,24 @@ export class VoucherService {
     return voucher;
   }
 
-  async void(id: string, companyId: string) {
-    await this.findOne(id, companyId);
-    return this.prisma.voucher.update({
-      where: { id },
-      data: { status: 'voided' },
-    });
+  /**
+   * Backwards-compat shim for the legacy
+   * PUT /api/v1/accounting/vouchers/:id/status?status=voided
+   * route. The old behavior was to mutate status
+   * directly — that violates GoBD §146 AO. The new
+   * behavior is to create a Storno-Buchung (Korrekturbeleg)
+   * via createReversal, and return it. The original
+   * Voucher stays in the journal with status='posted'
+   * so the audit trail is preserved.
+   *
+   * Why a wrapper, not a deprecated method:
+   *   the existing frontend flow uses this endpoint.
+   *   Routing the call through createReversal keeps
+   *   the GoBD guarantee in one place — every Storno
+   *   goes through the same code path.
+   */
+  async void(id: string, companyId: string, reason?: string) {
+    return this.createReversal(id, companyId, reason);
   }
 
   async generateFromInvoice(invoiceId: string, companyId: string) {

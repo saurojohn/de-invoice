@@ -24,7 +24,7 @@ cd "$SCRIPT_DIR"
 PASS=0
 FAIL=0
 FAILED_TESTS=()
-for t in 0?-*.sh; do
+for t in [0-9][0-9]-*.sh; do
   echo ""
   echo "════════════════════════════════════════════════════════"
   echo "  $t"

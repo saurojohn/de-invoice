@@ -454,6 +454,17 @@ model Voucher {
   // voucher links back to the recon via this relation
   // — symmetric to bankReconciliations.
   reversalOf BankReconciliation[] @relation("ReconReversal")
+  // GoBD self-relation for Storno-Buchung on Vouchers.
+  // When a Voucher is corrected (Berater creates a
+  // manual Storno), the new "Korrekturbeleg" Voucher
+  // points back to the original via this relation.
+  // The original is NEVER mutated — only this new
+  // "S<seq>" Voucher with negated lines is added.
+  // The original's `reversals` back-relation surfaces
+  // all Storno vouchers that point at it.
+  reversedBy    Voucher?  @relation("VoucherReversal", fields: [reversedById], references: [id])
+  reversedById  String?
+  reversals     Voucher[] @relation("VoucherReversal")
 
   @@unique([companyId, voucherNumber])
   @@index([companyId, date])
