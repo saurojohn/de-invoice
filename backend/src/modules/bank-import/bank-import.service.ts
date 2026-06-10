@@ -16,16 +16,20 @@
  * can then confirm which one(s) to pay.
  */
 
-import { Injectable, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { parseMt940 } from './mt940';
 import { parseCamt053, detectFormat } from './camt053';
+import { PaymentService } from '../invoice/payment.service';
 import type { ParsedStatement, ParsedTransaction } from './parsers';
 
 @Injectable()
 export class BankImportService {
   private readonly logger = new Logger(BankImportService.name);
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private paymentService: PaymentService,
+  ) {}
 
   /** Detect format, parse, persist. Returns the new
    *  BankStatement row (with transactions inline). */
@@ -87,7 +91,12 @@ export class BankImportService {
       },
       include: { transactions: true },
     });
-    return created;
+    // Strip rawContent (multi-KB MT940) from the
+    // response — the frontend doesn't render it and
+    // it can contain literal newlines that break JSON
+    // encoding in some transport layers.
+    const { rawContent: _omit, ...rest } = created as any;
+    return rest;
   }
 
   /** List statements (most recent first). */
@@ -260,5 +269,177 @@ export class BankImportService {
       total++;
     }
     return { generated: total };
+  }
+
+  /**
+   * Confirm a candidate match — creates a Payment
+   * (so the invoice status auto-flips to "paid" via
+   * PaymentService.create), and flips the reconciliation
+   * row from "suggested" to "confirmed".
+   *
+   * The applied amount is the *lesser* of the
+   * transaction amount and the invoice outstanding
+   * amount, so overpayments are split (the user can
+   * match the remainder to another invoice).
+   *
+   * Refuses to confirm a row that's already confirmed
+   * or rejected (idempotency: rejecting twice is
+   * fine but confirming twice would create a duplicate
+   * Payment — better to throw and let the UI reload).
+   */
+  async confirmMatch(
+    companyId: string,
+    reconciliationId: string,
+    userId: string | undefined,
+  ) {
+    const recon = await this.prisma.bankReconciliation.findFirst({
+      where: { id: reconciliationId, companyId },
+      include: {
+        bankTransaction: true,
+        invoice: { select: { id: true, total: true, type: true, status: true } },
+      },
+    });
+    if (!recon) throw new NotFoundException('Zuordnung nicht gefunden');
+    if (recon.status === 'confirmed') {
+      throw new BadRequestException('Diese Zuordnung wurde bereits bestätigt');
+    }
+    if (recon.status === 'rejected') {
+      throw new BadRequestException('Diese Zuordnung wurde abgelehnt — bitte einen neuen Vorschlag generieren');
+    }
+    if (recon.invoice.status === 'paid' || recon.invoice.status === 'cancelled') {
+      throw new BadRequestException('Rechnung ist bereits abgeschlossen — keine Zahlung möglich');
+    }
+    if (recon.invoice.type === 'CN') {
+      throw new BadRequestException('Gutschriften können nicht direkt bezahlt werden');
+    }
+
+    // Applied amount: min(transaction, invoice). For
+    // partial payments the user would have to set
+    // appliedAmount manually (not exposed in v1).
+    const txnAmount = Number(recon.bankTransaction.amount);
+    const invTotal = Number(recon.invoice.total);
+    const applied = Math.min(txnAmount, invTotal);
+    if (applied <= 0) {
+      throw new BadRequestException('Betrag muss größer als 0 sein');
+    }
+
+    // Write the payment. PaymentService will auto-flip
+    // the invoice to "paid" if the cumulative total of
+    // payments covers the invoice total.
+    const payment = await this.paymentService.create(
+      recon.invoiceId,
+      companyId,
+      {
+        amount: applied,
+        paymentDate: recon.bankTransaction.valueDate,
+        paymentMethod: 'Überweisung',
+        reference: recon.bankTransaction.endToEndId || recon.bankTransaction.purpose || undefined,
+        notes: `Auto-matched from bank statement ${recon.bankTransaction.statementId} (txn ${recon.bankTransactionId})`,
+        receiptNumber: undefined,
+      },
+    );
+
+    // Flip reconciliation to confirmed.
+    await this.prisma.bankReconciliation.update({
+      where: { id: reconciliationId },
+      data: {
+        status: 'confirmed',
+        appliedAmount: applied.toFixed(4),
+      },
+    });
+
+    this.logger.log(
+      `confirmed match recon=${reconciliationId} invoice=${recon.invoiceId} payment=${payment.id} amount=${applied}`,
+    );
+    return { reconciliationId, paymentId: payment.id, appliedAmount: applied };
+  }
+
+  /**
+   * Reject a candidate match — flips the reconciliation
+   * status to "rejected" so it won't show in the UI.
+   * The user can re-run generateSuggestions to find
+   * the next-best candidate.
+   */
+  async rejectMatch(companyId: string, reconciliationId: string) {
+    const recon = await this.prisma.bankReconciliation.findFirst({
+      where: { id: reconciliationId, companyId },
+    });
+    if (!recon) throw new NotFoundException('Zuordnung nicht gefunden');
+    if (recon.status === 'confirmed') {
+      throw new BadRequestException('Bereits bestätigt — kann nicht abgelehnt werden');
+    }
+    await this.prisma.bankReconciliation.update({
+      where: { id: reconciliationId },
+      data: { status: 'rejected' },
+    });
+    return { ok: true, reconciliationId };
+  }
+
+  /**
+   * Manual match: the user picks an invoice from the
+   * candidates list (or types an ID) without waiting
+   * for the auto-suggest. Creates a Payment + a
+   * confirmed reconciliation in one shot.
+   *
+   * If a "suggested" recon already exists for this
+   * (txn, invoice) pair, confirm it instead of
+   * creating a duplicate.
+   */
+  async manualMatch(
+    companyId: string,
+    bankTransactionId: string,
+    invoiceId: string,
+    userId: string | undefined,
+  ) {
+    const txn = await this.prisma.bankTransaction.findFirst({
+      where: { id: bankTransactionId, companyId },
+    });
+    if (!txn) throw new NotFoundException('Transaktion nicht gefunden');
+
+    const invoice = await this.prisma.invoice.findFirst({
+      where: { id: invoiceId, companyId },
+    });
+    if (!invoice) throw new NotFoundException('Rechnung nicht gefunden');
+
+    // Look for existing suggested recon
+    const existing = await this.prisma.bankReconciliation.findFirst({
+      where: { bankTransactionId, invoiceId, companyId },
+    });
+    if (existing) {
+      if (existing.status === 'confirmed') {
+        throw new BadRequestException('Diese Zuordnung wurde bereits bestätigt');
+      }
+      // Reuse the existing row
+      return this.confirmMatch(companyId, existing.id, userId);
+    }
+
+    // Create fresh confirmed recon
+    const created = await this.prisma.bankReconciliation.create({
+      data: {
+        companyId,
+        bankTransactionId,
+        invoiceId,
+        appliedAmount: invoice.total.toString(),
+        status: 'suggested', // create as suggested so confirmMatch can re-validate
+        confidence: 0,
+        matchReason: 'manual',
+      },
+    });
+    return this.confirmMatch(companyId, created.id, userId);
+  }
+
+  /**
+   * List all reconciliations for a statement — used by
+   * the frontend to render the matching status panel
+   * (suggested / confirmed / rejected counts).
+   */
+  async listReconciliations(companyId: string, statementId: string) {
+    return this.prisma.bankReconciliation.findMany({
+      where: { companyId, bankTransaction: { statementId } },
+      include: {
+        invoice: { select: { invoiceNumber: true, total: true, customer: { select: { name: true } } } },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
   }
 }

@@ -887,6 +887,12 @@
     "direction_out": "支出",
     "status_processed": "已导入",
     "status_suggested": "已建议",
-    "status_confirmed": "已确认"
+    "status_confirmed": "已确认",
+    "confirmCandidate": "确认",
+    "rejectCandidate": "拒绝",
+    "confirmCandidateConfirm": "确认将 {invoice} 标记为已付款？",
+    "statusSuggested": "已建议",
+    "statusConfirmed": "已确认",
+    "statusRejected": "已拒绝"
   }
 }

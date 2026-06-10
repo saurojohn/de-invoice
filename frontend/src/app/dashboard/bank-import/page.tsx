@@ -46,6 +46,21 @@ interface Candidate {
   matchReason: string
 }
 
+interface Reconciliation {
+  id: string
+  bankTransactionId: string
+  invoiceId: string
+  appliedAmount: string
+  status: "suggested" | "confirmed" | "rejected"
+  confidence: number
+  matchReason: string | null
+  invoice: {
+    invoiceNumber: string
+    total: string
+    customer: { name: string }
+  }
+}
+
 const fmtMoney = (n: number) =>
   n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
@@ -74,6 +89,76 @@ export default function BankImportPage() {
 
   // Auto-suggest feedback
   const [suggestMsg, setSuggestMsg] = useState<string | null>(null)
+
+  // Reconciliations for the open statement (one per
+  // suggested/confirmed/rejected match). Used to
+  // render the "Bestätigen" / "Ablehnen" buttons and
+  // the status badge next to each candidate.
+  const [reconciliations, setReconciliations] = useState<Reconciliation[]>([])
+  const [busyRecon, setBusyRecon] = useState<string | null>(null)
+
+  /** Map of (txnId, invoiceId) → reconciliation. Used
+   *  to look up the recon for a given candidate card. */
+  const reconByPair = (txnId: string, invoiceId: string) =>
+    reconciliations.find(
+      (r) => r.bankTransactionId === txnId && r.invoiceId === invoiceId,
+    )
+
+  const loadReconciliations = async (statementId: string) => {
+    const companyId = localStorage.getItem("companyId")!
+    try {
+      const list = await apiGet<Reconciliation[]>(
+        `/api/v1/bank-statements/${statementId}/reconciliations?companyId=${companyId}`
+      )
+      setReconciliations(list || [])
+    } catch (e) {
+      console.error("Load reconciliations failed:", e)
+      setReconciliations([])
+    }
+  }
+
+  const confirmCandidate = async (reconId: string, invoiceNumber: string) => {
+    if (!openId) return
+    if (!confirm(t("bankImport.confirmCandidateConfirm").replace("{invoice}", invoiceNumber))) return
+    const companyId = localStorage.getItem("companyId")!
+    setBusyRecon(reconId)
+    try {
+      await apiPost(
+        `/api/v1/bank-statements/reconciliations/${reconId}/confirm?companyId=${companyId}`,
+        {}
+      )
+      await loadReconciliations(openId)
+      // Refresh candidates: a paid invoice no longer
+      // appears in the open-invoices list.
+      if (selectedTxn) {
+        const res = await apiGet<{ candidates: Candidate[] }>(
+          `/api/v1/bank-statements/${openId}/transactions/${selectedTxn.id}/candidates?companyId=${companyId}`
+        )
+        setCandidates(res.candidates || [])
+      }
+    } catch (err: any) {
+      alert(err?.message || "Bestätigen fehlgeschlagen")
+    } finally {
+      setBusyRecon(null)
+    }
+  }
+
+  const rejectCandidate = async (reconId: string) => {
+    if (!openId) return
+    const companyId = localStorage.getItem("companyId")!
+    setBusyRecon(reconId)
+    try {
+      await apiPost(
+        `/api/v1/bank-statements/reconciliations/${reconId}/reject?companyId=${companyId}`,
+        {}
+      )
+      await loadReconciliations(openId)
+    } catch (err: any) {
+      alert(err?.message || "Ablehnen fehlgeschlagen")
+    } finally {
+      setBusyRecon(null)
+    }
+  }
 
   const reload = async () => {
     const companyId = localStorage.getItem("companyId")
@@ -131,12 +216,15 @@ export default function BankImportPage() {
       setOpenId(null)
       setTransactions([])
       setSelectedTxn(null)
+      setReconciliations([])
       return
     }
     const companyId = localStorage.getItem("companyId")!
     setOpenId(s.id)
     setSelectedTxn(null)
+    setReconciliations([])
     setLoadingTx(true)
+    await loadReconciliations(s.id)
     try {
       const detail = await apiGet<{ transactions: BankTransaction[] }>(
         `/api/v1/bank-statements/${s.id}?companyId=${companyId}`
@@ -192,6 +280,7 @@ export default function BankImportPage() {
       )
       setSuggestMsg(`${res.generated} Vorschläge erzeugt.`)
       setTimeout(() => setSuggestMsg(null), 4000)
+      await loadReconciliations(openId)
     } catch (err: any) {
       alert(err?.message || "Fehler")
     }
@@ -395,46 +484,104 @@ export default function BankImportPage() {
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {candidates.map((c) => (
-                      <div
-                        key={c.invoiceId}
-                        className="border border-gray-200 rounded p-2"
-                      >
-                        <div className="flex justify-between items-center mb-1">
-                          <span className="font-mono text-sm font-medium">
-                            {c.invoiceNumber}
-                          </span>
-                          <span
-                            className={`text-xs px-1.5 py-0.5 rounded ${
-                              c.confidence >= 80
-                                ? "bg-emerald-100 text-emerald-800"
-                                : c.confidence >= 60
-                                ? "bg-yellow-100 text-yellow-800"
-                                : "bg-gray-100 text-gray-700"
-                            }`}
-                          >
-                            {t("bankImport.confidence")}: {c.confidence}
-                          </span>
-                        </div>
-                        <div className="text-xs text-gray-600">
-                          {c.customerName}
-                          {c.customerNumber && (
-                            <span className="font-mono text-gray-400 ml-1">({c.customerNumber})</span>
-                          )}
-                        </div>
-                        <div className="flex justify-between text-xs mt-1">
-                          <span className="text-gray-500">{t("bankImport.tableAmount")}: € {fmtMoney(c.total)}</span>
-                          {c.dueDate && (
-                            <span className="text-gray-500">
-                              {t("bankImport.tableDate")}: {fmtDate(c.dueDate, dl)}
+                    {candidates.map((c) => {
+                      const recon = selectedTxn
+                        ? reconByPair(selectedTxn.id, c.invoiceId)
+                        : undefined
+                      return (
+                        <div
+                          key={c.invoiceId}
+                          className={`border rounded p-2 ${
+                            recon?.status === "confirmed"
+                              ? "border-emerald-300 bg-emerald-50"
+                              : recon?.status === "rejected"
+                              ? "border-gray-200 bg-gray-50 opacity-60"
+                              : "border-gray-200"
+                          }`}
+                        >
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="font-mono text-sm font-medium">
+                              {c.invoiceNumber}
                             </span>
+                            <div className="flex items-center gap-1">
+                              {recon && (
+                                <span
+                                  className={`text-xs px-1.5 py-0.5 rounded ${
+                                    recon.status === "confirmed"
+                                      ? "bg-emerald-200 text-emerald-900"
+                                      : recon.status === "rejected"
+                                      ? "bg-gray-200 text-gray-700"
+                                      : "bg-blue-100 text-blue-800"
+                                  }`}
+                                >
+                                  {recon.status === "confirmed"
+                                    ? t("bankImport.statusConfirmed")
+                                    : recon.status === "rejected"
+                                    ? t("bankImport.statusRejected")
+                                    : t("bankImport.statusSuggested")}
+                                </span>
+                              )}
+                              <span
+                                className={`text-xs px-1.5 py-0.5 rounded ${
+                                  c.confidence >= 80
+                                    ? "bg-emerald-100 text-emerald-800"
+                                    : c.confidence >= 60
+                                    ? "bg-yellow-100 text-yellow-800"
+                                    : "bg-gray-100 text-gray-700"
+                                }`}
+                              >
+                                {t("bankImport.confidence")}: {c.confidence}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="text-xs text-gray-600">
+                            {c.customerName}
+                            {c.customerNumber && (
+                              <span className="font-mono text-gray-400 ml-1">({c.customerNumber})</span>
+                            )}
+                          </div>
+                          <div className="flex justify-between text-xs mt-1">
+                            <span className="text-gray-500">{t("bankImport.tableAmount")}: € {fmtMoney(c.total)}</span>
+                            {c.dueDate && (
+                              <span className="text-gray-500">
+                                {t("bankImport.tableDate")}: {fmtDate(c.dueDate, dl)}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-xs text-gray-400 italic mt-1">
+                            {c.matchReason}
+                          </div>
+                          {/* Action buttons — shown only for
+                              suggested matches (not confirmed /
+                              rejected). After confirmation the
+                              candidate is removed from the
+                              candidates list anyway (because the
+                              invoice is now 'paid'). */}
+                          {recon && recon.status === "suggested" && (
+                            <div className="flex gap-2 mt-2">
+                              <Button
+                                size="sm"
+                                disabled={busyRecon === recon.id}
+                                onClick={() => confirmCandidate(recon.id, c.invoiceNumber)}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                              >
+                                {busyRecon === recon.id
+                                  ? t("common.loading")
+                                  : t("bankImport.confirmCandidate")}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={busyRecon === recon.id}
+                                onClick={() => rejectCandidate(recon.id)}
+                              >
+                                {t("bankImport.rejectCandidate")}
+                              </Button>
+                            </div>
                           )}
                         </div>
-                        <div className="text-xs text-gray-400 italic mt-1">
-                          {c.matchReason}
-                        </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 )}
               </CardContent>

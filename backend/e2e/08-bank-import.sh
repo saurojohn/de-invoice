@@ -16,7 +16,8 @@ docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"BankReconciliation\" WHERE \"companyId\" = '$COMPANY_ID';
    DELETE FROM \"BankTransaction\" WHERE \"companyId\" = '$COMPANY_ID';
    DELETE FROM \"BankStatement\" WHERE \"companyId\" = '$COMPANY_ID';
-   DELETE FROM \"Invoice\" WHERE \"invoiceNumber\" = 'INV-2026-TEST-E2E';" >/dev/null 2>&1
+   DELETE FROM \"Payment\" WHERE \"invoiceId\" IN (SELECT id FROM \"Invoice\" WHERE \"invoiceNumber\" IN ('INV-2026-TEST-E2E', 'INV-2026-TEST-002', 'INV-2026-TEST-003', 'INV-2026-TEST-CAMT'));
+   DELETE FROM \"Invoice\" WHERE \"invoiceNumber\" IN ('INV-2026-TEST-E2E', 'INV-2026-TEST-002', 'INV-2026-TEST-003', 'INV-2026-TEST-CAMT');" >/dev/null 2>&1
 
 echo "=== Test: bank import MT940 + candidate matching ==="
 
@@ -141,8 +142,142 @@ RECON_COUNT_2=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice
   "SELECT count(*) FROM \"BankReconciliation\" WHERE \"bankTransactionId\" = '$TXN_ID';" 2>/dev/null | tr -d ' ')
 assert_eq "re-ran suggest is idempotent" "$RECON_COUNT_2" "1"
 
+# === Confirm flow: PaymentService.create() + invoice flips to 'paid' ===
+# Grab the suggested recon id
+RECON_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT id FROM \"BankReconciliation\" WHERE \"bankTransactionId\" = '$TXN_ID';" 2>/dev/null | tr -d ' ')
+
+# Check invoice status BEFORE confirm
+INV_BEFORE=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT status FROM \"Invoice\" WHERE \"invoiceNumber\" = 'INV-2026-TEST-E2E';" 2>/dev/null | tr -d ' ')
+assert_eq "invoice status before confirm" "$INV_BEFORE" "sent"
+
+# Confirm the candidate
+api_post "/api/v1/bank-statements/reconciliations/$RECON_ID/confirm?companyId=$COMPANY_ID" ""
+assert_status "201" "confirm candidate"
+PAY_ID=$(json_field "$BODY" paymentId)
+if [[ -z "$PAY_ID" || "$PAY_ID" == "null" ]]; then
+  fail "confirm did not return paymentId: $BODY"
+else
+  pass "confirm returned paymentId: ${PAY_ID:0:8}..."
+fi
+
+# Verify invoice flipped to 'paid' and Payment row exists
+INV_AFTER=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT status FROM \"Invoice\" WHERE \"invoiceNumber\" = 'INV-2026-TEST-E2E';" 2>/dev/null | tr -d ' ')
+assert_eq "invoice status after confirm" "$INV_AFTER" "paid"
+
+PAYMENT_AMT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT amount FROM \"Payment\" WHERE id = '$PAY_ID';" 2>/dev/null | tr -d ' ')
+assert_eq "payment amount" "$PAYMENT_AMT" "200.0000"
+
+PAY_METHOD=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT \"paymentMethod\" FROM \"Payment\" WHERE id = '$PAY_ID';" 2>/dev/null | tr -d ' ')
+assert_eq "payment method" "$PAY_METHOD" "Überweisung"
+
+RECON_STATUS=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT status FROM \"BankReconciliation\" WHERE id = '$RECON_ID';" 2>/dev/null | tr -d ' ')
+assert_eq "reconciliation status after confirm" "$RECON_STATUS" "confirmed"
+
+# Double-confirm should fail (idempotency)
+api_post "/api/v1/bank-statements/reconciliations/$RECON_ID/confirm?companyId=$COMPANY_ID" ""
+assert_status "400" "double-confirm returns 400"
+
+# === Reject flow: create a 2nd invoice + suggest + reject ===
+CUST_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT id FROM \"Customer\" WHERE \"companyId\" = '$COMPANY_ID' LIMIT 1;" 2>/dev/null | tr -d ' ')
+docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+  "INSERT INTO \"Invoice\" (id, \"companyId\", \"customerId\", \"invoiceNumber\", \"type\", \"status\", \"issueDate\", \"dueDate\", \"subtotal\", \"totalVat\", \"total\", \"currency\", \"language\", \"createdAt\", \"updatedAt\")
+   VALUES (gen_random_uuid()::text, '$COMPANY_ID', '$CUST_ID', 'INV-2026-TEST-002', 'INV', 'sent', '2026-06-03', '2026-06-10', 168.07, 31.93, 200.00, 'EUR', 'de-DE', now(), now());" >/dev/null 2>&1
+
+# Upload a 2nd statement
+cat > /tmp/e2e2.mt940 <<'EOF'
+:1:F01BANKBICAXXX0000000000
+:20:ST20260609002
+:25:DE89370400440532013000
+:28C:1/1
+:60F:C260602EUR1000,00
+:61:2606030603C200,00NTRFNONREF//Rechnung 99-9
+Test
+:62F:C260603EUR1200,00
+-
+EOF
+UPLOAD2=$(curl -sS -X POST -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
+  "$API/api/v1/bank-statements/import?companyId=$COMPANY_ID" \
+  -F "file=@/tmp/e2e2.mt940;type=text/plain" \
+  -F "companyId=$COMPANY_ID" \
+  -F "userId=$USER_ID")
+SID2=$(json_field "$UPLOAD2" id)
+TXN_ID2=$(echo "$UPLOAD2" | python3 -c "
+import json, sys
+d = json.loads(sys.stdin.read())
+for t in d['transactions']:
+    if float(t['amount']) == 200: print(t['id']); break
+")
+
+# Manual match for the 2nd statement (skips suggest UI)
+INV2_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT id FROM \"Invoice\" WHERE \"invoiceNumber\" = 'INV-2026-TEST-002';" 2>/dev/null | tr -d ' ')
+api_post "/api/v1/bank-statements/$SID2/transactions/$TXN_ID2/match?companyId=$COMPANY_ID" "{\"invoiceId\":\"$INV2_ID\"}"
+assert_status "201" "manual match creates payment"
+MANUAL_PAY=$(json_field "$BODY" paymentId)
+if [[ -n "$MANUAL_PAY" && "$MANUAL_PAY" != "null" ]]; then
+  pass "manual match paymentId: ${MANUAL_PAY:0:8}..."
+fi
+
+INV2_AFTER=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT status FROM \"Invoice\" WHERE \"invoiceNumber\" = 'INV-2026-TEST-002';" 2>/dev/null | tr -d ' ')
+assert_eq "manual-match invoice status" "$INV2_AFTER" "paid"
+
+# Reject flow: upload a 3rd statement and reject its suggestion
+# We need a fresh, non-paid invoice that auto-suggest will match
+docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+  "INSERT INTO \"Invoice\" (id, \"companyId\", \"customerId\", \"invoiceNumber\", \"type\", \"status\", \"issueDate\", \"dueDate\", \"subtotal\", \"totalVat\", \"total\", \"currency\", \"language\", \"createdAt\", \"updatedAt\")
+   VALUES (gen_random_uuid()::text, '$COMPANY_ID', '$CUST_ID', 'INV-2026-TEST-003', 'INV', 'sent', '2026-06-04', '2026-06-11', 168.07, 31.93, 200.00, 'EUR', 'de-DE', now(), now());" >/dev/null 2>&1
+cat > /tmp/e2e3.mt940 <<'EOF'
+:1:F01BANKBICAXXX0000000000
+:20:ST20260609003
+:25:DE89370400440532013000
+:28C:1/1
+:60F:C260603EUR1200,00
+:61:2606040604C200,00NTRFNONREF//Testzweck
+Test
+:62F:C260604EUR1400,00
+-
+EOF
+UPLOAD3=$(curl -sS -X POST -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
+  "$API/api/v1/bank-statements/import?companyId=$COMPANY_ID" \
+  -F "file=@/tmp/e2e3.mt940;type=text/plain" \
+  -F "companyId=$COMPANY_ID" \
+  -F "userId=$USER_ID")
+SID3=$(json_field "$UPLOAD3" id)
+
+# Generate suggestions
+api_post "/api/v1/bank-statements/$SID3/suggest?companyId=$COMPANY_ID" ""
+assert_status "201" "suggest for statement 3"
+RECON3_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT id FROM \"BankReconciliation\" WHERE \"bankTransactionId\" IN (SELECT id FROM \"BankTransaction\" WHERE \"statementId\" = '$SID3') LIMIT 1;" 2>/dev/null | tr -d ' ')
+
+# Reject the suggested match
+api_post "/api/v1/bank-statements/reconciliations/$RECON3_ID/reject?companyId=$COMPANY_ID" ""
+assert_status "201" "reject candidate"
+RECON3_STATUS=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT status FROM \"BankReconciliation\" WHERE id = '$RECON3_ID';" 2>/dev/null | tr -d ' ')
+assert_eq "reconciliation status after reject" "$RECON3_STATUS" "rejected"
+
+# Try to confirm a rejected recon — should fail
+api_post "/api/v1/bank-statements/reconciliations/$RECON3_ID/confirm?companyId=$COMPANY_ID" ""
+assert_status "400" "confirm-rejected returns 400"
+
 # CAMT.053 round-trip: upload a sample XML and verify
-# the same shape.
+# the same shape. Use a dedicated CAMT invoice
+# (INV-2026-TEST-CAMT) so it doesn't conflict with
+# INV-2026-TEST-E2E which is already paid by this point
+# in the test sequence.
+docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+  "INSERT INTO \"Invoice\" (id, \"companyId\", \"customerId\", \"invoiceNumber\", \"type\", \"status\", \"issueDate\", \"dueDate\", \"subtotal\", \"totalVat\", \"total\", \"currency\", \"language\", \"createdAt\", \"updatedAt\")
+   VALUES (gen_random_uuid()::text, '$COMPANY_ID', '$CUST_ID', 'INV-2026-TEST-CAMT', 'INV', 'sent', '2026-06-08', '2026-06-15', 168.07, 31.93, 200.00, 'EUR', 'de-DE', now(), now());" >/dev/null 2>&1
+
 cat > /tmp/e2e.xml <<'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <Document>
@@ -158,7 +293,7 @@ cat > /tmp/e2e.xml <<'EOF'
         <TxDtls>
           <CdtTrxTxInf>
             <PmtId><EndToEndId>E2E-001</EndToEndId></PmtId>
-            <RmtInf><Ustrd>Rechnung INV-2026-TEST-E2E</Ustrd></RmtInf>
+            <RmtInf><Ustrd>Rechnung INV-2026-TEST-CAMT</Ustrd></RmtInf>
             <Dbtr><Nm>Frau Müller</Nm></Dbtr>
             <DbtrAcct><Id><IBAN>DE89370400440532013000</IBAN></Id></DbtrAcct>
           </CdtTrxTxInf>
@@ -212,6 +347,7 @@ docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"BankReconciliation\" WHERE \"companyId\" = '$COMPANY_ID';
    DELETE FROM \"BankTransaction\" WHERE \"companyId\" = '$COMPANY_ID';
    DELETE FROM \"BankStatement\" WHERE \"companyId\" = '$COMPANY_ID';
-   DELETE FROM \"Invoice\" WHERE \"invoiceNumber\" = 'INV-2026-TEST-E2E';" >/dev/null 2>&1
+   DELETE FROM \"Payment\" WHERE \"invoiceId\" IN (SELECT id FROM \"Invoice\" WHERE \"invoiceNumber\" IN ('INV-2026-TEST-E2E', 'INV-2026-TEST-002', 'INV-2026-TEST-003', 'INV-2026-TEST-CAMT'));
+   DELETE FROM \"Invoice\" WHERE \"invoiceNumber\" IN ('INV-2026-TEST-E2E', 'INV-2026-TEST-002', 'INV-2026-TEST-003', 'INV-2026-TEST-CAMT');" >/dev/null 2>&1
 
 summary

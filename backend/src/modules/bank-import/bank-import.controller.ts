@@ -1,8 +1,12 @@
-import { Controller, Get, Post, Delete, Body, Param, Query, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Body, Param, Query, UseInterceptors, UploadedFile, BadRequestException, Req } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { BankImportService } from './bank-import.service';
 import { Auth, Require } from '../../auth/roles.decorator';
 
+// IMPORTANT: literal routes (`/import`, `/reconciliations/...`) MUST
+// be registered BEFORE `:id` routes. NestJS Express matches in
+// registration order, so `/bank-statements/reconciliations/...`
+// would otherwise be eaten by `GET /:id` with `id='reconciliations'`.
 @Auth()
 @Controller('bank-statements')
 export class BankImportController {
@@ -28,6 +32,36 @@ export class BankImportController {
     if (!companyId) throw new BadRequestException('companyId ist erforderlich');
     const content = file.buffer.toString('utf-8');
     return this.svc.importStatement(companyId, userId, file.originalname, content);
+  }
+
+  /** Confirm a candidate match (writes Payment, flips
+   *  the reconciliation to "confirmed" and the invoice
+   *  to "paid" if the cumulative payments cover the
+   *  invoice total). */
+  @Post('reconciliations/:reconId/confirm')
+  @Require('invoice.update')
+  async confirmRecon(
+    @Req() req: any,
+    @Query('companyId') companyId: string,
+    @Param('reconId') reconId: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId is required');
+    const userId = req?.headers?.['x-user-id'] || undefined;
+    return this.svc.confirmMatch(companyId, reconId, userId);
+  }
+
+  /** Reject a candidate match (flips the
+   *  reconciliation to "rejected" so the UI hides it).
+   *  The user can re-run suggest to get a different
+   *  top candidate. */
+  @Post('reconciliations/:reconId/reject')
+  @Require('invoice.update')
+  async rejectRecon(
+    @Query('companyId') companyId: string,
+    @Param('reconId') reconId: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId is required');
+    return this.svc.rejectMatch(companyId, reconId);
   }
 
   /** List statements (most recent first). */
@@ -91,5 +125,41 @@ export class BankImportController {
       throw new BadRequestException('Transaktion gehört nicht zu diesem Kontoauszug');
     }
     return this.svc.getCandidates(companyId, txnId);
+  }
+
+  /** Manually match a bank transaction to an invoice
+   *  (skips the candidate UI). Useful for transactions
+   *  that don't auto-suggest anything. */
+  @Post(':id/transactions/:txnId/match')
+  @Require('invoice.update')
+  async matchManual(
+    @Req() req: any,
+    @Query('companyId') companyId: string,
+    @Param('id') id: string,
+    @Param('txnId') txnId: string,
+    @Body('invoiceId') invoiceId: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId is required');
+    if (!invoiceId) throw new BadRequestException('invoiceId ist erforderlich');
+    const stmt = await this.svc.getStatement(companyId, id);
+    if (!stmt) throw new BadRequestException('Kontoauszug nicht gefunden');
+    if (!stmt.transactions.some((t) => t.id === txnId)) {
+      throw new BadRequestException('Transaktion gehört nicht zu diesem Kontoauszug');
+    }
+    const userId = req?.headers?.['x-user-id'] || undefined;
+    return this.svc.manualMatch(companyId, txnId, invoiceId, userId);
+  }
+
+  /** List all reconciliations for a statement (for
+   *  the matching-status panel: suggested / confirmed
+   *  / rejected counts per transaction). */
+  @Get(':id/reconciliations')
+  @Require('invoice.read')
+  async listRecons(
+    @Query('companyId') companyId: string,
+    @Param('id') id: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId is required');
+    return this.svc.listReconciliations(companyId, id);
   }
 }

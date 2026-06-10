@@ -885,6 +885,12 @@
     "direction_out": "Ausgang",
     "status_processed": "Importiert",
     "status_suggested": "Vorgeschlagen",
-    "status_confirmed": "Bestätigt"
+    "status_confirmed": "Bestätigt",
+    "confirmCandidate": "Bestätigen",
+    "rejectCandidate": "Ablehnen",
+    "confirmCandidateConfirm": "Soll {invoice} als bezahlt markiert werden?",
+    "statusSuggested": "Vorgeschlagen",
+    "statusConfirmed": "Bestätigt",
+    "statusRejected": "Abgelehnt"
   }
 }

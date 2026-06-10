@@ -877,6 +877,12 @@
     "direction_out": "Outgoing",
     "status_processed": "Imported",
     "status_suggested": "Suggested",
-    "status_confirmed": "Confirmed"
+    "status_confirmed": "Confirmed",
+    "confirmCandidate": "Confirm",
+    "rejectCandidate": "Reject",
+    "confirmCandidateConfirm": "Mark {invoice} as paid?",
+    "statusSuggested": "Suggested",
+    "statusConfirmed": "Confirmed",
+    "statusRejected": "Rejected"
   }
 }
