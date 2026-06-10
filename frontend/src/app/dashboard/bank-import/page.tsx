@@ -73,6 +73,15 @@ interface Reconciliation {
     voucherNumber: string
     date: string
   } | null
+  // Storno voucher, if this recon was reopened at
+  // some point. The UI shows "BK-A reverted by
+  // BK-B" when both are present. NULL on a
+  // fresh-or-suggested recon.
+  reversalVoucher: {
+    id: string
+    voucherNumber: string
+    date: string
+  } | null
 }
 
 const fmtMoney = (n: number) =>
@@ -790,6 +799,11 @@ export default function BankImportPage() {
                             <div className="text-xs text-gray-500 mt-1">
                               {t("bankImport.voucher")}:{" "}
                               <span className="font-mono">{recon.voucher.voucherNumber}</span>
+                              {recon.reversalVoucher && (
+                                <span className="text-amber-700 ml-2">
+                                  (Storno {recon.reversalVoucher.voucherNumber})
+                                </span>
+                              )}
                             </div>
                           )}
                         </div>
@@ -857,7 +871,34 @@ export default function BankImportPage() {
                           </span>
                         </td>
                         <td className="font-mono text-xs">
-                          {r.voucher ? r.voucher.voucherNumber : "—"}
+                          {/* Show both the current and the
+                              Storno voucher when this
+                              recon has been reopened.
+                              The Berater can pivot from
+                              the DATEV row (which lists
+                              both) back to the recon
+                              row, and from the recon
+                              row back to either
+                              Belegnummer. */}
+                          {r.voucher ? (
+                            <span>
+                              {r.voucher.voucherNumber}
+                              {r.reversalVoucher && (
+                                <>
+                                  <br />
+                                  <span className="text-amber-700 text-[10px]">
+                                    Storno {r.reversalVoucher.voucherNumber}
+                                  </span>
+                                </>
+                              )}
+                            </span>
+                          ) : r.reversalVoucher ? (
+                            <span className="text-amber-700">
+                              Storno {r.reversalVoucher.voucherNumber}
+                            </span>
+                          ) : (
+                            "—"
+                          )}
                         </td>
                         <td className="text-right text-xs">
                           {/* Rückgängig on confirmed rows.

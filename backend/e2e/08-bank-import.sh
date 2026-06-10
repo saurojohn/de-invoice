@@ -458,7 +458,10 @@ fi
 # Verify
 RECON_AFTER=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
   "SELECT status FROM \"BankReconciliation\" WHERE id = '$AUTO_RECON_ID';" 2>/dev/null | tr -d ' ')
-assert_eq "recon status after reopen" "$RECON_AFTER" "reopened"
+# Reopen flips back to 'suggested' so the user can
+# immediately re-confirm or pick a different candidate
+# — better UX than locking the row in 'reopened'.
+assert_eq "recon status after reopen" "$RECON_AFTER" "suggested"
 
 INV_AFTER_REOPEN=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
   "SELECT status FROM \"Invoice\" WHERE id = '$AUTO_INV_ID';" 2>/dev/null | tr -d ' ')
@@ -472,6 +475,17 @@ assert_eq "payments removed after reopen" "$PAY_AFTER_REOPEN" "0"
 ORIG_VCH_STILL=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
   "SELECT count(*) FROM \"Voucher\" WHERE id = '$AUTO_VCH_ID';" 2>/dev/null | tr -d ' ')
 assert_eq "original voucher preserved" "$ORIG_VCH_STILL" "1"
+
+# voucherId on the recon still points at the original
+# Voucher (not overwritten by the Storno).
+ORIG_LINKED=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT \"voucherId\" = '$AUTO_VCH_ID'::text FROM \"BankReconciliation\" WHERE id = '$AUTO_RECON_ID';" 2>/dev/null | tr -d ' ')
+assert_eq "voucherId still points at original voucher" "$ORIG_LINKED" "t"
+
+# reversalVoucherId is set to the Storno
+STORN_LINKED=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT \"reversalVoucherId\" = '$STORNO_VCH_ID'::text FROM \"BankReconciliation\" WHERE id = '$AUTO_RECON_ID';" 2>/dev/null | tr -d ' ')
+assert_eq "reversalVoucherId set to Storno" "$STORN_LINKED" "t"
 
 # Storno Voucher exists with correct referenceType
 STORNO_REFTYPE=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
@@ -496,9 +510,68 @@ NET_RECV=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA 
    WHERE v.\"companyId\" = '$COMPANY_ID' AND v.id IN ('$AUTO_VCH_ID', '$STORNO_VCH_ID') AND a.\"accountNumber\" = '1406';" 2>/dev/null | tr -d ' ')
 assert_eq "Forderung 1406 nets to 0 after reopen" "$NET_RECV" "0.0000"
 
-# Double-reopen should fail
+# === Re-confirm after reopen ===
+# Reopen flips status back to 'suggested', so the
+# user can immediately re-confirm. The full confirm
+# flow runs again (Payment + new Voucher + invoice
+# paid), but the Storno is preserved for the audit
+# trail.
+api_post "/api/v1/bank-statements/reconciliations/$AUTO_RECON_ID/confirm?companyId=$COMPANY_ID" ""
+assert_status "201" "re-confirm after reopen"
+RECONFIRM_VCH_ID=$(json_field "$BODY" voucherId)
+if [[ -n "$RECONFIRM_VCH_ID" && "$RECONFIRM_VCH_ID" != "null" ]]; then
+  pass "re-confirm wrote new Voucher: ${RECONFIRM_VCH_ID:0:8}..."
+fi
+
+# Status is now 'confirmed' again
+RECON_RECONFIRMED=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT status FROM \"BankReconciliation\" WHERE id = '$AUTO_RECON_ID';" 2>/dev/null | tr -d ' ')
+assert_eq "recon status after re-confirm" "$RECON_RECONFIRMED" "confirmed"
+
+# voucherId now points at the NEW voucher (overwritten
+# from the reopen state), reversalVoucherId still set
+RECONFIRMED_LINKED=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT \"voucherId\" = '$RECONFIRM_VCH_ID'::text FROM \"BankReconciliation\" WHERE id = '$AUTO_RECON_ID';" 2>/dev/null | tr -d ' ')
+assert_eq "voucherId now points at re-confirm voucher" "$RECONFIRMED_LINKED" "t"
+
+STORN_PRESERVED=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT \"reversalVoucherId\" = '$STORNO_VCH_ID'::text FROM \"BankReconciliation\" WHERE id = '$AUTO_RECON_ID';" 2>/dev/null | tr -d ' ')
+assert_eq "reversalVoucherId preserved across re-confirm" "$STORN_PRESERVED" "t"
+
+# Original voucher still untouched
+ORIG_STILL_THERE=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT count(*) FROM \"Voucher\" WHERE id = '$AUTO_VCH_ID';" 2>/dev/null | tr -d ' ')
+assert_eq "original voucher still in books" "$ORIG_STILL_THERE" "1"
+
+# All 3 vouchers for this recon chain exist
+TOTAL_VCH=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT count(*) FROM \"Voucher\" WHERE id IN ('$AUTO_VCH_ID', '$STORNO_VCH_ID', '$RECONFIRM_VCH_ID');" 2>/dev/null | tr -d ' ')
+assert_eq "audit trail has all 3 vouchers" "$TOTAL_VCH" "3"
+
+# listReconciliations returns the reversalVoucher
+api_get "/api/v1/bank-statements/$SID_AUTO/reconciliations?companyId=$COMPANY_ID"
+HAS_STORNO=$(echo "$BODY" | python3 -c "
+import json, sys
+d = json.loads(sys.stdin.read())
+if d and 'reversalVoucher' in d[0] and d[0]['reversalVoucher']:
+    print('t')
+else:
+    print('f')
+")
+assert_eq "listReconciliations includes reversalVoucher" "$HAS_STORNO" "t"
+
+# After re-confirm the recon is back to 'confirmed'
+# — opening it AGAIN (which would create a SECOND
+# Storno) is allowed (the user might want to undo
+# again). What we test instead is the negative path:
+# reopening the 'suggested' interim state is rejected.
+# Reopen + reopen directly: first one flips suggested,
+# the second one tries to reopen while already
+# suggested, and the service refuses with 400.
 api_post "/api/v1/bank-statements/reconciliations/$AUTO_RECON_ID/reopen?companyId=$COMPANY_ID" ""
-assert_status "400" "double-reopen returns 400"
+assert_status "201" "reopen re-confirmed match (round 2)"
+api_post "/api/v1/bank-statements/reconciliations/$AUTO_RECON_ID/reopen?companyId=$COMPANY_ID" ""
+assert_status "400" "reopen-while-suggested returns 400"
 
 # CAMT.053 round-trip: upload a sample XML and verify
 # the same shape. Use a dedicated CAMT invoice

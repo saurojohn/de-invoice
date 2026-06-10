@@ -448,6 +448,12 @@ model Voucher {
   invoiceRef    Invoice?
   bankReconciliations BankReconciliation[]
   bankTransactions BankTransaction[]
+  // Recon rows that named THIS voucher as the Storno
+  // (reversalVoucherId on BankReconciliation). When
+  // the user reopens a confirmed match, the Storno
+  // voucher links back to the recon via this relation
+  // — symmetric to bankReconciliations.
+  reversalOf BankReconciliation[] @relation("ReconReversal")
 
   @@unique([companyId, voucherNumber])
   @@index([companyId, date])
@@ -955,13 +961,21 @@ model BankReconciliation {
   matchReason     String?
   // Auto-generated Voucher for this recon. NULL until
   // the user confirms the match (the confirm flow
-  // books a Bank→Forderung posting so the cash ledger
+  //  books a Bank→Forderung posting so the cash ledger
   // stays in sync with the bank reality). This is the
   // GoBD audit trail — the original raw file is on
   // BankStatement, the parsed transactions on
   // BankTransaction, and the booking on Voucher.
   voucherId       String?
   voucher         Voucher? @relation(fields: [voucherId], references: [id])
+  // If the user reopens the match, the original
+  // voucherId stays (the original is preserved for
+  // GoBD immutability) and a new Storno voucher is
+  // written. The Storno id is stored here so the UI
+  // can show "BK-XXXX reverted by BK-YYYY" without
+  // re-querying the Voucher table.
+  reversalVoucherId String?
+  reversalVoucher   Voucher? @relation("ReconReversal", fields: [reversalVoucherId], references: [id])
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

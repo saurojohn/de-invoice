@@ -906,6 +906,7 @@
     "autoConfirmThreshold": "自动确认阈值",
     "reopenCandidate": "撤销",
     "reopenCandidateConfirm": "确定撤销 {invoice}？将生成一张冲销凭证。",
-    "statusReopened": "已撤销"
+    "statusReopened": "已撤销",
+    "reversalVoucher": "冲销凭证"
   }
 }

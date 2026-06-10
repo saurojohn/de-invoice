@@ -896,6 +896,7 @@
     "autoConfirmThreshold": "Auto-confirm at",
     "reopenCandidate": "Reopen",
     "reopenCandidateConfirm": "Really reopen {invoice}? A reversal voucher will be written.",
-    "statusReopened": "Reopened"
+    "statusReopened": "Reopened",
+    "reversalVoucher": "Reversal voucher"
   }
 }

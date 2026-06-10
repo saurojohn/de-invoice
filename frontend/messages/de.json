@@ -904,6 +904,7 @@
     "autoConfirmThreshold": "Auto-Bestätigen ab",
     "reopenCandidate": "Rückgängig",
     "reopenCandidateConfirm": "Soll {invoice} wirklich rückgängig gemacht werden? Es wird eine Storno-Buchung erstellt.",
-    "statusReopened": "Rückgängig"
+    "statusReopened": "Rückgängig",
+    "reversalVoucher": "Storno-Beleg"
   }
 }

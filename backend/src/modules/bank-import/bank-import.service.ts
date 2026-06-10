@@ -670,14 +670,27 @@ export class BankImportService {
       await this.paymentService.delete(originalPayment.id, companyId);
     }
 
-    // 3. Flip the recon status. The voucherId now
-    // points to the Storno voucher so the UI
-    // shows the correction.
+    // 3. Flip the recon back to 'suggested' (not
+    // 'reopened') so the user can immediately re-
+    // confirm or pick a different candidate. The
+    // original Voucher id stays on voucherId (the
+    // original is preserved for GoBD immutability);
+    // the Storno id is stored on reversalVoucherId
+    // for the audit trail. The UI shows both in the
+    // Zuordnungen panel.
     await this.prisma.bankReconciliation.update({
       where: { id: reconciliationId },
       data: {
-        status: 'reopened',
-        voucherId: stornoVoucher.id,
+        status: 'suggested',
+        reversalVoucherId: stornoVoucher.id,
+        // Keep voucherId pointing at the original
+        // Voucher so the audit panel can show "BK-A
+        // was reverted by BK-B". When the user
+        // re-confirms this recon, confirmMatch will
+        // create a new Voucher and overwrite
+        // voucherId (the original stays in the
+        // books; this recon row just points at the
+        // newest booking).
       },
     });
 
@@ -895,10 +908,14 @@ export class BankImportService {
       where: { companyId, bankTransaction: { statementId } },
       include: {
         invoice: { select: { invoiceNumber: true, total: true, customer: { select: { name: true } } } },
-        // voucherId + voucherNumber is shown in the UI
-        // so the user can drill into the Buchungsbeleg
-        // (e.g. from DATEV export ↔ the recon row).
+        // The current booking voucher (or, if reopened,
+        // the most recent one). NULL when the recon
+        // hasn't been confirmed yet.
         voucher: { select: { id: true, voucherNumber: true, date: true } },
+        // The Storno voucher (if any). The UI shows
+        // "BK-A reverted by BK-B" when both are
+        // present.
+        reversalVoucher: { select: { id: true, voucherNumber: true, date: true } },
       },
       orderBy: { createdAt: 'asc' },
     });
