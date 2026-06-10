@@ -937,6 +937,7 @@
     "txnAmount": "金额",
     "txnCounterparty": "对方",
     "statement": "源文件",
-    "noAuditLink": "无关联 — 手工创建的凭证"
+    "noAuditLink": "无关联 — 手工创建的凭证",
+    "downloadPdf": "下载 PDF"
   }
 }

@@ -927,6 +927,7 @@
     "txnAmount": "Amount",
     "txnCounterparty": "Counterparty",
     "statement": "Source file",
-    "noAuditLink": "No link — manually-created voucher"
+    "noAuditLink": "No link — manually-created voucher",
+    "downloadPdf": "Download PDF"
   }
 }

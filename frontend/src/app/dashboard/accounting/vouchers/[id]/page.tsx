@@ -151,6 +151,26 @@ export default function VoucherDetailPage() {
             )}
           </div>
           <div className="flex gap-2 items-center">
+            {voucher && (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  // Direct browser download. The API
+                  // returns application/pdf with
+                  // Content-Disposition: attachment;
+                  // filename=BK-XXXX.pdf — a plain
+                  // window.location assignment triggers
+                  // the file save dialog.
+                  const companyId =
+                    localStorage.getItem("companyId") || ""
+                  window.location.assign(
+                    `/api/v1/accounting/vouchers/${voucher.id}/pdf?companyId=${companyId}`
+                  )
+                }}
+              >
+                {t("voucher.downloadPdf")}
+              </Button>
+            )}
             <LanguageSwitcher />
             <Button variant="outline" onClick={() => router.push("/dashboard")}>
               {t("common.back")}

@@ -935,6 +935,7 @@
     "txnAmount": "Betrag",
     "txnCounterparty": "Gegenkonto",
     "statement": "Quelldatei",
-    "noAuditLink": "Keine Verknüpfung — manuell erstellter Buchungsbeleg"
+    "noAuditLink": "Keine Verknüpfung — manuell erstellter Buchungsbeleg",
+    "downloadPdf": "PDF herunterladen"
   }
 }
