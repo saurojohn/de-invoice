@@ -18,8 +18,8 @@ docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
    DELETE FROM \"BankStatement\" WHERE \"companyId\" = '$COMPANY_ID';
    DELETE FROM \"VoucherLine\" WHERE \"voucherId\" IN (SELECT id FROM \"Voucher\" WHERE \"companyId\" = '$COMPANY_ID' AND \"referenceType\" IN ('BankReconciliation', 'BankTransaction'));
    DELETE FROM \"Voucher\" WHERE \"companyId\" = '$COMPANY_ID' AND \"referenceType\" IN ('BankReconciliation', 'BankTransaction');
-   DELETE FROM \"Payment\" WHERE \"invoiceId\" IN (SELECT id FROM \"Invoice\" WHERE \"invoiceNumber\" IN ('INV-2026-TEST-E2E', 'INV-2026-TEST-002', 'INV-2026-TEST-003', 'INV-2026-TEST-CAMT'));
-   DELETE FROM \"Invoice\" WHERE \"invoiceNumber\" IN ('INV-2026-TEST-E2E', 'INV-2026-TEST-002', 'INV-2026-TEST-003', 'INV-2026-TEST-CAMT');" >/dev/null 2>&1
+   DELETE FROM \"Payment\" WHERE \"invoiceId\" IN (SELECT id FROM \"Invoice\" WHERE \"invoiceNumber\" IN ('INV-2026-TEST-E2E', 'INV-2026-TEST-002', 'INV-2026-TEST-003', 'INV-2026-TEST-CAMT', 'INV-2026-TEST-AUTO'));
+   DELETE FROM \"Invoice\" WHERE \"invoiceNumber\" IN ('INV-2026-TEST-E2E', 'INV-2026-TEST-002', 'INV-2026-TEST-003', 'INV-2026-TEST-CAMT', 'INV-2026-TEST-AUTO');" >/dev/null 2>&1
 
 echo "=== Test: bank import MT940 + candidate matching ==="
 
@@ -314,11 +314,35 @@ UPLOAD3=$(curl -sS -X POST -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_I
   -F "userId=$USER_ID")
 SID3=$(json_field "$UPLOAD3" id)
 
-# Generate suggestions
-api_post "/api/v1/bank-statements/$SID3/suggest?companyId=$COMPANY_ID" ""
-assert_status "201" "suggest for statement 3"
+# === Auto-confirm threshold ===
+# Reject the INV-2026-TEST-003 setup above so we have
+# a fresh slate. Actually we want to test threshold
+# BEFORE the reject test. Save the recon id, reject,
+# then test threshold with a brand-new setup.
+#
+# Easier: use INV-2026-TEST-003 invoice (still sent,
+# has a recon from the upcoming test). Actually, we
+# have a chicken-and-egg here. The cleanest path is to
+# reset the recons for SID3, then test threshold=0
+# (no auto-confirm) and threshold=80 (auto-confirm).
+# After threshold=80 the recon is already confirmed
+# so the reject test below would fail. So:
+#   1. threshold=0 → recon is suggested → reject it
+#   2. THEN test threshold=80 on a fresh statement
+
+# Generate suggestions with threshold=0
+api_post "/api/v1/bank-statements/$SID3/suggest?companyId=$COMPANY_ID" '{}'
+assert_status "201" "suggest for statement 3 (threshold=0)"
 RECON3_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
   "SELECT id FROM \"BankReconciliation\" WHERE \"bankTransactionId\" IN (SELECT id FROM \"BankTransaction\" WHERE \"statementId\" = '$SID3') LIMIT 1;" 2>/dev/null | tr -d ' ')
+
+# Response carries generated/autoConfirmed/threshold
+GEN3=$(json_field "$BODY" generated)
+AC3=$(json_field "$BODY" autoConfirmed)
+TH3=$(json_field "$BODY" threshold)
+assert_eq "threshold=0: generated count" "$GEN3" "1"
+assert_eq "threshold=0: autoConfirmed=0" "$AC3" "0"
+assert_eq "threshold=0: threshold echoed" "$TH3" "0"
 
 # Reject the suggested match
 api_post "/api/v1/bank-statements/reconciliations/$RECON3_ID/reject?companyId=$COMPANY_ID" ""
@@ -330,6 +354,76 @@ assert_eq "reconciliation status after reject" "$RECON3_STATUS" "rejected"
 # Try to confirm a rejected recon — should fail
 api_post "/api/v1/bank-statements/reconciliations/$RECON3_ID/confirm?companyId=$COMPANY_ID" ""
 assert_status "400" "confirm-rejected returns 400"
+
+# === Auto-confirm threshold test ===
+# Need a fresh invoice (the rejected one above has a
+# recon that the suggest call will skip). Create
+# INV-2026-TEST-AUTO and a fresh statement.
+docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+  "INSERT INTO \"Invoice\" (id, \"companyId\", \"customerId\", \"invoiceNumber\", \"type\", \"status\", \"issueDate\", \"dueDate\", \"subtotal\", \"totalVat\", \"total\", \"currency\", \"language\", \"createdAt\", \"updatedAt\")
+   VALUES (gen_random_uuid()::text, '$COMPANY_ID', '$CUST_ID', 'INV-2026-TEST-AUTO', 'INV', 'sent', '2026-06-05', '2026-06-12', 84.03, 15.97, 100.00, 'EUR', 'de-DE', now(), now());" >/dev/null 2>&1
+
+cat > /tmp/e2e-auto.mt940 <<'EOF'
+:1:F01BANKBICAXXX0000000000
+:20:STAUTO001
+:25:DE89370400440532013000
+:28C:1/1
+:60F:C260604EUR1400,00
+:61:2606050605C100,00NTRFNONREF//Rechnung INV-2026-TEST-AUTO
+Frau Müller
+:62F:C260605EUR1500,00
+-
+EOF
+UPLOAD_AUTO=$(curl -sS -X POST -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
+  "$API/api/v1/bank-statements/import?companyId=$COMPANY_ID" \
+  -F "file=@/tmp/e2e-auto.mt940;type=text/plain" \
+  -F "companyId=$COMPANY_ID" \
+  -F "userId=$USER_ID")
+SID_AUTO=$(json_field "$UPLOAD_AUTO" id)
+
+# threshold=80: the top candidate scores 100 (purpose
+# contains INV-2026-TEST-AUTO), so it should
+# auto-confirm. The full confirm flow runs (Payment +
+# Voucher + invoice paid).
+api_post "/api/v1/bank-statements/$SID_AUTO/suggest?companyId=$COMPANY_ID" '{"autoConfirmThreshold": 80}'
+assert_status "201" "suggest with autoConfirmThreshold=80"
+GEN_AUTO=$(json_field "$BODY" generated)
+AC_AUTO=$(json_field "$BODY" autoConfirmed)
+assert_eq "threshold=80: generated=1" "$GEN_AUTO" "1"
+assert_eq "threshold=80: autoConfirmed=1" "$AC_AUTO" "1"
+
+# Verify the invoice is now paid
+INV_AUTO_STATUS=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT status FROM \"Invoice\" WHERE \"invoiceNumber\" = 'INV-2026-TEST-AUTO';" 2>/dev/null | tr -d ' ')
+assert_eq "auto-confirm flipped invoice to paid" "$INV_AUTO_STATUS" "paid"
+
+# Verify the recon is confirmed
+RECON_AUTO_STATUS=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT status FROM \"BankReconciliation\" WHERE \"bankTransactionId\" IN (SELECT id FROM \"BankTransaction\" WHERE \"statementId\" = '$SID_AUTO');" 2>/dev/null | tr -d ' ')
+assert_eq "auto-confirm flipped recon to confirmed" "$RECON_AUTO_STATUS" "confirmed"
+
+# Verify the Payment + Voucher were created
+PAY_AUTO=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT count(*) FROM \"Payment\" p JOIN \"Invoice\" i ON i.id = p.\"invoiceId\" WHERE i.\"invoiceNumber\" = 'INV-2026-TEST-AUTO';" 2>/dev/null | tr -d ' ')
+assert_eq "auto-confirm wrote Payment" "$PAY_AUTO" "1"
+
+VCH_AUTO=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT count(*) FROM \"Voucher\" WHERE \"referenceType\" = 'BankReconciliation' AND \"voucherNumber\" LIKE 'BK-%' AND \"companyId\" = '$COMPANY_ID';" 2>/dev/null | tr -d ' ')
+# We don't assert exact count (other tests wrote vouchers
+# too) — just check ≥1 exists.
+if [[ "$VCH_AUTO" -ge 1 ]]; then
+  pass "auto-confirm wrote Voucher"
+else
+  fail "auto-confirm did not write a Voucher"
+fi
+
+# Re-running suggest is idempotent (no double auto-confirm)
+api_post "/api/v1/bank-statements/$SID_AUTO/suggest?companyId=$COMPANY_ID" '{"autoConfirmThreshold": 80}'
+assert_status "201" "re-run suggest with threshold=80 (idempotent)"
+GEN_AUTO2=$(json_field "$BODY" generated)
+AC_AUTO2=$(json_field "$BODY" autoConfirmed)
+assert_eq "re-run: generated=0" "$GEN_AUTO2" "0"
+assert_eq "re-run: autoConfirmed=0" "$AC_AUTO2" "0"
 
 # CAMT.053 round-trip: upload a sample XML and verify
 # the same shape. Use a dedicated CAMT invoice
@@ -530,7 +624,7 @@ docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
    DELETE FROM \"BankStatement\" WHERE \"companyId\" = '$COMPANY_ID';
    DELETE FROM \"VoucherLine\" WHERE \"voucherId\" IN (SELECT id FROM \"Voucher\" WHERE \"companyId\" = '$COMPANY_ID' AND \"referenceType\" IN ('BankReconciliation', 'BankTransaction'));
    DELETE FROM \"Voucher\" WHERE \"companyId\" = '$COMPANY_ID' AND \"referenceType\" IN ('BankReconciliation', 'BankTransaction');
-   DELETE FROM \"Payment\" WHERE \"invoiceId\" IN (SELECT id FROM \"Invoice\" WHERE \"invoiceNumber\" IN ('INV-2026-TEST-E2E', 'INV-2026-TEST-002', 'INV-2026-TEST-003', 'INV-2026-TEST-CAMT'));
-   DELETE FROM \"Invoice\" WHERE \"invoiceNumber\" IN ('INV-2026-TEST-E2E', 'INV-2026-TEST-002', 'INV-2026-TEST-003', 'INV-2026-TEST-CAMT');" >/dev/null 2>&1
+   DELETE FROM \"Payment\" WHERE \"invoiceId\" IN (SELECT id FROM \"Invoice\" WHERE \"invoiceNumber\" IN ('INV-2026-TEST-E2E', 'INV-2026-TEST-002', 'INV-2026-TEST-003', 'INV-2026-TEST-CAMT', 'INV-2026-TEST-AUTO'));
+   DELETE FROM \"Invoice\" WHERE \"invoiceNumber\" IN ('INV-2026-TEST-E2E', 'INV-2026-TEST-002', 'INV-2026-TEST-003', 'INV-2026-TEST-CAMT', 'INV-2026-TEST-AUTO');" >/dev/null 2>&1
 
 summary

@@ -892,6 +892,7 @@
     "reconStatus": "Status",
     "tableAction": "Action",
     "bookExpense": "Book as expense",
-    "expenseAccountPrompt": "Expense account (SKR03):"
+    "expenseAccountPrompt": "Expense account (SKR03):",
+    "autoConfirmThreshold": "Auto-confirm at"
   }
 }

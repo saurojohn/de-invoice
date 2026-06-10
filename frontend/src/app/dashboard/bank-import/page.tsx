@@ -104,6 +104,14 @@ export default function BankImportPage() {
   // Auto-suggest feedback
   const [suggestMsg, setSuggestMsg] = useState<string | null>(null)
 
+  // Auto-confirm threshold (0-100). 0 = the safe default
+  // — write a "suggested" recon and let the user click
+  // Bestätigen manually. ≥80 enables auto-confirm for
+  // matches scoring above the threshold. The Berater
+  // can raise it to 95+ if the upstream bank always
+  // includes the invoice number in the purpose.
+  const [autoConfirmThreshold, setAutoConfirmThreshold] = useState<number>(0)
+
   // Reconciliations for the open statement (one per
   // suggested/confirmed/rejected match). Used to
   // render the "Bestätigen" / "Ablehnen" buttons and
@@ -320,12 +328,36 @@ export default function BankImportPage() {
     if (!openId) return
     const companyId = localStorage.getItem("companyId")!
     try {
-      const res = await apiPost<{ generated: number }>(
-        `/api/v1/bank-statements/${openId}/suggest?companyId=${companyId}`
+      // Threshold 0 = conservative (no auto-confirm).
+      // 80 = the recommended safe value: SKR03 typical
+      // matches (amount exact + date ±3d) score 90;
+      // (amount exact + date ±7d) score 80; purpose
+      // match adds 25 (capped at 100). 95+ means the
+      // purpose contained the invoice number.
+      const threshold = autoConfirmThreshold
+      const res = await apiPost<{ generated: number; autoConfirmed: number; threshold: number }>(
+        `/api/v1/bank-statements/${openId}/suggest?companyId=${companyId}`,
+        { autoConfirmThreshold: threshold }
       )
-      setSuggestMsg(`${res.generated} Vorschläge erzeugt.`)
-      setTimeout(() => setSuggestMsg(null), 4000)
+      if (res.autoConfirmed > 0) {
+        setSuggestMsg(
+          `${res.generated} Vorschläge — ${res.autoConfirmed} automatisch bestätigt (Schwelle ${res.threshold}).`
+        )
+      } else {
+        setSuggestMsg(`${res.generated} Vorschläge erzeugt.`)
+      }
+      setTimeout(() => setSuggestMsg(null), 6000)
+      // Reload both: recons changed AND the
+      // transactions may have been paid (auto-confirm
+      // flipped invoice status, so the candidates list
+      // for any selected txn needs to refresh).
       await loadReconciliations(openId)
+      if (selectedTxn) {
+        const detail = await apiGet<{ transactions: BankTransaction[] }>(
+          `/api/v1/bank-statements/${openId}?companyId=${companyId}`
+        )
+        setTransactions(detail.transactions || [])
+      }
     } catch (err: any) {
       alert(err?.message || "Fehler")
     }
@@ -451,6 +483,30 @@ export default function BankImportPage() {
                       {suggestMsg}
                     </div>
                   )}
+                </div>
+                {/* Auto-confirm threshold + suggest button.
+                    The threshold input defaults to 0 (no
+                    auto-confirm — the safe default). When
+                    the user raises it to 80/90/95 the
+                    suggest call also auto-confirms matches
+                    that clear the threshold. */}
+                <div className="flex items-center gap-3 mt-2 text-xs text-gray-600">
+                  <label className="flex items-center gap-1">
+                    {t("bankImport.autoConfirmThreshold")}:
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={5}
+                      value={autoConfirmThreshold}
+                      onChange={(e) => {
+                        const v = parseInt(e.target.value, 10)
+                        setAutoConfirmThreshold(isNaN(v) ? 0 : Math.max(0, Math.min(100, v)))
+                      }}
+                      className="w-16 px-1 py-0.5 border border-gray-300 rounded text-right"
+                    />
+                  </label>
+                  <span className="text-gray-400">|</span>
                   <Button size="sm" variant="outline" onClick={generateSuggestions}>
                     {t("bankImport.generateSuggestions")}
                   </Button>

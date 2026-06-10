@@ -261,33 +261,90 @@ export class BankImportService {
   /** Run candidate matching for every transaction in a
    *  statement that doesn't already have a saved match.
    *  Used by the frontend "auto-suggest" button. */
-  async generateSuggestions(companyId: string, statementId: string) {
+  /**
+   * Run candidate matching for every transaction in a
+   * statement that doesn't already have a saved match.
+   *
+   * `autoConfirmThreshold` (0-100): when a candidate's
+   * confidence is ≥ threshold, the match is auto-
+   * confirmed (writes the Payment, flips the
+   * reconciliation to "confirmed", books the GoBD
+   * voucher — the full flow). The user still sees the
+   * result in the Zuordnungen panel; the difference is
+   * no manual Bestätigen click.
+   *
+   * 0 (default) = the original behaviour: write a
+   * "suggested" recon and wait for the user. ≥80 is
+   * the recommended safe value for SKR03 (date ±3d
+   * + amount exact = 90 typical; date ±7d + amount
+   * exact = 80). ≥95 means purpose-invoice# matched.
+   */
+  async generateSuggestions(
+    companyId: string,
+    statementId: string,
+    opts: { autoConfirmThreshold?: number; userId?: string } = {},
+  ) {
     const stmt = await this.getStatement(companyId, statementId);
     if (!stmt) throw new BadRequestException('Kontoauszug nicht gefunden');
-    let total = 0;
+
+    const threshold = Math.max(0, Math.min(100, opts.autoConfirmThreshold ?? 0));
+    let suggested = 0;
+    let autoConfirmed = 0;
+    let errors = 0;
+
     for (const txn of stmt.transactions) {
-      // Skip if a match already exists
-      const existing = await this.prisma.bankReconciliation.findFirst({
-        where: { bankTransactionId: txn.id, companyId },
-      });
-      if (existing) continue;
-      const { candidates } = await this.getCandidates(companyId, txn.id);
-      if (candidates.length === 0) continue;
-      const top = candidates[0];
-      await this.prisma.bankReconciliation.create({
-        data: {
-          companyId,
-          bankTransactionId: txn.id,
-          invoiceId: top.invoiceId,
-          appliedAmount: top.total.toFixed(4),
-          status: 'suggested',
-          confidence: top.confidence,
-          matchReason: top.matchReason,
-        },
-      });
-      total++;
+      try {
+        // Skip if a match already exists. We DON'T
+        // auto-confirm an already-suggested recon even
+        // when the threshold is set — the user might
+        // have already seen the suggestion in the UI
+        // and chosen to defer. To re-run the auto-
+        // confirm pass, reject the suggestion first.
+        const existing = await this.prisma.bankReconciliation.findFirst({
+          where: { bankTransactionId: txn.id, companyId },
+        });
+        if (existing) continue;
+
+        // Skip debit txns (they don't match customer
+        // invoices — getCandidates returns []).
+        if (Number(txn.amount) < 0) continue;
+
+        const { candidates } = await this.getCandidates(companyId, txn.id);
+        if (candidates.length === 0) continue;
+        const top = candidates[0];
+
+        // Write the suggestion
+        const created = await this.prisma.bankReconciliation.create({
+          data: {
+            companyId,
+            bankTransactionId: txn.id,
+            invoiceId: top.invoiceId,
+            appliedAmount: top.total.toFixed(4),
+            status: 'suggested',
+            confidence: top.confidence,
+            matchReason: top.matchReason,
+          },
+        });
+        suggested++;
+
+        // Auto-confirm when the threshold is set and
+        // the top candidate clears it. confirmMatch
+        // does the full Payment + Voucher + invoice
+        // status flip, so the e2e is identical to a
+        // manual confirm — just no user click.
+        if (threshold > 0 && top.confidence >= threshold) {
+          await this.confirmMatch(companyId, created.id, opts.userId);
+          autoConfirmed++;
+        }
+      } catch (e: any) {
+        errors++;
+        this.logger.warn(
+          `suggest failed for txn=${txn.id} stmt=${statementId}: ${e?.message || e}`,
+        );
+      }
     }
-    return { generated: total };
+
+    return { generated: suggested, autoConfirmed, errors, threshold };
   }
 
   /**

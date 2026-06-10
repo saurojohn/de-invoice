@@ -96,15 +96,29 @@ export class BankImportController {
 
   /** Generate candidate matches for all transactions
    *  in a statement. Idempotent — transactions that
-   *  already have a saved match are skipped. */
+   *  already have a saved match are skipped.
+   *
+   *  Optional body:
+   *   { autoConfirmThreshold: 0-100 }
+   *  When the threshold is > 0, any candidate whose
+   *  confidence is ≥ the threshold is auto-confirmed
+   *  (writes the Payment + Voucher in the same call).
+   *  The response includes `autoConfirmed` so the
+   *  UI can show "X confirmed, Y to review". */
   @Post(':id/suggest')
   @Require('invoice.update')
   async suggest(
+    @Req() req: any,
     @Query('companyId') companyId: string,
     @Param('id') id: string,
+    @Body('autoConfirmThreshold') autoConfirmThreshold?: number,
   ) {
     if (!companyId) throw new BadRequestException('companyId is required');
-    return this.svc.generateSuggestions(companyId, id);
+    const userId = req?.headers?.['x-user-id'] || undefined;
+    return this.svc.generateSuggestions(companyId, id, {
+      autoConfirmThreshold: typeof autoConfirmThreshold === 'number' ? autoConfirmThreshold : 0,
+      userId,
+    });
   }
 
   /** Per-transaction candidates (top 5). */
