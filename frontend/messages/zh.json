@@ -893,6 +893,12 @@
     "confirmCandidateConfirm": "确认将 {invoice} 标记为已付款？",
     "statusSuggested": "已建议",
     "statusConfirmed": "已确认",
-    "statusRejected": "已拒绝"
+    "statusRejected": "已拒绝",
+    "voucher": "记账凭证",
+    "reconciliationsTitle": "对账记录",
+    "reconInvoice": "发票",
+    "reconCustomer": "客户",
+    "reconAmount": "金额",
+    "reconStatus": "状态"
   }
 }

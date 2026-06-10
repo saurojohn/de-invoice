@@ -21,6 +21,8 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { parseMt940 } from './mt940';
 import { parseCamt053, detectFormat } from './camt053';
 import { PaymentService } from '../invoice/payment.service';
+import { VoucherService } from '../accounting/voucher.service';
+import { resolveDatevAccounts } from '../reports/datev.service';
 import type { ParsedStatement, ParsedTransaction } from './parsers';
 
 @Injectable()
@@ -29,6 +31,7 @@ export class BankImportService {
   constructor(
     private prisma: PrismaService,
     private paymentService: PaymentService,
+    private voucherService: VoucherService,
   ) {}
 
   /** Detect format, parse, persist. Returns the new
@@ -339,19 +342,141 @@ export class BankImportService {
       },
     );
 
-    // Flip reconciliation to confirmed.
+    // Book a GoBD Voucher (Buchungsbeleg). The double-
+    // entry posting for a customer payment is:
+    //
+    //   Debit  1200 Bank              applied
+    //   Credit 1406 Forderung L+L     applied
+    //
+    // The VAT was already booked when the invoice was
+    // issued, so no USt line is needed here.
+    //
+    // The voucher is linked back to the recon via
+    // BankReconciliation.voucherId — that's the audit
+    // trail showing the user (not the system) accepted
+    // this booking.
+    const voucher = await this.bookPaymentVoucher(
+      companyId,
+      applied,
+      recon.bankTransaction.valueDate,
+      recon.invoiceId,
+      recon.bankTransaction.counterpartyName,
+      recon.bankTransaction.purpose,
+    );
+
+    // Flip reconciliation to confirmed (with voucher link).
     await this.prisma.bankReconciliation.update({
       where: { id: reconciliationId },
       data: {
         status: 'confirmed',
         appliedAmount: applied.toFixed(4),
+        voucherId: voucher.id,
       },
     });
 
     this.logger.log(
-      `confirmed match recon=${reconciliationId} invoice=${recon.invoiceId} payment=${payment.id} amount=${applied}`,
+      `confirmed match recon=${reconciliationId} invoice=${recon.invoiceId} payment=${payment.id} voucher=${voucher.id} amount=${applied}`,
     );
-    return { reconciliationId, paymentId: payment.id, appliedAmount: applied };
+    return {
+      reconciliationId,
+      paymentId: payment.id,
+      voucherId: voucher.id,
+      appliedAmount: applied,
+    };
+  }
+
+  /**
+   * Book the double-entry Voucher for a confirmed
+   * customer payment. The booking is:
+   *
+   *   Debit  1200 Bank              applied
+   *   Credit 1406 Forderung L+L     applied
+   *
+   * Account numbers come from the per-company DATEV
+   * config (with SKR03 fallback). If the Account
+   * rows don't exist yet for this company, we create
+   * them on the fly (idempotent on accountNumber).
+   */
+  private async bookPaymentVoucher(
+    companyId: string,
+    amount: number,
+    bookingDate: Date,
+    invoiceId: string,
+    counterpartyName: string | null,
+    purpose: string | null,
+  ) {
+    // Resolve SKR03 / per-company accounts.
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { settings: true },
+    });
+    const settings = (company?.settings as any) || {};
+    const accts = resolveDatevAccounts(settings.datev);
+
+    // Find or create the Account rows we need.
+    const bankAccount = await this.ensureAccount(companyId, accts.bank, 'Bank', 'asset', 'liquidity');
+    const receivableAccount = await this.ensureAccount(
+      companyId,
+      accts.receivable,
+      'Forderungen aus Lieferungen und Leistungen',
+      'asset',
+      'receivables',
+    );
+
+    // Voucher description. The counterparty + purpose
+    // is the "Wer/Was" line on a Buchungsbeleg.
+    const counterparty = counterpartyName || 'Kunde';
+    const description = purpose
+      ? `Zahlungseingang ${counterparty} — ${purpose}`
+      : `Zahlungseingang ${counterparty}`;
+
+    // We round to 4 decimal places to match the
+    // Decimal(12,4) column. VoucherService will
+    // re-validate debit == credit.
+    const lines = [
+      {
+        accountId: bankAccount.id,
+        description: `Bank ${counterparty}`,
+        debit: amount,
+        credit: 0,
+      },
+      {
+        accountId: receivableAccount.id,
+        description: `Forderung ausgeglichen`,
+        debit: 0,
+        credit: amount,
+      },
+    ];
+
+    return this.voucherService.create({
+      companyId,
+      date: bookingDate,
+      description,
+      referenceType: 'BankReconciliation',
+      lines,
+    });
+  }
+
+  /** Idempotently create an Account row for a
+   *  (company, accountNumber) pair. If it already
+   *  exists, returns the existing row. The name/type
+   *  passed in are only used for the create-on-first-
+   *  run path; existing rows keep their stored name
+   *  (the Berater might have edited it). */
+  private async ensureAccount(
+    companyId: string,
+    accountNumber: string,
+    name: string,
+    type: string,
+    category: string,
+  ) {
+    const existing = await this.prisma.account.findUnique({
+      where: { companyId_accountNumber: { companyId, accountNumber } },
+    });
+    if (existing) return existing;
+    return this.prisma.account.create({
+      data: { companyId, accountNumber, name, type, category },
+    });
   }
 
   /**
@@ -438,6 +563,10 @@ export class BankImportService {
       where: { companyId, bankTransaction: { statementId } },
       include: {
         invoice: { select: { invoiceNumber: true, total: true, customer: { select: { name: true } } } },
+        // voucherId + voucherNumber is shown in the UI
+        // so the user can drill into the Buchungsbeleg
+        // (e.g. from DATEV export ↔ the recon row).
+        voucher: { select: { id: true, voucherNumber: true, date: true } },
       },
       orderBy: { createdAt: 'asc' },
     });

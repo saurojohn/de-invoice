@@ -59,6 +59,11 @@ interface Reconciliation {
     total: string
     customer: { name: string }
   }
+  voucher: {
+    id: string
+    voucherNumber: string
+    date: string
+  } | null
 }
 
 const fmtMoney = (n: number) =>
@@ -579,14 +584,86 @@ export default function BankImportPage() {
                               </Button>
                             </div>
                           )}
+                          {/* Voucher link — only on confirmed matches
+                              (the GoBD audit trail: raw file →
+                              transaction → payment → voucher). The
+                              voucher number is the Belegnummer the
+                              Berater references in the DATEV export. */}
+                          {recon?.voucher && (
+                            <div className="text-xs text-gray-500 mt-1">
+                              {t("bankImport.voucher")}:{" "}
+                              <span className="font-mono">{recon.voucher.voucherNumber}</span>
+                            </div>
+                          )}
                         </div>
                       )
-                    })}
+                     })}
                   </div>
                 )}
               </CardContent>
             </Card>
           </div>
+        )}
+
+        {/* All reconciliations for the open statement —
+            shown BELOW the txn+candidates panel so the
+            user can see the full GoBD audit trail
+            (raw file → txn → recon → voucher) including
+            confirmed matches that have been removed
+            from the candidates list (because the
+            invoice is now 'paid'). */}
+        {openId && reconciliations.length > 0 && (
+          <Card className="mt-4">
+            <CardHeader>
+              <CardTitle className="text-base">
+                {t("bankImport.reconciliationsTitle")} ({reconciliations.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-gray-500 text-xs border-b">
+                      <th className="py-2">{t("bankImport.reconInvoice")}</th>
+                      <th>{t("bankImport.reconCustomer")}</th>
+                      <th className="text-right">{t("bankImport.reconAmount")}</th>
+                      <th>{t("bankImport.reconStatus")}</th>
+                      <th>{t("bankImport.voucher")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {reconciliations.map((r) => (
+                      <tr key={r.id} className="border-b">
+                        <td className="py-2 font-mono text-xs">{r.invoice.invoiceNumber}</td>
+                        <td className="text-xs">{r.invoice.customer.name}</td>
+                        <td className="text-right font-mono text-xs">€ {fmtMoney(Number(r.appliedAmount))}</td>
+                        <td>
+                          <span
+                            className={`text-xs px-1.5 py-0.5 rounded ${
+                              r.status === "confirmed"
+                                ? "bg-emerald-100 text-emerald-800"
+                                : r.status === "rejected"
+                                ? "bg-gray-200 text-gray-700"
+                                : "bg-blue-100 text-blue-800"
+                            }`}
+                          >
+                            {r.status === "confirmed"
+                              ? t("bankImport.statusConfirmed")
+                              : r.status === "rejected"
+                              ? t("bankImport.statusRejected")
+                              : t("bankImport.statusSuggested")}
+                          </span>
+                        </td>
+                        <td className="font-mono text-xs">
+                          {r.voucher ? r.voucher.voucherNumber : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
         )}
       </div>
     </div>

@@ -446,6 +446,7 @@ model Voucher {
 
   lines         VoucherLine[]
   invoiceRef    Invoice?
+  bankReconciliations BankReconciliation[]
 
   @@unique([companyId, voucherNumber])
   @@index([companyId, date])
@@ -943,6 +944,15 @@ model BankReconciliation {
   confidence      Int      // 0-100
   // Free-text reason: "amount exact + invoice# in purpose"
   matchReason     String?
+  // Auto-generated Voucher for this recon. NULL until
+  // the user confirms the match (the confirm flow
+  // books a Bank→Forderung posting so the cash ledger
+  // stays in sync with the bank reality). This is the
+  // GoBD audit trail — the original raw file is on
+  // BankStatement, the parsed transactions on
+  // BankTransaction, and the booking on Voucher.
+  voucherId       String?
+  voucher         Voucher? @relation(fields: [voucherId], references: [id])
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

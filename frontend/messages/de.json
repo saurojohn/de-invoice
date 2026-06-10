@@ -891,6 +891,12 @@
     "confirmCandidateConfirm": "Soll {invoice} als bezahlt markiert werden?",
     "statusSuggested": "Vorgeschlagen",
     "statusConfirmed": "Bestätigt",
-    "statusRejected": "Abgelehnt"
+    "statusRejected": "Abgelehnt",
+    "voucher": "Buchungsbeleg",
+    "reconciliationsTitle": "Zuordnungen",
+    "reconInvoice": "Rechnung",
+    "reconCustomer": "Kunde",
+    "reconAmount": "Betrag",
+    "reconStatus": "Status"
   }
 }

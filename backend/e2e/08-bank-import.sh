@@ -16,6 +16,8 @@ docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"BankReconciliation\" WHERE \"companyId\" = '$COMPANY_ID';
    DELETE FROM \"BankTransaction\" WHERE \"companyId\" = '$COMPANY_ID';
    DELETE FROM \"BankStatement\" WHERE \"companyId\" = '$COMPANY_ID';
+   DELETE FROM \"VoucherLine\" WHERE \"voucherId\" IN (SELECT id FROM \"Voucher\" WHERE \"companyId\" = '$COMPANY_ID' AND \"referenceType\" = 'BankReconciliation');
+   DELETE FROM \"Voucher\" WHERE \"companyId\" = '$COMPANY_ID' AND \"referenceType\" = 'BankReconciliation';
    DELETE FROM \"Payment\" WHERE \"invoiceId\" IN (SELECT id FROM \"Invoice\" WHERE \"invoiceNumber\" IN ('INV-2026-TEST-E2E', 'INV-2026-TEST-002', 'INV-2026-TEST-003', 'INV-2026-TEST-CAMT'));
    DELETE FROM \"Invoice\" WHERE \"invoiceNumber\" IN ('INV-2026-TEST-E2E', 'INV-2026-TEST-002', 'INV-2026-TEST-003', 'INV-2026-TEST-CAMT');" >/dev/null 2>&1
 
@@ -178,6 +180,66 @@ assert_eq "payment method" "$PAY_METHOD" "Überweisung"
 RECON_STATUS=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
   "SELECT status FROM \"BankReconciliation\" WHERE id = '$RECON_ID';" 2>/dev/null | tr -d ' ')
 assert_eq "reconciliation status after confirm" "$RECON_STATUS" "confirmed"
+
+# === GoBD Voucher auto-booking on confirm ===
+# The confirm flow should write a double-entry voucher:
+#   Debit  1200 Bank              200.00
+#   Credit 1406 Forderung L+L     200.00
+# (VAT was already booked when the invoice was issued,
+# so no USt line is needed.)
+VCH_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT \"voucherId\" FROM \"BankReconciliation\" WHERE id = '$RECON_ID';" 2>/dev/null | tr -d ' ')
+if [[ -z "$VCH_ID" || "$VCH_ID" == "" ]]; then
+  fail "no voucherId on reconciliation after confirm"
+else
+  pass "voucher linked: ${VCH_ID:0:8}..."
+fi
+
+VCH_NUMBER=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT \"voucherNumber\" FROM \"Voucher\" WHERE id = '$VCH_ID';" 2>/dev/null | tr -d ' ')
+assert_eq "voucher number pattern" "$(echo $VCH_NUMBER | grep -cE '^BK-[0-9]{4}-[0-9]+$')" "1"
+
+VCH_REFTYPE=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT \"referenceType\" FROM \"Voucher\" WHERE id = '$VCH_ID';" 2>/dev/null | tr -d ' ')
+assert_eq "voucher referenceType" "$VCH_REFTYPE" "BankReconciliation"
+
+VCH_STATUS=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT status FROM \"Voucher\" WHERE id = '$VCH_ID';" 2>/dev/null | tr -d ' ')
+assert_eq "voucher status" "$VCH_STATUS" "posted"
+
+# 2 voucher lines: Bank 1200 (debit) + Forderung 1406 (credit)
+LINE_COUNT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT count(*) FROM \"VoucherLine\" WHERE \"voucherId\" = '$VCH_ID';" 2>/dev/null | tr -d ' ')
+assert_eq "voucher line count" "$LINE_COUNT" "2"
+
+# Soll = Haben = 200.00
+SUM_DEBIT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT SUM(debit) FROM \"VoucherLine\" WHERE \"voucherId\" = '$VCH_ID';" 2>/dev/null | tr -d ' ')
+assert_eq "voucher sum debit" "$SUM_DEBIT" "200.0000"
+SUM_CREDIT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT SUM(credit) FROM \"VoucherLine\" WHERE \"voucherId\" = '$VCH_ID';" 2>/dev/null | tr -d ' ')
+assert_eq "voucher sum credit" "$SUM_CREDIT" "200.0000"
+
+# Specific accounts
+BANK_LINE=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT a.\"accountNumber\" || '|' || vl.debit
+   FROM \"VoucherLine\" vl JOIN \"Account\" a ON a.id = vl.\"accountId\"
+   WHERE vl.\"voucherId\" = '$VCH_ID' AND vl.debit > 0;" 2>/dev/null | tr -d ' ')
+assert_eq "voucher debit line is Bank 1200" "$BANK_LINE" "1200|200.0000"
+
+RECV_LINE=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT a.\"accountNumber\" || '|' || vl.credit
+   FROM \"VoucherLine\" vl JOIN \"Account\" a ON a.id = vl.\"accountId\"
+   WHERE vl.\"voucherId\" = '$VCH_ID' AND vl.credit > 0;" 2>/dev/null | tr -d ' ')
+assert_eq "voucher credit line is Forderung 1406" "$RECV_LINE" "1406|200.0000"
+
+# Idempotent: confirm response carries voucherId
+CONFIRM_HAS_VCH=$(json_field "$BODY" voucherId)
+if [[ -n "$CONFIRM_HAS_VCH" && "$CONFIRM_HAS_VCH" != "null" ]]; then
+  pass "confirm response includes voucherId"
+else
+  fail "confirm response missing voucherId: $BODY"
+fi
 
 # Double-confirm should fail (idempotency)
 api_post "/api/v1/bank-statements/reconciliations/$RECON_ID/confirm?companyId=$COMPANY_ID" ""
@@ -347,6 +409,8 @@ docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"BankReconciliation\" WHERE \"companyId\" = '$COMPANY_ID';
    DELETE FROM \"BankTransaction\" WHERE \"companyId\" = '$COMPANY_ID';
    DELETE FROM \"BankStatement\" WHERE \"companyId\" = '$COMPANY_ID';
+   DELETE FROM \"VoucherLine\" WHERE \"voucherId\" IN (SELECT id FROM \"Voucher\" WHERE \"companyId\" = '$COMPANY_ID' AND \"referenceType\" = 'BankReconciliation');
+   DELETE FROM \"Voucher\" WHERE \"companyId\" = '$COMPANY_ID' AND \"referenceType\" = 'BankReconciliation';
    DELETE FROM \"Payment\" WHERE \"invoiceId\" IN (SELECT id FROM \"Invoice\" WHERE \"invoiceNumber\" IN ('INV-2026-TEST-E2E', 'INV-2026-TEST-002', 'INV-2026-TEST-003', 'INV-2026-TEST-CAMT'));
    DELETE FROM \"Invoice\" WHERE \"invoiceNumber\" IN ('INV-2026-TEST-E2E', 'INV-2026-TEST-002', 'INV-2026-TEST-003', 'INV-2026-TEST-CAMT');" >/dev/null 2>&1
 

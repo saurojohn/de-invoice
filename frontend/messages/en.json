@@ -883,6 +883,12 @@
     "confirmCandidateConfirm": "Mark {invoice} as paid?",
     "statusSuggested": "Suggested",
     "statusConfirmed": "Confirmed",
-    "statusRejected": "Rejected"
+    "statusRejected": "Rejected",
+    "voucher": "Voucher",
+    "reconciliationsTitle": "Reconciliations",
+    "reconInvoice": "Invoice",
+    "reconCustomer": "Customer",
+    "reconAmount": "Amount",
+    "reconStatus": "Status"
   }
 }
