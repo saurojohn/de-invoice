@@ -48,6 +48,7 @@ model Company {
   vouchers    Voucher[]
   auditLogs   AuditLog[]
   emailSends  EmailSend[]
+  bankStatements BankStatement[]
   mailConfig  MailConfig?
   expenses    Expense[]
   ustvaFilings UStvaFiling[]
@@ -87,6 +88,7 @@ model User {
   createdRecurringInvoices RecurringInvoice[] @relation("RecurringCreator")
   createdCashBookEntries CashBookEntry[] @relation("CashBookEntryCreator")
   closedCashBookDays CashBookDailyClose[] @relation("CashBookDayCloser")
+  bankStatements   BankStatement[]   @relation("BankStatementUploader")
 }
 
 // Pending invitations — admin invites employee by email, employee clicks link to register
@@ -340,6 +342,7 @@ model Invoice {
   items          InvoiceItem[]
   payments       Payment[]
   emailSends    EmailSend[]
+  reconciliations BankReconciliation[]
   voucherRef     Voucher?  @relation(fields: [voucherRefId], references: [id])
   voucherRefId   String?   @unique
   referenceInvoiceId String?
@@ -829,4 +832,121 @@ model CashBookDailyClose {
   updatedAt      DateTime @updatedAt
 
   @@index([companyId, businessDate])
+}
+
+//
+// One uploaded bank statement file (MT940 SWIFT or
+// CAMT.053 SEPA XML). Holds the raw file content for
+// re-parse if the parser improves, plus basic metadata
+// extracted at upload time (bank name, statement period,
+// opening / closing balance).
+
+model BankStatement {
+  id              String   @id @default(uuid())
+  companyId       String
+  company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  // 'mt940' (SWIFT) or 'camt053' (SEPA XML)
+  format          String
+  fileName        String
+  fileSize        Int
+  // Optional IBAN of the account this statement is for
+  accountIban     String?
+  // The bank the statement came from (parsed from the
+  // header — :25: in MT940 / BkToCstmrStmt/BkNm in CAMT).
+  bankName        String?
+  // Statement period (start..end dates).
+  periodFrom      DateTime?
+  periodTo        DateTime?
+  // Opening + closing balance in EUR.
+  openingBalance  Decimal? @db.Decimal(12, 4)
+  closingBalance  Decimal? @db.Decimal(12, 4)
+  // Raw text of the file, kept for audit / re-parse.
+  rawContent      String
+  uploadedById    String?
+  uploadedBy      User?    @relation("BankStatementUploader", fields: [uploadedById], references: [id])
+  createdAt       DateTime @default(now())
+
+  transactions BankTransaction[]
+
+  @@index([companyId, createdAt])
+  @@index([companyId, format])
+}
+
+//
+// One transaction line parsed out of a bank statement.
+// Independent of Invoice — reconciliation is a separate
+// `BankReconciliation` join row, so a single payment
+// can be matched to multiple invoices (overpayment) and
+// a single invoice can be matched to multiple payments
+// (partial payments).
+
+model BankTransaction {
+  id              String   @id @default(uuid())
+  statementId     String
+  statement       BankStatement @relation(fields: [statementId], references: [id], onDelete: Cascade)
+  companyId       String
+  // The line's value date (Buchungsdatum) — when the
+  // money actually moved. Distinct from the entry date
+  // (Wertstellung), which we also keep.
+  valueDate       DateTime
+  entryDate       DateTime?
+  // Amount in EUR. Positive = incoming, negative = outgoing.
+  amount          Decimal  @db.Decimal(12, 4)
+  currency        String   @default("EUR")
+  // Counterparty info: name + IBAN if present in the
+  // raw line (MT940 :59:, CAMT.053 PmtInf/CdtTrxTxInf).
+  counterpartyName String?
+  counterpartyIban String?
+  // Payment purpose (Verwendungszweck) — typically
+  // contains the invoice number / Kunden-Nr. We keep
+  // the raw text so the matching logic can do its own
+  // regex / fuzzy match.
+  purpose         String?
+  // End-to-end reference (MT940 :20:, CAMT.053
+  // PmtInf/PmtId) — usually a unique bank reference.
+  endToEndId      String?
+  // Notes the user added after import.
+  notes           String?
+  createdAt       DateTime @default(now())
+
+  matches BankReconciliation[]
+
+  @@index([statementId])
+  @@index([companyId, valueDate])
+  @@index([companyId, amount])
+}
+
+//
+// The many-to-many between a bank transaction and the
+// invoice(s) it pays. One transaction can pay multiple
+// invoices (overpayment split) and one invoice can be
+// paid by multiple transactions (partial payments).
+//
+// `confidence` is the matcher's self-reported 0-100
+// score. Above ~80 the UI offers a "Bestätigen" button
+// (writes a Payment + flips invoice to paid); below 80
+// the user picks the candidate manually.
+
+model BankReconciliation {
+  id              String   @id @default(uuid())
+  bankTransactionId String
+  bankTransaction BankTransaction @relation(fields: [bankTransactionId], references: [id], onDelete: Cascade)
+  invoiceId       String
+  invoice         Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  companyId       String
+  // How much of the transaction was applied to this invoice
+  appliedAmount    Decimal  @db.Decimal(12, 4)
+  // 'suggested' (auto-matched, not yet confirmed) /
+  // 'confirmed' (user accepted) / 'rejected' (user
+  // dismissed)
+  status          String   @default("suggested")
+  confidence      Int      // 0-100
+  // Free-text reason: "amount exact + invoice# in purpose"
+  matchReason     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([bankTransactionId, invoiceId])
+  @@index([invoiceId, status])
+  @@index([companyId, status])
 }

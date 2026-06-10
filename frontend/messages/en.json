@@ -352,7 +352,9 @@
     "cardRecurringTitle": "Recurring invoices",
     "cardRecurringDesc": "Auto-generate invoices on a schedule",
     "cardCashbookTitle": "Cash Journal",
-    "cardCashbookDesc": "GoBD-compliant cash book with daily close"
+    "cardCashbookDesc": "GoBD-compliant cash book with daily close",
+    "cardBankImportTitle": "Bank Import",
+    "cardBankImportDesc": "Upload MT940 / CAMT.053 — auto-match open invoices"
   },
   "reminder": {
     "title": "Payment Reminders",
@@ -844,5 +846,37 @@
     "noEroeffnungYet": "No opening balance recorded yet.",
     "createEroeffnung": "Create opening balance",
     "tooltip": "Cash in the till. Used as the starting value for the first daily close."
+  },
+  "bankImport": {
+    "title": "Bank Import",
+    "subtitle": "Upload a bank statement (MT940 / CAMT.053) — auto-match to open invoices",
+    "uploadTitle": "Upload statement",
+    "uploadHelp": "MT940 (.sta/.mt940) or CAMT.053 (.xml). Maximum file size: 5 MB.",
+    "uploadButton": "Upload file",
+    "statementsTitle": "Uploaded statements",
+    "noStatements": "No statements uploaded yet.",
+    "deleteConfirm": "Really delete this statement? The transactions are deleted too — already-confirmed matches are kept.",
+    "transactionsTitle": "Transactions",
+    "selectTxnForCandidates": "Click a transaction to see matching open invoices.",
+    "candidatesTitle": "Possible matches",
+    "noCandidates": "No open invoice with a matching amount found.",
+    "confidence": "Confidence",
+    "matchReason": "Match reason",
+    "generateSuggestions": "Generate auto-suggestions",
+    "fileLabel": "File",
+    "periodLabel": "Period",
+    "accountLabel": "Account (IBAN)",
+    "openingLabel": "Opening balance",
+    "closingLabel": "Closing balance",
+    "formatLabel": "Format",
+    "tableDate": "Date",
+    "tableDescription": "Counterparty / Purpose",
+    "tableAmount": "Amount",
+    "tableType": "Direction",
+    "direction_in": "Incoming",
+    "direction_out": "Outgoing",
+    "status_processed": "Imported",
+    "status_suggested": "Suggested",
+    "status_confirmed": "Confirmed"
   }
 }

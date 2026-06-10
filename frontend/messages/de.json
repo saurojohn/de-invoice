@@ -258,7 +258,9 @@
     "cardRecurringTitle": "Abo-Rechnungen",
     "cardRecurringDesc": "Wiederkehrende Rechnungen automatisch generieren",
     "cardCashbookTitle": "Kassenbuch",
-    "cardCashbookDesc": "GoBD-konformes Kassenbuch mit Tagesabschluss"
+    "cardCashbookDesc": "GoBD-konformes Kassenbuch mit Tagesabschluss",
+    "cardBankImportTitle": "Bankimport",
+    "cardBankImportDesc": "MT940 / CAMT.053 hochladen — offene Rechnungen automatisch zuordnen"
   },
   "settings": {
     "title": "Einstellungen",
@@ -852,5 +854,37 @@
     "noEroeffnungYet": "Noch kein Anfangsbestand erfasst.",
     "createEroeffnung": "Anfangsbestand anlegen",
     "tooltip": "Bargeld in der Kasse. Wird beim ersten Tagesabschluss als Startwert verwendet."
+  },
+  "bankImport": {
+    "title": "Bankimport",
+    "subtitle": "Kontoauszug (MT940 / CAMT.053) hochladen — automatische Zuordnung zu offenen Rechnungen",
+    "uploadTitle": "Kontoauszug hochladen",
+    "uploadHelp": "MT940 (.sta/.mt940) oder CAMT.053 (.xml). Maximale Dateigröße: 5 MB.",
+    "uploadButton": "Datei hochladen",
+    "statementsTitle": "Hochgeladene Kontoauszüge",
+    "noStatements": "Noch keine Auszüge hochgeladen.",
+    "deleteConfirm": "Diesen Kontoauszug wirklich löschen? Die Buchungen werden ebenfalls gelöscht — bereits bestätigte Zuordnungen bleiben erhalten.",
+    "transactionsTitle": "Buchungen",
+    "selectTxnForCandidates": "Klicken Sie auf eine Buchung, um passende offene Rechnungen anzuzeigen.",
+    "candidatesTitle": "Mögliche Zuordnungen",
+    "noCandidates": "Keine offene Rechnung mit passendem Betrag gefunden.",
+    "confidence": "Konfidenz",
+    "matchReason": "Match-Grund",
+    "generateSuggestions": "Auto-Vorschläge generieren",
+    "fileLabel": "Datei",
+    "periodLabel": "Zeitraum",
+    "accountLabel": "Konto (IBAN)",
+    "openingLabel": "Anfangsbestand",
+    "closingLabel": "Endbestand",
+    "formatLabel": "Format",
+    "tableDate": "Datum",
+    "tableDescription": "Gegenkonto / Verwendungszweck",
+    "tableAmount": "Betrag",
+    "tableType": "Richtung",
+    "direction_in": "Eingang",
+    "direction_out": "Ausgang",
+    "status_processed": "Importiert",
+    "status_suggested": "Vorgeschlagen",
+    "status_confirmed": "Bestätigt"
   }
 }

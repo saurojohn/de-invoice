@@ -19,6 +19,7 @@ import { MailModule } from './modules/mail/mail.module';
 import { UsersModule } from './modules/users/users.module';
 import { RecurringModule } from './modules/recurring/recurring.module';
 import { CashBookModule } from './modules/cashbook/cashbook.module';
+import { BankImportModule } from './modules/bank-import/bank-import.module';
 
 @Module({
   imports: [
@@ -54,6 +55,7 @@ import { CashBookModule } from './modules/cashbook/cashbook.module';
     UsersModule,
     RecurringModule,
     CashBookModule,
+    BankImportModule,
     ScheduleModule.forRoot(),
   ],
   providers: [

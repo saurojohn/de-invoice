@@ -260,7 +260,9 @@
     "cardRecurringTitle": "定期发票",
     "cardRecurringDesc": "按计划自动生成发票",
     "cardCashbookTitle": "现金日记账",
-    "cardCashbookDesc": "符合 GoBD 的现金账,含日结"
+    "cardCashbookDesc": "符合 GoBD 的现金账,含日结",
+    "cardBankImportTitle": "银行流水导入",
+    "cardBankImportDesc": "上传 MT940 / CAMT.053 — 自动匹配未付发票"
   },
   "settings": {
     "title": "设置",
@@ -854,5 +856,37 @@
     "noEroeffnungYet": "尚未录入期初余额。",
     "createEroeffnung": "录入期初余额",
     "tooltip": "钱箱中的现金。首次日结时会作为起始值。"
+  },
+  "bankImport": {
+    "title": "银行流水导入",
+    "subtitle": "上传银行对账单 (MT940 / CAMT.053) — 自动匹配到未付发票",
+    "uploadTitle": "上传对账单",
+    "uploadHelp": "MT940 (.sta/.mt940) 或 CAMT.053 (.xml)。最大文件大小:5 MB。",
+    "uploadButton": "上传文件",
+    "statementsTitle": "已上传的对账单",
+    "noStatements": "尚未上传对账单。",
+    "deleteConfirm": "确定删除此对账单?交易也会被删除 — 已确认的匹配会保留。",
+    "transactionsTitle": "交易",
+    "selectTxnForCandidates": "点击一笔交易,查看匹配的未付发票。",
+    "candidatesTitle": "可能的匹配",
+    "noCandidates": "未找到金额匹配的有效发票。",
+    "confidence": "置信度",
+    "matchReason": "匹配原因",
+    "generateSuggestions": "生成自动建议",
+    "fileLabel": "文件",
+    "periodLabel": "时段",
+    "accountLabel": "账户 (IBAN)",
+    "openingLabel": "期初余额",
+    "closingLabel": "期末余额",
+    "formatLabel": "格式",
+    "tableDate": "日期",
+    "tableDescription": "对方 / 用途",
+    "tableAmount": "金额",
+    "tableType": "方向",
+    "direction_in": "收入",
+    "direction_out": "支出",
+    "status_processed": "已导入",
+    "status_suggested": "已建议",
+    "status_confirmed": "已确认"
   }
 }
