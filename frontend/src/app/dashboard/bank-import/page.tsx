@@ -60,7 +60,7 @@ interface Reconciliation {
   bankTransactionId: string
   invoiceId: string
   appliedAmount: string
-  status: "suggested" | "confirmed" | "rejected"
+  status: "suggested" | "confirmed" | "rejected" | "reopened"
   confidence: number
   matchReason: string | null
   invoice: {
@@ -177,6 +177,46 @@ export default function BankImportPage() {
       await loadReconciliations(openId)
     } catch (err: any) {
       alert(err?.message || "Ablehnen fehlgeschlagen")
+    } finally {
+      setBusyRecon(null)
+    }
+  }
+
+  /** Reopen a confirmed match. GoBD-correct path: the
+   *  original Voucher stays in the books, a Storno
+   *  Voucher is written that nets each account to
+   *  zero, the Payment is removed, and the invoice
+   *  flips back to "sent". The recon status becomes
+   *  "reopened" so the audit trail shows the
+   *  correction. */
+  const reopenCandidate = async (reconId: string, invoiceNumber: string) => {
+    if (!openId) return
+    if (!confirm(t("bankImport.reopenCandidateConfirm").replace("{invoice}", invoiceNumber))) return
+    const companyId = localStorage.getItem("companyId")!
+    setBusyRecon(reconId)
+    try {
+      await apiPost(
+        `/api/v1/bank-statements/reconciliations/${reconId}/reopen?companyId=${companyId}`,
+        {}
+      )
+      // Reload recons (status changed) AND the
+      // transaction list (the txn.voucher may have
+      // changed for debit txns; for credit txns the
+      // invoice is no longer paid so the candidates
+      // list for the selected txn can be refreshed).
+      await loadReconciliations(openId)
+      if (selectedTxn) {
+        const detail = await apiGet<{ transactions: BankTransaction[] }>(
+          `/api/v1/bank-statements/${openId}?companyId=${companyId}`
+        )
+        setTransactions(detail.transactions || [])
+        const res = await apiGet<{ candidates: Candidate[] }>(
+          `/api/v1/bank-statements/${openId}/transactions/${selectedTxn.id}/candidates?companyId=${companyId}`
+        )
+        setCandidates(res.candidates || [])
+      }
+    } catch (err: any) {
+      alert(err?.message || "Rückgängig fehlgeschlagen")
     } finally {
       setBusyRecon(null)
     }
@@ -645,6 +685,8 @@ export default function BankImportPage() {
                                       ? "bg-emerald-200 text-emerald-900"
                                       : recon.status === "rejected"
                                       ? "bg-gray-200 text-gray-700"
+                                      : recon.status === "reopened"
+                                      ? "bg-amber-200 text-amber-900"
                                       : "bg-blue-100 text-blue-800"
                                   }`}
                                 >
@@ -652,6 +694,8 @@ export default function BankImportPage() {
                                     ? t("bankImport.statusConfirmed")
                                     : recon.status === "rejected"
                                     ? t("bankImport.statusRejected")
+                                    : recon.status === "reopened"
+                                    ? t("bankImport.statusReopened")
                                     : t("bankImport.statusSuggested")}
                                 </span>
                               )}
@@ -713,6 +757,30 @@ export default function BankImportPage() {
                               </Button>
                             </div>
                           )}
+                          {/* "Rückgängig" — only on confirmed
+                              matches. The GoBD-correct reopen
+                              flow: keeps the original Voucher
+                              in the books, writes a Storno
+                              Voucher, removes the Payment,
+                              flips the invoice back to
+                              "sent". Shown next to the
+                              voucher number so the user can
+                              see the audit link AND the
+                              correction in one place. */}
+                          {recon && recon.status === "confirmed" && (
+                            <div className="mt-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={busyRecon === recon.id}
+                                onClick={() => reopenCandidate(recon.id, c.invoiceNumber)}
+                              >
+                                {busyRecon === recon.id
+                                  ? t("common.loading")
+                                  : t("bankImport.reopenCandidate")}
+                              </Button>
+                            </div>
+                          )}
                           {/* Voucher link — only on confirmed matches
                               (the GoBD audit trail: raw file →
                               transaction → payment → voucher). The
@@ -758,6 +826,7 @@ export default function BankImportPage() {
                       <th className="text-right">{t("bankImport.reconAmount")}</th>
                       <th>{t("bankImport.reconStatus")}</th>
                       <th>{t("bankImport.voucher")}</th>
+                      <th className="text-right">{t("bankImport.tableAction")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -773,6 +842,8 @@ export default function BankImportPage() {
                                 ? "bg-emerald-100 text-emerald-800"
                                 : r.status === "rejected"
                                 ? "bg-gray-200 text-gray-700"
+                                : r.status === "reopened"
+                                ? "bg-amber-100 text-amber-900"
                                 : "bg-blue-100 text-blue-800"
                             }`}
                           >
@@ -780,11 +851,37 @@ export default function BankImportPage() {
                               ? t("bankImport.statusConfirmed")
                               : r.status === "rejected"
                               ? t("bankImport.statusRejected")
+                              : r.status === "reopened"
+                              ? t("bankImport.statusReopened")
                               : t("bankImport.statusSuggested")}
                           </span>
                         </td>
                         <td className="font-mono text-xs">
                           {r.voucher ? r.voucher.voucherNumber : "—"}
+                        </td>
+                        <td className="text-right text-xs">
+                          {/* Rückgängig on confirmed rows.
+                              The Zuordnungen panel is where the
+                              user audits the full GoBD trail
+                              (raw file → txn → recon →
+                              voucher). Putting the reopen
+                              action here means the correction
+                              is reachable from the audit
+                              view itself, not just from the
+                              candidate card (which is hidden
+                              once the invoice is paid). */}
+                          {r.status === "confirmed" && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={busyRecon === r.id}
+                              onClick={() => reopenCandidate(r.id, r.invoice.invoiceNumber)}
+                            >
+                              {busyRecon === r.id
+                                ? t("common.loading")
+                                : t("bankImport.reopenCandidate")}
+                            </Button>
+                          )}
                         </td>
                       </tr>
                     ))}

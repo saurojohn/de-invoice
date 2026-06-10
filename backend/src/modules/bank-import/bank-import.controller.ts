@@ -64,6 +64,23 @@ export class BankImportController {
     return this.svc.rejectMatch(companyId, reconId);
   }
 
+  /** Reopen a confirmed match. GoBD-correct correction
+   *  path: the original Voucher stays in the books
+   *  (immutable per §146 AO), a Storno-Voucher is
+   *  written that nets each account to zero, the
+   *  Payment is removed, and the invoice flips back
+   *  to "sent". The recon status becomes "reopened"
+   *  so the audit trail shows the booking was undone. */
+  @Post('reconciliations/:reconId/reopen')
+  @Require('invoice.update')
+  async reopenRecon(
+    @Query('companyId') companyId: string,
+    @Param('reconId') reconId: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId is required');
+    return this.svc.reopenMatch(companyId, reconId);
+  }
+
   /** List statements (most recent first). */
   @Get()
   @Require('invoice.read')

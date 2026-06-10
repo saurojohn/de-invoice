@@ -583,6 +583,128 @@ export class BankImportService {
   }
 
   /**
+   * Reopen a confirmed match. GoBD-correct correction
+   * path: the original Voucher stays in the books
+   * (immutable per §146 AO), but we write a Storno-
+   * Voucher with the opposite debit/credit so the
+   * net effect on each account is zero. The original
+   * Payment is removed via PaymentService.delete,
+   * which also flips the invoice back to "sent"
+   * when the remaining payment total falls below the
+   * invoice total.
+   *
+   * The reconciliation status flips to "reopened" so
+   * the audit trail shows the booking was undone —
+   * the original is preserved (a GoBD reviewer can
+   * still find the original Voucher and the Storno
+   * Voucher linked from this recon).
+   *
+   * The flow:
+   *   1. Find the recon + the original Payment +
+   *      Voucher.
+   *   2. Build a Storno Voucher (negative lines).
+   *   3. Delete the Payment (flips invoice back).
+   *   4. Flip recon status to "reopened", set
+   *      `voucherId` to the Storno voucher (so the
+   *      Zuordnungen panel shows the correction).
+   *   5. Clear Invoice.voucherRefId so the DATEV
+   *      Invoice path takes back the cash line.
+   */
+  async reopenMatch(companyId: string, reconciliationId: string) {
+    const recon = await this.prisma.bankReconciliation.findFirst({
+      where: { id: reconciliationId, companyId },
+      include: {
+        bankTransaction: true,
+        invoice: { select: { id: true, total: true, type: true, status: true, voucherRefId: true } },
+        voucher: { include: { lines: { include: { account: true }, orderBy: { sortOrder: 'asc' } } } },
+      },
+    });
+    if (!recon) throw new NotFoundException('Zuordnung nicht gefunden');
+    if (recon.status !== 'confirmed') {
+      throw new BadRequestException('Nur bestätigte Zuordnungen können rückgängig gemacht werden');
+    }
+    if (!recon.voucher) {
+      // Defensive — a confirmed recon should always
+      // have a voucher. If not, the user is in an
+      // inconsistent state.
+      throw new BadRequestException('Bestätigte Zuordnung hat keinen Buchungsbeleg — kann nicht rückgängig gemacht werden');
+    }
+
+    // 1. Build the Storno Voucher. The original
+    // Voucher is 2 lines (Bank 1200 debit +
+    // Forderung 1406 credit). The Storno flips both
+    // signs so each account nets to zero when
+    // summed.
+    const originalLines = recon.voucher.lines;
+    const stornoLines = originalLines.map((l) => ({
+      accountId: l.accountId,
+      description: `Storno: ${l.description || ''}`.substring(0, 60),
+      debit: Number(l.credit),  // swap
+      credit: Number(l.debit),   // swap
+    }));
+
+    const stornoVoucher = await this.voucherService.create({
+      companyId,
+      date: recon.bankTransaction.valueDate,
+      description: `Storno ${recon.voucher.voucherNumber} — ${recon.invoiceId ? 'Zuordnung rückgängig' : ''}`,
+      referenceType: 'BankReconciliationReversal',
+      lines: stornoLines,
+    });
+
+    // 2. Delete the original Payment. PaymentService
+    // will also recompute the invoice status and
+    // flip it back to "sent" when the remaining
+    // total falls below the invoice total.
+    // We need to find the Payment that the original
+    // confirm wrote — easiest: the most recent
+    // Payment on this invoice with a note matching
+    // the auto-matched pattern.
+    const originalPayment = await this.prisma.payment.findFirst({
+      where: {
+        invoiceId: recon.invoiceId,
+        notes: { contains: recon.bankTransactionId },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (originalPayment) {
+      await this.paymentService.delete(originalPayment.id, companyId);
+    }
+
+    // 3. Flip the recon status. The voucherId now
+    // points to the Storno voucher so the UI
+    // shows the correction.
+    await this.prisma.bankReconciliation.update({
+      where: { id: reconciliationId },
+      data: {
+        status: 'reopened',
+        voucherId: stornoVoucher.id,
+      },
+    });
+
+    // 4. Clear Invoice.voucherRefId so the DATEV
+    // export's Invoice path takes back the cash
+    // line (the Storno voucher + the Invoice
+    // pass with no voucherRefId will produce
+    // the right set of DATEV rows).
+    if (recon.invoice.voucherRefId) {
+      await this.prisma.invoice.update({
+        where: { id: recon.invoiceId },
+        data: { voucherRefId: null },
+      });
+    }
+
+    this.logger.log(
+      `reopened match recon=${reconciliationId} invoice=${recon.invoiceId} stornoVoucher=${stornoVoucher.id}`,
+    );
+    return {
+      reconciliationId,
+      originalVoucherId: recon.voucher.id,
+      stornoVoucherId: stornoVoucher.id,
+      paymentRemoved: !!originalPayment,
+    };
+  }
+
+  /**
    * Manual match: the user picks an invoice from the
    * candidates list (or types an ID) without waiting
    * for the auto-suggest. Creates a Payment + a

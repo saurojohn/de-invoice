@@ -16,8 +16,8 @@ docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"BankReconciliation\" WHERE \"companyId\" = '$COMPANY_ID';
    DELETE FROM \"BankTransaction\" WHERE \"companyId\" = '$COMPANY_ID';
    DELETE FROM \"BankStatement\" WHERE \"companyId\" = '$COMPANY_ID';
-   DELETE FROM \"VoucherLine\" WHERE \"voucherId\" IN (SELECT id FROM \"Voucher\" WHERE \"companyId\" = '$COMPANY_ID' AND \"referenceType\" IN ('BankReconciliation', 'BankTransaction'));
-   DELETE FROM \"Voucher\" WHERE \"companyId\" = '$COMPANY_ID' AND \"referenceType\" IN ('BankReconciliation', 'BankTransaction');
+   DELETE FROM \"VoucherLine\" WHERE \"voucherId\" IN (SELECT id FROM \"Voucher\" WHERE \"companyId\" = '$COMPANY_ID' AND \"referenceType\" IN ('BankReconciliation', 'BankTransaction', 'BankReconciliationReversal'));
+   DELETE FROM \"Voucher\" WHERE \"companyId\" = '$COMPANY_ID' AND \"referenceType\" IN ('BankReconciliation', 'BankTransaction', 'BankReconciliationReversal');
    DELETE FROM \"Payment\" WHERE \"invoiceId\" IN (SELECT id FROM \"Invoice\" WHERE \"invoiceNumber\" IN ('INV-2026-TEST-E2E', 'INV-2026-TEST-002', 'INV-2026-TEST-003', 'INV-2026-TEST-CAMT', 'INV-2026-TEST-AUTO'));
    DELETE FROM \"Invoice\" WHERE \"invoiceNumber\" IN ('INV-2026-TEST-E2E', 'INV-2026-TEST-002', 'INV-2026-TEST-003', 'INV-2026-TEST-CAMT', 'INV-2026-TEST-AUTO');" >/dev/null 2>&1
 
@@ -425,6 +425,81 @@ AC_AUTO2=$(json_field "$BODY" autoConfirmed)
 assert_eq "re-run: generated=0" "$GEN_AUTO2" "0"
 assert_eq "re-run: autoConfirmed=0" "$AC_AUTO2" "0"
 
+# === Reopen (undo) flow ===
+# Test that a confirmed recon can be reopened with a
+# Storno Voucher — GoBD-correct correction. The
+# original Voucher stays in the books, the Storno
+# nets each account to zero, the Payment is
+# removed, and the invoice flips back to "sent".
+AUTO_RECON_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT id FROM \"BankReconciliation\" WHERE \"bankTransactionId\" IN (SELECT id FROM \"BankTransaction\" WHERE \"statementId\" = '$SID_AUTO') LIMIT 1;" 2>/dev/null | tr -d ' ')
+AUTO_INV_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT \"invoiceId\" FROM \"BankReconciliation\" WHERE id = '$AUTO_RECON_ID';" 2>/dev/null | tr -d ' ')
+AUTO_VCH_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT \"voucherId\" FROM \"BankReconciliation\" WHERE id = '$AUTO_RECON_ID';" 2>/dev/null | tr -d ' ')
+
+# State before reopen
+RECON_BEFORE=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT status FROM \"BankReconciliation\" WHERE id = '$AUTO_RECON_ID';" 2>/dev/null | tr -d ' ')
+assert_eq "recon status before reopen" "$RECON_BEFORE" "confirmed"
+
+INV_BEFORE_REOPEN=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT status FROM \"Invoice\" WHERE id = '$AUTO_INV_ID';" 2>/dev/null | tr -d ' ')
+assert_eq "invoice status before reopen" "$INV_BEFORE_REOPEN" "paid"
+
+# Reopen
+api_post "/api/v1/bank-statements/reconciliations/$AUTO_RECON_ID/reopen?companyId=$COMPANY_ID" ""
+assert_status "201" "reopen confirmed match"
+STORNO_VCH_ID=$(json_field "$BODY" stornoVoucherId)
+if [[ -n "$STORNO_VCH_ID" && "$STORNO_VCH_ID" != "null" ]]; then
+  pass "reopen returned stornoVoucherId: ${STORNO_VCH_ID:0:8}..."
+fi
+
+# Verify
+RECON_AFTER=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT status FROM \"BankReconciliation\" WHERE id = '$AUTO_RECON_ID';" 2>/dev/null | tr -d ' ')
+assert_eq "recon status after reopen" "$RECON_AFTER" "reopened"
+
+INV_AFTER_REOPEN=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT status FROM \"Invoice\" WHERE id = '$AUTO_INV_ID';" 2>/dev/null | tr -d ' ')
+assert_eq "invoice status after reopen" "$INV_AFTER_REOPEN" "sent"
+
+PAY_AFTER_REOPEN=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT count(*) FROM \"Payment\" WHERE \"invoiceId\" = '$AUTO_INV_ID';" 2>/dev/null | tr -d ' ')
+assert_eq "payments removed after reopen" "$PAY_AFTER_REOPEN" "0"
+
+# Original Voucher still in books (GoBD immutability)
+ORIG_VCH_STILL=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT count(*) FROM \"Voucher\" WHERE id = '$AUTO_VCH_ID';" 2>/dev/null | tr -d ' ')
+assert_eq "original voucher preserved" "$ORIG_VCH_STILL" "1"
+
+# Storno Voucher exists with correct referenceType
+STORNO_REFTYPE=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT \"referenceType\" FROM \"Voucher\" WHERE id = '$STORNO_VCH_ID';" 2>/dev/null | tr -d ' ')
+assert_eq "storno voucher referenceType" "$STORNO_REFTYPE" "BankReconciliationReversal"
+
+# Per-account net effect: original + storno should net
+# to zero on each account.
+NET_BANK=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT COALESCE(SUM(vl.debit) - SUM(vl.credit), 0)
+   FROM \"VoucherLine\" vl
+   JOIN \"Voucher\" v ON v.id = vl.\"voucherId\"
+   JOIN \"Account\" a ON a.id = vl.\"accountId\"
+   WHERE v.\"companyId\" = '$COMPANY_ID' AND v.id IN ('$AUTO_VCH_ID', '$STORNO_VCH_ID') AND a.\"accountNumber\" = '1200';" 2>/dev/null | tr -d ' ')
+assert_eq "Bank 1200 nets to 0 after reopen" "$NET_BANK" "0.0000"
+
+NET_RECV=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT COALESCE(SUM(vl.debit) - SUM(vl.credit), 0)
+   FROM \"VoucherLine\" vl
+   JOIN \"Voucher\" v ON v.id = vl.\"voucherId\"
+   JOIN \"Account\" a ON a.id = vl.\"accountId\"
+   WHERE v.\"companyId\" = '$COMPANY_ID' AND v.id IN ('$AUTO_VCH_ID', '$STORNO_VCH_ID') AND a.\"accountNumber\" = '1406';" 2>/dev/null | tr -d ' ')
+assert_eq "Forderung 1406 nets to 0 after reopen" "$NET_RECV" "0.0000"
+
+# Double-reopen should fail
+api_post "/api/v1/bank-statements/reconciliations/$AUTO_RECON_ID/reopen?companyId=$COMPANY_ID" ""
+assert_status "400" "double-reopen returns 400"
+
 # CAMT.053 round-trip: upload a sample XML and verify
 # the same shape. Use a dedicated CAMT invoice
 # (INV-2026-TEST-CAMT) so it doesn't conflict with
@@ -622,8 +697,8 @@ docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"BankReconciliation\" WHERE \"companyId\" = '$COMPANY_ID';
    DELETE FROM \"BankTransaction\" WHERE \"companyId\" = '$COMPANY_ID';
    DELETE FROM \"BankStatement\" WHERE \"companyId\" = '$COMPANY_ID';
-   DELETE FROM \"VoucherLine\" WHERE \"voucherId\" IN (SELECT id FROM \"Voucher\" WHERE \"companyId\" = '$COMPANY_ID' AND \"referenceType\" IN ('BankReconciliation', 'BankTransaction'));
-   DELETE FROM \"Voucher\" WHERE \"companyId\" = '$COMPANY_ID' AND \"referenceType\" IN ('BankReconciliation', 'BankTransaction');
+   DELETE FROM \"VoucherLine\" WHERE \"voucherId\" IN (SELECT id FROM \"Voucher\" WHERE \"companyId\" = '$COMPANY_ID' AND \"referenceType\" IN ('BankReconciliation', 'BankTransaction', 'BankReconciliationReversal'));
+   DELETE FROM \"Voucher\" WHERE \"companyId\" = '$COMPANY_ID' AND \"referenceType\" IN ('BankReconciliation', 'BankTransaction', 'BankReconciliationReversal');
    DELETE FROM \"Payment\" WHERE \"invoiceId\" IN (SELECT id FROM \"Invoice\" WHERE \"invoiceNumber\" IN ('INV-2026-TEST-E2E', 'INV-2026-TEST-002', 'INV-2026-TEST-003', 'INV-2026-TEST-CAMT', 'INV-2026-TEST-AUTO'));
    DELETE FROM \"Invoice\" WHERE \"invoiceNumber\" IN ('INV-2026-TEST-E2E', 'INV-2026-TEST-002', 'INV-2026-TEST-003', 'INV-2026-TEST-CAMT', 'INV-2026-TEST-AUTO');" >/dev/null 2>&1
 
