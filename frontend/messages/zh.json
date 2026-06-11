@@ -268,7 +268,15 @@
     "cardVouchersTitle": "凭证",
     "cardVouchersDesc": "凭证日志 — 全部记账、借贷平衡校验、可筛选。",
     "cardExpensesTitle": "进项发票",
-    "cardExpensesDesc": "管理进项发票 — 供应商、进项税、入账状态。"
+    "cardExpensesDesc": "管理进项发票 — 供应商、进项税、入账状态。",
+    "kpiYtdRevenue": "本年营收",
+    "kpiYtdExpenses": "本年支出",
+    "kpiYtdNet": "本年净利润",
+    "kpiOpenRecv": "未收应收",
+    "changeRevenue": "营收环比",
+    "changeExpenses": "支出环比",
+    "changeUst": "销项税环比",
+    "changeVorsteuer": "进项税环比"
   },
   "settings": {
     "title": "设置",

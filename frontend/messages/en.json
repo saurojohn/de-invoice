@@ -388,7 +388,15 @@
     "cardVouchersTitle": "Vouchers",
     "cardVouchersDesc": "Voucher journal — all postings with debit/credit balance, filterable.",
     "cardExpensesTitle": "Vendor bills",
-    "cardExpensesDesc": "Manage vendor bills — suppliers, input VAT, booking status."
+    "cardExpensesDesc": "Manage vendor bills — suppliers, input VAT, booking status.",
+    "kpiYtdRevenue": "Revenue YTD",
+    "kpiYtdExpenses": "Expenses YTD",
+    "kpiYtdNet": "Net Profit YTD",
+    "kpiOpenRecv": "Open Receivables",
+    "changeRevenue": "Revenue Δ Month",
+    "changeExpenses": "Expenses Δ Month",
+    "changeUst": "VAT Δ Month",
+    "changeVorsteuer": "Input VAT Δ Month"
   },
   "reminder": {
     "title": "Payment Reminders",

@@ -17,6 +17,44 @@ interface DashboardStats {
   paidAmount: number
 }
 
+interface DashboardKpis {
+  ytd: {
+    revenue: number
+    ust: number
+    countInvoices: number
+    expenses: number
+    vorsteuer: number
+    countExpenses: number
+    net: number
+  }
+  thisMonth: {
+    revenue: number
+    ust: number
+    countInvoices: number
+    expenses: number
+    vorsteuer: number
+    countExpenses: number
+  }
+  lastMonth: {
+    revenue: number
+    ust: number
+    countInvoices: number
+    expenses: number
+    vorsteuer: number
+    countExpenses: number
+  }
+  changes: {
+    revenue: number
+    expenses: number
+    ust: number
+    vorsteuer: number
+  }
+  openReceivables: number
+  openPayables: number
+  byMonth: Array<{ month: string; revenue: number; expenses: number }>
+  generatedAt: string
+}
+
 interface RecentInvoice {
   id: string
   invoiceNumber: string
@@ -37,6 +75,7 @@ export default function DashboardPage() {
   const { t, getDateLocale } = useI18n()
   const dl = getDateLocale()
   const [stats, setStats] = useState<DashboardStats | null>(null)
+  const [kpis, setKpis] = useState<DashboardKpis | null>(null)
   const [monthlyRevenue, setMonthlyRevenue] = useState<Array<{ month: string; totalAmount: number; invoiceCount?: number }>>([])
   const [recentInvoices, setRecentInvoices] = useState<RecentInvoice[]>([])
   const [loading, setLoading] = useState(true)
@@ -62,8 +101,9 @@ export default function DashboardPage() {
     Promise.all([
       apiGet<{ data: any[]; total: number }>(`/api/v1/invoices?companyId=${companyId}&pageSize=500`),
       apiGet<{ byMonth: any[] }>(`/api/v1/reports/sales?companyId=${companyId}&startDate=${startDate}&endDate=${endDate}`),
+      apiGet<DashboardKpis>(`/api/v1/reports/dashboard?companyId=${companyId}`),
     ])
-      .then(([invoiceList, salesReport]) => {
+      .then(([invoiceList, salesReport, dashboardKpis]) => {
         const invoices = invoiceList?.data || []
         const pending = invoices
           .filter((inv: any) => inv.status === "sent" || inv.status === "draft" || inv.status === "overdue")
@@ -82,6 +122,7 @@ export default function DashboardPage() {
           paidAmount: paid,
         })
         setMonthlyRevenue(salesReport?.byMonth || [])
+        setKpis(dashboardKpis || null)
         setRecentInvoices(invoices.slice(0, 8) as RecentInvoice[])
         setLoading(false)
       })
@@ -112,41 +153,136 @@ export default function DashboardPage() {
       </header>
 
       <div className="container mx-auto px-4 py-8">
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        {/* KPI Tiles — YTD + Month-over-Month change
+            indicators. The "change" arrows come from
+            the dashboard endpoint's `changes` field
+            (thisMonth vs lastMonth). Each tile also
+            surfaces the previous-month value in
+            muted text so the user has a reference. */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          {/* YTD Revenue */}
           <Card>
             <CardContent className="pt-6">
-              <div className="text-3xl font-bold text-blue-600">{stats?.totalInvoices || 0}</div>
-              <div className="text-gray-500 mt-1">{t("dashboard.totalInvoices")}</div>
+              <div className="text-xs text-gray-500 uppercase">
+                {t("dashboard.kpiYtdRevenue") || "Umsatz YTD"}
+              </div>
+              <div className="text-2xl font-bold text-blue-600 mt-1">
+                {fmtMoney(kpis?.ytd.revenue || 0)} €
+              </div>
+              <div className="text-xs text-gray-500 mt-1">
+                {kpis?.ytd.countInvoices || 0} Rechnungen
+              </div>
             </CardContent>
           </Card>
+          {/* YTD Expenses */}
           <Card>
             <CardContent className="pt-6">
-              <div className="text-3xl font-bold text-yellow-600">€{(stats?.pendingAmount || 0).toFixed(2)}</div>
-              <div className="text-gray-500 mt-1">{t("dashboard.pending")}</div>
+              <div className="text-xs text-gray-500 uppercase">
+                {t("dashboard.kpiYtdExpenses") || "Aufwand YTD"}
+              </div>
+              <div className="text-2xl font-bold text-red-600 mt-1">
+                {fmtMoney(kpis?.ytd.expenses || 0)} €
+              </div>
+              <div className="text-xs text-gray-500 mt-1">
+                {kpis?.ytd.countExpenses || 0} Eingangsrechnungen
+              </div>
             </CardContent>
           </Card>
+          {/* YTD Net Profit */}
           <Card>
             <CardContent className="pt-6">
-              <div className="text-3xl font-bold text-red-600">€{(stats?.overdueAmount || 0).toFixed(2)}</div>
-              <div className="text-gray-500 mt-1">{t("dashboard.overdue")}</div>
+              <div className="text-xs text-gray-500 uppercase">
+                {t("dashboard.kpiYtdNet") || "Gewinn YTD"}
+              </div>
+              <div
+                className={
+                  "text-2xl font-bold mt-1 " +
+                  ((kpis?.ytd.net || 0) >= 0 ? "text-green-600" : "text-red-600")
+                }
+              >
+                {fmtMoney(kpis?.ytd.net || 0)} €
+              </div>
+              <div className="text-xs text-gray-500 mt-1">
+                Umsatz − Aufwand
+              </div>
             </CardContent>
           </Card>
+          {/* Open Receivables */}
           <Card>
             <CardContent className="pt-6">
-              <div className="text-3xl font-bold text-green-600">€{(stats?.paidAmount || 0).toFixed(2)}</div>
-              <div className="text-gray-500 mt-1">{t("dashboard.paid")}</div>
+              <div className="text-xs text-gray-500 uppercase">
+                {t("dashboard.kpiOpenRecv") || "Offene Forderungen"}
+              </div>
+              <div className="text-2xl font-bold text-yellow-700 mt-1">
+                {fmtMoney(kpis?.openReceivables || 0)} €
+              </div>
+              <div className="text-xs text-gray-500 mt-1">
+                Unbezahlte Rechnungen
+              </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Revenue trend (last 12 months) */}
+        {/* Month-over-Month change row. The user
+            sees at a glance whether the business is
+            trending up or down this month vs last. */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          {([
+            { key: "revenue", label: t("dashboard.changeRevenue") || "Umsatz Δ", cur: kpis?.thisMonth.revenue || 0, prev: kpis?.lastMonth.revenue || 0, change: kpis?.changes.revenue || 0, color: "blue" },
+            { key: "expenses", label: t("dashboard.changeExpenses") || "Aufwand Δ", cur: kpis?.thisMonth.expenses || 0, prev: kpis?.lastMonth.expenses || 0, change: kpis?.changes.expenses || 0, color: "red" },
+            { key: "ust", label: t("dashboard.changeUst") || "USt Δ", cur: kpis?.thisMonth.ust || 0, prev: kpis?.lastMonth.ust || 0, change: kpis?.changes.ust || 0, color: "purple" },
+            { key: "vorsteuer", label: t("dashboard.changeVorsteuer") || "Vorsteuer Δ", cur: kpis?.thisMonth.vorsteuer || 0, prev: kpis?.lastMonth.vorsteuer || 0, change: kpis?.changes.vorsteuer || 0, color: "green" },
+          ] as const).map((c) => {
+            // For "expenses" the user EXPECTS a
+            // decrease (lower expenses = good), so the
+            // "good" arrow is flipped. For revenue /
+            // USt / Vorsteuer, an increase is good.
+            const isExpense = c.key === "expenses"
+            const goodWhenUp = !isExpense
+            const up = c.change > 0
+            const isGood = up ? goodWhenUp : !goodWhenUp
+            const arrow = c.change === 0 ? "—" : up ? "▲" : "▼"
+            return (
+              <Card key={c.key}>
+                <CardContent className="pt-6">
+                  <div className="text-xs text-gray-500 uppercase">
+                    {c.label}
+                  </div>
+                  <div className="text-xl font-bold mt-1">
+                    {fmtMoney(c.cur)} €
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    vs. {fmtMoney(c.prev)} € Vormonat
+                  </div>
+                  <div
+                    className={
+                      "text-sm font-bold mt-2 " +
+                      (c.change === 0
+                        ? "text-gray-500"
+                        : isGood
+                        ? "text-green-600"
+                        : "text-red-600")
+                    }
+                  >
+                    {arrow} {Math.abs(c.change).toFixed(1)} %
+                  </div>
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
+
+        {/* Revenue trend (last 12 months) — uses the
+            new dashboard endpoint's byMonth (revenue
+            + expenses as grouped bars). Falls back to
+            the legacy monthlyRevenue (revenue only) if
+            the dashboard endpoint is slow / fails. */}
         <Card className="mb-8">
           <CardHeader>
-            <CardTitle>Umsatzentwicklung (letzte 12 Monate)</CardTitle>
+            <CardTitle>Umsatz- und Aufwandsentwicklung (letzte 12 Monate)</CardTitle>
           </CardHeader>
           <CardContent>
-            <RevenueChart data={monthlyRevenue} height={220} />
+            <RevenueChart data={kpis?.byMonth || monthlyRevenue} height={240} />
           </CardContent>
         </Card>
 

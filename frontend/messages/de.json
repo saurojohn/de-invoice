@@ -266,7 +266,15 @@
     "cardVouchersTitle": "Buchungsbelege",
     "cardVouchersDesc": "Buchungsjournal — alle Belege mit Soll/Haben-Ausgleich, filterbar.",
     "cardExpensesTitle": "Eingangsrechnungen",
-    "cardExpensesDesc": "Eingangsrechnungen verwalten — Lieferanten, USt-Vorsteuer, Buchungsstatus."
+    "cardExpensesDesc": "Eingangsrechnungen verwalten — Lieferanten, USt-Vorsteuer, Buchungsstatus.",
+    "kpiYtdRevenue": "Umsatz YTD",
+    "kpiYtdExpenses": "Aufwand YTD",
+    "kpiYtdNet": "Gewinn YTD",
+    "kpiOpenRecv": "Offene Forderungen",
+    "changeRevenue": "Umsatz Δ Monat",
+    "changeExpenses": "Aufwand Δ Monat",
+    "changeUst": "USt Δ Monat",
+    "changeVorsteuer": "Vorsteuer Δ Monat"
   },
   "settings": {
     "title": "Einstellungen",
