@@ -475,6 +475,14 @@ export async function buildBuchungenFromDb(
       status: 'posted',
     },
     include: {
+      // For a Storno-Buchung (referenceType =
+      // VoucherReversal), the `reversedBy` relation
+      // points back to the original voucher it
+      // corrects. We need the original's voucherNumber
+      // for Belegfeld 2 so the Berater can pivot the
+      // Storno line back to the original Beleg in the
+      // DATEV audit trail.
+      reversedBy: { select: { voucherNumber: true } },
       lines: { include: { account: { select: { accountNumber: true } } }, orderBy: { sortOrder: 'asc' } },
     },
     orderBy: { date: 'asc' },
@@ -514,11 +522,22 @@ export async function buildBuchungenFromDb(
       out.push({
         belegdatum: v.date,
         belegfeld1: v.voucherNumber,
-        // Belegfeld 2: link the Belegnummer to the
-        // originating document (invoice# for
-        // BankReconciliation, txn short-id for
-        // BankTransaction expenses).
-        belegfeld2: v.referenceType || undefined,
+        // Belegfeld 2: the audit pivot field.
+        // - BankReconciliation rows link to the
+        //   originating invoice number (handled by
+        //   the Invoice pass via Belegfeld 2 stamp;
+        //   we keep the referenceType label here as
+        //   a fallback so the Berater can filter
+        //   by source).
+        // - VoucherReversal (Storno) rows link to
+        //   the ORIGINAL voucher number so the
+        //   Berater can pivot from any Storno line
+        //   back to the original Beleg in DATEV.
+        //   Without this, a Storno looks like a
+        //   mysterious new posting in the export.
+        belegfeld2: v.reversedBy
+          ? v.reversedBy.voucherNumber
+          : (v.referenceType || undefined),
         konto: line.account.accountNumber,
         gegenkonto: counterpartLine.account.accountNumber,
         betrag: amount,
