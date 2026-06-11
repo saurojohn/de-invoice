@@ -266,7 +266,9 @@
     "cardSuppliersTitle": "供应商",
     "cardSuppliersDesc": "管理供应商主数据、税号、银行信息",
     "cardVouchersTitle": "凭证",
-    "cardVouchersDesc": "凭证日志 — 全部记账、借贷平衡校验、可筛选。"
+    "cardVouchersDesc": "凭证日志 — 全部记账、借贷平衡校验、可筛选。",
+    "cardExpensesTitle": "进项发票",
+    "cardExpensesDesc": "管理进项发票 — 供应商、进项税、入账状态。"
   },
   "settings": {
     "title": "设置",
@@ -988,5 +990,25 @@
     "editTitle": "编辑供应商",
     "addTitle": "新增供应商",
     "deleteConfirm": "确认删除供应商「{name}」？"
+  },
+  "expenses": {
+    "title": "进项发票",
+    "subtitle": "管理进项发票 — 供应商、发票号、进项税、入账状态。",
+    "searchPlaceholder": "搜索发票号或摘要…",
+    "allSuppliers": "全部供应商",
+    "allStates": "全部状态",
+    "stateOffen": "未付",
+    "stateBezahlt": "已付",
+    "stateStorniert": "已冲销",
+    "supplier": "供应商",
+    "invoiceNumber": "发票号",
+    "invoiceDate": "发票日期",
+    "net": "净额",
+    "vat": "税额",
+    "gross": "总额",
+    "linkedVoucher": "凭证",
+    "noVoucher": "—",
+    "category": "类别",
+    "empty": "尚无进项发票 — 可上传银行流水或手动创建。"
   }
 }

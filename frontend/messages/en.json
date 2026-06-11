@@ -383,7 +383,9 @@
     "cardSuppliersTitle": "Suppliers",
     "cardSuppliersDesc": "Manage suppliers — master data, VAT ID, bank info",
     "cardVouchersTitle": "Vouchers",
-    "cardVouchersDesc": "Voucher journal — all postings with debit/credit balance, filterable."
+    "cardVouchersDesc": "Voucher journal — all postings with debit/credit balance, filterable.",
+    "cardExpensesTitle": "Vendor bills",
+    "cardExpensesDesc": "Manage vendor bills — suppliers, input VAT, booking status."
   },
   "reminder": {
     "title": "Payment Reminders",
@@ -978,5 +980,25 @@
     "editTitle": "Edit supplier",
     "addTitle": "Add new supplier",
     "deleteConfirm": "Really delete supplier \"{name}\"?"
+  },
+  "expenses": {
+    "title": "Vendor bills",
+    "subtitle": "Manage vendor bills — supplier, invoice number, input VAT, booking status.",
+    "searchPlaceholder": "Search invoice number or description…",
+    "allSuppliers": "All suppliers",
+    "allStates": "All statuses",
+    "stateOffen": "Open",
+    "stateBezahlt": "Paid",
+    "stateStorniert": "Voided",
+    "supplier": "Supplier",
+    "invoiceNumber": "Invoice number",
+    "invoiceDate": "Invoice date",
+    "net": "Net",
+    "vat": "VAT",
+    "gross": "Gross",
+    "linkedVoucher": "Voucher",
+    "noVoucher": "—",
+    "category": "Category",
+    "empty": "No vendor bills — upload a bank file or create one manually."
   }
 }

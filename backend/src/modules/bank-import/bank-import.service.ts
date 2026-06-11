@@ -929,10 +929,18 @@ export class BankImportService {
       credit: absAmount,
     })
 
+    // When this voucher is tied to an existing Expense
+    // row, append the expenseId to the description. The
+    // /dashboard/expenses list page string-matches the
+    // "[expense:<uuid>]" tag in voucher.description to
+    // pivot back to the originating Eingangsrechnung.
+    // Hidden in the PDF / DATEV but visible in the UI
+    // audit trail — cheap linkage, no schema change.
+    const expenseTag = opts.expenseId ? ` [expense:${opts.expenseId}]` : ''
     const voucher = await this.voucherService.create({
       companyId,
       date: txn.valueDate,
-      description,
+      description: description + expenseTag,
       referenceType: opts.expenseId ? 'Expense' : 'BankTransaction',
       lines,
     });

@@ -264,7 +264,9 @@
     "cardSuppliersTitle": "Lieferanten",
     "cardSuppliersDesc": "Lieferanten verwalten — Stammdaten, USt-ID, Bankverbindung",
     "cardVouchersTitle": "Buchungsbelege",
-    "cardVouchersDesc": "Buchungsjournal — alle Belege mit Soll/Haben-Ausgleich, filterbar."
+    "cardVouchersDesc": "Buchungsjournal — alle Belege mit Soll/Haben-Ausgleich, filterbar.",
+    "cardExpensesTitle": "Eingangsrechnungen",
+    "cardExpensesDesc": "Eingangsrechnungen verwalten — Lieferanten, USt-Vorsteuer, Buchungsstatus."
   },
   "settings": {
     "title": "Einstellungen",
@@ -985,6 +987,26 @@
     "empty": "Noch keine Lieferanten angelegt.",
     "editTitle": "Lieferant bearbeiten",
     "addTitle": "Neuen Lieferanten anlegen",
-    "deleteConfirm": "Lieferant „{name}\" wirklich löschen?"
+    "deleteConfirm": "Lieferanten „{name}\" wirklich löschen?"
+  },
+  "expenses": {
+    "title": "Eingangsrechnungen",
+    "subtitle": "Eingangsrechnungen verwalten — Lieferant, Rechnungsnummer, USt-Vorsteuer, Buchungsstatus.",
+    "searchPlaceholder": "Suche nach Rechnungsnummer oder Beschreibung…",
+    "allSuppliers": "Alle Lieferanten",
+    "allStates": "Alle Status",
+    "stateOffen": "Offen",
+    "stateBezahlt": "Bezahlt",
+    "stateStorniert": "Storniert",
+    "supplier": "Lieferant",
+    "invoiceNumber": "Rechnungsnummer",
+    "invoiceDate": "Rechnungsdatum",
+    "net": "Netto",
+    "vat": "USt",
+    "gross": "Brutto",
+    "linkedVoucher": "Buchungsbeleg",
+    "noVoucher": "—",
+    "category": "Kategorie",
+    "empty": "Keine Eingangsrechnungen — laden Sie eine Bankdatei hoch oder legen Sie manuell eine Eingangsrechnung an."
   }
 }

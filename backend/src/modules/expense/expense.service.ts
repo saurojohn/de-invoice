@@ -32,11 +32,74 @@ export class ExpenseService {
         { description: { contains: opts.search, mode: 'insensitive' } },
       ];
     }
-    return this.prisma.expense.findMany({
+    const items = await this.prisma.expense.findMany({
       where,
       include: { supplier: { select: { id: true, name: true, vatId: true } } },
       orderBy: { invoiceDate: 'desc' },
       take: 500,
+    });
+    if (items.length === 0) return items;
+    // Augment each Expense with the most recent linked
+    // Voucher (for the list page to show a "Buchungsbeleg"
+    // link + a "Storniert" badge if the Voucher is a
+    // reversal). The bank-import bookExpense flow links
+    // Expense → Voucher by writing a Voucher with
+    // referenceType='Expense' and the expenseId in
+    // description — we resolve the link here by querying
+    // for Vouchers whose description carries the expenseId.
+    // The cheaper alternative would be a column on
+    // Voucher, but we kept the Voucher self-contained.
+    const expenseIds = items.map((e) => e.id);
+    // Quick text-search for the most-recent Voucher per
+    // expense. Patterns look like "... [expense:<id>] ..."
+    // — see bank-import.service.ts bookExpense.
+    const vouchers = await this.prisma.voucher.findMany({
+      where: {
+        companyId,
+        referenceType: { in: ['Expense', 'VoucherReversal'] },
+        description: { contains: 'expense:' },
+        OR: expenseIds.map((id) => ({ description: { contains: id } })),
+      },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        voucherNumber: true,
+        referenceType: true,
+        description: true,
+        status: true,
+      },
+    });
+    // Build a map of expenseId → most recent voucher
+    const voucherByExpense: Record<string, typeof vouchers[number]> = {};
+    for (const v of vouchers) {
+      for (const eid of expenseIds) {
+        if (v.description && v.description.includes(eid)) {
+          if (!voucherByExpense[eid]) voucherByExpense[eid] = v;
+          break;
+        }
+      }
+    }
+    return items.map((e) => {
+      const v = voucherByExpense[e.id];
+      return {
+        ...e,
+        // Cheap UI hint: "Storniert" if the linked
+        // voucher is itself a VoucherReversal, "Bezahlt"
+        // if there's any linked voucher, "Offen" otherwise.
+        // This drives the colored badge in the list.
+        paymentState: v
+          ? v.referenceType === 'VoucherReversal'
+            ? 'storniert'
+            : 'bezahlt'
+          : 'offen',
+        linkedVoucher: v
+          ? {
+              id: v.id,
+              voucherNumber: v.voucherNumber,
+              referenceType: v.referenceType,
+            }
+          : null,
+      };
     });
   }
 

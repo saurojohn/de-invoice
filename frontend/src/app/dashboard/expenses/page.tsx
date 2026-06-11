@@ -1,0 +1,410 @@
+"use client"
+
+import { useEffect, useState, useCallback, useMemo } from "react"
+import { useRouter } from "next/navigation"
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import LanguageSwitcher from "@/components/LanguageSwitcher"
+import { useI18n } from "@/components/useI18n"
+import { apiGet } from "@/lib/api"
+
+// Expense = Eingangsrechnung (vendor bill). The list
+// page is the Berater's overview of all incoming
+// supplier invoices: who, when, how much, paid?
+// Each row carries a paymentState hint that the
+// backend computes by string-matching the
+// [expense:<id>] tag in linked Vouchers:
+//   - "offen"     no linked voucher
+//   - "bezahlt"   linked voucher referenceType=Expense
+//   - "storniert" linked voucher referenceType=VoucherReversal
+interface Expense {
+  id: string
+  invoiceNumber: string | null
+  description: string
+  invoiceDate: string
+  netAmount: string
+  vatAmount: string
+  grossAmount: string
+  vatRate: string
+  status: string
+  category: string | null
+  isIntraEU: boolean
+  isReverseCharge: boolean
+  supplier: { id: string; name: string; vatId: string | null } | null
+  // The server-enriched audit pivot. Null when the
+  // Expense has no associated Voucher yet.
+  paymentState: "offen" | "bezahlt" | "storniert"
+  linkedVoucher: {
+    id: string
+    voucherNumber: string
+    referenceType: string
+  } | null
+}
+
+interface Supplier {
+  id: string
+  name: string
+  vatId: string | null
+}
+
+// All filters live in the URL implicitly (no router
+// push needed for v1 — the dashboard re-fetches on
+// every change).
+export default function ExpensesPage() {
+  const router = useRouter()
+  const { t, locale, getDateLocale } = useI18n()
+  const [items, setItems] = useState<Expense[]>([])
+  const [loading, setLoading] = useState(true)
+  const [suppliers, setSuppliers] = useState<Supplier[]>([])
+  const [search, setSearch] = useState("")
+  const [debouncedSearch, setDebouncedSearch] = useState("")
+  const [supplierId, setSupplierId] = useState("")
+  const [state, setState] = useState<"" | "offen" | "bezahlt" | "storniert">("")
+
+  // 200ms debounce on the search input
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedSearch(search), 200)
+    return () => clearTimeout(id)
+  }, [search])
+
+  const loadSuppliers = useCallback(async () => {
+    const companyId = localStorage.getItem("companyId")
+    if (!companyId) return
+    try {
+      const data = await apiGet(`/api/v1/suppliers?companyId=${companyId}`)
+      setSuppliers(Array.isArray(data) ? data : [])
+    } catch (e) {
+      console.error("suppliers load failed", e)
+    }
+  }, [])
+
+  const load = useCallback(async () => {
+    const companyId = localStorage.getItem("companyId")
+    if (!companyId) {
+      router.push("/login")
+      return
+    }
+    setLoading(true)
+    const params = new URLSearchParams({ companyId })
+    if (debouncedSearch) params.set("search", debouncedSearch)
+    if (supplierId) params.set("supplierId", supplierId)
+    // The Expense.status filter is "booked|deductible|blocked"
+    // (the GoBD state of the row). The paymentState filter
+    // is computed by the server and exposed as a different
+    // field. We don't have a server-side filter for
+    // paymentState yet — it filters client-side below.
+    try {
+      const data = await apiGet(`/api/v1/expenses?${params.toString()}`)
+      setItems(Array.isArray(data) ? data : [])
+    } catch (e) {
+      console.error("expenses load failed", e)
+      setItems([])
+    } finally {
+      setLoading(false)
+    }
+  }, [router, debouncedSearch, supplierId])
+
+  useEffect(() => {
+    load()
+  }, [load])
+  useEffect(() => {
+    loadSuppliers()
+  }, [loadSuppliers])
+
+  // Client-side filter on the server-computed
+  // paymentState (no server filter for it yet). Could
+  // be pushed server-side later, but for the typical
+  // 100-500 expense list per company the in-memory
+  // pass is fine.
+  const filtered = useMemo(() => {
+    if (!state) return items
+    return items.filter((e) => e.paymentState === state)
+  }, [items, state])
+
+  // Aggregates strip at the top — like the Voucher
+  // journal's Soll/Haben summary. Helps the Berater
+  // spot totals at a glance.
+  const aggregates = useMemo(() => {
+    let net = 0
+    let vat = 0
+    let gross = 0
+    let offen = 0
+    let bezahlt = 0
+    let storniert = 0
+    for (const e of filtered) {
+      net += parseFloat(e.netAmount || "0")
+      vat += parseFloat(e.vatAmount || "0")
+      gross += parseFloat(e.grossAmount || "0")
+      if (e.paymentState === "offen") offen += 1
+      else if (e.paymentState === "bezahlt") bezahlt += 1
+      else if (e.paymentState === "storniert") storniert += 1
+    }
+    return { net, vat, gross, offen, bezahlt, storniert }
+  }, [filtered])
+
+  const formatDate = (s: string) =>
+    new Date(s).toLocaleDateString(getDateLocale())
+
+  const formatCurrency = (amount: string) => {
+    const n = parseFloat(amount || "0")
+    const intlLocale = locale === "de" ? "de-DE" : "en-US"
+    return new Intl.NumberFormat(intlLocale, {
+      style: "currency",
+      currency: "EUR",
+    }).format(n)
+  }
+
+  const stateBadge = (s: Expense["paymentState"]) => {
+    if (s === "offen")
+      return (
+        <Badge className="bg-yellow-100 text-yellow-800">
+          {t("expenses.stateOffen")}
+        </Badge>
+      )
+    if (s === "bezahlt")
+      return (
+        <Badge className="bg-green-100 text-green-700">
+          {t("expenses.stateBezahlt")}
+        </Badge>
+      )
+    return (
+      <Badge className="bg-red-100 text-red-700">
+        {t("expenses.stateStorniert")}
+      </Badge>
+    )
+  }
+
+  return (
+    <main className="min-h-screen bg-gray-50 p-6">
+      <div className="max-w-7xl mx-auto">
+        <div className="flex justify-between items-center mb-6">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">
+              {t("expenses.title")}
+            </h1>
+            <p className="text-sm text-gray-600 mt-1">
+              {t("expenses.subtitle")}
+            </p>
+          </div>
+          <div className="flex gap-2 items-center">
+            <LanguageSwitcher />
+            <button
+              onClick={() => router.push("/dashboard")}
+              className="px-3 py-1 text-sm border rounded hover:bg-gray-100"
+            >
+              {t("common.back")}
+            </button>
+          </div>
+        </div>
+
+        <Card className="mb-4">
+          <CardContent className="pt-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+              <input
+                type="text"
+                placeholder={t("expenses.searchPlaceholder")}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="border rounded px-3 py-2 text-sm"
+              />
+              <select
+                value={supplierId}
+                onChange={(e) => setSupplierId(e.target.value)}
+                className="border rounded px-3 py-2 text-sm"
+              >
+                <option value="">{t("expenses.allSuppliers")}</option>
+                {suppliers.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={state}
+                onChange={(e) =>
+                  setState(
+                    e.target.value as "" | "offen" | "bezahlt" | "storniert",
+                  )
+                }
+                className="border rounded px-3 py-2 text-sm"
+              >
+                <option value="">{t("expenses.allStates")}</option>
+                <option value="offen">{t("expenses.stateOffen")}</option>
+                <option value="bezahlt">
+                  {t("expenses.stateBezahlt")}
+                </option>
+                <option value="storniert">
+                  {t("expenses.stateStorniert")}
+                </option>
+              </select>
+              <button
+                onClick={() => {
+                  setSearch("")
+                  setSupplierId("")
+                  setState("")
+                }}
+                className="px-3 py-2 text-sm border rounded hover:bg-gray-100"
+              >
+                {t("common.reset")}
+              </button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Aggregates strip */}
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-4">
+          <div className="bg-white rounded-lg border p-3">
+            <div className="text-xs text-gray-500 uppercase">Offen</div>
+            <div className="text-lg font-bold mt-1 font-mono text-yellow-700">
+              {aggregates.offen}
+            </div>
+          </div>
+          <div className="bg-white rounded-lg border p-3">
+            <div className="text-xs text-gray-500 uppercase">Bezahlt</div>
+            <div className="text-lg font-bold mt-1 font-mono text-green-700">
+              {aggregates.bezahlt}
+            </div>
+          </div>
+          <div className="bg-white rounded-lg border p-3">
+            <div className="text-xs text-gray-500 uppercase">Storniert</div>
+            <div className="text-lg font-bold mt-1 font-mono text-red-700">
+              {aggregates.storniert}
+            </div>
+          </div>
+          <div className="bg-white rounded-lg border p-3">
+            <div className="text-xs text-gray-500 uppercase">Σ Netto</div>
+            <div className="text-lg font-bold mt-1 font-mono">
+              {formatCurrency(aggregates.net.toFixed(2))}
+            </div>
+          </div>
+          <div className="bg-white rounded-lg border p-3">
+            <div className="text-xs text-gray-500 uppercase">Σ Vorsteuer</div>
+            <div className="text-lg font-bold mt-1 font-mono">
+              {formatCurrency(aggregates.vat.toFixed(2))}
+            </div>
+          </div>
+          <div className="bg-white rounded-lg border p-3">
+            <div className="text-xs text-gray-500 uppercase">Σ Brutto</div>
+            <div className="text-lg font-bold mt-1 font-mono">
+              {formatCurrency(aggregates.gross.toFixed(2))}
+            </div>
+          </div>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>
+              {t("expenses.title")} — {filtered.length}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="space-y-4">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="h-12 bg-gray-100 rounded animate-pulse" />
+                ))}
+              </div>
+            ) : filtered.length === 0 ? (
+              <div className="text-center py-12 text-gray-500">
+                {t("expenses.empty")}
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">
+                        {t("expenses.invoiceDate")}
+                      </th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">
+                        {t("expenses.invoiceNumber")}
+                      </th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">
+                        {t("expenses.supplier")}
+                      </th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">
+                        Beschreibung
+                      </th>
+                      <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">
+                        {t("expenses.net")}
+                      </th>
+                      <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">
+                        {t("expenses.vat")}
+                      </th>
+                      <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">
+                        {t("expenses.gross")}
+                      </th>
+                      <th className="text-center py-3 px-4 text-sm font-medium text-gray-500">
+                        Status
+                      </th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">
+                        {t("expenses.linkedVoucher")}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map((e) => (
+                      <tr
+                        key={e.id}
+                        className="border-b hover:bg-gray-50"
+                      >
+                        <td className="py-3 px-4 text-sm">
+                          {formatDate(e.invoiceDate)}
+                        </td>
+                        <td className="py-3 px-4 text-sm font-mono">
+                          {e.invoiceNumber || "—"}
+                        </td>
+                        <td className="py-3 px-4 text-sm">
+                          {e.supplier?.name || "—"}
+                        </td>
+                        <td className="py-3 px-4 text-sm text-gray-700">
+                          {e.description}
+                        </td>
+                        <td className="py-3 px-4 text-sm text-right font-mono">
+                          {formatCurrency(e.netAmount)}
+                        </td>
+                        <td className="py-3 px-4 text-sm text-right font-mono">
+                          {formatCurrency(e.vatAmount)}
+                        </td>
+                        <td className="py-3 px-4 text-sm text-right font-mono font-bold">
+                          {formatCurrency(e.grossAmount)}
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          {stateBadge(e.paymentState)}
+                        </td>
+                        <td className="py-3 px-4 text-sm">
+                          {e.linkedVoucher ? (
+                            <button
+                              onClick={() =>
+                                router.push(
+                                  `/dashboard/accounting/vouchers/${e.linkedVoucher!.id}`,
+                                )
+                              }
+                              className={
+                                "font-mono text-xs underline " +
+                                (e.linkedVoucher.referenceType ===
+                                "VoucherReversal"
+                                  ? "text-red-700"
+                                  : "text-blue-700")
+                              }
+                            >
+                              {e.linkedVoucher.voucherNumber}
+                            </button>
+                          ) : (
+                            <span className="text-gray-400">
+                              {t("expenses.noVoucher")}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </main>
+  )
+}
