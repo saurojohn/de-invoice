@@ -250,10 +250,14 @@ export function parseMt940(text: string): ParsedStatement[] {
 
     // :62F: closing balance. Some banks (and many
     // editors) append a trailing `-` SWIFT terminator
-    // inside the same line — strip it before parsing.
+    // inside the same line; some add the block's `}`
+    // terminator too. Strip both before parsing.
     const cbRaw = (byTag.get('62F') || byTag.get('62M') || [])[0]
     if (cbRaw) {
-      const cbClean = cbRaw.replace(/-$/, '').trim()
+      const cbClean = cbRaw
+        .replace(/-$/m, '')   // trailing SWIFT `-` on its own line
+        .replace(/\}$/, '')   // trailing block terminator `}`
+        .trim()
       const b = parseBalance(cbClean)
       if (b) {
         closingBalance = b.sign * b.amount

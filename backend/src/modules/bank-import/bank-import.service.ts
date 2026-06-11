@@ -102,6 +102,94 @@ export class BankImportService {
     return rest;
   }
 
+  /**
+   * Parse a bank statement file WITHOUT persisting it.
+   * Returns the parser-detected header metadata
+   * (IBAN, bank, period, balances) and the first N
+   * transactions so the frontend can show a preview
+   * panel: "You're about to import 87 transactions
+   * from Sparkasse Dreieich, IBAN DE32…33, period
+   * 2026-05-01..2026-05-31, opening 12.345,67
+   * closing 11.987,65." The user clicks "Import" only
+   * after eyeballing the preview, which prevents
+   * accidentally importing the wrong account's file.
+   *
+   * Take: how many transactions to include in the
+   * preview (default 25). The total count is always
+   * returned so the UI can show "... and 62 more" if
+   * the file has more.
+   */
+  async previewStatement(content: string, take = 25) {
+    if (!content || content.trim().length === 0) {
+      throw new BadRequestException('Datei ist leer');
+    }
+    const format = detectFormat(content);
+    let parsed: ParsedStatement[];
+    try {
+      if (format === 'mt940') {
+        parsed = parseMt940(content);
+      } else {
+        parsed = parseCamt053(content);
+      }
+    } catch (e: any) {
+      throw new BadRequestException(`Parser-Fehler: ${e?.message || e}`);
+    }
+    if (!parsed.length) {
+      throw new BadRequestException('Keine Kontoauszüge in der Datei erkannt');
+    }
+    const stmt = parsed[0];
+    // Sum debits and credits across all transactions
+    // (not just the preview slice) so the user sees
+    // the total inflow/outflow. A mismatched "open
+    // vs. close balance" check is also returned —
+    // it's a "durchschnittlicher Bankbestand"
+    // reconciliation signal that catches corrupted
+    // files early.
+    let totalDebit = 0;
+    let totalCredit = 0;
+    for (const t of stmt.transactions) {
+      if (t.amount < 0) totalDebit += Math.abs(t.amount);
+      else totalCredit += t.amount;
+    }
+    const open = stmt.openingBalance ?? null;
+    const close = stmt.closingBalance ?? null;
+    // Sanity check: opening + credits - debits should
+    // approximate the closing balance (within 0.01
+    // for rounding). When it doesn't, the file is
+    // either truncated or contains a different
+    // account's transactions mixed in.
+    let balanceCheck: 'ok' | 'mismatch' | 'unknown' = 'unknown';
+    if (open !== null && close !== null) {
+      const expected = open + totalCredit - totalDebit;
+      balanceCheck = Math.abs(expected - close) < 0.01 ? 'ok' : 'mismatch';
+    }
+    // First N transactions for the preview pane.
+    const sample = stmt.transactions.slice(0, take).map((t) => ({
+      valueDate: t.valueDate,
+      entryDate: t.entryDate,
+      amount: t.amount.toString(),
+      currency: t.currency,
+      counterpartyName: t.counterpartyName,
+      counterpartyIban: t.counterpartyIban,
+      purpose: t.purpose,
+      endToEndId: t.endToEndId,
+    }));
+    return {
+      format,
+      accountIban: stmt.accountIban,
+      bankName: stmt.bankName,
+      periodFrom: stmt.periodFrom,
+      periodTo: stmt.periodTo,
+      openingBalance: open?.toString() ?? null,
+      closingBalance: close?.toString() ?? null,
+      totalTransactions: stmt.transactions.length,
+      totalDebit: totalDebit.toFixed(2),
+      totalCredit: totalCredit.toFixed(2),
+      balanceCheck,
+      sampleTransactions: sample,
+    };
+  }
+
   /** List statements (most recent first). */
   async listStatements(companyId: string) {
     return this.prisma.bankStatement.findMany({

@@ -84,6 +84,34 @@ interface Reconciliation {
   } | null
 }
 
+// Shape of /api/v1/bank-statements/preview — the
+// parse-only response that the import button shows
+// before the user actually commits to persisting
+// the file.
+interface PreviewResult {
+  format: string
+  accountIban: string | null
+  bankName: string | null
+  periodFrom: string | null
+  periodTo: string | null
+  openingBalance: string | null
+  closingBalance: string | null
+  totalTransactions: number
+  totalDebit: string
+  totalCredit: string
+  balanceCheck: "ok" | "mismatch" | "unknown"
+  sampleTransactions: {
+    valueDate: string
+    entryDate?: string | null
+    amount: string
+    currency: string
+    counterpartyName: string | null
+    counterpartyIban: string | null
+    purpose: string | null
+    endToEndId: string | null
+  }[]
+}
+
 const fmtMoney = (n: number) =>
   n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
@@ -99,6 +127,16 @@ export default function BankImportPage() {
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Pending import preview — when a file is selected
+  // we PARSE-ONLY first and show the user the IBAN,
+  // bank, period, balances + first N transactions
+  // before persisting. The pending file + parsed
+  // data live here until the user clicks "Bestätigen"
+  // (then import) or "Abbrechen" (discard).
+  const [pendingPreview, setPendingPreview] = useState<{
+    file: File
+    preview: PreviewResult
+  } | null>(null)
 
   // Currently expanded statement + its transactions
   const [openId, setOpenId] = useState<string | null>(null)
@@ -293,24 +331,79 @@ export default function BankImportPage() {
     setUploading(true)
     setError(null)
     try {
-      const formData = new FormData()
-      formData.append("file", file)
-      formData.append("companyId", companyId)
-      if (userId) formData.append("userId", userId)
-      // Use apiFetch (not raw fetch) so the helper adds
-      // the absolute API_BASE prefix and auth headers.
-      // FormData is supported — see lib/api.ts apiFetch.
-      const res = await apiFetch(
-        `/api/v1/bank-statements/import?companyId=${companyId}`,
-        { method: "POST", body: formData }
+      // Step 1: PARSE-ONLY preview. The user gets a
+      // modal with the parsed header (IBAN, bank,
+      // period, balances) + the first 25 transactions.
+      // They click "Import bestätigen" to actually
+      // persist, or "Abbrechen" to discard. This
+      // prevents the very real mistake of uploading
+      // the wrong account's MT940 (e.g. a personal
+      // account file by accident).
+      const previewForm = new FormData()
+      previewForm.append("file", file)
+      const previewRes = await apiFetch(
+        `/api/v1/bank-statements/preview`,
+        { method: "POST", body: previewForm },
       )
-      await reload()
+      const preview: PreviewResult = await previewRes.json()
+      setPendingPreview({ file, preview })
     } catch (err: any) {
-      setError(err?.message || "Upload fehlgeschlagen")
+      setError(err?.message || "Vorschau fehlgeschlagen")
     } finally {
       setUploading(false)
-      e.target.value = "" // allow re-upload of same file
+      // Don't clear e.target.value yet — we still
+      // need the file in pendingPreview.file. We
+      // reset the input after the modal closes.
     }
+  }
+
+  // Confirm the preview — actually persist the file.
+  // Called from the "Bestätigen" button in the
+  // preview modal. After the import, we reload the
+  // statement list and clear the pending preview.
+  const confirmImport = async () => {
+    const pending = pendingPreview
+    if (!pending) return
+    const companyId = localStorage.getItem("companyId")
+    const userId = localStorage.getItem("userId")
+    if (!companyId) {
+      router.push("/login")
+      return
+    }
+    setUploading(true)
+    setError(null)
+    try {
+      const formData = new FormData()
+      formData.append("file", pending.file)
+      formData.append("companyId", companyId)
+      if (userId) formData.append("userId", userId)
+      await apiFetch(
+        `/api/v1/bank-statements/import?companyId=${companyId}`,
+        { method: "POST", body: formData },
+      )
+      setPendingPreview(null)
+      await reload()
+    } catch (err: any) {
+      setError(err?.message || "Import fehlgeschlagen")
+    } finally {
+      setUploading(false)
+      // Reset the file input by setting its value to
+      // empty so the user can re-select the same file
+      // (browsers don't fire onChange for a duplicate
+      // selection otherwise).
+      const fileInput = document.getElementById(
+        "bank-import-file-input",
+      ) as HTMLInputElement | null
+      if (fileInput) fileInput.value = ""
+    }
+  }
+
+  const cancelPreview = () => {
+    setPendingPreview(null)
+    const fileInput = document.getElementById(
+      "bank-import-file-input",
+    ) as HTMLInputElement | null
+    if (fileInput) fileInput.value = ""
   }
 
   const openStatement = async (s: BankStatement) => {
@@ -444,6 +537,7 @@ export default function BankImportPage() {
               <label className="cursor-pointer inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 text-sm font-medium">
                 {uploading ? "..." : t("bankImport.uploadButton")}
                 <input
+                  id="bank-import-file-input"
                   type="file"
                   accept=".sta,.mt940,.txt,.xml"
                   onChange={handleUpload}
@@ -944,6 +1038,189 @@ export default function BankImportPage() {
           </Card>
         )}
       </div>
+
+      {/* Preview modal — shown after the user picks a
+          file. Displays the parsed header (IBAN, bank,
+          period, balances) + the first 25 transactions
+          so they can eyeball-verify it's the right
+          file before the import is committed. */}
+      {pendingPreview && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl p-6 max-h-[90vh] overflow-y-auto">
+            <h2 className="text-xl font-bold mb-1">
+              {t("bankImport.previewTitle") || "Import-Vorschau"}
+            </h2>
+            <p className="text-xs text-gray-500 mb-4">
+              {t("bankImport.previewHint") ||
+                "Prüfen Sie die unten angezeigten Daten, bevor Sie den Import bestätigen."}
+            </p>
+
+            {/* Balance-check warning — flag mismatched
+                opening+credits−debits vs closing. This
+                catches files that were truncated or
+                contain another account's transactions. */}
+            {pendingPreview.preview.balanceCheck === "mismatch" && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-300 rounded text-sm text-red-800">
+                ⚠ {t("bankImport.balanceMismatch") ||
+                  "Eröffnungssaldo + Gutschriften − Lastschriften ≠ Schlusssaldo. Datei möglicherweise unvollständig oder falsches Konto."}
+              </div>
+            )}
+
+            {/* Header strip — IBAN, bank, period,
+                balances. The IBAN is the most
+                important field — if it doesn't match
+                the user's company bank, the import
+                must be cancelled. */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+              <div className="bg-gray-50 rounded p-3">
+                <div className="text-xs text-gray-500 uppercase">IBAN</div>
+                <div className="text-sm font-mono font-bold mt-1">
+                  {pendingPreview.preview.accountIban || "—"}
+                </div>
+              </div>
+              <div className="bg-gray-50 rounded p-3">
+                <div className="text-xs text-gray-500 uppercase">Bank</div>
+                <div className="text-sm font-bold mt-1">
+                  {pendingPreview.preview.bankName || "—"}
+                </div>
+              </div>
+              <div className="bg-gray-50 rounded p-3">
+                <div className="text-xs text-gray-500 uppercase">Zeitraum</div>
+                <div className="text-sm font-bold mt-1">
+                  {pendingPreview.preview.periodFrom &&
+                  pendingPreview.preview.periodTo
+                    ? `${new Date(pendingPreview.preview.periodFrom).toLocaleDateString("de-DE")} – ${new Date(pendingPreview.preview.periodTo).toLocaleDateString("de-DE")}`
+                    : "—"}
+                </div>
+              </div>
+              <div className="bg-gray-50 rounded p-3">
+                <div className="text-xs text-gray-500 uppercase">
+                  Format
+                </div>
+                <div className="text-sm font-mono font-bold mt-1 uppercase">
+                  {pendingPreview.preview.format}
+                </div>
+              </div>
+              <div className="bg-gray-50 rounded p-3">
+                <div className="text-xs text-gray-500 uppercase">
+                  Eröffnung
+                </div>
+                <div className="text-sm font-mono font-bold mt-1">
+                  {pendingPreview.preview.openingBalance
+                    ? `${pendingPreview.preview.openingBalance} €`
+                    : "—"}
+                </div>
+              </div>
+              <div className="bg-gray-50 rounded p-3">
+                <div className="text-xs text-gray-500 uppercase">Schluss</div>
+                <div className="text-sm font-mono font-bold mt-1">
+                  {pendingPreview.preview.closingBalance
+                    ? `${pendingPreview.preview.closingBalance} €`
+                    : "—"}
+                </div>
+              </div>
+              <div className="bg-gray-50 rounded p-3">
+                <div className="text-xs text-gray-500 uppercase">Σ Soll</div>
+                <div className="text-sm font-mono font-bold mt-1 text-red-700">
+                  {pendingPreview.preview.totalDebit} €
+                </div>
+              </div>
+              <div className="bg-gray-50 rounded p-3">
+                <div className="text-xs text-gray-500 uppercase">Σ Haben</div>
+                <div className="text-sm font-mono font-bold mt-1 text-green-700">
+                  {pendingPreview.preview.totalCredit} €
+                </div>
+              </div>
+            </div>
+
+            <div className="mb-2 text-sm font-bold">
+              {t("bankImport.previewSampleTitle") || "Erste Transaktionen"}{" "}
+              <span className="text-gray-500 font-normal">
+                ({pendingPreview.preview.sampleTransactions.length} /{" "}
+                {pendingPreview.preview.totalTransactions})
+              </span>
+            </div>
+
+            <div className="border rounded overflow-x-auto max-h-80">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 sticky top-0">
+                  <tr>
+                    <th className="text-left px-3 py-2 text-xs font-medium text-gray-500">
+                      Datum
+                    </th>
+                    <th className="text-left px-3 py-2 text-xs font-medium text-gray-500">
+                      Gegenpartei
+                    </th>
+                    <th className="text-left px-3 py-2 text-xs font-medium text-gray-500">
+                      Zweck
+                    </th>
+                    <th className="text-right px-3 py-2 text-xs font-medium text-gray-500">
+                      Betrag
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pendingPreview.preview.sampleTransactions.map(
+                    (t, i) => (
+                      <tr key={i} className="border-t">
+                        <td className="px-3 py-1 whitespace-nowrap">
+                          {new Date(t.valueDate).toLocaleDateString("de-DE")}
+                        </td>
+                        <td className="px-3 py-1">
+                          {t.counterpartyName || "—"}
+                        </td>
+                        <td className="px-3 py-1 text-gray-600 max-w-md truncate">
+                          {t.purpose || "—"}
+                        </td>
+                        <td
+                          className={
+                            "px-3 py-1 text-right font-mono " +
+                            (parseFloat(t.amount) < 0
+                              ? "text-red-700"
+                              : "text-green-700")
+                          }
+                        >
+                          {parseFloat(t.amount).toFixed(2)} €
+                        </td>
+                      </tr>
+                    ),
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {pendingPreview.preview.totalTransactions >
+              pendingPreview.preview.sampleTransactions.length && (
+              <div className="text-xs text-gray-500 mt-2 text-center">
+                … und{" "}
+                {pendingPreview.preview.totalTransactions -
+                  pendingPreview.preview.sampleTransactions.length}{" "}
+                weitere
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 mt-4">
+              <button
+                onClick={cancelPreview}
+                disabled={uploading}
+                className="px-4 py-2 text-sm border rounded hover:bg-gray-100"
+              >
+                {t("common.cancel") || "Abbrechen"}
+              </button>
+              <button
+                onClick={confirmImport}
+                disabled={uploading}
+                className="px-4 py-2 text-sm bg-emerald-600 text-white rounded hover:bg-emerald-700"
+              >
+                {uploading
+                  ? "…"
+                  : t("bankImport.previewConfirm") ||
+                    `Import bestätigen (${pendingPreview.preview.totalTransactions} Buchungen)`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

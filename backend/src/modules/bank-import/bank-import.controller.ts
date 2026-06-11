@@ -34,6 +34,33 @@ export class BankImportController {
     return this.svc.importStatement(companyId, userId, file.originalname, content);
   }
 
+  /**
+   * Parse a bank statement without persisting. Used
+   * by the frontend's "preview before import" panel.
+   * Returns header metadata + the first N transactions
+   * so the user can sanity-check the IBAN + period +
+   * bank before clicking the real Import button. The
+   * `balanceCheck` field flags files where
+   * opening + credits − debits ≠ closing (suggests
+   * truncated or wrong-account files).
+   */
+  @Post('preview')
+  @Require('invoice.create')
+  @UseInterceptors(FileInterceptor('file', {
+    limits: { fileSize: 5 * 1024 * 1024 },
+  }))
+  async previewFile(
+    @UploadedFile() file: Express.Multer.File,
+    @Body('take') take?: string,
+  ) {
+    if (!file) throw new BadRequestException('No file uploaded');
+    const content = file.buffer.toString('utf-8');
+    return this.svc.previewStatement(
+      content,
+      take ? Math.min(200, Math.max(1, Number(take))) : 25,
+    );
+  }
+
   /** Confirm a candidate match (writes Payment, flips
    *  the reconciliation to "confirmed" and the invoice
    *  to "paid" if the cumulative payments cover the
