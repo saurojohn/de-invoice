@@ -56,6 +56,16 @@ model Company {
   vatRates    VatRate[]
   vatRateHistories VatRateHistory[]
   invitations UserInvitation[]
+  // Per-company Voucher templates — a saved
+  // pre-filled Buchungssatz that the Berater can
+  // re-use to create a new Voucher in one click
+  // (e.g. "Bankgebühren" = 1200 ↔ 4970). Lines
+  // carry the accountId but NOT the amount — the
+  // user fills the amount each time the template
+  // is used (otherwise the same template would
+  // always create the same booking, which is not
+  // the intent).
+  voucherTemplates VoucherTemplate[]
 
   @@index([name])
 }
@@ -993,4 +1003,39 @@ model BankReconciliation {
   @@unique([bankTransactionId, invoiceId])
   @@index([invoiceId, status])
   @@index([companyId, status])
+}
+
+// VoucherTemplate — a saved Berater-defined "preset
+// Buchungssatz" that the Berater can one-click into
+// the manual Voucher modal. Lines carry the accountId
+// (the SKR03 chart-of-accounts slot) and an optional
+// VAT rate, but NO amount — the amount is filled in
+// at apply-time. The template also carries a
+// description pattern so the new Voucher's description
+// can be auto-filled (e.g. "Bankgebühren <Monat>").
+model VoucherTemplate {
+  id          String    @id @default(uuid())
+  companyId   String
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name        String    // Berater-visible label, e.g. "Bankgebühren"
+  description String?   // optional hint
+  // The body of the new Voucher, if the user picks
+  // "apply template" without overriding. Stored as
+  // a JSON list of {accountNumber, debit|credit, vatRate}
+  // so a template survives even if the company
+  // re-numbers or replaces its Account rows
+  // (templates point at accountNumber, not accountId).
+  // We resolve accountNumber → accountId at apply time.
+  linesJson   String
+  // The description pattern to pre-fill the Voucher
+  // modal with. Use {month} and {year} placeholders
+  // the modal substitutes at apply time.
+  descriptionPattern String?
+  // Per-company ordering — Berater can drag to
+  // re-order; smaller numbers first.
+  sortOrder   Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([companyId, sortOrder])
 }

@@ -50,8 +50,21 @@ export async function apiFetch(path: string, opts: ApiFetchOptions = {}): Promis
   }
   let finalBody: BodyInit | undefined
   if (body !== undefined && body !== null) {
-    if (typeof body === "string" || body instanceof FormData) {
+    if (body instanceof FormData) {
       finalBody = body
+      // FormData sets its own multipart Content-Type
+      // with boundary — never override.
+    } else if (typeof body === "string") {
+      // Caller has already JSON-stringified the body.
+      // Set Content-Type to application/json so the
+      // server-side body parser knows to parse it.
+      // Without this, Nest sees no Content-Type and
+      // leaves req.body as undefined (the bug we hit
+      // in the VoucherTemplate /apply endpoint).
+      finalBody = body
+      if (!finalHeaders["Content-Type"] && !finalHeaders["content-type"]) {
+        finalHeaders["Content-Type"] = "application/json"
+      }
     } else {
       finalBody = JSON.stringify(body)
       if (!finalHeaders["Content-Type"] && !finalHeaders["content-type"]) {

@@ -98,6 +98,16 @@ api_get() {
   BODY=$(echo "$resp" | sed '$d')
 }
 
+api_delete() {
+  local path="$1"
+  local resp
+  resp=$(curl -sS -w "\n%{http_code}" -X DELETE "$API$path" \
+    -H "x-user-id: $USER_ID" \
+    -H "x-company-id: $COMPANY_ID")
+  STATUS=$(echo "$resp" | tail -n1)
+  BODY=$(echo "$resp" | sed '$d')
+}
+
 # ---- Convenience: expect HTTP status, return BODY ----
 assert_status() {
   local expected="$1" what="$2"

@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
-import { apiGet, apiPost } from "@/lib/api"
+import { apiGet, apiPost, apiFetch } from "@/lib/api"
 
 // The enriched Voucher summary returned by the
 // GET /api/v1/accounting/vouchers endpoint. The list
@@ -54,6 +54,22 @@ interface DraftLine {
   description: string
 }
 
+// VoucherTemplate — a saved per-company preset
+// Buchungssatz. Lines are stored as JSON
+// accountNumber+side+optionalVatRate; the
+// /apply endpoint resolves them to accountIds
+// at apply time. descriptionPattern is the
+// pre-fill string (with {month}/{year}/
+// {counterparty} placeholders) the new
+// Voucher's description is generated from.
+interface Template {
+  id: string
+  name: string
+  description: string | null
+  linesJson: string
+  descriptionPattern: string | null
+}
+
 // All referenceTypes we currently emit. Used to populate
 // the filter dropdown and to translate the badge.
 const REFERENCE_TYPE_LABELS: Record<string, string> = {
@@ -89,6 +105,17 @@ export default function AccountingPage() {
   ])
   const [createError, setCreateError] = useState<string | null>(null)
   const [createSaving, setCreateSaving] = useState(false)
+  // Template-driven modal — when the user picks a
+  // saved template, we POST /apply with the amount +
+  // date to resolve the lines and description. The
+  // resolved lines pre-fill the modal; the user just
+  // adjusts the amount if needed.
+  const [templates, setTemplates] = useState<Template[]>([])
+  const [pendingTemplate, setPendingTemplate] = useState<{
+    id: string
+    name: string
+    amount: string
+  } | null>(null)
 
   // Push user input into the debounced field after 200ms.
   useEffect(() => {
@@ -142,6 +169,24 @@ export default function AccountingPage() {
   useEffect(() => {
     loadAccounts()
   }, [loadAccounts])
+
+  // Per-company Voucher templates (e.g. "Bankgebühren"
+  // = 1200 ↔ 4970). The Berater can one-click apply a
+  // template in the manual Voucher modal — the lines
+  // get pre-filled, the user just types the amount.
+  const loadTemplates = useCallback(async () => {
+    const companyId = localStorage.getItem("companyId")
+    if (!companyId) return
+    try {
+      const data = await apiGet(`/api/v1/voucher-templates?companyId=${companyId}`)
+      setTemplates(Array.isArray(data) ? data : [])
+    } catch (e) {
+      console.error("templates load failed", e)
+    }
+  }, [])
+  useEffect(() => {
+    loadTemplates()
+  }, [loadTemplates])
 
   // Live Soll/Haben balance of the draft lines.
   // The user gets immediate feedback as they fill
@@ -549,6 +594,145 @@ export default function AccountingPage() {
                   placeholder="z.B. Reisekosten, Korrektur, Abgrenzung"
                   className="w-full border rounded px-3 py-2 text-sm mt-1"
                 />
+              </div>
+            </div>
+
+            {/* Template quick-apply: a dropdown of saved
+                templates + amount input + Apply button.
+                The apply POSTs to /voucher-templates/:id/apply
+                which resolves accountNumbers → accountIds
+                and returns pre-filled lines + a
+                placeholder-substituted description. The
+                user can still tweak the lines / amounts
+                after applying — the apply result is a
+                starting point, not a final commitment. */}
+            <div className="mt-3 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+              <div className="grid grid-cols-12 gap-2 items-end">
+                <div className="col-span-6">
+                  <label className="text-xs font-bold text-emerald-800 uppercase">
+                    {t("accounting.applyTemplate") || "Aus Vorlage übernehmen"}
+                  </label>
+                  <select
+                    value={pendingTemplate?.id || ""}
+                    onChange={(e) =>
+                      setPendingTemplate((prev) => ({
+                        id: e.target.value,
+                        name:
+                          templates.find((t) => t.id === e.target.value)
+                            ?.name || "",
+                        amount: prev?.amount || "",
+                      }))
+                    }
+                    className="w-full border rounded px-2 py-1 text-sm mt-1"
+                  >
+                    <option value="">
+                      {templates.length === 0
+                        ? t("accounting.noTemplates") ||
+                          "Keine Vorlagen — unter Einstellungen anlegen"
+                        : "— Vorlage wählen —"}
+                    </option>
+                    {templates.map((tpl) => (
+                      <option key={tpl.id} value={tpl.id}>
+                        {tpl.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="col-span-3">
+                  <label className="text-xs text-emerald-800 uppercase">
+                    Betrag €
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={pendingTemplate?.amount || ""}
+                    onChange={(e) =>
+                      setPendingTemplate((prev) =>
+                        prev
+                          ? { ...prev, amount: e.target.value }
+                          : { id: "", name: "", amount: e.target.value },
+                      )
+                    }
+                    className="w-full border rounded px-2 py-1 text-sm text-right font-mono mt-1"
+                    placeholder="0,00"
+                  />
+                </div>
+                <div className="col-span-3">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!pendingTemplate?.id || !pendingTemplate?.amount) {
+                        return
+                      }
+                      const companyId =
+                        localStorage.getItem("companyId") || ""
+                      try {
+                        // apiFetch builds the absolute
+                        // API_BASE prefix (3001), adds
+                        // the auth headers, and serializes
+                        // the body as JSON with the right
+                        // Content-Type. Pass a plain
+                        // object — DON'T pre-stringify,
+                        // otherwise Content-Type won't be
+                        // set and the server's body parser
+                        // leaves req.body undefined.
+                        const res = await apiFetch(
+                          `/api/v1/voucher-templates/${pendingTemplate.id}/apply?companyId=${companyId}`,
+                          {
+                            method: "POST",
+                            body: {
+                              amount: parseFloat(pendingTemplate.amount),
+                              date: draftDate,
+                            },
+                          },
+                        )
+                        if (!res.ok) {
+                          const err = await res
+                            .json()
+                            .catch(() => ({ message: res.statusText }))
+                          alert(err.message || "Vorlage fehlgeschlagen")
+                          return
+                        }
+                        const data = await res.json()
+                        // Convert server lines → draft lines.
+                        setDraftLines(
+                          data.lines.map((l: any) => ({
+                            accountId: l.accountId,
+                            debit: l.debit.toFixed(2),
+                            credit: l.credit.toFixed(2),
+                            description: l.description || "",
+                          })),
+                        )
+                        if (data.description && !draftDescription) {
+                          setDraftDescription(data.description)
+                        }
+                        // Surface unfilled placeholders
+                        // as a soft alert so the user can
+                        // fix them.
+                        if (
+                          data.unfilledPlaceholders &&
+                          data.unfilledPlaceholders.length > 0
+                        ) {
+                          setCreateError(
+                            `Hinweis: ${data.unfilledPlaceholders.join(
+                              ", ",
+                            )} noch nicht ausgefüllt — bitte ergänzen.`,
+                          )
+                        } else {
+                          setCreateError(null)
+                        }
+                      } catch (e: any) {
+                        alert("Fehler: " + (e?.message || String(e)))
+                      }
+                    }}
+                    disabled={
+                      !pendingTemplate?.id || !pendingTemplate?.amount
+                    }
+                    className="w-full bg-emerald-600 text-white text-sm rounded px-3 py-1.5 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {t("accounting.applyTemplateButton") || "Übernehmen"}
+                  </button>
+                </div>
               </div>
             </div>
 
