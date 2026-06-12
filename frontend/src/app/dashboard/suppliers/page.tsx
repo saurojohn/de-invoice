@@ -122,12 +122,12 @@ export default function SuppliersPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <div className="container mx-auto px-4 py-8">
         <div className="flex justify-between items-center mb-6">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">{t("suppliers.title")}</h1>
-            <p className="text-gray-500 mt-1">{t("suppliers.subtitle")}</p>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">{t("suppliers.title")}</h1>
+            <p className="text-gray-500 dark:text-gray-400 mt-1">{t("suppliers.subtitle")}</p>
           </div>
           <div className="flex gap-2 items-center">
             <LanguageSwitcher />
@@ -145,7 +145,7 @@ export default function SuppliersPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && reload()}
-            className="w-full max-w-md px-3 py-2 border border-gray-300 rounded"
+            className="w-full max-w-md px-3 py-2 border border-gray dark:border-gray-700-300 dark:border-gray-600 rounded"
           />
         </div>
 
@@ -159,7 +159,7 @@ export default function SuppliersPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-left text-gray-500 text-xs border-b">
+                  <tr className="text-left text-gray-500 dark:text-gray-400 text-xs border-b">
                     <th className="py-2">{t("suppliers.name")}</th>
                     <th>{t("suppliers.vatId")}</th>
                     <th>{t("suppliers.city")}</th>
@@ -170,7 +170,7 @@ export default function SuppliersPage() {
                 </thead>
                 <tbody>
                   {suppliers.map((s) => (
-                    <tr key={s.id} className="border-b hover:bg-gray-50">
+                    <tr key={s.id} className="border-b hover:bg-gray-50 dark:bg-gray-900">
                       <td className="py-2 font-medium">{s.name}</td>
                       <td className="font-mono text-xs">{s.vatId || "—"}</td>
                       <td className="text-xs">
@@ -189,7 +189,7 @@ export default function SuppliersPage() {
                             size="sm"
                             variant="outline"
                             onClick={() => remove(s)}
-                            className="text-red-700"
+                            className="text-red-700 dark:text-red-300"
                           >
                             {t("common.delete")}
                           </Button>
@@ -200,7 +200,7 @@ export default function SuppliersPage() {
                 </tbody>
               </table>
               {!loading && suppliers.length === 0 && (
-                <div className="text-sm text-gray-500 text-center py-8">
+                <div className="text-sm text-gray-500 dark:text-gray-400 text-center py-8">
                   {t("suppliers.empty")}
                 </div>
               )}
@@ -211,57 +211,57 @@ export default function SuppliersPage() {
         {/* Edit/Create modal */}
         {showModal && (
           <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto">
               <h2 className="text-xl font-bold mb-4">
                 {editing ? t("suppliers.editTitle") : t("suppliers.addTitle")}
               </h2>
               {error && (
-                <div className="mb-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded p-2">
+                <div className="mb-3 text-sm text-red-700 dark:text-red-300 bg-red-50 border border-red-200 rounded p-2">
                   {error}
                 </div>
               )}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                 <div className="md:col-span-2">
-                  <label className="block text-gray-600 mb-1">{t("suppliers.name")} *</label>
+                  <label className="block text-gray-600 dark:text-gray-300 mb-1">{t("suppliers.name")} *</label>
                   <input
                     type="text"
                     value={form.name}
                     onChange={(e) => setForm({ ...form, name: e.target.value })}
-                    className="w-full px-2 py-1 border border-gray-300 rounded"
+                    className="w-full px-2 py-1 border border-gray dark:border-gray-700-300 dark:border-gray-600 rounded"
                   />
                 </div>
                 <div>
-                  <label className="block text-gray-600 mb-1">{t("suppliers.vatId")}</label>
+                  <label className="block text-gray-600 dark:text-gray-300 mb-1">{t("suppliers.vatId")}</label>
                   <input
                     type="text"
                     value={form.vatId}
                     onChange={(e) => setForm({ ...form, vatId: e.target.value })}
-                    className="w-full px-2 py-1 border border-gray-300 rounded font-mono"
+                    className="w-full px-2 py-1 border border-gray dark:border-gray-700-300 dark:border-gray-600 rounded font-mono"
                     placeholder="DE123456789"
                   />
                 </div>
                 <div>
-                  <label className="block text-gray-600 mb-1">{t("suppliers.paymentTerms")}</label>
+                  <label className="block text-gray-600 dark:text-gray-300 mb-1">{t("suppliers.paymentTerms")}</label>
                   <input
                     type="number"
                     value={form.paymentTerms}
                     onChange={(e) => setForm({ ...form, paymentTerms: Number(e.target.value) })}
-                    className="w-full px-2 py-1 border border-gray-300 rounded"
+                    className="w-full px-2 py-1 border border-gray dark:border-gray-700-300 dark:border-gray-600 rounded"
                   />
                 </div>
                 <div className="md:col-span-2">
-                  <label className="block text-gray-600 mb-1">{t("suppliers.street")}</label>
+                  <label className="block text-gray-600 dark:text-gray-300 mb-1">{t("suppliers.street")}</label>
                   <input
                     type="text"
                     value={form.address?.street || ""}
                     onChange={(e) =>
                       setForm({ ...form, address: { ...form.address, street: e.target.value } })
                     }
-                    className="w-full px-2 py-1 border border-gray-300 rounded"
+                    className="w-full px-2 py-1 border border-gray dark:border-gray-700-300 dark:border-gray-600 rounded"
                   />
                 </div>
                 <div>
-                  <label className="block text-gray-600 mb-1">{t("suppliers.postalCode")}</label>
+                  <label className="block text-gray-600 dark:text-gray-300 mb-1">{t("suppliers.postalCode")}</label>
                   <input
                     type="text"
                     value={form.address?.postalCode || ""}
@@ -271,40 +271,40 @@ export default function SuppliersPage() {
                         address: { ...form.address, postalCode: e.target.value },
                       })
                     }
-                    className="w-full px-2 py-1 border border-gray-300 rounded"
+                    className="w-full px-2 py-1 border border-gray dark:border-gray-700-300 dark:border-gray-600 rounded"
                   />
                 </div>
                 <div>
-                  <label className="block text-gray-600 mb-1">{t("suppliers.city")}</label>
+                  <label className="block text-gray-600 dark:text-gray-300 mb-1">{t("suppliers.city")}</label>
                   <input
                     type="text"
                     value={form.address?.city || ""}
                     onChange={(e) =>
                       setForm({ ...form, address: { ...form.address, city: e.target.value } })
                     }
-                    className="w-full px-2 py-1 border border-gray-300 rounded"
+                    className="w-full px-2 py-1 border border-gray dark:border-gray-700-300 dark:border-gray-600 rounded"
                   />
                 </div>
                 <div>
-                  <label className="block text-gray-600 mb-1">{t("suppliers.email")}</label>
+                  <label className="block text-gray-600 dark:text-gray-300 mb-1">{t("suppliers.email")}</label>
                   <input
                     type="email"
                     value={form.contact?.email || ""}
                     onChange={(e) =>
                       setForm({ ...form, contact: { ...form.contact, email: e.target.value } })
                     }
-                    className="w-full px-2 py-1 border border-gray-300 rounded"
+                    className="w-full px-2 py-1 border border-gray dark:border-gray-700-300 dark:border-gray-600 rounded"
                   />
                 </div>
                 <div>
-                  <label className="block text-gray-600 mb-1">{t("suppliers.iban")}</label>
+                  <label className="block text-gray-600 dark:text-gray-300 mb-1">{t("suppliers.iban")}</label>
                   <input
                     type="text"
                     value={form.bankInfo?.iban || ""}
                     onChange={(e) =>
                       setForm({ ...form, bankInfo: { ...form.bankInfo, iban: e.target.value } })
                     }
-                    className="w-full px-2 py-1 border border-gray-300 rounded font-mono"
+                    className="w-full px-2 py-1 border border-gray dark:border-gray-700-300 dark:border-gray-600 rounded font-mono"
                   />
                 </div>
               </div>

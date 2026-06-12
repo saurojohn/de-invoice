@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { RevenueChart } from "@/components/RevenueChart"
+import { ThemeToggle } from "@/components/ThemeToggle"
 import { useI18n } from "@/components/useI18n"
 import { apiGet } from "@/lib/api"
 
@@ -133,12 +134,13 @@ export default function DashboardPage() {
   }, [router])
 
   return (
-    <main className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b shadow-sm">
+    <main className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <header className="bg-white dark:bg-gray-800 border-b shadow-sm">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-blue-600">{t("dashboard.title")}</h1>
+          <h1 className="text-2xl font-bold text-blue-600 dark:text-blue-400">{t("dashboard.title")}</h1>
           <div className="flex items-center gap-4">
             <LanguageSwitcher />
+            <ThemeToggle />
             <Button variant="outline" onClick={() => {
               localStorage.clear()
               router.push("/login")
@@ -163,13 +165,13 @@ export default function DashboardPage() {
           {/* YTD Revenue */}
           <Card>
             <CardContent className="pt-6">
-              <div className="text-xs text-gray-500 uppercase">
+              <div className="text-xs text-gray-500 dark:text-gray-400 uppercase">
                 {t("dashboard.kpiYtdRevenue") || "Umsatz YTD"}
               </div>
-              <div className="text-2xl font-bold text-blue-600 mt-1">
+              <div className="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-1">
                 {fmtMoney(kpis?.ytd.revenue || 0)} €
               </div>
-              <div className="text-xs text-gray-500 mt-1">
+              <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 {kpis?.ytd.countInvoices || 0} Rechnungen
               </div>
             </CardContent>
@@ -177,13 +179,13 @@ export default function DashboardPage() {
           {/* YTD Expenses */}
           <Card>
             <CardContent className="pt-6">
-              <div className="text-xs text-gray-500 uppercase">
+              <div className="text-xs text-gray-500 dark:text-gray-400 uppercase">
                 {t("dashboard.kpiYtdExpenses") || "Aufwand YTD"}
               </div>
-              <div className="text-2xl font-bold text-red-600 mt-1">
+              <div className="text-2xl font-bold text-red-600 dark:text-red-400 mt-1">
                 {fmtMoney(kpis?.ytd.expenses || 0)} €
               </div>
-              <div className="text-xs text-gray-500 mt-1">
+              <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 {kpis?.ytd.countExpenses || 0} Eingangsrechnungen
               </div>
             </CardContent>
@@ -191,18 +193,18 @@ export default function DashboardPage() {
           {/* YTD Net Profit */}
           <Card>
             <CardContent className="pt-6">
-              <div className="text-xs text-gray-500 uppercase">
+              <div className="text-xs text-gray-500 dark:text-gray-400 uppercase">
                 {t("dashboard.kpiYtdNet") || "Gewinn YTD"}
               </div>
               <div
                 className={
                   "text-2xl font-bold mt-1 " +
-                  ((kpis?.ytd.net || 0) >= 0 ? "text-green-600" : "text-red-600")
+                  ((kpis?.ytd.net || 0) >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400")
                 }
               >
                 {fmtMoney(kpis?.ytd.net || 0)} €
               </div>
-              <div className="text-xs text-gray-500 mt-1">
+              <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 Umsatz − Aufwand
               </div>
             </CardContent>
@@ -210,13 +212,13 @@ export default function DashboardPage() {
           {/* Open Receivables */}
           <Card>
             <CardContent className="pt-6">
-              <div className="text-xs text-gray-500 uppercase">
+              <div className="text-xs text-gray-500 dark:text-gray-400 uppercase">
                 {t("dashboard.kpiOpenRecv") || "Offene Forderungen"}
               </div>
-              <div className="text-2xl font-bold text-yellow-700 mt-1">
+              <div className="text-2xl font-bold text-yellow-700 dark:text-yellow-300 mt-1">
                 {fmtMoney(kpis?.openReceivables || 0)} €
               </div>
-              <div className="text-xs text-gray-500 mt-1">
+              <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 Unbezahlte Rechnungen
               </div>
             </CardContent>
@@ -245,23 +247,23 @@ export default function DashboardPage() {
             return (
               <Card key={c.key}>
                 <CardContent className="pt-6">
-                  <div className="text-xs text-gray-500 uppercase">
+                  <div className="text-xs text-gray-500 dark:text-gray-400 uppercase">
                     {c.label}
                   </div>
                   <div className="text-xl font-bold mt-1">
                     {fmtMoney(c.cur)} €
                   </div>
-                  <div className="text-xs text-gray-500 mt-1">
+                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                     vs. {fmtMoney(c.prev)} € Vormonat
                   </div>
                   <div
                     className={
                       "text-sm font-bold mt-2 " +
                       (c.change === 0
-                        ? "text-gray-500"
+                        ? "text-gray-500 dark:text-gray-400"
                         : isGood
-                        ? "text-green-600"
-                        : "text-red-600")
+                        ? "text-green-600 dark:text-green-400"
+                        : "text-red-600 dark:text-red-400")
                     }
                   >
                     {arrow} {Math.abs(c.change).toFixed(1)} %
@@ -296,7 +298,7 @@ export default function DashboardPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="text-left text-gray-500 text-xs border-b">
+                    <tr className="text-left text-gray-500 dark:text-gray-400 text-xs border-b">
                       <th className="py-2">{t("invoice.number") || "Nr."}</th>
                       <th>{t("invoice.customer") || "Kunde"}</th>
                       <th>{t("invoice.issueDate") || "Datum"}</th>
@@ -310,14 +312,14 @@ export default function DashboardPage() {
                       const statusColor =
                         status === "paid" ? "bg-emerald-100 text-emerald-800"
                         : status === "overdue" ? "bg-red-100 text-red-800"
-                        : status === "cancelled" ? "bg-gray-100 text-gray-600"
+                        : status === "cancelled" ? "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300"
                         : "bg-yellow-100 text-yellow-800"
                       return (
-                        <tr key={inv.id} className="border-b hover:bg-gray-50">
+                        <tr key={inv.id} className="border-b hover:bg-gray-50 dark:bg-gray-900">
                           <td className="py-2 font-mono">
                             <Link
                               href={`/dashboard/invoices/${inv.id}`}
-                              className="text-blue-600 hover:underline"
+                              className="text-blue-600 dark:text-blue-400 hover:underline"
                             >
                               {inv.invoiceNumber}
                             </Link>
@@ -351,17 +353,17 @@ export default function DashboardPage() {
         <h2 className="text-xl font-semibold mb-4">{t("dashboard.quickActions")}</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <Card
-            className="cursor-pointer hover:shadow-lg transition-shadow border-blue-300 bg-blue-50/50"
+            className="cursor-pointer hover:shadow-lg transition-shadow border-blue-300 dark:border-blue-700 bg-blue-50/50"
             onClick={() => router.push("/dashboard/invoices/create")}
           >
             <CardHeader>
-              <CardTitle className="text-blue-700 flex items-center gap-2">
+              <CardTitle className="text-blue-700 dark:text-blue-300 flex items-center gap-2">
                 <span className="text-2xl leading-none">+</span>
                 {t("dashboard.cardCreateInvoiceTitle")}
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-gray-600">{t("dashboard.cardCreateInvoiceDesc")}</p>
+              <p className="text-gray-600 dark:text-gray-300">{t("dashboard.cardCreateInvoiceDesc")}</p>
             </CardContent>
           </Card>
           <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/invoices")}>
@@ -369,7 +371,7 @@ export default function DashboardPage() {
               <CardTitle>{t("dashboard.cardInvoiceTitle")}</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-gray-600">{t("dashboard.cardInvoiceDesc")}</p>
+              <p className="text-gray-600 dark:text-gray-300">{t("dashboard.cardInvoiceDesc")}</p>
             </CardContent>
           </Card>
           <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/customers")}>
@@ -377,7 +379,7 @@ export default function DashboardPage() {
               <CardTitle>{t("dashboard.cardCustomerTitle")}</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-gray-600">{t("dashboard.cardCustomerDesc")}</p>
+              <p className="text-gray-600 dark:text-gray-300">{t("dashboard.cardCustomerDesc")}</p>
             </CardContent>
           </Card>
           <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/products")}>
@@ -385,7 +387,7 @@ export default function DashboardPage() {
               <CardTitle>{t("dashboard.cardProductTitle")}</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-gray-600">{t("dashboard.cardProductDesc")}</p>
+              <p className="text-gray-600 dark:text-gray-300">{t("dashboard.cardProductDesc")}</p>
             </CardContent>
           </Card>
           {/* Inventory card — placed right after Products
@@ -403,7 +405,7 @@ export default function DashboardPage() {
               <CardTitle>{t("dashboard.cardInventoryTitle")}</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-gray-600">{t("dashboard.cardInventoryDesc")}</p>
+              <p className="text-gray-600 dark:text-gray-300">{t("dashboard.cardInventoryDesc")}</p>
             </CardContent>
           </Card>
           <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/accounting")}>
@@ -411,7 +413,7 @@ export default function DashboardPage() {
               <CardTitle>{t("dashboard.cardAccountingTitle")}</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-gray-600">{t("dashboard.cardAccountingDesc")}</p>
+              <p className="text-gray-600 dark:text-gray-300">{t("dashboard.cardAccountingDesc")}</p>
             </CardContent>
           </Card>
           <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/reports")}>
@@ -419,15 +421,15 @@ export default function DashboardPage() {
               <CardTitle>{t("dashboard.cardReportsTitle")}</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-gray-600">{t("dashboard.cardReportsDesc")}</p>
+              <p className="text-gray-600 dark:text-gray-300">{t("dashboard.cardReportsDesc")}</p>
             </CardContent>
           </Card>
           <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/reminders")}>
             <CardHeader>
-              <CardTitle className="text-red-600">{t("dashboard.cardRemindersTitle")}</CardTitle>
+              <CardTitle className="text-red-600 dark:text-red-400">{t("dashboard.cardRemindersTitle")}</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-gray-600">{t("dashboard.cardRemindersDesc")}</p>
+              <p className="text-gray-600 dark:text-gray-300">{t("dashboard.cardRemindersDesc")}</p>
             </CardContent>
           </Card>
           <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/email")}>
@@ -435,7 +437,7 @@ export default function DashboardPage() {
               <CardTitle>{t("dashboard.cardEmailTitle")}</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-gray-600">{t("dashboard.cardEmailDesc")}</p>
+              <p className="text-gray-600 dark:text-gray-300">{t("dashboard.cardEmailDesc")}</p>
             </CardContent>
           </Card>
           <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/recurring-invoices")}>
@@ -443,7 +445,7 @@ export default function DashboardPage() {
               <CardTitle>{t("dashboard.cardRecurringTitle")}</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-gray-600">{t("dashboard.cardRecurringDesc")}</p>
+              <p className="text-gray-600 dark:text-gray-300">{t("dashboard.cardRecurringDesc")}</p>
             </CardContent>
           </Card>
           <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/cashbook")}>
@@ -451,23 +453,23 @@ export default function DashboardPage() {
               <CardTitle className="text-emerald-700">{t("dashboard.cardCashbookTitle")}</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-gray-600">{t("dashboard.cardCashbookDesc")}</p>
+              <p className="text-gray-600 dark:text-gray-300">{t("dashboard.cardCashbookDesc")}</p>
             </CardContent>
           </Card>
           <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/bank-import")}>
             <CardHeader>
-              <CardTitle className="text-blue-700">{t("dashboard.cardBankImportTitle")}</CardTitle>
+              <CardTitle className="text-blue-700 dark:text-blue-300">{t("dashboard.cardBankImportTitle")}</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-gray-600">{t("dashboard.cardBankImportDesc")}</p>
+              <p className="text-gray-600 dark:text-gray-300">{t("dashboard.cardBankImportDesc")}</p>
             </CardContent>
           </Card>
           <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/suppliers")}>
             <CardHeader>
-              <CardTitle className="text-orange-700">{t("dashboard.cardSuppliersTitle")}</CardTitle>
+              <CardTitle className="text-orange-700 dark:text-orange-300">{t("dashboard.cardSuppliersTitle")}</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-gray-600">{t("dashboard.cardSuppliersDesc")}</p>
+              <p className="text-gray-600 dark:text-gray-300">{t("dashboard.cardSuppliersDesc")}</p>
             </CardContent>
           </Card>
           <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/accounting")}>
@@ -475,15 +477,15 @@ export default function DashboardPage() {
               <CardTitle className="text-emerald-700">{t("dashboard.cardVouchersTitle")}</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-gray-600">{t("dashboard.cardVouchersDesc")}</p>
+              <p className="text-gray-600 dark:text-gray-300">{t("dashboard.cardVouchersDesc")}</p>
             </CardContent>
           </Card>
           <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/expenses")}>
             <CardHeader>
-              <CardTitle className="text-red-700">{t("dashboard.cardExpensesTitle")}</CardTitle>
+              <CardTitle className="text-red-700 dark:text-red-300">{t("dashboard.cardExpensesTitle")}</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-gray-600">{t("dashboard.cardExpensesDesc")}</p>
+              <p className="text-gray-600 dark:text-gray-300">{t("dashboard.cardExpensesDesc")}</p>
             </CardContent>
           </Card>
           <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/settings")}>
@@ -491,7 +493,7 @@ export default function DashboardPage() {
               <CardTitle>{t("dashboard.cardSettingsTitle")}</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-gray-600">{t("dashboard.cardSettingsDesc")}</p>
+              <p className="text-gray-600 dark:text-gray-300">{t("dashboard.cardSettingsDesc")}</p>
             </CardContent>
           </Card>
         </div>

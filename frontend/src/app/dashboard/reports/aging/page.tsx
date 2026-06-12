@@ -104,15 +104,15 @@ export default function AgingReportPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <div className="container mx-auto px-4 py-8">
         <div className="flex justify-between items-center mb-6">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
               {t("aging.title") || "Altersstruktur (Aging Report)"}
             </h1>
             {report && (
-              <p className="text-gray-500 mt-1">
+              <p className="text-gray-500 dark:text-gray-400 mt-1">
                 {t("aging.asOf") || "Stand"}: {fmtDate(report.asOf)} ·{" "}
                 {report.customerCount} {t("aging.customers") || "Kunden"} ·{" "}
                 <span className="font-mono font-medium">€ {fmt(report.grandTotal)}</span>{" "}
@@ -132,10 +132,10 @@ export default function AgingReportPage() {
         </div>
 
         {loading ? (
-          <div className="text-center py-12 text-gray-500">{t("common.loading") || "Lädt..."}</div>
+          <div className="text-center py-12 text-gray-500 dark:text-gray-400">{t("common.loading") || "Lädt..."}</div>
         ) : !report || report.rows.length === 0 ? (
           <Card>
-            <CardContent className="pt-6 text-center text-gray-500 py-12">
+            <CardContent className="pt-6 text-center text-gray-500 dark:text-gray-400 py-12">
               {t("aging.empty") || "Keine offenen Posten — alles bezahlt 🎉"}
             </CardContent>
           </Card>
@@ -148,7 +148,7 @@ export default function AgingReportPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b text-left text-gray-500">
+                    <tr className="border-b text-left text-gray-500 dark:text-gray-400">
                       <th className="py-2 font-medium">
                         <button onClick={() => setSortBy('name')} className="hover:underline">
                           {t("aging.colCustomer") || "Kunde"}
@@ -174,14 +174,14 @@ export default function AgingReportPage() {
                   </thead>
                   <tbody>
                     {sortedRows.map((r) => (
-                      <tr key={r.customerId} className="border-b hover:bg-gray-50">
+                      <tr key={r.customerId} className="border-b hover:bg-gray-50 dark:bg-gray-900">
                         <td className="py-2">
                           <div className="font-medium">{r.customerName}</div>
                           {r.customerNumber && (
-                            <div className="text-xs text-gray-500 font-mono">{r.customerNumber}</div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400 font-mono">{r.customerNumber}</div>
                           )}
                         </td>
-                        <td className="py-2 text-center text-gray-600">{r.invoiceCount}</td>
+                        <td className="py-2 text-center text-gray-600 dark:text-gray-300">{r.invoiceCount}</td>
                         {BUCKET_ORDER.map((b) => {
                           const v = r.buckets[b]
                           if (v === 0) return <td key={b} className="py-2 text-right text-gray-300">—</td>
@@ -194,7 +194,7 @@ export default function AgingReportPage() {
                         <td className="py-2 text-right font-mono font-medium">€ {fmt(r.totalOpen)}</td>
                         <td className="py-2 text-right text-sm">
                           {r.oldestDaysOverdue > 0
-                            ? <span className={r.oldestDaysOverdue > 60 ? "text-red-700 font-medium" : "text-gray-600"}>
+                            ? <span className={r.oldestDaysOverdue > 60 ? "text-red-700 dark:text-red-300 font-medium" : "text-gray-600 dark:text-gray-300"}>
                                 {r.oldestDaysOverdue} {t("aging.days") || "Tage"}
                               </span>
                             : <span className="text-emerald-700">{t("aging.notOverdue") || "nicht überfällig"}</span>
@@ -204,7 +204,7 @@ export default function AgingReportPage() {
                     ))}
                   </tbody>
                   <tfoot>
-                    <tr className="border-t-2 border-gray-300 font-bold">
+                    <tr className="border-t-2 border-gray dark:border-gray-700-300 dark:border-gray-600 font-bold">
                       <td className="py-3">{t("aging.total") || "GESAMT"}</td>
                       <td className="py-3 text-center">
                         {sortedRows.reduce((s, r) => s + r.invoiceCount, 0)}

@@ -11,9 +11,9 @@ export default function HomePage() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
 
   return (
-    <main className="min-h-screen bg-gray-50">
+    <main className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Header */}
-      <header className="bg-white border-b">
+      <header className="bg-white dark:bg-gray-800 border-b">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <h1 className="text-2xl font-bold text-blue-600">
             {t("common.appName")}
@@ -41,10 +41,10 @@ export default function HomePage() {
       {/* Hero Section */}
       <section className="py-20 text-center">
         <div className="container mx-auto px-4">
-          <h2 className="text-4xl font-bold text-gray-900 mb-4">
+          <h2 className="text-4xl font-bold text-gray-900 dark:text-gray-100 mb-4">
             {t("home.heroTitle")}
           </h2>
-          <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
+          <p className="text-xl text-gray-600 dark:text-gray-300 mb-8 max-w-2xl mx-auto">
             {t("home.heroSubtitle")}
           </p>
           <div className="flex gap-4 justify-center">
@@ -66,7 +66,7 @@ export default function HomePage() {
       </section>
 
       {/* Features Grid */}
-      <section id="features" className="py-16 bg-white scroll-mt-16">
+      <section id="features" className="py-16 bg-white dark:bg-gray-800 scroll-mt-16">
         <div className="container mx-auto px-4">
           <h3 className="text-3xl font-bold text-center mb-12">
             {t("home.coreFeatures")}
@@ -77,7 +77,7 @@ export default function HomePage() {
                 <CardTitle>{t("home.featureInvoiceTitle")}</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-gray-600">{t("home.featureInvoiceDesc")}</p>
+                <p className="text-gray-600 dark:text-gray-300">{t("home.featureInvoiceDesc")}</p>
               </CardContent>
             </Card>
             <Card>
@@ -85,7 +85,7 @@ export default function HomePage() {
                 <CardTitle>{t("home.featureAccountingTitle")}</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-gray-600">{t("home.featureAccountingDesc")}</p>
+                <p className="text-gray-600 dark:text-gray-300">{t("home.featureAccountingDesc")}</p>
               </CardContent>
             </Card>
             <Card>
@@ -93,7 +93,7 @@ export default function HomePage() {
                 <CardTitle>{t("home.featureVatTitle")}</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-gray-600">{t("home.featureVatDesc")}</p>
+                <p className="text-gray-600 dark:text-gray-300">{t("home.featureVatDesc")}</p>
               </CardContent>
             </Card>
           </div>
@@ -101,7 +101,7 @@ export default function HomePage() {
       </section>
 
       {/* Footer */}
-      <footer className="py-8 text-center text-gray-500">
+      <footer className="py-8 text-center text-gray-500 dark:text-gray-400">
         <p>© 2026 {t("common.appName")}. {t("home.footer")}</p>
       </footer>
     </main>

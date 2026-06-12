@@ -544,10 +544,10 @@ export default function CreateInvoicePage() {
 
   const getInvoiceTypeColor = (type: InvoiceType) => {
     const colors: Record<InvoiceType, string> = {
-      INV: "bg-blue-100 text-blue-700",
-      CN: "bg-orange-100 text-orange-700",
-      PI: "bg-purple-100 text-purple-700",
-      RCV: "bg-green-100 text-green-700",
+      INV: "bg-blue-100 text-blue-700 dark:text-blue-300",
+      CN: "bg-orange-100 text-orange-700 dark:text-orange-300",
+      PI: "bg-purple-100 text-purple-700 dark:text-purple-300",
+      RCV: "bg-green-100 text-green-700 dark:text-green-300",
     }
     return colors[type]
   }
@@ -757,10 +757,10 @@ export default function CreateInvoicePage() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b shadow-sm">
+    <main className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <header className="bg-white dark:bg-gray-800 border-b shadow-sm">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-blue-600">
+          <h1 className="text-2xl font-bold text-blue-600 dark:text-blue-400">
             {isEdit ? (t("invoice.edit") || "Rechnung bearbeiten") : t("invoice.create")}
           </h1>
           <div className="flex items-center gap-2">
@@ -816,8 +816,8 @@ export default function CreateInvoicePage() {
                       }}
                       className={`px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${
                         invoiceType === type
-                          ? 'border-blue-500 bg-blue-50 text-blue-700'
-                          : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'
+                          ? 'border-blue-500 bg-blue-50 text-blue-700 dark:text-blue-300'
+                          : 'border-gray dark:border-gray-700-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:bg-gray-900'
                       }`}
                     >
                       <span className={`px-2 py-0.5 rounded text-xs mr-1 ${getInvoiceTypeColor(type)}`}>
@@ -856,10 +856,10 @@ export default function CreateInvoicePage() {
                   readOnly={invoiceType === 'CN' && !!form.customerId}
                 />
                 {showCustomerDropdown && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg max-h-64 overflow-y-auto z-10">
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border rounded-lg shadow-lg max-h-64 overflow-y-auto z-10">
                     {filteredCustomers.length === 0 ? (
                       <>
-                        <div className="px-3 py-2 text-gray-500 text-sm border-b">
+                        <div className="px-3 py-2 text-gray-500 dark:text-gray-400 text-sm border-b">
                           {t("common2.noCustomersFound")}
                         </div>
                         {/* No match: offer to create a new
@@ -867,7 +867,7 @@ export default function CreateInvoicePage() {
                             name is pre-filled in the modal so
                             the user doesn't have to retype. */}
                         <div
-                          className="px-3 py-2 hover:bg-blue-50 cursor-pointer text-blue-700 text-sm font-medium border-t"
+                          className="px-3 py-2 hover:bg-blue-50 cursor-pointer text-blue-700 dark:text-blue-300 text-sm font-medium border-t"
                           onMouseDown={(e) => {
                             // Use onMouseDown so the click
                             // fires BEFORE the input's blur
@@ -901,17 +901,17 @@ export default function CreateInvoicePage() {
                               so the dropdown stays scannable
                               even with 4-5 fields visible. */}
                           <div className="font-medium text-sm">{c.name}</div>
-                          <div className="text-xs text-gray-500 font-mono mt-0.5">
+                          <div className="text-xs text-gray-500 dark:text-gray-400 font-mono mt-0.5">
                             {c.customerNumber && `${c.customerNumber} · `}
                             {c.vatId ? `USt-IDNr. ${c.vatId}` : (t("customer.noVatId") || "keine USt-ID")}
                           </div>
                           {c.address && (c.address.street || c.address.postalCode || c.address.city) && (
-                            <div className="text-xs text-gray-600 mt-0.5">
+                            <div className="text-xs text-gray-600 dark:text-gray-300 mt-0.5">
                               {[c.address.street, [c.address.postalCode, c.address.city].filter(Boolean).join(" "), c.address.country].filter(Boolean).join(", ")}
                             </div>
                           )}
                           {c.contact?.email && (
-                            <div className="text-xs text-gray-500 mt-0.5">{c.contact.email}</div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{c.contact.email}</div>
                           )}
                         </div>
                       ))
@@ -937,9 +937,9 @@ export default function CreateInvoicePage() {
                     placeholder={t("common2.searchInvoiceNumber")}
                   />
                   {showInvoiceDropdown && invoiceSearch && (
-                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg max-h-48 overflow-y-auto z-10">
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border rounded-lg shadow-lg max-h-48 overflow-y-auto z-10">
                       {filteredInvoices.length === 0 ? (
-                        <div className="px-3 py-2 text-gray-500 text-sm">
+                        <div className="px-3 py-2 text-gray-500 dark:text-gray-400 text-sm">
                           {t("common2.noInvoicesFound")}
                         </div>
                       ) : (
@@ -950,7 +950,7 @@ export default function CreateInvoicePage() {
                             onClick={() => selectReferenceInvoice(inv)}
                           >
                             <div className="font-medium text-sm">{inv.invoiceNumber}</div>
-                            <div className="text-xs text-gray-500">{inv.customer?.name}</div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">{inv.customer?.name}</div>
                           </div>
                         ))
                       )}
@@ -1034,14 +1034,14 @@ export default function CreateInvoicePage() {
                   className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
                     templateType === "standard"
                       ? "border-blue-500 bg-blue-50"
-                      : "border-gray-200 hover:border-blue-300"
+                      : "border-gray dark:border-gray-700-200 dark:border-gray-700 hover:border-blue-300 dark:border-blue-700"
                   }`}
                   onClick={() => setTemplateType("standard")}
                 >
                   <div className="font-medium text-sm mb-1">
                     {t("template.standard")}
                   </div>
-                  <div className="text-xs text-gray-500">
+                  <div className="text-xs text-gray-500 dark:text-gray-400">
                     {t("template.standardDesc")}
                   </div>
                 </div>
@@ -1049,14 +1049,14 @@ export default function CreateInvoicePage() {
                   className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
                     templateType === "simplified"
                       ? "border-blue-500 bg-blue-50"
-                      : "border-gray-200 hover:border-blue-300"
+                      : "border-gray dark:border-gray-700-200 dark:border-gray-700 hover:border-blue-300 dark:border-blue-700"
                   }`}
                   onClick={() => setTemplateType("simplified")}
                 >
                   <div className="font-medium text-sm mb-1">
                     {t("template.simplified")}
                   </div>
-                  <div className="text-xs text-gray-500">
+                  <div className="text-xs text-gray-500 dark:text-gray-400">
                     {t("template.simplifiedDesc")}
                   </div>
                 </div>
@@ -1064,14 +1064,14 @@ export default function CreateInvoicePage() {
                   className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
                     templateType === "compact"
                       ? "border-blue-500 bg-blue-50"
-                      : "border-gray-200 hover:border-blue-300"
+                      : "border-gray dark:border-gray-700-200 dark:border-gray-700 hover:border-blue-300 dark:border-blue-700"
                   }`}
                   onClick={() => setTemplateType("compact")}
                 >
                   <div className="font-medium text-sm mb-1">
                     {t("template.compact")}
                   </div>
-                  <div className="text-xs text-gray-500">
+                  <div className="text-xs text-gray-500 dark:text-gray-400">
                     {t("template.compactDesc")}
                   </div>
                 </div>
@@ -1102,7 +1102,7 @@ export default function CreateInvoicePage() {
                   have no label (the icons in the rows are
                   self-explanatory) but keep the columns
                   aligned with the rows below. */}
-              <div className="grid grid-cols-12 gap-2 text-sm font-medium text-gray-600 px-2">
+              <div className="grid grid-cols-12 gap-2 text-sm font-medium text-gray-600 dark:text-gray-300 px-2">
                 <div className="col-span-2">{t("invoice.productNumber")}</div>
                 <div className="col-span-4">{t("invoice.description")}</div>
                 <div className="col-span-2">{t("invoice.quantity")}</div>
@@ -1163,7 +1163,7 @@ export default function CreateInvoicePage() {
                       className="font-mono text-sm"
                     />
                     {showProductNumberDropdown && activeItemIndex === index && productNumberSearch && (
-                      <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg max-h-56 overflow-y-auto z-20">
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border rounded-lg shadow-lg max-h-56 overflow-y-auto z-20">
                         {(() => {
                           // Filter by SKU first (exact prefix
                           // match) then by name. The user is
@@ -1178,7 +1178,7 @@ export default function CreateInvoicePage() {
                           if (matches.length === 0) {
                             return (
                               <>
-                                <div className="px-3 py-2 text-gray-500 text-sm border-b">
+                                <div className="px-3 py-2 text-gray-500 dark:text-gray-400 text-sm border-b">
                                   {t("errors.noProductsFound")}
                                 </div>
                                 {/* No match: offer to create a
@@ -1187,7 +1187,7 @@ export default function CreateInvoicePage() {
                                     SKU; user can edit before
                                     saving. */}
                                 <div
-                                  className="px-3 py-2 hover:bg-blue-50 cursor-pointer text-blue-700 text-sm font-medium border-t"
+                                  className="px-3 py-2 hover:bg-blue-50 cursor-pointer text-blue-700 dark:text-blue-300 text-sm font-medium border-t"
                                   onMouseDown={(e) => {
                                     // Use onMouseDown so the
                                     // click fires BEFORE the
@@ -1212,7 +1212,7 @@ export default function CreateInvoicePage() {
                               }}
                             >
                               <div className="font-medium text-sm">{p.name}</div>
-                              <div className="text-xs text-gray-500 font-mono">
+                              <div className="text-xs text-gray-500 dark:text-gray-400 font-mono">
                                 {p.sku && `${p.sku} · `}€{parseFloat(p.basePrice).toFixed(2)}
                               </div>
                             </div>
@@ -1240,9 +1240,9 @@ export default function CreateInvoicePage() {
                       placeholder={t("common2.productSearch")}
                     />
                     {showProductDropdown && activeItemIndex === index && productSearch && (
-                      <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg max-h-40 overflow-y-auto z-10">
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border rounded-lg shadow-lg max-h-40 overflow-y-auto z-10">
                         {filteredProducts.length === 0 ? (
-                          <div className="px-3 py-2 text-gray-500 text-sm">{t("errors.noProductsFound")}</div>
+                          <div className="px-3 py-2 text-gray-500 dark:text-gray-400 text-sm">{t("errors.noProductsFound")}</div>
                         ) : (
                           filteredProducts.slice(0, 5).map((p) => (
                             <div
@@ -1251,7 +1251,7 @@ export default function CreateInvoicePage() {
                               onClick={() => selectProduct(p, index)}
                             >
                               <div className="font-medium text-sm">{p.name}</div>
-                              <div className="text-xs text-gray-500">
+                              <div className="text-xs text-gray-500 dark:text-gray-400">
                                 {p.sku && `${p.sku} · `}€{parseFloat(p.basePrice).toFixed(2)}
                               </div>
                             </div>
@@ -1319,7 +1319,7 @@ export default function CreateInvoicePage() {
                       type="button"
                       variant="ghost"
                       size="sm"
-                      className="w-full text-red-600 hover:text-red-700 hover:bg-red-50 px-1"
+                      className="w-full text-red-600 dark:text-red-400 hover:text-red-700 dark:text-red-300 hover:bg-red-50 px-1"
                       onClick={() => {
                         const items = form.items.filter((_, i) => i !== index)
                         setForm({ ...form, items })
@@ -1351,7 +1351,7 @@ export default function CreateInvoicePage() {
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="w-full text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-1"
+                        className="w-full text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:text-blue-300 hover:bg-blue-50 px-1"
                         onClick={() => addItemAt(index)}
                         title={t("invoice.addItem")}
                       >
@@ -1430,28 +1430,28 @@ export default function CreateInvoicePage() {
           </Card>
 
           {/* Summary Card */}
-          <Card className="bg-gray-50">
+          <Card className="bg-gray-50 dark:bg-gray-900">
             <CardHeader>
               <CardTitle>{t("common2.summary")}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
               <div className="flex justify-between">
-                <span className="text-gray-600">{t("invoice.subtotal")} ({t("common2.net")}):</span>
+                <span className="text-gray-600 dark:text-gray-300">{t("invoice.subtotal")} ({t("common2.net")}):</span>
                 <span>€{calculateSubtotal().toFixed(2)}</span>
               </div>
               {calculateDiscount() > 0 && (
-                <div className="flex justify-between text-green-600">
+                <div className="flex justify-between text-green-600 dark:text-green-400">
                   <span>{t("invoice.discount")}:</span>
                   <span>-€{calculateDiscount().toFixed(2)}</span>
                 </div>
               )}
               <div className="flex justify-between">
-                <span className="text-gray-600">{t("invoice.vat")}:</span>
+                <span className="text-gray-600 dark:text-gray-300">{t("invoice.vat")}:</span>
                 <span>€{calculateVat().toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-xl font-bold border-t pt-3">
                 <span>{t("common2.totalGross")}:</span>
-                <span className="text-blue-600">€{calculateTotal().toFixed(2)}</span>
+                <span className="text-blue-600 dark:text-blue-400">€{calculateTotal().toFixed(2)}</span>
               </div>
             </CardContent>
           </Card>
@@ -1506,13 +1506,13 @@ export default function CreateInvoicePage() {
           onClick={() => !newProductModal.loading && setNewProductModal(null)}
         >
           <div
-            className="bg-white rounded-lg shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto"
+            className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <Card>
               <CardHeader>
                 <CardTitle>{t("invoice.newProductModalTitle")}</CardTitle>
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                   {t("invoice.createNewProductWithSku").replace("{sku}", newProductModal.sku || "—")}
                 </p>
               </CardHeader>
@@ -1618,7 +1618,7 @@ export default function CreateInvoicePage() {
                     <div className="flex items-center justify-between mb-4">
                       <div>
                         <p className="font-medium">{t("inventory.trackProduct")}</p>
-                        <p className="text-xs text-gray-500">{t("inventory.trackHint")}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">{t("inventory.trackHint")}</p>
                       </div>
                       <Switch
                         checked={newProductModal.trackInventory}
@@ -1646,7 +1646,7 @@ export default function CreateInvoicePage() {
                             onChange={(e) => setNewProductModal({ ...newProductModal, lowStockThreshold: e.target.value })}
                             placeholder="10"
                           />
-                          <p className="text-xs text-gray-500 mt-1">{t("inventory.thresholdHint")}</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t("inventory.thresholdHint")}</p>
                         </div>
                       </div>
                     )}
@@ -1694,13 +1694,13 @@ export default function CreateInvoicePage() {
           onClick={() => !newCustomerModal.loading && setNewCustomerModal(null)}
         >
           <div
-            className="bg-white rounded-lg shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto"
+            className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <Card>
               <CardHeader>
                 <CardTitle>{t("invoice.newCustomerModalTitle")}</CardTitle>
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                   {t("invoice.createNewCustomerWithName").replace("{name}", newCustomerModal.name || "—")}
                 </p>
               </CardHeader>

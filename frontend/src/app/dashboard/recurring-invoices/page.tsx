@@ -256,14 +256,14 @@ export default function RecurringInvoicesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <div className="container mx-auto px-4 py-8">
         <div className="flex justify-between items-center mb-6">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
               {t("recurring.title") || "Wiederkehrende Rechnungen"}
             </h1>
-            <p className="text-gray-500 mt-1">
+            <p className="text-gray-500 dark:text-gray-400 mt-1">
               {t("recurring.subtitle") || "Abo-Rechnungen monatlich, quartalsweise oder jährlich automatisch generieren"}
             </p>
           </div>
@@ -285,10 +285,10 @@ export default function RecurringInvoicesPage() {
         )}
 
         {loading ? (
-          <div className="text-center py-12 text-gray-500">{t("common.loading") || "Lädt..."}</div>
+          <div className="text-center py-12 text-gray-500 dark:text-gray-400">{t("common.loading") || "Lädt..."}</div>
         ) : templates.length === 0 ? (
           <Card>
-            <CardContent className="pt-6 text-center text-gray-500 py-12">
+            <CardContent className="pt-6 text-center text-gray-500 dark:text-gray-400 py-12">
               {t("recurring.empty") || "Noch keine wiederkehrenden Rechnungen. Klicken Sie auf 'Neue Vorlage'."}
             </CardContent>
           </Card>
@@ -304,7 +304,7 @@ export default function RecurringInvoicesPage() {
                     {/* Name + customer */}
                     <div className="flex-1 min-w-[200px]">
                       <div className="font-medium text-lg">{tpl.name}</div>
-                      <div className="text-sm text-gray-600">
+                      <div className="text-sm text-gray-600 dark:text-gray-300">
                         {tpl.customer.name}
                         {tpl.customer.customerNumber && (
                           <span className="font-mono text-xs ml-2">{tpl.customer.customerNumber}</span>
@@ -314,23 +314,23 @@ export default function RecurringInvoicesPage() {
 
                     {/* Cadence */}
                     <div className="text-sm">
-                      <span className="text-gray-500">{t("recurring.interval") || "Intervall"}: </span>
+                      <span className="text-gray-500 dark:text-gray-400">{t("recurring.interval") || "Intervall"}: </span>
                       <span className="font-medium">{intervalLabel(tpl.interval, tpl.intervalCount)}</span>
                     </div>
 
                     {/* Next run */}
                     <div className="text-sm">
-                      <span className="text-gray-500">{t("recurring.nextRun") || "Nächste"}: </span>
+                      <span className="text-gray-500 dark:text-gray-400">{t("recurring.nextRun") || "Nächste"}: </span>
                       <span className="font-mono">{fmtDate(tpl.nextRunAt, getDateLocale())}</span>
                     </div>
 
                     {/* Last run */}
-                    <div className="text-sm text-gray-500">
+                    <div className="text-sm text-gray-500 dark:text-gray-400">
                       {t("recurring.lastRun") || "Zuletzt"}: {fmtDate(tpl.lastRunAt, getDateLocale())}
                     </div>
 
                     {/* Counts */}
-                    <div className="text-xs text-gray-500">
+                    <div className="text-xs text-gray-500 dark:text-gray-400">
                       {tpl._count?.runs ?? 0} runs / {tpl._count?.invoices ?? 0} inv.
                     </div>
 
@@ -361,7 +361,7 @@ export default function RecurringInvoicesPage() {
                         <h4 className="font-medium text-sm mb-2">{t("recurring.items") || "Positionen"}</h4>
                         <table className="w-full text-sm">
                           <thead>
-                            <tr className="text-left text-gray-500 text-xs">
+                            <tr className="text-left text-gray-500 dark:text-gray-400 text-xs">
                               <th>Beschreibung</th>
                               <th className="text-right">Menge</th>
                               <th className="text-right">Preis</th>
@@ -395,7 +395,7 @@ export default function RecurringInvoicesPage() {
                         <h4 className="font-medium text-sm mb-2">
                           {t("recurring.runHistory") || "Generierungschronik"}
                           {tpl.invoices && tpl.invoices.length > 0 && (
-                            <span className="ml-2 text-xs text-gray-500">
+                            <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
                               ({tpl.invoices.length} {t("recurring.recentInvoices") || "letzte Rechnungen"})
                             </span>
                           )}
@@ -408,28 +408,28 @@ export default function RecurringInvoicesPage() {
                                 className={`flex items-center justify-between p-2 rounded ${
                                   r.status === "success" ? "bg-emerald-50"
                                   : r.status === "failed" ? "bg-red-50"
-                                  : "bg-gray-50"
+                                  : "bg-gray-50 dark:bg-gray-900"
                                 }`}
                               >
                                 <div>
                                   <span className="font-mono text-xs">
                                     {fmtDate(r.periodStart, getDateLocale())} → {fmtDate(r.periodEnd, getDateLocale())}
                                   </span>
-                                  <span className="ml-2 text-xs px-1.5 py-0.5 rounded bg-white border">
+                                  <span className="ml-2 text-xs px-1.5 py-0.5 rounded bg-white dark:bg-gray-800 border">
                                     {r.trigger}
                                   </span>
                                 </div>
                                 <div className="flex items-center gap-2">
                                   <span className={`text-xs ${
                                     r.status === "success" ? "text-emerald-700"
-                                    : r.status === "failed" ? "text-red-700" : "text-gray-700"
+                                    : r.status === "failed" ? "text-red-700 dark:text-red-300" : "text-gray-700 dark:text-gray-200"
                                   }`}>
                                     {r.status}
                                   </span>
                                   {r.invoiceId && (
                                     <Link
                                       href={`/dashboard/invoices/${r.invoiceId}`}
-                                      className="text-blue-600 hover:underline text-xs"
+                                      className="text-blue-600 dark:text-blue-400 hover:underline text-xs"
                                     >
                                       →
                                     </Link>
@@ -439,7 +439,7 @@ export default function RecurringInvoicesPage() {
                             ))}
                           </div>
                         ) : (
-                          <div className="text-sm text-gray-500">
+                          <div className="text-sm text-gray-500 dark:text-gray-400">
                             {t("recurring.noRuns") || "Noch keine Generierungen."}
                           </div>
                         )}

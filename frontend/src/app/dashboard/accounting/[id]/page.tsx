@@ -62,9 +62,9 @@ export default function VoucherDetailPage() {
 
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
-      draft: "bg-gray-100 text-gray-700",
-      posted: "bg-green-100 text-green-700",
-      voided: "bg-red-100 text-red-700",
+      draft: "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200",
+      posted: "bg-green-100 text-green-700 dark:text-green-300",
+      voided: "bg-red-100 text-red-700 dark:text-red-300",
     }
     return colors[status] || colors.draft
   }
@@ -79,14 +79,14 @@ export default function VoucherDetailPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-gray-50 p-6">
+      <main className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
         <div className="max-w-5xl mx-auto">
-          <div className="h-8 w-48 bg-gray-200 rounded animate-pulse mb-6" />
+          <div className="h-8 w-48 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-6" />
           <Card>
             <CardContent className="p-6">
               <div className="space-y-4">
                 {[1, 2, 3, 4, 5].map((i) => (
-                  <div key={i} className="h-12 bg-gray-100 rounded animate-pulse" />
+                  <div key={i} className="h-12 bg-gray-100 dark:bg-gray-800 rounded animate-pulse" />
                 ))}
               </div>
             </CardContent>
@@ -98,9 +98,9 @@ export default function VoucherDetailPage() {
 
   if (!voucher) {
     return (
-      <main className="min-h-screen bg-gray-50 p-6">
+      <main className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
         <div className="max-w-5xl mx-auto text-center">
-          <p className="text-gray-500">{t("common.notFound")}</p>
+          <p className="text-gray-500 dark:text-gray-400">{t("common.notFound")}</p>
           <Button onClick={() => router.push("/dashboard/accounting")} className="mt-4">
             {t("accounting.back")}
           </Button>
@@ -110,7 +110,7 @@ export default function VoucherDetailPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 p-6">
+    <main className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
       <div className="max-w-5xl mx-auto">
         <Button
           variant="ghost"
@@ -132,15 +132,15 @@ export default function VoucherDetailPage() {
           <CardContent>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div>
-                <p className="text-sm text-gray-500">{t("accounting.voucherDate")}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">{t("accounting.voucherDate")}</p>
                 <p className="font-medium">{formatDate(voucher.date)}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-500">{t("accounting.voucherType")}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">{t("accounting.voucherType")}</p>
                 <p className="font-medium">{voucher.referenceType || "-"}</p>
               </div>
               <div className="col-span-2">
-                <p className="text-sm text-gray-500">{t("accounting.description")}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">{t("accounting.description")}</p>
                 <p className="font-medium">{voucher.description || "-"}</p>
               </div>
             </div>
@@ -155,20 +155,20 @@ export default function VoucherDetailPage() {
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b bg-gray-50">
-                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 w-24">
+                  <tr className="border-b bg-gray-50 dark:bg-gray-900">
+                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400 w-24">
                       {t("accounting.account")}
                     </th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">
+                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">
                       {t("accounting.accountName")}
                     </th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">
+                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">
                       {t("accounting.description")}
                     </th>
-                    <th className="text-right py-3 px-4 text-sm font-medium text-gray-500 w-32">
+                    <th className="text-right py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400 w-32">
                       {t("accounting.debit")}
                     </th>
-                    <th className="text-right py-3 px-4 text-sm font-medium text-gray-500 w-32">
+                    <th className="text-right py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400 w-32">
                       {t("accounting.credit")}
                     </th>
                   </tr>
@@ -178,7 +178,7 @@ export default function VoucherDetailPage() {
                     <tr key={line.id} className="border-b">
                       <td className="py-3 px-4 font-mono text-sm">{line.account.accountNumber}</td>
                       <td className="py-3 px-4 text-sm">{line.account.name}</td>
-                      <td className="py-3 px-4 text-sm text-gray-600">{line.description || "-"}</td>
+                      <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-300">{line.description || "-"}</td>
                       <td className="py-3 px-4 text-sm text-right font-mono">
                         {parseFloat(line.debit) > 0 ? `€${parseFloat(line.debit).toFixed(2)}` : ""}
                       </td>
@@ -189,7 +189,7 @@ export default function VoucherDetailPage() {
                   ))}
                 </tbody>
                 <tfoot>
-                  <tr className="border-t-2 bg-gray-50 font-bold">
+                  <tr className="border-t-2 bg-gray-50 dark:bg-gray-900 font-bold">
                     <td colSpan={3} className="py-3 px-4">{t("accounting.total")}</td>
                     <td className="py-3 px-4 text-right font-mono">€{totalDebit.toFixed(2)}</td>
                     <td className="py-3 px-4 text-right font-mono">€{totalCredit.toFixed(2)}</td>
@@ -197,7 +197,7 @@ export default function VoucherDetailPage() {
                 </tfoot>
               </table>
 
-              <div className={`mt-4 p-3 rounded-lg text-center ${isBalanced ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
+              <div className={`mt-4 p-3 rounded-lg text-center ${isBalanced ? "bg-green-50 text-green-700 dark:text-green-300" : "bg-red-50 text-red-700 dark:text-red-300"}`}>
                 {isBalanced ? t("accounting.balanced") : t("accounting.unbalanced")}
               </div>
             </div>

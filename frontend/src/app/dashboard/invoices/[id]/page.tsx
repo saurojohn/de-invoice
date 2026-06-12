@@ -215,11 +215,11 @@ export default function InvoiceDetailPage() {
 
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
-      draft: "bg-gray-100 text-gray-700",
-      sent: "bg-blue-100 text-blue-700",
-      paid: "bg-green-100 text-green-700",
-      overdue: "bg-red-100 text-red-700",
-      cancelled: "bg-gray-100 text-gray-500",
+      draft: "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200",
+      sent: "bg-blue-100 text-blue-700 dark:text-blue-300",
+      paid: "bg-green-100 text-green-700 dark:text-green-300",
+      overdue: "bg-red-100 text-red-700 dark:text-red-300",
+      cancelled: "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400",
     }
     return colors[status] || colors.draft
   }
@@ -396,12 +396,12 @@ export default function InvoiceDetailPage() {
   if (!invoice) return <div className="p-8 text-center">Rechnung nicht gefunden</div>
 
   return (
-    <main className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b shadow-sm">
+    <main className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <header className="bg-white dark:bg-gray-800 border-b shadow-sm">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Button variant="outline" onClick={() => router.push("/dashboard/invoices")}>Zurück</Button>
-            <h1 className="text-2xl font-bold text-blue-600">{invoice.invoiceNumber}</h1>
+            <h1 className="text-2xl font-bold text-blue-600 dark:text-blue-400">{invoice.invoiceNumber}</h1>
             {/* Status as a quick-change dropdown — invoice state moves
                 through draft → sent → paid (or overdue/cancelled). */}
             <select
@@ -424,7 +424,7 @@ export default function InvoiceDetailPage() {
             </Button>
             {sendResult && (
               <span
-                className={`text-sm ${sendResult.ok ? "text-green-600" : "text-red-600"}`}
+                className={`text-sm ${sendResult.ok ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}
               >
                 {sendResult.ok ? "✓" : "✗"} {sendResult.message}
               </span>
@@ -445,7 +445,7 @@ export default function InvoiceDetailPage() {
                 <Button
                   variant="outline"
                   onClick={() => router.push(`/dashboard/invoices/create?id=${invoice.id}`)}
-                  className="text-blue-600 border-blue-300 hover:bg-blue-50"
+                  className="text-blue-600 dark:text-blue-400 border-blue-300 dark:border-blue-700 hover:bg-blue-50"
                 >
                   Bearbeiten
                 </Button>
@@ -453,7 +453,7 @@ export default function InvoiceDetailPage() {
                   variant="outline"
                   onClick={deleteInvoice}
                   disabled={deleting}
-                  className="text-red-600 border-red-300 hover:bg-red-50"
+                  className="text-red-600 dark:text-red-400 border-red-300 dark:border-red-700 hover:bg-red-50"
                 >
                   {deleting ? "..." : "Löschen"}
                 </Button>
@@ -461,7 +461,7 @@ export default function InvoiceDetailPage() {
             )}
             {!isToday && invoice && (
               <span
-                className="text-xs text-gray-500"
+                className="text-xs text-gray-500 dark:text-gray-400"
                 title="Diese Rechnung ist eingefroren. Nur der Status kann noch geändert werden (Stornieren etc.)."
               >
                 Eingefroren (Status änderbar)
@@ -510,27 +510,27 @@ export default function InvoiceDetailPage() {
               )}
               {/* Company info: right half, right-aligned. */}
               <div className="w-1/2 text-right text-sm leading-relaxed">
-                <div className="text-2xl font-bold text-gray-900">{invoice.company.name}</div>
+                <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{invoice.company.name}</div>
                 {invoice.company.legalName && invoice.company.legalName !== invoice.company.name && (
-                  <div className="text-gray-600 text-xs">{invoice.company.legalName}</div>
+                  <div className="text-gray-600 dark:text-gray-300 text-xs">{invoice.company.legalName}</div>
                 )}
                 {invoice.company.address?.street && (
-                  <div className="text-gray-700">{invoice.company.address.street}</div>
+                  <div className="text-gray-700 dark:text-gray-200">{invoice.company.address.street}</div>
                 )}
                 {(invoice.company.address?.postalCode || invoice.company.address?.city) && (
-                  <div className="text-gray-700">
+                  <div className="text-gray-700 dark:text-gray-200">
                     {invoice.company.address.postalCode} {invoice.company.address.city}
                   </div>
                 )}
                 {invoice.company.address?.country && (
-                  <div className="text-gray-700">{invoice.company.address.country}</div>
+                  <div className="text-gray-700 dark:text-gray-200">{invoice.company.address.country}</div>
                 )}
-                <div className="mt-2 text-xs text-gray-500 space-x-2">
+                <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 space-x-2">
                   {invoice.company.vatId && <span>UST-IDNr.: {invoice.company.vatId}</span>}
                   {invoice.company.taxId && <span>· Steuernr.: {invoice.company.taxId}</span>}
                 </div>
                 {(invoice.company.email || invoice.company.phone) && (
-                  <div className="text-xs text-gray-500 space-x-2">
+                  <div className="text-xs text-gray-500 dark:text-gray-400 space-x-2">
                     {invoice.company.email && <span>{invoice.company.email}</span>}
                     {invoice.company.phone && <span>· {invoice.company.phone}</span>}
                   </div>
@@ -561,7 +561,7 @@ export default function InvoiceDetailPage() {
                 // window envelopes. Format mirrors the PDF:
                 // "Name · Straße · PLZ Ort · Land". One line only,
                 // whitespace-nowrap so it never wraps mid-address.
-                <div className="-mt-1 text-xs font-normal tracking-normal text-gray-500 whitespace-nowrap overflow-hidden text-ellipsis">
+                <div className="-mt-1 text-xs font-normal tracking-normal text-gray-500 dark:text-gray-400 whitespace-nowrap overflow-hidden text-ellipsis">
                   {[
                     invoice.company.name,
                     invoice.company.address.street,
@@ -574,9 +574,9 @@ export default function InvoiceDetailPage() {
             <CardContent>
               <div className="space-y-2 text-base">
                 <div className="font-medium">{invoice.customer?.name}</div>
-                {invoice.customer?.vatId && <div className="text-gray-600">UST-IDNr.: {invoice.customer.vatId}</div>}
+                {invoice.customer?.vatId && <div className="text-gray-600 dark:text-gray-300">UST-IDNr.: {invoice.customer.vatId}</div>}
                 {invoice.customer?.address && (
-                  <div className="text-gray-600">
+                  <div className="text-gray-600 dark:text-gray-300">
                     {invoice.customer.address.street}<br />
                     {invoice.customer.address.postalCode} {invoice.customer.address.city}
                   </div>
@@ -588,13 +588,13 @@ export default function InvoiceDetailPage() {
             <CardHeader><CardTitle>Rechnungsinformationen</CardTitle></CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 gap-4">
-                <div><div className="text-sm text-gray-500">Ausstellungsdatum</div><div>{formatDate(invoice.issueDate)}</div></div>
-                <div><div className="text-sm text-gray-500">Fälligkeitsdatum</div><div>{formatDate(invoice.dueDate)}</div></div>
+                <div><div className="text-sm text-gray-500 dark:text-gray-400">Ausstellungsdatum</div><div>{formatDate(invoice.issueDate)}</div></div>
+                <div><div className="text-sm text-gray-500 dark:text-gray-400">Fälligkeitsdatum</div><div>{formatDate(invoice.dueDate)}</div></div>
                 {invoice.deliveryDate && (
-                  <div><div className="text-sm text-gray-500">Liefertermin</div><div>{formatDate(invoice.deliveryDate)}</div></div>
+                  <div><div className="text-sm text-gray-500 dark:text-gray-400">Liefertermin</div><div>{formatDate(invoice.deliveryDate)}</div></div>
                 )}
-                <div><div className="text-sm text-gray-500">Rechnungsart</div><div>{invoice.type}</div></div>
-                <div><div className="text-sm text-gray-500">Währung</div><div>{invoice.currency}</div></div>
+                <div><div className="text-sm text-gray-500 dark:text-gray-400">Rechnungsart</div><div>{invoice.type}</div></div>
+                <div><div className="text-sm text-gray-500 dark:text-gray-400">Währung</div><div>{invoice.currency}</div></div>
               </div>
             </CardContent>
           </Card>
@@ -605,15 +605,15 @@ export default function InvoiceDetailPage() {
           <CardHeader><CardTitle>Positionen</CardTitle></CardHeader>
           <CardContent className="p-0">
             <table className="w-full">
-              <thead className="bg-gray-50 border-b">
+              <thead className="bg-gray-50 dark:bg-gray-900 border-b">
                 <tr>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Beschreibung</th>
-                  <th className="px-4 py-3 text-center text-sm font-medium text-gray-600">Menge</th>
-                  <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Einzelpreis</th>
-                  <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">MwSt</th>
-                  <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Netto</th>
-                  <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Steuer</th>
-                  <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Brutto</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300">Beschreibung</th>
+                  <th className="px-4 py-3 text-center text-sm font-medium text-gray-600 dark:text-gray-300">Menge</th>
+                  <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">Einzelpreis</th>
+                  <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">MwSt</th>
+                  <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">Netto</th>
+                  <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">Steuer</th>
+                  <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">Brutto</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -637,11 +637,11 @@ export default function InvoiceDetailPage() {
         <div className="flex justify-end">
           <Card className="w-80">
             <CardContent className="space-y-3">
-              <div className="flex justify-between"><span className="text-gray-600">Zwischensumme (Netto):</span><span>€{parseFloat(invoice.subtotal).toFixed(2)}</span></div>
-              <div className="flex justify-between"><span className="text-gray-600">Umsatzsteuer:</span><span>€{parseFloat(invoice.totalVat).toFixed(2)}</span></div>
-              <div className="flex justify-between text-xl font-bold border-t pt-3"><span>Gesamtbetrag:</span><span className="text-blue-600">€{parseFloat(invoice.total).toFixed(2)}</span></div>
-              <div className="flex justify-between text-sm pt-1"><span className="text-green-700">Bezahlt:</span><span className="text-green-700">€{totalPaid.toFixed(2)}</span></div>
-              <div className={`flex justify-between text-sm font-semibold ${outstanding > 0.01 ? "text-red-600" : "text-green-700"}`}>
+              <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-300">Zwischensumme (Netto):</span><span>€{parseFloat(invoice.subtotal).toFixed(2)}</span></div>
+              <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-300">Umsatzsteuer:</span><span>€{parseFloat(invoice.totalVat).toFixed(2)}</span></div>
+              <div className="flex justify-between text-xl font-bold border-t pt-3"><span>Gesamtbetrag:</span><span className="text-blue-600 dark:text-blue-400">€{parseFloat(invoice.total).toFixed(2)}</span></div>
+              <div className="flex justify-between text-sm pt-1"><span className="text-green-700 dark:text-green-300">Bezahlt:</span><span className="text-green-700 dark:text-green-300">€{totalPaid.toFixed(2)}</span></div>
+              <div className={`flex justify-between text-sm font-semibold ${outstanding > 0.01 ? "text-red-600 dark:text-red-400" : "text-green-700 dark:text-green-300"}`}>
                 <span>{outstanding > 0.01 ? "Offen:" : "Vollständig bezahlt ✓"}</span>
                 <span>€{outstanding.toFixed(2)}</span>
               </div>
@@ -664,10 +664,10 @@ export default function InvoiceDetailPage() {
             )}
           </CardHeader>
           {showPayForm && (
-            <CardContent className="bg-gray-50 border-t">
+            <CardContent className="bg-gray-50 dark:bg-gray-900 border-t">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Betrag (€) *</label>
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Betrag (€) *</label>
                   <Input
                     type="number"
                     step="0.01"
@@ -677,7 +677,7 @@ export default function InvoiceDetailPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Zahldatum *</label>
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Zahldatum *</label>
                   <Input
                     type="date"
                     value={payForm.paymentDate}
@@ -685,7 +685,7 @@ export default function InvoiceDetailPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Zahlungsweg *</label>
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Zahlungsweg *</label>
                   <select
                     value={payForm.paymentMethod}
                     onChange={(e) => setPayForm({ ...payForm, paymentMethod: e.target.value })}
@@ -700,7 +700,7 @@ export default function InvoiceDetailPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Referenz (optional)</label>
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Referenz (optional)</label>
                   <Input
                     value={payForm.reference}
                     onChange={(e) => setPayForm({ ...payForm, reference: e.target.value })}
@@ -708,7 +708,7 @@ export default function InvoiceDetailPage() {
                   />
                 </div>
                 <div className="md:col-span-2">
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Notizen (optional)</label>
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Notizen (optional)</label>
                   <Input
                     value={payForm.notes}
                     onChange={(e) => setPayForm({ ...payForm, notes: e.target.value })}
@@ -725,7 +725,7 @@ export default function InvoiceDetailPage() {
             </CardContent>
           )}
           {payments.length === 0 ? (
-            <CardContent className="text-center text-sm text-gray-500 py-4">
+            <CardContent className="text-center text-sm text-gray-500 dark:text-gray-400 py-4">
               Noch keine Zahlungen erfasst.
             </CardContent>
           ) : (
@@ -742,15 +742,15 @@ export default function InvoiceDetailPage() {
                 </thead>
                 <tbody>
                   {payments.map((p) => (
-                    <tr key={p.id} className="border-b hover:bg-gray-50">
+                    <tr key={p.id} className="border-b hover:bg-gray-50 dark:bg-gray-900">
                       <td className="px-4 py-2">{formatDate(p.paymentDate)}</td>
                       <td className="px-4 py-2">{paymentMethodLabel(p.paymentMethod)}</td>
-                      <td className="px-4 py-2 text-gray-600">{p.reference || "—"}</td>
+                      <td className="px-4 py-2 text-gray-600 dark:text-gray-300">{p.reference || "—"}</td>
                       <td className="px-4 py-2 text-right font-medium">€{Number(p.amount).toFixed(2)}</td>
                       <td className="px-4 py-2 text-right">
                         <button
                           onClick={() => deletePayment(p.id)}
-                          className="text-red-600 hover:underline text-xs"
+                          className="text-red-600 dark:text-red-400 hover:underline text-xs"
                         >
                           Löschen
                         </button>
@@ -767,7 +767,7 @@ export default function InvoiceDetailPage() {
         {invoice.notes && (
           <Card className="mt-8">
             <CardHeader><CardTitle>Bemerkungen</CardTitle></CardHeader>
-            <CardContent><p className="text-gray-600 whitespace-pre-wrap">{invoice.notes}</p></CardContent>
+            <CardContent><p className="text-gray-600 dark:text-gray-300 whitespace-pre-wrap">{invoice.notes}</p></CardContent>
           </Card>
         )}
       </div>

@@ -163,26 +163,26 @@ export default function ExpensesPage() {
       )
     if (s === "bezahlt")
       return (
-        <Badge className="bg-green-100 text-green-700">
+        <Badge className="bg-green-100 text-green-700 dark:text-green-300">
           {t("expenses.stateBezahlt")}
         </Badge>
       )
     return (
-      <Badge className="bg-red-100 text-red-700">
+      <Badge className="bg-red-100 text-red-700 dark:text-red-300">
         {t("expenses.stateStorniert")}
       </Badge>
     )
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 p-6">
+    <main className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-between items-center mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
               {t("expenses.title")}
             </h1>
-            <p className="text-sm text-gray-600 mt-1">
+            <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
               {t("expenses.subtitle")}
             </p>
           </div>
@@ -190,7 +190,7 @@ export default function ExpensesPage() {
             <LanguageSwitcher />
             <button
               onClick={() => router.push("/dashboard")}
-              className="px-3 py-1 text-sm border rounded hover:bg-gray-100"
+              className="px-3 py-1 text-sm border rounded hover:bg-gray-100 dark:hover:bg-gray-700"
             >
               {t("common.back")}
             </button>
@@ -243,7 +243,7 @@ export default function ExpensesPage() {
                   setSupplierId("")
                   setState("")
                 }}
-                className="px-3 py-2 text-sm border rounded hover:bg-gray-100"
+                className="px-3 py-2 text-sm border rounded hover:bg-gray-100 dark:hover:bg-gray-700"
               >
                 {t("common.reset")}
               </button>
@@ -253,38 +253,38 @@ export default function ExpensesPage() {
 
         {/* Aggregates strip */}
         <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-4">
-          <div className="bg-white rounded-lg border p-3">
-            <div className="text-xs text-gray-500 uppercase">Offen</div>
-            <div className="text-lg font-bold mt-1 font-mono text-yellow-700">
+          <div className="bg-white dark:bg-gray-800 rounded-lg border p-3">
+            <div className="text-xs text-gray-500 dark:text-gray-400 uppercase">Offen</div>
+            <div className="text-lg font-bold mt-1 font-mono text-yellow-700 dark:text-yellow-300">
               {aggregates.offen}
             </div>
           </div>
-          <div className="bg-white rounded-lg border p-3">
-            <div className="text-xs text-gray-500 uppercase">Bezahlt</div>
-            <div className="text-lg font-bold mt-1 font-mono text-green-700">
+          <div className="bg-white dark:bg-gray-800 rounded-lg border p-3">
+            <div className="text-xs text-gray-500 dark:text-gray-400 uppercase">Bezahlt</div>
+            <div className="text-lg font-bold mt-1 font-mono text-green-700 dark:text-green-300">
               {aggregates.bezahlt}
             </div>
           </div>
-          <div className="bg-white rounded-lg border p-3">
-            <div className="text-xs text-gray-500 uppercase">Storniert</div>
-            <div className="text-lg font-bold mt-1 font-mono text-red-700">
+          <div className="bg-white dark:bg-gray-800 rounded-lg border p-3">
+            <div className="text-xs text-gray-500 dark:text-gray-400 uppercase">Storniert</div>
+            <div className="text-lg font-bold mt-1 font-mono text-red-700 dark:text-red-300">
               {aggregates.storniert}
             </div>
           </div>
-          <div className="bg-white rounded-lg border p-3">
-            <div className="text-xs text-gray-500 uppercase">Σ Netto</div>
+          <div className="bg-white dark:bg-gray-800 rounded-lg border p-3">
+            <div className="text-xs text-gray-500 dark:text-gray-400 uppercase">Σ Netto</div>
             <div className="text-lg font-bold mt-1 font-mono">
               {formatCurrency(aggregates.net.toFixed(2))}
             </div>
           </div>
-          <div className="bg-white rounded-lg border p-3">
-            <div className="text-xs text-gray-500 uppercase">Σ Vorsteuer</div>
+          <div className="bg-white dark:bg-gray-800 rounded-lg border p-3">
+            <div className="text-xs text-gray-500 dark:text-gray-400 uppercase">Σ Vorsteuer</div>
             <div className="text-lg font-bold mt-1 font-mono">
               {formatCurrency(aggregates.vat.toFixed(2))}
             </div>
           </div>
-          <div className="bg-white rounded-lg border p-3">
-            <div className="text-xs text-gray-500 uppercase">Σ Brutto</div>
+          <div className="bg-white dark:bg-gray-800 rounded-lg border p-3">
+            <div className="text-xs text-gray-500 dark:text-gray-400 uppercase">Σ Brutto</div>
             <div className="text-lg font-bold mt-1 font-mono">
               {formatCurrency(aggregates.gross.toFixed(2))}
             </div>
@@ -301,11 +301,11 @@ export default function ExpensesPage() {
             {loading ? (
               <div className="space-y-4">
                 {[1, 2, 3].map((i) => (
-                  <div key={i} className="h-12 bg-gray-100 rounded animate-pulse" />
+                  <div key={i} className="h-12 bg-gray-100 dark:bg-gray-800 rounded animate-pulse" />
                 ))}
               </div>
             ) : filtered.length === 0 ? (
-              <div className="text-center py-12 text-gray-500">
+              <div className="text-center py-12 text-gray-500 dark:text-gray-400">
                 {t("expenses.empty")}
               </div>
             ) : (
@@ -313,31 +313,31 @@ export default function ExpensesPage() {
                 <table className="w-full">
                   <thead>
                     <tr className="border-b">
-                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">
                         {t("expenses.invoiceDate")}
                       </th>
-                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">
                         {t("expenses.invoiceNumber")}
                       </th>
-                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">
                         {t("expenses.supplier")}
                       </th>
-                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">
                         Beschreibung
                       </th>
-                      <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">
+                      <th className="text-right py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">
                         {t("expenses.net")}
                       </th>
-                      <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">
+                      <th className="text-right py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">
                         {t("expenses.vat")}
                       </th>
-                      <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">
+                      <th className="text-right py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">
                         {t("expenses.gross")}
                       </th>
-                      <th className="text-center py-3 px-4 text-sm font-medium text-gray-500">
+                      <th className="text-center py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">
                         Status
                       </th>
-                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">
                         {t("expenses.linkedVoucher")}
                       </th>
                     </tr>
@@ -346,7 +346,7 @@ export default function ExpensesPage() {
                     {filtered.map((e) => (
                       <tr
                         key={e.id}
-                        className="border-b hover:bg-gray-50"
+                        className="border-b hover:bg-gray-50 dark:bg-gray-900"
                       >
                         <td className="py-3 px-4 text-sm">
                           {formatDate(e.invoiceDate)}
@@ -357,7 +357,7 @@ export default function ExpensesPage() {
                         <td className="py-3 px-4 text-sm">
                           {e.supplier?.name || "—"}
                         </td>
-                        <td className="py-3 px-4 text-sm text-gray-700">
+                        <td className="py-3 px-4 text-sm text-gray-700 dark:text-gray-200">
                           {e.description}
                         </td>
                         <td className="py-3 px-4 text-sm text-right font-mono">
@@ -384,8 +384,8 @@ export default function ExpensesPage() {
                                 "font-mono text-xs underline " +
                                 (e.linkedVoucher.referenceType ===
                                 "VoucherReversal"
-                                  ? "text-red-700"
-                                  : "text-blue-700")
+                                  ? "text-red-700 dark:text-red-300"
+                                  : "text-blue-700 dark:text-blue-300")
                               }
                             >
                               {e.linkedVoucher.voucherNumber}

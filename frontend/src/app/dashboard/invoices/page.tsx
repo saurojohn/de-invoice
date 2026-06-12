@@ -147,11 +147,11 @@ export default function InvoicesPage() {
 
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
-      draft: "bg-gray-100 text-gray-700",
-      sent: "bg-blue-100 text-blue-700",
-      paid: "bg-green-100 text-green-700",
-      overdue: "bg-red-100 text-red-700",
-      cancelled: "bg-gray-100 text-gray-500",
+      draft: "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200",
+      sent: "bg-blue-100 text-blue-700 dark:text-blue-300",
+      paid: "bg-green-100 text-green-700 dark:text-green-300",
+      overdue: "bg-red-100 text-red-700 dark:text-red-300",
+      cancelled: "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400",
     }
     return colors[status] || colors.draft
   }
@@ -168,10 +168,10 @@ export default function InvoicesPage() {
 
   const getTypeColor = (type: string) => {
     const colors: Record<string, string> = {
-      INV: "bg-blue-100 text-blue-700",
-      CN: "bg-orange-100 text-orange-700",
-      PI: "bg-purple-100 text-purple-700",
-      RCV: "bg-green-100 text-green-700",
+      INV: "bg-blue-100 text-blue-700 dark:text-blue-300",
+      CN: "bg-orange-100 text-orange-700 dark:text-orange-300",
+      PI: "bg-purple-100 text-purple-700 dark:text-purple-300",
+      RCV: "bg-green-100 text-green-700 dark:text-green-300",
     }
     return colors[type] || colors.INV
   }
@@ -390,10 +390,10 @@ export default function InvoicesPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b shadow-sm">
+    <main className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <header className="bg-white dark:bg-gray-800 border-b shadow-sm">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-blue-600">{t("invoice.title")}</h1>
+          <h1 className="text-2xl font-bold text-blue-600 dark:text-blue-400">{t("invoice.title")}</h1>
           <div className="flex gap-2 items-center">
             <LanguageSwitcher />
             <Button variant="outline" onClick={() => router.push("/dashboard")}>{t("common.back")}</Button>
@@ -469,12 +469,12 @@ export default function InvoicesPage() {
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             placeholder={t("common2.searchInvoiceOrCustomer") || "Rechnung oder Kunde suchen..."}
-            className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+            className="px-3 py-2 border border-gray dark:border-gray-700-300 dark:border-gray-600 rounded-md text-sm"
           />
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+            className="px-3 py-2 border border-gray dark:border-gray-700-300 dark:border-gray-600 rounded-md text-sm"
           >
             <option value="">{t("common2.allStatuses") || "Alle Status"}</option>
             <option value="draft">{t("invoice.draft")}</option>
@@ -488,7 +488,7 @@ export default function InvoicesPage() {
             value={dateFrom}
             onChange={(e) => setDateFrom(e.target.value)}
             placeholder={t("common2.from") || "Von"}
-            className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+            className="px-3 py-2 border border-gray dark:border-gray-700-300 dark:border-gray-600 rounded-md text-sm"
           />
           <div className="flex gap-2">
             <input
@@ -496,12 +496,12 @@ export default function InvoicesPage() {
               value={dateTo}
               onChange={(e) => setDateTo(e.target.value)}
               placeholder={t("common2.to") || "Bis"}
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm"
+              className="flex-1 px-3 py-2 border border-gray dark:border-gray-700-300 dark:border-gray-600 rounded-md text-sm"
             />
             {hasActiveFilter && (
               <button
                 onClick={clearFilters}
-                className="px-3 py-2 text-sm text-gray-600 hover:text-gray-900"
+                className="px-3 py-2 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:text-gray-100"
                 title={t("common2.clearFilters") || "Filter zurücksetzen"}
               >
                 ×
@@ -553,7 +553,7 @@ export default function InvoicesPage() {
         )}
 
         {hasActiveFilter && (
-          <p className="text-xs text-gray-500 mb-3">
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
             {t("common2.showingXofY") || "Zeige"} {dateFiltered.length} / {invoices.length}
           </p>
         )}
@@ -563,8 +563,8 @@ export default function InvoicesPage() {
         ) : listError ? (
           <Card className="border-red-200 bg-red-50/50">
             <CardContent className="text-center py-12">
-              <p className="text-red-700 font-medium mb-2">⚠ {listError}</p>
-              <p className="text-gray-600 text-sm mb-4">
+              <p className="text-red-700 dark:text-red-300 font-medium mb-2">⚠ {listError}</p>
+              <p className="text-gray-600 dark:text-gray-300 text-sm mb-4">
                 Bitte prüfe deine Internetverbindung oder versuche es in einem Moment erneut.
               </p>
               <Button
@@ -583,7 +583,7 @@ export default function InvoicesPage() {
         ) : invoices.length === 0 ? (
           <Card>
             <CardContent className="text-center py-12">
-              <p className="text-gray-500 mb-4">{t("invoice.noInvoices")}</p>
+              <p className="text-gray-500 dark:text-gray-400 mb-4">{t("invoice.noInvoices")}</p>
               <Button onClick={() => router.push("/dashboard/invoices/create")}>
                 {t("invoice.createFirst")}
               </Button>
@@ -592,7 +592,7 @@ export default function InvoicesPage() {
         ) : dateFiltered.length === 0 ? (
           <Card>
             <CardContent className="text-center py-12">
-              <p className="text-gray-500 mb-4">
+              <p className="text-gray-500 dark:text-gray-400 mb-4">
                 {t("common2.noMatchingInvoices") || "Keine Rechnungen entsprechen den Filtern."}
               </p>
               {hasActiveFilter && (
@@ -603,9 +603,9 @@ export default function InvoicesPage() {
             </CardContent>
           </Card>
         ) : (
-          <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
             <table className="w-full">
-              <thead className="bg-gray-50 border-b">
+              <thead className="bg-gray-50 dark:bg-gray-900 border-b">
                 <tr>
                   <th className="px-4 py-3 w-10">
                     <input
@@ -619,17 +619,17 @@ export default function InvoicesPage() {
                       aria-label="Alle auswählen"
                     />
                   </th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">{t("invoice.number")}</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">{t("invoice.customer")}</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">{t("invoice.total")}</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">{t("invoice.date")}</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">{t("invoice.status")}</th>
-                  <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">{t("common.actions")}</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300">{t("invoice.number")}</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300">{t("invoice.customer")}</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300">{t("invoice.total")}</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300">{t("invoice.date")}</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300">{t("invoice.status")}</th>
+                  <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">{t("common.actions")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
                 {dateFiltered.map((invoice) => (
-                  <tr key={invoice.id} className="hover:bg-gray-50">
+                  <tr key={invoice.id} className="hover:bg-gray-50 dark:bg-gray-900">
                     <td className="px-4 py-3">
                       <input
                         type="checkbox"
@@ -670,7 +670,7 @@ export default function InvoicesPage() {
                           <Button size="sm" variant="outline" onClick={() => downloadPDF(invoice.id, invoice.invoiceNumber)}>PDF</Button>
                         </div>
                         {sendStatus[invoice.id] && (
-                          <span className={`text-xs ${sendStatus[invoice.id].ok ? "text-green-600" : "text-red-600"}`}>
+                          <span className={`text-xs ${sendStatus[invoice.id].ok ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
                             {sendStatus[invoice.id].ok ? "✓ " : "✗ "}
                             {sendStatus[invoice.id].message}
                           </span>
@@ -686,7 +686,7 @@ export default function InvoicesPage() {
 
         {totalPages > 1 && (
           <div className="flex items-center justify-between mt-4 text-sm">
-            <span className="text-gray-600">
+            <span className="text-gray-600 dark:text-gray-300">
               Seite {page} / {totalPages} ({total} gesamt)
             </span>
             <div className="flex gap-2">

@@ -7,6 +7,49 @@
 }
 
 /*
+ * Dark mode — class-based (`.dark` on the <html>
+ * element). We use the `dark:` variant on Tailwind
+ * utilities in component classes for the visible
+ * UI. Setting `@custom-variant dark` is what makes
+ * `bg-white dark:bg-gray-900` resolve to dark-mode
+ * values when `.dark` is on an ancestor.
+ *
+ * Activation is done client-side by a tiny
+ * pre-hydration script in layout.tsx that reads
+ * localStorage + the OS preference. Doing this
+ * before React hydrates avoids the "white flash"
+ * that a naive useEffect-based approach has on
+ * every page load.
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Color-scheme hints so the browser picks dark
+ * form-control chrome, scrollbars, etc. when the
+ * page is in dark mode. Without these, a dark
+ * page still has white dropdowns / native input
+ * borders on macOS Safari.
+ */
+:root.dark {
+  color-scheme: dark;
+}
+:root:not(.dark) {
+  color-scheme: light;
+}
+
+/*
+ * Dark-mode background / foreground for the
+ * page body. We override Tailwind's `bg-gray-50`
+ * default in dark mode by going slightly darker
+ * than gray-900 so contrast against white cards
+ * remains strong.
+ */
+:root.dark body {
+  background: oklch(0.16 0.02 260);
+  color: oklch(0.92 0.01 260);
+}
+
+/*
  * Font fallback chain for German + Chinese + English coverage.
  *
  * Order matters: the browser walks the list and uses the first

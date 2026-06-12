@@ -30,7 +30,7 @@ const STATUS_COLOR: Record<string, string> = {
   opened: "bg-emerald-100 text-emerald-800",
   failed: "bg-red-100 text-red-800",
   bounced: "bg-orange-100 text-orange-800",
-  draft: "bg-gray-100 text-gray-700",
+  draft: "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200",
 }
 
 export default function EmailCenterPage() {
@@ -99,14 +99,14 @@ export default function EmailCenterPage() {
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <div className="container mx-auto px-4 py-8">
         <div className="flex justify-between items-center mb-6">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
               {t("email.title") || "E-Mail Center"}
             </h1>
-            <p className="text-gray-500 mt-1">
+            <p className="text-gray-500 dark:text-gray-400 mt-1">
               {t("email.subtitle") || "Alle ausgehenden E-Mails mit Status und Anhängen"}
             </p>
           </div>
@@ -120,7 +120,7 @@ export default function EmailCenterPage() {
               <Card key={s}>
                 <CardContent className="pt-6">
                   <div className="text-2xl font-bold">{stats.counts[s] || 0}</div>
-                  <div className="text-gray-500 text-sm mt-1">
+                  <div className="text-gray-500 dark:text-gray-400 text-sm mt-1">
                     {t(`email.status.${s}`) || s}
                   </div>
                 </CardContent>
@@ -151,7 +151,7 @@ export default function EmailCenterPage() {
                 <option value="failed">{t("email.status.failed") || "Fehlgeschlagen"}</option>
                 <option value="bounced">{t("email.status.bounced") || "Zurückgewiesen"}</option>
               </select>
-              <span className="text-sm text-gray-500 ml-auto">
+              <span className="text-sm text-gray-500 dark:text-gray-400 ml-auto">
                 {total} {t("email.totalCount") || "E-Mails"}
               </span>
             </div>
@@ -165,18 +165,18 @@ export default function EmailCenterPage() {
           </CardHeader>
           <CardContent>
             {loading ? (
-              <div className="text-center py-12 text-gray-500">
+              <div className="text-center py-12 text-gray-500 dark:text-gray-400">
                 {t("common.loading") || "Lädt..."}
               </div>
             ) : emails.length === 0 ? (
-              <div className="text-center py-12 text-gray-500">
+              <div className="text-center py-12 text-gray-500 dark:text-gray-400">
                 {t("email.noEmails") || "Keine E-Mails gefunden."}
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b text-left text-gray-500">
+                    <tr className="border-b text-left text-gray-500 dark:text-gray-400">
                       <th className="py-2 font-medium">{t("email.colDate") || "Datum"}</th>
                       <th className="py-2 font-medium">{t("email.colRecipient") || "Empfänger"}</th>
                       <th className="py-2 font-medium">{t("email.colSubject") || "Betreff"}</th>
@@ -187,14 +187,14 @@ export default function EmailCenterPage() {
                   </thead>
                   <tbody>
                     {emails.map((e) => (
-                      <tr key={e.id} className="border-b hover:bg-gray-50">
-                        <td className="py-2 text-gray-600 whitespace-nowrap">
+                      <tr key={e.id} className="border-b hover:bg-gray-50 dark:bg-gray-900">
+                        <td className="py-2 text-gray-600 dark:text-gray-300 whitespace-nowrap">
                           {fmtDate(e.sentAt || e.createdAt)}
                         </td>
                         <td className="py-2">
                           <div className="font-medium">{e.recipientName || e.recipientEmail}</div>
                           {e.recipientName && (
-                            <div className="text-xs text-gray-500">{e.recipientEmail}</div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">{e.recipientEmail}</div>
                           )}
                         </td>
                         <td className="py-2 max-w-[300px] truncate">{e.subject || "—"}</td>
@@ -202,7 +202,7 @@ export default function EmailCenterPage() {
                           {e.invoice ? (
                             <Link
                               href={`/dashboard/invoices/${e.invoice.id}`}
-                              className="text-blue-600 hover:underline font-mono text-xs"
+                              className="text-blue-600 dark:text-blue-400 hover:underline font-mono text-xs"
                             >
                               {e.invoice.invoiceNumber}
                             </Link>
@@ -236,7 +236,7 @@ export default function EmailCenterPage() {
                 >
                   {t("common.prev") || "Zurück"}
                 </Button>
-                <span className="text-sm text-gray-500">
+                <span className="text-sm text-gray-500 dark:text-gray-400">
                   {t("common.page") || "Seite"} {page} / {totalPages}
                 </span>
                 <Button
@@ -259,10 +259,10 @@ export default function EmailCenterPage() {
           <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <CardHeader>
               <CardTitle>{selected.subject || "(ohne Betreff)"}</CardTitle>
-              <div className="text-sm text-gray-500 mt-1">
+              <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                 {t("email.colRecipient") || "An"}: {selected.recipientName} &lt;{selected.recipientEmail}&gt;
               </div>
-              <div className="text-sm text-gray-500">
+              <div className="text-sm text-gray-500 dark:text-gray-400">
                 {t("email.colDate") || "Gesendet"}: {fmtDate(selected.sentAt || selected.createdAt)}
               </div>
               <div className="text-sm mt-1">
@@ -270,9 +270,9 @@ export default function EmailCenterPage() {
                   {t(`email.status.${selected.status}`) || selected.status}
                 </span>
                 {selected.invoice && (
-                  <span className="ml-2 text-xs text-gray-500">
+                  <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
                     {t("email.colInvoice") || "Rechnung"}:{" "}
-                    <Link href={`/dashboard/invoices/${selected.invoice.id}`} className="text-blue-600 hover:underline font-mono">
+                    <Link href={`/dashboard/invoices/${selected.invoice.id}`} className="text-blue-600 dark:text-blue-400 hover:underline font-mono">
                       {selected.invoice.invoiceNumber}
                     </Link>
                   </span>
@@ -281,12 +281,12 @@ export default function EmailCenterPage() {
             </CardHeader>
             <CardContent>
               {loadingDetail ? (
-                <div className="text-center py-8 text-gray-500">
+                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
                   {t("common.loading") || "Lädt..."}
                 </div>
               ) : (
                 <>
-                  <pre className="whitespace-pre-wrap text-sm bg-gray-50 p-4 rounded border">
+                  <pre className="whitespace-pre-wrap text-sm bg-gray-50 dark:bg-gray-900 p-4 rounded border">
                     {selected.bodyPreview || t("email.noBodyPreview") || "(kein Vorschau-Text)"}
                   </pre>
                   {selected.notes && (

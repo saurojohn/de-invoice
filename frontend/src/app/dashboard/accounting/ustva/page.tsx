@@ -327,12 +327,12 @@ export default function UstvaPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
       <div className="max-w-7xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">{t("ustva.title")}</h1>
-            <p className="text-sm text-gray-500 mt-1">{t("ustva.subtitle")}</p>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{t("ustva.title")}</h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t("ustva.subtitle")}</p>
           </div>
           <div className="flex items-center gap-3">
             <LanguageSwitcher />
@@ -347,7 +347,7 @@ export default function UstvaPage() {
           <CardContent className="pt-6">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                   {t("ustva.yearly")}
                 </label>
                 <input
@@ -356,17 +356,17 @@ export default function UstvaPage() {
                   onChange={(e) => setYear(parseInt(e.target.value, 10))}
                   min="2010"
                   max="2100"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  className="w-full px-3 py-2 border border-gray dark:border-gray-700-300 dark:border-gray-600 rounded-md"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                   {t("ustva.period")}
                 </label>
                 <select
                   value={period}
                   onChange={(e) => setPeriod(e.target.value as PeriodMode)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  className="w-full px-3 py-2 border border-gray dark:border-gray-700-300 dark:border-gray-600 rounded-md"
                 >
                   <option value="year">{t("ustva.yearly")}</option>
                   <option value="q1">{t("ustva.q1")}</option>
@@ -400,42 +400,42 @@ export default function UstvaPage() {
         </Card>
 
         {loading || !data ? (
-          <div className="text-center py-12 text-gray-500">…</div>
+          <div className="text-center py-12 text-gray-500 dark:text-gray-400">…</div>
         ) : (
           <>
             {/* Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
               <Card>
                 <CardContent className="pt-6">
-                  <div className="text-xs text-gray-500 mb-1">{t("ustva.umsatzsteuer")}</div>
-                  <div className="text-2xl font-bold text-blue-700">
+                  <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">{t("ustva.umsatzsteuer")}</div>
+                  <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">
                     {formatCurrency(data.umsatzsteuer)}
                   </div>
                 </CardContent>
               </Card>
               <Card>
                 <CardContent className="pt-6">
-                  <div className="text-xs text-gray-500 mb-1">{t("ustva.vorsteuerTotal")}</div>
-                  <div className="text-2xl font-bold text-green-700">
+                  <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">{t("ustva.vorsteuerTotal")}</div>
+                  <div className="text-2xl font-bold text-green-700 dark:text-green-300">
                     {formatCurrency(data.vorsteuer.total)}
                   </div>
                 </CardContent>
               </Card>
               <Card>
                 <CardContent className="pt-6">
-                  <div className="text-xs text-gray-500 mb-1">{t("ustva.differenzbetrag")}</div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">{t("ustva.differenzbetrag")}</div>
                   <div
                     className={`text-2xl font-bold ${
                       data.differenzbetrag > 0
-                        ? "text-red-700"
+                        ? "text-red-700 dark:text-red-300"
                         : data.differenzbetrag < 0
                           ? "text-emerald-700"
-                          : "text-gray-700"
+                          : "text-gray-700 dark:text-gray-200"
                     }`}
                   >
                     {formatCurrency(data.differenzbetrag)}
                   </div>
-                  <div className="text-xs mt-1 text-gray-500">
+                  <div className="text-xs mt-1 text-gray-500 dark:text-gray-400">
                     {data.differenzbetrag > 0
                       ? t("ustva.zahllast")
                       : data.differenzbetrag < 0
@@ -453,7 +453,7 @@ export default function UstvaPage() {
               </CardHeader>
               <CardContent>
                 {data.salesByRate.length === 0 ? (
-                  <p className="text-sm text-gray-500 text-center py-4">—</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">—</p>
                 ) : (
                   <table className="w-full text-sm">
                     <thead>
@@ -590,10 +590,10 @@ export default function UstvaPage() {
               </CardHeader>
               <CardContent>
                 {showAdd && (
-                  <div className="mb-4 p-4 bg-gray-50 border rounded-lg">
+                  <div className="mb-4 p-4 bg-gray-50 dark:bg-gray-900 border rounded-lg">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                       <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">
+                        <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
                           {t("ustva.expenseDate")}
                         </label>
                         <input
@@ -604,7 +604,7 @@ export default function UstvaPage() {
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">
+                        <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
                           {t("ustva.expenseNumber")}
                         </label>
                         <input
@@ -614,7 +614,7 @@ export default function UstvaPage() {
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">
+                        <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
                           {t("ustva.supplier")}
                         </label>
                         <select
@@ -631,7 +631,7 @@ export default function UstvaPage() {
                         </select>
                       </div>
                       <div className="md:col-span-2">
-                        <label className="block text-xs font-medium text-gray-600 mb-1">
+                        <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
                           {t("ustva.description")} *
                         </label>
                         <input
@@ -641,7 +641,7 @@ export default function UstvaPage() {
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">
+                        <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
                           {t("ustva.category")}
                         </label>
                         <input
@@ -652,7 +652,7 @@ export default function UstvaPage() {
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">
+                        <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
                           {t("ustva.net")} *
                         </label>
                         <input
@@ -664,7 +664,7 @@ export default function UstvaPage() {
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">
+                        <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
                           {t("ustva.taxRate")}
                         </label>
                         <select
@@ -678,13 +678,13 @@ export default function UstvaPage() {
                         </select>
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">
+                        <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
                           {t("ustva.vat")} (auto)
                         </label>
                         <input
                           readOnly
                           value={exForm.vatAmount}
-                          className="w-full px-2 py-1.5 border rounded text-sm bg-gray-100 text-right"
+                          className="w-full px-2 py-1.5 border rounded text-sm bg-gray-100 dark:bg-gray-800 text-right"
                         />
                       </div>
                       <div className="md:col-span-3 flex flex-wrap gap-3">
@@ -722,7 +722,7 @@ export default function UstvaPage() {
                 )}
 
                 {expenses.length === 0 ? (
-                  <p className="text-sm text-gray-500 text-center py-6">
+                  <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-6">
                     {t("ustva.noExpenses")}
                   </p>
                 ) : (
@@ -742,7 +742,7 @@ export default function UstvaPage() {
                       </thead>
                       <tbody>
                         {expenses.map((ex) => (
-                          <tr key={ex.id} className="border-b hover:bg-gray-50">
+                          <tr key={ex.id} className="border-b hover:bg-gray-50 dark:bg-gray-900">
                             <td className="py-2">{formatDate(ex.invoiceDate)}</td>
                             <td className="py-2">{ex.invoiceNumber || "—"}</td>
                             <td className="py-2">{ex.supplier?.name || "—"}</td>
@@ -765,7 +765,7 @@ export default function UstvaPage() {
                             <td className="py-2 text-center">
                               <button
                                 onClick={() => deleteExpense(ex.id)}
-                                className="text-red-600 hover:underline text-xs"
+                                className="text-red-600 dark:text-red-400 hover:underline text-xs"
                               >
                                 {t("ustva.delete")}
                               </button>
@@ -789,25 +789,25 @@ export default function UstvaPage() {
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                       {t("ustva.steuernummer")}
                     </label>
                     <input
                       value={taxNumber}
                       onChange={(e) => setTaxNumber(e.target.value)}
                       placeholder={t("ustva.steuernummerPlaceholder")}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                      className="w-full px-3 py-2 border border-gray dark:border-gray-700-300 dark:border-gray-600 rounded-md"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                       {t("ustva.notes")}
                     </label>
                     <input
                       value={notes}
                       onChange={(e) => setNotes(e.target.value)}
                       placeholder={t("ustva.notizenPlaceholder")}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                      className="w-full px-3 py-2 border border-gray dark:border-gray-700-300 dark:border-gray-600 rounded-md"
                     />
                   </div>
                 </div>
@@ -832,7 +832,7 @@ export default function UstvaPage() {
               </CardHeader>
               <CardContent>
                 {filings.length === 0 ? (
-                  <p className="text-sm text-gray-500 text-center py-4">—</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">—</p>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
@@ -870,7 +870,7 @@ export default function UstvaPage() {
                             <td
                               className={`py-2 text-right font-medium ${
                                 Number(f.payableVat) > 0
-                                  ? "text-red-700"
+                                  ? "text-red-700 dark:text-red-300"
                                   : Number(f.payableVat) < 0
                                     ? "text-emerald-700"
                                     : ""
@@ -887,7 +887,7 @@ export default function UstvaPage() {
                                       ? "bg-emerald-100 text-emerald-800"
                                       : f.status === "rejected"
                                         ? "bg-red-100 text-red-800"
-                                        : "bg-gray-100 text-gray-700"
+                                        : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200"
                                 }`}
                               >
                                 {f.status === "draft"
@@ -899,7 +899,7 @@ export default function UstvaPage() {
                                       : t("ustva.statusRejected")}
                               </span>
                             </td>
-                            <td className="py-2 text-gray-600">{f.taxNumber || "—"}</td>
+                            <td className="py-2 text-gray-600 dark:text-gray-300">{f.taxNumber || "—"}</td>
                             <td className="py-2 text-right">
                               <Button
                                 variant="outline"

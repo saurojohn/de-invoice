@@ -253,13 +253,13 @@ export default function UsersPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
       <div className="max-w-5xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">{t("users.title")}</h1>
-            <p className="text-sm text-gray-500 mt-1">{t("users.subtitle")}</p>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{t("users.title")}</h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t("users.subtitle")}</p>
           </div>
           <div className="flex items-center gap-3">
             <LanguageSwitcher />
@@ -284,7 +284,7 @@ export default function UsersPage() {
         )}
 
         {loading && !error && (
-          <div className="text-center text-gray-500 py-6 text-sm">…</div>
+          <div className="text-center text-gray-500 dark:text-gray-400 py-6 text-sm">…</div>
         )}
 
         {actionMsg && (
@@ -294,7 +294,7 @@ export default function UsersPage() {
         )}
 
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4 text-sm">
+          <div className="bg-red-50 border border-red-200 text-red-700 dark:text-red-300 px-4 py-3 rounded mb-4 text-sm">
             {error}
           </div>
         )}
@@ -314,7 +314,7 @@ export default function UsersPage() {
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div className="md:col-span-1">
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
                       {t("users.inviteEmail")}
                     </label>
                     <input
@@ -326,7 +326,7 @@ export default function UsersPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
                       {t("users.inviteRole")}
                     </label>
                     <select
@@ -350,7 +350,7 @@ export default function UsersPage() {
                     className={`mt-2 text-sm ${
                       inviteMsg.includes("versendet") || inviteMsg.includes("sent")
                         ? "text-emerald-700"
-                        : "text-red-700"
+                        : "text-red-700 dark:text-red-300"
                     }`}
                   >
                     {inviteMsg}
@@ -369,7 +369,7 @@ export default function UsersPage() {
             </CardHeader>
             <CardContent>
               {invitations.length === 0 ? (
-                <p className="text-sm text-gray-500 text-center py-3">{t("users.noInvitations")}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-3">{t("users.noInvitations")}</p>
               ) : (
                 <table className="w-full text-sm">
                   <thead>
@@ -382,20 +382,20 @@ export default function UsersPage() {
                   </thead>
                   <tbody>
                     {invitations.map((inv) => (
-                      <tr key={inv.id} className="border-b hover:bg-gray-50">
+                      <tr key={inv.id} className="border-b hover:bg-gray-50 dark:bg-gray-900">
                         <td className="py-2">{inv.email}</td>
                         <td className="py-2">{roleLabel(inv.role)}</td>
-                        <td className="py-2 text-gray-600">{formatDate(inv.expiresAt)}</td>
+                        <td className="py-2 text-gray-600 dark:text-gray-300">{formatDate(inv.expiresAt)}</td>
                         <td className="py-2 text-right space-x-2">
                           <button
                             onClick={() => resendInvite(inv.id)}
-                            className="text-blue-600 hover:underline text-xs"
+                            className="text-blue-600 dark:text-blue-400 hover:underline text-xs"
                           >
                             {t("users.resend")}
                           </button>
                           <button
                             onClick={() => cancelInvite(inv.id)}
-                            className="text-red-600 hover:underline text-xs"
+                            className="text-red-600 dark:text-red-400 hover:underline text-xs"
                           >
                             {t("users.cancel")}
                           </button>
@@ -418,9 +418,9 @@ export default function UsersPage() {
           </CardHeader>
           <CardContent>
             {loading ? (
-              <p className="text-center text-gray-500 py-6">…</p>
+              <p className="text-center text-gray-500 dark:text-gray-400 py-6">…</p>
             ) : users.length === 0 ? (
-              <p className="text-sm text-gray-500 text-center py-3">{t("users.noUsers")}</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-3">{t("users.noUsers")}</p>
             ) : (
               <table className="w-full text-sm">
                 <thead>
@@ -437,11 +437,11 @@ export default function UsersPage() {
                   {users.map((u) => {
                     const isMe = u.id === currentUserId
                     return (
-                      <tr key={u.id} className="border-b hover:bg-gray-50">
+                      <tr key={u.id} className="border-b hover:bg-gray-50 dark:bg-gray-900">
                         <td className="py-2">
                           {u.email}
                           {isMe && (
-                            <span className="ml-2 text-xs text-gray-500">{t("users.yourAccount")}</span>
+                            <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">{t("users.yourAccount")}</span>
                           )}
                         </td>
                         <td className="py-2">
@@ -464,16 +464,16 @@ export default function UsersPage() {
                             className={`text-xs px-2 py-0.5 rounded ${
                               u.status === "active"
                                 ? "bg-emerald-100 text-emerald-800"
-                                : "bg-gray-100 text-gray-700"
+                                : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200"
                             }`}
                           >
                             {u.status === "active" ? t("users.statusActive") : t("users.statusInactive")}
                           </span>
                         </td>
-                        <td className="py-2 text-gray-600">
+                        <td className="py-2 text-gray-600 dark:text-gray-300">
                           {u.lastLogin ? formatDate(u.lastLogin) : t("users.never")}
                         </td>
-                        <td className="py-2 text-gray-600">{formatDate(u.createdAt)}</td>
+                        <td className="py-2 text-gray-600 dark:text-gray-300">{formatDate(u.createdAt)}</td>
                         {isAdmin && (
                           <td className="py-2 text-right">
                             {!isMe && (

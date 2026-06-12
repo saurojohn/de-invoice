@@ -325,23 +325,23 @@ export default function AccountingPage() {
   }
   const getStatusColor = (s: string) => {
     const colors: Record<string, string> = {
-      draft: "bg-gray-100 text-gray-700",
-      booked: "bg-green-100 text-green-700",
-      posted: "bg-green-100 text-green-700",
-      voided: "bg-red-100 text-red-700",
+      draft: "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200",
+      booked: "bg-green-100 text-green-700 dark:text-green-300",
+      posted: "bg-green-100 text-green-700 dark:text-green-300",
+      voided: "bg-red-100 text-red-700 dark:text-red-300",
     }
     return colors[s] || colors.draft
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 p-6">
+    <main className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-between items-center mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
               {t("accounting.vouchers")}
             </h1>
-            <p className="text-sm text-gray-600 mt-1">
+            <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
               {t("accounting.voucherList")} — {t("accounting.voucherJournalHint")}
             </p>
           </div>
@@ -354,7 +354,7 @@ export default function AccountingPage() {
             </Button>
             <button
               onClick={() => router.push("/dashboard/accounting/ustva")}
-              className="px-3 py-1 text-sm border border-blue-600 text-blue-700 rounded hover:bg-blue-50 font-medium"
+              className="px-3 py-1 text-sm border border-blue-600 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-50 font-medium"
               title="UStVA — Umsatzsteuervoranmeldung"
             >
               UStVA
@@ -362,7 +362,7 @@ export default function AccountingPage() {
             <LanguageSwitcher />
             <button
               onClick={() => router.push("/dashboard")}
-              className="px-3 py-1 text-sm border rounded hover:bg-gray-100"
+              className="px-3 py-1 text-sm border rounded hover:bg-gray-100 dark:hover:bg-gray-700"
             >
               {t("common.back")}
             </button>
@@ -417,22 +417,22 @@ export default function AccountingPage() {
 
         {/* Aggregates strip */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
-          <div className="bg-white rounded-lg border p-4">
-            <div className="text-xs text-gray-500 uppercase">
+          <div className="bg-white dark:bg-gray-800 rounded-lg border p-4">
+            <div className="text-xs text-gray-500 dark:text-gray-400 uppercase">
               {t("accounting.countShown")}
             </div>
             <div className="text-xl font-bold mt-1 font-mono">
               {vouchers.length} / {total}
             </div>
           </div>
-          <div className="bg-white rounded-lg border p-4">
-            <div className="text-xs text-gray-500 uppercase">Σ Soll</div>
+          <div className="bg-white dark:bg-gray-800 rounded-lg border p-4">
+            <div className="text-xs text-gray-500 dark:text-gray-400 uppercase">Σ Soll</div>
             <div className="text-xl font-bold mt-1 font-mono">
               {formatCurrency(aggregates.d.toFixed(2))}
             </div>
           </div>
-          <div className="bg-white rounded-lg border p-4">
-            <div className="text-xs text-gray-500 uppercase">Σ Haben</div>
+          <div className="bg-white dark:bg-gray-800 rounded-lg border p-4">
+            <div className="text-xs text-gray-500 dark:text-gray-400 uppercase">Σ Haben</div>
             <div className="text-xl font-bold mt-1 font-mono">
               {formatCurrency(aggregates.c.toFixed(2))}
             </div>
@@ -441,17 +441,17 @@ export default function AccountingPage() {
             className={
               "rounded-lg border p-4 " +
               (aggregates.unbalanced > 0
-                ? "bg-red-50 border-red-300"
-                : "bg-white")
+                ? "bg-red-50 border-red-300 dark:border-red-700"
+                : "bg-white dark:bg-gray-800")
             }
           >
-            <div className="text-xs text-gray-500 uppercase">
+            <div className="text-xs text-gray-500 dark:text-gray-400 uppercase">
               {t("accounting.unbalanced")}
             </div>
             <div
               className={
                 "text-xl font-bold mt-1 font-mono " +
-                (aggregates.unbalanced > 0 ? "text-red-700" : "")
+                (aggregates.unbalanced > 0 ? "text-red-700 dark:text-red-300" : "")
               }
             >
               {aggregates.unbalanced}
@@ -467,11 +467,11 @@ export default function AccountingPage() {
             {loading ? (
               <div className="space-y-4">
                 {[1, 2, 3].map((i) => (
-                  <div key={i} className="h-16 bg-gray-100 rounded animate-pulse" />
+                  <div key={i} className="h-16 bg-gray-100 dark:bg-gray-800 rounded animate-pulse" />
                 ))}
               </div>
             ) : vouchers.length === 0 ? (
-              <div className="text-center py-12 text-gray-500">
+              <div className="text-center py-12 text-gray-500 dark:text-gray-400">
                 {t("common.noData")}
               </div>
             ) : (
@@ -479,25 +479,25 @@ export default function AccountingPage() {
                 <table className="w-full">
                   <thead>
                     <tr className="border-b">
-                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">
                         {t("accounting.voucherNumber")}
                       </th>
-                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">
                         {t("accounting.voucherDate")}
                       </th>
-                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">
                         {t("accounting.description")}
                       </th>
-                      <th className="text-center py-3 px-4 text-sm font-medium text-gray-500">
+                      <th className="text-center py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">
                         {t("accounting.primaryAccount")}
                       </th>
-                      <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">
+                      <th className="text-right py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">
                         {t("accounting.total")}
                       </th>
-                      <th className="text-center py-3 px-4 text-sm font-medium text-gray-500">
+                      <th className="text-center py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">
                         {t("accounting.balanced")}
                       </th>
-                      <th className="text-center py-3 px-4 text-sm font-medium text-gray-500">
+                      <th className="text-center py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">
                         {t("accounting.status")}
                       </th>
                     </tr>
@@ -506,7 +506,7 @@ export default function AccountingPage() {
                     {vouchers.map((v) => (
                       <tr
                         key={v.id}
-                        className="border-b hover:bg-gray-50 cursor-pointer"
+                        className="border-b hover:bg-gray-50 dark:bg-gray-900 cursor-pointer"
                         onClick={() =>
                           router.push(`/dashboard/accounting/vouchers/${v.id}`)
                         }
@@ -517,11 +517,11 @@ export default function AccountingPage() {
                         <td className="py-3 px-4 text-sm">
                           {formatDate(v.date)}
                         </td>
-                        <td className="py-3 px-4 text-sm text-gray-600">
+                        <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-300">
                           {v.description || "-"}
                         </td>
                         <td className="py-3 px-4 text-center">
-                          <span className="font-mono text-xs bg-gray-100 rounded px-2 py-1">
+                          <span className="font-mono text-xs bg-gray-100 dark:bg-gray-800 rounded px-2 py-1">
                             {v.primaryAccount}
                           </span>
                         </td>
@@ -531,14 +531,14 @@ export default function AccountingPage() {
                         <td className="py-3 px-4 text-center">
                           {v.balanced ? (
                             <span
-                              className="text-green-600"
+                              className="text-green-600 dark:text-green-400"
                               title="Soll = Haben"
                             >
                               ✓
                             </span>
                           ) : (
                             <span
-                              className="text-red-600 font-bold"
+                              className="text-red-600 dark:text-red-400 font-bold"
                               title="Soll ≠ Haben"
                             >
                               ✗
@@ -563,17 +563,17 @@ export default function AccountingPage() {
       {/* Manual-voucher create modal */}
       {showCreate && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl p-6 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl p-6 max-h-[90vh] overflow-y-auto">
             <h2 className="text-xl font-bold mb-1">
               {t("accounting.createManual")}
             </h2>
-            <p className="text-xs text-gray-500 mb-4">
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
               {t("accounting.reverseHint")}
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
               <div>
-                <label className="text-xs text-gray-500 uppercase">
+                <label className="text-xs text-gray-500 dark:text-gray-400 uppercase">
                   {t("accounting.voucherDate")}
                 </label>
                 <input
@@ -584,7 +584,7 @@ export default function AccountingPage() {
                 />
               </div>
               <div>
-                <label className="text-xs text-gray-500 uppercase">
+                <label className="text-xs text-gray-500 dark:text-gray-400 uppercase">
                   {t("accounting.voucherDescription")}
                 </label>
                 <input
@@ -738,18 +738,18 @@ export default function AccountingPage() {
 
             <div className="border rounded-lg overflow-hidden">
               <table className="w-full">
-                <thead className="bg-gray-50">
+                <thead className="bg-gray-50 dark:bg-gray-900">
                   <tr>
-                    <th className="text-left px-3 py-2 text-xs font-medium text-gray-500">
+                    <th className="text-left px-3 py-2 text-xs font-medium text-gray-500 dark:text-gray-400">
                       {t("accounting.account")}
                     </th>
-                    <th className="text-left px-3 py-2 text-xs font-medium text-gray-500 w-32">
+                    <th className="text-left px-3 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 w-32">
                       {t("accounting.debit")}
                     </th>
-                    <th className="text-left px-3 py-2 text-xs font-medium text-gray-500 w-32">
+                    <th className="text-left px-3 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 w-32">
                       {t("accounting.credit")}
                     </th>
-                    <th className="text-left px-3 py-2 text-xs font-medium text-gray-500">
+                    <th className="text-left px-3 py-2 text-xs font-medium text-gray-500 dark:text-gray-400">
                       Beschreibung
                     </th>
                     <th className="w-10"></th>
@@ -813,7 +813,7 @@ export default function AccountingPage() {
                         {draftLines.length > 2 && (
                           <button
                             onClick={() => removeLine(idx)}
-                            className="text-red-600 hover:text-red-800"
+                            className="text-red-600 dark:text-red-400 hover:text-red-800"
                             title={t("accounting.removeLine")}
                           >
                             ×
@@ -823,9 +823,9 @@ export default function AccountingPage() {
                     </tr>
                   ))}
                 </tbody>
-                <tfoot className="bg-gray-50 border-t-2 border-gray-300">
+                <tfoot className="bg-gray-50 dark:bg-gray-900 border-t-2 border-gray dark:border-gray-700-300 dark:border-gray-600">
                   <tr>
-                    <td className="px-3 py-2 text-xs font-medium text-gray-600 uppercase">
+                    <td className="px-3 py-2 text-xs font-medium text-gray-600 dark:text-gray-300 uppercase">
                       Summe
                     </td>
                     <td className="px-3 py-2 text-right font-mono text-sm font-bold">
@@ -839,8 +839,8 @@ export default function AccountingPage() {
                       className={
                         "px-3 py-2 text-right text-sm font-bold " +
                         (draftBalance.balanced
-                          ? "text-green-700"
-                          : "text-red-700")
+                          ? "text-green-700 dark:text-green-300"
+                          : "text-red-700 dark:text-red-300")
                       }
                     >
                       {draftBalance.balanced
@@ -879,7 +879,7 @@ export default function AccountingPage() {
             </div>
 
             {createError && (
-              <div className="mt-3 p-3 bg-red-50 border border-red-300 rounded text-sm text-red-800">
+              <div className="mt-3 p-3 bg-red-50 border border-red-300 dark:border-red-700 rounded text-sm text-red-800">
                 {createError}
               </div>
             )}

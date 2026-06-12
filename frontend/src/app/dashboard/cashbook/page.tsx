@@ -337,12 +337,12 @@ export default function CashbookPage() {
   )
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <div className="container mx-auto px-4 py-8">
         <div className="flex justify-between items-center mb-6">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">{t("cashbook.title")}</h1>
-            <p className="text-gray-500 mt-1">{t("cashbook.subtitle")}</p>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">{t("cashbook.title")}</h1>
+            <p className="text-gray-500 dark:text-gray-400 mt-1">{t("cashbook.subtitle")}</p>
           </div>
           <div className="flex gap-2 items-center">
             <LanguageSwitcher />
@@ -359,7 +359,7 @@ export default function CashbookPage() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
           <Card>
             <CardContent className="pt-6">
-              <div className="text-sm text-gray-500">{t("cashbook.balance")}</div>
+              <div className="text-sm text-gray-500 dark:text-gray-400">{t("cashbook.balance")}</div>
               <div className="text-2xl font-bold text-emerald-700 mt-1">
                 {balance ? `€ ${fmtMoney(balance.balance)}` : "—"}
               </div>
@@ -368,7 +368,7 @@ export default function CashbookPage() {
           </Card>
           <Card>
             <CardContent className="pt-6">
-              <div className="text-sm text-gray-500">{t("cashbook.anfangsbestand")}</div>
+              <div className="text-sm text-gray-500 dark:text-gray-400">{t("cashbook.anfangsbestand")}</div>
               <div className="text-2xl font-bold mt-1">
                 {balance ? `€ ${fmtMoney(balance.anfang)}` : "—"}
               </div>
@@ -376,7 +376,7 @@ export default function CashbookPage() {
           </Card>
           <Card>
             <CardContent className="pt-6">
-              <div className="text-sm text-gray-500">{t("cashbook.entriesToday")}</div>
+              <div className="text-sm text-gray-500 dark:text-gray-400">{t("cashbook.entriesToday")}</div>
               <div className="text-2xl font-bold mt-1">{today?.entries.length ?? 0}</div>
               <div className="text-xs text-gray-400 mt-1">
                 Einnahmen: € {fmtMoney(today?.einnahmen ?? 0)} ·
@@ -386,7 +386,7 @@ export default function CashbookPage() {
           </Card>
           <Card>
             <CardContent className="pt-6">
-              <div className="text-sm text-gray-500">{t("cashbook.endbestand")}</div>
+              <div className="text-sm text-gray-500 dark:text-gray-400">{t("cashbook.endbestand")}</div>
               <div className="text-2xl font-bold mt-1">
                 {today ? `€ ${fmtMoney(today.ende)}` : "—"}
               </div>
@@ -412,7 +412,7 @@ export default function CashbookPage() {
               </div>
             ) : (
               <div className="flex flex-wrap gap-2 items-center justify-between">
-                <div className="text-sm text-gray-600">
+                <div className="text-sm text-gray-600 dark:text-gray-300">
                   {t("cashbook.entriesToday")}: <span className="font-mono">{today?.entries.length ?? 0}</span> ·
                   Endbestand: <span className="font-mono font-medium">€ {fmtMoney(today?.ende ?? 0)}</span>
                 </div>
@@ -444,7 +444,7 @@ export default function CashbookPage() {
             <CardContent>
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-left text-gray-500 text-xs border-b">
+                  <tr className="text-left text-gray-500 dark:text-gray-400 text-xs border-b">
                     <th className="py-2">Datum</th>
                     <th className="text-right">Anfangsbestand</th>
                     <th className="text-right">Einnahmen</th>
@@ -459,19 +459,19 @@ export default function CashbookPage() {
                   {recentCloses.slice(0, 10).map((c) => {
                     const diff = Number(c.differenz)
                     return (
-                      <tr key={c.id} className="border-b hover:bg-gray-50">
+                      <tr key={c.id} className="border-b hover:bg-gray-50 dark:bg-gray-900">
                         <td className="py-2 font-mono">{fmtDate(c.businessDate, dl)}</td>
                         <td className="text-right font-mono">€ {fmtMoney(Number(c.anfangsbestand))}</td>
                         <td className="text-right font-mono text-emerald-700">€ {fmtMoney(Number(c.einnahmenSum))}</td>
-                        <td className="text-right font-mono text-red-700">€ {fmtMoney(Number(c.ausgabenSum))}</td>
+                        <td className="text-right font-mono text-red-700 dark:text-red-300">€ {fmtMoney(Number(c.ausgabenSum))}</td>
                         <td className="text-right font-mono">€ {fmtMoney(Number(c.endbestand))}</td>
                         <td className="text-right font-mono">€ {fmtMoney(Number(c.physicalCount))}</td>
                         <td className={`text-right font-mono font-medium ${
-                          diff > 0.01 ? "text-amber-700" : diff < -0.01 ? "text-red-700" : "text-emerald-700"
+                          diff > 0.01 ? "text-amber-700" : diff < -0.01 ? "text-red-700 dark:text-red-300" : "text-emerald-700"
                         }`}>
                           {diff === 0 ? t("cashbook.zberichtExact") : `€ ${fmtMoney(diff)}`}
                           {c.differenzNote && (
-                            <div className="text-xs text-gray-500 font-normal italic mt-0.5">
+                            <div className="text-xs text-gray-500 dark:text-gray-400 font-normal italic mt-0.5">
                               {c.differenzNote}
                             </div>
                           )}
@@ -506,17 +506,17 @@ export default function CashbookPage() {
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                 <div>
-                  <div className="text-xs text-gray-500">{t("cashbook.einnahmen")}</div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">{t("cashbook.einnahmen")}</div>
                   <div className="text-xl font-bold text-emerald-700">€ {fmtMoney(monthSummary.einnahmen)}</div>
                 </div>
                 <div>
-                  <div className="text-xs text-gray-500">{t("cashbook.ausgaben")}</div>
-                  <div className="text-xl font-bold text-red-700">€ {fmtMoney(monthSummary.ausgaben)}</div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">{t("cashbook.ausgaben")}</div>
+                  <div className="text-xl font-bold text-red-700 dark:text-red-300">€ {fmtMoney(monthSummary.ausgaben)}</div>
                 </div>
                 <div>
-                  <div className="text-xs text-gray-500">Saldo</div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">Saldo</div>
                   <div className={`text-xl font-bold ${
-                    monthSummary.einnahmen - monthSummary.ausgaben >= 0 ? "text-emerald-700" : "text-red-700"
+                    monthSummary.einnahmen - monthSummary.ausgaben >= 0 ? "text-emerald-700" : "text-red-700 dark:text-red-300"
                   }`}>
                     € {fmtMoney(monthSummary.einnahmen - monthSummary.ausgaben)}
                   </div>
@@ -525,7 +525,7 @@ export default function CashbookPage() {
               {monthSummary.vatBreakdown.length > 0 && (
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="text-left text-gray-500 text-xs border-b">
+                    <tr className="text-left text-gray-500 dark:text-gray-400 text-xs border-b">
                       <th className="py-2">MwSt %</th>
                       <th className="text-right">Netto</th>
                       <th className="text-right">MwSt</th>
@@ -555,14 +555,14 @@ export default function CashbookPage() {
           </CardHeader>
           <CardContent>
             {loading ? (
-              <div className="text-center py-12 text-gray-500">{t("common.loading")}</div>
+              <div className="text-center py-12 text-gray-500 dark:text-gray-400">{t("common.loading")}</div>
             ) : entries.length === 0 ? (
-              <div className="text-center py-12 text-gray-500">{t("cashbook.empty")}</div>
+              <div className="text-center py-12 text-gray-500 dark:text-gray-400">{t("cashbook.empty")}</div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="text-left text-gray-500 text-xs border-b">
+                    <tr className="text-left text-gray-500 dark:text-gray-400 text-xs border-b">
                       <th className="py-2">Datum</th>
                       <th>Typ</th>
                       <th>Beschreibung</th>
@@ -577,9 +577,9 @@ export default function CashbookPage() {
                       const isStorno = !!e.reversesId
                       const amt = Number(e.amount)
                       return (
-                        <tr key={e.id} className={`border-b hover:bg-gray-50 ${
-                          e.dayClosed ? "bg-gray-50" : ""
-                        } ${isStorno ? "italic text-gray-500" : ""}`}>
+                        <tr key={e.id} className={`border-b hover:bg-gray-50 dark:bg-gray-900 ${
+                          e.dayClosed ? "bg-gray-50 dark:bg-gray-900" : ""
+                        } ${isStorno ? "italic text-gray-500 dark:text-gray-400" : ""}`}>
                           <td className="py-2 font-mono text-xs">
                             {fmtDate(e.businessDate, dl)}
                             {e.dayClosed && (
@@ -588,7 +588,7 @@ export default function CashbookPage() {
                           </td>
                           <td>
                             <span className={`text-xs px-1.5 py-0.5 rounded ${
-                              isStorno ? "bg-gray-100 text-gray-600"
+                              isStorno ? "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300"
                               : e.type === "einnahme" ? "bg-emerald-100 text-emerald-800"
                               : e.type === "ausgabe" ? "bg-red-100 text-red-800"
                               : e.type === "eroeffnung" ? "bg-blue-100 text-blue-800"
@@ -605,12 +605,12 @@ export default function CashbookPage() {
                           </td>
                           <td className={`text-right font-mono font-medium ${
                             e.type === "einnahme" || e.type === "eroeffnung" ? "text-emerald-700"
-                            : e.type === "ausgabe" || e.type === "umbuchung" ? "text-red-700" : ""
+                            : e.type === "ausgabe" || e.type === "umbuchung" ? "text-red-700 dark:text-red-300" : ""
                           }`}>
                             € {fmtMoney(amt)}
                           </td>
-                          <td className="text-xs text-gray-500">{e.counterparty || "—"}</td>
-                          <td className="text-xs text-gray-500 font-mono">{e.belegNumber || "—"}</td>
+                          <td className="text-xs text-gray-500 dark:text-gray-400">{e.counterparty || "—"}</td>
+                          <td className="text-xs text-gray-500 dark:text-gray-400 font-mono">{e.belegNumber || "—"}</td>
                           <td>
                             <div className="flex gap-1">
                               {!e.dayClosed && (
@@ -770,9 +770,9 @@ export default function CashbookPage() {
               <CardTitle>{t("cashbook.zbericht")} — {fmtDate(zDate, dl)}</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-gray-600 mb-4">{t("cashbook.zberichtDesc")}</p>
+              <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">{t("cashbook.zberichtDesc")}</p>
 
-              <div className="bg-gray-50 rounded p-3 mb-4 text-sm space-y-1">
+              <div className="bg-gray-50 dark:bg-gray-900 rounded p-3 mb-4 text-sm space-y-1">
                 <div className="flex justify-between">
                   <span>{t("cashbook.anfangsbestand")}:</span>
                   <span className="font-mono">€ {fmtMoney(zPreview.anfang)}</span>
@@ -781,7 +781,7 @@ export default function CashbookPage() {
                   <span>+ {t("cashbook.einnahmen")}:</span>
                   <span className="font-mono">€ {fmtMoney(zPreview.einnahmen)}</span>
                 </div>
-                <div className="flex justify-between text-red-700">
+                <div className="flex justify-between text-red-700 dark:text-red-300">
                   <span>− {t("cashbook.ausgaben")}:</span>
                   <span className="font-mono">€ {fmtMoney(zPreview.ausgaben)}</span>
                 </div>
@@ -815,7 +815,7 @@ export default function CashbookPage() {
                 {zCount && !isNaN(parseFloat(zCount)) && Math.abs(parseFloat(zCount) - zPreview.ende) > 0.001 && (
                   <>
                     <div className={`text-sm font-medium ${
-                      parseFloat(zCount) > zPreview.ende ? "text-amber-700" : "text-red-700"
+                      parseFloat(zCount) > zPreview.ende ? "text-amber-700" : "text-red-700 dark:text-red-300"
                     }`}>
                       {t("cashbook.zberichtDifference")}: {parseFloat(zCount) > zPreview.ende ? "+" : ""}
                       € {fmtMoney(parseFloat(zCount) - zPreview.ende)} (
@@ -864,7 +864,7 @@ export default function CashbookPage() {
               <CardTitle>{t("cashbook.storno")}</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-gray-600 mb-3">
+              <p className="text-sm text-gray-600 dark:text-gray-300 mb-3">
                 {t("cashbook.reverseReason")}
               </p>
               <textarea

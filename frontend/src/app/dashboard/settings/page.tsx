@@ -552,21 +552,21 @@ export default function SettingsPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-gray-500">{t("common.loading")}</div>
+      <main className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <div className="text-gray-500 dark:text-gray-400">{t("common.loading")}</div>
       </main>
     )
   }
 
   return (
-    <main className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b shadow-sm">
+    <main className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <header className="bg-white dark:bg-gray-800 border-b shadow-sm">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-blue-600">{t("nav.settings")}</h1>
+          <h1 className="text-2xl font-bold text-blue-600 dark:text-blue-400">{t("nav.settings")}</h1>
           <div className="flex gap-2 items-center">
             <button
               onClick={() => router.push("/dashboard/settings/users")}
-              className="px-3 py-1 text-sm border border-blue-600 text-blue-700 rounded hover:bg-blue-50 font-medium"
+              className="px-3 py-1 text-sm border border-blue-600 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-50 font-medium"
               title="Benutzerverwaltung"
             >
               {t("users.title")}
@@ -589,7 +589,7 @@ export default function SettingsPage() {
             <CardContent>
               <div className="flex items-start gap-6">
                 {/* Current Logo Preview */}
-                <div className="w-40 h-40 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center bg-gray-50 overflow-hidden">
+                <div className="w-40 h-40 border-2 border-dashed border-gray dark:border-gray-700-300 dark:border-gray-600 rounded-lg flex items-center justify-center bg-gray-50 dark:bg-gray-900 overflow-hidden">
                   {currentLogo ? (
                     <img
                       src={currentLogo}
@@ -628,12 +628,12 @@ export default function SettingsPage() {
                       variant="ghost"
                       size="sm"
                       onClick={removeLogo}
-                      className="ml-2 text-red-600"
+                      className="ml-2 text-red-600 dark:text-red-400"
                     >
                       {t("settings.removeLogo")}
                     </Button>
                   )}
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
                     {t("settings.logoRecommended")}
                   </p>
                 </div>
@@ -788,7 +788,7 @@ export default function SettingsPage() {
                   placeholder={t("settings.otherInfoPlaceholder")}
                   rows={3}
                 />
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                   {t("settings.otherInfoHelp")}
                 </p>
               </div>
@@ -976,7 +976,7 @@ export default function SettingsPage() {
                   }
                   placeholder={t("settings.defaultPrinterPlaceholder")}
                 />
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                   {t("settings.defaultPrinterHelp")}
                 </p>
               </div>
@@ -989,8 +989,8 @@ export default function SettingsPage() {
               <CardTitle>{t("settings.datevTitle")}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <p className="text-sm text-gray-600">{t("settings.datevSubtitle")}</p>
-              <p className="text-xs text-gray-500">{t("settings.datevDefaultsHint")}</p>
+              <p className="text-sm text-gray-600 dark:text-gray-300">{t("settings.datevSubtitle")}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{t("settings.datevDefaultsHint")}</p>
 
               {datevSavedMsg && (
                 <div className="text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded p-2">
@@ -998,19 +998,19 @@ export default function SettingsPage() {
                 </div>
               )}
               {datevError && (
-                <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded p-2">
+                <div className="text-sm text-red-700 dark:text-red-300 bg-red-50 border border-red-200 rounded p-2">
                   {datevError}
                 </div>
               )}
 
               {datevLoading ? (
-                <div className="text-sm text-gray-500">{t("common.loading")}</div>
+                <div className="text-sm text-gray-500 dark:text-gray-400">{t("common.loading")}</div>
               ) : (
                 <>
                   <div className="grid md:grid-cols-2 gap-3">
                     {Object.keys(datevDefaults).map((k) => (
                       <div key={k}>
-                        <label className="block text-xs text-gray-600 mb-1">
+                        <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">
                           {t(`settings.datevAccount_${k}`) || k}
                         </label>
                         <Input
@@ -1029,7 +1029,7 @@ export default function SettingsPage() {
 
                   <div className="grid md:grid-cols-2 gap-3 pt-3 border-t">
                     <div>
-                      <label className="block text-xs text-gray-600 mb-1">
+                      <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">
                         {t("settings.datevBeraterNr")}
                       </label>
                       <Input
@@ -1041,7 +1041,7 @@ export default function SettingsPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-600 mb-1">
+                      <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">
                         {t("settings.datevMandantenNr")}
                       </label>
                       <Input
@@ -1128,7 +1128,7 @@ export default function SettingsPage() {
                     onChange={(e) => setStorageForm({ ...storageForm, localPath: e.target.value })}
                     placeholder="~/data/invoice-system"
                   />
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                     {t("storage.localPathHint")}
                   </p>
                 </div>
@@ -1160,21 +1160,21 @@ export default function SettingsPage() {
 
               {/* Usage stats */}
               {storageStats && (
-                <div className="mt-2 p-4 bg-gray-50 rounded-lg">
+                <div className="mt-2 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
                   <h4 className="text-sm font-medium mb-3">{t("storage.usage")}</h4>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div>
-                      <p className="text-xs text-gray-500">{t("storage.filesCount")}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{t("storage.filesCount")}</p>
                       <p className="text-lg font-semibold">{storageStats.totalFiles}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-500">{t("storage.totalSize")}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{t("storage.totalSize")}</p>
                       <p className="text-lg font-semibold">{storageStats.totalSizeFormatted}</p>
                     </div>
                     {/* Safe access: usageByType might not have every key */}
                     {Object.entries(storageStats.usageByType || {}).map(([type, info]) => (
                       <div key={type}>
-                        <p className="text-xs text-gray-500 uppercase">{type}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">{type}</p>
                         <p className="text-sm">
                           {info.count} {t("storage.files")} ({formatBytes(info.size)})
                         </p>
@@ -1188,13 +1188,13 @@ export default function SettingsPage() {
               <div className="mt-2">
                 <h4 className="text-sm font-medium mb-2">{t("storage.filesTitle")}</h4>
                 {storedFiles.length === 0 ? (
-                  <p className="text-sm text-gray-500 text-center py-4">
+                  <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
                     {t("storage.filesEmpty")}
                   </p>
                 ) : (
                   <div className="overflow-x-auto border rounded-lg">
                     <table className="w-full text-sm">
-                      <thead className="bg-gray-50 border-b">
+                      <thead className="bg-gray-50 dark:bg-gray-900 border-b">
                         <tr>
                           <th className="text-left px-3 py-2 font-medium">{t("storage.fileName")}</th>
                           <th className="text-left px-3 py-2 font-medium">{t("storage.fileType")}</th>
@@ -1205,13 +1205,13 @@ export default function SettingsPage() {
                       </thead>
                       <tbody>
                         {storedFiles.slice(0, 20).map((f) => (
-                          <tr key={f.path} className="border-b hover:bg-gray-50">
+                          <tr key={f.path} className="border-b hover:bg-gray-50 dark:bg-gray-900">
                             <td className="px-3 py-2 truncate max-w-xs" title={f.originalName}>
                               {f.originalName}
                             </td>
-                            <td className="px-3 py-2 text-xs uppercase text-gray-500">{f.type}</td>
+                            <td className="px-3 py-2 text-xs uppercase text-gray-500 dark:text-gray-400">{f.type}</td>
                             <td className="px-3 py-2 text-right">{formatBytes(f.size)}</td>
-                            <td className="px-3 py-2 text-gray-500">
+                            <td className="px-3 py-2 text-gray-500 dark:text-gray-400">
                               {new Date(f.uploadedAt).toLocaleDateString(getDateLocale())}
                             </td>
                             <td className="px-3 py-2 text-right space-x-2">
@@ -1226,13 +1226,13 @@ export default function SettingsPage() {
                                   a.click()
                                   document.body.removeChild(a)
                                 }}
-                                className="text-blue-600 hover:underline text-xs"
+                                className="text-blue-600 dark:text-blue-400 hover:underline text-xs"
                               >
                                 {t("storage.fileDownload")}
                               </button>
                               <button
                                 onClick={() => deleteFile(f)}
-                                className="text-red-600 hover:underline text-xs"
+                                className="text-red-600 dark:text-red-400 hover:underline text-xs"
                               >
                                 {t("storage.fileDelete")}
                               </button>
@@ -1242,7 +1242,7 @@ export default function SettingsPage() {
                       </tbody>
                     </table>
                     {storedFiles.length > 20 && (
-                      <p className="text-xs text-gray-500 text-center py-2">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 text-center py-2">
                         … {storedFiles.length - 20} weitere
                       </p>
                     )}
@@ -1256,7 +1256,7 @@ export default function SettingsPage() {
                   <span className="text-sm text-emerald-700">✓ {storageSavedMsg}</span>
                 )}
                 {storageError && (
-                  <span className="text-sm text-red-700">⚠ {storageError}</span>
+                  <span className="text-sm text-red-700 dark:text-red-300">⚠ {storageError}</span>
                 )}
                 <Button
                   type="button"
@@ -1313,18 +1313,18 @@ export default function SettingsPage() {
             <CardTitle className="flex items-center gap-2">
               {t("mail.title")}
               {mailForm.configured ? (
-                <span className="text-xs px-2 py-1 rounded bg-green-100 text-green-700 font-normal">
+                <span className="text-xs px-2 py-1 rounded bg-green-100 text-green-700 dark:text-green-300 font-normal">
                   {t("mail.configured")}
                 </span>
               ) : (
-                <span className="text-xs px-2 py-1 rounded bg-orange-100 text-orange-700 font-normal">
+                <span className="text-xs px-2 py-1 rounded bg-orange-100 text-orange-700 dark:text-orange-300 font-normal">
                   {t("mail.notConfigured")}
                 </span>
               )}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-gray-600 dark:text-gray-300">
               {t("mail.description")}
             </p>
 
@@ -1380,7 +1380,7 @@ export default function SettingsPage() {
                 <label className="block text-sm font-medium mb-1">
                   {t("mail.password")}
                   {mailForm.configured && (
-                    <span className="text-xs text-gray-500 ml-2">
+                    <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
                       ({t("mail.passwordHint")})
                     </span>
                   )}
@@ -1420,7 +1420,7 @@ export default function SettingsPage() {
 
             {mailMessage && (
               <div
-                className={`p-3 rounded text-sm ${mailMessage.ok ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}
+                className={`p-3 rounded text-sm ${mailMessage.ok ? "bg-green-50 text-green-700 dark:text-green-300" : "bg-red-50 text-red-700 dark:text-red-300"}`}
               >
                 {mailMessage.ok ? "✓ " : "✗ "}
                 {mailMessage.text}
@@ -1444,9 +1444,9 @@ export default function SettingsPage() {
               </Button>
             </div>
 
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-gray-500 dark:text-gray-400">
               {t("mail.source")}:{" "}
-              <code className="bg-gray-100 px-1 rounded">{mailForm.source || "env"}</code>
+              <code className="bg-gray-100 dark:bg-gray-800 px-1 rounded">{mailForm.source || "env"}</code>
             </p>
           </CardContent>
         </Card>

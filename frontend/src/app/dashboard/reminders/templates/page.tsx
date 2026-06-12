@@ -146,14 +146,14 @@ export default function ReminderTemplatesPage() {
   }, [editing, subject, body])
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <div className="container mx-auto px-4 py-8">
         <div className="flex justify-between items-center mb-6">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
               {t("reminder.templates.title") || "Mahnung-Vorlagen"}
             </h1>
-            <p className="text-gray-500 mt-1">
+            <p className="text-gray-500 dark:text-gray-400 mt-1">
               {t("reminder.templates.subtitle") || "Bearbeiten Sie die E-Mail-Vorlagen für 1./2./Letzte Mahnung"}
             </p>
           </div>
@@ -166,7 +166,7 @@ export default function ReminderTemplatesPage() {
         </div>
 
         {loading ? (
-          <div className="text-center py-12 text-gray-500">{t("common.loading") || "Lädt..."}</div>
+          <div className="text-center py-12 text-gray-500 dark:text-gray-400">{t("common.loading") || "Lädt..."}</div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {(["first", "second", "final"] as Level[]).map((level) => {
@@ -179,7 +179,7 @@ export default function ReminderTemplatesPage() {
                     <CardTitle className="flex items-center justify-between">
                       <span>{LEVEL_LABEL[level].de}</span>
                       {tpl.isDefault ? (
-                        <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-700 font-normal">
+                        <span className="text-xs px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 font-normal">
                           {t("reminder.templates.default") || "Standard"}
                         </span>
                       ) : (
@@ -192,10 +192,10 @@ export default function ReminderTemplatesPage() {
                   <CardContent>
                     {!isEditing ? (
                       <>
-                        <p className="text-sm font-medium text-gray-700">Betreff:</p>
+                        <p className="text-sm font-medium text-gray-700 dark:text-gray-200">Betreff:</p>
                         <p className="text-sm mb-3 font-mono">{tpl.subject}</p>
-                        <p className="text-sm font-medium text-gray-700">Inhalt:</p>
-                        <pre className="text-xs bg-gray-50 p-3 rounded border whitespace-pre-wrap max-h-60 overflow-y-auto">
+                        <p className="text-sm font-medium text-gray-700 dark:text-gray-200">Inhalt:</p>
+                        <pre className="text-xs bg-gray-50 dark:bg-gray-900 p-3 rounded border whitespace-pre-wrap max-h-60 overflow-y-auto">
                           {tpl.body}
                         </pre>
                         <div className="mt-4 flex gap-2">
@@ -229,7 +229,7 @@ export default function ReminderTemplatesPage() {
                           />
                         </div>
                         <div>
-                          <p className="text-xs text-gray-500 mb-1">
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
                             {t("reminder.templates.placeholdersHint") || "Platzhalter einfügen:"}
                           </p>
                           <div className="flex flex-wrap gap-1">
@@ -238,7 +238,7 @@ export default function ReminderTemplatesPage() {
                                 key={p.key}
                                 type="button"
                                 onClick={() => insertPlaceholder(p.key)}
-                                className="text-xs px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded border"
+                                className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:bg-gray-700 rounded border"
                                 title={p.de}
                               >
                                 {`{{${p.key}}}`}
@@ -253,18 +253,18 @@ export default function ReminderTemplatesPage() {
                             {t("reminder.templates.preview") || "Vorschau"}:
                           </p>
                           {previewLoading ? (
-                            <p className="text-xs text-gray-500">{t("common.loading") || "Lädt..."}</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">{t("common.loading") || "Lädt..."}</p>
                           ) : preview ? (
                             <>
-                              <p className="font-medium text-xs text-gray-500">Betreff:</p>
+                              <p className="font-medium text-xs text-gray-500 dark:text-gray-400">Betreff:</p>
                               <p className="text-sm mb-2">{preview.subject}</p>
-                              <p className="font-medium text-xs text-gray-500">Inhalt:</p>
+                              <p className="font-medium text-xs text-gray-500 dark:text-gray-400">Inhalt:</p>
                               <pre className="text-xs whitespace-pre-wrap max-h-40 overflow-y-auto">
                                 {preview.body}
                               </pre>
                             </>
                           ) : (
-                            <p className="text-xs text-gray-500">—</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">—</p>
                           )}
                         </div>
 

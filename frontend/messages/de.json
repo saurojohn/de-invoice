@@ -416,16 +416,12 @@
     "primaryAccount": "Hauptkonto",
     "newVoucher": "Neuer Beleg",
     "createManual": "Beleg manuell anlegen",
-    "voucherDate": "Belegdatum",
     "voucherDescription": "Beschreibung",
     "applyTemplate": "Aus Vorlage übernehmen",
     "applyTemplateButton": "Übernehmen",
     "noTemplates": "Keine Vorlagen — in der Datenbank via /api/v1/voucher-templates anlegen",
     "addLine": "Position hinzufügen",
     "removeLine": "Position entfernen",
-    "account": "Konto",
-    "debit": "Soll",
-    "credit": "Haben",
     "save": "Speichern",
     "cancel": "Abbrechen",
     "unbalancedWarning": "Soll und Haben müssen ausgeglichen sein",
@@ -1024,5 +1020,14 @@
     "noVoucher": "—",
     "category": "Kategorie",
     "empty": "Keine Eingangsrechnungen — laden Sie eine Bankdatei hoch oder legen Sie manuell eine Eingangsrechnung an."
+  },
+  "theme": {
+    "label": "Theme",
+    "light": "Hell",
+    "dark": "Dunkel",
+    "system": "System",
+    "tooltip_light": "Helles Design",
+    "tooltip_dark": "Dunkles Design",
+    "tooltip_system": "System-Einstellung folgen"
   }
 }

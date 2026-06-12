@@ -138,14 +138,14 @@ export default function RegisterPage() {
   if (isInviteMode) {
     if (loadingInvite) {
       return (
-        <main className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-          <p className="text-gray-500">Einladung wird überprüft…</p>
+        <main className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
+          <p className="text-gray-500 dark:text-gray-400">Einladung wird überprüft…</p>
         </main>
       )
     }
 
     return (
-      <main className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+      <main className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
           <CardHeader>
             <CardTitle className="text-center text-2xl">Einladung annehmen</CardTitle>
@@ -210,7 +210,7 @@ export default function RegisterPage() {
                 <div className="bg-red-50 border border-red-200 text-red-800 p-3 rounded text-sm">
                   {invInfo?.message || "Einladung ungültig oder abgelaufen."}
                 </div>
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-gray-600 dark:text-gray-300">
                   Bitte fordern Sie eine neue Einladung vom Administrator Ihres Unternehmens an.
                 </p>
                 <a
@@ -229,7 +229,7 @@ export default function RegisterPage() {
 
   // ================== Self-service registration UI ==================
   return (
-    <main className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+    <main className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle className="text-center text-2xl">注册账户</CardTitle>

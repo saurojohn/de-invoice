@@ -67,14 +67,14 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+    <main className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle className="text-center text-2xl">Neues Passwort festlegen</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4" autoComplete="on">
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-gray-600 dark:text-gray-300">
               Wählen Sie ein neues Passwort (mindestens 8 Zeichen, mit Buchstaben und Zahlen).
             </p>
 

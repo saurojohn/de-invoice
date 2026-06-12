@@ -198,7 +198,7 @@
     "vouchers": "Accounting Vouchers",
     "voucherList": "Voucher List",
     "voucherNumber": "Voucher Number",
-    "voucherDate": "Voucher Date",
+    "voucherDate": "Voucher date",
     "voucherType": "Voucher Type",
     "description": "Description",
     "debit": "Debit",
@@ -220,16 +220,12 @@
     "primaryAccount": "Primary account",
     "newVoucher": "New voucher",
     "createManual": "Create manual voucher",
-    "voucherDate": "Voucher date",
     "voucherDescription": "Description",
     "applyTemplate": "Apply from template",
     "applyTemplateButton": "Apply",
     "noTemplates": "No templates — create via /api/v1/voucher-templates",
     "addLine": "Add line",
     "removeLine": "Remove line",
-    "account": "Account",
-    "debit": "Debit",
-    "credit": "Credit",
     "save": "Save",
     "cancel": "Cancel",
     "unbalancedWarning": "Debit and credit must balance",
@@ -1016,5 +1012,14 @@
     "noVoucher": "—",
     "category": "Category",
     "empty": "No vendor bills — upload a bank file or create one manually."
+  },
+  "theme": {
+    "label": "Theme",
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System",
+    "tooltip_light": "Light design",
+    "tooltip_dark": "Dark design",
+    "tooltip_system": "Follow system setting"
   }
 }

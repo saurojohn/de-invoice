@@ -418,16 +418,12 @@
     "primaryAccount": "主科目",
     "newVoucher": "新增凭证",
     "createManual": "手动建凭证",
-    "voucherDate": "凭证日期",
     "voucherDescription": "摘要",
     "applyTemplate": "从模板应用",
     "applyTemplateButton": "应用",
     "noTemplates": "尚无模板 — 通过 /api/v1/voucher-templates 创建",
     "addLine": "加分录",
     "removeLine": "删除分录",
-    "account": "科目",
-    "debit": "借方",
-    "credit": "贷方",
     "save": "保存",
     "cancel": "取消",
     "unbalancedWarning": "借贷必须平衡",
@@ -1026,5 +1022,14 @@
     "noVoucher": "—",
     "category": "类别",
     "empty": "尚无进项发票 — 可上传银行流水或手动创建。"
+  },
+  "theme": {
+    "label": "主题",
+    "light": "浅色",
+    "dark": "深色",
+    "system": "跟随系统",
+    "tooltip_light": "浅色主题",
+    "tooltip_dark": "深色主题",
+    "tooltip_system": "跟随系统设置"
   }
 }

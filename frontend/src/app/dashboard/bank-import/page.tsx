@@ -506,12 +506,12 @@ export default function BankImportPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <div className="container mx-auto px-4 py-8">
         <div className="flex justify-between items-center mb-6">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">{t("bankImport.title")}</h1>
-            <p className="text-gray-500 mt-1">{t("bankImport.subtitle")}</p>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">{t("bankImport.title")}</h1>
+            <p className="text-gray-500 dark:text-gray-400 mt-1">{t("bankImport.subtitle")}</p>
           </div>
           <div className="flex gap-2 items-center">
             <LanguageSwitcher />
@@ -527,9 +527,9 @@ export default function BankImportPage() {
             <CardTitle>{t("bankImport.uploadTitle")}</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-gray-600 mb-3">{t("bankImport.uploadHelp")}</p>
+            <p className="text-sm text-gray-600 dark:text-gray-300 mb-3">{t("bankImport.uploadHelp")}</p>
             {error && (
-              <div className="mb-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded p-2">
+              <div className="mb-3 text-sm text-red-700 dark:text-red-300 bg-red-50 border border-red-200 rounded p-2">
                 {error}
               </div>
             )}
@@ -545,7 +545,7 @@ export default function BankImportPage() {
                   className="hidden"
                 />
               </label>
-              {uploading && <span className="text-sm text-gray-500">Wird verarbeitet...</span>}
+              {uploading && <span className="text-sm text-gray-500 dark:text-gray-400">Wird verarbeitet...</span>}
             </div>
           </CardContent>
         </Card>
@@ -557,16 +557,16 @@ export default function BankImportPage() {
           </CardHeader>
           <CardContent>
             {loading ? (
-              <div className="text-sm text-gray-500">{t("common.loading")}</div>
+              <div className="text-sm text-gray-500 dark:text-gray-400">{t("common.loading")}</div>
             ) : statements.length === 0 ? (
-              <div className="text-sm text-gray-500">{t("bankImport.noStatements")}</div>
+              <div className="text-sm text-gray-500 dark:text-gray-400">{t("bankImport.noStatements")}</div>
             ) : (
               <div className="space-y-2">
                 {statements.map((s) => (
                   <div
                     key={s.id}
                     className={`border rounded p-3 cursor-pointer transition-colors ${
-                      openId === s.id ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:bg-gray-50"
+                      openId === s.id ? "border-blue-500 bg-blue-50" : "border-gray dark:border-gray-700-200 dark:border-gray-700 hover:bg-gray-50 dark:bg-gray-900"
                     }`}
                     onClick={() => openStatement(s)}
                   >
@@ -574,11 +574,11 @@ export default function BankImportPage() {
                       <div>
                         <div className="font-medium text-sm">
                           {s.fileName}{" "}
-                          <span className="text-xs text-gray-500 font-mono">
+                          <span className="text-xs text-gray-500 dark:text-gray-400 font-mono">
                             ({s.format.toUpperCase()}, {s._count?.transactions ?? 0} txns)
                           </span>
                         </div>
-                        <div className="text-xs text-gray-500 mt-0.5">
+                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                           {s.accountIban && (
                             <span className="font-mono mr-3">{s.accountIban}</span>
                           )}
@@ -633,7 +633,7 @@ export default function BankImportPage() {
                     the user raises it to 80/90/95 the
                     suggest call also auto-confirms matches
                     that clear the threshold. */}
-                <div className="flex items-center gap-3 mt-2 text-xs text-gray-600">
+                <div className="flex items-center gap-3 mt-2 text-xs text-gray-600 dark:text-gray-300">
                   <label className="flex items-center gap-1">
                     {t("bankImport.autoConfirmThreshold")}:
                     <input
@@ -646,7 +646,7 @@ export default function BankImportPage() {
                         const v = parseInt(e.target.value, 10)
                         setAutoConfirmThreshold(isNaN(v) ? 0 : Math.max(0, Math.min(100, v)))
                       }}
-                      className="w-16 px-1 py-0.5 border border-gray-300 rounded text-right"
+                      className="w-16 px-1 py-0.5 border border-gray dark:border-gray-700-300 dark:border-gray-600 rounded text-right"
                     />
                   </label>
                   <span className="text-gray-400">|</span>
@@ -657,14 +657,14 @@ export default function BankImportPage() {
               </CardHeader>
               <CardContent>
                 {loadingTx ? (
-                  <div className="text-sm text-gray-500">{t("common.loading")}</div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400">{t("common.loading")}</div>
                 ) : transactions.length === 0 ? (
-                  <div className="text-sm text-gray-500">—</div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400">—</div>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="text-left text-gray-500 text-xs border-b">
+                        <tr className="text-left text-gray-500 dark:text-gray-400 text-xs border-b">
                           <th className="py-2">{t("bankImport.tableDate")}</th>
                           <th>{t("bankImport.tableDescription")}</th>
                           <th className="text-right">{t("bankImport.tableAmount")}</th>
@@ -681,7 +681,7 @@ export default function BankImportPage() {
                               key={txn.id}
                               onClick={() => selectTxn(txn)}
                               className={`border-b cursor-pointer ${
-                                isSel ? "bg-blue-50" : "hover:bg-gray-50"
+                                isSel ? "bg-blue-50" : "hover:bg-gray-50 dark:bg-gray-900"
                               }`}
                             >
                               <td className="py-2 font-mono text-xs">{fmtDate(txn.valueDate, dl)}</td>
@@ -690,13 +690,13 @@ export default function BankImportPage() {
                                   {txn.counterpartyName || txn.endToEndId || "—"}
                                 </div>
                                 {txn.purpose && (
-                                  <div className="text-xs text-gray-500 truncate max-w-[400px]">
+                                  <div className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-[400px]">
                                     {txn.purpose}
                                   </div>
                                 )}
                               </td>
                               <td className={`text-right font-mono font-medium ${
-                                amt >= 0 ? "text-emerald-700" : "text-red-700"
+                                amt >= 0 ? "text-emerald-700" : "text-red-700 dark:text-red-300"
                               }`}>
                                 € {fmtMoney(amt)}
                               </td>
@@ -750,13 +750,13 @@ export default function BankImportPage() {
               </CardHeader>
               <CardContent>
                 {!selectedTxn ? (
-                  <div className="text-sm text-gray-500">
+                  <div className="text-sm text-gray-500 dark:text-gray-400">
                     {t("bankImport.selectTxnForCandidates")}
                   </div>
                 ) : loadingCandidates ? (
-                  <div className="text-sm text-gray-500">{t("common.loading")}</div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400">{t("common.loading")}</div>
                 ) : candidates.length === 0 ? (
-                  <div className="text-sm text-gray-500">
+                  <div className="text-sm text-gray-500 dark:text-gray-400">
                     {t("bankImport.noCandidates")}
                   </div>
                 ) : (
@@ -770,10 +770,10 @@ export default function BankImportPage() {
                           key={c.invoiceId}
                           className={`border rounded p-2 ${
                             recon?.status === "confirmed"
-                              ? "border-emerald-300 bg-emerald-50"
+                              ? "border-emerald-300 dark:border-emerald-700 bg-emerald-50"
                               : recon?.status === "rejected"
-                              ? "border-gray-200 bg-gray-50 opacity-60"
-                              : "border-gray-200"
+                              ? "border-gray dark:border-gray-700-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 opacity-60"
+                              : "border-gray dark:border-gray-700-200 dark:border-gray-700"
                           }`}
                         >
                           <div className="flex justify-between items-center mb-1">
@@ -787,7 +787,7 @@ export default function BankImportPage() {
                                     recon.status === "confirmed"
                                       ? "bg-emerald-200 text-emerald-900"
                                       : recon.status === "rejected"
-                                      ? "bg-gray-200 text-gray-700"
+                                      ? "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200"
                                       : recon.status === "reopened"
                                       ? "bg-amber-200 text-amber-900"
                                       : "bg-blue-100 text-blue-800"
@@ -808,23 +808,23 @@ export default function BankImportPage() {
                                     ? "bg-emerald-100 text-emerald-800"
                                     : c.confidence >= 60
                                     ? "bg-yellow-100 text-yellow-800"
-                                    : "bg-gray-100 text-gray-700"
+                                    : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200"
                                 }`}
                               >
                                 {t("bankImport.confidence")}: {c.confidence}
                               </span>
                             </div>
                           </div>
-                          <div className="text-xs text-gray-600">
+                          <div className="text-xs text-gray-600 dark:text-gray-300">
                             {c.customerName}
                             {c.customerNumber && (
                               <span className="font-mono text-gray-400 ml-1">({c.customerNumber})</span>
                             )}
                           </div>
                           <div className="flex justify-between text-xs mt-1">
-                            <span className="text-gray-500">{t("bankImport.tableAmount")}: € {fmtMoney(c.total)}</span>
+                            <span className="text-gray-500 dark:text-gray-400">{t("bankImport.tableAmount")}: € {fmtMoney(c.total)}</span>
                             {c.dueDate && (
-                              <span className="text-gray-500">
+                              <span className="text-gray-500 dark:text-gray-400">
                                 {t("bankImport.tableDate")}: {fmtDate(c.dueDate, dl)}
                               </span>
                             )}
@@ -890,7 +890,7 @@ export default function BankImportPage() {
                               voucher number is the Belegnummer the
                               Berater references in the DATEV export. */}
                           {recon?.voucher && (
-                            <div className="text-xs text-gray-500 mt-1">
+                            <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                               {t("bankImport.voucher")}:{" "}
                               <span className="font-mono">{recon.voucher.voucherNumber}</span>
                               {recon.reversalVoucher && (
@@ -928,7 +928,7 @@ export default function BankImportPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="text-left text-gray-500 text-xs border-b">
+                    <tr className="text-left text-gray-500 dark:text-gray-400 text-xs border-b">
                       <th className="py-2">{t("bankImport.reconInvoice")}</th>
                       <th>{t("bankImport.reconCustomer")}</th>
                       <th className="text-right">{t("bankImport.reconAmount")}</th>
@@ -949,7 +949,7 @@ export default function BankImportPage() {
                               r.status === "confirmed"
                                 ? "bg-emerald-100 text-emerald-800"
                                 : r.status === "rejected"
-                                ? "bg-gray-200 text-gray-700"
+                                ? "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200"
                                 : r.status === "reopened"
                                 ? "bg-amber-100 text-amber-900"
                                 : "bg-blue-100 text-blue-800"
@@ -978,7 +978,7 @@ export default function BankImportPage() {
                             <span>
                               <button
                                 onClick={() => router.push(`/dashboard/accounting/vouchers/${r.voucher!.id}`)}
-                                className="font-mono text-blue-700 hover:underline"
+                                className="font-mono text-blue-700 dark:text-blue-300 hover:underline"
                               >
                                 {r.voucher.voucherNumber}
                               </button>
@@ -1046,11 +1046,11 @@ export default function BankImportPage() {
           file before the import is committed. */}
       {pendingPreview && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl p-6 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl p-6 max-h-[90vh] overflow-y-auto">
             <h2 className="text-xl font-bold mb-1">
               {t("bankImport.previewTitle") || "Import-Vorschau"}
             </h2>
-            <p className="text-xs text-gray-500 mb-4">
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
               {t("bankImport.previewHint") ||
                 "Prüfen Sie die unten angezeigten Daten, bevor Sie den Import bestätigen."}
             </p>
@@ -1060,7 +1060,7 @@ export default function BankImportPage() {
                 catches files that were truncated or
                 contain another account's transactions. */}
             {pendingPreview.preview.balanceCheck === "mismatch" && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-300 rounded text-sm text-red-800">
+              <div className="mb-4 p-3 bg-red-50 border border-red-300 dark:border-red-700 rounded text-sm text-red-800">
                 ⚠ {t("bankImport.balanceMismatch") ||
                   "Eröffnungssaldo + Gutschriften − Lastschriften ≠ Schlusssaldo. Datei möglicherweise unvollständig oder falsches Konto."}
               </div>
@@ -1072,20 +1072,20 @@ export default function BankImportPage() {
                 the user's company bank, the import
                 must be cancelled. */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-              <div className="bg-gray-50 rounded p-3">
-                <div className="text-xs text-gray-500 uppercase">IBAN</div>
+              <div className="bg-gray-50 dark:bg-gray-900 rounded p-3">
+                <div className="text-xs text-gray-500 dark:text-gray-400 uppercase">IBAN</div>
                 <div className="text-sm font-mono font-bold mt-1">
                   {pendingPreview.preview.accountIban || "—"}
                 </div>
               </div>
-              <div className="bg-gray-50 rounded p-3">
-                <div className="text-xs text-gray-500 uppercase">Bank</div>
+              <div className="bg-gray-50 dark:bg-gray-900 rounded p-3">
+                <div className="text-xs text-gray-500 dark:text-gray-400 uppercase">Bank</div>
                 <div className="text-sm font-bold mt-1">
                   {pendingPreview.preview.bankName || "—"}
                 </div>
               </div>
-              <div className="bg-gray-50 rounded p-3">
-                <div className="text-xs text-gray-500 uppercase">Zeitraum</div>
+              <div className="bg-gray-50 dark:bg-gray-900 rounded p-3">
+                <div className="text-xs text-gray-500 dark:text-gray-400 uppercase">Zeitraum</div>
                 <div className="text-sm font-bold mt-1">
                   {pendingPreview.preview.periodFrom &&
                   pendingPreview.preview.periodTo
@@ -1093,16 +1093,16 @@ export default function BankImportPage() {
                     : "—"}
                 </div>
               </div>
-              <div className="bg-gray-50 rounded p-3">
-                <div className="text-xs text-gray-500 uppercase">
+              <div className="bg-gray-50 dark:bg-gray-900 rounded p-3">
+                <div className="text-xs text-gray-500 dark:text-gray-400 uppercase">
                   Format
                 </div>
                 <div className="text-sm font-mono font-bold mt-1 uppercase">
                   {pendingPreview.preview.format}
                 </div>
               </div>
-              <div className="bg-gray-50 rounded p-3">
-                <div className="text-xs text-gray-500 uppercase">
+              <div className="bg-gray-50 dark:bg-gray-900 rounded p-3">
+                <div className="text-xs text-gray-500 dark:text-gray-400 uppercase">
                   Eröffnung
                 </div>
                 <div className="text-sm font-mono font-bold mt-1">
@@ -1111,23 +1111,23 @@ export default function BankImportPage() {
                     : "—"}
                 </div>
               </div>
-              <div className="bg-gray-50 rounded p-3">
-                <div className="text-xs text-gray-500 uppercase">Schluss</div>
+              <div className="bg-gray-50 dark:bg-gray-900 rounded p-3">
+                <div className="text-xs text-gray-500 dark:text-gray-400 uppercase">Schluss</div>
                 <div className="text-sm font-mono font-bold mt-1">
                   {pendingPreview.preview.closingBalance
                     ? `${pendingPreview.preview.closingBalance} €`
                     : "—"}
                 </div>
               </div>
-              <div className="bg-gray-50 rounded p-3">
-                <div className="text-xs text-gray-500 uppercase">Σ Soll</div>
-                <div className="text-sm font-mono font-bold mt-1 text-red-700">
+              <div className="bg-gray-50 dark:bg-gray-900 rounded p-3">
+                <div className="text-xs text-gray-500 dark:text-gray-400 uppercase">Σ Soll</div>
+                <div className="text-sm font-mono font-bold mt-1 text-red-700 dark:text-red-300">
                   {pendingPreview.preview.totalDebit} €
                 </div>
               </div>
-              <div className="bg-gray-50 rounded p-3">
-                <div className="text-xs text-gray-500 uppercase">Σ Haben</div>
-                <div className="text-sm font-mono font-bold mt-1 text-green-700">
+              <div className="bg-gray-50 dark:bg-gray-900 rounded p-3">
+                <div className="text-xs text-gray-500 dark:text-gray-400 uppercase">Σ Haben</div>
+                <div className="text-sm font-mono font-bold mt-1 text-green-700 dark:text-green-300">
                   {pendingPreview.preview.totalCredit} €
                 </div>
               </div>
@@ -1135,7 +1135,7 @@ export default function BankImportPage() {
 
             <div className="mb-2 text-sm font-bold">
               {t("bankImport.previewSampleTitle") || "Erste Transaktionen"}{" "}
-              <span className="text-gray-500 font-normal">
+              <span className="text-gray-500 dark:text-gray-400 font-normal">
                 ({pendingPreview.preview.sampleTransactions.length} /{" "}
                 {pendingPreview.preview.totalTransactions})
               </span>
@@ -1143,18 +1143,18 @@ export default function BankImportPage() {
 
             <div className="border rounded overflow-x-auto max-h-80">
               <table className="w-full text-sm">
-                <thead className="bg-gray-50 sticky top-0">
+                <thead className="bg-gray-50 dark:bg-gray-900 sticky top-0">
                   <tr>
-                    <th className="text-left px-3 py-2 text-xs font-medium text-gray-500">
+                    <th className="text-left px-3 py-2 text-xs font-medium text-gray-500 dark:text-gray-400">
                       Datum
                     </th>
-                    <th className="text-left px-3 py-2 text-xs font-medium text-gray-500">
+                    <th className="text-left px-3 py-2 text-xs font-medium text-gray-500 dark:text-gray-400">
                       Gegenpartei
                     </th>
-                    <th className="text-left px-3 py-2 text-xs font-medium text-gray-500">
+                    <th className="text-left px-3 py-2 text-xs font-medium text-gray-500 dark:text-gray-400">
                       Zweck
                     </th>
-                    <th className="text-right px-3 py-2 text-xs font-medium text-gray-500">
+                    <th className="text-right px-3 py-2 text-xs font-medium text-gray-500 dark:text-gray-400">
                       Betrag
                     </th>
                   </tr>
@@ -1169,15 +1169,15 @@ export default function BankImportPage() {
                         <td className="px-3 py-1">
                           {t.counterpartyName || "—"}
                         </td>
-                        <td className="px-3 py-1 text-gray-600 max-w-md truncate">
+                        <td className="px-3 py-1 text-gray-600 dark:text-gray-300 max-w-md truncate">
                           {t.purpose || "—"}
                         </td>
                         <td
                           className={
                             "px-3 py-1 text-right font-mono " +
                             (parseFloat(t.amount) < 0
-                              ? "text-red-700"
-                              : "text-green-700")
+                              ? "text-red-700 dark:text-red-300"
+                              : "text-green-700 dark:text-green-300")
                           }
                         >
                           {parseFloat(t.amount).toFixed(2)} €
@@ -1191,7 +1191,7 @@ export default function BankImportPage() {
 
             {pendingPreview.preview.totalTransactions >
               pendingPreview.preview.sampleTransactions.length && (
-              <div className="text-xs text-gray-500 mt-2 text-center">
+              <div className="text-xs text-gray-500 dark:text-gray-400 mt-2 text-center">
                 … und{" "}
                 {pendingPreview.preview.totalTransactions -
                   pendingPreview.preview.sampleTransactions.length}{" "}
@@ -1203,7 +1203,7 @@ export default function BankImportPage() {
               <button
                 onClick={cancelPreview}
                 disabled={uploading}
-                className="px-4 py-2 text-sm border rounded hover:bg-gray-100"
+                className="px-4 py-2 text-sm border rounded hover:bg-gray-100 dark:hover:bg-gray-700"
               >
                 {t("common.cancel") || "Abbrechen"}
               </button>

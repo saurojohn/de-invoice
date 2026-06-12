@@ -80,7 +80,7 @@ export default function LoginPage() {
   const isLockedOut = remainingLockout > 0
 
   return (
-    <main className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+    <main className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle className="text-center text-2xl">登录</CardTitle>
@@ -142,7 +142,7 @@ export default function LoginPage() {
               {loading ? "登录中..." : isLockedOut ? "Gesperrt" : "登录"}
             </Button>
             {attemptCount > 0 && !isLockedOut && (
-              <p className="text-center text-xs text-gray-500">
+              <p className="text-center text-xs text-gray-500 dark:text-gray-400">
                 {MAX_ATTEMPTS - attemptCount} verbleibende Versuche
               </p>
             )}

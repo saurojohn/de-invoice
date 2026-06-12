@@ -264,12 +264,12 @@ export default function InventoryPage() {
   // either way), Initial = gray (setup).
   const getChangeTypeBadge = (type: string): string => {
     switch (type) {
-      case "sale": return "bg-red-100 text-red-700"
-      case "purchase": return "bg-green-100 text-green-700"
-      case "return": return "bg-blue-100 text-blue-700"
-      case "adjustment": return "bg-yellow-100 text-yellow-700"
-      case "initial": return "bg-gray-100 text-gray-700"
-      default: return "bg-gray-100 text-gray-700"
+      case "sale": return "bg-red-100 text-red-700 dark:text-red-300"
+      case "purchase": return "bg-green-100 text-green-700 dark:text-green-300"
+      case "return": return "bg-blue-100 text-blue-700 dark:text-blue-300"
+      case "adjustment": return "bg-yellow-100 text-yellow-700 dark:text-yellow-300"
+      case "initial": return "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200"
+      default: return "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200"
     }
   }
 
@@ -485,10 +485,10 @@ export default function InventoryPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b shadow-sm">
+    <main className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <header className="bg-white dark:bg-gray-800 border-b shadow-sm">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-blue-600">{t("inventory.title")}</h1>
+          <h1 className="text-2xl font-bold text-blue-600 dark:text-blue-400">{t("inventory.title")}</h1>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => router.push("/dashboard")}>
               {t("inventory.back")}
@@ -501,9 +501,9 @@ export default function InventoryPage() {
         {/* Low Stock Warnings — server-computed list, click
             a card to select that product. */}
         {lowStockProducts.length > 0 && (
-          <Card className="mb-8 border-red-300 bg-red-50">
+          <Card className="mb-8 border-red-300 dark:border-red-700 bg-red-50">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-red-700">
+              <CardTitle className="flex items-center gap-2 text-red-700 dark:text-red-300">
                 <span className="text-xl">⚠️</span>
                 {t("inventory.lowStockCount").replace("{count}", String(lowStockProducts.length))}
               </CardTitle>
@@ -513,16 +513,16 @@ export default function InventoryPage() {
                 {lowStockProducts.map((product) => (
                   <div
                     key={product.id}
-                    className="bg-white p-4 rounded-lg border border-red-200 cursor-pointer hover:border-red-400"
+                    className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-red-200 cursor-pointer hover:border-red-400"
                     onClick={() => selectProduct(product)}
                   >
                     <p className="font-medium">{product.name}</p>
-                    <p className="text-sm text-gray-500">{product.sku || t("inventory.noSku")}</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">{product.sku || t("inventory.noSku")}</p>
                     <div className="mt-2 flex items-center justify-between">
-                      <span className="text-red-600 font-bold">
+                      <span className="text-red-600 dark:text-red-400 font-bold">
                         {parseFloat(product.stockQuantity).toFixed(2)} {product.unit}
                       </span>
-                      <span className="text-sm text-gray-500">
+                      <span className="text-sm text-gray-500 dark:text-gray-400">
                         {t("inventory.threshold")}: {parseFloat(product.lowStockThreshold || "0").toFixed(2)}
                       </span>
                     </div>
@@ -554,7 +554,7 @@ export default function InventoryPage() {
               {loading ? (
                 <div className="text-center py-8">{t("inventory.loading")}</div>
               ) : products.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
+                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
                   {t("inventory.noTrackedProducts")}
                 </div>
               ) : (
@@ -572,18 +572,18 @@ export default function InventoryPage() {
                           selectedProduct?.id === product.id
                             ? "border-blue-500 bg-blue-50"
                             : isBelowThreshold
-                            ? "border-red-300 bg-red-50 hover:bg-red-100"
-                            : "border-gray-200 hover:bg-gray-50"
+                            ? "border-red-300 dark:border-red-700 bg-red-50 hover:bg-red-100"
+                            : "border-gray dark:border-gray-700-200 dark:border-gray-700 hover:bg-gray-50 dark:bg-gray-900"
                         }`}
                         onClick={() => selectProduct(product)}
                       >
                         <div className="flex items-center justify-between">
                           <div>
                             <p className="font-medium">{product.name}</p>
-                            <p className="text-sm text-gray-500">{product.sku || t("inventory.noSku")}</p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">{product.sku || t("inventory.noSku")}</p>
                           </div>
                           <div className="text-right">
-                            <p className={`font-bold ${isBelowThreshold ? "text-red-600" : "text-gray-900"}`}>
+                            <p className={`font-bold ${isBelowThreshold ? "text-red-600 dark:text-red-400" : "text-gray-900 dark:text-gray-100"}`}>
                               {currentStock.toFixed(2)} {product.unit}
                             </p>
                             {isBelowThreshold && (
@@ -635,21 +635,21 @@ export default function InventoryPage() {
                   </CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-2 gap-4">
-                      <div className="bg-gray-50 p-4 rounded-lg">
-                        <p className="text-sm text-gray-500">{t("inventory.currentStock")}</p>
+                      <div className="bg-gray-50 dark:bg-gray-900 p-4 rounded-lg">
+                        <p className="text-sm text-gray-500 dark:text-gray-400">{t("inventory.currentStock")}</p>
                         <p className="text-2xl font-bold">
                           {parseFloat(selectedProduct.stockQuantity).toFixed(2)} {selectedProduct.unit}
                         </p>
                       </div>
-                      <div className="bg-gray-50 p-4 rounded-lg">
-                        <p className="text-sm text-gray-500">{t("inventory.threshold")}</p>
+                      <div className="bg-gray-50 dark:bg-gray-900 p-4 rounded-lg">
+                        <p className="text-sm text-gray-500 dark:text-gray-400">{t("inventory.threshold")}</p>
                         <p className="text-2xl font-bold">
                           {parseFloat(selectedProduct.lowStockThreshold || "0").toFixed(2)} {selectedProduct.unit}
                         </p>
                       </div>
                     </div>
                     {selectedProduct.sku && (
-                      <p className="mt-4 text-sm text-gray-500">
+                      <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">
                         {t("product.sku")}: {selectedProduct.sku}
                       </p>
                     )}
@@ -662,11 +662,11 @@ export default function InventoryPage() {
                   </CardHeader>
                   <CardContent>
                     {history.length === 0 ? (
-                      <p className="text-center py-4 text-gray-500">{t("inventory.noHistory")}</p>
+                      <p className="text-center py-4 text-gray-500 dark:text-gray-400">{t("inventory.noHistory")}</p>
                     ) : (
                       <div className="space-y-3">
                         {history.map((entry) => (
-                          <div key={entry.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                          <div key={entry.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-900 rounded-lg">
                             <div className="flex items-center gap-3">
                               <span className={`px-2 py-1 rounded text-xs font-medium ${getChangeTypeBadge(entry.changeType)}`}>
                                 {getChangeTypeLabel(entry.changeType)}
@@ -678,14 +678,14 @@ export default function InventoryPage() {
                                     .replace("{new}", parseFloat(entry.newQty).toFixed(2))}
                                 </p>
                                 {entry.notes && (
-                                  <p className="text-xs text-gray-500">{entry.notes}</p>
+                                  <p className="text-xs text-gray-500 dark:text-gray-400">{entry.notes}</p>
                                 )}
                               </div>
                             </div>
                             <div className="text-right">
-                              <p className="text-xs text-gray-500">{formatDate(entry.createdAt)}</p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">{formatDate(entry.createdAt)}</p>
                               {entry.reference && (
-                                <p className="text-xs text-blue-600">{t("inventory.reference")}: {entry.reference}</p>
+                                <p className="text-xs text-blue-600 dark:text-blue-400">{t("inventory.reference")}: {entry.reference}</p>
                               )}
                             </div>
                           </div>
@@ -697,7 +697,7 @@ export default function InventoryPage() {
               </>
             ) : (
               <Card>
-                <CardContent className="text-center py-12 text-gray-500">
+                <CardContent className="text-center py-12 text-gray-500 dark:text-gray-400">
                   <p>{t("inventory.selectProductHint")}</p>
                 </CardContent>
               </Card>
@@ -758,7 +758,7 @@ export default function InventoryPage() {
                     }
                     required
                   />
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                     {adjustForm.changeType === "adjustment"
                       ? t("inventory.stockChangeHint_adjustment")
                       : t("inventory.stockChangeHint_delta")}
@@ -816,7 +816,7 @@ export default function InventoryPage() {
           <Card className="w-full max-w-md">
             <CardHeader>
               <CardTitle>📦 {t("inventory.purchaseEntryTitle")}</CardTitle>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 {t("inventory.purchaseEntryDesc")}
               </p>
             </CardHeader>
@@ -833,8 +833,8 @@ export default function InventoryPage() {
                     to. Highlighted in blue so it stands
                     out from the input fields. */}
                 <div className="bg-blue-50 p-3 rounded-lg">
-                  <p className="text-sm text-gray-600">{t("inventory.currentStock")}</p>
-                  <p className="text-2xl font-bold text-blue-700">
+                  <p className="text-sm text-gray-600 dark:text-gray-300">{t("inventory.currentStock")}</p>
+                  <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">
                     {parseFloat(selectedProduct.stockQuantity).toFixed(2)} {selectedProduct.unit}
                   </p>
                 </div>
@@ -942,13 +942,13 @@ export default function InventoryPage() {
           onClick={() => !newProductLoading && setShowNewProductModal(false)}
         >
           <div
-            className="bg-white rounded-lg shadow-2xl max-w-md w-full"
+            className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl max-w-md w-full"
             onClick={(e) => e.stopPropagation()}
           >
             <Card>
               <CardHeader>
                 <CardTitle>{t("inventory.newProductModalTitle")}</CardTitle>
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                   {t("inventory.addNewProductDesc")}
                 </p>
               </CardHeader>
@@ -997,14 +997,14 @@ export default function InventoryPage() {
                         title={t("inventory.searchExistingProductHint")}
                       />
                       {showNewProductDropdown && (
-                        <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg max-h-56 overflow-y-auto z-20">
+                        <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border rounded-lg shadow-lg max-h-56 overflow-y-auto z-20">
                           {newProductMatches.length === 0 ? (
                             <>
-                              <div className="px-3 py-2 text-gray-500 text-sm border-b">
+                              <div className="px-3 py-2 text-gray-500 dark:text-gray-400 text-sm border-b">
                                 {t("inventory.noProductsFound")}
                               </div>
                               <div
-                                className="px-3 py-2 hover:bg-blue-50 cursor-pointer text-blue-700 text-sm font-medium border-t"
+                                className="px-3 py-2 hover:bg-blue-50 cursor-pointer text-blue-700 dark:text-blue-300 text-sm font-medium border-t"
                                 onMouseDown={(e) => {
                                   e.preventDefault()
                                   setNewProductMode("create")
@@ -1025,7 +1025,7 @@ export default function InventoryPage() {
                                 }}
                               >
                                 <div className="font-medium text-sm">{p.name}</div>
-                                <div className="text-xs text-gray-500 font-mono">
+                                <div className="text-xs text-gray-500 dark:text-gray-400 font-mono">
                                   {p.sku && `${p.sku} · `}Aktueller Bestand: {parseFloat(p.stockQuantity).toFixed(2)} {p.unit}
                                 </div>
                               </div>
@@ -1079,7 +1079,7 @@ export default function InventoryPage() {
                     <button
                       type="button"
                       onClick={() => setNewProductMode("search")}
-                      className="text-sm text-blue-600 hover:text-blue-700 hover:underline"
+                      className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:text-blue-300 hover:underline"
                     >
                       ← {t("inventory.searchExistingProduct")}
                     </button>

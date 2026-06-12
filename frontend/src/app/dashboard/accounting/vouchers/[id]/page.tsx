@@ -147,15 +147,15 @@ export default function VoucherDetailPage() {
   const isBalanced = Math.abs(totals.debit - totals.credit) < 0.01
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <div className="container mx-auto px-4 py-8">
         <div className="flex justify-between items-center mb-6">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
               {t("voucher.title")}
             </h1>
             {voucher && (
-              <p className="text-gray-500 mt-1 font-mono">
+              <p className="text-gray-500 dark:text-gray-400 mt-1 font-mono">
                 {voucher.voucherNumber}
               </p>
             )}
@@ -251,7 +251,7 @@ export default function VoucherDetailPage() {
                       `/dashboard/accounting/vouchers/${voucher.reversals[0].id}`,
                     )
                   }
-                  className="border-red-300 text-red-700"
+                  className="border-red-300 dark:border-red-700 text-red-700 dark:text-red-300"
                   title="Bereits storniert — Korrekturbeleg öffnen"
                 >
                   ↪ Storno: {voucher.reversals[0].voucherNumber}
@@ -265,15 +265,15 @@ export default function VoucherDetailPage() {
         </div>
 
         {error && (
-          <div className="mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded p-3">
+          <div className="mb-4 text-sm text-red-700 dark:text-red-300 bg-red-50 border border-red-200 rounded p-3">
             {error}
           </div>
         )}
 
         {loading ? (
-          <div className="text-sm text-gray-500">{t("common.loading")}</div>
+          <div className="text-sm text-gray-500 dark:text-gray-400">{t("common.loading")}</div>
         ) : !voucher ? (
-          <div className="text-sm text-gray-500">—</div>
+          <div className="text-sm text-gray-500 dark:text-gray-400">—</div>
         ) : (
           <>
             {/* Voucher header card — the meta info that
@@ -285,22 +285,22 @@ export default function VoucherDetailPage() {
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                   <div>
-                    <div className="text-gray-500">{t("voucher.number")}</div>
+                    <div className="text-gray-500 dark:text-gray-400">{t("voucher.number")}</div>
                     <div className="font-mono text-lg">{voucher.voucherNumber}</div>
                   </div>
                   <div>
-                    <div className="text-gray-500">{t("voucher.date")}</div>
+                    <div className="text-gray-500 dark:text-gray-400">{t("voucher.date")}</div>
                     <div className="font-medium">{fmtDate(voucher.date, dl)}</div>
                   </div>
                   <div>
-                    <div className="text-gray-500">{t("voucher.status")}</div>
+                    <div className="text-gray-500 dark:text-gray-400">{t("voucher.status")}</div>
                     <div>
                       <span
                         className={`text-xs px-2 py-0.5 rounded ${
                           voucher.status === "posted"
                             ? "bg-emerald-100 text-emerald-800"
                             : voucher.status === "voided"
-                            ? "bg-gray-200 text-gray-700"
+                            ? "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200"
                             : "bg-blue-100 text-blue-800"
                         }`}
                       >
@@ -309,7 +309,7 @@ export default function VoucherDetailPage() {
                     </div>
                   </div>
                   <div>
-                    <div className="text-gray-500">{t("voucher.referenceType")}</div>
+                    <div className="text-gray-500 dark:text-gray-400">{t("voucher.referenceType")}</div>
                     <div className="text-sm">
                       {REF_LABEL[voucher.referenceType || ""] ||
                         voucher.referenceType ||
@@ -317,7 +317,7 @@ export default function VoucherDetailPage() {
                     </div>
                   </div>
                   <div className="md:col-span-2">
-                    <div className="text-gray-500">{t("voucher.description")}</div>
+                    <div className="text-gray-500 dark:text-gray-400">{t("voucher.description")}</div>
                     <div className="font-medium">
                       {voucher.description || "—"}
                     </div>
@@ -339,7 +339,7 @@ export default function VoucherDetailPage() {
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="text-left text-gray-500 text-xs border-b">
+                      <tr className="text-left text-gray-500 dark:text-gray-400 text-xs border-b">
                         <th className="py-2">{t("voucher.account")}</th>
                         <th>{t("voucher.accountName")}</th>
                         <th className="text-right">{t("voucher.debit")}</th>
@@ -362,15 +362,15 @@ export default function VoucherDetailPage() {
                               ? `€ ${fmtMoney(Number(l.credit))}`
                               : ""}
                           </td>
-                          <td className="text-xs text-gray-600">
+                          <td className="text-xs text-gray-600 dark:text-gray-300">
                             {l.description || "—"}
                           </td>
                         </tr>
                       ))}
                     </tbody>
                     <tfoot>
-                      <tr className="border-t-2 border-gray-300 font-medium">
-                        <td colSpan={2} className="py-2 text-right text-gray-600">
+                      <tr className="border-t-2 border-gray dark:border-gray-700-300 dark:border-gray-600 font-medium">
+                        <td colSpan={2} className="py-2 text-right text-gray-600 dark:text-gray-300">
                           {t("voucher.total")}
                         </td>
                         <td className="text-right font-mono">
@@ -386,7 +386,7 @@ export default function VoucherDetailPage() {
                 </div>
                 <div
                   className={`mt-2 text-xs ${
-                    isBalanced ? "text-emerald-700" : "text-red-700"
+                    isBalanced ? "text-emerald-700" : "text-red-700 dark:text-red-300"
                   }`}
                 >
                   {isBalanced
@@ -415,47 +415,47 @@ export default function VoucherDetailPage() {
                     the invoice detail page. */}
                 {voucher.bankReconciliations.length > 0 && (
                   <div className="mb-4">
-                    <h4 className="text-sm font-medium text-gray-700 mb-2">
+                    <h4 className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
                       {t("voucher.fromBankReconciliation")}
                     </h4>
                     {voucher.bankReconciliations.map((r) => (
                       <div
                         key={r.id}
-                        className="border-l-2 border-emerald-300 pl-3 py-2 text-sm"
+                        className="border-l-2 border-emerald-300 dark:border-emerald-700 pl-3 py-2 text-sm"
                       >
                         <div>
-                          <span className="text-gray-500">{t("voucher.reconStatus")}: </span>
+                          <span className="text-gray-500 dark:text-gray-400">{t("voucher.reconStatus")}: </span>
                           <span className="font-medium">{r.status}</span>
                         </div>
                         {r.invoice && (
                           <div>
-                            <span className="text-gray-500">{t("voucher.invoice")}: </span>
+                            <span className="text-gray-500 dark:text-gray-400">{t("voucher.invoice")}: </span>
                             <button
                               onClick={() => router.push(`/dashboard/invoices/${r.invoice!.id}`)}
-                              className="font-mono text-blue-700 hover:underline"
+                              className="font-mono text-blue-700 dark:text-blue-300 hover:underline"
                             >
                               {r.invoice.invoiceNumber}
                             </button>
                           </div>
                         )}
                         {r.bankTransaction && (
-                          <div className="text-xs text-gray-600">
-                            <span className="text-gray-500">{t("voucher.txnDate")}: </span>
+                          <div className="text-xs text-gray-600 dark:text-gray-300">
+                            <span className="text-gray-500 dark:text-gray-400">{t("voucher.txnDate")}: </span>
                             {fmtDate(r.bankTransaction.valueDate, dl)}
                             {" · "}
-                            <span className="text-gray-500">{t("voucher.txnAmount")}: </span>
+                            <span className="text-gray-500 dark:text-gray-400">{t("voucher.txnAmount")}: </span>
                             € {fmtMoney(Number(r.bankTransaction.amount))}
                             {r.bankTransaction.counterpartyName && (
                               <>
                                 {" · "}
-                                <span className="text-gray-500">{t("voucher.txnCounterparty")}: </span>
+                                <span className="text-gray-500 dark:text-gray-400">{t("voucher.txnCounterparty")}: </span>
                                 {r.bankTransaction.counterpartyName}
                               </>
                             )}
                             {r.bankTransaction.statement && (
                               <>
                                 {" · "}
-                                <span className="text-gray-500">{t("voucher.statement")}: </span>
+                                <span className="text-gray-500 dark:text-gray-400">{t("voucher.statement")}: </span>
                                 <span className="font-mono">{r.bankTransaction.statement.fileName}</span>
                                 <span className="text-gray-400 ml-1">
                                   ({r.bankTransaction.statement.format.toUpperCase()})
@@ -484,26 +484,26 @@ export default function VoucherDetailPage() {
                         className="border-l-2 border-amber-300 pl-3 py-2 text-sm"
                       >
                         <div>
-                          <span className="text-gray-500">{t("voucher.reconStatus")}: </span>
+                          <span className="text-gray-500 dark:text-gray-400">{t("voucher.reconStatus")}: </span>
                           <span className="font-medium">{r.status}</span>
                         </div>
                         {r.invoice && (
                           <div>
-                            <span className="text-gray-500">{t("voucher.invoice")}: </span>
+                            <span className="text-gray-500 dark:text-gray-400">{t("voucher.invoice")}: </span>
                             <button
                               onClick={() => router.push(`/dashboard/invoices/${r.invoice!.id}`)}
-                              className="font-mono text-blue-700 hover:underline"
+                              className="font-mono text-blue-700 dark:text-blue-300 hover:underline"
                             >
                               {r.invoice.invoiceNumber}
                             </button>
                           </div>
                         )}
                         {r.bankTransaction && (
-                          <div className="text-xs text-gray-600">
-                            <span className="text-gray-500">{t("voucher.txnDate")}: </span>
+                          <div className="text-xs text-gray-600 dark:text-gray-300">
+                            <span className="text-gray-500 dark:text-gray-400">{t("voucher.txnDate")}: </span>
                             {fmtDate(r.bankTransaction.valueDate, dl)}
                             {" · "}
-                            <span className="text-gray-500">{t("voucher.txnAmount")}: </span>
+                            <span className="text-gray-500 dark:text-gray-400">{t("voucher.txnAmount")}: </span>
                             € {fmtMoney(Number(r.bankTransaction.amount))}
                           </div>
                         )}
@@ -519,34 +519,34 @@ export default function VoucherDetailPage() {
                     to the raw statement file. */}
                 {voucher.bankTransactions.length > 0 && (
                   <div className="mb-4">
-                    <h4 className="text-sm font-medium text-gray-700 mb-2">
+                    <h4 className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
                       {t("voucher.fromBankTransaction")}
                     </h4>
                     {voucher.bankTransactions.map((t_) => (
                       <div
                         key={t_.id}
-                        className="border-l-2 border-blue-300 pl-3 py-2 text-sm"
+                        className="border-l-2 border-blue-300 dark:border-blue-700 pl-3 py-2 text-sm"
                       >
                         <div>
-                          <span className="text-gray-500">{t("voucher.txnDate")}: </span>
+                          <span className="text-gray-500 dark:text-gray-400">{t("voucher.txnDate")}: </span>
                           {fmtDate(t_.valueDate, dl)}
                           {" · "}
-                          <span className="text-gray-500">{t("voucher.txnAmount")}: </span>
+                          <span className="text-gray-500 dark:text-gray-400">{t("voucher.txnAmount")}: </span>
                           € {fmtMoney(Number(t_.amount))}
                           {t_.counterpartyName && (
                             <>
                               {" · "}
-                              <span className="text-gray-500">{t("voucher.txnCounterparty")}: </span>
+                              <span className="text-gray-500 dark:text-gray-400">{t("voucher.txnCounterparty")}: </span>
                               {t_.counterpartyName}
                             </>
                           )}
                           {t_.purpose && (
-                            <div className="text-xs text-gray-500 mt-1">
+                            <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                               {t_.purpose}
                             </div>
                           )}
                           {t_.statement && (
-                            <div className="text-xs text-gray-500 mt-1">
+                            <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                               <span className="text-gray-400">{t("voucher.statement")}: </span>
                               <span className="font-mono">{t_.statement.fileName}</span>
                               <span className="text-gray-400 ml-1">
@@ -567,12 +567,12 @@ export default function VoucherDetailPage() {
                     reconciliation). */}
                 {voucher.invoiceRef && !voucher.bankReconciliations.length && !voucher.bankTransactions.length && (
                   <div className="mb-4">
-                    <h4 className="text-sm font-medium text-gray-700 mb-2">
+                    <h4 className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
                       {t("voucher.fromInvoice")}
                     </h4>
                     <button
                       onClick={() => router.push(`/dashboard/invoices/${voucher.invoiceRef!.id}`)}
-                      className="font-mono text-blue-700 hover:underline text-sm"
+                      className="font-mono text-blue-700 dark:text-blue-300 hover:underline text-sm"
                     >
                       {voucher.invoiceRef.invoiceNumber}
                     </button>
@@ -585,7 +585,7 @@ export default function VoucherDetailPage() {
                   !voucher.reversalOf.length &&
                   !voucher.bankTransactions.length &&
                   !voucher.invoiceRef && (
-                    <div className="text-sm text-gray-500">
+                    <div className="text-sm text-gray-500 dark:text-gray-400">
                       {t("voucher.noAuditLink")}
                     </div>
                   )}

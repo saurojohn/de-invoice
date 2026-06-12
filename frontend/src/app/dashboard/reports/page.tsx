@@ -245,10 +245,10 @@ export default function ReportsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b shadow-sm">
+    <main className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <header className="bg-white dark:bg-gray-800 border-b shadow-sm">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-blue-600">Berichtscenter</h1>
+          <h1 className="text-2xl font-bold text-blue-600 dark:text-blue-400">Berichtscenter</h1>
           <div className="flex gap-2 items-center">
             <Button variant="outline" onClick={() => router.push("/dashboard/reports/aging")}>
               Altersstruktur
@@ -270,8 +270,8 @@ export default function ReportsPage() {
           <button
             className={`px-6 py-3 font-medium border-b-2 transition-colors ${
               activeTab === "sales"
-                ? "border-blue-600 text-blue-600"
-                : "border-transparent text-gray-500 hover:text-gray-700"
+                ? "border-blue-600 text-blue-600 dark:text-blue-400"
+                : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-200"
             }`}
             onClick={() => setActiveTab("sales")}
           >
@@ -280,8 +280,8 @@ export default function ReportsPage() {
           <button
             className={`px-6 py-3 font-medium border-b-2 transition-colors ${
               activeTab === "vat"
-                ? "border-blue-600 text-blue-600"
-                : "border-transparent text-gray-500 hover:text-gray-700"
+                ? "border-blue-600 text-blue-600 dark:text-blue-400"
+                : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-200"
             }`}
             onClick={() => setActiveTab("vat")}
           >
@@ -290,8 +290,8 @@ export default function ReportsPage() {
           <button
             className={`px-6 py-3 font-medium border-b-2 transition-colors ${
               activeTab === "customers"
-                ? "border-blue-600 text-blue-600"
-                : "border-transparent text-gray-500 hover:text-gray-700"
+                ? "border-blue-600 text-blue-600 dark:text-blue-400"
+                : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-200"
             }`}
             onClick={() => setActiveTab("customers")}
           >
@@ -305,25 +305,25 @@ export default function ReportsPage() {
             <CardContent className="pt-6">
               <div className="flex flex-wrap gap-4 items-end">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                     Von Datum
                   </label>
                   <input
                     type="date"
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
-                    className="px-3 py-2 border border-gray-300 rounded-md"
+                    className="px-3 py-2 border border-gray dark:border-gray-700-300 dark:border-gray-600 rounded-md"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                     Bis Datum
                   </label>
                   <input
                     type="date"
                     value={endDate}
                     onChange={(e) => setEndDate(e.target.value)}
-                    className="px-3 py-2 border border-gray-300 rounded-md"
+                    className="px-3 py-2 border border-gray dark:border-gray-700-300 dark:border-gray-600 rounded-md"
                   />
                 </div>
               </div>
@@ -336,7 +336,7 @@ export default function ReportsPage() {
             <CardContent className="pt-6">
               <div className="flex flex-wrap gap-4 items-end">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                     Jahr
                   </label>
                   <input
@@ -345,17 +345,17 @@ export default function ReportsPage() {
                     onChange={(e) => setVatYear(e.target.value)}
                     min="2020"
                     max="2030"
-                    className="px-3 py-2 border border-gray-300 rounded-md w-32"
+                    className="px-3 py-2 border border-gray dark:border-gray-700-300 dark:border-gray-600 rounded-md w-32"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                     Zeitraum
                   </label>
                   <select
                     value={vatPeriod}
                     onChange={(e) => setVatPeriod(e.target.value as any)}
-                    className="px-3 py-2 border border-gray-300 rounded-md"
+                    className="px-3 py-2 border border-gray dark:border-gray-700-300 dark:border-gray-600 rounded-md"
                   >
                     <option value="year">Gesamtjahr</option>
                     <option value="q1">Q1 (Jan-Mär)</option>
@@ -383,7 +383,7 @@ export default function ReportsPage() {
 
         {loading ? (
           <div className="text-center py-12">
-            <div className="text-gray-500">Berichte werden geladen...</div>
+            <div className="text-gray-500 dark:text-gray-400">Berichte werden geladen...</div>
           </div>
         ) : (
           <>
@@ -394,18 +394,18 @@ export default function ReportsPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <Card>
                     <CardContent className="pt-6">
-                      <div className="text-3xl font-bold text-blue-600">
+                      <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">
                         {formatCurrency(salesReport.totalSales)}
                       </div>
-                      <div className="text-gray-500 mt-1">Gesamtumsatz</div>
+                      <div className="text-gray-500 dark:text-gray-400 mt-1">Gesamtumsatz</div>
                     </CardContent>
                   </Card>
                   <Card>
                     <CardContent className="pt-6">
-                      <div className="text-3xl font-bold text-green-600">
+                      <div className="text-3xl font-bold text-green-600 dark:text-green-400">
                         {formatCurrency(salesReport.totalVat)}
                       </div>
-                      <div className="text-gray-500 mt-1">Gesamt MwSt.</div>
+                      <div className="text-gray-500 dark:text-gray-400 mt-1">Gesamt MwSt.</div>
                     </CardContent>
                   </Card>
                 </div>
@@ -423,16 +423,16 @@ export default function ReportsPage() {
                   <CardContent>
                     <div className="overflow-x-auto">
                       <table className="w-full">
-                        <thead className="bg-gray-50 border-b">
+                        <thead className="bg-gray-50 dark:bg-gray-900 border-b">
                           <tr>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Monat</th>
-                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Anzahl Rechnungen</th>
-                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Gesamtbetrag</th>
+                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300">Monat</th>
+                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">Anzahl Rechnungen</th>
+                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">Gesamtbetrag</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y">
                           {(salesReport.byMonth || []).map((month) => (
-                            <tr key={month.month} className="hover:bg-gray-50">
+                            <tr key={month.month} className="hover:bg-gray-50 dark:bg-gray-900">
                               <td className="px-4 py-3">{formatMonth(month.month)}</td>
                               <td className="px-4 py-3 text-right">{month.invoiceCount}</td>
                               <td className="px-4 py-3 text-right">{formatCurrency(month.totalAmount)}</td>
@@ -440,7 +440,7 @@ export default function ReportsPage() {
                           ))}
                           {(salesReport.byMonth || []).length === 0 && (
                             <tr>
-                              <td colSpan={3} className="px-4 py-8 text-center text-gray-500">
+                              <td colSpan={3} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                                 Keine Daten für diesen Zeitraum
                               </td>
                             </tr>
@@ -464,16 +464,16 @@ export default function ReportsPage() {
                   <CardContent>
                     <div className="overflow-x-auto">
                       <table className="w-full">
-                        <thead className="bg-gray-50 border-b">
+                        <thead className="bg-gray-50 dark:bg-gray-900 border-b">
                           <tr>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Kunde</th>
-                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Anzahl Rechnungen</th>
-                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Gesamtbetrag</th>
+                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300">Kunde</th>
+                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">Anzahl Rechnungen</th>
+                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">Gesamtbetrag</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y">
                           {(salesReport.byCustomer || []).map((customer) => (
-                            <tr key={customer.customerId} className="hover:bg-gray-50">
+                            <tr key={customer.customerId} className="hover:bg-gray-50 dark:bg-gray-900">
                               <td className="px-4 py-3">{customer.customerName}</td>
                               <td className="px-4 py-3 text-right">{customer.invoiceCount}</td>
                               <td className="px-4 py-3 text-right">{formatCurrency(customer.totalAmount)}</td>
@@ -481,7 +481,7 @@ export default function ReportsPage() {
                           ))}
                           {(salesReport.byCustomer || []).length === 0 && (
                             <tr>
-                              <td colSpan={3} className="px-4 py-8 text-center text-gray-500">
+                              <td colSpan={3} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                                 Keine Daten für diesen Zeitraum
                               </td>
                             </tr>
@@ -501,21 +501,21 @@ export default function ReportsPage() {
                     <CardContent>
                       <div className="overflow-x-auto">
                         <table className="w-full">
-                          <thead className="bg-gray-50 border-b">
+                          <thead className="bg-gray-50 dark:bg-gray-900 border-b">
                             <tr>
-                              <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Jahr</th>
-                              <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Gesamtbetrag</th>
-                              <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Wachstum</th>
+                              <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300">Jahr</th>
+                              <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">Gesamtbetrag</th>
+                              <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">Wachstum</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y">
                             {(salesReport.yearOverYear || []).map((year) => (
-                              <tr key={year.year} className="hover:bg-gray-50">
+                              <tr key={year.year} className="hover:bg-gray-50 dark:bg-gray-900">
                                 <td className="px-4 py-3">{year.year}</td>
                                 <td className="px-4 py-3 text-right">{formatCurrency(year.totalAmount)}</td>
                                 <td className="px-4 py-3 text-right">
                                   {year.growthPercent !== null ? (
-                                    <span className={year.growthPercent >= 0 ? "text-green-600" : "text-red-600"}>
+                                    <span className={year.growthPercent >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}>
                                       {year.growthPercent >= 0 ? "+" : ""}{year.growthPercent.toFixed(1)}%
                                     </span>
                                   ) : (
@@ -540,26 +540,26 @@ export default function ReportsPage() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <Card>
                     <CardContent className="pt-6">
-                      <div className="text-3xl font-bold text-blue-600">
+                      <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">
                         {formatCurrency(vatReport.totalNet)}
                       </div>
-                      <div className="text-gray-500 mt-1">Netto gesamt</div>
+                      <div className="text-gray-500 dark:text-gray-400 mt-1">Netto gesamt</div>
                     </CardContent>
                   </Card>
                   <Card>
                     <CardContent className="pt-6">
-                      <div className="text-3xl font-bold text-green-600">
+                      <div className="text-3xl font-bold text-green-600 dark:text-green-400">
                         {formatCurrency(vatReport.totalVat)}
                       </div>
-                      <div className="text-gray-500 mt-1">MwSt. gesamt</div>
+                      <div className="text-gray-500 dark:text-gray-400 mt-1">MwSt. gesamt</div>
                     </CardContent>
                   </Card>
                   <Card>
                     <CardContent className="pt-6">
-                      <div className="text-3xl font-bold text-purple-600">
+                      <div className="text-3xl font-bold text-purple-600 dark:text-purple-400">
                         {formatCurrency(vatReport.totalGross)}
                       </div>
-                      <div className="text-gray-500 mt-1">Brutto gesamt</div>
+                      <div className="text-gray-500 dark:text-gray-400 mt-1">Brutto gesamt</div>
                     </CardContent>
                   </Card>
                 </div>
@@ -577,18 +577,18 @@ export default function ReportsPage() {
                   <CardContent>
                     <div className="overflow-x-auto">
                       <table className="w-full">
-                        <thead className="bg-gray-50 border-b">
+                        <thead className="bg-gray-50 dark:bg-gray-900 border-b">
                           <tr>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">MwSt-Satz</th>
-                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Netto</th>
-                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">MwSt.</th>
-                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Brutto</th>
-                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Anzahl</th>
+                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300">MwSt-Satz</th>
+                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">Netto</th>
+                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">MwSt.</th>
+                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">Brutto</th>
+                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">Anzahl</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y">
                           {vatReport.byRate.map((rate) => (
-                            <tr key={rate.vatRate} className="hover:bg-gray-50">
+                            <tr key={rate.vatRate} className="hover:bg-gray-50 dark:bg-gray-900">
                               <td className="px-4 py-3">{(rate.vatRate * 100).toFixed(1)}%</td>
                               <td className="px-4 py-3 text-right">{formatCurrency(rate.netAmount)}</td>
                               <td className="px-4 py-3 text-right">{formatCurrency(rate.vatAmount)}</td>
@@ -598,7 +598,7 @@ export default function ReportsPage() {
                           ))}
                           {vatReport.byRate.length === 0 && (
                             <tr>
-                              <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                              <td colSpan={5} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                                 Keine Daten für diesen Zeitraum
                               </td>
                             </tr>
@@ -618,34 +618,34 @@ export default function ReportsPage() {
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                   <Card>
                     <CardContent className="pt-6">
-                      <div className="text-3xl font-bold text-blue-600">
+                      <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">
                         {customerReport.summary.totalCustomers}
                       </div>
-                      <div className="text-gray-500 mt-1">Kunden gesamt</div>
+                      <div className="text-gray-500 dark:text-gray-400 mt-1">Kunden gesamt</div>
                     </CardContent>
                   </Card>
                   <Card>
                     <CardContent className="pt-6">
-                      <div className="text-3xl font-bold text-green-600">
+                      <div className="text-3xl font-bold text-green-600 dark:text-green-400">
                         {formatCurrency(customerReport.summary.totalAmount)}
                       </div>
-                      <div className="text-gray-500 mt-1">Umsatz gesamt</div>
+                      <div className="text-gray-500 dark:text-gray-400 mt-1">Umsatz gesamt</div>
                     </CardContent>
                   </Card>
                   <Card>
                     <CardContent className="pt-6">
-                      <div className="text-3xl font-bold text-yellow-600">
+                      <div className="text-3xl font-bold text-yellow-600 dark:text-yellow-400">
                         {formatCurrency(customerReport.summary.totalPending)}
                       </div>
-                      <div className="text-gray-500 mt-1">Ausstehend</div>
+                      <div className="text-gray-500 dark:text-gray-400 mt-1">Ausstehend</div>
                     </CardContent>
                   </Card>
                   <Card>
                     <CardContent className="pt-6">
-                      <div className="text-3xl font-bold text-red-600">
+                      <div className="text-3xl font-bold text-red-600 dark:text-red-400">
                         {formatCurrency(customerReport.summary.totalOverdue)}
                       </div>
-                      <div className="text-gray-500 mt-1">Überfällig</div>
+                      <div className="text-gray-500 dark:text-gray-400 mt-1">Überfällig</div>
                     </CardContent>
                   </Card>
                 </div>
@@ -663,26 +663,26 @@ export default function ReportsPage() {
                   <CardContent>
                     <div className="overflow-x-auto">
                       <table className="w-full">
-                        <thead className="bg-gray-50 border-b">
+                        <thead className="bg-gray-50 dark:bg-gray-900 border-b">
                           <tr>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Kunde</th>
-                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Rechnungen</th>
-                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Gesamt</th>
-                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Bezahlt</th>
-                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Ausstehend</th>
-                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Überfällig</th>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Letzte Rechnung</th>
+                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300">Kunde</th>
+                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">Rechnungen</th>
+                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">Gesamt</th>
+                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">Bezahlt</th>
+                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">Ausstehend</th>
+                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">Überfällig</th>
+                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300">Letzte Rechnung</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y">
                           {customerReport.customers.map((customer) => (
-                            <tr key={customer.customerId} className="hover:bg-gray-50">
+                            <tr key={customer.customerId} className="hover:bg-gray-50 dark:bg-gray-900">
                               <td className="px-4 py-3">{customer.customerName}</td>
                               <td className="px-4 py-3 text-right">{customer.totalInvoices}</td>
                               <td className="px-4 py-3 text-right">{formatCurrency(customer.totalAmount)}</td>
-                              <td className="px-4 py-3 text-right text-green-600">{formatCurrency(customer.paidAmount)}</td>
-                              <td className="px-4 py-3 text-right text-yellow-600">{formatCurrency(customer.pendingAmount)}</td>
-                              <td className="px-4 py-3 text-right text-red-600">{formatCurrency(customer.overdueAmount)}</td>
+                              <td className="px-4 py-3 text-right text-green-600 dark:text-green-400">{formatCurrency(customer.paidAmount)}</td>
+                              <td className="px-4 py-3 text-right text-yellow-600 dark:text-yellow-400">{formatCurrency(customer.pendingAmount)}</td>
+                              <td className="px-4 py-3 text-right text-red-600 dark:text-red-400">{formatCurrency(customer.overdueAmount)}</td>
                               <td className="px-4 py-3">
                                 {customer.lastInvoiceDate ? formatDate(customer.lastInvoiceDate) : "-"}
                               </td>
@@ -690,7 +690,7 @@ export default function ReportsPage() {
                           ))}
                           {customerReport.customers.length === 0 && (
                             <tr>
-                              <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
+                              <td colSpan={7} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                                 Keine Daten für diesen Zeitraum
                               </td>
                             </tr>

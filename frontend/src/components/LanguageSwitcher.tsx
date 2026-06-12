@@ -12,7 +12,7 @@ export default function LanguageSwitcher() {
   const { locale, switchLocale } = useI18n()
 
   return (
-    <div className="flex rounded-lg border overflow-hidden">
+    <div className="flex rounded-lg border border-gray-300 dark:border-gray-600 overflow-hidden">
       {languages.map((lang) => (
         <button
           key={lang.code}
@@ -20,7 +20,7 @@ export default function LanguageSwitcher() {
           className={`px-3 py-1 text-sm transition ${
             locale === lang.code
               ? "bg-blue-600 text-white"
-              : "bg-white text-gray-600 hover:bg-gray-100"
+              : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
           }`}
         >
           {lang.label}

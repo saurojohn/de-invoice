@@ -416,10 +416,10 @@ export default function CustomersPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b shadow-sm">
+    <main className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <header className="bg-white dark:bg-gray-800 border-b shadow-sm">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-blue-600">{t("customer.title")}</h1>
+          <h1 className="text-2xl font-bold text-blue-600 dark:text-blue-400">{t("customer.title")}</h1>
           <div className="flex gap-2 items-center">
             <LanguageSwitcher />
             <Button variant="outline" onClick={() => setShowImport(true)}>
@@ -460,10 +460,10 @@ export default function CustomersPage() {
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             placeholder={t("customer.searchPlaceholder") || "Name, USt-ID, Kundennummer, Stadt, PLZ suchen..."}
-            className="w-full md:w-1/2 px-3 py-2 border border-gray-300 rounded-md text-sm"
+            className="w-full md:w-1/2 px-3 py-2 border border-gray dark:border-gray-700-300 dark:border-gray-600 rounded-md text-sm"
           />
           {search && (
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
               {customers.length} Treffer
             </p>
           )}
@@ -474,7 +474,7 @@ export default function CustomersPage() {
           // Empty state — no customers AND no search active
           <Card>
             <CardContent className="text-center py-12">
-              <p className="text-gray-500 mb-4">{t("customer.noCustomers")}</p>
+              <p className="text-gray-500 dark:text-gray-400 mb-4">{t("customer.noCustomers")}</p>
               <div className="flex gap-2 justify-center">
                 <Button onClick={() => openModal()}>{t("customer.addFirst")}</Button>
                 <Button variant="outline" onClick={() => setShowImport(true)}>
@@ -487,7 +487,7 @@ export default function CustomersPage() {
           // Empty state — search yielded no results
           <Card>
             <CardContent className="text-center py-12">
-              <p className="text-gray-500 mb-4">{t("customer.noMatching") || "Keine Kunden entsprechen der Suche."}</p>
+              <p className="text-gray-500 dark:text-gray-400 mb-4">{t("customer.noMatching") || "Keine Kunden entsprechen der Suche."}</p>
               <Button variant="outline" onClick={() => setSearchInput('')}>
                 {t("common2.clearFilters") || "Suche zurücksetzen"}
               </Button>
@@ -507,7 +507,7 @@ export default function CustomersPage() {
                     e.stopPropagation()
                     handleDelete(customer)
                   }}
-                  className="absolute top-2 right-2 text-gray-400 hover:text-red-600 text-xs px-2 py-1 rounded hover:bg-red-50"
+                  className="absolute top-2 right-2 text-gray-400 hover:text-red-600 dark:text-red-400 text-xs px-2 py-1 rounded hover:bg-red-50"
                   title={t("common.delete") || "Löschen"}
                 >
                   🗑
@@ -517,8 +517,8 @@ export default function CustomersPage() {
                     <div className="min-w-0">
                       <div className="truncate">{customer.name}</div>
                       {customer.customerNumber && (
-                        <div className="text-xs text-gray-500 font-normal mt-0.5">
-                          {t("customer.customerNumber") || "Kundennummer"}: <span className="font-mono font-medium text-gray-700">{customer.customerNumber}</span>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 font-normal mt-0.5">
+                          {t("customer.customerNumber") || "Kundennummer"}: <span className="font-mono font-medium text-gray-700 dark:text-gray-200">{customer.customerNumber}</span>
                         </div>
                       )}
                     </div>
@@ -527,7 +527,7 @@ export default function CustomersPage() {
                         className={`text-[10px] px-2 py-1 rounded font-medium ${
                           customer.status === "active"
                             ? "bg-emerald-100 text-emerald-700"
-                            : "bg-gray-100 text-gray-500"
+                            : "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400"
                         }`}
                         title={t("customer.inactiveHint") || (customer.status === "active" ? "" : "Inaktiv")}
                       >
@@ -535,33 +535,33 @@ export default function CustomersPage() {
                           ? (t("customer.statusActive") || "Aktiv")
                           : (t("customer.statusInactive") || "Inaktiv")}
                       </span>
-                      <span className="text-xs px-2 py-1 bg-gray-100 rounded">{getTypeLabel(customer.type)}</span>
+                      <span className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-800 rounded">{getTypeLabel(customer.type)}</span>
                     </div>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2 text-sm">
-                    {customer.vatId && <div className="text-gray-600">{t("customer.vatId")}: {customer.vatId}</div>}
+                    {customer.vatId && <div className="text-gray-600 dark:text-gray-300">{t("customer.vatId")}: {customer.vatId}</div>}
                     {customer.taxExempt && (
-                      <div className="text-xs text-orange-700">⚠ {t("customer.taxExempt")}</div>
+                      <div className="text-xs text-orange-700 dark:text-orange-300">⚠ {t("customer.taxExempt")}</div>
                     )}
-                    <div className="text-gray-600">
+                    <div className="text-gray-600 dark:text-gray-300">
                       {customer.address?.street}, {customer.address?.postalCode} {customer.address?.city}
                     </div>
                     {customer.contact?.email && (
-                      <div className="text-gray-600">{customer.contact.email}</div>
+                      <div className="text-gray-600 dark:text-gray-300">{customer.contact.email}</div>
                     )}
-                    <div className="text-gray-500 text-xs">
+                    <div className="text-gray-500 dark:text-gray-400 text-xs">
                       {t("customer.paymentTerms")}: {customer.paymentTerms} {t("reminder.days")}
                     </div>
                     {/* Last invoice + total count — surfaces inactive customers
                         at a glance and helps spot customers that haven't
                         been invoiced in a long time. */}
-                    <div className="pt-2 mt-2 border-t border-gray-100 text-xs flex items-center justify-between">
-                      <span className="text-gray-500">
+                    <div className="pt-2 mt-2 border-t border-gray dark:border-gray-700-100 text-xs flex items-center justify-between">
+                      <span className="text-gray-500 dark:text-gray-400">
                         {t("customer.lastInvoice") || "Letzte Rechnung"}:{" "}
                         {customer.lastInvoiceDate ? (
-                          <span className="text-gray-900 font-medium">
+                          <span className="text-gray-900 dark:text-gray-100 font-medium">
                             {formatDateDE(customer.lastInvoiceDate)}
                           </span>
                         ) : (
@@ -572,7 +572,7 @@ export default function CustomersPage() {
                         className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
                           (customer.invoiceCount || 0) > 0
                             ? "bg-emerald-100 text-emerald-700"
-                            : "bg-gray-100 text-gray-500"
+                            : "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400"
                         }`}
                         title={`${customer.invoiceCount || 0} ${t("customer.invoiceCountHint") || "Rechnungen insgesamt"}`}
                       >
@@ -589,7 +589,7 @@ export default function CustomersPage() {
         {/* Pagination — appears when there's more than one page */}
         {totalPages > 1 && (
           <div className="flex items-center justify-between mt-4 text-sm">
-            <span className="text-gray-600">
+            <span className="text-gray-600 dark:text-gray-300">
               Seite {page} / {totalPages} ({total} gesamt)
             </span>
             <div className="flex gap-2">
@@ -623,7 +623,7 @@ export default function CustomersPage() {
               <CardTitle>📥 Kunden aus CSV importieren</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="text-sm text-gray-600">
+              <div className="text-sm text-gray-600 dark:text-gray-300">
                 <p>Laden Sie eine CSV-Datei mit Kunden hoch. Vorhandene Kunden
                 (gleiche E-Mail) werden übersprungen, nicht überschrieben.</p>
                 <p className="mt-2">
@@ -633,7 +633,7 @@ export default function CustomersPage() {
 
               <button
                 onClick={downloadSampleCsv}
-                className="text-sm text-blue-600 hover:underline"
+                className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
               >
                 📄 Beispiel-Vorlage herunterladen
               </button>
@@ -647,10 +647,10 @@ export default function CustomersPage() {
                     setImportFile(e.target.files?.[0] || null)
                     setImportResult(null)
                   }}
-                  className="block w-full text-sm text-gray-700 file:mr-3 file:py-2 file:px-4 file:rounded file:border-0 file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                  className="block w-full text-sm text-gray-700 dark:text-gray-200 file:mr-3 file:py-2 file:px-4 file:rounded file:border-0 file:bg-blue-50 file:text-blue-700 dark:text-blue-300 hover:file:bg-blue-100"
                 />
                 {importFile && (
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                     Ausgewählt: {importFile.name} ({(importFile.size / 1024).toFixed(1)} KB)
                   </p>
                 )}
@@ -717,15 +717,15 @@ export default function CustomersPage() {
             <CardHeader>
               <CardTitle>{editingCustomer ? t("customer.edit") : t("customer.create")}</CardTitle>
               {!editingCustomer && nextCustomerNumber && (
-                <p className="text-sm text-gray-500 mt-1">
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                   {t("customer.nextCustomerNumber") || "Nächste Kundennummer"}:{" "}
-                  <span className="font-mono font-medium text-gray-700">{nextCustomerNumber}</span>
+                  <span className="font-mono font-medium text-gray-700 dark:text-gray-200">{nextCustomerNumber}</span>
                 </p>
               )}
               {editingCustomer && (
-                <p className="text-sm text-gray-500 mt-1">
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                   {t("customer.customerNumber") || "Kundennummer"}:{" "}
-                  <span className="font-mono font-medium text-gray-700">
+                  <span className="font-mono font-medium text-gray-700 dark:text-gray-200">
                     {editingCustomer.customerNumber || "—"}
                   </span>
                 </p>

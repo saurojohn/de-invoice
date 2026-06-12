@@ -238,10 +238,10 @@ export default function ProductsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b shadow-sm">
+    <main className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <header className="bg-white dark:bg-gray-800 border-b shadow-sm">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-blue-600">{t("product.title")}</h1>
+          <h1 className="text-2xl font-bold text-blue-600 dark:text-blue-400">{t("product.title")}</h1>
           <div className="flex gap-2 items-center">
             <LanguageSwitcher />
             <ExportCSVButton
@@ -276,10 +276,10 @@ export default function ProductsPage() {
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             placeholder={t("product.searchPlaceholder") || "Name, SKU, Kategorie suchen..."}
-            className="w-full md:w-1/2 px-3 py-2 border border-gray-300 rounded-md text-sm"
+            className="w-full md:w-1/2 px-3 py-2 border border-gray dark:border-gray-700-300 dark:border-gray-600 rounded-md text-sm"
           />
           {search && (
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
               {products.length} Treffer
             </p>
           )}
@@ -290,7 +290,7 @@ export default function ProductsPage() {
           // Empty state — no products AND no search active
           <Card>
             <CardContent className="text-center py-12">
-              <p className="text-gray-500 mb-4">{t("product.noProducts")}</p>
+              <p className="text-gray-500 dark:text-gray-400 mb-4">{t("product.noProducts")}</p>
               <Button onClick={() => openModal()}>{t("product.addFirst")}</Button>
             </CardContent>
           </Card>
@@ -298,31 +298,31 @@ export default function ProductsPage() {
           // Empty state — search yielded no results
           <Card>
             <CardContent className="text-center py-12">
-              <p className="text-gray-500 mb-4">{t("product.noMatching") || "Keine Produkte entsprechen der Suche."}</p>
+              <p className="text-gray-500 dark:text-gray-400 mb-4">{t("product.noMatching") || "Keine Produkte entsprechen der Suche."}</p>
               <Button variant="outline" onClick={() => setSearchInput('')}>
                 {t("common2.clearFilters") || "Suche zurücksetzen"}
               </Button>
             </CardContent>
           </Card>
         ) : (
-          <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
             <table className="w-full">
-              <thead className="bg-gray-50 border-b">
+              <thead className="bg-gray-50 dark:bg-gray-900 border-b">
                 <tr>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">{t("product.sku")}</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">{t("product.name")}</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">{t("product.type")}</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">{t("product.unit")}</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">{t("product.price")}</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">{t("product.vatRate")}</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">{t("inventory.stock")}</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">{t("inventory.tracking")}</th>
-                  <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">{t("common.actions")}</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300">{t("product.sku")}</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300">{t("product.name")}</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300">{t("product.type")}</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300">{t("product.unit")}</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300">{t("product.price")}</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300">{t("product.vatRate")}</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300">{t("inventory.stock")}</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300">{t("inventory.tracking")}</th>
+                  <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">{t("common.actions")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
                 {products.map((product) => (
-                  <tr key={product.id} className="hover:bg-gray-50">
+                  <tr key={product.id} className="hover:bg-gray-50 dark:bg-gray-900">
                     <td className="px-4 py-3">{product.sku || "-"}</td>
                     <td
                       className="px-4 py-3 font-medium cursor-pointer"
@@ -331,7 +331,7 @@ export default function ProductsPage() {
                       {product.name}
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`px-2 py-1 rounded text-xs ${product.type === "good" ? "bg-blue-100 text-blue-700" : "bg-purple-100 text-purple-700"}`}>
+                      <span className={`px-2 py-1 rounded text-xs ${product.type === "good" ? "bg-blue-100 text-blue-700 dark:text-blue-300" : "bg-purple-100 text-purple-700 dark:text-purple-300"}`}>
                         {getTypeLabel(product.type)}
                       </span>
                     </td>
@@ -340,7 +340,7 @@ export default function ProductsPage() {
                     <td className="px-4 py-3">{getVatLabel(product.vatRate)}</td>
                     <td className="px-4 py-3">
                       {product.trackInventory ? (
-                        <span className={`font-medium ${parseFloat(product.stockQuantity || "0") <= parseFloat(product.lowStockThreshold || "0") ? "text-red-600" : "text-green-600"}`}>
+                        <span className={`font-medium ${parseFloat(product.stockQuantity || "0") <= parseFloat(product.lowStockThreshold || "0") ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"}`}>
                           {parseFloat(product.stockQuantity || "0").toFixed(2)}
                         </span>
                       ) : (
@@ -349,9 +349,9 @@ export default function ProductsPage() {
                     </td>
                     <td className="px-4 py-3">
                       {product.trackInventory ? (
-                        <span className="px-2 py-1 rounded text-xs bg-green-100 text-green-700">{t("inventory.active")}</span>
+                        <span className="px-2 py-1 rounded text-xs bg-green-100 text-green-700 dark:text-green-300">{t("inventory.active")}</span>
                       ) : (
-                        <span className="px-2 py-1 rounded text-xs bg-gray-100 text-gray-500">{t("inventory.off")}</span>
+                        <span className="px-2 py-1 rounded text-xs bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400">{t("inventory.off")}</span>
                       )}
                     </td>
                     <td className="px-4 py-3 text-right">
@@ -366,7 +366,7 @@ export default function ProductsPage() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          className="text-red-600 hover:text-red-800 hover:bg-red-50"
+                          className="text-red-600 dark:text-red-400 hover:text-red-800 hover:bg-red-50"
                           onClick={() => handleDelete(product)}
                           title={t("common.delete") || "Löschen"}
                         >
@@ -383,7 +383,7 @@ export default function ProductsPage() {
 
          {totalPages > 1 && (
            <div className="flex items-center justify-between mt-4 text-sm">
-             <span className="text-gray-600">
+             <span className="text-gray-600 dark:text-gray-300">
                Seite {page} / {totalPages} ({total} gesamt)
              </span>
              <div className="flex gap-2">
@@ -501,7 +501,7 @@ export default function ProductsPage() {
                   <div className="flex items-center justify-between mb-4">
                     <div>
                       <p className="font-medium">{t("inventory.trackProduct")}</p>
-                      <p className="text-xs text-gray-500">{t("inventory.trackHint")}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{t("inventory.trackHint")}</p>
                     </div>
                     <Switch
                       checked={form.trackInventory}
@@ -530,7 +530,7 @@ export default function ProductsPage() {
                           onChange={(e) => setForm({ ...form, lowStockThreshold: e.target.value })}
                           placeholder="10"
                         />
-                        <p className="text-xs text-gray-500 mt-1">{t("inventory.thresholdHint")}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t("inventory.thresholdHint")}</p>
                       </div>
                     </div>
                   )}

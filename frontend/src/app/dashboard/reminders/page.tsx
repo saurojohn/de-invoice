@@ -213,10 +213,10 @@ export default function RemindersPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b shadow-sm">
+    <main className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <header className="bg-white dark:bg-gray-800 border-b shadow-sm">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-red-600">
+          <h1 className="text-2xl font-bold text-red-600 dark:text-red-400">
             {t("reminder.title")}
           </h1>
           <div className="flex gap-2 items-center">
@@ -237,8 +237,8 @@ export default function RemindersPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
             <Card>
               <CardContent className="pt-6">
-                <div className="text-3xl font-bold text-red-600">{stats.overdueCount}</div>
-                <div className="text-gray-600">
+                <div className="text-3xl font-bold text-red-600 dark:text-red-400">{stats.overdueCount}</div>
+                <div className="text-gray-600 dark:text-gray-300">
                   {t("reminder.overdueInvoices")}
                 </div>
               </CardContent>
@@ -248,15 +248,15 @@ export default function RemindersPage() {
                 <div className="text-3xl font-bold text-orange-600">
                   €{parseFloat(stats.totalOverdueAmount).toFixed(2)}
                 </div>
-                <div className="text-gray-600">
+                <div className="text-gray-600 dark:text-gray-300">
                   {t("reminder.overdueTotal")}
                 </div>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="pt-6">
-                <div className="text-3xl font-bold text-blue-600">{stats.recentReminders}</div>
-                <div className="text-gray-600">
+                <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">{stats.recentReminders}</div>
+                <div className="text-gray-600 dark:text-gray-300">
                   {t("reminder.sent30d")}
                 </div>
               </CardContent>
@@ -270,7 +270,7 @@ export default function RemindersPage() {
         ) : overdueInvoices.length === 0 ? (
           <Card>
             <CardContent className="text-center py-12">
-            <p className="text-gray-500 mb-4">
+            <p className="text-gray-500 dark:text-gray-400 mb-4">
               {t("reminder.noOverdue")}
             </p>
               <div className="text-4xl mb-4">✓</div>
@@ -279,7 +279,7 @@ export default function RemindersPage() {
         ) : (
           <div className="space-y-4">
             {/* Bulk-action toolbar — appears when there are overdue invoices */}
-            <div className="flex items-center justify-between bg-white border rounded-lg px-4 py-2">
+            <div className="flex items-center justify-between bg-white dark:bg-gray-800 border rounded-lg px-4 py-2">
               <label className="flex items-center gap-2 text-sm">
                 <input
                   type="checkbox"
@@ -297,7 +297,7 @@ export default function RemindersPage() {
               </label>
               <div className="flex items-center gap-2">
                 {bulkResult && (
-                  <span className={`text-sm ${bulkResult.fail === 0 ? "text-green-600" : "text-orange-600"}`}>
+                  <span className={`text-sm ${bulkResult.fail === 0 ? "text-green-600 dark:text-green-400" : "text-orange-600"}`}>
                     ✓ {bulkResult.ok} versendet
                     {bulkResult.fail > 0 && `, ${bulkResult.fail} fehlgeschlagen`}
                   </span>
@@ -316,7 +316,7 @@ export default function RemindersPage() {
             </div>
 
             {(overdueInvoices || []).map((invoice) => (
-              <Card key={invoice.id} className={invoice.reminderCount > 0 ? "border-orange-300" : ""}>
+              <Card key={invoice.id} className={invoice.reminderCount > 0 ? "border-orange-300 dark:border-orange-700" : ""}>
                 <CardContent className="pt-6">
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div className="flex items-start gap-3 flex-1">
@@ -329,29 +329,29 @@ export default function RemindersPage() {
                       />
                       <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">
-                        <span className="px-2 py-1 rounded text-xs font-medium bg-red-100 text-red-700">
+                        <span className="px-2 py-1 rounded text-xs font-medium bg-red-100 text-red-700 dark:text-red-300">
                           {invoice.invoiceNumber}
                         </span>
                         {invoice.reminderCount > 0 && (
-                          <span className="px-2 py-1 rounded text-xs font-medium bg-orange-100 text-orange-700">
+                          <span className="px-2 py-1 rounded text-xs font-medium bg-orange-100 text-orange-700 dark:text-orange-300">
                             {invoice.reminderCount} {t("reminder.subtitle")}
                           </span>
                         )}
                       </div>
                       <div className="text-lg font-medium">{invoice.customer.name}</div>
-                      <div className="text-sm text-gray-600">
+                      <div className="text-sm text-gray-600 dark:text-gray-300">
                         {t("reminder.dueSince")}: {getDaysOverdueLabel(invoice.daysOverdue)}
                       </div>
-                      <div className="text-sm text-gray-500">
+                      <div className="text-sm text-gray-500 dark:text-gray-400">
                         {invoice.customer.contact?.email || (t("reminder.noEmail"))}
                       </div>
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-2xl font-bold text-red-600">
+                      <div className="text-2xl font-bold text-red-600 dark:text-red-400">
                         €{parseFloat(invoice.total).toFixed(2)}
                       </div>
-                      <div className="text-sm text-gray-500 mb-2">
+                      <div className="text-sm text-gray-500 dark:text-gray-400 mb-2">
                         {new Date(invoice.dueDate).toLocaleDateString(getDateLocale())}
                       </div>
                     </div>
@@ -359,7 +359,7 @@ export default function RemindersPage() {
 
                   <div className="mt-4 pt-4 border-t flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <div className="flex items-center gap-2">
-                      <label className="text-sm text-gray-600">
+                      <label className="text-sm text-gray-600 dark:text-gray-300">
                         {t("reminder.levelLabel")}
                       </label>
                       <select
