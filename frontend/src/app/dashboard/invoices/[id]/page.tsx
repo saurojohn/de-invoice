@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { useI18n } from "@/components/useI18n"
 import { apiGet, apiPost, apiPut, apiDelete, ApiError } from "@/lib/api"
+import { substitute } from "@/lib/substitute"
 
 interface InvoiceItem {
   description: string
@@ -32,7 +33,7 @@ interface Invoice {
   totalVat: string
   total: string
   notes: string
-  customer: { name: string; address: any; vatId: string }
+  customer: { name: string; address: any; vatId: string; contact?: { email?: string; phone?: string } | null }
   // Sender letterhead (the company that issued the invoice) — used by
   // the on-screen and browser-print header card. Returned by
   // GET /invoices/:id since we added `include: { company: true }`
@@ -84,6 +85,28 @@ export default function InvoiceDetailPage() {
     notes: '',
   })
   const [paySaving, setPaySaving] = useState(false)
+
+  // ─── Email send modal ────────────────────────────────────────────
+  // Opens on click of "Per E-Mail senden". The user can:
+  //   - pick a locale (de / en / zh) — the template re-renders
+  //   - override the recipient (form pre-fills from
+  //     customer.contact.email)
+  //   - add additional CC addresses
+  //   - edit the subject and body (the user-overrides replace
+  //     the rendered template)
+  // The form's submit calls /invoices/:id/send-email with the
+  // appropriate override fields.
+  const [showEmailModal, setShowEmailModal] = useState(false)
+  const [emailLang, setEmailLang] = useState<"de" | "en" | "zh">("de")
+  const [emailTo, setEmailTo] = useState("")
+  const [emailExtraCc, setEmailExtraCc] = useState("")
+  const [emailSubject, setEmailSubject] = useState("")
+  const [emailBody, setEmailBody] = useState("")
+  // Tracks whether the user has touched the subject/body — once
+  // they do, the template re-render on language change is
+  // skipped for that field (we don't want to clobber their edits).
+  const [subjectTouched, setSubjectTouched] = useState(false)
+  const [bodyTouched, setBodyTouched] = useState(false)
 
   useEffect(() => {
     const companyId = localStorage.getItem("companyId")
@@ -231,29 +254,165 @@ export default function InvoiceDetailPage() {
     return "0%"
   }
 
-  const sendViaEmail = async () => {
+  // Helper: format a number as currency in the given locale
+  // (used by the email template preview to keep server /
+  // client formatting identical — we want the user to see
+  // exactly what the recipient will see).
+  const fmtAmountForEmail = (n: number, currency: string, lang: "de" | "en" | "zh"): string => {
+    try {
+      const locale = lang === "de" ? "de-DE" : lang === "en" ? "en-US" : "zh-CN"
+      return new Intl.NumberFormat(locale, { style: "currency", currency }).format(n)
+    } catch {
+      return `${n.toFixed(2)} ${currency}`
+    }
+  }
+  const fmtDateForEmail = (s: string | null | undefined, lang: "de" | "en" | "zh"): string => {
+    if (!s) return "—"
+    try {
+      const locale = lang === "de" ? "de-DE" : lang === "en" ? "en-US" : "zh-CN"
+      return new Intl.DateTimeFormat(locale, {
+        day: "2-digit", month: "2-digit", year: "numeric",
+      }).format(new Date(s))
+    } catch {
+      return s
+    }
+  }
+
+  // Canonical email templates for all 3 locales. The backend
+  // uses the same strings (see backend/src/modules/mail/
+  // templates/invoice-email.template.ts) so the form preview
+  // and the actually-sent text are byte-identical. The
+  // messages/*.json 'billingEmail' namespace is for the
+  // page-level i18n (button labels, modal title), not the
+  // email body itself.
+  const TEMPLATE_FALLBACK: Record<"de" | "en" | "zh", { subject: string; body: string }> = {
+    de: {
+      subject: "Rechnung {invoiceNumber} von {companyName}",
+      body:
+        "{salutation} {customerName},\n\n" +
+        "anbei erhalten Sie die Rechnung {invoiceNumber} über {amount}.\n\n" +
+        "Bitte begleichen Sie den Betrag bis zum {dueDate}.\n\n" +
+        "Die Rechnung finden Sie im Anhang als PDF.\n\n" +
+        "Mit freundlichen Grüßen\n{companyName}",
+    },
+    en: {
+      subject: "Invoice {invoiceNumber} from {companyName}",
+      body:
+        "{salutation} {customerName},\n\n" +
+        "Please find attached invoice {invoiceNumber} for {amount}.\n\n" +
+        "The amount is due by {dueDate}.\n\n" +
+        "The invoice is attached as a PDF.\n\n" +
+        "Kind regards,\n{companyName}",
+    },
+    zh: {
+      subject: "发票 {invoiceNumber} 来自 {companyName}",
+      body:
+        "{salutation}{customerName}:\n\n" +
+        "随信附上发票 {invoiceNumber},金额 {amount}。\n\n" +
+        "请于 {dueDate} 前支付。\n\n" +
+        "发票以 PDF 格式附在邮件中。\n\n" +
+        "此致\n敬礼\n\n" +
+        "{companyName}",
+    },
+  }
+
+  const openEmailModal = () => {
+    if (!invoice) return
+    // Pre-fill from the customer's email and the German
+    // template as the starting point (German is the
+    // page-level locale; the form lets the user switch).
+    const lang: "de" | "en" | "zh" = "de"
+    const tpl = TEMPLATE_FALLBACK[lang]
+    const amount = fmtAmountForEmail(
+      parseFloat(invoice.total || "0"),
+      invoice.currency || "EUR",
+      lang,
+    )
+    const dueDate = fmtDateForEmail(invoice.dueDate, lang)
+    const salutation = invoice.customer.name ? "Sehr geehrte/r" : ""
+    const vars: Record<string, string> = {
+      invoiceNumber: invoice.invoiceNumber,
+      customerName: invoice.customer.name || "",
+      amount,
+      dueDate,
+      companyName: invoice.company?.name || "",
+      salutation,
+    }
+    setEmailLang(lang)
+    setEmailTo(invoice.customer.contact?.email || "")
+    setEmailExtraCc("")
+    setEmailSubject(substitute(tpl.subject, vars))
+    setEmailBody(substitute(tpl.body, vars))
+    setSubjectTouched(false)
+    setBodyTouched(false)
+    setShowEmailModal(true)
+    setSendResult(null)
+  }
+
+  // Re-render the template when the user changes the
+  // language — but only for fields they haven't edited.
+  // If they HAVE edited, we keep their text and only
+  // change the locale (the body text stays in the user's
+  // chosen language; we don't try to translate it).
+  const onEmailLangChange = (lang: "de" | "en" | "zh") => {
+    setEmailLang(lang)
+    const tpl = TEMPLATE_FALLBACK[lang]
+    const amount = fmtAmountForEmail(
+      parseFloat(invoice?.total || "0"),
+      invoice?.currency || "EUR",
+      lang,
+    )
+    const dueDate = fmtDateForEmail(invoice?.dueDate, lang)
+    const salutation = invoice?.customer.name
+      ? (lang === "de" ? "Sehr geehrte/r" : lang === "en" ? "Dear" : "尊敬的")
+      : ""
+    const vars: Record<string, string> = {
+      invoiceNumber: invoice?.invoiceNumber || "",
+      customerName: invoice?.customer.name || "",
+      amount,
+      dueDate,
+      companyName: invoice?.company?.name || "",
+      salutation,
+    }
+    if (!subjectTouched) setEmailSubject(substitute(tpl.subject, vars))
+    if (!bodyTouched) setEmailBody(substitute(tpl.body, vars))
+  }
+
+  // Send the email with the form values. Closes the modal
+  // on success.
+  const confirmSendEmail = async () => {
     if (!invoice) return
     setSending(true)
     setSendResult(null)
-
     try {
       const companyId = localStorage.getItem("companyId")
       const userId = localStorage.getItem("userId") || undefined
       const userEmail = localStorage.getItem("userEmail") || ""
       if (!companyId) return
-
-      // Fully automated: backend sends the email via SMTP with PDF attached.
-      // We pass the logged-in user's email as CC so they get a copy automatically.
-      const data = await apiPost<any>(`/api/v1/invoices/${invoice.id}/send-email?companyId=${companyId}`, {
-        ccEmail: userEmail || undefined,
-        createdById: userId,
-      })
+      // Parse extra CC: comma-separated list.
+      const extraCc = emailExtraCc
+        .split(/[,;\n]/)
+        .map((s) => s.trim())
+        .filter(Boolean)
+      const data = await apiPost<any>(
+        `/api/v1/invoices/${invoice.id}/send-email?companyId=${companyId}`,
+        {
+          ccEmail: userEmail || undefined,
+          extraCc: extraCc.length ? extraCc : undefined,
+          overrideTo: emailTo || undefined,
+          overrideSubject: subjectTouched ? emailSubject : undefined,
+          overrideBody: bodyTouched ? emailBody : undefined,
+          language: emailLang,
+          createdById: userId,
+        },
+      )
       setSendResult({
         ok: true,
         message: data.smtpConfigured
           ? `E-Mail an ${data.recipient} gesendet${data.cc?.length ? ` (CC: ${data.cc.join(", ")})` : ""}`
           : `E-Mail vorbereitet (SMTP nicht konfiguriert — Server-Log prüfen)`,
       })
+      setShowEmailModal(false)
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : "Netzwerkfehler"
       setSendResult({ ok: false, message: msg })
@@ -419,7 +578,7 @@ export default function InvoiceDetailPage() {
             </select>
           </div>
           <div className="flex gap-2 items-center">
-            <Button variant="outline" onClick={sendViaEmail} disabled={sending}>
+            <Button variant="outline" onClick={openEmailModal} disabled={sending}>
               {sending ? "Wird gesendet..." : "Per E-Mail senden"}
             </Button>
             {sendResult && (
@@ -767,9 +926,157 @@ export default function InvoiceDetailPage() {
         {invoice.notes && (
           <Card className="mt-8">
             <CardHeader><CardTitle>Bemerkungen</CardTitle></CardHeader>
-            <CardContent><p className="text-gray-600 dark:text-gray-300 whitespace-pre-wrap">{invoice.notes}</p></CardContent>
+             <CardContent><p className="text-gray-600 dark:text-gray-300 whitespace-pre-wrap">{invoice.notes}</p></CardContent>
+           </Card>
+         )}
+
+      {/* Email send modal — opens on click of "Per E-Mail senden".
+          The user can change locale (de/en/zh), override the
+          recipient, add CC, and edit the subject/body. The
+          backend uses the same template strings, so the preview
+          text is what the recipient will see. */}
+      {showEmailModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <CardHeader>
+              <CardTitle>
+                Rechnung per E-Mail senden — {invoice?.invoiceNumber}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {/* Language picker — switching re-renders the
+                    template for fields the user hasn't touched. */}
+                <div>
+                  <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
+                    Sprache
+                  </label>
+                  <div className="flex gap-2">
+                    {(["de", "en", "zh"] as const).map((l) => (
+                      <button
+                        key={l}
+                        type="button"
+                        onClick={() => onEmailLangChange(l)}
+                        className={`px-3 py-1 text-sm rounded border ${
+                          emailLang === l
+                            ? "bg-blue-600 text-white border-blue-600"
+                            : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700"
+                        }`}
+                      >
+                        {l === "de" ? "Deutsch" : l === "en" ? "English" : "中文"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Recipient — pre-filled from
+                    customer.contact.email. Override allowed
+                    (e.g. send to the accounting dept
+                    instead of the main contact). */}
+                <div>
+                  <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
+                    An (Empfänger)
+                  </label>
+                  <Input
+                    type="email"
+                    value={emailTo}
+                    onChange={(e) => setEmailTo(e.target.value)}
+                    placeholder="kunde@firma.de"
+                  />
+                </div>
+
+                {/* Additional CC — comma/semicolon/newline
+                    separated. The logged-in user is auto-CC'd
+                    on the server (via the existing ccEmail
+                    param), so this is for OTHER recipients
+                    like an accounting mailbox. */}
+                <div>
+                  <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
+                    CC (zusätzlich, durch Komma getrennt)
+                  </label>
+                  <Input
+                    type="text"
+                    value={emailExtraCc}
+                    onChange={(e) => setEmailExtraCc(e.target.value)}
+                    placeholder="buchhaltung@firma.de, ceo@firma.de"
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Sie selbst erhalten automatisch eine Kopie.
+                  </p>
+                </div>
+
+                {/* Subject — pre-filled with the rendered
+                    template subject for the chosen locale.
+                    Editing marks it "touched" so a future
+                    locale change won't clobber the edit. */}
+                <div>
+                  <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
+                    Betreff
+                  </label>
+                  <Input
+                    type="text"
+                    value={emailSubject}
+                    onChange={(e) => {
+                      setEmailSubject(e.target.value)
+                      setSubjectTouched(true)
+                    }}
+                  />
+                  {subjectTouched && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                      Manuell bearbeitet — wird nicht durch Vorlage überschrieben.
+                    </p>
+                  )}
+                </div>
+
+                {/* Body — multi-line textarea. Same touched-
+                    semantics as the subject. */}
+                <div>
+                  <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
+                    Nachricht
+                  </label>
+                  <textarea
+                    value={emailBody}
+                    onChange={(e) => {
+                      setEmailBody(e.target.value)
+                      setBodyTouched(true)
+                    }}
+                    rows={10}
+                    className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded px-3 py-2 text-sm font-mono"
+                  />
+                  {bodyTouched && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                      Manuell bearbeitet — wird nicht durch Vorlage überschrieben.
+                    </p>
+                  )}
+                </div>
+
+                {/* Attachment notice — the PDF is generated
+                    server-side and attached automatically. */}
+                <div className="text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded p-3">
+                  Anhang: <span className="font-mono">{invoice?.invoiceNumber}.pdf</span> (wird automatisch vom Server angehängt)
+                </div>
+
+                {/* Action buttons */}
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowEmailModal(false)}
+                    disabled={sending}
+                  >
+                    Abbrechen
+                  </Button>
+                  <Button
+                    onClick={confirmSendEmail}
+                    disabled={sending || !emailTo.trim()}
+                  >
+                    {sending ? "Wird gesendet..." : "Senden"}
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
           </Card>
-        )}
+        </div>
+      )}
       </div>
 
       {/* Browser-print styles. We DO NOT print the action header

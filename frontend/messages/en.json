@@ -768,7 +768,8 @@
       "failed": "Failed",
       "bounced": "Bounced",
       "draft": "Draft"
-    }
+    },
+    "resend": "Resend"
   },
   "aging": {
     "title": "Aging Report",
@@ -1021,5 +1022,11 @@
     "tooltip_light": "Light design",
     "tooltip_dark": "Dark design",
     "tooltip_system": "Follow system setting"
+  },
+  "billingEmail": {
+    "subject": "Invoice {invoiceNumber} from {companyName}",
+    "body": "Dear {customerName},\n\nPlease find attached invoice {invoiceNumber} for {amount}.\n\nThe amount is due by {dueDate}.\n\nThe invoice is attached as a PDF.\n\nKind regards,\n{companyName}",
+    "salutationFormal": "Dear Mr/Ms",
+    "salutationNeutral": "Dear"
   }
 }

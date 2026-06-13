@@ -230,4 +230,131 @@ export class MailController {
     if (!email) throw new BadRequestException('Email not found')
     return email
   }
+
+  /**
+   * Re-send an existing email. The original EmailSend row
+   * is kept in place for the GoBD audit trail and a NEW
+   * EmailSend row is created with the same data + a fresh
+   * PDF. The recipient / subject / body can be overridden
+   * by the caller (e.g. "send to a different address").
+   *
+   * Implementation: we re-use the PDF generator from the
+   * invoices module and call MailService directly. We don't
+   * re-delegate to InvoiceController.sendInvoiceEmail
+   * because controllers aren't injected.
+   *
+   * Request body (all optional):
+   *   to:       string  — override recipient
+   *   subject:  string  — override subject
+   *   body:     string  — override body
+   *   ccEmail:  string  — single CC
+   */
+  @Auth()
+  @Post('emails/:id/resend')
+  @Require('invoice.send')
+  async resendEmail(
+    @Query('companyId') companyId: string,
+    @Param('id') id: string,
+    @Body() body: { to?: string; subject?: string; body?: string; ccEmail?: string },
+  ) {
+    if (!companyId) throw new BadRequestException('companyId is required')
+    const original = await this.prisma.emailSend.findFirst({ where: { id, companyId } })
+    if (!original) throw new BadRequestException('Email not found')
+    if (!original.invoiceId) {
+      throw new BadRequestException('Nur rechnungsgebundene E-Mails können erneut gesendet werden')
+    }
+
+    // Reuse the same PDF-rendering + mail-dispatch path
+    // the invoice controller uses. We import lazily to
+    // avoid a circular module dependency at boot.
+    const { generateInvoicePDF } = await import('../../invoices/invoice-pdf.service')
+    const invoice = await this.prisma.invoice.findFirst({
+      where: { id: original.invoiceId, companyId },
+      include: {
+        customer: true,
+        company: true,
+        // Items are required by the PDF generator
+        // (it iterates them for the line-item table).
+        // Product snapshot is used for SKU fallback.
+        items: { include: { product: { select: { sku: true, name: true } } } },
+        payments: true,
+      },
+    })
+    if (!invoice) {
+      throw new BadRequestException('Rechnung nicht gefunden')
+    }
+    const company = invoice.company
+    const customer = invoice.customer
+
+    // PDF buffer (regenerated — same PDF the user gets from
+    // the first send, but if the invoice was edited in the
+    // meantime the resend reflects the current state).
+    const pdfBuffer = await generateInvoicePDF(
+      invoice as any,
+      {
+        name: company?.name || '',
+        address: company?.address || {},
+        vatId: company?.vatId || undefined,
+        taxId: company?.taxId || undefined,
+        bankInfo: company?.bankInfo || undefined,
+        logoPath: company?.logoPath || undefined,
+      },
+      (invoice as any).templateType || 'standard',
+    )
+
+    // Recipient / subject / body — override > original
+    const to = (body?.to || original.recipientEmail || '').trim()
+    if (!to) throw new BadRequestException('Empfänger fehlt')
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
+      throw new BadRequestException(`Ungültige Empfänger-E-Mail: ${to}`)
+    }
+    const subject = (body?.subject || original.subject || '').slice(0, 250).trim()
+    const text = (body?.body || original.bodyPreview || '').slice(0, 4000).trim()
+    const ccList: string[] = []
+    if (body?.ccEmail && body.ccEmail.trim()) ccList.push(body.ccEmail.trim())
+
+    const result = await this.mailService.send(companyId, {
+      to,
+      cc: ccList.length ? ccList : undefined,
+      subject,
+      text,
+      attachments: [
+        {
+          filename: `${invoice.invoiceNumber}.pdf`,
+          content: pdfBuffer,
+          contentType: 'application/pdf',
+        },
+      ],
+    })
+
+    // New EmailSend row — preserves the audit trail (both
+    // the original and the resend are recoverable).
+    const smtpConfigured = await this.mailService.isConfiguredFor(companyId)
+    const emailSend = await this.prisma.emailSend.create({
+      data: {
+        companyId,
+        invoiceId: original.invoiceId,
+        templateType: original.templateType || 'invoice',
+        recipientEmail: to,
+        recipientName: original.recipientName || customer.name,
+        subject,
+        bodyPreview: text.slice(0, 500),
+        attachmentPaths: [`${invoice.invoiceNumber}.pdf`],
+        status: smtpConfigured ? 'sent' : 'opened',
+        sentAt: new Date(),
+        notes: `Resend of ${original.id}`,
+      },
+    })
+
+    return {
+      success: true,
+      originalId: original.id,
+      emailSendId: emailSend.id,
+      messageId: result.messageId,
+      recipient: to,
+      cc: ccList,
+      subject,
+      smtpConfigured,
+    }
+  }
 }

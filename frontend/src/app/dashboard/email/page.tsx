@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
-import { apiGet } from "@/lib/api"
+import { apiGet, apiPost, ApiError } from "@/lib/api"
 
 interface EmailRow {
   id: string
@@ -89,6 +89,40 @@ export default function EmailCenterPage() {
   }
 
   const closeDetail = () => setSelected(null)
+
+  // Resend state — disabled while a resend is in flight
+  const [resending, setResending] = useState(false)
+  const [resendResult, setResendResult] = useState<{ ok: boolean; message: string } | null>(null)
+  const resend = async (email: EmailRow) => {
+    if (!email.invoice?.id) {
+      setResendResult({ ok: false, message: "Keine verknüpfte Rechnung — kann nicht erneut gesendet werden." })
+      return
+    }
+    setResending(true)
+    setResendResult(null)
+    try {
+      const companyId = localStorage.getItem("companyId")
+      if (!companyId) throw new Error("Kein Unternehmen")
+      const data = await apiPost<any>(
+        `/api/v1/mail/emails/${email.id}/resend?companyId=${companyId}`,
+        {},
+      )
+      setResendResult({
+        ok: true,
+        message: data.smtpConfigured
+          ? `Erneut gesendet an ${data.recipient}`
+          : `Erneut vorbereitet (SMTP nicht konfiguriert — Server-Log prüfen)`,
+      })
+      // Reload the list so the new EmailSend row shows up.
+      // Cheaper than tracking the optimistic insert.
+      setTimeout(() => window.location.reload(), 1500)
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : "Netzwerkfehler"
+      setResendResult({ ok: false, message: msg })
+    } finally {
+      setResending(false)
+    }
+  }
 
   const fmtDate = (s?: string | null) => {
     if (!s) return "—"
@@ -302,10 +336,32 @@ export default function EmailCenterPage() {
                   )}
                 </>
               )}
-              <div className="mt-6 flex justify-end">
-                <Button variant="outline" onClick={closeDetail}>
-                  {t("common.close") || "Schließen"}
-                </Button>
+              <div className="mt-6 flex justify-between items-center">
+                {resendResult && (
+                  <span
+                    className={`text-sm ${resendResult.ok ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}
+                  >
+                    {resendResult.ok ? "✓" : "✗"} {resendResult.message}
+                  </span>
+                )}
+                <div className="flex gap-2 ml-auto">
+                  {/* Resend — only available for invoice-bound
+                      emails (the resend endpoint returns 400
+                      otherwise). Disabled during the in-flight
+                      call to prevent double-clicks. */}
+                  {selected.invoice && (
+                    <Button
+                      variant="outline"
+                      onClick={() => resend(selected)}
+                      disabled={resending}
+                    >
+                      {resending ? "Wird gesendet..." : (t("email.resend") || "Erneut senden")}
+                    </Button>
+                  )}
+                  <Button variant="outline" onClick={closeDetail}>
+                    {t("common.close") || "Schließen"}
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>

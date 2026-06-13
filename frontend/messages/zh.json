@@ -778,7 +778,8 @@
       "failed": "失败",
       "bounced": "退回",
       "draft": "草稿"
-    }
+    },
+    "resend": "重新发送"
   },
   "aging": {
     "title": "账龄分析 (Aging Report)",
@@ -1031,5 +1032,11 @@
     "tooltip_light": "浅色主题",
     "tooltip_dark": "深色主题",
     "tooltip_system": "跟随系统设置"
+  },
+  "billingEmail": {
+    "subject": "发票 {invoiceNumber} 来自 {companyName}",
+    "body": "尊敬的 {customerName}:\n\n随信附上发票 {invoiceNumber},金额 {amount}。\n\n请于 {dueDate} 前支付。\n\n发票以 PDF 格式附在邮件中。\n\n此致\n敬礼\n\n{companyName}",
+    "salutationFormal": "尊敬的",
+    "salutationNeutral": "尊敬的"
   }
 }

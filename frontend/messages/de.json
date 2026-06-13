@@ -776,7 +776,8 @@
       "failed": "Fehlgeschlagen",
       "bounced": "Zurückgewiesen",
       "draft": "Entwurf"
-    }
+    },
+    "resend": "Erneut senden"
   },
   "aging": {
     "title": "Altersstruktur (Aging Report)",
@@ -1029,5 +1030,11 @@
     "tooltip_light": "Helles Design",
     "tooltip_dark": "Dunkles Design",
     "tooltip_system": "System-Einstellung folgen"
+  },
+  "billingEmail": {
+    "subject": "Rechnung {invoiceNumber} von {companyName}",
+    "body": "{salutation} {customerName},\n\nanbei erhalten Sie die Rechnung {invoiceNumber} über {amount}.\n\nBitte begleichen Sie den Betrag bis zum {dueDate}.\n\nDie Rechnung finden Sie im Anhang als PDF.\n\nMit freundlichen Grüßen\n{companyName}",
+    "salutationFormal": "Sehr geehrte/r Herr/Frau",
+    "salutationNeutral": "Sehr geehrte/r"
   }
 }

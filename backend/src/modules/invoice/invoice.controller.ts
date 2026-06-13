@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, Res, Header } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, Res, Header, BadRequestException } from '@nestjs/common';
 import { Response } from 'express';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const archiverLib: any = require('archiver');
@@ -13,6 +13,7 @@ import { generateXRechnung, transformToXRechnungData } from '../../invoices/xrec
 import { generateZUGFeRD } from '../../invoices/zugferd.service';
 import { CreateInvoiceDto, UpdateInvoiceDto } from './dto/invoice.dto';
 import { Auth, Require } from '../../auth/roles.decorator';
+import { renderInvoiceEmail, defaultSalutationFor, type EmailLang } from '../mail/templates/invoice-email.template';
 
 @Auth()
 @Controller('invoices')
@@ -516,35 +517,115 @@ export class InvoiceController {
     };
   }
 
-  // Send invoice via email (German content + PDF attachment + auto-CC to sender)
+  // Send invoice via email (multi-locale template + PDF attachment + optional
+  // user override for recipient / CC / subject / body).
+  //
+  // Request body (all fields optional except those noted):
+  //   language:        'de' | 'en' | 'zh' — locale for the default template
+  //                    (overridable by overrideSubject / overrideBody)
+  //   overrideTo:      string  — replaces customer.contact.email
+  //                    (used by the form-modal to send to a different
+  //                    address, e.g. the customer's accounting dept)
+  //   overrideSubject: string  — replaces the rendered subject entirely
+  //   overrideBody:    string  — replaces the rendered body entirely
+  //   ccEmail:         string  — single CC recipient (sender's own email
+  //                    for the "send me a copy" checkbox)
+  //   extraCc:         string[] — additional CC addresses
+  //   createdById:     string  — the User who initiated the send, recorded
+  //                    in EmailSend.createdById for audit
+  //   salutation:      string  — explicitly sets the salutation (e.g. the
+  //                    user picked "Sehr geehrte Frau" in the form).
+  //                    If unset, defaultSalutationFor() is used.
+  //
+  // The user's override values are sanitised lightly (trim, length cap)
+  // but the body is NOT HTML — it's plain text for the email body.
+  // The customer name IS HTML-escaped by the template (defence in
+  // depth against a malicious customer name in the DB).
   @Post(':id/send-email')
   @Require('invoice.send')
   async sendInvoiceEmail(
     @Param('id') id: string,
     @Query('companyId') companyId: string,
-    @Body() body: { ccEmail?: string; createdById?: string },
+    @Body() body: {
+      ccEmail?: string;
+      extraCc?: string[];
+      overrideTo?: string;
+      overrideSubject?: string;
+      overrideBody?: string;
+      language?: 'de' | 'en' | 'zh';
+      salutation?: string;
+      createdById?: string;
+    },
   ) {
     const invoice = await this.invoiceService.findOne(id, companyId);
     const company = await this.prisma.company.findUnique({ where: { id: companyId } });
     const customer = invoice.customer;
 
-    const recipientEmail = (customer?.contact as any)?.email;
+    // Recipient resolution: overrideTo (form) > customer.contact.email
+    // (DB). Validate overrideTo if provided — the form should not be
+    // able to inject arbitrary content as the recipient.
+    const defaultRecipient = (customer?.contact as any)?.email;
+    const recipientEmail = (body?.overrideTo || defaultRecipient || '').trim();
     if (!recipientEmail) {
       throw new Error('Kunde hat keine E-Mail-Adresse hinterlegt');
     }
+    // Basic RFC 5322 sanity check — the full RFC is huge; we just
+    // catch the obvious "no @" / "no domain" cases. The SMTP
+    // transporter does the authoritative validation.
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail)) {
+      throw new BadRequestException(`Ungültige Empfänger-E-Mail: ${recipientEmail}`);
+    }
+
     const recipientName = customer.name || '';
     const invoiceNumber = invoice.invoiceNumber;
-    const totalAmount = parseFloat(invoice.total.toString()).toFixed(2);
-    const dueDate = invoice.dueDate
-      ? new Date(invoice.dueDate).toLocaleDateString('de-DE')
-      : '—';
+    const totalAmount = parseFloat(invoice.total.toString());
+    const lang: EmailLang =
+      body?.language === 'en' || body?.language === 'zh' ? body.language : 'de';
 
-    const subject = `Rechnung ${invoiceNumber}`;
-    const text =
-      `Sehr geehrte/r Herr/Frau ${recipientName},\n\n` +
-      `anbei erhalten Sie die Rechnung ${invoiceNumber} über EUR ${totalAmount}.\n\n` +
-      `Bitte begleichen Sie den Betrag bis zum ${dueDate}.\n\n` +
-      `Mit freundlichen Grüßen\n${company?.name || ''}`;
+    // Locale-aware number / date formatting. Matches what the
+    // frontend shows in the form-preview (so what the user sees
+    // is what gets sent).
+    const fmtAmount = (n: number, l: EmailLang): string => {
+      try {
+        const locale = l === 'de' ? 'de-DE' : l === 'en' ? 'en-US' : 'zh-CN';
+        return new Intl.NumberFormat(locale, {
+          style: 'currency',
+          currency: invoice.currency || 'EUR',
+        }).format(n);
+      } catch {
+        return `${n.toFixed(2)} ${invoice.currency || 'EUR'}`;
+      }
+    };
+    const fmtDate = (d: Date | null, l: EmailLang): string => {
+      if (!d) return '—';
+      try {
+        const locale = l === 'de' ? 'de-DE' : l === 'en' ? 'en-US' : 'zh-CN';
+        return new Intl.DateTimeFormat(locale, {
+          day: '2-digit', month: '2-digit', year: 'numeric',
+        }).format(d);
+      } catch {
+        return d.toISOString().slice(0, 10);
+      }
+    };
+
+    const salutation = (body?.salutation && body.salutation.trim()) ||
+      defaultSalutationFor(lang, !!recipientName.trim());
+
+    // Render the template (used as the default if the form didn't
+    // override subject / body).
+    const tpl = renderInvoiceEmail(lang, {
+      invoiceNumber,
+      customerName: recipientName,
+      amount: fmtAmount(totalAmount, lang),
+      dueDate: fmtDate(invoice.dueDate ? new Date(invoice.dueDate) : null, lang),
+      companyName: company?.name || '',
+      salutation,
+    });
+
+    // Apply user overrides (length-capped to keep a malicious payload
+    // from filling a 100KB subject line).
+    const subject = (body?.overrideSubject || tpl.subject).slice(0, 250).trim();
+    const text = (body?.overrideBody || tpl.text).slice(0, 4000).trim();
 
     // Build PDF buffer
     const pdfBuffer = await generateInvoicePDF(
@@ -564,7 +645,12 @@ export class InvoiceController {
     // We don't pull from Company because there's no email field on Company;
     // settings.email could be a future addition.
     const ccList: string[] = [];
-    if (body?.ccEmail) ccList.push(body.ccEmail);
+    if (body?.ccEmail && body.ccEmail.trim()) ccList.push(body.ccEmail.trim());
+    if (Array.isArray(body?.extraCc)) {
+      for (const c of body.extraCc) {
+        if (typeof c === 'string' && c.trim()) ccList.push(c.trim());
+      }
+    }
 
     // Send
     const result = await this.mailService.send(companyId, {
@@ -622,6 +708,7 @@ export class InvoiceController {
       cc: ccList,
       subject,
       smtpConfigured,
+      language: lang,
     };
   }
 
