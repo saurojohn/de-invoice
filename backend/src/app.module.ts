@@ -22,6 +22,7 @@ import { CashBookModule } from './modules/cashbook/cashbook.module';
 import { BankImportModule } from './modules/bank-import/bank-import.module';
 import { SupplierModule } from './modules/supplier/supplier.module';
 import { ExpenseModule } from './modules/expense/expense.module';
+import { AttachmentsModule } from './modules/attachment/attachments.module';
 
 @Module({
   imports: [
@@ -60,6 +61,7 @@ import { ExpenseModule } from './modules/expense/expense.module';
     BankImportModule,
     SupplierModule,
     ExpenseModule,
+    AttachmentsModule,
     ScheduleModule.forRoot(),
   ],
   providers: [

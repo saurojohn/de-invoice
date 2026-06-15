@@ -95,6 +95,12 @@ export class StorageService {
       'image/png',
       'image/gif',
       'image/webp',
+      // text/plain is accepted because the OCR
+      // service trivially passes through .txt
+      // content (no parsing needed). Useful for
+      // supplementary documents that are pure
+      // text (e.g. an emailed order note).
+      'text/plain',
       'application/msword',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       'application/vnd.ms-excel',
@@ -103,7 +109,7 @@ export class StorageService {
 
     // For now, accept all buffer uploads (type is determined by extension)
     const ext = path.extname(filename).toLowerCase();
-    const allowedExtensions = ['.pdf', '.jpg', '.jpeg', '.png', '.gif', '.webp', '.doc', '.docx', '.xls', '.xlsx'];
+    const allowedExtensions = ['.pdf', '.jpg', '.jpeg', '.png', '.gif', '.webp', '.doc', '.docx', '.xls', '.xlsx', '.txt', '.tif', '.tiff'];
 
     if (!allowedExtensions.includes(ext)) {
       throw new BadRequestException('Dateityp nicht erlaubt.');

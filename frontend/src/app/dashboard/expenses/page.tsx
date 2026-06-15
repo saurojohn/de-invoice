@@ -3,10 +3,12 @@
 import { useEffect, useState, useCallback, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
 import { apiGet } from "@/lib/api"
+import { ReceiptsPanel } from "@/components/ReceiptsPanel"
 
 // Expense = Eingangsrechnung (vendor bill). The list
 // page is the Berater's overview of all incoming
@@ -60,6 +62,14 @@ export default function ExpensesPage() {
   const [debouncedSearch, setDebouncedSearch] = useState("")
   const [supplierId, setSupplierId] = useState("")
   const [state, setState] = useState<"" | "offen" | "bezahlt" | "storniert">("")
+  // Receipt count cache — keyed by expenseId, populated
+  // lazily on first render of the table so the column
+  // shows a paperclip + count without making the list
+  // endpoint return nested attachments.
+  const [receiptCounts, setReceiptCounts] = useState<Record<string, number>>({})
+  // Detail modal — which expense's receipts we're
+  // looking at, if any. Null = modal closed.
+  const [detailExpense, setDetailExpense] = useState<Expense | null>(null)
 
   // 200ms debounce on the search input
   useEffect(() => {
@@ -103,6 +113,36 @@ export default function ExpensesPage() {
       setLoading(false)
     }
   }, [router, debouncedSearch, supplierId])
+
+  // Fetch attachment counts for the currently-visible
+  // expenses. The /attachments endpoint takes one
+  // entityId at a time, so we fire N parallel
+  // requests — fine for a list page (typical N is
+  // 10-50). The response is cached in receiptCounts
+  // so re-renders don't refetch.
+  const refreshReceiptCounts = useCallback(async () => {
+    const companyId = localStorage.getItem("companyId")
+    if (!companyId) return
+    const ids = items.map((e) => e.id)
+    if (ids.length === 0) return
+    const results = await Promise.all(
+      ids.map(async (id) => {
+        try {
+          const list = await apiGet<any[]>(
+            `/api/v1/attachments?companyId=${companyId}&entityType=expense&entityId=${id}`,
+          )
+          return [id, Array.isArray(list) ? list.length : 0] as const
+        } catch {
+          return [id, 0] as const
+        }
+      }),
+    )
+    setReceiptCounts(Object.fromEntries(results))
+  }, [items])
+
+  useEffect(() => {
+    if (items.length > 0) refreshReceiptCounts()
+  }, [items]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     load()
@@ -340,6 +380,9 @@ export default function ExpensesPage() {
                       <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">
                         {t("expenses.linkedVoucher")}
                       </th>
+                      <th className="text-center py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">
+                        {t("expenses.receiptsShort")}
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -396,6 +439,28 @@ export default function ExpensesPage() {
                             </span>
                           )}
                         </td>
+                        <td className="py-3 px-4 text-center">
+                          {(() => {
+                            const count = receiptCounts[e.id] ?? 0
+                            return (
+                              <button
+                                onClick={() => setDetailExpense(e)}
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs ${
+                                  count > 0
+                                    ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-900/50"
+                                    : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
+                                }`}
+                                title={t("expenses.attachmentCount").replace(
+                                  "{count}",
+                                  String(count),
+                                )}
+                              >
+                                <span>📎</span>
+                                <span>{count}</span>
+                              </button>
+                            )
+                          })()}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -405,6 +470,41 @@ export default function ExpensesPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Receipts modal — opens on click of the
+          📎 count badge in the row. Shows the
+          ReceiptsPanel component, scoped to the
+          selected expense. onChange refreshes the
+          receiptCounts cache so the badge stays
+          in sync after upload / delete. */}
+      {detailExpense && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <Card className="w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+            <CardHeader>
+              <CardTitle>
+                {t("expenses.modalTitle")} — {detailExpense.invoiceNumber || detailExpense.id.slice(0, 8)}
+              </CardTitle>
+              <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                {detailExpense.supplier?.name || "—"} ·{" "}
+                <span className="font-mono">{detailExpense.grossAmount} €</span>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <ReceiptsPanel
+                companyId={localStorage.getItem("companyId") || ""}
+                entityType="expense"
+                entityId={detailExpense.id}
+                onChange={refreshReceiptCounts}
+              />
+              <div className="mt-4 flex justify-end">
+                <Button variant="outline" onClick={() => setDetailExpense(null)}>
+                  {t("common.close")}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </main>
   )
 }

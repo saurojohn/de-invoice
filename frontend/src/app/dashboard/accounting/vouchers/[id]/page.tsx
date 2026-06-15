@@ -7,6 +7,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
 import { apiGet } from "@/lib/api"
+import { ReceiptsPanel } from "@/components/ReceiptsPanel"
 
 // VoucherLine — the individual debit/credit lines that
 // make up a Voucher (Buchungsbeleg). One Voucher = one
@@ -323,6 +324,27 @@ export default function VoucherDetailPage() {
                     </div>
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+
+            {/* GoBD §146 AO — every booking needs the
+                original Beleg attached. The ReceiptsPanel
+                renders the upload drop-zone, the list of
+                existing attachments with preview / download
+                / delete, and the extracted OCR text (when
+                present). Same component used on the
+                Expense detail page — single source of
+                truth for the attachment UX. */}
+            <Card className="mb-4">
+              <CardHeader>
+                <CardTitle>{t("expenses.receipts")}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ReceiptsPanel
+                  companyId={localStorage.getItem("companyId") || ""}
+                  entityType="voucher"
+                  entityId={params.id as string}
+                />
               </CardContent>
             </Card>
 
