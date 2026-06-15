@@ -1,4 +1,4 @@
-import { BadRequestException, Controller, Get, Post, Put, Delete, Body, Param, Query } from '@nestjs/common';
+import { BadRequestException, Controller, Get, Post, Put, Delete, Body, Param, Query, Header } from '@nestjs/common';
 import { CustomerService, ImportCustomerRow } from './customer.service';
 import { CreateCustomerDto } from './dto/customer.dto';
 import { Auth, Require } from '../../auth/roles.decorator';
@@ -81,6 +81,24 @@ export class CustomerController {
       throw new BadRequestException('Maximal 5000 Zeilen pro Import')
     }
     return this.customerService.importBulk(companyId, body.rows)
+  }
+
+  /**
+   * CSV template for customer import — column names in
+   * German + 3 example rows (one business with full
+   * address, one private without VAT ID, one with
+   * paymentTerms override). UTF-8 + BOM for Excel.
+   */
+  @Get('import/template.csv')
+  @Header('Content-Type', 'text/csv; charset=utf-8')
+  @Header('Content-Disposition', 'attachment; filename="kunden-import.csv"')
+  getTemplate(): string {
+    return [
+      'name;vatId;type;street;postalCode;city;country;email;phone;paymentTerms;taxExempt;tags',
+      'Beispiel GmbH;DE123456789;business;Beispielweg 1;12345;Berlin;DE;rechnung@beispiel.de;+49 30 12345;30;false;B2C;Standard',
+      'Maria Mustermann;;private;Musterstraße 7;80331;München;DE;maria@example.org;;0;false;Privat',
+      'Firma XYZ AG;DE987654321;business;Industriestraße 5;60311;Frankfurt;DE;info@xyz.de;+49 69 99999;14;true;Großkunde',
+    ].join('\n')
   }
 
   /**

@@ -260,6 +260,7 @@ export default function ProductsPage() {
               ]}
             />
             <Button variant="outline" onClick={() => router.push("/dashboard")}>{t("common.back")}</Button>
+            <Button variant="outline" onClick={() => router.push("/dashboard/import?entity=product")}>📥 Import</Button>
             <Button onClick={() => openModal()}>{t("product.create")}</Button>
           </div>
         </div>

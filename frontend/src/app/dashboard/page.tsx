@@ -390,6 +390,18 @@ export default function DashboardPage() {
               <p className="text-gray-600 dark:text-gray-300">{t("dashboard.cardProductDesc")}</p>
             </CardContent>
           </Card>
+          {/* Bulk import — sits next to Products and
+              Customers because that's the primary use
+              case ("I have 200 customers in a CSV, just
+              import them"). Tier 13. */}
+          <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/import")}>
+            <CardHeader>
+              <CardTitle>📥 {t("import.title") || "Bulk-Import"}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-gray-600 dark:text-gray-300">{t("import.subtitle") || "CSV-Import für Kunden, Produkte und Eingangsrechnungen"}</p>
+            </CardContent>
+          </Card>
           {/* Inventory card — placed right after Products
               because the inventory is per-product (you
               adjust stock on a product, see a list of

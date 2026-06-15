@@ -1059,5 +1059,22 @@
     "body": "尊敬的 {customerName}:\n\n随信附上发票 {invoiceNumber},金额 {amount}。\n\n请于 {dueDate} 前支付。\n\n发票以 PDF 格式附在邮件中。\n\n此致\n敬礼\n\n{companyName}",
     "salutationFormal": "尊敬的",
     "salutationNeutral": "尊敬的"
+  },
+  "import": {
+    "title": "批量导入",
+    "subtitle": "客户、产品和进项发票的 CSV 导入",
+    "downloadTemplate": "下载模板",
+    "dropZone": "拖放 CSV 文件或点击",
+    "rows": "行",
+    "rowStatus": "状态",
+    "importing": "导入中...",
+    "importButton": "行待导入",
+    "result": "结果",
+    "imported": "已导入",
+    "skipped": "已跳过",
+    "errors": "错误",
+    "errorRows": "失败行",
+    "viewList": "查看列表",
+    "newImport": "新建导入"
   }
 }

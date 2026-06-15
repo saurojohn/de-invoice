@@ -1049,5 +1049,22 @@
     "body": "Dear {customerName},\n\nPlease find attached invoice {invoiceNumber} for {amount}.\n\nThe amount is due by {dueDate}.\n\nThe invoice is attached as a PDF.\n\nKind regards,\n{companyName}",
     "salutationFormal": "Dear Mr/Ms",
     "salutationNeutral": "Dear"
+  },
+  "import": {
+    "title": "Bulk Import",
+    "subtitle": "CSV import for customers, products and incoming invoices",
+    "downloadTemplate": "Download template",
+    "dropZone": "Drop CSV file here or click",
+    "rows": "row(s)",
+    "rowStatus": "Status",
+    "importing": "Importing...",
+    "importButton": "rows to import",
+    "result": "Result",
+    "imported": "Imported",
+    "skipped": "Skipped",
+    "errors": "Errors",
+    "errorRows": "Failed rows",
+    "viewList": "View list",
+    "newImport": "New import"
   }
 }

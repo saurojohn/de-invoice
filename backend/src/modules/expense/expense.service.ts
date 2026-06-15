@@ -141,4 +141,218 @@ export class ExpenseService {
       },
     });
   }
+
+  /**
+   * Bulk-import expenses (Eingangsrechnungen) from a
+   * CSV-like row array.
+   *
+   * The supplier is resolved by name (case-insensitive
+   * trim) so the user can type "Müller GmbH" in the
+   * CSV and have it match the existing supplier row.
+   * If no supplier matches and the row has a name,
+   * we auto-create one (lightweight: name + vatId if
+   * provided) — that's what the user expects from
+   * a "drop in 50 invoices I haven't entered yet"
+   * workflow.
+   *
+   * If neither name nor supplierId is supplied, the
+   * row is rejected (we can't store an anonymous
+   * expense in GoBD).
+   *
+   * Date parsing: the importer accepts ISO (YYYY-MM-DD)
+   * and the common German format DD.MM.YYYY. Anything
+   * else → row error.
+   *
+   * Amounts: netAmount is required, vatAmount and
+   * grossAmount are derived (vatRate × net) when
+   * missing. vatRate defaults to 0.19.
+   */
+  async importBulk(
+    companyId: string,
+    rows: ImportExpenseRow[],
+  ): Promise<ImportExpenseResult> {
+    const result: ImportExpenseResult = {
+      total: rows.length,
+      imported: 0,
+      skipped: 0,
+      errors: [],
+    }
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i] || {}
+      const rowNum = i + 2
+      try {
+        const description = (row.description || '').trim()
+        if (!description) {
+          result.errors.push({ row: rowNum, error: 'Beschreibung fehlt' })
+          continue
+        }
+        const invoiceDate = this.parseDate(row.invoiceDate)
+        if (!invoiceDate) {
+          result.errors.push({
+            row: rowNum,
+            error: `Ungültiges Rechnungsdatum: ${row.invoiceDate || '(leer)'}`,
+            description,
+          })
+          continue
+        }
+
+        // Resolve supplier — by ID first (explicit),
+        // then by name (auto-create if needed).
+        let supplierId: string | null = null
+        const explicitId = (row.supplierId || '').trim()
+        if (explicitId) {
+          const sup = await this.prisma.supplier.findFirst({
+            where: { id: explicitId, companyId },
+          })
+          if (!sup) {
+            result.errors.push({
+              row: rowNum,
+              error: `Lieferant-ID nicht gefunden: ${explicitId}`,
+              description,
+            })
+            continue
+          }
+          supplierId = sup.id
+        } else {
+          const name = (row.supplierName || '').trim()
+          if (name) {
+            const existing = await this.prisma.supplier.findFirst({
+              where: { companyId, name: { equals: name, mode: 'insensitive' } },
+            })
+            if (existing) {
+              supplierId = existing.id
+            } else {
+              // Auto-create supplier — common case for
+              // first-time bulk imports where the user
+              // hasn't entered suppliers yet.
+              // `address` is required (NOT NULL in the
+              // DB) — default to an empty object so the
+              // INSERT doesn't blow up. The user can
+              // edit it later from the Suppliers page.
+              const created = await this.prisma.supplier.create({
+                data: {
+                  companyId,
+                  name,
+                  vatId: (row.supplierVatId || '').trim() || null,
+                  address: {},
+                },
+              })
+              supplierId = created.id
+            }
+          } else {
+            result.errors.push({
+              row: rowNum,
+              error: 'Lieferant fehlt (Name oder ID erforderlich)',
+              description,
+            })
+            continue
+          }
+        }
+
+        const netAmount = parseFloat(
+          String(row.netAmount ?? '').trim().replace(',', '.'),
+        )
+        if (Number.isNaN(netAmount) || netAmount < 0) {
+          result.errors.push({
+            row: rowNum,
+            error: `Ungültiger Nettobetrag: ${row.netAmount || '(leer)'}`,
+            description,
+          })
+          continue
+        }
+        const vatRate = parseFloat(
+          String(row.vatRate ?? '0.19').trim().replace(',', '.'),
+        ) || 0
+        // vatAmount: prefer explicit, otherwise compute
+        // from rate × net (rounded to 4 decimals to match
+        // Prisma @db.Decimal(12,4)).
+        const vatAmountRaw =
+          row.vatAmount !== undefined && row.vatAmount !== ''
+            ? parseFloat(String(row.vatAmount).trim().replace(',', '.'))
+            : Math.round(netAmount * vatRate * 10000) / 10000
+        const vatAmount = Number.isNaN(vatAmountRaw) ? 0 : vatAmountRaw
+        const grossAmount =
+          row.grossAmount !== undefined && row.grossAmount !== ''
+            ? parseFloat(String(row.grossAmount).trim().replace(',', '.'))
+            : Math.round((netAmount + vatAmount) * 10000) / 10000
+
+        await this.prisma.expense.create({
+          data: {
+            companyId,
+            supplierId,
+            invoiceNumber: (row.invoiceNumber || '').trim() || null,
+            description,
+            invoiceDate,
+            netAmount: netAmount.toFixed(4),
+            vatRate,
+            vatAmount: vatAmount.toFixed(4),
+            grossAmount: grossAmount.toFixed(4),
+            category: (row.category || '').trim() || null,
+            status: (row.status || 'booked').trim(),
+            notes: (row.notes || '').trim() || null,
+          },
+        })
+        result.imported++
+      } catch (e: any) {
+        result.errors.push({
+          row: rowNum,
+          error: e?.message || 'Unbekannter Fehler',
+          description: (row.description || '').trim(),
+        })
+      }
+    }
+    return result
+  }
+
+  /**
+   * Parse a date string in either ISO (YYYY-MM-DD) or
+   * German (DD.MM.YYYY) format. Returns null on failure
+   * — the caller turns that into a row-level error.
+   *
+   * We don't pull in date-fns / dayjs for this — the
+   * two formats cover ~99% of real-world CSVs and the
+   * parser is 15 lines.
+   */
+  private parseDate(s: any): Date | null {
+    if (!s) return null
+    const str = String(s).trim()
+    // ISO YYYY-MM-DD
+    const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(str)
+    if (iso) {
+      const d = new Date(`${iso[1]}-${iso[2]}-${iso[3]}T00:00:00.000Z`)
+      return Number.isNaN(d.getTime()) ? null : d
+    }
+    // German DD.MM.YYYY
+    const de = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(str)
+    if (de) {
+      const d = new Date(
+        `${de[3]}-${de[2].padStart(2, '0')}-${de[1].padStart(2, '0')}T00:00:00.000Z`,
+      )
+      return Number.isNaN(d.getTime()) ? null : d
+    }
+    return null
+  }
+}
+
+export interface ImportExpenseRow {
+  description?: string
+  invoiceDate?: string
+  invoiceNumber?: string
+  supplierId?: string
+  supplierName?: string
+  supplierVatId?: string
+  netAmount?: string | number
+  vatRate?: string | number
+  vatAmount?: string | number
+  grossAmount?: string | number
+  category?: string
+  status?: string
+  notes?: string
+}
+
+export interface ImportExpenseResult {
+  total: number
+  imported: number
+  skipped: number
+  errors: Array<{ row: number; error: string; description?: string }>
 }

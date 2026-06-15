@@ -234,6 +234,12 @@ export default function ExpensesPage() {
             >
               {t("common.back")}
             </button>
+            <button
+              onClick={() => router.push("/dashboard/import?entity=expense")}
+              className="px-3 py-1 text-sm border rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+            >
+              📥 Import
+            </button>
           </div>
         </div>
 

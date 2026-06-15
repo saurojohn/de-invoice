@@ -444,6 +444,7 @@ export default function CustomersPage() {
               ]}
             />
             <Button variant="outline" onClick={() => router.push("/dashboard")}>{t("common.back")}</Button>
+            <Button variant="outline" onClick={() => router.push("/dashboard/import?entity=customer")}>📥 Import</Button>
             <Button onClick={() => openModal()}>{t("customer.create")}</Button>
           </div>
         </div>

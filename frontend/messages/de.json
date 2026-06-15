@@ -1057,5 +1057,22 @@
     "body": "{salutation} {customerName},\n\nanbei erhalten Sie die Rechnung {invoiceNumber} über {amount}.\n\nBitte begleichen Sie den Betrag bis zum {dueDate}.\n\nDie Rechnung finden Sie im Anhang als PDF.\n\nMit freundlichen Grüßen\n{companyName}",
     "salutationFormal": "Sehr geehrte/r Herr/Frau",
     "salutationNeutral": "Sehr geehrte/r"
+  },
+  "import": {
+    "title": "Bulk-Import",
+    "subtitle": "CSV-Import für Kunden, Produkte und Eingangsrechnungen",
+    "downloadTemplate": "Vorlage herunterladen",
+    "dropZone": "CSV-Datei hier ablegen oder klicken",
+    "rows": "Zeile(n)",
+    "rowStatus": "Status",
+    "importing": "Wird importiert...",
+    "importButton": "Zeilen importieren",
+    "result": "Ergebnis",
+    "imported": "Importiert",
+    "skipped": "Übersprungen",
+    "errors": "Fehler",
+    "errorRows": "Fehlerhafte Zeilen",
+    "viewList": "Zur Liste",
+    "newImport": "Neuer Import"
   }
 }

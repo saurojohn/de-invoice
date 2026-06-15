@@ -136,4 +136,133 @@ export class ProductService {
     await this.prisma.product.delete({ where: { id } })
     return { ok: true, soft: false }
   }
+
+  /**
+   * Bulk-import products from a CSV-like row array.
+   * The customer import (customer.service.importBulk)
+   * is the template for this — same pattern, same
+   * row-major try/catch, same per-row error array
+   * so the frontend can render a tabular preview.
+   *
+   * Skip rules:
+   *   - Same SKU + same company → skipped (no
+   *     duplicate SKUs per company).
+   *   - Same name + same company → also skipped
+   *     (the user might have meant to update but
+   *     bulk import is create-only; surfacing a
+   *     "would be a duplicate" skip is safer than
+   *     silently merging).
+   *
+   * Validation:
+   *   - name is required (row rejected if blank).
+   *   - basePrice is required (a product without
+   *     a price is useless on an invoice).
+   *   - vatRate defaults to 0.19 (German standard)
+   *     when missing or unparseable.
+   *   - sku is optional but normalised to upper-case
+   *     + trimmed so the unique index works.
+   *
+   * Side effects:
+   *   - Each successful row creates a Product with
+   *     active=true and the supplied fields.
+   *   - No StockHistory row is written (stock
+   *     starts at 0; the user can adjust later
+   *     or run an inventory count).
+   */
+  async importBulk(
+    companyId: string,
+    rows: ImportProductRow[],
+  ): Promise<ImportProductResult> {
+    const result: ImportProductResult = {
+      total: rows.length,
+      imported: 0,
+      skipped: 0,
+      errors: [],
+    }
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i] || {}
+      const rowNum = i + 2 // +2: row 1 is the header
+      try {
+        const name = (row.name || '').trim()
+        if (!name) {
+          result.errors.push({ row: rowNum, error: 'Name fehlt', name })
+          continue
+        }
+        const basePriceStr = String(row.basePrice ?? '').trim()
+        if (!basePriceStr) {
+          result.errors.push({ row: rowNum, error: 'BasePrice fehlt', name })
+          continue
+        }
+        const basePrice = parseFloat(basePriceStr.replace(',', '.'))
+        if (Number.isNaN(basePrice) || basePrice < 0) {
+          result.errors.push({ row: rowNum, error: `Ungültiger Preis: ${basePriceStr}`, name })
+          continue
+        }
+        const sku = (row.sku || '').trim().toUpperCase() || null
+
+        // Skip-duplicate check (SKU first, then name)
+        if (sku) {
+          const existing = await this.prisma.product.findFirst({
+            where: { companyId, sku, active: true },
+          })
+          if (existing) {
+            result.skipped++
+            continue
+          }
+        }
+        const existingName = await this.prisma.product.findFirst({
+          where: { companyId, name, active: true },
+        })
+        if (existingName) {
+          result.skipped++
+          continue
+        }
+
+        const vatRate = parseFloat(
+          String(row.vatRate ?? '0.19').trim().replace(',', '.'),
+        ) || 0.19
+
+        await this.prisma.product.create({
+          data: {
+            companyId,
+            name,
+            sku,
+            description: (row.description || '').trim() || null,
+            type: (row.type || 'good').trim(),
+            unit: (row.unit || 'piece').trim(),
+            basePrice,
+            vatRate,
+            stockQuantity: 0,
+            trackInventory: false,
+            active: true,
+          },
+        })
+        result.imported++
+      } catch (e: any) {
+        result.errors.push({
+          row: rowNum,
+          error: e?.message || 'Unbekannter Fehler',
+          name: (row.name || '').trim(),
+        })
+      }
+    }
+    return result
+  }
+}
+
+export interface ImportProductRow {
+  name?: string
+  sku?: string
+  description?: string
+  type?: string
+  unit?: string
+  basePrice?: string | number
+  vatRate?: string | number
+}
+
+export interface ImportProductResult {
+  total: number
+  imported: number
+  skipped: number
+  errors: Array<{ row: number; error: string; name?: string }>
 }
