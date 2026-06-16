@@ -23,6 +23,7 @@ import { BankImportModule } from './modules/bank-import/bank-import.module';
 import { SupplierModule } from './modules/supplier/supplier.module';
 import { ExpenseModule } from './modules/expense/expense.module';
 import { AttachmentsModule } from './modules/attachment/attachments.module';
+import { VatValidationModule } from './modules/vat-validation/vat-validation.module';
 
 @Module({
   imports: [
@@ -62,6 +63,7 @@ import { AttachmentsModule } from './modules/attachment/attachments.module';
     SupplierModule,
     ExpenseModule,
     AttachmentsModule,
+    VatValidationModule,
     ScheduleModule.forRoot(),
   ],
   providers: [

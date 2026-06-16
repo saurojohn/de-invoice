@@ -117,6 +117,13 @@ jobs:
       # the e2e tests don't upload large files
       # — the temp dir is fine.
       STORAGE_PATH: /tmp/de-invoice-storage
+      # VIES mock — VIES is the EU's VAT validation
+      # SOAP service. It's frequently offline and
+      # has rate limits; the e2e suite uses the
+      # mock (deterministic answers based on the
+      # VAT ID prefix) so the tests are
+      # independent of the EU's uptime.
+      VIES_MOCK: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

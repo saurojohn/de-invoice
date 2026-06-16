@@ -72,6 +72,11 @@ model Company {
   // §146 AO: every booking must have the original
   // Beleg attached.
   attachments    Attachment[]
+  // VIES (EU VAT) validation history — every check
+  // is recorded for the GoBD audit trail so the
+  // user can prove the VAT ID was verified at the
+  // time of the booking.
+  vatValidations VatValidationLog[]
 
   @@index([name])
 }
@@ -542,6 +547,86 @@ model VatRateHistory {
   changeReason    String?
 
   @@index([vatRateId])
+}
+
+// VIES (EU VAT Information Exchange System) validation
+// log — every check we do against the EU service
+// is recorded here for the GoBD audit trail.
+//
+// Why a separate table from the live VatValidation
+// (the "current best answer") row: we want to keep
+// EVERY check (success + failure) so the user can
+// prove that the VAT ID was verified at the time
+// of the booking. The VIES service can change its
+// answer over time (e.g. a company deregisters),
+// but the historical check is fixed.
+//
+// Polymorphic on entityType + entityId so the same
+// log can hold both Customer and Supplier checks
+// (and Invoice-level re-checks at booking time).
+model VatValidationLog {
+  id            String   @id @default(uuid())
+  companyId     String
+  company       Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  // 'customer' or 'supplier' (extensible).
+  // The (entityType, entityId) pair is the
+  // "who got validated" pointer.
+  entityType    String
+  entityId      String
+  // The VAT ID we asked VIES to verify. Stored
+  // alongside the result because the underlying
+  // entity's vatId might change later — we want
+  // to know "on 2026-06-15, customer X was
+  // validated as DE123456789" even if the customer
+  // has since been edited.
+  vatId         String
+  // ISO 3166-1 alpha-2 country code extracted
+  // from the VAT ID prefix (e.g. "DE" from
+  // "DE123456789"). VIES requires both pieces.
+  countryCode   String
+
+  // 'valid' | 'invalid' | 'unreachable' | 'pending'.
+  // pending = queued but not yet hit VIES (we
+  // usually store this only for in-flight calls
+  // and never persist it; the row is replaced
+  // when the call completes).
+  status        String
+
+  // VIES returns the company name + address as
+  // part of a valid response. Storing them lets
+  // the user cross-check against their own
+  // customer/supplier data — discrepancies are
+  // a common red flag (typing error in the
+  // customer record).
+  viesName      String?
+  viesAddress   String?
+
+  // Error detail for 'invalid' / 'unreachable'.
+  // 'invalid' → "MS_UNAVAILABLE" (member-state
+  // service offline), "INVALID_FORMAT",
+  // "UNKNOWN_VAT" (VIES says no such VAT ID
+  // exists). 'unreachable' → network / timeout
+  // to ec.europa.eu.
+  errorCode     String?
+  errorMessage  String?
+
+  // When the call completed. NULL while pending.
+  // We use this to decide cache validity — a
+  // valid result older than 30 days is
+  // considered stale and re-checked on the next
+  // user action.
+  checkedAt     DateTime?
+
+  // Latency for the VIES call. Useful for
+  // diagnosing VIES outages / slowness.
+  durationMs    Int?
+
+  createdAt     DateTime @default(now())
+
+  @@index([companyId, entityType, entityId])
+  @@index([vatId])
+  @@index([createdAt])
 }
 
 // Per-company mail (SMTP) configuration. If no row exists, falls back to env vars.
