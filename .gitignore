@@ -35,9 +35,6 @@ Thumbs.db
 backend/node_modules/
 backend/dist/
 
-# Docker
-docker-compose.yml
-
 # Mavis runtime state (per-session planning / scratchpads)
 .mavis/
 

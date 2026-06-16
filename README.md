@@ -133,6 +133,25 @@ niemals direktes `fetch()` für API-Aufrufe verwenden.
 Siehe **`backend/AGENTS.md`** für projektspezifische Stolperfallen
 (PDF-Layout-Invarianten, Throttler-Pitfall, Frontend-Auth-Header).
 
+### CI/CD
+Jeder `push` auf `main` (und jeder PR) durchläuft
+**`.github/workflows/ci.yml`**:
+1. **Backend typecheck** — `tsc --noEmit` auf dem NestJS-Server
+2. **Frontend typecheck** — `tsc --noEmit` auf dem Next.js-Client
+3. **E2E** — PostgreSQL als Service, `prisma db push`,
+   Backend starten, `bash e2e/run-all.sh` (19 Tests)
+
+Fehlgeschlagene CI blockiert Merges (Branch-Protection aktivieren).
+
+### Backup
+Siehe **`DEPLOY.md`** für die Produktions-Anleitung.
+Kurzfassung:
+- **`scripts/backup.sh`** — `pg_dump` + `tar` der Belege,
+  Rotation: 7 Tage / 4 Wochen / Monatsanker
+- **`scripts/restore.sh`** — Wiederherstellung mit Bestätigung
+- **`scripts/com.de-invoice.backup.plist`** — macOS launchd
+  (täglich 03:17 Uhr, `~/Library/LaunchAgents/` ablegen + laden)
+
 ### Lizenz
 Proprietär — für den internen Gebrauch von SH Leder GmbH.
 

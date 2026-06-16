@@ -1,0 +1,170 @@
+name: CI
+
+# Tier 14 — CI pipeline.
+#
+# Runs on every push to main and on every PR
+# targeting main. Three jobs:
+#   1. backend-typecheck — `tsc --noEmit` on the
+#      NestJS server. Catches the same kind of
+#      errors that ts-node crashes on at startup
+#      (we learned this the hard way during Tier 12
+#      when the storage.service.ts change had a
+#      typo that only blew up at first request).
+#   2. frontend-typecheck — `tsc --noEmit` on the
+#      Next.js client. Same lesson as backend.
+#   3. e2e — the full e2e suite. Spins up PostgreSQL
+#      as a service, applies prisma schema, starts
+#      the backend, and runs run-all.sh.
+#
+# Why split into 3 jobs: a TypeScript error in
+# the backend shouldn't block the frontend e2e
+# from running. Each job is independent and
+# fast-fail; the matrix is small enough that the
+# job setup overhead is dwarfed by the actual
+# test time.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancel any in-flight CI run for the same ref
+# when a new commit is pushed. Without this, a
+# force-push during a long e2e run leaves the old
+# run eating runner minutes for no reason.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend-typecheck:
+    name: Backend typecheck
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npx prisma generate
+        env:
+          DATABASE_URL: postgresql://de_invoice:de_invoice_pass@localhost:5432/de_invoice?schema=public
+      # --noEmit: don't produce .js output, just
+      # check the types. Catches the "missing
+      # import" / "Type X is not assignable to Y"
+      # class of errors that ts-node silently
+      # degrades into runtime crashes when the
+      # affected file isn't on the request path.
+      - run: npx tsc --noEmit
+        env:
+          DATABASE_URL: postgresql://de_invoice:de_invoice_pass@localhost:5432/de_invoice?schema=public
+
+  frontend-typecheck:
+    name: Frontend typecheck
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      # Next.js dev mode is transpile-only (SWC
+      # strips types but doesn't validate them).
+      # We've hit this in production: a missing
+      # import on a button handler only crashed
+      # when the user clicked the button. See the
+      # agent memory note 'nextjs-frontend-gotchas'.
+      - run: npx tsc --noEmit
+
+  e2e:
+    name: End-to-end tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: de_invoice
+          POSTGRES_PASSWORD: de_invoice_pass
+          POSTGRES_DB: de_invoice
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U de_invoice"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://de_invoice:de_invoice_pass@localhost:5432/de_invoice?schema=public
+      NODE_ENV: test
+      # SMTP not configured in CI — the mail
+      # service logs NO-SMTP warnings instead of
+      # failing. The e2e suite asserts on the
+      # response shape, not on real delivery.
+      SMTP_HOST: ""
+      # Storage base path for the Attachment
+      # module. CI has no persistent disk, but
+      # the e2e tests don't upload large files
+      # — the temp dir is fine.
+      STORAGE_PATH: /tmp/de-invoice-storage
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+        working-directory: backend
+      - run: npx prisma generate
+        working-directory: backend
+      - run: npx prisma db push --accept-data-loss --skip-generate
+        working-directory: backend
+      # Backend + frontend smoke-check first; the
+      # e2e suite assumes the dev server is up.
+      - name: Build backend
+        run: npx tsc --noEmit
+        working-directory: backend
+      - name: Build frontend
+        run: npx tsc --noEmit
+        working-directory: frontend
+      # Start the backend in the background.
+      # The dev server is needed for the e2e
+      # tests (auth, login, etc.). npx ts-node
+      # here matches the dev setup; we don't
+      # need a production build for the test
+      # layer.
+      - name: Start backend
+        run: |
+          mkdir -p /tmp/de-invoice-storage
+          nohup npx ts-node src/main.ts > /tmp/backend.log 2>&1 &
+          # 12s — slightly more than the 8s we
+          # need locally because CI runners are
+          # slower for cold-start Postgres + tsc.
+          sleep 12
+          # Sanity check — fail fast if the
+          # backend didn't bind.
+          curl -sS -o /dev/null -w "backend HTTP %{http_code}\n" \
+            -X POST http://localhost:3001/api/v1/auth/login \
+            -H "Content-Type: application/json" \
+            -d '{}' || (cat /tmp/backend.log && exit 1)
+        working-directory: backend
+      - name: Run e2e suite
+        run: bash run-all.sh
+        working-directory: backend/e2e
+      - name: Upload backend log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-log
+          path: /tmp/backend.log

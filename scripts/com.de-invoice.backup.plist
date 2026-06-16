@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  de-invoice daily backup launchd job
+  ─────────────────────────────────
+  Install with:
+    cp scripts/com.de-invoice.backup.plist ~/Library/LaunchAgents/
+    launchctl load ~/Library/LaunchAgents/com.de-invoice.backup.plist
+
+  Status / log:
+    launchctl list | grep de-invoice
+    tail -f /tmp/de-invoice-backup.log
+
+  Uninstall:
+    launchctl unload ~/Library/LaunchAgents/com.de-invoice.backup.plist
+    rm ~/Library/LaunchAgents/com.de-invoice.backup.plist
+
+  Tier 14. Why launchd and not cron:
+    - launchd runs jobs when the machine is on
+      (cron only runs when the user is logged in,
+      and macOS Catalina+ further restricts cron).
+    - launchd plists are version-controllable
+      (in /usr/local or in the repo, deployed
+      via a one-line cp).
+    - launchd logs to /tmp and to the unified log,
+      which is searchable from Console.app.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.de-invoice.backup</string>
+
+  <!-- Run the backup script. The path is
+       absolute — launchd does NOT inherit your
+       interactive shell's $PATH, so any tool
+       called from the script must be reachable
+       via an absolute path. Our backup.sh handles
+       that internally (docker exec vs local
+       pg_dump), but the path to the script itself
+       must be absolute. -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/shledergmbh/Projects/de-invoice/scripts/backup.sh</string>
+  </array>
+
+  <!-- Run at 03:17 every day. The off-peak hour
+       (3 AM) minimises user-facing impact if the
+       dump is slow. The 17-minute offset is
+       arbitrary — picked so we don't collide
+       with macOS's own 03:15 background tasks
+       (Spotlight indexing, Time Machine, etc.). -->
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>3</integer>
+    <key>Minute</key>
+    <integer>17</integer>
+  </dict>
+
+  <!-- Stdout + stderr go to /tmp/de-invoice-backup.log.
+       launchd captures both. We don't keepd this
+       file forever (see the rotation in backup.sh)
+       but the launchd log is independent — a
+       successful backup will overwrite it on the
+       next run; a failure stays in the log until
+       the next run. -->
+  <key>StandardOutPath</key>
+  <string>/tmp/de-invoice-backup.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/de-invoice-backup.log</string>
+
+  <!-- RunAtLoad: also run once when the plist
+       is loaded. Useful for catching up after
+       the machine was asleep for a day. -->
+  <key>RunAtLoad</key>
+  <true/>
+</dict>
+</plist>
