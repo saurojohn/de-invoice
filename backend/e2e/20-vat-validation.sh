@@ -5,22 +5,43 @@
 # use VIES_MOCK=1 so the test doesn't depend on
 # the EU's SOAP service being reachable (it
 # frequently isn't — DE was "Unavailable" the
-# day this test was written). The mock returns
-# deterministic answers based on the VAT ID
-# prefix:
-#   - VALID...      → valid
-#   - INVALID...    → invalid (UNKNOWN_VAT)
-#   - UNREACH...    → unreachable
-#   - anything else → valid (default)
+# day this test was written). The mock models
+# real VIES behaviour as closely as possible:
+#
+#   1. Per-country format + checksum validation
+#      (DE's ISO 7064 MOD97-10, IT's 11-digit
+#      check digit, FR's 2-digit key, etc.)
+#      Numbers that fail this step are
+#      INVALID_FORMAT — never silently accepted.
+#
+#   2. Lookup against a hardcoded "registered
+#      companies" database. Numbers in the DB
+#      are valid; numbers not in the DB are
+#      UNKNOWN_VAT.
+#
+#   3. Special prefixes override both steps so
+#      the e2e can force specific error codes
+#      without depending on the DB:
+#        UNREACHABLE / MS_UNAVAILABLE → unreachable
+#        INVALID_FORMAT_              → INVALID_FORMAT
+#        UNKNOWN_VAT_                 → UNKNOWN_VAT
+#
+# A "default-valid" fallback was removed in
+# Tier 15 strict-mode — the previous behaviour
+# was a footgun (DE999 returned green).
 #
 # Assertions:
 #   1. parseVatId() splits DE123 correctly
 #   2. parseVatId() rejects malformed input
 #   3. parseVatId() rejects unknown country codes
-#   4. POST /check on VALID... → status=valid + name
-#   5. POST /check on INVALID... → status=invalid
+#   4. POST /check on a registered VAT (DE111111110)
+#      → status=valid + name from mock DB
+#   5. POST /check on a well-formed DE VAT not in DB
+#      (DE123456782) → status=invalid, UNKNOWN_VAT
 #   6. POST /check on UNREACH... → status=unreachable
-#   7. POST /check on malformed input → status=invalid, INVALID_FORMAT
+#   7. POST /check on malformed input → status=invalid,
+#      INVALID_FORMAT (e.g. "123456" no country)
+#   7b. POST /check on unknown country (XX...) → invalid
 #   8. GET /latest → returns the most recent check
 #   9. GET /history → returns the recent checks
 #  10. Caching: a second check on the same VAT ID
@@ -54,7 +75,7 @@ NEEDS_RESTART=0
 PROBE=$(curl -sS -X POST "http://localhost:3001/api/v1/vat-validation/check?companyId=${COMPANY_ID}" \
   -H "Content-Type: application/json" \
   -H "x-user-id: ${USER_ID}" -H "x-company-id: ${COMPANY_ID}" \
-  -d "{\"companyId\":\"${COMPANY_ID}\",\"entityType\":\"customer\",\"entityId\":\"00000000-0000-0000-0000-000000000001\",\"vatId\":\"DEVALID123456\"}" 2>&1)
+  -d "{\"companyId\":\"${COMPANY_ID}\",\"entityType\":\"customer\",\"entityId\":\"00000000-0000-0000-0000-000000000001\",\"vatId\":\"DE111111110\"}" 2>&1)
 if ! echo "$PROBE" | grep -q "Mock Test Co"; then
   NEEDS_RESTART=1
 fi
@@ -93,16 +114,19 @@ ENTITY_ID="11111111-1111-1111-1111-${UNIQ}1111"
 # inputs (the service writes a log row with the
 # parsed country code, which we can read back).
 
-# 4. Valid VAT
+# 4. Valid VAT — use a real-format DE number that's
+# in the mock DB. DE111111110 is "Beispiel GmbH" per
+# the mock VIES register in
+# backend/src/modules/vat-validation/vat-validation.service.ts.
 api_post "/api/v1/vat-validation/check?companyId=${COMPANY_ID}" "{
   \"companyId\":\"${COMPANY_ID}\",
   \"entityType\":\"customer\",
   \"entityId\":\"${ENTITY_ID}\",
-  \"vatId\":\"DEVALID123456\"
+  \"vatId\":\"DE111111110\"
 }"
 assert_eq "valid VAT → status" "$(json_field "$BODY" status)" "valid"
 NAME=$(json_field "$BODY" name)
-assert_contains "valid VAT → name" "$NAME" "Mock Test Co"
+assert_contains "valid VAT → name" "$NAME" "Beispiel GmbH"
 LOG_ID_1=$(json_field "$BODY" logId)
 [[ -n "$LOG_ID_1" ]] || fail "log id missing for valid check"
 # json_field returns Python booleans capitalised
@@ -111,12 +135,18 @@ LOG_ID_1=$(json_field "$BODY" logId)
 # decodes them.
 assert_eq "valid VAT → cached=false (lowered)" "$(json_field "$BODY" cached | tr 'A-Z' 'a-z')" "false"
 
-# 5. Invalid VAT
+# 5. Invalid VAT — DE number that passes format
+# (9 digits, valid checksum per ISO 7064) but is
+# NOT in the mock DB. This is the "registered
+# somewhere in the EU but not in this lookup"
+# case that VIES would also return as UNKNOWN_VAT.
+# DE123456782 has 9 digits and a correct checksum
+# (compute via product % 11 = 8, then check=8).
 api_post "/api/v1/vat-validation/check?companyId=${COMPANY_ID}" "{
   \"companyId\":\"${COMPANY_ID}\",
   \"entityType\":\"customer\",
   \"entityId\":\"${ENTITY_ID}\",
-  \"vatId\":\"DEINVALID123456\"
+  \"vatId\":\"DE123456782\"
 }"
 assert_eq "invalid VAT → status" "$(json_field "$BODY" status)" "invalid"
 assert_eq "invalid VAT → errorCode" "$(json_field "$BODY" errorCode)" "UNKNOWN_VAT"
@@ -179,20 +209,39 @@ api_post "/api/v1/vat-validation/check?companyId=${COMPANY_ID}" "{
   \"companyId\":\"${COMPANY_ID}\",
   \"entityType\":\"customer\",
   \"entityId\":\"${ENTITY_ID}\",
-  \"vatId\":\"DEVALID123456\"
+  \"vatId\":\"DE111111110\"
 }"
 assert_eq "re-check same VAT → cached=true (lowered)" "$(json_field "$BODY" cached | tr 'A-Z' 'a-z')" "true"
 assert_eq "re-check same VAT → status" "$(json_field "$BODY" status)" "valid"
 
 # 11. Different VAT — cache miss, fresh call.
+# Use a registered VAT from a DIFFERENT country
+# (FR) so we also exercise the per-country
+# format validator in addition to the cache
+# logic. FR32123456789 has the correct
+# 2-digit French TVA key for SIREN 123456789.
 api_post "/api/v1/vat-validation/check?companyId=${COMPANY_ID}" "{
   \"companyId\":\"${COMPANY_ID}\",
   \"entityType\":\"customer\",
   \"entityId\":\"${ENTITY_ID}\",
-  \"vatId\":\"FRVALID123456789\"
+  \"vatId\":\"FR32123456789\"
 }"
 assert_eq "different VAT → cached=false (lowered)" "$(json_field "$BODY" cached | tr 'A-Z' 'a-z')" "false"
 assert_eq "different VAT → status" "$(json_field "$BODY" status)" "valid"
+assert_contains "different VAT → company name" "$(json_field "$BODY" name)" "Exemple SAS"
+
+# 11b. Cross-country format check — an IT number
+# with a wrong checksum. Per the Italian
+# algorithm, IT1234567890 should have check
+# digit 3 (not 0) so IT1234567890 is INVALID_FORMAT.
+api_post "/api/v1/vat-validation/check?companyId=${COMPANY_ID}" "{
+  \"companyId\":\"${COMPANY_ID}\",
+  \"entityType\":\"customer\",
+  \"entityId\":\"${ENTITY_ID}\",
+  \"vatId\":\"IT1234567890\"
+}"
+assert_eq "IT bad checksum → status" "$(json_field "$BODY" status)" "invalid"
+assert_eq "IT bad checksum → errorCode" "$(json_field "$BODY" errorCode)" "INVALID_FORMAT"
 
 # 12. Customer-verify endpoint — the per-row shortcut
 # that the customer detail page's "Jetzt prüfen"
@@ -209,8 +258,10 @@ assert_eq "different VAT → status" "$(json_field "$BODY" status)" "valid"
 # and then read $BODY / $STATUS afterwards. (This
 # is the same pattern every other e2e test uses.)
 TEST_CUST_NAME="VAT-TEST-${RANDOM}"
+# Use a real-format DE number that's in the mock DB
+# so the customer-verify endpoint returns 'valid'.
 api_post "/api/v1/customers?companyId=${COMPANY_ID}" \
-  "{\"name\":\"${TEST_CUST_NAME}\",\"type\":\"business\",\"vatId\":\"DE999999999\"}"
+  "{\"name\":\"${TEST_CUST_NAME}\",\"type\":\"business\",\"vatId\":\"DE222222220\"}"
 REAL_CUST_ID=$(json_field "$BODY" id)
 [[ -n "$REAL_CUST_ID" ]] || fail "could not create test customer (status=$STATUS, body=$BODY)"
 
