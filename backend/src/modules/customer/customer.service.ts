@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { VatValidationService } from '../vat-validation/vat-validation.service';
 
 export interface ImportCustomerRow {
   name?: string
@@ -25,7 +26,10 @@ export interface ImportResult {
 
 @Injectable()
 export class CustomerService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private vatValidation: VatValidationService,
+  ) {}
 
   /**
    * Paginated list. Returns `{ data, total, page, pageSize, totalPages }`.
@@ -297,6 +301,68 @@ export class CustomerService {
       where: { id: existing.id },
       data,
     });
+  }
+
+  /**
+   * Verify this customer's VAT ID against VIES.
+   * Delegates to the VatValidationService which
+   * handles the SOAP call, the 30-day cache, and
+   * the audit log write.
+   *
+   * This is the entry point the Customer detail
+   * page's "USt-ID prüfen" button calls. We don't
+   * auto-validate on create/update because:
+   *   1. VIES is slow (1-3s) — blocking the create
+   *      would be a UX regression
+   *   2. VIES is offline ~5% of the time — we don't
+   *      want create to fail just because the EU
+   *      service is having a bad day
+   * Instead we let the user trigger it explicitly.
+   */
+  async verifyVatId(id: string, companyId: string) {
+    const customer = await this.findOne(id, companyId)
+    const vatId = (customer as any).vatId
+    if (!vatId) {
+      throw new BadRequestException(
+        'Keine USt-ID hinterlegt. Bitte zuerst eine USt-ID im Feld "USt-ID" speichern.',
+      )
+    }
+    return this.vatValidation.validateAndLog(
+      companyId,
+      'customer',
+      customer.id,
+      vatId,
+    )
+  }
+
+  /**
+   * Return the most recent VIES check for this
+   * customer, plus a 20-row history. The detail
+   * page renders this as a "Verlauf" tab.
+   */
+  async vatHistory(id: string, companyId: string, limit = 20) {
+    await this.findOne(id, companyId) // ownership check
+    const [latest, history] = await Promise.all([
+      this.vatValidation.latestForEntity(companyId, 'customer', id),
+      this.prisma.vatValidationLog.findMany({
+        where: { companyId, entityType: 'customer', entityId: id },
+        orderBy: { checkedAt: 'desc' },
+        take: limit,
+        select: {
+          id: true,
+          vatId: true,
+          status: true,
+          countryCode: true,
+          viesName: true,
+          errorCode: true,
+          errorMessage: true,
+          checkedAt: true,
+          durationMs: true,
+          createdAt: true,
+        },
+      }),
+    ])
+    return { latest, history }
   }
 
   /**

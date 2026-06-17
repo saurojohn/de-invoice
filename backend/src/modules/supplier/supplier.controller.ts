@@ -42,6 +42,42 @@ export class SupplierController {
     return this.supplierService.update(id, companyId, data);
   }
 
+  /**
+   * Verify this supplier's VAT ID against VIES.
+   * Same as Customer's verifyVat endpoint but
+   * pointed at the supplier row. Used by the
+   * Lieferanten detail page.
+   */
+  @Post(':id/verify-vat')
+  @Require('customer.update')
+  async verifyVat(
+    @Param('id') id: string,
+    @Query('companyId') companyId: string,
+  ) {
+    this.assertCompanyId(companyId);
+    return this.supplierService.verifyVatId(id, companyId);
+  }
+
+  /**
+   * VIES check history for a supplier. Returns
+   * { latest, history } in the same shape as the
+   * customer variant. The detail page's "Verlauf"
+   * tab renders the history array as a table.
+   */
+  @Get(':id/vat-history')
+  @Require('customer.read')
+  async vatHistory(
+    @Param('id') id: string,
+    @Query('companyId') companyId: string,
+    @Query('limit') limitStr?: string,
+  ) {
+    this.assertCompanyId(companyId);
+    return this.supplierService.vatHistory(
+      id, companyId,
+      limitStr ? Math.min(50, Math.max(1, Number(limitStr))) : 20,
+    );
+  }
+
   @Delete(':id')
   @Require('customer.delete')
   async remove(@Param('id') id: string, @Query('companyId') companyId: string) {

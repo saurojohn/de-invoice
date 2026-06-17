@@ -18,10 +18,14 @@
 
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { VatValidationService } from '../vat-validation/vat-validation.service';
 
 @Injectable()
 export class SupplierService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private vatValidation: VatValidationService,
+  ) {}
 
   async findAll(companyId: string, opts: { search?: string } = {}) {
     const where: any = { companyId };
@@ -112,5 +116,60 @@ export class SupplierService {
     }
     await this.prisma.supplier.delete({ where: { id } });
     return { ok: true };
+  }
+
+  /**
+   * Verify this supplier's VAT ID against VIES.
+   * Same logic as CustomerService.verifyVatId —
+   * see the longer comment there. Suppliers
+   * (Eingangsrechnung vendor bills) are the
+   * higher-stakes case for VIES verification
+   * (the user's Vorsteuerabzug depends on having
+   * the right USt-ID on the bill), so the detail
+   * page should call this proactively.
+   */
+  async verifyVatId(id: string, companyId: string) {
+    const supplier = await this.findOne(id, companyId)
+    const vatId = (supplier as any).vatId
+    if (!vatId) {
+      throw new BadRequestException(
+        'Keine USt-ID hinterlegt. Bitte zuerst eine USt-ID im Lieferanten-Datensatz speichern.',
+      )
+    }
+    return this.vatValidation.validateAndLog(
+      companyId,
+      'supplier',
+      supplier.id,
+      vatId,
+    )
+  }
+
+  /**
+   * VIES history for a supplier. Same shape as
+   * the customer variant — see the comment there.
+   */
+  async vatHistory(id: string, companyId: string, limit = 20) {
+    await this.findOne(id, companyId) // ownership check
+    const [latest, history] = await Promise.all([
+      this.vatValidation.latestForEntity(companyId, 'supplier', id),
+      this.prisma.vatValidationLog.findMany({
+        where: { companyId, entityType: 'supplier', entityId: id },
+        orderBy: { checkedAt: 'desc' },
+        take: limit,
+        select: {
+          id: true,
+          vatId: true,
+          status: true,
+          countryCode: true,
+          viesName: true,
+          errorCode: true,
+          errorMessage: true,
+          checkedAt: true,
+          durationMs: true,
+          createdAt: true,
+        },
+      }),
+    ])
+    return { latest, history }
   }
 }

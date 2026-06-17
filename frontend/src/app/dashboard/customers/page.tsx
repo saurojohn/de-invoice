@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { ExportCSVButton } from "@/components/ExportCSVButton"
+import { VatCheckPanel } from "@/components/VatCheckPanel"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
 import { apiGet, apiPost, apiPut, apiDelete, ApiError } from "@/lib/api"
@@ -37,6 +38,14 @@ interface Customer {
 export default function CustomersPage() {
   const router = useRouter()
   const { t, getDateLocale } = useI18n()
+  // Read once on mount. The parent (auth wrapper) has
+  // already redirected to /login if there's no company
+  // here, so we treat the empty string as a no-op.
+  const [companyId, setCompanyId] = useState<string>("")
+  useEffect(() => {
+    const cid = localStorage.getItem("companyId") || ""
+    if (cid) setCompanyId(cid)
+  }, [])
   const [customers, setCustomers] = useState<Customer[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
@@ -764,6 +773,42 @@ export default function CustomersPage() {
                     </select>
                   </div>
                 </div>
+                {/* VIES VAT-ID verification panel.
+                    Only shown in EDIT mode because the
+                    API needs the customer's id (verify
+                    is per-row, not per-VAT-string). The
+                    panel auto-reloads latest+history when
+                    the user changes vatId in the form, so
+                    it stays in sync with the field above. */}
+                {editingCustomer && companyId && (
+                  <VatCheckPanel
+                    companyId={companyId}
+                    entityType="customer"
+                    entityId={editingCustomer.id}
+                    vatId={form.vatId}
+                    labels={{
+                      title: t("customer.vatCheckTitle") || "USt-ID-Prüfung (VIES)",
+                      check: t("customer.vatCheckNow") || "Jetzt prüfen",
+                      checking: t("customer.vatChecking") || "Prüfe…",
+                      noVat:
+                        t("customer.vatCheckNoVat") ||
+                        "Keine USt-ID hinterlegt. Tragen Sie oben eine USt-ID ein, um die VIES-Prüfung zu aktivieren.",
+                      statusNone: t("customer.vatStatusNone") || "Noch nicht geprüft",
+                      statusValid: t("customer.vatStatusValid") || "Gültig",
+                      statusInvalid: t("customer.vatStatusInvalid") || "Ungültig",
+                      statusUnreachable:
+                        t("customer.vatStatusUnreachable") || "VIES nicht erreichbar",
+                      statusPending: t("customer.vatStatusPending") || "Warte auf Ergebnis",
+                      cached: t("customer.vatCached") || "aus Cache",
+                      fresh: t("customer.vatFresh") || "frisch geprüft",
+                      history: t("customer.vatHistory") || "Verlauf",
+                      noHistory: t("customer.vatNoHistory") || "Keine Prüfungen bisher",
+                      errorPrefix: t("customer.vatErrorPrefix") || "Fehler",
+                      checkedAt: t("customer.vatCheckedAt") || "Geprüft am",
+                      duration: t("customer.vatDuration") || "Dauer",
+                    }}
+                  />
+                )}
                 <div>
                   <label className="block text-sm font-medium mb-1">{t("customer.street")}</label>
                   <Input

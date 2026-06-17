@@ -27,7 +27,11 @@
 #      within 30d uses the cache (cached=true)
 #  11. Re-checking with a different VAT ID hits
 #      VIES (cached=false)
-#  12. Cleanup — delete the test log rows
+#  12. Customer-verify endpoint → status=valid + logId
+#  13. Customer vat-history → latest + history array
+#  14. Customer without VAT ID → 400 with German error
+#  15. Supplier-verify + supplier-history endpoints
+#  16. Cleanup — delete the test log rows + customers
 
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -190,14 +194,79 @@ api_post "/api/v1/vat-validation/check?companyId=${COMPANY_ID}" "{
 assert_eq "different VAT → cached=false (lowered)" "$(json_field "$BODY" cached | tr 'A-Z' 'a-z')" "false"
 assert_eq "different VAT → status" "$(json_field "$BODY" status)" "valid"
 
-# 12. Cleanup — delete the test log rows.
-# VIES is a global module so we filter by
-# entityId. We have to do this via the prisma
-# client because there's no DELETE endpoint
-# for log rows (the user never deletes them —
-# they're an audit trail).
+# 12. Customer-verify endpoint — the per-row shortcut
+# that the customer detail page's "Jetzt prüfen"
+# button hits. Same backend logic as POST /check
+# but bound to a specific customer. We have to
+# create a REAL customer first because the route
+# looks up the customer row (unlike the global
+# /vat-validation/check endpoint which accepts
+# a synthetic entityId for audit purposes).
+#
+# IMPORTANT: api_post writes to the global $BODY,
+# it does NOT print to stdout. So we must NOT call
+# it inside $(...) — call it as a plain statement
+# and then read $BODY / $STATUS afterwards. (This
+# is the same pattern every other e2e test uses.)
+TEST_CUST_NAME="VAT-TEST-${RANDOM}"
+api_post "/api/v1/customers?companyId=${COMPANY_ID}" \
+  "{\"name\":\"${TEST_CUST_NAME}\",\"type\":\"business\",\"vatId\":\"DE999999999\"}"
+REAL_CUST_ID=$(json_field "$BODY" id)
+[[ -n "$REAL_CUST_ID" ]] || fail "could not create test customer (status=$STATUS, body=$BODY)"
+
+api_post "/api/v1/customers/${REAL_CUST_ID}/verify-vat?companyId=${COMPANY_ID}" '{}'
+assert_eq "customer verify-vat status" "$(json_field "$BODY" status)" "valid"
+LOG_ID=$(json_field "$BODY" logId)
+assert_eq "customer verify-vat has logId (8+ chars)" "$([ ${#LOG_ID} -ge 8 ] && echo 1 || echo 0)" "1"
+
+# 13. Customer vat-history — returns { latest, history }
+api_get "/api/v1/customers/${REAL_CUST_ID}/vat-history?companyId=${COMPANY_ID}"
+assert_eq "customer history latest.status" "$(json_field "$BODY" latest.status)" "valid"
+HIST_LEN=$(python3 -c "import json,sys; d=json.loads(sys.argv[1]); print(len(d['history']))" "$BODY")
+assert_eq "customer history count >=1" "$([ "$HIST_LEN" -ge 1 ] && echo 1 || echo 0)" "1"
+
+# 14. Customer-verify on customer WITHOUT vatId → 400
+# Create a customer with no vatId field at all.
+api_post "/api/v1/customers?companyId=${COMPANY_ID}" \
+  "{\"name\":\"NOVAT-${RANDOM}\",\"type\":\"individual\"}"
+NO_VAT_CUST=$(json_field "$BODY" id)
+[[ -n "$NO_VAT_CUST" ]] || fail "could not create no-vat test customer (status=$STATUS, body=$BODY)"
+STATUS=$(curl -sS -o /tmp/r.json -w "%{http_code}" \
+  -X POST "http://localhost:3001/api/v1/customers/${NO_VAT_CUST}/verify-vat?companyId=${COMPANY_ID}" \
+  -H "x-user-id: ${USER_ID}" -H "x-company-id: ${COMPANY_ID}")
+assert_eq "no-vat customer returns 400" "$STATUS" "400"
+MSG=$(json_field "$(cat /tmp/r.json)" message)
+echo "$MSG" | grep -q "USt-ID" && pass "400 message mentions USt-ID" || fail "400 message wrong: $MSG"
+
+# 15. Supplier-verify + supplier-history — same shape
+# as the customer variant. Find a supplier with DE VAT.
+api_get "/api/v1/suppliers?companyId=${COMPANY_ID}&search=DE&take=20"
+SUPP_ID=$(python3 -c "
+import json,sys
+d=json.loads(sys.stdin.read())
+data = d.get('data', d) if isinstance(d, dict) else d
+de = [s for s in data if (s.get('vatId') or '').upper().startswith('DE')]
+print(de[0]['id'] if de else '')" <<< "$BODY")
+if [[ -n "$SUPP_ID" ]]; then
+  api_post "/api/v1/suppliers/${SUPP_ID}/verify-vat?companyId=${COMPANY_ID}" '{}'
+  assert_eq "supplier verify-vat status" "$(json_field "$BODY" status)" "valid"
+  api_get "/api/v1/suppliers/${SUPP_ID}/vat-history?companyId=${COMPANY_ID}"
+  assert_eq "supplier history latest.status" "$(json_field "$BODY" latest.status)" "valid"
+fi
+
+# 16. Cleanup — delete the test log rows AND the
+# test customers we created (the per-row endpoint
+# left FK-shaped log rows attached to them).
 docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
-  "DELETE FROM \"VatValidationLog\" WHERE \"entityId\" = '${ENTITY_ID}';" >/dev/null 2>&1
+  "DELETE FROM \"VatValidationLog\" WHERE \"entityId\" IN ('${REAL_CUST_ID}', '${NO_VAT_CUST}') OR \"entityId\" = '${ENTITY_ID}';" >/dev/null 2>&1
+if [[ -n "$REAL_CUST_ID" ]]; then
+  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+    "DELETE FROM \"Customer\" WHERE id = '${REAL_CUST_ID}';" >/dev/null 2>&1
+fi
+if [[ -n "$NO_VAT_CUST" ]]; then
+  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+    "DELETE FROM \"Customer\" WHERE id = '${NO_VAT_CUST}';" >/dev/null 2>&1
+fi
 pass "cleanup done"
 
 echo

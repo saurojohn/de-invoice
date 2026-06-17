@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
+import { VatCheckPanel } from "@/components/VatCheckPanel"
 import { useI18n } from "@/components/useI18n"
 import { apiGet, apiPost, apiPut, apiDelete } from "@/lib/api"
 
@@ -42,6 +43,16 @@ export default function SuppliersPage() {
   const [form, setForm] = useState({ ...emptyForm })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Read once on mount so the VAT-ID panel below the
+  // form fields has a stable companyId prop. (The
+  // per-handler pattern in `reload`/`handleSubmit` is
+  // fine for the data path, but the panel needs the
+  // value at render time, not just when reload fires.)
+  const [companyId, setCompanyId] = useState<string>("")
+  useEffect(() => {
+    const cid = localStorage.getItem("companyId") || ""
+    if (cid) setCompanyId(cid)
+  }, [])
 
   const reload = async () => {
     const companyId = localStorage.getItem("companyId")
@@ -231,15 +242,50 @@ export default function SuppliersPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-gray-600 dark:text-gray-300 mb-1">{t("suppliers.vatId")}</label>
-                  <input
-                    type="text"
-                    value={form.vatId}
-                    onChange={(e) => setForm({ ...form, vatId: e.target.value })}
-                    className="w-full px-2 py-1 border border-gray dark:border-gray-700-300 dark:border-gray-600 rounded font-mono"
-                    placeholder="DE123456789"
-                  />
-                </div>
+                   <label className="block text-gray-600 dark:text-gray-300 mb-1">{t("suppliers.vatId")}</label>
+                   <input
+                     type="text"
+                     value={form.vatId}
+                     onChange={(e) => setForm({ ...form, vatId: e.target.value })}
+                     className="w-full px-2 py-1 border border-gray dark:border-gray-700-300 dark:border-gray-600 rounded font-mono"
+                     placeholder="DE123456789"
+                   />
+                 </div>
+                 {/* VIES VAT-ID verification panel — same
+                     component as the customer modal uses.
+                     Edit-mode only (verify is per-row, not
+                     per-VAT-string); the form's vatId field
+                     is the source of truth that the panel
+                     watches via props. */}
+                 {editing && (
+                   <VatCheckPanel
+                     companyId={companyId}
+                     entityType="supplier"
+                     entityId={editing.id}
+                     vatId={form.vatId}
+                     labels={{
+                       title: t("suppliers.vatCheckTitle") || "USt-ID-Prüfung (VIES)",
+                       check: t("suppliers.vatCheckNow") || "Jetzt prüfen",
+                       checking: t("suppliers.vatChecking") || "Prüfe…",
+                       noVat:
+                         t("suppliers.vatCheckNoVat") ||
+                         "Keine USt-ID hinterlegt. Tragen Sie oben eine USt-ID ein, um die VIES-Prüfung zu aktivieren.",
+                       statusNone: t("suppliers.vatStatusNone") || "Noch nicht geprüft",
+                       statusValid: t("suppliers.vatStatusValid") || "Gültig",
+                       statusInvalid: t("suppliers.vatStatusInvalid") || "Ungültig",
+                       statusUnreachable:
+                         t("suppliers.vatStatusUnreachable") || "VIES nicht erreichbar",
+                       statusPending: t("suppliers.vatStatusPending") || "Warte auf Ergebnis",
+                       cached: t("suppliers.vatCached") || "aus Cache",
+                       fresh: t("suppliers.vatFresh") || "frisch geprüft",
+                       history: t("suppliers.vatHistory") || "Verlauf",
+                       noHistory: t("suppliers.vatNoHistory") || "Keine Prüfungen bisher",
+                       errorPrefix: t("suppliers.vatErrorPrefix") || "Fehler",
+                       checkedAt: t("suppliers.vatCheckedAt") || "Geprüft am",
+                       duration: t("suppliers.vatDuration") || "Dauer",
+                     }}
+                   />
+                 )}
                 <div>
                   <label className="block text-gray-600 dark:text-gray-300 mb-1">{t("suppliers.paymentTerms")}</label>
                   <input

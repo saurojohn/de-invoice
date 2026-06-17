@@ -52,6 +52,50 @@ export class CustomerController {
     return this.customerService.update(id, companyId, data);
   }
 
+  /**
+   * Verify this customer's VAT ID against VIES.
+   * The detail page's "USt-ID prüfen" button hits
+   * this. Returns the VIES result + log id (the
+   * frontend can read `status` to show the badge
+   * and `cached` to show "frisch geprüft" vs
+   * "aus Cache"). We use POST (not GET) because
+   * it's a side-effectful operation that writes
+   * to VatValidationLog — even though there's no
+   * "form" body, POST is the right verb here.
+   */
+  @Post(':id/verify-vat')
+  @Require('customer.update')
+  async verifyVat(
+    @Param('id') id: string,
+    @Query('companyId') companyId: string,
+  ) {
+    this.assertCompanyId(companyId)
+    return this.customerService.verifyVatId(id, companyId)
+  }
+
+  /**
+   * VIES check history for a single customer.
+   * Returns { latest, history } — the latest is
+   * what the detail page's badge shows, the
+   * history is the "Verlauf" tab content. Same
+   * shape as VatValidationService's own endpoint
+   * but co-located on the customer so the detail
+   * page can hit one URL.
+   */
+  @Get(':id/vat-history')
+  @Require('customer.read')
+  async vatHistory(
+    @Param('id') id: string,
+    @Query('companyId') companyId: string,
+    @Query('limit') limitStr?: string,
+  ) {
+    this.assertCompanyId(companyId)
+    return this.customerService.vatHistory(
+      id, companyId,
+      limitStr ? Math.min(50, Math.max(1, Number(limitStr))) : 20,
+    )
+  }
+
   @Delete(':id')
   @Require('customer.delete')
   async remove(@Param('id') id: string, @Query('companyId') companyId: string) {
