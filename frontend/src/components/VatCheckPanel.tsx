@@ -149,7 +149,16 @@ export function VatCheckPanel({
   const [showHistory, setShowHistory] = useState(false);
 
   const base = `/api/v1/${entityType}s/${entityId}`;
-  const apiPath = `${base}?companyId=${companyId}`;
+  // Build the companyId query once so we don't repeat
+  // the concat in 4 places. Note: this panel was
+  // originally written with `apiPath` defined but
+  // not used in handleCheck (only the bare `base`
+  // was passed to apiPost). That made the
+  // verify-vat endpoint hit without `?companyId=`
+  // and the controller's assertCompanyId() returned
+  // 400 "companyId is required". Fix: pass the
+  // full path with the query on every apiPost too.
+  const cidQuery = companyId ? `?companyId=${encodeURIComponent(companyId)}` : "";
 
   const loadLatest = useCallback(async () => {
     setLoading(true);
@@ -184,7 +193,7 @@ export function VatCheckPanel({
     setChecking(true);
     setError(null);
     try {
-      const r = (await apiPost(`${base}/verify-vat`, {})) as VatCheckResponse;
+      const r = (await apiPost(`${base}/verify-vat${cidQuery}`, {})) as VatCheckResponse;
       // After the check, re-fetch latest+history so the
       // UI shows the new row in the history list and the
       // latest pointer updates to the just-finished check.
