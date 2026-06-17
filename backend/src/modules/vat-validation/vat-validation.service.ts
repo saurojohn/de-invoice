@@ -71,7 +71,10 @@
  *   to 'unreachable' and the user retries.
  */
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
-import * as xml2js from 'xml2js';
+// xml2js was used for the legacy SOAP response parser.
+// The EU decommissioned the SOAP endpoint in 2024;
+// we now use the REST endpoint and parse JSON
+// directly, so xml2js is no longer needed.
 import { PrismaService } from '../../prisma/prisma.service';
 
 // VIES SOAP endpoint. The service has multiple
@@ -95,10 +98,16 @@ import { PrismaService } from '../../prisma/prisma.service';
 // 'unreachable' for everything else. This is the
 // pragmatic GoBD-correct answer: don't claim a
 // VAT ID is invalid just because the EU service
-// is down — that would be the opposite of what
-// the user needs.
+// EU VIES REST API endpoint (replaces the legacy
+// SOAP checkVatService which was decommissioned
+// in 2024). The REST endpoint is documented in
+// the EU VIES web app's main.js (extracted from
+// https://ec.europa.eu/taxation_customs/vies/app/main.*.js):
+//   const CHECK_VAT="ms/{msCode}/vat/{vatNumber}";
+//   baseUrl = https://ec.europa.eu/taxation_customs/vies/rest-api/
+// The SOAP legacy endpoint now returns 404.
 const VIES_URL =
-  'https://ec.europa.eu/taxation_customs/vies/services/checkVatService'
+  'https://ec.europa.eu/taxation_customs/vies/rest-api'
 
 // Mock mode — when VIES_MOCK=1 is set, skip the
 // network call and return a deterministic answer
@@ -260,20 +269,16 @@ export class VatValidationService {
     // Mock mode — see VIES_MOCK comment in the
     // module header. E2e + offline dev use this.
     //
-    // The mock models the real VIES as closely as
-    // we can without hitting the EU servers:
-    //   1. validateFormat() — per-country format
-    //      + checksum (e.g. DE's ISO 7064 MOD97-10
-    //      check, IT's 5-digit check digit, FR's
-    //      2-digit key). Numbers that fail this
-    //      step return 'invalid' with INVALID_FORMAT
-    //      — same as what VIES does in practice.
-    //   2. registeredMockCompanies() — a hardcoded
-    //      map of "VAT IDs that VIES would say are
-    //      valid" with their company name + address.
-    //      If the number is in the map → 'valid'.
-    //      If the format is OK but the number isn't
-    //      in the map → 'invalid' with UNKNOWN_VAT.
+    // Note: validateFormat() runs BEFORE this
+    // block (see below) and applies to BOTH
+    // mock and real mode. The mock then models
+    // the real VIES lookup:
+    //   - registeredMockCompanies() — a hardcoded
+    //     map of "VAT IDs that VIES would say are
+    //     valid" with their company name + address.
+    //     If the number is in the map → 'valid'.
+    //     If the format is OK but the number isn't
+    //     in the map → 'invalid' with UNKNOWN_VAT.
     //
     // Critically: the previous mock had a
     // "default-valid" fallback (anything not
@@ -363,37 +368,70 @@ export class VatValidationService {
       }
     }
 
-    const envelope =
-      `<?xml version="1.0" encoding="UTF-8"?>` +
-      `<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" ` +
-        `xmlns:urn="urn:ec.europa.eu:taxud:vies:checkVatService">` +
-        `<soap:Body><urn:checkVat>` +
-        `<urn:countryCode>${esc(countryCode)}</urn:countryCode>` +
-        `<urn:vatNumber>${esc(number)}</urn:vatNumber>` +
-        `</urn:checkVat></soap:Body></soap:Envelope>`
+    // Real VIES path — but BEFORE we hit the
+    // network, run our own per-country format +
+    // checksum check. The EU REST endpoint does
+    // NOT do format validation: pass it "DE123"
+    // and you'll get back isValid=false (not
+    // "INVALID_FORMAT" — VIES just says "not
+    // found" for any unparseable input). We want
+    // to surface the FORMAT error to the user
+    // before bothering VIES, AND we want the
+    // same error path in mock + real mode. So
+    // validateFormat() runs always, regardless
+    // of VIES_MOCK.
+    //
+    // This also means the real-mode "no checksum
+    // for DE" gap (real VIES doesn't run the
+    // ISO 7064 check) is closed: we run it
+    // locally and reject malformed checksums
+    // ourselves.
+    const format = this.validateFormat(countryCode, number)
+    if (!format.ok) {
+      return {
+        status: 'invalid',
+        errorCode: 'INVALID_FORMAT',
+        errorMessage: format.reason,
+        durationMs: Date.now() - start,
+        cached: false,
+      }
+    }
 
-    // Use fetch with AbortController for the
-    // timeout — works in Node 18+ without extra
-    // deps. axios was the alternative but it
-    // pulled a lot of code for one HTTP call.
+    // EU VIES REST endpoint (see VIES_URL above).
+    // The legacy SOAP checkVatService was
+    // decommissioned — the JS at
+    // https://ec.europa.eu/taxation_customs/vies/app/main.*.js
+    // documents the new path:
+    //   GET {baseUrl}/ms/{msCode}/vat/{vatNumber}
+    // Member-state codes (msCode) are the same as
+    // the country code prefix on the VAT ID
+    // (DE → "de", IE → "ie", etc.). The response
+    // is JSON with shape:
+    //   {
+    //     "isValid": true|false,
+    //     "userError": "VALID"|"INVALID"|"MS_UNAVAILABLE"|...,
+    //     "name": "...",
+    //     "address": "...",
+    //     "requestDate": "...",
+    //     "viesApproximate": {...}
+    //   }
+    // The REST endpoint returns HTTP 200 even for
+    // "VAT not found" — the error is in `userError`.
+    // We don't 4xx-route those.
+    const url = `${VIES_URL}/ms/${countryCode.toLowerCase()}/vat/${encodeURIComponent(number)}`
+
     const ctrl = new AbortController()
     const timer = setTimeout(() => ctrl.abort(), VIES_TIMEOUT_MS)
     let res: Response
     try {
-      res = await fetch(VIES_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'text/xml; charset=utf-8',
-          SOAPAction: '',
-        },
-        body: envelope,
+      res = await fetch(url, {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
         signal: ctrl.signal,
       })
     } catch (e: any) {
       clearTimeout(timer)
       const dur = Date.now() - start
-      // AbortError = we hit VIES_TIMEOUT_MS.
-      // Anything else = DNS / TCP / TLS error.
       return {
         status: 'unreachable',
         errorCode: e?.name === 'AbortError' ? 'TIMEOUT' : 'NETWORK',
@@ -403,13 +441,8 @@ export class VatValidationService {
       }
     }
     clearTimeout(timer)
-
-    const text = await res.text()
     const dur = Date.now() - start
 
-    // HTTP-level error (503, 500, etc.). VIES
-    // returns SOAP faults as HTTP 200, so an
-    // explicit non-2xx is infrastructure-level.
     if (!res.ok) {
       return {
         status: 'unreachable',
@@ -420,29 +453,14 @@ export class VatValidationService {
       }
     }
 
-    return this.parseViesResponse(text, dur)
-  }
-
-  /**
-   * Parse the VIES response XML. Returns a
-   * structured VatCheckResult — never throws.
-   * xml2js's parseStringPromise returns a deeply
-   * nested object; we walk it defensively because
-   * the VIES response shape varies slightly
-   * across member states.
-   */
-  private async parseViesResponse(xml: string, dur: number): Promise<VatCheckResult> {
-    let doc: any
+    // Parse the JSON response. VIES sometimes
+    // returns an empty body on transient errors
+    // — treat that as "unreachable" rather than
+    // "invalid", the same way the SOAP path used
+    // to.
+    let json: any
     try {
-      doc = await xml2js.parseStringPromise(xml, {
-        // Strip the namespace prefix from tag
-        // names so we can match `valid`, `name`,
-        // etc. uniformly. Without this, the same
-        // field comes back as `urn:valid` /
-        // `soap:valid` and we'd have to guess.
-        tagNameProcessors: [xml2js.processors.stripPrefix],
-        explicitArray: false,
-      })
+      json = await res.json()
     } catch (e: any) {
       return {
         status: 'unreachable',
@@ -452,33 +470,7 @@ export class VatValidationService {
         cached: false,
       }
     }
-
-    // SOAP fault path
-    const fault = doc?.Envelope?.Body?.Fault
-    if (fault) {
-      const code = fault.faultstring || fault.faultcode || 'UNKNOWN'
-      // Map the most common VIES faults to our
-      // error codes. The full list is in the VIES
-      // docs but the four below cover ~95% of
-      // user-visible failures.
-      const mapped =
-        code === 'INVALID_INPUT' ? 'INVALID_FORMAT' :
-        code.includes('MS_UNAVAILABLE') ? 'MS_UNAVAILABLE' :
-        code.includes('MS_INVALID') ? 'UNKNOWN_VAT' :
-        code === 'SERVER_BUSY' ? 'RATE_LIMITED' :
-        code
-      return {
-        status: 'invalid',
-        errorCode: mapped,
-        errorMessage: `VIES: ${code}`,
-        durationMs: dur,
-        cached: false,
-      }
-    }
-
-    // Success path
-    const resp = doc?.Envelope?.Body?.checkVatResponse
-    if (!resp) {
+    if (!json || typeof json !== 'object') {
       return {
         status: 'unreachable',
         errorCode: 'EMPTY',
@@ -488,27 +480,105 @@ export class VatValidationService {
       }
     }
 
-    // VIES returns 'true' or 'false' as strings.
-    // Some member states also include a <valid>
-    // that says 'false' even for VAT IDs that
-    // exist in their database but have a status
-    // other than 'active' (e.g. dissolved). We
-    // trust the response — 'valid: false' is
-    // a hard "no" for our purposes.
-    const valid = String(resp.valid).toLowerCase() === 'true'
-    if (valid) {
+    return this.parseViesJsonResponse(json, dur)
+  }
+
+  /**
+   * Parse the EU VIES REST JSON response into a
+   * structured VatCheckResult — never throws.
+   * The REST endpoint returns HTTP 200 with a
+   * JSON body that ALWAYS includes `userError`
+   * (e.g. "VALID", "INVALID", "MS_UNAVAILABLE",
+   * "INVALID_INPUT"). We map each userError to
+   * our internal status/errorCode vocabulary.
+   *
+   * Shape (verified against
+   * https://ec.europa.eu/taxation_customs/vies/):
+   *   {
+   *     "isValid": bool,
+   *     "userError": "VALID" | "INVALID" |
+   *                  "MS_UNAVAILABLE" |
+   *                  "INVALID_INPUT" | "SERVER_BUSY" |
+   *                  "MS_MAX_CONCURRENT_REQ" | "NO_VAT_NUMBER" |
+   *                  "INVALID_REQUESTER" | ...,
+   *     "name": string,
+   *     "address": string,
+   *     "requestDate": ISO,
+   *     "viesApproximate": { ... }
+   *   }
+   *
+   * "name"/"address" come as "---" placeholders
+   * when isValid=false. We trim them but only
+   * surface the value if it's a real string.
+   */
+  private async parseViesJsonResponse(
+    json: any,
+    dur: number,
+  ): Promise<VatCheckResult> {
+    const userError = String(json.userError || '').toUpperCase()
+    const isValid = json.isValid === true
+
+    // MS_UNAVAILABLE / SERVER_BUSY / rate limits:
+    // the member state's register is down. This
+    // is NOT a "no" — the user should retry.
+    if (
+      userError === 'MS_UNAVAILABLE' ||
+      userError === 'SERVER_BUSY' ||
+      userError === 'MS_MAX_CONCURRENT_REQ'
+    ) {
       return {
-        status: 'valid',
-        name: typeof resp.name === 'string' ? resp.name.trim() : undefined,
-        address: typeof resp.address === 'string' ? resp.address.trim() : undefined,
+        status: 'unreachable',
+        errorCode: 'MS_UNAVAILABLE',
+        errorMessage: `VIES: ${userError}`,
         durationMs: dur,
         cached: false,
       }
     }
+
+    // INVALID_INPUT: VIES rejected the format.
+    // This is a per-input validation failure
+    // (we already do our own format check, but
+    // VIES may have stricter rules for some
+    // countries).
+    if (userError === 'INVALID_INPUT' || userError === 'NO_VAT_NUMBER') {
+      return {
+        status: 'invalid',
+        errorCode: 'INVALID_FORMAT',
+        errorMessage: `VIES: ${userError}`,
+        durationMs: dur,
+        cached: false,
+      }
+    }
+
+    if (userError === 'INVALID_REQUESTER') {
+      return {
+        status: 'unreachable',
+        errorCode: 'INVALID_REQUESTER',
+        errorMessage:
+          'VIES: Anfragende USt-ID ungültig (auf Anfrageseite registrieren)',
+        durationMs: dur,
+        cached: false,
+      }
+    }
+
+    if (isValid) {
+      const rawName = typeof json.name === 'string' ? json.name.trim() : ''
+      const rawAddr = typeof json.address === 'string' ? json.address.trim() : ''
+      return {
+        status: 'valid',
+        name: rawName && rawName !== '---' ? rawName : undefined,
+        address: rawAddr && rawAddr !== '---' ? rawAddr : undefined,
+        durationMs: dur,
+        cached: false,
+      }
+    }
+
+    // isValid: false. VIES confirms the number is
+    // not registered with the member state.
     return {
       status: 'invalid',
       errorCode: 'UNKNOWN_VAT',
-      errorMessage: 'VIES: USt-ID nicht gültig',
+      errorMessage: `VIES: ${userError || 'USt-ID nicht gültig'}`,
       durationMs: dur,
       cached: false,
     }
