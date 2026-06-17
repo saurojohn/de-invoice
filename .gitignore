@@ -48,3 +48,6 @@ backend/frontend/
 # `git status` stays clean during PDF iteration.
 test_invoice_*.pdf
 test_zugferd_*.pdf
+
+# TypeScript incremental build cache
+*.tsbuildinfo
