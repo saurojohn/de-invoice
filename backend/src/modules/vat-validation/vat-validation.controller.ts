@@ -34,7 +34,9 @@ import {
 } from '@nestjs/common';
 import { Auth, Require } from '../../auth/roles.decorator';
 import {
-  VatValidationService,
+  VatReverifyScheduler,
+} from './vat-reverify.scheduler'
+import { VatValidationService,
   VatCheckResult,
 } from './vat-validation.service';
 
@@ -48,7 +50,10 @@ interface CheckBody {
 @Auth()
 @Controller('vat-validation')
 export class VatValidationController {
-  constructor(private service: VatValidationService) {}
+  constructor(
+    private service: VatValidationService,
+    private reverifyScheduler: VatReverifyScheduler,
+  ) {}
 
   /**
    * Verify a VAT ID against VIES. Used by the
@@ -141,5 +146,25 @@ export class VatValidationController {
         createdAt: true,
       },
     })
+  }
+
+  /**
+   * Dev / admin trigger: run the nightly
+   * VIES re-verify now (bypasses DISABLE_CRON
+   * and the 02:00 schedule). Returns the same
+   * stats the cron logs at the end of a real run.
+   * Useful for soak-testing the verification
+   * pipeline and for letting a user force a
+   * refresh of all their customer/supplier
+   * VAT status on demand.
+   *
+   * Not rate-limited because (a) it's an admin
+   * endpoint and (b) the underlying cron is
+   * already rate-limited via VatValidationService.
+   */
+  @Post('reverify-now')
+  @Require('users.read')  // admin-only (accountants can NOT trigger a full re-verify)
+  async reverifyNow() {
+    return this.reverifyScheduler.runNowForTest()
   }
 }
