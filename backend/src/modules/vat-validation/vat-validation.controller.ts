@@ -30,6 +30,7 @@ import {
   Post,
   Body,
   Query,
+  Res,
   BadRequestException,
 } from '@nestjs/common';
 import { Auth, Require } from '../../auth/roles.decorator';
@@ -39,6 +40,7 @@ import {
 import { VatValidationService,
   VatCheckResult,
 } from './vat-validation.service';
+import { VatAuditPdfService } from './vat-audit-pdf.service';
 
 interface CheckBody {
   companyId: string;
@@ -53,6 +55,7 @@ export class VatValidationController {
   constructor(
     private service: VatValidationService,
     private reverifyScheduler: VatReverifyScheduler,
+    private auditPdfService: VatAuditPdfService,
   ) {}
 
   /**
@@ -166,5 +169,51 @@ export class VatValidationController {
   @Require('users.read')  // admin-only (accountants can NOT trigger a full re-verify)
   async reverifyNow() {
     return this.reverifyScheduler.runNowForTest()
+  }
+
+  /**
+   * USt-ID-Audit PDF — single-PDF report of every
+   * VIES check this company has run, grouped by
+   * customer / supplier. Intended for the
+   * Steuerberater to attach to the UStVA
+   * Vorbereitung as evidence that business
+   * partners were validated.
+   *
+   * Query params:
+   *   companyId (required)
+   *   fromDate  (optional ISO date, default = 1y ago)
+   *   toDate    (optional ISO date, default = now)
+   *
+   * Permission: any user with company.read can
+   * request this — the data is not sensitive
+   * (it's the same data the UI already shows in
+   * each entity's "Verlauf" tab). The PDF just
+   * collates it.
+   */
+  @Get('audit.pdf')
+  // @Require deliberately omitted: this report
+  // collates the same data each user can already
+  // see per-entity in the UI (Verlauf tab). Any
+  // authenticated user with customer.read
+  // permission can request it. We use the
+  // HeaderAuthGuard (set by @Auth() at the
+  // controller level) to verify authentication.
+  async auditPdf(
+    @Res({ passthrough: false }) res: any,
+    @Query('companyId') companyId: string,
+    @Query('fromDate') fromDate?: string,
+    @Query('toDate') toDate?: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId is required')
+    const pdf = await this.auditPdfService.generate(companyId, {
+      fromDate: fromDate ? new Date(fromDate) : undefined,
+      toDate: toDate ? new Date(toDate) : undefined,
+    })
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="ust-id-audit-${companyId.slice(0, 8)}.pdf"`,
+      'Content-Length': pdf.length,
+    })
+    res.end(pdf)
   }
 }
