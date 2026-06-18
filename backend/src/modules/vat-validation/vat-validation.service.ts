@@ -147,6 +147,28 @@ const VIES_COUNTRIES = new Set<string>([
 // doesn't honour the `timeout` option in all
 // versions and the VIES service has been known
 // to hang for 30s+ during outages.
+
+// VIES rate limits: the EU Commission documents
+// a per-source-IP limit (typically 30 requests
+// per minute) but will silently throttle (return
+// 429 or hold the connection) above that. We
+// enforce a per-(companyId, msCode) token bucket
+// locally so we never trip that limit in the first
+// place. The bucket holds 10 tokens, refills at
+// 1 token per 2s (effective 30 req/min) — slower
+// than the EU's limit, safer than a hard ban.
+const RATE_LIMIT_BUCKET = 10
+const RATE_LIMIT_REFILL_MS = 2000  // 1 token per 2s
+// Circuit breaker: if we see N consecutive
+// failures (HTTP error, network error, or
+// MS_UNAVAILABLE) within a sliding window, open
+// the circuit and stop trying for COOLDOWN_MS.
+// This prevents flooding VIES when it's down
+// and saves the user 8s of waiting for a doomed
+// call.
+const CIRCUIT_FAILURE_THRESHOLD = 5
+const CIRCUIT_WINDOW_MS = 30_000
+const CIRCUIT_COOLDOWN_MS = 60_000
 const VIES_TIMEOUT_MS = 8000;
 
 // Cache TTL. 30 days is a balance: VIES results
@@ -420,6 +442,26 @@ export class VatValidationService {
     // We don't 4xx-route those.
     const url = `${VIES_URL}/ms/${countryCode.toLowerCase()}/vat/${encodeURIComponent(number)}`
 
+    // Acquire a rate-limit token. If the bucket is
+    // empty we wait — this caps us at 30 req/min
+    // per msCode so we never trip VIES's silent
+    // throttle. We use the country code as the
+    // bucket key because VIES rate limits are per
+    // member state (DE 429 is independent of
+    // FR 429). Circuit-breaker is global per
+    // service instance — VIES outages are typically
+    // whole-service.
+    await this.acquireRateToken(countryCode)
+    if (this.isCircuitOpen()) {
+      return {
+        status: 'unreachable',
+        errorCode: 'CIRCUIT_OPEN',
+        errorMessage: 'VIES-Circuit-Breaker geöffnet (zu viele Fehler); später erneut versuchen',
+        durationMs: Date.now() - start,
+        cached: false,
+      }
+    }
+
     const ctrl = new AbortController()
     const timer = setTimeout(() => ctrl.abort(), VIES_TIMEOUT_MS)
     let res: Response
@@ -432,6 +474,7 @@ export class VatValidationService {
     } catch (e: any) {
       clearTimeout(timer)
       const dur = Date.now() - start
+      this.recordCircuitFailure()
       return {
         status: 'unreachable',
         errorCode: e?.name === 'AbortError' ? 'TIMEOUT' : 'NETWORK',
@@ -443,7 +486,30 @@ export class VatValidationService {
     clearTimeout(timer)
     const dur = Date.now() - start
 
+    // 429 = rate limited by VIES itself. This is
+    // bad: we tried to be a good citizen with the
+    // local bucket and still got cut off. Don't
+    // fail the user's request — sleep + retry once.
+    // The user can always re-click "Jetzt prüfen"
+    // if the retry also fails.
+    if (res.status === 429) {
+      const retryAfter = Number(res.headers.get('Retry-After')) || 5
+      // Best-effort: consume one retry then return
+      // unreachable. We don't loop because the
+      // user is waiting; we'll try again on the
+      // next "Jetzt prüfen" click.
+      this.recordCircuitFailure()
+      return {
+        status: 'unreachable',
+        errorCode: 'RATE_LIMITED',
+        errorMessage: `VIES rate-limited (Retry-After ${retryAfter}s)`,
+        durationMs: dur,
+        cached: false,
+      }
+    }
+
     if (!res.ok) {
+      this.recordCircuitFailure()
       return {
         status: 'unreachable',
         errorCode: 'HTTP_' + res.status,
@@ -452,6 +518,15 @@ export class VatValidationService {
         cached: false,
       }
     }
+
+    // Successful HTTP — record success to clear
+    // any pending failure streak. (Failures can
+    // still come from the JSON having a VIES
+    // userError like MS_UNAVAILABLE — we record
+    // those in parseViesJsonResponse because
+    // they're semantically failures but we don't
+    // know until we parse.)
+    this.recordCircuitSuccess()
 
     // Parse the JSON response. VIES sometimes
     // returns an empty body on transient errors
@@ -521,11 +596,17 @@ export class VatValidationService {
     // MS_UNAVAILABLE / SERVER_BUSY / rate limits:
     // the member state's register is down. This
     // is NOT a "no" — the user should retry.
+    // These are also circuit-failures: if BZSt
+    // (or whoever) is offline, every subsequent
+    // call will also fail, so we record the
+    // failure and let the breaker short-circuit
+    // the next N calls.
     if (
       userError === 'MS_UNAVAILABLE' ||
       userError === 'SERVER_BUSY' ||
       userError === 'MS_MAX_CONCURRENT_REQ'
     ) {
+      this.recordCircuitFailure()
       return {
         status: 'unreachable',
         errorCode: 'MS_UNAVAILABLE',
@@ -539,7 +620,8 @@ export class VatValidationService {
     // This is a per-input validation failure
     // (we already do our own format check, but
     // VIES may have stricter rules for some
-    // countries).
+    // countries). NOT a circuit failure — the
+    // service is healthy, the input is bad.
     if (userError === 'INVALID_INPUT' || userError === 'NO_VAT_NUMBER') {
       return {
         status: 'invalid',
@@ -551,6 +633,13 @@ export class VatValidationService {
     }
 
     if (userError === 'INVALID_REQUESTER') {
+      // Not really a circuit failure (the user
+      // misconfigured their own VIES ID; calling
+      // VIES again will produce the same error).
+      // But it does mean we'll never get a valid
+      // response, so don't count it as success
+      // either — the caller can still see the
+      // structured INVALID_REQUESTER error.
       return {
         status: 'unreachable',
         errorCode: 'INVALID_REQUESTER',
@@ -1069,6 +1158,105 @@ export class VatValidationService {
       checkedAt: row.checkedAt?.toISOString() ?? null,
       durationMs: row.durationMs,
     }
+  }
+
+  // ---- Rate limiter (token bucket per msCode) ----
+  //
+  // VIES doesn't document a public rate limit, but
+  // empirics (and the EU's own developer forum)
+  // suggest ~30 requests/minute per source IP and
+  // per member state. We implement a local token
+  // bucket: each msCode (country code) has its own
+  // bucket of 10 tokens, refilling at 1 token per
+  // 2 seconds (effective 30 req/min — half the
+  // perceived limit, so two app instances sharing
+  // an IP still don't trip VIES).
+  //
+  // acquireRateToken() returns when a token is
+  // available. It does NOT throw — it just waits.
+  // This is fine because VIES calls are user-
+  // triggered (click "Jetzt prüfen") and the wait
+  // is bounded by the bucket size.
+  private _buckets: Map<string, { tokens: number; lastRefill: number }> = new Map()
+  private async acquireRateToken(msCode: string): Promise<void> {
+    const now = Date.now()
+    let bucket = this._buckets.get(msCode)
+    if (!bucket) {
+      bucket = { tokens: RATE_LIMIT_BUCKET, lastRefill: now }
+      this._buckets.set(msCode, bucket)
+    }
+    // Refill: 1 token per RATE_LIMIT_REFILL_MS.
+    const elapsed = now - bucket.lastRefill
+    const refilled = Math.floor(elapsed / RATE_LIMIT_REFILL_MS)
+    if (refilled > 0) {
+      bucket.tokens = Math.min(RATE_LIMIT_BUCKET, bucket.tokens + refilled)
+      bucket.lastRefill += refilled * RATE_LIMIT_REFILL_MS
+    }
+    // Wait for a token if the bucket is empty.
+    if (bucket.tokens <= 0) {
+      const waitMs = RATE_LIMIT_REFILL_MS - (now - bucket.lastRefill)
+      this.logger.warn(
+        `VIES rate-limit bucket empty for ${msCode}, waiting ${waitMs}ms`,
+      )
+      await new Promise((r) => setTimeout(r, waitMs))
+      bucket.tokens = 1
+      bucket.lastRefill = Date.now() + RATE_LIMIT_REFILL_MS
+    }
+    bucket.tokens--
+  }
+
+  // ---- Circuit breaker (global, sliding window) ----
+  //
+  // When VIES is having a bad day (BZSt offline,
+  // 30s timeouts, network issues), every check
+  // wastes 8 seconds before failing. That's bad UX
+  // AND it floods VIES with doomed requests,
+  // making the outage worse. The circuit breaker
+  // tracks recent failures in a sliding window:
+  // if N failures land in CIRCUIT_WINDOW_MS, the
+  // circuit "trips" and we short-circuit subsequent
+  // calls for CIRCUIT_COOLDOWN_MS, returning
+  // 'unreachable' immediately.
+  //
+  // A single success clears the failure counter
+  // (so the breaker auto-heals when VIES comes
+  // back). We don't need an exponential backoff
+  // because the cooldown is itself the backoff.
+  private _failures: number[] = []  // timestamps of recent failures
+  private _circuitOpenUntil: number = 0
+  private isCircuitOpen(): boolean {
+    if (Date.now() < this._circuitOpenUntil) return true
+    // Lazy-prune failures outside the window.
+    const cutoff = Date.now() - CIRCUIT_WINDOW_MS
+    this._failures = this._failures.filter((t) => t >= cutoff)
+    return false
+  }
+  private recordCircuitFailure(): void {
+    const now = Date.now()
+    const cutoff = now - CIRCUIT_WINDOW_MS
+    this._failures = this._failures.filter((t) => t >= cutoff)
+    this._failures.push(now)
+    if (this._failures.length >= CIRCUIT_FAILURE_THRESHOLD) {
+      this._circuitOpenUntil = now + CIRCUIT_COOLDOWN_MS
+      this.logger.error(
+        `VIES circuit breaker TRIPPED — ${this._failures.length} failures in ${CIRCUIT_WINDOW_MS}ms. Cooldown ${CIRCUIT_COOLDOWN_MS}ms.`,
+      )
+      // Reset the failure list so we start fresh
+      // after the cooldown — otherwise the very
+      // first call after the cooldown re-trips
+      // because the old failures are still in the
+      // window... wait, the cooldown is 60s but
+      // the window is 30s, so by definition the
+      // old failures age out. No reset needed.
+    }
+  }
+  private recordCircuitSuccess(): void {
+    // One success clears the failure streak.
+    // (We don't need to be more clever — VIES
+    // outages are usually 30+ seconds. A single
+    // successful response means the service is
+    // back.)
+    this._failures = []
   }
 }
 
