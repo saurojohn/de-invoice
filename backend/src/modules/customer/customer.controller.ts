@@ -115,7 +115,11 @@ export class CustomerController {
   @Require('customer.create')
   async import(
     @Query('companyId') companyId: string,
-    @Body() body: { rows: ImportCustomerRow[] },
+    @Body() body: {
+      rows: ImportCustomerRow[]
+      verifyVat?: boolean
+      maxVatVerifications?: number
+    },
   ) {
     this.assertCompanyId(companyId)
     if (!body || !Array.isArray(body.rows)) {
@@ -124,7 +128,16 @@ export class CustomerController {
     if (body.rows.length > 5000) {
       throw new BadRequestException('Maximal 5000 Zeilen pro Import')
     }
-    return this.customerService.importBulk(companyId, body.rows)
+    return this.customerService.importBulk(companyId, body.rows, {
+      // Default ON. The service caps at 10 by default
+      // so the import response stays under 90s even
+      // with VIES at its slowest. The frontend can
+      // opt out by passing verifyVat: false (useful
+      // for bulk migrations where the user will
+      // re-verify interactively later).
+      verifyVat: body.verifyVat ?? true,
+      maxVatVerifications: body.maxVatVerifications,
+    })
   }
 
   /**

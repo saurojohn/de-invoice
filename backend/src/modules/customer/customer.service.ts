@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { VatValidationService } from '../vat-validation/vat-validation.service';
 
@@ -26,6 +26,7 @@ export interface ImportResult {
 
 @Injectable()
 export class CustomerService {
+  private readonly logger = new Logger(CustomerService.name)
   constructor(
     private prisma: PrismaService,
     private vatValidation: VatValidationService,
@@ -401,7 +402,28 @@ export class CustomerService {
   async importBulk(
     companyId: string,
     rows: ImportCustomerRow[],
+    opts: { verifyVat?: boolean; maxVatVerifications?: number } = {},
   ): Promise<ImportResult> {
+    // Auto-verify VIES on bulk import. Production
+    // behaviour: cap the number of synchronous
+    // VIES calls to avoid the import request
+    // blocking for 8s × N. The user gets a quick
+    // "X imported, Y verified, Z pending" report;
+    // the rest can be re-verified later via the
+    // per-row Jetzt-prüfen button.
+    //
+    // Capping strategy: verify the FIRST N rows
+    // that have a non-empty VAT. The user can
+    // re-import the rest of the file later if
+    // they want everything verified at import
+    // time. 10 is conservative — it leaves the
+    // rest of the token bucket available for
+    // interactive "Jetzt prüfen" clicks.
+    const MAX_VERIFICATIONS = opts.maxVatVerifications ?? 10
+    const verifyVat = opts.verifyVat ?? true
+    let verificationsDone = 0
+    let verificationsSkipped = 0
+
     const result: ImportResult = { total: rows.length, imported: 0, skipped: 0, errors: [] }
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i] || {}
@@ -448,6 +470,36 @@ export class CustomerService {
           },
         })
         result.imported++
+
+        // VIES auto-verify. Only if the row has a
+        // VAT AND we still have verification budget
+        // AND the service is available.
+        if (verifyVat && vatId && verificationsDone < MAX_VERIFICATIONS) {
+          try {
+            const parsed = this.vatValidation.parseVatId(vatId)
+            if (parsed) {
+              await this.vatValidation.validateAndLog(
+                companyId,
+                'customer',
+                customer.id,
+                vatId,
+              )
+              verificationsDone++
+            }
+          } catch (e: any) {
+            // VIES failure must NOT fail the import.
+            // The customer is created; the user can
+            // re-verify later. The error is silently
+            // dropped here (the row-level VatValidationLog
+            // entry already records the failure for
+            // audit).
+            this.logger.warn(
+              `Bulk-import VAT verify failed for row ${rowNum} (${vatId}): ${e?.message || e}`,
+            )
+          }
+        } else if (verifyVat && vatId) {
+          verificationsSkipped++
+        }
         // touch customer to keep TS happy (no-op in production)
         void customer
       } catch (err: any) {
@@ -456,6 +508,19 @@ export class CustomerService {
           error: err?.message || 'Unbekannter Fehler',
           name: (row.name || '').trim(),
         })
+      }
+    }
+
+    // Attach verification summary to the result so
+    // the frontend can show "X verified, Y
+    // skipped (re-verify manually)". ImportResult
+    // is the existing public type; we add the
+    // optional fields defensively.
+    if (verifyVat && (verificationsDone > 0 || verificationsSkipped > 0)) {
+      ;(result as any).vatVerifications = {
+        done: verificationsDone,
+        skipped: verificationsSkipped,
+        maxPerImport: MAX_VERIFICATIONS,
       }
     }
     return result
