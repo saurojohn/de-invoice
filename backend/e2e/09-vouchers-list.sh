@@ -10,7 +10,7 @@
 # are left in the DB so the UI can show real data.
 # run-all.sh runs a final cleanup at the end.
 
-set -uo pipefail
+set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/_lib.sh"
 
@@ -58,11 +58,25 @@ docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
    SELECT 'l6'::text, 'v3'::text, a.id, 30.0000, 0, 'Test' FROM \"Account\" a WHERE \"companyId\"='$COMPANY_ID' AND \"accountNumber\"='4900';" >/dev/null 2>&1
 
 # Test 1: list returns all 3, ordered by date desc
-api_get "/api/v1/accounting/vouchers?companyId=$COMPANY_ID&take=10"
+# take=200 — we have ~85 vouchers in the DB from other
+# tests, and the test seeders use date=2026-06-10 which
+# sorts in the middle of the list. With take=10 we'd
+# miss them. 200 leaves plenty of headroom.
+api_get "/api/v1/accounting/vouchers?companyId=$COMPANY_ID&take=200"
 assert_eq "list HTTP 200" "$STATUS" "200"
 LIST_COUNT=$(python3 -c "import json,sys; d=json.loads(sys.argv[1]); print(len(d['items']))" "$BODY")
 LIST_TOTAL=$(python3 -c "import json,sys; d=json.loads(sys.argv[1]); print(d['total'])" "$BODY")
 [ "$LIST_TOTAL" -ge 3 ] && echo "✓ list total >= 3 = $LIST_TOTAL" || { echo "✗ list total expected >= 3 actual=$LIST_TOTAL"; exit 1; }
+# Test 1.5: also assert the page cap doesn't drop our
+# seed rows (VND-LIST-*). Without the take=200 bump
+# these silently fall off the page and Tests 2-4 fail
+# with NOT_FOUND even though the endpoint is correct.
+LIST_HAS_VND=$(python3 -c "
+import json,sys
+d = json.loads(sys.argv[1])
+print(sum(1 for x in d['items'] if x['voucherNumber'].startswith('VND-LIST-')))
+" "$BODY")
+[ "$LIST_HAS_VND" -ge 3 ] && echo "✓ page contains all 3 VND-LIST seeds = $LIST_HAS_VND" || { echo "✗ page missing VND-LIST rows = $LIST_HAS_VND"; exit 1; }
 
 # Test 2: VND-LIST-001 (3-line Expense, Soll=119, Haben=119, balanced=true, primary=4900)
 ITEM=$(python3 -c "
@@ -149,7 +163,11 @@ PDF_HTTP=$(curl -sS -o /tmp/voucher-list-001.pdf -w "%{http_code}" \
 assert_eq "voucher PDF HTTP 200" "$PDF_HTTP" "200"
 PDF_SIZE=$(stat -f %z /tmp/voucher-list-001.pdf 2>/dev/null || wc -c < /tmp/voucher-list-001.pdf)
 [ "$PDF_SIZE" -gt 2000 ] && echo "✓ voucher PDF size > 2KB = $PDF_SIZE" || { echo "✗ voucher PDF too small = $PDF_SIZE"; exit 1; }
-file_contains /tmp/voucher-list-001.pdf "VND-LIST-001"
+file_contains_helper_unsupported="0"  # placeholder to keep set -e happy
+# PDF content is FlateDecode-compressed with hex-encoded text,
+# so raw grep on the file never finds anything. Use pdf_contains
+# which decompresses + decodes the TJ arrays first.
+pdf_contains "VND-LIST-001" /tmp/voucher-list-001.pdf
 echo "✓ voucher PDF contains voucherNumber"
 
 # Cleanup

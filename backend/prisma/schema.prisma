@@ -47,6 +47,7 @@ model Company {
   accounts    Account[]
   vouchers    Voucher[]
   auditLogs   AuditLog[]
+  errorEvents ErrorEvent[]
   emailSends  EmailSend[]
   bankStatements BankStatement[]
   mailConfig  MailConfig?
@@ -102,6 +103,7 @@ model User {
   createdInvoices  Invoice[] @relation("CreatedBy")
   createdVouchers  Voucher[] @relation("CreatedBy")
   auditLogs        AuditLog[]
+  errorEvents      ErrorEvent[]
   emailSends       EmailSend[]
   createdVatRates   VatRate[] @relation("VatRateCreator")
   changedVatRates   VatRateHistory[] @relation("VatRateChanger")
@@ -755,6 +757,76 @@ model AuditLog {
 
   @@index([companyId, createdAt])
   @@index([entityType, entityId])
+}
+
+/// Captured runtime errors from both the backend (uncaught
+/// exceptions, manually logged via ErrorTrackingService) and
+/// the frontend (uncaught browser errors + React error
+/// boundary events). Frontend posts via
+///   POST /api/v1/system/errors { message, stack, source, ... }
+/// Backend auto-captures via a global NestJS exception
+/// filter (system.filter.ts) so every unhandled error in
+/// any route gets here without per-module try/catch boilerplate.
+///
+/// The "self-hosted Sentry" pattern:
+///   - cheap to query (just SELECT from Postgres)
+///   - no 3rd-party SaaS / no PII leaking
+///   - dashboard table at /dashboard/system-errors
+///   - retention: 30 days (admin can prune via /prune)
+model ErrorEvent {
+  id          String   @id @default(uuid())
+  /// 'backend' = unhandled NestJS exception OR service.logError()
+  /// 'frontend' = window.onerror / unhandledrejection / ErrorBoundary
+  source      String
+  /// JS error message, e.g. "Cannot read properties of null (reading 'id')"
+  message     String
+  /// First 4 KB of the stack trace. PDFKit stacks can run
+  /// 50+ frames deep; truncating keeps the row small and
+  /// the column under Postgres' toast threshold.
+  stack       String?
+  /// Free-form context, e.g. {url, userId, companyId,
+  /// browser, component, level}. JSONB so the schema can
+  /// grow without migrations.
+  context     Json?
+  /// 'unhandled' | 'boundary' | 'manual' | 'api'
+  kind        String   @default("unhandled")
+  /// Same event from same source within 5 min = dedupe,
+  /// incremented instead of inserting a new row. Lets the
+  /// /dashboard/system-errors view show "1 error × 42 times"
+  /// rather than 42 rows.
+  occurrences Int      @default(1)
+  /// 'open' = needs attention. 'resolved' = admin marked
+  /// it. 'muted' = filtered noise (e.g. a noisy script
+  /// 404 we want to ignore). Filtered in /system-errors
+  /// view by default.
+  status      String   @default("open")
+  /// SHA-256 of (source + message + first stack frame) for
+  /// dedupe. Indexed.
+  fingerprint String
+  /// Optional — for backend events we can capture who
+  /// was logged in when the error fired. NULL for
+  /// pre-auth errors (login, registration) and for any
+  /// uncaught startup exception.
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id])
+  companyId   String?
+  company     Company? @relation(fields: [companyId], references: [id])
+  /// URL of the API route that threw (backend) or the
+  /// page the user was on (frontend).
+  url         String?
+  /// HTTP method for backend API errors; null for frontend.
+  method      String?
+  /// HTTP status code for backend API errors; null for frontend.
+  statusCode  Int?
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+  resolvedAt  DateTime?
+  resolvedBy  String?
+
+  @@index([fingerprint])
+  @@index([source, lastSeenAt])
+  @@index([companyId, lastSeenAt])
+  @@index([status, lastSeenAt])
 }
 
 /// Per-company customizable reminder (Mahnung) templates.

@@ -173,3 +173,42 @@ summary() {
     return 1
   fi
 }
+
+# pdf_contains — checks if a string appears anywhere in the
+# decoded text of a PDF. PDF content streams are FlateDecode
+# compressed and the text inside is hex-encoded inside `TJ`
+# arrays (with kerning offsets between hex strings). A naive
+# `grep` on the raw .pdf file never finds anything because
+# the text isn't in raw bytes. This helper:
+#   1. finds the /FlateDecode stream
+#   2. zlib-decompresses it
+#   3. extracts all <hex> strings from TJ arrays
+#   4. concatenates the decoded bytes
+#   5. greps the result for the pattern
+# Returns 0 if pattern found, 1 otherwise.
+pdf_contains() {
+  local pattern="$1" file="$2"
+  python3 - "$pattern" "$file" <<'PY'
+import re, sys, zlib
+pattern, file = sys.argv[1], sys.argv[2]
+try:
+    data = open(file, 'rb').read()
+except FileNotFoundError:
+    sys.exit(2)
+# Find the page content stream (FlateDecode).
+m = re.search(rb'/Length \d+\s*/Filter /FlateDecode\s*>>\s*stream\r?\n(.*?)\r?\nendstream',
+              data, re.DOTALL)
+if not m:
+    sys.exit(2)
+try:
+    dec = zlib.decompress(m.group(1))
+except zlib.error:
+    sys.exit(2)
+# Pull every <HEX> chunk from TJ arrays (kerning offsets between
+# them are just spacing, not characters, so naive concat works
+# for substring search).
+hex_chunks = re.findall(rb'<([0-9A-Fa-f]+)>', dec)
+text = b''.join(bytes.fromhex(h.decode()) for h in hex_chunks).decode('latin-1', 'ignore')
+sys.exit(0 if pattern in text else 1)
+PY
+}

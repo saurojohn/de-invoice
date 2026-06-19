@@ -19,6 +19,10 @@ export interface OverdueInvoice {
   };
   total: string;
   dueDate: string;
+  // Rechnungsdatum — needed by the Mahnung PDF and
+  // by the auto-reminder cron (which renders the
+  // invoice date on the letter). Added in 3a-c.
+  issueDate: string;
   daysOverdue: number;
   language: string;
   reminderCount: number;
@@ -133,6 +137,7 @@ export class ReminderService {
         },
         total: inv.total.toString(),
         dueDate: inv.dueDate!.toISOString(),
+        issueDate: inv.issueDate.toISOString(),
         daysOverdue,
         language: inv.language || 'de-DE',
         reminderCount: totalReminders,
@@ -461,6 +466,7 @@ Mit freundlichen Grüßen,
       },
       total: invoice.total.toString(),
       dueDate: invoice.dueDate!.toISOString(),
+      issueDate: invoice.issueDate.toISOString(),
       daysOverdue: Math.floor(
         (new Date().getTime() - new Date(invoice.dueDate!).getTime()) / (1000 * 60 * 60 * 24),
       ),

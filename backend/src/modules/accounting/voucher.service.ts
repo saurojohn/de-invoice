@@ -243,27 +243,64 @@ export class VoucherService {
     });
 
     // For each voucher compute: totalDebit, totalCredit,
-    // primaryAccount (the line with the largest single
-    // amount — typically the Sachkonto / expense or
-    // revenue account, NOT the bank Gegenkonto), and a
-    // balanced flag. Cheap to do in-memory since the
-    // line list is already loaded.
+    // primaryAccount (the Sachkonto / expense or revenue
+    // account — NOT the bank Gegenkonto), and a balanced
+    // flag. Cheap to do in-memory since the line list is
+    // already loaded.
+    //
+    // Bug history (e2e/09-vouchers-list.sh): original
+    // implementation picked the line with the largest
+    // single amount, which made 1200 (Bank) win over
+    // 4900 (Aufwand) on a typical Expense voucher —
+    // because credit 119 > debit 100. The "primary
+    // account" is meant to be the operational account,
+    // not the cash clearing account. We now skip lines
+    // whose account name is a known clearing pattern
+    // (Bank / Kasse / Geld / Postbank / Verrechnung),
+    // then fall back to any line if every line is a
+    // clearing account.
+    const isClearingAccount = (name: string): boolean => {
+      const n = name.toLowerCase();
+      return (
+        n.includes('bank') ||
+        n.includes('kasse') ||
+        n.includes('geld') ||
+        n.includes('postbank') ||
+        n.includes('verrechnung') ||
+        n.includes('schwebend')
+      );
+    };
     const enriched = items.map((v) => {
       let totalDebit = 0;
       let totalCredit = 0;
       let primaryNumber = '—';
       let primaryMaxAmount = -1;
+      let fallbackNumber = '—';
+      let fallbackMaxAmount = -1;
       for (const l of v.lines) {
         const d = Number(l.debit);
         const c = Number(l.credit);
         totalDebit += d;
         totalCredit += c;
+        // Always track the absolute-largest fallback so
+        // a 100%-clearing voucher (e.g. inter-bank
+        // transfer 1200→1210) still gets a primary.
         const amount = Math.max(d, c);
+        if (amount > fallbackMaxAmount) {
+          fallbackMaxAmount = amount;
+          fallbackNumber = l.account.accountNumber;
+        }
+        if (isClearingAccount(l.account.name)) continue;
         if (amount > primaryMaxAmount) {
           primaryMaxAmount = amount;
           primaryNumber = l.account.accountNumber;
         }
       }
+      // If every line was a clearing account, use the
+      // largest one as a sane fallback. Otherwise the
+      // largest-clearing line would silently shadow the
+      // real Sachkonto.
+      if (primaryMaxAmount < 0) primaryNumber = fallbackNumber;
       return {
         id: v.id,
         voucherNumber: v.voucherNumber,

@@ -444,6 +444,14 @@ export default function DashboardPage() {
               <p className="text-gray-600 dark:text-gray-300">{t("dashboard.cardRemindersDesc")}</p>
             </CardContent>
           </Card>
+          <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/system-errors")}>
+            <CardHeader>
+              <CardTitle className="text-orange-600 dark:text-orange-400">{t("dashboard.cardSystemErrorsTitle")}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-gray-600 dark:text-gray-300">{t("dashboard.cardSystemErrorsDesc")}</p>
+            </CardContent>
+          </Card>
           <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/email")}>
             <CardHeader>
               <CardTitle>{t("dashboard.cardEmailTitle")}</CardTitle>

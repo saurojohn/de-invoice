@@ -24,6 +24,7 @@ import { SupplierModule } from './modules/supplier/supplier.module';
 import { ExpenseModule } from './modules/expense/expense.module';
 import { AttachmentsModule } from './modules/attachment/attachments.module';
 import { VatValidationModule } from './modules/vat-validation/vat-validation.module';
+import { SystemModule } from './modules/system/system.module';
 
 @Module({
   imports: [
@@ -64,6 +65,7 @@ import { VatValidationModule } from './modules/vat-validation/vat-validation.mod
     ExpenseModule,
     AttachmentsModule,
     VatValidationModule,
+    SystemModule,
     ScheduleModule.forRoot(),
   ],
   providers: [

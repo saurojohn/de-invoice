@@ -2,6 +2,8 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AppModule } from './app.module';
+import { GlobalExceptionFilter } from './modules/system/system.filter';
+import { ErrorTrackingService } from './modules/system/error-tracking.service';
 import helmet from 'helmet';
 import type { Multer } from 'multer';
 
@@ -81,6 +83,12 @@ async function bootstrap() {
       },
     }),
   );
+
+  // Global exception filter — captures every unhandled
+  // backend error into the ErrorEvent table (self-hosted
+  // Sentry). One place, no per-module try/catch boilerplate.
+  const tracker = app.get(ErrorTrackingService);
+  app.useGlobalFilters(new GlobalExceptionFilter(tracker));
 
   const port = configService.get('PORT', 3001);
   await app.listen(port);

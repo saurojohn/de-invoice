@@ -5,9 +5,13 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
+import { useI18n } from "@/components/useI18n"
+import { useToast } from "@/components/useToast"
 
 export default function ForgotPasswordPage() {
   const router = useRouter()
+  const { t } = useI18n()
+  const toast = useToast()
   const [email, setEmail] = useState("")
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
@@ -21,24 +25,30 @@ export default function ForgotPasswordPage() {
     setMessage(null)
 
     if (!isValidEmail(email)) {
-      setError("Bitte geben Sie eine gültige E-Mail-Adresse ein.")
+      setError(t("auth.invalidEmail"))
       return
     }
 
     setLoading(true)
     try {
+      // Pre-auth: no x-user-id/company-id yet, so raw fetch
+      // is correct here (apiFetch would inject empty headers).
       const res = await fetch("http://localhost:3001/api/v1/auth/forgot-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: email.trim().toLowerCase() }),
       })
       const data = await res.json().catch(() => ({}))
-      setMessage(
-        data?.message ||
-          "Falls ein Konto mit dieser E-Mail-Adresse existiert, wurde ein Link zum Zurücksetzen des Passworts versendet."
-      )
+      // Backend returns the same generic message regardless of
+      // whether the email is registered — that's deliberate
+      // (don't leak which accounts exist). Use it as-is.
+      const msg = data?.message || t("auth.forgotEmailSent")
+      setMessage(msg)
+      toast.success(msg)
     } catch {
-      setError("Netzwerkfehler. Bitte versuchen Sie es erneut.")
+      const msg = t("auth.networkError")
+      setError(msg)
+      toast.error(msg)
     } finally {
       setLoading(false)
     }
@@ -48,13 +58,12 @@ export default function ForgotPasswordPage() {
     <main className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle className="text-center text-2xl">Passwort zurücksetzen</CardTitle>
+          <CardTitle className="text-center text-2xl">{t("auth.forgotTitle")}</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4" autoComplete="on">
             <p className="text-sm text-gray-600 dark:text-gray-300">
-              Geben Sie Ihre E-Mail-Adresse ein. Wir senden Ihnen einen Link, mit dem Sie
-              ein neues Passwort festlegen können. Der Link ist 1 Stunde gültig.
+              {t("auth.forgotIntro")}
             </p>
 
             {message && (
@@ -76,7 +85,7 @@ export default function ForgotPasswordPage() {
 
             <div>
               <label className="block text-sm font-medium mb-1" htmlFor="email">
-                E-Mail-Adresse
+                {t("auth.email")}
               </label>
               <Input
                 id="email"
@@ -94,12 +103,12 @@ export default function ForgotPasswordPage() {
             </div>
 
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Wird gesendet…" : "Link anfordern"}
+              {loading ? t("auth.forgotSending") : t("auth.forgotRequest")}
             </Button>
 
             <p className="text-center text-sm">
               <a href="/login" className="text-blue-600 hover:underline">
-                ← Zurück zur Anmeldung
+                ← {t("auth.backToLogin")}
               </a>
             </p>
           </form>

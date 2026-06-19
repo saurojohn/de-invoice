@@ -1,11 +1,18 @@
-import { Controller, Get, Post, Put, Body, Param, Query, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Body, Param, Query, BadRequestException, Req } from '@nestjs/common';
 import { ReminderService } from './reminder.service';
+import { AutoReminderService } from './auto-reminder.scheduler';
+import { PrismaService } from '../../prisma/prisma.service';
 import { Auth, Require } from '../../auth/roles.decorator';
+import { Request } from 'express';
 
 @Auth()
 @Controller('reminders')
 export class ReminderController {
-  constructor(private readonly reminderService: ReminderService) {}
+  constructor(
+    private readonly reminderService: ReminderService,
+    private readonly autoReminder: AutoReminderService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   @Get('overdue')
   @Require('invoice.read')
@@ -174,5 +181,77 @@ export class ReminderController {
       reminderId: reminder.id,
       message: 'Erinnerung wurde erfolgreich gesendet',
     };
+  }
+
+  /**
+   * Manually trigger the daily auto-reminder cron for
+   * one company. Admin-only. Bypasses DISABLE_CRON env
+   * so an admin can still test the flow after disabling
+   * the daily run. Same idempotency / per-company toggle
+   * rules as the scheduled run.
+   */
+  @Post('auto-run')
+  @Require('users.read')
+  async runAutoReminder(@Query('companyId') companyId: string) {
+    if (!companyId) {
+      throw new BadRequestException('companyId ist erforderlich');
+    }
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const sent = await this.autoReminder.runForCompany(companyId, today);
+    return {
+      ok: true,
+      sent,
+      message:
+        sent === 0
+          ? 'Keine überfälligen Rechnungen, die gemahnt werden müssen.'
+          : `${sent} Mahnung${sent === 1 ? '' : 'en'} versendet.`,
+    };
+  }
+
+  /**
+   * Per-company toggle for the daily auto-reminder.
+   * Read returns the current state (default: true).
+   * Write requires admin; persists to Company.settings.autoReminderEnabled.
+   */
+  @Get('auto-settings')
+  @Require('users.read')
+  async getAutoSettings(@Query('companyId') companyId: string) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich');
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { settings: true },
+    });
+    const settings = (company?.settings as any) || {};
+    return {
+      autoReminderEnabled: settings.autoReminderEnabled !== false, // default true
+    };
+  }
+
+  @Put('auto-settings')
+  @Require('users.read')
+  async setAutoSettings(
+    @Query('companyId') companyId: string,
+    @Body() body: { autoReminderEnabled: boolean },
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich');
+    if (typeof body?.autoReminderEnabled !== 'boolean') {
+      throw new BadRequestException('autoReminderEnabled (boolean) ist erforderlich');
+    }
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { settings: true },
+    });
+    const current = (company?.settings as any) || {};
+    await this.prisma.company.update({
+      where: { id: companyId },
+      data: {
+        settings: {
+          ...current,
+          autoReminderEnabled: body.autoReminderEnabled,
+        },
+      },
+    });
+    return { ok: true, autoReminderEnabled: body.autoReminderEnabled };
   }
 }

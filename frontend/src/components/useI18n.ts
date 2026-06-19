@@ -61,13 +61,28 @@ export function useI18n() {
   // silent bug we want to surface (raw key text in the UI is
   // a clear sign a translation is missing, much better than
   // empty string or undefined).
-  const t = (key: string): string => {
+  //
+  // Optional `vars` performs simple {name} substitution on the
+  // resolved string, e.g.
+  //   t("auth.attemptsLeft", { count: "3" })
+  //   → "Noch 3 verbleibende Versuche"
+  // The value is always stringified, so callers can pass
+  // numbers without wrapping them. Missing variables stay
+  // literal (we never throw on missing interpolation) — that
+  // way a translation that didn't reference the variable just
+  // shows the original text, which is what translators expect.
+  const t = (key: string, vars?: Record<string, string | number>): string => {
     const keys = key.split(".")
     let value: any = messages[locale]
     for (const k of keys) {
       value = value?.[k]
     }
-    return value || key
+    if (typeof value !== "string") return value || key
+    if (!vars) return value
+    return Object.entries(vars).reduce(
+      (acc, [k, v]) => acc.replace(new RegExp(`\\{${k}\\}`, "g"), String(v)),
+      value,
+    )
   }
 
   const switchLocale = (code: string) => {

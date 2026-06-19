@@ -5,11 +5,15 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
+import { useI18n } from "@/components/useI18n"
+import { useToast } from "@/components/useToast"
 
 export default function ResetPasswordPage() {
   const router = useRouter()
   const search = useSearchParams()
   const token = search.get("token") || ""
+  const { t } = useI18n()
+  const toast = useToast()
 
   const [password, setPassword] = useState("")
   const [confirm, setConfirm] = useState("")
@@ -19,10 +23,12 @@ export default function ResetPasswordPage() {
 
   useEffect(() => {
     if (!token) {
-      setError(
-        "Kein Token gefunden. Bitte fordern Sie einen neuen Link über die Passwort-vergessen-Seite an."
-      )
+      setError(t("auth.resetNoToken"))
     }
+    // t() identity changes on locale switch but the
+    // error message is the same shape in all locales
+    // for this branch, so leaving deps empty is safe.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token])
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -31,20 +37,29 @@ export default function ResetPasswordPage() {
     setSuccess(null)
 
     if (password.length < 8) {
-      setError("Passwort muss mindestens 8 Zeichen lang sein.")
+      const msg = t("auth.resetMinLength")
+      setError(msg)
+      toast.error(msg)
       return
     }
     if (!/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) {
-      setError("Passwort muss Buchstaben und Zahlen enthalten.")
+      const msg = t("auth.resetNeedsLetterAndNumber")
+      setError(msg)
+      toast.error(msg)
       return
     }
     if (password !== confirm) {
-      setError("Passwörter stimmen nicht überein.")
+      const msg = t("auth.passwordMismatch")
+      setError(msg)
+      toast.error(msg)
       return
     }
 
     setLoading(true)
     try {
+      // Pre-auth: no x-user-id/company-id yet, so raw
+      // fetch is correct here (apiFetch would inject
+      // empty headers).
       const res = await fetch("http://localhost:3001/api/v1/auth/reset-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -52,15 +67,19 @@ export default function ResetPasswordPage() {
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        setError(data?.message || "Token ungültig oder abgelaufen.")
+        const msg = data?.message || t("auth.resetInvalidToken")
+        setError(msg)
+        toast.error(msg)
         return
       }
-      setSuccess(
-        data?.message || "Passwort wurde aktualisiert. Sie können sich jetzt anmelden."
-      )
+      const msg = data?.message || t("auth.resetSuccess")
+      setSuccess(msg)
+      toast.success(msg)
       setTimeout(() => router.push("/login"), 2000)
     } catch {
-      setError("Netzwerkfehler. Bitte versuchen Sie es erneut.")
+      const msg = t("auth.networkError")
+      setError(msg)
+      toast.error(msg)
     } finally {
       setLoading(false)
     }
@@ -70,12 +89,12 @@ export default function ResetPasswordPage() {
     <main className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle className="text-center text-2xl">Neues Passwort festlegen</CardTitle>
+          <CardTitle className="text-center text-2xl">{t("auth.resetTitle")}</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4" autoComplete="on">
             <p className="text-sm text-gray-600 dark:text-gray-300">
-              Wählen Sie ein neues Passwort (mindestens 8 Zeichen, mit Buchstaben und Zahlen).
+              {t("auth.resetIntro")}
             </p>
 
             {success && (
@@ -97,7 +116,7 @@ export default function ResetPasswordPage() {
 
             <div>
               <label className="block text-sm font-medium mb-1" htmlFor="password">
-                Neues Passwort
+                {t("auth.resetNewPassword")}
               </label>
               <Input
                 id="password"
@@ -107,7 +126,7 @@ export default function ResetPasswordPage() {
                 maxLength={128}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Mindestens 8 Zeichen"
+                placeholder={t("auth.resetNewPasswordPlaceholder")}
                 required
                 disabled={loading || !token || !!success}
               />
@@ -115,7 +134,7 @@ export default function ResetPasswordPage() {
 
             <div>
               <label className="block text-sm font-medium mb-1" htmlFor="confirm">
-                Passwort bestätigen
+                {t("auth.resetConfirmPassword")}
               </label>
               <Input
                 id="confirm"
@@ -125,7 +144,7 @@ export default function ResetPasswordPage() {
                 maxLength={128}
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
-                placeholder="Passwort wiederholen"
+                placeholder={t("auth.resetConfirmPlaceholder")}
                 required
                 disabled={loading || !token || !!success}
               />
@@ -136,12 +155,12 @@ export default function ResetPasswordPage() {
               className="w-full"
               disabled={loading || !token || !!success}
             >
-              {loading ? "Wird gespeichert…" : "Passwort speichern"}
+              {loading ? t("auth.resetSaving") : t("auth.resetSave")}
             </Button>
 
             <p className="text-center text-sm">
               <a href="/login" className="text-blue-600 hover:underline">
-                ← Zurück zur Anmeldung
+                ← {t("auth.backToLogin")}
               </a>
             </p>
           </form>
