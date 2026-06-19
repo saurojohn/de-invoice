@@ -333,7 +333,11 @@
     "datevMandantenNr": "Mandanten-Nr (5 digits)",
     "datevSaved": "DATEV accounts saved.",
     "datevSaveError": "Save failed.",
-    "datevReset": "Reset to SKR03 defaults"
+    "datevReset": "Reset to SKR03 defaults",
+    "logoLargeWarning": "Note: the logo is {w}×{h} px. Recommended: max. 1500 px, otherwise the PDF file becomes unnecessarily large.",
+    "removeLogoConfirm": "Really remove the logo?",
+    "logoRemoved": "Logo removed",
+    "removeLogoError": "Could not remove the logo"
   },
   "auth": {
     "login": "Login",

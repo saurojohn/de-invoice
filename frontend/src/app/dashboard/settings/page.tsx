@@ -7,6 +7,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
+import { useToast } from "@/components/useToast"
 import { apiGet, apiPost, apiPut, apiDelete, apiFetch, ApiError } from "@/lib/api"
 
 interface StorageSettings {
@@ -76,6 +77,7 @@ interface CompanySettings {
 export default function SettingsPage() {
   const router = useRouter()
   const { t, locale, getDateLocale } = useI18n()
+  const toast = useToast()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [companyId, setCompanyId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -461,14 +463,37 @@ export default function SettingsPage() {
 
     // Validate file type
     if (!file.type.startsWith("image/")) {
-      alert(t("settings.invalidFileType"))
+      const msg = t("settings.invalidFileType")
+      toast.error(msg)
       return
     }
 
     // Validate file size (max 2MB)
     if (file.size > 2 * 1024 * 1024) {
-      alert(t("settings.fileTooLarge"))
+      const msg = t("settings.fileTooLarge")
+      toast.error(msg)
       return
+    }
+
+    // Validate image dimensions. A logo of 4000x4000 pixels
+    // is technically valid but bloats the rendered PDF
+    // (PDFKit downscales, but the embedded base64 image
+    // is large). We soft-warn above 1500px on the long
+    // edge — the user gets a toast but the upload still
+    // proceeds. A real product would resize server-side;
+    // we leave that as a follow-up.
+    const dimensions = await readImageDimensions(file).catch(() => null)
+    if (dimensions) {
+      const longEdge = Math.max(dimensions.width, dimensions.height)
+      if (longEdge > 1500) {
+        toast.warn(
+          t("settings.logoLargeWarning", {
+            w: String(dimensions.width),
+            h: String(dimensions.height),
+          }) ||
+            `Logo ist ${dimensions.width}×${dimensions.height} px. Empfohlen: ≤ 1500 px.`,
+        )
+      }
     }
 
     setUploadProgress(true)
@@ -496,23 +521,54 @@ export default function SettingsPage() {
       const data = await res.json()
 
       if (res.ok) {
-        setCurrentLogo(`/images/${data.filename}`)
+        // Cache-bust the preview URL so the browser doesn't
+        // serve the previous logo from its HTTP cache after
+        // a re-upload of a new file with the same name.
+        // (Backend now uses a unique filename per upload,
+        // but cache-bust here is defence in depth.)
+        setCurrentLogo(`/images/${data.filename}?t=${Date.now()}`)
         setForm({ ...form, logoPath: data.filename })
-        alert(t("settings.logoUploaded"))
+        toast.success(t("settings.logoUploaded"))
       } else {
-        alert(t("settings.uploadError"))
+        const msg = data?.message || t("settings.uploadError")
+        toast.error(msg)
       }
     } catch (error) {
       const msg = error instanceof ApiError ? error.message : t("settings.uploadError")
-      alert(msg)
+      toast.error(msg)
     } finally {
       setUploadProgress(false)
+      // Reset the input so the same file can be re-selected
+      // (browsers fire onchange only on change, not when
+      // the same file is picked twice in a row).
+      if (fileInputRef.current) fileInputRef.current.value = ""
     }
   }
 
-  const removeLogo = () => {
-    setCurrentLogo(null)
-    setForm({ ...form, logoPath: "" })
+  const removeLogo = async () => {
+    if (!companyId) return
+    // Confirm before destroying the user's logo. The old
+    // code just cleared local state and let the user
+    // think it was deleted, but the file stayed on disk
+    // and would reappear on the next GET.
+    if (!confirm(t("settings.removeLogoConfirm") || "Logo wirklich entfernen?")) {
+      return
+    }
+    setUploadProgress(true)
+    try {
+      await apiPost("/api/v1/companies/remove-logo", {})
+      setCurrentLogo(null)
+      setForm({ ...form, logoPath: "" })
+      toast.success(t("settings.logoRemoved") || "Logo entfernt")
+    } catch (error) {
+      const msg =
+        error instanceof ApiError
+          ? error.message
+          : t("settings.uploadError") || "Fehler beim Entfernen"
+      toast.error(msg)
+    } finally {
+      setUploadProgress(false)
+    }
   }
 
   const formatBytes = (bytes: number): string => {
@@ -589,7 +645,7 @@ export default function SettingsPage() {
             <CardContent>
               <div className="flex items-start gap-6">
                 {/* Current Logo Preview */}
-                <div className="w-40 h-40 border-2 border-dashed border-gray dark:border-gray-700-300 dark:border-gray-600 rounded-lg flex items-center justify-center bg-gray-50 dark:bg-gray-900 overflow-hidden">
+                <div className="w-40 h-40 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg flex items-center justify-center bg-gray-50 dark:bg-gray-900 overflow-hidden">
                   {currentLogo ? (
                     <img
                       src={currentLogo}
@@ -1453,4 +1509,33 @@ export default function SettingsPage() {
       </div>
     </main>
   )
+}
+
+/**
+ * Read image dimensions from a File by loading it into a
+ * hidden <img>. Returns { width, height } in pixels or
+ * null on failure. We don't actually USE the dimensions
+ * to enforce a hard limit yet (logos bigger than 1500 px
+ * just get a soft warn) — but having the helper means a
+ * future server-side resize can reuse it via the same
+ * canvas trick.
+ */
+function readImageDimensions(
+  file: File,
+): Promise<{ width: number; height: number } | null> {
+  return new Promise((resolve) => {
+    if (typeof window === "undefined") return resolve(null)
+    const url = URL.createObjectURL(file)
+    const img = new Image()
+    img.onload = () => {
+      const out = { width: img.naturalWidth, height: img.naturalHeight }
+      URL.revokeObjectURL(url)
+      resolve(out)
+    }
+    img.onerror = () => {
+      URL.revokeObjectURL(url)
+      resolve(null)
+    }
+    img.src = url
+  })
 }

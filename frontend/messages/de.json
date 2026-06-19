@@ -422,7 +422,11 @@
     "datevMandantenNr": "Mandanten-Nr (5-stellig)",
     "datevSaved": "DATEV-Konten gespeichert.",
     "datevSaveError": "Fehler beim Speichern.",
-    "datevReset": "Auf SKR03-Standard zurücksetzen"
+    "datevReset": "Auf SKR03-Standard zurücksetzen",
+    "logoLargeWarning": "Hinweis: Das Logo ist {w}×{h} px groß. Empfohlen werden max. 1500 px, sonst wird die PDF-Datei unnötig groß.",
+    "removeLogoConfirm": "Logo wirklich entfernen?",
+    "logoRemoved": "Logo entfernt",
+    "removeLogoError": "Logo konnte nicht entfernt werden"
   },
   "reminder": {
     "title": "Zahlungserinnerungen",

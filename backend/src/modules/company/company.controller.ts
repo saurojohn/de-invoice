@@ -1,4 +1,4 @@
-import { Controller, Get, Put, Post, Body, Param, UseInterceptors, UploadedFile } from '@nestjs/common';
+import { Controller, Get, Put, Post, Body, Param, UseInterceptors, UploadedFile, BadRequestException, Req } from '@nestjs/common';
 import { CompanyService } from './company.service';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -11,6 +11,7 @@ import {
 } from '../reports/datev.service';
 import * as fs from 'fs';
 import * as path from 'path';
+import { Request } from 'express';
 
 @Controller('companies')
 export class CompanyController {
@@ -97,25 +98,47 @@ export class CompanyController {
     limits: { fileSize: 2 * 1024 * 1024 }, // 2MB limit
   }))
   async uploadLogo(
+    @Req() req: Request,
     @UploadedFile() file: Express.Multer.File,
     @Body('companyId') companyId: string,
   ) {
     if (!file) {
-      return { error: 'No file uploaded' };
+      throw new BadRequestException('Keine Datei hochgeladen');
     }
     if (!companyId) {
-      return { error: 'companyId ist erforderlich' };
+      throw new BadRequestException('companyId ist erforderlich');
+    }
+    // Defence in depth: the upload must only update the
+    // caller's own company. x-company-id is verified by
+    // HeaderAuthGuard, so a token from company A can't
+    // upload to company B. We re-check here so this single
+    // endpoint can be read in isolation without the guard.
+    const callerCompanyId = (req.headers['x-company-id'] as string) || '';
+    if (callerCompanyId !== companyId) {
+      throw new BadRequestException(
+        'companyId stimmt nicht mit der aktiven Firma überein',
+      );
     }
 
     // Validate file type
     const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
     if (!allowedTypes.includes(file.mimetype)) {
-      return { error: 'Invalid file type' };
+      throw new BadRequestException(
+        'Ungültiger Dateityp. Erlaubt: JPG, PNG, GIF, WebP.',
+      );
     }
 
-    // Create filename with company prefix and timestamp
-    const ext = path.extname(file.originalname);
-    const filename = `logo${ext}`;
+    // Per-company filename. Previous version used a fixed
+    // `logo${ext}` for every company — multi-tenant would
+    // silently overwrite each other's logo (Company A's
+    // PDF would render Company B's logo). The new naming
+    // is `logo-<companyId8>-<timestamp>${ext}` — the
+    // companyId prefix keeps the files self-documenting
+    // on disk, and the timestamp lets us keep multiple
+    // versions of the same company without conflict.
+    const ext = path.extname(file.originalname) || '.png';
+    const safeExt = ext.toLowerCase().replace(/[^a-z0-9.]/g, '');
+    const filename = `logo-${companyId.slice(0, 8)}-${Date.now()}${safeExt}`;
     // Anchor the upload dir to the source file location, not
     // process.cwd(). The backend is started with
     //   cd backend && npx ts-node src/main.ts
@@ -139,7 +162,28 @@ export class CompanyController {
       fs.mkdirSync(uploadDir, { recursive: true });
     }
 
-    // Save file
+    // Clean up the previous logo file (if any) for this
+    // company. Otherwise a company that uploads logo.png,
+    // then logo.jpg, ends up with both on disk forever
+    // (and the public/ dir fills up over time).
+    const company = await this.companyService.findById(companyId);
+    if (company?.logoPath) {
+      const oldPath = path.join(uploadDir, company.logoPath);
+      // Only delete if it's inside uploadDir (defence
+      // against a tampered logoPath like "../../etc/passwd").
+      if (oldPath.startsWith(uploadDir) && fs.existsSync(oldPath)) {
+        try {
+          fs.unlinkSync(oldPath);
+        } catch {
+          // Best-effort. If the file is locked or already
+          // deleted, we just leave the new one alongside
+          // it — a stray file is better than failing the
+          // upload.
+        }
+      }
+    }
+
+    // Save new file
     const filepath = path.join(uploadDir, filename);
     fs.writeFileSync(filepath, file.buffer);
 
@@ -152,5 +196,44 @@ export class CompanyController {
     await this.companyService.update(companyId, { logoPath: filename });
 
     return { filename, logoPath: filename };
+  }
+
+  /**
+   * Remove the company's logo. Deletes the file on disk
+   * (if it belongs to the per-company upload pattern) AND
+   * sets logoPath=null in the DB. The frontend's removeLogo()
+   * button now wires to this endpoint — previously the
+   * button just cleared the local state and the logo
+   * would reappear after the next GET.
+   */
+  @Auth()
+  @Post('remove-logo')
+  async removeLogo(@Req() req: Request) {
+    const companyId = (req.headers['x-company-id'] as string) || '';
+    if (!companyId) {
+      throw new BadRequestException('x-company-id Header fehlt');
+    }
+    const company = await this.companyService.findById(companyId);
+    if (!company) {
+      throw new BadRequestException('Firma nicht gefunden');
+    }
+    if (company.logoPath) {
+      const uploadDir = path.resolve(
+        __dirname,
+        '..', '..', '..', '..',
+        'frontend', 'public', 'images',
+      );
+      const oldPath = path.join(uploadDir, company.logoPath);
+      if (oldPath.startsWith(uploadDir) && fs.existsSync(oldPath)) {
+        try {
+          fs.unlinkSync(oldPath);
+        } catch {
+          // Same best-effort as in upload — don't fail the
+          // remove just because we couldn't delete the file.
+        }
+      }
+    }
+    await this.companyService.update(companyId, { logoPath: null });
+    return { ok: true, logoPath: null };
   }
 }
