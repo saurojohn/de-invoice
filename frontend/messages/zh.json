@@ -289,7 +289,13 @@
     "resetNewPassword": "新密码",
     "resetNewPasswordPlaceholder": "至少 8 个字符",
     "resetConfirmPassword": "确认密码",
-    "resetConfirmPlaceholder": "再次输入密码"
+    "resetConfirmPlaceholder": "再次输入密码",
+    "verify2faTitle": "输入 2FA 验证码",
+    "verify2faIntro": "输入认证 App 中的 6 位数字验证码。",
+    "verify2faUseRecovery": "或使用 Recovery 代码",
+    "verify2faSubmit": "登录",
+    "verify2faWrong": "代码无效",
+    "verify2faBack": "← 返回登录"
   },
   "errors": {
     "required": "此字段为必填项",
@@ -356,7 +362,9 @@
     "changeUst": "销项税环比",
     "changeVorsteuer": "进项税环比",
     "cardSystemErrorsTitle": "系统错误",
-    "cardSystemErrorsDesc": "查看捕获的后端和前端错误"
+    "cardSystemErrorsDesc": "查看捕获的后端和前端错误",
+    "cardSecurityTitle": "安全 & 2FA",
+    "cardSecurityDesc": "设置两步验证并管理 Recovery 代码"
   },
   "settings": {
     "title": "设置",
@@ -1212,5 +1220,30 @@
     "method": "方法",
     "showStack": "显示堆栈",
     "hideStack": "隐藏堆栈"
+  },
+  "twoFactor": {
+    "title": "两步验证 (2FA)",
+    "subtitle": "使用认证 App 提供的额外验证码保护您的账户。",
+    "statusEnabled": "2FA 已开启",
+    "statusDisabled": "2FA 未开启",
+    "remainingCodes": "剩余 Recovery 代码：{n}",
+    "setup": "设置 2FA",
+    "disable": "关闭 2FA",
+    "scanQR": "用您的认证 App（例如 Google Authenticator、Authy、1Password）扫描这个二维码。",
+    "code": "6 位数字验证码",
+    "codePlaceholder": "123456",
+    "verifyEnable": "验证并开启",
+    "saveCodes": "请将这些代码保存在安全的地方，每个代码只能使用一次。",
+    "codeCopied": "代码已复制",
+    "enterCodeToDisable": "输入 App 中的 6 位数字以关闭 2FA。",
+    "useRecoveryCode": "使用 Recovery 代码",
+    "disableConfirm": "确认要关闭 2FA？账户安全性会降低。",
+    "enterCode": "输入代码",
+    "enterRecoveryCode": "Recovery 代码",
+    "recoveryCodePlaceholder": "XXXX-XXXX-XX",
+    "invalidCode": "代码无效",
+    "setupFailed": "设置失败",
+    "enabled": "2FA 已成功开启。",
+    "disabled": "2FA 已关闭。"
   }
 }

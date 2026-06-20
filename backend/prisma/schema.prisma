@@ -100,6 +100,32 @@ model User {
   passwordResetToken       String?
   passwordResetExpires     DateTime?
 
+  // ─── Two-Factor Authentication (TOTP / RFC 6238) ───
+  // 2FA is opt-in per user. When enabled, login requires
+  // password + a 6-digit code from an authenticator app
+  // (Google Authenticator, Authy, 1Password, etc.) OR a
+  // one-time recovery code.
+  //
+  //   twoFactorEnabled   — user has completed setup
+  //   twoFactorSecret    — base32 TOTP secret. NEVER
+  //                        sent to the frontend after the
+  //                        initial setup response.
+  //   twoFactorConfirmedAt — when the user successfully
+  //                        verified their first code.
+  //                        Before this, login still needs
+  //                        only the password (so a user
+  //                        who started setup but didn't
+  //                        finish isn't locked out).
+  //   recoveryCodes      — JSON array of bcrypt hashes.
+  //                        Each code can be used once. We
+  //                        hand the user 10 plain codes at
+  //                        setup; only the hashes live in
+  //                        the DB.
+  twoFactorEnabled       Boolean   @default(false)
+  twoFactorSecret        String?
+  twoFactorConfirmedAt   DateTime?
+  recoveryCodes          Json?
+
   createdInvoices  Invoice[] @relation("CreatedBy")
   createdVouchers  Voucher[] @relation("CreatedBy")
   auditLogs        AuditLog[]

@@ -133,6 +133,19 @@ export class AuthController {
         },
       });
     } catch { /* ignore */ }
+    // 2FA gate: if the user has TOTP enabled, the password
+    // is correct but we don't issue the session yet —
+    // return a 200 with twoFactorRequired:true so the
+    // frontend can prompt for the 6-digit code. We use 200
+    // (not 401) because the password WAS correct; the
+    // response shape is the same so the frontend just
+    // branches on twoFactorRequired.
+    if (user.twoFactorEnabled && user.twoFactorConfirmedAt) {
+      return {
+        twoFactorRequired: true,
+        email: user.email,
+      } as any
+    }
     // SECURITY: never leak passwordHash / passwordResetToken /
     // passwordResetExpires to the client. The login route is
     // public; even authenticated users should not see their own

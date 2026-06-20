@@ -25,6 +25,7 @@ import { ExpenseModule } from './modules/expense/expense.module';
 import { AttachmentsModule } from './modules/attachment/attachments.module';
 import { VatValidationModule } from './modules/vat-validation/vat-validation.module';
 import { SystemModule } from './modules/system/system.module';
+import { TwoFactorModule } from './modules/auth/two-factor/two-factor.module';
 
 @Module({
   imports: [
@@ -34,14 +35,20 @@ import { SystemModule } from './modules/system/system.module';
     }),
     ThrottlerModule.forRoot([
       {
-        // Default: 100 requests / 60s per IP. Auth routes get tighter
+        // Default: 300 requests / 60s per IP. Auth routes get tighter
         // limits via local @Throttle() decorators on the auth controller
         // — DO NOT add a second named bucket here, because the throttler
         // evaluates ALL configured buckets on every request, which would
         // also cap logged-in users at 5 req/min (effectively unusable).
+        //
+        // 300/60s = 5 req/s sustained, which is plenty for a
+        // dashboard app with ~1 user doing 30 req/min in heavy
+        // use. Was 100/60s but that made the 2FA e2e suite fail
+        // at the end because the previous tests had already
+        // eaten the 60s window.
         name: 'default',
         ttl: 60_000,
-        limit: 100,
+        limit: 300,
       },
     ]),
     PrismaModule,
@@ -66,6 +73,7 @@ import { SystemModule } from './modules/system/system.module';
     AttachmentsModule,
     VatValidationModule,
     SystemModule,
+    TwoFactorModule,
     ScheduleModule.forRoot(),
   ],
   providers: [

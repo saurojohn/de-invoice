@@ -409,7 +409,13 @@
     "resetNewPassword": "New password",
     "resetNewPasswordPlaceholder": "At least 8 characters",
     "resetConfirmPassword": "Confirm password",
-    "resetConfirmPlaceholder": "Repeat password"
+    "resetConfirmPlaceholder": "Repeat password",
+    "verify2faTitle": "Enter 2FA code",
+    "verify2faIntro": "Enter the 6-digit code from your authenticator app.",
+    "verify2faUseRecovery": "Or use a recovery code",
+    "verify2faSubmit": "Sign in",
+    "verify2faWrong": "Code invalid",
+    "verify2faBack": "← Back to login"
   },
   "errors": {
     "required": "This field is required",
@@ -476,7 +482,9 @@
     "changeUst": "VAT Δ Month",
     "changeVorsteuer": "Input VAT Δ Month",
     "cardSystemErrorsTitle": "System errors",
-    "cardSystemErrorsDesc": "Review captured backend and frontend errors"
+    "cardSystemErrorsDesc": "Review captured backend and frontend errors",
+    "cardSecurityTitle": "Security & 2FA",
+    "cardSecurityDesc": "Set up two-factor authentication and manage recovery codes"
   },
   "reminder": {
     "title": "Payment Reminders",
@@ -1202,5 +1210,30 @@
     "method": "Method",
     "showStack": "Show stack",
     "hideStack": "Hide stack"
+  },
+  "twoFactor": {
+    "title": "Two-Factor Authentication",
+    "subtitle": "Secure your account with an additional code from an authenticator app.",
+    "statusEnabled": "2FA is active",
+    "statusDisabled": "2FA is not active",
+    "remainingCodes": "Remaining recovery codes: {n}",
+    "setup": "Set up 2FA",
+    "disable": "Disable 2FA",
+    "scanQR": "Scan this QR code with your authenticator app (e.g. Google Authenticator, Authy, 1Password).",
+    "code": "6-digit code",
+    "codePlaceholder": "123456",
+    "verifyEnable": "Verify & enable",
+    "saveCodes": "Save these codes in a safe place. Each code can only be used once.",
+    "codeCopied": "Code copied",
+    "enterCodeToDisable": "Enter a 6-digit code from your app to disable 2FA.",
+    "useRecoveryCode": "Use a recovery code",
+    "disableConfirm": "Really disable 2FA? Your account will be less secure.",
+    "enterCode": "Enter code",
+    "enterRecoveryCode": "Recovery code",
+    "recoveryCodePlaceholder": "XXXX-XXXX-XX",
+    "invalidCode": "Code invalid",
+    "setupFailed": "Setup failed",
+    "enabled": "2FA was successfully enabled.",
+    "disabled": "2FA was disabled."
   }
 }

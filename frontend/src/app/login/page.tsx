@@ -77,6 +77,16 @@ export default function LoginPage() {
       }
 
       const data = await res.json()
+      // 2FA gate: if the password was right but 2FA is
+      // on, the server returned twoFactorRequired:true
+      // instead of { id, email, companyId }. Stash the
+      // email so /verify-2fa can re-use it without the
+      // user re-typing, and route to the 2FA page.
+      if (data?.twoFactorRequired) {
+        localStorage.setItem("pending2faEmail", data.email || form.email.toLowerCase())
+        router.push(`/login/verify-2fa?email=${encodeURIComponent(data.email || form.email)}`)
+        return
+      }
       localStorage.setItem("userId", data.id)
       localStorage.setItem("userEmail", data.email || "")
       localStorage.setItem("companyId", data.companyId)

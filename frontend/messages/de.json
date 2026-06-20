@@ -287,7 +287,13 @@
     "resetNewPassword": "Neues Passwort",
     "resetNewPasswordPlaceholder": "Mindestens 8 Zeichen",
     "resetConfirmPassword": "Passwort bestätigen",
-    "resetConfirmPlaceholder": "Passwort wiederholen"
+    "resetConfirmPlaceholder": "Passwort wiederholen",
+    "verify2faTitle": "Zwei-Faktor-Code eingeben",
+    "verify2faIntro": "Geben Sie den 6-stelligen Code aus Ihrer Authenticator-App ein.",
+    "verify2faUseRecovery": "Oder Recovery-Code verwenden",
+    "verify2faSubmit": "Anmelden",
+    "verify2faWrong": "Code ungültig",
+    "verify2faBack": "← Zurück zur Anmeldung"
   },
   "errors": {
     "required": "Dieses Feld ist erforderlich",
@@ -354,7 +360,9 @@
     "changeUst": "USt Δ Monat",
     "changeVorsteuer": "Vorsteuer Δ Monat",
     "cardSystemErrorsTitle": "Systemfehler",
-    "cardSystemErrorsDesc": "Erfasste Fehler aus Backend und Frontend prüfen"
+    "cardSystemErrorsDesc": "Erfasste Fehler aus Backend und Frontend prüfen",
+    "cardSecurityTitle": "Sicherheit & 2FA",
+    "cardSecurityDesc": "Zwei-Faktor-Authentifizierung einrichten und Recovery-Codes verwalten"
   },
   "settings": {
     "title": "Einstellungen",
@@ -1210,5 +1218,30 @@
     "method": "Methode",
     "showStack": "Stack anzeigen",
     "hideStack": "Stack verbergen"
+  },
+  "twoFactor": {
+    "title": "Zwei-Faktor-Authentifizierung",
+    "subtitle": "Sichern Sie Ihr Konto mit einem zusätzlichen Code aus einer Authenticator-App.",
+    "statusEnabled": "2FA ist aktiv",
+    "statusDisabled": "2FA ist nicht aktiv",
+    "remainingCodes": "Verbleibende Recovery-Codes: {n}",
+    "setup": "2FA einrichten",
+    "disable": "2FA deaktivieren",
+    "scanQR": "Scannen Sie diesen QR-Code mit Ihrer Authenticator-App (z. B. Google Authenticator, Authy, 1Password).",
+    "code": "6-stelliger Code",
+    "codePlaceholder": "123456",
+    "verifyEnable": "Bestätigen & aktivieren",
+    "saveCodes": "Speichern Sie diese Codes an einem sicheren Ort. Jeder Code kann nur einmal verwendet werden.",
+    "codeCopied": "Code kopiert",
+    "enterCodeToDisable": "Geben Sie einen 6-stelligen Code aus Ihrer App ein, um 2FA zu deaktivieren.",
+    "useRecoveryCode": "Recovery-Code verwenden",
+    "disableConfirm": "2FA wirklich deaktivieren? Ihr Konto ist dann weniger sicher.",
+    "enterCode": "Code eingeben",
+    "enterRecoveryCode": "Recovery-Code",
+    "recoveryCodePlaceholder": "XXXX-XXXX-XX",
+    "invalidCode": "Code ungültig",
+    "setupFailed": "Setup fehlgeschlagen",
+    "enabled": "2FA wurde erfolgreich aktiviert.",
+    "disabled": "2FA wurde deaktiviert."
   }
 }
