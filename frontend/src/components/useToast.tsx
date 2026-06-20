@@ -37,6 +37,14 @@ export interface Toast {
   kind: ToastKind
   message: string
   duration: number
+  /** When the (latest instance of) this toast first appeared.
+   *  Used by the collapse-on-dup logic to decide whether a
+   *  new identical message should bump `count` or open a
+   *  fresh toast. */
+  startedAt: number
+  /** Number of identical messages collapsed into this toast.
+   *  Renders as "×N" so the user can tell it was repeated. */
+  count?: number
 }
 
 interface ToastApi {
@@ -60,12 +68,40 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     setToasts((prev) => prev.filter((t) => t.id !== id))
   }, [])
 
+  // Collapse identical toasts that arrive within 1.5s into
+  // a single toast with a "×N" badge. Without this, a
+  // throttled endpoint that fires 10 toasts in 3s looks
+  // like the page is broken (a wall of red). With this,
+  // the user sees "Zu viele Anfragen ×10" once.
   const show = useCallback<ToastApi["show"]>(
     (message, opts = {}) => {
       const kind: ToastKind = opts.kind ?? "info"
       const duration = opts.duration ?? (kind === "error" ? 6000 : 4000)
-      const id = nextId()
-      setToasts((prev) => [...prev, { id, kind, message, duration }])
+      setToasts((prev) => {
+        const last = prev[prev.length - 1]
+        const now = Date.now()
+        if (
+          last &&
+          last.message === message &&
+          last.kind === kind &&
+          now - last.startedAt < 1500
+        ) {
+          // Bump count on the existing toast and reset its
+          // timer so the user has time to read.
+          const updated: Toast = {
+            ...last,
+            count: (last.count ?? 1) + 1,
+            startedAt: now,
+            duration: Math.min(duration + 1500, 9000),
+          }
+          return [...prev.slice(0, -1), updated]
+        }
+        const id = nextId()
+        return [
+          ...prev,
+          { id, kind, message, duration, startedAt: now, count: 1 },
+        ]
+      })
     },
     [],
   )
@@ -189,7 +225,14 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: number)
       >
         {KIND_ICONS[toast.kind]}
       </span>
-      <p className="flex-1 leading-snug break-words">{toast.message}</p>
+      <p className="flex-1 leading-snug break-words">
+        {toast.message}
+        {toast.count && toast.count > 1 && (
+          <span className="ml-2 inline-block px-1.5 py-0.5 rounded-full bg-black/20 dark:bg-white/20 text-xs font-semibold">
+            ×{toast.count}
+          </span>
+        )}
+      </p>
       <button
         onClick={() => setLeaving(true)}
         aria-label="Schließen"

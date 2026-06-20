@@ -35,20 +35,24 @@ import { TwoFactorModule } from './modules/auth/two-factor/two-factor.module';
     }),
     ThrottlerModule.forRoot([
       {
-        // Default: 300 requests / 60s per IP. Auth routes get tighter
+        // Default: 600 requests / 60s per IP. Auth routes get tighter
         // limits via local @Throttle() decorators on the auth controller
         // — DO NOT add a second named bucket here, because the throttler
         // evaluates ALL configured buckets on every request, which would
         // also cap logged-in users at 5 req/min (effectively unusable).
         //
-        // 300/60s = 5 req/s sustained, which is plenty for a
-        // dashboard app with ~1 user doing 30 req/min in heavy
-        // use. Was 100/60s but that made the 2FA e2e suite fail
-        // at the end because the previous tests had already
-        // eaten the 60s window.
+        // 600/60s = 10 req/s sustained. Plenty for a single user
+        // (≤30 req/min in heavy use). Behind a corporate proxy
+        // shared by 50 employees, this is roughly 0.2 req/s per user
+        // — comfortable. Was 100/60s (too tight for the 2FA e2e
+        // suite which generates 20+ requests in 60s), then 300/60s
+        // (still tight for run-all + a real user), now 600/60s.
+        // If you need to tune this for a specific deployment,
+        // consider per-user limits via a custom throttler storage
+        // (Redis) rather than a higher number here.
         name: 'default',
         ttl: 60_000,
-        limit: 300,
+        limit: 600,
       },
     ]),
     PrismaModule,
