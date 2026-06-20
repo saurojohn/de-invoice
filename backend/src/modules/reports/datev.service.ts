@@ -69,10 +69,22 @@ export const SKR03_DEFAULTS: DatevAccountMap = {
   revenue0: '8125',             // Erlöse 0% (igL)
   vatPayable19: '1776',         // USt 19% (Verbindlichkeit)
   vatPayable7: '1760',          // USt 7%
-  inputVat19: '1576',           // Vorsteuer 19%
-  inputVat7: '1577',           // Vorsteuer 7%
-  inputVatIgE: '1578',         // Vorsteuer igE
-  inputVatReverseCharge: '1780', // Vorsteuer §13b
+  inputVat19: '1576',           // Vorsteuer 19% (Bezugskonto)
+  inputVat7: '1577',           // Vorsteuer 7%  (Bezugskonto)
+  // Vorsteuer aus innergemeinschaftlichem Erwerb
+  // (IgE, §1a UStG). Standard SKR03: 1782. The user
+  // may override if their Berater uses a different
+  // mapping.
+  inputVatIgE: '1782',
+  // §13b UStG: the Leistungsempfänger (we) owes VAT
+  // ourselves. Standard SKR03: 1780
+  // (Umsatzsteuer-Vorauszahlungen) is the typical
+  // booking account because §13b UStG mirrors the
+  // §17c UStG — VAT we owe goes to the same clearing
+  // account as the USt we owe from our own sales.
+  // Some Berater use 1787; that's why this is
+  // configurable.
+  inputVatReverseCharge: '1780',
   expenseDefault: '4900',      // Sonstige betriebliche Aufwendungen
 }
 
@@ -121,6 +133,48 @@ export interface DatevExportInput {
   // The list of normalized Buchungssätze. Each one
   // maps to ONE DATEV data line.
   buchungen: BuchungsSatz[]
+  // Sequential counter per calendar year per
+  // Berater-Mandant. The Berater's DATEV client keys
+  // on this for duplicate detection — if the same
+  // Buchungslauf is re-imported, DATEV complains.
+  // We default to "1" so a manual export without a
+  // stored counter still produces a valid file. A
+  // cron-driven export would persist + increment a
+  // counter in `Company.settings.datev.laufNr` to
+  // avoid collisions.
+  buchungsLaufNr?: number
+  // Eröffnungsbuchungen — opening balances for SKR03
+  // accounts that are carried into the new fiscal year.
+  // In DATEV terminology, these are "EB-Werte" (Eröffnungs-
+  // bilanzwerte) and go on the FIRST Buchungslauf of the
+  // year, dated 01.01. Typically one line per
+  // Bilanzkonto with the Soll/Haben-Vz matching the
+  // natural balance. The Berater's DATEV client uses
+  // these to seed the new-year Saldenliste. We
+  // prepend these to the regular Buchungen in the
+  // generator so the caller's `buchungen` array can
+  // stay clean.
+  openingBalances?: OpeningBuchungsSatz[]
+}
+
+/**
+ * Opening balance (Eröffnungsbuchung) for a single
+ * SKR03 account. These go on Buchungslauf 1 of the
+ * year, dated 01.01. The S/H-Vz encodes the side:
+ * "S" = Soll (positive balance on konto — typical
+ * for assets, expenses, receivables), "H" = Haben
+ * (typical for liabilities, equity, payables).
+ */
+export interface OpeningBuchungsSatz {
+  // 4-digit SKR03 account number
+  konto: string
+  // Positive amount in EUR
+  betrag: number
+  // "S" = Soll, "H" = Haben
+  shVz: 'S' | 'H'
+  // Free-text reason (e.g. "EB-Wert 2026", "Saldo
+  // aus 2025 übernommen")
+  buchungstext: string
 }
 
 export interface BuchungsSatz {
@@ -145,11 +199,28 @@ export interface BuchungsSatz {
   // Text
   buchungstext: string
   // Optional fields
-  kost1?: string           // Kostenstelle 1
-  kost2?: string           // Kostenstelle 2
+  kost1?: string           // Kostenstelle 1 (DATEV column 12)
+  kost2?: string           // Kostenträger  (DATEV column 13)
   // VAT (skr03 standard)
   ustSchluessel?: string   // 0/1/2/3 (steuerfrei/0/7/19)
   ustBetrag?: number
+  // Currency (DATEV column 16 = Währungskürzel, column 17 = Kurs).
+  // Defaults to "EUR" + "1.0000" — only set differently for
+  // foreign-currency invoices. The Berater's DATEV client
+  // typically auto-derives EUR ↔ home-currency when
+  // currency = EUR, so non-EUR values get the explicit
+  // rate so the import doesn't guess.
+  currency?: string
+  exchangeRate?: number
+  // Payment method (DATEV column 14 — "Zahlungsweg"). Free
+  // text but DATEV imports typically recognise "Bank",
+  // "Bar", "SEPA", "Lastschrift", "Kreditkarte". Empty
+  // means "not specified" which is fine.
+  paymentMethod?: string
+  // Optional: 3-digit ISO country code (DATEV column 21).
+  // Used for EU/Non-EU transactions to support reverse
+  // charge and IgE logic on the DATEV side.
+  countryCode?: string
 }
 
 function pad(s: string | number, len: number, align: 'left' | 'right' = 'left'): string {
@@ -185,21 +256,171 @@ function csvEscape(s: string): string {
 }
 
 /**
+ * Map a country name (as it appears in the Customer /
+ * Supplier `address.country` field) to its ISO 3166-1
+ * alpha-3 code. DATEV column 21 ("ISO-Ländercode") needs
+ * the 3-letter form ("DEU", "AUT", "CHE", "CHN"…).
+ *
+ * This is a best-effort mapping covering the common
+ * German addresses — there's no canonical mapping in
+ * the existing schema. Unknown values return "" (DATEV
+ * accepts blank, the user can fill in by hand if the
+ * row is non-EU).
+ */
+function mapCountryToIso3(country?: string | null): string {
+  if (!country) return ''
+  // Normalize: trim + lowercase for the lookup.
+  const key = country.trim().toLowerCase()
+  const m: Record<string, string> = {
+    // DE
+    'deutschland': 'DEU',
+    'germany': 'DEU',
+    'de': 'DEU',
+    'deu': 'DEU',
+    // EU
+    'österreich': 'AUT',
+    'austria': 'AUT',
+    'at': 'AUT',
+    'aut': 'AUT',
+    'schweiz': 'CHE',
+    'switzerland': 'CHE',
+    'ch': 'CHE',
+    'che': 'CHE',
+    'frankreich': 'FRA',
+    'france': 'FRA',
+    'fr': 'FRA',
+    'fra': 'FRA',
+    'italien': 'ITA',
+    'italy': 'ITA',
+    'it': 'ITA',
+    'ita': 'ITA',
+    'niederlande': 'NLD',
+    'netherlands': 'NLD',
+    'nl': 'NLD',
+    'nld': 'NLD',
+    'belgien': 'BEL',
+    'belgium': 'BEL',
+    'be': 'BEL',
+    'bel': 'BEL',
+    'luxemburg': 'LUX',
+    'luxembourg': 'LUX',
+    'lu': 'LUX',
+    'lux': 'LUX',
+    'polen': 'POL',
+    'poland': 'POL',
+    'pl': 'POL',
+    'pol': 'POL',
+    'tschechien': 'CZE',
+    'czechia': 'CZE',
+    'czech republic': 'CZE',
+    'cz': 'CZE',
+    'cze': 'CZE',
+    'spanien': 'ESP',
+    'spain': 'ESP',
+    'es': 'ESP',
+    'esp': 'ESP',
+    'portugal': 'PRT',
+    'pt': 'PRT',
+    'prt': 'PRT',
+    'dänemark': 'DNK',
+    'denmark': 'DNK',
+    'dk': 'DNK',
+    'dnk': 'DNK',
+    'schweden': 'SWE',
+    'sweden': 'SWE',
+    'se': 'SWE',
+    'swe': 'SWE',
+    'finnland': 'FIN',
+    'finland': 'FIN',
+    'fi': 'FIN',
+    'fin': 'FIN',
+    'irland': 'IRL',
+    'ireland': 'IRL',
+    'ie': 'IRL',
+    'irl': 'IRL',
+    // Non-EU (DATEV column 21 is also relevant for these —
+    // Drittland case)
+    'usa': 'USA',
+    'united states': 'USA',
+    'vereinigte staaten': 'USA',
+    'us': 'USA',
+    'großbritannien': 'GBR',
+    'grossbritannien': 'GBR',
+    'united kingdom': 'GBR',
+    'uk': 'GBR',
+    'gb': 'GBR',
+    'gbr': 'GBR',
+    'china': 'CHN',
+    'cn': 'CHN',
+    'chn': 'CHN',
+    'türkei': 'TUR',
+    'turkey': 'TUR',
+    'tr': 'TUR',
+    'tur': 'TUR',
+    'russland': 'RUS',
+    'russia': 'RUS',
+    'ru': 'RUS',
+    'rus': 'RUS',
+  }
+  return m[key] || ''
+}
+
+/**
  * Generate a complete DATEV Buchungsstapel CSV string.
  * Returned as ASCII (Windows-1252 compatible — strings are
  * kept to 7-bit safe; umlauts get transliterated because
  * the receiving DATEV client typically expects Latin-1).
  */
 export function generateDatevBuchungsstapel(input: DatevExportInput): string {
-  const { company, startDate, endDate, buchungen } = input
+  const { company, startDate, endDate, buchungen, buchungsLaufNr, openingBalances } = input
+  const laufNr = buchungsLaufNr ?? 1
 
-  // Header line: 25 fields, all quoted, semicolon-separated
+  // The opening balances (EB-Werte) go on Buchungslauf
+  // 1, dated 01.01 of the start year. They PRECEDE
+  // the regular Buchungen in the CSV because DATEV
+  // clients process rows in order and EB-Werte are
+  // always the first lines of the year.
+  //
+  // For EB-Werte the Gegenkonto is the "Eröffnungs-
+  // bilanzkonto" (SKR03: 9000 / "Eröffnungsbilanz" or
+  // SKR04: 9008). Using a Bilanzkonto as Gegenkonto
+  // keeps the Soll/Haben balanced and the S/H-Vz
+  // signal correct. In practice, DATEV clients ignore
+  // the Gegenkonto on EB-Werte and read the S/H-Vz
+  // directly to seed the Saldenliste, so we use the
+  // canonical "Erlöffnungsbilanz" account 9000 as
+  // placeholder.
+  const EB_GEGENKONTO = '9000' // SKR03 Eröffnungsbilanzkonto
+  const openingRows: BuchungsSatz[] = (openingBalances || []).map((eb) => ({
+    // EB-Werte always sit on 01.01 of the start year
+    // (or 01.01 of the year BEFORE the start year, if
+    // the start is a fiscal-year boundary). We pick
+    // the first day of the year covering startDate.
+    belegdatum: new Date(startDate.getFullYear(), 0, 1),
+    // "EB-<account>" as Belegfeld 1 so the DATEV client
+    // can pivot the row back to the account.
+    belegfeld1: `EB-${eb.konto}`,
+    konto: eb.konto,
+    gegenkonto: EB_GEGENKONTO,
+    betrag: eb.betrag,
+    shVz: eb.shVz,
+    buchungstext: eb.buchungstext,
+  }))
+
+  // Header line: 25 fields, all quoted, semicolon-separated.
+  // The DATEV EXTF-Format reserves header column 5
+  // ("Anwendungsinformation") for application-defined
+  // free text. We use it to embed the Buchungslauf
+  // number so the Berater's DATEV client can show
+  // "Lauf N" alongside the import. The same number
+  // appears in the filename and is what DATEV keys
+  // on for duplicate detection.
   const header = [
     'EXTF',                                                       // 1  Version
     'Buchungsstapel',                                              // 2  Format
     '15',                                                          // 3  Format version
     'de-invoice Export',                                          // 4  Applikation
-    '',                                                            // 5
+    csvEscape(`Lauf ${String(laufNr).padStart(3, '0')}`),         // 5  Anwendungsinformation (Buchungslauf)
     company.beraterNr || '00000',                                  // 6  Berater-Nr
     company.mandantenNr || '00001',                                // 7  Mandanten-Nr
     pad((startDate.getFullYear() - 1).toString(), 4, 'right') + '1231', // 8  WJ-Beginn
@@ -226,8 +447,11 @@ export function generateDatevBuchungsstapel(input: DatevExportInput): string {
     '',                                                            // 25
   ].join(DELIM)
 
-  // Data lines — one per Buchungssatz
-  const data = buchungen.map((b) => {
+  // Data lines — opening balances (Buchungslauf 0) +
+  // regular Buchungen (Buchungslauf N). The CSV row
+  // order matters: EB-Werte first, then the period
+  // activity. DATEV processes them in order.
+  const data = [...openingRows, ...buchungen].map((b) => {
     return [
       // DATEV columns (32 per row, fields after the
       // required ones can be empty)
@@ -245,14 +469,16 @@ export function generateDatevBuchungsstapel(input: DatevExportInput): string {
       '',                                       // 11
       b.ustSchluessel || '',                    // 12 USt-Schlüssel
       b.ustBetrag !== undefined ? fmtDecimal(b.ustBetrag) : '', // 13 USt-Betrag
-      '',                                       // 14
-      '',                                       // 15
-      '',                                       // 16
-      '',                                       // 17
+      b.paymentMethod || '',                    // 14 Zahlungsweg
+      '',                                       // 15 Fälligkeit (skipped — use Payment Date as Belegdatum)
+      b.currency || 'EUR',                      // 16 Währung
+      b.exchangeRate !== undefined
+        ? b.exchangeRate.toFixed(4)
+        : (b.currency && b.currency !== 'EUR' ? '' : '1,0000'), // 17 Kurs
       b.kost1 || '',                            // 18 Kostenstelle 1
-      b.kost2 || '',                            // 19 Kostenstelle 2
+      b.kost2 || '',                            // 19 Kostenträger
       '',                                       // 20
-      '',                                       // 21
+      b.countryCode || '',                      // 21 ISO-Ländercode (3-stellig)
       '',                                       // 22
       '',                                       // 23
       '',                                       // 24
@@ -326,6 +552,10 @@ export async function buildBuchungenFromDb(
     include: {
       payments: { orderBy: { paymentDate: 'asc' } },
       voucherRef: { select: { voucherNumber: true } },
+      // Customer address — DATEV column 21 (country code)
+      // is read off the customer's country for the
+      // EU/non-EU split when reverse-charge applies.
+      customer: { select: { address: true } },
     },
   })
 
@@ -336,14 +566,61 @@ export async function buildBuchungenFromDb(
     const vatRate = net > 0 ? vat / net : 0
     const hasVoucher = !!inv.voucherRefId
     const voucherNumber = inv.voucherRef?.voucherNumber
+    // Currency + country code + payment method are
+    // captured per-invoice so the DATEV export reflects
+    // multi-currency and EU/non-EU splits without the
+    // user having to edit anything by hand. The
+    // countryCode comes from the customer's address
+    // (mapped to ISO 3166-1 alpha-3) — required for
+    // reverse-charge (§13b) and IgE logic on the
+    // DATEV side.
+    const currency = inv.currency || 'EUR'
+    const paymentMethod = inv.payments[0]?.paymentMethod
+    const customerAddress = (inv.customer as any)?.address
+    const countryCode = mapCountryToIso3(customerAddress?.country)
+    // Kostenstelle 1 + Kostenträger. Read from the
+    // Invoice header so the user can stamp the same
+    // cost center on every line in the multi-line
+    // invoice. DATEV columns 12 + 13. The Prisma
+    // optional returns `string | null` but the
+    // BuchungsSatz type expects `string | undefined`
+    // — `?? undefined` is the cleanest normalisation.
+    const kost1 = inv.costCenter ?? undefined
+    const kost2 = inv.costObject ?? undefined
 
-    // Pick the revenue account by VAT rate.
+    // Pick the revenue account by VAT rate. For an
+    // IgE invoice (we sell to an EU business with
+    // valid VAT-ID) §1a UStG says: the customer self-
+    // assesses VAT, so the invoice is 0% net-only.
+    // The revenue lands on the dedicated "Erlöse
+    // igL" account (SKR03 default 8125) and NO USt
+    // line is emitted — the Berater's DATEV client
+    // pivots on account 8125 to populate the ZM
+    // (Zusammenfassende Meldung) automatically.
+    //
+    // For a §13b reverse-charge outgoing invoice
+    // (we're the supplier, supplying construction or
+    // a non-EU service etc.), the same net-only logic
+    // applies. SKR03 doesn't have a dedicated
+    // "Erlöse §13b" account by default; we re-use
+    // revenue0 / a per-company override. The Berater
+    // remaps to a specific account in the datev-
+    // config if needed.
+    const isIgE = (inv as any).euTransaction === true
+    const isRC = (inv as any).reverseCharge === true
     const revenueKonto =
-      Math.abs(vatRate - 0.19) < 0.001 ? accounts.revenue19
+      isIgE ? accounts.revenue0
+      : Math.abs(vatRate - 0.19) < 0.001 ? accounts.revenue19
       : Math.abs(vatRate - 0.07) < 0.001 ? accounts.revenue7
       : accounts.revenue0
+    // USt-Schlüssel: DATEV column 12. "0" = steuerfrei
+    // (used for IgE / §13b / reverse-charge / Kleinunternehmer).
+    // "2" = 7%, "3" = 19% USt. The 0-case is the one
+    // that triggers the UStVA "steuerfreie Umsätze" row
+    // in the Berater's UStVA export.
     const ustSchluessel =
-      Math.abs(vatRate - 0.19) < 0.001 ? '3'
+      isIgE || isRC ? '0'
+      : Math.abs(vatRate - 0.19) < 0.001 ? '3'
       : Math.abs(vatRate - 0.07) < 0.001 ? '2'
       : '0'
     const vatKonto =
@@ -363,6 +640,11 @@ export async function buildBuchungenFromDb(
         betrag: total,
         shVz: 'S',
         buchungstext: `Zahlungseingang ${inv.invoiceNumber}`,
+        currency,
+        paymentMethod,
+        countryCode,
+        kost1,
+        kost2,
       })
     }
 
@@ -384,10 +666,30 @@ export async function buildBuchungenFromDb(
         shVz: 'H',
         buchungstext: `Erlöse ${inv.invoiceNumber}`,
         ustSchluessel,
-        ustBetrag: vat,
+        // For IgE/RC we still want ustBetrag=0 on the
+        // row so the UStVA export sees a "steuerfrei"
+        // line with 0 EUR USt — this is how DATEV
+        // distinguishes "steuerfreier Umsatz nach
+        // §1a UStG" (line 41) from "steuerfreier
+        // Umsatz nach §4 UStG" (line 43).
+        ustBetrag: isIgE || isRC ? 0 : vat,
+        currency,
+        paymentMethod,
+        countryCode,
+        kost1,
+        kost2,
       })
       // USt-Buchung
-      if (vat > 0) {
+      // SKIPPED for IgE and §13b reverse-charge
+      // invoices — the customer self-assesses VAT
+      // (or there is no VAT), so we don't book a
+      // USt payable. The Berater's DATEV client picks
+      // up the steuerfreien Umsatz from the USt-
+      // Schlüssel "0" + revenue0 (8125) account.
+      // The Zusammenfassende Meldung (ZM) is
+      // populated from the EU sales lines (those
+      // with countryCode set on the customer).
+      if (vat > 0 && !isIgE && !isRC) {
         out.push({
           belegdatum: inv.payments[0]?.paymentDate || inv.issueDate,
           belegfeld1: inv.invoiceNumber,
@@ -399,6 +701,11 @@ export async function buildBuchungenFromDb(
           buchungstext: `USt ${inv.invoiceNumber}`,
           ustSchluessel,
           ustBetrag: vat,
+          currency,
+          paymentMethod,
+          countryCode,
+          kost1,
+          kost2,
         })
       }
     }
@@ -411,6 +718,16 @@ export async function buildBuchungenFromDb(
       invoiceDate: { gte: startDate, lte: endDate },
       status: { in: ['booked', 'deductible'] },
     },
+    include: {
+      // The supplier's address — the country here
+      // drives the ISO-Ländercode (DATEV column 21)
+      // for IgE / reverse-charge supplier invoices.
+      // We don't strictly need this when the expense
+      // row already has isIntraEU / isReverseCharge
+      // set, but it makes the countryCode field
+      // available even if the flags are missing.
+      supplier: { select: { address: true } },
+    },
   })
 
   for (const exp of expenses) {
@@ -420,6 +737,40 @@ export async function buildBuchungenFromDb(
     const vatRate = net > 0 ? vat / net : 0
     const isReverseCharge = exp.isReverseCharge
     const isIntraEU = exp.isIntraEU
+    // Reverse-charge (§13b UStG) and IgE
+    // (innergemeinschaftlicher Erwerb, §1a UStG)
+    // both use the "without USt" net amount. The VAT
+    // gets booked separately on the
+    // inputVatReverseCharge or inputVatIgE account
+    // (DATEV standard SKR03: 5810/5811) and the
+    // countryCode drives the IgE separate
+    // declarations.
+    const currency = (exp as any).currency || 'EUR'
+    // Supplier's country — drives the ISO-Ländercode
+    // for IgE / reverse-charge supplier invoices.
+    // Read off supplier.address (where the customer
+    // country mapping is). Falls back to "" when no
+    // supplier is linked (e.g. an internal-only
+    // expense).
+    const supplierAddress = (exp.supplier as any)?.address
+    const countryCode = mapCountryToIso3(supplierAddress?.country)
+    const paymentMethod = (exp as any).paymentMethod
+    // Kostenstelle 1 + Kostenträger from the expense
+    // header. Same DATEV-column 12 + 13 as on invoices.
+    // The Expense model doesn't have its own
+    // supplier-country field — the supplier's country
+    // is read off the Supplier.address if needed. For
+    // the IgE countryCode flow, we look up the
+    // Supplier.address.country. The `supplier` include
+    // is added below.
+    const kost1 = (exp as any).costCenter ?? undefined
+    const kost2 = (exp as any).costObject ?? undefined
+    const ustSchluessel =
+      isReverseCharge ? '0'  // DATEV: 0 = steuerfrei (we'll also auto-book Vorsteuer from reverse-charge side)
+      : isIntraEU ? '0'      // §1a UStG = steuerfrei mit Vorsteuerabzug
+      : Math.abs(vatRate - 0.19) < 0.001 ? '3'
+      : Math.abs(vatRate - 0.07) < 0.001 ? '2'
+      : '0'
 
     const inputVatKonto =
       isIntraEU ? accounts.inputVatIgE
@@ -430,6 +781,7 @@ export async function buildBuchungenFromDb(
 
     const expenseKonto = accounts.expenseDefault
 
+    // Buchung 1: Bank an Aufwand (Zahlungsausgang)
     out.push({
       belegdatum: exp.invoiceDate,
       belegfeld1: exp.invoiceNumber || `EXP-${exp.id.substring(0, 8)}`,
@@ -438,10 +790,30 @@ export async function buildBuchungenFromDb(
       betrag: total,
       shVz: 'H',
       buchungstext: exp.description.substring(0, 60),
+      currency,
+      paymentMethod,
+      countryCode,
+      kost1,
+      kost2,
     })
 
-    // Vorsteuer-Buchung wenn nicht reverse-charge
-    if (vat > 0 && !isReverseCharge) {
+    // Buchung 2: Vorsteuer an Aufwand
+    // Reverse-charge (§13b): the supplier didn't charge
+    // USt, but we (the Leistungsempfänger) owe VAT
+    // ourselves. The DATEV-side convention: one row
+    // Vorsteuer→Aufwand on account 5810 (DATEV USt-VZ
+    // reverses the same line on the UStVA). For IgE
+    // (§1a) the convention is the same with account
+    // 5811. For "normal" domestic input tax we use
+    // 1406 (Vorsteuer 19%) / 1407 (Vorsteuer 7%).
+    //
+    // The German Vorsteuerabzug logik depends on the
+    // supplier VAT-ID being VIES-validated BEFORE the
+    // date the IgE/RC line is booked. We book the line
+    // regardless — the Berater's DATEV client
+    // cross-checks the VAT-ID and complains at import
+    // time if the validation is missing.
+    if (vat > 0) {
       out.push({
         belegdatum: exp.invoiceDate,
         belegfeld1: exp.invoiceNumber || `EXP-${exp.id.substring(0, 8)}`,
@@ -450,6 +822,13 @@ export async function buildBuchungenFromDb(
         betrag: vat,
         shVz: 'S',
         buchungstext: `Vorsteuer ${exp.invoiceNumber || ''}`.trim(),
+        ustSchluessel,
+        ustBetrag: vat,
+        currency,
+        paymentMethod,
+        countryCode,
+        kost1,
+        kost2,
       })
     }
   }

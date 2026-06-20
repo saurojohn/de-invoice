@@ -239,6 +239,14 @@ model Expense {
   status          String   @default("booked")  // booked|deductible|blocked
   notes           String?
   attachmentPath  String?
+  // DATEV Kostenstelle 1 + Kostenträger. Same purpose
+  // as on Invoice: per-expense cost-center stamp for
+  // DATEV columns 12 + 13. Typically the user maps
+  // Expense.category → costCenter once in the DATEV
+  // account-map settings, but per-expense override is
+  // supported when an expense doesn't fit the default.
+  costCenter     String?   // DATEV Kostenstelle 1
+  costObject     String?   // DATEV Kostenträger
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -380,6 +388,15 @@ model Invoice {
   notes          String?
   internalNotes  String?
   templateType   String    @default("standard")
+  // DATEV Kostenstelle 1 + Kostenträger. Optional. The
+  // user can stamp each invoice with a cost center
+  // (e.g. "100" = Vertrieb, "200" = Werkstatt) and an
+  // optional cost object (e.g. "PROJ-2026-01" = project
+  // code). When set, the DATEV export populates
+  // columns 12 + 13 so the Berater can roll up the
+  // Buchungsstapel into a Kostenrechnung.
+  costCenter     String?   // DATEV Kostenstelle 1 (column 12)
+  costObject     String?   // DATEV Kostenträger   (column 13)
 
   pdfPath        String?
   attachments    Json?

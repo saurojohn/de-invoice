@@ -141,9 +141,33 @@ async getSalesReport(
       startDate,
       endDate,
       buchungen,
+      // Buchungslauf-Nr: a sequential counter per
+      // Berater-Mandant per calendar year. The Berater's
+      // DATEV client uses this to detect duplicate
+      // imports — same filename twice is "already
+      // imported". We pull from Company.settings.datev
+      // (default 1). The Buchungslauf becomes part of
+      // the filename so each export is uniquely
+      // identifiable.
+      buchungsLaufNr: (company as any).settings?.datev?.laufNr?.[startDate.getFullYear()] || 1,
+      // Eröffnungsbuchungen (EB-Werte): pulled from
+      // Company.settings.datev.openingBalances. Each
+      // entry is {konto, betrag, shVz, buchungstext}
+      // and gets dated 01.01. of the start year on
+      // the first Buchungslauf. Typical use: first
+      // export of a new fiscal year where the
+      // Saldenliste from the previous year hasn't
+      // been entered in DATEV yet.
+      openingBalances: (company as any).settings?.datev?.openingBalances || [],
     });
 
-    const filename = `DATEV_Buchungsstapel_${startDate.toISOString().split('T')[0]}_${endDate.toISOString().split('T')[0]}.csv`;
+    // Filename pattern: EXTF_Buchungsstapel_<date>_<laufNr>.csv
+    // The leading "EXTF_" matches the DATEV import
+    // filter the Berater's client uses; the laufNr
+    // suffix prevents the "already imported" warning
+    // on repeated exports of the same period.
+    const laufNr = (company as any).settings?.datev?.laufNr?.[startDate.getFullYear()] || 1;
+    const filename = `EXTF_Buchungsstapel_${startDate.toISOString().split('T')[0]}_L${String(laufNr).padStart(3, '0')}.csv`;
 
     // Hand-rolled response: the @Header() decorator
     // doesn't reliably reach the buffer stream when
