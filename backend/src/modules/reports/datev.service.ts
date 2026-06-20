@@ -472,9 +472,16 @@ export function generateDatevBuchungsstapel(input: DatevExportInput): string {
       b.paymentMethod || '',                    // 14 Zahlungsweg
       '',                                       // 15 Fälligkeit (skipped — use Payment Date as Belegdatum)
       b.currency || 'EUR',                      // 16 Währung
+      // DATEV column 17 (Kurs). Required for non-EUR
+      // transactions — the Berater's client refuses
+      // to import a non-EUR row without it. We
+      // default to "1,0000" when the user hasn't
+      // provided an explicit exchangeRate. The 4-digit
+      // precision matches the EZB/EBC daily-rounding
+      // convention.
       b.exchangeRate !== undefined
         ? b.exchangeRate.toFixed(4)
-        : (b.currency && b.currency !== 'EUR' ? '' : '1,0000'), // 17 Kurs
+        : '1,0000', // 17 Kurs
       b.kost1 || '',                            // 18 Kostenstelle 1
       b.kost2 || '',                            // 19 Kostenträger
       '',                                       // 20
