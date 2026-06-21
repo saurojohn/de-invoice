@@ -1058,8 +1058,12 @@ export async function collectBelegbilder(
   //   })
   // }
 
-  // 3) Expenses with an attachment (scanned supplier
-  // invoice, photo of a paper receipt, etc.).
+  // 3) Expenses with an attachment (legacy: single
+  // attachmentPath string). The new Attachment
+  // model (1:N) is the canonical source; we read
+  // it in step 4. The legacy column is kept for
+  // back-compat with rows that predate the
+  // Attachment migration.
   const expenses = await prisma.expense.findMany({
     where: {
       companyId,
@@ -1085,6 +1089,116 @@ export async function collectBelegbilder(
       relativePath: exp.attachmentPath,
       source: 'expense',
     })
+  }
+
+  // 4) Attachments (1:N) — the canonical Beleg-Bild
+  // source for Expenses + Vouchers. Every upload
+  // via the ReceiptsPanel in the UI lands in
+  // Attachment rows; we walk them by entityType
+  // and group by parent (so a single Expense with
+  // 3 scans shows up as 3 separate files in the
+  // zip, each named <expenseNumber>-<originalName>).
+  //
+  // We filter attachments to those whose parent
+  // Expense/Voucher falls in the date range — the
+  // Attachment itself doesn't carry a date, so we
+  // have to do a two-step query: pull the parent
+  // IDs by date range, then pull attachments whose
+  // entityId is in that set.
+  const expenseIds = await prisma.expense.findMany({
+    where: {
+      companyId,
+      invoiceDate: { gte: startDate, lte: endDate },
+    },
+    select: { id: true, invoiceNumber: true },
+  })
+  const expenseIdToNumber = new Map(
+    expenseIds.map((e) => [e.id, e.invoiceNumber]),
+  )
+  if (expenseIdToNumber.size > 0) {
+    const expenseAttachments = await prisma.attachment.findMany({
+      where: {
+        companyId,
+        entityType: 'expense',
+        entityId: { in: Array.from(expenseIdToNumber.keys()) },
+      },
+      select: {
+        id: true,
+        originalName: true,
+        storagePath: true,
+        entityId: true,
+      },
+    })
+    for (const att of expenseAttachments) {
+      if (!att.storagePath) continue
+      const expKey =
+        expenseIdToNumber.get(att.entityId) || `EXP-${att.entityId.substring(0, 8)}`
+      // The Attachment.originalName is the user's
+      // upload name. We suffix it to the belegfeld1
+      // so multiple attachments on the same Expense
+      // don't collide in the zip:
+      //   "INV-2026-0001-receipt.pdf"
+      //   "INV-2026-0001-contract.pdf"
+      // sanitizeFilename in the controller drops
+      // any chars that aren't Windows-safe.
+      const ext = att.storagePath.split('.').pop() || 'pdf'
+      const safeName = att.originalName.replace(/\.[^.]+$/, '') || 'beleg'
+      const key = `${expKey}__${safeName}.${ext}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      out.push({
+        belegfeld1: key,
+        relativePath: att.storagePath,
+        source: 'expense',
+      })
+    }
+  }
+
+  // 5) Voucher attachments (the receipt that came
+  // with a manual voucher, e.g. a scanned paper
+  // receipt that the user typed up by hand).
+  const voucherIds = await prisma.voucher.findMany({
+    where: {
+      companyId,
+      date: { gte: startDate, lte: endDate },
+      status: 'posted',
+    },
+    select: { id: true, voucherNumber: true },
+  })
+  const voucherIdToNumber = new Map(
+    voucherIds.map((v) => [v.id, v.voucherNumber]),
+  )
+  if (voucherIdToNumber.size > 0) {
+    const voucherAttachments = await prisma.attachment.findMany({
+      where: {
+        companyId,
+        entityType: 'voucher',
+        entityId: { in: Array.from(voucherIdToNumber.keys()) },
+      },
+      select: {
+        id: true,
+        originalName: true,
+        storagePath: true,
+        entityId: true,
+      },
+    })
+    for (const att of voucherAttachments) {
+      if (!att.storagePath) continue
+      const vchKey =
+        voucherIdToNumber.get(att.entityId) || `VCH-${att.entityId.substring(0, 8)}`
+      const ext = att.storagePath.split('.').pop() || 'pdf'
+      const safeName = att.originalName.replace(/\.[^.]+$/, '') || 'beleg'
+      const key = `${vchKey}__${safeName}.${ext}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      out.push({
+        belegfeld1: key,
+        relativePath: att.storagePath,
+        source: 'expense', // reuses the 'expense' source — the
+                            // index.json surfaces the type via the
+                            // filename prefix
+      })
+    }
   }
 
   return out
