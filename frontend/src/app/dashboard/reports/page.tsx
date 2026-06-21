@@ -209,6 +209,58 @@ export default function ReportsPage() {
     }
   }
 
+  /**
+   * Download the full DATEV-Beleg-Paket: the CSV
+   * PLUS every Beleg-Bild PDF the Berater needs
+   * for the import. The bundle comes as a single
+   * .zip — saves the user from manually zipping
+   * the CSV and re-uploading every PDF to DATEV
+   * after the import.
+   *
+   * Same auth-via-apiFetch pattern as the CSV
+   * download. The zip can be 10-50 MB depending
+   * on how many invoices are in the period,
+   * so we show a small "wird vorbereitet..."
+   * hint via the button label.
+   */
+  const exportDatevBundle = async () => {
+    const companyId = localStorage.getItem("companyId")
+    if (!companyId) return
+    const btn = document.getElementById("datev-bundle-btn") as HTMLButtonElement | null
+    const originalLabel = btn?.textContent || ""
+    if (btn) {
+      btn.disabled = true
+      btn.textContent = "Wird vorbereitet…"
+    }
+    try {
+      const year = new Date().getFullYear()
+      const res = await apiFetch(
+        `/api/v1/reports/datev-export-bundle?companyId=${companyId}&startDate=${year}-01-01&endDate=${year}-12-31`,
+        { method: "GET" }
+      )
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      // The server sets Content-Disposition but the
+      // user might double-click and we want a sensible
+      // fallback name.
+      a.download = `EXTF_Buchungsstapel_${year}.zip`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+    } catch (e: any) {
+      console.error("DATEV bundle export failed:", e)
+      alert(e?.message || "DATEV-Paket-Export fehlgeschlagen")
+    } finally {
+      if (btn) {
+        btn.disabled = false
+        btn.textContent = originalLabel
+      }
+    }
+  }
+
   const getSalesByMonthCSV = () => {
     if (!salesReport?.byMonth) return
     const data = salesReport.byMonth.map((m) => ({
@@ -255,6 +307,14 @@ export default function ReportsPage() {
             </Button>
             <Button variant="outline" onClick={exportDatev}>
               DATEV Export
+            </Button>
+            <Button
+              id="datev-bundle-btn"
+              variant="default"
+              onClick={exportDatevBundle}
+              title="CSV + alle Beleg-PDFs als ZIP herunterladen"
+            >
+              DATEV-Paket (CSV + PDFs)
             </Button>
             <LanguageSwitcher />
             <Button variant="outline" onClick={() => router.push("/dashboard")}>

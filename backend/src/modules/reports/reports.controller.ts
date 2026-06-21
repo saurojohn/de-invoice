@@ -3,8 +3,40 @@ import type { Response } from 'express';
 import { ReportsService } from './reports.service';
 import { AgingService } from './aging.service';
 import { PrismaService } from '../../prisma/prisma.service';
-import { generateDatevBuchungsstapel, buildBuchungenFromDb } from './datev.service';
+import { StorageService } from '../storage/storage.service';
+import { generateDatevBuchungsstapel, buildBuchungenFromDb, collectBelegbilder } from './datev.service';
 import { Auth, Require } from '../../auth/roles.decorator';
+// archiver v8 is a CommonJS module — the @types
+// types declare it as a function, but the runtime
+// is `{ default: fn }`. Use require() to dodge the
+// esModuleInterop confusion (the same pattern as
+// other CJS deps in this codebase, e.g. fs).
+import * as archiver from 'archiver';
+import * as fs from 'fs';
+import * as path from 'path';
+
+/**
+ * Strip the path-extension and turn the basename into
+ * a filename-safe form. DATEV Belegfeld 1 can contain
+ * `/` (voucher number prefix "BK/2026/0001" is common)
+ * — we collapse those into `_` so the resulting zip
+ * entry is a flat file. Special chars that Windows
+ * can't handle in a filename are also replaced.
+ */
+function sanitizeFilename(s: string): string {
+  return s
+    .replace(/[\\/:*?"<>|]/g, '_')
+    .replace(/\s+/g, '_')
+    .substring(0, 100)
+}
+
+/** Pull the extension off a relative path. Defaults
+ *  to "pdf" if the path has no extension (every
+ *  Beleg-Bild we generate is a PDF). */
+function extFromPath(p: string): string {
+  const ext = path.extname(p).replace(/^\./, '').toLowerCase()
+  return ext || 'pdf'
+}
 
 @Auth()
 @Controller('reports')
@@ -13,6 +45,7 @@ export class ReportsController {
     private readonly reportsService: ReportsService,
     private readonly agingService: AgingService,
     private readonly prisma: PrismaService,
+    private readonly storage: StorageService,
   ) {}
 
 @Get('sales')
@@ -179,6 +212,167 @@ async getSalesReport(
     res.setHeader('Content-Type', 'text/csv; charset=windows-1252');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.end(Buffer.from(csv, 'latin1'));
+  }
+
+  /**
+   * DATEV-Beleg-Paket — ZIP archive that contains the
+   * Buchungsstapel CSV + every Beleg-Bild PDF the
+   * Berater needs to import alongside it. Without the
+   * Belegbilder, the Berater has to re-upload every
+   * PDF manually after the import — this is the
+   * single most painful step of the old
+   * CSV-only export.
+   *
+   * ZIP layout (per the DATEV-Beleg-Bild convention):
+   *
+   *   Buchungsstapel.csv                  ← same as /datev-export
+   *   Belegbilder/
+   *     INV-2026-000001.pdf               ← Invoice PDFs
+   *     INV-2026-000002.pdf
+   *     BK-2026-...pdf                    ← Voucher PDFs (bank-import)
+   *     EXP-...pdf or scanned-...pdf      ← Expense attachments
+   *     index.json                        ← optional: {belegfeld1, source, filename}
+   *
+   * Filename matches the CSV (with .zip extension):
+   *   EXTF_Buchungsstapel_<date>_L<laufNr>.zip
+   *
+   * The Belegbilder folder uses the same Belegfeld 1
+   * key as the CSV's row 3, so the Berater's DATEV
+   * client auto-matches them. If a PDF is missing on
+   * disk (e.g. a deleted file), the row is skipped
+   * silently — the Berater sees a CSV row with no
+   * matching Beleg-Bild, which is the same outcome
+   * as the old CSV-only export.
+   */
+  @Get('datev-export-bundle')
+  @Require('reports.read')
+  async datevExportBundle(
+    @Query('companyId') companyId: string,
+    @Query('startDate') startDateStr: string,
+    @Query('endDate') endDateStr: string,
+    @Res() res: Response,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId is required');
+    const company = await this.prisma.company.findUnique({ where: { id: companyId } });
+    if (!company) throw new BadRequestException('Company not found');
+
+    const startDate = startDateStr
+      ? new Date(startDateStr)
+      : new Date(new Date().getFullYear(), 0, 1);
+    const endDate = endDateStr
+      ? new Date(endDateStr)
+      : new Date();
+
+    // Generate the same CSV the standalone /datev-export
+    // endpoint returns. Identical inputs → identical bytes.
+    const buchungen = await buildBuchungenFromDb(this.prisma, companyId, startDate, endDate);
+    const csv = generateDatevBuchungsstapel({
+      company: {
+        id: company.id,
+        name: company.name,
+        taxId: company.taxId,
+        beraterNr: (company as any).settings?.datev?.beraterNr || '00000',
+        mandantenNr: (company as any).settings?.datev?.mandantenNr || '00001',
+      },
+      startDate,
+      endDate,
+      buchungen,
+      buchungsLaufNr: (company as any).settings?.datev?.laufNr?.[startDate.getFullYear()] || 1,
+      openingBalances: (company as any).settings?.datev?.openingBalances || [],
+    });
+
+    // Collect the PDFs that go alongside the CSV.
+    const belegbilder = await collectBelegbilder(this.prisma, companyId, startDate, endDate);
+
+    // Build the index.json (so the Berater can audit
+    // which file came from where without opening every
+    // PDF).
+    const indexEntries = belegbilder.map((b) => ({
+      belegfeld1: b.belegfeld1,
+      source: b.source,
+      filename: `${sanitizeFilename(b.belegfeld1)}.${extFromPath(b.relativePath)}`,
+    }))
+
+    const laufNr = (company as any).settings?.datev?.laufNr?.[startDate.getFullYear()] || 1;
+    const zipFilename = `EXTF_Buchungsstapel_${startDate.toISOString().split('T')[0]}_L${String(laufNr).padStart(3, '0')}.zip`;
+
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${zipFilename}"`);
+
+    // Stream the zip. archiver v8 ships an ESM
+    // class-based API — `new archiver.ZipArchive(opts)`
+    // is the right entrypoint (the `@types/archiver`
+    // typings still describe the legacy function form
+    // but the v8 runtime is class-based). The push
+    // model: feed it the CSV, the index, and every
+    // PDF file, then finalise. The response stream is
+    // closed when the archive is done.
+    const archive = new (archiver as any).ZipArchive({ zlib: { level: 9 } })
+    archive.on('error', (err: Error) => {
+      // archiver emits 'error' if the stream is
+      // closed early (e.g. the user cancels the
+      // download). Log and re-throw so the
+      // framework returns a 500 — we don't want to
+      // leave a half-written zip on disk (we don't,
+      // it's streamed).
+      console.error('DATEV bundle archiver error:', err.message)
+      if (!res.headersSent) {
+        res.status(500).end()
+      } else {
+        res.end()
+      }
+    })
+    archive.pipe(res)
+
+    // 1) The CSV. Same Latin-1 encoding as the
+    // standalone endpoint.
+    archive.append(Buffer.from(csv, 'latin1'), { name: 'Buchungsstapel.csv' })
+
+    // 2) The index.json — a small audit trail.
+    // The Berater can open it in any editor and
+    // see which PDF is which without renaming.
+    archive.append(JSON.stringify(indexEntries, null, 2), { name: 'Belegbilder/index.json' })
+
+    // 3) The actual PDFs. We resolve the relative
+    // path against the storage root and stream
+    // each file. Missing files are skipped
+    // silently — better a CSV row without a
+    // matching PDF than a 500 on the whole bundle.
+    const storageRoot = (this.storage as any).config?.localPath || ''
+    let includedCount = 0
+    let missingCount = 0
+    for (const b of belegbilder) {
+      const fullPath = path.join(storageRoot, b.relativePath)
+      if (!fs.existsSync(fullPath)) {
+        missingCount++
+        continue
+      }
+      const ext = extFromPath(b.relativePath)
+      const safeName = sanitizeFilename(b.belegfeld1)
+      const arcName = `Belegbilder/${safeName}.${ext}`
+      archive.file(fullPath, { name: arcName })
+      includedCount++
+    }
+
+    // 4) A small MANIFEST that surfaces the
+    // included/missing counts. Goes at the root so
+    // it's easy to spot. Not part of the DATEV
+    // standard — purely for the Berater's eyes.
+    archive.append(
+      JSON.stringify({
+        generatedAt: new Date().toISOString(),
+        company: company.name,
+        companyId: company.id,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+        buchungsLauf: laufNr,
+        belegbilderIncluded: includedCount,
+        belegbilderMissing: missingCount,
+      }, null, 2),
+      { name: 'MANIFEST.json' },
+    )
+
+    await archive.finalize()
   }
 
   /**

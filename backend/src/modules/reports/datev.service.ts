@@ -946,3 +946,146 @@ export async function buildBuchungenFromDb(
 
   return out
 }
+
+/**
+ * One Beleg-Bild entry. The bundle endpoint zips the
+ * matching PDF (or image, or whatever) into the
+ * archive under `Belegbilder/<belegfeld1>.<ext>`. The
+ * Berater's DATEV client reads the bundle and matches
+ * the file to the CSV row via the Belegfeld1 key.
+ */
+export interface BelegBild {
+  // The "key" the Berater uses to match the file to
+  // a CSV row — for an invoice line this is the
+  // invoice number (Belegfeld 1 of the Erlöse row);
+  // for a voucher line it's the voucher number.
+  belegfeld1: string
+  // Where the PDF lives in our local storage. The
+  // path is RELATIVE to the storage root
+  // (StorageService.localPath). The bundle endpoint
+  // resolves it against the localPath and streams
+  // the bytes into the zip.
+  relativePath: string
+  // What produced the file — used for the
+  // <Belegbilder>/index.json so the Berater can
+  // pivot by source. Currently we only emit
+  // 'invoice' and 'expense' (Voucher has no
+  // pdfPath field yet). When a future Voucher.pdfPath
+  // is added, the collector re-activates and
+  // 'voucher' joins the union.
+  source: 'invoice' | 'expense'
+}
+
+/**
+ * Collect the list of PDFs that should accompany
+ * the DATEV Buchungsstapel CSV. The Berater's DATEV
+ * client takes the bundle (CSV + Belegbilder folder)
+ * and matches each PDF to a CSV row by Belegfeld 1.
+ *
+ * Without this the Berater has to re-upload every
+ * PDF manually — a major pain point.
+ *
+ * We walk the same date range as the CSV and pull:
+ *   - every Invoice in the range with a PDF (revenue side)
+ *   - every Expense with an attachmentPath in the range (cost side)
+ *
+ * Duplicate belegfeld1s (e.g. an invoice + a credit
+ * note with the same number — should never happen
+ * because the @unique constraint protects us, but
+ * just in case) are de-duplicated, first-wins.
+ */
+export async function collectBelegbilder(
+  prisma: PrismaService,
+  companyId: string,
+  startDate: Date,
+  endDate: Date,
+): Promise<BelegBild[]> {
+  const out: BelegBild[] = []
+  const seen = new Set<string>()
+
+  // 1) Invoices with a PDF.
+  const invoices = await prisma.invoice.findMany({
+    where: {
+      companyId,
+      // Match the same date range as the CSV. We use
+      // issueDate so the user gets the PDF for the
+      // invoice they issued in this period, regardless
+      // of when it was paid.
+      issueDate: { gte: startDate, lte: endDate },
+      pdfPath: { not: null },
+    },
+    select: {
+      invoiceNumber: true,
+      pdfPath: true,
+    },
+  })
+  for (const inv of invoices) {
+    if (!inv.pdfPath || seen.has(inv.invoiceNumber)) continue
+    seen.add(inv.invoiceNumber)
+    out.push({
+      belegfeld1: inv.invoiceNumber,
+      relativePath: inv.pdfPath,
+      source: 'invoice',
+    })
+  }
+
+  // 2) Vouchers with their own PDF. NOTE: the
+  // current Voucher model has no pdfPath column
+  // (the bank-import flow stores the source MT940
+  // text in the BankStatement's `rawContent` field,
+  // not as a PDF attachment). If we add a Voucher.pdfPath
+  // later this block re-activates. The bundle
+  // endpoint still works fine for invoices alone.
+  // const vouchers = await prisma.voucher.findMany({
+  //   where: {
+  //     companyId,
+  //     date: { gte: startDate, lte: endDate },
+  //     status: 'posted',
+  //     pdfPath: { not: null },
+  //   },
+  //   select: {
+  //     voucherNumber: true,
+  //     pdfPath: true,
+  //   },
+  // })
+  // for (const vch of vouchers) {
+  //   if (!vch.pdfPath || seen.has(vch.voucherNumber)) continue
+  //   seen.add(vch.voucherNumber)
+  //   out.push({
+  //     belegfeld1: vch.voucherNumber,
+  //     relativePath: vch.pdfPath,
+  //     source: 'voucher',
+  //   })
+  // }
+
+  // 3) Expenses with an attachment (scanned supplier
+  // invoice, photo of a paper receipt, etc.).
+  const expenses = await prisma.expense.findMany({
+    where: {
+      companyId,
+      invoiceDate: { gte: startDate, lte: endDate },
+      attachmentPath: { not: null },
+    },
+    select: {
+      id: true,
+      invoiceNumber: true,
+      attachmentPath: true,
+    },
+  })
+  for (const exp of expenses) {
+    if (!exp.attachmentPath) continue
+    // Expenses don't always have a clean invoice
+    // number. Fall back to EXP-<id8> so the file
+    // still gets a unique name in the zip.
+    const key = exp.invoiceNumber || `EXP-${exp.id.substring(0, 8)}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push({
+      belegfeld1: key,
+      relativePath: exp.attachmentPath,
+      source: 'expense',
+    })
+  }
+
+  return out
+}
