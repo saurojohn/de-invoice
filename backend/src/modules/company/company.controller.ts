@@ -50,7 +50,32 @@ export class CompanyController {
   async getDatevConfig(@Param('id') id: string) {
     const company = await this.companyService.findById(id)
     const settings = (company as any)?.settings || {}
-    const overrides = sanitizeDatevConfig(settings.datev || {})
+    const datevSettings = settings.datev || {}
+    // sanitizeDatevConfig only recognises the 13
+    // account fields. beraterNr / mandantenNr are
+    // 5-digit strings, stored as-is, NOT through
+    // sanitizeDatevConfig (which only iterates the
+    // SKR03_DEFAULTS keys and would drop them).
+    // So the "overrides" the UI sees for beraterNr /
+    // mandantenNr come straight from settings.datev.
+    const overrides: any = sanitizeDatevConfig(datevSettings)
+    if (typeof datevSettings.beraterNr === 'string') {
+      overrides.beraterNr = datevSettings.beraterNr
+    }
+    if (typeof datevSettings.mandantenNr === 'string') {
+      overrides.mandantenNr = datevSettings.mandantenNr
+    }
+    // Tier 5: opening balances (EB-Werte) and per-year
+    // Buchungslauf counter are stored alongside the
+    // account map. Pass them through unchanged — the
+    // sanitizeDatevConfig only touches the 4-5 digit
+    // account numbers.
+    const openingBalances = Array.isArray(datevSettings.openingBalances)
+      ? datevSettings.openingBalances
+      : []
+    const laufNr = (datevSettings.laufNr && typeof datevSettings.laufNr === 'object')
+      ? datevSettings.laufNr
+      : {}
     // Return both the merged map (so the UI sees what will
     // actually be used) AND the raw overrides (so the UI
     // can blank out the form for fields the user has not
@@ -59,6 +84,8 @@ export class CompanyController {
       config: resolveDatevAccounts(overrides),
       overrides,
       defaults: SKR03_DEFAULTS,
+      openingBalances,
+      laufNr,
     }
   }
 
@@ -68,28 +95,97 @@ export class CompanyController {
    * else is silently dropped (so the form can be tolerant
    * of partially-filled states). Berater-Nr / Mandanten-Nr
    * are stored here too (5-digit each, zero-padded).
+   *
+   * Tier 5: also accepts `openingBalances` (array of
+   * {konto, betrag, shVz, buchungstext}) and `laufNr`
+   * (per-year counter map, e.g. {2026: 1}). These are
+   * round-tripped verbatim — the client validates and
+   * normalises.
    */
   @Auth()
   @Require('company.update')
   @Put(':id/datev-config')
   async saveDatevConfig(
     @Param('id') id: string,
-    @Body() body: { accounts?: Partial<DatevAccountMap>; beraterNr?: string; mandantenNr?: string },
+    @Body() body: {
+      accounts?: Partial<DatevAccountMap>;
+      beraterNr?: string;
+      mandantenNr?: string;
+      openingBalances?: Array<{ konto: string; betrag: number; shVz: 'S' | 'H'; buchungstext: string }>;
+      laufNr?: Record<number | string, number>;
+    },
   ) {
     const company = await this.companyService.findById(id)
     const settings = (company as any)?.settings || {}
     const next = { ...settings }
+    if (!next.datev) next.datev = {}
     if (body.accounts) {
-      next.datev = sanitizeDatevConfig(body.accounts)
+      // REPLACE behavior for the 13 account fields:
+      // the PUT body's `accounts` is the new full
+      // state of the override map. The user clears
+      // an individual override by sending "" or
+      // omitting the key. sanitizeDatevConfig drops
+      // anything malformed (e.g. "AB-CD" or "99").
+      // Pre-existing openingBalances + laufNr are
+      // preserved unless they appear in the body
+      // (handled below).
+      const sanitized = sanitizeDatevConfig(body.accounts)
+      // Drop the 13 account fields from next.datev
+      // so a sanitized result of {} (when ALL inputs
+      // are invalid) leaves the map empty rather
+      // than stale.
+      for (const k of Object.keys(SKR03_DEFAULTS)) {
+        delete (next.datev as any)[k]
+      }
+      Object.assign(next.datev, sanitized)
       if (typeof body.beraterNr === 'string' && /^\d{1,5}$/.test(body.beraterNr)) {
         next.datev.beraterNr = body.beraterNr.padStart(5, '0')
+      } else if (typeof body.beraterNr === 'string') {
+        delete next.datev.beraterNr
       }
       if (typeof body.mandantenNr === 'string' && /^\d{1,5}$/.test(body.mandantenNr)) {
         next.datev.mandantenNr = body.mandantenNr.padStart(5, '0')
+      } else if (typeof body.mandantenNr === 'string') {
+        delete next.datev.mandantenNr
       }
     }
+    // Opening balances — validate each entry's
+    // shape, drop anything malformed. The Berater
+    // gets a clean list even when the form sends
+    // partially-filled rows.
+    if (Array.isArray(body.openingBalances)) {
+      const cleaned = body.openingBalances
+        .filter((e) => e && typeof e.konto === 'string' && /^\d{3,5}$/.test(e.konto))
+        .filter((e) => e && (e.shVz === 'S' || e.shVz === 'H'))
+        .filter((e) => e && typeof e.betrag === 'number' && !isNaN(e.betrag) && e.betrag > 0)
+        .map((e) => ({
+          konto: e.konto.padEnd(4, '0').substring(0, 5),
+          betrag: Number(e.betrag.toFixed(4)),
+          shVz: e.shVz,
+          buchungstext: typeof e.buchungstext === 'string' ? e.buchungstext.substring(0, 60) : '',
+        }))
+      next.datev.openingBalances = cleaned
+    }
+    // Buchungslauf counter — a year→number map. Validate
+    // the keys are 4-digit years and the values are
+    // positive integers. Anything else is dropped.
+    if (body.laufNr && typeof body.laufNr === 'object') {
+      const cleaned: Record<string, number> = {}
+      for (const [year, n] of Object.entries(body.laufNr)) {
+        if (/^\d{4}$/.test(year) && Number.isInteger(n) && (n as number) >= 1) {
+          cleaned[year] = n as number
+        }
+      }
+      next.datev.laufNr = cleaned
+    }
     await this.companyService.update(id, { settings: next } as any)
-    return { ok: true, config: resolveDatevAccounts(next.datev), overrides: next.datev }
+    return {
+      ok: true,
+      config: resolveDatevAccounts(next.datev),
+      overrides: next.datev,
+      openingBalances: next.datev.openingBalances || [],
+      laufNr: next.datev.laufNr || {},
+    }
   }
 
   @Auth()

@@ -101,6 +101,18 @@ export default function SettingsPage() {
   const [datevSavedMsg, setDatevSavedMsg] = useState<string | null>(null)
   const [datevError, setDatevError] = useState<string | null>(null)
   const [datevLoading, setDatevLoading] = useState(false)
+  // Tier 5 additions: opening balances (EB-Werte) and
+  // per-year Buchungslauf counter. The openingBalances
+  // list is editable inline; laufNr is keyed by year
+  // and shown as a small editable table.
+  interface OpeningBalance {
+    konto: string
+    betrag: number
+    shVz: 'S' | 'H'
+    buchungstext: string
+  }
+  const [datevOpeningBalances, setDatevOpeningBalances] = useState<OpeningBalance[]>([])
+  const [datevLaufNr, setDatevLaufNr] = useState<Record<string, number>>({})
 
   const [form, setForm] = useState<CompanySettings>({
     name: "",
@@ -275,6 +287,10 @@ export default function SettingsPage() {
           setDatevConfig(cfg.overrides || {})
           setDatevBeraterNr(cfg.overrides?.beraterNr || "")
           setDatevMandantenNr(cfg.overrides?.mandantenNr || "")
+          // Tier 5: opening balances + Buchungslauf counter.
+          // The backend returns them with the GET response.
+          setDatevOpeningBalances(Array.isArray(cfg.openingBalances) ? cfg.openingBalances : [])
+          setDatevLaufNr(cfg.laufNr && typeof cfg.laufNr === 'object' ? cfg.laufNr : {})
         }
       })
       .catch(() => {})
@@ -358,6 +374,11 @@ export default function SettingsPage() {
         accounts,
         beraterNr: datevBeraterNr.trim(),
         mandantenNr: datevMandantenNr.trim(),
+        // Tier 5: opening balances + laufNr round-trip.
+        // The backend sanitises each entry; partial rows
+        // (e.g. an empty konto) are dropped silently.
+        openingBalances: datevOpeningBalances,
+        laufNr: datevLaufNr,
       })
       setDatevSavedMsg(t("settings.datevSaved"))
       const fresh = await apiGet<any>(`/api/v1/companies/${companyId}/datev-config`)
@@ -366,6 +387,8 @@ export default function SettingsPage() {
         setDatevConfig(fresh.overrides || {})
         setDatevBeraterNr(fresh.overrides?.beraterNr || "")
         setDatevMandantenNr(fresh.overrides?.mandantenNr || "")
+        setDatevOpeningBalances(Array.isArray(fresh.openingBalances) ? fresh.openingBalances : [])
+        setDatevLaufNr(fresh.laufNr && typeof fresh.laufNr === 'object' ? fresh.laufNr : {})
       }
     } catch (err) {
       setDatevError(err instanceof ApiError ? err.message : t("settings.datevSaveError"))
@@ -1120,10 +1143,172 @@ export default function SettingsPage() {
                         setDatevConfig({})
                         setDatevBeraterNr("")
                         setDatevMandantenNr("")
+                        // Tier 5: clear EB-Werte + Buchungslauf
+                        // counter too, otherwise a partial
+                        // reset leaves the new state in an
+                        // inconsistent place.
+                        setDatevOpeningBalances([])
+                        setDatevLaufNr({})
                       }}
                     >
                       {t("settings.datevReset")}
                     </Button>
+                  </div>
+
+                  {/* Tier 5: Opening balances (EB-Werte) */}
+                  <div className="pt-4 border-t border-gray-200 dark:border-gray-700 space-y-3">
+                    <div>
+                      <h3 className="text-sm font-semibold">{t("settings.datevOpeningBalancesTitle")}</h3>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                        {t("settings.datevOpeningBalancesSubtitle")}
+                      </p>
+                    </div>
+                    {datevOpeningBalances.length === 0 ? (
+                      <div className="text-xs italic text-gray-500 dark:text-gray-400">
+                        {t("settings.datevOpeningBalancesEmpty")}
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {datevOpeningBalances.map((eb, idx) => (
+                          <div
+                            key={idx}
+                            className="grid grid-cols-12 gap-2 items-end p-2 rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/40"
+                          >
+                            <div className="col-span-3">
+                              <label className="block text-[10px] text-gray-500 dark:text-gray-400 mb-0.5">
+                                {t("settings.datevOpeningBalancesKonto")}
+                              </label>
+                              <Input
+                                value={eb.konto}
+                                onChange={(e) => {
+                                  const v = e.target.value.replace(/\D/g, "").substring(0, 5)
+                                  const next = [...datevOpeningBalances]
+                                  next[idx] = { ...eb, konto: v }
+                                  setDatevOpeningBalances(next)
+                                }}
+                                maxLength={5}
+                                className="font-mono h-8"
+                              />
+                            </div>
+                            <div className="col-span-3">
+                              <label className="block text-[10px] text-gray-500 dark:text-gray-400 mb-0.5">
+                                {t("settings.datevOpeningBalancesBetrag")}
+                              </label>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={eb.betrag}
+                                onChange={(e) => {
+                                  const v = Number(e.target.value)
+                                  const next = [...datevOpeningBalances]
+                                  next[idx] = { ...eb, betrag: isNaN(v) ? 0 : v }
+                                  setDatevOpeningBalances(next)
+                                }}
+                                className="font-mono h-8"
+                              />
+                            </div>
+                            <div className="col-span-2">
+                              <label className="block text-[10px] text-gray-500 dark:text-gray-400 mb-0.5">
+                                {t("settings.datevOpeningBalancesShVz")}
+                              </label>
+                              <select
+                                value={eb.shVz}
+                                onChange={(e) => {
+                                  const v = e.target.value as 'S' | 'H'
+                                  const next = [...datevOpeningBalances]
+                                  next[idx] = { ...eb, shVz: v }
+                                  setDatevOpeningBalances(next)
+                                }}
+                                className="w-full h-8 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm font-mono"
+                              >
+                                <option value="S">{t("settings.datevOpeningBalancesShVzS")}</option>
+                                <option value="H">{t("settings.datevOpeningBalancesShVzH")}</option>
+                              </select>
+                            </div>
+                            <div className="col-span-3">
+                              <label className="block text-[10px] text-gray-500 dark:text-gray-400 mb-0.5">
+                                {t("settings.datevOpeningBalancesText")}
+                              </label>
+                              <Input
+                                value={eb.buchungstext}
+                                onChange={(e) => {
+                                  const v = e.target.value.substring(0, 60)
+                                  const next = [...datevOpeningBalances]
+                                  next[idx] = { ...eb, buchungstext: v }
+                                  setDatevOpeningBalances(next)
+                                }}
+                                maxLength={60}
+                                className="h-8"
+                              />
+                            </div>
+                            <div className="col-span-1">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setDatevOpeningBalances(datevOpeningBalances.filter((_, i) => i !== idx))
+                                }}
+                                className="text-red-600 dark:text-red-400 text-xs hover:underline"
+                              >
+                                {t("settings.datevOpeningBalancesRemove")}
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setDatevOpeningBalances([
+                          ...datevOpeningBalances,
+                          { konto: "", betrag: 0, shVz: 'S', buchungstext: "" },
+                        ])
+                      }}
+                    >
+                      + {t("settings.datevOpeningBalancesAdd")}
+                    </Button>
+                  </div>
+
+                  {/* Tier 5: Buchungslauf-Nr per fiscal year.
+                      Read-only display — the counter is
+                      advanced by the export endpoint, not
+                      the user. Empty map = the export
+                      falls back to "Lauf 001". */}
+                  <div className="pt-4 border-t border-gray-200 dark:border-gray-700 space-y-2">
+                    <div>
+                      <h3 className="text-sm font-semibold">{t("settings.datevBuchungsLaufTitle")}</h3>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                        {t("settings.datevBuchungsLaufSubtitle")}
+                      </p>
+                    </div>
+                    {Object.keys(datevLaufNr).length === 0 ? (
+                      <div className="text-xs italic text-gray-500 dark:text-gray-400">
+                        {t("settings.datevOpeningBalancesEmpty")}
+                      </div>
+                    ) : (
+                      <table className="text-xs font-mono">
+                        <thead>
+                          <tr className="text-gray-500 dark:text-gray-400">
+                            <th className="text-left pr-4">{t("settings.datevBuchungsLaufYear")}</th>
+                            <th className="text-left pr-4">{t("settings.datevBuchungsLaufNext")}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {Object.entries(datevLaufNr)
+                            .sort(([a], [b]) => Number(b) - Number(a))
+                            .map(([year, n]) => (
+                              <tr key={year}>
+                                <td className="pr-4">{year}</td>
+                                <td className="pr-4">
+                                  L{String(n).padStart(3, '0')}
+                                </td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
+                    )}
                   </div>
                 </>
               )}
