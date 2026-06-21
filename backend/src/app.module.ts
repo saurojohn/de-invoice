@@ -13,6 +13,7 @@ import { VatRateModule } from './modules/vat-rate/vat-rate.module';
 import { AccountingModule } from './modules/accounting/accounting.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { StorageModule } from './modules/storage/storage.module';
+import { ExchangeRateModule } from './modules/exchange-rate/exchange-rate.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
 import { ReminderModule } from './modules/reminder/reminder.module';
 import { MailModule } from './modules/mail/mail.module';
@@ -68,6 +69,7 @@ import { TwoFactorModule } from './modules/auth/two-factor/two-factor.module';
     StorageModule,
     InventoryModule,
     ReminderModule,
+    ExchangeRateModule,
     UsersModule,
     RecurringModule,
     CashBookModule,

@@ -480,7 +480,7 @@ export function generateDatevBuchungsstapel(input: DatevExportInput): string {
       // precision matches the EZB/EBC daily-rounding
       // convention.
       b.exchangeRate !== undefined
-        ? b.exchangeRate.toFixed(4)
+        ? b.exchangeRate.toFixed(4).replace('.', ',')
         : '1,0000', // 17 Kurs
       b.kost1 || '',                            // 18 Kostenstelle 1
       b.kost2 || '',                            // 19 Kostenträger
@@ -533,6 +533,12 @@ export async function buildBuchungenFromDb(
     ? (company.settings as any)
     : {}
   const accounts = resolveDatevAccounts(settings.datev)
+  // ECB rate snapshot for this company. Pulled
+  // once and threaded into every non-EUR row in
+  // the invoice + expense passes below. null if
+  // the cron hasn't run yet — getRate falls back
+  // to "1,0000" so the export still works.
+  const rateSnapshot = (settings as any).datev?.exchangeRates ?? null
 
   const out: BuchungsSatz[] = []
 
@@ -585,6 +591,20 @@ export async function buildBuchungenFromDb(
     const paymentMethod = inv.payments[0]?.paymentMethod
     const customerAddress = (inv.customer as any)?.address
     const countryCode = mapCountryToIso3(customerAddress?.country)
+    // The exchange rate is read from the
+    // per-company ECB snapshot (see
+    // ExchangeRateService). EUR doesn't need a
+    // rate; for any other currency we look up
+    // Company.settings.datev.exchangeRates.rates
+    // and fall back to "1,0000" if the cron
+    // hasn't run yet. The string is parsed with
+    // Number() — ECB returns 4-5 significant
+    // digits, which fits in a Number without loss.
+    const rateString = currency === 'EUR'
+      ? undefined
+      : rateSnapshot?.rates?.[currency]
+    const rateNum = rateString ? Number(rateString) : undefined
+    const exchangeRate = (rateNum && !isNaN(rateNum)) ? rateNum : undefined
     // Kostenstelle 1 + Kostenträger. Read from the
     // Invoice header so the user can stamp the same
     // cost center on every line in the multi-line
@@ -642,18 +662,19 @@ export async function buildBuchungenFromDb(
       out.push({
         belegdatum: inv.payments[0]?.paymentDate || inv.issueDate,
         belegfeld1: inv.invoiceNumber,
-        konto: accounts.bank,
-        gegenkonto: accounts.receivable,
-        betrag: total,
-        shVz: 'S',
-        buchungstext: `Zahlungseingang ${inv.invoiceNumber}`,
-        currency,
-        paymentMethod,
-        countryCode,
-        kost1,
-        kost2,
-      })
-    }
+         konto: accounts.bank,
+         gegenkonto: accounts.receivable,
+         betrag: total,
+         shVz: 'S',
+         buchungstext: `Zahlungseingang ${inv.invoiceNumber}`,
+         currency,
+         exchangeRate,
+         paymentMethod,
+         countryCode,
+         kost1,
+         kost2,
+       })
+     }
 
     // Buchung 2: Forderung an Erlöse (Storno der offenen
     // Forderung bei Zahlung). Single line, splits into
@@ -681,6 +702,7 @@ export async function buildBuchungenFromDb(
         // Umsatz nach §4 UStG" (line 43).
         ustBetrag: isIgE || isRC ? 0 : vat,
         currency,
+        exchangeRate,
         paymentMethod,
         countryCode,
         kost1,
@@ -709,6 +731,7 @@ export async function buildBuchungenFromDb(
           ustSchluessel,
           ustBetrag: vat,
           currency,
+          exchangeRate,
           paymentMethod,
           countryCode,
           kost1,
@@ -753,6 +776,15 @@ export async function buildBuchungenFromDb(
     // countryCode drives the IgE separate
     // declarations.
     const currency = (exp as any).currency || 'EUR'
+    // Exchange rate: same lookup as on invoices.
+    // The rateSnapshot is read once per row from
+    // the same Company.settings.datev.exchangeRates
+    // map. EUR short-circuits.
+    const expRateString = currency === 'EUR'
+      ? undefined
+      : rateSnapshot?.rates?.[currency]
+    const expRateNum = expRateString ? Number(expRateString) : undefined
+    const exchangeRate = (expRateNum && !isNaN(expRateNum)) ? expRateNum : undefined
     // Supplier's country — drives the ISO-Ländercode
     // for IgE / reverse-charge supplier invoices.
     // Read off supplier.address (where the customer
@@ -798,6 +830,7 @@ export async function buildBuchungenFromDb(
       shVz: 'H',
       buchungstext: exp.description.substring(0, 60),
       currency,
+      exchangeRate,
       paymentMethod,
       countryCode,
       kost1,
@@ -832,6 +865,7 @@ export async function buildBuchungenFromDb(
         ustSchluessel,
         ustBetrag: vat,
         currency,
+        exchangeRate,
         paymentMethod,
         countryCode,
         kost1,

@@ -113,6 +113,64 @@ export default function SettingsPage() {
   }
   const [datevOpeningBalances, setDatevOpeningBalances] = useState<OpeningBalance[]>([])
   const [datevLaufNr, setDatevLaufNr] = useState<Record<string, number>>({})
+  // Tier 5d-ext: ECB exchange rate snapshot. Loaded
+  // from /api/v1/exchange-rates (read-only display)
+  // and refreshable via POST /api/v1/exchange-rates/
+  // refresh. null = no snapshot yet (the cron
+  // hasn't run, the company is fresh, or the
+  // manual refresh has never been hit).
+  interface RateSnapshot {
+    date: string
+    fetchedAt: string
+    base: string
+    rates: Record<string, string>
+  }
+  const [rateSnapshot, setRateSnapshot] = useState<RateSnapshot | null>(null)
+  const [rateSnapshotLoading, setRateSnapshotLoading] = useState(false)
+  const [rateSnapshotError, setRateSnapshotError] = useState<string | null>(null)
+  const [rateSnapshotRefreshing, setRateSnapshotRefreshing] = useState(false)
+
+  // Tier 5d-ext: load the cached ECB rate snapshot.
+  // GET /api/v1/exchange-rates returns null when no
+  // snapshot has ever been fetched — the UI shows the
+  // "noch keine Kurse geladen" hint in that case.
+  const fetchRateSnapshot = useCallback(async (cid: string) => {
+    setRateSnapshotLoading(true)
+    setRateSnapshotError(null)
+    try {
+      const data = await apiGet<RateSnapshot | null>(
+        `/api/v1/exchange-rates?companyId=${cid}`,
+      )
+      setRateSnapshot(data)
+    } catch (err: any) {
+      setRateSnapshotError(err?.message || "Fehler beim Laden")
+      setRateSnapshot(null)
+    } finally {
+      setRateSnapshotLoading(false)
+    }
+  }, [])
+
+  // Manual refresh: hits POST /api/v1/exchange-rates/
+  // refresh which calls the real ECB API. Typical
+  // latency 500-1500ms. The button is disabled
+  // while the request is in flight to prevent
+  // double-clicks piling up concurrent fetches.
+  const refreshRateSnapshot = useCallback(async () => {
+    if (!companyId) return
+    setRateSnapshotRefreshing(true)
+    setRateSnapshotError(null)
+    try {
+      const data = await apiPost<RateSnapshot>(
+        '/api/v1/exchange-rates/refresh',
+        { companyId },
+      )
+      setRateSnapshot(data)
+    } catch (err: any) {
+      setRateSnapshotError(err?.message || "Fehler beim Aktualisieren")
+    } finally {
+      setRateSnapshotRefreshing(false)
+    }
+  }, [companyId])
 
   const [form, setForm] = useState<CompanySettings>({
     name: "",
@@ -295,7 +353,11 @@ export default function SettingsPage() {
       })
       .catch(() => {})
       .finally(() => setDatevLoading(false))
-  }, [router])
+    // Tier 5d-ext: load the cached ECB rate snapshot
+    // for this company. Fire-and-forget — its own
+    // loader manages loading/error state.
+    fetchRateSnapshot(storedCompanyId)
+  }, [router, fetchRateSnapshot])
 
   // Re-load stats / health / file list. Used both on first mount
   // and after a successful save (so the new localPath shows up
@@ -1308,6 +1370,85 @@ export default function SettingsPage() {
                             ))}
                         </tbody>
                       </table>
+                    )}
+                  </div>
+
+                  {/* Tier 5d-ext: ECB exchange rate snapshot.
+                      Read-only display of the rates the
+                      daily cron @ 02:00 Berlin has fetched.
+                      The "Jetzt aktualisieren" button is
+                      the manual override — useful right
+                      after a company is created, or when
+                      the cron failed. The displayed rates
+                      are what buildBuchungenFromDb writes
+                      to DATEV column 17 (Kurs) for every
+                      non-EUR invoice / expense row. */}
+                  <div className="pt-4 border-t border-gray-200 dark:border-gray-700 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <h3 className="text-sm font-semibold">
+                          {t("settings.datevExchangeRatesTitle")}
+                        </h3>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                          {t("settings.datevExchangeRatesSubtitle")}
+                        </p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={rateSnapshotRefreshing || !companyId}
+                        onClick={refreshRateSnapshot}
+                      >
+                        {rateSnapshotRefreshing
+                          ? t("settings.datevExchangeRatesRefreshing")
+                          : t("settings.datevExchangeRatesRefresh")}
+                      </Button>
+                    </div>
+                    {rateSnapshotError && (
+                      <div className="text-xs text-red-600 dark:text-red-400">
+                        {rateSnapshotError}
+                      </div>
+                    )}
+                    {rateSnapshotLoading ? (
+                      <div className="text-xs italic text-gray-500 dark:text-gray-400">
+                        {t("settings.datevExchangeRatesLoading")}
+                      </div>
+                    ) : !rateSnapshot ? (
+                      <div className="text-xs italic text-gray-500 dark:text-gray-400">
+                        {t("settings.datevExchangeRatesEmpty")}
+                      </div>
+                    ) : (
+                      <>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                          {t("settings.datevExchangeRatesLastSync", {
+                            date: rateSnapshot.date,
+                          })}
+                        </div>
+                        <table className="text-xs font-mono">
+                          <thead>
+                            <tr className="text-gray-500 dark:text-gray-400">
+                              <th className="text-left pr-4">
+                                {t("settings.datevExchangeRatesCurrency")}
+                              </th>
+                              <th className="text-left pr-4">
+                                {t("settings.datevExchangeRatesRate")}
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {Object.entries(rateSnapshot.rates)
+                              .sort(([a], [b]) => a.localeCompare(b))
+                              .map(([code, rate]) => (
+                                <tr key={code}>
+                                  <td className="pr-4">{code}</td>
+                                  <td className="pr-4">
+                                    {rate} {rateSnapshot.base}
+                                  </td>
+                                </tr>
+                              ))}
+                          </tbody>
+                        </table>
+                      </>
                     )}
                   </div>
                 </>
