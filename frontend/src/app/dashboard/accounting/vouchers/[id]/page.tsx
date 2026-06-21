@@ -337,7 +337,10 @@ export default function VoucherDetailPage() {
                 truth for the attachment UX. */}
             <Card className="mb-4">
               <CardHeader>
-                <CardTitle>{t("expenses.receipts")}</CardTitle>
+                <CardTitle>{t("voucher.receipts")}</CardTitle>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  {t("voucher.receiptsHint")}
+                </p>
               </CardHeader>
               <CardContent>
                 <ReceiptsPanel

@@ -1080,6 +1080,8 @@
     "balanced": "借贷相等 — 已平衡",
     "unbalanced": "借贷不等 — 未平衡",
     "auditTrail": "审计链",
+    "receipts": "凭证",
+    "receiptsHint": "本记账凭证的原始凭证。会自动包含在 DATEV 凭证包中。",
     "fromBankReconciliation": "关联银行对账",
     "fromBankTransaction": "关联银行流水（费用）",
     "fromInvoice": "关联发票",

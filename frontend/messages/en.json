@@ -1070,6 +1070,8 @@
     "balanced": "Debit = Credit — balanced",
     "unbalanced": "Debit ≠ Credit — UNBALANCED",
     "auditTrail": "Audit trail",
+    "receipts": "Receipts",
+    "receiptsHint": "Original receipts for this booking voucher. Automatically included in the DATEV Beleg-Paket.",
     "fromBankReconciliation": "Linked to bank reconciliation",
     "fromBankTransaction": "Linked to bank transaction (expense)",
     "fromInvoice": "Linked to invoice",

@@ -1078,6 +1078,8 @@
     "balanced": "Soll = Haben — Buchung ausgeglichen",
     "unbalanced": "Soll ≠ Haben — Buchung UNAUSGEGLICHEN",
     "auditTrail": "Audit-Trail",
+    "receipts": "Belege",
+    "receiptsHint": "Original-Belege zu diesem Buchungsbeleg. Wird automatisch in das DATEV-Beleg-Paket aufgenommen.",
     "fromBankReconciliation": "Verknüpft mit Bankabgleich",
     "fromBankTransaction": "Verknüpft mit Bankbuchung (Aufwand)",
     "fromInvoice": "Verknüpft mit Rechnung",
