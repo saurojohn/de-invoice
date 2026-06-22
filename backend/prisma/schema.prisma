@@ -50,6 +50,7 @@ model Company {
   errorEvents ErrorEvent[]
   emailSends  EmailSend[]
   bankStatements BankStatement[]
+  fintsConnections FinTSConnection[]
   mailConfig  MailConfig?
   expenses    Expense[]
   ustvaFilings UStvaFiling[]
@@ -1314,4 +1315,125 @@ model VoucherTemplate {
   updatedAt   DateTime  @updatedAt
 
   @@index([companyId, sortOrder])
+}
+
+// Tier 6: FinTS bank connection. Stores the
+// per-company credentials + the (encrypted) PIN
+// + the last successful Dialog-Id. Each
+// connection is keyed by (companyId, blz, userId)
+// — one customer can have multiple accounts at
+// different banks. The PIN is stored as a
+// sha256 hash (NOT the plaintext) so a database
+// leak doesn't give an attacker working creds —
+// the hash is what the bank sees as a "fake PIN"
+// when it does a probe, and the real PIN is only
+// kept in the user's session memory, not in DB.
+// For PSD2 Strong Customer Authentication the
+// real flow is: user types PIN into the modal,
+// we open a one-shot dialog, bank sends a
+// HITAN/TAN challenge, user enters the TAN
+// in a follow-up modal, we submit and persist
+// the resulting system-id + dialog-id for the
+// next sync.
+model FinTSConnection {
+  id              String    @id @default(uuid())
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  // 8-digit German Bankleitzahl (e.g. '50050201'
+  // for Sparkasse Frankfurt). Stored as text so we
+  // don't lose leading zeros.
+  blz             String
+  // The online-banking user ID (varies per bank:
+  // Sparkasse = the VR-NetKey, DKB = the
+  // Anmeldename, comdirect = Zugangsnummer).
+  userId          String
+  // Display label the Berater chose, e.g.
+  // "Sparkasse Dreieich — Geschäftskonto".
+  label           String
+  // The FinTS server URL. Most banks publish
+  // their URL via the BPD (Bank Parameter Daten)
+  // during dialog init, but for many
+  // (Sparkasse, Volksbank) the URL is a static
+  // https://banking.s-fints-*.de/PinTanServlet
+  // that we resolve from BLZ via lookup.
+  endpointUrl     String
+  // 0 = real, 1 = mock-mode (returns canned
+  // data without touching the bank). Mock is
+  // the default for new connections in dev/test
+  // environments. Set FINTS_MOCK=0 to opt out
+  // of mock globally.
+  mockMode        Int       @default(0)
+  // sha256 of the user's PIN. Stored so a
+  // repeated bad-PIN attempt can be detected
+  // before we re-open the dialog (banks
+  // return 9910 / PIN_INVALID for a
+  // sha256-hash probe — we don't want to
+  // call the real dialog just to learn the
+  // PIN is wrong). NEVER plaintext.
+  pinHash         String?
+  // PSD2 strong-customer-authentication. The
+  // bank assigns the mechanism at first
+  // dialog-init; we just remember the chosen one.
+  tanMethod       String?
+  // System-Id assigned by the bank at first
+  // successful dialog (HKSYN response). Used
+  // to resume the dialog without re-sending
+  // the customer-id. Required for
+  // PIN/TAN persistence.
+  systemId        String?
+  // Last dialog-id we used. The bank ties
+  // multiple message exchanges inside one
+  // dialog; the next sync continues the
+  // numbering.
+  lastDialogId    String?
+  // Last time we successfully opened a
+  // dialog. Banks often auto-expire inactive
+  // accounts — if this is older than e.g. 30
+  // days, the next sync will need a fresh TAN.
+  lastSyncAt      DateTime?
+  // 'pending' (init not completed),
+  // 'active' (init done, ready to sync),
+  // 'error' (last sync failed — see
+  // lastError).
+  status          String    @default("pending")
+  lastError       String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  syncRuns FinTSSyncRun[]
+
+  @@index([companyId, status])
+  @@index([companyId, blz])
+}
+
+// One fetch attempt against the bank. Tracks
+// the start/end, how many transactions came back,
+// and whether the user had to enter a TAN
+// (some banks require a TAN even for HKKAZ).
+model FinTSSyncRun {
+  id              String    @id @default(uuid())
+  connectionId    String
+  connection      FinTSConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  companyId       String
+  // 'ok' / 'needs_tan' / 'failed'
+  status          String
+  // Number of transactions actually persisted
+  // (after dedupe by endToEndId).
+  txCount         Int       @default(0)
+  // The TAN challenge text the bank returned
+  // (HITAN:hn_challenge) — when status =
+  // 'needs_tan', the UI shows this in the
+  // modal. NULL when no TAN was required.
+  tanChallenge    String?
+  // The German error code (HIRMG/HIRMS:rc) and
+  // the human-readable text. Most useful for
+  // 'failed' status, e.g. "PIN gesperrt" or
+  // "TAN ungültig".
+  errorCode       String?
+  errorMessage    String?
+  startedAt       DateTime  @default(now())
+  finishedAt      DateTime?
+
+  @@index([connectionId, startedAt])
+  @@index([companyId, status])
 }

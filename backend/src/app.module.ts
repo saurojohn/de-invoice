@@ -27,6 +27,7 @@ import { AttachmentsModule } from './modules/attachment/attachments.module';
 import { VatValidationModule } from './modules/vat-validation/vat-validation.module';
 import { SystemModule } from './modules/system/system.module';
 import { TwoFactorModule } from './modules/auth/two-factor/two-factor.module';
+import { FinTsModule } from './modules/fints/fints.module';
 
 @Module({
   imports: [
@@ -80,6 +81,7 @@ import { TwoFactorModule } from './modules/auth/two-factor/two-factor.module';
     VatValidationModule,
     SystemModule,
     TwoFactorModule,
+    FinTsModule,
     ScheduleModule.forRoot(),
   ],
   providers: [
