@@ -673,35 +673,116 @@ export class FinTsService {
   }
 
   /**
-   * After syncing, try to auto-match new
-   * transactions against open invoices. The
-   * matching rules are deliberately simple
-   * (deterministic, easy to e2e-test):
+   * Tier 6.5: Auto-sync all active FinTS
+   * connections on a 4-hour cron. Mirrors the
+   * auto-reminder pattern (Tier 2): walks every
+   * `status='active'` connection, calls
+   * `startSync()`, swallows per-connection
+   * errors so one bank outage doesn't take
+   * the whole cron down.
    *
-   * 1. **Exact amount match** between the
-   *    transaction and the invoice's
-   *    `total` field (within 1 cent).
-   * 2. **Invoice number in purpose** — if the
-   *    transaction's purpose contains the
-   *    invoice number (E2E-T6-001, etc.),
-   *    confidence 100.
-   * 3. **IBAN match** — the counterparty IBAN
-   *    matches the customer's IBAN,
-   *    confidence 80.
+   * Cron is `@Cron('0 star-slash-4 star star star')` Berlin
+   * (00:00, 04:00, 08:00, 12:00, 16:00, 20:00).
+   * Inside the cron we do NOT use a global
+   * circuit breaker — banks fail differently
+   * (some 503, some timeout, some return
+   * "PIN gesperrt" with HTTP 200) and a single
+   * failure on bank A shouldn't prevent bank B
+   * from being polled. Each connection is its
+   * own try/catch scope.
+   */
+  async autoSyncAllActive(): Promise<{
+    connections: number
+    ok: number
+    needsTan: number
+    failed: number
+  }> {
+    const connections = await this.prisma.finTSConnection.findMany({
+      where: { status: 'active' },
+    })
+    let ok = 0
+    let needsTan = 0
+    let failed = 0
+    for (const conn of connections) {
+      try {
+        const result = await this.startSync({
+          connectionId: conn.id,
+          companyId: conn.companyId,
+          userId: 'cron',
+        })
+        if (result.status === 'ok') ok++
+        else if (result.status === 'needs_tan') needsTan++
+        else failed++
+      } catch (e: any) {
+        this.logger.warn(
+          `autoSync: connection ${conn.id} (${conn.label}) failed: ${e?.message}`,
+        )
+        failed++
+      }
+    }
+    return {
+      connections: connections.length,
+      ok,
+      needsTan,
+      failed,
+    }
+  }
+
+  /**
+   * Tier 6.5: Smart auto-match — three new
+   * rules on top of the original Tier 6
+   * exact-amount + invoice#-in-purpose +
+   * IBAN-match.
    *
-   * The user can confirm or reject each
-   * candidate in the UI. Confirmed matches
-   * create a Payment + flip the invoice to
-   * paid (via PaymentService.create).
+   * Rule A (±0.50 EUR): amount within 50
+   * cents. Banks sometimes charge a
+   * processing fee that lands on the same
+   * day as the customer's transfer, and
+   * FX-converted payments lose 1-3 cents
+   * in the conversion rounding. Without
+   * this rule a perfectly legitimate
+   * "2380.00 minus 0.30 fee" transaction
+   * would not match.
+   *
+   * Rule B (sum-to-invoice): 2..N
+   * unreconciled incoming transactions
+   * whose amounts sum exactly to an open
+   * invoice's total. Customers paying
+   * in 2-3 installments (common in B2B
+   * leather trade: "Anzahlung 30% bei
+   * Auftrag, Rest bei Lieferung") get
+   * the full invoice marked paid
+   * automatically when both legs land.
+   * Without this rule the user has to
+   * manually mark each leg and remember
+   * the remaining balance.
+   *
+   * Rule C (name-fuzzy): customer name
+   * Levenshtein distance ≤2 against any
+   * token in the purpose string. Real
+   * banks display the customer's name
+   * (or a truncated form), not the
+   * invoice number, so a typo-tolerant
+   * name match catches payments where
+   * the customer paid but didn't include
+   * a purpose string. Common in older
+   * B2B customers who pay via paper
+   * Überweisung.
+   *
+   * Confidence scoring:
+   *   - 100: invoice# in purpose (Tier 6)
+   *   - 95:  exact sum-to-invoice match
+   *   - 90:  ±0.50 + IBAN
+   *   - 80:  ±0.50 + name fuzzy
+   *   - 80:  exact + IBAN (Tier 6)
+   *   - 70:  exact + name fuzzy
+   *   - 50:  exact only (Tier 6)
+   *   - 30:  ±0.50 only (weakest)
    */
   async autoMatchNewTransactions(companyId: string): Promise<{
     matched: number
     suggested: number
   }> {
-    // Find transactions that have no recon
-    // rows yet. We only act on transactions
-    // from mock syncs in this build; real
-    // syncs are stubbed.
     const unreconciled = await this.prisma.bankTransaction.findMany({
       where: {
         companyId,
@@ -712,55 +793,167 @@ export class FinTsService {
 
     let matched = 0
     let suggested = 0
+
+    // Pre-load open invoices for this
+    // company once. The list is small in
+    // practice (≤200 open invoices per
+    // company at any time) and the smart
+    // matchers need to query it multiple
+    // times per transaction.
+    const openInvoices = await this.prisma.invoice.findMany({
+      where: {
+        companyId,
+        status: { in: ['sent', 'overdue', 'partial'] },
+      },
+      include: { customer: true },
+    })
+
     for (const tx of unreconciled) {
-      if (parseFloat(tx.amount.toString()) <= 0) {
+      const txAmount = parseFloat(tx.amount.toString())
+      if (txAmount <= 0) {
         // Outgoing payment — not a customer
         // paying an invoice. Skip in this
         // version (future: match to vendor /
         // expense).
         continue
       }
-      // Look for open invoices with matching
-      // total.
-      const candidates = await this.prisma.invoice.findMany({
-        where: {
-          companyId,
-          status: { in: ['sent', 'overdue', 'partial'] },
-          total: tx.amount,
-        },
-        include: { customer: true },
+
+      // Skip transactions already
+      // matched by Rule B's previous
+      // iteration (a sum-to-invoice match
+      // creates recon rows for each
+      // contributing txn, so a
+      // subsequent per-txn pass would
+      // double-count).
+      const alreadyMatched = await this.prisma.bankReconciliation.findFirst({
+        where: { bankTransactionId: tx.id },
       })
-      for (const inv of candidates) {
+      if (alreadyMatched) continue
+
+      // --- Rule B: sum-to-invoice (first
+      // pass) — try to group 2..N
+      // unreconciled incoming txns that
+      // sum to an open invoice.
+      for (const inv of openInvoices) {
+        const invTotal = parseFloat(inv.total.toString())
+        // Find other unreconciled txns to
+        // combine with this one. Exclude
+        // ones that already have a
+        // recon row (already matched to
+        // something else).
+        const others = await this.prisma.bankTransaction.findMany({
+          where: {
+            companyId,
+            id: { not: tx.id },
+            amount: { gt: 0 },
+            matches: { none: {} },
+          },
+          take: 10,
+        })
+        const candidates = [tx, ...others]
+        // Search 2..N subsets: try all
+        // pairs first (covers 90% of real
+        // cases — 2 installments), then
+        // 3-element combinations if no
+        // pair matched. O(n^2) for n=10 is
+        // fine; we'd never have 10+
+        // unreconciled txns at once.
+        let found: any[] | null = null
+        for (let size = 2; size <= candidates.length && !found; size++) {
+          const combos = combinations(candidates, size)
+          for (const combo of combos) {
+            const sum = combo.reduce(
+              (s, t) => s + parseFloat(t.amount.toString()),
+              0,
+            )
+            // Match within 1 cent (FX rounding
+            // tolerance for combined txns).
+            if (Math.abs(sum - invTotal) < 0.01) {
+              found = combo
+              break
+            }
+          }
+        }
+        if (found && found.length > 1) {
+          // Match all N txns to this invoice.
+          for (const t of found) {
+            await this.prisma.bankReconciliation.create({
+              data: {
+                bankTransactionId: t.id,
+                invoiceId: inv.id,
+                companyId,
+                appliedAmount: t.amount,
+                status: 'suggested',
+                confidence: 95,
+                matchReason: `Summe ${found.length} Buchungen = Rechnungsbetrag (${inv.invoiceNumber})`,
+              },
+            })
+            suggested++
+          }
+          matched++
+          break // tx is now matched, move on
+        }
+      }
+
+      // Re-check: did Rule B match this tx?
+      const recheck = await this.prisma.bankReconciliation.findFirst({
+        where: { bankTransactionId: tx.id },
+      })
+      if (recheck) continue
+
+      // --- Rules A, C + Tier 6 (per-txn
+      // matchers) — exact amount + ±0.50
+      // tolerance.
+      for (const inv of openInvoices) {
+        const invTotal = parseFloat(inv.total.toString())
+        const exactDelta = Math.abs(txAmount - invTotal)
+        const isExact = exactDelta < 0.01
+        const isWithin50ct = exactDelta <= 0.50
+        if (!isExact && !isWithin50ct) continue
+
         let confidence = 0
         let reason = ''
-        // Reason 1: invoice number in purpose
-        if (tx.purpose && tx.purpose.includes(inv.invoiceNumber)) {
-          confidence = 100
-          reason = `Betrag exakt + Rechnungsnummer im Verwendungszweck`
-        } else if (
-          // Customer IBAN is stored in the
-          // `contact` JSON blob (no dedicated
-          // column). Read it defensively —
-          // a missing field just means the
-          // IBAN-based check can't fire.
+        const inPurpose =
+          tx.purpose && tx.purpose.includes(inv.invoiceNumber)
+        const ibanMatch =
           tx.counterpartyIban &&
           (() => {
-            const contact = (inv.customer?.contact as any) || {}
-            const address = (inv.customer?.address as any) || {}
-            const customerIban =
-              contact.iban || address.iban || null
+            const c = (inv.customer?.contact as any) || {}
+            const a = (inv.customer?.address as any) || {}
+            const customerIban = c.iban || a.iban || null
             if (!customerIban) return false
             return (
               customerIban.replace(/\s/g, '') ===
               tx.counterpartyIban!.replace(/\s/g, '')
             )
           })()
-        ) {
+        const nameFuzzy =
+          tx.purpose && fuzzyMatchCustomerName(tx.purpose, inv.customer?.name)
+
+        if (inPurpose && isExact) {
+          confidence = 100
+          reason = `Betrag exakt + Rechnungsnummer im Verwendungszweck`
+        } else if (inPurpose && isWithin50ct) {
+          confidence = 95
+          reason = `Betrag ±${exactDelta.toFixed(2)} + Rechnungsnummer im Verwendungszweck (FX-Rundung)`
+        } else if (ibanMatch && isExact) {
           confidence = 80
           reason = `Betrag exakt + IBAN stimmt mit Kunde überein`
-        } else {
+        } else if (ibanMatch && isWithin50ct) {
+          confidence = 90
+          reason = `Betrag ±${exactDelta.toFixed(2)} + IBAN stimmt`
+        } else if (nameFuzzy && isExact) {
+          confidence = 70
+          reason = `Betrag exakt + Kundenname (Fuzzy) im Verwendungszweck`
+        } else if (nameFuzzy && isWithin50ct) {
+          confidence = 80
+          reason = `Betrag ±${exactDelta.toFixed(2)} + Kundenname (Fuzzy)`
+        } else if (isExact) {
           confidence = 50
           reason = `Betrag exakt (keine weitere Korrelation)`
+        } else {
+          confidence = 30
+          reason = `Betrag ±${exactDelta.toFixed(2)} (innerhalb FX-Toleranz)`
         }
         await this.prisma.bankReconciliation.create({
           data: {
@@ -773,13 +966,93 @@ export class FinTsService {
             matchReason: reason,
           },
         })
-        if (confidence >= 80) {
-          matched++
-        } else {
-          suggested++
-        }
+        if (confidence >= 80) matched++
+        else suggested++
+        break // one match per tx (highest confidence wins)
       }
     }
     return { matched, suggested }
   }
+}
+
+/**
+ * Levenshtein distance ≤ 2 between any
+ * token in the purpose string and the
+ * customer name. "Müller" vs "Muller" =
+ * 1 edit (ü→u), "Müller" vs "Mueller" =
+ * 2 edits. Both should match. "Müller"
+ * vs "Mülller" = 1 edit (inserted l).
+ *
+ * We tokenise the purpose by whitespace
+ * + comma + dot + semicolon, then
+ * compare each token to each
+ * whitespace-separated word in the
+ * customer name.
+ */
+function fuzzyMatchCustomerName(
+  purpose: string,
+  customerName: string | null | undefined,
+): boolean {
+  if (!purpose || !customerName) return false
+  const tokens = purpose
+    .toLowerCase()
+    .split(/[\s,;.]+/)
+    .filter(Boolean)
+  const nameTokens = customerName
+    .toLowerCase()
+    .split(/[\s,;.]+/)
+    .filter(Boolean)
+  for (const tok of tokens) {
+    if (tok.length < 3) continue
+    for (const n of nameTokens) {
+      if (n.length < 3) continue
+      if (levenshtein(tok, n) <= 2) return true
+    }
+  }
+  return false
+}
+
+function levenshtein(a: string, b: string): number {
+  if (a === b) return 0
+  if (!a.length) return b.length
+  if (!b.length) return a.length
+  const dp: number[][] = []
+  for (let i = 0; i <= a.length; i++) {
+    dp[i] = [i]
+  }
+  for (let j = 0; j <= b.length; j++) {
+    dp[0][j] = j
+  }
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1
+      dp[i][j] = Math.min(
+        dp[i - 1][j] + 1,
+        dp[i][j - 1] + 1,
+        dp[i - 1][j - 1] + cost,
+      )
+    }
+  }
+  return dp[a.length][b.length]
+}
+
+/**
+ * Yield all size-k combinations of an
+ * array. Used by the sum-to-invoice
+ * matcher to find a subset of N
+ * transactions that sum to the open
+ * invoice's total.
+ */
+function combinations<T>(arr: T[], k: number): T[][] {
+  if (k > arr.length || k <= 0) return []
+  if (k === 1) return arr.map((x) => [x])
+  const result: T[][] = []
+  for (let i = 0; i <= arr.length - k; i++) {
+    const head = arr[i]
+    const tailCombos = combinations(arr.slice(i + 1), k - 1)
+    for (const tail of tailCombos) {
+      result.push([head, ...tail])
+    }
+  }
+  return result
 }

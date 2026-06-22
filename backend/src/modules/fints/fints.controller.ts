@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common'
 import { Auth, Require } from '../../auth/roles.decorator'
 import { FinTsService } from './fints.service'
+import { FintsSyncScheduler } from './fints-sync.scheduler'
 
 interface CreateConnectionDto {
   companyId: string
@@ -48,7 +49,10 @@ interface SubmitTanDto {
 @Auth()
 @Controller('fints')
 export class FinTsController {
-  constructor(private readonly fints: FinTsService) {}
+  constructor(
+    private readonly fints: FinTsService,
+    private readonly scheduler: FintsSyncScheduler,
+  ) {}
 
   /**
    * List the FinTS connections configured for
@@ -237,5 +241,33 @@ export class FinTsController {
       throw new BadRequestException('companyId is required')
     }
     return this.fints.autoMatchNewTransactions(body.companyId)
+  }
+
+  /**
+   * Tier 6.5: Manual override of the
+   * 4-hour auto-sync cron. Bypasses the
+   * schedule so an admin can force a
+   * pull after a long bank outage, or
+   * to test the flow after disabling
+   * the cron. Same pattern as
+   * `POST /reminders/auto-run` in
+   * Tier 2.
+   */
+  @Post('auto-run')
+  @Require('company.update')
+  async autoRun() {
+    return this.scheduler.runAutoSync()
+  }
+
+  /**
+   * Read-only: last auto-sync outcome
+   * (timestamp + counts). For the admin
+   * UI to show "Letzter Auto-Sync: vor
+   * 12 min, 3 ok, 1 needs_tan".
+   */
+  @Get('last-auto-run')
+  @Require('reports.read')
+  async lastAutoRun() {
+    return this.scheduler.getLastAutoRun()
   }
 }
