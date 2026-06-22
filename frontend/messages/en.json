@@ -1314,5 +1314,32 @@
     "txnCounterparty": "Counterparty",
     "txnPurpose": "Purpose",
     "txnAmount": "Amount"
+  },
+  "invoiceTemplates": {
+    "title": "Invoice templates",
+    "subtitle": "Custom PDF invoice templates — per-company colors, fonts, layout and footer text.",
+    "empty": "No templates yet. Click \"New template\".",
+    "newTemplate": "New template",
+    "editTemplate": "Edit template",
+    "name": "Name",
+    "namePlaceholder": "e.g. SH Leder Standard, B2B Reverse Charge",
+    "primaryColor": "Primary color",
+    "accentColor": "Accent color",
+    "fontFamily": "Font family",
+    "layoutDensity": "Layout density",
+    "showLogo": "Show logo",
+    "footerText": "Footer text",
+    "paymentTermsText": "Payment terms",
+    "setAsDefault": "Set as default (overrides current default)",
+    "defaultBadge": "DEFAULT",
+    "preview": "Preview (PDF)",
+    "loadError": "Could not load templates.",
+    "saveError": "Could not save template.",
+    "previewError": "Could not render preview.",
+    "created": "Template created",
+    "updated": "Template updated",
+    "deleted": "Template deleted",
+    "deleteError": "Could not delete template.",
+    "confirmDelete": "Delete this template?"
   }
 }

@@ -1324,5 +1324,32 @@
     "txnCounterparty": "对方",
     "txnPurpose": "用途",
     "txnAmount": "金额"
+  },
+  "invoiceTemplates": {
+    "title": "发票模板",
+    "subtitle": "自定义 PDF 发票模板 — 每个企业可调整颜色、字体、布局和页脚文本。",
+    "empty": "尚无模板。点击“新建模板”。",
+    "newTemplate": "新建模板",
+    "editTemplate": "编辑模板",
+    "name": "名称",
+    "namePlaceholder": "例如 SH Leder 标准版, B2B 反向收费",
+    "primaryColor": "主色",
+    "accentColor": "辅助色",
+    "fontFamily": "字体",
+    "layoutDensity": "布局密度",
+    "showLogo": "显示 Logo",
+    "footerText": "页脚文本",
+    "paymentTermsText": "付款条款",
+    "setAsDefault": "设为默认 (覆盖当前默认)",
+    "defaultBadge": "默认",
+    "preview": "预览 (PDF)",
+    "loadError": "无法加载模板。",
+    "saveError": "无法保存模板。",
+    "previewError": "无法生成预览。",
+    "created": "模板已创建",
+    "updated": "模板已更新",
+    "deleted": "模板已删除",
+    "deleteError": "无法删除模板。",
+    "confirmDelete": "确认删除此模板?"
   }
 }

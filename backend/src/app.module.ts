@@ -28,6 +28,7 @@ import { VatValidationModule } from './modules/vat-validation/vat-validation.mod
 import { SystemModule } from './modules/system/system.module';
 import { TwoFactorModule } from './modules/auth/two-factor/two-factor.module';
 import { FinTsModule } from './modules/fints/fints.module';
+import { InvoiceTemplateModule } from './modules/invoice-template/invoice-template.module';
 
 @Module({
   imports: [
@@ -82,6 +83,7 @@ import { FinTsModule } from './modules/fints/fints.module';
     SystemModule,
     TwoFactorModule,
     FinTsModule,
+    InvoiceTemplateModule,
     ScheduleModule.forRoot(),
   ],
   providers: [

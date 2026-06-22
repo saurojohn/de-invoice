@@ -1322,5 +1322,32 @@
     "txnCounterparty": "Gegenseite",
     "txnPurpose": "Verwendungszweck",
     "txnAmount": "Betrag"
+  },
+  "invoiceTemplates": {
+    "title": "Rechnungsvorlagen",
+    "subtitle": "Eigene Vorlagen für PDF-Rechnungen — Farben, Schrift, Layout und Fußtext pro Unternehmen anpassen.",
+    "empty": "Noch keine Vorlagen. Klicken Sie auf „Neue Vorlage“.",
+    "newTemplate": "Neue Vorlage",
+    "editTemplate": "Vorlage bearbeiten",
+    "name": "Name",
+    "namePlaceholder": "z. B. SH Leder Standard, B2B Reverse Charge",
+    "primaryColor": "Primärfarbe",
+    "accentColor": "Akzentfarbe",
+    "fontFamily": "Schriftart",
+    "layoutDensity": "Layout-Dichte",
+    "showLogo": "Logo anzeigen",
+    "footerText": "Fußtext",
+    "paymentTermsText": "Zahlungsbedingungen",
+    "setAsDefault": "Als Standard festlegen (überschreibt aktuellen Standard)",
+    "defaultBadge": "STANDARD",
+    "preview": "Vorschau (PDF)",
+    "loadError": "Vorlagen konnten nicht geladen werden.",
+    "saveError": "Vorlage konnte nicht gespeichert werden.",
+    "previewError": "Vorschau konnte nicht erzeugt werden.",
+    "created": "Vorlage erstellt",
+    "updated": "Vorlage aktualisiert",
+    "deleted": "Vorlage gelöscht",
+    "deleteError": "Vorlage konnte nicht gelöscht werden.",
+    "confirmDelete": "Vorlage wirklich löschen?"
   }
 }

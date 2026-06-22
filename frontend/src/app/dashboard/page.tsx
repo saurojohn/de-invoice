@@ -500,6 +500,14 @@ export default function DashboardPage() {
               <p className="text-gray-600 dark:text-gray-300">{t("dashboard.cardBankingDesc")}</p>
             </CardContent>
           </Card>
+          <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/invoice-templates")}>
+            <CardHeader>
+              <CardTitle className="text-blue-700 dark:text-blue-300">{t("invoiceTemplates.title")}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-gray-600 dark:text-gray-300">{t("invoiceTemplates.subtitle")}</p>
+            </CardContent>
+          </Card>
           <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/suppliers")}>
             <CardHeader>
               <CardTitle className="text-orange-700 dark:text-orange-300">{t("dashboard.cardSuppliersTitle")}</CardTitle>
