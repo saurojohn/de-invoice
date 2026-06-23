@@ -1402,6 +1402,7 @@ model FinTSConnection {
   updatedAt       DateTime  @updatedAt
 
   syncRuns FinTSSyncRun[]
+  transfers FinTsTransfer[]
 
   @@index([companyId, status])
   @@index([companyId, blz])
@@ -1437,6 +1438,73 @@ model FinTSSyncRun {
 
   @@index([connectionId, startedAt])
   @@index([companyId, status])
+}
+
+// Tier 10: SEPA-Überweisung / Lastschrift
+// initiated via FinTS. Same 2-step TAN flow
+// as the read sync (start → needs_tan →
+// submit TAN → ok / failed). In mock-mode
+// the bank is bypassed entirely and any
+// 6-digit PIN/TAN is accepted.
+//
+// `kind` differentiates Überweisung
+// (SEPA Credit Transfer, HKCSE) from
+// Lastschrift (SEPA Direct Debit, HKCCS).
+// The pain.001 / pain.008 schema builder
+// in fints.service.ts uses this to choose
+// the XML root element.
+//
+// `status` lifecycle:
+//   draft       — POST /transfers saved but
+//                  not yet sent to the bank
+//   needs_tan   — HKCSE returned a
+//                  HITAN:hn_challenge, user
+//                  must enter the TAN
+//   ok          — bank acknowledged the
+//                  transfer (HIRMG/HIRMS rc=0)
+//   failed      — bank rejected (HIRMS rc≠0
+//                  OR connection error)
+//
+// `endToEndId` is the SEPA End-to-End ID
+// (max 35 chars, ASCII); re-using the same
+// endToEndId for a retry is the canonical
+// idempotency key on the bank side, so we
+// expose it via the API and pass it through
+// unchanged to pain.001/PmtId.
+model FinTsTransfer {
+  id              String    @id @default(uuid())
+  companyId       String
+  connectionId    String
+  connection      FinTSConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  // 'credit_transfer' (Überweisung) | 'direct_debit' (Lastschrift)
+  kind            String
+  debtorName      String
+  debtorIban      String
+  debtorBic       String?
+  creditorName    String
+  creditorIban    String
+  creditorBic     String?
+  amount          Decimal   @db.Decimal(12, 2)
+  currency        String    @default("EUR")
+  purpose         String?
+  // SEPA End-to-End ID; max 35 chars.
+  endToEndId      String
+  status          String    // draft | needs_tan | ok | failed
+  // Set when status='needs_tan' — the
+  // HITAN:hn_challenge the bank sent, shown
+  // verbatim in the modal.
+  tanChallenge    String?
+  // Set when status='failed' — the
+  // HIRMS:rc code (e.g. '9210') and the
+  // human-readable text the bank returned.
+  errorCode       String?
+  errorMessage    String?
+  startedAt       DateTime  @default(now())
+  finishedAt      DateTime?
+
+  @@index([companyId, status, startedAt])
+  @@index([connectionId, startedAt])
+  @@index([endToEndId])
 }
 
 // Tier 7: Custom invoice templates. Each

@@ -34,6 +34,27 @@ interface SubmitTanDto {
   tan: string
 }
 
+interface CreateTransferDto {
+  companyId: string
+  connectionId: string
+  kind: 'credit_transfer' | 'direct_debit'
+  creditorName: string
+  creditorIban: string
+  creditorBic?: string
+  amount: string
+  currency?: string
+  purpose?: string
+  endToEndId: string
+  // direct_debit only
+  mandateId?: string
+  sequenceType?: 'FRST' | 'RCUR' | 'FNAL' | 'OOFF'
+}
+
+interface SubmitTransferTanDto {
+  companyId: string
+  tan: string
+}
+
 /**
  * Tier 6: FinTS bank connection controller.
  *
@@ -269,5 +290,112 @@ export class FinTsController {
   @Require('reports.read')
   async lastAutoRun() {
     return this.scheduler.getLastAutoRun()
+  }
+
+  // ========================================================================
+  // Tier 10 — SEPA-Überweisung / Lastschrift
+  // ========================================================================
+
+  /**
+   * Tier 10: Step 1 of the SEPA-Überweisung
+   * flow. Persists the transfer and returns
+   * either:
+   *   - {status: 'needs_tan', tanChallenge,
+   *     transferId} — the bank wants a TAN
+   *     before the money moves.
+   *   - {status: 'ok', transferId} — single-
+   *     shot successful (lastschrift without
+   *     SCA, rare).
+   *   - {status: 'failed', errorCode,
+   *     errorMessage, transferId} — bank
+   *     rejected.
+   *
+   * Same shape as `startSync` for read syncs.
+   * The IBAN is validated MOD-97 server-side
+   * before persisting — the bank would reject
+   * a bad IBAN anyway but the user-facing
+   * error message from the bank is less
+   * helpful.
+   */
+  @Post('transfers')
+  @Require('reports.read')
+  async createTransfer(@Body() body: CreateTransferDto) {
+    if (!body?.companyId) {
+      throw new BadRequestException('companyId is required')
+    }
+    if (!body?.connectionId) {
+      throw new BadRequestException('connectionId is required')
+    }
+    if (!body?.kind || !['credit_transfer', 'direct_debit'].includes(body.kind)) {
+      throw new BadRequestException('kind muss "credit_transfer" oder "direct_debit" sein')
+    }
+    if (!body?.creditorName || !body?.creditorIban || !body?.amount || !body?.endToEndId) {
+      throw new BadRequestException(
+        'creditorName, creditorIban, amount, endToEndId sind erforderlich',
+      )
+    }
+    return this.fints.createTransfer({
+      companyId: body.companyId,
+      connectionId: body.connectionId,
+      kind: body.kind,
+      creditorName: body.creditorName,
+      creditorIban: body.creditorIban,
+      creditorBic: body.creditorBic,
+      amount: body.amount,
+      currency: body.currency,
+      purpose: body.purpose,
+      endToEndId: body.endToEndId,
+      mandateId: body.mandateId,
+      sequenceType: body.sequenceType,
+    })
+  }
+
+  /**
+   * Tier 10: Step 2 of the TAN flow.
+   * Re-issues the HKCSE/HKCCS with the user's
+   * TAN. In mock-mode any 6-digit TAN
+   * succeeds; real-mode is currently stub'd
+   * (no sandbox bank to test against).
+   */
+  @Post('transfers/:id/tan')
+  @Require('reports.read')
+  async submitTransferTan(
+    @Param('id') id: string,
+    @Body() body: SubmitTransferTanDto,
+  ) {
+    if (!body?.companyId) {
+      throw new BadRequestException('companyId is required')
+    }
+    if (!body?.tan) {
+      throw new BadRequestException('TAN ist erforderlich')
+    }
+    return this.fints.submitTransferTan({
+      transferId: id,
+      tan: body.tan,
+      companyId: body.companyId,
+    })
+  }
+
+  /**
+   * Tier 10: List recent SEPA transfers.
+   * UI uses this to render the history panel
+   * (status badge, amount, counterparty).
+   */
+  @Get('transfers')
+  @Require('reports.read')
+  async listTransfers(
+    @Query('companyId') companyId: string,
+    @Query('connectionId') connectionId?: string,
+    @Query('status') status?: string,
+  ) {
+    if (!companyId) {
+      throw new BadRequestException('companyId is required')
+    }
+    return this.fints.listTransfers({
+      companyId,
+      connectionId,
+      status,
+      take: 50,
+    })
   }
 }
