@@ -357,6 +357,12 @@ export default function BankingPage() {
           <Button variant="outline" onClick={handleAutoMatch}>
             {t("banking.autoMatch")}
           </Button>
+          <Button
+            variant="outline"
+            onClick={() => (window.location.href = "/dashboard/banking/transfers")}
+          >
+            {t("banking.transferTitle")}
+          </Button>
           <Button onClick={() => setShowAddModal(true)}>
             {t("banking.addConnection")}
           </Button>
