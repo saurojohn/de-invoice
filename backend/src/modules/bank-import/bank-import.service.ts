@@ -1085,4 +1085,57 @@ export class BankImportService {
       orderBy: { createdAt: 'asc' },
     });
   }
+
+  /**
+   * Tier 9: list BankReconciliations across
+   * the whole company (not tied to a single
+   * statement). Powers the
+   * /dashboard/banking reconciliation
+   * panel.
+   *
+   * Sort order: confidence DESC, then
+   * createdAt DESC — so the highest-
+   * confidence auto-matches (>=95) appear
+   * first and the user can confirm them
+   * in one pass. Status defaults to
+   * 'suggested' only — confirmed/rejected
+   * rows don't need re-triage.
+   */
+  async listCompanyReconciliations(input: {
+    companyId: string
+    status?: string
+    confidenceMin?: number
+  }) {
+    const where: any = {
+      companyId: input.companyId,
+    }
+    if (input.status) {
+      where.status = input.status
+    } else {
+      where.status = { in: ['suggested', 'confirmed'] }
+    }
+    if (input.confidenceMin !== undefined) {
+      where.confidence = { gte: input.confidenceMin }
+    }
+    return this.prisma.bankReconciliation.findMany({
+      where,
+      include: {
+        invoice: { select: { invoiceNumber: true, total: true, customer: { select: { name: true } } } },
+        bankTransaction: {
+          select: {
+            id: true,
+            valueDate: true,
+            amount: true,
+            currency: true,
+            counterpartyName: true,
+            counterpartyIban: true,
+            purpose: true,
+          },
+        },
+        voucher: { select: { id: true, voucherNumber: true } },
+      },
+      orderBy: [{ confidence: 'desc' }, { createdAt: 'desc' }],
+      take: 50,
+    })
+  }
 }

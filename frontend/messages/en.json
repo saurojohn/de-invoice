@@ -1313,7 +1313,21 @@
     "txnDate": "Date",
     "txnCounterparty": "Counterparty",
     "txnPurpose": "Purpose",
-    "txnAmount": "Amount"
+    "txnAmount": "Amount",
+    "reconPanelTitle": "Reconciliations",
+    "reconEmpty": "No pending reconciliations. Auto-match runs on sync.",
+    "reconConfidence": "Confidence",
+    "reconCounterparty": "Counterparty",
+    "reconAmount": "Amount",
+    "reconReason": "Reason",
+    "reconActions": "Actions",
+    "reconConfirm": "Confirm",
+    "reconReject": "Reject",
+    "reconStatusConfirmed": "CONFIRMED",
+    "reconConfirmed": "Reconciliation confirmed",
+    "reconConfirmError": "Confirm failed",
+    "reconRejected": "Reconciliation rejected",
+    "reconRejectError": "Reject failed"
   },
   "invoiceTemplates": {
     "title": "Invoice templates",

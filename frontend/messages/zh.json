@@ -1323,7 +1323,21 @@
     "txnDate": "日期",
     "txnCounterparty": "对方",
     "txnPurpose": "用途",
-    "txnAmount": "金额"
+    "txnAmount": "金额",
+    "reconPanelTitle": "对账记录",
+    "reconEmpty": "无待处理对账。自动匹配在同步时运行。",
+    "reconConfidence": "置信度",
+    "reconCounterparty": "对方",
+    "reconAmount": "金额",
+    "reconReason": "原因",
+    "reconActions": "操作",
+    "reconConfirm": "确认",
+    "reconReject": "拒绝",
+    "reconStatusConfirmed": "已确认",
+    "reconConfirmed": "对账已确认",
+    "reconConfirmError": "确认失败",
+    "reconRejected": "对账已拒绝",
+    "reconRejectError": "拒绝失败"
   },
   "invoiceTemplates": {
     "title": "发票模板",

@@ -90,6 +90,34 @@ export default function BankingPage() {
   } | null>(null)
   const [syncingIds, setSyncingIds] = useState<Set<string>>(new Set())
   const [recentTxns, setRecentTxns] = useState<BankTransaction[]>([])
+  // Tier 9: BankReconciliation rows
+  // surfaced in /dashboard/banking. The
+  // user clicks Bestätigen/Ablehnen on
+  // auto-matched rows here; before this
+  // they had to navigate to /bank-import.
+  interface Reconciliation {
+    id: string
+    confidence: number
+    matchReason: string | null
+    status: string
+    appliedAmount: string
+    invoice: {
+      invoiceNumber: string
+      total: string
+      customer: { name: string }
+    }
+    bankTransaction: {
+      id: string
+      valueDate: string
+      amount: string
+      currency: string
+      counterpartyName: string | null
+      counterpartyIban: string | null
+      purpose: string | null
+    }
+  }
+  const [reconciliations, setReconciliations] = useState<Reconciliation[]>([])
+  const [reconsLoading, setReconsLoading] = useState(false)
 
   const fetchConnections = useCallback(async (cid: string) => {
     setLoading(true)
@@ -139,12 +167,59 @@ export default function BankingPage() {
     }
   }, [])
 
+  // Tier 9: load BankReconciliation
+  // rows. The list is sorted by confidence
+  // DESC so the high-confidence auto-matches
+  // (>=95) surface first. The user can
+  // confirm or reject each one inline; we
+  // don't navigate them away from /banking.
+  const fetchReconciliations = useCallback(async (cid: string) => {
+    setReconsLoading(true)
+    try {
+      const data = await apiGet<Reconciliation[]>(
+        `/api/v1/bank-statements/reconciliations?companyId=${cid}`,
+      )
+      setReconciliations(data)
+    } catch {
+      setReconciliations([])
+    } finally {
+      setReconsLoading(false)
+    }
+  }, [])
+
+  const handleConfirmRecon = async (reconId: string) => {
+    try {
+      await apiPost(
+        `/api/v1/bank-statements/reconciliations/${reconId}/confirm?companyId=${companyId}`,
+        {},
+      )
+      toast.success(t("banking.reconConfirmed"))
+      fetchReconciliations(companyId)
+    } catch (err: any) {
+      toast.error(err?.message || t("banking.reconConfirmError"))
+    }
+  }
+
+  const handleRejectRecon = async (reconId: string) => {
+    try {
+      await apiPost(
+        `/api/v1/bank-statements/reconciliations/${reconId}/reject?companyId=${companyId}`,
+        {},
+      )
+      toast.success(t("banking.reconRejected"))
+      fetchReconciliations(companyId)
+    } catch (err: any) {
+      toast.error(err?.message || t("banking.reconRejectError"))
+    }
+  }
+
   useEffect(() => {
     const cid = localStorage.getItem("companyId") || ""
     if (cid) {
       setCompanyId(cid)
       fetchConnections(cid)
       fetchRecentTxns(cid)
+      fetchReconciliations(cid)
     }
   }, [fetchConnections, fetchRecentTxns])
 
@@ -195,6 +270,7 @@ export default function BankingPage() {
         )
         fetchConnections(companyId)
         fetchRecentTxns(companyId)
+        fetchReconciliations(companyId)
       } else {
         toast.error(result.errorMessage || t("banking.syncFailed"))
       }
@@ -223,6 +299,7 @@ export default function BankingPage() {
         setTanModal(null)
         fetchConnections(companyId)
         fetchRecentTxns(companyId)
+        fetchReconciliations(companyId)
       } else {
         toast.error(t("banking.tanRejected"))
       }
@@ -418,6 +495,139 @@ export default function BankingPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Tier 9: Reconciliations panel.
+          Lists the auto-matched BankReconciliation
+          rows so the user can confirm/reject
+          inline. Sorted by confidence DESC — the
+          high-confidence matches (>=95) appear
+          first, the borderline ones (50-80) need
+          a closer look. The "reason" column shows
+          WHY the matcher paired them (FX tolerance,
+          sum-to-invoice, name fuzzy, etc.) so the
+          user can sanity-check before confirming. */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            {t("banking.reconPanelTitle")}
+            {reconciliations.filter((r) => r.status === "suggested").length > 0 && (
+              <span className="text-xs px-2 py-1 rounded bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">
+                {reconciliations.filter((r) => r.status === "suggested").length}
+              </span>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {reconsLoading ? (
+            <div className="text-sm text-gray-500 dark:text-gray-400">
+              {t("common.loading")}
+            </div>
+          ) : reconciliations.length === 0 ? (
+            <div className="text-sm text-gray-500 dark:text-gray-400">
+              {t("banking.reconEmpty")}
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
+                    <th className="py-2 pr-3">
+                      {t("banking.reconConfidence")}
+                    </th>
+                    <th className="py-2 pr-3">
+                      {t("banking.reconInvoice")}
+                    </th>
+                    <th className="py-2 pr-3">
+                      {t("banking.reconCounterparty")}
+                    </th>
+                    <th className="py-2 pr-3 text-right">
+                      {t("banking.reconAmount")}
+                    </th>
+                    <th className="py-2 pr-3">
+                      {t("banking.reconReason")}
+                    </th>
+                    <th className="py-2 pr-3">
+                      {t("banking.reconActions")}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {reconciliations.map((r) => (
+                    <tr
+                      key={r.id}
+                      className="border-b border-gray-100 dark:border-gray-800"
+                    >
+                      <td className="py-2 pr-3 font-mono text-xs">
+                        <span
+                          className={`px-2 py-1 rounded text-xs font-semibold ${
+                            r.confidence >= 95
+                              ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200"
+                              : r.confidence >= 80
+                              ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+                              : "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300"
+                          }`}
+                        >
+                          {r.confidence}
+                        </span>
+                      </td>
+                      <td className="py-2 pr-3 font-mono text-xs">
+                        {r.invoice.invoiceNumber}
+                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                          {parseFloat(r.invoice.total).toLocaleString("de-DE", {
+                            style: "currency",
+                            currency: "EUR",
+                          })}
+                        </div>
+                      </td>
+                      <td className="py-2 pr-3">
+                        {r.bankTransaction.counterpartyName || "—"}
+                        <div className="text-xs text-gray-500 dark:text-gray-400 font-mono">
+                          {r.bankTransaction.valueDate.slice(0, 10)}
+                        </div>
+                      </td>
+                      <td className="py-2 pr-3 text-right font-mono">
+                        {parseFloat(r.bankTransaction.amount).toLocaleString(
+                          "de-DE",
+                          {
+                            style: "currency",
+                            currency: r.bankTransaction.currency,
+                          },
+                        )}
+                      </td>
+                      <td className="py-2 pr-3 text-xs text-gray-600 dark:text-gray-400 italic">
+                        {r.matchReason || "—"}
+                      </td>
+                      <td className="py-2 pr-3">
+                        {r.status === "suggested" ? (
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              onClick={() => handleConfirmRecon(r.id)}
+                            >
+                              {t("banking.reconConfirm")}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleRejectRecon(r.id)}
+                            >
+                              {t("banking.reconReject")}
+                            </Button>
+                          </div>
+                        ) : (
+                          <span className="text-xs px-2 py-1 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200">
+                            {t("banking.reconStatusConfirmed")}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Add-connection modal */}
       {showAddModal && (

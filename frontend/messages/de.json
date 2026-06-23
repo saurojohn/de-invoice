@@ -1321,7 +1321,21 @@
     "txnDate": "Datum",
     "txnCounterparty": "Gegenseite",
     "txnPurpose": "Verwendungszweck",
-    "txnAmount": "Betrag"
+    "txnAmount": "Betrag",
+    "reconPanelTitle": "Zuordnungen",
+    "reconEmpty": "Keine offenen Zuordnungen. Auto-Match läuft beim Sync.",
+    "reconConfidence": "Konfidenz",
+    "reconCounterparty": "Gegenseite",
+    "reconAmount": "Betrag",
+    "reconReason": "Grund",
+    "reconActions": "Aktionen",
+    "reconConfirm": "Bestätigen",
+    "reconReject": "Ablehnen",
+    "reconStatusConfirmed": "BESTÄTIGT",
+    "reconConfirmed": "Zuordnung bestätigt",
+    "reconConfirmError": "Bestätigung fehlgeschlagen",
+    "reconRejected": "Zuordnung abgelehnt",
+    "reconRejectError": "Ablehnung fehlgeschlagen"
   },
   "invoiceTemplates": {
     "title": "Rechnungsvorlagen",

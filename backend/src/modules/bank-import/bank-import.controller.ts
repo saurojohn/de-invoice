@@ -61,6 +61,41 @@ export class BankImportController {
     );
   }
 
+  /**
+   * Tier 9: list BankReconciliations for
+   * the company. Used by the
+   * /dashboard/banking reconciliation
+   * panel to show "auto-matched" rows
+   * alongside the connection list.
+   *
+   * Filters:
+   * - status: 'suggested' | 'confirmed'
+   *          | 'rejected' (default:
+   *          suggested + confirmed)
+   * - confidenceMin: 0-100 (default 0)
+   *
+   * The list is sorted by confidence DESC
+   * so high-confidence matches surface
+   * first — the user clicks 'Bestätigen'
+   * on the rows they're confident about,
+   * leaves the low-confidence ones for
+   * manual triage.
+   */
+  @Get('reconciliations')
+  @Require('invoice.read')
+  async listCompanyReconciliations(
+    @Query('companyId') companyId: string,
+    @Query('status') status?: string,
+    @Query('confidenceMin') confidenceMin?: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId is required')
+    return this.svc.listCompanyReconciliations({
+      companyId,
+      status,
+      confidenceMin: confidenceMin ? Number(confidenceMin) : undefined,
+    })
+  }
+
   /** Confirm a candidate match (writes Payment, flips
    *  the reconciliation to "confirmed" and the invoice
    *  to "paid" if the cumulative payments cover the
