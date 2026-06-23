@@ -65,13 +65,86 @@ interface CompanyInfo {
 
 export type InvoiceTemplateType = "standard" | "simplified" | "compact"
 
+/**
+ * Tier 7.5: visual config the renderer
+ * reads at PDF-build time. Sourced from
+ * the InvoiceTemplate row (custom) or
+ * a built-in preset (standard /
+ * simplified / compact). The shape
+ * matches InvoiceTemplateService's
+ * TemplateConfig (kept loose here to
+ * avoid a circular import).
+ *
+ * `accentColor` is currently unused but
+ * kept in the type so future
+ * renderers (e.g. the bank-info bar in
+ * the footer) can pick it up without
+ * changing the call site.
+ */
+export interface InvoiceRenderConfig {
+  primaryColor?: string
+  accentColor?: string
+  textColor?: string
+  fontFamily?: 'Helvetica' | 'Times-Roman' | 'Courier'
+  layoutDensity?: 'comfortable' | 'compact'
+  showLogo?: boolean
+  footerText?: string
+  paymentTermsText?: string
+  showAbsenderzeile?: boolean
+  reverseChargeNote?: string
+  kleineUnternehmerNote?: string
+}
+
 export async function generateInvoicePDF(
   invoice: Invoice,
   company: CompanyInfo,
-  templateType: string = "standard"
+  templateType: string = "standard",
+  renderConfig?: InvoiceRenderConfig
 ): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const template = templateType as InvoiceTemplateType
+    // Tier 7.5: build the font name for a
+    // given style. The renderer used to
+    // call .font(fontFor('regular')) or
+    // .font(fontFor('bold')) directly;
+    // now we route through a helper so
+    // the fontFamily from the template
+    // config actually shows up in the
+    // PDF. Style is "regular" or "bold"
+    // (the only two the existing PDF
+    // uses). For Times/Courier the bold
+    // variant is "Times-Bold" /
+    // "Courier-Bold" — the suffix is
+    // always "-Bold", which keeps the
+    // helper trivial.
+    const fontFamily = renderConfig?.fontFamily || "Helvetica"
+    // PDFKit's bold variants:
+    //   - Helvetica → "Helvetica-Bold"
+    //   - Times-Roman → "Times-Bold"
+    //   - Courier → "Courier-Bold"
+    // Notice the leading dash for
+    // Helvetica and the missing dash
+    // for Times / Courier. The
+    // validation in the controller
+    // restricts fontFamily to these 3
+    // values, so this map is the only
+    // place that needs to know.
+    const BOLD_FONT: Record<string, string> = {
+      Helvetica: 'Helvetica-Bold',
+      'Times-Roman': 'Times-Bold',
+      Courier: 'Courier-Bold',
+    }
+    const fontFor = (style: 'regular' | 'bold'): string =>
+      style === 'bold' ? BOLD_FONT[fontFamily] || `${fontFamily}-Bold` : fontFamily
+
+    // Apply primaryColor to the
+    // PDFKit default fill. Most of the
+    // PDF is text, and text inherits
+    // the default fill. Where we draw
+    // shapes (the line under the items
+    // table) we use the primary color.
+    const primaryColor = renderConfig?.primaryColor || "#000000"
+    const textColor = renderConfig?.textColor || "#000000"
     // Page margin: 10pt on all sides (down from 20pt). The
     // smaller bottom margin gives the footer blocks enough
     // room to fit on page 1 even with the full 4-row bank
@@ -102,7 +175,16 @@ export async function generateInvoicePDF(
     const rightMargin = pageWidth - 50
 
     // Calculate layout based on template
-    const isCompact = template === "compact"
+    // Tier 7.5: density now comes from the
+    // resolved renderConfig (read from the
+    // InvoiceTemplate row or a built-in
+    // preset). Falls back to the
+    // templateType for backward compat —
+    // existing callers that pass only the
+    // string still get the same layout
+    // (standard → comfortable, compact →
+    // compact, simplified → comfortable).
+    const isCompact = renderConfig?.layoutDensity === 'compact' || (template === "compact" && !renderConfig)
     const showLogo = template !== "simplified" && company.logoPath
 
     // Header area Y positions. The header now uses FIXED Y
@@ -153,8 +235,8 @@ export async function generateInvoicePDF(
       // Top-right: company name + address stack, right-aligned.
       // Starts at y=50 (headerStartY) to align with the logo's
       // top edge — that's the "同一排" requirement.
-      doc.fontSize(20).font("Helvetica-Bold").text(company.name, leftMargin, headerStartY, { width: rightBlockWidth, align: "right", lineBreak: false })
-      doc.fontSize(9).font("Helvetica")
+      doc.fontSize(20).font(fontFor('bold')).text(company.name, leftMargin, headerStartY, { width: rightBlockWidth, align: "right", lineBreak: false })
+      doc.fontSize(9).font(fontFor('regular'))
       let cy = headerStartY + 25
       if (compAddr.street) {
         doc.text(compAddr.street, leftMargin, cy, { width: rightBlockWidth, align: "right", lineBreak: false })
@@ -177,7 +259,7 @@ export async function generateInvoicePDF(
       // The HR / Geschäftsführer / Sonstige Angaben used to live
       // here too, but they got too long and crowded the right
       // side; they now live in the right footer instead.
-      doc.fontSize(8).font("Helvetica")
+      doc.fontSize(8).font(fontFor('regular'))
       let contactY = cy + 2
       // Row 1: phone · fax
       const phoneFax: string[] = []
@@ -199,8 +281,8 @@ export async function generateInvoicePDF(
     } else {
       // No logo path on this company. Fall back to a left-aligned
       // letterhead at the top of the page.
-      doc.fontSize(18).font("Helvetica-Bold").text(company.name, leftMargin, headerStartY, { lineBreak: false })
-      doc.fontSize(9).font("Helvetica")
+      doc.fontSize(18).font(fontFor('bold')).text(company.name, leftMargin, headerStartY, { lineBreak: false })
+      doc.fontSize(9).font(fontFor('regular'))
       let cy = headerStartY + 22
       if (compAddr.street) {
         doc.text(compAddr.street, leftMargin, cy, { lineBreak: false })
@@ -252,7 +334,7 @@ export async function generateInvoicePDF(
     const pcCity = `${compAddr.postalCode || ""} ${compAddr.city || ""}`.trim()
     if (pcCity) senderParts.push(pcCity)
     if (compAddr.country) senderParts.push(compAddr.country)
-    doc.fontSize(5).font("Helvetica").text(senderParts.join(" · "), leftMargin, custY, { lineBreak: false })
+    doc.fontSize(5).font(fontFor('regular')).text(senderParts.join(" · "), leftMargin, custY, { lineBreak: false })
     custY += 10
     // Customer block — font 11pt (was 10pt; +10% per user request).
     // Note: the original "Rechnungsadresse:" label has been moved up
@@ -260,7 +342,7 @@ export async function generateInvoicePDF(
     // (per the user's request). We don't repeat a "Rechnungsadresse:"
     // label down here — the sender block above acts as the
     // invoice-letterhead label.
-    doc.fontSize(11).font("Helvetica")
+    doc.fontSize(11).font(fontFor('regular'))
     doc.text(invoice.customer.name, leftMargin, custY, { lineBreak: false })
     custY += 14
     if (custAddr.street) {
@@ -300,7 +382,7 @@ export async function generateInvoicePDF(
     })()
     const titleOffsetY = 42  // 3 rows down
     const titleY = middleRowY + titleOffsetY
-    doc.fontSize(20).font("Helvetica-Bold").text(invoiceTitle, leftMargin, titleY, { width: rightBlockWidth, align: "right", lineBreak: false })
+    doc.fontSize(20).font(fontFor('bold')).text(invoiceTitle, leftMargin, titleY, { width: rightBlockWidth, align: "right", lineBreak: false })
     doc.fontSize(16).text(invoice.invoiceNumber, leftMargin, titleY + 24, { width: rightBlockWidth, align: "right", lineBreak: false })
 
     // Invoice details — right side, just below RECHNUNG title.
@@ -329,7 +411,7 @@ export async function generateInvoicePDF(
     const detailsLabelX = rightMargin - 180
     const detailsValueX = rightMargin - 100
     const detailsValueWidth = 100
-    doc.fontSize(10).font("Helvetica")
+    doc.fontSize(10).font(fontFor('regular'))
     let detailsRow = 0
     const customerNumber = (invoice as any).customer?.customerNumber
     if (customerNumber) {
@@ -406,17 +488,20 @@ export async function generateInvoicePDF(
       const compactColWidths = { sku: 80, desc: 240, qty: 80, price: 130 }
       const compactHeaderHeight = 20
 
-      // Compact table header - no fill, just bottom border
-      doc.moveTo(leftMargin, y + compactHeaderHeight).lineTo(rightMargin, y + compactHeaderHeight).lineWidth(0.8).stroke()
-      doc.fillColor("#000000")
-        .fontSize(9).font("Helvetica-Bold")
+      // Compact table header - no fill, just bottom border.
+      // Tier 7.5: stroke uses primaryColor.
+      doc.strokeColor(primaryColor)
+        .moveTo(leftMargin, y + compactHeaderHeight).lineTo(rightMargin, y + compactHeaderHeight).lineWidth(0.8).stroke()
+      doc.fillColor(textColor)
+      doc.fillColor(textColor)
+        .fontSize(9).font(fontFor('bold'))
         .text("Artikel Nr.", leftMargin + 5, y + 6, { width: compactColWidths.sku - 10, lineBreak: false })
         .text("Beschreibung", leftMargin + compactColWidths.sku, y + 6, { width: compactColWidths.desc - 10, lineBreak: false })
         .text("Menge", leftMargin + compactColWidths.sku + compactColWidths.desc, y + 6, { width: compactColWidths.qty, align: "center", lineBreak: false })
         .text("Einzelpreis", leftMargin + compactColWidths.sku + compactColWidths.desc + compactColWidths.qty, y + 6, { width: compactColWidths.price, align: "center", lineBreak: false })
 
       y += compactHeaderHeight
-      doc.fillColor("#000000").font("Helvetica").fontSize(9).lineWidth(0.3)
+      doc.fillColor(textColor).font(fontFor('regular')).fontSize(9).lineWidth(0.3)
       // Center amounts in their columns
       const cQtyX = leftMargin + compactColWidths.sku + compactColWidths.desc
       const cQtyW = compactColWidths.qty
@@ -430,9 +515,9 @@ export async function generateInvoicePDF(
         }
         // SKU in its own column (centered); if no linked product, show "—"
         const sku = (item as any).product?.sku || "—"
-        doc.font("Helvetica-Bold").fontSize(9)
+        doc.font(fontFor('bold')).fontSize(9)
           .text(sku, leftMargin, y + 5, { width: compactColWidths.sku, align: "center", lineBreak: false })
-        doc.font("Helvetica").fontSize(9)
+        doc.font(fontFor('regular')).fontSize(9)
           .text(item.description, leftMargin + compactColWidths.sku, y + 5, { width: compactColWidths.desc - 10, lineBreak: false })
         doc.text(`${formatNumber(toFloat(item.quantity))} ${item.unit || ''}`, cQtyX, y + 5, { width: cQtyW, align: "center", lineBreak: false })
         doc.text(formatCurrency(toFloat(item.unitPrice)), cPriceX, y + 5, { width: cPriceW, align: "center", lineBreak: false })
@@ -447,10 +532,12 @@ export async function generateInvoicePDF(
       const headerHeight = 25
       const rowHeight = 24
 
-      // Table header - no fill, just bottom border
-      doc.moveTo(leftMargin, y + headerHeight).lineTo(rightMargin, y + headerHeight).lineWidth(0.8).stroke()
-      doc.fillColor("#000000")
-        .fontSize(10).font("Helvetica-Bold")
+      // Table header - no fill, just bottom border.
+      // Tier 7.5: stroke uses primaryColor.
+      doc.strokeColor(primaryColor)
+        .moveTo(leftMargin, y + headerHeight).lineTo(rightMargin, y + headerHeight).lineWidth(0.8).stroke()
+      doc.fillColor(textColor)
+        .fontSize(10).font(fontFor('bold'))
         .text("Artikel Nr.", leftMargin + 5, y + 8, { width: colWidths.sku - 10, lineBreak: false })
         .text("Beschreibung", leftMargin + colWidths.sku, y + 8, { width: colWidths.desc - 10, lineBreak: false })
         .text("Menge", leftMargin + colWidths.sku + colWidths.desc, y + 8, { width: colWidths.qty, align: "center", lineBreak: false })
@@ -462,7 +549,7 @@ export async function generateInvoicePDF(
         doc.text("Gesamt", sNetX, y + 8, { width: sNetW, align: "right", lineBreak: false })
 
       y += headerHeight
-      doc.font("Helvetica").fontSize(10).lineWidth(0.3)
+      doc.font(fontFor('regular')).fontSize(10).lineWidth(0.3)
       // Pre-compute column positions
       const sQtyX = leftMargin + colWidths.sku + colWidths.desc
       const sQtyW = colWidths.qty
@@ -483,10 +570,10 @@ export async function generateInvoicePDF(
         //      older invoices that predate productNumber)
         //   3. em-dash placeholder for blank
         const sku = (item as any).productNumber || (item as any).product?.sku || "—"
-        doc.fillColor("#000000")
-        doc.font("Helvetica-Bold").fontSize(10)
+        doc.fillColor(textColor)
+        doc.font(fontFor('bold')).fontSize(10)
           .text(sku, leftMargin, y + 7, { width: colWidths.sku, align: "center", lineBreak: false })
-        doc.font("Helvetica").fontSize(10)
+        doc.font(fontFor('regular')).fontSize(10)
           .text(item.description, leftMargin + colWidths.sku, y + 7, { width: colWidths.desc - 10, lineBreak: false })
         doc.text(`${formatNumber(toFloat(item.quantity))} ${item.unit || ''}`, sQtyX, y + 7, { width: sQtyW, align: "center", lineBreak: false })
         doc.text(formatCurrency(toFloat(item.unitPrice)), sPriceX, y + 7, { width: sPriceW, align: "center", lineBreak: false })
@@ -504,12 +591,14 @@ export async function generateInvoicePDF(
     const totalsLabelX = leftMargin + (isCompact ? 180 : 220)
     const totalsAmountX = rightMargin - 100  // right-aligned width = 100, ends at rightMargin
     const totalsAmountWidth = 100
-    doc.moveTo(totalsAmountX, totalsLineY).lineTo(rightMargin, totalsLineY).lineWidth(0.8).stroke()
+    // Tier 7.5: total divider in primaryColor
+    doc.strokeColor(primaryColor)
+      .moveTo(totalsAmountX, totalsLineY).lineTo(rightMargin, totalsLineY).lineWidth(0.8).stroke()
 
     const totalsFontSize = isCompact ? 10 : 11
     const totalsLineHeight = isCompact ? 20 : 22
 
-    doc.fillColor("#000000").font("Helvetica").fontSize(totalsFontSize).lineWidth(0.3)
+    doc.fillColor(textColor).font(fontFor('regular')).fontSize(totalsFontSize).lineWidth(0.3)
     doc.text("Zwischensumme (Netto):", totalsLabelX, totalsY + 5, { lineBreak: false })
     doc.text(formatCurrency(toFloat(invoice.subtotal)), totalsAmountX, totalsY + 5, { width: totalsAmountWidth, align: "right", lineBreak: false })
     doc.text("Gesamtbetrag USt:", totalsLabelX, totalsY + totalsLineHeight, { lineBreak: false })
@@ -522,15 +611,15 @@ export async function generateInvoicePDF(
     const gesamtBoxWidth = rightMargin - gesamtBoxX
     doc.lineWidth(1.0)
     doc.rect(gesamtBoxX, gesamtY, gesamtBoxWidth, gesamtHeight).stroke()
-    doc.fillColor("#000000").font("Helvetica-Bold").fontSize(totalsFontSize + 2)
+    doc.fillColor(textColor).font(fontFor('bold')).fontSize(totalsFontSize + 2)
     doc.text("Gesamtbetrag:", gesamtBoxX + 5, gesamtY + 6, { lineBreak: false })
     doc.text(formatCurrency(toFloat(invoice.total)), totalsAmountX, gesamtY + 6, { width: totalsAmountWidth, align: "right", lineBreak: false })
 
     // Notes
     if (invoice.notes) {
       const notesY = totalsY + (isCompact ? 60 : 80)
-      doc.fontSize(9).font("Helvetica-Bold").text("Bemerkungen:", leftMargin, notesY, { lineBreak: false })
-      doc.font("Helvetica").text(invoice.notes, leftMargin, notesY + 15, { width: isCompact ? 300 : 400, lineBreak: true })
+      doc.fontSize(9).font(fontFor('bold')).text("Bemerkungen:", leftMargin, notesY, { lineBreak: false })
+      doc.font(fontFor('regular')).text(invoice.notes, leftMargin, notesY + 15, { width: isCompact ? 300 : 400, lineBreak: true })
     }
 
     // Footer — left side keeps the bank info (Zahlungsinformationen).
@@ -566,7 +655,56 @@ export async function generateInvoicePDF(
     // bottom of the page (pageHeight - 18 = 823.89) so it
     // sits just below the footer blocks.
     const footerY = doc.page.height - 74
-    doc.fontSize(8).fillColor("#000000").font("Helvetica")
+    doc.fontSize(8).fillColor(textColor).font(fontFor('regular'))
+
+    // Tier 7.5: render the template's
+    // free-text fields above the bank
+    // info. These come from the
+    // InvoiceTemplate.configJson —
+    //   - footerText: a custom thank-you
+    //     line ("Vielen Dank...")
+    //   - paymentTermsText: replaces the
+    //     hard-coded "Zahlbar binnen 14
+    //     Tagen..." default
+    //   - reverseChargeNote: §13b UStG
+    //     notice, only shown for RC
+    //     invoices
+    //   - kleineUnternehmerNote: §19 UStG
+    //     notice, only shown for small
+    //     businesses
+    //
+    // They're placed above the bank
+    // info block (footerY - 28 to
+    // footerY - 8) so the bank info
+    // stays in its established spot at
+    // the bottom. The reverseCharge note
+    // is suppressed when the invoice
+    // doesn't have reverseCharge=true
+    // (and similarly for §19) — the
+    // template just sets the text, the
+    // invoice row decides whether it's
+    // shown.
+    if (renderConfig?.footerText) {
+      doc.font(fontFor('regular')).fontSize(9).fillColor(textColor)
+        .text(renderConfig.footerText, leftMargin, footerY - 56, { lineBreak: false })
+    }
+    if (renderConfig?.paymentTermsText) {
+      doc.font(fontFor('regular')).fontSize(8).fillColor(textColor)
+        .text(renderConfig.paymentTermsText, leftMargin, footerY - 42, { lineBreak: false })
+    }
+    if (renderConfig?.reverseChargeNote && (invoice as any).reverseCharge) {
+      doc.font(fontFor('bold')).fontSize(8).fillColor(primaryColor)
+        .text(renderConfig.reverseChargeNote, leftMargin, footerY - 28, { lineBreak: false })
+    }
+    if (renderConfig?.kleineUnternehmerNote && (invoice as any).euTransaction === false && (invoice as any).totalVat === '0' || (invoice as any).totalVat === 0) {
+      // Show §19 note when the invoice has
+      // no VAT at all (gross = net). The
+      // note tells the customer why
+      // there's no USt line.
+      doc.font(fontFor('bold')).fontSize(8).fillColor(primaryColor)
+        .text(renderConfig!.kleineUnternehmerNote!, leftMargin, footerY - 14, { lineBreak: false })
+    }
+
     if (company.bankInfo && typeof company.bankInfo === 'object') {
       doc.text("Zahlungsinformationen:", leftMargin, footerY, { lineBreak: false })
       if (company.bankInfo.bankName) doc.text(`Bank: ${company.bankInfo.bankName}`, leftMargin, footerY + 12, { lineBreak: false })

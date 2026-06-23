@@ -8,12 +8,13 @@ import { PaymentService } from './payment.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { MailService } from '../mail/mail.service';
-import { generateInvoicePDF } from '../../invoices/invoice-pdf.service';
+import { generateInvoicePDF, InvoiceRenderConfig } from '../../invoices/invoice-pdf.service';
 import { generateXRechnung, transformToXRechnungData } from '../../invoices/xrechnung.service';
 import { generateZUGFeRD } from '../../invoices/zugferd.service';
 import { CreateInvoiceDto, UpdateInvoiceDto } from './dto/invoice.dto';
 import { Auth, Require } from '../../auth/roles.decorator';
 import { renderInvoiceEmail, defaultSalutationFor, type EmailLang } from '../mail/templates/invoice-email.template';
+import { InvoiceTemplateService } from '../invoice-template/invoice-template.service';
 
 @Auth()
 @Controller('invoices')
@@ -23,6 +24,7 @@ export class InvoiceController {
     private prisma: PrismaService,
     private storageService: StorageService,
     private mailService: MailService,
+    private templateService: InvoiceTemplateService,
     private paymentService: PaymentService,
   ) {}
 
@@ -140,7 +142,24 @@ export class InvoiceController {
             buffer = await generateZUGFeRD(invoice, companyCtx as any)
             ext = 'pdf'
           } else {
-            buffer = await generateInvoicePDF(invoice, companyCtx as any, invoice.templateType || 'standard')
+            // Tier 7.5: resolve the visual
+            // config (color/font/density/
+            // footer) from the InvoiceTemplate
+            // row before rendering. Falls
+            // back to the built-in hard-coded
+            // 'standard' look when the
+            // company has no template set.
+            const renderConfig = await this.resolveTemplateConfig(
+              invoice.companyId,
+              invoice.templateType || 'standard',
+              (invoice as any).templateId,
+            )
+            buffer = await generateInvoicePDF(
+              invoice,
+              companyCtx as any,
+              invoice.templateType || 'standard',
+              renderConfig,
+            )
             ext = 'pdf'
           }
           let name = invoice.invoiceNumber || id
@@ -331,7 +350,19 @@ export class InvoiceController {
         otherInfo: company?.otherInfo || undefined,
         bankInfo: company?.bankInfo || undefined,
         logoPath: company?.logoPath || undefined,
-      }, invoice.templateType || 'standard');
+      }, invoice.templateType || 'standard',
+      // Tier 7.5: pass the resolved visual
+      // config (color/font/density/
+      // footer) so the PDF actually
+      // reflects the per-company
+      // template. Falls back to undefined
+      // (hard-coded standard) when the
+      // company has no template row.
+      await this.resolveTemplateConfig(
+        companyId,
+        invoice.templateType || 'standard',
+        (invoice as any).templateId,
+      ));
 
       // Auto-save PDF to local storage
       if (!invoice.pdfPath) {
@@ -627,7 +658,14 @@ export class InvoiceController {
     const subject = (body?.overrideSubject || tpl.subject).slice(0, 250).trim();
     const text = (body?.overrideBody || tpl.text).slice(0, 4000).trim();
 
-    // Build PDF buffer
+    // Build PDF buffer (with tier 7.5
+    // visual config from the per-company
+    // InvoiceTemplate if any)
+    const renderConfig = await this.resolveTemplateConfig(
+      companyId,
+      invoice.templateType || 'standard',
+      (invoice as any).templateId,
+    )
     const pdfBuffer = await generateInvoicePDF(
       invoice,
       {
@@ -639,6 +677,7 @@ export class InvoiceController {
         logoPath: company?.logoPath || undefined,
       },
       invoice.templateType || 'standard',
+      renderConfig,
     );
 
     // CC: explicit user email (from request) is the primary mechanism.
@@ -764,5 +803,50 @@ export class InvoiceController {
   ) {
     if (!companyId) throw new Error('companyId is required');
     return this.paymentService.delete(paymentId, companyId);
+  }
+
+  /**
+   * Tier 7.5: resolve the visual
+   * config (primaryColor, font,
+   * density, footer text) for an
+   * invoice. The render order is:
+   *
+   * 1. invoice.templateId (explicit)
+   * 2. company default template
+   * 3. hard-coded preset for
+   *    invoice.templateType
+   * 4. hard-coded 'standard' preset
+   *
+   * Returns null if no config was
+   * found — the PDF renderer falls
+   * back to its built-in hard-coded
+   * default in that case (so existing
+   * invoices without any template
+   * setup continue to render exactly
+   * the same).
+   *
+   * The lookup is wrapped in
+   * try/catch because this runs in
+   * the hot path of every PDF render;
+   * if the templates table is missing
+   * (e.g. before prisma db push ran
+   * on a fresh checkout) the PDF
+   * still works.
+   */
+  private async resolveTemplateConfig(
+    companyId: string,
+    templateType: string,
+    templateId?: string | null,
+  ): Promise<InvoiceRenderConfig | undefined> {
+    try {
+      const r = await this.templateService.resolveConfig(
+        companyId,
+        templateType,
+        templateId,
+      )
+      return r.config
+    } catch {
+      return undefined
+    }
   }
 }
