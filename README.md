@@ -2,6 +2,122 @@
 # de-invoice — German Invoice & Accounting System
 # de-invoice — 德国发票与会计管理系统
 
+> GoBD-konforme Rechnungs-, Buchhaltungs- und Bankensoftware für kleine
+> und mittelständische Unternehmen im DACH-Raum. Inklusive XRechnung,
+> ZUGFeRD/Factur-X, DATEV-Export, UStVA, FinTS-Banking und OCR-Vorbereitung.
+
+---
+
+## ⚡ Quickstart (5 Minuten)
+
+```bash
+# 1. Repo klonen + Node 22 prüfen
+node --version   # muss >= 22 sein
+
+# 2. Dependencies installieren
+cd backend && npm install && cd ..
+cd frontend && npm install && cd ..
+
+# 3. Datenbank starten + App hochfahren
+./start.sh       # bringt Postgres + Backend (3001) + Frontend (3000) hoch
+
+# 4. Im Browser öffnen
+open http://localhost:3000
+# Login: info@shleder.de / Test1234!
+```
+
+Die App ist sofort einsatzbereit mit Testdaten (SH Leder GmbH).
+
+### E2E-Tests (39 Tests, ~3 Min)
+
+```bash
+cd backend && npm install && npx ts-node src/main.ts &   # Backend hochfahren
+cd e2e && bash run-all.sh                                # alle 39 Tests
+```
+
+### Produktion (Docker)
+
+```bash
+cp .env.example .env                                       # JWT_SECRET etc. setzen
+docker compose -f docker-compose.prod.yml up -d --build    # Postgres + Backend + Frontend
+```
+
+Siehe [DEPLOY.md](DEPLOY.md) für die vollständige Produktionsanleitung
+und [RUNBOOK.md](RUNBOOK.md) für Operator-Notfälle (Restore, Rotate,
+Troubleshoot).
+
+---
+
+## 🏗️ Architektur
+
+```
+                  ┌───────────────────────┐
+                  │   Browser (Chrome /   │
+                  │   Firefox / Safari)   │
+                  └──────────┬────────────┘
+                             │  HTTPS (via Cloudflare/reverse proxy)
+                  ┌──────────▼────────────┐
+                  │   Next.js Frontend    │
+                  │   (port 3000)         │     React 19 + Next 16
+                  │   - SSR pages         │     standalone output
+                  │   - API proxy         │     i18n (DE/EN/ZH)
+                  └──────────┬────────────┘
+                             │  HTTP (internal docker network)
+                  ┌──────────▼────────────┐
+                  │   NestJS Backend      │
+                  │   (port 3001)        │     30+ modules
+                  │   - REST API          │     throttler (600/60s)
+                  │   - Cron jobs         │     self-hosted Sentry
+                  │   - PDF gen (PDFKit)  │     bcrypt + 2FA
+                  └──────────┬────────────┘
+                             │  Prisma 5
+                  ┌──────────▼────────────┐
+                  │   PostgreSQL 16       │
+                  │   (port 5432)         │     ~50 models
+                  │   - GoBD audit trail  │     2FA recovery (SHA-256)
+                  │   - Backups (daily)   │     EUR-cents numeric(12,4)
+                  └───────────────────────┘
+```
+
+### Tech-Stack
+
+| Layer | Technology | Notes |
+| --- | --- | --- |
+| Frontend | Next.js 16 (standalone), React 19, Tailwind | `output: "standalone"` für minimal image size |
+| Backend | NestJS 11, TypeScript 5, ts-node | Multi-stage Dockerfile, health endpoints |
+| ORM | Prisma 5 (binary engine) | `engineType: "binary"` — avoids libssl 1.1 in slim images |
+| Database | PostgreSQL 16 | 50+ models, ~80 indexes |
+| PDF | PDFKit (server-side) | GoBD: 1 page, no fills, thin lines |
+| E-Invoice | Custom builders | XRechnung (UBL 2.1) + ZUGFeRD 2.1 (PDF/A-3 + XML) |
+| Auth | bcrypt + 2FA (TOTP) | Per-route `@Require(action)` |
+| Banking | FinTS 3.0 (mock + real) | HKCSE/HKCCS, 2-step TAN |
+| Mail | SMTP (nodemailer) | Falls back to "no-smtp" mode in dev |
+| Storage | Local FS (`~/data/invoice-system`) | S3/MinIO compatible |
+| Backup | `pg_dump` + tar | Daily rotation, 7d/4w/monthly anchors |
+| CI | GitHub Actions | typecheck × 2 + e2e (39 tests) on every PR |
+
+### 39 E2E-Tests
+
+| # | Feature | Tests |
+| --- | --- | --- |
+| 1-6 | Cashbook (Kassenbuch), Z-Bericht, Storno | 50+ assertions |
+| 7-11 | DATEV (per-company, storno, config) | 30+ |
+| 8, 36-37 | Bank import (MT940, FinTS read, FinTS write) | 50+ |
+| 12-14 | Expenses, voucher templates | 30+ |
+| 15 | Dashboard KPIs (perf-optimized, 8ms warm) | 17 |
+| 16-19 | Dark mode, email, receipts, bulk import | 40+ |
+| 20-21 | VIES VAT validation, self-hosted Sentry | 30+ |
+| 22-23 | Reminder cron, logo upload | 25+ |
+| 24 | 2FA TOTP | 15+ |
+| 25-30 | DATEV Tier 5 + exchange rates + attachments | 80+ |
+| 31-32 | FinTS mock + smart match | 40+ |
+| 33-34 | Custom invoice templates (PDF applied) | 40+ |
+| 35 | Recurring invoice wizard | 16 |
+| 36 | Banking reconciliation panel | 17 |
+| 37 | SEPA transfer (HKCSE/HKCCS) | 21 |
+| 38 | Health endpoints | 12 |
+| 39 | SSRF guard on FinTS endpointUrl | 11 |
+
 ---
 
 ## 🌐 Sprache / Language / 语言
