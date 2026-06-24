@@ -140,6 +140,44 @@ export class FinTsController {
     if (body.pin.length < 4) {
       throw new BadRequestException('PIN zu kurz')
     }
+    // Tier 12 SSRF guard: if the user supplied
+    // an endpointUrl, it MUST be HTTPS. We never
+    // make plain-HTTP requests to a bank (PIN +
+    // TAN would traverse the wire in cleartext).
+    // We also reject localhost / private IP
+    // ranges — even with auth, the bank-side
+    // TLS cert would never match. This rule
+    // catches "the user pasted
+    // http://10.0.0.1/..." style SSRF attempts
+    // before the value is persisted.
+    if (body.endpointUrl) {
+      let url: URL
+      try {
+        url = new URL(body.endpointUrl)
+      } catch {
+        throw new BadRequestException('endpointUrl ist keine gültige URL')
+      }
+      if (url.protocol !== 'https:') {
+        throw new BadRequestException('endpointUrl muss HTTPS sein')
+      }
+      const host = url.hostname.toLowerCase()
+      const isLocal =
+        host === 'localhost' ||
+        host === '127.0.0.1' ||
+        host === '::1' ||
+        host === '0.0.0.0' ||
+        host.endsWith('.local') ||
+        host.endsWith('.internal') ||
+        /^10\./.test(host) ||
+        /^192\.168\./.test(host) ||
+        /^172\.(1[6-9]|2[0-9]|3[01])\./.test(host) ||
+        /^169\.254\./.test(host)
+      if (isLocal) {
+        throw new BadRequestException(
+          'endpointUrl darf nicht auf eine lokale/private IP zeigen',
+        )
+      }
+    }
     return this.fints.createConnection({
       companyId: body.companyId,
       blz: body.blz,
