@@ -2,6 +2,20 @@
 
 generator client {
   provider = "prisma-client-js"
+  // Tier 11: binary engine. The default
+  // (library) engine is a prebuilt .node
+  // that links against libssl 1.1.x;
+  // Debian bookworm-slim (and Alpine
+  // 3.18+) ship only openssl 3.x, so the
+  // library engine fails to load with
+  // "libssl.so.1.1: No such file or
+  // directory". The binary engine is a
+  // self-contained executable with no
+  // libssl dep. Tradeoff: ~10ms slower
+  // per query (process fork). On a
+  // typical API request the query
+  // time is <20ms so this is negligible.
+  engineType = "binary"
 }
 
 datasource db {

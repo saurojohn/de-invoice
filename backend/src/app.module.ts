@@ -29,6 +29,7 @@ import { SystemModule } from './modules/system/system.module';
 import { TwoFactorModule } from './modules/auth/two-factor/two-factor.module';
 import { FinTsModule } from './modules/fints/fints.module';
 import { InvoiceTemplateModule } from './modules/invoice-template/invoice-template.module';
+import { HealthModule } from './modules/health/health.module';
 
 @Module({
   imports: [
@@ -84,6 +85,7 @@ import { InvoiceTemplateModule } from './modules/invoice-template/invoice-templa
     TwoFactorModule,
     FinTsModule,
     InvoiceTemplateModule,
+    HealthModule,
     ScheduleModule.forRoot(),
   ],
   providers: [

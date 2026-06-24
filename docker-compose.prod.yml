@@ -1,0 +1,147 @@
+# ─────────────────────────────────────────────────────────────────
+# de-invoice — production compose (Tier 11)
+#
+# Differs from the dev docker-compose.yml:
+#   - Adds the backend + frontend services
+#     (built from the local Dockerfiles, not
+#     pulled from the registry)
+#   - Restricts the postgres port to the
+#     compose-internal network (no host
+#     publish) so the DB isn't reachable
+#     from outside the box
+#   - Mounts the receipts + backup volumes
+#     as named volumes (so a `docker volume
+#     ls` shows the names — easier to back
+#     up with `backup.sh`)
+#   - Healthchecks on every service
+#   - Restart policy: unless-stopped
+#
+# Usage:
+#   docker compose -f docker-compose.prod.yml build
+#   docker compose -f docker-compose.prod.yml up -d
+#   docker compose -f docker-compose.prod.yml logs -f
+#   docker compose -f docker-compose.prod.yml down
+# ─────────────────────────────────────────────────────────────────
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: de-invoice-postgres-prod
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-de_invoice}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required in production}
+      POSTGRES_DB: ${POSTGRES_DB:-de_invoice}
+      # Performance tuning for a single-host
+      # production deployment. These are
+      # conservative defaults — tune via env
+      # if the host has more RAM.
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    # NOT published to host — the backend
+    # reaches postgres via the internal
+    # network. To debug: `docker exec`.
+    expose:
+      - "5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-de_invoice} -d ${POSTGRES_DB:-de_invoice}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: de-invoice-backend
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-de_invoice}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:-de_invoice}?schema=public
+      NODE_ENV: production
+      PORT: 3001
+      # The storage dir is mounted from
+      # the named `storage` volume. The
+      # host-side backup (backup.sh) reads
+      # the same dir.
+      STORAGE_PATH: /data/invoice-system
+      # JWT secret — required. Rotating
+      # this invalidates all sessions.
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required in production}
+      # SMTP optional — mail service falls
+      # back to "no-smtp" mode if missing.
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-}
+      # FinTS — 1 = mock mode (no real bank
+      # calls). Set to 0 in production if
+      # you have real bank credentials.
+      FINTS_MOCK: ${FINTS_MOCK:-1}
+      # VIES mock — 1 = use deterministic
+      # mock answers, 0 = hit the EU REST
+      # API (rate-limited, sometimes slow).
+      VIES_MOCK: ${VIES_MOCK:-0}
+      # If behind a reverse proxy, set
+      # TRUST_PROXY=1 so req.ip returns
+      # the real client (for rate limiting).
+      TRUST_PROXY: ${TRUST_PROXY:-0}
+    volumes:
+      - storage:/data/invoice-system
+    expose:
+      - "3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:3001/api/v1/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: de-invoice-frontend
+    environment:
+      # Next.js server-side fetches hit
+      # the backend by the docker-compose
+      # service name. The browser-side
+      # fetches use NEXT_PUBLIC_API_URL
+      # (baked in at build time).
+      BACKEND_INTERNAL_URL: http://backend:3001
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
+      NODE_ENV: production
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+    expose:
+      - "3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:3000/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    name: de-invoice_postgres_data
+  storage:
+    name: de-invoice_storage
+
+# ─────────────────────────────────────────────────────────────────
+# Network topology
+# ─────────────────────────────────────────────────────────────────
+networks:
+  default:
+    name: de-invoice-net
+    driver: bridge

@@ -1,0 +1,87 @@
+# ─────────────────────────────────────────────────────────────────
+# .dockerignore — exclude from both backend & frontend
+# build contexts. Anything here is invisible to Docker
+# during COPY / RUN, which (a) shrinks the build
+# context, (b) prevents leaking secrets, (c) prevents
+# the host's node_modules from being silently used
+# in place of a fresh `npm ci` inside the image.
+# ─────────────────────────────────────────────────────────────────
+
+# Git + CI artifacts
+.git
+.gitignore
+.github
+.gitattributes
+
+# Docker (don't recurse)
+Dockerfile
+Dockerfile.*
+docker-compose*.yml
+.dockerignore
+
+# Editor / OS junk
+.DS_Store
+.idea
+.vscode
+*.swp
+*.swo
+
+# Logs
+*.log
+logs/
+tmp/
+
+# Env files (NEVER bake these in)
+.env
+.env.*
+!.env.example
+!.env.test
+
+# Build outputs (rebuilt inside the image)
+node_modules
+.next
+dist
+build
+out
+.tsbuildinfo
+*.tsbuildinfo
+
+# Storage + receipts (host-mounted volumes only)
+data/
+
+# Test artifacts
+coverage/
+.nyc_output/
+playwright-report/
+test-results/
+
+# E2E shell scripts (the e2e suite is run on the
+# host via run-all.sh, never inside the container)
+backend/e2e
+**/e2e/
+
+# Local dev scripts (mac-only)
+start.sh
+stop.sh
+scripts/
+
+# README / docs (not needed in the image)
+README.md
+DEPLOY.md
+RUNBOOK.md
+DE-Invoice-System-Project-Plan.md
+docs/
+
+# Unused in backend
+frontend/cypress
+frontend/playwright
+**/.mavis
+**/.mavis-*
+
+# Cache dirs
+.npm
+.eslintcache
+.parcel-cache
+
+# Uploaded files we never want in the image
+storage/

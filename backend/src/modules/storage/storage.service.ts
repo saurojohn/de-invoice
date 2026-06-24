@@ -44,6 +44,19 @@ export class StorageService {
   }
 
   private getDefaultLocalPath(): string {
+    // Tier 11: STORAGE_PATH env var overrides
+    // the default. Used in production
+    // (Docker) where the storage dir is a
+    // mounted volume at /data/invoice-system
+    // and the user running the process
+    // might not have a writable home
+    // directory (Debian bookworm-slim
+    // images set HOME=/nonexistent for
+    // system users). Falls back to the
+    // dev-friendly ~/data/invoice-system.
+    if (process.env.STORAGE_PATH) {
+      return process.env.STORAGE_PATH
+    }
     const home = os.homedir();
     return path.join(home, 'data', 'invoice-system');
   }

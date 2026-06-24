@@ -1,0 +1,116 @@
+name: Release
+
+# Tier 11 — release pipeline.
+#
+# Triggered on every push of a tag matching
+# `v*` (e.g. v1.2.0). Builds the backend +
+# frontend production images, tags them
+# with the version + `latest`, and pushes
+# them to GitHub Container Registry.
+#
+# Why GHCR (not Docker Hub):
+#   - Native to GitHub — no extra account
+#   - Anonymous pull is free for public repos
+#   - Same auth as the rest of the workflow
+#     (no DOCKERHUB_TOKEN secret to manage)
+#
+# The `cache-from: type=gha` pulls Docker
+# layer cache from the previous run. On a
+# warm cache a no-op rebuild takes ~10s
+# instead of ~3min.
+#
+# Why we don't deploy from this workflow:
+#   Deploying on tag-push would couple the
+#   release to whatever single host happens
+#   to be running the workflow runner. The
+#   expected deploy flow is: an operator
+#   pulls the new image tags on the prod
+#   host (`docker compose pull`) and
+#   restarts. Keeps the CI stateless.
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    name: Build & push images
+    runs-on: ubuntu-latest
+    strategy:
+      # Build the two images in parallel
+      # — the frontend build is dominated
+      # by `npm run build` and the backend
+      # by `prisma generate + ts-node`, so
+      # they don't compete for the same
+      # bottleneck.
+      fail-fast: false
+      matrix:
+        include:
+          - name: backend
+            context: ./backend
+            dockerfile: ./backend/Dockerfile
+            image: backend
+          - name: frontend
+            context: ./frontend
+            dockerfile: ./frontend/Dockerfile
+            image: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: meta
+        run: |
+          # tag looks like 'v1.2.3'; strip the
+          # leading 'v' for the image tag. Also
+          # derive a short SHA for traceability.
+          VERSION="${GITHUB_REF_NAME#v}"
+          SHA="${GITHUB_SHA::7}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & push (${{ matrix.name }})
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          # We always push — the alternative
+          # (build only, then push manually)
+          # adds a step for no benefit when
+          # the registry is free.
+          push: true
+          # Tag the image with the semver,
+          # the short SHA, AND `latest`. The
+          # first two are immutable references;
+          # `latest` is a moving pointer that
+          # operators can pin in compose.
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/de-invoice-${{ matrix.image }}:${{ steps.meta.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/de-invoice-${{ matrix.image }}:${{ steps.meta.outputs.sha }}
+            ghcr.io/${{ github.repository_owner }}/de-invoice-${{ matrix.image }}:latest
+          # Pull the previous layer cache
+          # from gha so unchanged layers
+          # don't re-download on every push.
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+          # labels are required by OCI
+          # and make `docker inspect` useful.
+          labels: |
+            org.opencontainers.image.title=de-invoice-${{ matrix.image }}
+            org.opencontainers.image.version=${{ steps.meta.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
