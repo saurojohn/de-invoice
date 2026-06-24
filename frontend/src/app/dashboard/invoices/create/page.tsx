@@ -1,5 +1,7 @@
 "use client"
 
+import { Suspense } from "react"
+
 import { useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -79,7 +81,7 @@ interface InvoiceItem {
   vatRate: number
 }
 
-export default function CreateInvoicePage() {
+function CreateInvoicePageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const editId = searchParams.get("id") || null
@@ -1863,5 +1865,12 @@ export default function CreateInvoicePage() {
         </div>
       )}
     </main>
+  )
+}
+export default function CreateInvoicePage() {
+  return (
+    <Suspense fallback={null}>
+      <CreateInvoicePageInner />
+    </Suspense>
   )
 }

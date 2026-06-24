@@ -1,5 +1,7 @@
 "use client"
 
+import { Suspense } from "react"
+
 import { useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -25,7 +27,7 @@ interface InvitationInfo {
   message?: string
 }
 
-export default function RegisterPage() {
+function RegisterPageInner() {
   const router = useRouter()
   const search = useSearchParams()
   const inviteToken = search.get("invite") || ""
@@ -328,5 +330,13 @@ export default function RegisterPage() {
         </CardContent>
       </Card>
     </main>
+  )
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={null}>
+      <RegisterPageInner />
+    </Suspense>
   )
 }

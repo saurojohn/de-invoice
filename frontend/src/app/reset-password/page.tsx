@@ -1,5 +1,7 @@
 "use client"
 
+import { Suspense } from "react"
+
 import { useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -8,7 +10,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 
-export default function ResetPasswordPage() {
+function ResetPasswordPageInner() {
   const router = useRouter()
   const search = useSearchParams()
   const token = search.get("token") || ""
@@ -167,5 +169,13 @@ export default function ResetPasswordPage() {
         </CardContent>
       </Card>
     </main>
+  )
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={null}>
+      <ResetPasswordPageInner />
+    </Suspense>
   )
 }

@@ -1,5 +1,7 @@
 "use client"
 
+import { Suspense } from "react"
+
 /**
  * BulkImport — unified CSV import page for customers,
  * products, and expenses (Eingangsrechnungen).
@@ -86,7 +88,7 @@ const ENTITIES: Record<EntityType, {
   },
 }
 
-export default function BulkImportPage() {
+function BulkImportPageInner() {
   const router = useRouter()
   const { t } = useI18n()
   // Read the initial entity from ?entity=… so deep
@@ -504,5 +506,13 @@ export default function BulkImportPage() {
         )}
       </div>
     </div>
+  )
+}
+
+export default function BulkImportPage() {
+  return (
+    <Suspense fallback={null}>
+      <BulkImportPageInner />
+    </Suspense>
   )
 }
