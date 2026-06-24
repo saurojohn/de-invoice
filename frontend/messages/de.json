@@ -191,7 +191,9 @@
     "countryPlaceholder": "z.B. Deutschland",
     "searchPlaceholder": "Name, USt-ID, Kundennummer, Stadt, PLZ suchen...",
     "noMatching": "Keine Kunden entsprechen der Suche.",
-    "nextCustomerNumber": "Nächste Kundennummer"
+    "nextCustomerNumber": "Nächste Kundennummer",
+    "noCustomersDesc": "Fügen Sie Ihren ersten Kunden hinzu, um Rechnungen zu erstellen.",
+    "noMatchingDesc": "Versuchen Sie einen anderen Suchbegriff oder passen Sie die Filter an."
   },
   "product": {
     "title": "Produktverwaltung",
@@ -1400,5 +1402,21 @@
     "deleted": "Vorlage gelöscht",
     "deleteError": "Vorlage konnte nicht gelöscht werden.",
     "confirmDelete": "Vorlage wirklich löschen?"
+  },
+  "journal": {
+    "title": "Buchungsjournal",
+    "subtitle": "GoBD-konformes Journal aller Buchungen (§146 AO)",
+    "filterTitle": "Zeitraum",
+    "dateFrom": "Von",
+    "dateTo": "Bis",
+    "generate": "Journal erstellen",
+    "metricCount": "Belege",
+    "metricDebit": "Summe Soll",
+    "metricCredit": "Summe Haben",
+    "metricBalance": "Buchführung",
+    "balanced": "Soll = Haben ✓",
+    "unbalanced": "Differenz!",
+    "loadError": "Journal konnte nicht geladen werden",
+    "empty": "Zeitraum wählen und Journal erstellen."
   }
 }

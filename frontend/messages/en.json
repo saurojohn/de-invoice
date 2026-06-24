@@ -183,7 +183,9 @@
     "countryPlaceholder": "e.g. Germany",
     "searchPlaceholder": "Search by name, VAT ID, customer number, city, postal code...",
     "noMatching": "No customers match your search.",
-    "nextCustomerNumber": "Next customer number"
+    "nextCustomerNumber": "Next customer number",
+    "noCustomersDesc": "Add your first customer to start creating invoices.",
+    "noMatchingDesc": "Try a different search term or adjust the filters."
   },
   "product": {
     "title": "Product Management",
@@ -1392,5 +1394,21 @@
     "deleted": "Template deleted",
     "deleteError": "Could not delete template.",
     "confirmDelete": "Delete this template?"
+  },
+  "journal": {
+    "title": "General Journal",
+    "subtitle": "GoBD-compliant journal of all bookings (§146 AO)",
+    "filterTitle": "Period",
+    "dateFrom": "From",
+    "dateTo": "To",
+    "generate": "Generate journal",
+    "metricCount": "Entries",
+    "metricDebit": "Total debit",
+    "metricCredit": "Total credit",
+    "metricBalance": "Bookkeeping",
+    "balanced": "Debit = Credit ✓",
+    "unbalanced": "Imbalance!",
+    "loadError": "Failed to load journal",
+    "empty": "Select a period and generate a journal."
   }
 }

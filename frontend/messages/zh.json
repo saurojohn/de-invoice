@@ -193,7 +193,9 @@
     "countryPlaceholder": "例如：德国",
     "searchPlaceholder": "按名称、税号、客户编号、城市、邮编搜索...",
     "noMatching": "没有符合搜索条件的客户。",
-    "nextCustomerNumber": "下一个客户编号"
+    "nextCustomerNumber": "下一个客户编号",
+    "noCustomersDesc": "添加您的第一个客户以开始创建发票。",
+    "noMatchingDesc": "请尝试其他搜索词或调整筛选条件。"
   },
   "product": {
     "title": "商品管理",
@@ -1402,5 +1404,21 @@
     "deleted": "模板已删除",
     "deleteError": "无法删除模板。",
     "confirmDelete": "确认删除此模板?"
+  },
+  "journal": {
+    "title": "总账日记账",
+    "subtitle": "符合 GoBD 的全部记账日志 (§146 AO)",
+    "filterTitle": "时间区间",
+    "dateFrom": "从",
+    "dateTo": "至",
+    "generate": "生成日记账",
+    "metricCount": "凭证数",
+    "metricDebit": "借方合计",
+    "metricCredit": "贷方合计",
+    "metricBalance": "勾稽",
+    "balanced": "借贷相等 ✓",
+    "unbalanced": "不平！",
+    "loadError": "加载日记账失败",
+    "empty": "请选择时间区间后生成日记账。"
   }
 }

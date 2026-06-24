@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
+import { SkeletonTable } from "@/components/ui/skeleton"
+import { EmptyState } from "@/components/ui/empty-state"
+import { ErrorBanner } from "@/components/ui/error-banner"
 import { ExportCSVButton } from "@/components/ExportCSVButton"
 import { VatCheckPanel } from "@/components/VatCheckPanel"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
@@ -479,13 +482,20 @@ export default function CustomersPage() {
           )}
         </div>
         {loading ? (
-          <div className="text-center py-8">{t("common.loading")}</div>
+          <div className="p-4">
+            <SkeletonTable rows={8} cols={5} />
+          </div>
         ) : !search && customers.length === 0 ? (
           // Empty state — no customers AND no search active
           <Card>
-            <CardContent className="text-center py-12">
-              <p className="text-gray-500 dark:text-gray-400 mb-4">{t("customer.noCustomers")}</p>
-              <div className="flex gap-2 justify-center">
+            <CardContent>
+              <EmptyState
+                variant="inbox"
+                title={t("customer.noCustomers")}
+                description={t("customer.noCustomersDesc") || "Fügen Sie Ihren ersten Kunden hinzu, um Rechnungen zu erstellen."}
+                fullWidth
+              />
+              <div className="flex gap-2 justify-center pb-8">
                 <Button onClick={() => openModal()}>{t("customer.addFirst")}</Button>
                 <Button variant="outline" onClick={() => setShowImport(true)}>
                   📥 Import CSV
@@ -496,11 +506,18 @@ export default function CustomersPage() {
         ) : customers.length === 0 ? (
           // Empty state — search yielded no results
           <Card>
-            <CardContent className="text-center py-12">
-              <p className="text-gray-500 dark:text-gray-400 mb-4">{t("customer.noMatching") || "Keine Kunden entsprechen der Suche."}</p>
-              <Button variant="outline" onClick={() => setSearchInput('')}>
-                {t("common2.clearFilters") || "Suche zurücksetzen"}
-              </Button>
+            <CardContent>
+              <EmptyState
+                variant="search"
+                title={t("customer.noMatching") || "Keine Treffer"}
+                description={t("customer.noMatchingDesc") || "Versuchen Sie einen anderen Suchbegriff oder passen Sie die Filter an."}
+                fullWidth
+              />
+              <div className="flex justify-center pb-8">
+                <Button variant="outline" onClick={() => setSearchInput('')}>
+                  {t("common2.clearFilters") || "Suche zurücksetzen"}
+                </Button>
+              </div>
             </CardContent>
           </Card>
         ) : (

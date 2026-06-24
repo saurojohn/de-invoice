@@ -124,3 +124,20 @@ export async function apiDelete<T = any>(path: string): Promise<T> {
   const res = await apiFetch(path, { method: "DELETE" })
   return res.json().catch(() => ({} as T))
 }
+
+/** GET a binary response (PDF / image / CSV) as a Blob.
+ *  Returns the Blob AND the response headers — the journal
+ *  PDF endpoint embeds its metadata in X-Journal-* headers
+ *  (count, balanced) which the iframe-only UI can't read.
+ *  The headers are normalised to a plain Record for
+ *  ergonomic access.
+ *
+ *  We deliberately don't add a `apiPostBlob` — the journal
+ *  export is GET-only by design (idempotent, cacheable). */
+export async function apiGetBlob(
+  path: string,
+): Promise<{ blob: Blob; headers: Record<string, string> }> {
+  const res = await apiFetch(path, { method: "GET" })
+  const blob = await res.blob()
+  return { blob, headers: Object.fromEntries(res.headers.entries()) }
+}
