@@ -359,6 +359,13 @@ export default function AccountingPage() {
             >
               UStVA
             </button>
+            <button
+              onClick={() => router.push("/dashboard/accounting/journal")}
+              className="px-3 py-1 text-sm border border-emerald-600 text-emerald-700 dark:text-emerald-300 rounded hover:bg-emerald-50 font-medium"
+              title={t("journal.title")}
+            >
+              📒 {t("journal.title")}
+            </button>
             <LanguageSwitcher />
             <button
               onClick={() => router.push("/dashboard")}

@@ -5,11 +5,13 @@ import { AccountService } from './account.service';
 import { VoucherService } from './voucher.service';
 import { VoucherTemplateService } from './voucher-template.service';
 import { VoucherTemplateController } from './voucher-template.controller';
+import { JournalService } from './journal.service';
+import { JournalController } from './journal.controller';
 
 @Module({
   imports: [PrismaModule],
-  controllers: [AccountingController, VoucherTemplateController],
-  providers: [AccountService, VoucherService, VoucherTemplateService],
-  exports: [AccountService, VoucherService, VoucherTemplateService],
+  controllers: [AccountingController, VoucherTemplateController, JournalController],
+  providers: [AccountService, VoucherService, VoucherTemplateService, JournalService],
+  exports: [AccountService, VoucherService, VoucherTemplateService, JournalService],
 })
 export class AccountingModule {}
