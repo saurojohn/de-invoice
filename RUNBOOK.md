@@ -1,10 +1,22 @@
 # RUNBOOK — de-invoice production operations
 
-> Tier 11. This document is the operator's
+> Tier 13. This document is the operator's
 > reference for keeping de-invoice running
 > in production. DEPLOY.md covers the
 > initial setup; this covers what to do
 > after it's running.
+>
+> **Sections:**
+> 1. Health checks · 2. Logs · 3. Common
+> operations · 4. Troubleshooting · 5.
+> Capacity planning · 6. Update procedure ·
+> 7. Active monitoring (Tier 13) · 8. PDF
+> journal cap (Tier 13) · 9. Auth and rate
+> limiting (Tier 13) · 10. Role-based
+> access control (Tier 13) · 11. Audit
+> log (Tier 13) · 12. CI (Tier 13) · 13.
+> UStVA / ELSTER submission (Tier 13) ·
+> 14. PDF generation (Tier 13)
 
 ---
 
@@ -447,3 +459,484 @@ refactored to use
 `doc.pipe(response)` instead of
 collecting chunks. The current buffer
 approach is fine for the 1000-row cap.
+
+---
+
+## 9. Auth and rate limiting (Tier 13)
+
+The backend's `/auth/login` is rate-limited
+at **5 requests per minute per IP** with a
+**15-minute lockout** after 5 consecutive
+failed attempts (per IP). This is enforced
+by `@nestjs/throttler` + a per-IP in-memory
+map in `auth.controller.ts`. The values are
+hardcoded — if you ever need to relax them
+for legitimate traffic, edit the `@Throttle`
+decorator on the `login()` method.
+
+### 9.1 How to debug a "too many failed logins" lockout
+
+```bash
+# The lock state is in-process memory in
+# the running backend. It's NOT
+# persisted to Postgres, so a backend
+# restart clears all locks.
+# If a single IP is locked out, restart:
+pkill -9 -f "ts-node"
+cd backend && bash scripts/start-backend.sh
+```
+
+If you need to whitelist a specific IP
+(proxy, internal network), set
+`TRUST_PROXY=true` in the env so the
+backend reads the real client IP from
+`X-Forwarded-For`. **Do this BEFORE the
+lockout threshold is hit.**
+
+### 9.2 What was REMOVED in Tier 13
+
+Tier 12 had an `AUTH_RATE_LIMIT_DISABLED=1`
+env-var bypass that raised the 5/min limit
+to 100K. This was used by the Playwright
+test suite but was a real production risk:
+anyone who started the backend with that
+env var by accident would have had login
+rate-limiting disabled. **Tier 13 removed
+it.** Tests now use the
+`/tmp/cashbook-e2e-auth.env` cache
+(written by `backend/e2e/_lib.sh`'s
+`login()` on its first call) so the full
+suite makes only 3-4 `/auth/login` calls
+per run — well under the 5/min limit.
+
+If you ever bring back the bypass for
+debugging, **set the env var explicitly
+in the shell, not in `.env`**, so a
+forgotten env file can't ship a
+production build with auth throttling
+disabled.
+
+---
+
+## 10. Role-based access control (RBAC, Tier 13)
+
+The `User.role` field accepts three values:
+`admin`, `accountant`, `viewer`. The
+permission matrix lives in
+`backend/src/modules/users/users.service.ts`
+(`PERMISSIONS` constant):
+
+| Permission         | Required role |
+| ------------------ | ------------- |
+| `users.read`         | admin |
+| `users.invite`       | admin |
+| `users.changeRole`   | admin |
+| `users.deactivate`   | admin |
+| `company.update`     | admin |
+| `invoice.create`     | accountant+ |
+| `invoice.update`     | accountant+ |
+| `invoice.delete`     | accountant+ |
+| `invoice.send`       | accountant+ |
+| `ustva.submit`        | admin |
+| `accounting.delete`  | admin |
+| `customer.read`      | viewer+ (any logged-in user) |
+| `product.read`       | viewer+ |
+| `reports.read`       | viewer+ |
+
+A higher role satisfies every lower-role
+permission (admin ≥ accountant ≥ viewer).
+
+### 10.1 How to change a user's role
+
+```bash
+# 1. Find the user id
+docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+  "SELECT id, email, role FROM \"User\" WHERE email='alice@example.com';"
+
+# 2. Promote / demote via the API
+curl -X PATCH "http://localhost:3001/api/v1/users/$USER_ID/role?companyId=$COMPANY_ID" \
+  -H "Content-Type: application/json" \
+  -H "x-user-id: $ADMIN_USER_ID" -H "x-company-id: $COMPANY_ID" \
+  -d '{"role":"accountant"}'
+# role ∈ admin | accountant | viewer
+```
+
+The endpoint requires the calling user to
+have `users.changeRole` (admin only). A
+viewer/accountant calling it gets 403.
+
+### 10.2 When a new permission is needed
+
+  1. Add the action to `PERMISSIONS` in
+     `users.service.ts` with the required
+     role.
+  2. In the controller method, add the
+     `UsersService.requireRole(req.user?.role, '...')`
+     check (or use the `@Require('...')`
+     decorator from `auth/roles.decorator.ts`).
+  3. Add a test case in `e2e/44-rbac.sh`
+     (positive for the role that should
+     succeed, 403 for the role that
+     shouldn't).
+
+---
+
+## 11. Audit log (Tier 13)
+
+Every update / updateMany / delete /
+deleteMany on a business-data model
+(Customer, Invoice, Product, Expense,
+Voucher, Attachment, Supplier, …) writes
+an `AuditLog` row via the Prisma client
+extension in
+`backend/src/prisma/audit-log.extension.ts`.
+The row captures: who (`userId`),
+when (`createdAt`), what (`action`),
+which entity (`entityType` + `entityId`),
+the before-state (`oldData` JSON), the
+after-state (`newData` JSON), and from
+where (`ipAddress`, `userAgent`).
+
+### 11.1 How to query the audit log
+
+```bash
+# Recent activity for a specific customer
+docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+SELECT
+  \"createdAt\",
+  action,
+  \"userId\",
+  \"ipAddress\",
+  \"oldData\",
+  \"newData\"
+FROM \"AuditLog\"
+WHERE \"entityType\" = 'Customer' AND \"entityId\" = '$CUSTOMER_ID'
+ORDER BY \"createdAt\" DESC
+LIMIT 20;"
+
+# All deletions in the last 7 days
+docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+SELECT \"createdAt\", action, \"entityType\", \"entityId\", \"userId\"
+FROM \"AuditLog\"
+WHERE action LIKE '%.deleted' AND \"createdAt\" > now() - interval '7 days'
+ORDER BY \"createdAt\" DESC;"
+
+# Activity for a specific user (e.g. the Steuerberater)
+docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+SELECT \"createdAt\", action, \"entityType\", \"entityId\"
+FROM \"AuditLog\"
+WHERE \"userId\" = '$USER_ID'
+ORDER BY \"createdAt\" DESC LIMIT 50;"
+```
+
+The `oldData` / `newData` columns are JSON.
+PostgreSQL's `->` and `->>` operators work:
+
+```sql
+-- Show what fields changed in a specific update
+SELECT
+  action,
+  jsonb_diff(\"oldData\", \"newData\") AS changes
+FROM \"AuditLog\"
+WHERE id = '$AUDIT_ID';
+-- (requires the jsonb_diff extension; not
+-- enabled by default. Use a simple
+-- jsonb_each_text comparison instead.)
+```
+
+### 11.2 Sensitive fields are redacted
+
+The extension scrubs `passwordHash`,
+`passwordResetToken`, `twoFactorSecret` from
+`oldData` / `newData` before write. Other
+fields (email, profile, notes, …) are
+captured in full. The truncation kicks in
+at 8 KB (replaced by `{_truncated: true,
+_preview: "..."}`).
+
+### 11.3 When the extension doesn't fire
+
+The extension skips models NOT in
+`AUDITED_MODELS` (see the top of
+`audit-log.extension.ts`). User
+management actions (User, UserInvitation,
+2FA secret changes) are audited
+**inline** in `auth.controller.ts` and
+`users.service.ts` via direct
+`prisma.auditLog.create()` calls — they
+don't go through the extension because
+the extension can't safely capture
+sensitive auth-related fields via a
+generic diff.
+
+If a new model is added and you want
+update/delete auditing, add the model
+name (PascalCase) to `AUDITED_MODELS`.
+
+### 11.4 Performance
+
+The extension's overhead is **one extra
+DB round-trip per mutation** (the
+`findUnique` for oldData + the
+`auditLog.create`). On bulk
+`updateMany` / `deleteMany` the
+oldData is skipped (we only log the
+count, not the per-row pre-image).
+Audit rows are indexed on
+`(companyId, createdAt)` and
+`(entityType, entityId)` so most queries
+are sub-100ms even with 100k+ rows.
+
+---
+
+## 12. CI (Tier 13)
+
+PR-triggered CI runs **51 tests** (43
+backend e2e + 8 Playwright UI) on every
+PR targeting `main`. See
+`.github/workflows/ci.yml`.
+
+The CI workflow is **the same scripts
+the developer runs locally**:
+
+```bash
+# Local equivalent of what CI does:
+cd backend && for f in e2e/[0-9]*.sh; do bash "$f"; done
+cd frontend && npx playwright test
+```
+
+If a test fails in CI but not locally,
+the usual culprit is one of:
+
+  - **Backend state pollution**: a
+    prior test left rows that the
+    current test depends on. The
+    cleanup is at the END of each
+    test, so if a test crashes mid-way,
+    the next run sees stale data.
+    Fix: the e2e test should DELETE
+    its own rows in a `trap EXIT`
+    handler.
+
+  - **The `AUTH_RATE_LIMIT_DISABLED`
+    bypass is gone** (see §9.2). If
+    a test makes >5 `/auth/login`
+    calls in 60 seconds, CI will
+    fail. The Playwright suite uses
+    a shared `beforeAll` login so
+    the count is 3-4.
+
+  - **Throttler saturation**: the
+    600/60s default throttler on all
+    other endpoints. The full
+    suite makes ~200 requests in
+    ~3 minutes, so we're under
+    600/60. If you add tests that
+    burst >10 req/s on the same
+    endpoint, they'll hit the
+    throttler.
+
+  - **Playwright + Next.js dev
+    server**: the CI job starts
+    `next dev` and waits 20s for the
+    cold compile. If your test uses
+    a page that hasn't been compiled
+    yet, the first navigation takes
+    >20s and the test times out. The
+    fix is to either (a) increase
+    `navigationTimeout` in the test,
+    or (b) warm the dev server with
+    a request to that route in
+    beforeAll.
+
+### 12.1 How to add a new e2e test
+
+  1. Create the file:
+     `backend/e2e/NN-feature-name.sh`
+     where `NN` is the next number.
+  2. The file should:
+     - `source _lib.sh` at the top
+       (gets the auth cache helper)
+     - Use `assert_eq` / `assert` /
+       `note` helpers from `_lib.sh`
+     - Use `docker exec` for DB
+       operations (not `psql` directly)
+     - End with `echo "==== $PASS passed, $FAIL failed ===="` + `exit $FAIL`
+  3. Test it locally:
+     `cd backend && bash e2e/NN-feature-name.sh`
+  4. CI picks it up automatically
+     (the workflow globs `[0-9]*.sh`).
+
+---
+
+## 13. UStVA / ELSTER submission (Tier 13)
+
+The project already generates **ERiC-compatible
+XML** for UStVA. See
+`docs/ELSTER_EVALUATION.md` for the
+full decision document on how to
+actually submit to the Finanzamt.
+
+### 13.1 The current production path (as of Tier 13)
+
+1. User clicks "UStVA abschließen" in
+   the UI → `POST /api/v1/ustva/filings`
+   saves a `UstvaFiling` row with
+   `status='draft'`.
+2. The Steuerberater (or the user
+   themselves) downloads the XML:
+   `GET /api/v1/ustva/filings/:id/elster-xml`
+3. They upload to Mein ELSTER
+   (https://www.elster.de/eportal/start)
+4. They sign with their ElsterSecure
+   certificate (.pfx + PIN)
+5. Submit
+
+This is a **manual** workflow but it's
+correct and free. Step 4 is the
+non-automatable part until you wire
+in the official ERiC library.
+
+### 13.2 What the XML output looks like
+
+The XML is ERiC-compatible and includes
+all required BMF Anlage UStVA fields
+(Kz 20-23, 26-29, 36, 41, 43, 44,
+50-66, 81). The schema is the
+**calendar-year version** (currently
+2026). Each year's Anlage has slightly
+different field layouts — check
+`elster.service.ts` for the
+year-specific encoding rules.
+
+The XML is validated by `e2e/49-elster-xml.sh`
+which checks:
+
+  - Root element is `<Datenlieferung>`
+  - 13-digit `<Steuernummer>`
+  - `<Vorgang>`, `<Eingangsdatum>` present
+  - BMF B-prefix format on numerics
+  - `<Kz81>` (Verbleibender Betrag) present
+  - XML is well-formed (parseable)
+
+When the BMF updates the Anlage UStVA
+(typically each January), update
+`elster.service.ts` accordingly and
+the e2e test will catch any regression.
+
+### 13.3 Future: ERiC integration
+
+If/when we decide to self-host ERiC
+(option A in
+`docs/ELSTER_EVALUATION.md`):
+
+  1. `libericapi` is a C library;
+     we'd need a thin `ffi-napi`
+     wrapper or call the bundled
+     `eric` CLI via `child_process`
+  2. The `fints-real.ts` wrapper
+     (Tier 13.4.1) is a separate
+     concern — that's the BANK
+     connection, not ELSTER
+  3. The XML generator is already
+     correct; the integration is
+     just "send the XML + signature
+     to ELSTER, get the response,
+     update the filing status"
+
+**Recommendation**: defer until SH
+Leder has >5 customers using the
+system, or until the per-filing cost
+of the manual workflow exceeds the
+dev cost of the integration (~1-2
+weeks).
+
+---
+
+## 14. PDF generation (Tier 13)
+
+The accounting journal PDF and the
+invoice PDFs are generated by
+PDFKit (server-side, in
+`backend/src/modules/accounting/journal.service.ts`
+and `backend/src/modules/invoice/`).
+They render to **in-memory Buffer**
+before being sent to the client.
+
+### 14.1 Memory considerations
+
+  - **Invoices**: typically 50-200KB.
+    100 concurrent invoice generations
+    = 20MB peak memory. Fine.
+  - **Accounting journal**: capped at
+    1000 entries (Tier 13.3.1), which
+    produces a 1-2MB PDF. Without
+    the cap, a year-long date range
+    on a busy customer could produce
+    5-20MB. See §14.2.
+
+### 14.2 The journal cap
+
+`GET /api/v1/accounting/journal/pdf`
+caps the response at **1000 vouchers**.
+The cap is enforced at the DB level
+(`take: 1000` in Prisma) so we never
+load more than 1000 rows. When the
+underlying count exceeds 1000:
+
+  - `X-Journal-Capped: 1`
+  - `X-Journal-Total-Found: <actual count>`
+
+The frontend should show "showing
+first 1000 of 5432 — bitte Datum
+eingrenzen" using these headers. The
+PDF itself contains the "Summe Soll =
+Haben" line only when ALL entries
+balance — a truncated journal may
+not balance, so the line shows
+the sum of the included rows
+(±partial balance).
+
+### 14.3 When the cap should be raised
+
+If a customer is regularly hitting the
+cap (e.g. they want a year-long
+report for the Steuerberater), there
+are two options:
+
+  1. **Raise the cap**. Edit
+     `const cap = 1000` in
+     `journal.service.ts`. Doubling
+     it doubles the peak memory. The
+     cap exists specifically to avoid
+     OOM. If you raise it, also
+     consider increasing the
+     container memory limit (see
+     `docker-compose.prod.yml`).
+  2. **Stream the PDF** (Tier 13.3.2,
+     deferred). Refactor
+     `renderPdf` to use `doc.pipe(res)`
+     instead of collecting chunks.
+     The Buffer is replaced by a
+     pipeline; peak memory drops
+     to ~100KB regardless of PDF
+     size. The refactor is
+     self-contained (one file,
+     ~50 lines changed) — do it
+     when you actually need to raise
+     the cap past ~5000.
+
+### 14.4 PDF font availability
+
+PDFKit ships with PDF core 14 fonts
+(Helvetica, Times-Roman, Courier +
+bold/oblique variants). The journal
+PDF uses `Helvetica-Bold` for the
+header and `Helvetica` for body. Both
+are built into every PDF reader — no
+font embedding required. If you ever
+need a non-standard font (e.g. for
+branding), embed it via
+`doc.registerFont('brand', 'path/to/font.ttf')`
+and update the `doc.font(...)` calls
+in `journal.service.ts`.
