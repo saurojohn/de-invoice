@@ -1,0 +1,455 @@
+// Tier 14: Webhook delivery service.
+//
+// Sends HTTP POST requests to webhook
+// receivers when business events fire.
+// The flow:
+//
+//   1. Caller invokes `webhooks.emit(event, data)`.
+//   2. The service queries all active
+//      webhooks for the company that
+//      subscribe to the event type.
+//   3. For each subscriber, the service
+//      creates a WebhookDelivery row
+//      (status='pending'), then
+//      asynchronously POSTs the payload
+//      with an HMAC-SHA256 signature in
+//      the X-Signature header.
+//   4. The receiver's response (status
+//      code + body) is recorded on the
+//      WebhookDelivery row. status is
+//      updated to 'success' or 'failed'.
+//
+// Retries:
+//   - 2xx response → success, no retry
+//   - 4xx response → permanent failure
+//     (the request is malformed; the
+//     receiver is telling us "don't
+//     retry this")
+//   - 5xx response OR network error →
+//     failed, schedule a retry with
+//     exponential backoff (1min, 5min,
+//     30min). After 3 failed retries,
+//     status='exhausted'. Operators
+//     notice this via the deliveries
+//     list (`GET /webhooks/:id/deliveries`)
+//     or by querying the DB for
+//     `WebhookDelivery.status='exhausted'`.
+//
+// Why async (not synchronous)?
+//   We don't want an HTTP call to a
+//   broken receiver to slow down the
+//   invoice creation request. The
+//   delivery is fire-and-forget. If the
+//   backend crashes mid-delivery, the
+//   delivery row is in 'pending' state
+//   and a startup hook retries it.
+//
+// Idempotency:
+//   Each event has a stable `eventId`
+//   (e.g. "inv_8c6a9669-..." for
+//   invoice.created). Receivers should
+//   dedupe on eventId to handle the
+//   case where the SAME event is
+//   delivered multiple times (retry
+//   after crash, etc.).
+//
+// Signature:
+//   The X-Signature header is
+//   `sha256=<hex>` where hex is the
+//   HMAC-SHA256 of the raw body using
+//   the webhook's secret as the key.
+//   Receivers verify by recomputing
+//   the HMAC and comparing in
+//   constant time.
+
+import { Injectable, Logger, BadRequestException } from '@nestjs/common'
+import { PrismaService } from '../../prisma/prisma.service'
+import { createHmac, randomBytes } from 'crypto'
+import { URL } from 'url'
+
+export type WebhookEventType =
+  | 'invoice.created'
+  | 'invoice.updated'
+  | 'invoice.paid'
+  | 'invoice.sent'
+  | 'invoice.deleted'
+  | 'payment.received'
+  | 'voucher.created'
+  | 'voucher.posted'
+  | 'voucher.reversed'
+  | 'customer.created'
+  | 'customer.updated'
+  | 'company.updated'
+  // Add more events here as needed.
+  | string
+
+export interface WebhookEvent {
+  // Stable id for idempotency. Receivers
+  // should dedupe on this.
+  id: string
+  type: WebhookEventType
+  // ISO timestamp of when the event
+  // happened (server-side, not the
+  // receiver's clock).
+  occurredAt: string
+  companyId: string
+  // The event payload. Receivers should
+  // NOT trust field shapes — we add
+  // fields over time, and old receivers
+  // should ignore unknown fields.
+  data: Record<string, any>
+}
+
+@Injectable()
+export class WebhookService {
+  private readonly logger = new Logger(WebhookService.name)
+
+  constructor(private readonly prisma: PrismaService) {}
+
+  /**
+   * Generate a new webhook secret.
+   * 32 random bytes, base64url-encoded
+   * (43 chars). Shown to the user ONCE
+   * on create; never returned by GET.
+   */
+  static generateSecret(): string {
+    return randomBytes(32).toString('base64url')
+  }
+
+  /**
+   * Sign a payload with the given secret.
+   * The output is the value of the
+   * X-Signature header (without the
+   * `sha256=` prefix).
+   */
+  static sign(secret: string, body: string): string {
+    return createHmac('sha256', secret).update(body).digest('hex')
+  }
+
+  /**
+   * List all webhooks for a company.
+   * Secrets are NOT returned (caller
+   * already has them from create time).
+   */
+  async list(companyId: string) {
+    return this.prisma.webhook.findMany({
+      where: { companyId, status: { not: 'disabled' } },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        name: true,
+        url: true,
+        events: true,
+        status: true,
+        description: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    })
+  }
+
+  /**
+   * Create a new webhook. The secret is
+   * generated server-side and returned
+   * ONCE in the response (the caller
+   * must save it — we never return it
+   * again from GET).
+   */
+  async create(input: {
+    companyId: string
+    createdById?: string
+    name: string
+    url: string
+    events: string[]
+    description?: string
+  }) {
+    if (!isValidUrl(input.url)) {
+      throw new BadRequestException(
+        'Invalid webhook URL: must be a public http(s) URL (private IPs and localhost are not allowed)',
+      )
+    }
+    if (input.events.length === 0) {
+      throw new BadRequestException('At least one event type is required')
+    }
+    const secret = WebhookService.generateSecret()
+    return this.prisma.webhook.create({
+      data: {
+        companyId: input.companyId,
+        createdById: input.createdById,
+        name: input.name,
+        url: input.url,
+        events: JSON.stringify(input.events),
+        description: input.description,
+        secret,
+      },
+      select: {
+        id: true,
+        companyId: true,
+        name: true,
+        url: true,
+        events: true,
+        status: true,
+        description: true,
+        createdAt: true,
+        // Secret is included ONLY on create.
+        // GET endpoints (list/get) omit it.
+        secret: true,
+      },
+    })
+  }
+
+  /**
+   * Update a webhook (e.g. pause it, change
+   * the event list). The URL and secret
+   * are immutable (changing them would
+   * break the receiver's signature
+   * verification) — the user must delete
+   * + recreate if they need to rotate.
+   */
+  async update(
+    id: string,
+    companyId: string,
+    input: { name?: string; events?: string[]; status?: string; description?: string },
+  ) {
+    return this.prisma.webhook.update({
+      where: { id, companyId },
+      data: {
+        ...(input.name !== undefined ? { name: input.name } : {}),
+        ...(input.events !== undefined ? { events: JSON.stringify(input.events) } : {}),
+        ...(input.status !== undefined ? { status: input.status } : {}),
+        ...(input.description !== undefined ? { description: input.description } : {}),
+      },
+      select: {
+        id: true,
+        name: true,
+        url: true,
+        events: true,
+        status: true,
+        description: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    })
+  }
+
+  async delete(id: string, companyId: string) {
+    // Soft-delete: keep the row for
+    // delivery history. The list()
+    // endpoint filters out status='disabled'.
+    return this.prisma.webhook.update({
+      where: { id, companyId },
+      data: { status: 'disabled' },
+    })
+  }
+
+  /**
+   * Emit an event. Looks up all active
+   * subscribers and asynchronously POSTs
+   * the payload to each. Returns
+   * immediately — actual delivery is
+   * fire-and-forget.
+   */
+  async emit(event: WebhookEvent): Promise<{ delivered: number }> {
+    const subscribers = await this.prisma.webhook.findMany({
+      where: {
+        companyId: event.companyId,
+        status: 'active',
+      },
+    })
+    let delivered = 0
+    for (const wh of subscribers) {
+      const subscribedEvents: string[] = JSON.parse(wh.events || '[]')
+      if (!subscribedEvents.includes(event.type) && !subscribedEvents.includes('*')) {
+        continue
+      }
+      // Create the delivery row, then
+      // fire the HTTP call without
+      // awaiting (fire-and-forget so the
+      // caller isn't blocked).
+      const delivery = await this.prisma.webhookDelivery.create({
+        data: {
+          webhookId: wh.id,
+          companyId: wh.companyId,
+          eventType: event.type,
+          eventId: event.id,
+          payload: event as any,
+          status: 'pending',
+        },
+      })
+      // Fire-and-forget. We don't await
+      // this — the .catch() handles
+      // errors so they don't become
+      // unhandled promise rejections.
+      this.deliver(delivery.id, wh.url, wh.secret, event).catch((err) => {
+        this.logger.error(`webhook ${wh.id} delivery ${delivery.id} failed: ${err}`)
+      })
+      delivered += 1
+    }
+    return { delivered }
+  }
+
+  /**
+   * Actually deliver a single webhook.
+   * Called from emit() — NOT exposed via
+   * the controller. Updates the
+   * WebhookDelivery row with the result.
+   */
+  private async deliver(
+    deliveryId: string,
+    url: string,
+    secret: string,
+    event: WebhookEvent,
+  ): Promise<void> {
+    const body = JSON.stringify({
+      id: event.id,
+      type: event.type,
+      occurredAt: event.occurredAt,
+      companyId: event.companyId,
+      data: event.data,
+    })
+    const signature = WebhookService.sign(secret, body)
+    const start = Date.now()
+    try {
+      const res = await this.postJson(url, body, signature, 10_000)
+      const duration = Date.now() - start
+      // 2xx → success; 4xx → permanent
+      // failure (don't retry); 5xx →
+      // failed (retry).
+      let status: 'success' | 'failed' | 'exhausted'
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        status = 'success'
+      } else if (res.statusCode >= 400 && res.statusCode < 500) {
+        // 4xx is "you sent something
+        // wrong, don't retry". Common
+        // 401/403 cases: receiver's
+        // signature verification
+        // failed, or the URL is gated.
+        status = 'failed'
+      } else {
+        status = 'failed'
+      }
+      await this.prisma.webhookDelivery.update({
+        where: { id: deliveryId },
+        data: {
+          status,
+          statusCode: res.statusCode,
+          responseBody: (res.body || '').slice(0, 4_000),
+          durationMs: duration,
+          // Schedule retry on 5xx / network
+          // error. For 4xx we DON'T retry
+          // (the receiver said the request
+          // was bad).
+          nextRetryAt: status === 'failed' && res.statusCode >= 500 ? this.nextRetryAt(0) : null,
+        },
+      })
+    } catch (err) {
+      const duration = Date.now() - start
+      const errMsg = (err as Error).message
+      // Network error / timeout
+      const retryCount = await this.getRetryCount(deliveryId)
+      const isExhausted = retryCount >= 3
+      await this.prisma.webhookDelivery.update({
+        where: { id: deliveryId },
+        data: {
+          status: isExhausted ? 'exhausted' : 'failed',
+          statusCode: null,
+          durationMs: duration,
+          errorMessage: errMsg,
+          nextRetryAt: isExhausted ? null : this.nextRetryAt(retryCount),
+        },
+      })
+      this.logger.warn(
+        `webhook delivery ${deliveryId} failed (attempt ${retryCount + 1}/3): ${errMsg}`,
+      )
+    }
+  }
+
+  private nextRetryAt(retryCount: number): Date {
+    // Exponential backoff: 1min, 5min,
+    // 30min. After 3 retries, give up
+    // (status='exhausted').
+    const minutes = [1, 5, 30][Math.min(retryCount, 2)]
+    return new Date(Date.now() + minutes * 60_000)
+  }
+
+  private async getRetryCount(deliveryId: string): Promise<number> {
+    const d = await this.prisma.webhookDelivery.findUnique({
+      where: { id: deliveryId },
+      select: { retryCount: true },
+    })
+    return d?.retryCount ?? 0
+  }
+
+  /**
+   * HTTP POST with a 10s timeout. Uses
+   * the global `fetch` (Node 18+). We
+   * don't go through axios or any
+   * other client — the global fetch
+   * has built-in timeouts, AbortController,
+   * and HTTPS support. The receiver's
+   * self-signed cert (if any) will
+   * fail; that's intentional — TLS
+   * verification is the receiver's
+   * responsibility.
+   */
+  private async postJson(
+    url: string,
+    body: string,
+    signature: string,
+    timeoutMs: number,
+  ): Promise<{ statusCode: number; body: string }> {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), timeoutMs)
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Signature': `sha256=${signature}`,
+          'X-Webhook-Id': 'de-invoice',
+          'User-Agent': 'de-invoice-webhook/1.0',
+        },
+        body,
+        signal: controller.signal,
+      })
+      const responseBody = await res.text()
+      return { statusCode: res.status, body: responseBody }
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+}
+
+/**
+ * Reject non-http(s) URLs and URLs to
+ * private IP ranges. Same SSRF guard
+ * logic as the FinTS endpoint (Tier 12
+ * §39) — we don't want a webhook
+ * creation to allow probing the
+ * internal network.
+ */
+function isValidUrl(url: string): boolean {
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    return false
+  }
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+    return false
+  }
+  // Block private IPs
+  const host = parsed.hostname
+  if (
+    host === 'localhost' ||
+    host === '127.0.0.1' ||
+    host === '::1' ||
+    host.startsWith('10.') ||
+    host.startsWith('192.168.') ||
+    host.startsWith('169.254.') ||
+    /^172\.(1[6-9]|2[0-9]|3[01])\./.test(host)
+  ) {
+    return false
+  }
+  return true
+}

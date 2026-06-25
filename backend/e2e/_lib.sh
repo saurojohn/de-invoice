@@ -108,6 +108,18 @@ api_delete() {
   BODY=$(echo "$resp" | sed '$d')
 }
 
+api_patch() {
+  local path="$1" body="$2"
+  local resp
+  resp=$(curl -sS -w "\n%{http_code}" -X PATCH "$API$path" \
+    -H "Content-Type: application/json" \
+    -H "x-user-id: $USER_ID" \
+    -H "x-company-id: $COMPANY_ID" \
+    -d "$body")
+  STATUS=$(echo "$resp" | tail -n1)
+  BODY=$(echo "$resp" | sed '$d')
+}
+
 # ---- Convenience: expect HTTP status, return BODY ----
 assert_status() {
   local expected="$1" what="$2"

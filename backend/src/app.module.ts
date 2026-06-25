@@ -30,6 +30,7 @@ import { TwoFactorModule } from './modules/auth/two-factor/two-factor.module';
 import { FinTsModule } from './modules/fints/fints.module';
 import { InvoiceTemplateModule } from './modules/invoice-template/invoice-template.module';
 import { HealthModule } from './modules/health/health.module';
+import { WebhookModule } from './modules/webhook/webhook.module';
 
 @Module({
   imports: [
@@ -86,6 +87,7 @@ import { HealthModule } from './modules/health/health.module';
     FinTsModule,
     InvoiceTemplateModule,
     HealthModule,
+    WebhookModule,
     ScheduleModule.forRoot(),
   ],
   providers: [
