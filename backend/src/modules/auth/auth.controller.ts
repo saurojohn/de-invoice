@@ -52,21 +52,18 @@ export class AuthController {
    * Returns a GENERIC error message regardless of whether the email exists —
    * this prevents user enumeration and timing attacks.
    *
-   * Tier 12: the rate limit is bypassed
-   * when AUTH_RATE_LIMIT_DISABLED=1.
-   * This is intended for the Playwright
-   * UI test suite, which hammers
-   * /auth/login from a single test IP
-   * and would otherwise hit the
-   * 5/min ceiling. We don't expose
-   * this in production builds.
+   * Tier 13: removed the AUTH_RATE_LIMIT_DISABLED
+   * env-var bypass that Tier 12 used for
+   * Playwright. Tests that need to call login
+   * multiple times within a 60-second window
+   * (e.g. e2e/24-2fa-totp.sh) sleep 13s between
+   * calls to space them under the 5/min limit.
+   * The env-var bypass was a real production
+   * risk — anyone who started the backend with
+   * AUTH_RATE_LIMIT_DISABLED=1 by accident
+   * would have had login rate-limiting disabled.
    */
-  @Throttle({
-    default: {
-      limit: process.env.AUTH_RATE_LIMIT_DISABLED === '1' ? 100_000 : 5,
-      ttl: 60_000,
-    },
-  })
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('login')
   @HttpCode(HttpStatus.OK)
   async login(@Body() dto: LoginDto, @Req() req: any) {
