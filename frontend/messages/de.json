@@ -36,7 +36,14 @@
     "prev": "Zurück",
     "next": "Weiter",
     "page": "Seite",
-    "exportCsv": "CSV exportieren"
+    "exportCsv": "CSV exportieren",
+    "continue": "Weiter",
+    "error": "Fehler",
+    "fromReferenceInvoice": "Aus Referenzrechnung",
+    "info": "Info",
+    "loadError": "Fehler beim Laden",
+    "reset": "Zurücksetzen",
+    "retry": "Erneut versuchen"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -142,7 +149,9 @@
     "installInstallmentPlan": "Ratenzahlungsplan",
     "saveChanges": "Änderungen speichern",
     "basicInfo": "Grundinformationen",
-    "issueDate": "Rechnungsdatum"
+    "issueDate": "Rechnungsdatum",
+    "dueDateEmpty": "Keine Fälligkeit (Sofort fällig)",
+    "dueDateImmediately": "Sofort fällig"
   },
   "customer": {
     "title": "Kundenverwaltung",
@@ -193,7 +202,8 @@
     "noMatching": "Keine Kunden entsprechen der Suche.",
     "nextCustomerNumber": "Nächste Kundennummer",
     "noCustomersDesc": "Fügen Sie Ihren ersten Kunden hinzu, um Rechnungen zu erstellen.",
-    "noMatchingDesc": "Versuchen Sie einen anderen Suchbegriff oder passen Sie die Filter an."
+    "noMatchingDesc": "Versuchen Sie einen anderen Suchbegriff oder passen Sie die Filter an.",
+    "saved": "Kunde gespeichert"
   },
   "product": {
     "title": "Produktverwaltung",
@@ -295,7 +305,9 @@
     "verify2faUseRecovery": "Oder Recovery-Code verwenden",
     "verify2faSubmit": "Anmelden",
     "verify2faWrong": "Code ungültig",
-    "verify2faBack": "← Zurück zur Anmeldung"
+    "verify2faBack": "← Zurück zur Anmeldung",
+    "code": "Code",
+    "recoveryCodePlaceholder": "Wiederherstellungscode"
   },
   "errors": {
     "required": "Dieses Feld ist erforderlich",
@@ -1374,7 +1386,8 @@
     "transferStatusDraft": "Entwurf",
     "transferStatusNeeds_tan": "TAN fehlt",
     "transferStatusOk": "Erfolgreich",
-    "transferStatusFailed": "Fehlgeschlagen"
+    "transferStatusFailed": "Fehlgeschlagen",
+    "reconInvoice": "Rechnung zuordnen"
   },
   "invoiceTemplates": {
     "title": "Rechnungsvorlagen",

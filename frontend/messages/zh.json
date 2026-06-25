@@ -36,7 +36,14 @@
     "prev": "上一页",
     "next": "下一页",
     "page": "第",
-    "exportCsv": "导出 CSV"
+    "exportCsv": "导出 CSV",
+    "continue": "继续",
+    "error": "错误",
+    "fromReferenceInvoice": "来自参考发票",
+    "info": "信息",
+    "loadError": "加载错误",
+    "reset": "重置",
+    "retry": "重试"
   },
   "nav": {
     "dashboard": "仪表盘",
@@ -195,7 +202,8 @@
     "noMatching": "没有符合搜索条件的客户。",
     "nextCustomerNumber": "下一个客户编号",
     "noCustomersDesc": "添加您的第一个客户以开始创建发票。",
-    "noMatchingDesc": "请尝试其他搜索词或调整筛选条件。"
+    "noMatchingDesc": "请尝试其他搜索词或调整筛选条件。",
+    "saved": "客户已保存"
   },
   "product": {
     "title": "商品管理",
@@ -297,7 +305,9 @@
     "verify2faUseRecovery": "或使用 Recovery 代码",
     "verify2faSubmit": "登录",
     "verify2faWrong": "代码无效",
-    "verify2faBack": "← 返回登录"
+    "verify2faBack": "← 返回登录",
+    "code": "验证码",
+    "recoveryCodePlaceholder": "恢复代码"
   },
   "errors": {
     "required": "此字段为必填项",
@@ -1376,7 +1386,8 @@
     "transferStatusDraft": "草稿",
     "transferStatusNeeds_tan": "缺少 TAN",
     "transferStatusOk": "成功",
-    "transferStatusFailed": "失败"
+    "transferStatusFailed": "失败",
+    "reconInvoice": "匹配发票"
   },
   "invoiceTemplates": {
     "title": "发票模板",

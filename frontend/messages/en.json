@@ -36,7 +36,14 @@
     "prev": "Previous",
     "next": "Next",
     "page": "Page",
-    "exportCsv": "Export CSV"
+    "exportCsv": "Export CSV",
+    "continue": "Continue",
+    "error": "Error",
+    "fromReferenceInvoice": "From reference invoice",
+    "info": "Info",
+    "loadError": "Error loading",
+    "reset": "Reset",
+    "retry": "Retry"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -134,7 +141,17 @@
     "typeCreditNote": "Credit Note",
     "typeProforma": "Proforma Invoice",
     "typeReceipt": "Receipt",
-    "issueDate": "Issue Date"
+    "issueDate": "Issue Date",
+    "bankTransfer": "Bank transfer",
+    "cash": "Cash",
+    "cashPayment": "Cash payment",
+    "currency": "Currency",
+    "dueDateEmpty": "No due date (due immediately)",
+    "dueDateImmediately": "Due immediately",
+    "installments": "Installments",
+    "referenceInvoice": "Reference invoice",
+    "referenceInvoiceHelp": "Optional: link to an existing invoice",
+    "typeReminder": "Reminder"
   },
   "customer": {
     "title": "Customer Management",
@@ -185,7 +202,8 @@
     "noMatching": "No customers match your search.",
     "nextCustomerNumber": "Next customer number",
     "noCustomersDesc": "Add your first customer to start creating invoices.",
-    "noMatchingDesc": "Try a different search term or adjust the filters."
+    "noMatchingDesc": "Try a different search term or adjust the filters.",
+    "saved": "Customer saved"
   },
   "product": {
     "title": "Product Management",
@@ -443,7 +461,9 @@
     "verify2faUseRecovery": "Or use a recovery code",
     "verify2faSubmit": "Sign in",
     "verify2faWrong": "Code invalid",
-    "verify2faBack": "← Back to login"
+    "verify2faBack": "← Back to login",
+    "code": "Code",
+    "recoveryCodePlaceholder": "Recovery code"
   },
   "errors": {
     "required": "This field is required",
@@ -1366,7 +1386,8 @@
     "transferStatusDraft": "Draft",
     "transferStatusNeeds_tan": "TAN needed",
     "transferStatusOk": "Successful",
-    "transferStatusFailed": "Failed"
+    "transferStatusFailed": "Failed",
+    "reconInvoice": "Match invoice"
   },
   "invoiceTemplates": {
     "title": "Invoice templates",
