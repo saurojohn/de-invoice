@@ -70,12 +70,13 @@ export class JournalController {
         throw new BadRequestException('dateFrom muss vor dateTo liegen')
       }
     }
-    const { buffer, count, totalDebit, totalCredit } = await this.journal.renderPdf({
-      companyId,
-      dateFrom: dateFrom || '1970-01-01',
-      dateTo: dateTo || '2099-12-31',
-      voucherNumber,
-    })
+    const { buffer, count, totalDebit, totalCredit, capped, totalFound } =
+      await this.journal.renderPdf({
+        companyId,
+        dateFrom: dateFrom || '1970-01-01',
+        dateTo: dateTo || '2099-12-31',
+        voucherNumber,
+      })
     const filename = voucherNumber
       ? `Buchungsjournal_${voucherNumber}.pdf`
       : `Buchungsjournal_${dateFrom}_bis_${dateTo}.pdf`
@@ -94,6 +95,16 @@ export class JournalController {
       'X-Journal-Total-Debit': totalDebit.toFixed(2),
       'X-Journal-Total-Credit': totalCredit.toFixed(2),
       'X-Journal-Balanced': Math.abs(totalDebit - totalCredit) < 0.01 ? '1' : '0',
+      // Tier 13: cap-notice headers. The
+      // frontend uses these to show a
+      // banner "showing first 1000 of
+      // 5432 — bitte Datum eingrenzen"
+      // when capped=true. The count +
+      // totalFound pair is also the
+      // source of truth for the
+      // "first 1000" text in the UI.
+      'X-Journal-Capped': capped ? '1' : '0',
+      'X-Journal-Total-Found': totalFound.toString(),
     })
     res.end(buffer)
   }

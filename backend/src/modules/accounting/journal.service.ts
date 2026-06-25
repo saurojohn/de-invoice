@@ -77,13 +77,15 @@ export class JournalService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Load all Vouchers in the date range
-   * (or one Voucher by number) with their
-   * lines + accounts. Returns them sorted
-   * by date ASC, then voucherNumber ASC
-   * (chronological, with stable tie-break).
+   * Build the Prisma where-clause for the
+   * voucher query. Used by both
+   * `loadEntries` (which fetches) and
+   * `renderPdf` (which counts) so the two
+   * queries see the same filter. Pulled
+   * out so the date-range parsing lives
+   * in exactly one place.
    */
-  async loadEntries(opts: JournalOptions): Promise<JournalEntry[]> {
+  private buildWhere(opts: JournalOptions): any {
     const where: any = { companyId: opts.companyId }
     if (opts.voucherNumber) {
       where.voucherNumber = opts.voucherNumber
@@ -94,8 +96,30 @@ export class JournalService {
       const to = new Date(`${opts.dateTo}T23:59:59.999Z`)
       where.date = { gte: from, lte: to }
     }
+    return where
+  }
+
+  /**
+   * Load all Vouchers in the date range
+   * (or one Voucher by number) with their
+   * lines + accounts. Returns them sorted
+   * by date ASC, then voucherNumber ASC
+   * (chronological, with stable tie-break).
+   */
+  async loadEntries(opts: JournalOptions & { _take?: number }): Promise<JournalEntry[]> {
+    const where = this.buildWhere(opts)
     const vouchers = await this.prisma.voucher.findMany({
       where,
+      // Tier 13: optional cap. The PDF
+      // service sets `_take` when the
+      // count exceeds the cap so the
+      // backend doesn't OOM rendering
+      // a 20MB PDF. 1000 entries × ~5
+      // lines each = 5000 line rows,
+      // which is a 5-10MB PDF — already
+      // at the upper end of what most
+      // browsers can render in <2s.
+      ...(opts._take ? { take: opts._take } : {}),
       include: {
         lines: {
           include: { account: true },
@@ -129,8 +153,41 @@ export class JournalService {
    * controller wraps them with the right
    * Content-Disposition.
    */
-  async renderPdf(opts: JournalOptions): Promise<{ buffer: Buffer; count: number; totalDebit: number; totalCredit: number }> {
-    const entries = await this.loadEntries(opts)
+  async renderPdf(opts: JournalOptions): Promise<{
+    buffer: Buffer
+    count: number
+    totalDebit: number
+    totalCredit: number
+    capped: boolean
+    totalFound: number
+  }> {
+    // Tier 13: cap the entry count. A
+    // year-long date range can produce
+    // 10k+ vouchers, which serializes to
+    // 5-20 MB of PDF (and uses ~1 GB of
+    // memory during render). The cap is
+    // 1000 — enough for a typical month,
+    // not enough to OOM the backend. If
+    // the user picks a wider range, we
+    // return the FIRST 1000 entries and
+    // set `capped=true` so the frontend
+    // can show "showing first 1000 of
+    // 5432 — bitte Datum eingrenzen".
+    //
+    // We cap by counting first, then
+    // re-fetching with take. Counting is
+    // cheap (index-only scan); a full
+    // fetch of 10k rows just to count is
+    // expensive.
+    const cap = 1000
+    const totalFound = await this.prisma.voucher.count({
+      where: this.buildWhere(opts),
+    })
+    const capped = totalFound > cap
+    const effectiveOpts = capped
+      ? { ...opts, _take: cap }
+      : opts
+    const entries = await this.loadEntries(effectiveOpts)
     const company = await this.prisma.company.findUnique({
       where: { id: opts.companyId },
       select: { name: true, legalName: true, address: true },
@@ -400,7 +457,14 @@ export class JournalService {
 
     doc.end()
     const buffer = await done
-    return { buffer, count: entries.length, totalDebit, totalCredit }
+    return {
+      buffer,
+      count: entries.length,
+      totalDebit,
+      totalCredit,
+      capped,
+      totalFound,
+    }
   }
 }
 
