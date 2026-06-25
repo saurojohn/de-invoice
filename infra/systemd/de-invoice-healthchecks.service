@@ -1,0 +1,26 @@
+[Unit]
+Description=Healthchecks.io ping for de-invoice backend
+Documentation=https://healthchecks.io/docs
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# Load the env file (HEALTHCHECKS_PING_URL + BACKEND_URL).
+# The file is 0600 root-owned; do NOT check it into git.
+EnvironmentFile=/etc/de-invoice/healthchecks.env
+# The script's own log (separate from healthchecks.io).
+# We append, not overwrite, so 5-minute intervals don't
+# clobber the previous entry.
+ExecStart=/bin/bash -c 'mkdir -p /var/log && /opt/de-invoice/backend/scripts/healthchecks-ping.sh'
+# Don't let the script hang forever (we set --max-time
+# inside, but this is a belt-and-suspenders timeout).
+TimeoutStartSec=30
+# Run as a non-root user if possible. The script only
+# needs to read /etc/de-invoice/healthchecks.env and
+# write to /var/log/de-invoice-healthchecks.log. Adjust
+# the user to whatever your deployment uses.
+User=root
+
+[Install]
+WantedBy=multi-user.target

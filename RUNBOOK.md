@@ -284,3 +284,125 @@ idea:
 ```bash
 ./scripts/backup.sh
 ```
+---
+
+## 7. Active monitoring (Tier 13)
+
+Tier 12 added the `/health`, `/health/deep`,
+and `/metrics` endpoints. Tier 13 wires
+them up to a real monitoring system so the
+operator actually finds out when the
+backend is down (vs. learning about it
+from a customer).
+
+### 7.1 healthchecks.io active ping
+
+`backend/scripts/healthchecks-ping.sh`
+calls `/health/deep` every 5 minutes. If
+the call returns 200, the script pings
+healthchecks.io `/success`. If it returns
+non-200 (DB or storage down) or the
+backend is unreachable, it pings `/fail`.
+After 2 consecutive missed pings
+(configured at healthchecks.io: period=5min,
+grace=5min), healthchecks.io sends an
+alert email.
+
+Setup (one-time, on the production host):
+
+```bash
+# 1. Sign up at https://healthchecks.io
+# 2. Create a check (period=5, grace=5)
+# 3. Copy the ping URL
+sudo mkdir -p /etc/de-invoice
+sudo tee /etc/de-invoice/healthchecks.env >/dev/null <<EOC
+HEALTHCHECKS_PING_URL=https://hc-ping.com/your-uuid
+BACKEND_URL=http://localhost:3001
+EOC
+sudo chmod 600 /etc/de-invoice/healthchecks.env
+
+# 4. Install the systemd timer
+sudo cp infra/systemd/de-invoice-healthchecks.service \
+        /etc/systemd/system/
+sudo cp infra/systemd/de-invoice-healthchecks.timer \
+        /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now de-invoice-healthchecks.timer
+
+# 5. Verify
+sudo systemctl list-timers de-invoice-healthchecks*
+sudo journalctl -u de-invoice-healthchecks.service -n 5
+```
+
+For Docker Compose deployments, replace
+the systemd timer with a sidecar container
+that runs the ping script in a loop:
+
+```yaml
+# docker-compose.prod.yml
+services:
+  healthchecks-ping:
+    image: curlimages/curl:8.5.0
+    environment:
+      - HEALTHCHECKS_PING_URL=https://hc-ping.com/your-uuid
+      - BACKEND_URL=http://backend:3001
+    entrypoint: /bin/sh
+    command: >
+      -c "apk add --no-cache bash &&
+          while true; do
+            /opt/scripts/healthchecks-ping.sh;
+            sleep 300;
+          done"
+    volumes:
+      - ./backend/scripts/healthchecks-ping.sh:/opt/scripts/healthchecks-ping.sh:ro
+    depends_on:
+      - backend
+```
+
+### 7.2 Prometheus metrics
+
+`/metrics` exposes the application-specific
+metrics in Prometheus text format. To
+actually scrape them:
+
+```bash
+# 1. Install Prometheus (macOS: brew install prometheus)
+# 2. Drop infra/prometheus/scrape.yml into
+#    your prometheus.yml's scrape_configs:
+# 3. Restart Prometheus
+brew services restart prometheus
+open http://localhost:9090/graph
+# 4. Try: de_invoice_http_requests_total
+```
+
+The included scrape config defines a
+5-second scrape interval and recommended
+alert rules (commented out — copy them
+to `infra/prometheus/alerts.yml` if you
+have Alertmanager set up).
+
+For Kubernetes, the same target
+config works in a ServiceMonitor:
+
+```yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: de-invoice
+spec:
+  selector:
+    matchLabels:
+      app: de-invoice-backend
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+```
+
+### 7.3 What to monitor
+
+- **`up{job="de-invoice"} == 0`** — backend unreachable. Critical.
+- **`de_invoice_db_connected == 0`** — SELECT 1 fails. Critical.
+- **`de_invoice_storage_writable == 0`** — can't write to storage dir. Critical.
+- **`rate(de_invoice_errors_total[5m]) > 0.1`** — 5xx error rate above 6/min sustained. Warning.
+- **`de_invoice_http_request_duration_seconds`** — p95 latency. The histogram is bucket-counted so use `histogram_quantile(0.95, sum by (le) (rate(...[5m])))`.

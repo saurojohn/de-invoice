@@ -1,0 +1,93 @@
+# Prometheus scrape config for de-invoice.
+#
+# Drop this snippet into your prometheus.yml
+# (or merge it into the existing scrape_configs: array).
+#
+# Why this exists:
+#   The /metrics endpoint we added in Tier 12 is not
+#   actually scraped by anything in dev. Without a
+#   scrape config, the metrics accumulate in memory
+#   and are forgotten when the process restarts — so
+#   the endpoint is essentially decorative. Adding
+#   this scrape config + pointing Prometheus at it
+#   turns /metrics into a real observability tool.
+#
+# For dev/local-only deployments, the easiest way
+# to actually USE this is:
+#   1. Install prometheus (brew install prometheus)
+#   2. Copy this file to /usr/local/etc/prometheus.yml
+#      (or wherever brew drops it)
+#   3. Restart prometheus and open http://localhost:9090
+#   4. Query `de_invoice_http_requests_total` etc.
+
+scrape_configs:
+  # Tier 12: app-specific metrics (request count, latency
+  # histogram, DB ping, storage ping, build info). The
+  # host's node_exporter covers the OS-level metrics
+  # (CPU, RAM, disk) so we don't duplicate those here.
+  - job_name: de-invoice
+    metrics_path: /metrics
+    scrape_interval: 15s
+    scrape_timeout: 10s
+    static_configs:
+      # Adjust the target if your backend isn't on the
+      # default localhost:3001. For Docker compose
+      # setups, use the service name (e.g. 'backend:3001').
+      - targets:
+          - localhost:3001
+        labels:
+          # These labels let you filter on the dashboard
+          # in Grafana when you have multiple de-invoice
+          # instances (e.g. one per customer in a hosted
+          # setup).
+          service: de-invoice-backend
+          tier: app
+
+# Recommended alert rules (drop into prometheus.yml's
+# `rule_files:` array and add the corresponding
+# `alerting:` block with Alertmanager).
+#
+# Save this as `infra/prometheus/alerts.yml`:
+#
+#   groups:
+#   - name: de-invoice
+#     rules:
+#     - alert: DeInvoiceDown
+#       expr: up{job="de-invoice"} == 0
+#       for: 2m
+#       labels:
+#         severity: critical
+#       annotations:
+#         summary: "de-invoice backend is unreachable"
+#         description: "Prometheus has not been able to scrape /metrics for 2 minutes."
+#
+#     - alert: DeInvoiceDbDown
+#       # Tier 12 gauge — set to 1 when SELECT 1 succeeds.
+#       expr: de_invoice_db_connected == 0
+#       for: 1m
+#       labels:
+#         severity: critical
+#       annotations:
+#         summary: "de-invoice database is unreachable"
+#
+#     - alert: DeInvoiceStorageNotWritable
+#       expr: de_invoice_storage_writable == 0
+#       for: 5m
+#       labels:
+#         severity: critical
+#       annotations:
+#         summary: "de-invoice storage dir is not writable"
+#
+#     - alert: DeInvoiceErrorRateHigh
+#       # 5xx responses per second averaged over 5 minutes.
+#       # 0.1 = 6 errors/min sustained, which is too high
+#       # for a typical single-tenant install.
+#       expr: |
+#         sum(rate(de_invoice_http_requests_total{status=~"5.."}[5m]))
+#         / sum(rate(de_invoice_http_requests_total[5m]))
+#         > 0.05
+#       for: 5m
+#       labels:
+#         severity: warning
+#       annotations:
+#         summary: "de-invoice 5xx error rate is above 5% for 5 minutes"

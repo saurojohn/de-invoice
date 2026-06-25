@@ -1,0 +1,21 @@
+[Unit]
+Description=Ping healthchecks.io every 5 minutes for de-invoice backend
+Documentation=https://healthchecks.io/docs
+
+[Timer]
+# Run 5 minutes after boot, then every 5 minutes.
+# The matching healthchecks.io check should be
+# configured with period=5min, grace=5min so a single
+# missed ping is tolerated (network blips, system
+# load) but two in a row trigger an alert.
+OnBootSec=5min
+OnUnitActiveSec=5min
+# Don't pile up if the script is slow — fixed 5min
+# intervals match the healthchecks.io period exactly.
+AccuracySec=1s
+# Use the same persistent state as other system
+# timers; survives reboots.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

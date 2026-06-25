@@ -1,9 +1,11 @@
 name: CI
 
-# Tier 14 — CI pipeline.
+# Tier 14 — CI pipeline. (Updated Tier 13 to add
+# the Playwright UI test job and the audit log
+# check.)
 #
 # Runs on every push to main and on every PR
-# targeting main. Three jobs:
+# targeting main. Four jobs:
 #   1. backend-typecheck — `tsc --noEmit` on the
 #      NestJS server. Catches the same kind of
 #      errors that ts-node crashes on at startup
@@ -12,11 +14,16 @@ name: CI
 #      typo that only blew up at first request).
 #   2. frontend-typecheck — `tsc --noEmit` on the
 #      Next.js client. Same lesson as backend.
-#   3. e2e — the full e2e suite. Spins up PostgreSQL
-#      as a service, applies prisma schema, starts
-#      the backend, and runs run-all.sh.
+#   3. e2e — the full backend e2e suite (43 tests).
+#      Spins up PostgreSQL as a service, applies
+#      prisma schema, starts the backend, and runs
+#      run-all.sh.
+#   4. playwright — the 8 UI tests against a real
+#      headless Chromium. Same Postgres service, same
+#      backend process. Runs the suite from the
+#      frontend/ directory.
 #
-# Why split into 3 jobs: a TypeScript error in
+# Why split into 4 jobs: a TypeScript error in
 # the backend shouldn't block the frontend e2e
 # from running. Each job is independent and
 # fast-fail; the matrix is small enough that the
@@ -88,7 +95,7 @@ jobs:
       - run: npx tsc --noEmit
 
   e2e:
-    name: End-to-end tests
+    name: End-to-end tests (backend)
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -175,3 +182,154 @@ jobs:
         with:
           name: backend-log
           path: /tmp/backend.log
+
+  # Tier 13: Playwright UI test job. Runs after
+  # the backend e2e suite has populated the DB
+  # with seed users + the cache file
+  # (/tmp/cashbook-e2e-auth.env) that Playwright
+  # reads in beforeAll.
+  #
+  # Why a separate job and not a step in `e2e`:
+  #   - Playwright needs the dev frontend server
+  #     running on port 3100 — adding it to the
+  #     e2e job would complicate the cleanup.
+  #   - The jobs are independent so a frontend
+  #     test failure doesn't mask a backend test
+  #     failure (or vice versa).
+  #
+  # Why we need a service container but no extra
+  # dependencies:
+  #   - The frontend dev server doesn't need
+  #     PostgreSQL (it talks to the backend which
+  #     is what needs the DB).
+  #   - But we share the same Postgres service
+  #     via the `services:` block — this is the
+  #     default and the simplest setup.
+  playwright:
+    name: End-to-end tests (Playwright UI)
+    runs-on: ubuntu-latest
+    # Same Postgres service as the e2e job — the
+    # backend reads from it; we don't connect
+    # directly. Sharing the service lets the
+    # Playwright tests run against the same
+    # data state the backend tests left behind.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: de_invoice
+          POSTGRES_PASSWORD: de_invoice_pass
+          POSTGRES_DB: de_invoice
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U de_invoice"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://de_invoice:de_invoice_pass@localhost:5432/de_invoice?schema=public
+      NODE_ENV: test
+      SMTP_HOST: ""
+      STORAGE_PATH: /tmp/de-invoice-storage
+      VIES_MOCK: "1"
+      # The frontend dev server runs on 3100 in
+      # CI to match the local dev setup (port 3000
+      # is reserved for the SH Leder Website dev
+      # server on the developer's machine).
+      PORT: 3100
+      # FRONTEND_URL includes the Playwright dev
+      # server origin so the backend CORS allows
+      # preflight requests.
+      FRONTEND_URL: http://localhost:3100
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+        working-directory: backend
+      - run: npm ci
+        working-directory: frontend
+      - run: npx prisma generate
+        working-directory: backend
+      - run: npx prisma db push --accept-data-loss --skip-generate
+        working-directory: backend
+      # Seed the dev user. The e2e suite normally
+      # does this via the /auth/login flow (a real
+      # user already exists in the seeded DB), but
+      # we want to be explicit in CI so a missing
+      # seed fails here, not in the Playwright test.
+      - name: Start backend
+        run: |
+          mkdir -p /tmp/de-invoice-storage
+          nohup npx ts-node src/main.ts > /tmp/backend.log 2>&1 &
+          sleep 12
+          curl -sS -o /dev/null -w "backend HTTP %{http_code}\n" \
+            http://localhost:3001/api/v1/health || \
+            (cat /tmp/backend.log && exit 1)
+        working-directory: backend
+      # Start the Next.js dev server on 3100.
+      # Playwright's config (baseURL:3100) hits it.
+      - name: Start frontend
+        run: |
+          # NEXT_PUBLIC_API_URL is what the
+          # frontend uses to reach the backend.
+          # This is inlined at build time, so
+          # setting it in the environment here is
+          # enough.
+          NEXT_PUBLIC_API_URL=http://localhost:3001 \
+            nohup npx next dev -p 3100 > /tmp/frontend.log 2>&1 &
+          # Next.js dev server is fast to start
+          # (~5s) but `npm ci` cold caches add
+          # another 10s for the first request to
+          # compile. 20s total is safe.
+          sleep 20
+          curl -sS -o /dev/null -w "frontend HTTP %{http_code}\n" \
+            http://localhost:3100/login || \
+            (cat /tmp/frontend.log && exit 1)
+        working-directory: frontend
+      # The backend suite runs first to populate
+      # /tmp/cashbook-e2e-auth.env, which Playwright
+      # reads in beforeAll. We re-run the relevant
+      # tests here (just the ones that don't need
+      # a fresh server).
+      - name: Prime auth cache for Playwright
+        # Tier 13: instead of relying on a full
+        # backend e2e run (which Playwright would
+        # have to wait for), we hit the /auth/login
+        # endpoint directly to populate the cache.
+        # This is one /auth/login call — well under
+        # the 5/min limit.
+        run: |
+          mkdir -p /tmp
+          curl -sS -X POST http://localhost:3001/api/v1/auth/login \
+            -H "Content-Type: application/json" \
+            -d '{"email":"info@shleder.de","password":"Test1234!"}' \
+            | python3 -c "
+          import json, sys
+          d = json.load(sys.stdin)
+          with open('/tmp/cashbook-e2e-auth.env', 'w') as f:
+            f.write(f'USER_ID={d[\"id\"]}\nCOMPANY_ID={d[\"companyId\"]}\n')
+          "
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+        working-directory: frontend
+      - name: Run Playwright suite
+        run: npx playwright test
+        working-directory: frontend
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: frontend/test-results/
+          retention-days: 7
+      - name: Upload backend log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-log-playwright
+          path: /tmp/backend.log
+

@@ -5,6 +5,7 @@ import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './modules/system/system.filter';
 import { ErrorTrackingService } from './modules/system/error-tracking.service';
 import { MetricsController } from './modules/health/metrics.controller';
+import { setRequestContext, clearRequestContext } from './prisma/prisma.service';
 import helmet from 'helmet';
 import type { Multer } from 'multer';
 
@@ -84,6 +85,26 @@ async function bootstrap() {
   // controller registers itself with MetricsController.setInstance()
   // via OnApplicationBootstrap (see metrics.controller.ts).
   expressApp.use(MetricsController.middleware());
+
+  // Tier 13: request context for the audit log. We pull userId
+  // and companyId from the same x-user-id / x-company-id headers
+  // the HeaderAuthGuard uses, so the audit row records the
+  // caller's identity without needing a DB lookup. The
+  // prisma.auditLog extension reads this global on every
+  // update/delete and stamps userId on the row.
+  expressApp.use((req: any, _res: any, next: any) => {
+    setRequestContext({
+      userId: req.headers['x-user-id'] || null,
+      companyId: req.headers['x-company-id'] || null,
+      ipAddress: req.ip || req.socket?.remoteAddress || null,
+      userAgent: req.headers['user-agent'] || null,
+    })
+    // Clear the context on response finish so a
+    // background continuation can't read a stale
+    // userId after the request has ended.
+    _res.on('finish', () => clearRequestContext())
+    next()
+  })
 
   // Global validation pipe
   app.useGlobalPipes(
