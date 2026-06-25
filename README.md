@@ -28,11 +28,18 @@ open http://localhost:3000
 
 Die App ist sofort einsatzbereit mit Testdaten (SH Leder GmbH).
 
-### E2E-Tests (39 Tests, ~3 Min)
+### E2E-Tests (43 Backend + 8 Playwright UI, ~4 Min)
 
 ```bash
-cd backend && npm install && npx ts-node src/main.ts &   # Backend hochfahren
-cd e2e && bash run-all.sh                                # alle 39 Tests
+# Backend hochfahren
+cd backend && npm install && npx ts-node src/main.ts &
+
+# Alle 43 Backend-Tests
+cd backend && for f in e2e/[0-9]*.sh; do bash "$f"; done
+
+# 8 Playwright UI-Tests (Frontend muss auf 3100 laufen)
+cd frontend && npm install && npx playwright install chromium
+cd frontend && npx playwright test
 ```
 
 ### Produktion (Docker)
@@ -94,9 +101,10 @@ Troubleshoot).
 | Mail | SMTP (nodemailer) | Falls back to "no-smtp" mode in dev |
 | Storage | Local FS (`~/data/invoice-system`) | S3/MinIO compatible |
 | Backup | `pg_dump` + tar | Daily rotation, 7d/4w/monthly anchors |
-| CI | GitHub Actions | typecheck × 2 + e2e (39 tests) on every PR |
+| Monitoring | `/metrics` (Prometheus) | 3 gauges + 2 counters + 1 histogram, no deps |
+| CI | GitHub Actions | typecheck × 2 + e2e (43 backend + 8 Playwright UI) on every PR |
 
-### 39 E2E-Tests
+### 51 E2E-Tests (43 Backend + 8 Playwright UI)
 
 | # | Feature | Tests |
 | --- | --- | --- |
@@ -117,6 +125,11 @@ Troubleshoot).
 | 37 | SEPA transfer (HKCSE/HKCCS) | 21 |
 | 38 | Health endpoints | 12 |
 | 39 | SSRF guard on FinTS endpointUrl | 11 |
+| 40 | Buchungsjournal PDF (GoBD, X-Journal-* headers) | 14 |
+| 41 | Prisma migrate fresh-DB round-trip | 21 |
+| 42 | Backup fire-drill (sentinel insert→backup→restore) | 9 |
+| 43 | `/metrics` Prometheus endpoint contract | 39 |
+| UI | Playwright smoke (login, dashboard, customers, journal) | 8 |
 
 ---
 
@@ -255,7 +268,9 @@ Jeder `push` auf `main` (und jeder PR) durchläuft
 1. **Backend typecheck** — `tsc --noEmit` auf dem NestJS-Server
 2. **Frontend typecheck** — `tsc --noEmit` auf dem Next.js-Client
 3. **E2E** — PostgreSQL als Service, `prisma db push`,
-   Backend starten, `bash e2e/run-all.sh` (19 Tests)
+   Backend starten, alle 43 e2e-Tests durchlaufen
+   (`for f in backend/e2e/[0-9]*.sh; do bash "$f"; done`),
+   Playwright UI-Tests (`cd frontend && npx playwright test`)
 
 Fehlgeschlagene CI blockiert Merges (Branch-Protection aktivieren).
 
