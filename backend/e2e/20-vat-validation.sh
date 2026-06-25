@@ -85,7 +85,14 @@ if [[ "$NEEDS_RESTART" == "1" ]]; then
   lsof -ti:3001 | xargs -r kill -9 2>/dev/null
   sleep 1
   cd /Users/shledergmbh/Projects/de-invoice/backend
-  nohup env VIES_MOCK=1 npx ts-node src/main.ts > /tmp/backend.log 2>&1 &
+  # Tier 13: use the canonical start-backend.sh wrapper
+  # (preserves FRONTEND_URL and other env vars the running
+  # backend was started with, instead of just VIES_MOCK=1).
+  # Previously this line was:
+  #   nohup env VIES_MOCK=1 npx ts-node src/main.ts ...
+  # which wiped FRONTEND_URL, breaking Playwright CORS
+  # for every test after e2e 20.
+  nohup env VIES_MOCK=1 bash scripts/start-backend.sh > /tmp/backend.log 2>&1 &
   for i in $(seq 1 12); do
     sleep 1
     if curl -sS -o /dev/null --max-time 1 http://localhost:3001/api/v1/health 2>/dev/null; then
