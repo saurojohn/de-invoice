@@ -406,3 +406,44 @@ spec:
 - **`de_invoice_storage_writable == 0`** — can't write to storage dir. Critical.
 - **`rate(de_invoice_errors_total[5m]) > 0.1`** — 5xx error rate above 6/min sustained. Warning.
 - **`de_invoice_http_request_duration_seconds`** — p95 latency. The histogram is bucket-counted so use `histogram_quantile(0.95, sum by (le) (rate(...[5m])))`.
+
+## 8. PDF journal cap (Tier 13)
+
+The `/api/v1/accounting/journal/pdf`
+endpoint caps the number of returned
+vouchers at **1000** (configurable in
+`backend/src/modules/accounting/journal.service.ts`,
+`const cap = 1000`). A wider date range
+returns the FIRST 1000 and sets:
+
+- `X-Journal-Capped: 1`
+- `X-Journal-Total-Found: <actual count>`
+
+Why 1000? A 1000-voucher journal
+serializes to ~1-2 MB of PDF, which is
+the upper end of what most browsers
+can render in <2s and fits in a single
+Express request without OOM-ing the
+backend. The cap is enforced at the
+database (`take: 1000` in the Prisma
+`findMany`) so we never load more than
+1000 rows into memory.
+
+If a user picks a year-long range on a
+busy customer (5-20k vouchers), the
+response is still 200 + a usable PDF,
+just truncated. The frontend should
+show "showing first 1000 of 5432 —
+bitte Datum eingrenzen" using the two
+headers above.
+
+**Future work — streaming**: the
+service still collects the PDF into a
+Buffer before responding, so peak
+memory is ~1-2 MB per concurrent
+request. If the cap is ever increased
+or removed, the service should be
+refactored to use
+`doc.pipe(response)` instead of
+collecting chunks. The current buffer
+approach is fine for the 1000-row cap.
