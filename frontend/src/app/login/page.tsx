@@ -90,6 +90,22 @@ export default function LoginPage() {
       localStorage.setItem("userId", data.id)
       localStorage.setItem("userEmail", data.email || "")
       localStorage.setItem("companyId", data.companyId)
+      // Tier 12: mirror the auth tokens
+      // into cookies so the Next.js
+      // middleware (which can't see
+      // localStorage) lets the user
+      // into /dashboard. The
+      // AuthCookieSync effect also
+      // writes these, but it runs
+      // AFTER mount — by then the
+      // middleware has already
+      // redirected to /login. We set
+      // the cookies inline here so the
+      // very next navigation is
+      // accepted.
+      const oneDay = 60 * 60 * 24
+      document.cookie = `x-user-id=${encodeURIComponent(data.id)}; path=/; max-age=${oneDay}; SameSite=Lax`
+      document.cookie = `x-company-id=${encodeURIComponent(data.companyId)}; path=/; max-age=${oneDay}; SameSite=Lax`
       setAttemptCount(0)
       setLockoutUntil(null)
       router.push("/dashboard")

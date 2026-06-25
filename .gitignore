@@ -51,3 +51,4 @@ test_zugferd_*.pdf
 
 # TypeScript incremental build cache
 *.tsbuildinfo
+test-results/

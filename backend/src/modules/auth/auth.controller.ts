@@ -51,8 +51,22 @@ export class AuthController {
    * Login: tight rate limit (5/min) + per-IP failed-attempt lockout.
    * Returns a GENERIC error message regardless of whether the email exists —
    * this prevents user enumeration and timing attacks.
+   *
+   * Tier 12: the rate limit is bypassed
+   * when AUTH_RATE_LIMIT_DISABLED=1.
+   * This is intended for the Playwright
+   * UI test suite, which hammers
+   * /auth/login from a single test IP
+   * and would otherwise hit the
+   * 5/min ceiling. We don't expose
+   * this in production builds.
    */
-  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Throttle({
+    default: {
+      limit: process.env.AUTH_RATE_LIMIT_DISABLED === '1' ? 100_000 : 5,
+      ttl: 60_000,
+    },
+  })
   @Post('login')
   @HttpCode(HttpStatus.OK)
   async login(@Body() dto: LoginDto, @Req() req: any) {
