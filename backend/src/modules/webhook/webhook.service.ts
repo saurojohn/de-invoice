@@ -294,7 +294,89 @@ export class WebhookService {
    * the controller. Updates the
    * WebhookDelivery row with the result.
    */
-  private async deliver(
+  /**
+   * Re-attempt a single failed delivery.
+   * Called by the retry cron worker. Bumps
+   * retryCount + re-runs the HTTP POST.
+   *
+   * Returns the new delivery status so the
+   * cron worker can log it.
+   */
+  async retryDelivery(deliveryId: string): Promise<'success' | 'failed' | 'exhausted' | 'not-found'> {
+    const delivery = await this.prisma.webhookDelivery.findUnique({
+      where: { id: deliveryId },
+      include: { webhook: true },
+    })
+    if (!delivery) return 'not-found'
+    if (delivery.status !== 'failed') {
+      // Either already succeeded, never
+      // existed, or exhausted. Don't retry.
+      return 'not-found'
+    }
+    if (!delivery.webhook || delivery.webhook.status !== 'active') {
+      // The webhook was paused or deleted
+      // between failures. Don't retry.
+      return 'not-found'
+    }
+    // Bump retry count BEFORE the attempt
+    // so the durationMs / statusCode / etc.
+    // update below records the new attempt.
+    await this.prisma.webhookDelivery.update({
+      where: { id: deliveryId },
+      data: { retryCount: { increment: 1 } },
+    })
+    await this.deliver(
+      deliveryId,
+      delivery.webhook.url,
+      delivery.webhook.secret,
+      delivery.payload as unknown as WebhookEvent,
+    )
+    // Read back the status so the caller
+    // can see if the retry succeeded.
+    const updated = await this.prisma.webhookDelivery.findUnique({
+      where: { id: deliveryId },
+      select: { status: true },
+    })
+    return (updated?.status as 'success' | 'failed' | 'exhausted') ?? 'failed'
+  }
+
+  /**
+   * Find all deliveries due for retry.
+   * Called by the cron worker every minute.
+   * Returns at most `limit` rows to avoid
+   * overwhelming Postgres with a huge
+   * queue if the receiver has been down
+   * for hours.
+   */
+  async findDueRetries(limit = 50): Promise<{ id: string; webhookId: string }[]> {
+    return this.prisma.webhookDelivery.findMany({
+      where: {
+        status: 'failed',
+        nextRetryAt: { lte: new Date() },
+      },
+      orderBy: { nextRetryAt: 'asc' },
+      take: limit,
+      select: { id: true, webhookId: true },
+    })
+  }
+
+  /**
+   * Mark a delivery as exhausted (the
+   * retry budget is up). Used by the cron
+   * worker when retryCount >= 3.
+   */
+  async markExhausted(deliveryId: string, lastError: string): Promise<void> {
+    await this.prisma.webhookDelivery.update({
+      where: { id: deliveryId },
+      data: {
+        status: 'exhausted',
+        errorMessage: lastError,
+        nextRetryAt: null,
+      },
+    })
+  }
+
+  async deliver(
     deliveryId: string,
     url: string,
     secret: string,
@@ -328,18 +410,26 @@ export class WebhookService {
       } else {
         status = 'failed'
       }
+      // Read current retryCount so we
+      // can decide if THIS 5xx attempt
+      // exhausted the budget.
+      const currentRetryCount = await this.getRetryCount(deliveryId)
+      const isExhausted = status === 'failed' && res.statusCode >= 500 && currentRetryCount >= 3
       await this.prisma.webhookDelivery.update({
         where: { id: deliveryId },
         data: {
-          status,
+          status: isExhausted ? 'exhausted' : status,
           statusCode: res.statusCode,
           responseBody: (res.body || '').slice(0, 4_000),
           durationMs: duration,
           // Schedule retry on 5xx / network
-          // error. For 4xx we DON'T retry
-          // (the receiver said the request
-          // was bad).
-          nextRetryAt: status === 'failed' && res.statusCode >= 500 ? this.nextRetryAt(0) : null,
+          // error, ONLY if we haven't
+          // exhausted the budget. 4xx is
+          // "don't retry" (the receiver
+          // said the request was bad).
+          nextRetryAt: status === 'failed' && res.statusCode >= 500 && !isExhausted
+            ? this.nextRetryAt(currentRetryCount)
+            : null,
         },
       })
     } catch (err) {

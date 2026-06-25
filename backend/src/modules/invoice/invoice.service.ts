@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { WebhookService } from '../webhook/webhook.service';
 import { CreateInvoiceDto, UpdateInvoiceDto } from './dto/invoice.dto';
 
 export type InvoiceType = 'INV' | 'CN' | 'PI' | 'RCV';
@@ -13,7 +14,10 @@ export interface StockWarning {
 
 @Injectable()
 export class InvoiceService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private webhooks: WebhookService,
+  ) {}
 
   /**
    * Paginated invoice list with optional filters.
@@ -347,10 +351,48 @@ export class InvoiceService {
     }
 
     // Return invoice with stock warnings if any
-    return {
+    const result = {
       ...invoice,
       stockWarnings: hasStockWarnings ? stockWarnings : undefined,
     };
+
+    // Fire webhook AFTER the transaction has committed
+    // (we're outside the prisma.$transaction block — the
+    // create was a single .create() call, so we're good).
+    // We don't await — the delivery is fire-and-forget so
+    // the API response isn't blocked by the receiver's
+    // latency. If the receiver is down, the delivery is
+    // retried by the cron worker (see webhook.scheduler.ts).
+    //
+    // The eventId includes the invoice id so receivers
+    // can dedupe if they receive the same event twice
+    // (e.g. retry after backend crash).
+    this.webhooks
+      .emit({
+        id: `inv_${result.id}`,
+        type: 'invoice.created',
+        occurredAt: new Date().toISOString(),
+        companyId,
+        data: {
+          id: result.id,
+          invoiceNumber: result.invoiceNumber,
+          type: result.type,
+          status: result.status,
+          customerId: result.customerId,
+          total: result.total,
+          currency: result.currency,
+          issueDate: result.issueDate,
+          dueDate: result.dueDate,
+        },
+      })
+      .catch((err) => {
+        // emit() is supposed to never throw, but
+        // be defensive — an unhandled rejection
+        // here would crash the process.
+        console.error('webhook emit(invoice.created) failed:', err)
+      })
+
+    return result;
     } catch (error) {
       console.error('Invoice creation error:', error);
       throw error;
@@ -541,19 +583,120 @@ export class InvoiceService {
         'Es kann nur die zuletzt erstellte Rechnung gelöscht werden. Für ältere Rechnungen den Status auf "Storniert" setzen.',
       )
     }
-    return this.prisma.$transaction(async (tx) => {
+    const deleted = await this.prisma.$transaction(async (tx) => {
       await tx.payment.deleteMany({ where: { invoiceId: id } });
       // deleteMany items explicitly even though cascade exists —
       // it's a no-op then, but future-proofs if cascade is removed.
       await tx.invoiceItem.deleteMany({ where: { invoiceId: id } });
       return tx.invoice.delete({ where: { id } });
     });
+
+    // Fire invoice.deleted event with a stable eventId
+    // based on the deleted invoice's id. Receivers can
+    // see this as a "tombstone" event — the invoice used
+    // to exist with this id, and now it doesn't.
+    this.webhooks
+      .emit({
+        id: `inv_${id}`,
+        type: 'invoice.deleted',
+        occurredAt: new Date().toISOString(),
+        companyId,
+        data: {
+          id: deleted.id,
+          invoiceNumber: deleted.invoiceNumber,
+          type: deleted.type,
+          customerId: deleted.customerId,
+        },
+      })
+      .catch((err) => console.error('webhook emit(invoice.deleted) failed:', err))
+
+    return deleted;
   }
 
   async updateStatus(id: string, companyId: string, status: string) {
-    return this.prisma.invoice.update({
+    const before = await this.prisma.invoice.findUnique({ where: { id } });
+    if (!before) throw new NotFoundException('Rechnung nicht gefunden');
+
+    const updated = await this.prisma.invoice.update({
       where: { id },
       data: { status },
     });
+
+    // Fire invoice.paid ONLY on the draft → paid transition.
+    // We don't fire it on every status change because that
+    // would spam receivers (sent → paid shouldn't double-fire).
+    // If we later add more transitions (e.g. invoice.overdue),
+    // they get their own event types.
+    //
+    // Note: the Invoice model doesn't have a paidDate field —
+    // payments are recorded as separate Payment rows. The
+    // `updatedAt` timestamp on the invoice is the closest proxy
+    // for "when did the user mark this paid?". Receivers that
+    // need the actual payment record can fetch
+    // `GET /api/v1/invoices/:id/payments`.
+    if (before.status !== 'paid' && status === 'paid') {
+      this.webhooks
+        .emit({
+          id: `inv_${id}_paid_${updated.updatedAt?.getTime() ?? Date.now()}`,
+          type: 'invoice.paid',
+          occurredAt: new Date().toISOString(),
+          companyId,
+          data: {
+            id: updated.id,
+            invoiceNumber: updated.invoiceNumber,
+            customerId: updated.customerId,
+            total: updated.total,
+            paidAt: (updated.updatedAt ?? new Date()).toISOString(),
+          },
+        })
+        .catch((err) => console.error('webhook emit(invoice.paid) failed:', err))
+    }
+
+    // Fire invoice.sent on the draft → sent transition
+    // (e.g. when /api/v1/invoices/:id/send is called).
+    if (before.status !== 'sent' && status === 'sent') {
+      this.webhooks
+        .emit({
+          id: `inv_${id}_sent_${updated.updatedAt?.getTime() ?? Date.now()}`,
+          type: 'invoice.sent',
+          occurredAt: new Date().toISOString(),
+          companyId,
+          data: {
+            id: updated.id,
+            invoiceNumber: updated.invoiceNumber,
+            customerId: updated.customerId,
+            total: updated.total,
+          },
+        })
+        .catch((err) => console.error('webhook emit(invoice.sent) failed:', err))
+    }
+
+    // Fire invoice.updated for all OTHER status changes
+    // (cancellation, draft revert, etc). Receivers
+    // care about the diff, so we include the previous
+    // status too.
+    if (
+      before.status !== status &&
+      status !== 'paid' &&
+      status !== 'sent'
+    ) {
+      this.webhooks
+        .emit({
+          id: `inv_${id}_status_${updated.updatedAt?.getTime() ?? Date.now()}`,
+          type: 'invoice.updated',
+          occurredAt: new Date().toISOString(),
+          companyId,
+          data: {
+            id: updated.id,
+            invoiceNumber: updated.invoiceNumber,
+            customerId: updated.customerId,
+            previousStatus: before.status,
+            newStatus: status,
+          },
+        })
+        .catch((err) => console.error('webhook emit(invoice.updated) failed:', err))
+    }
+
+    return updated;
   }
 }

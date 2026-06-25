@@ -1,9 +1,13 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { WebhookService } from '../webhook/webhook.service';
 
 @Injectable()
 export class PaymentService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private webhooks: WebhookService,
+  ) {}
 
   /**
    * List all payments for an invoice, newest first.
@@ -89,6 +93,44 @@ export class PaymentService {
         data: { status: 'paid' },
       });
     }
+
+    // Fire payment.received webhook. We don't await
+    // (fire-and-forget). The eventId is the payment
+    // id so receivers can dedupe (e.g. if our
+    // retry worker re-delivers after a backend
+    // restart).
+    //
+    // We deliberately do NOT also fire
+    // invoice.paid here — the invoice update
+    // above happens via the model, not via
+    // updateStatus(), so the invoice.paid
+    // hook in invoice.service.ts doesn't
+    // fire automatically. Receivers can
+    // listen to BOTH 'payment.received' and
+    // 'invoice.paid' and dedupe on their end.
+    // OR they can just listen to
+    // 'payment.received' which is the more
+    // reliable signal (a payment is always
+    // recorded; an invoice status change
+    // is implicit).
+    this.webhooks
+      .emit({
+        id: `pay_${payment.id}`,
+        type: 'payment.received',
+        occurredAt: new Date().toISOString(),
+        companyId,
+        data: {
+          id: payment.id,
+          invoiceId: payment.invoiceId,
+          invoiceNumber: invoice.invoiceNumber,
+          amount: Number(payment.amount),
+          currency: payment.currency,
+          paymentDate: payment.paymentDate,
+          paymentMethod: payment.paymentMethod,
+          fullyPaid: invoice.type === 'INV' && totalPaid >= invoiceTotal - 0.01,
+        },
+      })
+      .catch((err) => console.error('webhook emit(payment.received) failed:', err))
 
     return payment;
   }
