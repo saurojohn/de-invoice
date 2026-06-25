@@ -1,24 +1,55 @@
 import { test, expect, Page, Browser } from "@playwright/test"
+import { readFileSync } from "fs"
 
-// Tier 12: end-to-end UI tests via
-// Playwright. The e2e suite
-// (backend/e2e/*.sh) tests the API
-// contract. This file exercises the
-// React pages in a real headless
-// Chromium — hydration, layout, JSX
-// errors, 404s on /dashboard/* routes,
-// all the things a HTTP test can't
-// see.
+// Tier 12 + 13: end-to-end UI tests via Playwright.
+// The backend e2e suite (backend/e2e/*.sh) tests the
+// API contract. This file exercises the React pages
+// in a real headless Chromium — hydration, layout,
+// JSX errors, 404s on /dashboard/* routes, all the
+// things a HTTP test can't see.
+//
+// Tier 13: we no longer call /auth/login in
+// beforeAll. The backend e2e suite (run before this
+// file) writes USER_ID + COMPANY_ID to
+// /tmp/cashbook-e2e-auth.env. We read that file
+// and inject the values into cookies +
+// localStorage directly. This keeps Playwright
+// under the backend's 5/min /auth/login throttler.
+// The "wrong password" test below still hits
+// /auth/login (it's testing 401 behavior), but
+// it's the only /auth/login call in the whole
+// file.
 
-// The backend's auth route is
-// throttled at 5/min. We do ONE real
-// login in beforeAll (smoke scope),
-// then reuse the tokens across tests
-// by injecting them into localStorage
-// + cookies via Playwright's
-// addInitScript. This avoids both the
-// throttler AND the cost of re-logging
-// in 5 times.
+// Tier 13: read the cached token from the backend
+// e2e suite. The first backend e2e test to call
+// login() writes this file. We don't depend on
+// any specific test running first — we just read
+// whatever the latest entry is.
+const AUTH_CACHE = "/tmp/cashbook-e2e-auth.env"
+
+function readCachedTokens(): { userId: string; companyId: string } {
+  // Parse `KEY=VALUE` lines. Comments and blank
+  // lines are ignored (matching bash env-file
+  // behavior). We use a tiny parser instead of
+  // shelling out to `source` so the test is
+  // self-contained.
+  const env = readFileSync(AUTH_CACHE, "utf-8")
+  const map: Record<string, string> = {}
+  for (const line of env.split("\n")) {
+    const m = line.match(/^([A-Z_][A-Z0-9_]*)=(.*)$/)
+    if (m) map[m[1]] = m[2]
+  }
+  const userId = map.USER_ID
+  const companyId = map.COMPANY_ID
+  if (!userId || !companyId) {
+    throw new Error(
+      `Auth cache ${AUTH_CACHE} missing USER_ID/COMPANY_ID. ` +
+        `Run the backend e2e suite first (\`for f in backend/e2e/[0-9]*.sh; do bash "$f"; done\`), ` +
+        `which writes this file on its first login() call.`,
+    )
+  }
+  return { userId, companyId }
+}
 
 const TEST_USER = {
   email: "info@shleder.de",
@@ -27,22 +58,8 @@ const TEST_USER = {
 
 let testTokens: { userId: string; companyId: string } | null = null
 
-test.beforeAll(async ({ browser }: { browser: Browser }) => {
-  const ctx = await browser.newContext()
-  const page = await ctx.newPage()
-  await page.goto("/login")
-  await page.fill('input[name="email"]', TEST_USER.email)
-  await page.fill('input[name="password"]', TEST_USER.password)
-  await page.click('button[type="submit"]')
-  await page.waitForURL(/\/dashboard/, { timeout: 15_000 })
-  testTokens = await page.evaluate(() => ({
-    userId: localStorage.getItem("userId"),
-    companyId: localStorage.getItem("companyId"),
-  }))
-  await ctx.close()
-  if (!testTokens?.userId || !testTokens?.companyId) {
-    throw new Error("Login didn't set tokens")
-  }
+test.beforeAll(async () => {
+  testTokens = readCachedTokens()
 })
 
 // Inject the cached tokens into every
@@ -124,17 +141,23 @@ test.describe("Smoke", () => {
   })
 
   test("login with valid credentials lands on dashboard", async ({ page }) => {
-    // Tier 12.3: real login flow. This
-    // test DOES hit the API (in
-    // beforeAll we already did the real
-    // login, but the page also navigates
-    // here independently).
-    // We re-use the beforeAll tokens
-    // here: navigating to /dashboard
-    // should work because the cookie +
-    // localStorage are already set.
-    await page.goto("/dashboard")
-    await expect(page).toHaveURL(/\/dashboard$/)
+    // Tier 13: navigate to /login, fill in
+    // the real credentials, submit. The
+    // backend's /auth/login endpoint is
+    // hit once — this test exercises the
+    // full login flow as a real user would
+    // see it. The cookies + localStorage
+    // from beforeEach are NOT relevant
+    // here (we're testing the login
+    // button's behavior). The beforeEach
+    // injection doesn't conflict — it
+    // just sets values that get
+    // overwritten by the real login.
+    await page.goto("/login")
+    await page.fill('input[name="email"]', TEST_USER.email)
+    await page.fill('input[name="password"]', TEST_USER.password)
+    await page.click('button[type="submit"]')
+    await page.waitForURL(/\/dashboard/, { timeout: 15_000 })
     await expect(page.locator("body")).not.toContainText("Application error")
   })
 
