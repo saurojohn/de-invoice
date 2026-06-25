@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './modules/system/system.filter';
 import { ErrorTrackingService } from './modules/system/error-tracking.service';
+import { MetricsController } from './modules/health/metrics.controller';
 import helmet from 'helmet';
 import type { Multer } from 'multer';
 
@@ -20,8 +21,14 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
 
-  // 全局前缀
-  app.setGlobalPrefix('api/v1');
+  // 全局前缀 — exclude /metrics (Prometheus scrapers expect a
+  // flat path with no version prefix). ExcludeForm is the
+  // documented Nest API; alternative is the `exclude` array
+  // but it only accepts string route patterns, and our
+  // /metrics is a single route.
+  app.setGlobalPrefix('api/v1', {
+    exclude: ['metrics'],
+  });
 
   // Security headers via helmet
   app.use(helmet({
@@ -71,6 +78,12 @@ async function bootstrap() {
     }
     next();
   });
+
+  // Metrics middleware — registered before any controller so it
+  // wraps every request, including ones rejected by guards. The
+  // controller registers itself with MetricsController.setInstance()
+  // via OnApplicationBootstrap (see metrics.controller.ts).
+  expressApp.use(MetricsController.middleware());
 
   // Global validation pipe
   app.useGlobalPipes(
