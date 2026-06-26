@@ -203,4 +203,171 @@ test.describe("Webhooks UI", () => {
       page.locator('[data-testid="webhook-row"]', { hasText: uniqueName }),
     ).toHaveCount(0, { timeout: 5_000 })
   })
+
+  test("replay button in deliveries drawer triggers replay", async ({
+    page,
+  }) => {
+    await injectLocalStorage(page)
+
+    // Pre-clean: delete any prior test
+    // webhooks for this company via the
+    // UI/API so the page renders cleanly.
+    await page.goto("/dashboard/settings/webhooks")
+    await page.waitForLoadState("networkidle", { timeout: 10_000 })
+
+    // Create a webhook for the replay test.
+    // Use webhook.test so we don't need
+    // to set up a customer + invoice.
+    const addBtn = page.locator("button", {
+      hasText: /Webhook hinzufügen/,
+    })
+    await addBtn.first().waitFor({ state: "visible", timeout: 15_000 })
+    await addBtn.first().click()
+    await expect(
+      page.locator('[data-testid="webhook-create-modal"]'),
+    ).toBeVisible({ timeout: 3_000 })
+
+    const uniqueName = `e2e-14.5-${Date.now()}`
+    await page.fill(
+      '[data-testid="webhook-name-input"]',
+      uniqueName,
+    )
+    await page.fill(
+      '[data-testid="webhook-url-input"]',
+      "https://httpbin.org/post",
+    )
+    // Subscribe to invoice.created so we
+    // can trigger a real event by creating
+    // an invoice via the customers + invoices
+    // pages. webhook.test is intentionally
+    // NOT exposed in the UI event list —
+    // it's a backend-only debug event.
+    await page.click('[data-testid="webhook-event-invoiceCreated"]')
+    await page.click('[data-testid="webhook-create-submit"]')
+
+    // Close the secret dialog
+    await page.getByRole("button", { name: /Schließen/ }).click()
+
+    // Wait for the new webhook row
+    await expect(
+      page.locator('[data-testid="webhook-row"]', { hasText: uniqueName }),
+    ).toBeVisible({ timeout: 5_000 })
+
+    const row = page.locator('[data-testid="webhook-row"]', {
+      hasText: uniqueName,
+    })
+
+    // Trigger a real invoice.created by
+    // calling the backend directly via
+    // fetch (avoids navigating through
+    // the full invoice-creation form,
+    // which is out of scope for this test).
+    await page.evaluate(
+      async ({ uid, cid }: { uid: string; cid: string }) => {
+        // Create a customer first
+        const custRes = await fetch(
+          `http://localhost:3001/api/v1/customers?companyId=${cid}`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "x-user-id": uid,
+              "x-company-id": cid,
+            },
+            body: JSON.stringify({
+              name: "e2e-14.5 customer",
+              address: { city: "Berlin" },
+            }),
+          },
+        )
+        const customer = await custRes.json()
+        // Now create an invoice against that customer
+        await fetch(
+          `http://localhost:3001/api/v1/invoices?companyId=${cid}`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "x-user-id": uid,
+              "x-company-id": cid,
+            },
+            body: JSON.stringify({
+              customerId: customer.id,
+              type: "INV",
+              issueDate: new Date().toISOString().slice(0, 10),
+              dueDate: new Date(Date.now() + 14 * 86400000)
+                .toISOString()
+                .slice(0, 10),
+              items: [
+                {
+                  description: "e2e-14.5 item",
+                  quantity: 1,
+                  unitPrice: "10.00",
+                  vatRate: 0.19,
+                },
+              ],
+            }),
+          },
+        )
+        return customer
+      },
+      { uid: testTokens!.userId, cid: testTokens!.companyId },
+    )
+
+    // Open the deliveries drawer
+    await row.locator('[data-testid="webhook-deliveries"]').click()
+    await expect(
+      page.locator('[data-testid="webhook-deliveries-drawer"]'),
+    ).toBeVisible({ timeout: 5_000 })
+
+    // Wait for the delivery row to appear
+    const deliveryRow = page.locator('[data-testid="delivery-row"]').first()
+    await deliveryRow.waitFor({ state: "visible", timeout: 15_000 })
+
+    // Count deliveries before replay
+    const beforeCount = await page
+      .locator('[data-testid="delivery-row"]')
+      .count()
+
+    // Set up dialog handler BEFORE clicking
+    page.once("dialog", (dialog) => dialog.accept())
+
+    // Click the Replay button on the first delivery row
+    await page
+      .locator('[data-testid="delivery-row"]')
+      .first()
+      .locator('[data-testid="delivery-replay"]')
+      .click()
+
+    // Wait for the count to increase
+    // (replay creates a new delivery row)
+    await expect(
+      page.locator('[data-testid="delivery-row"]'),
+    ).toHaveCount(beforeCount + 1, { timeout: 10_000 })
+
+    // Cleanup: close drawer + delete the
+    // test webhook
+    await page.keyboard.press("Escape")
+    // Click the close (X) button in the drawer
+    await page
+      .locator('[data-testid="webhook-deliveries-drawer"]')
+      .locator("button[aria-label='Close']")
+      .click()
+    page.once("dialog", (dialog) => dialog.accept())
+    await row.locator('[data-testid="webhook-delete"]').click()
+
+    // Cleanup: delete the test customer
+    // + invoices created above (direct DB
+    // cleanup — they're not surfaced in
+    // the webhook UI).
+    // We can't call the DELETE endpoint
+    // because invoices might block it
+    // (delete is only allowed on the
+    // issue date). For test cleanup
+    // simplicity, just leave them —
+    // they'll show up as one extra row
+    // in the customer's "Rechnungen"
+    // list and won't break any other
+    // tests.
+  })
 })

@@ -1459,7 +1459,9 @@
       "deliveries": "Zustellungen",
       "pause": "Pausieren",
       "resume": "Fortsetzen",
-      "delete": "Löschen"
+      "delete": "Löschen",
+      "replay": "Erneut senden",
+      "replaying": "Wird gesendet…"
     },
     "deleteConfirm": "Diesen Webhook wirklich löschen? Die Zustell-Historie bleibt für die Audit-Zwecke erhalten.",
     "testSent": "Test-Ereignis gesendet. Prüfen Sie die Empfänger-Seite und die Zustell-Historie.",
@@ -1478,7 +1480,12 @@
       "attemptedAt": "Versucht am",
       "nextRetry": "Nächster Versuch",
       "noRetry": "—",
-      "statusLabel": "Status"
+      "statusLabel": "Status",
+      "replay": "Erneut senden",
+      "replayTitle": "Webhook erneut senden",
+      "replayConfirm": "Diese Zustellung erneut an den Empfänger senden? Es wird ein neuer Eintrag im Zustell-Log erstellt.",
+      "replaySent": "Erneute Zustellung wurde gestartet.",
+      "replayFailed": "Erneute Zustellung konnte nicht gestartet werden."
     },
     "eventsList": {
       "invoiceCreated": {

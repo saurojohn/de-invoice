@@ -62,7 +62,7 @@
 //   the HMAC and comparing in
 //   constant time.
 
-import { Injectable, Logger, BadRequestException } from '@nestjs/common'
+import { Injectable, Logger, BadRequestException, NotFoundException } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import { createHmac, randomBytes } from 'crypto'
 import { URL } from 'url'
@@ -378,6 +378,170 @@ export class WebhookService {
         nextRetryAt: null,
       },
     })
+  }
+
+  /**
+   * Manually re-deliver a past event.
+   *
+   * Use case: the receiver was down
+   * for 2 hours, missed 47 events, the
+   * retry budget (3 attempts) is
+   * exhausted, and the operator wants
+   * to replay the events now that the
+   * receiver is back up.
+   *
+   * Behavior:
+   *   1. Load the original delivery row.
+   *      Reject if it doesn't belong to
+   *      the caller's company (defense
+   *      in depth — the controller also
+   *      checks, but the service runs in
+   *      the same PrismaClient).
+   *   2. Check the webhook is still
+   *      active. If the webhook was
+   *      deleted or paused, the
+   *      operator must re-enable it
+   *      before re-delivery can succeed.
+   *   3. Bump retryCount (we don't reset
+   *      it — the retry budget is per
+   *      ATTEMPT, so the next natural
+   *      failure has the correct budget
+   *      remaining).
+   *   4. Create a NEW delivery row
+   *      (status='pending', retryCount=0)
+   *      that mirrors the original event
+   *      payload. This keeps the audit
+   *      trail clean: the original row
+   *      stays as-is (showing what
+   *      actually happened at the time),
+   *      and the replay is a separate
+   *      row that operators can scroll
+   *      through.
+   *
+   * We don't reuse the existing
+   * delivery row because:
+   *   - Overwriting it would lose the
+   *     original failure context
+   *     (statusCode, errorMessage,
+   *     responseBody)
+   *   - Replay is a distinct operator
+   *     action ("I'm deliberately
+   *     re-firing this") — keeping it
+   *     as a separate row makes the
+   *     audit trail easier to read
+   *   - The retry worker skips rows
+   *     with status='exhausted', so
+   *     updating the existing row
+   *     would either re-trigger the
+   *     worker (wrong) or require
+   *     extra branching (wrong)
+   *
+   * Why not just call retryDelivery()
+   * on the existing row?
+   *   - retryDelivery() only fires on
+   *     status='failed'. An exhausted
+   *     row would 404. A success row
+   *     would also 404. Only failed
+   *     rows can be replayed via that
+   *     path. This API supports
+   *     replaying ANY past event,
+   *     regardless of its prior status
+   *     — which is what an operator
+   *     wants ("replay that event
+   *     from yesterday", not "retry
+   *     the latest failure").
+   *
+   * Returns the new delivery row.
+   * The caller (controller) returns
+   * the id so the UI can refresh the
+   * deliveries list.
+   */
+  async replayDelivery(deliveryId: string, companyId: string) {
+    const original = await this.prisma.webhookDelivery.findUnique({
+      where: { id: deliveryId },
+      include: { webhook: true },
+    })
+    if (!original) {
+      throw new NotFoundException(
+        `Delivery ${deliveryId} not found`,
+      )
+    }
+    // Tenant isolation: only allow
+    // replaying deliveries for the
+    // caller's company. Even though
+    // the controller also filters by
+    // companyId, this guards against
+    // accidental cross-tenant access
+    // if someone calls the service
+    // directly (e.g. from another
+    // controller).
+    if (original.companyId !== companyId) {
+      throw new NotFoundException(
+        `Delivery ${deliveryId} not found`,
+      )
+    }
+    if (!original.webhook || original.webhook.status !== 'active') {
+      throw new BadRequestException(
+        'Webhook is not active — pause/resume it before replaying',
+      )
+    }
+    // Build the event from the stored
+    // payload. The payload was JSON-
+    // serialized when we POSTed it
+    // originally, so it's a plain
+    // object now (no Date objects,
+    // no BigInts).
+    const event = original.payload as unknown as WebhookEvent
+
+    // Bump the original delivery's
+    // retryCount so the audit trail
+    // shows "this event has been
+    // retried N times". The new
+    // delivery row starts at 0.
+    await this.prisma.webhookDelivery.update({
+      where: { id: deliveryId },
+      data: { retryCount: { increment: 1 } },
+    })
+
+    // Create a new delivery row for
+    // the replay. We use a fresh id
+    // (default UUID) and keep the
+    // original eventId — receivers
+    // dedupe on eventId, so a replay
+    // with the same eventId is
+    // treated as the same event. This
+    // matches Stripe / GitHub /
+    // standard webhook idempotency
+    // semantics.
+    const replay = await this.prisma.webhookDelivery.create({
+      data: {
+        webhookId: original.webhookId,
+        companyId: original.companyId,
+        eventType: original.eventType,
+        eventId: original.eventId,
+        payload: event as any,
+        status: 'pending',
+        // Note: we don't copy retryCount
+        // — the replay starts at 0.
+        // The bumped retryCount on the
+        // original is the "this event
+        // has been retried N times"
+        // signal.
+      },
+    })
+    // Fire the HTTP call (fire-and-
+    // forget — same pattern as emit()).
+    this.deliver(
+      replay.id,
+      original.webhook.url,
+      original.webhook.secret,
+      event,
+    ).catch((err) => {
+      this.logger.error(
+        `webhook replay ${replay.id} failed: ${(err as Error).message}`,
+      )
+    })
+    return replay
   }
 
   async deliver(

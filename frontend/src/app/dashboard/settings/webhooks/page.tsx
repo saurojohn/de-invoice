@@ -82,6 +82,7 @@ interface Webhook {
 
 interface WebhookDelivery {
   id: string
+  webhookId: string
   eventType: string
   eventId: string
   status: "pending" | "success" | "failed" | "exhausted"
@@ -191,6 +192,11 @@ export default function WebhooksPage() {
 
   // Test result toast
   const [testingId, setTestingId] = useState<string | null>(null)
+
+  // Replay in-flight state. Per-row
+  // button shows "Wird gesendet…"
+  // while the POST is in flight.
+  const [replayingId, setReplayingId] = useState<string | null>(null)
 
   // ---- Effects ----
   useEffect(() => {
@@ -337,6 +343,53 @@ export default function WebhooksPage() {
       )
     } finally {
       setTestingId(null)
+    }
+  }
+
+  /**
+   * Manually replay a past delivery.
+   *
+   * The button is per-row in the
+   * deliveries drawer. We POST to
+   * /webhooks/deliveries/:id/replay,
+   * which creates a new delivery
+   * row with the same eventId (so
+   * receivers can dedupe) and
+   * re-POSTs the payload to the
+   * webhook URL.
+   *
+   * The original delivery row stays
+   * as-is (we don't delete or
+   * overwrite it) — the replay is
+   * a separate row that operators
+   * can scroll through to see what
+   * was manually re-fired. After
+   * the replay finishes, we
+   * re-fetch the deliveries list
+   * so the new row appears.
+   */
+  const handleReplay = async (
+    deliveryId: string,
+    webhookId: string,
+  ) => {
+    if (!confirm(t("webhooks.deliveries.replayConfirm"))) return
+    setReplayingId(deliveryId)
+    try {
+      await apiPost(
+        `/api/v1/webhooks/deliveries/${deliveryId}/replay?companyId=${companyId}`,
+      )
+      toast.success(t("webhooks.deliveries.replaySent"))
+      // Refresh the deliveries drawer
+      // so the new replay row appears.
+      await fetchDeliveries(companyId, webhookId)
+    } catch (err) {
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : t("webhooks.deliveries.replayFailed"),
+      )
+    } finally {
+      setReplayingId(null)
     }
   }
 
@@ -832,6 +885,19 @@ export default function WebhooksPage() {
                             {d.nextRetryAt
                               ? formatDate(d.nextRetryAt)
                               : t("webhooks.deliveries.noRetry")}
+                          </td>
+                          <td className="py-2 px-1 text-right">
+                            <button
+                              onClick={() => handleReplay(d.id, d.webhookId)}
+                              disabled={replayingId === d.id}
+                              className="text-xs px-2 py-1 border border-blue-500 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-50 disabled:opacity-50"
+                              data-testid="delivery-replay"
+                              title={t("webhooks.deliveries.replay")}
+                            >
+                              {replayingId === d.id
+                                ? t("webhooks.actions.replaying")
+                                : t("webhooks.deliveries.replay")}
+                            </button>
                           </td>
                         </tr>
                       ))}

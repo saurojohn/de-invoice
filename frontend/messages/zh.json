@@ -1459,7 +1459,9 @@
       "deliveries": "投递历史",
       "pause": "暂停",
       "resume": "继续",
-      "delete": "删除"
+      "delete": "删除",
+      "replay": "重发",
+      "replaying": "正在重发…"
     },
     "deleteConfirm": "确定要删除此 Webhook 吗?投递历史将保留用于审计。",
     "testSent": "已发送测试事件。请检查接收端和投递历史。",
@@ -1478,7 +1480,12 @@
       "attemptedAt": "尝试时间",
       "nextRetry": "下次重试",
       "noRetry": "—",
-      "statusLabel": "状态"
+      "statusLabel": "状态",
+      "replay": "重发",
+      "replayTitle": "重发 Webhook 投递",
+      "replayConfirm": "确定要向接收端重发此次投递吗?将在投递日志中添加新条目。",
+      "replaySent": "已开始重发。",
+      "replayFailed": "无法开始重发。"
     },
     "eventsList": {
       "invoiceCreated": {

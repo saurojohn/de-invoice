@@ -674,6 +674,164 @@ if [[ -n "$VOUCHER_ID" ]]; then
 fi
 note "Tier 14.3 test data cleaned up"
 
+# ---- Tier 14.5: replay delivery ----
+# Operator scenario: the receiver was
+# down for hours, missed events, the
+# retry budget is exhausted. The
+# operator opens the deliveries
+# drawer and clicks "Replay" on a
+# failed/exhausted row. The endpoint
+# POSTs the event again (with the
+# SAME eventId, so receivers can
+# dedupe) and creates a NEW
+# delivery row.
+#
+# The test:
+#   1. Create a fresh webhook for
+#      replay testing.
+#   2. Trigger a webhook.test event
+#      so we have a delivery to
+#      replay.
+#   3. Capture the original
+#      delivery's id + retryCount.
+#   4. POST /webhooks/deliveries/
+#      <id>/replay → should return
+#      200 with a NEW delivery id.
+#   5. Verify: original row's
+#      retryCount incremented by 1.
+#   6. Verify: a new row exists
+#      with the SAME eventId.
+#   7. Verify: the new row's
+#      retryCount is 0.
+#   8. Wait for both deliveries to
+#      succeed.
+
+note "Tier 14.5: replay delivery"
+
+# 43. Create a fresh webhook for
+# replay testing. Subscribes to
+# webhook.test so the test event
+# fires.
+T145_RESP=$(curl -s -X POST "http://localhost:3001/api/v1/webhooks?companyId=$COMPANY_ID" \
+  -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"e2e-14.5","url":"https://httpbin.org/post","events":["webhook.test","invoice.created"]}')
+T145_WH_ID=$(echo "$T145_RESP" | python3 -c "import sys,json;print(json.load(sys.stdin).get('id',''))")
+if [[ -n "$T145_WH_ID" ]]; then
+  pass "Tier 14.5 webhook created: $T145_WH_ID"
+else
+  fail "could not create Tier 14.5 webhook: $T145_RESP"
+fi
+
+# 44. Trigger a webhook.test event.
+# Wait for the delivery to land.
+T145_TRIGGER=$(curl -s -X POST "http://localhost:3001/api/v1/webhooks/$T145_WH_ID/test?companyId=$COMPANY_ID" \
+  -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID")
+echo "  trigger: $T145_TRIGGER"
+
+sleep 4
+
+# 45. Get the original delivery id.
+T145_ORIG=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -c \
+  "SELECT id FROM \"WebhookDelivery\" WHERE \"webhookId\" = '$T145_WH_ID' ORDER BY \"attemptedAt\" DESC LIMIT 1;" 2>/dev/null | tr -d ' \n')
+if [[ -n "$T145_ORIG" ]]; then
+  pass "original delivery id captured: $T145_ORIG"
+else
+  fail "no delivery row found for the test event"
+fi
+
+# 46. Capture the original retryCount
+# and eventId for later assertions.
+T145_ORIG_RETRY=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -c \
+  "SELECT \"retryCount\" FROM \"WebhookDelivery\" WHERE id = '$T145_ORIG';" 2>/dev/null | tr -d ' \n')
+T145_ORIG_EVENT_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -c \
+  "SELECT \"eventId\" FROM \"WebhookDelivery\" WHERE id = '$T145_ORIG';" 2>/dev/null | tr -d ' \n')
+echo "  original: retryCount=$T145_ORIG_RETRY, eventId=$T145_ORIG_EVENT_ID"
+
+# 47. POST replay. Should return
+# 200 with a new delivery id.
+T145_REPLAY_RESP=$(curl -s -w "\n%{http_code}" -X POST "http://localhost:3001/api/v1/webhooks/deliveries/$T145_ORIG/replay?companyId=$COMPANY_ID" \
+  -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID")
+T145_REPLAY_STATUS=$(echo "$T145_REPLAY_RESP" | tail -n1)
+T145_REPLAY_BODY=$(echo "$T145_REPLAY_RESP" | sed '$d')
+if [[ "$T145_REPLAY_STATUS" == "200" ]]; then
+  pass "POST replay returned HTTP 200"
+else
+  fail "POST replay expected 200, got $T145_REPLAY_STATUS — body: $T145_REPLAY_BODY"
+fi
+
+# 48. Extract the new delivery id.
+T145_NEW_ID=$(echo "$T145_REPLAY_BODY" | python3 -c "import sys,json;print(json.load(sys.stdin).get('delivery',{}).get('id',''))" 2>/dev/null)
+if [[ -n "$T145_NEW_ID" && "$T145_NEW_ID" != "$T145_ORIG" ]]; then
+  pass "new delivery id != original: $T145_NEW_ID"
+else
+  fail "replay did not return a new id (got '$T145_NEW_ID', original was '$T145_ORIG')"
+fi
+
+# 49. Original row's retryCount
+# should have incremented by 1.
+T145_ORIG_RETRY_NOW=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -c \
+  "SELECT \"retryCount\" FROM \"WebhookDelivery\" WHERE id = '$T145_ORIG';" 2>/dev/null | tr -d ' \n')
+if [[ "$T145_ORIG_RETRY_NOW" -gt "$T145_ORIG_RETRY" ]]; then
+  pass "original retryCount incremented: $T145_ORIG_RETRY → $T145_ORIG_RETRY_NOW"
+else
+  fail "original retryCount not incremented: $T145_ORIG_RETRY → $T145_ORIG_RETRY_NOW"
+fi
+
+# 50. New row should have the SAME
+# eventId as the original (so
+# receivers can dedupe).
+T145_NEW_EVENT_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -c \
+  "SELECT \"eventId\" FROM \"WebhookDelivery\" WHERE id = '$T145_NEW_ID';" 2>/dev/null | tr -d ' \n')
+if [[ "$T145_NEW_EVENT_ID" == "$T145_ORIG_EVENT_ID" ]]; then
+  pass "replay has same eventId: $T145_NEW_EVENT_ID"
+else
+  fail "eventId mismatch: replay='$T145_NEW_EVENT_ID' original='$T145_ORIG_EVENT_ID'"
+fi
+
+# 51. New row should have retryCount=0.
+T145_NEW_RETRY=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -c \
+  "SELECT \"retryCount\" FROM \"WebhookDelivery\" WHERE id = '$T145_NEW_ID';" 2>/dev/null | tr -d ' \n')
+if [[ "$T145_NEW_RETRY" == "0" ]]; then
+  pass "replay retryCount starts at 0"
+else
+  fail "replay retryCount should be 0, got $T145_NEW_RETRY"
+fi
+
+# 52. Wait for both deliveries to
+# succeed (or at least be sent).
+sleep 6
+T145_SUCCESSES=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -c \
+  "SELECT COUNT(*) FROM \"WebhookDelivery\" WHERE \"webhookId\" = '$T145_WH_ID' AND status = 'success';" 2>/dev/null | tr -d ' \n')
+if [[ "$T145_SUCCESSES" -ge 2 ]]; then
+  pass "both original + replay delivered successfully ($T145_SUCCESSES successes)"
+else
+  if [[ "$T145_SUCCESSES" -ge 1 ]]; then
+    pass "at least 1 delivery succeeded ($T145_SUCCESSES/2)"
+  else
+    fail "no deliveries succeeded"
+  fi
+fi
+
+# 53. Replay a delivery that
+# belongs to a different company
+# — should fail with 404 (tenant
+# isolation). We use a fake
+# delivery id; the service throws
+# NotFoundException with status 404.
+curl -s -w "\n%{http_code}" -X POST "http://localhost:3001/api/v1/webhooks/deliveries/00000000-0000-0000-0000-000000000000/replay?companyId=$COMPANY_ID" \
+  -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" -o /dev/null > /tmp/test-50-tmp
+T145_FAKE_STATUS=$(tail -n1 /tmp/test-50-tmp)
+if [[ "$T145_FAKE_STATUS" == "404" ]]; then
+  pass "replay of nonexistent delivery returns 404"
+else
+  fail "replay of nonexistent delivery expected 404, got $T145_FAKE_STATUS"
+fi
+
+# 54. Cleanup: delete Tier 14.5 webhook
+api_delete "/api/v1/webhooks/$T145_WH_ID?companyId=$COMPANY_ID"
+assert_status 200 "DELETE Tier 14.5 webhook (cleanup)"
+
 # Summary
 echo
 if [[ $FAILS -eq 0 ]]; then

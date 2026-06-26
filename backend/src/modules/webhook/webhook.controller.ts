@@ -10,6 +10,7 @@ import {
   UseGuards,
   NotFoundException,
   BadRequestException,
+  HttpCode,
 } from '@nestjs/common'
 import { HeaderAuthGuard } from '../../auth/header-auth.guard'
 import { RolesGuard } from '../../auth/roles.guard'
@@ -111,6 +112,7 @@ export class WebhookController {
       take: limit,
       select: {
         id: true,
+        webhookId: true,
         eventType: true,
         eventId: true,
         status: true,
@@ -158,6 +160,56 @@ export class WebhookController {
       // returns immediately. Check
       // the deliveries list to see
       // the result.
+    }
+  }
+
+  /**
+   * Manually replay a past delivery.
+   *
+   * URL: POST /webhooks/deliveries/:id/replay
+   *
+   * Operator scenario: the receiver
+   * was down for hours, missed 47
+   * events, the retry budget is
+   * exhausted, and now the receiver
+   * is back up. The operator opens
+   * the deliveries drawer, sees a
+   * failed or exhausted row, and
+   * clicks "Replay". This endpoint
+   * creates a fresh delivery with
+   * the same eventId (so receivers
+   * can dedupe), POSTs it to the
+   * webhook URL, and returns the
+   * new delivery row.
+   *
+   * The original delivery row stays
+   * as-is — it preserves the audit
+   * trail of what actually happened
+   * at the time. The replay is a
+   * separate row that operators
+   * can scroll through to see what
+   * was manually re-fired.
+   *
+   * RBAC: requires company.update
+   * permission (admin only — same
+   * as create/delete webhook).
+   */
+  @Post('deliveries/:id/replay')
+  @Require('company.update')
+  @HttpCode(200) // Replay isn't a "create" — it's an operator action on an existing row
+  async replay(
+    @Param('id') id: string,
+    @Query('companyId') companyId: string,
+  ) {
+    const replay = await this.webhooks.replayDelivery(id, companyId)
+    return {
+      ok: true,
+      delivery: {
+        id: replay.id,
+        eventType: replay.eventType,
+        eventId: replay.eventId,
+        status: replay.status,
+      },
     }
   }
 }
