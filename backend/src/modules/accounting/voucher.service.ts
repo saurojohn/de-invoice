@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AccountService } from './account.service';
+import { WebhookService } from '../webhook/webhook.service';
 
 interface CreateVoucherDto {
   companyId: string;
@@ -28,6 +29,7 @@ export class VoucherService {
   constructor(
     private prisma: PrismaService,
     private accountService: AccountService,
+    private webhooks: WebhookService,
   ) {}
 
   async create(dto: CreateVoucherDto) {
@@ -42,7 +44,7 @@ export class VoucherService {
     // Generate voucher number
     const voucherNumber = await this.generateVoucherNumber(dto.companyId, dto.date);
 
-    return this.prisma.voucher.create({
+    const created = await this.prisma.voucher.create({
       data: {
         companyId: dto.companyId,
         voucherNumber,
@@ -74,6 +76,74 @@ export class VoucherService {
         },
       },
     });
+
+    // Fire voucher.created. Manual
+    // vouchers are always 'posted' on
+    // create (no draft phase), so we
+    // fire 'voucher.posted' too —
+    // receivers that subscribe to
+    // ONLY 'voucher.posted' will
+    // receive it. Receivers that
+    // want both signals can
+    // subscribe to both event types.
+    //
+    // Why two events for one action?
+    //   - voucher.created: "a new
+    //     voucher row appeared in the
+    //     DB" (always fires)
+    //   - voucher.posted: "a voucher
+    //     transitioned to posted
+    //     status" (fires for manual
+    //     vouchers + would fire on
+    //     a future draft→posted
+    //     transition)
+    // The dual event is forward-
+    // looking: when we add a draft
+    // workflow (Berater composing a
+    // multi-line voucher over
+    // multiple days), the create
+    // event stays the same but
+    // posted becomes a real status
+    // transition.
+    this.webhooks
+      .emit({
+        id: `vou_${created.id}`,
+        type: 'voucher.created',
+        occurredAt: new Date().toISOString(),
+        companyId: dto.companyId,
+        data: {
+          id: created.id,
+          voucherNumber: created.voucherNumber,
+          date: created.date,
+          description: created.description,
+          status: created.status,
+          referenceType: created.referenceType,
+          lineCount: created.lines.length,
+          totalDebit: created.lines.reduce((s, l) => s + Number(l.debit), 0),
+          totalCredit: created.lines.reduce((s, l) => s + Number(l.credit), 0),
+        },
+      })
+      .catch((err) => console.error('webhook emit(voucher.created) failed:', err))
+
+    if (created.status === 'posted') {
+      this.webhooks
+        .emit({
+          id: `vou_${created.id}_posted_${created.createdAt?.getTime() ?? Date.now()}`,
+          type: 'voucher.posted',
+          occurredAt: new Date().toISOString(),
+          companyId: dto.companyId,
+          data: {
+            id: created.id,
+            voucherNumber: created.voucherNumber,
+            date: created.date,
+            description: created.description,
+            referenceType: created.referenceType,
+          },
+        })
+        .catch((err) => console.error('webhook emit(voucher.posted) failed:', err))
+    }
+
+    return created;
   }
 
   /**
@@ -152,7 +222,7 @@ export class VoucherService {
     const reasonPart = reason ? ` Grund: ${reason}` : '';
     const newDescription = `Storno: ${original.voucherNumber}${reasonPart}`;
 
-    return this.prisma.voucher.create({
+    const reversal = await this.prisma.voucher.create({
       data: {
         companyId,
         voucherNumber: newVoucherNumber,
@@ -186,6 +256,35 @@ export class VoucherService {
         },
       },
     });
+
+    // Fire voucher.reversed. The
+    // eventId embeds the original
+    // voucher id + the reversal id,
+    // so receivers that already
+    // processed the original
+    // voucher can find the
+    // corresponding Storno easily.
+    // We also include originalVoucherId
+    // in data for receivers that
+    // don't want to parse the
+    // eventId.
+    this.webhooks
+      .emit({
+        id: `vou_${originalId}_reversed_by_${reversal.id}`,
+        type: 'voucher.reversed',
+        occurredAt: new Date().toISOString(),
+        companyId,
+        data: {
+          reversalId: reversal.id,
+          reversalVoucherNumber: reversal.voucherNumber,
+          originalVoucherId: originalId,
+          originalVoucherNumber: original.voucherNumber,
+          reason: reason ?? null,
+        },
+      })
+      .catch((err) => console.error('webhook emit(voucher.reversed) failed:', err))
+
+    return reversal;
   }
 
   async findAll(

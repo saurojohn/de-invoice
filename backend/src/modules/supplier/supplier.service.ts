@@ -19,12 +19,14 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { VatValidationService } from '../vat-validation/vat-validation.service';
+import { WebhookService } from '../webhook/webhook.service';
 
 @Injectable()
 export class SupplierService {
   constructor(
     private prisma: PrismaService,
     private vatValidation: VatValidationService,
+    private webhooks: WebhookService,
   ) {}
 
   async findAll(companyId: string, opts: { search?: string } = {}) {
@@ -71,7 +73,7 @@ export class SupplierService {
   async create(companyId: string, data: any) {
     if (!data.name) throw new BadRequestException('Name ist erforderlich');
     if (!data.address) data.address = {};
-    return this.prisma.supplier.create({
+    const created = await this.prisma.supplier.create({
       data: {
         companyId,
         name: data.name,
@@ -83,12 +85,41 @@ export class SupplierService {
         metadata: data.metadata || null,
       },
     });
+
+    // Fire supplier.created. We don't
+    // have a dedicated event type for
+    // this in the UI yet (it'll be
+    // added when the UI exposes a
+    // supplier create event), but the
+    // type 'company.updated' is a
+    // fine catch-all for "something
+    // master-data-level changed".
+    // Receivers that care about
+    // suppliers specifically can
+    // filter on data.kind === 'supplier'.
+    this.webhooks
+      .emit({
+        id: `sup_${created.id}`,
+        type: 'company.updated',
+        occurredAt: new Date().toISOString(),
+        companyId,
+        data: {
+          kind: 'supplier',
+          action: 'created',
+          id: created.id,
+          name: created.name,
+          vatId: created.vatId ?? null,
+        },
+      })
+      .catch((err) => console.error('webhook emit(supplier.created) failed:', err))
+
+    return created;
   }
 
   async update(id: string, companyId: string, data: any) {
     const existing = await this.prisma.supplier.findFirst({ where: { id, companyId } });
     if (!existing) throw new NotFoundException('Lieferant nicht gefunden');
-    return this.prisma.supplier.update({
+    const updated = await this.prisma.supplier.update({
       where: { id },
       data: {
         name: data.name ?? existing.name,
@@ -100,6 +131,24 @@ export class SupplierService {
         metadata: data.metadata ?? existing.metadata,
       },
     });
+
+    this.webhooks
+      .emit({
+        id: `sup_${id}_updated_${updated.updatedAt?.getTime() ?? Date.now()}`,
+        type: 'company.updated',
+        occurredAt: new Date().toISOString(),
+        companyId,
+        data: {
+          kind: 'supplier',
+          action: 'updated',
+          id: updated.id,
+          name: updated.name,
+          vatId: updated.vatId ?? null,
+        },
+      })
+      .catch((err) => console.error('webhook emit(supplier.updated) failed:', err))
+
+    return updated;
   }
 
   async remove(id: string, companyId: string) {

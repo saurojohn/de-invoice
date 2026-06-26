@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException, ConflictException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { VatValidationService } from '../vat-validation/vat-validation.service';
+import { WebhookService } from '../webhook/webhook.service';
 
 export interface ImportCustomerRow {
   name?: string
@@ -30,6 +31,7 @@ export class CustomerService {
   constructor(
     private prisma: PrismaService,
     private vatValidation: VatValidationService,
+    private webhooks: WebhookService,
   ) {}
 
   /**
@@ -238,6 +240,30 @@ export class CustomerService {
           const created = await this.prisma.customer.create({
             data: { ...safeData, companyId },
           })
+          // Fire customer.created webhook for the
+          // auto-numbered path too. Same event, same
+          // payload as the manually-numbered path
+          // below — receivers shouldn't have to
+          // distinguish the two cases.
+          this.webhooks
+            .emit({
+              id: `cust_${created.id}`,
+              type: 'customer.created',
+              occurredAt: new Date().toISOString(),
+              companyId,
+              data: {
+                id: created.id,
+                customerNumber: created.customerNumber,
+                name: created.name,
+                vatId: created.vatId ?? null,
+              },
+            })
+            .catch((err) =>
+              console.error(
+                'webhook emit(customer.created) failed:',
+                err,
+              ),
+            )
           return created
         } catch (e: any) {
           lastError = e
@@ -251,9 +277,31 @@ export class CustomerService {
       }
       throw lastError
     }
-    return this.prisma.customer.create({
+    const created = await this.prisma.customer.create({
       data: { ...safeData, companyId },
     });
+
+    // Fire customer.created webhook.
+    // eventId is stable for the customer's
+    // lifetime — receivers can dedupe on it
+    // if they receive the event multiple
+    // times (retry after backend crash).
+    this.webhooks
+      .emit({
+        id: `cust_${created.id}`,
+        type: 'customer.created',
+        occurredAt: new Date().toISOString(),
+        companyId,
+        data: {
+          id: created.id,
+          customerNumber: created.customerNumber,
+          name: created.name,
+          vatId: created.vatId ?? null,
+        },
+      })
+      .catch((err) => console.error('webhook emit(customer.created) failed:', err))
+
+    return created;
   }
 
   /**
@@ -298,10 +346,32 @@ export class CustomerService {
   async update(id: string, companyId: string, data: any) {
     // Verify the customer belongs to this company before updating
     const existing = await this.findOne(id, companyId)
-    return this.prisma.customer.update({
+    const updated = await this.prisma.customer.update({
       where: { id: existing.id },
       data,
     });
+
+    // Fire customer.updated webhook. We use a
+    // timestamped eventId so re-deliveries
+    // (after backend crash) carry a different
+    // eventId, but receivers that dedupe on
+    // customer id can still group them.
+    this.webhooks
+      .emit({
+        id: `cust_${id}_updated_${updated.updatedAt?.getTime() ?? Date.now()}`,
+        type: 'customer.updated',
+        occurredAt: new Date().toISOString(),
+        companyId,
+        data: {
+          id: updated.id,
+          customerNumber: updated.customerNumber,
+          name: updated.name,
+          vatId: updated.vatId ?? null,
+        },
+      })
+      .catch((err) => console.error('webhook emit(customer.updated) failed:', err))
+
+    return updated;
   }
 
   /**

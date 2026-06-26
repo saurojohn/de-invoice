@@ -455,6 +455,225 @@ docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"Customer\" WHERE id = '$CUST_ID';" >/dev/null 2>&1
 note "test customer cleaned up"
 
+# ---- Tier 14.3: more event types ----
+# Verifies customer.created / customer.updated /
+# voucher.posted / voucher.reversed fire on
+# their respective service operations.
+#
+# Same pattern as the previous Tier 14.2
+# section: create a real webhook subscribing
+# to the new event types, then trigger each
+# event via the real REST API, and check
+# the WebhookDelivery rows.
+
+note "Tier 14.3: customer / voucher / supplier events"
+
+# poll_for_delivery polls the DB until
+# a row appears matching the predicate,
+# or until MAX_WAIT seconds elapse. This
+# is the racy alternative to "sleep 2
+# and hope". The webhook emit is
+# fire-and-forget, so the test must
+# wait for it to commit.
+#
+# Usage: poll_for_delivery "predicate" "label"
+#   predicate: SQL predicate
+#     (without SELECT COUNT(*))
+#   label: human description
+MAX_WAIT=8
+poll_for_delivery() {
+  local predicate="$1"
+  local label="$2"
+  local waited=0
+  local result="0"
+  while [[ $waited -lt $MAX_WAIT ]]; do
+    result=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -c \
+      "SELECT COUNT(*) FROM \"WebhookDelivery\" WHERE \"webhookId\" = '$T143_WH_ID' AND $predicate;" 2>/dev/null | tr -d ' \n')
+    if [[ "$result" -ge 1 ]]; then
+      return 0
+    fi
+    sleep 1
+    waited=$((waited + 1))
+  done
+  return 1
+}
+
+# 33. Create a webhook subscribed to the
+# new event types. We use httpbin.org for
+# the same reason as before — a real
+# receiver that returns 200.
+T143_RESP=$(curl -s -X POST "http://localhost:3001/api/v1/webhooks?companyId=$COMPANY_ID" \
+  -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"e2e-14.3","url":"https://httpbin.org/post","events":["customer.created","customer.updated","voucher.created","voucher.posted","voucher.reversed","company.updated"]}')
+T143_WH_ID=$(echo "$T143_RESP" | python3 -c "import sys,json;print(json.load(sys.stdin).get('id',''))")
+if [[ -n "$T143_WH_ID" ]]; then
+  pass "Tier 14.3 webhook created: $T143_WH_ID"
+else
+  fail "could not create Tier 14.3 webhook: $T143_RESP"
+fi
+
+# 34. Create a customer → customer.created
+T143_CUST=$(curl -s -X POST "http://localhost:3001/api/v1/customers?companyId=$COMPANY_ID" \
+  -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
+  -H "Content-Type: application/json" \
+  -d "{\"name\":\"e2e-14.3 Cust\",\"address\":{\"city\":\"Berlin\"}}")
+T143_CUST_ID=$(echo "$T143_CUST" | python3 -c "import sys,json;print(json.load(sys.stdin).get('id',''))")
+if [[ -n "$T143_CUST_ID" ]]; then
+  pass "test customer for 14.3 created: $T143_CUST_ID"
+else
+  fail "could not create 14.3 customer: $T143_CUST"
+fi
+
+# 35. customer.created delivery row (poll)
+if poll_for_delivery "\"eventType\" = 'customer.created'" "customer.created"; then
+  CUST_CREATED_COUNT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -c \
+    "SELECT COUNT(*) FROM \"WebhookDelivery\" WHERE \"webhookId\" = '$T143_WH_ID' AND \"eventType\" = 'customer.created';" 2>/dev/null | tr -d ' \n')
+  pass "customer.created delivery row (count=$CUST_CREATED_COUNT)"
+else
+  fail "no customer.created delivery row within ${MAX_WAIT}s"
+fi
+
+# 36. eventId matches the customer id
+CUST_EVT_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -c \
+  "SELECT \"eventId\" FROM \"WebhookDelivery\" WHERE \"webhookId\" = '$T143_WH_ID' AND \"eventType\" = 'customer.created' LIMIT 1;" 2>/dev/null | tr -d ' \n')
+EXPECTED_CUST_EVT="cust_$T143_CUST_ID"
+if [[ "$CUST_EVT_ID" == "$EXPECTED_CUST_EVT" ]]; then
+  pass "customer eventId matches: $CUST_EVT_ID"
+else
+  fail "customer eventId mismatch: got='$CUST_EVT_ID' expected='$EXPECTED_CUST_EVT'"
+fi
+
+# 37. Update the customer → customer.updated
+curl -s -X PUT "http://localhost:3001/api/v1/customers/$T143_CUST_ID?companyId=$COMPANY_ID" \
+  -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"e2e-14.3 Cust Updated"}' >/dev/null
+
+if poll_for_delivery "\"eventType\" = 'customer.updated'" "customer.updated"; then
+  CUST_UPDATED_COUNT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -c \
+    "SELECT COUNT(*) FROM \"WebhookDelivery\" WHERE \"webhookId\" = '$T143_WH_ID' AND \"eventType\" = 'customer.updated';" 2>/dev/null | tr -d ' \n')
+  pass "customer.updated delivery row (count=$CUST_UPDATED_COUNT)"
+else
+  fail "no customer.updated delivery row within ${MAX_WAIT}s"
+fi
+
+# 38. Create a supplier → company.updated (with kind=supplier)
+T143_SUP=$(curl -s -X POST "http://localhost:3001/api/v1/suppliers?companyId=$COMPANY_ID" \
+  -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"e2e-14.3 Supplier","address":{"city":"Hamburg"}}')
+T143_SUP_ID=$(echo "$T143_SUP" | python3 -c "import sys,json;print(json.load(sys.stdin).get('id',''))")
+if [[ -n "$T143_SUP_ID" ]]; then
+  pass "test supplier for 14.3 created: $T143_SUP_ID"
+else
+  fail "could not create 14.3 supplier: $T143_SUP"
+fi
+
+if poll_for_delivery "\"eventType\" = 'company.updated' AND payload->'data'->>'kind' = 'supplier'" "supplier event"; then
+  SUP_COUNT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -c \
+    "SELECT COUNT(*) FROM \"WebhookDelivery\" WHERE \"webhookId\" = '$T143_WH_ID' AND \"eventType\" = 'company.updated' AND payload->'data'->>'kind' = 'supplier';" 2>/dev/null | tr -d ' \n')
+  pass "company.updated delivery row (kind=supplier, count=$SUP_COUNT)"
+else
+  fail "no company.updated delivery row for supplier within ${MAX_WAIT}s"
+fi
+
+# 39. Create a voucher → voucher.created + voucher.posted
+SEED_RESP=$(curl -s "http://localhost:3001/api/v1/accounting/accounts/seed?companyId=$COMPANY_ID" \
+  -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID")
+ACCT_IDS=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -c \
+  "SELECT id FROM \"Account\" WHERE \"companyId\" = '$COMPANY_ID' AND active = true ORDER BY \"accountNumber\" LIMIT 2;" 2>/dev/null | tr -s ' \n' ' ' | sed 's/ $//')
+ACCT1=$(echo "$ACCT_IDS" | awk '{print $1}')
+ACCT2=$(echo "$ACCT_IDS" | awk '{print $2}')
+if [[ -z "$ACCT1" || -z "$ACCT2" ]]; then
+  fail "could not find 2 accounts for voucher creation test (have '$ACCT1' / '$ACCT2')"
+else
+  VOUCHER_RESP=$(curl -s -X POST "http://localhost:3001/api/v1/accounting/vouchers?companyId=$COMPANY_ID" \
+    -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
+    -H "Content-Type: application/json" \
+    -d "{
+      \"companyId\":\"$COMPANY_ID\",
+      \"date\":\"$(date -u +%Y-%m-%d)\",
+      \"description\":\"e2e-14.3 test voucher\",
+      \"lines\":[
+        {\"accountId\":\"$ACCT1\",\"debit\":100.00,\"credit\":0},
+        {\"accountId\":\"$ACCT2\",\"debit\":0,\"credit\":100.00}
+      ]
+    }")
+  VOUCHER_ID=$(echo "$VOUCHER_RESP" | python3 -c "import sys,json;print(json.load(sys.stdin).get('id',''))" 2>/dev/null)
+  if [[ -n "$VOUCHER_ID" ]]; then
+    pass "test voucher for 14.3 created: $VOUCHER_ID"
+  else
+    fail "could not create 14.3 voucher: $VOUCHER_RESP"
+  fi
+
+  if poll_for_delivery "\"eventType\" = 'voucher.created'" "voucher.created"; then
+    VOU_CREATED=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -c \
+      "SELECT COUNT(*) FROM \"WebhookDelivery\" WHERE \"webhookId\" = '$T143_WH_ID' AND \"eventType\" = 'voucher.created';" 2>/dev/null | tr -d ' \n')
+    pass "voucher.created delivery row (count=$VOU_CREATED)"
+  else
+    fail "no voucher.created delivery row within ${MAX_WAIT}s"
+  fi
+
+  if poll_for_delivery "\"eventType\" = 'voucher.posted'" "voucher.posted"; then
+    VOU_POSTED=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -c \
+      "SELECT COUNT(*) FROM \"WebhookDelivery\" WHERE \"webhookId\" = '$T143_WH_ID' AND \"eventType\" = 'voucher.posted';" 2>/dev/null | tr -d ' \n')
+    pass "voucher.posted delivery row (count=$VOU_POSTED)"
+  else
+    fail "no voucher.posted delivery row within ${MAX_WAIT}s"
+  fi
+
+  # 40. Reverse the voucher → voucher.reversed
+  if [[ -n "$VOUCHER_ID" ]]; then
+    REV_RESP=$(curl -s -X POST "http://localhost:3001/api/v1/accounting/vouchers/$VOUCHER_ID/reversal?companyId=$COMPANY_ID" \
+      -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
+      -H "Content-Type: application/json" \
+      -d '{"reason":"e2e-14.3 test"}')
+    REV_ID=$(echo "$REV_RESP" | python3 -c "import sys,json;print(json.load(sys.stdin).get('id',''))" 2>/dev/null)
+    if [[ -n "$REV_ID" ]]; then
+      pass "test reversal created: $REV_ID"
+    else
+      note "reversal response: $REV_RESP"
+    fi
+
+    if poll_for_delivery "\"eventType\" = 'voucher.reversed'" "voucher.reversed"; then
+      VOU_REV=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -c \
+        "SELECT COUNT(*) FROM \"WebhookDelivery\" WHERE \"webhookId\" = '$T143_WH_ID' AND \"eventType\" = 'voucher.reversed';" 2>/dev/null | tr -d ' \n')
+      pass "voucher.reversed delivery row (count=$VOU_REV)"
+
+      VOU_REV_EVT_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -c \
+        "SELECT \"eventId\" FROM \"WebhookDelivery\" WHERE \"webhookId\" = '$T143_WH_ID' AND \"eventType\" = 'voucher.reversed' LIMIT 1;" 2>/dev/null | tr -d ' \n')
+      EXPECTED_REV_EVT="vou_${VOUCHER_ID}_reversed_by_${REV_ID}"
+      if [[ "$VOU_REV_EVT_ID" == "$EXPECTED_REV_EVT" ]]; then
+        pass "voucher.reversed eventId embeds both ids: $VOU_REV_EVT_ID"
+      else
+        fail "voucher.reversed eventId mismatch: got='$VOU_REV_EVT_ID' expected='$EXPECTED_REV_EVT'"
+      fi
+    else
+      fail "no voucher.reversed delivery row within ${MAX_WAIT}s"
+    fi
+  fi
+fi
+
+# 41. Cleanup: delete Tier 14.3 webhook
+api_delete "/api/v1/webhooks/$T143_WH_ID?companyId=$COMPANY_ID"
+assert_status 200 "DELETE Tier 14.3 webhook (cleanup)"
+
+# 42. Delete the test supplier + customer + accounts-test voucher
+if [[ -n "$T143_SUP_ID" ]]; then
+  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+    "DELETE FROM \"Supplier\" WHERE id = '$T143_SUP_ID';" >/dev/null 2>&1
+fi
+if [[ -n "$T143_CUST_ID" ]]; then
+  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+    "DELETE FROM \"Customer\" WHERE id = '$T143_CUST_ID';" >/dev/null 2>&1
+fi
+if [[ -n "$VOUCHER_ID" ]]; then
+  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+    "DELETE FROM \"Voucher\" WHERE id = '$VOUCHER_ID';" >/dev/null 2>&1
+fi
+note "Tier 14.3 test data cleaned up"
+
 # Summary
 echo
 if [[ $FAILS -eq 0 ]]; then

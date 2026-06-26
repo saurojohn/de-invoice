@@ -280,6 +280,10 @@ export class WebhookService {
       // this — the .catch() handles
       // errors so they don't become
       // unhandled promise rejections.
+      // Fire-and-forget. We don't await
+      // this — the .catch() handles
+      // errors so they don't become
+      // unhandled promise rejections.
       this.deliver(delivery.id, wh.url, wh.secret, event).catch((err) => {
         this.logger.error(`webhook ${wh.id} delivery ${delivery.id} failed: ${err}`)
       })
