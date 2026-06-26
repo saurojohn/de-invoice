@@ -1431,5 +1431,118 @@
     "unbalanced": "不平！",
     "loadError": "加载日记账失败",
     "empty": "请选择时间区间后生成日记账。"
+  },
+  "webhooks": {
+    "title": "Webhooks",
+    "subtitle": "在业务事件触发时自动发送的 HTTP 回调,适合集成 DATEV、sevDesk、Zapier、Make 或自有内部系统。",
+    "create": "添加 Webhook",
+    "createTitle": "新建 Webhook",
+    "name": "名称",
+    "namePlaceholder": "例如:DATEV 连接器",
+    "url": "接收 URL",
+    "urlPlaceholder": "https://example.com/webhook",
+    "urlHelp": "我们会向此 URL 发送 POST 请求。不允许使用内网段(10.x、192.168.x)或 localhost。",
+    "events": "事件",
+    "eventsHelp": "选择需要触发此 Webhook 的事件。",
+    "description": "描述(可选)",
+    "secretTitle": "Webhook 密钥",
+    "secretBody": "请立即保存此密钥 — 出于安全考虑,我们将不再显示。请在接收端使用它验证 X-Signature 头。",
+    "secretCopied": "已复制到剪贴板",
+    "empty": "尚未配置 Webhook。点击「添加 Webhook」设置第一个接收端。",
+    "status": {
+      "active": "已启用",
+      "paused": "已暂停",
+      "disabled": "已停用"
+    },
+    "actions": {
+      "test": "发送测试",
+      "deliveries": "投递历史",
+      "pause": "暂停",
+      "resume": "继续",
+      "delete": "删除"
+    },
+    "deleteConfirm": "确定要删除此 Webhook 吗?投递历史将保留用于审计。",
+    "testSent": "已发送测试事件。请检查接收端和投递历史。",
+    "deliveries": {
+      "title": "投递历史",
+      "empty": "尚无投递记录。",
+      "status": {
+        "success": "成功",
+        "failed": "失败",
+        "exhausted": "已耗尽",
+        "pending": "进行中"
+      },
+      "eventType": "事件",
+      "statusCode": "HTTP 状态",
+      "duration": "耗时",
+      "attemptedAt": "尝试时间",
+      "nextRetry": "下次重试",
+      "noRetry": "—",
+      "statusLabel": "状态"
+    },
+    "eventsList": {
+      "invoiceCreated": {
+        "label": "发票已创建",
+        "description": "新发票保存时触发。"
+      },
+      "invoiceUpdated": {
+        "label": "发票已更新",
+        "description": "现有发票的状态或字段变化。"
+      },
+      "invoicePaid": {
+        "label": "发票已付清",
+        "description": "发票状态变为「已付清」时触发。"
+      },
+      "invoiceSent": {
+        "label": "发票已发送",
+        "description": "发票发送给客户时触发。"
+      },
+      "invoiceDeleted": {
+        "label": "发票已删除",
+        "description": "发票在出票日被删除时触发。"
+      },
+      "paymentReceived": {
+        "label": "收到付款",
+        "description": "对发票进行付款记录时触发。"
+      },
+      "voucherCreated": {
+        "label": "凭证已创建",
+        "description": "新凭证(记账)保存时触发。"
+      },
+      "voucherPosted": {
+        "label": "凭证已记账",
+        "description": "凭证最终记账时触发。"
+      },
+      "voucherReversed": {
+        "label": "凭证已冲销",
+        "description": "凭证冲销(符合 GoBD)时触发。"
+      },
+      "customerCreated": {
+        "label": "客户已创建",
+        "description": "新客户保存时触发。"
+      },
+      "customerUpdated": {
+        "label": "客户已更新",
+        "description": "现有客户被修改时触发。"
+      },
+      "companyUpdated": {
+        "label": "公司已更新",
+        "description": "公司主数据被修改时触发。"
+      }
+    },
+    "errors": {
+      "loadFailed": "加载 Webhook 失败。",
+      "createFailed": "创建 Webhook 失败。",
+      "updateFailed": "更新 Webhook 失败。",
+      "deleteFailed": "删除 Webhook 失败。",
+      "testFailed": "发送测试事件失败。"
+    },
+    "info": {
+      "signature": "每个请求都会带上 X-Signature: sha256=<hex> 头,其中 <hex> 是以您的密钥为密钥对请求体的 HMAC-SHA256 签名。",
+      "retry": "遇到 5xx 或网络错误时,Webhook 将以指数退避(1 分、5 分、30 分)重试最多 3 次。4xx 响应不会重试。"
+    },
+    "backToSettings": "返回设置",
+    "statusLabel": "状态",
+    "actionsLabel": "操作"
   }
 }

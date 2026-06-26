@@ -1672,6 +1672,29 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
 
+          {/* Webhooks — outbound HTTP callbacks for
+              business events. Tier 14.4. The actual
+              page lives at /dashboard/settings/webhooks
+              (separate page, not a modal — the list can
+              get long, and the create form has ~12 event
+              checkboxes). */}
+          <Card>
+            <CardHeader>
+              <CardTitle>{t("webhooks.title")}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-gray-700 dark:text-gray-300">
+                {t("webhooks.subtitle")}
+              </p>
+              <Button
+                onClick={() => router.push("/dashboard/settings/webhooks")}
+                data-testid="webhooks-settings-link"
+              >
+                → {t("webhooks.title")}
+              </Button>
+            </CardContent>
+          </Card>
+
           {/* Submit */}
           <div className="flex gap-4">
             <Button type="submit" className="flex-1" disabled={saving}>

@@ -1431,5 +1431,118 @@
     "unbalanced": "Imbalance!",
     "loadError": "Failed to load journal",
     "empty": "Select a period and generate a journal."
+  },
+  "webhooks": {
+    "title": "Webhooks",
+    "subtitle": "HTTP callbacks fired automatically on business events. Ideal for DATEV, sevDesk, Zapier, Make, or your own internal systems.",
+    "create": "Add webhook",
+    "createTitle": "Create new webhook",
+    "name": "Name",
+    "namePlaceholder": "e.g. DATEV connector",
+    "url": "Receiver URL",
+    "urlPlaceholder": "https://example.com/webhook",
+    "urlHelp": "We send POST requests to this URL. Private ranges (10.x, 192.168.x) and localhost are not allowed.",
+    "events": "Events",
+    "eventsHelp": "Select the events that should trigger the webhook.",
+    "description": "Description (optional)",
+    "secretTitle": "Webhook secret",
+    "secretBody": "Save this secret now — we will not show it again for security reasons. Use it on the receiver side to verify the X-Signature header.",
+    "secretCopied": "Copied to clipboard",
+    "empty": "No webhooks configured yet. Click \"Add webhook\" to set up your first receiver.",
+    "status": {
+      "active": "Active",
+      "paused": "Paused",
+      "disabled": "Disabled"
+    },
+    "actions": {
+      "test": "Send test",
+      "deliveries": "Deliveries",
+      "pause": "Pause",
+      "resume": "Resume",
+      "delete": "Delete"
+    },
+    "deleteConfirm": "Really delete this webhook? Delivery history will be kept for audit purposes.",
+    "testSent": "Test event sent. Check the receiver and the delivery history.",
+    "deliveries": {
+      "title": "Delivery history",
+      "empty": "No deliveries yet.",
+      "status": {
+        "success": "Success",
+        "failed": "Failed",
+        "exhausted": "Exhausted",
+        "pending": "Pending"
+      },
+      "eventType": "Event",
+      "statusCode": "HTTP status",
+      "duration": "Duration",
+      "attemptedAt": "Attempted at",
+      "nextRetry": "Next retry",
+      "noRetry": "—",
+      "statusLabel": "Status"
+    },
+    "eventsList": {
+      "invoiceCreated": {
+        "label": "Invoice created",
+        "description": "Fired when a new invoice is saved."
+      },
+      "invoiceUpdated": {
+        "label": "Invoice updated",
+        "description": "Status or field changes on an existing invoice."
+      },
+      "invoicePaid": {
+        "label": "Invoice paid",
+        "description": "Fired when an invoice transitions to the \"paid\" status."
+      },
+      "invoiceSent": {
+        "label": "Invoice sent",
+        "description": "Fired when an invoice is sent to the customer."
+      },
+      "invoiceDeleted": {
+        "label": "Invoice deleted",
+        "description": "Fired when an invoice is deleted on its issue date."
+      },
+      "paymentReceived": {
+        "label": "Payment received",
+        "description": "Fired when a payment is recorded against an invoice."
+      },
+      "voucherCreated": {
+        "label": "Voucher created",
+        "description": "Fired when a new voucher (booking) is saved."
+      },
+      "voucherPosted": {
+        "label": "Voucher posted",
+        "description": "Fired when a voucher is finally posted."
+      },
+      "voucherReversed": {
+        "label": "Voucher reversed",
+        "description": "Fired when a voucher is reversed (GoBD-compliant)."
+      },
+      "customerCreated": {
+        "label": "Customer created",
+        "description": "Fired when a new customer is saved."
+      },
+      "customerUpdated": {
+        "label": "Customer updated",
+        "description": "Fired when an existing customer is updated."
+      },
+      "companyUpdated": {
+        "label": "Company updated",
+        "description": "Fired when company master data is changed."
+      }
+    },
+    "errors": {
+      "loadFailed": "Failed to load webhooks.",
+      "createFailed": "Failed to create webhook.",
+      "updateFailed": "Failed to update webhook.",
+      "deleteFailed": "Failed to delete webhook.",
+      "testFailed": "Failed to send test event."
+    },
+    "info": {
+      "signature": "Each request includes the X-Signature: sha256=<hex> header, where <hex> is an HMAC-SHA256 of the request body using your secret as the key.",
+      "retry": "On 5xx or network errors, the webhook is retried up to 3 times with exponential backoff (1m, 5m, 30m). 4xx responses are not retried."
+    },
+    "backToSettings": "Back to settings",
+    "statusLabel": "Status",
+    "actionsLabel": "Actions"
   }
 }

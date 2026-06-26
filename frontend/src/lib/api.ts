@@ -117,6 +117,17 @@ export async function apiPut<T = any>(path: string, body?: any): Promise<T> {
   return res.json()
 }
 
+/** PATCH JSON and parse JSON. Used by endpoints
+ *  that update a subset of fields (webhook
+ *  status pause/resume, user role changes,
+ *  etc). The backend treats PATCH semantically
+ *  as "merge into existing" — fields not in the
+ *  body are left untouched. */
+export async function apiPatch<T = any>(path: string, body?: any): Promise<T> {
+  const res = await apiFetch(path, { method: "PATCH", body })
+  return res.json()
+}
+
 /** DELETE. Returns the parsed JSON body typed as T (defaults
  *  to `any` for callers that don't care). Like apiGet, an
  *  empty body parses to {} — never throws on `res.json()`. */

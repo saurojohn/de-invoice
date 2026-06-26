@@ -1431,5 +1431,118 @@
     "unbalanced": "Differenz!",
     "loadError": "Journal konnte nicht geladen werden",
     "empty": "Zeitraum wählen und Journal erstellen."
+  },
+  "webhooks": {
+    "title": "Webhooks",
+    "subtitle": "HTTP-Callbacks, die bei Geschäftsereignissen automatisch ausgelöst werden. Ideal für DATEV, sevDesk, Zapier, Make oder eigene interne Systeme.",
+    "create": "Webhook hinzufügen",
+    "createTitle": "Neuen Webhook anlegen",
+    "name": "Name",
+    "namePlaceholder": "z. B. DATEV-Connector",
+    "url": "Empfänger-URL",
+    "urlPlaceholder": "https://example.com/webhook",
+    "urlHelp": "Wir senden POST-Requests an diese URL. Privater Speicherplatz (10.x, 192.168.x) und Localhost sind nicht erlaubt.",
+    "events": "Ereignisse",
+    "eventsHelp": "Wählen Sie die Ereignisse, bei denen der Webhook ausgelöst werden soll.",
+    "description": "Beschreibung (optional)",
+    "secretTitle": "Webhook-Geheimnis",
+    "secretBody": "Speichern Sie dieses Geheimnis jetzt — wir zeigen es aus Sicherheitsgründen nicht erneut. Verwenden Sie es auf der Empfängerseite, um die X-Signature-Header zu verifizieren.",
+    "secretCopied": "In die Zwischenablage kopiert",
+    "empty": "Noch keine Webhooks konfiguriert. Klicken Sie auf „Webhook hinzufügen\", um Ihren ersten Empfänger einzurichten.",
+    "status": {
+      "active": "Aktiv",
+      "paused": "Pausiert",
+      "disabled": "Deaktiviert"
+    },
+    "actions": {
+      "test": "Test senden",
+      "deliveries": "Zustellungen",
+      "pause": "Pausieren",
+      "resume": "Fortsetzen",
+      "delete": "Löschen"
+    },
+    "deleteConfirm": "Diesen Webhook wirklich löschen? Die Zustell-Historie bleibt für die Audit-Zwecke erhalten.",
+    "testSent": "Test-Ereignis gesendet. Prüfen Sie die Empfänger-Seite und die Zustell-Historie.",
+    "deliveries": {
+      "title": "Zustell-Historie",
+      "empty": "Noch keine Zustellungen.",
+      "status": {
+        "success": "Erfolg",
+        "failed": "Fehlgeschlagen",
+        "exhausted": "Aufgegeben",
+        "pending": "Läuft"
+      },
+      "eventType": "Ereignis",
+      "statusCode": "HTTP-Status",
+      "duration": "Dauer",
+      "attemptedAt": "Versucht am",
+      "nextRetry": "Nächster Versuch",
+      "noRetry": "—",
+      "statusLabel": "Status"
+    },
+    "eventsList": {
+      "invoiceCreated": {
+        "label": "Rechnung erstellt",
+        "description": "Wird ausgelöst, sobald eine neue Rechnung gespeichert wird."
+      },
+      "invoiceUpdated": {
+        "label": "Rechnung geändert",
+        "description": "Status- oder Feldänderungen an einer bestehenden Rechnung."
+      },
+      "invoicePaid": {
+        "label": "Rechnung bezahlt",
+        "description": "Wird ausgelöst, wenn eine Rechnung den Status „bezahlt\" erhält."
+      },
+      "invoiceSent": {
+        "label": "Rechnung versendet",
+        "description": "Wird ausgelöst, wenn eine Rechnung an den Kunden gesendet wird."
+      },
+      "invoiceDeleted": {
+        "label": "Rechnung gelöscht",
+        "description": "Wird ausgelöst, wenn eine Rechnung am Ausstellungstag gelöscht wird."
+      },
+      "paymentReceived": {
+        "label": "Zahlung erhalten",
+        "description": "Wird ausgelöst, sobald eine Zahlung gegen eine Rechnung erfasst wird."
+      },
+      "voucherCreated": {
+        "label": "Beleg erstellt",
+        "description": "Wird ausgelöst, sobald ein neuer Beleg (Buchung) gespeichert wird."
+      },
+      "voucherPosted": {
+        "label": "Beleg gebucht",
+        "description": "Wird ausgelöst, wenn ein Beleg endgültig gebucht wird."
+      },
+      "voucherReversed": {
+        "label": "Beleg storniert",
+        "description": "Wird ausgelöst, wenn ein Beleg storniert (GoBD-konform) wird."
+      },
+      "customerCreated": {
+        "label": "Kunde angelegt",
+        "description": "Wird ausgelöst, sobald ein neuer Kunde gespeichert wird."
+      },
+      "customerUpdated": {
+        "label": "Kunde geändert",
+        "description": "Wird ausgelöst, wenn ein bestehender Kunde geändert wird."
+      },
+      "companyUpdated": {
+        "label": "Unternehmen geändert",
+        "description": "Wird ausgelöst, wenn die Stammdaten des Unternehmens geändert werden."
+      }
+    },
+    "errors": {
+      "loadFailed": "Webhooks konnten nicht geladen werden.",
+      "createFailed": "Webhook konnte nicht erstellt werden.",
+      "updateFailed": "Webhook konnte nicht aktualisiert werden.",
+      "deleteFailed": "Webhook konnte nicht gelöscht werden.",
+      "testFailed": "Test-Ereignis konnte nicht gesendet werden."
+    },
+    "info": {
+      "signature": "Jede Anfrage enthält den Header X-Signature: sha256=<hex>, wobei <hex> ein HMAC-SHA256 des Anfrage-Bodys mit Ihrem Geheimnis als Schlüssel ist.",
+      "retry": "Bei 5xx- oder Netzwerkfehlern wird der Webhook bis zu dreimal mit exponentiellem Backoff (1 Min, 5 Min, 30 Min) wiederholt. 4xx-Antworten werden nicht wiederholt."
+    },
+    "backToSettings": "Zurück zu Einstellungen",
+    "statusLabel": "Status",
+    "actionsLabel": "Aktionen"
   }
 }
