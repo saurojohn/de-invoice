@@ -856,6 +856,7 @@ function CreateInvoicePageInner() {
                   placeholder={t("invoice.selectCustomer")}
                   required={invoiceType !== 'CN'}
                   readOnly={invoiceType === 'CN' && !!form.customerId}
+                  data-testid="invoice-customer-search"
                 />
                 {showCustomerDropdown && (
                   <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border rounded-lg shadow-lg max-h-64 overflow-y-auto z-10">
@@ -969,6 +970,7 @@ function CreateInvoicePageInner() {
                     value={form.issueDate}
                     onChange={(e) => setForm({ ...form, issueDate: e.target.value })}
                     required
+                    data-testid="invoice-issue-date"
                   />
                 </div>
                 <div>
@@ -977,6 +979,7 @@ function CreateInvoicePageInner() {
                     className="w-full h-10 border rounded-md px-3"
                     value={form.paymentTerms}
                     onChange={(e) => setForm({ ...form, paymentTerms: Number(e.target.value) })}
+                    data-testid="invoice-payment-terms"
                   >
                     <option value={0}>{t("paymentTerm.immediate")}</option>
                     <option value={7}>{t("paymentTerm.days7")}</option>
@@ -994,6 +997,7 @@ function CreateInvoicePageInner() {
                     value={form.language}
                     onChange={(e) => setForm({ ...form, language: e.target.value })}
                     title={t("invoice.languageHint") || "Sprache der Rechnung (kann von der UI-Sprache abweichen)"}
+                    data-testid="invoice-language"
                   >
                     <option value="de-DE">Deutsch</option>
                     <option value="en-US">English</option>

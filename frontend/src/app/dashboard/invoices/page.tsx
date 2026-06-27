@@ -470,6 +470,7 @@ export default function InvoicesPage() {
             onChange={(e) => setSearchInput(e.target.value)}
             placeholder={t("common2.searchInvoiceOrCustomer") || "Rechnung oder Kunde suchen..."}
             className="px-3 py-2 border border-gray dark:border-gray-700-300 dark:border-gray-600 rounded-md text-sm"
+            data-testid="invoice-search-input"
           />
           <select
             value={statusFilter}
@@ -628,8 +629,8 @@ export default function InvoicesPage() {
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {dateFiltered.map((invoice) => (
-                  <tr key={invoice.id} className="hover:bg-gray-50 dark:bg-gray-900">
+{dateFiltered.map((invoice) => (
+                  <tr key={invoice.id} className="hover:bg-gray-50 dark:hover:bg-gray-900" data-testid="invoice-row" data-invoice-number={invoice.invoiceNumber}>
                     <td className="px-4 py-3">
                       <input
                         type="checkbox"

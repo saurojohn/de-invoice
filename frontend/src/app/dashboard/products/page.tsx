@@ -278,6 +278,7 @@ export default function ProductsPage() {
             onChange={(e) => setSearchInput(e.target.value)}
             placeholder={t("product.searchPlaceholder") || "Name, SKU, Kategorie suchen..."}
             className="w-full md:w-1/2 px-3 py-2 border border-gray dark:border-gray-700-300 dark:border-gray-600 rounded-md text-sm"
+            data-testid="product-search-input"
           />
           {search && (
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
@@ -323,7 +324,7 @@ export default function ProductsPage() {
               </thead>
               <tbody className="divide-y">
                 {products.map((product) => (
-                  <tr key={product.id} className="hover:bg-gray-50 dark:bg-gray-900">
+                  <tr key={product.id} className="hover:bg-gray-50 dark:bg-gray-900" data-testid="product-row" data-product-sku={product.sku}>
                     <td className="px-4 py-3">{product.sku || "-"}</td>
                     <td
                       className="px-4 py-3 font-medium cursor-pointer"
