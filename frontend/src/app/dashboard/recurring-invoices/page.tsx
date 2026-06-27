@@ -295,7 +295,7 @@ export default function RecurringInvoicesPage() {
         ) : (
           <div className="space-y-3">
             {templates.map((tpl) => (
-              <Card key={tpl.id} className={tpl.isActive ? "" : "opacity-60"}>
+              <Card key={tpl.id} className={tpl.isActive ? "" : "opacity-60"} data-testid="recurring-card" data-recurring-name={tpl.name}>
                 <CardContent className="pt-6">
                   <div className="flex flex-wrap items-center gap-4">
                     {/* Status dot */}

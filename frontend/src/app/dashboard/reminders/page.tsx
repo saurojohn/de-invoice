@@ -316,7 +316,7 @@ export default function RemindersPage() {
             </div>
 
             {(overdueInvoices || []).map((invoice) => (
-              <Card key={invoice.id} className={invoice.reminderCount > 0 ? "border-orange-300 dark:border-orange-700" : ""}>
+              <Card key={invoice.id} className={invoice.reminderCount > 0 ? "border-orange-300 dark:border-orange-700" : ""} data-testid="reminder-card" data-invoice-number={invoice.invoiceNumber}>
                 <CardContent className="pt-6">
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div className="flex items-start gap-3 flex-1">

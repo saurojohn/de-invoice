@@ -252,6 +252,7 @@ export default function ExpensesPage() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="border rounded px-3 py-2 text-sm"
+                data-testid="expense-search-input"
               />
               <select
                 value={supplierId}
@@ -396,6 +397,8 @@ export default function ExpensesPage() {
                       <tr
                         key={e.id}
                         className="border-b hover:bg-gray-50 dark:bg-gray-900"
+                        data-testid="expense-row"
+                        data-expense-id={e.id}
                       >
                         <td className="py-3 px-4 text-sm">
                           {formatDate(e.invoiceDate)}

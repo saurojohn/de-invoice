@@ -157,6 +157,7 @@ export default function SuppliersPage() {
             onChange={(e) => setSearch(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && reload()}
             className="w-full max-w-md px-3 py-2 border border-gray dark:border-gray-700-300 dark:border-gray-600 rounded"
+            data-testid="supplier-search-input"
           />
         </div>
 
@@ -181,7 +182,7 @@ export default function SuppliersPage() {
                 </thead>
                 <tbody>
                   {suppliers.map((s) => (
-                    <tr key={s.id} className="border-b hover:bg-gray-50 dark:bg-gray-900">
+                    <tr key={s.id} className="border-b hover:bg-gray-50 dark:bg-gray-900" data-testid="supplier-row" data-supplier-name={s.name}>
                       <td className="py-2 font-medium">{s.name}</td>
                       <td className="font-mono text-xs">{s.vatId || "—"}</td>
                       <td className="text-xs">
