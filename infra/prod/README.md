@@ -9,10 +9,16 @@ Single-host Docker Compose deployment for SH Leder GmbH's invoice web app.
                      │
                      ▼
               ┌─────────────┐
+              │ Cloudflare  │   ← OPTIONAL (Tier 19)
+              │   (proxy)   │      DNS orange-cloud + CF-Connecting-IP
+              └──────┬──────┘
+                     │
+                     ▼
+              ┌─────────────┐
               │   nginx     │   ← TLS termination (certbot)
               │  (host)     │      rate limit on /api/v1/auth
               └──────┬──────┘      security headers
-                     │
+                     │             CF real-IP restore (if CF enabled)
         ┌────────────┴────────────┐
         │                         │
         ▼                         ▼
@@ -397,9 +403,30 @@ RTO: ~1h (from "VPS alive" to "stack serving traffic").
 - **Auto-scaling**. Not needed at this scale.
 - **Blue-green deploys**. The 30s downtime on backend restart is
   acceptable for one user.
-- **CDN** (Cloudflare in front of nginx). Optional. Cloudflare in
-  proxy mode will require updating the rate-limit zone (CF IPs count
-  as one IP at nginx's perspective).
+
+## Cloudflare mode (optional, Tier 19)
+
+For production deployments behind Cloudflare (recommended — your
+origin IP stays hidden, you get free DDoS protection + bot
+filtering), see `infra/cloudflare/README.md` for the full setup.
+
+**TL;DR**: enable the orange-cloud toggle in CF DNS, set SSL mode
+to **Full (Strict)**, then enable the
+`/etc/nginx/cloudflare/cloudflare-real-ip.conf` include in this
+file's `http {}` block (uncomment the line near the top — it's
+commented out by default since dev deployments don't need it).
+
+The CF real-IP restore means:
+- `$remote_addr` = visitor's real IP (not CF edge IP) in nginx
+- rate-limit zone (10 req/min on auth) works correctly
+- access log records visitor IPs
+- backend `req.ip` (via `trust proxy: 'loopback'`) = visitor IP
+
+Without this, every CF-fronted visitor shares one CF edge IP
+in the rate-limit zone, which makes the limit meaningless.
+
+Run `bash infra/cloudflare/test-real-ip.sh` to verify (9 assertions,
+runs in ~10s, self-contained Docker test).
 
 ## Observability (Tier 18, opt-in)
 
@@ -480,3 +507,4 @@ Retention: 30 days (same as pg_dump backups).
 - Tier 11: Initial Dockerfiles (backend + frontend).
 - Tier 17: Production stack with nginx, postgres, backup.
 - Tier 18: Observability overlay (Prometheus + Grafana + Loki + Promtail + cAdvisor).
+- Tier 19: Cloudflare real-IP restore + auto-refresh + backend trust-proxy hardening.

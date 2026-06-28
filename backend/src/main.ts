@@ -67,10 +67,24 @@ async function bootstrap() {
 
   // Body size limit (10MB) for JSON payloads — Express default is 100kb which is too small
   const expressApp = app.getHttpAdapter().getInstance();
-  // Trust X-Forwarded-* headers from local proxies so req.ip reflects real client
-  // (only enable in production OR behind a known proxy)
+  // Trust X-Forwarded-* headers from nginx (same host, loopback).
+  //
+  // Tier 19: switched from `trust proxy: true` (DANGEROUS — would
+  // trust X-Forwarded-For from ANY source, letting an attacker
+  // spoof their IP for rate-limit bypass or audit log poisoning)
+  // to `trust proxy: 'loopback'` (only trust the X-Forwarded-For
+  // header when the TCP connection comes from 127.0.0.0/8 or ::1,
+  // i.e. from nginx on the same host).
+  //
+  // When Cloudflare is in front of nginx, the real visitor IP
+  // restoration happens at the nginx layer via
+  // infra/cloudflare/cloudflare-real-ip.conf (which sets
+  // $remote_addr from CF-Connecting-IP for CF edge IPs). nginx
+  // then passes that real IP as X-Real-IP to the backend. The
+  // backend doesn't need to know about CF — it just trusts
+  // loopback (nginx) and reads X-Real-IP.
   if (process.env.TRUST_PROXY === 'true') {
-    expressApp.set('trust proxy', true);
+    expressApp.set('trust proxy', 'loopback')
   }
   // @ts-ignore - express types
   expressApp.use((req: any, res: any, next: any) => {

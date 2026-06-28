@@ -1,0 +1,39 @@
+# systemd unit for Cloudflare IP list refresh (Tier 19)
+#
+# Install:
+#   sudo cp cloudflare-refresh.service /etc/systemd/system/
+#   sudo cp cloudflare-refresh.timer /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now cloudflare-refresh.timer
+#
+# Verify the timer is active:
+#   systemctl list-timers cloudflare-refresh*
+#
+# Run once manually:
+#   sudo systemctl start cloudflare-refresh.service
+#   sudo journalctl -u cloudflare-refresh.service -n 30
+
+[Unit]
+Description=Refresh Cloudflare edge IP list for nginx real-IP restore
+Documentation=https://github.com/saurojohn/de-invoice/blob/main/infra/cloudflare/README.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# Adjust this path to match your actual install location.
+# The script defaults to OUTPUT_PATH=/etc/nginx/cloudflare/cloudflare-real-ip.conf
+# and LOG_PATH=/var/log/cloudflare-refresh.log.
+ExecStart=/bin/bash /opt/de-invoice/infra/cloudflare/refresh-cloudflare-ips.sh --apply
+
+# Sandbox lightly — the script needs network access (curl to
+# cloudflare.com) and write access to OUTPUT_PATH + LOG_PATH +
+# nginx reload signal. We don't need root if those paths are
+# writable by the service user, but the default install uses
+# system paths which need root.
+User=root
+
+# If the script exits non-zero, log it but don't keep retrying
+# (the timer only fires weekly, so a retry loop would mask
+# the actual error).
+Restart=no

@@ -1,0 +1,18 @@
+# systemd timer for Cloudflare IP list refresh (Tier 19)
+#
+# Runs the cloudflare-refresh.service every Monday at 04:00
+# (low-traffic window for SH Leder's 8-18 CET business hours).
+# RandomizedDelaySec=1h spreads the load across CF's API in
+# case lots of CF customers are on the same schedule.
+
+[Unit]
+Description=Weekly Cloudflare IP list refresh
+Requires=cloudflare-refresh.service
+
+[Timer]
+OnCalendar=Mon *-*-* 04:00:00
+RandomizedDelaySec=1h
+Persistent=true
+
+[Install]
+WantedBy=timers.target
