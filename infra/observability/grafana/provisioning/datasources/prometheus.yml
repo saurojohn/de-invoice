@@ -1,0 +1,37 @@
+# Grafana datasource provisioning for de-invoice (Tier 18).
+#
+# Auto-loaded on Grafana startup. Saves you from
+# clicking "Add data source" in the UI. Each entry
+# below corresponds to a Settings → Data Sources
+# page; the file format is the same as a manual
+# export.
+
+apiVersion: 1
+
+datasources:
+  # Prometheus — for time-series metrics.
+  # URL `http://prometheus:9090` resolves via the
+  # deinvoicenet docker network (both containers are
+  # on it via the compose file).
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: true
+    jsonData:
+      timeInterval: "15s"
+      # Auto-detect scrape interval from Prometheus.
+      httpMethod: POST
+
+  # Loki — for log queries.
+  # Used by the "Logs" panels in the dashboard
+  # (jump from a spike in the metric to the matching
+  # log lines).
+  - name: Loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    editable: true
+    jsonData:
+      maxLines: 1000

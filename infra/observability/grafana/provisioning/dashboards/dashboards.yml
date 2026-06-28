@@ -1,0 +1,19 @@
+# Grafana dashboard provisioning for de-invoice (Tier 18).
+#
+# Auto-loads any dashboard JSON files from /var/lib/grafana/dashboards.
+# We use the file-based provisioning API (not the HTTP API) because
+# it's restart-safe and survives Grafana version upgrades.
+
+apiVersion: 1
+
+providers:
+  - name: de-invoice
+    orgId: 1
+    folder: de-invoice
+    type: file
+    disableDeletion: false
+    editable: true
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

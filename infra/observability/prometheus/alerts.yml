@@ -1,0 +1,155 @@
+# Prometheus alert rules for de-invoice (Tier 18).
+#
+# Severity legend:
+#   - critical: wake-the-operator-up. Service is down,
+#     data is at risk, customers are blocked.
+#   - warning: investigate during business hours.
+#     Service is degraded but not down.
+#
+# Notification routing is handled by Alertmanager, which
+# we don't ship in Tier 18 (see prometheus.yml for
+# uncomment instructions). Without Alertmanager, these
+# rules still evaluate and show up in the Prometheus
+# Alerts UI — they just don't actually notify anyone.
+#
+# Runbook references point to infra/prod/README.md.
+
+groups:
+  - name: de-invoice
+    interval: 30s
+    rules:
+
+      # ─── Liveness ──────────────────────────────────────
+      # Prometheus has not been able to scrape /metrics
+      # for 2 minutes. Either the backend container is
+      # down, nginx is down, or the network between
+      # them is broken.
+      - alert: DeInvoiceDown
+        expr: up{job="de-invoice"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: de-invoice-backend
+        annotations:
+          summary: "de-invoice backend is unreachable"
+          description: >
+            Prometheus has not been able to scrape /metrics
+            on the de-invoice backend for 2 minutes.
+            Run: docker compose -f infra/prod/docker-compose.yml ps backend
+            If the container is restarting in a loop, check
+            `docker compose logs backend` for the boot error.
+            Runbook: infra/prod/README.md → "Day-to-day operations".
+
+      # ─── Database ──────────────────────────────────────
+      # Tier 12 gauge flips to 0 when SELECT 1 fails. The
+      # backend's /health/deep endpoint returns 503 in
+      # this case, which would also trigger DeInvoiceDown
+      # — but a DB outage can manifest as a slow response
+      # (not a 5xx) for ~30s before the scrape fails. This
+      # alert catches that earlier window.
+      - alert: DeInvoiceDbDown
+        expr: de_invoice_db_connected == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: de-invoice-backend
+        annotations:
+          summary: "de-invoice database is unreachable"
+          description: >
+            The backend can no longer reach postgres.
+            Most common cause: postgres OOM (check
+            docker stats de-invoice-postgres), or
+            connection pool exhaustion (check
+            `de_invoice_http_requests_total{route=~".*"}`
+            for a sudden spike).
+
+      # ─── Storage ───────────────────────────────────────
+      # /health/deep checks storage writability on every
+      # call. If this gauge drops to 0, PDFs cannot be
+      # generated — invoices will fail to create.
+      - alert: DeInvoiceStorageNotWritable
+        expr: de_invoice_storage_writable == 0
+        for: 5m
+        labels:
+          severity: critical
+          service: de-invoice-backend
+        annotations:
+          summary: "de-invoice storage dir is not writable"
+          description: >
+            The /data/invoice-system mount is not
+            accepting writes. PDFs and attachments
+            will fail to save. Most common cause:
+            disk full (df -h), or the named volume
+            was unmounted.
+
+      # ─── Error rate ────────────────────────────────────
+      # 5xx responses > 5% for 5 minutes sustained.
+      # Threshold is intentionally generous — a single
+      # bad request (e.g. one customer's malformed PDF
+      # upload) shouldn't trigger an alert. A sustained
+      # 5xx rate means something systematic is broken
+      # (a bad deploy, a dependency down, a bug).
+      - alert: DeInvoiceErrorRateHigh
+        expr: |
+          sum(rate(de_invoice_http_requests_total{status=~"5.."}[5m]))
+          /
+          sum(rate(de_invoice_http_requests_total[5m]))
+          > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          service: de-invoice-backend
+        annotations:
+          summary: "de-invoice 5xx error rate is above 5% for 5 minutes"
+          description: >
+            More than 5% of HTTP responses in the last
+            5 minutes are 5xx. Check:
+              docker compose logs backend --tail=200
+            for stack traces. If the spike started
+            after a deploy, roll back (see README).
+
+      # ─── Memory pressure ───────────────────────────────
+      # RSS > 900MB. The container is limited to 1G, so
+      # this gives us ~10% headroom before OOM-kill.
+      # Most de-invoice processes sit at 200-400MB.
+      # 900MB means a memory leak or an unusually
+      # large request (e.g. a 200-page journal PDF).
+      - alert: DeInvoiceHighMemory
+        expr: de_invoice_process_resident_memory_bytes > 900 * 1024 * 1024
+        for: 5m
+        labels:
+          severity: warning
+          service: de-invoice-backend
+        annotations:
+          summary: "de-invoice backend RSS is above 900MB"
+          description: >
+            Backend memory usage has been above 900MB
+            for 5 minutes. The container limit is 1G;
+            if it hits the limit, the kernel OOM-kills
+            the process and Docker restarts it (which
+            means ~20s of downtime). Check `ps aux`
+            inside the container for the per-V8 heap.
+
+      # ─── Latency ───────────────────────────────────────
+      # p95 latency > 1s for 10 minutes. The journal
+      # PDF endpoint legitimately takes 5-10s, so this
+      # alert excludes that route. If p95 is high across
+      # the board, the DB is the usual suspect.
+      - alert: DeInvoiceSlowResponses
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(de_invoice_http_request_duration_seconds_bucket{route!~"/api/v1/accounting/journal/pdf"}[5m])) by (le)
+          ) > 1
+        for: 10m
+        labels:
+          severity: warning
+          service: de-invoice-backend
+        annotations:
+          summary: "de-invoice p95 latency is above 1s for 10 minutes"
+          description: >
+            The 95th-percentile response time across
+            all routes (except the journal PDF which
+            is intentionally slow) has been above 1s
+            for 10 minutes. Common causes: a slow
+            Prisma query, VIES upstream latency, or
+            the disk being slow under backup load.

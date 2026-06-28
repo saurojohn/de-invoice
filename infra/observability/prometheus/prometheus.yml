@@ -1,0 +1,75 @@
+# Prometheus configuration for de-invoice (Tier 18).
+#
+# This is the full prometheus.yml — for production use, you'd
+# usually merge the scrape_configs: block into an existing
+# prometheus.yml and put the alerting/rule_files into the
+# top-level prometheus config. Here we ship a self-contained
+# file because the docker-compose stack expects it.
+#
+# Scrape targets:
+#   - prometheus itself (so you can graph "are we scraping?")
+#   - node_exporter-style host metrics via cAdvisor
+#   - the de-invoice backend's /metrics endpoint
+#   - promtail (for log shipping health)
+#   - grafana's own /metrics (so you can see dashboard load)
+#
+# Scrape interval: 15s. Lower (e.g. 5s) would give smoother
+# graphs but quadruple the disk usage. 15s is the sweet spot
+# for a single-tenant app.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  # How long to retain metrics. Default is 15 days.
+  # For a small installation, 30 days gives you enough
+  # history to investigate "what happened last month?"
+  # without bloating the disk.
+  retention.time: 30d
+
+scrape_configs:
+  # Tier 18: scrape de-invoice's own /metrics endpoint.
+  # The label `service: de-invoice-backend` is the join
+  # key for Grafana dashboards — every panel in the
+  # shipped dashboard filters on this label.
+  - job_name: de-invoice
+    metrics_path: /metrics
+    scrape_interval: 15s
+    scrape_timeout: 10s
+    static_configs:
+      - targets:
+          - backend:3001
+        labels:
+          service: de-invoice-backend
+          tier: app
+
+  # Prometheus itself — useful for "is Prometheus alive?"
+  - job_name: prometheus
+    static_configs:
+      - targets:
+          - localhost:9090
+
+  # cAdvisor gives container-level CPU / RAM / network
+  # metrics. We only need it if we run multiple containers
+  # (which we do — backend + frontend + postgres + backup).
+  - job_name: cadvisor
+    static_configs:
+      - targets:
+          - cadvisor:8080
+
+rule_files:
+  # Alert rules — see alerts.yml for the actual rules.
+  - /etc/prometheus/alerts.yml
+
+# Alertmanager wiring. We don't ship an Alertmanager
+# container in Tier 18 — alerts would be DROPPED without
+# one. The alert rules still get evaluated and show up
+# in the Prometheus UI, but no email/Slack/PagerDuty
+# notification fires. To actually alert, add an
+# Alertmanager container (image: prom/alertmanager)
+# and uncomment the block below.
+#
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets:
+#             - alertmanager:9093

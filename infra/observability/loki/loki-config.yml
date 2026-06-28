@@ -1,0 +1,80 @@
+# Loki configuration for de-invoice (Tier 18).
+#
+# Loki is a "Prometheus for logs" — it stores log lines
+# indexed by labels (job, service, level) instead of
+# full-text. You query it with LogQL (similar to PromQL).
+#
+# Single-instance mode: no replication, no sharding.
+# Fine for a single-tenant install with 5 users.
+# Production-grade Loki setups use a separate
+# chunks-store (S3 / GCS) and an index-store (BoltDB
+# or Cassandra) — overkill here.
+#
+# Retention: 30 days. Same as the pg_dump backup
+# retention. Older log entries are deleted by the
+# compactor (built into the same-process Loki).
+
+server:
+  http_listen_port: 3100
+  log_level: info
+
+common:
+  # Where Loki stores its data. Single-instance mode
+  # means everything (chunks + index) goes here.
+  path_prefix: /loki
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+  replication_factor: 1
+  ring:
+    kvstore:
+      store: inmemory
+
+schema_config:
+  configs:
+    - from: 2024-01-01
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+# Note on v13 + tsdb shipper:
+# In v13, the index is stored via the TSDB shipper, which
+# writes index files alongside the chunks directory
+# declared in `common.storage.filesystem`. There's no
+# separate `storage_config:` block needed for single-
+# instance mode — Loki auto-derives the index location
+# from `common.path_prefix + common.storage.filesystem.chunks_directory`.
+# Adding `storage_config:` here would conflict.
+
+# Limits — keeps Loki from eating all RAM if a label
+# has too many unique values. For a single-tenant app
+# with 5 users, these are loose.
+limits_config:
+  retention_period: 744h   # 31 days
+  ingestion_rate_mb: 10
+  ingestion_burst_size_mb: 20
+  max_entries_limit_per_query: 5000
+  max_query_series: 500
+  reject_old_samples: true
+  reject_old_samples_max_age: 168h
+
+# Compactor enforces the retention_period above. Without
+# this block, retention_period is just a soft limit —
+# old logs would accumulate until disk fills. The
+# compactor deletes them every `compaction_interval`.
+# working_directory stores its metadata (deletion
+# requests, marker files). On a fresh install it gets
+# created automatically on first start.
+compactor:
+  working_directory: /loki/compactor
+  compaction_interval: 10m
+  retention_enabled: true
+  delete_request_store: filesystem
+
+# Analytics are off (we don't want to phone home).
+analytics:
+  reporting_enabled: false

@@ -1,0 +1,81 @@
+# Promtail configuration for de-invoice (Tier 18).
+#
+# Promtail is the log-shipper that pairs with Loki.
+# It tails Docker container logs from the standard
+# JSON log driver (`/var/lib/docker/containers/.../*.log`)
+# and ships them to Loki.
+#
+# Why not just scrape docker logs with a sidecar:
+#   - Docker logs are line-delimited plaintext, not
+#     structured. Promtail adds labels (container_name,
+#     compose_service, log_level) by parsing the line.
+#   - Loki is happy to ingest labelled streams; raw
+#     streams don't get the benefits of label-based
+#     filtering.
+#
+# Why we mount /var/lib/docker/containers (not just
+# /var/lib/docker/containers/<id>):
+#   - Each container's id changes on every restart.
+#     We use the `__path__` glob to pick up all
+#     `*.log` files; Promtail's docker_sd_configs
+#     block reads the container labels from
+#     /var/lib/docker/containers/<id>/container.json
+#     so we still get the labels (compose_service,
+#     compose_project) for free.
+
+server:
+  http_listen_port: 9080
+  log_level: info
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+    batchwait: 1s
+    batchsize: 1048576   # 1 MB
+    # Backoff on push failure. Don't hammer Loki
+    # if it's temporarily down.
+    backoff_config:
+      min_period: 500ms
+      max_period: 5m
+
+scrape_configs:
+  # ── Docker container logs ──
+  - job_name: docker
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+        # Only scrape containers with this label
+        # (set by compose file). Prevents Promtail
+        # from trying to scrape host processes or
+        # unrelated containers.
+        filters:
+          - name: label
+            values: ["de-invoice.observability=true"]
+    relabel_configs:
+      # Map docker labels → Loki labels.
+      # The compose file sets `de-invoice.service=<name>`
+      # on each container; we expose it as the
+      # `service` label.
+      - source_labels: ['__meta_docker_container_label_de_invoice_service']
+        target_label: 'service'
+      - source_labels: ['__meta_docker_container_name']
+        target_label: 'container'
+      - source_labels: ['__meta_docker_container_log_stream']
+        target_label: 'stream'
+      # Use the container's full ID as the filename
+      # base. The actual log files are at
+      # /var/lib/docker/containers/<id>/<id>-json.log.
+      - source_labels: ['__meta_docker_container_log_path']
+        target_label: '__path__'
+    pipeline_stages:
+      # Try to parse nestjs's standard log format
+      # "[Nest] 12345  - 06/28/2026, 4:00:01 PM
+      #   [RmqHandler] My log message".
+      # If it doesn't match, the line is still
+      # shipped (just without a parsed level).
+      - regex:
+          expression: '.*\[(?P<level>LOG|ERROR|WARN|DEBUG|VERBOSE)\].*'
+      - labels:
+          level:

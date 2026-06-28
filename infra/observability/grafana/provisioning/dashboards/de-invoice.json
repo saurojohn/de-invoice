@@ -1,0 +1,316 @@
+{
+  "title": "de-invoice",
+  "uid": "de-invoice",
+  "tags": ["de-invoice", "production"],
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "service",
+        "type": "query",
+        "datasource": "Prometheus",
+        "query": "label_values(de_invoice_http_requests_total, service)",
+        "refresh": 1,
+        "includeAll": true,
+        "current": {"selected": false, "text": "All", "value": "$__all"}
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Service status",
+      "type": "stat",
+      "gridPos": {"x": 0, "y": 0, "w": 6, "h": 4},
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "up{job=\"de-invoice\", service=~\"$service\"}",
+          "legendFormat": "up",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}}}
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"value": null, "color": "red"},
+              {"value": 1, "color": "green"}
+            ]
+          },
+          "unit": "none"
+        }
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value"
+      }
+    },
+    {
+      "id": 2,
+      "title": "Database",
+      "type": "stat",
+      "gridPos": {"x": 6, "y": 0, "w": 6, "h": 4},
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "de_invoice_db_connected{service=~\"$service\"}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}}}
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"value": null, "color": "red"},
+              {"value": 1, "color": "green"}
+            ]
+          },
+          "unit": "none"
+        }
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value"
+      }
+    },
+    {
+      "id": 3,
+      "title": "Storage",
+      "type": "stat",
+      "gridPos": {"x": 12, "y": 0, "w": 6, "h": 4},
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "de_invoice_storage_writable{service=~\"$service\"}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}}}
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"value": null, "color": "red"},
+              {"value": 1, "color": "green"}
+            ]
+          },
+          "unit": "none"
+        }
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value"
+      }
+    },
+    {
+      "id": 4,
+      "title": "Uptime",
+      "type": "stat",
+      "gridPos": {"x": 18, "y": 0, "w": 6, "h": 4},
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "de_invoice_uptime_seconds{service=~\"$service\"}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        }
+      },
+      "options": {
+        "colorMode": "none",
+        "graphMode": "area",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 10,
+      "title": "Request rate by route (req/s)",
+      "type": "timeseries",
+      "gridPos": {"x": 0, "y": 4, "w": 12, "h": 8},
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum by (route) (rate(de_invoice_http_requests_total{service=~\"$service\", route!~\"/metrics|/api/v1/health.*\"}[5m]))",
+          "legendFormat": "{{route}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
+        }
+      },
+      "options": {
+        "legend": {"displayMode": "table", "placement": "right", "calcs": ["mean", "max"]},
+        "tooltip": {"mode": "multi"}
+      }
+    },
+    {
+      "id": 11,
+      "title": "Error rate (5xx, %)",
+      "type": "timeseries",
+      "gridPos": {"x": 12, "y": 4, "w": 12, "h": 8},
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "100 * sum(rate(de_invoice_http_requests_total{status=~\"5..\", service=~\"$service\"}[5m])) / clamp_min(sum(rate(de_invoice_http_requests_total{service=~\"$service\"}[5m])), 0.001)",
+          "legendFormat": "5xx %",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "fillOpacity": 20,
+            "color": {"mode": "thresholds"}
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"value": null, "color": "green"},
+              {"value": 1, "color": "yellow"},
+              {"value": 5, "color": "red"}
+            ]
+          }
+        }
+      },
+      "options": {
+        "legend": {"displayMode": "list"},
+        "tooltip": {"mode": "single"}
+      }
+    },
+    {
+      "id": 20,
+      "title": "p50 / p95 / p99 latency by route (s)",
+      "type": "timeseries",
+      "gridPos": {"x": 0, "y": 12, "w": 12, "h": 8},
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum by (route, le) (rate(de_invoice_http_request_duration_seconds_bucket{service=~\"$service\", route!~\"/api/v1/accounting/journal/pdf\"}[5m])))",
+          "legendFormat": "p50 {{route}}",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (route, le) (rate(de_invoice_http_request_duration_seconds_bucket{service=~\"$service\", route!~\"/api/v1/accounting/journal/pdf\"}[5m])))",
+          "legendFormat": "p95 {{route}}",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum by (route, le) (rate(de_invoice_http_request_duration_seconds_bucket{service=~\"$service\", route!~\"/api/v1/accounting/journal/pdf\"}[5m])))",
+          "legendFormat": "p99 {{route}}",
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "fillOpacity": 0
+          }
+        }
+      },
+      "options": {
+        "legend": {"displayMode": "table", "placement": "right", "calcs": ["mean", "max"]},
+        "tooltip": {"mode": "multi"}
+      }
+    },
+    {
+      "id": 21,
+      "title": "Memory (RSS + heap, MB)",
+      "type": "timeseries",
+      "gridPos": {"x": 12, "y": 12, "w": 12, "h": 8},
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "de_invoice_process_resident_memory_bytes{service=~\"$service\"} / 1024 / 1024",
+          "legendFormat": "RSS MB",
+          "refId": "A"
+        },
+        {
+          "expr": "de_invoice_process_heap_bytes{service=~\"$service\"} / 1024 / 1024",
+          "legendFormat": "Heap MB",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "decmbytes",
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "fillOpacity": 10
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"value": null, "color": "green"},
+              {"value": 700, "color": "yellow"},
+              {"value": 900, "color": "red"}
+            ]
+          }
+        }
+      },
+      "options": {
+        "legend": {"displayMode": "list"},
+        "tooltip": {"mode": "multi"}
+      }
+    },
+    {
+      "id": 30,
+      "title": "Recent errors (Loki)",
+      "type": "logs",
+      "gridPos": {"x": 0, "y": 20, "w": 24, "h": 8},
+      "datasource": "Loki",
+      "targets": [
+        {
+          "expr": "{service=~\"de-invoice-backend|de-invoice-frontend\"} |~ \"(?i)(error|exception|warn)\"",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "showLabels": false,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none",
+        "wrapLogMessage": true
+      }
+    }
+  ]
+}

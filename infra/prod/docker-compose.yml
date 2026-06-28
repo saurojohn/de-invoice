@@ -94,6 +94,14 @@ services:
     container_name: de-invoice-postgres
     restart: unless-stopped
     networks: [deinvoicenet]
+    # Tier 18: promtail uses these labels to filter
+    # which containers to ship logs for. We tag every
+    # de-invoice container so docker-compose users who
+    # run unrelated services don't get their logs mixed
+    # into our Loki namespace.
+    labels:
+      de-invoice.observability: "true"
+      de-invoice.service: "postgres"
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-de_invoice}
       POSTGRES_USER: ${POSTGRES_USER:-de_invoice}
@@ -145,6 +153,9 @@ services:
       postgres:
         condition: service_healthy
     networks: [deinvoicenet]
+    labels:
+      de-invoice.observability: "true"
+      de-invoice.service: "backend"
     environment:
       NODE_ENV: production
       PORT: 3001
@@ -184,6 +195,9 @@ services:
     depends_on:
       - backend
     networks: [deinvoicenet]
+    labels:
+      de-invoice.observability: "true"
+      de-invoice.service: "frontend"
     environment:
       NODE_ENV: production
       PORT: 3000
@@ -241,6 +255,9 @@ services:
       postgres:
         condition: service_healthy
     networks: [deinvoicenet]
+    labels:
+      de-invoice.observability: "true"
+      de-invoice.service: "backup"
     environment:
       PGHOST: postgres
       PGPORT: 5432

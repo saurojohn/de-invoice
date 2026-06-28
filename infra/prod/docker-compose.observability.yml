@@ -1,0 +1,204 @@
+# syntax=yaml/docker-compose-spec
+# ─────────────────────────────────────────────────────────────────
+# de-invoice observability stack (Tier 18, OPT-IN)
+#
+# Overlay compose file that adds Prometheus + Grafana + Loki +
+# Promtail + cAdvisor to the main prod stack. Use:
+#
+#   docker compose -f docker-compose.yml \
+#                  -f docker-compose.observability.yml \
+#                  up -d
+#
+# Why an overlay instead of baked into the main compose:
+#   - Observability has non-trivial RAM cost
+#     (~250MB for Prometheus + 200MB for Grafana +
+#     100MB for Loki). On a 4GB VPS that's a 14%
+#     tax; some VPS plans can't afford it.
+#   - Users who already have their own observability
+#     stack (Datadog, New Relic, etc.) don't need
+#     this overlay at all.
+#
+# What this adds:
+#   - prometheus:9090   metrics scraper (15s interval)
+#   - grafana:3001      dashboards (admin/admin on first login)
+#   - loki:3100         log aggregation (single-instance mode)
+#   - promtail:9080     log shipper (tailed from /var/lib/docker)
+#   - cadvisor:8080     container-level CPU/RAM metrics
+#
+# Grafana is the only one exposed to the host (port 3001 —
+# free port since the backend's also on 3001 INSIDE the
+# deinvoicenet, but on the host it's the frontend's 3000).
+# To reach Grafana, go to http://<vps>:3001.
+#
+# SECURITY: Grafana has no auth in this setup (admin/admin
+# default). For a single-tenant install on a private VPS
+# that's acceptable. If the VPS is in a hostile network,
+# change GF_SECURITY_ADMIN_PASSWORD in .env and put
+# Grafana behind nginx basic auth.
+# ─────────────────────────────────────────────────────────────────
+
+networks:
+  deinvoicenet:
+    # The overlay file extends the existing deinvoicenet
+    # network created by the main compose. If that
+    # network doesn't exist yet (e.g. you started with
+    # just this overlay), `docker compose` will create
+    # it lazily on first `up`.
+    name: deinvoicenet
+    external: true
+
+volumes:
+  prometheusdata:
+  grafanadata:
+  lokidata:
+  promtail_positions:
+
+services:
+  # ─── Prometheus ──────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: de-invoice-prometheus
+    restart: unless-stopped
+    networks: [deinvoicenet]
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    volumes:
+      - ../../infra/observability/prometheus:/etc/prometheus:ro
+      - prometheusdata:/prometheus
+    # Exposed to the host on 9090 for ad-hoc PromQL queries.
+    # Tighten with `127.0.0.1:9090:9090` to only allow
+    # localhost access (then SSH-tunnel to use).
+    ports:
+      - "9090:9090"
+    healthcheck:
+      # Prometheus /-/ready returns 200 when ready.
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:9090/-/ready || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # ─── Grafana ─────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: de-invoice-grafana
+    restart: unless-stopped
+    networks: [deinvoicenet]
+    depends_on:
+      prometheus:
+        condition: service_started
+      loki:
+        condition: service_started
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      # Anonymous access disabled (require login).
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      # Telemetry off (don't phone Grafana Labs).
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_USAGE_STATS_ENABLED: "false"
+      # Default dashboard home — show the de-invoice
+      # dashboard we provisioned.
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/de-invoice.json
+    volumes:
+      - ../../infra/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../../infra/observability/grafana/provisioning/dashboards:/var/lib/grafana/dashboards:ro
+      - grafanadata:/var/lib/grafana
+    ports:
+      - "3001:3000"   # host:3001 → container:3000
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  # ─── Loki ────────────────────────────────────────────────
+  loki:
+    image: grafana/loki:3.2.1
+    container_name: de-invoice-loki
+    restart: unless-stopped
+    networks: [deinvoicenet]
+    command: -config.file=/etc/loki/loki-config.yml
+    volumes:
+      - ../../infra/observability/loki:/etc/loki:ro
+      - lokidata:/loki
+    # Loki listens on 3100 inside the container. We don't
+    # expose it to the host — only Grafana (and Promtail
+    # on the deinvoicenet) need to reach it.
+    ports:
+      - "127.0.0.1:3100:3100"   # localhost only
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:3100/ready || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  # ─── Promtail ────────────────────────────────────────────
+  # Reads /var/lib/docker/containers from the HOST — that's
+  # why we bind-mount /var/lib/docker and /var/run/docker.sock.
+  # Filter by label `de-invoice.observability=true` so we
+  # don't try to scrape unrelated containers.
+  promtail:
+    image: grafana/promtail:3.2.1
+    container_name: de-invoice-promtail
+    restart: unless-stopped
+    networks: [deinvoicenet]
+    command: -config.file=/etc/promtail/promtail-config.yml
+    volumes:
+      - ../../infra/observability/promtail:/etc/promtail:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - promtail_positions:/tmp
+    depends_on:
+      loki:
+        condition: service_started
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+  # ─── cAdvisor ────────────────────────────────────────────
+  # Container-level CPU / RAM / network metrics.
+  # The backend's own /metrics gives us app-level data;
+  # cAdvisor gives us the OS-level breakdown of each
+  # container (postgres, backend, frontend, backup).
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    container_name: de-invoice-cadvisor
+    restart: unless-stopped
+    networks: [deinvoicenet]
+    # cAdvisor needs rw access to cgroup + docker state.
+    # In rootless Docker these may not be readable.
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    ports:
+      - "127.0.0.1:8080:8080"   # localhost only
+    privileged: true
+    devices:
+      - /dev/kmsg
+    deploy:
+      resources:
+        limits:
+          memory: 256M

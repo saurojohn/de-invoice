@@ -397,16 +397,86 @@ RTO: ~1h (from "VPS alive" to "stack serving traffic").
 - **Auto-scaling**. Not needed at this scale.
 - **Blue-green deploys**. The 30s downtime on backend restart is
   acceptable for one user.
-- **Centralized logging**. Container stdout is fine to grep with
-  `docker compose logs`. A real ELK setup is overkill for this stage.
 - **CDN** (Cloudflare in front of nginx). Optional. Cloudflare in
   proxy mode will require updating the rate-limit zone (CF IPs count
   as one IP at nginx's perspective).
 
+## Observability (Tier 18, opt-in)
+
+The metrics endpoint (`/metrics`), liveness (`/api/v1/health`), and
+readiness (`/api/v1/health/deep`) are exposed through nginx to the
+public internet so external monitoring can reach them. Tier 18 adds
+the rest of the stack as a Docker Compose overlay:
+
+```bash
+cd /opt/de-invoice/infra/prod
+docker compose -f docker-compose.yml \
+               -f docker-compose.observability.yml \
+               up -d
+```
+
+This adds five services:
+
+| Service       | Host port | What it does                              |
+|---------------|-----------|-------------------------------------------|
+| prometheus    | 9090      | Scrapes `/metrics` every 15s              |
+| grafana       | 3001      | Dashboards (admin / `${GRAFANA_ADMIN_PASSWORD}`) |
+| loki          | 127.0.0.1:3100 | Log aggregation (single-instance)   |
+| promtail      | —         | Reads Docker logs, ships to Loki          |
+| cadvisor      | 127.0.0.1:8080 | Container-level CPU / RAM / network |
+
+Total RAM overhead: ~1.4 GB. On a 4 GB VPS, that's significant — only
+enable if you have RAM headroom.
+
+### Grafana
+
+Open `http://<vps>:3001`. Default login is `admin` / the value of
+`GRAFANA_ADMIN_PASSWORD` in `.env`. The "de-invoice" dashboard is
+auto-loaded and shows:
+
+- Service status (DB connected, storage writable, uptime)
+- Request rate by route (top 10 routes)
+- Error rate (5xx % over time)
+- p50 / p95 / p99 latency by route
+- Memory (RSS + heap)
+- Recent errors from Loki (one-click jump from a metric spike to
+  matching log lines)
+
+### Alerting
+
+Five rules ship in `infra/observability/prometheus/alerts.yml`:
+
+| Alert                       | Severity | Fires when                                     |
+|-----------------------------|----------|------------------------------------------------|
+| DeInvoiceDown               | critical | `/metrics` unreachable for 2 min               |
+| DeInvoiceDbDown             | critical | `SELECT 1` fails for 1 min                     |
+| DeInvoiceStorageNotWritable | critical | storage dir not writable for 5 min             |
+| DeInvoiceErrorRateHigh      | warning  | 5xx rate > 5% for 5 min                        |
+| DeInvoiceHighMemory         | warning  | RSS > 900 MB for 5 min                         |
+| DeInvoiceSlowResponses      | warning  | p95 > 1s for 10 min (excludes journal PDF)     |
+
+Rules are evaluated but **not delivered** until you wire up
+Alertmanager (see `infra/observability/prometheus/prometheus.yml`
+for uncomment instructions). Without Alertmanager, alerts show in
+the Prometheus UI but no email/Slack fires.
+
+### Logs
+
+Promtail reads `/var/lib/docker/containers/<id>/*.log` from the host
+and ships them to Loki with the labels:
+
+- `service`: from the container's `de-invoice.service` label
+- `container`: container name (`de-invoice-backend`, etc.)
+- `stream`: `stdout` or `stderr`
+- `level`: parsed from nest's standard log format
+
+Query logs in Grafana → Explore → Loki → e.g.
+`{service="de-invoice-backend"} |= "ERROR"`.
+
+Retention: 30 days (same as pg_dump backups).
+
 ## Tier history
 
 - Tier 11: Initial Dockerfiles (backend + frontend).
-- Tier 17: This file. Production stack with nginx, postgres, backup.
-
-Next tier (deferred): Tier 18 — add Cloudflare in front, centralize
-logs to Loki, wire backend `/metrics` endpoint to Prometheus.
+- Tier 17: Production stack with nginx, postgres, backup.
+- Tier 18: Observability overlay (Prometheus + Grafana + Loki + Promtail + cAdvisor).
