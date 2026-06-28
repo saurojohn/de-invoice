@@ -1,12 +1,17 @@
-import { BadRequestException, Controller, Get, Post, Put, Delete, Body, Param, Query, Header } from '@nestjs/common';
+import { BadRequestException, Controller, Get, Post, Put, Delete, Body, Param, Query, Header, Res } from '@nestjs/common';
+import type { Response } from 'express';
 import { CustomerService, ImportCustomerRow } from './customer.service';
+import { CustomerStatementService } from './customer-statement.service';
 import { CreateCustomerDto } from './dto/customer.dto';
 import { Auth, Require } from '../../auth/roles.decorator';
 
 @Auth()
 @Controller('customers')
 export class CustomerController {
-  constructor(private customerService: CustomerService) {}
+  constructor(
+    private customerService: CustomerService,
+    private statementService: CustomerStatementService,
+  ) {}
 
   @Get()
   @Require('customer.read')
@@ -94,6 +99,95 @@ export class CustomerController {
       id, companyId,
       limitStr ? Math.min(50, Math.max(1, Number(limitStr))) : 20,
     )
+  }
+
+  // ── Tier 20: Kontoauszug (Customer statement) ──────────
+
+  /**
+   * Generate the JSON Kontoauszug for a customer over a date
+   * range. Returns the unified timeline (invoices + credits +
+   * payments), opening/closing balances, and totals — used
+   * by the on-screen statement page.
+   *
+   * Date format: ISO 8601 (YYYY-MM-DD). The dates are
+   * interpreted in the company's local timezone — for now
+   * we just use UTC midnight (good enough for B2B monthly
+   * statements where day boundaries rarely cross midnight).
+   *
+   * Tenant isolation: customerId is scoped by companyId
+   * (NotFoundException if mismatched).
+   */
+  @Get(':id/statement')
+  @Require('customer.read')
+  async statement(
+    @Param('id') id: string,
+    @Query('companyId') companyId: string,
+    @Query('from') fromStr: string,
+    @Query('to') toStr: string,
+  ) {
+    this.assertCompanyId(companyId)
+    const { from, to } = this.parseStatementRange(fromStr, toStr)
+    return this.statementService.generate(companyId, id, from, to)
+  }
+
+  /**
+   * Generate the Kontoauszug as a downloadable PDF.
+   * Same query params as :id/statement.
+   * Filename: `Kontoauszug_<CustomerNumber>_<from>_<to>.pdf`.
+   */
+  @Get(':id/statement.pdf')
+  @Require('customer.read')
+  async statementPdf(
+    @Param('id') id: string,
+    @Query('companyId') companyId: string,
+    @Query('from') fromStr: string,
+    @Query('to') toStr: string,
+    @Res() res: Response,
+  ) {
+    this.assertCompanyId(companyId)
+    const { from, to } = this.parseStatementRange(fromStr, toStr)
+    const data = await this.statementService.generate(companyId, id, from, to)
+    const { generateStatementPdf } = await import(
+      './customer-statement-pdf.service'
+    )
+    const pdf = await generateStatementPdf(data)
+    const customerNum = data.customer.customerNumber || data.customer.id.slice(0, 8)
+    const fname = `Kontoauszug_${customerNum}_${fromStr}_${toStr}.pdf`
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="${fname}"`,
+      'Content-Length': String(pdf.length),
+    })
+    res.send(pdf)
+  }
+
+  /**
+   * Parse + validate the from/to query params.
+   * - Both required (we don't default — silent defaults lead
+   *   to surprising statements that don't match the user's
+   *   mental model).
+   * - from must be ≤ to (else 400).
+   * - Range capped at 24 months (a 5-year statement would
+   *   produce a 200+ row PDF and a 5MB response).
+   */
+  private parseStatementRange(fromStr: string, toStr: string) {
+    if (!fromStr || !toStr) {
+      throw new BadRequestException('from and to are required (ISO 8601 YYYY-MM-DD)')
+    }
+    const from = new Date(fromStr + 'T00:00:00.000Z')
+    const to = new Date(toStr + 'T23:59:59.999Z')
+    if (isNaN(from.getTime()) || isNaN(to.getTime())) {
+      throw new BadRequestException('Invalid from/to (expected YYYY-MM-DD)')
+    }
+    if (from > to) {
+      throw new BadRequestException('from must be ≤ to')
+    }
+    const months = (to.getFullYear() - from.getFullYear()) * 12 +
+      (to.getMonth() - from.getMonth())
+    if (months > 24) {
+      throw new BadRequestException('Statement range cannot exceed 24 months')
+    }
+    return { from, to }
   }
 
   @Delete(':id')

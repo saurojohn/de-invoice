@@ -528,17 +528,31 @@ export default function CustomersPage() {
                 className="hover:shadow-lg transition cursor-pointer relative"
                 onClick={() => openModal(customer)}
               >
-                {/* Delete button — stopPropagation so the card click doesn't open the modal */}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleDelete(customer)
-                  }}
-                  className="absolute top-2 right-2 text-gray-400 hover:text-red-600 dark:text-red-400 text-xs px-2 py-1 rounded hover:bg-red-50"
-                  title={t("common.delete") || "Löschen"}
-                >
-                  🗑
-                </button>
+                {/* Action buttons — stopPropagation so they don't
+                    open the edit modal when clicked. */}
+                <div className="absolute top-2 right-2 flex gap-1">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      router.push(`/dashboard/customers/${customer.id}/statement`)
+                    }}
+                    className="text-gray-400 hover:text-blue-600 dark:text-blue-400 text-xs px-2 py-1 rounded hover:bg-blue-50"
+                    title={t("statement.title")}
+                    data-testid="customer-statement-button"
+                  >
+                    📊
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleDelete(customer)
+                    }}
+                    className="text-gray-400 hover:text-red-600 dark:text-red-400 text-xs px-2 py-1 rounded hover:bg-red-50"
+                    title={t("common.delete") || "Löschen"}
+                  >
+                    🗑
+                  </button>
+                </div>
                 <CardHeader>
                   <CardTitle className="flex justify-between items-center pr-6 gap-2">
                     <div className="min-w-0">
