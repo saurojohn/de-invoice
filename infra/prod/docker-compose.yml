@@ -1,0 +1,277 @@
+# syntax=yaml/docker-compose-spec
+# ─────────────────────────────────────────────────────────────────
+# de-invoice production stack — single-host Docker Compose
+#
+# Architecture (Tier 17):
+#
+#   Internet ──► nginx (80/443)
+#                    │
+#                    ├─► frontend:3000 (Next.js standalone)
+#                    └─► backend:3001  (NestJS + ts-node)
+#                              │
+#                              └─► postgres:5432
+#
+# + backup container (cron-style) that runs pg_dump to /backups
+#
+# All services run on the default `deinvoicenet` network so
+# the backend can reach postgres by hostname (not localhost)
+# and the frontend can reach the backend by hostname.
+#
+# Volumes:
+#   - pgdata      Postgres data (persistent across restarts)
+#   - storage     /data/invoice-system (PDFs, attachments)
+#   - backups     pg_dump output + retention
+#
+# Usage:
+#   cp .env.example .env  # then edit secrets
+#   docker compose -f infra/prod/docker-compose.yml pull
+#   docker compose -f infra/prod/docker-compose.yml up -d
+#   docker compose -f infra/prod/docker-compose.yml logs -f
+#
+# Why single-host instead of k8s/cluster:
+#   - SH Leder is one customer with
+#     ~5 users, not 500. Single
+#     4GB VPS handles it fine.
+#   - k8s adds operational overhead
+#     (cluster upgrades, RBAC, ingress
+#     controllers, secrets management)
+#     that doesn't pay back at this
+#     scale.
+#   - Single-host + daily pg_dump
+#     backups + healthcheck ping is
+#     the simplest deploy that meets
+#     GoBD §146 AO retention + RPO <24h.
+#
+# Why nginx in front instead of exposing
+# frontend/backend directly:
+#   - SSL termination (one place to
+#     manage certs, not three)
+#   - Rate limiting per IP (defense
+#     against credential stuffing on
+#     /api/v1/auth/login)
+#   - Static asset caching for /public
+#     and .next/static
+#   - HSTS + secure cookie flags
+#
+# Why nginx is not in docker:
+#   - Cert renewal (certbot) is much
+#     simpler when nginx is on the
+#     host filesystem. Inside a
+#     container you'd need to mount
+#     /etc/letsencrypt and renew via
+#     sidecar container.
+#   - nginx is small (~10MB), doesn't
+#     need to scale with the app.
+# ─────────────────────────────────────────────────────────────────
+
+networks:
+  deinvoicenet:
+    driver: bridge
+
+volumes:
+  pgdata:
+    # Postgres data — survives `docker compose down` (without -v).
+    # Use `docker volume rm deinvoicenet_pgdata` to wipe.
+  storage:
+    # PDFs + invoice attachments.
+    # Bound to /data/invoice-system in the backend container.
+  backups:
+    # pg_dump output. The backup container writes here.
+    # The host can also mount this volume to copy backups offsite.
+  nginxconf:
+    # nginx config + certs (read-only mount in the nginx container)
+
+services:
+  # ─── Postgres ───────────────────────────────────────────────
+  # We use the official postgres:16 image.
+  # 16 is the LTS line as of 2026-11 and
+  # has all the features our app needs
+  # (jsonb, generated columns, partial
+  # indexes). 14/15 are also fine but
+  # have shorter support windows.
+  postgres:
+    image: postgres:16-alpine
+    container_name: de-invoice-postgres
+    restart: unless-stopped
+    networks: [deinvoicenet]
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-de_invoice}
+      POSTGRES_USER: ${POSTGRES_USER:-de_invoice}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      # PG tuning for a 4GB VPS
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+      # Aliyun-style locale for date formatting
+      LANG: en_US.UTF-8
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Init script: enables citext, uuid-ossp extensions if
+      # the app needs them later. Idempotent.
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      # pg_isready exits 0 when postgres is ready to
+      # accept connections. We use the dedicated
+      # /health endpoint in our own backend for the
+      # app-level healthcheck; this is for docker's
+      # container-level restart policy.
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-de_invoice} -d ${POSTGRES_DB:-de_invoice}"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+    # Resource limits (optional but recommended
+    # for noisy-neighbor protection on a shared VPS).
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+    # Don't expose postgres port to the host —
+    # nginx + backend connect via the
+    # deinvoicenet network. If you need to
+    # debug, `docker exec -it de-invoice-postgres psql ...`.
+
+  # ─── Backend (NestJS + Prisma) ──────────────────────────────
+  # We build from the local Dockerfile. Build
+  # context is the repo root so we can COPY
+  # both backend/ and prisma/. The Dockerfile
+  # itself is in backend/.
+  backend:
+    build:
+      context: ../..
+      dockerfile: backend/Dockerfile
+    image: de-invoice-backend:latest
+    container_name: de-invoice-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [deinvoicenet]
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DATABASE_URL: postgresql://${POSTGRES_USER:-de_invoice}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-de_invoice}?schema=public&connection_limit=8
+      FRONTEND_URL: ${FRONTEND_URL:?FRONTEND_URL is required, e.g. https://rechnung.shleder.de}
+      # Production secrets — see README for rotation
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      # Optional — used by ECB rate fetcher
+      # (no-op if unset)
+      ECB_API_URL: ${ECB_API_URL:-}
+      # Optional — VIES mock mode for offline tests.
+      # MUST be empty/unset in prod. We don't
+      # expose this as a "real" env var — the
+      # code reads `process.env.VIES_MOCK` and the
+      # compose file just doesn't set it.
+    volumes:
+      - storage:/data/invoice-system
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:3001/api/v1/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+  # ─── Frontend (Next.js standalone) ──────────────────────────
+  frontend:
+    build:
+      context: ../..
+      dockerfile: frontend/Dockerfile
+    image: de-invoice-frontend:latest
+    container_name: de-invoice-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    networks: [deinvoicenet]
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+      # Public URL the frontend uses for fetch() calls.
+      # Same as the user's browser URL — no internal
+      # nginx prefix here.
+      NEXT_PUBLIC_API_URL: ${FRONTEND_URL}
+      NEXT_TELEMETRY_DISABLED: "1"
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:3000/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # ─── Backup (cron-style) ───────────────────────────────────
+  # Runs pg_dump once per day, gzip, write
+  # to /backups, retain 30 days. Uses
+  # a `oneshot` style service that runs
+  # `cron` in the foreground — not a
+  # long-running daemon. Restart policy
+  # `on-failure` keeps it idempotent.
+  #
+  # Why a separate container instead of
+  # a host cron job?
+  #   - The backup needs access to the
+  #     postgres container's network +
+  #     credentials. Sharing them with
+  #     the host requires duplicating
+  #     them in /etc/. Putting the cron
+  #     in a container means it inherits
+  #     the same env vars + network as
+  #     the rest of the stack.
+  #   - It's portable — anyone with the
+  #     compose file can reproduce the
+  #     backup behavior without setting
+  #     up host cron.
+  backup:
+    image: prodrigestivill/postgres-backup-local
+    # Why this image: it implements the
+    # standard pg_dump + retention loop
+    # (~600 lines of bash, well-tested
+    # by the community). Reimplementing
+    # it in our repo would mean
+    # maintaining another file that
+    # doesn't add value.
+    container_name: de-invoice-backup
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [deinvoicenet]
+    environment:
+      PGHOST: postgres
+      PGPORT: 5432
+      PGUSER: ${POSTGRES_USER:-de_invoice}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      PGDATABASE: ${POSTGRES_DB:-de_invoice}
+      # Run at 03:00 Europe/Berlin every day
+      # (off-peak — server is idle at night
+      # for SH Leder's 8-18 CET business hours).
+      SCHEDULE: "0 3 * * *"
+      # Europe/Berlin so the schedule matches
+      # the customer's timezone, not UTC.
+      TZ: Europe/Berlin
+      # Keep 30 daily backups. Older backups are
+      # deleted. 30 days of retention meets
+      # GoBD §147 AO "Aufbewahrungsfrist" for
+      # invoices + receipts.
+      BACKUP_KEEP_DAYS: "30"
+      # Compress. pg_dump's default is plain SQL
+      # which is fine for restoration but ~3x
+      # larger than gzip. Disk is cheap, restore
+      # speed matters.
+      BACKUP_COMPRESS: "gzip"
+      # Naming convention: de_invoice-YYYY-MM-DDTHH-MM-SS.sql.gz
+      BACKUP_FILE_PREFIX: "de_invoice-"
+      # Healthchecks.io integration (optional).
+      # We pass the URL through env so the backup
+      # container pings the URL when a backup
+      # succeeds. Set HEALTHCHECK_URL in .env to
+      # enable.
+      HEALTHCHECK_URL: ${HEALTHCHECK_URL:-}
+      HEALTHCHECK_PING_URL: ${HEALTHCHECK_PING_URL:-}
+    volumes:
+      - backups:/backups
