@@ -85,6 +85,10 @@ export default function CustomerStatementPage() {
   const initial = defaultRange()
   const [from, setFrom] = useState(initial.from)
   const [to, setTo] = useState(initial.to)
+  // Display order. Default DESC = newest first (customer's
+  // natural reading order — see latest activity at the top).
+  // ASC is the accountant's chronological paper-trail view.
+  const [order, setOrder] = useState<"desc" | "asc">("desc")
 
   const [statement, setStatement] = useState<CustomerStatement | null>(null)
   const [loading, setLoading] = useState(false)
@@ -117,7 +121,7 @@ export default function CustomerStatementPage() {
     setError(null)
     try {
       const data = await apiGet<CustomerStatement>(
-        `/api/v1/customers/${id}/statement?companyId=${companyId}&from=${from}&to=${to}`
+        `/api/v1/customers/${id}/statement?companyId=${companyId}&from=${from}&to=${to}&order=${order}`
       )
       setStatement(data)
     } catch (e: any) {
@@ -136,7 +140,7 @@ export default function CustomerStatementPage() {
     setDownloading(true)
     try {
       const res = await apiFetch(
-        `/api/v1/customers/${id}/statement.pdf?companyId=${companyId}&from=${from}&to=${to}`,
+        `/api/v1/customers/${id}/statement.pdf?companyId=${companyId}&from=${from}&to=${to}&order=${order}`,
         { throwOnError: false }
       )
       if (!res.ok) {
@@ -211,6 +215,39 @@ export default function CustomerStatementPage() {
                 data-testid="statement-to-input"
                 className="w-44"
               />
+            </div>
+            <div
+              className="flex items-center gap-1 ml-2"
+              data-testid="statement-order-toggle"
+            >
+              <button
+                type="button"
+                onClick={() => setOrder("desc")}
+                className={
+                  "px-2 py-1 text-xs rounded border " +
+                  (order === "desc"
+                    ? "bg-blue-600 text-white border-blue-600"
+                    : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50")
+                }
+                data-testid="statement-order-desc"
+                title={t("statement.orderDescHint")}
+              >
+                ↓ {t("statement.orderNewestFirst")}
+              </button>
+              <button
+                type="button"
+                onClick={() => setOrder("asc")}
+                className={
+                  "px-2 py-1 text-xs rounded border " +
+                  (order === "asc"
+                    ? "bg-blue-600 text-white border-blue-600"
+                    : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50")
+                }
+                data-testid="statement-order-asc"
+                title={t("statement.orderAscHint")}
+              >
+                ↑ {t("statement.orderOldestFirst")}
+              </button>
             </div>
             <Button
               onClick={fetchStatement}

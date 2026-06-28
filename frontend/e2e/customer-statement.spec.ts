@@ -225,4 +225,81 @@ test.describe("Customer statement UI", () => {
       page.locator('[data-testid="statement-from-input"]'),
     ).toBeVisible({ timeout: 5000 })
   })
+
+  test("order toggle re-sorts lines (DESC default, ASC opt-in)", async ({ page }) => {
+    await injectLocalStorage(page)
+    await page.goto(
+      `/dashboard/customers/${CUSTOMER_WITH_INVOICES}/statement`,
+      { waitUntil: "domcontentloaded" },
+    )
+    await expect(
+      page.locator('[data-testid="statement-from-input"]'),
+    ).toBeVisible({ timeout: 10000 })
+
+    // Müller K-00001 has paid invoices from 2026-06-02 to 2026-06-05
+    // (left over from earlier e2e runs — the VCH ones are stable).
+    // Use that range so the statement has lines under both orders.
+    await page
+      .locator('[data-testid="statement-from-input"]')
+      .fill("2026-06-01")
+    await page
+      .locator('[data-testid="statement-to-input"]')
+      .fill("2026-06-30")
+
+    // Default is DESC — verify the "Newest first" button is active
+    await expect(
+      page.locator('[data-testid="statement-order-desc"]'),
+    ).toHaveClass(/bg-blue-600/)
+
+    // Generate + wait for lines (DESC default)
+    await page.locator('[data-testid="statement-generate-button"]').click()
+    await expect(
+      page.locator('[data-testid="statement-result"]'),
+    ).toBeVisible({ timeout: 10000 })
+    // Wait for at least one line to appear. The customer
+    // has stable test data from earlier e2e runs (VCH/VCH2
+    // invoices from June 2026) so lines should always be
+    // present.
+    await expect(
+      page.locator('[data-testid="statement-line"]').first(),
+    ).toBeVisible({ timeout: 15000 })
+
+    // Capture the first line's date under DESC (newest first)
+    const descFirstDate = await page
+      .locator('[data-testid="statement-line"]')
+      .first()
+      .locator("td")
+      .first()
+      .innerText()
+
+    // Switch to ASC (oldest first)
+    await page.locator('[data-testid="statement-order-asc"]').click()
+    await expect(
+      page.locator('[data-testid="statement-order-asc"]'),
+    ).toHaveClass(/bg-blue-600/)
+
+    // Trigger re-fetch + wait for the new order to land
+    await page.locator('[data-testid="statement-generate-button"]').click()
+    // The DESC lines disappear (new fetch replaces the table),
+    // then ASC lines appear. Wait for any line to be visible.
+    await page.waitForTimeout(500)
+    await expect(
+      page.locator('[data-testid="statement-line"]').first(),
+    ).toBeVisible({ timeout: 15000 })
+
+    // First line under ASC should be older than DESC first
+    const ascFirstDate = await page
+      .locator('[data-testid="statement-line"]')
+      .first()
+      .locator("td")
+      .first()
+      .innerText()
+
+    // German date format dd.mm.yyyy — convert to comparable ISO
+    const toIso = (g: string): string => {
+      const m = g.match(/^(\d{2})\.(\d{2})\.(\d{4})$/)
+      return m ? `${m[3]}-${m[2]}-${m[1]}` : g
+    }
+    expect(toIso(ascFirstDate) < toIso(descFirstDate)).toBeTruthy()
+  })
 })

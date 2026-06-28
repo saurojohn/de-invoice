@@ -1172,7 +1172,11 @@
     "balance": "余额",
     "type_invoice": "发票",
     "type_credit": "红字",
-    "type_payment": "收款"
+    "type_payment": "收款",
+    "orderNewestFirst": "最新优先",
+    "orderOldestFirst": "最早优先",
+    "orderDescHint": "最新交易在上(默认)",
+    "orderAscHint": "最早交易在上(纸质账本顺序)"
   },
   "storage": {
     "title": "存储设置",

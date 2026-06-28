@@ -1172,7 +1172,11 @@
     "balance": "Saldo",
     "type_invoice": "Rechnung",
     "type_credit": "Gutschrift",
-    "type_payment": "Zahlung"
+    "type_payment": "Zahlung",
+    "orderNewestFirst": "Neueste zuerst",
+    "orderOldestFirst": "Älteste zuerst",
+    "orderDescHint": "Neueste Bewegung oben (Standard)",
+    "orderAscHint": "Älteste Bewegung oben (Buchführungs-Reihenfolge)"
   },
   "storage": {
     "title": "Speichereinstellungen",

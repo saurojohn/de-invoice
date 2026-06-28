@@ -174,31 +174,41 @@ assert_eq "closing balance = 88" "$CLOSING" "88"
 LINES_LEN=$(jget "['lines'].__len__()")
 assert_eq "5 line items" "$LINES_LEN" "5"
 
-# ── Assertion 4: lines sorted by date ascending
+# ── Assertion 4: lines sorted by date DESCENDING (newest first, default)
 SORTED=$(python3 -c "
 import json
 d = json.load(open('$STMT_FILE'))
 dates = [l['date'] for l in d['lines']]
-print('YES' if dates == sorted(dates) else 'NO')
+print('YES' if dates == sorted(dates, reverse=True) else 'NO')
 ")
-assert_eq "lines sorted by date ascending" "$SORTED" "YES"
+assert_eq "lines sorted by date DESC (newest first)" "$SORTED" "YES"
 
-# ── Assertion 5: first line is INV1 (2026-03-15), amount 119
+# ── Assertion 5: FIRST line under DESC = newest = PAY2 (2026-05-15, -100)
+# Under the old ASC order this was INV1; with DESC the
+# newest activity is on top. PAY2's historical balance
+# (= opening + all amounts up to and including PAY2 = 88)
+# is the closing balance.
 LINE1_TYPE=$(jget "['lines'][0]['type']")
 LINE1_AMT=$(jget "['lines'][0]['amount']")
 LINE1_BAL=$(jget "['lines'][0]['balance']")
-assert_eq "line 1 type=invoice" "$LINE1_TYPE" "invoice"
-assert_eq "line 1 amount=119" "$LINE1_AMT" "119"
-assert_eq "line 1 balance=119 (after INV1)" "$LINE1_BAL" "119"
+assert_eq "line 1 (newest) type=payment" "$LINE1_TYPE" "payment"
+assert_eq "line 1 (newest) amount=-100" "$LINE1_AMT" "-100"
+assert_eq "line 1 (newest) balance=88 (closingBalance)" "$LINE1_BAL" "88"
 
-# ── Assertion 6: last line has closing balance
+# ── Assertion 6: LAST line under DESC = oldest = INV1 (2026-03-15, +119)
+# Its balance is the historical balance right after INV1
+# was posted: opening(0) + 119 = 119.
+LINE_LAST_TYPE=$(jget "['lines'][-1]['type']")
+LINE_LAST_AMT=$(jget "['lines'][-1]['amount']")
 LINE_LAST_BAL=$(python3 -c "
 import json
 d = json.load(open('$STMT_FILE'))
 v = d['lines'][-1]['balance']
 print(int(v) if float(v).is_integer() else v)
 ")
-assert_eq "last line balance = closing" "$LINE_LAST_BAL" "88"
+assert_eq "last line (oldest) type=invoice" "$LINE_LAST_TYPE" "invoice"
+assert_eq "last line (oldest) amount=119" "$LINE_LAST_AMT" "119"
+assert_eq "last line (oldest) balance=119 (after INV1)" "$LINE_LAST_BAL" "119"
 
 # ── Assertion 7: credit note has negative amount
 CN_LINE=$(python3 -c "
@@ -295,6 +305,56 @@ APR_LINES=$(python3 -c "import json; d=json.load(open('$APR_FILE')); print(len(d
 assert_eq "April-only line count = 2" "$APR_LINES" "2"
 
 rm -f "$STMT_FILE" "$APR_FILE"
+
+# ── Assertion 16: ?order=asc reverses the line order ────
+# (opt-in for accountants who want chronological paper-trail order)
+api_get "/api/v1/customers/$CUSTOMER_ID/statement?companyId=$COMPANY_ID&from=2026-03-01&to=2026-06-30&order=asc"
+ASC_FILE=$(mktemp)
+echo "$BODY" > "$ASC_FILE"
+
+# Under ASC: first line should be INV1 (oldest)
+ASC_FIRST_TYPE=$(python3 -c "
+import json; d = json.load(open('$ASC_FILE'));
+v = d['lines'][0]['type']
+print(v)
+")
+assert_eq "order=asc: first line is invoice (oldest)" "$ASC_FIRST_TYPE" "invoice"
+
+# Under ASC: lines should be in ASCENDING date order
+ASC_SORTED=$(python3 -c "
+import json
+d = json.load(open('$ASC_FILE'))
+dates = [l['date'] for l in d['lines']]
+print('YES' if dates == sorted(dates) else 'NO')
+")
+assert_eq "order=asc: lines sorted by date ASC" "$ASC_SORTED" "YES"
+
+# Balance under ASC: last line's balance === closing (88)
+ASC_LAST_BAL=$(python3 -c "
+import json
+d = json.load(open('$ASC_FILE'))
+v = d['lines'][-1]['balance']
+print(int(v) if float(v).is_integer() else v)
+")
+assert_eq "order=asc: last line balance = closing" "$ASC_LAST_BAL" "88"
+
+# Closing balance is identical regardless of order (it's a property
+# of the data, not the display)
+ASC_CLOSING=$(python3 -c "
+import json
+d = json.load(open('$ASC_FILE'))
+v = d['closingBalance']
+print(int(v) if float(v).is_integer() else v)
+")
+assert_eq "order=asc: closing balance unchanged" "$ASC_CLOSING" "88"
+
+# ── Assertion 17: ?order=invalid returns 400 ─────────────
+HTTP_400D=$(curl -s -o /dev/null -w "%{http_code}" \
+  -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
+  "http://localhost:3001/api/v1/customers/$CUSTOMER_ID/statement?companyId=$COMPANY_ID&from=2026-03-01&to=2026-06-30&order=sideways")
+assert_eq "order=sideways returns 400" "$HTTP_400D" "400"
+
+rm -f "$ASC_FILE"
 
 echo ""
 echo "==============================="

@@ -1172,7 +1172,11 @@
     "balance": "Balance",
     "type_invoice": "Invoice",
     "type_credit": "Credit",
-    "type_payment": "Payment"
+    "type_payment": "Payment",
+    "orderNewestFirst": "Newest first",
+    "orderOldestFirst": "Oldest first",
+    "orderDescHint": "Newest activity at the top (default)",
+    "orderAscHint": "Oldest activity at the top (paper-ledger order)"
   },
   "storage": {
     "title": "Storage Settings",

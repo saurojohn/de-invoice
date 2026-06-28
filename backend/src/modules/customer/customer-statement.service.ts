@@ -91,6 +91,7 @@ export class CustomerStatementService {
     customerId: string,
     from: Date,
     to: Date,
+    order: 'asc' | 'desc' = 'desc',
   ): Promise<CustomerStatement> {
     const customer = await this.prisma.customer.findFirst({
       where: { id: customerId, companyId },
@@ -211,21 +212,19 @@ export class CustomerStatementService {
       })
     }
 
-    // Stable sort by date ascending. For same-day entries,
-    // invoices come before payments (matches bookkeeping
-    // convention: write the receivable first, then the
-    // receipt against it).
-    lines.sort((a, b) => {
-      const ad = new Date(a.date).getTime()
-      const bd = new Date(b.date).getTime()
-      if (ad !== bd) return ad - bd
-      // Tiebreaker: payment comes after invoice on the
-      // same day. We use type string order:
-      //   credit < invoice < payment
-      return a.type.localeCompare(b.type)
-    })
-
-    // Apply running balance
+    // Compute running balance CHRONOLOGICALLY first. The balance
+    // field on each line represents "what the open balance was
+    // AFTER this line was posted", which is a chronological
+    // property — it doesn't change with display order.
+    //
+    // We therefore walk the lines in ASC order to assign
+    // balances, then re-sort for display. This way:
+    //   - DESC display shows the latest activity at top, each
+    //     row still carrying its true historical balance
+    //   - ASC display matches the paper-ledger convention
+    //   - In both cases the bottom-row balance === closingBalance
+    //     (when viewing ASC) OR the top-row balance === closingBalance
+    //     (when viewing DESC) — same number, different position.
     let running = openingBalance
     let invoicesCount = 0
     let invoicesAmount = 0
@@ -234,7 +233,16 @@ export class CustomerStatementService {
     let creditsCount = 0
     let creditsAmount = 0
 
-    for (const line of lines) {
+    // Pre-sort by date asc + tiebreaker so balance assignment
+    // is deterministic regardless of invoice/payment insert order.
+    const byChronoAsc = (a: StatementLine, b: StatementLine) => {
+      const ad = new Date(a.date).getTime()
+      const bd = new Date(b.date).getTime()
+      if (ad !== bd) return ad - bd
+      return a.type.localeCompare(b.type)  // credit < invoice < payment
+    }
+    const sortedForBalance = [...lines].sort(byChronoAsc)
+    for (const line of sortedForBalance) {
       running += line.amount
       line.balance = running
       if (line.type === 'invoice') {
@@ -251,6 +259,19 @@ export class CustomerStatementService {
 
     const closingBalance = running
     const openAmount = Math.max(0, closingBalance)
+
+    // Now apply the user-requested display order. Balances are
+    // already attached to each line — sorting doesn't recompute
+    // them, just reorders.
+    lines.sort((a, b) => {
+      const ad = new Date(a.date).getTime()
+      const bd = new Date(b.date).getTime()
+      if (ad !== bd) {
+        return order === 'asc' ? ad - bd : bd - ad
+      }
+      const cmp = a.type.localeCompare(b.type)
+      return order === 'asc' ? cmp : -cmp
+    })
 
     return {
       customer: {

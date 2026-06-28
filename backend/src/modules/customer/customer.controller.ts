@@ -124,10 +124,14 @@ export class CustomerController {
     @Query('companyId') companyId: string,
     @Query('from') fromStr: string,
     @Query('to') toStr: string,
+    @Query('order') order?: string,
   ) {
     this.assertCompanyId(companyId)
     const { from, to } = this.parseStatementRange(fromStr, toStr)
-    return this.statementService.generate(companyId, id, from, to)
+    return this.statementService.generate(
+      companyId, id, from, to,
+      this.parseOrder(order),
+    )
   }
 
   /**
@@ -142,11 +146,15 @@ export class CustomerController {
     @Query('companyId') companyId: string,
     @Query('from') fromStr: string,
     @Query('to') toStr: string,
+    @Query('order') order: string,
     @Res() res: Response,
   ) {
     this.assertCompanyId(companyId)
     const { from, to } = this.parseStatementRange(fromStr, toStr)
-    const data = await this.statementService.generate(companyId, id, from, to)
+    const data = await this.statementService.generate(
+      companyId, id, from, to,
+      this.parseOrder(order),
+    )
     const { generateStatementPdf } = await import(
       './customer-statement-pdf.service'
     )
@@ -188,6 +196,27 @@ export class CustomerController {
       throw new BadRequestException('Statement range cannot exceed 24 months')
     }
     return { from, to }
+  }
+
+  /**
+   * Parse the `?order=` query param.
+   *   - absent / empty → DESC (default, newest first)
+   *   - 'desc' / 'DESC' → DESC
+   *   - 'asc' / 'ASC'  → ASC (chronological paper-trail order)
+   * Anything else → 400.
+   *
+   * Why default DESC: customers open a statement wanting to
+   * see the latest activity and current balance first. ASC
+   * is the accountant's view (chronological posting order);
+   * we keep it as an opt-in for paper-ledger exports.
+   */
+  private parseOrder(order?: string): 'asc' | 'desc' {
+    if (!order) return 'desc'
+    const lower = order.toLowerCase()
+    if (lower === 'asc' || lower === 'desc') return lower
+    throw new BadRequestException(
+      `Invalid order='${order}' (expected 'asc' or 'desc')`,
+    )
   }
 
   @Delete(':id')
