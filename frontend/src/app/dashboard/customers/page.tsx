@@ -55,6 +55,21 @@ export default function CustomersPage() {
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null)
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
+
+  // Tier 20.2: batch Kontoauszug export state
+  const [showBatchModal, setShowBatchModal] = useState(false)
+  const [batchFrom, setBatchFrom] = useState(() => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
+  })
+  const [batchTo, setBatchTo] = useState(() => {
+    const d = new Date()
+    const last = new Date(d.getFullYear(), d.getMonth(), 0)  // last day of prev month
+    return `${last.getFullYear()}-${String(last.getMonth() + 1).padStart(2, '0')}-${String(last.getDate()).padStart(2, '0')}`
+  })
+  const [batchOrder, setBatchOrder] = useState<"desc" | "asc">("desc")
+  const [batchLoading, setBatchLoading] = useState(false)
+  const [batchError, setBatchError] = useState<string | null>(null)
   const [pageSize] = useState(50)
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
@@ -282,6 +297,44 @@ export default function CustomersPage() {
         alert(`Netzwerkfehler: ${err}`)
       }
     }
+
+  }
+  // Tier 20.2: batch Kontoauszug download — generates one PDF
+  // per active customer for the chosen date range, packaged
+  // as a ZIP. Includes index.csv + summary.txt.
+  const downloadBatch = async () => {
+    const companyId = localStorage.getItem("companyId")
+    if (!companyId) return
+    setBatchLoading(true)
+    setBatchError(null)
+    try {
+      const { apiFetch } = await import("@/lib/api")
+      const response = await apiFetch(
+        `/api/v1/customers/statements-batch?companyId=${companyId}&from=${batchFrom}&to=${batchTo}&order=${batchOrder}`,
+        { throwOnError: false },
+      )
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
+        setBatchError(data.message || `Download fehlgeschlagen (HTTP ${response.status})`)
+        return
+      }
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      const fromCompact = batchFrom.replace(/-/g, "")
+      const toCompact = batchTo.replace(/-/g, "")
+      a.download = `Kontoauszug_Batch_${fromCompact}_${toCompact}.zip`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+      setShowBatchModal(false)
+    } catch (err: any) {
+      setBatchError(`Netzwerkfehler: ${err?.message || err}`)
+    } finally {
+      setBatchLoading(false)
+    }
   }
 
   /**
@@ -456,6 +509,13 @@ export default function CustomersPage() {
               ]}
             />
             <Button variant="outline" onClick={() => router.push("/dashboard")}>{t("common.back")}</Button>
+            <Button
+              variant="outline"
+              onClick={() => setShowBatchModal(true)}
+              data-testid="customer-batch-export-button"
+            >
+              📦 {t("customer.batchExport")}
+            </Button>
             <Button variant="outline" onClick={() => router.push("/dashboard/import?entity=customer")}>📥 Import</Button>
             <Button onClick={() => openModal()}>{t("customer.create")}</Button>
           </div>
@@ -958,12 +1018,116 @@ export default function CustomersPage() {
          </div>
        )}
 
-       {/* Page-level success toast — appears after a successful create/update */}
-       {saveSuccess && (
-         <div className="fixed bottom-6 right-6 bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded-lg shadow-lg z-50">
-           ✓ {saveSuccess}
-         </div>
-       )}
-     </main>
+        {/* Page-level success toast — appears after a successful create/update */}
+        {saveSuccess && (
+          <div className="fixed bottom-6 right-6 bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded-lg shadow-lg z-50">
+            ✓ {saveSuccess}
+          </div>
+        )}
+
+        {/* Tier 20.2: batch Kontoauszug export modal */}
+        {showBatchModal && (
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+            onClick={() => !batchLoading && setShowBatchModal(false)}
+            data-testid="batch-export-modal"
+          >
+            <div
+              className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2 className="text-xl font-semibold mb-2">
+                📦 {t("customer.batchExportTitle")}
+              </h2>
+              <p className="text-sm text-gray-600 mb-4">
+                {t("customer.batchExportSubtitle")}
+              </p>
+
+              <div className="space-y-3 mb-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    {t("statement.from")}
+                  </label>
+                  <input
+                    type="date"
+                    value={batchFrom}
+                    onChange={(e) => setBatchFrom(e.target.value)}
+                    data-testid="batch-from-input"
+                    className="w-full border rounded px-2 py-1"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    {t("statement.to")}
+                  </label>
+                  <input
+                    type="date"
+                    value={batchTo}
+                    onChange={(e) => setBatchTo(e.target.value)}
+                    data-testid="batch-to-input"
+                    className="w-full border rounded px-2 py-1"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    {t("statement.type")}
+                  </label>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setBatchOrder("desc")}
+                      className={
+                        "flex-1 px-3 py-1 text-sm rounded border " +
+                        (batchOrder === "desc"
+                          ? "bg-blue-600 text-white border-blue-600"
+                          : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50")
+                      }
+                      data-testid="batch-order-desc"
+                    >
+                      ↓ {t("statement.orderNewestFirst")}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBatchOrder("asc")}
+                      className={
+                        "flex-1 px-3 py-1 text-sm rounded border " +
+                        (batchOrder === "asc"
+                          ? "bg-blue-600 text-white border-blue-600"
+                          : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50")
+                      }
+                      data-testid="batch-order-asc"
+                    >
+                      ↑ {t("statement.orderOldestFirst")}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {batchError && (
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-800 rounded text-sm">
+                  {batchError}
+                </div>
+              )}
+
+              <div className="flex gap-2 justify-end">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowBatchModal(false)}
+                  disabled={batchLoading}
+                >
+                  {t("common.cancel") || "Abbrechen"}
+                </Button>
+                <Button
+                  onClick={downloadBatch}
+                  disabled={batchLoading}
+                  data-testid="batch-export-confirm"
+                >
+                  {batchLoading ? "..." : `📦 ${t("customer.batchExport")}`}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+      </main>
   )
 }

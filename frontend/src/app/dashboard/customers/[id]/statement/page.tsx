@@ -268,7 +268,7 @@ export default function CustomerStatementPage() {
         </CardContent>
       </Card>
 
-      {error && <ErrorBanner message={error} />}
+      {error && <ErrorBanner title={t("common.error") || "Fehler"} message={error} />}
 
       {statement && (
         <Card data-testid="statement-result">

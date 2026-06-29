@@ -515,7 +515,10 @@
     "nextCustomerNumber": "Next customer number",
     "noCustomersDesc": "Add your first customer to start creating invoices.",
     "noMatchingDesc": "Try a different search term or adjust the filters.",
-    "saved": "Customer saved"
+    "saved": "Customer saved",
+    "batchExport": "Batch Export",
+    "batchExportTitle": "Export all statements",
+    "batchExportSubtitle": "Generates one PDF per customer for the chosen period, packaged as a ZIP. Ideal for monthly close."
   },
   "dashboard": {
     "title": "Dashboard",

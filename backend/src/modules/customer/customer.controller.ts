@@ -2,6 +2,7 @@ import { BadRequestException, Controller, Get, Post, Put, Delete, Body, Param, Q
 import type { Response } from 'express';
 import { CustomerService, ImportCustomerRow } from './customer.service';
 import { CustomerStatementService } from './customer-statement.service';
+import { CustomerStatementBatchService } from './customer-statement-batch.service';
 import { CreateCustomerDto } from './dto/customer.dto';
 import { Auth, Require } from '../../auth/roles.decorator';
 
@@ -11,6 +12,7 @@ export class CustomerController {
   constructor(
     private customerService: CustomerService,
     private statementService: CustomerStatementService,
+    private batchStatementService: CustomerStatementBatchService,
   ) {}
 
   @Get()
@@ -34,6 +36,54 @@ export class CustomerController {
   async previewNextNumber(@Query('companyId') companyId: string) {
     this.assertCompanyId(companyId)
     return this.customerService.previewNextCustomerNumber(companyId)
+  }
+
+  /**
+   * Tier 20.2: batch Kontoauszug export — generates one PDF
+   * per active customer for the date range, packaged as a
+   * ZIP alongside an index.csv (customer list + balances)
+   * and a summary.txt (generation metadata).
+   *
+   * Use case: month-end statements to all customers in one
+   * click instead of N page loads.
+   *
+   * Order matters: this route must be registered BEFORE
+   * `:id` routes so NestJS doesn't try to match
+   * "statements-batch" as a customer id (it would fail the
+   * UUID validation in the service and 404 anyway, but
+   * explicit ordering avoids the spurious attempt + log
+   * noise).
+   */
+  @Get('statements-batch')
+  @Require('customer.read')
+  async statementsBatch(
+    @Query('companyId') companyId: string,
+    @Query('from') fromStr: string,
+    @Query('to') toStr: string,
+    @Query('order') order: string,
+    @Res() res: Response,
+  ) {
+    this.assertCompanyId(companyId)
+    const { from, to } = this.parseStatementRange(fromStr, toStr)
+    const dir = this.parseOrder(order)
+
+    const result = await this.batchStatementService.generateBatch({
+      companyId,
+      from,
+      to,
+      order: dir,
+    })
+
+    const fromStr2 = fromStr.replace(/-/g, '')
+    const toStr2 = toStr.replace(/-/g, '')
+    const fname = `Kontoauszug_Batch_${fromStr2}_${toStr2}.zip`
+
+    res.set({
+      'Content-Type': 'application/zip',
+      'Content-Disposition': `attachment; filename="${fname}"`,
+      'Content-Length': String(result.zipBuffer.length),
+    })
+    res.send(result.zipBuffer)
   }
 
   @Get(':id')

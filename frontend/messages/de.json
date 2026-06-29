@@ -515,7 +515,10 @@
     "nextCustomerNumber": "Nächste Kundennummer",
     "noCustomersDesc": "Fügen Sie Ihren ersten Kunden hinzu, um Rechnungen zu erstellen.",
     "noMatchingDesc": "Versuchen Sie einen anderen Suchbegriff oder passen Sie die Filter an.",
-    "saved": "Kunde gespeichert"
+    "saved": "Kunde gespeichert",
+    "batchExport": "Batch-Export",
+    "batchExportTitle": "Alle Kontoauszüge exportieren",
+    "batchExportSubtitle": "Generiert ein PDF pro Kunde für den gewählten Zeitraum, verpackt als ZIP. Ideal für den Monatsabschluss."
   },
   "dashboard": {
     "title": "Dashboard",

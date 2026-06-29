@@ -515,7 +515,10 @@
     "nextCustomerNumber": "下一个客户编号",
     "noCustomersDesc": "添加您的第一个客户以开始创建发票。",
     "noMatchingDesc": "请尝试其他搜索词或调整筛选条件。",
-    "saved": "客户已保存"
+    "saved": "客户已保存",
+    "batchExport": "批量导出",
+    "batchExportTitle": "导出所有对账单",
+    "batchExportSubtitle": "为每个客户生成所选期间的 PDF,打包为 ZIP。适合月末结算。"
   },
   "dashboard": {
     "title": "仪表盘",

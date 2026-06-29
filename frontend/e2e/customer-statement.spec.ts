@@ -302,4 +302,57 @@ test.describe("Customer statement UI", () => {
     }
     expect(toIso(ascFirstDate) < toIso(descFirstDate)).toBeTruthy()
   })
+
+  test("batch export modal opens + downloads ZIP", async ({ page }) => {
+    // Capture downloads
+    const downloadPromise = page.waitForEvent("download", { timeout: 60000 })
+
+    await injectLocalStorage(page)
+    await page.goto("/dashboard/customers", {
+      waitUntil: "domcontentloaded",
+    })
+
+    // Wait for the batch export button to be visible
+    await expect(
+      page.locator('[data-testid="customer-batch-export-button"]'),
+    ).toBeVisible({ timeout: 10000 })
+
+    // Click it → modal opens
+    await page.locator('[data-testid="customer-batch-export-button"]').click()
+    await expect(
+      page.locator('[data-testid="batch-export-modal"]'),
+    ).toBeVisible({ timeout: 5000 })
+
+    // Set a known date range + click confirm
+    await page.locator('[data-testid="batch-from-input"]').fill("2026-06-01")
+    await page.locator('[data-testid="batch-to-input"]').fill("2026-06-30")
+    await page.locator('[data-testid="batch-export-confirm"]').click()
+
+    // Wait for the download to start
+    const download = await downloadPromise
+
+    // Verify the downloaded filename pattern
+    const fname = download.suggestedFilename()
+    expect(fname).toMatch(/^Kontoauszug_Batch_\d{8}_\d{8}\.zip$/)
+
+    // Save and verify it's a valid ZIP
+    const tmpPath = `/tmp/${fname}`
+    await download.saveAs(tmpPath)
+
+    // Use a Python helper via page.evaluate to read the ZIP
+    const zipInfo = await page.evaluate(async (path: string) => {
+      // Use fetch on a file:// URL — Playwright doesn't
+      // expose filesystem directly. Instead, send the saved
+      // file's bytes through a known endpoint — but easier:
+      // just verify magic bytes via Buffer.from.
+      // We can't read the file here, so return the expected
+      // size from Playwright's download API instead.
+      return "magic-check-skip"
+    }, tmpPath)
+    expect(zipInfo).toBe("magic-check-skip")
+
+    // Magic-byte check via shell (we're outside the page now)
+    const head = require("fs").readFileSync(tmpPath).slice(0, 4)
+    expect(Array.from(head)).toEqual([0x50, 0x4b, 0x03, 0x04])
+  })
 })
