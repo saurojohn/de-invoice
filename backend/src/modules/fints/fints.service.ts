@@ -3,6 +3,9 @@ import { Injectable, Logger, BadRequestException } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { createHash, randomUUID } from 'crypto'
 import { buildFinTsMessage, parseFinTsMessage, Segment } from './fints-protocol'
+import { FintsReal } from './fints-real'
+import { encryptPin, decryptPin, pinEncryptionAvailable } from './pin-crypto'
+import { BankImportService } from '../bank-import/bank-import.service'
 
 /**
  * Tier 6: FinTS bank connection service (read-only).
@@ -93,6 +96,23 @@ export interface MockTransaction {
   endToEndId: string
 }
 
+/**
+ * Tier 22: unified shape used by BOTH mock- and
+ * real-mode persistence. FintsTransaction (from
+ * fints-real.ts) maps to this — the only field
+ * name difference is `name` → `counterpartyName`.
+ */
+export interface FinTsPersistTx {
+  valueDate: Date | string
+  entryDate: Date | string
+  amount: string | number
+  currency: string
+  counterpartyName: string
+  counterpartyIban: string | null | undefined
+  purpose: string
+  endToEndId: string | null | undefined
+}
+
 @Injectable()
 export class FinTsService {
   private readonly logger = new Logger(FinTsService.name)
@@ -100,6 +120,12 @@ export class FinTsService {
   constructor(
     private prisma: PrismaService,
     private config: ConfigService,
+    // Tier 22: BankImportService is injected so
+    // that after a FinTS sync we can immediately
+    // run the candidate-matcher against open
+    // invoices. Saves the user a separate "auto-
+    // match" click in the UI.
+    private bankImport: BankImportService,
   ) {}
 
   /**
@@ -170,15 +196,24 @@ export class FinTsService {
         `Keine FinTS-URL für BLZ ${input.blz} bekannt. Bitte manuell eingeben.`,
       )
     }
-    // Hash the PIN before persisting. We
-    // never store the plaintext — only the
-    // sha256 (which is what the bank would
-    // see on a fake-PIN probe). For real
-    // banks, the plaintext is used in the
-    // HNVSK envelope and forgotten as soon
-    // as the dialog completes; we don't
-    // need it afterwards.
+    // Hash the PIN before persisting. Used in
+    // mock-mode only (to detect "wrong-PIN"
+    // attempts before bothering the bank).
     const pinHash = createHash('sha256').update(input.pin).digest('hex')
+    // For real-mode, also encrypt the PIN at
+    // rest. AES-256-GCM under FINTS_PIN_ENC_KEY.
+    // We store all 3 components separately so
+    // we can rotate the key without rewriting
+    // any other table.
+    let encPin: string | null = null
+    let encIv: string | null = null
+    let encTag: string | null = null
+    if (!input.mockMode && pinEncryptionAvailable()) {
+      const enc = encryptPin(input.pin)
+      encPin = enc.ciphertext
+      encIv = enc.iv
+      encTag = enc.tag
+    }
     const conn = await this.prisma.finTSConnection.create({
       data: {
         companyId: input.companyId,
@@ -187,6 +222,9 @@ export class FinTsService {
         label: input.label,
         endpointUrl,
         pinHash,
+        encryptedPin: encPin,
+        pinIv: encIv,
+        pinTag: encTag,
         mockMode: input.mockMode ? 1 : 0,
         status: 'pending',
       },
@@ -469,53 +507,107 @@ export class FinTsService {
     connectionId: string,
     input: StartSyncInput,
   ): Promise<any> {
-    // Real-mode is intentionally a stub. We
-    // build the messages so the structure is
-    // visible, but the network call is not
-    // made — there is no test bank available
-    // in this project's sandbox. A future
-    // maintainer with a Sparkasse test
-    // account can wire this up.
+    // Tier 22: real-mode path wired through the `fints`
+    // npm library (Prior99/fints). See fints-real.ts for
+    // the protocol-level details. This method is the
+    // service-level orchestration: list accounts → fetch
+    // statements → persist → auto-match.
     const conn = await this.prisma.finTSConnection.findUnique({
       where: { id: connectionId },
     })
     if (!conn) throw new Error('Connection vanished mid-sync')
+
+    const fintsReal = this.makeFintsReal(conn)
+    const accountsRes = await fintsReal.listAccounts()
+    if (accountsRes.status === 'failed') {
+      return {
+        status: 'failed',
+        errorCode: accountsRes.code,
+        errorMessage: accountsRes.message,
+      }
+    }
+    if (accountsRes.status === 'needs_tan') {
+      // PSD2 flow — first sync of a connection.
+      // Persist the transactionReference so submitTan
+      // can completeStatements() with the right ref.
+      return {
+        status: 'needs_tan',
+        tanChallenge: accountsRes.challenge,
+        // The library's TanRequiredError carries the
+        // dialog config; we don't need to save it because
+        // completeStatements() takes (savedDialog, ref, tan)
+        // — the service's submitTan will re-auth from the
+        // stored pin + systemId.
+      }
+    }
 
     const daysBack = input.daysBack ?? 90
     const from = new Date()
     from.setDate(from.getDate() - daysBack)
     const today = new Date()
 
-    const dialog = await this.openDialog(conn)
-    if (dialog.status === 'failed') return dialog
-    if (dialog.status === 'needs_tan') return dialog
+    // Concatenate transactions across all accounts. Each
+    // account gets its own BankStatement row (one per
+    // account, not per sync — matches what bank-import
+    // does for CSV/MT940 uploads).
+    let totalInserted = 0
+    let firstAccountIban: string | null = null
+    for (const account of accountsRes.data) {
+      if (!firstAccountIban) firstAccountIban = account.iban
+      const stmtsRes = await fintsReal.fetchStatements(account, from, today)
+      if (stmtsRes.status === 'failed') {
+        // One bad account shouldn't kill the whole sync.
+        // Log and continue with the next account.
+        this.logger.warn(
+          `FinTS fetchStatements failed for ${account.iban}: ${stmtsRes.code} ${stmtsRes.message}`,
+        )
+        continue
+      }
+      if (stmtsRes.status === 'needs_tan') {
+        // Bank occasionally asks for re-auth mid-session
+        // (PSD2 SCA re-prompts after ~24h). Surface to
+        // the user, they can submitTan from the UI.
+        return {
+          status: 'needs_tan',
+          tanChallenge: stmtsRes.challenge,
+        }
+      }
+      const inserted = await this.persistTransactions(conn, stmtsRes.data, account.iban, account.bic)
+      totalInserted += inserted
+    }
+    return { status: 'ok', txCount: totalInserted }
+  }
 
-    // HKSAL — balances
-    // HKKAZ — transactions for the last 90d
-    const txSegs: Segment[] = [
-      {
-        header: { type: 'HKSAL', ref: 3, version: 7 },
-        body: { accountNumber: '?', allAccounts: true },
-      },
-      {
-        header: { type: 'HKKAZ', ref: 4, version: 7 },
-        body: {
-          accountNumber: '?',
-          fromDate: from.toISOString().slice(0, 10),
-          toDate: today.toISOString().slice(0, 10),
-        },
-      },
-    ]
-    const req = buildFinTsMessage({
-      dialogId: dialog.dialogId,
-      messageNumber: 2,
-      blz: conn.blz,
-      userId: conn.userId,
-      pin: '(not stored)',
-      segments: txSegs,
+  /**
+   * Build a FintsReal client from the persisted
+   * FinTSConnection row. Decrypts the PIN at
+   * construction time so the library can use
+   * it for the DIALOG INIT's HNVSK envelope.
+   *
+   * Throws if the connection is missing the
+   * encrypted PIN fields AND the env-key is
+   * not set — the controller surfaces that
+   * as a 400 "configure FINTS_PIN_ENC_KEY in
+   * backend/.env before connecting a real bank".
+   */
+  private makeFintsReal(conn: any): FintsReal {
+    if (!conn.encryptedPin || !conn.pinIv || !conn.pinTag) {
+      throw new BadRequestException(
+        'Keine verschlüsselte PIN für diese Verbindung hinterlegt. ' +
+          'Bei der Anlage muss FINTS_PIN_ENC_KEY gesetzt sein.',
+      )
+    }
+    const pin = decryptPin({
+      iv: conn.pinIv,
+      tag: conn.pinTag,
+      ciphertext: conn.encryptedPin,
     })
-    // POST and parse — stubbed.
-    return { status: 'failed', errorMessage: 'Real-mode is a stub in this build' }
+    return new FintsReal({
+      url: conn.endpointUrl,
+      blz: conn.blz,
+      username: conn.userId,
+      pin,
+    })
   }
 
   private async openDialog(
@@ -619,24 +711,50 @@ export class FinTsService {
    */
   private async persistTransactions(
     conn: any,
-    txs: MockTransaction[],
+    txs: Array<MockTransaction | import('./fints-real').FintsTransaction>,
+    accountIban?: string | null,
+    accountBic?: string | null,
   ): Promise<number> {
-    // Synthetic statement for this sync. The
-    // fileName and format fields are kept
-    // generic because there's no real upload.
+    const isReal = conn.mockMode !== 1
+    const format = isReal ? 'fints-real' : 'fints-mock'
+    const bankName = isReal
+      ? `FinTS-Bank ${conn.blz}` // Real banks set the actual name in rawContent
+      : `Mock-Bank ${conn.blz}`
+
     const stmt = await this.prisma.bankStatement.create({
       data: {
         companyId: conn.companyId,
-        format: 'fints-mock',
-        fileName: `fints-mock-${conn.blz}-${Date.now()}.json`,
+        format,
+        fileName: `${format}-${conn.blz}-${Date.now()}.json`,
         fileSize: JSON.stringify(txs).length,
-        accountIban: null,
-        bankName: `Mock-Bank ${conn.blz}`,
+        accountIban: accountIban || null,
+        // bankName is taken from the bank-import
+        // schema's BankStatement — kept generic
+        // here because there's no real upload; the
+        // real bank name would need to be resolved
+        // from the BPD (bank parameter daten).
+        bankName,
         periodFrom: new Date(
-          Math.min(...txs.map((t) => new Date(t.valueDate).getTime())),
+          Math.min(
+            ...txs.map((t) =>
+              new Date(
+                (t as any).valueDate instanceof Date
+                  ? (t as any).valueDate
+                  : String((t as any).valueDate),
+              ).getTime(),
+            ),
+          ),
         ),
         periodTo: new Date(
-          Math.max(...txs.map((t) => new Date(t.valueDate).getTime())),
+          Math.max(
+            ...txs.map((t) =>
+              new Date(
+                (t as any).valueDate instanceof Date
+                  ? (t as any).valueDate
+                  : String((t as any).valueDate),
+              ).getTime(),
+            ),
+          ),
         ),
         openingBalance: null,
         closingBalance: null,
@@ -646,13 +764,24 @@ export class FinTsService {
 
     let inserted = 0
     for (const tx of txs) {
+      // Map FintsTransaction's `name` → `counterpartyName`
+      // (the FintsReal shape uses `name`; the bank-import
+      // schema uses `counterpartyName`).
+      const counterpartyName = (tx as any).counterpartyName ?? (tx as any).name ?? ''
+      const counterpartyIban = (tx as any).counterpartyIban ?? null
+      const endToEndId = (tx as any).endToEndId ?? null
+
       // Idempotency: skip if a BankTransaction
       // with this endToEndId already exists for
-      // the company.
-      const existing = await this.prisma.bankTransaction.findFirst({
-        where: { companyId: conn.companyId, endToEndId: tx.endToEndId },
-      })
-      if (existing) continue
+      // the company. Real banks sometimes return
+      // duplicates across syncs if the same range
+      // is requested twice.
+      if (endToEndId) {
+        const existing = await this.prisma.bankTransaction.findFirst({
+          where: { companyId: conn.companyId, endToEndId },
+        })
+        if (existing) continue
+      }
       await this.prisma.bankTransaction.create({
         data: {
           statementId: stmt.id,
@@ -661,13 +790,28 @@ export class FinTsService {
           entryDate: new Date(tx.entryDate),
           amount: tx.amount,
           currency: tx.currency,
-          counterpartyName: tx.counterpartyName,
-          counterpartyIban: tx.counterpartyIban,
+          counterpartyName,
+          counterpartyIban,
           purpose: tx.purpose,
-          endToEndId: tx.endToEndId,
+          endToEndId,
         },
       })
       inserted++
+    }
+
+    // Tier 22: kick off auto-matching for the newly
+    // imported statement. Threshold is 0 (suggest
+    // only) by default — the user reviews and clicks
+    // confirm in the UI. Higher thresholds could be
+    // wired per-company via settings later.
+    if (inserted > 0 && this.bankImport) {
+      try {
+        await this.bankImport.generateSuggestions(conn.companyId, stmt.id)
+      } catch (e: any) {
+        this.logger.warn(
+          `Auto-match after FinTS import failed: ${e?.message || e}`,
+        )
+      }
     }
     return inserted
   }

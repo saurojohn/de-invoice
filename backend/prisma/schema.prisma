@@ -1492,8 +1492,22 @@ model FinTSConnection {
   // return 9910 / PIN_INVALID for a
   // sha256-hash probe — we don't want to
   // call the real dialog just to learn the
-  // PIN is wrong). NEVER plaintext.
+  // PIN is wrong). Used in mock-mode only.
+  // For real banks, see encryptedPin below.
   pinHash         String?
+  // Tier 22: real banks need the PLAINTEXT
+  // PIN for the DIALOG INIT's HNVSK envelope
+  // (HMAC needs the actual key, not a hash).
+  // We encrypt with AES-256-GCM using a key
+  // derived from FINTS_PIN_ENC_KEY in .env.
+  // The 3-tuple (iv, tag, ciphertext) is
+  // base64-encoded. Without FINTS_PIN_ENC_KEY
+  // the field stays NULL and real-mode is
+  // unavailable for this connection (the
+  // user gets a 400 explaining what to set).
+  encryptedPin    String?
+  pinIv           String?
+  pinTag          String?
   // PSD2 strong-customer-authentication. The
   // bank assigns the mechanism at first
   // dialog-init; we just remember the chosen one.

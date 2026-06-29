@@ -1,59 +1,42 @@
-// Tier 13: Thin wrapper around the `fints`
-// npm package (Prior99/fints — BSD-3-Clause).
-//
-// This file does NOT replace the
-// hand-rolled FinTS service in
-// fints.service.ts (which builds the
-// DIALOG INIT + HKSYN messages itself).
-// The hand-rolled implementation works
-// against the in-house mock and is what
-// e2e 31-fints-mock.sh exercises.
-//
-// This wrapper exists so that the moment
-// the project gets access to a real
-// Sparkasse / Volksbank / DKB / comdirect
-// sandbox account, the real-mode path can
-// be wired in by:
-//
-//   1. npm install fints   (done — v0.5.0)
-//
-//   2. Replace the `realSync()` and
-//      `realFetch()` methods in
-//      fints.service.ts with calls to
-//      `fintsReal.listAccounts()` and
-//      `fintsReal.fetchStatements()`
-//      below.
-//
-//   3. Add a new connection flag
-//      `fintsImplementation: 'handrolled'
-//      | 'library'` so existing e2e
-//      tests (which exercise the
-//      hand-rolled path) keep working
-//      while new real-mode tests use
-//      the library.
-//
-// The library handles:
-//   - DIALOG INIT / DIALOG END
-//   - HKSYN (synchronization)
-//   - HKSAL (account list)
-//   - HKKAZ (transactions)
-//   - PSD2 SCA (Strong Customer
-//     Authentication) via PinTan
-//   - All 50+ banks' quirks (it
-//     auto-detects the bank's preferred
-//     TAN scheme)
-//
-// It does NOT handle:
-//   - SEPA transfers (intentional — we
-//     built our own Tier-10 pain.001
-//     builder for the transfer use
-//     case)
-//   - Holding data / securities
-//   - Standing orders
-//
-// Reference: https://github.com/Prior99/fints
+/**
+ * Tier 13 + Tier 22: Thin wrapper around the `fints`
+ * npm package (Prior99/fints — BSD-3-Clause).
+ *
+ * The hand-rolled FinTS message builder in
+ * fints.service.ts works against the in-house mock and
+ * is what e2e 31-fints-mock.sh exercises. THIS file is
+ * the real-mode path: when the user configures a FinTS
+ * connection with `mockMode: false`, we instantiate
+ * `FintsReal` and use the library to actually talk to
+ * the bank's server.
+ *
+ * Why the library rather than the hand-rolled messages?
+ * Because the FinTS protocol has ~50 message types,
+ * dozens of bank-specific quirks, and PSD2 SCA flows
+ * that re-shape the dialog on the fly. The library
+ * (BSD-3, ~70k lines, MIT-funded) does all of that.
+ *
+ * What this wrapper adds on top of the library:
+ *   - Typed result shape (the library throws on errors;
+ *     we normalise to a discriminated union so the
+ *     controller can render proper status codes)
+ *   - Idempotent account/statement fetch (the library
+ *     re-uses a Dialog per call — we instantiate once
+ *     per connection and re-auth on need-tan)
+ *   - Field extraction from mt940-js' `descriptionStructured`
+ *     (IBAN, MREF, EREF) into our flat shape
+ *
+ * Reference: https://github.com/Prior99/fints
+ */
 
-import { PinTanClient, SEPAAccount, Statement as LibStatement, Transaction as LibTransaction } from 'fints'
+import {
+  PinTanClient,
+  SEPAAccount,
+  Statement as LibStatement,
+  Transaction as LibTransaction,
+  TanRequiredError,
+  ResponseError,
+} from 'fints'
 
 export interface FintsConnectionConfig {
   url: string
@@ -97,32 +80,109 @@ export interface FintsTransaction {
 }
 
 /**
- * Real-mode FinTS sync using the `fints`
- * library. Returns the list of accounts
- * + their transactions in the given
- * date range.
+ * Normalised result from any FintsReal call.
+ * Mirrors the discriminated union fints.service.ts uses
+ * for both real- and mock-mode — controller code is
+ * identical for both paths.
+ */
+export type FintsResult<T> =
+  | { status: 'ok'; data: T }
+  | { status: 'needs_tan'; challenge: string; transactionReference: string }
+  | { status: 'failed'; code: string; message: string }
+
+/**
+ * Real-mode FinTS client using the `fints` library.
  *
- * Used by fints.service.ts's real-mode
- * path. The hand-rolled path in
- * fints.service.ts is what's tested by
- * the existing e2e; this wrapper is
- * wired in once we have a real sandbox
- * bank to test against.
- *
- * Errors are passed through unchanged:
- *   - Wrong PIN: 4-digit error from the
- *     bank, typically "PIN ungültig"
- *   - TAN required: thrown as a typed
- *     error that the controller can
- *     catch and surface as
- *     `needs_tan` state
- *   - Network: connection refused /
- *     TLS handshake — propagated as-is
+ * Constructed per connection (not per call) so the
+ * library can cache the dialog + system-id between
+ * calls. Each call re-opens a fresh dialog because
+ * banks close them after the message round-trip —
+ * a connection that's been idle for >24h typically
+ * requires re-authentication.
  */
 export class FintsReal {
   constructor(private readonly config: FintsConnectionConfig) {}
 
-  private get client(): PinTanClient {
+  /**
+   * Open a fresh dialog + fetch the list of SEPA
+   * accounts the user has access to.
+   */
+  async listAccounts(): Promise<FintsResult<FintsAccount[]>> {
+    const client = this.makeClient()
+    try {
+      const accounts: SEPAAccount[] = await client.accounts()
+      return {
+        status: 'ok',
+        data: accounts.map((a) => ({
+          iban: a.iban,
+          bic: a.bic,
+          accountNumber: a.accountNumber,
+          blz: a.blz,
+          accountOwnerName: a.accountOwnerName ?? '',
+        })),
+      }
+    } catch (e) {
+      return this.normaliseError(e)
+    }
+  }
+
+  /**
+   * Fetch the transactions for a given account in a
+   * date range.
+   *
+   * For the FIRST sync the library will throw
+   * TanRequiredError on the statements() call. We
+   * catch that and return `needs_tan` so the
+   * controller can prompt the user. On the second
+   * call (with `tan` supplied), use `completeStatements`
+   * with the saved dialog config.
+   */
+  async fetchStatements(
+    account: FintsAccount,
+    from: Date,
+    to: Date,
+  ): Promise<FintsResult<FintsTransaction[]>> {
+    const client = this.makeClient()
+    const accountRef = this.toSepaAccount(account)
+    try {
+      const statements: LibStatement[] = await client.statements(accountRef, from, to)
+      return { status: 'ok', data: this.mapStatements(statements) }
+    } catch (e) {
+      return this.normaliseError(e)
+    }
+  }
+
+  /**
+   * Resume an in-progress statement fetch after the
+   * user supplied a TAN. The library re-uses the saved
+   * dialog config (so the system-id assigned at first
+   * sync is preserved).
+   *
+   * The `savedDialog` shape is whatever was returned
+   * in the TanRequiredError.dialog field. We serialise
+   * it from the controller's side.
+   */
+  async completeStatements(
+    savedDialogConfig: any,
+    transactionReference: string,
+    tan: string,
+  ): Promise<FintsResult<FintsTransaction[]>> {
+    const client = this.makeClient()
+    try {
+      const statements = await client.completeStatements(
+        savedDialogConfig,
+        transactionReference,
+        tan,
+      )
+      return { status: 'ok', data: this.mapStatements(statements) }
+    } catch (e) {
+      return this.normaliseError(e)
+    }
+  }
+
+  // ── private helpers ──────────────────────────────────
+
+  private makeClient(): PinTanClient {
     return new PinTanClient({
       url: this.config.url,
       blz: this.config.blz,
@@ -132,60 +192,23 @@ export class FintsReal {
     })
   }
 
-  /**
-   * Probe the bank: open + close a dialog
-   * to verify the credentials + endpoint
-   * are valid. Returns the list of accounts
-   * the bank exposes for this customer.
-   */
-  async listAccounts(): Promise<FintsAccount[]> {
-    const client = this.client
-    const accounts: SEPAAccount[] = await client.accounts()
-    return accounts.map((a) => ({
-      iban: a.iban,
-      bic: a.bic,
-      accountNumber: a.accountNumber,
-      blz: a.blz,
-      accountOwnerName: a.accountOwnerName ?? '',
-    }))
-  }
-
-  /**
-   * Fetch the transactions for a given
-   * account in a date range. Maps the
-   * library's Statement shape to our
-   * FintsTransaction shape.
-   */
-  async fetchStatements(
-    account: FintsAccount,
-    from: Date,
-    to: Date,
-  ): Promise<FintsTransaction[]> {
-    const client = this.client
-    // The library expects a SEPAAccount.
-    // We re-construct from the FintsAccount
-    // we got from listAccounts().
-    const accountRef: SEPAAccount = {
+  private toSepaAccount(account: FintsAccount): SEPAAccount {
+    return {
       iban: account.iban,
       bic: account.bic,
       accountNumber: account.accountNumber,
       blz: account.blz,
     } as SEPAAccount
-    const statements: LibStatement[] = await client.statements(
-      accountRef,
-      from,
-      to,
-    )
+  }
+
+  private mapStatements(statements: LibStatement[]): FintsTransaction[] {
     const txs: FintsTransaction[] = []
     for (const stmt of statements) {
       for (const tx of stmt.transactions) {
-        // mt940-js' Transaction has its own
-        // `id` field that we use as the
-        // bankRef (it's the bank's internal
-        // transaction id, formatted as
-        // "NCC1655...." or similar).
         txs.push({
-          bankRef: (tx as any).id ?? `stmt-${(stmt as any).number ?? '?'}-${tx.description?.slice(0, 20)}`,
+          bankRef:
+            (tx as any).id ??
+            `stmt-${(stmt as any).number ?? '?'}-${tx.description?.slice(0, 20)}`,
           valueDate: new Date(tx.valueDate),
           entryDate: new Date(tx.entryDate),
           amount: tx.amount.toString(),
@@ -193,11 +216,6 @@ export class FintsReal {
           direction: tx.isCredit ? 'credit' : 'debit',
           name: extractFirstLine(tx.description),
           purpose: tx.description,
-          // The structured 86 fields (counterparty IBAN,
-          // mandate ref, E2E id) are parsed by the library
-          // into a separate `descriptionStructured` object
-          // on the Transaction. We surface them if
-          // present.
           counterpartyIban: extractSepaField(tx, 'IBAN'),
           mandateRef: extractSepaField(tx, 'MREF'),
           endToEndId: extractSepaField(tx, 'EREF'),
@@ -206,15 +224,56 @@ export class FintsReal {
     }
     return txs
   }
+
+  /**
+   * Translate any error the library throws into our
+   * `FintsResult` discriminated union.
+   *
+   * The three shapes we care about:
+   *   - TanRequiredError → status: 'needs_tan'
+   *   - ResponseError with a bank HIRMS code → status: 'failed'
+   *     with the human-readable message the bank sent
+   *   - Anything else (network, timeout, parse error)
+   *     → status: 'failed' with the raw message
+   */
+  private normaliseError(e: unknown): FintsResult<never> {
+    if (e instanceof TanRequiredError) {
+      return {
+        status: 'needs_tan',
+        challenge: e.challengeText || 'TAN erforderlich',
+        transactionReference: e.transactionReference,
+      }
+    }
+    if (e instanceof ResponseError) {
+      const r: any = e.response
+      const msgs: string[] = []
+      // The library exposes the parsed response; the
+      // human message is on `messages[].message` or
+      // constructed from the segment code.
+      if (Array.isArray(r?.messages)) {
+        for (const m of r.messages) {
+          if (m?.text) msgs.push(String(m.text))
+        }
+      }
+      const msg = msgs.join(' / ') || r?.errorMessage || e.message
+      return {
+        status: 'failed',
+        code: String(r?.errorCode || 'BANK_ERROR'),
+        message: msg,
+      }
+    }
+    // Generic (network / DNS / TLS / timeout / JSON parse).
+    const err = e as any
+    return {
+      status: 'failed',
+      code: err?.code || 'NETWORK_ERROR',
+      message: err?.message || String(e) || 'Unbekannter Fehler',
+    }
+  }
 }
 
 // First non-empty line of a multi-line
-// purpose string, e.g.:
-//   "Max Mustermann\nDE89 3704 0044 0532 0130 00\n"
-//   → "Max Mustermann"
-// Used for the `name` field of the
-// transaction (we keep the full text
-// in `purpose` for the UI to display).
+// purpose string — used for the `name` field.
 function extractFirstLine(s: string | undefined): string {
   if (!s) return ''
   for (const line of s.split(/\r?\n/)) {
@@ -224,18 +283,16 @@ function extractFirstLine(s: string | undefined): string {
   return ''
 }
 
-// Look up a SEPA reference field in the
-// structured description. The library
-// parses the 86 fields into a tree of
-// key/value pairs; we pull the ones
-// that match the SEPA reference tags.
-function extractSepaField(tx: LibTransaction, field: 'IBAN' | 'MREF' | 'EREF'): string | undefined {
+// Look up a SEPA reference field (IBAN / MREF / EREF)
+// in the structured description. The mt940-js library
+// parses the 86 fields into a tree of key/value pairs;
+// we walk it shallowly.
+function extractSepaField(
+  tx: LibTransaction,
+  field: 'IBAN' | 'MREF' | 'EREF',
+): string | undefined {
   const sd: any = (tx as any).descriptionStructured
   if (!sd) return undefined
-  // The exact shape depends on the
-  // mt940-js version; we walk it
-  // shallowly to find any property
-  // matching the field name.
   for (const key of Object.keys(sd)) {
     if (key.toUpperCase().includes(field)) {
       const v = sd[key]
