@@ -68,8 +68,12 @@ rule_files:
 # Alertmanager container (image: prom/alertmanager)
 # and uncomment the block below.
 #
-# alerting:
-#   alertmanagers:
-#     - static_configs:
-#         - targets:
-#             - alertmanager:9093
+# Tier 23: the alertmanager service is now defined
+# in docker-compose.observability.yml. The block
+# below tells Prometheus where to send fired alerts.
+#
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093

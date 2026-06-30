@@ -442,11 +442,12 @@ docker compose -f docker-compose.yml \
                up -d
 ```
 
-This adds five services:
+This adds six services:
 
 | Service       | Host port | What it does                              |
 |---------------|-----------|-------------------------------------------|
 | prometheus    | 9090      | Scrapes `/metrics` every 15s              |
+| alertmanager  | 127.0.0.1:9093 | Receives fired alerts, dispatches to Slack + email (Tier 23) |
 | grafana       | 3001      | Dashboards (admin / `${GRAFANA_ADMIN_PASSWORD}`) |
 | loki          | 127.0.0.1:3100 | Log aggregation (single-instance)   |
 | promtail      | —         | Reads Docker logs, ships to Loki          |
@@ -482,10 +483,44 @@ Five rules ship in `infra/observability/prometheus/alerts.yml`:
 | DeInvoiceHighMemory         | warning  | RSS > 900 MB for 5 min                         |
 | DeInvoiceSlowResponses      | warning  | p95 > 1s for 10 min (excludes journal PDF)     |
 
-Rules are evaluated but **not delivered** until you wire up
-Alertmanager (see `infra/observability/prometheus/prometheus.yml`
-for uncomment instructions). Without Alertmanager, alerts show in
-the Prometheus UI but no email/Slack fires.
+Rules are evaluated and **delivered** through Alertmanager (Tier 23).
+Configuration lives in
+`infra/observability/alertmanager/alertmanager.yml`:
+
+- **Critical** alerts (`DeInvoiceDown`, `DeInvoiceDbDown`,
+  `DeInvoiceStorageNotWritable`, `DeadMansSwitch`) → `#ops-alerts`
+  Slack channel + email, repeated every hour until resolved.
+- **Warning** alerts (`DeInvoiceErrorRateHigh`,
+  `DeInvoiceHighMemory`, `DeInvoiceSlowResponses`) →
+  `#ops-warning` Slack channel, once a day.
+- **DeadMansSwitch** fires every 6 hours as a heartbeat. If
+  you STOP receiving it, the entire alerting chain is
+  broken — check Prometheus `/-/ready` and Alertmanager
+  `/-/healthy` on `127.0.0.1:9093`.
+
+To configure receivers, set in `infra/prod/.env`:
+
+```bash
+SLACK_WEBHOOK_URL=https://hooks.slack.com/services/T.../B.../...
+SLACK_CHANNEL_CRITICAL=#ops-alerts
+SLACK_CHANNEL_WARNING=#ops-warning
+SLACK_ONCALL_HANDLE=@oncall
+SMTP_SMARTHOST=smtp.your-provider.com:587
+SMTP_FROM=alertmanager@your-domain.com
+SMTP_AUTH_USERNAME=alertmanager@your-domain.com
+SMTP_AUTH_PASSWORD=...    # app-specific password
+OPS_EMAIL=ops@your-domain.com
+```
+
+Without these set, Alertmanager starts and Prometheus fires
+alerts into it, but the receivers fail to deliver (visible
+in the Alertmanager UI at `127.0.0.1:9093/alerts`).
+
+The `DeInvoiceDown` alert inhibits the downstream
+`DeInvoiceDbDown` / `DeInvoiceErrorRateHigh` /
+`DeInvoiceStorageNotWritable` / `DeInvoiceHighMemory` /
+`DeInvoiceSlowResponses` alerts — when the backend is down,
+the others are symptoms, not independent issues.
 
 ### Logs
 

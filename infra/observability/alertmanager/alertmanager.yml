@@ -1,0 +1,184 @@
+# Alertmanager configuration for de-invoice (Tier 23).
+#
+# Architecture:
+#   Prometheus evaluates alert rules (alerts.yml),
+#   fires them to Alertmanager, which applies this
+#   routing tree and dispatches to receivers.
+#
+# Receivers (configured via env vars in
+# docker-compose.observability.yml, defaults in
+# .env.example):
+#
+#   - critical-slack  : Slack Incoming Webhook,
+#                        #ops-alerts channel, mentions
+#                        @oncall. Used for severity=critical
+#                        only. Loud = you shouldn't sleep
+#                        through it.
+#   - warning-slack   : Same webhook, different
+#                        channel (#ops-warning). Used
+#                        for severity=warning. Investigate
+#                        during business hours, not at
+#                        3am.
+#   - ops-email       : SMTP delivery to ops@your-domain.
+#                        Fallback if Slack is down.
+#   - dead-mans-switch: A "heartbeat" alert fires every
+#                        6h to confirm Alertmanager itself
+#                        is alive. If this alert STOPS
+#                        firing, Alertmanager is down and
+#                        you need to investigate manually.
+#
+# Routing:
+#   - By default everything goes to the matching
+#     *-slack receiver based on severity.
+#   - repeat_interval: 4h for critical, 24h for warning.
+#     Prevents the channel from getting spammed when
+#     an alert stays firing for hours.
+#   - group_by: cluster + alertname. Multiple firing
+#     instances of the same alert collapse into one
+#     notification.
+#
+# Inhibition rules:
+#   - DeInvoiceDown suppresses everything else
+#     (if the backend is down, the DB alert is
+#     almost certainly false-positive).
+#   - Higher-severity suppresses lower-severity of
+#     the same alertname (critical suppresses warning
+#     for the same alert).
+
+global:
+  # SMTP settings for the email receiver. Override
+  # via env vars (smtp_smarthost etc.) in
+  # docker-compose.observability.yml — the
+  # defaults below are placeholders that intentionally
+  # fail (so the receiver errors visibly rather
+  # than silently going to /dev/null).
+  smtp_smarthost: "${SMTP_SMARTHOST}"
+  smtp_from: "${SMTP_FROM:-alertmanager@de-invoice.invalid}"
+  smtp_auth_username: "${SMTP_AUTH_USERNAME}"
+  smtp_auth_password: "${SMTP_AUTH_PASSWORD}"
+  smtp_require_tls: true
+  resolve_timeout: 5m
+
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'
+
+route:
+  receiver: default
+  group_by: ['alertname', 'cluster']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+
+  routes:
+    # Critical alerts → loud Slack channel + email
+    - match_re:
+        severity: critical
+      receiver: critical-slack
+      group_wait: 10s        # fire fast for critical
+      repeat_interval: 1h     # re-page every hour until ack
+
+    # Warning alerts → quieter Slack channel
+    - match_re:
+        severity: warning
+      receiver: warning-slack
+      repeat_interval: 24h   # once a day is enough
+
+    # Dead-man's switch → critical (if it fires, it's
+    # because the heartbeat stopped — i.e. Alertmanager
+    # itself is down)
+    - match:
+        alertname: DeadMansSwitch
+      receiver: critical-slack
+
+    # Catch-all for any alert without a severity label
+    - match:
+        severity: ""
+      receiver: warning-slack
+
+# Inhibition: if the backend is down, don't also
+# page for the DB being down (it's a downstream
+# symptom, not an independent issue).
+inhibit_rules:
+  - source_match:
+      alertname: DeInvoiceDown
+    target_match_re:
+      alertname: 'DeInvoice(DbDown|ErrorRateHigh|HighMemory|SlowResponses|StorageNotWritable)'
+    equal: ['cluster']
+
+  # Critical suppresses warning for the same alert
+  - source_match:
+      severity: critical
+    target_match:
+      severity: warning
+    equal: ['alertname', 'cluster']
+
+receivers:
+  # Default: log to a file inside the container.
+  # Won't be useful in production but is a safety
+  # net for "what if all my receivers are misconfigured?"
+  - name: default
+    webhook_configs:
+      - url: http://localhost:5001/default
+        send_resolved: true
+
+  # Critical: loud Slack + email.
+  # Slack Incoming Webhook is the recommended way to
+  # integrate Alertmanager with Slack — no OAuth,
+  # just a URL that you put in a Slack App's "Incoming
+  # Webhooks" feature. The URL goes in
+  # SLACK_WEBHOOK_URL in .env.
+  - name: critical-slack
+    slack_configs:
+      - api_url: "${SLACK_WEBHOOK_URL}"
+        channel: "${SLACK_CHANNEL_CRITICAL:-#ops-alerts}"
+        username: "de-invoice-alerts"
+        # Mention @oncall so a human notices immediately.
+        # Configure a Slack user group "oncall" in your
+        # workspace and put its handle here.
+        mention_users:
+          - "${SLACK_ONCALL_HANDLE:-oncall}"
+        title: '🚨 {{ .CommonLabels.alertname }} — {{ .CommonLabels.severity }}'
+        text: |
+          {{ range .Alerts }}
+          *{{ .Annotations.summary }}*
+          {{ .Annotations.description }}
+
+          Labels: {{ range .Labels.SortedPairs }}`{{ .Name }}={{ .Value }}` {{ end }}
+          Started: {{ .StartsAt }}
+          {{ end }}
+        send_resolved: true
+    email_configs:
+      - to: "${OPS_EMAIL:-ops@de-invoice.invalid}"
+        send_resolved: true
+        headers:
+          Subject: "[de-invoice CRITICAL] {{ .CommonLabels.alertname }}"
+        html: |
+          <h2>{{ .CommonLabels.alertname }}</h2>
+          <p><b>Severity:</b> {{ .CommonLabels.severity }}</p>
+          <p>{{ .CommonAnnotations.description }}</p>
+          <hr>
+          <p><small>Runbook: infra/prod/README.md</small></p>
+
+  # Warning: quieter Slack channel, no email.
+  - name: warning-slack
+    slack_configs:
+      - api_url: "${SLACK_WEBHOOK_URL}"
+        channel: "${SLACK_CHANNEL_WARNING:-#ops-warning}"
+        username: "de-invoice-alerts"
+        title: '⚠️ {{ .CommonLabels.alertname }} — warning'
+        text: |
+          {{ range .Alerts }}
+          *{{ .Annotations.summary }}*
+          {{ .Annotations.description }}
+          {{ end }}
+        send_resolved: true
+
+# Alertmanager itself doesn't have a "heartbeat"
+# concept — Prometheus does. The DeadMansSwitch
+# rule lives in alerts.yml and fires every 6h.
+# If you STOP receiving it, Alertmanager is the
+# suspect.
+#
+# Self-monitoring tip: hit /-/ready on the
+# Alertmanager container with an external monitor
+# (e.g. Healthchecks.io) for belt-and-suspenders.

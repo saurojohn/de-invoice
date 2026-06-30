@@ -153,3 +153,26 @@ groups:
             for 10 minutes. Common causes: a slow
             Prisma query, VIES upstream latency, or
             the disk being slow under backup load.
+      # ─── Heartbeat (Tier 23) ──────────────────────────
+      # Fires every 6h on a clock. If you STOP
+      # receiving this alert, the alert chain is
+      # broken somewhere — Prometheus is down,
+      # Alertmanager is down, or the Slack webhook
+      # is dead. Pair with an external monitor on
+      # Alertmanager's /-/ready endpoint for
+      # belt-and-suspenders.
+      - alert: DeadMansSwitch
+        expr: vector(1)
+        for: 6h
+        labels:
+          severity: critical
+          service: de-invoice-observability
+        annotations:
+          summary: "Alertmanager heartbeat — chain is alive"
+          description: >
+            This alert fires every 6h to confirm
+            Prometheus + Alertmanager + Slack webhook
+            are all reachable. If you STOP receiving
+            this alert, the entire alerting chain is
+            broken; check Prometheus /-/ready and
+            Alertmanager /-/healthy.
