@@ -221,7 +221,14 @@ export default function BankingPage() {
       fetchRecentTxns(cid)
       fetchReconciliations(cid)
     }
-  }, [fetchConnections, fetchRecentTxns])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // mount-only: fetchConnections/fetchRecentTxns
+         // are useCallback'd on `[t]` from useI18n — `t`
+         // gets a new reference every render, which
+         // would cause this effect to re-fire and
+         // thrash the connection list. The fetch fns
+         // read their own state, so mount-only is
+         // sufficient and avoids the re-render loop.
 
   const handleAdd = async (form: {
     blz: string
@@ -231,8 +238,16 @@ export default function BankingPage() {
     mockMode: boolean
   }) => {
     try {
+      // Read companyId from localStorage rather than
+      // the React state — the state is set async in
+      // useEffect, so closing over it can capture the
+      // initial empty value if the user clicks "Add"
+      // before the mount-only fetch finishes. The
+      // post-mutation refetch uses the same lookup
+      // for consistency.
+      const cid = localStorage.getItem("companyId") || ""
       await apiPost<{ id: string }>("/api/v1/fints/connections", {
-        companyId,
+        companyId: cid,
         blz: form.blz,
         userId: form.userId,
         label: form.label,
@@ -241,7 +256,7 @@ export default function BankingPage() {
       })
       toast.success(t("banking.connectionCreated"))
       setShowAddModal(false)
-      fetchConnections(companyId)
+      fetchConnections(cid)
     } catch (err: any) {
       toast.error(err?.message || t("banking.connectionCreateError"))
     }
@@ -250,13 +265,18 @@ export default function BankingPage() {
   const handleSync = async (connId: string) => {
     setSyncingIds((prev) => new Set(prev).add(connId))
     try {
+      // Same companyId-from-localStorage pattern as
+      // handleAdd — avoids a stale-state issue when
+      // the user acts before the mount-only effect
+      // has settled companyId into React state.
+      const cid = localStorage.getItem("companyId") || ""
       const result = await apiPost<{
         status: string
         txCount?: number
         tanChallenge?: string
         syncRunId: string
         errorMessage?: string
-      }>(`/api/v1/fints/connections/${connId}/sync`, { companyId })
+      }>(`/api/v1/fints/connections/${connId}/sync`, { companyId: cid })
       if (result.status === "needs_tan") {
         setTanModal({
           syncRunId: result.syncRunId,
@@ -363,7 +383,10 @@ export default function BankingPage() {
           >
             {t("banking.transferTitle")}
           </Button>
-          <Button onClick={() => setShowAddModal(true)}>
+          <Button
+            onClick={() => setShowAddModal(true)}
+            data-testid="fints-add-button"
+          >
             {t("banking.addConnection")}
           </Button>
         </div>
@@ -383,7 +406,7 @@ export default function BankingPage() {
           </Card>
         ) : (
           connections.map((c) => (
-            <Card key={c.id}>
+            <Card key={c.id} data-testid={`fints-connection-${c.id}`} data-mock-mode={c.mockMode}>
               <CardContent className="pt-4 space-y-2">
                 <div className="flex items-start justify-between">
                   <div>
@@ -430,6 +453,7 @@ export default function BankingPage() {
                     size="sm"
                     onClick={() => handleSync(c.id)}
                     disabled={syncingIds.has(c.id)}
+                    data-testid={`fints-sync-${c.id}`}
                   >
                     {syncingIds.has(c.id)
                       ? t("banking.syncing")
@@ -439,6 +463,7 @@ export default function BankingPage() {
                     size="sm"
                     variant="outline"
                     onClick={() => handleDelete(c.id)}
+                    data-testid={`fints-delete-${c.id}`}
                   >
                     {t("banking.delete")}
                   </Button>
@@ -676,7 +701,10 @@ function AddConnectionModal({
   const [mockMode, setMockMode] = useState(true)
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      data-testid="fints-add-modal"
+    >
       <Card className="w-full max-w-md mx-4">
         <CardHeader>
           <CardTitle>{t("banking.addConnectionTitle")}</CardTitle>
@@ -689,6 +717,7 @@ function AddConnectionModal({
               onChange={(e) => setBlz(e.target.value)}
               placeholder="50050201"
               maxLength={8}
+              data-testid="fints-add-blz"
             />
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
               {t("banking.blzHint")}
@@ -700,6 +729,7 @@ function AddConnectionModal({
               value={userId}
               onChange={(e) => setUserId(e.target.value)}
               placeholder="e2e-test-user"
+              data-testid="fints-add-userid"
             />
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
               {t("banking.userIdHint")}
@@ -711,6 +741,7 @@ function AddConnectionModal({
               value={label}
               onChange={(e) => setLabel(e.target.value)}
               placeholder={t("banking.labelPlaceholder")}
+              data-testid="fints-add-label"
             />
           </div>
           <div>
@@ -719,6 +750,7 @@ function AddConnectionModal({
               type="password"
               value={pin}
               onChange={(e) => setPin(e.target.value)}
+              data-testid="fints-add-pin"
             />
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
               {t("banking.pinHint")}
@@ -730,6 +762,7 @@ function AddConnectionModal({
               id="mockMode"
               checked={mockMode}
               onChange={(e) => setMockMode(e.target.checked)}
+              data-testid="fints-add-mockmode"
             />
             <label htmlFor="mockMode" className="text-sm">
               {t("banking.mockModeLabel")}
@@ -741,6 +774,7 @@ function AddConnectionModal({
             </Button>
             <Button
               onClick={() => onSubmit({ blz, userId, label, pin, mockMode })}
+              data-testid="fints-add-submit"
               disabled={!blz || !userId || !label || !pin}
             >
               {t("banking.create")}
@@ -765,13 +799,19 @@ function TanModal({
   const [tan, setTan] = useState("")
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      data-testid="fints-tan-modal"
+    >
       <Card className="w-full max-w-md mx-4">
         <CardHeader>
           <CardTitle>{t("banking.tanTitle")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="bg-amber-50 dark:bg-amber-900/20 p-3 rounded text-sm text-amber-800 dark:text-amber-200">
+          <div
+            className="bg-amber-50 dark:bg-amber-900/20 p-3 rounded text-sm text-amber-800 dark:text-amber-200"
+            data-testid="fints-tan-challenge"
+          >
             {challenge}
           </div>
           <div>
@@ -781,6 +821,7 @@ function TanModal({
               onChange={(e) => setTan(e.target.value)}
               placeholder="123456"
               autoFocus
+              data-testid="fints-tan-input"
             />
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
               {t("banking.tanHint")}
@@ -790,7 +831,11 @@ function TanModal({
             <Button variant="outline" onClick={onClose}>
               {t("common.cancel")}
             </Button>
-            <Button onClick={() => onSubmit(tan)} disabled={tan.length < 4}>
+            <Button
+              onClick={() => onSubmit(tan)}
+              disabled={tan.length < 4}
+              data-testid="fints-tan-submit"
+            >
               {t("banking.tanSubmit")}
             </Button>
           </div>
