@@ -55,6 +55,15 @@ export default function CustomersPage() {
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null)
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
+  // Tier 28: search snippets for highlighting.
+  // Keyed by customer.id → snippet string with
+  // <mark>...</mark> around the matched terms.
+  // Populated by a separate /search/customers call
+  // (the search.service.ts endpoint uses Postgres
+  // tsvector + ts_headline). We re-fetch on the
+  // same debounce as the regular list so the two
+  // are always in sync.
+  const [searchSnippets, setSearchSnippets] = useState<Record<string, string>>({})
 
   // Tier 20.2: batch Kontoauszug export state
   const [showBatchModal, setShowBatchModal] = useState(false)
@@ -115,6 +124,46 @@ export default function CustomersPage() {
     if (page !== 1) setPage(1)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search])
+  // Tier 28: when the user types a search query,
+  // fetch the highlight snippets from the new
+  // /api/v1/search/customers endpoint. The snippets
+  // are merged into the customers table cells
+  // below (we render the snippet HTML instead of
+  // the raw name when a snippet is available for
+  // that row). When the search box clears, we
+  // empty the snippet map so the cells fall back
+  // to the raw name.
+  useEffect(() => {
+    const q = search.trim()
+    if (!q || !companyId) {
+      setSearchSnippets({})
+      return
+    }
+    let cancelled = false
+    const t = setTimeout(() => {
+      apiGet<Array<{ row: { id: string }; snippet: string }>>(
+        `/api/v1/search/customers?companyId=${companyId}&q=${encodeURIComponent(q)}`,
+      )
+        .then((hits) => {
+          if (cancelled) return
+          const map: Record<string, string> = {}
+          for (const h of hits) {
+            if (h.snippet) map[h.row.id] = h.snippet
+          }
+          setSearchSnippets(map)
+        })
+        .catch(() => {
+          // Snippet fetch is best-effort — if the
+          // search endpoint is down, the list
+          // still renders (just without highlights).
+          if (!cancelled) setSearchSnippets({})
+        })
+    }, 300)
+    return () => {
+      cancelled = true
+      clearTimeout(t)
+    }
+  }, [search, companyId])
   const [nextCustomerNumber, setNextCustomerNumber] = useState<string | null>(null)
   const [form, setForm] = useState({
     name: "",
@@ -532,6 +581,7 @@ export default function CustomersPage() {
             type="text"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
+            data-testid="customer-search-input"
             placeholder={t("customer.searchPlaceholder") || "Name, USt-ID, Kundennummer, Stadt, PLZ suchen..."}
             className="w-full md:w-1/2 px-3 py-2 border border-gray dark:border-gray-700-300 dark:border-gray-600 rounded-md text-sm"
           />
@@ -616,7 +666,29 @@ export default function CustomersPage() {
                 <CardHeader>
                   <CardTitle className="flex justify-between items-center pr-6 gap-2">
                     <div className="min-w-0">
-                      <div className="truncate">{customer.name}</div>
+                      <div className="truncate">
+                        {/* Tier 28: render the highlighted
+                            snippet from the tsvector search
+                            when this row has a match.
+                            dangerouslySetInnerHTML is safe
+                            here because the snippet comes
+                            from our own backend (only wraps
+                            <mark> around matched terms —
+                            the regex in markTermsInText
+                            strips every other character
+                            from the lexeme before
+                            wrapping). */}
+                        {searchSnippets[customer.id] ? (
+                          <span
+                            dangerouslySetInnerHTML={{
+                              __html: searchSnippets[customer.id],
+                            }}
+                            data-testid="customer-search-snippet"
+                          />
+                        ) : (
+                          customer.name
+                        )}
+                      </div>
                       {customer.customerNumber && (
                         <div className="text-xs text-gray-500 dark:text-gray-400 font-normal mt-0.5">
                           {t("customer.customerNumber") || "Kundennummer"}: <span className="font-mono font-medium text-gray-700 dark:text-gray-200">{customer.customerNumber}</span>
