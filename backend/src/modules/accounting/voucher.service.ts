@@ -2,6 +2,13 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { PrismaService } from '../../prisma/prisma.service';
 import { AccountService } from './account.service';
 import { WebhookService } from '../webhook/webhook.service';
+// Tier 26.3: SKR03 Sachkonten auto-inference for
+// uncategorised VoucherLines. Best-effort — runs
+// on create when the user omits the accountId and
+// provides a description. The fallback (no
+// description / no match) is a null line, which
+// the UI surfaces as "(noch zu kategorisieren)".
+import { applyExpenseInference } from '../reports/datev-sachkonto-inference';
 
 interface CreateVoucherDto {
   companyId: string;
@@ -76,6 +83,42 @@ export class VoucherService {
         },
       },
     });
+
+    // Tier 26.3: run the SKR03 Sachkonten
+    // auto-inference on any line that's still
+    // uncategorised (accountId === null).
+    // The inference is best-effort — it returns
+    // null for an empty/missing description, in
+    // which case the line stays uncategorised
+    // and the user can pick the accountId in
+    // the UI. The create returns the inferred
+    // account on the response (via the same
+    // line.account include) so the caller sees
+    // the resolution immediately.
+    for (const line of created.lines) {
+      if (!line.accountId && line.description) {
+        await applyExpenseInference(
+          this.prisma, line.id, line.description,
+        )
+      }
+    }
+    // Re-read so the response includes the
+    // newly-assigned accountId values.
+    const refreshed = await this.prisma.voucher.findUnique({
+      where: { id: created.id },
+      include: {
+        lines: {
+          include: { account: true },
+          orderBy: { sortOrder: 'asc' },
+        },
+      },
+    })
+    if (refreshed) {
+      // Mutate the local `created` so the rest
+      // of this method (webhook emit, return
+      // value) sees the inferred accounts.
+      ;(created as any).lines = refreshed.lines
+    }
 
     // Fire voucher.created. Manual
     // vouchers are always 'posted' on
@@ -381,6 +424,16 @@ export class VoucherService {
         const c = Number(l.credit);
         totalDebit += d;
         totalCredit += c;
+        // Tier 26.3: an uncategorised VoucherLine
+        // (l.account === null) is skipped here. The
+        // "primary account" of a Voucher is the
+        // largest NON-clearing line — if no line
+        // has an accountId yet, the Voucher is
+        // still in the "draft, needs categorisation"
+        // state and the primaryNumber stays "—".
+        // The UI surfaces this so the user can
+        // click into the Voucher and assign.
+        if (!l.account) continue;
         // Always track the absolute-largest fallback so
         // a 100%-clearing voucher (e.g. inter-bank
         // transfer 1200→1210) still gets a primary.

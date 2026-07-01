@@ -724,11 +724,23 @@ export class BankImportService {
     // signs so each account nets to zero when
     // summed.
     const originalLines = recon.voucher.lines;
-    const stornoLines = originalLines.map((l) => ({
-      accountId: l.accountId,
-      description: `Storno: ${l.description || ''}`.substring(0, 60),
-      debit: Number(l.credit),  // swap
-      credit: Number(l.debit),   // swap
+    // Tier 26.3: accountId is now nullable. A
+    // Storno preserves the original line shape —
+    // if the original was uncategorised (null
+    // accountId), the Storno is too. The DTO
+    // accepts null as "skip" but here we want
+    // the Storno to mirror the original; the DTO
+    // type expects `string`, so we use a defensive
+    // cast. If the line is uncategorised the
+    // Storno entry will be omitted (it has no
+    // account to debit/credit anyway).
+    const stornoLines = originalLines
+      .filter((l) => l.accountId !== null)
+      .map((l) => ({
+        accountId: l.accountId!,
+        description: `Storno: ${l.description || ''}`.substring(0, 60),
+        debit: Number(l.credit),  // swap
+        credit: Number(l.debit),   // swap
     }));
 
     const stornoVoucher = await this.voucherService.create({

@@ -187,8 +187,12 @@ export class AccountingController {
         referenceType: voucher.referenceType,
         status: voucher.status,
         lines: voucher.lines.map((l) => ({
-          accountNumber: l.account.accountNumber,
-          accountName: l.account.name,
+          // Tier 26.3: l.account is now optional
+          // (nullable accountId). Pass undefined
+          // so the PDF renders the placeholder
+          // instead of crashing.
+          accountNumber: l.account?.accountNumber,
+          accountName: l.account?.name,
           description: l.description,
           debit: Number(l.debit),
           credit: Number(l.credit),

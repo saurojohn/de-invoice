@@ -62,8 +62,13 @@ interface JournalEntry {
   status: string
   reversedById: string | null
   lines: Array<{
-    accountNumber: string
-    accountName: string
+    // Tier 26.3: accountNumber/accountName are
+    // now nullable in the wire shape (VoucherLine
+    // may not yet have an accountId). The UI
+    // handles null with a "(noch zuzuordnen)"
+    // placeholder.
+    accountNumber: string | null
+    accountName: string | null
     description: string | null
     debit: number
     credit: number
@@ -136,8 +141,12 @@ export class JournalService {
       status: v.status,
       reversedById: v.reversedById,
       lines: v.lines.map((l) => ({
-        accountNumber: l.account.accountNumber,
-        accountName: l.account.name,
+        // Tier 26.3: account is nullable. Surface
+        // null in the API response — the journal
+        // table can then show "(noch zuzuordnen)"
+        // and the user can click to assign.
+        accountNumber: l.account?.accountNumber ?? null,
+        accountName: l.account?.name ?? null,
         description: l.description,
         debit: Number(l.debit),
         credit: Number(l.credit),
@@ -346,9 +355,13 @@ export class JournalService {
             { width: colWidths.beleg },
           )
           x += colWidths.beleg
-          doc.text(l.accountNumber, x, y, { width: colWidths.konto })
+          // Tier 26.3: accountNumber/accountName
+          // are nullable. Use the same placeholder
+          // as the Voucher PDF for uncategorised
+          // lines.
+          doc.text(l.accountNumber ?? "—", x, y, { width: colWidths.konto })
           x += colWidths.konto
-          doc.text(l.accountName, x, y, { width: colWidths.kontoName })
+          doc.text(l.accountName ?? "(noch zu kategorisieren)", x, y, { width: colWidths.kontoName })
           x += colWidths.kontoName
           doc.text(
             i === 0 ? e.description || l.description || '' : l.description || '',

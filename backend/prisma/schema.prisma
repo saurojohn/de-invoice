@@ -559,8 +559,18 @@ model VoucherLine {
   id           String    @id @default(uuid())
   voucherId    String
   voucher      Voucher   @relation(fields: [voucherId], references: [id], onDelete: Cascade)
-  accountId    String
-  account      Account   @relation(fields: [accountId], references: [id])
+  // Tier 26: nullable so the Sachkonten auto-inference
+  // (datev-sachkonto-inference.ts) can populate it
+  // after the user creates the line. Pre-Tier 26 this
+  // was required, which forced the UI to ask the user
+  // for an account upfront — most users don't know
+  // SKR03 account numbers off the top of their head,
+  // so this was a major friction point. The migration
+  // 20260630000002_voucherline_accountid_nullable
+  // drops the NOT NULL constraint; existing rows
+  // are unaffected (their accountId stays).
+  accountId    String?
+  account      Account?  @relation(fields: [accountId], references: [id])
   description  String?
   debit        Decimal   @db.Decimal(12,4) @default(0)
   credit       Decimal   @db.Decimal(12,4) @default(0)

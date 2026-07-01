@@ -31,6 +31,20 @@
  */
 
 import { PrismaService } from '../../prisma/prisma.service';
+// Tier 26.3: SKR03 Sachkonten auto-inference from
+// the line description. Used by the Voucher pass
+// below to fill in missing accountId values, so the
+// DATEV export always has a real Konto. See
+// datev-sachkonto-inference.ts for the keyword rules.
+import { applyExpenseInference } from './datev-sachkonto-inference';
+// Tier 26.4: DATEV USt-Schlüssel mapping (0/1/2/8/9/11-15 + IgE 14-16 +
+// §13b 12-13 + Vorsteuer 20-21). See datev-ust-schluessel.ts for the
+// full reference and the rationale for each key.
+import {
+  vatRateToUstSchluessel,
+  outputUstSchluessel,
+  UstSchluesselMode,
+} from './datev-ust-schluessel';
 
 const DELIM = ';'
 const QUOTE = '"'
@@ -640,16 +654,23 @@ export async function buildBuchungenFromDb(
       : Math.abs(vatRate - 0.19) < 0.001 ? accounts.revenue19
       : Math.abs(vatRate - 0.07) < 0.001 ? accounts.revenue7
       : accounts.revenue0
-    // USt-Schlüssel: DATEV column 12. "0" = steuerfrei
-    // (used for IgE / §13b / reverse-charge / Kleinunternehmer).
-    // "2" = 7%, "3" = 19% USt. The 0-case is the one
-    // that triggers the UStVA "steuerfreie Umsätze" row
-    // in the Berater's UStVA export.
+    // USt-Schlüssel: DATEV column 12.
+    //
+    // For the OUTGOING side of an IgE or §13b invoice,
+    // we always write '0' (steuerfrei). The keys '14',
+    // '15' (IgE input) and '12', '13' (§13b input) are
+    // used for the INCOMING side (the supplier bills us
+    // in reverse-charge / we self-assess IgE VAT).
+    // See Site 2 below for that branch.
+    //
+    // Tier 26.4 wired the existing rate→key mapping
+    // through the shared helper so a 5% legacy rate
+    // also maps correctly when the per-company "legacy"
+    // flag is set. For new (2024+) bookings we use
+    // the modern keys: '1' = 19%, '2' = 7%.
     const ustSchluessel =
       isIgE || isRC ? '0'
-      : Math.abs(vatRate - 0.19) < 0.001 ? '3'
-      : Math.abs(vatRate - 0.07) < 0.001 ? '2'
-      : '0'
+      : outputUstSchluessel(vatRate) || '0'
     const vatKonto =
       Math.abs(vatRate - 0.19) < 0.001 ? accounts.vatPayable19
       : accounts.vatPayable7
@@ -804,12 +825,35 @@ export async function buildBuchungenFromDb(
     // is added below.
     const kost1 = (exp as any).costCenter ?? undefined
     const kost2 = (exp as any).costObject ?? undefined
-    const ustSchluessel =
-      isReverseCharge ? '0'  // DATEV: 0 = steuerfrei (we'll also auto-book Vorsteuer from reverse-charge side)
-      : isIntraEU ? '0'      // §1a UStG = steuerfrei mit Vorsteuerabzug
-      : Math.abs(vatRate - 0.19) < 0.001 ? '3'
-      : Math.abs(vatRate - 0.07) < 0.001 ? '2'
-      : '0'
+    // USt-Schlüssel (input side — expense):
+    //
+    // Tier 26.4: complete coverage. The mode is
+    // chosen from the supplier-bill flags:
+    //   - IgE (intra-EU supplier bill, we self-assess
+    //     Vorsteuer): key '14' (19%) / '15' (7%).
+    //   - §13b reverse-charge (Bauleistungen / non-EU
+    //     services / mobile goods): key '12' (19%) /
+    //     '13' (7%). The Steuerschuld sits on the
+    //     supplier, we still claim the Vorsteuer on
+    //     the same line via the inputVatKonto.
+    //   - Domestic: key '1' (19%) / '2' (7%) / '0' (0).
+    //
+    // Before Tier 26.4 the code wrote '0' for both
+    // IgE and reverse-charge, which is wrong for
+    // §13b — the Berater needs the '12'/'13' key
+    // to apply the UStVA §13b Sonderkennzahl. The
+    // fix is in this block.
+    const expUstMode: UstSchluesselMode =
+      isIntraEU ? 'igE'
+      : isReverseCharge ? 'reverseCharge'
+      : 'output'  // Domestic — VAT on a domestic purchase
+    const expUstResult = vatRateToUstSchluessel(vatRate, expUstMode)
+    // Domestic with no recognised rate → '0' (0% line)
+    // IgE / RC with no recognised rate → still '14'/'15'
+    // or '12'/'13' respectively; default to '0' if rate
+    // is missing entirely (shouldn't happen for a real
+    // IgE/RC bill — VAT-ID validation enforces ≥1% rate).
+    const ustSchluessel = expUstResult?.key ?? '0'
 
     const inputVatKonto =
       isIntraEU ? accounts.inputVatIgE
@@ -925,6 +969,48 @@ export async function buildBuchungenFromDb(
       const isDebit = debit > 0
       const amount = isDebit ? debit : credit
       if (amount <= 0) continue
+      // Tier 26.3 wire-in: if the VoucherLine has no
+      // accountId (the Berater skipped the picker and
+      // left it for the inference to handle), run
+      // applyExpenseInference() now and use the
+      // inferred account for the export. The
+      // inference is also persisted to the line so
+      // the NEXT export sees the accountId (this
+      // function is idempotent — calling it twice
+      // with the same description returns the same
+      // account).
+      //
+      // We don't await this in the invoice hot-path;
+      // buildBuchungenFromDb is the export service,
+      // not the request handler, so a small DB
+      // roundtrip per inferred line is fine.
+      let resolvedAccount = line.account
+      if (!resolvedAccount && line.description) {
+        const inferred = await applyExpenseInference(
+          prisma, line.id, line.description,
+        )
+        if (inferred) {
+          // applyExpenseInference upserts the Account
+          // and updates the VoucherLine.accountId.
+          // Re-read to pick up the relation. We do
+          // not await the Account upsert side-effect
+          // on a re-read — it's already done.
+          const refreshed = await prisma.voucherLine.findUnique({
+            where: { id: line.id },
+            include: { account: { select: { accountNumber: true } } },
+          })
+          if (refreshed?.account) {
+            resolvedAccount = refreshed.account
+          }
+        }
+      }
+      // If we still don't have an account (e.g. the
+      // line has no description AND no accountId),
+      // skip the line — emitting a row with an
+      // empty Konto is worse than dropping it, the
+      // Berater can see the missing line in the UI
+      // and assign an account.
+      if (!resolvedAccount) continue
       // Find the "other side" of this Voucher — the
       // sum of the other line(s) on the same Voucher.
       // For a 2-line Voucher (the common case) the
@@ -933,11 +1019,55 @@ export async function buildBuchungenFromDb(
       // really support N-way splits in one row, so we
       // emit one row per line with the Gegenkonto
       // pointing at the first "opposite" line.
-      const counterpartLine = v.lines.find(
+      //
+      // Tier 26.3: if the counterpart line also has
+      // no accountId (auto-inference not yet run), do
+      // the same inference on it before writing the
+      // Gegenkonto. We do this in a separate pass
+      // because we need resolvedAccount to be settled
+      // for the primary line first.
+      let counterpartLine = v.lines.find(
         (l) => l.id !== line.id
           && (isDebit ? Number(l.credit) > 0 : Number(l.debit) > 0)
+          && l.account !== null && l.account !== undefined,
       )
-      if (!counterpartLine) continue  // skip unbalanced lines
+      // If the first candidate lacks an account, try
+      // inferring it now.
+      if (!counterpartLine) {
+        const candidates = v.lines.filter(
+          (l) => l.id !== line.id
+            && (isDebit ? Number(l.credit) > 0 : Number(l.debit) > 0),
+        )
+        for (const c of candidates) {
+          if (c.account) {
+            counterpartLine = c
+            break
+          }
+          if (c.description) {
+            const inferred = await applyExpenseInference(
+              prisma, c.id, c.description,
+            )
+            if (inferred) {
+              const refreshed = await prisma.voucherLine.findUnique({
+                where: { id: c.id },
+                include: { account: { select: { accountNumber: true } } },
+              })
+              if (refreshed?.account) {
+                ;(c as any).account = refreshed.account
+                counterpartLine = c
+                break
+              }
+            }
+          }
+        }
+      }
+      if (!counterpartLine || !counterpartLine.account) {
+        // Skip unbalanced lines AND lines whose
+        // counterpart we still can't resolve. The
+        // Berater will see the missing line in the UI
+        // and assign an account.
+        continue
+      }
 
       out.push({
         belegdatum: v.date,
@@ -958,18 +1088,24 @@ export async function buildBuchungenFromDb(
         belegfeld2: v.reversedBy
           ? v.reversedBy.voucherNumber
           : (v.referenceType || undefined),
-        konto: line.account.accountNumber,
+        konto: resolvedAccount.accountNumber,
         gegenkonto: counterpartLine.account.accountNumber,
         betrag: amount,
         shVz: isDebit ? 'S' : 'H',
         buchungstext: (line.description || v.description || '').substring(0, 60),
         // VAT on the line (rare for cash postings, but
         // possible if the user books a 3-line Voucher
-        // with a separate VAT line).
+        // with a separate VAT line). Tier 26.4: the
+        // mapping uses the shared helper so the new
+        // IgE/RC keys (14/15, 12/13) are also
+        // available for an explicit IgE/RC Voucher
+        // line — most Kassenbuch-style Vouchers
+        // won't hit this branch because they have
+        // no VAT, but the auto-Sachkonto inference
+        // (Tier 26.3) creates expense lines that
+        // might carry a VAT code.
         ustSchluessel: line.vatRate !== null && line.vatRate !== undefined
-          ? (Math.abs(Number(line.vatRate) - 0.19) < 0.001 ? '3'
-            : Math.abs(Number(line.vatRate) - 0.07) < 0.001 ? '2'
-            : '0')
+          ? (outputUstSchluessel(Number(line.vatRate)) || '0')
           : undefined,
         ustBetrag: line.vatAmount !== null && line.vatAmount !== undefined
           ? Number(line.vatAmount)

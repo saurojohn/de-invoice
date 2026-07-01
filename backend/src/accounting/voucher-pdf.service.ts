@@ -39,8 +39,16 @@
 import PDFDocument from "pdfkit"
 
 interface VoucherLineForPdf {
-  accountNumber: string
-  accountName: string
+  // Tier 26.3: accountNumber / accountName are
+  // optional because the VoucherLine.accountId is
+  // now nullable. A freshly-created line that the
+  // user hasn't categorised yet has no account
+  // — the PDF shows a placeholder in that case
+  // (the inference runs on DATEV export, not on
+  // PDF render; the PDF is meant to be the
+  // finalised Beleg).
+  accountNumber?: string
+  accountName?: string
   description: string | null
   debit: string | number
   credit: string | number
@@ -166,8 +174,18 @@ export function generateVoucherPDF(input: VoucherPdfInput): Promise<Buffer> {
       totalSoll += debit
       totalHaben += credit
       doc.font("Helvetica").fontSize(10)
-      doc.text(l.accountNumber, colKo, y, { width: 50 })
-      doc.text(l.accountName, colName, y, { width: 240 })
+      // Tier 26.3: an uncategorised VoucherLine
+      // (accountId is null) gets a placeholder
+      // account number "—" so the Berater can
+      // see the line needs categorisation. The
+      // Buchungstext below already has the line
+      // description, which is enough to fill in
+      // the account later. Don't drop the line
+      // — the Soll/Haben still has to balance,
+      // and the PDF is the audit-trail source of
+      // truth (GoBD §146 AO).
+      doc.text(l.accountNumber ?? "—", colKo, y, { width: 50 })
+      doc.text(l.accountName ?? "(noch zu kategorisieren)", colName, y, { width: 240 })
       doc.text(debit > 0 ? fmtMoneyDE(debit) : "", colSoll, y, { width: 90, align: "right" })
       doc.text(credit > 0 ? fmtMoneyDE(credit) : "", colHaben, y, { width: 90, align: "right" })
       if (l.description) {

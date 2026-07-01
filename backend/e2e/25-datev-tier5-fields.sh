@@ -353,9 +353,16 @@ assert_eq "5d: CHF Kurs = 1,0000" \
 assert_eq "5d: EUR invoice currency = EUR" \
   "$(csv_col 'Zahlungseingang E2E-T5-IGE-01' 16)" "EUR"
 
-# CHF invoice: USt-Schlüssel = 3 (19%) — col 12
-assert_eq "5d: CHF invoice USt-Schlüssel = 3" \
-  "$(csv_col 'Erlöse E2E-T5-CHF-01' 12)" "3"
+# CHF invoice: USt-Schlüssel = 1 (19% USt, Regelsatz) — col 12
+#
+# Tier 26.4: the USt-Schlüssel is now the 2024+ DATEV
+# code "1" (19% Regelsatz) instead of the legacy "3".
+# Both are valid DATEV keys; the modern export uses
+# "1" as the default for new 19% bookings. For
+# backwards compat with existing Berater imports the
+# legacy "3" is still accepted by the DATEV client.
+assert_eq "5d: CHF invoice USt-Schlüssel = 1" \
+  "$(csv_col 'Erlöse E2E-T5-CHF-01' 12)" "1"
 
 # ===== 5e: country code (col 21) =====
 
