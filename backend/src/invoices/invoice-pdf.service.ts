@@ -92,6 +92,13 @@ export interface InvoiceRenderConfig {
   paymentTermsText?: string
   showAbsenderzeile?: boolean
   reverseChargeNote?: string
+  // Tier 27: §1a UStG note for innergemeinschaftliche
+  // Lieferungen. Rendered at the same position as
+  // reverseChargeNote (footerY - 28) but only when
+  // invoice.euTransaction === true. An invoice can't
+  // be BOTH reverseCharge and euTransaction, so only
+  // one of the two is ever visible.
+  euTransactionNote?: string
   kleineUnternehmerNote?: string
 }
 
@@ -695,6 +702,15 @@ export async function generateInvoicePDF(
     if (renderConfig?.reverseChargeNote && (invoice as any).reverseCharge) {
       doc.font(fontFor('bold')).fontSize(8).fillColor(primaryColor)
         .text(renderConfig.reverseChargeNote, leftMargin, footerY - 28, { lineBreak: false })
+    }
+    // Tier 27: §1a UStG note for IgE invoices.
+    // Same position as the §13b note — they're
+    // mutually exclusive (the backend already
+    // rejects both=true on create/update), so only
+    // one of the two is ever rendered.
+    if (renderConfig?.euTransactionNote && (invoice as any).euTransaction) {
+      doc.font(fontFor('bold')).fontSize(8).fillColor(primaryColor)
+        .text(renderConfig.euTransactionNote, leftMargin, footerY - 28, { lineBreak: false })
     }
     if (renderConfig?.kleineUnternehmerNote && (invoice as any).euTransaction === false && (invoice as any).totalVat === '0' || (invoice as any).totalVat === 0) {
       // Show §19 note when the invoice has

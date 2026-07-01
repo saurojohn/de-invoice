@@ -1,4 +1,4 @@
-import { IsString, IsArray, ValidateNested, IsNumber, IsOptional, IsDateString } from 'class-validator';
+import { IsString, IsArray, ValidateNested, IsNumber, IsOptional, IsDateString, IsBoolean } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class InvoiceItemDto {
@@ -94,6 +94,52 @@ export class CreateInvoiceDto {
   @Type(() => InvoiceItemDto)
   @IsOptional()
   items?: InvoiceItemDto[];
+
+  // Tier 27: USt-Behandlung (reverse charge / IgE).
+  //
+  // These are the two §13b / §1a flags that the
+  // Berater needs on the DATEV export. The UI
+  // (frontend/src/app/dashboard/invoices/create/page.tsx)
+  // presents them as a single "USt-Behandlung"
+  // radio group, but on the wire they're two
+  // booleans — the combinations are:
+  //
+  //   - both false        : Standard 19%/7% USt
+  //   - reverseCharge=true: §13b UStG, Steuerschuld
+  //                         des Leistungsempfängers.
+  //                         The recipient self-assesses
+  //                         VAT. We still issue a normal-
+  //                         looking invoice, but the VAT
+  //                         line is 0% and a footnote
+  //                         cites §13b UStG. DATEV
+  //                         USt-Schlüssel: 12/13.
+  //   - euTransaction=true: §1a UStG, innergemein-
+  //                         schaftliche Lieferung.
+  //                         The recipient self-assesses
+  //                         via their own IgE
+  //                         Versteuerung. We issue a
+  //                         net-only invoice. DATEV
+  //                         USt-Schlüssel: 14/15.
+  //   - both true is a contradiction (an
+  //     invoice can't be BOTH §13b AND §1a) — the
+  //     UI prevents this and the service layer
+  //     rejects it on the way in.
+  //
+  // Why two booleans instead of an enum? The DB
+  // column is already a Boolean (baseline
+  // migration 20240101000000), and the existing
+  // reverseCharge/euTransaction semantics on the
+  // rest of the codebase (DATEV export, UStVA,
+  // Elster) already use both booleans — adding an
+  // enum would break the existing 50/58 e2e
+  // assertions.
+  @IsBoolean()
+  @IsOptional()
+  reverseCharge?: boolean;
+
+  @IsBoolean()
+  @IsOptional()
+  euTransaction?: boolean;
 }
 
 export class UpdateInvoiceDto {
@@ -119,5 +165,15 @@ export class UpdateInvoiceDto {
   @IsString() @IsOptional() templateType?: string;
   @IsArray() @ValidateNested({ each: true }) @Type(() => InvoiceItemDto)
   @IsOptional() items?: InvoiceItemDto[];
+
+  // Tier 27: same USt-Behandlung flags as on
+  // create. Edit-mode intentionally allows these
+  // — the same-day edit window (GoBD) covers the
+  // correction, and the audit trail stamps the
+  // before/after values on every change. See
+  // journal.service.ts and the e2e 03 test for
+  // the Storno flow.
+  @IsBoolean() @IsOptional() reverseCharge?: boolean;
+  @IsBoolean() @IsOptional() euTransaction?: boolean;
 }
 

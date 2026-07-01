@@ -44,6 +44,7 @@ export interface TemplateConfig {
   paymentTermsText?: string
   showAbsenderzeile?: boolean
   reverseChargeNote?: string
+  euTransactionNote?: string
   kleineUnternehmerNote?: string
 }
 
@@ -59,6 +60,12 @@ const DEFAULT_CONFIG: Required<TemplateConfig> = {
   showAbsenderzeile: true,
   reverseChargeNote:
     'Steuerschuldnerschaft des Leistungsempfängers (§13b UStG).',
+  // Tier 27: §1a UStG note for innergemeinschaftliche
+  // Lieferungen. Same position on the PDF as the §13b
+  // note (footerY - 28); the PDF picks one OR the other
+  // (an invoice is never both).
+  euTransactionNote:
+    'Steuerfreie innergemeinschaftliche Lieferung (§1a UStG).',
   kleineUnternehmerNote:
     'Gemäß §19 UStG wird keine Umsatzsteuer berechnet.',
 }

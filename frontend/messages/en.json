@@ -853,7 +853,19 @@
     "installments": "Installments",
     "referenceInvoice": "Reference invoice",
     "referenceInvoiceHelp": "Optional: link to an existing invoice",
-    "typeReminder": "Reminder"
+    "typeReminder": "Reminder",
+    "taxTreatment": "VAT Treatment",
+    "taxTreatmentStandard": "Standard (19% / 7%)",
+    "taxTreatmentReverseCharge": "Reverse Charge (§13b UStG)",
+    "taxTreatmentEu": "Intra-Community Supply (§1a UStG)",
+    "taxTreatmentKleinunternehmer": "Small Business (§19 UStG)",
+    "taxTreatmentHelp": "Determines whether the invoice includes VAT or is issued tax-free.",
+    "taxTreatmentReverseChargeHelp": "Recipient is liable for VAT — we charge 0% VAT, the customer self-assesses.",
+    "taxTreatmentEuHelp": "Intra-Community supply to another EU country — requires a valid customer VAT-ID.",
+    "taxTreatmentVatIdMissing": "⚠ Note: customer has no VAT-ID — §1a UStG requires a valid VAT-ID.",
+    "taxTreatmentItemsWillBeZero": "Note: all line items will be set to 0% VAT (you can override per item).",
+    "reverseChargeNote": "Reverse charge — recipient liable for VAT (§13b UStG)",
+    "euTransactionNote": "Tax-free intra-Community supply (§1a UStG)"
   },
   "invoiceTemplates": {
     "title": "Invoice templates",

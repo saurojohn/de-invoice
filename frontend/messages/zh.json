@@ -853,7 +853,19 @@
     "installInstallmentPlan": "分期计划",
     "saveChanges": "保存修改",
     "basicInfo": "基本信息",
-    "issueDate": "开票日期"
+    "issueDate": "开票日期",
+    "taxTreatment": "增值税处理",
+    "taxTreatmentStandard": "标准（19% / 7%）",
+    "taxTreatmentReverseCharge": "逆向征税（§13b UStG）",
+    "taxTreatmentEu": "欧盟内部供应（§1a UStG）",
+    "taxTreatmentKleinunternehmer": "小微企业（§19 UStG）",
+    "taxTreatmentHelp": "确定发票是否含增值税或免税开具。",
+    "taxTreatmentReverseChargeHelp": "买方承担增值税 — 我方按 0% 开票，客户自行申报。",
+    "taxTreatmentEuHelp": "对其他欧盟国家的供应 — 前提：客户有效的增值税识别号。",
+    "taxTreatmentVatIdMissing": "⚠ 注意：客户没有增值税识别号 — §1a UStG 要求有效的增值税识别号。",
+    "taxTreatmentItemsWillBeZero": "提示：所有项目将设为 0% 增值税（您可逐项覆盖）。",
+    "reverseChargeNote": "逆向征税 — 买方承担增值税（§13b UStG）",
+    "euTransactionNote": "欧盟内部免税供应（§1a UStG）"
   },
   "invoiceTemplates": {
     "title": "发票模板",

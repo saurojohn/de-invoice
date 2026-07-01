@@ -248,6 +248,22 @@ export class InvoiceService {
       }
     }
 
+    // Tier 27 validation: §13b and §1a are
+    // mutually exclusive. A sale can't be BOTH
+    // reverse-charge (recipient in DE, we as
+    // supplier pass the Steuerschuld to them)
+    // AND innergemeinschaftlich (we sell to an
+    // EU business, no DE-side VAT, recipient
+    // self-assesses via their IgE Versteuerung).
+    // Reject the contradictory request with a
+    // 400 — the UI prevents this but a direct
+    // API caller could try.
+    if (dto.reverseCharge === true && dto.euTransaction === true) {
+      throw new BadRequestException(
+        'Reverse-Charge (§13b UStG) und Innergemeinschaftliche Lieferung (§1a UStG) schließen sich gegenseitig aus — bitte nur eine USt-Behandlung wählen.',
+      )
+    }
+
     // Calculate amounts.
     //
     // VAT is computed on the DISCOUNTED net (per § 12 UStG — the tax
@@ -312,6 +328,19 @@ export class InvoiceService {
         // For credit notes, store the link back to the original invoice.
         // The FK is nullable so this is a no-op for INV/PI/RCV.
         referenceInvoiceId: (dto.type === 'CN' && dto.referenceInvoiceId) ? dto.referenceInvoiceId : null,
+        // Tier 27: USt-Behandlung. The UI presents a
+        // single radio group ("Standard" / "Reverse-
+        // Charge" / "IgE"), but on the wire these are
+        // two independent booleans — the service
+        // rejects the impossible "both true" state
+        // below. The two booleans drive the DATEV
+        // export (see datev.service.ts buildBuchungen-
+        // FromDb for the §1a / §13b branches), the
+        // UStVA Kennzahl 41/46, and the PDF footnote
+        // text. See the DTO comment for the full
+        // semantics.
+        reverseCharge: dto.reverseCharge ?? false,
+        euTransaction: dto.euTransaction ?? false,
         items: {
           create: dto.items?.map((item, index) => ({
             description: item.description,
@@ -417,6 +446,25 @@ export class InvoiceService {
       );
     }
 
+    // Tier 27: same §13b/§1a contradiction
+    // guard as on create. The user can switch
+    // BETWEEN standard and one of the special
+    // treatments in the same-day window, but
+    // can't set both to true.
+    //
+    // The effective state is the new value if
+    // the user passed it, otherwise the existing
+    // value (so editing only `reverseCharge: true`
+    // on an existing IgE invoice is rejected
+    // even though only one flag was sent).
+    const effectiveRC = dto.reverseCharge ?? existing.reverseCharge
+    const effectiveIgE = dto.euTransaction ?? existing.euTransaction
+    if (effectiveRC && effectiveIgE) {
+      throw new BadRequestException(
+        'Reverse-Charge (§13b UStG) und Innergemeinschaftliche Lieferung (§1a UStG) schließen sich gegenseitig aus — bitte nur eine USt-Behandlung wählen.',
+      )
+    }
+
     // Recompute totals from items if items were provided. The old
     // items are wiped and replaced (no partial edit — keeps the
     // math simple and matches the create flow).
@@ -492,6 +540,16 @@ export class InvoiceService {
         // Drop them here so the update actually persists.
         discountPercent: dto.discountPercent ?? undefined,
         discountAmount: dto.discountAmount ?? undefined,
+        // Tier 27: USt-Behandlung editable in
+        // same-day edit window. The audit trail
+        // (InvoiceEditLog) captures the before/after
+        // values, so a Berater can see when an
+        // invoice was re-classified (e.g. user
+        // accidentally checked RC, then unchecked
+        // it the next day if the same-day window is
+        // still open).
+        reverseCharge: dto.reverseCharge ?? undefined,
+        euTransaction: dto.euTransaction ?? undefined,
         ...totalsData,
         ...(itemsData ? { items: itemsData } : {}),
       },

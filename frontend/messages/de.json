@@ -853,7 +853,19 @@
     "basicInfo": "Grundinformationen",
     "issueDate": "Rechnungsdatum",
     "dueDateEmpty": "Keine Fälligkeit (Sofort fällig)",
-    "dueDateImmediately": "Sofort fällig"
+    "dueDateImmediately": "Sofort fällig",
+    "taxTreatment": "USt-Behandlung",
+    "taxTreatmentStandard": "Standard (19% / 7%)",
+    "taxTreatmentReverseCharge": "Reverse-Charge (§13b UStG)",
+    "taxTreatmentEu": "Innergemeinschaftliche Lieferung (§1a UStG)",
+    "taxTreatmentKleinunternehmer": "Kleinunternehmer (§19 UStG)",
+    "taxTreatmentHelp": "Bestimmt, ob die Rechnung USt enthält oder steuerfrei ausgestellt wird.",
+    "taxTreatmentReverseChargeHelp": "Steuerschuldnerschaft des Leistungsempfängers — wir berechnen 0% USt, der Kunde versteuert selbst.",
+    "taxTreatmentEuHelp": "Innergemeinschaftliche Lieferung in EU-Ausland — Voraussetzung: gültige USt-IDNr. des Kunden.",
+    "taxTreatmentVatIdMissing": "⚠ Achtung: Kunde hat keine USt-IDNr. — für §1a UStG ist eine gültige USt-IDNr. Pflicht.",
+    "taxTreatmentItemsWillBeZero": "Hinweis: Alle Positionen werden auf 0% USt gesetzt (Sie können das pro Position überschreiben).",
+    "reverseChargeNote": "Steuerschuldnerschaft des Leistungsempfängers (§13b UStG)",
+    "euTransactionNote": "Steuerfreie innergemeinschaftliche Lieferung (§1a UStG)"
   },
   "invoiceTemplates": {
     "title": "Rechnungsvorlagen",

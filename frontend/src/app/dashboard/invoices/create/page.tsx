@@ -166,6 +166,22 @@ function CreateInvoicePageInner() {
     discountAmount: 0,
     paymentMethod: "bank_transfer",
     paymentTerms: 0,
+    // Tier 27: USt-Behandlung. The radio group
+    // maps to two wire fields (reverseCharge +
+    // euTransaction). 'standard' = both false;
+    // 'reverseCharge' = reverseCharge=true;
+    // 'euTransaction' = euTransaction=true;
+    // 'kleinunternehmer' = both false + totalVat
+    // = 0 (the user should also check the §19 box
+    // in the company settings; we don't enforce
+    // it here, the DATEV export will still write
+    // '0' as the USt-Schlüssel).
+    //
+    // We keep the wire fields in form state too,
+    // so the payload below is explicit. The radio
+    // is a derived view.
+    reverseCharge: false,
+    euTransaction: false,
     // Rechnungssprache — default to the current UI locale so the
     // user doesn't have to change anything when their UI is already
     // in the language they want the invoice in. They can still
@@ -229,6 +245,12 @@ function CreateInvoicePageInner() {
             paymentMethod: inv.paymentMethod || 'bank_transfer',
             paymentTerms: inv.paymentTerms ?? 0,
             language: inv.language || getDateLocale(),
+            // Tier 27: hydrate the USt-Behandlung
+            // flags from the loaded invoice. The
+            // radio group's value is derived
+            // (see below) from these two booleans.
+            reverseCharge: Boolean(inv.reverseCharge),
+            euTransaction: Boolean(inv.euTransaction),
             items: (inv.items || []).map((it: any) => ({
               description: it.description || '',
               productNumber: it.productNumber || '',
@@ -1004,6 +1026,124 @@ function CreateInvoicePageInner() {
                     <option value="zh-CN">中文</option>
                   </select>
                 </div>
+              </div>
+
+              {/* Tier 27: USt-Behandlung.
+                  Single radio group, maps to the
+                  two wire booleans (reverseCharge +
+                  euTransaction). The radio value
+                  is derived: 'standard' when both
+                  false, 'reverseCharge' when
+                  reverseCharge=true, etc.
+
+                  Why a radio and not two checkboxes?
+                  The two flags are mutually exclusive
+                  in our business logic — the user
+                  can't have BOTH §13b and §1a on
+                  the same invoice (the backend
+                  rejects it with 400). A radio makes
+                  the exclusivity visible without
+                  us having to enforce it client-side
+                  (and it falls back to a meaningful
+                  default on a stale browser tab).
+
+                  When the user picks RC or IgE we
+                  show a contextual help line with
+                  the §-reference. For IgE we also
+                  warn if the customer has no VAT-ID
+                  — §1a UStG REQUIRES a valid
+                  customer VAT-ID. The user can
+                  still save (we don't block, some
+                  micro-business customers don't
+                  have one) but the warning is loud. */}
+              <div className="mt-4 p-3 border rounded-md bg-gray-50" data-testid="invoice-tax-treatment">
+                <label className="block text-sm font-medium mb-2">
+                  {t("invoice.taxTreatment")}
+                </label>
+                <div className="space-y-1.5">
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="radio"
+                      name="taxTreatment"
+                      value="standard"
+                      checked={!form.reverseCharge && !form.euTransaction}
+                      onChange={() => setForm({ ...form, reverseCharge: false, euTransaction: false })}
+                      data-testid="invoice-tax-standard"
+                    />
+                    {t("invoice.taxTreatmentStandard")}
+                  </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="radio"
+                      name="taxTreatment"
+                      value="reverseCharge"
+                      checked={form.reverseCharge}
+                      onChange={() => {
+                        // Pick RC → zero out all item
+                        // VAT rates. The user can
+                        // override per row (e.g. a
+                        // mixed line where one item
+                        // IS taxable and one isn't),
+                        // but the typical case is
+                        // "all-zero" and we save
+                        // them 5 clicks.
+                        const newItems = form.items.map(it => ({ ...it, vatRate: 0 }))
+                        setForm({ ...form, reverseCharge: true, euTransaction: false, items: newItems })
+                      }}
+                      data-testid="invoice-tax-reverse-charge"
+                    />
+                    {t("invoice.taxTreatmentReverseCharge")}
+                  </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="radio"
+                      name="taxTreatment"
+                      value="euTransaction"
+                      checked={form.euTransaction}
+                      onChange={() => {
+                        // Same — IgE → 0% VAT.
+                        const newItems = form.items.map(it => ({ ...it, vatRate: 0 }))
+                        setForm({ ...form, reverseCharge: false, euTransaction: true, items: newItems })
+                      }}
+                      data-testid="invoice-tax-eu"
+                    />
+                    {t("invoice.taxTreatmentEu")}
+                  </label>
+                </div>
+                <p className="text-xs text-gray-600 mt-2">
+                  {t("invoice.taxTreatmentHelp")}
+                </p>
+                {/* Contextual help: §-reference for
+                    the active selection, plus the
+                    VAT-ID warning for IgE. We use
+                    inline classes so the styling
+                    matches the rest of the form
+                    (no Tailwind config needed). */}
+                {form.reverseCharge && (
+                  <p className="text-xs text-amber-700 mt-2" data-testid="invoice-tax-reverse-charge-help">
+                    {t("invoice.taxTreatmentReverseChargeHelp")}
+                  </p>
+                )}
+                {form.euTransaction && (() => {
+                  // The customer picker stores the
+                  // selected Customer in customers[]
+                  // (already loaded at mount). Find
+                  // the match and check vatId.
+                  const sel = customers.find(c => c.id === form.customerId)
+                  const vatIdMissing = !sel?.vatId
+                  return (
+                    <>
+                      <p className="text-xs text-amber-700 mt-2" data-testid="invoice-tax-eu-help">
+                        {t("invoice.taxTreatmentEuHelp")}
+                      </p>
+                      {vatIdMissing && (
+                        <p className="text-xs text-red-700 mt-1" data-testid="invoice-tax-eu-vatid-missing">
+                          {t("invoice.taxTreatmentVatIdMissing")}
+                        </p>
+                      )}
+                    </>
+                  )
+                })()}
               </div>
 
               {/* Liefertermin (delivery date) — optional, shown on
