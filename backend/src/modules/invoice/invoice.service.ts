@@ -248,6 +248,26 @@ export class InvoiceService {
       }
     }
 
+    // Tier 28: load the customer once so we can
+    // (a) snapshot the customerName onto the
+    // Invoice row for full-text search (the
+    // tsvector STORED column can't span
+    // relations), and (b) keep the customer
+    // reference resolution in one place. The
+    // snapshot is at issue-time: a later rename
+    // of the customer does NOT update historical
+    // invoices (the Berater filtering the
+    // journal by name sees the original).
+    const customer = customerId
+      ? await this.prisma.customer.findFirst({
+          where: { id: customerId, companyId },
+          select: { id: true, name: true },
+        })
+      : null
+    if (customerId && !customer) {
+      throw new NotFoundException('Kunde nicht gefunden')
+    }
+
     // Tier 27 validation: §13b and §1a are
     // mutually exclusive. A sale can't be BOTH
     // reverse-charge (recipient in DE, we as
@@ -341,6 +361,17 @@ export class InvoiceService {
         // semantics.
         reverseCharge: dto.reverseCharge ?? false,
         euTransaction: dto.euTransaction ?? false,
+        // Tier 28: denormalise the customer name so
+        // the Postgres tsvector STORED column
+        // (search_tsv) can include it without a
+        // relation join. Generated columns can't
+        // span relations in PG 16. We snap the name
+        // AT ISSUE TIME — historical invoices keep
+        // the customer's name even after a rename
+        // (the Berater filtering the journal by name
+        // sees the name that was on the invoice,
+        // not the current name).
+        customerName: customer?.name ?? '',
         items: {
           create: dto.items?.map((item, index) => ({
             description: item.description,

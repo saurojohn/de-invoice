@@ -80,7 +80,19 @@ export class ProductService {
 
   async create(companyId: string, data: any) {
     return this.prisma.product.create({
-      data: { ...data, companyId },
+      data: {
+        ...data,
+        companyId,
+        // Tier 28: denormalise categoryName so the
+        // Postgres tsvector STORED column (search_tsv)
+        // can include it without a relation join.
+        // Generated columns can't span relations in
+        // PG 16, so we maintain the copy on every
+        // Product write from the service. The relation
+        // (categoryId) stays — this is just a
+        // search-friendly text mirror.
+        categoryName: await this.resolveCategoryName(data.categoryId),
+      },
     });
   }
 
@@ -89,7 +101,30 @@ export class ProductService {
     // bad URL doesn't accidentally cross-tenant.
     const existing = await this.prisma.product.findFirst({ where: { id, companyId } })
     if (!existing) throw new NotFoundException('Product not found')
-    return this.prisma.product.update({ where: { id: existing.id }, data });
+    // Tier 28: refresh the denormalised categoryName
+    // if the category changed (or is being cleared).
+    const categoryName = data.categoryId !== undefined
+      ? await this.resolveCategoryName(data.categoryId)
+      : existing.categoryName
+    return this.prisma.product.update({
+      where: { id: existing.id },
+      data: { ...data, categoryName },
+    });
+  }
+
+  /**
+   * Resolve a Category relation id to its display
+   * name. Returns "" if the id is null/undefined
+   * or the category doesn't exist (the latter is
+   * defensive — FK constraints should prevent it).
+   */
+  private async resolveCategoryName(categoryId: string | null | undefined): Promise<string> {
+    if (!categoryId) return ''
+    const cat = await this.prisma.category.findUnique({
+      where: { id: categoryId },
+      select: { name: true },
+    })
+    return cat?.name ?? ''
   }
 
   async findOne(id: string) {

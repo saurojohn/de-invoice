@@ -199,10 +199,25 @@ model Customer {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  // Generated text columns + trigram indexes are defined in
-  // prisma/init.sql (pg_trgm GIN on name/vatId/customerNumber plus
-  // city_text / postal_code_text pulled out of `address`). Prisma
-  // doesn't have first-class syntax for STORED generated columns,
+  // Generated text columns + GIN indexes are defined in SQL
+  // migrations (not in this Prisma schema — Prisma doesn't have
+  // first-class syntax for STORED generated columns).
+  //   - pg_trgm GIN on name/vatId/customerNumber + city_text /
+  //     postal_code_text pulled out of `address` → see
+  //     prisma/init.sql
+  //   - search_tsv (Postgres tsvector + GIN, weighted) for full-
+  //     text search with snippet highlight → see migration
+  //     20260701000001_search_tsv (Tier 28). The column is
+  //     generated from name + customerNumber + vatId (weight A),
+  //     city_text + postal_code_text (weight B), tags (weight C),
+  //     all normalised through unaccent() so "muller" matches
+  //     "Müller".
+  //
+  // The search service in src/modules/search/search.service.ts
+  // queries search_tsv via $queryRaw (Prisma's typed-SQL escape
+  // hatch). We don't expose the column on the model — keeping it
+  // out of the Prisma client forces every caller to use raw SQL,
+  // which makes the tsvector @@ tsquery contract explicit.
   // so they live in raw SQL — `prisma db pull` would otherwise drop
   // them.
   cityText           String? @map("city_text")
@@ -343,6 +358,14 @@ model Product {
   invoiceItems      InvoiceItem[]
   stockHistory     ProductStockHistory[]
 
+  // Tier 28: denormalised category name for full-text
+  // search. Postgres STORED generated columns can't
+  // span relations, so we maintain this column from the
+  // service on every Product write (see product.service.ts
+  // create / update). The matching migration adds the
+  // column with a DEFAULT '' for existing rows.
+  categoryName     String    @default("")
+
   @@index([companyId, sku])
   @@index([companyId, name])
 }
@@ -402,6 +425,23 @@ model Invoice {
   vatBreakdown   Json?
   reverseCharge  Boolean   @default(false)
   euTransaction  Boolean   @default(false)
+
+  // Tier 28: denormalised customer name snapshot for
+  // full-text search. The invoice keeps a copy of the
+  // customer's name at issue-time so:
+  //   1. The Postgres tsvector STORED column on Invoice
+  //      can include it without a relation join
+  //      (generated columns can't span relations).
+  //   2. Historical invoices don't change when the
+  //      customer later renames themselves — a Berater
+  //      filtering the journal by customer name sees
+  //      what was on the invoice at issue time, not
+  //      the current name.
+  // The service mirrors Customer.name → customerName
+  // on every Invoice create (see invoice.service.ts).
+  // The migration adds the column with a backfill from
+  // Customer.name for existing rows.
+  customerName   String    @default("")
 
   notes          String?
   internalNotes  String?

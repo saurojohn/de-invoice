@@ -12,6 +12,12 @@ import { ProductModule } from './modules/product/product.module';
 import { VatRateModule } from './modules/vat-rate/vat-rate.module';
 import { AccountingModule } from './modules/accounting/accounting.module';
 import { ReportsModule } from './modules/reports/reports.module';
+// Tier 28: full-text search with snippet highlight.
+// Owns the /search/customers, /search/products,
+// /search/invoices endpoints. The service queries
+// the Postgres tsvector STORED columns defined in
+// migration 20260701000001_search_tsv.
+import { SearchModule } from './modules/search/search.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { ExchangeRateModule } from './modules/exchange-rate/exchange-rate.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
@@ -70,6 +76,7 @@ import { WebhookModule } from './modules/webhook/webhook.module';
     VatRateModule,
     AccountingModule,
     ReportsModule,
+    SearchModule,
     StorageModule,
     InventoryModule,
     ReminderModule,
