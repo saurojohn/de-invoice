@@ -119,6 +119,17 @@ export const OCR_FIXTURE: ReceiptData = {
  *     these on its own OCR output without changes
  */
 export function extractFieldsFromText(text: string): ReceiptData {
+  const netAmount = extractNetAmount(text)
+  const vatAmount = extractVatAmount(text)
+  const vatRate = extractVatRate(text)
+  let grossAmount = extractGrossAmount(text)
+  // Fallback: if the OCR dropped the gross line (common
+  // when Gesamtbetrag is on a separate row with the
+  // amount on a different visual line), reconstruct
+  // it from net + VAT. Rounded to 2 decimals.
+  if (grossAmount == null && netAmount != null && vatAmount != null) {
+    grossAmount = Math.round((netAmount + vatAmount) * 100) / 100
+  }
   return {
     supplierName: extractSupplierName(text),
     supplierVatId: extractVatId(text),
@@ -126,10 +137,10 @@ export function extractFieldsFromText(text: string): ReceiptData {
     supplierBic: extractBic(text),
     invoiceNumber: extractInvoiceNumber(text),
     invoiceDate: extractDate(text),
-    netAmount: extractNetAmount(text),
-    vatRate: extractVatRate(text),
-    vatAmount: extractVatAmount(text),
-    grossAmount: extractGrossAmount(text),
+    netAmount,
+    vatRate,
+    vatAmount,
+    grossAmount,
     rawText: text,
   }
 }
@@ -187,13 +198,38 @@ function extractDate(text: string): string | null {
 
 /** The "Gesamtbetrag" / "Summe" / "Gesamt" line. */
 function extractGrossAmount(text: string): number | null {
-  const m = text.match(/(?:Gesamtbetrag|Gesamtbetr|Betrag|Summe|Gesamt|Total|Rechnungsbetrag)[:\s]+([\d.]+,\d{2})\s*(?:EUR|€)?/i)
-  return m ? parseGermanAmount(m[1]) : null
+  // Order matters: the most-specific keywords first.
+  // 1. "Gesamtbetrag (Brutto) 119,00 EUR" /
+  //    "Gesamtbetrag: 119,00 EUR" /
+  //    "Rechnungsbetrag: 119,00 EUR"
+  // 2. "Total brutto: 119,00 EUR" / "Total: 119,00"
+  // 3. The bare keyword "Gesamtbetrag" / "Gesamtbetrag"
+  //    followed by a number on the SAME line.
+  // NB: avoid matching "Zwischensumme" (which is net)
+  // and "Summe" in any header column. The bare "Summe"
+  // keyword is too greedy on receipts with tabular
+  // headers — only use it when explicitly tagged
+  // (Brutto/Total).
+  const patterns: RegExp[] = [
+    /(?:Gesamtbetrag|Gesamtbetr|Rechnungsbetrag)(?:\s*\([^)]+\))?\s*[:\s]+([\d.]+,\d{2})\s*(?:EUR|€)?/i,
+    /Total(?:\s+brutto)?\s*[:\s]+([\d.]+,\d{2})\s*(?:EUR|€)?/i,
+  ]
+  for (const re of patterns) {
+    const m = text.match(re)
+    if (m) return parseGermanAmount(m[1])
+  }
+  return null
 }
 
-/** "Zwischensumme netto" / "Netto" — backstop if no gross. */
+/** "Zwischensumme netto" / "Netto" / "(Netto)" — backstop if no gross. */
 function extractNetAmount(text: string): number | null {
-  const m = text.match(/(?:Zwischensumme(?:\s+netto)?|Netto(?:summe)?|Summe\s+netto)[:\s]+([\d.]+,\d{2})\s*(?:EUR|€)?/i)
+  // Tolerate parenthesised: "Zwischensumme (Netto) 100,00 EUR".
+  // The regex matches the keyword, an optional bracketed
+  // qualifier, optional separator (":", whitespace), and
+  // then the amount. Falls back to a generic "Netto 100,00"
+  // pattern for receipts without the Zwischensumme prefix.
+  const m = text.match(/(?:Zwischensumme|Netto(?:summe)?|Summe)(?:\s*\([^)]+\))?\s+(?:netto\s+)?[:\s]*([\d.]+,\d{2})\s*(?:EUR|€)?/i)
+    ?? text.match(/(?:^|\s)Netto[:\s]+([\d.]+,\d{2})\s*(?:EUR|€)?/i)
   return m ? parseGermanAmount(m[1]) : null
 }
 
@@ -217,22 +253,50 @@ function parseGermanAmount(s: string): number {
 /**
  * Injectable wrapper. The controller talks to
  * this; the wrapper delegates to either the
- * mock (v1) or a future TesseractOcrService.
- * Keeping the wrapper as a class lets us swap
- * implementations via Nest's DI without
- * touching the controller.
+ * mock (v1) or TesseractOcrService (v2).
+ *
+ * The base class is abstract so DI gives us a
+ * compile-time error if we forget to inject one
+ * of the concrete subclasses via OcrModule's
+ * `useClass` switch.
+ *
+ * Concrete implementations live in:
+ *   - MockOcrService        (this file)
+ *   - TesseractOcrService   (tesseract-ocr.service.ts)
  */
 import { Injectable } from '@nestjs/common'
 
-@Injectable()
-export class OcrService {
+export abstract class OcrService {
   /**
-   * v1 mock: always return the fixture.
-   * v2 will be: pipe imageBuffer through tesseract.js
-   * (worker thread, with the 'deu' traineddata) →
-   * text → extractFieldsFromText(text).
+   * Run OCR on a PNG/JPG buffer and return the
+   * extracted receipt fields. Implementations
+   * are free to mock, use a local engine, or
+   * hit a cloud provider.
    */
+  abstract extractReceipt(imageBuffer: Buffer): Promise<ReceiptData>
+}
+
+/**
+ * v1 mock: always returns the OCR_FIXTURE.
+ *
+ * Use this in dev / CI where you don't want
+ * tesseract.js's first-run traineddata download
+ * (~15MB, ~5s) and you want deterministic
+ * responses for tests.
+ *
+ * Env switch in OcrModule:
+ *   OCR_ENGINE=mock (default)
+ *   OCR_ENGINE=tesseract
+ */
+@Injectable()
+export class MockOcrService extends OcrService {
   async extractReceipt(_imageBuffer: Buffer): Promise<ReceiptData> {
     return OCR_FIXTURE
   }
 }
+
+// Re-export under the legacy name so the
+// controller doesn't have to change. The
+// concrete class wired in DI depends on
+// OCR_ENGINE.
+export { MockOcrService as OcrService_legacy_alias }

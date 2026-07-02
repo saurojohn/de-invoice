@@ -3,3 +3,7 @@ node_modules
 .env
 
 /generated/prisma
+# tesseract.js downloads traineddata files
+# to the cwd by default. They're 2-15MB
+# per language and regenerated on demand.
+*.traineddata

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# e2e 61: Tier 29 — Eingangsrechnung OCR + supplier match.
+# e2e 61: Tier 29 + Tier 31 — Eingangsrechnung OCR + supplier match.
 #
 # Verifies the OCR pipeline:
 #   1. GET /api/v1/ocr/fixture returns the hard-coded
@@ -18,11 +18,16 @@
 #      SAME VAT-ID → reuses the same supplier,
 #      returns {created: false, matchedBy: vatId}.
 #   5. POST /api/v1/ocr/scan with a multipart file
-#      upload → returns the fixture receipt (v1
-#      mock returns the same fixture regardless of
-#      upload content).
+#      upload → returns the receipt (mock: same
+#      fixture every time. tesseract: real OCR
+#      on the upload).
 #   6. POST /api/v1/ocr/scan without a file → 400
 #      (file is required).
+#   7. POST /api/v1/ocr/scan with the bundled
+#      real German receipt PNG — only runs when
+#      OCR_ENGINE=tesseract is set. Validates that
+#      the real OCR path extracts supplier / invoice
+#      number / date / net / gross correctly.
 #
 # The frontend flow is:
 #   1. User uploads a scan → /ocr/scan returns
@@ -112,24 +117,73 @@ assert_eq "match reuse: same supplierId" "$MS2_ID" "$MS_ID"
 if [[ "$MS2_CREATED" = "false" ]]; then pass "match reuse: created=false"; else fail "match reuse: created=$MS2_CREATED"; fi
 if [[ "$MS2_BY" = "vatId" ]]; then pass "match reuse: matchedBy=vatId"; else fail "match reuse: matchedBy=$MS2_BY"; fi
 
-# ---- 5. /ocr/scan with multipart file upload ----
+# ---- 5. /ocr/scan with multipart file upload (mock only) ----
+# Block 5 verifies that the controller wires up
+# the FileInterceptor + pipes the buffer into
+# the OCR engine. We use a fake PNG because the
+# mock service ignores bytes. In tesseract mode
+# the fake PNG would crash the worker — block 7
+# covers the real OCR path with a valid PNG.
 echo
-echo "=== 5. POST /ocr/scan (multipart upload) returns fixture ==="
-# Build a tiny PNG-ish blob. We don't need a valid
-# PNG — the v1 mock ignores the bytes. The FileInterceptor
-# only runs mimetype + size checks.
-TMP_IMG=$(mktemp -t t61_scan.XXXXXX.png)
-printf '\x89PNG\r\n\x1a\nfake-png-bytes' > "$TMP_IMG"
-SCAN_STATUS=$(curl -sS -o /tmp/t61_scan.json -w "%{http_code}" \
-  -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-  -X POST "$API/api/v1/ocr/scan?companyId=$COMPANY_ID" \
-  -F "file=@$TMP_IMG;type=image/png")
-assert_eq "scan returns 201" "$SCAN_STATUS" "201"
-SCAN_GROSS=$(jq -r '.grossAmount' /tmp/t61_scan.json)
-assert_eq "scan grossAmount from fixture" "$SCAN_GROSS" "119"
-SCAN_INV=$(jq -r '.invoiceNumber' /tmp/t61_scan.json)
-assert_eq "scan invoiceNumber from fixture" "$SCAN_INV" "RG-2026-0042"
-mavis-trash "$TMP_IMG"
+echo "=== 5. POST /ocr/scan (multipart upload) returns fixture (mock only) ==="
+if [[ "${OCR_ENGINE:-mock}" != "tesseract" ]]; then
+  # Build a tiny PNG-ish blob. We don't need a valid
+  # PNG — the v1 mock ignores the bytes. The
+  # FileInterceptor only runs mimetype + size checks.
+  TMP_IMG=$(mktemp -t t61_scan.XXXXXX.png)
+  printf '\x89PNG\r\n\x1a\nfake-png-bytes' > "$TMP_IMG"
+  SCAN_STATUS=$(curl -sS -o /tmp/t61_scan.json -w "%{http_code}" \
+    -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
+    -X POST "$API/api/v1/ocr/scan?companyId=$COMPANY_ID" \
+    -F "file=@$TMP_IMG;type=image/png")
+  assert_eq "scan returns 201" "$SCAN_STATUS" "201"
+  SCAN_GROSS=$(jq -r '.grossAmount' /tmp/t61_scan.json)
+  assert_eq "scan grossAmount from fixture" "$SCAN_GROSS" "119"
+  SCAN_INV=$(jq -r '.invoiceNumber' /tmp/t61_scan.json)
+  assert_eq "scan invoiceNumber from fixture" "$SCAN_INV" "RG-2026-0042"
+  mavis-trash "$TMP_IMG"
+else
+  echo "  ⏭  skipped — OCR_ENGINE=tesseract (block 7 covers real OCR)"
+fi
+
+# ---- 7. Real OCR (tesseract.js) on bundled German receipt ----
+# Only runs when OCR_ENGINE=tesseract. The mock path
+# would return the fixture regardless of bytes, which
+# we already covered in block 5 — we don't want to
+# duplicate that here.
+echo
+echo "=== 7. Real OCR scan on bundled german-receipt.png (tesseract only) ==="
+if [[ "${OCR_ENGINE:-mock}" != "tesseract" ]]; then
+  echo "  ⏭  skipped — OCR_ENGINE=${OCR_ENGINE:-mock} (set OCR_ENGINE=tesseract to enable)"
+else
+  REAL_IMG="$(dirname "$0")/fixtures/german-receipt.png"
+  if [[ ! -f "$REAL_IMG" ]]; then
+    fail "real OCR: missing fixture $REAL_IMG"
+  else
+    REAL_STATUS=$(curl -sS -o /tmp/t61_real.json -w "%{http_code}" \
+      -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
+      -X POST "$API/api/v1/ocr/scan?companyId=$COMPANY_ID" \
+      -F "file=@$REAL_IMG;type=image/png")
+    assert_eq "real OCR scan returns 201" "$REAL_STATUS" "201"
+    REAL_SUP=$(jq -r '.supplierName' /tmp/t61_real.json)
+    REAL_INV=$(jq -r '.invoiceNumber' /tmp/t61_real.json)
+    REAL_DATE=$(jq -r '.invoiceDate' /tmp/t61_real.json)
+    REAL_NET=$(jq -r '.netAmount' /tmp/t61_real.json)
+    REAL_GROSS=$(jq -r '.grossAmount' /tmp/t61_real.json)
+    # tesseract may drop the "Musterfirma GmbH" trailing
+    # newline so we use `contains` style assertions —
+    # match the prefix that the OCR engine reliably sees.
+    if [[ "$REAL_SUP" == Musterfirma* ]]; then
+      pass "real OCR: supplier=$REAL_SUP"
+    else
+      fail "real OCR: supplier=$REAL_SUP (expected Musterfirma*)"
+    fi
+    assert_eq "real OCR: invoiceNumber" "$REAL_INV" "RG-2026-0042"
+    assert_eq "real OCR: invoiceDate" "$REAL_DATE" "28.06.2026"
+    assert_eq "real OCR: netAmount" "$REAL_NET" "100"
+    assert_eq "real OCR: grossAmount" "$REAL_GROSS" "119"
+  fi
+fi
 
 # ---- 6. /ocr/scan without file → 400 ----
 echo
@@ -140,7 +194,7 @@ SCAN_NO_FILE_STATUS=$(curl -sS -o /tmp/t61_no_file.json -w "%{http_code}" \
 assert_eq "scan without file returns 400" "$SCAN_NO_FILE_STATUS" "400"
 
 # ---- Cleanup ----
-mavis-trash /tmp/t61_fixture.json /tmp/t61_extract.json /tmp/t61_match1.json /tmp/t61_match2.json /tmp/t61_scan.json /tmp/t61_no_file.json 2>/dev/null
+mavis-trash /tmp/t61_fixture.json /tmp/t61_extract.json /tmp/t61_match1.json /tmp/t61_match2.json /tmp/t61_scan.json /tmp/t61_no_file.json /tmp/t61_real.json 2>/dev/null
 
 if [[ $FAILS -gt 0 ]]; then
   echo

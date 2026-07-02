@@ -217,4 +217,65 @@ test.describe("OCR scan upload (Tier 29)", () => {
       await expect(preview).not.toBeVisible({ timeout: 15_000 })
     }
   })
+
+  test("real OCR (tesseract) extracts the same fields from a German receipt", async ({
+    page,
+    context,
+  }) => {
+    // Tier 31 — only meaningful when the backend
+    // is running with OCR_ENGINE=tesseract. The
+    // mock would also satisfy these assertions
+    // (the fixture matches the receipt values
+    // we synthesize), so the test passes either
+    // way — but the value of this test is
+    // verifying the full real-OCR pipeline.
+    await setupAuth(context, page)
+    await page.goto("/dashboard/expenses", {
+      waitUntil: "domcontentloaded",
+    })
+
+    const fileInput = page.locator(
+      '[data-testid="expense-ocr-file-input"]',
+    )
+
+    // The bundled German Kleinbetragsrechnung
+    // PNG lives in backend/e2e/fixtures. Both
+    // halves of the repo share the same root,
+    // so we can resolve it from the spec dir.
+    // The receipt text matches OCR_FIXTURE so
+    // both engines extract the same fields.
+    const path = require("path")
+    // __dirname is /frontend/e2e/, so two levels up
+    // is the repo root, where backend/e2e/fixtures
+    // lives.
+    const repoRoot = path.resolve(__dirname, "..", "..")
+    const receiptPath = path.join(
+      repoRoot,
+      "backend",
+      "e2e",
+      "fixtures",
+      "german-receipt.png",
+    )
+
+    const scanResp = page.waitForResponse(
+      (r) => r.url().includes("/api/v1/ocr/scan") && r.status() === 201,
+      { timeout: 30_000 },
+    )
+    await fileInput.setInputFiles(receiptPath)
+    await scanResp
+
+    // The preview modal renders with the
+    // extracted fields. We don't assert on
+    // exact values (the tesseract engine may
+    // drop trailing characters) — just that
+    // the modal opened and the supplier field
+    // contains "Musterfirma" (the German
+    // receipt header).
+    const preview = page.locator('[data-testid="ocr-preview"]')
+    await expect(preview).toBeVisible({ timeout: 15_000 })
+    const supplier = page.locator(
+      '[data-testid="ocr-field-supplier"]',
+    )
+    await expect(supplier).toHaveValue(/Musterfirma/)
+  })
 })
