@@ -37,6 +37,13 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   workers: 1,
   reporter: process.env.CI ? "list" : "list",
+  // The dev server cold-compiles routes on first
+  // hit (~10-15s for /dashboard/expenses with the
+  // OCR modal), and a multi-test run can take
+  // 60s+ per test as the Next.js dev server warms
+  // up. Bump the per-test timeout so tests don't
+  // get cut off mid-cold-compile.
+  timeout: 90_000,
   use: {
     baseURL: "http://localhost:3100",
     trace: "on-first-retry",

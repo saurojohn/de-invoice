@@ -18,6 +18,12 @@ import { ReportsModule } from './modules/reports/reports.module';
 // the Postgres tsvector STORED columns defined in
 // migration 20260701000001_search_tsv.
 import { SearchModule } from './modules/search/search.module';
+// Tier 29: OCR pipeline for Eingangsrechnung scan
+// ingestion. Owns /api/v1/ocr/scan (multipart upload)
+// and /api/v1/ocr/fixture (test endpoint). v1 returns
+// a deterministic mock; v2 will swap in tesseract.js
+// or a cloud OCR provider.
+import { OcrModule } from './modules/ocr/ocr.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { ExchangeRateModule } from './modules/exchange-rate/exchange-rate.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
@@ -77,6 +83,7 @@ import { WebhookModule } from './modules/webhook/webhook.module';
     AccountingModule,
     ReportsModule,
     SearchModule,
+    OcrModule,
     StorageModule,
     InventoryModule,
     ReminderModule,

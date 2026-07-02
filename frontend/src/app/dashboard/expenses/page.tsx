@@ -70,6 +70,51 @@ export default function ExpensesPage() {
   // Detail modal — which expense's receipts we're
   // looking at, if any. Null = modal closed.
   const [detailExpense, setDetailExpense] = useState<Expense | null>(null)
+  // Tier 29: OCR prefill modal. State shape:
+  //   null              → modal closed
+  //   { step: 'loading' → upload in flight
+  //     data?: {...}   → OCR returned, user edits
+  //     error?: string  → upload or OCR failed
+  //   { step: 'preview', data: {...} } → user reviewing
+  //   { step: 'saving', data: {...} }  → POSTing /expenses
+  //   { step: 'done', expenseId: string } → reload list, close
+  // We collapse to a discriminated union so the
+  // disabled state for the confirm button is obvious.
+  const [ocr, setOcr] = useState<
+    | null
+    | { step: "loading" }
+    | {
+        step: "preview"
+        data: {
+          supplierName: string | null
+          supplierVatId: string | null
+          supplierIban: string | null
+          supplierBic: string | null
+          invoiceNumber: string | null
+          invoiceDate: string | null
+          netAmount: number | null
+          vatRate: number | null
+          vatAmount: number | null
+          grossAmount: number | null
+          rawText: string
+        }
+        // Editable copies (the user can correct OCR noise)
+        editable: {
+          supplierName: string
+          invoiceNumber: string
+          invoiceDate: string
+          netAmount: string
+          vatRate: string
+          vatAmount: string
+          grossAmount: string
+          description: string
+        }
+        matchedSupplierId: string | null
+        matchedBy: string | null
+      }
+    | { step: "saving" }
+    | { step: "error"; message: string }
+  >(null)
 
   // 200ms debounce on the search input
   useEffect(() => {
@@ -234,6 +279,149 @@ export default function ExpensesPage() {
             >
               {t("common.back")}
             </button>
+            {/* Tier 29: upload a scan (image / PDF).
+                The hidden <input> captures the file
+                and fires the change handler that
+                POSTs to /api/v1/ocr/scan. The label
+                wraps the visible button so a click
+                anywhere on the button opens the
+                system file picker. */}
+            <button
+              onClick={() => {
+                const inp = document.getElementById(
+                  "expense-ocr-input",
+                ) as HTMLInputElement | null
+                inp?.click()
+              }}
+              className="px-3 py-1 text-sm border rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+              data-testid="expense-ocr-upload-button"
+            >
+              📷 {t("expenses.scanUpload") || "Scan hochladen"}
+            </button>
+            <input
+              id="expense-ocr-input"
+              type="file"
+              accept="image/*,application/pdf"
+              className="hidden"
+              data-testid="expense-ocr-file-input"
+              onChange={async (e) => {
+                const inp = e.currentTarget
+                const file = inp.files?.[0]
+                if (!file) return
+                const companyId =
+                  localStorage.getItem("companyId") || ""
+                if (!companyId) return
+                setOcr({ step: "loading" })
+                try {
+                  const fd = new FormData()
+                  fd.append("file", file)
+                  const url = `${process.env.NEXT_PUBLIC_API_URL || ""}/api/v1/ocr/scan?companyId=${companyId}`
+                  const res = await fetch(url,
+                    {
+                      method: "POST",
+                      headers: {
+                        "x-user-id":
+                          localStorage.getItem("userId") || "",
+                        "x-company-id": companyId,
+                      },
+                      body: fd,
+                    },
+                  )
+                  if (!res.ok) {
+                    const txt = await res.text()
+                    throw new Error(
+                      `${res.status} ${res.statusText} — ${txt}`,
+                    )
+                  }
+                  const data = await res.json()
+                  // Call match-supplier to find or
+                  // create the Supplier. The OCR
+                  // backend owns the matching
+                  // logic (VAT-ID first, then name)
+                  // — see ocr.controller.ts.
+                  const ms = await fetch(
+                    `${process.env.NEXT_PUBLIC_API_URL || ""}/api/v1/ocr/match-supplier?companyId=${companyId}`,
+                    {
+                      method: "POST",
+                      headers: {
+                        "Content-Type": "application/json",
+                        "x-user-id":
+                          localStorage.getItem("userId") || "",
+                        "x-company-id": companyId,
+                      },
+                      body: JSON.stringify({
+                        vatId: data.supplierVatId || "",
+                        name: data.supplierName || "",
+                      }),
+                    },
+                  )
+                  const msBody = ms.ok
+                    ? await ms.json()
+                    : { supplierId: null, matchedBy: null }
+                  setOcr({
+                    step: "preview",
+                    data,
+                    editable: {
+                      supplierName:
+                        data.supplierName || "",
+                      invoiceNumber:
+                        data.invoiceNumber || "",
+                      invoiceDate:
+                        // The OCR returns dates in
+                        // German dd.mm.yyyy format,
+                        // but <input type="date">
+                        // requires ISO yyyy-MM-dd.
+                        // Convert here so the input
+                        // accepts the value AND the
+                        // POST sends a valid date.
+                        (data.invoiceDate &&
+                        /^\d{2}\.\d{2}\.\d{4}$/.test(
+                          data.invoiceDate,
+                        )
+                          ? data.invoiceDate
+                              .split(".")
+                              .reverse()
+                              .join("-")
+                          : "") ||
+                        new Date()
+                          .toISOString()
+                          .slice(0, 10),
+                      netAmount:
+                        data.netAmount != null
+                          ? String(data.netAmount)
+                          : "",
+                      vatRate:
+                        data.vatRate != null
+                          ? String(data.vatRate * 100)
+                          : "19",
+                      vatAmount:
+                        data.vatAmount != null
+                          ? String(data.vatAmount)
+                          : "",
+                      grossAmount:
+                        data.grossAmount != null
+                          ? String(data.grossAmount)
+                          : "",
+                      description:
+                        data.supplierName
+                          ? `${data.supplierName} — Rechnung ${data.invoiceNumber || ""}`
+                          : "OCR import",
+                    },
+                    matchedSupplierId: msBody.supplierId,
+                    matchedBy: msBody.matchedBy,
+                  })
+                } catch (err: any) {
+                  setOcr({
+                    step: "error",
+                    message: err?.message || "Unbekannter Fehler",
+                  })
+                } finally {
+                  // Clear the file input so the
+                  // same file can be re-picked.
+                  inp.value = ""
+                }
+              }}
+            />
             <button
               onClick={() => router.push("/dashboard/import?entity=expense")}
               className="px-3 py-1 text-sm border rounded hover:bg-gray-100 dark:hover:bg-gray-700"
@@ -512,6 +700,313 @@ export default function ExpensesPage() {
               </div>
             </CardContent>
           </Card>
+        </div>
+      )}
+
+      {/* Tier 29: OCR prefill modal. Shows
+          when ocr state is non-null. Three
+          states:
+          - loading: small spinner overlay
+          - preview: editable form fields +
+            confirm/cancel buttons
+          - error:   message + retry
+          The confirm button POSTs the standard
+          /api/v1/expenses endpoint with the
+          (possibly edited) fields — the OCR
+          pipeline is upstream of the create
+          flow. */}
+      {ocr && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          data-testid="ocr-modal"
+        >
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              {ocr.step === "loading" && (
+                <div
+                  className="flex flex-col items-center gap-3 py-12"
+                  data-testid="ocr-loading"
+                >
+                  <div className="animate-spin h-8 w-8 border-2 border-blue-500 border-t-transparent rounded-full" />
+                  <p className="text-sm text-gray-600 dark:text-gray-300">
+                    {t("expenses.ocrAnalyzing") ||
+                      "Scan wird analysiert…"}
+                  </p>
+                </div>
+              )}
+              {ocr.step === "error" && (
+                <div data-testid="ocr-error">
+                  <h3 className="text-lg font-semibold mb-2 text-red-700">
+                    {t("expenses.ocrError") || "Fehler bei der Erkennung"}
+                  </h3>
+                  <p className="text-sm text-gray-700 dark:text-gray-300 mb-4">
+                    {ocr.message}
+                  </p>
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => setOcr(null)}
+                    >
+                      {t("common.close")}
+                    </Button>
+                  </div>
+                </div>
+              )}
+              {ocr.step === "preview" && (
+                <div data-testid="ocr-preview">
+                  <h3 className="text-lg font-semibold mb-1">
+                    {t("expenses.ocrPreview") ||
+                      "Erkannte Daten prüfen"}
+                  </h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+                    {ocr.matchedBy === "vatId" &&
+                      (t("expenses.ocrMatchedByVatId") ||
+                        "✓ Lieferant per USt-ID erkannt")}
+                    {ocr.matchedBy === "name" &&
+                      (t("expenses.ocrMatchedByName") ||
+                        "✓ Lieferant per Name erkannt")}
+                    {ocr.matchedBy === "created" &&
+                      (t("expenses.ocrCreatedNew") ||
+                        "+ Neuer Lieferant angelegt")}
+                    {ocr.matchedBy === null &&
+                      (t("expenses.ocrNoSupplierMatch") ||
+                        "⚠ Kein Lieferant zugeordnet")}
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+                    <div>
+                      <label className="block text-xs font-medium mb-1">
+                        {t("expenses.ocrSupplier") || "Lieferant"}
+                      </label>
+                      <input
+                        type="text"
+                        className="w-full border rounded px-2 py-1 text-sm"
+                        value={ocr.editable.supplierName}
+                        onChange={(e) =>
+                          setOcr({
+                            ...ocr,
+                            editable: {
+                              ...ocr.editable,
+                              supplierName: e.target.value,
+                            },
+                          })
+                        }
+                        data-testid="ocr-field-supplier"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1">
+                        {t("expenses.ocrInvoiceNumber") || "Rechnungsnummer"}
+                      </label>
+                      <input
+                        type="text"
+                        className="w-full border rounded px-2 py-1 text-sm"
+                        value={ocr.editable.invoiceNumber}
+                        onChange={(e) =>
+                          setOcr({
+                            ...ocr,
+                            editable: {
+                              ...ocr.editable,
+                              invoiceNumber: e.target.value,
+                            },
+                          })
+                        }
+                        data-testid="ocr-field-invoice-number"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1">
+                        {t("expenses.ocrInvoiceDate") || "Rechnungsdatum"}
+                      </label>
+                      <input
+                        type="date"
+                        className="w-full border rounded px-2 py-1 text-sm"
+                        value={ocr.editable.invoiceDate}
+                        onChange={(e) =>
+                          setOcr({
+                            ...ocr,
+                            editable: {
+                              ...ocr.editable,
+                              invoiceDate: e.target.value,
+                            },
+                          })
+                        }
+                        data-testid="ocr-field-date"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1">
+                        {t("expenses.ocrGross") || "Brutto (€)"}
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        className="w-full border rounded px-2 py-1 text-sm"
+                        value={ocr.editable.grossAmount}
+                        onChange={(e) =>
+                          setOcr({
+                            ...ocr,
+                            editable: {
+                              ...ocr.editable,
+                              grossAmount: e.target.value,
+                            },
+                          })
+                        }
+                        data-testid="ocr-field-gross"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1">
+                        {t("expenses.ocrNet") || "Netto (€)"}
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        className="w-full border rounded px-2 py-1 text-sm"
+                        value={ocr.editable.netAmount}
+                        onChange={(e) =>
+                          setOcr({
+                            ...ocr,
+                            editable: {
+                              ...ocr.editable,
+                              netAmount: e.target.value,
+                            },
+                          })
+                        }
+                        data-testid="ocr-field-net"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1">
+                        {t("expenses.ocrVat") || "USt %"}
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        className="w-full border rounded px-2 py-1 text-sm"
+                        value={ocr.editable.vatRate}
+                        onChange={(e) =>
+                          setOcr({
+                            ...ocr,
+                            editable: {
+                              ...ocr.editable,
+                              vatRate: e.target.value,
+                            },
+                          })
+                        }
+                        data-testid="ocr-field-vat-rate"
+                      />
+                    </div>
+                  </div>
+                  <details className="mb-4">
+                    <summary className="text-xs text-gray-500 dark:text-gray-400 cursor-pointer">
+                      {t("expenses.ocrShowRawText") ||
+                        "OCR Rohtext anzeigen"}
+                    </summary>
+                    <pre
+                      className="mt-2 text-xs bg-gray-50 dark:bg-gray-900 p-2 rounded overflow-x-auto whitespace-pre-wrap"
+                      data-testid="ocr-raw-text"
+                    >
+                      {ocr.data.rawText}
+                    </pre>
+                  </details>
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => setOcr(null)}
+                    >
+                      {t("common.cancel")}
+                    </Button>
+                    <Button
+                      onClick={async () => {
+                        const companyId =
+                          localStorage.getItem("companyId") || ""
+                        if (!companyId) return
+                        setOcr({ step: "saving" })
+                        try {
+                          const res = await fetch(
+                            `${process.env.NEXT_PUBLIC_API_URL || ""}/api/v1/expenses?companyId=${companyId}`,
+                            {
+                              method: "POST",
+                              headers: {
+                                "Content-Type": "application/json",
+                                "x-user-id":
+                                  localStorage.getItem("userId") || "",
+                                "x-company-id": companyId,
+                              },
+                              body: JSON.stringify({
+                                description:
+                                  ocr.editable.description ||
+                                  // Auto-fill from OCR fields
+                                  // when the user didn't enter a
+                                  // description manually. The
+                                  // backend rejects empty
+                                  // description (Beschreibung ist
+                                  // erforderlich).
+                                  [
+                                    ocr.editable.supplierName,
+                                    ocr.editable.invoiceNumber,
+                                  ]
+                                    .filter(Boolean)
+                                    .join(" — ") ||
+                                  "OCR-Scan",
+                                invoiceDate:
+                                  ocr.editable.invoiceDate,
+                                invoiceNumber:
+                                  ocr.editable.invoiceNumber || null,
+                                supplierId:
+                                  ocr.matchedSupplierId || null,
+                                netAmount: parseFloat(
+                                  ocr.editable.netAmount,
+                                ),
+                                vatRate:
+                                  parseFloat(ocr.editable.vatRate) / 100,
+                                vatAmount: parseFloat(
+                                  ocr.editable.vatAmount,
+                                ),
+                                grossAmount: parseFloat(
+                                  ocr.editable.grossAmount,
+                                ),
+                              }),
+                            },
+                          )
+                          if (!res.ok) {
+                            const t = await res.text()
+                            throw new Error(
+                              `${res.status} ${res.statusText} — ${t}`,
+                            )
+                          }
+                          setOcr(null)
+                          // Refresh the list to show
+                          // the new row.
+                          await load()
+                        } catch (err: any) {
+                          setOcr({
+                            step: "error",
+                            message: err?.message || "Unbekannter Fehler",
+                          })
+                        }
+                      }}
+                      data-testid="ocr-confirm-button"
+                    >
+                      {t("expenses.ocrConfirm") || "Expense anlegen"}
+                    </Button>
+                  </div>
+                </div>
+              )}
+              {ocr.step === "saving" && (
+                <div
+                  className="flex flex-col items-center gap-3 py-12"
+                  data-testid="ocr-saving"
+                >
+                  <div className="animate-spin h-8 w-8 border-2 border-blue-500 border-t-transparent rounded-full" />
+                  <p className="text-sm text-gray-600 dark:text-gray-300">
+                    {t("expenses.ocrSaving") ||
+                      "Expense wird gespeichert…"}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </main>

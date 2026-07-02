@@ -150,9 +150,16 @@ test.describe("Customer search highlight (Tier 28)", () => {
 
 // Type then clear.
     await searchInput.fill("GmbH")
+    // Wait for the snippet fetch to land first —
+    // under load the dev-mode page re-render can
+    // take a few seconds after the debounce fires.
+    await page.waitForResponse(
+      (r) => r.url().includes("/api/v1/search/customers") && r.status() === 200,
+      { timeout: 15_000 },
+    )
     await expect(
       page.locator('[data-testid="customer-search-snippet"]').first(),
-    ).toBeVisible({ timeout: 5_000 })
+    ).toBeVisible({ timeout: 15_000 })
     await searchInput.fill("")
     // The snippet elements should disappear
     // after the search input clears (the page
