@@ -272,7 +272,7 @@ export default function RecurringInvoicesPage() {
             <Button variant="outline" onClick={() => router.push("/dashboard")}>
               {t("common.back") || "Zurück"}
             </Button>
-            <Button onClick={openCreate}>
+            <Button onClick={openCreate} data-testid="recurring-new-button">
               {t("recurring.new") || "Neue Vorlage"}
             </Button>
           </div>
@@ -339,16 +339,16 @@ export default function RecurringInvoicesPage() {
                       <Button size="sm" variant="outline" onClick={() => expandTpl(tpl)}>
                         {expanded === tpl.id ? "▾" : "▸"}
                       </Button>
-                      <Button size="sm" onClick={() => runNow(tpl)} disabled={!tpl.isActive}>
+                      <Button size="sm" onClick={() => runNow(tpl)} disabled={!tpl.isActive} data-testid="recurring-run-now">
                         {t("recurring.runNow") || "Generieren"}
                       </Button>
-                      <Button size="sm" variant="outline" onClick={() => toggleActive(tpl)}>
+                      <Button size="sm" variant="outline" onClick={() => toggleActive(tpl)} data-testid="recurring-toggle-active">
                         {tpl.isActive ? (t("common.pause") || "Pause") : (t("common.resume") || "Fortsetzen")}
                       </Button>
-                      <Button size="sm" variant="outline" onClick={() => openEdit(tpl)}>
+                      <Button size="sm" variant="outline" onClick={() => openEdit(tpl)} data-testid="recurring-edit">
                         {t("common.edit") || "Bearbeiten"}
                       </Button>
-                      <Button size="sm" variant="ghost" onClick={() => deleteTpl(tpl)}>
+                      <Button size="sm" variant="ghost" onClick={() => deleteTpl(tpl)} data-testid="recurring-delete">
                         🗑
                       </Button>
                     </div>
@@ -475,6 +475,7 @@ export default function RecurringInvoicesPage() {
                       onChange={(e) => setName(e.target.value)}
                       placeholder="z.B. Wartungsvertrag 2026"
                       className="w-full border rounded px-3 py-2 text-sm"
+                      data-testid="recurring-form-name"
                     />
                   </div>
                   <div>
@@ -485,6 +486,7 @@ export default function RecurringInvoicesPage() {
                       value={customerId}
                       onChange={(e) => setCustomerId(e.target.value)}
                       className="w-full border rounded px-3 py-2 text-sm"
+                      data-testid="recurring-form-customer"
                     >
                       <option value="">—</option>
                       {customers.map((c) => (
@@ -505,6 +507,7 @@ export default function RecurringInvoicesPage() {
                       value={interval}
                       onChange={(e) => setInterval(e.target.value as Interval)}
                       className="w-full border rounded px-3 py-2 text-sm"
+                      data-testid="recurring-form-interval"
                     >
                       <option value="monthly">{t("recurring.interval_monthly") || "Monatlich"}</option>
                       <option value="quarterly">{t("recurring.interval_quarterly") || "Quartalsweise"}</option>
@@ -523,6 +526,7 @@ export default function RecurringInvoicesPage() {
                       value={intervalCount}
                       onChange={(e) => setIntervalCount(parseInt(e.target.value, 10) || 1)}
                       className="w-full border rounded px-3 py-2 text-sm"
+                      data-testid="recurring-form-interval-count"
                     />
                   </div>
                   {(interval === "monthly" || interval === "quarterly") && (
@@ -530,14 +534,15 @@ export default function RecurringInvoicesPage() {
                       <label className="block text-sm font-medium mb-1">
                         {t("recurring.dayOfMonth") || "Tag (1-28)"}
                       </label>
-                      <input
-                        type="number"
-                        min="1"
-                        max="28"
-                        value={dayOfMonth}
-                        onChange={(e) => setDayOfMonth(parseInt(e.target.value, 10) || 1)}
-                        className="w-full border rounded px-3 py-2 text-sm"
-                      />
+<input
+                      type="number"
+                      min="1"
+                      max="28"
+                      value={dayOfMonth}
+                      onChange={(e) => setDayOfMonth(parseInt(e.target.value, 10) || 1)}
+                      className="w-full border rounded px-3 py-2 text-sm"
+                      data-testid="recurring-form-day-of-month"
+                    />
                     </div>
                   )}
                   <div>
@@ -565,6 +570,7 @@ export default function RecurringInvoicesPage() {
                       value={startDate}
                       onChange={(e) => setStartDate(e.target.value)}
                       className="w-full border rounded px-3 py-2 text-sm"
+                      data-testid="recurring-form-start-date"
                     />
                   </div>
                   <div>
@@ -576,6 +582,7 @@ export default function RecurringInvoicesPage() {
                       value={endDate}
                       onChange={(e) => setEndDate(e.target.value)}
                       className="w-full border rounded px-3 py-2 text-sm"
+                      data-testid="recurring-form-end-date"
                     />
                   </div>
                 </div>
@@ -585,7 +592,7 @@ export default function RecurringInvoicesPage() {
                     <label className="block text-sm font-medium">
                       {t("recurring.items") || "Positionen"} *
                     </label>
-                    <Button size="sm" variant="outline" onClick={addItem}>
+                    <Button size="sm" variant="outline" onClick={addItem} data-testid="recurring-form-add-item">
                       + {t("recurring.addItem") || "Position"}
                     </Button>
                   </div>
@@ -598,6 +605,7 @@ export default function RecurringInvoicesPage() {
                           onChange={(e) => updateItem(i, { description: e.target.value })}
                           placeholder="Beschreibung"
                           className="col-span-5 border rounded px-2 py-1 text-sm"
+                          data-testid="recurring-item-description"
                         />
                         <input
                           type="number"
@@ -621,6 +629,7 @@ export default function RecurringInvoicesPage() {
                           onChange={(e) => updateItem(i, { unitPrice: parseFloat(e.target.value) || 0 })}
                           placeholder="Preis"
                           className="col-span-2 border rounded px-2 py-1 text-sm"
+                          data-testid="recurring-item-unit-price"
                         />
                         <select
                           value={it.vatRate}
@@ -646,7 +655,7 @@ export default function RecurringInvoicesPage() {
                 </div>
 
                 <div className="flex gap-2 pt-4 border-t">
-                  <Button onClick={save} disabled={saving}>
+                  <Button onClick={save} disabled={saving} data-testid="recurring-form-save">
                     {saving ? (t("common.saving") || "Speichert...") : (t("common.save") || "Speichern")}
                   </Button>
                   <Button variant="outline" onClick={closeModal}>
