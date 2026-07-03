@@ -1623,6 +1623,13 @@
     "bulkFailedList": "错误详情",
     "bulkSucceededNote": "封邮件已发送。",
     "bulkRetry": "重试失败 ({count})",
-    "bulkClear": "清空选择"
+    "bulkClear": "清空选择",
+    "portalLinkButton": "显示付款链接",
+    "portalLinkGenerating": "生成链接中…",
+    "portalLinkActive": "有效付款链接:",
+    "portalLinkNew": "付款链接已创建:",
+    "portalLinkValidUntil": "有效期至",
+    "portalLinkCopied": "✓ 已复制",
+    "portalLinkCopy": "复制"
   }
 }

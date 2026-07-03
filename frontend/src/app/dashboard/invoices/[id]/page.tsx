@@ -76,6 +76,20 @@ export default function InvoiceDetailPage() {
   const [sendResult, setSendResult] = useState<{ ok: boolean; message: string } | null>(null)
   const [statusChanging, setStatusChanging] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  // Tier 33: customer self-service portal link.
+  // The admin clicks "Zahlungslink erstellen" → the
+  // backend mints a PaymentLink row with a 32-byte hex
+  // token + +30d expiry. We display the URL so the
+  // admin can copy + paste it into the email body or
+  // send it via the existing send-email modal.
+  const [portalLink, setPortalLink] = useState<{
+    url: string
+    expiresAt: string
+    reused: boolean
+  } | null>(null)
+  const [portalLinkGenerating, setPortalLinkGenerating] = useState(false)
+  const [portalLinkError, setPortalLinkError] = useState<string | null>(null)
+  const [portalLinkCopied, setPortalLinkCopied] = useState(false)
   const [showPayForm, setShowPayForm] = useState(false)
   const [payForm, setPayForm] = useState({
     amount: '',
@@ -314,6 +328,82 @@ export default function InvoiceDetailPage() {
         "此致\n敬礼\n\n" +
         "{companyName}",
     },
+  }
+
+  // Tier 33: portal link generation. POST the invoice
+  // id + the page origin (window.location.origin) so
+  // the returned URL has the right base for "copy link"
+  // UX. The backend is idempotent — calling this twice
+  // returns the same link.
+  const generatePortalLink = async () => {
+    if (!invoice) return
+    const companyId =
+      localStorage.getItem("companyId") || ""
+    if (!companyId) return
+    setPortalLinkGenerating(true)
+    setPortalLinkError(null)
+    setPortalLinkCopied(false)
+    try {
+      const { apiFetch, ApiError } = await import("@/lib/api")
+      const res = await apiFetch(
+        `/api/v1/invoices/${invoice.id}/generate-payment-link?companyId=${companyId}`,
+        {
+          method: "POST",
+          body: { origin: window.location.origin },
+        },
+      )
+      // apiFetch returns the Response — we read the
+      // body manually. Throwing on non-2xx lets the
+      // catch block surface ApiError.
+      if (!res.ok) {
+        const txt = await res.text().catch(() => "")
+        throw new Error(`${res.status} ${res.statusText} ${txt}`)
+      }
+      const data = (await res.json()) as {
+        url: string
+        expiresAt: string
+        reused?: boolean
+      }
+      setPortalLink({
+        url: data.url,
+        expiresAt: data.expiresAt,
+        reused: data.reused ?? false,
+      })
+    } catch (err) {
+      const msg =
+        err instanceof ApiError ? err.message : "Unbekannter Fehler"
+      setPortalLinkError(msg)
+    } finally {
+      setPortalLinkGenerating(false)
+    }
+  }
+
+  const copyPortalLink = async () => {
+    if (!portalLink) return
+    try {
+      await navigator.clipboard.writeText(portalLink.url)
+      setPortalLinkCopied(true)
+      setTimeout(() => setPortalLinkCopied(false), 2000)
+    } catch {
+      // Clipboard API can be blocked on http:// origins
+      // (Firefox + some Safari configs). Fall back to a
+      // hidden select+copy via temporary textarea.
+      try {
+        const ta = document.createElement("textarea")
+        ta.value = portalLink.url
+        ta.style.position = "fixed"
+        ta.style.opacity = "0"
+        document.body.appendChild(ta)
+        ta.select()
+        document.execCommand("copy")
+        document.body.removeChild(ta)
+        setPortalLinkCopied(true)
+        setTimeout(() => setPortalLinkCopied(false), 2000)
+      } catch {
+        // give up — the user can still manually select
+        // the URL from the readonly input we show.
+      }
+    }
   }
 
   const openEmailModal = () => {
@@ -577,9 +667,24 @@ export default function InvoiceDetailPage() {
               <option value="cancelled">{getStatusLabel("cancelled")}</option>
             </select>
           </div>
-          <div className="flex gap-2 items-center">
+          <div className="flex gap-2 items-center flex-wrap">
             <Button variant="outline" onClick={openEmailModal} disabled={sending}>
               {sending ? "Wird gesendet..." : "Per E-Mail senden"}
+            </Button>
+            {/* Tier 33: payment link for the customer portal.
+                First click mints the link via the backend.
+                Subsequent clicks show the same URL (the
+                backend returns reused=true — same idem-
+                potent behaviour). */}
+            <Button
+              variant="outline"
+              onClick={generatePortalLink}
+              disabled={portalLinkGenerating}
+              data-testid="invoice-portal-link-button"
+            >
+              {portalLinkGenerating
+                ? "Erstelle Link..."
+                : "Zahlungslink anzeigen"}
             </Button>
             {sendResult && (
               <span
@@ -929,6 +1034,60 @@ export default function InvoiceDetailPage() {
              <CardContent><p className="text-gray-600 dark:text-gray-300 whitespace-pre-wrap">{invoice.notes}</p></CardContent>
            </Card>
          )}
+
+      {/* Tier 33: portal-link disclosure block. Renders
+          below the main button row when the admin has
+          clicked "Zahlungslink anzeigen" at least once.
+          The URL is a readonly input + copy button;
+          we don't show a modal — disclosure is enough
+          for this single-field action. */}
+      {(portalLink || portalLinkError) && (
+        <div
+          className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-3 mb-4"
+          data-testid="invoice-portal-link-panel"
+        >
+          {portalLink && (
+            <div className="space-y-2">
+              <div className="text-sm">
+                <span className="font-semibold">
+                  {portalLink.reused
+                    ? "Aktiver Zahlungslink:"
+                    : "Zahlungslink erstellt:"}
+                </span>{" "}
+                <span className="text-gray-500">
+                  gültig bis{" "}
+                  {new Date(portalLink.expiresAt).toLocaleDateString("de-DE")}
+                </span>
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  readOnly
+                  value={portalLink.url}
+                  data-testid="invoice-portal-link-url"
+                  className="flex-1 border rounded px-2 py-1 text-xs font-mono bg-gray-50 dark:bg-gray-900"
+                  onClick={(e) => (e.target as HTMLInputElement).select()}
+                />
+                <Button
+                  size="sm"
+                  onClick={copyPortalLink}
+                  data-testid="invoice-portal-link-copy"
+                >
+                  {portalLinkCopied ? "✓ Kopiert" : "Kopieren"}
+                </Button>
+              </div>
+            </div>
+          )}
+          {portalLinkError && (
+            <div
+              className="text-sm text-red-600"
+              data-testid="invoice-portal-link-error"
+            >
+              ✗ {portalLinkError}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Email send modal — opens on click of "Per E-Mail senden".
           The user can change locale (de/en/zh), override the

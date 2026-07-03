@@ -467,7 +467,8 @@ model Invoice {
   items          InvoiceItem[]
   payments       Payment[]
   emailSends    EmailSend[]
-  reconciliations BankReconciliation[]
+  paymentLinks   PaymentLink[]
+  reconciliations BankReconciliation[] 
   voucherRef     Voucher?  @relation(fields: [voucherRefId], references: [id])
   voucherRefId   String?   @unique
   referenceInvoiceId String?
@@ -534,6 +535,51 @@ model Payment {
 
   @@index([invoiceId])
   @@index([paymentDate])
+}
+
+/// Customer self-service payment link (Kundenportal).
+///
+/// Generated per-invoice on demand. Holds an opaque
+/// token (32-byte hex) that the customer presents on
+/// the public /portal/:token page — no login required.
+/// The link expires (default +30d) and is single-use
+/// for mark-paid.
+///
+/// Why a separate table:
+///   - Multiple links per invoice (reissue after revoke)
+///   - Per-link expiry + per-link usage tracking
+///   - CASCADE so deleted invoices clean up their links
+///
+/// See migration 20260703000001_payment_link for the
+/// exact DDL.
+model PaymentLink {
+  id          String    @id @default(uuid())
+  invoiceId   String
+  invoice     Invoice   @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  // Opaque token, 32 bytes (16 random bytes hex-encoded
+  // = 32 chars). Looked up by GET /portal/:token. The
+  // UNIQUE constraint implies a btree index — the
+  // portal route hits Postgres with a single equality.
+  token       String    @unique
+  // expiresAt default +30d set in the service layer.
+  // The portal controller returns 404 once expired
+  // (so the customer sees "Link abgelaufen" rather
+  // than a stale "sie sind bezahlt").
+  expiresAt   DateTime
+  // Set by POST /portal/:token/mark-paid. After this
+  // timestamp, the link is consumed — subsequent hits
+  // see the existing Payment instead of letting them
+  // re-mark. The audit trail stays (we never delete
+  // PaymentLink rows).
+  usedAt      DateTime?
+  // Admin explicit revoke. Distinct from expiresAt —
+  // a revoked link is gone NOW, an expired link is
+  // dead past expiresAt. Both return 404 to keep the
+  // customer-facing error UX consistent.
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([invoiceId])
 }
 
 model Account {

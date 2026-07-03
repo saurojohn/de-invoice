@@ -1623,6 +1623,13 @@
     "bulkFailedList": "Fehlerdetails",
     "bulkSucceededNote": "E-Mails gesendet.",
     "bulkRetry": "Fehlende wiederholen ({count})",
-    "bulkClear": "Auswahl löschen"
+    "bulkClear": "Auswahl löschen",
+    "portalLinkButton": "Zahlungslink anzeigen",
+    "portalLinkGenerating": "Erstelle Link…",
+    "portalLinkActive": "Aktiver Zahlungslink:",
+    "portalLinkNew": "Zahlungslink erstellt:",
+    "portalLinkValidUntil": "gültig bis",
+    "portalLinkCopied": "✓ Kopiert",
+    "portalLinkCopy": "Kopieren"
   }
 }

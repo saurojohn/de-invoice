@@ -1623,6 +1623,13 @@
     "bulkFailedList": "Error details",
     "bulkSucceededNote": "emails sent.",
     "bulkRetry": "Retry failed ({count})",
-    "bulkClear": "Clear selection"
+    "bulkClear": "Clear selection",
+    "portalLinkButton": "Show payment link",
+    "portalLinkGenerating": "Generating link…",
+    "portalLinkActive": "Active payment link:",
+    "portalLinkNew": "Payment link created:",
+    "portalLinkValidUntil": "valid until",
+    "portalLinkCopied": "✓ Copied",
+    "portalLinkCopy": "Copy"
   }
 }
