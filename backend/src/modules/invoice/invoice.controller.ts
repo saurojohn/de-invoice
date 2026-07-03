@@ -751,6 +751,196 @@ export class InvoiceController {
     };
   }
 
+  /**
+   * Tier 32 — bulk email send.
+   *
+   * The user picks N invoices from the list and clicks
+   * "Alle ausgewählten senden". We call sendInvoiceEmail
+   * for each one, with a small concurrency limit so the
+   * SMTP transporter doesn't choke on 100 parallel
+   * connections.
+   *
+   * Body shape mirrors sendInvoiceEmail + the bulk shape:
+   *   {
+   *     invoiceIds: string[],   // required, max 100
+   *     language?: 'de'|'en'|'zh',
+   *     overrideSubject?: string,
+   *     overrideBody?: string,
+   *     ccEmail?: string,
+   *     extraCc?: string[],
+   *     createdById?: string,
+   *     dryRun?: boolean,       // validate but don't actually send
+   *     concurrency?: number,   // default 5, max 10
+   *   }
+   *
+   * Returns:
+   *   {
+   *     total: number,
+   *     succeeded: number,
+   *     failed: number,
+   *     dryRun: boolean,
+   *     results: Array<{
+   *       invoiceId: string,
+   *       invoiceNumber?: string,
+   *       ok: boolean,
+   *       recipient?: string,
+   *       error?: string,
+   *     }>,
+   *   }
+   *
+   * Each failure is captured in `results` — the call as
+   * a whole returns 200 even when some sends fail. This
+   * matches the convention from bulk-download: partial
+   * success is normal, the caller walks `results` to
+   * see which rows need a retry.
+   */
+  @Post('bulk-send-email')
+  @Require('invoice.send')
+  async bulkSendEmails(
+    @Query('companyId') companyId: string,
+    @Body() body: {
+      invoiceIds?: string[];
+      language?: 'de' | 'en' | 'zh';
+      overrideSubject?: string;
+      overrideBody?: string;
+      ccEmail?: string;
+      extraCc?: string[];
+      createdById?: string;
+      dryRun?: boolean;
+      concurrency?: number;
+    },
+  ) {
+    if (!companyId) {
+      throw new BadRequestException('companyId ist erforderlich');
+    }
+    const ids = Array.isArray(body?.invoiceIds) ? body.invoiceIds.filter((x) => typeof x === 'string' && x) : [];
+    if (ids.length === 0) {
+      throw new BadRequestException('invoiceIds ist erforderlich');
+    }
+    if (ids.length > 100) {
+      throw new BadRequestException('Maximal 100 Rechnungen pro Anfrage');
+    }
+
+    // Concurrency cap. The SMTP transporter opens one
+    // connection per send; we don't want 100 sockets
+    // going out at once.
+    const concurrency = Math.min(
+      Math.max(Number(body?.concurrency ?? 5), 1),
+      10,
+    );
+    const dryRun = !!body?.dryRun;
+
+    type Row = {
+      invoiceId: string;
+      invoiceNumber?: string;
+      ok: boolean;
+      recipient?: string;
+      error?: string;
+    };
+    const results: Row[] = [];
+
+    // Simple worker-pool: process N at a time.
+    // Avoids pulling in a p-limit dep just for this.
+    const queue = ids.slice();
+    const workers: Promise<void>[] = [];
+    const buildCommonBody = () => ({
+      ccEmail: body?.ccEmail,
+      extraCc: body?.extraCc,
+      overrideTo: undefined as string | undefined,
+      overrideSubject: body?.overrideSubject,
+      overrideBody: body?.overrideBody,
+      language: body?.language,
+      salutation: undefined as string | undefined,
+      createdById: body?.createdById,
+    });
+
+    for (let w = 0; w < concurrency; w++) {
+      workers.push(
+        (async () => {
+          while (queue.length > 0) {
+            const invoiceId = queue.shift()!;
+            if (dryRun) {
+              // Dry-run: load the invoice, validate the
+              // recipient is present and well-formed, but
+              // don't render the PDF or hit SMTP.
+              try {
+                const invoice = await this.invoiceService.findOne(invoiceId, companyId);
+                const customer = invoice.customer;
+                const defaultRecipient = (customer?.contact as any)?.email;
+                const recipient = (defaultRecipient || '').trim();
+                if (!recipient) {
+                  results.push({
+                    invoiceId,
+                    invoiceNumber: invoice.invoiceNumber,
+                    ok: false,
+                    error: 'Kunde hat keine E-Mail-Adresse hinterlegt',
+                  });
+                } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) {
+                  results.push({
+                    invoiceId,
+                    invoiceNumber: invoice.invoiceNumber,
+                    ok: false,
+                    error: `Ungültige Empfänger-E-Mail: ${recipient}`,
+                  });
+                } else {
+                  results.push({
+                    invoiceId,
+                    invoiceNumber: invoice.invoiceNumber,
+                    ok: true,
+                    recipient,
+                  });
+                }
+              } catch (e: any) {
+                results.push({
+                  invoiceId,
+                  ok: false,
+                  error: e?.message || 'Unbekannter Fehler',
+                });
+              }
+            } else {
+              try {
+                const r = await this.sendInvoiceEmail(
+                  invoiceId,
+                  companyId,
+                  buildCommonBody(),
+                );
+                results.push({
+                  invoiceId,
+                  invoiceNumber: r?.subject?.includes?.('RG-')
+                    ? undefined
+                    : undefined,
+                  ok: true,
+                  recipient: r?.recipient,
+                });
+              } catch (e: any) {
+                results.push({
+                  invoiceId,
+                  ok: false,
+                  error: e?.message || 'Unbekannter Fehler',
+                });
+              }
+            }
+          }
+        })(),
+      );
+    }
+    await Promise.all(workers);
+
+    // Stable order: re-sort by the original invoiceIds
+    // input so the UI can map rows 1:1.
+    const byId = new Map(results.map((r) => [r.invoiceId, r]));
+    const ordered: Row[] = ids.map((id) => byId.get(id) || { invoiceId: id, ok: false, error: 'No result (worker exited early)' });
+    const succeeded = ordered.filter((r) => r.ok).length;
+    const failed = ordered.length - succeeded;
+    return {
+      total: ordered.length,
+      succeeded,
+      failed,
+      dryRun,
+      results: ordered,
+    };
+  }
+
   // ─── Payments ──────────────────────────────────────────────────────
   // List all payments recorded against an invoice.
   @Get(':id/payments')

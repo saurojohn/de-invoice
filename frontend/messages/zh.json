@@ -1611,5 +1611,18 @@
     "backToSettings": "返回设置",
     "statusLabel": "状态",
     "actionsLabel": "操作"
+  },
+  "invoices": {
+    "bulkSend": "📧 发送 {count} 张",
+    "bulkSending": "发送中…",
+    "bulkSendTitle": "批量发送",
+    "bulkSendTooMany": "单次最多 100 张发票",
+    "bulkTotal": "总数",
+    "bulkSucceeded": "成功",
+    "bulkFailed": "失败",
+    "bulkFailedList": "错误详情",
+    "bulkSucceededNote": "封邮件已发送。",
+    "bulkRetry": "重试失败 ({count})",
+    "bulkClear": "清空选择"
   }
 }

@@ -1611,5 +1611,18 @@
     "backToSettings": "Back to settings",
     "statusLabel": "Status",
     "actionsLabel": "Actions"
+  },
+  "invoices": {
+    "bulkSend": "📧 Send {count}",
+    "bulkSending": "Sending…",
+    "bulkSendTitle": "Bulk send",
+    "bulkSendTooMany": "Maximum 100 invoices per request",
+    "bulkTotal": "Total",
+    "bulkSucceeded": "Succeeded",
+    "bulkFailed": "Failed",
+    "bulkFailedList": "Error details",
+    "bulkSucceededNote": "emails sent.",
+    "bulkRetry": "Retry failed ({count})",
+    "bulkClear": "Clear selection"
   }
 }

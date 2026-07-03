@@ -1611,5 +1611,18 @@
     "backToSettings": "Zurück zu Einstellungen",
     "statusLabel": "Status",
     "actionsLabel": "Aktionen"
+  },
+  "invoices": {
+    "bulkSend": "📧 {count} senden",
+    "bulkSending": "Sende…",
+    "bulkSendTitle": "Bulk-Versand",
+    "bulkSendTooMany": "Maximal 100 Rechnungen pro Anfrage",
+    "bulkTotal": "Gesamt",
+    "bulkSucceeded": "Erfolgreich",
+    "bulkFailed": "Fehlgeschlagen",
+    "bulkFailedList": "Fehlerdetails",
+    "bulkSucceededNote": "E-Mails gesendet.",
+    "bulkRetry": "Fehlende wiederholen ({count})",
+    "bulkClear": "Auswahl löschen"
   }
 }

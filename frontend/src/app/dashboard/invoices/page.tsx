@@ -38,6 +38,25 @@ export default function InvoicesPage() {
   // Multi-select for bulk actions (export, send, ...). Map<id, true> for O(1) lookup.
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [bulkDownloading, setBulkDownloading] = useState(false)
+  // Tier 32: bulk email send. The progress modal
+  // shows live success/fail counters + a retry-
+  // failed button. The modal closes when the user
+  // dismisses it; partial-failure results stay
+  // visible until they hit "Schließen".
+  const [bulkSending, setBulkSending] = useState(false)
+  const [bulkSendProgress, setBulkSendProgress] = useState<{
+    total: number
+    succeeded: number
+    failed: number
+    results: Array<{
+      invoiceId: string
+      invoiceNumber?: string
+      ok: boolean
+      recipient?: string
+      error?: string
+    }>
+  } | null>(null)
+  const [bulkSendError, setBulkSendError] = useState<string | null>(null)
   // Visible error when the list fetch fails. Empty string = no error.
   // The user must see this — silent console.error was making it look
   // like the page was empty when in fact the API was throttled / down.
@@ -91,6 +110,35 @@ export default function InvoicesPage() {
       .finally(() => setLoading(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router, typeFilter, statusFilter, page, search, dateFrom, dateTo])
+
+  // Tier 32: refetch helper used by the bulk-send
+  // modal's "Schließen" button to refresh the table
+  // after a partial-success run (the rows that
+  // succeeded got their status bumped to "sent"
+  // server-side, the table needs to reflect that).
+  const loadInvoices = () => {
+    const companyId = localStorage.getItem("companyId")
+    if (!companyId) return
+    const params = new URLSearchParams({
+      companyId,
+      page: String(page),
+      pageSize: String(pageSize),
+    })
+    if (typeFilter) params.append("type", typeFilter)
+    if (statusFilter) params.append("status", statusFilter)
+    if (search.trim()) params.append("search", search.trim())
+    if (dateFrom) params.append("dateFrom", dateFrom)
+    if (dateTo) params.append("dateTo", dateTo)
+    apiGet<any>(`/api/v1/invoices?${params}`)
+      .then((data) => {
+        setInvoices(Array.isArray(data) ? data : data.data || [])
+        setTotal(data.total || 0)
+        setTotalPages(data.totalPages || 1)
+      })
+      .catch(() => {
+        /* ignore — initial useEffect already shows the error */
+      })
+  }
 
   // Debounce search input
   useEffect(() => {
@@ -245,6 +293,78 @@ export default function InvoicesPage() {
     } finally {
       setBulkDownloading(false)
     }
+  }
+
+  /**
+   * Tier 32: bulk email send.
+   *
+   * Backend: POST /api/v1/invoices/bulk-send-email.
+   * Body: {invoiceIds, concurrency?, dryRun?}.
+   * Returns: {total, succeeded, failed, results}.
+   *
+   * UI flow:
+   *   1. Set bulkSending=true → bulk button shows spinner.
+   *   2. POST.
+   *   3. Show progress modal with live success/fail
+   *      counters + per-row recipient/error.
+   *   4. If any failed, "Fehlende wiederholen" button
+   *      re-runs the call with the failed IDs only.
+   *   5. Dismiss clears state.
+   *
+   * No pagination across requests — we send the
+   * current `selected` set in one call. The backend
+   * caps at 100 rows.
+   */
+  const bulkSend = async () => {
+    if (selected.size === 0) return
+    const companyId = localStorage.getItem("companyId")
+    if (!companyId) return
+    if (selected.size > 100) {
+      alert(
+        t("invoices.bulkSendTooMany") ||
+          "Maximal 100 Rechnungen pro Anfrage",
+      )
+      return
+    }
+    setBulkSending(true)
+    setBulkSendError(null)
+    setBulkSendProgress(null)
+    try {
+      const { apiFetch, ApiError } = await import("@/lib/api")
+      const data = await apiFetch(
+        `/api/v1/invoices/bulk-send-email?companyId=${companyId}`,
+        {
+          method: "POST",
+          body: {
+            invoiceIds: Array.from(selected),
+            concurrency: 5,
+          },
+        },
+      )
+      setBulkSendProgress(data as any)
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : "Netzwerkfehler"
+      setBulkSendError(msg)
+    } finally {
+      setBulkSending(false)
+    }
+  }
+
+  /**
+   * Re-run the bulk-send for the rows that failed
+   * in the previous run. We pull `invoiceId` from
+   * the progress results, replace the selected set
+   * with that subset, and call bulkSend() again.
+   */
+  const bulkSendRetryFailed = async () => {
+    if (!bulkSendProgress) return
+    const failedIds = bulkSendProgress.results
+      .filter((r) => !r.ok)
+      .map((r) => r.invoiceId)
+    if (failedIds.length === 0) return
+    setSelected(new Set(failedIds))
+    setBulkSendProgress(null)
+    await bulkSend()
   }
 
   // Date-range CSV export. Calls the backend with dateFrom/dateTo (and
@@ -414,7 +534,8 @@ export default function InvoicesPage() {
               <Button
                 size="sm"
                 onClick={() => bulkDownload("pdf")}
-                disabled={bulkDownloading}
+                disabled={bulkDownloading || bulkSending}
+                data-testid="bulk-download-pdf"
               >
                 {bulkDownloading ? "…" : `⬇ ZIP (PDF) — ${selected.size}`}
               </Button>
@@ -422,17 +543,31 @@ export default function InvoicesPage() {
                 size="sm"
                 variant="outline"
                 onClick={() => bulkDownload("zugferd")}
-                disabled={bulkDownloading}
+                disabled={bulkDownloading || bulkSending}
+                data-testid="bulk-download-zugferd"
               >
                 {bulkDownloading ? "…" : "⬇ ZIP (ZUGFeRD)"}
               </Button>
               <Button
                 size="sm"
+                onClick={bulkSend}
+                disabled={bulkSending || bulkDownloading}
+                data-testid="bulk-send-email"
+              >
+                {bulkSending
+                  ? (t("invoices.bulkSending") || "Sende…")
+                  : (t("invoices.bulkSend") || `📧 ${selected.size} senden`).replace(
+                      "{count}",
+                      String(selected.size),
+                    )}
+              </Button>
+              <Button
+                size="sm"
                 variant="ghost"
                 onClick={() => setSelected(new Set())}
-                disabled={bulkDownloading}
+                disabled={bulkDownloading || bulkSending}
               >
-                Auswahl löschen
+                {t("invoices.bulkClear") || "Auswahl löschen"}
               </Button>
             </div>
           </div>
@@ -711,6 +846,164 @@ export default function InvoicesPage() {
           </div>
         )}
       </div>
+
+      {/* Tier 32: bulk-send progress modal.
+       * Shows after the POST returns. Two states:
+       *   - in-flight: bulkSending=true, modal shows spinner.
+       *   - settled: bulkSendProgress has results, modal
+       *     lists each row with ok/error.
+       * Dismiss = clear progress (keeps the user on the
+       * page; selected set stays so they can retry).
+       */}
+      {(bulkSending || bulkSendProgress || bulkSendError) && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+          data-testid="bulk-send-modal"
+        >
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col">
+            <div className="px-6 py-4 border-b flex items-center justify-between">
+              <h3 className="font-semibold text-lg">
+                {t("invoices.bulkSendTitle") || "Bulk-Versand"}
+              </h3>
+              {!bulkSending && (
+                <button
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                  onClick={() => {
+                    setBulkSendProgress(null)
+                    setBulkSendError(null)
+                  }}
+                  aria-label="Schließen"
+                  data-testid="bulk-send-close"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+            <div className="px-6 py-4 overflow-y-auto flex-1">
+              {bulkSending && (
+                <div
+                  className="flex items-center gap-3 text-sm"
+                  data-testid="bulk-send-in-progress"
+                >
+                  <div className="animate-spin h-5 w-5 border-2 border-blue-500 border-t-transparent rounded-full" />
+                  <span>
+                    {t("invoices.bulkSending") ||
+                      "Sende E-Mails… bitte warten."}
+                  </span>
+                </div>
+              )}
+              {bulkSendError && (
+                <div
+                  className="p-3 bg-red-50 border border-red-200 text-red-800 rounded text-sm"
+                  data-testid="bulk-send-error"
+                >
+                  {bulkSendError}
+                </div>
+              )}
+              {bulkSendProgress && (
+                <div data-testid="bulk-send-results">
+                  <div className="flex gap-6 mb-4 text-sm">
+                    <div>
+                      <div className="text-gray-500">
+                        {t("invoices.bulkTotal") || "Gesamt"}
+                      </div>
+                      <div
+                        className="text-2xl font-semibold"
+                        data-testid="bulk-send-total"
+                      >
+                        {bulkSendProgress.total}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-gray-500">
+                        {t("invoices.bulkSucceeded") || "Erfolgreich"}
+                      </div>
+                      <div
+                        className="text-2xl font-semibold text-emerald-600"
+                        data-testid="bulk-send-succeeded"
+                      >
+                        {bulkSendProgress.succeeded}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-gray-500">
+                        {t("invoices.bulkFailed") || "Fehlgeschlagen"}
+                      </div>
+                      <div
+                        className="text-2xl font-semibold text-red-600"
+                        data-testid="bulk-send-failed"
+                      >
+                        {bulkSendProgress.failed}
+                      </div>
+                    </div>
+                  </div>
+                  {bulkSendProgress.failed > 0 && (
+                    <div className="space-y-1 max-h-64 overflow-y-auto">
+                      <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                        {t("invoices.bulkFailedList") || "Fehlerdetails"}
+                      </div>
+                      {bulkSendProgress.results
+                        .filter((r) => !r.ok)
+                        .map((r) => (
+                          <div
+                            key={r.invoiceId}
+                            className="text-xs p-2 bg-red-50 border border-red-100 rounded flex items-start gap-2"
+                            data-testid="bulk-send-row-failed"
+                          >
+                            <span className="font-mono text-red-700">
+                              {r.invoiceNumber || r.invoiceId.slice(0, 8)}
+                            </span>
+                            <span className="text-red-600">{r.error}</span>
+                          </div>
+                        ))}
+                    </div>
+                  )}
+                  {bulkSendProgress.succeeded > 0 && (
+                    <div className="mt-3 text-xs text-gray-500">
+                      ✓ {bulkSendProgress.succeeded}{" "}
+                      {t("invoices.bulkSucceededNote") ||
+                        "E-Mails gesendet."}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="px-6 py-4 border-t flex justify-end gap-2">
+              {bulkSendProgress && bulkSendProgress.failed > 0 && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={bulkSendRetryFailed}
+                  data-testid="bulk-send-retry"
+                >
+                  {t("invoices.bulkRetry") ||
+                    `Fehlende wiederholen (${bulkSendProgress.failed})`.replace(
+                      "{count}",
+                      String(bulkSendProgress.failed),
+                    )}
+                </Button>
+              )}
+              {bulkSendProgress && (
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setBulkSendProgress(null)
+                    setBulkSendError(null)
+                    // Mark the rows that succeeded as
+                    // sent in the local cache so the
+                    // table updates without a refetch.
+                    setSelected(new Set())
+                    loadInvoices()
+                  }}
+                  data-testid="bulk-send-dismiss"
+                >
+                  {t("common.close") || "Schließen"}
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   )
 }
