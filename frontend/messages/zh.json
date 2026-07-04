@@ -579,7 +579,14 @@
     "cardSecurityTitle": "安全 & 2FA",
     "cardSecurityDesc": "设置两步验证并管理 Recovery 代码",
     "cardBankingTitle": "在线银行 (FinTS)",
-    "cardBankingDesc": "直接连接银行 — 自动获取并匹配交易记录"
+    "cardBankingDesc": "直接连接银行 — 自动获取并匹配交易记录",
+    "dashboardV2Title": "仪表板 v2",
+    "dashboardV2Aging": "应收账款账龄",
+    "dashboardV2TopCustomers": "YTD 前 5 大客户",
+    "dashboardV2Recent": "最近活动",
+    "dashboardV2KpiExpenses": "YTD 支出",
+    "dashboardV2KpiUst": "YTD 增值税",
+    "dashboardV2KpiOpenRec": "未收应收款"
   },
   "email": {
     "title": "邮件中心",

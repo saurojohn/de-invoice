@@ -579,7 +579,14 @@
     "cardSystemErrorsTitle": "Systemfehler",
     "cardSystemErrorsDesc": "Erfasste Fehler aus Backend und Frontend prüfen",
     "cardSecurityTitle": "Sicherheit & 2FA",
-    "cardSecurityDesc": "Zwei-Faktor-Authentifizierung einrichten und Recovery-Codes verwalten"
+    "cardSecurityDesc": "Zwei-Faktor-Authentifizierung einrichten und Recovery-Codes verwalten",
+    "dashboardV2Title": "Dashboard v2",
+    "dashboardV2Aging": "Forderungs-Alterung",
+    "dashboardV2TopCustomers": "Top 5 Kunden YTD",
+    "dashboardV2Recent": "Letzte Aktivität",
+    "dashboardV2KpiExpenses": "Aufwand YTD",
+    "dashboardV2KpiUst": "USt YTD",
+    "dashboardV2KpiOpenRec": "Offene Forderungen"
   },
   "email": {
     "title": "E-Mail Center",

@@ -553,4 +553,107 @@ async getSalesReport(
       generatedAt: now.toISOString(),
     };
   }
+
+  /**
+   * Tier 36 — consolidated "dashboard v2" endpoint.
+   *
+   * Wraps the legacy /reports/dashboard (KPIs + byMonth)
+   * with three extra slices for the chart-heavy v2 UI:
+   *
+   *   - topCustomers: top 5 customers by YTD revenue,
+   *     so the front-end can render a "Top-Kunden" bar
+   *     without N round-trips.
+   *
+   *   - arAging: the precomputed A/R aging buckets
+   *     (`/reports/aging` returns per-customer rows;
+   *     we surface only the per-bucket totals here so
+   *     the donut chart has ready-made values).
+   *
+   *   - recentActivity: last 5 invoices (id, number,
+   *     total, customerName, dueDate, status) so the
+   *     "letzte Aktivität" widget can render.
+   *
+   * Single round-trip for the entire dashboard; lets the
+   * v2 UI render in parallel without waterfall requests.
+   *
+   * Returns 200 with the same `kpis` shape as the legacy
+   * endpoint so a future revert to v1 is one line.
+   */
+  @Get('dashboard-v2')
+  @Require('reports.read')
+  async getDashboardV2(@Query('companyId') companyId: string) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const now = new Date()
+    const yearStart = new Date(now.getFullYear(), 0, 1)
+
+    // Run the four expensive queries in parallel.
+    // Each is bounded by the underlying SQL — no N+1.
+    const [kpis, aging, topCustomers, recent] = await Promise.all([
+      // Reuse the legacy aggregator via a private call
+      // (avoid HTTP self-fetch latency + auth loops).
+      this.getDashboardKpis(companyId),
+      this.agingService.generate(companyId),
+      // Top 5 customers by YTD revenue. Single SQL —
+      // GROUP BY customer, ORDER BY sum DESC, LIMIT 5.
+      this.prisma.invoice.groupBy({
+        by: ['customerId'],
+        where: { companyId, issueDate: { gte: yearStart } },
+        _sum: { total: true },
+        _count: { _all: true },
+        orderBy: { _sum: { total: 'desc' } },
+        take: 5,
+      }),
+      // Last 5 invoices. Sorted by createdAt desc —
+      // matches the activity feed ordering.
+      this.prisma.invoice.findMany({
+        where: { companyId },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+        include: {
+          customer: { select: { name: true, customerNumber: true } },
+        },
+      }),
+    ])
+
+    // Resolve customerId → name/number for topCustomers.
+    // Two roundtrips total (groupBy + this one). Most
+    // companies have < 50 customers so a single
+    // findMany is fine.
+    const customerIds = topCustomers.map((r) => r.customerId)
+    const customers = customerIds.length
+      ? await this.prisma.customer.findMany({
+          where: { id: { in: customerIds } },
+          select: { id: true, name: true, customerNumber: true },
+        })
+      : []
+    const nameById = new Map(customers.map((c) => [c.id, c]))
+
+    // Bucket totals from the A/R aging report.
+    // AgingReport.totals: { current, days1to30, days31to60, days61to90, days91plus }
+    const arAging = aging.totals
+
+    return {
+      kpis,
+      arAging,
+      topCustomers: topCustomers.map((r) => ({
+        customerId: r.customerId,
+        name: nameById.get(r.customerId)?.name || 'Unbekannt',
+        customerNumber: nameById.get(r.customerId)?.customerNumber ?? null,
+        revenue: Number(r._sum.total || 0),
+        invoiceCount: r._count._all,
+      })),
+      recentActivity: recent.map((r) => ({
+        invoiceId: r.id,
+        invoiceNumber: r.invoiceNumber,
+        total: Number(r.total),
+        currency: r.currency,
+        customerName: r.customer?.name || '',
+        customerNumber: r.customer?.customerNumber ?? null,
+        issueDate: r.issueDate,
+        dueDate: r.dueDate,
+        status: r.status,
+      })),
+      generatedAt: now.toISOString(),
+    }
+  }
 }

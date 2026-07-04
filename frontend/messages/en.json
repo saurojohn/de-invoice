@@ -579,7 +579,14 @@
     "cardSecurityTitle": "Security & 2FA",
     "cardSecurityDesc": "Set up two-factor authentication and manage recovery codes",
     "cardBankingTitle": "Online Banking (FinTS)",
-    "cardBankingDesc": "Connect your bank directly — auto-fetch transactions and match them"
+    "cardBankingDesc": "Connect your bank directly — auto-fetch transactions and match them",
+    "dashboardV2Title": "Dashboard v2",
+    "dashboardV2Aging": "A/R aging",
+    "dashboardV2TopCustomers": "Top 5 customers YTD",
+    "dashboardV2Recent": "Recent activity",
+    "dashboardV2KpiExpenses": "Expenses YTD",
+    "dashboardV2KpiUst": "VAT YTD",
+    "dashboardV2KpiOpenRec": "Open receivables"
   },
   "email": {
     "title": "Email Center",
