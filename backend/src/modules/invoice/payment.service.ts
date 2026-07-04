@@ -1,12 +1,21 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { WebhookService } from '../webhook/webhook.service';
+import { ReminderService } from '../reminder/reminder.service';
 
 @Injectable()
 export class PaymentService {
   constructor(
     private prisma: PrismaService,
     private webhooks: WebhookService,
+    // Tier 37: PaymentService flips the invoice to 'paid' when
+    // the sum of payments reaches the open balance. At that
+    // exact moment we also void any open Mahnungen for the
+    // invoice — the customer just paid, the dunning letters
+    // are moot. The ReminderService retains the audit rows
+    // (cancelledAt stamp + reason="invoice paid") so the
+    // GoBD trail shows the history exactly as it happened.
+    private reminders: ReminderService,
   ) {}
 
   /**
@@ -88,6 +97,38 @@ export class PaymentService {
     // Only INV/PI/RCV get status updates; PI is non-binding so we keep
     // it as "sent" even after payment.
     if (invoice.type === 'INV' && totalPaid >= invoiceTotal - 0.01) {
+      // Tier 37: before flipping the status, cancel any
+      // open Mahnungen so the dashboard / Mahnhistorie no
+      // longer lists them as "open" once the customer
+      // paid. Wrapped in try/catch — the payment itself
+      // succeeded, the status flip is the source of truth,
+      // so a Mahnung-cancel failure shouldn't 500 the
+      // payment endpoint.
+      try {
+        await this.reminders.cancelOpenMahnungenForInvoice(
+          invoice.companyId,
+          invoiceId,
+          { reason: 'invoice paid' },
+        )
+      } catch (err: any) {
+        // Soft-fail: log to ErrorEvent (best-effort) but
+        // don't block the payment.
+        try {
+          await this.prisma.errorEvent.create({
+            data: {
+              source: 'backend',
+              kind: 'manual',
+              message: `Mahnung auto-cancel failed for invoice ${invoice.invoiceNumber}: ${err?.message ?? err}`,
+              stack: err?.stack,
+              fingerprint: `mahnung-autocancel-${invoiceId}`,
+              companyId: invoice.companyId,
+            },
+          })
+        } catch {
+          // Ignore secondary failures.
+        }
+      }
+
       await this.prisma.invoice.update({
         where: { id: invoiceId },
         data: { status: 'paid' },

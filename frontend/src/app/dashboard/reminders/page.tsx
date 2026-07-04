@@ -220,6 +220,16 @@ export default function RemindersPage() {
             {t("reminder.title")}
           </h1>
           <div className="flex gap-2 items-center">
+            <Button
+              variant="outline"
+              onClick={() => router.push("/dashboard/mahnungen")}
+              data-testid="reminders-mahnhistorie-link"
+            >
+              📜 {t("mahnung.title")}
+            </Button>
+            <Button variant="outline" onClick={() => router.push("/dashboard/mahnungen/settings")}>
+              ⚙ {t("mahnung.settings")}
+            </Button>
             <Button variant="outline" onClick={() => router.push("/dashboard/reminders/templates")}>
               {t("reminder.templatesButton") || "Vorlagen bearbeiten"}
             </Button>

@@ -71,6 +71,7 @@ model Company {
   expenses    Expense[]
   ustvaFilings UStvaFiling[]
   reminderTemplates ReminderTemplate[]
+  mahnungen        Mahnung[] 
   vatRates    VatRate[]
   vatRateHistories VatRateHistory[]
   invitations UserInvitation[]
@@ -468,6 +469,13 @@ model Invoice {
   payments       Payment[]
   emailSends    EmailSend[]
   paymentLinks   PaymentLink[]
+  // Tier 37: explicit Mahnung audit trail. The old
+  // EmailSend rows carried the reminder_* templateType,
+  // but didn't expose level-wise totals or late-interest
+  // calculations for the dashboard. This new table makes
+  // "what Mahnungen went out for this invoice and what
+  // did they charge" answerable in one query.
+  mahnungen     Mahnung[]
   reconciliations BankReconciliation[] 
   voucherRef     Voucher?  @relation(fields: [voucherRefId], references: [id])
   voucherRefId   String?   @unique
@@ -1110,6 +1118,100 @@ model ReminderTemplate {
 
   @@unique([companyId, level])
   @@index([companyId])
+}
+
+/// Mahnung audit trail (Tier 37).
+///
+/// One row per Mahnung email/PDF that went out. Distinct
+/// from EmailSend so the dunning-specific fields (level,
+/// daysOverdue at send-time, the Mahngebühr + Verzugszins
+/// charged at THIS level) can travel with the row and be
+/// queried easily for the dashboard / for the
+/// "Mahnhistorie" view the user sees in the UI.
+///
+/// Why a separate table:
+///   1. Fast list (`/reminders?invoiceId=…` returns the
+///      dunning history without joining into EmailSend's
+///      multi-purpose rows).
+///   2. Holds the money: late interest (§288 BGB) and the
+///      per-level Mahngebühr that were charged on THIS
+///      letter. The total charged + the running balance
+///      are derived from these rows.
+///   3. Supports cancel() — `cancelledAt` flips without
+///      touching the EmailSend row (which is still useful
+///      for "send log" display in the dashboard).
+///
+/// `daysOverdue` is captured at send-time so the row is
+/// self-describing even if the underlying invoice later
+/// gets paid or extended.
+///
+/// `cancelledAt` is set when:
+///   - admin explicitly cancels the Mahnung (`/reminders/:id/cancel`)
+///   - the invoice is fully paid (payment.service
+///     cascade-cancels all open Mahnungen on the invoice).
+///   A cancelled Mahnung remains in the table — it's an
+///   audit row, not a wishlist.
+model Mahnung {
+  id          String   @id @default(uuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  invoiceId   String
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  /// "first" | "second" | "final" — same vocabulary as
+  /// ReminderTemplate.level so the two tables don't drift.
+  level       String
+  /// Calendar days overdue at send-time. The PDF shows
+  /// Werktage too — see auto-reminder.scheduler.ts — but
+  /// we keep daysOverdue here for the dashboard badge.
+  daysOverdue Int
+  /// The new payment deadline the Mahnung sets. ISO
+  /// date string. The PDF prints it as dd.mm.yyyy.
+  neueFrist   DateTime
+  /// The Mahngebühr charged on this Mahnung (in EUR).
+  /// Level-driven (0 / 2.50 / 5.00 typically) — see
+  /// getOrCreateFeeConfig().
+  mahngebuehr Decimal  @db.Decimal(12,4) @default(0)
+  /// Verzugszins charged on this Mahnung (in EUR, computed
+  /// from invoice total * (verzugszinsPct/100) * (days/
+  /// 365)). The percentage is company-level — see
+  /// Company.bankInfo.lateInterestPct (default 9.0 per
+  /// §288 Abs. 2 BGB for B2B).
+  verzugszins Decimal  @db.Decimal(12,4) @default(0)
+  /// The total amount NOW DUE on this Mahnung = invoice
+  /// open balance + mahngebuehr + verzugszins. Snapshot.
+  totalDue    Decimal  @db.Decimal(12,4)
+
+  /// Snapshot of the recipient — already on EmailSend but
+  /// duplicated here so the list view doesn't need a join.
+  recipientEmail String
+  recipientName  String?
+
+  /// Who triggered the send (admin user id). Null for
+  /// cron-driven sends.
+  sentById    String?
+  /// Filled by the manual route when the email actually
+  /// went out. The manual PDF generation is synchronous —
+  /// we set sentAt before returning the 200 to the client.
+  sentAt      DateTime @default(now())
+  /// The EmailSend templateType ("reminder_first" | etc.)
+  /// for traceability back to the actual email log row.
+  emailSendId String?
+
+  /// Soft-cancel marker. When set, the Mahnung is no
+  /// longer active (either by admin action or because the
+  /// invoice was paid). The PDF stays accessible for the
+  /// audit trail — we don't delete anything.
+  cancelledAt    DateTime?
+  cancelledById  String?
+  cancelReason   String?
+
+  createdAt   DateTime @default(now())
+
+  @@index([companyId, invoiceId])
+  @@index([companyId, sentAt])
+  @@index([companyId, cancelledAt])
+  @@index([level])
 }
 
 /// Recurring invoice (Abo-Rechnung) template. The scheduler

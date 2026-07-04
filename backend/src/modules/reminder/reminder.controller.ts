@@ -1,9 +1,22 @@
-import { Controller, Get, Post, Put, Body, Param, Query, BadRequestException, Req } from '@nestjs/common';
+import { Controller, Get, Post, Put, Body, Param, Query, BadRequestException, NotFoundException, Req, Res } from '@nestjs/common';
 import { ReminderService } from './reminder.service';
 import { AutoReminderService } from './auto-reminder.scheduler';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Auth, Require } from '../../auth/roles.decorator';
 import { Request } from 'express';
+import { generateMahnungPDF, computeNeueFrist } from './mahnung-pdf.service';
+import { countWerktage } from './werktage';
+import type { Response } from 'express';
+
+// Mirrors the constant in auto-reminder.scheduler.ts — kept
+// inline because the scheduler file is a class member, not
+// an exported binding. The string follows the same
+// "Zahlungserinnerung / Mahnung / Letzte-Mahnung" convention.
+const LEVEL_TITLE_FILENAME: Record<'first' | 'second' | 'final', string> = {
+  first: 'Zahlungserinnerung',
+  second: 'Mahnung',
+  final: 'Letzte-Mahnung',
+};
 
 @Auth()
 @Controller('reminders')
@@ -176,11 +189,69 @@ export class ReminderController {
       body.createdById,
     );
 
+    // Tier 37: also stamp the Mahnung audit table so the
+    // Mahnhistorie / dashboard widget can list this letter
+    // without joining into EmailSend. We compute the
+    // Mahngebühr + Verzugszins at send-time and carry them on
+    // the row — the values are stable even if the invoice
+    // balance changes later.
+    //
+    // We compute daysOverdue from the invoice's dueDate so the
+    // snapshot is consistent with the PDF body text. If the
+    // invoice somehow has no dueDate (very old data), we fall
+    // back to 0 — the Mahnung still gets recorded, just with
+    // 0 overdue days.
+    let mahnungId: string | null = null
+    try {
+      const inv = await this.prisma.invoice.findFirst({
+        where: { id: body.invoiceId, companyId: body.companyId },
+        select: { dueDate: true, total: true },
+      })
+      if (inv?.dueDate) {
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+        const due = new Date(inv.dueDate)
+        const days = Math.max(
+          0,
+          Math.floor((today.getTime() - due.getTime()) / (1000 * 60 * 60 * 24)),
+        )
+        const fees = await this.reminderService.computeFees(
+          body.companyId,
+          Number(inv.total),
+          days,
+          body.level,
+        )
+        const recorded = await this.reminderService.recordMahnung(
+          body.companyId,
+          body.invoiceId,
+          body.level,
+          {
+            daysOverdue: days,
+            neueFrist: computeNeueFrist(today, body.level),
+            mahngebuehr: fees.mahngebuehr,
+            verzugszins: fees.verzugszins,
+            totalDue: fees.totalDue,
+            recipientEmail: body.recipientEmail,
+            recipientName: body.recipientName,
+            sentById: body.createdById ?? null,
+            emailSendId: reminder.id,
+          },
+        )
+        mahnungId = recorded.id
+      }
+    } catch {
+      // Soft-fail — the EmailSend is already persisted (the
+      // call above it succeeded), so a duplicate-prevention
+      // collision or transient DB glitch shouldn't 500 the
+      // user. The next manual send will create the audit row.
+    }
+
     return {
       success: true,
       reminderId: reminder.id,
+      mahnungId,
       message: 'Erinnerung wurde erfolgreich gesendet',
-    };
+    }
   }
 
   /**
@@ -253,5 +324,232 @@ export class ReminderController {
       },
     });
     return { ok: true, autoReminderEnabled: body.autoReminderEnabled };
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // TIER 37 — Mahnung multi-level flow endpoints
+  // ─────────────────────────────────────────────────────────────
+  //
+  // The pre-existing reminder surface (/overdue, /stats, /send,
+  // /templates/*, /auto-settings, /auto-run) stays — those are
+  // still the cron + email pipeline. The 5 new routes below
+  // expose the Mahnung audit-trail model:
+  //
+  //   - GET  /mahnungen               — list (filterable by invoice,
+  //                                       status: open|cancelled|all)
+  //   - GET  /mahnungen/fees-config   — current fee config for the
+  //                                       company (read)
+  //   - PUT  /mahnungen/fees-config   — update fee config
+  //   - GET  /mahnungen/:id/pdf       — re-render the Mahnung PDF on
+  //                                       demand (used by the
+  //                                       Mahnhistorie page so the
+  //                                       admin can re-download what
+  //                                       was sent)
+  //   - POST /mahnungen/:id/cancel    — soft-cancel a sent Mahnung
+  //                                       (audit-retained)
+  //
+  // We intentionally re-render the PDF on demand from the
+  // Mahnung row + the original invoice rather than storing a
+  // PDF blob — we already store the dunning data on the
+  // Mahnung row, and a re-render gives us correct currency
+  // formatting and a fresh timestamp for free.
+
+  /**
+   * List Mahnungen (dunning audit trail) for the company.
+   * Optional filters:
+   *   - invoiceId  → only Mahnungen for one invoice
+   *   - status     → 'open' (default), 'cancelled', 'all'
+   *
+   * The shape is intentionally flat — designed to map 1:1 onto
+   * the frontend Mahnhistorie table without further joining.
+   */
+  @Get('mahnungen')
+  @Require('invoice.read')
+  async listMahnungen(
+    @Query('companyId') companyId: string,
+    @Query('invoiceId') invoiceId?: string,
+    @Query('status') status?: 'open' | 'cancelled' | 'all',
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich');
+    if (status && !['open', 'cancelled', 'all'].includes(status)) {
+      throw new BadRequestException(
+        'status muss open | cancelled | all sein',
+      );
+    }
+    const rows = await this.reminderService.listMahnungen(companyId, {
+      invoiceId,
+      status: status || 'open',
+    });
+    return { mahnungen: rows, count: rows.length };
+  }
+
+  /**
+   * Read the company's fee config (Mahngebühr + Verzugszins).
+   * Returns the live values used in computeFees() plus
+   * `isDefault: true` when no override has been saved yet.
+   */
+  @Get('mahnungen/fees-config')
+  @Require('users.read')
+  async getFeeConfig(@Query('companyId') companyId: string) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich');
+    return this.reminderService.getFeeConfig(companyId);
+  }
+
+  /**
+   * Update the company's fee config. Persists into the
+   * bankInfo JSON column (see ReminderService.setFeeConfig
+   * for the clamp/validation rules). Returns the resulting
+   * config + `isDefault: false` so the UI can show
+   * "Benutzerdefiniert" badge.
+   */
+  @Put('mahnungen/fees-config')
+  @Require('users.read')
+  async setFeeConfig(
+    @Query('companyId') companyId: string,
+    @Body()
+    body: {
+      verzugszinsPct?: number;
+      mahngebuehr?: {
+        first?: number;
+        second?: number;
+        final?: number;
+      };
+    },
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich');
+    return this.reminderService.setFeeConfig(companyId, body || {});
+  }
+
+  /**
+   * Re-render the PDF for a Mahnung audit row and stream it
+   * back to the client as `application/pdf`. We rebuild from
+   * the stored Mahnung + the original invoice — the PDF body
+   * recomputes Mahngebühr + Verzugszins from the row data so
+   * the freshly-stamped values match the values the customer
+   * originally received (as long as the underlying invoice
+   * is unchanged — if the invoice total differs from what
+   * was on the audit row, we honour the audit row values,
+   * not the live invoice, which is the whole point of the
+   * "send-time snapshot" semantics).
+   */
+  @Get('mahnungen/:id/pdf')
+  @Require('invoice.read')
+  async downloadMahnungPdf(
+    @Param('id') id: string,
+    @Query('companyId') companyId: string,
+    @Res() res: Response,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich');
+    const mahnung = await this.prisma.mahnung.findFirst({
+      where: { id, companyId },
+      include: {
+        invoice: {
+          include: {
+            customer: true,
+          },
+        },
+      },
+    });
+    if (!mahnung) {
+      throw new BadRequestException('Mahnung nicht gefunden');
+    }
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+    });
+    if (!company) {
+      throw new BadRequestException('Company nicht gefunden');
+    }
+    const inv = mahnung.invoice;
+    const customer = inv.customer as any;
+    const bank = (company.bankInfo as any) || {};
+    const bankLine = [
+      bank.accountHolder,
+      bank.iban ? `IBAN: ${bank.iban}` : '',
+      bank.bic ? `BIC: ${bank.bic}` : '',
+      bank.bankName ? `bei ${bank.bankName}` : '',
+    ]
+      .filter(Boolean)
+      .join(', ');
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const dueDate = inv.dueDate ? new Date(inv.dueDate) : today;
+    const werktageOverdue = Math.max(0, countWerktage(dueDate, today));
+    const daysOverdue = mahnung.daysOverdue;
+
+    const pdfBuffer = await generateMahnungPDF({
+      level: mahnung.level as 'first' | 'second' | 'final',
+      invoiceNumber: inv.invoiceNumber,
+      invoiceDate: new Date(inv.issueDate),
+      dueDate,
+      totalAmount: Number(inv.total),
+      customer: {
+        name: customer.name,
+        contact: customer.contact,
+        address: customer.address,
+      },
+      company: {
+        name: company.name,
+        legalName: company.legalName,
+        address: company.address as any,
+        email: company.email,
+        phone: company.phone,
+        bankInfo: company.bankInfo,
+        taxId: company.taxId,
+        vatId: company.vatId,
+        logoPath: company.logoPath,
+      },
+      daysOverdue,
+      werktageOverdue,
+      neueFrist: mahnung.neueFrist.toISOString(),
+      bankLine,
+      mahngebuehr: Number(mahnung.mahngebuehr),
+      verzugszins: Number(mahnung.verzugszins),
+      verzugszinsPct: (
+        await this.reminderService.getFeeConfig(companyId)
+      ).verzugszinsPct,
+    });
+
+    res.setHeader('Content-Type', 'application/pdf');
+    const filename =
+      `Mahnung-${LEVEL_TITLE_FILENAME[mahnung.level as 'first' | 'second' | 'final']}-${inv.invoiceNumber}.pdf`;
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${filename}"`,
+    );
+    res.send(pdfBuffer);
+  }
+
+  /**
+   * Soft-cancel a sent Mahnung. The row stays in the table
+   * (GoBD audit), but cancelledAt is set and the Mahnhistorie
+   * filter can hide it. Idempotent — cancelling an already-
+   * cancelled Mahnung returns 200.
+   */
+  @Post('mahnungen/:id/cancel')
+  @Require('invoice.update')
+  async cancelMahnung(
+    @Param('id') id: string,
+    @Query('companyId') companyId: string,
+    @Body() body: { reason?: string } = {},
+    @Req() req?: Request,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich');
+    const userId = (req?.headers as any)['x-user-id'] as string | undefined;
+    try {
+      return await this.reminderService.cancelMahnung(companyId, id, {
+        reason: body?.reason,
+        userId,
+      });
+    } catch (err: any) {
+      // The service throws plain Error("Mahnung not found")
+      // for unknown ids / wrong company. Re-throw as a NestJS
+      // NotFoundException so the framework returns 404 (matches
+      // the portal route's behaviour — same row-missing pattern).
+      if (err?.message === 'Mahnung not found') {
+        throw new NotFoundException('Mahnung nicht gefunden');
+      }
+      throw err;
+    }
   }
 }

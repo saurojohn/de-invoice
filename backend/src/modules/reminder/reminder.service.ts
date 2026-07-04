@@ -537,4 +537,336 @@ Mit freundlichen Grüßen,
       recentReminders,
     };
   }
+
+  // ─────────────────────────────────────────────────────────────────────
+  // TIER 37: Mahnung multi-level flow extensions
+  // ─────────────────────────────────────────────────────────────────────
+  //
+  // The pre-existing Tier 12 reminder code path records the send in
+  // EmailSend (templateType = "reminder_first|second|final"). That was fine
+  // for "did the email go out" but doesn't carry the dunning-specific
+  // fields the user now wants to see:
+  //
+  //   - Mahngebühr + Verzugszins at THIS level (stamped at send-time)
+  //   - NeueFrist + daysOverdue snapshot (so the row is self-describing
+  //     even if the invoice changes later)
+  //   - Soft-cancel stamp (cancelledAt) — fires from admin-cancel or from
+  //     payment.service on full settlement of the invoice
+  //
+  // All of these live in the new `Mahnung` model (see the migration
+  // 20260704000001_mahnung). The methods below wrap the model.
+
+  /**
+   * Per-company fee config for the late-interest calculation. Lives in
+   * Company.bankInfo JSON because adding three scalar columns for a
+   * feature tier we just shipped would be premature — config rarely
+   * changes (most companies stick with the BGB defaults) and the JSON
+   * keeps the schema clean.
+   *
+   * Default values per §288 BGB:
+   *   - verzugszinsPct: 9.0 % per annum over Basiszinssatz for B2B
+   *   - mahngebuehr first:  0.00 € (a friendly Zahlungserinnerung)
+   *   - mahngebuehr second: 2.50 €
+   *   - mahngebuehr final:  5.00 €
+   *
+   * The Verzugszins is computed as:
+   *   principal × (pct / 100) × (days / 365)
+   * rounded to two decimals on the Mahnung row and the PDF.
+   */
+  async getFeeConfig(companyId: string) {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { bankInfo: true },
+    });
+    const cfg = (company?.bankInfo as any)?.mahnungConfig || {};
+    return {
+      verzugszinsPct: typeof cfg.verzugszinsPct === 'number' ? cfg.verzugszinsPct : 9.0,
+      mahngebuehr: {
+        first: typeof cfg.mahngebuehr?.first === 'number' ? cfg.mahngebuehr.first : 0,
+        second: typeof cfg.mahngebuehr?.second === 'number' ? cfg.mahngebuehr.second : 2.5,
+        final: typeof cfg.mahngebuehr?.final === 'number' ? cfg.mahngebuehr.final : 5.0,
+      },
+      isDefault: !cfg || Object.keys(cfg).length === 0,
+    };
+  }
+
+  /**
+   * Update the per-company fee config. Persists into the bankInfo
+   * JSON column under `mahnungConfig`. Validation: numbers only,
+   * non-negative. clamped: verzugszinsPct ∈ [0, 50], mahngebuehr per
+   * level ∈ [0, 1000].
+   */
+  async setFeeConfig(
+    companyId: string,
+    data: {
+      verzugszinsPct?: number;
+      mahngebuehr?: {
+        first?: number;
+        second?: number;
+        final?: number;
+      };
+    },
+  ) {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { bankInfo: true },
+    });
+    const bank = (company?.bankInfo as any) || {};
+    const cur = (bank.mahnungConfig as any) || {};
+    const clamp = (v: unknown, min: number, max: number) => {
+      const n = Number(v);
+      if (Number.isNaN(n)) return undefined;
+      return Math.min(max, Math.max(min, n));
+    };
+    const next = {
+      verzugszinsPct:
+        data.verzugszinsPct !== undefined
+          ? clamp(data.verzugszinsPct, 0, 50) ?? cur.verzugszinsPct
+          : cur.verzugszinsPct,
+      mahngebuehr: {
+        first:
+          data.mahngebuehr?.first !== undefined
+            ? clamp(data.mahngebuehr.first, 0, 1000) ?? cur.mahngebuehr?.first
+            : cur.mahngebuehr?.first,
+        second:
+          data.mahngebuehr?.second !== undefined
+            ? clamp(data.mahngebuehr.second, 0, 1000) ?? cur.mahngebuehr?.second
+            : cur.mahngebuehr?.second,
+        final:
+          data.mahngebuehr?.final !== undefined
+            ? clamp(data.mahngebuehr.final, 0, 1000) ?? cur.mahngebuehr?.final
+            : cur.mahngebuehr?.final,
+      },
+    };
+    const mergedBank = { ...bank, mahnungConfig: next };
+    await this.prisma.company.update({
+      where: { id: companyId },
+      data: { bankInfo: mergedBank },
+    });
+    return { ok: true, config: { ...next, isDefault: false } };
+  }
+
+  /**
+   * Compute Verzugszins + Mahngebühr for a Mahnung at send-time.
+   *
+   * The Verzugszins formula (annualised) is:
+   *   principal × pct/100 × days/365
+   * We round to two decimals (toFixed(2)) because the PDF line
+   * item is shown as a currency value. The unrounded value would
+   *   look the same to the customer but leak 0.001 € of noise into
+   *   the UStVA reconciliation later, so we round here AND recompute
+   *   the totalDue with the rounded Mahngebühr + Verzugszins so the
+   *   sum adds up on the PDF.
+   *
+   * `principal` is the open invoice amount (gross), not net —
+   * Verzugszins is on the gross because that's what the customer
+   * owed on the dueDate. Net-based would be wrong by the VAT share.
+   */
+  async computeFees(
+    companyId: string,
+    principalGross: number,
+    daysOverdue: number,
+    level: 'first' | 'second' | 'final',
+  ) {
+    const cfg = await this.getFeeConfig(companyId);
+    const mahngebuehr = cfg.mahngebuehr[level] || 0;
+    const verzugszinsRaw =
+      principalGross * ((cfg.verzugszinsPct as number) / 100) * (daysOverdue / 365);
+    const verzugszins = Math.round(verzugszinsRaw * 100) / 100;
+    const mahngebuehrRounded = Math.round(mahngebuehr * 100) / 100;
+    const totalDue =
+      Math.round((principalGross + mahngebuehrRounded + verzugszins) * 100) / 100;
+    return {
+      mahngebuehr: mahngebuehrRounded,
+      verzugszins,
+      verzugszinsPct: cfg.verzugszinsPct,
+      totalDue,
+    };
+  }
+
+  /**
+   * Record a Mahnung row + return its id. Idempotent on
+   * (invoiceId, level, sentAt-bucket of today) — if an active
+   * Mahnung for the same invoice + level already exists for
+   * today, we re-use it (return its id, don't insert a second).
+   * This is the same idempotency rule the auto-reminder cron uses
+   * on the EmailSend side, but anchored at the dunning-layer
+   * model that the UI actually reads.
+   */
+  async recordMahnung(
+    companyId: string,
+    invoiceId: string,
+    level: 'first' | 'second' | 'final',
+    payload: {
+      daysOverdue: number;
+      neueFrist: Date;
+      mahngebuehr: number;
+      verzugszins: number;
+      totalDue: number;
+      recipientEmail: string;
+      recipientName: string;
+      sentById?: string | null;
+      emailSendId?: string | null;
+    },
+  ): Promise<{ id: string; created: boolean }> {
+    const today = new Date();
+    const start = new Date(today);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(today);
+    end.setDate(end.getDate() + 1);
+
+    const existing = await this.prisma.mahnung.findFirst({
+      where: {
+        companyId,
+        invoiceId,
+        level,
+        sentAt: { gte: start, lt: end },
+        cancelledAt: null,
+      },
+    });
+    if (existing) {
+      // Refuse to double-charge — the cron / manual send will
+      // already have updated fees on the in-flight row. Just
+      // return the existing id.
+      return { id: existing.id, created: false };
+    }
+    const row = await this.prisma.mahnung.create({
+      data: {
+        companyId,
+        invoiceId,
+        level,
+        daysOverdue: payload.daysOverdue,
+        neueFrist: payload.neueFrist,
+        mahngebuehr: payload.mahngebuehr,
+        verzugszins: payload.verzugszins,
+        totalDue: payload.totalDue,
+        recipientEmail: payload.recipientEmail,
+        recipientName: payload.recipientName,
+        sentById: payload.sentById ?? null,
+        emailSendId: payload.emailSendId ?? null,
+      },
+    });
+    return { id: row.id, created: true };
+  }
+
+  /**
+   * List Mahnungen. Optional filters:
+   *   - invoiceId: show only Mahnungen for one invoice (UI tab)
+   *   - status: 'open' (no cancelledAt) | 'cancelled' | 'all'
+   *
+   * Sorted by sentAt DESC so the dashboard widget shows the
+   * newest letter first.
+   */
+  async listMahnungen(
+    companyId: string,
+    opts: { invoiceId?: string; status?: 'open' | 'cancelled' | 'all' } = {},
+  ) {
+    const where: any = { companyId }
+    if (opts.invoiceId) where.invoiceId = opts.invoiceId
+    if (opts.status === 'open') where.cancelledAt = null
+    if (opts.status === 'cancelled') where.cancelledAt = { not: null }
+    // 'all' → no extra filter
+    const rows = await this.prisma.mahnung.findMany({
+      where,
+      include: {
+        invoice: {
+          select: {
+            invoiceNumber: true,
+            issueDate: true,
+            dueDate: true,
+            customerId: true,
+            total: true,
+            customer: {
+              select: { name: true, customerNumber: true, contact: true },
+            },
+          },
+        },
+      },
+      orderBy: { sentAt: 'desc' },
+    })
+    return rows.map((r) => ({
+      id: r.id,
+      invoiceId: r.invoiceId,
+      invoiceNumber: r.invoice.invoiceNumber,
+      customerName: r.invoice.customer.name,
+      customerNumber: (r.invoice.customer as any).customerNumber,
+      issueDate: r.invoice.issueDate,
+      dueDate: r.invoice.dueDate,
+      invoiceTotal: Number(r.invoice.total),
+      level: r.level,
+      daysOverdue: r.daysOverdue,
+      neueFrist: r.neueFrist,
+      mahngebuehr: Number(r.mahngebuehr),
+      verzugszins: Number(r.verzugszins),
+      totalDue: Number(r.totalDue),
+      recipientEmail: r.recipientEmail,
+      recipientName: r.recipientName,
+      sentAt: r.sentAt,
+      sentById: r.sentById,
+      cancelledAt: r.cancelledAt,
+      cancelledById: r.cancelledById,
+      cancelReason: r.cancelReason,
+    }))
+  }
+
+  /**
+   * Admin-initiated soft-cancel of a sent Mahnung. Idempotent —
+   * cancelling a row that is already cancelled is a no-op (returns
+   * 200 with the existing cancel stamp). Use case: a Mahnung went
+   * out in error, or the customer paid before the letter arrived
+   * and the admin wants the trail to reflect that.
+   */
+  async cancelMahnung(
+    companyId: string,
+    mahnungId: string,
+    opts: {
+      reason?: string;
+      userId?: string;
+    } = {},
+  ) {
+    const row = await this.prisma.mahnung.findFirst({
+      where: { id: mahnungId, companyId },
+    });
+    if (!row) {
+      throw new Error('Mahnung not found');
+    }
+    if (row.cancelledAt) {
+      return { ok: true, alreadyCancelled: true };
+    }
+    await this.prisma.mahnung.update({
+      where: { id: mahnungId },
+      data: {
+        cancelledAt: new Date(),
+        cancelledById: opts.userId ?? null,
+        cancelReason: opts.reason ?? null,
+      },
+    });
+    return { ok: true, alreadyCancelled: false };
+  }
+
+  /**
+   * Bulk-cancel every open Mahnung for an invoice. Called from
+   * PaymentService when a payment brings the invoice to 'paid' —
+   * any outstanding dunning letters are void (the customer paid,
+   * the letter is moot). Returns the count of rows touched.
+   */
+  async cancelOpenMahnungenForInvoice(
+    companyId: string,
+    invoiceId: string,
+    opts: { reason?: string; userId?: string } = {},
+  ): Promise<{ cancelled: number }> {
+    const res = await this.prisma.mahnung.updateMany({
+      where: {
+        companyId,
+        invoiceId,
+        cancelledAt: null,
+      },
+      data: {
+        cancelledAt: new Date(),
+        cancelledById: opts.userId ?? null,
+        cancelReason: opts.reason ?? 'invoice paid',
+      },
+    });
+    return { cancelled: res.count };
+  }
 }

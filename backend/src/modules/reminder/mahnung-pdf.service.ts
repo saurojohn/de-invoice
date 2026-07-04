@@ -53,6 +53,19 @@ export interface MahnungPdfInput {
   neueFrist: string
   /** Bank info rendered as one line for the body. */
   bankLine: string
+  /**
+   * Tier 37: optional fee breakdown. When provided,
+   * the PDF adds a small "Zusätzliche Kosten" block
+   * under the overdue-amount table with the Mahngebühr
+   * and Verzugszins line items + a grand total. The
+   * manual send / auto-reminder paths compute these
+   * numbers at send-time (so they're stable in the
+   * PDF even if the invoice balance changes later).
+   */
+  mahngebuehr?: number
+  verzugszins?: number
+  /** Verzugszins percentage applied, e.g. 9.0 (% per year). */
+  verzugszinsPct?: number
 }
 
 const PAGE_MARGIN = 50
@@ -248,6 +261,97 @@ export async function generateMahnungPDF(input: MahnungPdfInput): Promise<Buffer
     )
     y = doc.y + 14
 
+    // ─── TIER 37: FEE BLOCK (optional) ───
+    // When the manual send / auto-cron computed a Mahngebühr
+    // or Verzugszins at send-time, paint it as a small two-
+    // column block under the "Offener Betrag" line. The grand
+    // total = offener Betrag + mahngebuehr + verzugszins, which
+    // is what the customer has to transfer by the neueFrist.
+    //
+    // German format: right-aligned numbers, single-line rows,
+    // bold grand total. Same fontSize (10) as the surrounding
+    // text so we don't break the document's visual rhythm.
+    const feeM = Number(input.mahngebuehr || 0)
+    const feeV = Number(input.verzugszins || 0)
+    if (feeM > 0 || feeV > 0) {
+      const grand = input.totalAmount + feeM + feeV
+      const feeBoxLeft = PAGE_MARGIN
+      const feeLabelW = CONTENT_WIDTH * 0.65
+      const feeValueW = CONTENT_WIDTH * 0.35
+      const feeValueX = feeBoxLeft + feeLabelW
+
+      // Subtle divider above the fee block to separate it
+      // from the "Offener Betrag" summary above.
+      doc
+        .moveTo(feeBoxLeft, y - 2)
+        .lineTo(PAGE_WIDTH - PAGE_MARGIN, y - 2)
+        .strokeColor("#cccccc")
+        .lineWidth(0.3)
+        .stroke()
+
+      doc.fontSize(9).fillColor("#333333").font("Helvetica")
+      const feeLines: Array<{ label: string; value: number; bold?: boolean }> = []
+      // Heading row — matches the visual weight of the rest
+      // of the document. The label is the same uppercase
+      // style used by the rest of the PDF column headers.
+      feeLines.push({
+        label: "ZUSÄTZLICHE KOSTEN",
+        value: 0,
+        bold: true,
+      })
+      if (feeM > 0) {
+        feeLines.push({
+          label: `Mahngebühr (Stufe ${feeStageLabel(input.level)})`,
+          value: feeM,
+        })
+      }
+      if (feeV > 0) {
+        const pct = input.verzugszinsPct
+        const label = pct
+          ? `Verzugszinsen (${pct.toFixed(2)} % über Basiszinssatz, §288 Abs. 2 BGB)`
+          : `Verzugszinsen (§288 Abs. 2 BGB)`
+        feeLines.push({ label, value: feeV })
+      }
+      // Grand total — bold, separated by a thin rule above
+      feeLines.push({
+        label: "Gesamtbetrag zu zahlen bis " +
+          `${fmtDate(new Date(input.neueFrist))}`,
+        value: grand,
+        bold: true,
+      })
+
+      feeLines.forEach((line, idx) => {
+        if (idx === feeLines.length - 1) {
+          // Final grand-total row gets a hairline rule.
+          doc
+            .moveTo(feeBoxLeft, y - 1)
+            .lineTo(PAGE_WIDTH - PAGE_MARGIN, y - 1)
+            .strokeColor("#999999")
+            .lineWidth(0.3)
+            .stroke()
+        }
+        doc.fontSize(line.bold ? 10 : 9)
+        doc.font(line.bold ? "Helvetica-Bold" : "Helvetica")
+        doc.text(
+          line.label,
+          feeBoxLeft,
+          y,
+          { width: feeLabelW, lineBreak: false },
+        )
+        if (line.value > 0 || line.bold) {
+          doc.text(
+            formatEUR(line.value),
+            feeValueX,
+            y,
+            { width: feeValueW, align: "right", lineBreak: false },
+          )
+        }
+        y = doc.y + 4
+      })
+      doc.fillColor("black").font("Helvetica")
+      y += 8
+    }
+
     // ─── FRIST SECTION ───
     doc.text(LEVEL_FRIST[input.level], PAGE_MARGIN, y, { width: CONTENT_WIDTH })
     y = doc.y + 8
@@ -332,6 +436,15 @@ function formatEUR(n: number): string {
       maximumFractionDigits: 2,
     }).format(n) + " €"
   )
+}
+
+/** German Mahnstufe label for the Fee-block heading. */
+function feeStageLabel(
+  level: "first" | "second" | "final",
+): string {
+  if (level === "first") return "1 (Zahlungserinnerung)"
+  if (level === "second") return "2 (1. Mahnung)"
+  return "3 (Letzte Mahnung)"
 }
 
 /**
