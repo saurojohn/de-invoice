@@ -149,7 +149,16 @@ export function extractFieldsFromText(text: string): ReceiptData {
 
 /** First non-empty line that contains letters and isn't a header label. */
 function extractSupplierName(text: string): string | null {
-  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
+  // Tier 34: PDFs from pdfjs-dist return all items
+  // space-separated on a single "line" (no newlines).
+  // Split on 2+ spaces as a hack to recover the
+  // visual-newline structure, then fall back to the
+  // normal line split for OCR text.
+  const lines = text
+    .split(/\r?\n/)
+    .flatMap((l) => l.split(/\s{2,}/))
+    .map((l) => l.trim())
+    .filter(Boolean)
   for (const line of lines) {
     // Skip lines that look like addresses / IDs / numbers
     if (/^\d/.test(line)) continue

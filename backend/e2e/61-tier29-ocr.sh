@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# e2e 61: Tier 29 + Tier 31 — Eingangsrechnung OCR + supplier match.
+# e2e 61: Tier 29 + Tier 31 + Tier 34 — Eingangsrechnung OCR + supplier match + PDF.
 #
 # Verifies the OCR pipeline:
 #   1. GET /api/v1/ocr/fixture returns the hard-coded
@@ -28,6 +28,11 @@
 #      OCR_ENGINE=tesseract is set. Validates that
 #      the real OCR path extracts supplier / invoice
 #      number / date / net / gross correctly.
+#   8. Tier 34: POST /api/v1/ocr/scan with the
+#      bundled real German invoice PDF — verifies
+#      that pdfjs-dist extracts text-layer fields.
+#      Runs in tesseract mode (mock ignores the file
+#      content the same way it does for PNGs).
 #
 # The frontend flow is:
 #   1. User uploads a scan → /ocr/scan returns
@@ -193,8 +198,58 @@ SCAN_NO_FILE_STATUS=$(curl -sS -o /tmp/t61_no_file.json -w "%{http_code}" \
   -X POST "$API/api/v1/ocr/scan?companyId=$COMPANY_ID")
 assert_eq "scan without file returns 400" "$SCAN_NO_FILE_STATUS" "400"
 
+# ---- 8. Tier 34: PDF scan via pdfjs-dist (real text layer extraction) ----
+echo
+echo "=== 8. PDF scan on bundled german-invoice.pdf (tesseract only) ==="
+# Tier 34: in real-OCR mode, the controller delegates
+# PDF uploads to pdfjs-dist instead of tesseract.js.
+# The bundled fixture is a digital PDF with a real
+# text layer (the same structure as a Word/Acrobat
+# export). We assert that the extracted fields match
+# what the document actually contains.
+#
+# Note: the mock OCR engine also passes this through
+# (mock returns the fixture regardless of bytes), but
+# the fixture text is the same supplier / number /
+# amounts so the assertions still hold in mock mode
+# — they're not engine-specific. We run the block
+# unconditionally to cover both envs.
+PDF_FILE="$(dirname "$0")/fixtures/german-invoice.pdf"
+if [[ ! -f "$PDF_FILE" ]]; then
+  fail "PDF real OCR: missing fixture $PDF_FILE"
+else
+  PDF_STATUS=$(curl -sS -o /tmp/t61_pdf.json -w "%{http_code}" \
+    -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
+    -X POST "$API/api/v1/ocr/scan?companyId=$COMPANY_ID" \
+    -F "file=@$PDF_FILE;type=application/pdf")
+  assert_eq "PDF scan returns 201" "$PDF_STATUS" "201"
+  PDF_SOURCE=$(jq -r '._source' /tmp/t61_pdf.json)
+  PDF_SUP=$(jq -r '.supplierName' /tmp/t61_pdf.json)
+  PDF_VAT=$(jq -r '.supplierVatId' /tmp/t61_pdf.json)
+  PDF_INV=$(jq -r '.invoiceNumber' /tmp/t61_pdf.json)
+  PDF_NET=$(jq -r '.netAmount' /tmp/t61_pdf.json)
+  PDF_GROSS=$(jq -r '.grossAmount' /tmp/t61_pdf.json)
+  # In tesseract mode the _source field comes back
+  # as 'pdf' (Tier 34 detection via magic bytes). In
+  # mock mode the field is absent (we only emit it
+  # when NODE_ENV !== 'production').
+  if [[ "${OCR_ENGINE:-mock}" == "tesseract" ]]; then
+    assert_eq "PDF source tag (_source)" "$PDF_SOURCE" "pdf"
+  fi
+  # The PDF fixture text matches the OCR fixture, so
+  # both engines return the same fields. Only tesseract
+  # mode actually parses the PDF (mock returns the
+  # fixture; a fresh re-run of block 5 would return
+  # the same values either way).
+  assert_eq "PDF: supplier" "$PDF_SUP" "Musterfirma GmbH"
+  assert_eq "PDF: supplierVatId" "$PDF_VAT" "DE123456789"
+  assert_eq "PDF: invoiceNumber" "$PDF_INV" "RG-2026-0042"
+  assert_eq "PDF: netAmount" "$PDF_NET" "100"
+  assert_eq "PDF: grossAmount" "$PDF_GROSS" "119"
+fi
+
 # ---- Cleanup ----
-mavis-trash /tmp/t61_fixture.json /tmp/t61_extract.json /tmp/t61_match1.json /tmp/t61_match2.json /tmp/t61_scan.json /tmp/t61_no_file.json /tmp/t61_real.json 2>/dev/null
+mavis-trash /tmp/t61_fixture.json /tmp/t61_extract.json /tmp/t61_match1.json /tmp/t61_match2.json /tmp/t61_scan.json /tmp/t61_no_file.json /tmp/t61_real.json /tmp/t61_pdf.json 2>/dev/null
 
 if [[ $FAILS -gt 0 ]]; then
   echo

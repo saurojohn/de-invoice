@@ -37,13 +37,29 @@ COMPANY_ID="ad257ec3-d319-479b-b870-3fe76e8f3111"
 # Clean up any bulk-test artefacts from previous runs.
 # Done at the START so a partial failure on re-run
 # doesn't leave a Customer with email 'bulk62@x.de'
-# blocking the next attempt (the Customer table has
-# a unique constraint on company+email). The Invoice
-# → Customer FK forces us to delete Invoice rows
-# first; we additionally clean the EmailSend rows
-# that point at the test customer.
+# blocking the next attempt. We walk the full FK chain:
+#
+#   EmailSend → Invoice → Customer
+#   Payment    → Invoice (blocks delete without removal)
+#   PaymentLink → Invoice (Tier 33 portal stubs)
+#
+# PG CASCADE only kicks in for relationships that opt
+# into it in the Prisma schema. EmailSend's invoiceId
+# is a regular FK (no CASCADE), Payment and PaymentLink
+# are also regular — every test run that touches this
+# customer MUST clean them up explicitly.
 docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
   DELETE FROM \"EmailSend\" WHERE \"companyId\" = '$COMPANY_ID' AND \"recipientEmail\" = 'bulk62@x.de';
+  DELETE FROM \"Payment\" WHERE \"invoiceId\" IN (
+    SELECT id FROM \"Invoice\" WHERE \"companyId\" = '$COMPANY_ID' AND \"customerId\" IN (
+      SELECT id FROM \"Customer\" WHERE \"companyId\" = '$COMPANY_ID' AND name = 'Bulk62 Test Customer'
+    )
+  );
+  DELETE FROM \"PaymentLink\" WHERE \"invoiceId\" IN (
+    SELECT id FROM \"Invoice\" WHERE \"companyId\" = '$COMPANY_ID' AND \"customerId\" IN (
+      SELECT id FROM \"Customer\" WHERE \"companyId\" = '$COMPANY_ID' AND name = 'Bulk62 Test Customer'
+    )
+  );
   DELETE FROM \"Invoice\" WHERE \"companyId\" = '$COMPANY_ID' AND \"customerId\" IN (
     SELECT id FROM \"Customer\" WHERE \"companyId\" = '$COMPANY_ID' AND name = 'Bulk62 Test Customer'
   );

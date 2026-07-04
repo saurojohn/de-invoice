@@ -5,6 +5,7 @@ import {
   MockOcrService,
 } from './ocr.service'
 import { TesseractOcrService } from './tesseract-ocr.service'
+import { PdfTextService } from './pdf-text.service'
 
 /**
  * OCR engine selector.
@@ -39,6 +40,7 @@ import { TesseractOcrService } from './tesseract-ocr.service'
     },
     MockOcrService,
     TesseractOcrService,
+    PdfTextService,
   ],
   exports: [OcrService],
 })

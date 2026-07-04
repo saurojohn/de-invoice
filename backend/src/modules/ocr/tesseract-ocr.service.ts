@@ -44,6 +44,7 @@ import {
   extractFieldsFromText,
   OcrService,
 } from './ocr.service'
+import { PdfTextService } from './pdf-text.service'
 // tesseract.js has no official type exports in v7 —
 // import the runtime + use the bare API.
 import { createWorker, Worker as TesseractWorker } from 'tesseract.js'
@@ -56,6 +57,20 @@ export class TesseractOcrService
   private readonly logger = new Logger(TesseractOcrService.name)
   private worker: TesseractWorker | null = null
   private workerPromise: Promise<TesseractWorker> | null = null
+
+  /**
+   * Tier 34: inject PdfTextService so we can handle PDF
+   * uploads without spinning up a tesseract worker
+   * (the text-layer extraction is fast + zero-cost).
+   *
+   * The TesseractOcrService has been renamed conceptually
+   * to "real-OCR engine" — it picks between pdfjs-dist
+   * (digital PDFs) and tesseract.js (scanned images /
+   * scanned PDFs would land here in a Tier 35+).
+   */
+  constructor(private readonly pdfText: PdfTextService) {
+    super()
+  }
 
   /**
    * Lazily instantiate the tesseract.js worker on
@@ -86,31 +101,48 @@ export class TesseractOcrService
   }
 
   async extractReceipt(imageBuffer: Buffer): Promise<ReceiptData> {
-    const worker = await this.getWorker()
+    let text = ''
+    let source: 'pdf' | 'image' = 'image'
 
-    // tesseract.js expects a Buffer (Node), Blob, or
-    // URL. We pass the Node Buffer straight through.
-    const t0 = Date.now()
-    const { data } = await worker.recognize(imageBuffer)
-    const elapsed = Date.now() - t0
+    // Tier 34: PDF branch. Magic-byte detection — the
+    // controller may forward arbitrary bytes with
+    // mismatched Content-Type. We use the signature
+    // ('%PDF-') instead of trusting the header.
+    if (this.pdfText.looksLikePdf(imageBuffer)) {
+      source = 'pdf'
+      const t0 = Date.now()
+      text = await this.pdfText.extractText(imageBuffer)
+      this.logger.log(
+        `PDF text extracted in ${Date.now() - t0}ms — ${text.length} chars`,
+      )
+    } else {
+      // Image branch — tesseract.js worker. Lazy-loaded,
+      // reused across requests. Falls back gracefully
+      // when the buffer is empty / corrupt.
+      const worker = await this.getWorker()
+      const t0 = Date.now()
+      const { data } = await worker.recognize(imageBuffer)
+      const elapsed = Date.now() - t0
+      text = data.text ?? ''
+      this.logger.log(
+        `OCR done in ${elapsed}ms — ${text.length} chars`,
+      )
+    }
 
-    const text: string = data.text ?? ''
-    this.logger.log(
-      `OCR done in ${elapsed}ms — ${text.length} chars`,
-    )
-
-    // Run the existing regex extractors. They were
-    // designed against German receipt text (Musterfirma
-    // GmbH, "EUR"-prefixed amounts, dd.mm.yyyy dates)
-    // so the same parser works for both mock + real.
+    // Run the existing regex extractors. The same
+    // regexes parse both tesseract OCR text and
+    // pdfjs text layer output — the text shapes are
+    // interchangeable for our purposes.
     const extracted = extractFieldsFromText(text)
 
     return {
       ...extracted,
-      // Always populate rawText so the UI's
-      // "OCR Rohtext anzeigen" accordion shows
-      // what the engine actually saw — useful for
-      // debugging bad scans.
+      // Surface the source in the response so the UI
+      // can badge it (helps the user tell a scanned
+      // image from a digital PDF).
+      ...(process.env.NODE_ENV === 'production'
+        ? {}
+        : { _source: source } as any),
       rawText: text,
     }
   }
