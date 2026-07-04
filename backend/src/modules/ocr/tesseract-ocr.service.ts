@@ -102,19 +102,54 @@ export class TesseractOcrService
 
   async extractReceipt(imageBuffer: Buffer): Promise<ReceiptData> {
     let text = ''
-    let source: 'pdf' | 'image' = 'image'
+    let source: 'pdf' | 'image' | 'pdf-raster' = 'image'
 
     // Tier 34: PDF branch. Magic-byte detection — the
     // controller may forward arbitrary bytes with
     // mismatched Content-Type. We use the signature
     // ('%PDF-') instead of trusting the header.
     if (this.pdfText.looksLikePdf(imageBuffer)) {
-      source = 'pdf'
-      const t0 = Date.now()
-      text = await this.pdfText.extractText(imageBuffer)
-      this.logger.log(
-        `PDF text extracted in ${Date.now() - t0}ms — ${text.length} chars`,
-      )
+      // First try the text layer (digital PDFs —
+      // Word/Acrobat exports with embedded text).
+      let hadTextLayer = false
+      try {
+        text = await this.pdfText.extractText(imageBuffer)
+        hadTextLayer = text.trim().length > 0
+      } catch (err: any) {
+        // 'no_text_layer' sentinel from PdfTextService —
+        // the PDF is image-only (a real "scan").
+        if (err?.message !== 'no_text_layer') {
+          throw err
+        }
+      }
+
+      if (hadTextLayer) {
+        source = 'pdf'
+        this.logger.log(
+          `PDF text layer extracted — ${text.length} chars`,
+        )
+      } else {
+        // Tier 35: scanned PDF (no text layer). Rasterize
+        // each page via @napi-rs/canvas, OCR each PNG
+        // with tesseract. Multi-page texts get concat'd
+        // with '\n\n' so per-line extractors see the
+        // page break as a separator.
+        source = 'pdf-raster'
+        const pngs = await this.pdfText.renderPagesToPngs(
+          imageBuffer,
+          2.0,
+        )
+        const worker = await this.getWorker()
+        const chunks: string[] = []
+        for (let i = 0; i < pngs.length; i++) {
+          const r = await worker.recognize(pngs[i])
+          chunks.push(r.data.text ?? '')
+        }
+        text = chunks.join('\n\n')
+        this.logger.log(
+          `PDF rasterised + OCR — ${pngs.length} page(s), ${text.length} chars`,
+        )
+      }
     } else {
       // Image branch — tesseract.js worker. Lazy-loaded,
       // reused across requests. Falls back gracefully
@@ -130,16 +165,16 @@ export class TesseractOcrService
     }
 
     // Run the existing regex extractors. The same
-    // regexes parse both tesseract OCR text and
-    // pdfjs text layer output — the text shapes are
-    // interchangeable for our purposes.
+    // regexes parse tesseract OCR text, pdfjs text layer
+    // output, and pdf-raster OCR text — the text shapes
+    // are interchangeable for our purposes.
     const extracted = extractFieldsFromText(text)
 
     return {
       ...extracted,
       // Surface the source in the response so the UI
       // can badge it (helps the user tell a scanned
-      // image from a digital PDF).
+      // image from a digital PDF from a scanned PDF).
       ...(process.env.NODE_ENV === 'production'
         ? {}
         : { _source: source } as any),

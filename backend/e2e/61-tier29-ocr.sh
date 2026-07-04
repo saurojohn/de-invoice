@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# e2e 61: Tier 29 + Tier 31 + Tier 34 — Eingangsrechnung OCR + supplier match + PDF.
+# e2e 61: Tier 29 + Tier 31 + Tier 34 + Tier 35 — OCR pipeline.
 #
 # Verifies the OCR pipeline:
 #   1. GET /api/v1/ocr/fixture returns the hard-coded
@@ -33,6 +33,10 @@
 #      that pdfjs-dist extracts text-layer fields.
 #      Runs in tesseract mode (mock ignores the file
 #      content the same way it does for PNGs).
+#   9. Tier 35: POST /api/v1/ocr/scan with the
+#      bundled SCANNED PDF (image-only, no text
+#      layer) — verifies the rasterize-and-OCR
+#      fallback path. Runs in tesseract mode only.
 #
 # The frontend flow is:
 #   1. User uploads a scan → /ocr/scan returns
@@ -248,8 +252,46 @@ else
   assert_eq "PDF: grossAmount" "$PDF_GROSS" "119"
 fi
 
+# ---- 9. Tier 35: scanned PDF (no text layer) rasterize + tesseract OCR ----
+echo
+echo "=== 9. Scanned PDF scan on bundled scanned-invoice.pdf (tesseract only) ==="
+if [[ "${OCR_ENGINE:-mock}" != "tesseract" ]]; then
+  echo "  ⏭  skipped — OCR_ENGINE=${OCR_ENGINE:-mock} (set OCR_ENGINE=tesseract to enable)"
+else
+  SCAN_PDF_FILE="$(dirname "$0")/fixtures/scanned-invoice.pdf"
+  if [[ ! -f "$SCAN_PDF_FILE" ]]; then
+    fail "scanned PDF real OCR: missing fixture $SCAN_PDF_FILE"
+  else
+    SCAN_PDF_STATUS=$(curl -sS -o /tmp/t61_scan_pdf.json -w "%{http_code}" \
+      -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
+      -X POST "$API/api/v1/ocr/scan?companyId=$COMPANY_ID" \
+      -F "file=@$SCAN_PDF_FILE;type=application/pdf")
+    assert_eq "scanned PDF returns 201" "$SCAN_PDF_STATUS" "201"
+    SCAN_PDF_SOURCE=$(jq -r '._source' /tmp/t61_scan_pdf.json)
+    SCAN_PDF_SUP=$(jq -r '.supplierName' /tmp/t61_scan_pdf.json)
+    SCAN_PDF_INV=$(jq -r '.invoiceNumber' /tmp/t61_scan_pdf.json)
+    SCAN_PDF_DATE=$(jq -r '.invoiceDate' /tmp/t61_scan_pdf.json)
+    SCAN_PDF_NET=$(jq -r '.netAmount' /tmp/t61_scan_pdf.json)
+    SCAN_PDF_GROSS=$(jq -r '.grossAmount' /tmp/t61_scan_pdf.json)
+    # _source must be 'pdf-raster' (NOT 'pdf'). This is
+    # what proves we hit the Tier 35 fallback path —
+    # tier34's text-extraction would have a real text
+    # layer (this fixture has none).
+    assert_eq "scanned PDF: _source = pdf-raster" "$SCAN_PDF_SOURCE" "pdf-raster"
+    if [[ "$SCAN_PDF_SUP" == Musterfirma* ]]; then
+      pass "scanned PDF: supplier=$SCAN_PDF_SUP"
+    else
+      fail "scanned PDF: supplier=$SCAN_PDF_SUP (expected Musterfirma*)"
+    fi
+    assert_eq "scanned PDF: invoiceNumber" "$SCAN_PDF_INV" "RG-2026-0042"
+    assert_eq "scanned PDF: invoiceDate" "$SCAN_PDF_DATE" "28.06.2026"
+    assert_eq "scanned PDF: netAmount" "$SCAN_PDF_NET" "100"
+    assert_eq "scanned PDF: grossAmount" "$SCAN_PDF_GROSS" "119"
+  fi
+fi
+
 # ---- Cleanup ----
-mavis-trash /tmp/t61_fixture.json /tmp/t61_extract.json /tmp/t61_match1.json /tmp/t61_match2.json /tmp/t61_scan.json /tmp/t61_no_file.json /tmp/t61_real.json /tmp/t61_pdf.json 2>/dev/null
+mavis-trash /tmp/t61_fixture.json /tmp/t61_extract.json /tmp/t61_match1.json /tmp/t61_match2.json /tmp/t61_scan.json /tmp/t61_no_file.json /tmp/t61_real.json /tmp/t61_pdf.json /tmp/t61_scan_pdf.json 2>/dev/null
 
 if [[ $FAILS -gt 0 ]]; then
   echo

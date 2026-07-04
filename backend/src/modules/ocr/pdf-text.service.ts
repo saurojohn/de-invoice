@@ -31,6 +31,23 @@
 
 import { Injectable, Logger } from '@nestjs/common'
 import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs'
+// Tier 35: raster fallback for scanned PDFs (no text
+// layer). pdfjs-dist's getTextContent() returns empty
+// for image-only PDFs — we rasterize each page to a
+// PNG via the @napi-rs/canvas factory and hand the
+// buffers to tesseract.js for OCR.
+//
+// Why @napi-rs/canvas instead of node-canvas:
+//   - node-canvas builds a N-API wrapper around
+//     cairo, which needs the cairo dev headers at
+//     install time. Our slim Docker image doesn't have
+//     those.
+//   - @napi-rs/canvas uses prebuilt .node binaries
+//     (Rust + skia) — installs cleanly in any node
+//     ABI-compatible image. No toolchain in the
+//     runtime image. Skia handles PDF raster natively
+//     (and is the same engine that Chrome uses).
+import { createCanvas, type SKRSContext2D, type Canvas, type Image } from '@napi-rs/canvas'
 
 @Injectable()
 export class PdfTextService {
@@ -132,4 +149,104 @@ export class PdfTextService {
       buffer[4] === 0x2d    // -
     )
   }
+
+  /**
+   * Tier 35: rasterize PDF pages to PNGs for OCR.
+   *
+   * `scale` controls dpi — 2.0 gives ~144 DPI which is
+   * plenty for German receipts (A4 = 595×842pt at 1.0).
+   * Higher dpi slows tesseract without much accuracy gain.
+   *
+   * Returns an array of PNG buffers (one per page). The
+   * caller passes each buffer to tesseract.recognize()
+   * and concatenates the resulting text.
+   */
+  async renderPagesToPngs(
+    buffer: Buffer,
+    scale = 2.0,
+  ): Promise<Buffer[]> {
+    const t0 = Date.now()
+    const data = new Uint8Array(buffer.byteLength)
+    data.set(buffer)
+    const doc = await getDocument({
+      data,
+      useSystemFonts: true,
+      isEvalSupported: false,
+      // pdfjs render needs FontFace disabled to fall
+      // back to the system Helvetica — we render
+      // with the embedded fonts pdfjs can resolve.
+      // disableFontFace=false here so pdfjs renders
+      // Cyrillic / accented glyphs correctly.
+      disableFontFace: false,
+    }).promise
+    const pngs: Buffer[] = []
+    for (let i = 1; i <= doc.numPages; i++) {
+      const page = await doc.getPage(i)
+      const viewport = page.getViewport({ scale })
+      // Factory injection: pdfjs calls create() per
+      // page render. @napi-rs/canvas uses synchronous
+      // getContext('2d') so the rendered surface is
+      // ready by the time page.render() resolves.
+      const canvas: Canvas = createCanvas(
+        Math.ceil(viewport.width),
+        Math.ceil(viewport.height),
+      )
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const ctx = (canvas as any).getContext('2d') as SKRSContext2D
+      // Fill white background — pdfjs render is
+      // transparent by default; tesseract needs a
+      // light background for the model to find the
+      // text reliably.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ;(ctx as any).fillStyle = '#ffffff'
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ;(ctx as any).fillRect(0, 0, canvas.width, canvas.height)
+      await page.render({
+        canvasContext: ctx,
+        viewport,
+        canvasFactory: {
+          // pdfjs-dist 4.x passes {width, height} as a
+          // single { width, height } object on create().
+          create: (w: number, h: number) => createCanvas(w, h),
+          reset: (c: CanvasAndContext, w: number, h: number) => {
+            c.canvas.width = w
+            c.canvas.height = h
+          },
+          destroy: (_: CanvasAndContext) => {
+            /* no-op — @napi-rs/canvas finalizes on GC */
+          },
+        },
+      } as any).promise
+      // toBuffer() returns Buffer (Node) when the
+      // 'image/png' format is requested. tesseract.js
+      // accepts Buffer directly.
+      const png = (canvas as any).toBuffer('image/png') as Buffer
+      pngs.push(png)
+      try {
+        page.cleanup()
+      } catch {
+        /* ignore */
+      }
+    }
+    try {
+      doc.destroy()
+    } catch {
+      /* ignore */
+    }
+    this.logger.log(
+      `PDF rasterized in ${Date.now() - t0}ms — ${doc.numPages} page(s), ${pngs.reduce((s, b) => s + b.length, 0)} bytes`,
+    )
+    return pngs
+  }
+}
+
+/**
+ * pdfjs' CanvasFactory types use a different shape than
+ * our @napi-rs/canvas (which IS what the factory creates).
+ * We declare a minimal local type here so the cast stays
+ * inside renderPagesToPngs (avoiding "any" leakage).
+ */
+interface CanvasAndContext {
+  canvas: Canvas
+  context: SKRSContext2D
 }
