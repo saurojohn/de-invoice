@@ -55,7 +55,9 @@
     "revenue": "Erträge",
     "expense": "Aufwendungen",
     "equity": "Eigenkapital",
-    "seedAccounts": "Standardkonten anlegen"
+    "seedAccounts": "Standardkonten anlegen",
+    "costCenter": "Kostenstelle",
+    "costObject": "Kostenträger"
   },
   "aging": {
     "title": "Altersstruktur (Aging Report)",

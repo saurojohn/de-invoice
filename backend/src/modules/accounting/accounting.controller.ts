@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Param, Query, Body, Res, Header, Req } from '@nestjs/common';
+import { Controller, Get, Post, Put, Param, Query, Body, Res, Header, Req, BadRequestException } from '@nestjs/common';
 import { Response } from 'express';
 import { AccountService } from './account.service';
 import { VoucherService } from './voucher.service';
@@ -36,6 +36,52 @@ export class AccountingController {
   }
 
   // ========== Vouchers ==========
+
+  /**
+   * Tier 41: GET /accounting/vouchers/cost-center-suggestion
+   *
+   * Returns the top-1 most-used cost-center pair the
+   * company has stamped on VoucherLines for the given
+   * Sachkonto. The Voucher create form hits this on
+   * every account-pick so the user sees "your last 28
+   * bookings on 4970 used Kostenstelle VERTRIEB-100"
+   * instead of having to retype it.
+   *
+   * Pure read — does NOT persist any state. The user's
+   * final choice lands via the regular /vouchers POST.
+   *
+   * Path is mounted BEFORE `@Get('vouchers/:id')` and
+   * `@Get('vouchers')` so neither swallows the literal
+   * "cost-center-suggestion" segment.
+   */
+  @Get('vouchers/cost-center-suggestion')
+  async suggestVoucherCostCenter(
+    @Query('companyId') companyId: string,
+    @Query('accountId') accountId: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    if (!accountId) throw new BadRequestException('accountId ist erforderlich')
+    return this.voucherService.suggestCostCenter(companyId, accountId)
+  }
+
+  /**
+   * Tier 41: GET /accounting/vouchers/cost-center-suggestion/list
+   * (Full distinct list with counts — for the dropdown.)
+   */
+  @Get('vouchers/cost-center-suggestion/list')
+  async listVoucherCostCenters(
+    @Query('companyId') companyId: string,
+    @Query('accountId') accountId: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    if (!accountId) throw new BadRequestException('accountId ist erforderlich')
+    const rows = await this.voucherService.listCostCenters(
+      companyId,
+      accountId,
+    )
+    return { items: rows, count: rows.length }
+  }
+
   @Get('vouchers')
   async listVouchers(
     @Query('companyId') companyId: string,

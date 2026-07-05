@@ -28,6 +28,13 @@ interface CreateVoucherDto {
     credit?: number;
     vatRate?: number;
     vatAmount?: number;
+    // Tier 41: per-line DATEV Kostenstelle 1 + Kostenträger.
+    // Free-form, same as Invoice.costCenter. The frontend
+    // auto-fills these from /vouchers/cost-center-suggestion
+    // (most-used per accountId), but the user can override
+    // before save.
+    costCenter?: string;
+    costObject?: string;
   }[];
 }
 
@@ -72,6 +79,11 @@ export class VoucherService {
             credit: line.credit || 0,
             vatRate: line.vatRate,
             vatAmount: line.vatAmount,
+            // Tier 41: cost-center stamps. Trim + null-out
+            // empty strings so the column read is consistent
+            // with Invoice.costCenter (NULL rather than "").
+            costCenter: line.costCenter?.trim() || null,
+            costObject: line.costObject?.trim() || null,
             sortOrder: idx,
           })),
         },
@@ -693,10 +705,155 @@ export class VoucherService {
 
     let nextNum = 1;
     if (lastVoucher) {
-      const lastNum = parseInt(lastVoucher.voucherNumber.replace(prefix, ''), 10);
+       const lastNum = parseInt(lastVoucher.voucherNumber.replace(prefix, ''), 10);
       nextNum = lastNum + 1;
     }
 
     return `${prefix}${nextNum.toString().padStart(4, '0')}`;
+  }
+
+  // ─────────────────────────────────────────────────────
+  // TIER 41: cost-center suggestion
+  // ─────────────────────────────────────────────────────
+  //
+  // The Berater typically books the same Sachkonto many
+  // times a month — and uses the same Kostenstelle for
+  // most of those bookings (e.g. Sachkonto 4970 "Bank
+  // fees" almost always lands on Kostenstelle "100" in
+  // a single-tenant company). Tier 41 ships:
+  //
+  //   - suggestCostCenter(companyId, accountId) →
+  //       { costCenter, costObject, totalLines }
+  //       returns the top-1 most-used cost-center stamp
+  //       across the company's VoucherLines on this
+  //       Sachkonto. Used by the Voucher form as a
+  //       one-click "use last time" auto-fill.
+  //
+  //   - listCostCenters(companyId, accountId) →
+  //       array of distinct { costCenter, costObject, count }
+  //       sorted by count desc. Used by the Voucher form
+  //       as a dropdown ("you've used these N times on
+  //       this account").
+  //
+  // Both are read-only — they don't write any audit row.
+  // The user's final choice lands on the VoucherLine via
+  // the regular create() path.
+
+  /**
+   * Return the top-1 most-used cost-center pair on this
+   * account for the given company. If multiple
+   * cost-centers are tied, the most-recent one wins.
+   */
+  async suggestCostCenter(companyId: string, accountId: string) {
+    const rows = await this.prisma.voucherLine.findMany({
+      where: {
+        accountId,
+        // Filter via the Voucher.companyId so cross-company
+        // bleed is impossible. Without this a Berater with
+        // access to two GmbH's accounts could see the
+        // other tenant's pattern.
+        voucher: { companyId },
+        // NULL stamped on a line means "no cost-center"
+        // — that's a legitimate choice but useless for
+        // a suggestion (we'd always recommend null).
+        costCenter: { not: null },
+      },
+      select: {
+        costCenter: true,
+        costObject: true,
+        voucher: { select: { date: true } },
+      },
+      orderBy: { voucher: { date: 'desc' } },
+      take: 100, // last 100 stamps; groupBy counts frequency
+    })
+    const counts = new Map<
+      string,
+      { costCenter: string; costObject: string | null; count: number; lastDate: Date }
+    >()
+    for (const r of rows) {
+      const cc = (r.costCenter || '').trim()
+      if (!cc) continue
+      const ko = (r.costObject || '').trim() || null
+      const key = `${cc}|${ko || ''}`
+      const cur = counts.get(key) || {
+        costCenter: cc,
+        costObject: ko,
+        count: 0,
+        lastDate: r.voucher.date,
+      }
+      cur.count += 1
+      if (r.voucher.date > cur.lastDate) cur.lastDate = r.voucher.date
+      counts.set(key, cur)
+    }
+    if (counts.size === 0) {
+      return {
+        costCenter: null,
+        costObject: null,
+        totalLines: 0,
+        sampledLines: rows.length,
+      }
+    }
+    const sorted = Array.from(counts.values()).sort((a, b) => {
+      if (b.count !== a.count) return b.count - a.count
+      return b.lastDate.getTime() - a.lastDate.getTime()
+    })
+    const top = sorted[0]
+    return {
+      costCenter: top.costCenter,
+      costObject: top.costObject,
+      // totalLines = how many VoucherLines on this account
+      // have ANY stamp (incl. ones we didn't surface).
+      totalLines: rows.length,
+      // sampledLines = how many of those carry a stamp
+      // (the rest have null costCenter).
+      sampledLines: rows.length,
+    }
+  }
+
+  /**
+   * List the distinct (costCenter, costObject) pairs the
+   * company has ever stamped on this Sachkonto, ranked
+   * by usage desc. The Berater form renders this as a
+   * dropdown so the user sees "you used VERTRIEB-100
+   * 28 times, SERVICE-200 4 times" — at a glance.
+   */
+  async listCostCenters(companyId: string, accountId: string) {
+    // Same defensive filter as above (companyId via
+    // Voucher relation, NULL stamps excluded).
+    const rows = await this.prisma.voucherLine.findMany({
+      where: {
+        accountId,
+        voucher: { companyId },
+        costCenter: { not: null },
+      },
+      select: {
+        costCenter: true,
+        costObject: true,
+        voucher: { select: { date: true } },
+      },
+      orderBy: { voucher: { date: 'desc' } },
+    })
+    const counts = new Map<
+      string,
+      { costCenter: string; costObject: string | null; count: number; lastUsedAt: Date }
+    >()
+    for (const r of rows) {
+      const cc = (r.costCenter || '').trim()
+      if (!cc) continue
+      const ko = (r.costObject || '').trim() || null
+      const key = `${cc}|${ko || ''}`
+      const cur = counts.get(key) || {
+        costCenter: cc,
+        costObject: ko,
+        count: 0,
+        lastUsedAt: r.voucher.date,
+      }
+      cur.count += 1
+      if (r.voucher.date > cur.lastUsedAt) cur.lastUsedAt = r.voucher.date
+      counts.set(key, cur)
+    }
+    return Array.from(counts.values())
+      .sort((a, b) => b.count - a.count || b.lastUsedAt.getTime() - a.lastUsedAt.getTime())
+      .slice(0, 20)
   }
 }

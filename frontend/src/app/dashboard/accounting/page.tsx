@@ -52,6 +52,12 @@ interface DraftLine {
   debit: string
   credit: string
   description: string
+  // Tier 41: per-line DATEV Kostenstelle + Kostenträger.
+  // Auto-filled from /accounting/vouchers/cost-center-suggestion
+  // when the user picks a Sachkonto (the most-used cost-center
+  // for that account is suggested as a one-click auto-fill).
+  costCenter: string
+  costObject: string
 }
 
 // VoucherTemplate — a saved per-company preset
@@ -81,6 +87,16 @@ const REFERENCE_TYPE_LABELS: Record<string, string> = {
   Manual: "Manuell",
 }
 
+// Tier 41: tiny inline helper for fetching the
+// companyId from localStorage inside nested closures
+// (the Voucher-create modal has many onBlur / onClick
+// handlers that need it but lose access to the
+// component's outer-scope reads because they're
+// redefined in each function body).
+function getCompanyId(): string {
+  return localStorage.getItem("companyId") || ""
+}
+
 export default function AccountingPage() {
   const router = useRouter()
   const { t, locale, getDateLocale } = useI18n()
@@ -100,8 +116,8 @@ export default function AccountingPage() {
   const [draftDate, setDraftDate] = useState(new Date().toISOString().slice(0, 10))
   const [draftDescription, setDraftDescription] = useState("")
   const [draftLines, setDraftLines] = useState<DraftLine[]>([
-    { accountId: "", debit: "", credit: "", description: "" },
-    { accountId: "", debit: "", credit: "", description: "" },
+    { accountId: "", debit: "", credit: "", description: "", costCenter: "", costObject: "" },
+    { accountId: "", debit: "", credit: "", description: "", costCenter: "", costObject: "" },
   ])
   const [createError, setCreateError] = useState<string | null>(null)
   const [createSaving, setCreateSaving] = useState(false)
@@ -208,8 +224,8 @@ export default function AccountingPage() {
     setDraftDate(new Date().toISOString().slice(0, 10))
     setDraftDescription("")
     setDraftLines([
-      { accountId: "", debit: "", credit: "", description: "" },
-      { accountId: "", debit: "", credit: "", description: "" },
+      { accountId: "", debit: "", credit: "", description: "", costCenter: "", costObject: "" },
+      { accountId: "", debit: "", credit: "", description: "", costCenter: "", costObject: "" },
     ])
     setCreateError(null)
     setShowCreate(true)
@@ -218,7 +234,7 @@ export default function AccountingPage() {
   const addLine = () => {
     setDraftLines((prev) => [
       ...prev,
-      { accountId: "", debit: "", credit: "", description: "" },
+      { accountId: "", debit: "", credit: "", description: "", costCenter: "", costObject: "" },
     ])
   }
   const removeLine = (idx: number) => {
@@ -264,6 +280,11 @@ export default function AccountingPage() {
           debit: parseFloat(l.debit || "0"),
           credit: parseFloat(l.credit || "0"),
           description: l.description || null,
+          // Tier 41: per-line cost-center stamps. Trim +
+          // coerce empty → undefined so the backend
+          // stores NULL rather than "".
+          costCenter: l.costCenter?.trim() || undefined,
+          costObject: l.costObject?.trim() || undefined,
         })),
       })
       setShowCreate(false)
@@ -759,6 +780,17 @@ export default function AccountingPage() {
                     <th className="text-left px-3 py-2 text-xs font-medium text-gray-500 dark:text-gray-400">
                       Beschreibung
                     </th>
+                    {/* Tier 41: per-line DATEV Kostenstelle +
+                        Kostenträger. Auto-filled from the most-
+                        used cc on the picked Sachkonto. The
+                        narrow widths mirror the other small
+                        inputs in the row. */}
+                    <th className="text-left px-3 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 w-28">
+                      {t("accounting.costCenter")}
+                    </th>
+                    <th className="text-left px-3 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 w-28">
+                      {t("accounting.costObject")}
+                    </th>
                     <th className="w-10"></th>
                   </tr>
                 </thead>
@@ -816,6 +848,73 @@ export default function AccountingPage() {
                           placeholder="optional"
                         />
                       </td>
+
+                      {/* Tier 41: per-line Kostenstelle + Kostenträger.
+                          On picking an account, we fire-and-forget
+                          GET /accounting/vouchers/cost-center-suggestion
+                          and auto-fill the inputs if the line is empty.
+                          Otherwise the user can type any value
+                          (free-form like Invoice.costCenter). */}
+                      <td className="px-3 py-1">
+                        <input
+                          type="text"
+                          value={line.costCenter}
+                          onChange={(e) =>
+                            updateLine(idx, {
+                              costCenter: e.target.value,
+                            })
+                          }
+                          onBlur={async (e) => {
+                            // Only suggest when the user just
+                            // chose the Sachkonto and the cc
+                            // field is still empty.
+                            if (
+                              !line.accountId ||
+                              (line.costCenter || "").trim()
+                            ) {
+                              return
+                            }
+                            try {
+                              const sug = await apiGet<{
+                                costCenter: string | null
+                                costObject: string | null
+                              }>(
+                                `/api/v1/accounting/vouchers/cost-center-suggestion?companyId=${getCompanyId()}&accountId=${line.accountId}`,
+                              )
+                              if (
+                                sug?.costCenter &&
+                                !(line.costCenter || "").trim()
+                              ) {
+                                updateLine(idx, {
+                                  costCenter: sug.costCenter,
+                                  costObject:
+                                    sug.costObject || "",
+                                })
+                              }
+                            } catch {
+                              // Non-fatal — user can type manually.
+                            }
+                          }}
+                          className="w-full border rounded px-2 py-1 text-sm font-mono"
+                          placeholder="z.B. 100"
+                          data-testid={`voucher-line-cost-center-${idx}`}
+                        />
+                      </td>
+                      <td className="px-3 py-1">
+                        <input
+                          type="text"
+                          value={line.costObject}
+                          onChange={(e) =>
+                            updateLine(idx, {
+                              costObject: e.target.value,
+                            })
+                          }
+                          className="w-full border rounded px-2 py-1 text-sm font-mono"
+                          placeholder="optional"
+                          data-testid={`voucher-line-cost-object-${idx}`}
+                        />
+                      </td>
+
                       <td className="px-3 py-1 text-center">
                         {draftLines.length > 2 && (
                           <button

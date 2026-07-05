@@ -55,7 +55,9 @@
     "revenue": "收入",
     "expense": "费用",
     "equity": "权益",
-    "seedAccounts": "创建默认科目"
+    "seedAccounts": "创建默认科目",
+    "costCenter": "成本中心",
+    "costObject": "成本对象"
   },
   "aging": {
     "title": "账龄分析 (Aging Report)",

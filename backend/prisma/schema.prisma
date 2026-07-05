@@ -661,19 +661,33 @@ model VoucherLine {
   // SKR03 account numbers off the top of their head,
   // so this was a major friction point. The migration
   // 20260630000002_voucherline_accountid_nullable
-  // drops the NOT NULL constraint; existing rows
-  // are unaffected (their accountId stays).
+  // drops the NOT NULL constraint; existing rows are
+  // unaffected (their accountId stays).
   accountId    String?
   account      Account?  @relation(fields: [accountId], references: [id])
   description  String?
   debit        Decimal   @db.Decimal(12,4) @default(0)
   credit       Decimal   @db.Decimal(12,4) @default(0)
-  vatRate      Decimal?  @db.Decimal(5,4)
+  vatRate      Decimal? @db.Decimal(5,4)
   vatAmount    Decimal?   @db.Decimal(12,4)
   sortOrder    Int       @default(0)
 
+  // Tier 41: DATEV Kostenstelle 1 + Kostenträger stamps
+  // per line. Mirrors Invoice.costCenter / Expense.costCenter.
+  // Tier 41 ships a /vouchers/cost-center-suggestion endpoint
+  // that pre-fills these from the most-recent usage on the
+  // same Sachkonto. Free-form strings (not FK-restricted),
+  // matching the Invoice / Expense columns.
+  costCenter   String?
+  costObject   String?
+
   @@index([voucherId])
   @@index([accountId])
+  // Tier 41: index on (accountId, costCenter) so the
+  // "most-used cost-center for this account" suggestion
+  // query (groupBy accountId where costCenter IS NOT NULL,
+  // order by _count DESC, take 1) hits the btree directly.
+  @@index([accountId, costCenter])
 }
 
 model VatRate {

@@ -55,7 +55,9 @@
     "revenue": "Revenue",
     "expense": "Expenses",
     "equity": "Equity",
-    "seedAccounts": "Create Default Accounts"
+    "seedAccounts": "Create Default Accounts",
+    "costCenter": "Cost center",
+    "costObject": "Cost object"
   },
   "aging": {
     "title": "Aging Report",
