@@ -90,6 +90,13 @@ function CreateInvoicePageInner() {
   const [customers, setCustomers] = useState<Customer[]>([])
   const [products, setProducts] = useState<Product[]>([])
   const [invoices, setInvoices] = useState<Invoice[]>([])
+  // Tier 39: distinct cost centers the company has stamped
+  // on past invoices. Drives the datalist for the
+  // cost-center input above. Loaded once on mount —
+  // not reactive to mid-session new-stamps (the user
+  // can refresh to re-pull), which matches the read-only
+  // metadata nature of the dropdown.
+  const [costCenters, setCostCenters] = useState<string[]>([])
   const [customerSearch, setCustomerSearch] = useState("")
   const [productSearch, setProductSearch] = useState("")
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false)
@@ -182,6 +189,13 @@ function CreateInvoicePageInner() {
     // is a derived view.
     reverseCharge: false,
     euTransaction: false,
+    // Tier 39: DATEV Kostenstelle 1 + Kostenträger. Free-form
+    // strings (not FK-restricted) — the dropdown below is
+    // populated from GET /invoices/cost-centers (returns the
+    // distinct values the company has ever stamped). The user
+    // can also type a new value; the e2e 67 covers that path.
+    costCenter: "",
+    costObject: "",
     // Rechnungssprache — default to the current UI locale so the
     // user doesn't have to change anything when their UI is already
     // in the language they want the invoice in. They can still
@@ -245,6 +259,9 @@ function CreateInvoicePageInner() {
             paymentMethod: inv.paymentMethod || 'bank_transfer',
             paymentTerms: inv.paymentTerms ?? 0,
             language: inv.language || getDateLocale(),
+            // Tier 39: prefilled cost center stamps on edit-mode.
+            costCenter: inv.costCenter || '',
+            costObject: inv.costObject || '',
             // Tier 27: hydrate the USt-Behandlung
             // flags from the loaded invoice. The
             // radio group's value is derived
@@ -273,10 +290,17 @@ function CreateInvoicePageInner() {
       apiGet<any>(`/api/v1/customers?companyId=${companyId}&pageSize=200`),
       apiGet<any>(`/api/v1/products?companyId=${companyId}&pageSize=200`),
       apiGet<any>(`/api/v1/invoices?companyId=${companyId}&pageSize=200`),
-    ]).then(([c, p, inv]) => {
+      // Tier 39: pull distinct cost centers for the picker
+      // datalist. Soft-fail — a 200 with empty list is fine,
+      // a 404 (very old backend) just leaves the dropdown empty.
+      apiGet<{ costCenters: string[] }>(
+        `/api/v1/invoices/cost-centers?companyId=${companyId}`,
+      ).catch(() => ({ costCenters: [] })),
+    ]).then(([c, p, inv, cc]) => {
       setCustomers(Array.isArray(c) ? c : (c.data || []))
       setProducts(Array.isArray(p) ? p : (p.data || []))
       setInvoices(Array.isArray(inv) ? inv : (inv.data || []))
+      setCostCenters(Array.isArray(cc?.costCenters) ? cc!.costCenters : [])
     }).catch((err) => {
       console.error('Invoice create dropdowns fetch failed:', err)
     })
@@ -692,6 +716,12 @@ function CreateInvoicePageInner() {
         templateType,
         dueDate: form.dueDate || undefined,
         deliveryDate: form.deliveryDate || undefined,
+        // Tier 39: drop empty-string costCenter/costObject so
+        // the backend sees `undefined` (column→null) rather
+        // than `""` (whitespace stored as truthy string).
+        // Non-empty values flow through verbatim.
+        costCenter: form.costCenter?.trim() || undefined,
+        costObject: form.costObject?.trim() || undefined,
       }
       let createdId: string | null = null
       if (isEdit && editId) {
@@ -1025,6 +1055,50 @@ function CreateInvoicePageInner() {
                     <option value="en-US">English</option>
                     <option value="zh-CN">中文</option>
                   </select>
+                </div>
+
+                {/* Tier 39: DATEV Kostenstelle 1 + Kostenträger
+                    stamps. The costCenter dropdown is populated
+                    from GET /invoices/cost-centers (distinct list
+                    the company has ever used). The user may also
+                    type a new value — the column is free-form so
+                    the DATEV import flow can land ad-hoc codes
+                    without a migration. */}
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    {t("invoice.costCenter") || "Kostenstelle (DATEV)"}
+                  </label>
+                  <input
+                    list="tier39-cost-centers-list"
+                    type="text"
+                    value={form.costCenter}
+                    onChange={(e) =>
+                      setForm({ ...form, costCenter: e.target.value })
+                    }
+                    placeholder="z.B. VERTRIEB, 100, SERVICE"
+                    className="w-full h-10 border rounded-md px-3 dark:bg-gray-800 dark:border-gray-700"
+                    data-testid="invoice-cost-center"
+                  />
+                  <datalist id="tier39-cost-centers-list">
+                    {costCenters.map((c) => (
+                      <option key={c} value={c} />
+                    ))}
+                  </datalist>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    {t("invoice.costObject") || "Kostenträger (DATEV)"}
+                  </label>
+                  <input
+                    type="text"
+                    value={form.costObject}
+                    onChange={(e) =>
+                      setForm({ ...form, costObject: e.target.value })
+                    }
+                    placeholder="z.B. PROJ-2026-Q3"
+                    className="w-full h-10 border rounded-md px-3 dark:bg-gray-800 dark:border-gray-700"
+                    data-testid="invoice-cost-object"
+                  />
                 </div>
               </div>
 

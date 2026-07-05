@@ -361,6 +361,12 @@ export class InvoiceService {
         // semantics.
         reverseCharge: dto.reverseCharge ?? false,
         euTransaction: dto.euTransaction ?? false,
+        // Tier 39: DATEV Kostenstelle 1 + Kostenträger
+        // stamps. Optional — the column is already on
+        // Invoice. Trims whitespace so a stray space at
+        // the end doesn't end up baked into the PDF.
+        costCenter: dto.costCenter?.trim() || null,
+        costObject: dto.costObject?.trim() || null,
         // Tier 28: denormalise the customer name so
         // the Postgres tsvector STORED column
         // (search_tsv) can include it without a
@@ -561,9 +567,17 @@ export class InvoiceService {
         dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined,
         deliveryDate: dto.deliveryDate ? new Date(dto.deliveryDate) : undefined,
         notes: dto.notes ?? undefined,
+        internalNotes: dto.internalNotes ?? undefined,
         currency: dto.currency ?? undefined,
         language: dto.language ?? undefined,
         templateType: dto.templateType ?? undefined,
+        // Tier 39: costCenter + costObject. Trim + coerce
+        // empty strings to null so the column reads "null"
+        // rather than "" (matches the create flow).
+        costCenter:
+          dto.costCenter === undefined ? undefined : (dto.costCenter.trim() || null),
+        costObject:
+          dto.costObject === undefined ? undefined : (dto.costObject.trim() || null),
         // paymentTerms is on Customer, paymentMethod is on Payment
         // — neither lives on Invoice. The frontend form keeps them
         // for UX continuity with the create flow, but Invoice's

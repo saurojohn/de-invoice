@@ -892,7 +892,9 @@
     "taxTreatmentVatIdMissing": "⚠ 注意：客户没有增值税识别号 — §1a UStG 要求有效的增值税识别号。",
     "taxTreatmentItemsWillBeZero": "提示：所有项目将设为 0% 增值税（您可逐项覆盖）。",
     "reverseChargeNote": "逆向征税 — 买方承担增值税（§13b UStG）",
-    "euTransactionNote": "欧盟内部免税供应（§1a UStG）"
+    "euTransactionNote": "欧盟内部免税供应（§1a UStG）",
+    "costCenter": "成本中心 (DATEV)",
+    "costObject": "成本对象 (DATEV)"
   },
   "invoiceTemplates": {
     "title": "发票模板",

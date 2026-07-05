@@ -1,4 +1,4 @@
-import { IsString, IsArray, ValidateNested, IsNumber, IsOptional, IsDateString, IsBoolean } from 'class-validator';
+import { IsString, IsArray, ValidateNested, IsNumber, IsOptional, IsDateString, IsBoolean, MaxLength } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class InvoiceItemDto {
@@ -140,6 +140,13 @@ export class CreateInvoiceDto {
   @IsBoolean()
   @IsOptional()
   euTransaction?: boolean;
+
+  // Tier 39: DATEV Kostenstelle 1 + Kostenträger stamps.
+  // Free-form strings, not FK-restricted. The user can
+  // pick from /cost-centers in the UI but can also type
+  // a one-off (DATEV importers commonly do this).
+  @IsString() @MaxLength(20) @IsOptional() costCenter?: string;
+  @IsString() @MaxLength(40) @IsOptional() costObject?: string;
 }
 
 export class UpdateInvoiceDto {
@@ -175,5 +182,18 @@ export class UpdateInvoiceDto {
   // the Storno flow.
   @IsBoolean() @IsOptional() reverseCharge?: boolean;
   @IsBoolean() @IsOptional() euTransaction?: boolean;
+
+  // Tier 39: DATEV Kostenstelle 1 + Kostenträger stamps.
+  // Optional so existing flows (and any e2e that doesn't
+  // care about cost centers) keep working unchanged.
+  // Free-form strings, not FK-restricted — the user can
+  // pick from /cost-centers but can also type a one-off
+  // (DATEV imports often do this with ad-hoc codes).
+  @IsString() @MaxLength(20) @IsOptional() costCenter?: string;
+  @IsString() @MaxLength(40) @IsOptional() costObject?: string;
+
+  // Tier 39 internalNotes — editable in update only,
+  // NOT on create (internal notes are post-issue).
+  @IsString() @IsOptional() internalNotes?: string;
 }
 

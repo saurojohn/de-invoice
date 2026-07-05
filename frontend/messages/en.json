@@ -892,7 +892,9 @@
     "taxTreatmentVatIdMissing": "⚠ Note: customer has no VAT-ID — §1a UStG requires a valid VAT-ID.",
     "taxTreatmentItemsWillBeZero": "Note: all line items will be set to 0% VAT (you can override per item).",
     "reverseChargeNote": "Reverse charge — recipient liable for VAT (§13b UStG)",
-    "euTransactionNote": "Tax-free intra-Community supply (§1a UStG)"
+    "euTransactionNote": "Tax-free intra-Community supply (§1a UStG)",
+    "costCenter": "Cost center (DATEV)",
+    "costObject": "Cost object (DATEV)"
   },
   "invoiceTemplates": {
     "title": "Invoice templates",

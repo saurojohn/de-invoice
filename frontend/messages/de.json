@@ -892,7 +892,9 @@
     "taxTreatmentVatIdMissing": "⚠ Achtung: Kunde hat keine USt-IDNr. — für §1a UStG ist eine gültige USt-IDNr. Pflicht.",
     "taxTreatmentItemsWillBeZero": "Hinweis: Alle Positionen werden auf 0% USt gesetzt (Sie können das pro Position überschreiben).",
     "reverseChargeNote": "Steuerschuldnerschaft des Leistungsempfängers (§13b UStG)",
-    "euTransactionNote": "Steuerfreie innergemeinschaftliche Lieferung (§1a UStG)"
+    "euTransactionNote": "Steuerfreie innergemeinschaftliche Lieferung (§1a UStG)",
+    "costCenter": "Kostenstelle (DATEV)",
+    "costObject": "Kostenträger (DATEV)"
   },
   "invoiceTemplates": {
     "title": "Rechnungsvorlagen",

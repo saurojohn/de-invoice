@@ -28,6 +28,57 @@ export class InvoiceController {
     private paymentService: PaymentService,
   ) {}
 
+  /**
+   * Tier 39: GET /invoices/cost-centers — list the
+   * distinct non-null `costCenter` values that the
+   * company has stamped on past invoices. The Invoice
+   * form uses this list to populate the dropdown in
+   * the cost-center picker, but the user is free to
+   * type any other value (the column is free-form,
+   * not FK-restricted — DATEV imports commonly bring
+   * ad-hoc codes that aren't in this list).
+   *
+   * Sorted alphabetically, deduped by Prisma's
+   * distinct(). We also surface `costObject` pairs
+   * in case the UI wants to drill in — but only when
+   * the optional `?costCenter=` filter is set, to keep
+   * the default response small.
+   */
+  @Get('cost-centers')
+  @Require('invoice.read')
+  async listCostCenters(
+    @Query('companyId') companyId: string,
+    @Query('costCenter') costCenter?: string,
+  ) {
+    if (!companyId) {
+      throw new BadRequestException('companyId ist erforderlich')
+    }
+    const costCenters = await this.prisma.invoice.findMany({
+      where: { companyId, costCenter: { not: null } },
+      select: { costCenter: true },
+      distinct: ['costCenter'],
+      orderBy: { costCenter: 'asc' },
+    })
+    const list = costCenters
+      .map((r) => r.costCenter)
+      .filter((x): x is string => !!x && x.trim().length > 0)
+    const result: { costCenters: string[]; costObjects?: string[] } = {
+      costCenters: list,
+    }
+    if (costCenter) {
+      const costObjects = await this.prisma.invoice.findMany({
+        where: { companyId, costCenter, costObject: { not: null } },
+        select: { costObject: true },
+        distinct: ['costObject'],
+        orderBy: { costObject: 'asc' },
+      })
+      result.costObjects = costObjects
+        .map((r) => r.costObject)
+        .filter((x): x is string => !!x && x.trim().length > 0)
+    }
+    return result
+  }
+
   @Get()
   @Require('invoice.read')
   async findAll(
