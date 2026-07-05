@@ -66,6 +66,17 @@ export interface MahnungPdfInput {
   verzugszins?: number
   /** Verzugszins percentage applied, e.g. 9.0 (% per year). */
   verzugszinsPct?: number
+  /**
+   * Tier 40: optional DATEV Kostenstelle 1 + Kostenträger
+   * stamps copied from the underlying Invoice. Pulled by
+   * the controller + auto-reminder at send-time (not
+   * stored on the Mahnung row — the source of truth is
+   * Invoice.costCenter). When present, a small line is
+   * printed under the invoice table so the Berater can
+   * see the cost-center assignment at a glance.
+   */
+  costCenter?: string | null
+  costObject?: string | null
 }
 
 const PAGE_MARGIN = 50
@@ -243,6 +254,31 @@ export async function generateMahnungPDF(input: MahnungPdfInput): Promise<Buffer
       .lineWidth(0.5)
       .stroke()
     y += 14
+
+    // Tier 40: cost-center stamps (DATEV columns 12 + 13).
+    // Only render when at least one of the two strings is
+    // present and non-whitespace — invoices without a
+    // costCenter stamp shouldn't grow the PDF.
+    //
+    // Layout: a single small line, right-aligned pair of
+    // "Kostenstelle 100" + "Kostenträger PROJ-..." labels.
+    // We render it BEFORE the overdue summary so the cost
+    // center sits visually next to the invoice row it
+    // belongs to (mirrors how it's printed on the invoice
+    // PDF itself).
+    const cc = (input.costCenter || "").trim()
+    const co = (input.costObject || "").trim()
+    if (cc || co) {
+      doc.fontSize(9).font("Helvetica").fillColor("#333333")
+      const parts: string[] = []
+      if (cc) parts.push(`Kostenstelle: ${cc}`)
+      if (co) parts.push(`Kostenträger: ${co}`)
+      doc.text(parts.join("    "), PAGE_MARGIN, y, {
+        width: CONTENT_WIDTH,
+      })
+      y = doc.y + 8
+      doc.fillColor("black")
+    }
 
     // Overdue summary
     doc.fontSize(10).font("Helvetica")

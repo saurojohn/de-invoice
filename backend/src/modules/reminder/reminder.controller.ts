@@ -505,6 +505,13 @@ export class ReminderController {
       bankLine,
       mahngebuehr: Number(mahnung.mahngebuehr),
       verzugszins: Number(mahnung.verzugszins),
+      // Tier 40: copy the costCenter + costObject stamps
+      // from the source Invoice onto the PDF body so the
+      // Berater can see which Kostenstelle this Mahnung
+      // belongs to. Both are nullable on Invoice; the
+      // PDF generator skips the line when both are empty.
+      costCenter: (inv as any).costCenter ?? null,
+      costObject: (inv as any).costObject ?? null,
       verzugszinsPct: (
         await this.reminderService.getFeeConfig(companyId)
       ).verzugszinsPct,

@@ -26,6 +26,10 @@ export interface OverdueInvoice {
   daysOverdue: number;
   language: string;
   reminderCount: number;
+  // Tier 40: cost-center stamps copied from Invoice.
+  // Sent-through to the Mahnung PDF generator.
+  costCenter: string | null;
+  costObject: string | null;
 }
 
 export interface ReminderTemplate {
@@ -141,6 +145,12 @@ export class ReminderService {
         daysOverdue,
         language: inv.language || 'de-DE',
         reminderCount: totalReminders,
+        // Tier 40: cost-center stamps from Invoice. Copied
+        // onto the auto-send Mahnung PDF so the Berater can
+        // see the cost-center assignment without cross-
+        // referencing the underlying invoice.
+        costCenter: (inv as any).costCenter ?? null,
+        costObject: (inv as any).costObject ?? null,
       };
     });
   }
@@ -472,6 +482,11 @@ Mit freundlichen Grüßen,
       ),
       language: invoice.language || 'de-DE',
       reminderCount: 0,
+      // Tier 40: not strictly needed for the email-data
+      // path but the OverdueInvoice shape requires it.
+      // Pulled from the source invoice when present.
+      costCenter: (invoice as any).costCenter ?? null,
+      costObject: (invoice as any).costObject ?? null,
     };
 
     // Render from the per-company DB template (or the
@@ -776,6 +791,12 @@ Mit freundlichen Grüßen,
             dueDate: true,
             customerId: true,
             total: true,
+            // Tier 40: copy the cost-center stamps onto the
+            // list response so the Mahnhistorie UI can show
+            // a "Kostenstelle" column alongside invoice
+            // number + customer.
+            costCenter: true,
+            costObject: true,
             customer: {
               select: { name: true, customerNumber: true, contact: true },
             },
@@ -793,6 +814,12 @@ Mit freundlichen Grüßen,
       issueDate: r.invoice.issueDate,
       dueDate: r.invoice.dueDate,
       invoiceTotal: Number(r.invoice.total),
+      // Tier 40: pass through cost-center stamps from the
+      // source Invoice. Both nullable — the frontend
+      // shows "—" when empty, matching the dashboard's
+      // Kostenstelle column UX.
+      costCenter: r.invoice.costCenter ?? null,
+      costObject: r.invoice.costObject ?? null,
       level: r.level,
       daysOverdue: r.daysOverdue,
       neueFrist: r.neueFrist,

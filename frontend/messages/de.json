@@ -1677,6 +1677,7 @@
     "savedOk": "Mahngebühren gespeichert",
     "cancelledAt": "Storniert am",
     "cancelledBy": "Storniert von",
-    "pre": "Mahnhistorie"
+    "pre": "Mahnhistorie",
+    "costCenter": "Kostenstelle"
   }
 }

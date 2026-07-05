@@ -232,6 +232,11 @@ export class AutoReminderService {
           werktageOverdue,
           neueFrist: neueFrist.toISOString(),
           bankLine,
+          // Tier 40: pass cost-center stamps through. Both
+          // are optional — the PDF generator skips the
+          // section when both are empty.
+          costCenter: inv.costCenter ?? null,
+          costObject: inv.costObject ?? null,
         })
 
         // Render the email subject + body using the

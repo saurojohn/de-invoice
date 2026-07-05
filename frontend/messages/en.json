@@ -1677,6 +1677,7 @@
     "savedOk": "Dunning fees saved",
     "cancelledAt": "Cancelled at",
     "cancelledBy": "Cancelled by",
-    "pre": "Dunning history"
+    "pre": "Dunning history",
+    "costCenter": "Cost center"
   }
 }

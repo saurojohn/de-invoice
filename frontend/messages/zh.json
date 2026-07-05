@@ -1677,6 +1677,7 @@
     "savedOk": "催收费已保存",
     "cancelledAt": "撤销于",
     "cancelledBy": "撤销人",
-    "pre": "催收历史"
+    "pre": "催收历史",
+    "costCenter": "成本中心"
   }
 }

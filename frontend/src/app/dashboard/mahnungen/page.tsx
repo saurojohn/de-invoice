@@ -34,6 +34,11 @@ interface MahnungRow {
   issueDate: string
   dueDate: string | null
   invoiceTotal: number
+  // Tier 40: cost-center stamps carried over from the
+  // source Invoice. Both nullable — the row shows "—"
+  // when the source invoice never stamped a cost-center.
+  costCenter: string | null
+  costObject: string | null
   level: "first" | "second" | "final"
   daysOverdue: number
   neueFrist: string
@@ -258,6 +263,15 @@ export default function MahnhistoriePage() {
                       <th className="py-2 pr-4">{t("mahnung.level")}</th>
                       <th className="py-2 pr-4">Rechnung</th>
                       <th className="py-2 pr-4">Kunde</th>
+                      {/* Tier 40: cost-center stamp. Hidden
+                          when both columns are empty so the
+                          table doesn't sprout dead weight;
+                          rendered as compact "VERTRIEB" /
+                          "PROJ-…" so the Berater sees the
+                          assignment at a glance. */}
+                      <th className="py-2 pr-4">
+                        {t("mahnung.costCenter")}
+                      </th>
                       <th className="py-2 pr-4 text-right">
                         {t("mahnung.daysOverdue")}
                       </th>
@@ -317,6 +331,27 @@ export default function MahnhistoriePage() {
                             <div className="text-xs text-gray-400 font-mono">
                               {r.customerNumber}
                             </div>
+                          )}
+                        </td>
+                        <td
+                          className="py-3 pr-4 text-xs"
+                          data-testid="mahnung-cost-center-cell"
+                        >
+                          {r.costCenter || r.costObject ? (
+                            <div
+                              data-testid="mahnung-cost-center-value"
+                            >
+                              <div className="font-mono">
+                                {r.costCenter || "—"}
+                              </div>
+                              {r.costObject && (
+                                <div className="text-gray-400 font-mono">
+                                  {r.costObject}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-gray-300">—</span>
                           )}
                         </td>
                         <td className="py-3 pr-4 text-right font-mono">
