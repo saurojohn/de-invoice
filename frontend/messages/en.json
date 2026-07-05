@@ -586,7 +586,10 @@
     "dashboardV2Recent": "Recent activity",
     "dashboardV2KpiExpenses": "Expenses YTD",
     "dashboardV2KpiUst": "VAT YTD",
-    "dashboardV2KpiOpenRec": "Open receivables"
+    "dashboardV2KpiOpenRec": "Open receivables",
+    "costCenterTitle": "Revenue by cost center (YTD)",
+    "costCenterEmpty": "No cost-center data yet",
+    "costCenterNet": "Net total"
   },
   "email": {
     "title": "Email Center",

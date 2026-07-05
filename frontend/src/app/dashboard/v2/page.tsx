@@ -75,11 +75,29 @@ interface RecentActivity {
   status: string
 }
 
+/**
+ * Tier 38: one row per cost center (the user-stamped
+ * string from Invoice.costCenter / Expense.costCenter;
+ * NULL → "Nicht zugewiesen"). The backend already merges
+ * both sides into one bucket per center + sorts by
+ * |revenue - expense| desc.
+ */
+interface CostCenterBucket {
+  costCenter: string
+  revenue: number
+  expense: number
+  ust: number   // SUM(invoice.totalVat) YTD
+  vorsteuer: number  // SUM(expense.vatAmount) YTD
+  invoiceCount: number
+  expenseCount: number
+}
+
 interface DashboardV2 {
   kpis: DashboardKpis
   arAging: ArAging
   topCustomers: TopCustomer[]
   recentActivity: RecentActivity[]
+  costCenterBreakdown: CostCenterBucket[]
   generatedAt: string
 }
 
@@ -375,6 +393,175 @@ function RevenueTrendChart({ byMonth }: { byMonth: MonthlyRow[] }) {
   )
 }
 
+/**
+ * Tier 38: Cost-Center pie chart.
+ *
+ * Donut visualization of the breakdown — each slice's
+ * arc length = |revenue − expense| (the net economic
+ * impact of that cost center). We don't add positive
+ * revenue + negative expense on a pie (one slice can't
+ * show both signs), so we use the absolute delta as the
+ * "weight" of each center and surface the breakdown in
+ * the legend rows with the actual signed totals.
+ *
+ * Same SVG-no-deps approach as AgingDonut above —
+ * arrows here are sums of dash + gap offsets around
+ * the 360° circumference. The largest bucket fills
+ * the full 360 minus a thin grey "no-data" arc at the
+ * bottom (kept visually consistent with the arAging
+ * donut styling).
+ */
+const COST_CENTER_PALETTE = [
+  "#2563eb", // blue
+  "#10b981", // emerald
+  "#f59e0b", // amber
+  "#ef4444", // red
+  "#8b5cf6", // violet
+  "#14b8a6", // teal
+  "#f97316", // orange
+  "#ec4899", // pink
+  "#6366f1", // indigo
+  "#84cc16", // lime
+]
+
+function CostCenterPie({
+  buckets,
+}: {
+  buckets: CostCenterBucket[]
+}) {
+  // Pure-function UI — degenerate input renders empty
+  // state. The "no cost center data" hint says exactly
+  // what to do next (stamps a cost center on an
+  // invoice) so the user isn't left guessing.
+  const size = 200
+  const r = 80
+  const cx = size / 2
+  const cy = size / 2
+  if (!buckets || buckets.length === 0) {
+    return (
+      <div
+        className="text-sm text-gray-400 text-center py-12"
+        data-testid="cost-center-empty"
+      >
+        Keine Kostenträger-Daten vorhanden
+      </div>
+    )
+  }
+  // Net delta per center → pie slice weight = abs(delta).
+  const weights = buckets.map((b) => Math.abs(b.revenue - b.expense))
+  const total = weights.reduce((s, w) => s + w, 0)
+  if (total === 0) {
+    return (
+      <div
+        className="text-sm text-gray-400 text-center py-12"
+        data-testid="cost-center-empty"
+      >
+        Keine Kostenträger-Bewegungen in diesem Zeitraum
+      </div>
+    )
+  }
+
+  // Build arcs: same dash/gap math as AgingDonut.
+  let accum = 0
+  const arcs = buckets
+    .map((b, i) => {
+      const w = weights[i]
+      if (w <= 0) return null
+      const fraction = w / total
+      const dash = 2 * Math.PI * r * fraction
+      const gap = 2 * Math.PI * r - dash
+      const offset = -2 * Math.PI * r * (accum / total)
+      accum += w
+      const color = COST_CENTER_PALETTE[i % COST_CENTER_PALETTE.length]
+      return { b, color, dash, gap, offset, fraction }
+    })
+    .filter(Boolean) as Array<{
+    b: CostCenterBucket
+    color: string
+    dash: number
+    gap: number
+    offset: number
+    fraction: number
+  }>
+
+  return (
+    <div
+      className="flex flex-col md:flex-row items-center gap-6"
+      data-testid="cost-center-pie"
+    >
+      <svg viewBox={`0 0 ${size} ${size}`} width={size} height={size}>
+        {/* Soft background ring so 100% single-bucket slices still
+            show a hairline outline. Same #e5e7eb as the arAging donut. */}
+        <circle
+          cx={cx}
+          cy={cy}
+          r={r}
+          fill="none"
+          stroke="#e5e7eb"
+          strokeWidth={20}
+        />
+        {arcs.map((a, i) => (
+          <circle
+            key={`arc-${i}`}
+            cx={cx}
+            cy={cy}
+            r={r}
+            fill="none"
+            stroke={a.color}
+            strokeWidth={20}
+            strokeDasharray={`${a.dash} ${a.gap}`}
+            strokeDashoffset={a.offset}
+            transform={`rotate(-90 ${cx} ${cy})`}
+            data-testid="cost-center-arc"
+            data-cost-center={a.b.costCenter}
+          />
+        ))}
+        <text
+          x={cx}
+          y={cy - 4}
+          textAnchor="middle"
+          className="fill-gray-700 dark:fill-gray-200"
+          fontSize="13"
+          fontWeight="600"
+        >
+          {fmtMoney(total)} €
+        </text>
+        <text
+          x={cx}
+          y={cy + 14}
+          textAnchor="middle"
+          className="fill-gray-400"
+          fontSize="11"
+        >
+          Netto-Summe
+        </text>
+      </svg>
+      <div className="space-y-1 text-sm flex-1 min-w-0">
+        {arcs.map((a, i) => (
+          <div
+            key={`legend-${i}`}
+            className="flex items-center gap-2"
+            data-testid="cost-center-legend-row"
+            data-cost-center={a.b.costCenter}
+          >
+            <span
+              className="inline-block w-3 h-3 rounded-sm shrink-0"
+              style={{ backgroundColor: a.color }}
+            />
+            <span className="flex-1 truncate">{a.b.costCenter}</span>
+            <span className="font-mono">
+              {fmtMoney(a.b.revenue - a.b.expense)} €
+            </span>
+            <span className="text-gray-400 text-xs">
+              {(a.fraction * 100).toFixed(0)}%
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function DashboardV2Page() {
   const router = useRouter()
   const { t } = useI18n()
@@ -570,6 +757,23 @@ export default function DashboardV2Page() {
                 </CardHeader>
                 <CardContent>
                   <AgingDonut arAging={data.arAging} />
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Tier 38: third middle row — Cost-Center breakdown
+                (pie + legend). Single-column on small viewports. */}
+            <div className="grid grid-cols-1 gap-4 mb-6">
+              <Card data-testid="cost-center-card">
+                <CardHeader>
+                  <CardTitle>
+                    Umsatz nach Kostenträger (YTD)
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <CostCenterPie
+                    buckets={data.costCenterBreakdown || []}
+                  />
                 </CardContent>
               </Card>
             </div>

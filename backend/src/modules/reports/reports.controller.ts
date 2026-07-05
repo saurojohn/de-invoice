@@ -588,32 +588,61 @@ async getSalesReport(
 
     // Run the four expensive queries in parallel.
     // Each is bounded by the underlying SQL — no N+1.
-    const [kpis, aging, topCustomers, recent] = await Promise.all([
-      // Reuse the legacy aggregator via a private call
-      // (avoid HTTP self-fetch latency + auth loops).
-      this.getDashboardKpis(companyId),
-      this.agingService.generate(companyId),
-      // Top 5 customers by YTD revenue. Single SQL —
-      // GROUP BY customer, ORDER BY sum DESC, LIMIT 5.
-      this.prisma.invoice.groupBy({
-        by: ['customerId'],
-        where: { companyId, issueDate: { gte: yearStart } },
-        _sum: { total: true },
-        _count: { _all: true },
-        orderBy: { _sum: { total: 'desc' } },
-        take: 5,
-      }),
-      // Last 5 invoices. Sorted by createdAt desc —
-      // matches the activity feed ordering.
-      this.prisma.invoice.findMany({
-        where: { companyId },
-        orderBy: { createdAt: 'desc' },
-        take: 5,
-        include: {
-          customer: { select: { name: true, customerNumber: true } },
-        },
-      }),
-    ])
+    const [kpis, aging, topCustomers, recent, invByCc, expByCc] =
+      await Promise.all([
+        // Reuse the legacy aggregator via a private call
+        // (avoid HTTP self-fetch latency + auth loops).
+        this.getDashboardKpis(companyId),
+        this.agingService.generate(companyId),
+        // Top 5 customers by YTD revenue. Single SQL —
+        // GROUP BY customer, ORDER BY sum DESC, LIMIT 5.
+        this.prisma.invoice.groupBy({
+          by: ['customerId'],
+          where: { companyId, issueDate: { gte: yearStart } },
+          _sum: { total: true },
+          _count: { _all: true },
+          orderBy: { _sum: { total: 'desc' } },
+          take: 5,
+        }),
+        // Last 5 invoices. Sorted by createdAt desc —
+        // matches the activity feed ordering.
+        this.prisma.invoice.findMany({
+          where: { companyId },
+          orderBy: { createdAt: 'desc' },
+          take: 5,
+          include: {
+            customer: { select: { name: true, customerNumber: true } },
+          },
+        }),
+        // Tier 38: cost-center breakdown on invoices YTD.
+        // Group by costCenter (a string column); null buckets
+        // become "Nicht zugewiesen" in the pie chart legend.
+        // We sum total + totalVat separately so the breakdown
+        // matches what gets exported to DATEV columns 12/13.
+        this.prisma.invoice.groupBy({
+          by: ['costCenter'],
+          where: {
+            companyId,
+            issueDate: { gte: yearStart },
+            type: { in: ['INV', 'RCV'] },
+          },
+          _sum: { total: true, totalVat: true },
+          _count: { _all: true },
+        }),
+        // Same idea on the Expense side (Eingangsrechnungen).
+        // We only count "booked" expenses — drafts and blocked
+        // entries shouldn't skew the dashboard pie.
+        this.prisma.expense.groupBy({
+          by: ['costCenter'],
+          where: {
+            companyId,
+            invoiceDate: { gte: yearStart },
+            status: { in: ['booked', 'deductible'] },
+          },
+          _sum: { grossAmount: true, vatAmount: true },
+          _count: { _all: true },
+        }),
+      ])
 
     // Resolve customerId → name/number for topCustomers.
     // Two roundtrips total (groupBy + this one). Most
@@ -653,7 +682,113 @@ async getSalesReport(
         dueDate: r.dueDate,
         status: r.status,
       })),
+      // Tier 38: cost-center breakdown. Two parallel
+      // groupBy results (invoices + expenses) merged into
+      // a single sorted list, by total gross amounts
+      // descending. Each entry has:
+      //   - costCenter: the user-stamped string from
+      //     Invoice.costCenter / Expense.costCenter
+      //     (null → "Nicht zugewiesen")
+      //   - revenue: SUM(invoice.total) YTD
+      //   - expense: SUM(expense.grossAmount) YTD
+      //   - ust: SUM(invoice.totalVat) YTD (output tax)
+      //   - vorsteuer: SUM(expense.vatAmount) YTD (input tax)
+      //   - invoiceCount / expenseCount
+      //
+      // Frontend renders this as a donut chart with the
+      // legend showing each cost-center slice's
+      //     Netto = revenue - expense
+      // plus a § 14/13b USt summary row.
+      costCenterBreakdown: mergeCostCenterBreakdown(invByCc, expByCc),
       generatedAt: now.toISOString(),
     }
   }
+}
+
+/**
+ * Tier 38: merge Invoice + Expense costCenter groupBy
+ * results into a single sorted array.
+ *
+ * The key challenge: both queries bucket a NULL
+ * costCenter into the same "Nicht zugewiesen" pseudo-
+ * center. We coalesce nulls on both sides here so the
+ * frontend sees one bucket, not two.
+ *
+ * Sort order: by (revenue - expense) absolute amount
+ * descending, so the biggest cost center is at the top
+ * of the legend. Within ties, alphabetical.
+ *
+ * Pure function so it's trivial to unit-test if we ever
+ * add Jest/Vitest; the e2e covers the integration.
+ */
+function mergeCostCenterBreakdown(
+  invRows: Array<{
+    costCenter: string | null
+    _sum: { total: any; totalVat: any } | null
+    _count: { _all: number }
+  }>,
+  expRows: Array<{
+    costCenter: string | null
+    _sum: { grossAmount: any; vatAmount: any } | null
+    _count: { _all: number }
+  }>,
+) {
+  const map = new Map<
+    string,
+    {
+      costCenter: string
+      revenue: number
+      expense: number
+      ust: number
+      vorsteuer: number
+      invoiceCount: number
+      expenseCount: number
+    }
+  >()
+  const labelFor = (cc: string | null) =>
+    cc && cc.trim() ? cc.trim() : 'Nicht zugewiesen'
+
+  for (const r of invRows) {
+    const key = labelFor(r.costCenter)
+    const cur = map.get(key) || {
+      costCenter: key,
+      revenue: 0,
+      expense: 0,
+      ust: 0,
+      vorsteuer: 0,
+      invoiceCount: 0,
+      expenseCount: 0,
+    }
+    cur.revenue += Number(r._sum?.total ?? 0)
+    cur.ust += Number(r._sum?.totalVat ?? 0)
+    cur.invoiceCount += r._count._all
+    map.set(key, cur)
+  }
+  for (const r of expRows) {
+    const key = labelFor(r.costCenter)
+    const cur = map.get(key) || {
+      costCenter: key,
+      revenue: 0,
+      expense: 0,
+      ust: 0,
+      vorsteuer: 0,
+      invoiceCount: 0,
+      expenseCount: 0,
+    }
+    cur.expense += Number(r._sum?.grossAmount ?? 0)
+    cur.vorsteuer += Number(r._sum?.vatAmount ?? 0)
+    cur.expenseCount += r._count._all
+    map.set(key, cur)
+  }
+  const list = Array.from(map.values())
+  // Sort by net (revenue - expense) absolute amount
+  // desc so the biggest cost center is on top of the
+  // legend. Within ties, alphabetical.
+  list.sort((a, b) => {
+    const aNet = Math.abs(a.revenue - a.expense)
+    const bNet = Math.abs(b.revenue - b.expense)
+    if (bNet !== aNet) return bNet - aNet
+    return a.costCenter.localeCompare(b.costCenter)
+  })
+  return list
 }

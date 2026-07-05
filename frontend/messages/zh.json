@@ -586,7 +586,10 @@
     "dashboardV2Recent": "最近活动",
     "dashboardV2KpiExpenses": "YTD 支出",
     "dashboardV2KpiUst": "YTD 增值税",
-    "dashboardV2KpiOpenRec": "未收应收款"
+    "dashboardV2KpiOpenRec": "未收应收款",
+    "costCenterTitle": "按成本中心划分的收入 (YTD)",
+    "costCenterEmpty": "暂无成本中心数据",
+    "costCenterNet": "净额合计"
   },
   "email": {
     "title": "邮件中心",

@@ -586,7 +586,10 @@
     "dashboardV2Recent": "Letzte Aktivität",
     "dashboardV2KpiExpenses": "Aufwand YTD",
     "dashboardV2KpiUst": "USt YTD",
-    "dashboardV2KpiOpenRec": "Offene Forderungen"
+    "dashboardV2KpiOpenRec": "Offene Forderungen",
+    "costCenterTitle": "Umsatz nach Kostenträger (YTD)",
+    "costCenterEmpty": "Keine Kostenträger-Daten vorhanden",
+    "costCenterNet": "Netto-Summe"
   },
   "email": {
     "title": "E-Mail Center",
