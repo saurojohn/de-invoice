@@ -273,20 +273,95 @@ export default function VoucherDetailPage() {
                   <Button
                     data-testid="voucher-correct-button"
                     variant="outline"
-                    onClick={() => {
-                      setCorrectLines(
-                        (voucher!.lines || []).map((l) => ({
+                    onClick={async () => {
+                      const baseLines = (voucher!.lines || []).map(
+                        (l) => ({
                           accountId: l.account?.id || "",
                           description: l.description || "",
                           debit: l.debit || "",
                           credit: l.credit || "",
                           costCenter: l.costCenter || "",
                           costObject: l.costObject || "",
-                        })),
+                        }),
                       )
+                      setCorrectLines(baseLines)
                       setCorrectReason("")
                       setCorrectError(null)
                       setShowCorrectModal(true)
+
+                      // Tier 43: Pre-fill cost-center stamps
+                      // for any line whose cc is still
+                      // empty — same behaviour as the
+                      // Voucher create form (Tier 41).
+                      // For each unique accountId with an
+                      // empty cc we fetch the most-used
+                      // (costCenter, costObject) pair via
+                      // /cost-center-suggestion. We dedupe
+                      // accountIds so the same Sachkonto
+                      // doesn't get fetched twice on a
+                      // 10-line Voucher with 5 debits on
+                      // the same account.
+                      const companyId =
+                        localStorage.getItem("companyId") || ""
+                      try {
+                        // Build distinct accountIds needing
+                        // a suggestion (line has an accountId
+                        // AND empty costCenter).
+                        const todo = new Map<
+                          string,
+                          { cc: string; idx: number }
+                        >()
+                        baseLines.forEach((l, idx) => {
+                          if (l.accountId && !l.costCenter.trim()) {
+                            todo.set(l.accountId, { cc: "", idx })
+                          }
+                        })
+                        // Fetch in parallel — each is a
+                        // fast index hit on VoucherLine
+                        // (accountId, costCenter).
+                        const fetched = await Promise.all(
+                          Array.from(todo.keys()).map((aid) =>
+                            apiGet<{
+                              costCenter: string | null
+                              costObject: string | null
+                            }>(
+                              `/api/v1/accounting/vouchers/cost-center-suggestion?companyId=${companyId}&accountId=${aid}`,
+                            )
+                              .then((s) => ({ aid, s }))
+                              .catch(() => ({ aid, s: null })),
+                          ),
+                        )
+                        // Apply each suggestion to all lines
+                        // matching that accountId whose cc
+                        // is still empty. We rebuild the
+                        // state fresh (no race with the
+                        // user's editing) by merging the
+                        // suggestions into baseLines.
+                        const updated = baseLines.slice()
+                        for (const line of updated) {
+                          if (
+                            line.accountId &&
+                            !line.costCenter.trim()
+                          ) {
+                            const f = fetched.find(
+                              (x) => x.aid === line.accountId,
+                            )
+                            if (f?.s?.costCenter) {
+                              line.costCenter = f.s.costCenter
+                              line.costObject =
+                                f.s.costObject || ""
+                            }
+                          }
+                        }
+                        setCorrectLines(updated)
+                      } catch {
+                        // Soft-fail: don't block the
+                        // modal if the suggestion fetch
+                        // throws. The user sees the
+                        // original (empty) costCenter
+                        // fields and can type them
+                        // manually.
+                      }
                     }}
                   >
                     {t("accounting.correctVoucher") || "Korrigieren"}
