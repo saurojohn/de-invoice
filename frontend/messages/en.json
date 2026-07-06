@@ -57,7 +57,10 @@
     "equity": "Equity",
     "seedAccounts": "Create Default Accounts",
     "costCenter": "Cost center",
-    "costObject": "Cost object"
+    "costObject": "Cost object",
+    "correctVoucher": "Correct",
+    "correctDescription": "Reverses the original booking and creates a correction voucher.",
+    "correctReason": "Correction reason"
   },
   "aging": {
     "title": "Aging Report",

@@ -20,7 +20,12 @@ interface VoucherLine {
   vatRate: string | null
   vatAmount: string | null
   sortOrder: number
+  // Tier 41: per-line DATEV Kostenstelle + Kostenträger stamps.
+  // Optional on older rows (migration added the column null).
+  costCenter: string | null
+  costObject: string | null
   account: {
+    id: string
     accountNumber: string
     name: string
     type: string
@@ -117,6 +122,29 @@ export default function VoucherDetailPage() {
   const [voucher, setVoucher] = useState<Voucher | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  // Tier 42: Korrektur modal state. Pre-fills the form
+  // with the original Voucher's lines + a single
+  // top-level "reason" field; on submit it POSTs to
+  // /vouchers/:id/correct and the backend atomically
+  // creates the Storno + K-booking pair. We only
+  // expose the *reason* and the *corrected lines*
+  // here — the user can re-author the Sachkonto /
+  // Beträge / Kostenstelle / Kostenträger values
+  // before submitting. Defaults the form to a small
+  // copy of the original lines so the UI never starts
+  // empty (which would land the user on a 400).
+  const [showCorrectModal, setShowCorrectModal] = useState(false)
+  const [correctReason, setCorrectReason] = useState("")
+  const [correctLines, setCorrectLines] = useState<Array<{
+    accountId: string
+    description: string
+    debit: string
+    credit: string
+    costCenter: string
+    costObject: string
+  }>>([])
+  const [correctSaving, setCorrectSaving] = useState(false)
+  const [correctError, setCorrectError] = useState<string | null>(null)
 
   useEffect(() => {
     const companyId = localStorage.getItem("companyId")
@@ -148,6 +176,7 @@ export default function VoucherDetailPage() {
   const isBalanced = Math.abs(totals.debit - totals.credit) < 0.01
 
   return (
+    <>
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <div className="container mx-auto px-4 py-8">
         <div className="flex justify-between items-center mb-6">
@@ -232,11 +261,37 @@ export default function VoucherDetailPage() {
                       alert("Fehler: " + (e?.message || String(e)))
                     }
                   }}
-                  className="bg-red-600 text-white hover:bg-red-700"
+                   className="bg-red-600 text-white hover:bg-red-700"
                 >
                   {t("accounting.reverseVoucher") || "Stornieren"}
                 </Button>
-              )}
+                )}
+                {/* Tier 42: Korrektur button — atomic
+                    Storno+replace. Sibling of the
+                    Stornieren button. */}
+                {voucher && (
+                  <Button
+                    data-testid="voucher-correct-button"
+                    variant="outline"
+                    onClick={() => {
+                      setCorrectLines(
+                        (voucher!.lines || []).map((l) => ({
+                          accountId: l.account?.id || "",
+                          description: l.description || "",
+                          debit: l.debit || "",
+                          credit: l.credit || "",
+                          costCenter: l.costCenter || "",
+                          costObject: l.costObject || "",
+                        })),
+                      )
+                      setCorrectReason("")
+                      setCorrectError(null)
+                      setShowCorrectModal(true)
+                    }}
+                  >
+                    {t("accounting.correctVoucher") || "Korrigieren"}
+                  </Button>
+                )}
             {voucher &&
               voucher.reversals &&
               voucher.reversals.length > 0 && (
@@ -620,5 +675,179 @@ export default function VoucherDetailPage() {
         )}
       </div>
     </div>
+
+      <>
+      {/* Tier 42: Korrektur modal. Compact — the user
+          sees the original lines + a reason field,
+          can edit a Betrag/Sachkonto in place, then
+          hit "Korrektur anwenden". The backend posts
+          atomically to /vouchers/:id/correct. */}
+      {showCorrectModal && voucher && (
+        <div
+          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+          data-testid="voucher-correct-modal"
+        >
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto p-6">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2">
+              {t("accounting.correctVoucher") || "Korrektur"}
+            </h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+              {t("accounting.correctDescription") ||
+                "Storniert die Originalbuchung und legt einen Korrekturbeleg an. Beide Einträge sind sichtbar im Journal."}
+            </p>
+
+            {correctError && (
+              <div
+                className="p-3 mb-3 bg-red-50 border border-red-200 text-red-800 rounded text-sm"
+                data-testid="voucher-correct-error"
+              >
+                ✗ {correctError}
+              </div>
+            )}
+
+            <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
+              {t("accounting.correctReason") || "Grund der Korrektur"}
+            </label>
+            <input
+              type="text"
+              value={correctReason}
+              onChange={(e) => setCorrectReason(e.target.value)}
+              placeholder="z.B. Bank fee 1,20 € korrigiert auf 1,50 €"
+              className="w-full border rounded px-3 py-2 text-sm mb-4 dark:bg-gray-700 dark:border-gray-600"
+              data-testid="voucher-correct-reason"
+            />
+
+            <table className="w-full text-sm mb-4">
+              <thead>
+                <tr className="text-left border-b border-gray-200 dark:border-gray-700 text-xs uppercase text-gray-500">
+                  <th className="py-2 pr-2">Soll €</th>
+                  <th className="py-2 pr-2">Haben €</th>
+                  <th className="py-2 pr-2">Beschreibung</th>
+                </tr>
+              </thead>
+              <tbody>
+                {correctLines.map((l, idx) => (
+                  <tr
+                    key={idx}
+                    className="border-t border-gray-100 dark:border-gray-800"
+                    data-testid="voucher-correct-line-row"
+                  >
+                    <td className="py-1 pr-2">
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={l.debit}
+                        onChange={(e) => {
+                          const cc = [...correctLines]
+                          cc[idx] = { ...cc[idx], debit: e.target.value }
+                          setCorrectLines(cc)
+                        }}
+                        className="w-full border rounded px-2 py-1 text-right font-mono dark:bg-gray-700 dark:border-gray-600"
+                        data-testid="voucher-correct-debit"
+                      />
+                    </td>
+                    <td className="py-1 pr-2">
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={l.credit}
+                        onChange={(e) => {
+                          const cc = [...correctLines]
+                          cc[idx] = { ...cc[idx], credit: e.target.value }
+                          setCorrectLines(cc)
+                        }}
+                        className="w-full border rounded px-2 py-1 text-right font-mono dark:bg-gray-700 dark:border-gray-600"
+                      />
+                    </td>
+                    <td className="py-1 pr-2">
+                      <input
+                        type="text"
+                        value={l.description}
+                        onChange={(e) => {
+                          const cc = [...correctLines]
+                          cc[idx] = { ...cc[idx], description: e.target.value }
+                          setCorrectLines(cc)
+                        }}
+                        className="w-full border rounded px-2 py-1 text-sm dark:bg-gray-700 dark:border-gray-600"
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowCorrectModal(false)}
+                disabled={correctSaving}
+              >
+                Abbrechen
+              </Button>
+              <Button
+                data-testid="voucher-correct-submit"
+                onClick={async () => {
+                  const companyId =
+                    localStorage.getItem("companyId") || ""
+                  setCorrectSaving(true)
+                  setCorrectError(null)
+                  try {
+                    const res = await fetch(
+                      `/api/v1/accounting/vouchers/${voucher.id}/correct?companyId=${companyId}`,
+                      {
+                        method: "POST",
+                        headers: {
+                          "Content-Type": "application/json",
+                          "x-user-id":
+                            localStorage.getItem("userId") || "",
+                          "x-company-id": companyId,
+                        },
+                        body: JSON.stringify({
+                          date: new Date().toISOString(),
+                          description: "Korrektur zu " + voucher.voucherNumber,
+                          reason: correctReason,
+                          lines: correctLines.map((l) => ({
+                            accountId: l.accountId,
+                            debit: parseFloat(l.debit || "0") || 0,
+                            credit: parseFloat(l.credit || "0") || 0,
+                            description: l.description || null,
+                            costCenter: l.costCenter || undefined,
+                            costObject: l.costObject || undefined,
+                          })),
+                        }),
+                      },
+                    )
+                    if (!res.ok) {
+                      const err = await res
+                        .json()
+                        .catch(() => ({ message: res.statusText }))
+                      setCorrectError(
+                        err.message || `HTTP ${res.status}`,
+                      )
+                      setCorrectSaving(false)
+                      return
+                    }
+                    const data = await res.json()
+                    setShowCorrectModal(false)
+                    router.push(
+                      `/dashboard/accounting/vouchers/${data.correction.id}`,
+                    )
+                  } catch (e: any) {
+                    setCorrectError(
+                      "Fehler: " + (e?.message || String(e)),
+                    )
+                    setCorrectSaving(false)
+                  }
+                }}
+                disabled={correctSaving}
+              >
+                {correctSaving ? "…" : "Korrektur anwenden"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+    </>
   )
 }

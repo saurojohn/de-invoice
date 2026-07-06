@@ -168,9 +168,9 @@ export class AccountingController {
    * a new Voucher is created with all lines negated
    * and referenceType='VoucherReversal', linked back
    * to the original via the Voucher.reversedById
-   * self-relation. Body carries an optional reason
-   * that gets prepended to the Storno description.
-   */
+    * self-relation. Body carries an optional reason
+    * that gets prepended to the Storno description.
+    */
   @Post('vouchers/:id/reversal')
   async createReversal(
     @Param('id') id: string,
@@ -185,6 +185,73 @@ export class AccountingController {
       companyId,
       body?.reason,
     );
+  }
+
+  /**
+   * Tier 42: POST /vouchers/:id/correct — Atomically
+   * reverse + replace a posted Voucher with a Korrektur
+   * (K-booking). Replaces the manual 3-step flow with one
+   * request, while keeping full GoBD §146 AO immutability:
+   * the original is never modified, the reversal is appended,
+   * and the new K-voucher carries the corrected lines.
+   *
+   * See VoucherService.correct() for the transactional
+   * details. Body:
+   *
+   *   {
+   *     date: 'YYYY-MM-DDTHH:mm:ssZ',         // today, but
+   *                                            // takeable
+   *     description?: 'Korrektur …',
+   *     reason?: 'Grund für Korrektur',       // goes into
+   *                                            // both vouchers'
+   *                                            // descriptions
+   *     lines: [
+   *       {
+   *         accountId, debit, credit, description,
+   *         vatRate?, vatAmount?,
+   *         costCenter?, costObject?           // Tier 41
+   *       },
+   *       ...
+   *     ]
+   *   }
+   *
+   * Response: { reversal, correction } — both Vouchers
+   * with their line breakdowns, full edges intact.
+   */
+  @Post('vouchers/:id/correct')
+  async correctVoucher(
+    @Param('id') id: string,
+    @Query('companyId') companyId: string,
+    @Body() body: {
+      date?: string;
+      description?: string;
+      reason?: string;
+      lines: Array<{
+        accountId: string;
+        debit?: number;
+        credit?: number;
+        description?: string;
+        vatRate?: number;
+        vatAmount?: number;
+        costCenter?: string;
+        costObject?: string;
+      }>;
+    },
+  ) {
+    if (!companyId) {
+      throw new BadRequestException('companyId ist erforderlich');
+    }
+    if (!body || !Array.isArray(body.lines) || body.lines.length === 0) {
+      throw new BadRequestException(
+        'lines[] ist erforderlich (mindestens 2 Positionen)',
+      );
+    }
+    return this.voucherService.correct(id, companyId, {
+      date: body.date ? new Date(body.date) : new Date(),
+      description: body.description,
+      reason: body.reason,
+      lines: body.lines,
+    });
   }
 
   /**

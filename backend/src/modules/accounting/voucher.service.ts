@@ -337,9 +337,260 @@ export class VoucherService {
           reason: reason ?? null,
         },
       })
-      .catch((err) => console.error('webhook emit(voucher.reversed) failed:', err))
+       .catch((err) => console.error('webhook emit(voucher.reversed) failed:', err))
 
     return reversal;
+  }
+
+  // ──────────────────────────────────────────────────────────────────
+  // TIER 42: Korrektur (Correction Voucher)
+  // ──────────────────────────────────────────────────────────────────
+  //
+  // A posted Voucher is immutable under §146 AO (GoBD): it
+  // can't be overwritten or mutated in place. The user
+  // correcting a typo on a Bank-fee booking has to walk a
+  // three-step path:
+  //
+  //   1. Reverse the original  (creates BK-2026-0042-S1)
+  //   2. Manually create the correct Voucher with new lines
+  //   3. Verify Soll = Haben on the new Voucher
+  //
+  // Tier 42 collapses all three into a single RPC. The
+  // user edits the lines in a dialog, hits "Korrigieren",
+  // and the backend atomically:
+  //
+  //   - reverses the original  (same logic as createReversal)
+  //   - creates a NEW posted Voucher carrying the user's
+  //     edited lines, date=today, description prefixed
+  //     with "Korrektur: BK-…" for traceability
+  //   - references the reversal via referencesRelation-like
+  //     fields so the audit trail shows the chain
+  //
+  // Everything in one Postgres transaction so a partial
+  // failure rolls back both halves. The reversal Voucher
+  // keeps its own customer-visible voucherNumber
+  // (`<orig>-S<seq>`); the correction gets a fresh number
+  // (`<orig>-K<seq>`) so it shows up in the journal as a
+  // separate Buchung.
+  //
+  // Why K-corretion rather than chaining via reversedById:
+  //   K-Voucher is a brand new Buchung, not a Storno
+  //   itself. reversedById on the original Voucher is left
+  //   untouched (so the Storno relationship stays clear);
+  //   the linkage between Storno and Korrektur is captured
+  //   via referenceType='VoucherCorrection' on the K line,
+  //   + a `referenceVoucherId` field stored in the
+  //   description ("Korrektur zu <orig>-S<seq>"). A future
+  //   schema migration could promote that to a column if
+  //   chain-walking becomes a hot path; for now text in the
+  //   description + reversedById reverse-edges is enough.
+
+  async correct(
+    originalId: string,
+    companyId: string,
+    correction: {
+      date: Date;
+      description?: string;
+      lines: Array<{
+        accountId: string;
+        debit?: number;
+        credit?: number;
+        description?: string;
+        vatRate?: number;
+        vatAmount?: number;
+        costCenter?: string;
+        costObject?: string;
+      }>;
+      reason?: string;
+    },
+  ) {
+    const original = await this.findOne(originalId, companyId);
+    if (!original) {
+      throw new NotFoundException(`Voucher ${originalId} not found`);
+    }
+    // The original must NOT already be reversed — if it
+    // is, the user has to either reverse the reversal
+    // (which we don't support) or edit the K-Booking
+    // directly. Going down the same path twice would
+    // double-net the books.
+    if (original.reversedById) {
+      throw new BadRequestException(
+        'Original ist bereits storniert — bitte den Korrekturbeleg direkt editieren.',
+      );
+    }
+    // Validation: at least 2 lines, Soll = Haben, every line has an accountId.
+    if (correction.lines.length < 2) {
+      throw new BadRequestException('Mindestens 2 Positionen erforderlich');
+    }
+    if (correction.lines.some((l) => !l.accountId)) {
+      throw new BadRequestException('Jede Position benötigt eine Sachkonto');
+    }
+    const totalDebit = correction.lines.reduce(
+      (s, l) => s + (l.debit || 0),
+      0,
+    );
+    const totalCredit = correction.lines.reduce(
+      (s, l) => s + (l.credit || 0),
+      0,
+    );
+    if (Math.abs(totalDebit - totalCredit) > 0.01) {
+      throw new BadRequestException(
+        'Soll und Haben müssen im Korrekturbeleg ausgeglichen sein',
+      );
+    }
+
+    // Allocate new voucher numbers BEFORE the transaction
+    // (using separate counters per suffix so Storno + Korrektur
+    //  each get their own monotonic sequence).
+    const existingReversals = await this.prisma.voucher.count({
+      where: {
+        companyId,
+        reversedById: originalId,
+      },
+    });
+    const stornoSeq = existingReversals + 1;
+    const reversalNumber = `${original.voucherNumber}-S${stornoSeq}`;
+
+    // K-correction numbers live alongside the same year-prefix
+    // system as create-voucher does: BK-<year>-<seq>. We
+    // suffix with -K<stornoSeq> so the file system view groups
+    // them together without polluting the BK counter.
+    const year = (correction.date || new Date()).getFullYear();
+    const stornoKseq = `${stornoSeq}`; // tie to Storno sequence
+    const correctionNumber = `${original.voucherNumber}-K${stornoKseq}`;
+
+    // The correction voucher DOES NOT replace the original
+    // (which is immutable per §146 AO). The reversal created
+    // by this transaction nets the original to zero; the
+    // K-voucher carries the corrected economic impact.
+    // Both book to today's date, so the books reflect
+    // the correction as of the running month.
+
+    // Build the description prefix.
+    const reasonPart = correction.reason ? ` Grund: ${correction.reason}` : '';
+    const stornoDescription = `Storno zu ${original.voucherNumber}${reasonPart}`;
+    const correctionDescription =
+      (correction.description || `Korrektur zu ${reversalNumber}`) +
+      `${reasonPart}`;
+
+    // RUN IN TRANSACTION. Either both land or neither does.
+    // Prisma supports interactive transactions; we use the
+    // array form because the work is bounded.
+    const [storno, corrected] = await this.prisma.$transaction([
+      // The Storno mirrors the original with negated amounts.
+      // We inline the reversal here (instead of calling
+      // createReversal()) because:
+      //   - createReversal emits the webhook OUTSIDE the
+      //     transaction, which would race with the K-voucher
+      //     commit
+      //   - we want the Storno + K-voucher to commit as one
+      //     unit so a partial failure doesn't leave a half-
+      //     baked correction
+      this.prisma.voucher.create({
+        data: {
+          companyId,
+          voucherNumber: reversalNumber,
+          date: correction.date || new Date(),
+          description: stornoDescription,
+          referenceType: 'VoucherReversal',
+          status: 'posted',
+          reversedById: originalId,
+          lines: {
+            create: original.lines.map((l) => ({
+              accountId: l.accountId,
+              description: l.description
+                ? `Storno: ${l.description}`
+                : 'Storno',
+              debit: Number(l.credit),
+              credit: Number(l.debit),
+              vatRate: l.vatRate,
+              vatAmount: l.vatAmount,
+              costCenter: l.costCenter,
+              costObject: l.costObject,
+              sortOrder: l.sortOrder,
+            })),
+          },
+        },
+        include: { lines: true },
+      }),
+      // The correction Voucher carries the user's edited lines.
+      this.prisma.voucher.create({
+        data: {
+          companyId,
+          voucherNumber: correctionNumber,
+          date: correction.date || new Date(),
+          description: correctionDescription,
+          // New enum-ish marker — webhooks can subscribe to it
+          // separately if they want to notify on corrections.
+          referenceType: 'VoucherCorrection',
+          status: 'posted',
+          // Don't set reversedById — the K voucher is a new
+          // booking, not a Storno of anything.
+          lines: {
+            create: correction.lines.map((l, idx) => ({
+              accountId: l.accountId,
+              description: l.description,
+              debit: l.debit || 0,
+              credit: l.credit || 0,
+              vatRate: l.vatRate,
+              vatAmount: l.vatAmount,
+              costCenter: l.costCenter?.trim() || null,
+              costObject: l.costObject?.trim() || null,
+              sortOrder: idx,
+            })),
+          },
+        },
+        include: { lines: true },
+      }),
+    ]);
+
+    // Fire webhooks AFTER successful commit. We emit two
+    // events:
+    //   - voucher.reversed (for the original's reversal)
+    //   - voucher.created  (for the new correction)
+    // Receivers that listen on both get the full chain;
+    // receivers that only listen on one get the half they
+    // care about.
+    const reversalVoucherId = (storno as any).id;
+    this.webhooks
+      .emit({
+        id: `vou_${originalId}_corrected_by_${reversalVoucherId}_${(corrected as any).id}`,
+        type: 'voucher.reversed',
+        occurredAt: new Date().toISOString(),
+        companyId,
+        data: {
+          originalVoucherId: originalId,
+          reversalVoucherId,
+          correctionVoucherId: (corrected as any).id,
+          reason: correction.reason,
+        },
+      })
+      .catch((err) => console.error('webhook emit(correct) failed:', err));
+    this.webhooks
+      .emit({
+        id: `vou_correction_${(corrected as any).id}`,
+        type: 'voucher.created',
+        occurredAt: new Date().toISOString(),
+        companyId,
+        data: {
+          voucherId: (corrected as any).id,
+          correctionForVoucherId: originalId,
+        },
+      })
+      .catch((err) => console.error('webhook emit(voucher.created) failed:', err));
+
+    // Return both halves. The frontend uses `correction` to
+    // navigate to the new Voucher, and `reversal` for the
+    // audit chain (renders the Storno below the K link).
+    return {
+      reversal: storno,
+      correction: corrected,
+      // Open the door for a future chain-walk: from the
+      // original's id, you can find both the Storno
+      // (reversedById === originalId) and the K (any Voucher
+      // whose referenceType === 'VoucherCorrection' AND
+      // description starts with 'Korrektur zu <reversalNumber>').
+    };
   }
 
   async findAll(

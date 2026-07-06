@@ -57,7 +57,10 @@
     "equity": "Eigenkapital",
     "seedAccounts": "Standardkonten anlegen",
     "costCenter": "Kostenstelle",
-    "costObject": "Kostenträger"
+    "costObject": "Kostenträger",
+    "correctVoucher": "Korrigieren",
+    "correctDescription": "Storniert die Originalbuchung und legt einen Korrekturbeleg an.",
+    "correctReason": "Grund der Korrektur"
   },
   "aging": {
     "title": "Altersstruktur (Aging Report)",

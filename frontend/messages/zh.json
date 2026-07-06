@@ -57,7 +57,10 @@
     "equity": "权益",
     "seedAccounts": "创建默认科目",
     "costCenter": "成本中心",
-    "costObject": "成本对象"
+    "costObject": "成本对象",
+    "correctVoucher": "更正",
+    "correctDescription": "冲销原凭证并创建更正凭证。",
+    "correctReason": "更正原因"
   },
   "aging": {
     "title": "账龄分析 (Aging Report)",
