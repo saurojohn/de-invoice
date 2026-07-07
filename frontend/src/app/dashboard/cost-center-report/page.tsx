@@ -25,25 +25,6 @@ import { useI18n } from "@/components/useI18n"
 import { apiGet } from "@/lib/api"
 import CostCenterTrendChart from "./CostCenterTrendChart"
 
-interface CostCenterRow {
-  costCenter: string
-  revenue: number
-  expense: number
-  net: number
-  ust: number
-  vorsteuer: number
-  invoiceCount: number
-  expenseCount: number
-  monthly: number[]
-}
-
-interface CostCenterReport {
-  year: number
-  rows: CostCenterRow[]
-  totals: CostCenterRow
-  generatedAt: string
-}
-
 const eur = (n: number): string =>
   new Intl.NumberFormat("de-DE", {
     style: "currency",
@@ -108,10 +89,44 @@ function buildCsv(report: CostCenterReport, monthShort: string[]): string {
   return all.map((row) => row.map(escape).join(";")).join("\n")
 }
 
+interface CostCenterRow {
+  costCenter: string
+  revenue: number
+  expense: number
+  net: number
+  ust: number
+  vorsteuer: number
+  invoiceCount: number
+  expenseCount: number
+  monthly: number[]
+}
+
+interface CostCenterReport {
+  year: number
+  rows: CostCenterRow[]
+  totals: CostCenterRow
+  generatedAt: string
+}
+
+// Tier 48: budget-vs-actual shape (subset — we only
+// read totals + per-cc target/actual/delta totals on
+// this page, not the per-month breakdown).
+interface BvaRow {
+  costCenter: string
+  targetTotal: number
+  actualTotal: number
+  deltaTotal: number
+}
+interface BvaReport {
+  year: number
+  rows: BvaRow[]
+}
+
 export default function CostCenterReportPage() {
   const { t, locale } = useI18n()
   const [year, setYear] = useState<number>(new Date().getFullYear())
   const [report, setReport] = useState<CostCenterReport | null>(null)
+  const [bva, setBva] = useState<BvaReport | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -120,17 +135,27 @@ export default function CostCenterReportPage() {
       ? localStorage.getItem("companyId") || ""
       : ""
 
+  // Tier 48: fetch the budget-vs-actual in parallel
+  // with the yearly report. Soft-fail on bva — a
+  // company with no budgets returns rows with
+  // targetTotal=0, which renders as "—" in the column.
   useEffect(() => {
     if (!companyId) return
     let cancelled = false
     setLoading(true)
     setError(null)
-    apiGet<CostCenterReport>(
-      `/api/v1/reports/cost-center-yearly?companyId=${companyId}&year=${year}`,
-    )
-      .then((r) => {
+    Promise.all([
+      apiGet<CostCenterReport>(
+        `/api/v1/reports/cost-center-yearly?companyId=${companyId}&year=${year}`,
+      ),
+      apiGet<BvaReport>(
+        `/api/v1/reports/cost-center-budget-vs-actual?companyId=${companyId}&year=${year}`,
+      ).catch(() => null),
+    ])
+      .then(([yearly, bvaRes]) => {
         if (cancelled) return
-        setReport(r)
+        setReport(yearly)
+        setBva(bvaRes)
         setLoading(false)
       })
       .catch((e) => {
@@ -220,6 +245,13 @@ export default function CostCenterReportPage() {
                   )
                 })}
               </select>
+              <Link
+                href="/dashboard/cost-center-budgets"
+                className="text-sm text-gray-700 dark:text-gray-200 hover:underline"
+                data-testid="cc-manage-budgets"
+              >
+                {t("costCenterReport.budgetsAdd")}
+              </Link>
               <Button
                 variant="outline"
                 onClick={exportCsv}
@@ -282,6 +314,21 @@ export default function CostCenterReportPage() {
                     <th className="py-3 px-4 text-right">
                       {t("costCenterReport.colVorsteuer")}
                     </th>
+                    {/* Tier 48: budget-vs-actual Δ column.
+                        Shown only when at least one cc has
+                        a non-zero target. Hidden otherwise
+                        to avoid clutter on rows that have
+                        no budget. */}
+                    {bva && bva.rows.some((r) => r.targetTotal !== 0) && (
+                      <>
+                        <th className="py-3 px-4 text-right">
+                          {t("costCenterReport.bvaColTarget")}
+                        </th>
+                        <th className="py-3 px-4 text-right">
+                          {t("costCenterReport.bvaColDelta")}
+                        </th>
+                      </>
+                    )}
                     <th className="py-3 px-4 text-right">
                       {t("costCenterReport.colInvoices")}
                     </th>
@@ -336,6 +383,42 @@ export default function CostCenterReportPage() {
                       <td className="py-2 px-4 text-right font-mono">
                         {r.expenseCount}
                       </td>
+                      {/* Tier 48: budget-vs-actual cells. */}
+                      {bva && bva.rows.some((br) => br.targetTotal !== 0) && (() => {
+                        const bvaRow = bva.rows.find(
+                          (br) => br.costCenter === r.costCenter,
+                        )
+                        if (!bvaRow || bvaRow.targetTotal === 0) {
+                          return (
+                            <>
+                              <td className="py-2 px-4 text-right font-mono text-gray-300 dark:text-gray-600">
+                                —
+                              </td>
+                              <td className="py-2 px-4 text-right font-mono text-gray-300 dark:text-gray-600">
+                                —
+                              </td>
+                            </>
+                          )
+                        }
+                        const overUnder =
+                          bvaRow.deltaTotal > 0 ? "rose" : "emerald"
+                        return (
+                          <>
+                            <td
+                              className="py-2 px-4 text-right font-mono"
+                              data-testid="cc-row-budget"
+                            >
+                              {eur(bvaRow.targetTotal)}
+                            </td>
+                            <td
+                              className={`py-2 px-4 text-right font-mono ${overUnder === "rose" ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"}`}
+                              data-testid="cc-row-budget-delta"
+                            >
+                              {signed(bvaRow.deltaTotal)}
+                            </td>
+                          </>
+                        )
+                      })()}
                       {r.monthly.map((v, i) => (
                         <td
                           key={i}
@@ -402,6 +485,30 @@ export default function CostCenterReportPage() {
                     <td className="py-2 px-4 text-right font-mono">
                       {report.totals.expenseCount}
                     </td>
+                    {/* Tier 48 totals: budget + Δ */}
+                    {bva && bva.rows.some((r) => r.targetTotal !== 0) && (
+                      <>
+                        <td className="py-2 px-4 text-right font-mono">
+                          {eur(
+                            bva.rows.reduce(
+                              (s, r) => s + r.targetTotal,
+                              0,
+                            ),
+                          )}
+                        </td>
+                        <td
+                          className={`py-2 px-4 text-right font-mono ${bva.rows.reduce((s, r) => s + r.deltaTotal, 0) > 0 ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"}`}
+                          data-testid="cc-totals-budget-delta"
+                        >
+                          {signed(
+                            bva.rows.reduce(
+                              (s, r) => s + r.deltaTotal,
+                              0,
+                            ),
+                          )}
+                        </td>
+                      </>
+                    )}
                     {report.totals.monthly.map((v, i) => (
                       <td
                         key={i}

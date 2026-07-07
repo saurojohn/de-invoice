@@ -55,6 +55,7 @@ const PERMISSIONS: Record<string, Role> = {
   'accounting.update': ROLES.ACCOUNTANT,
   'accounting.delete': ROLES.ADMIN,
   'reports.read': ROLES.VIEWER,
+  'reports.write': ROLES.ACCOUNTANT,
   'ustva.read': ROLES.ACCOUNTANT,
   'ustva.submit': ROLES.ADMIN,
 };

@@ -1,4 +1,4 @@
-import { Controller, Get, Query, BadRequestException, Res, Header } from '@nestjs/common';
+import { Controller, Get, Query, BadRequestException, Res, Header, Post, Body, Delete, Param } from '@nestjs/common';
 import type { Response } from 'express';
 import { ReportsService } from './reports.service';
 import { AgingService } from './aging.service';
@@ -1334,6 +1334,378 @@ async getSalesReport(
       transactions: pagedTx,
       totals,
       pagination: { take, skip, hasMore },
+      generatedAt: now.toISOString(),
+    }
+  }
+
+  /**
+   * Tier 48: List budgets for a company/year.
+   *
+   * Returns every CostCenterBudget row for the given
+   * (company, year), sorted by costCenter asc.
+   * Missing years return []. The frontend renders
+   * this as the editable list of monthly targets.
+   */
+  @Get('cost-center-budgets')
+  @Require('reports.read')
+  async listCostCenterBudgets(
+    @Query('companyId') companyId: string,
+    @Query('year') yearRaw?: string,
+  ) {
+    if (!companyId)
+      throw new BadRequestException('companyId ist erforderlich')
+    const year = yearRaw ? Number(yearRaw) : new Date().getFullYear()
+    if (!Number.isFinite(year) || year < 2000 || year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+    const rows = await this.prisma.costCenterBudget.findMany({
+      where: { companyId, year },
+      orderBy: [{ costCenter: 'asc' }, { label: 'asc' }],
+    })
+    return {
+      year,
+      budgets: rows.map((r) => ({
+        id: r.id,
+        costCenter: r.costCenter ?? 'Nicht zugewiesen',
+        label: r.label,
+        monthlyTargets: r.monthlyTargets,
+        createdAt: r.createdAt.toISOString(),
+        updatedAt: r.updatedAt.toISOString(),
+      })),
+    }
+  }
+
+  /**
+   * Tier 48: Upsert a budget. Same (company, cc, year)
+   * triple replaces the existing row (the schema's
+   * @@unique supports this). The frontend uses this
+   * for both create and edit — simpler than two
+   * endpoints and matches the Berater workflow of
+   * "set the target for the year, refresh each
+   * month".
+   *
+   * `costCenter` empty/null → "Nicht zugewiesen"
+   * bucket. `monthlyTargets` MUST be length 12 with
+   * numeric values.
+   */
+  @Post('cost-center-budgets')
+  @Require('reports.write')
+  async upsertCostCenterBudget(
+    @Query('companyId') companyId: string,
+    @Body()
+    body: {
+      year: number
+      costCenter?: string | null
+      monthlyTargets: number[]
+      label?: string | null
+    },
+  ) {
+    if (!companyId)
+      throw new BadRequestException('companyId ist erforderlich')
+    if (!body || !Number.isFinite(body.year))
+      throw new BadRequestException('year ist erforderlich')
+    if (
+      !Array.isArray(body.monthlyTargets) ||
+      body.monthlyTargets.length !== 12
+    ) {
+      throw new BadRequestException(
+        'monthlyTargets muss ein Array der Länge 12 sein',
+      )
+    }
+    if (
+      !body.monthlyTargets.every(
+        (v) => typeof v === 'number' && Number.isFinite(v),
+      )
+    ) {
+      throw new BadRequestException(
+        'monthlyTargets darf nur Zahlen enthalten',
+      )
+    }
+    // Empty / null costCenter maps to NULL on the
+    // column → "Nicht zugewiesen" pseudo-bucket.
+    const cc =
+      body.costCenter && body.costCenter.trim().length > 0
+        ? body.costCenter.trim()
+        : null
+
+    // Prisma's generated type for the compound
+    // unique input declares costCenter as non-null
+    // string even when the column is nullable. We
+    // sidestep the typing issue by doing findFirst
+    // + create | update manually. The race window is
+    // small (one user editing one budget), and we
+    // keep the @@unique in the schema so the DB
+    // enforces the constraint.
+    const existing = await this.prisma.costCenterBudget.findFirst({
+      where: { companyId, costCenter: cc, year: body.year },
+    })
+    const row = existing
+      ? await this.prisma.costCenterBudget.update({
+          where: { id: existing.id },
+          data: {
+            monthlyTargets: body.monthlyTargets,
+            label: body.label ?? null,
+          },
+        })
+      : await this.prisma.costCenterBudget.create({
+          data: {
+            companyId,
+            costCenter: cc,
+            year: body.year,
+            monthlyTargets: body.monthlyTargets,
+            label: body.label ?? null,
+          },
+        })
+
+    return {
+      id: row.id,
+      costCenter: row.costCenter ?? 'Nicht zugewiesen',
+      label: row.label,
+      monthlyTargets: row.monthlyTargets,
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+    }
+  }
+
+  /**
+   * Tier 48: Delete a budget by id. The frontend
+   * shows a confirm dialog and only fires this if
+   * the user agrees — the data is small enough that
+   * we don't soft-delete.
+   */
+  @Delete('cost-center-budgets/:id')
+  @Require('reports.write')
+  async deleteCostCenterBudget(@Param('id') id: string) {
+    const row = await this.prisma.costCenterBudget.delete({
+      where: { id },
+    })
+    return {
+      id: row.id,
+      costCenter: row.costCenter ?? 'Nicht zugewiesen',
+      year: row.year,
+    }
+  }
+
+  /**
+   * Tier 48: Budget vs Actual report.
+   *
+   * Joins CostCenterBudget rows with the same
+   * per-cc monthly aggregation as the tier-44 yearly
+   * endpoint. Returns per-cc rows with:
+   *   - target[12]  : the budgeted amount per month
+   *   - actual[12]  : net (revenue − expense) per month
+   *   - delta[12]   : actual − target (positive = over
+   *                   budget for expenses / under
+   *                   budget for revenue targets)
+   *   - pct[12]     : actual / target as a fraction
+   *                   (null when target = 0)
+   *
+   * Plus a yearly rollup row. Empty budget for a
+   * cost-center → target = 0, delta = actual.
+   *
+   * The UI uses this to render a side-by-side
+   * actual/budget table with green/red colouring and
+   * a Δ column showing over/under.
+   */
+  @Get('cost-center-budget-vs-actual')
+  @Require('reports.read')
+  async getCostCenterBudgetVsActual(
+    @Query('companyId') companyId: string,
+    @Query('year') yearRaw?: string,
+  ) {
+    if (!companyId)
+      throw new BadRequestException('companyId ist erforderlich')
+    const now = new Date()
+    const year = yearRaw ? Number(yearRaw) : now.getFullYear()
+    if (!Number.isFinite(year) || year < 2000 || year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+    const yearStart = new Date(year, 0, 1)
+    const yearEnd = new Date(year + 1, 0, 1)
+
+    // Same data fetches as tier-44 — we duplicate
+    // rather than refactor into a shared helper
+    // because the yearly endpoint already does this
+    // work and the controller's class is already
+    // large. If a third consumer appears we'll
+    // extract.
+    const [budgets, invRows, expRows] = await Promise.all([
+      this.prisma.costCenterBudget.findMany({
+        where: { companyId, year },
+      }),
+      this.prisma.invoice.groupBy({
+        by: ['costCenter'],
+        where: {
+          companyId,
+          issueDate: { gte: yearStart, lt: yearEnd },
+          type: { in: ['INV', 'RCV'] },
+        },
+        _sum: { total: true },
+      }),
+      this.prisma.expense.groupBy({
+        by: ['costCenter'],
+        where: {
+          companyId,
+          invoiceDate: { gte: yearStart, lt: yearEnd },
+          status: { in: ['booked', 'deductible'] },
+        },
+        _sum: { grossAmount: true },
+      }),
+    ])
+
+    // Per-line monthly walk — same as tier-44.
+    const [invMonth, expMonth] = await Promise.all([
+      this.prisma.invoice.findMany({
+        where: {
+          companyId,
+          issueDate: { gte: yearStart, lt: yearEnd },
+          type: { in: ['INV', 'RCV'] },
+        },
+        select: { costCenter: true, total: true, issueDate: true },
+      }),
+      this.prisma.expense.findMany({
+        where: {
+          companyId,
+          invoiceDate: { gte: yearStart, lt: yearEnd },
+          status: { in: ['booked', 'deductible'] },
+        },
+        select: {
+          costCenter: true,
+          grossAmount: true,
+          invoiceDate: true,
+        },
+      }),
+    ])
+
+    const labelFor = (cc: string | null) =>
+      cc && cc.trim() ? cc.trim() : 'Nicht zugewiesen'
+
+    // Group actuals by bucket (matches tier-44 row
+    // shape so we can join).
+    type Row = {
+      costCenter: string
+      costCenterRaw: string | null
+      target: number[]
+      actual: number[]
+      label: string | null
+    }
+    const map = new Map<string, Row>()
+    const getRow = (key: string, raw: string | null): Row => {
+      let r = map.get(key)
+      if (!r) {
+        r = {
+          costCenter: key,
+          costCenterRaw: raw,
+          target: Array(12).fill(0),
+          actual: Array(12).fill(0),
+          label: null,
+        }
+        map.set(key, r)
+      }
+      return r
+    }
+
+    // Apply budget targets first.
+    for (const b of budgets) {
+      const r = getRow(labelFor(b.costCenter), b.costCenter)
+      // b.monthlyTargets is stored as a Json value
+      // — we trust the controller-side validation on
+      // upsert and assert here defensively.
+      const arr = Array.isArray(b.monthlyTargets)
+        ? (b.monthlyTargets as number[])
+        : []
+      for (let i = 0; i < 12; i++) {
+        r.target[i] = Number(arr[i] ?? 0)
+      }
+      r.label = b.label
+    }
+
+    // Apply actuals (gross net = revenue − expense).
+    for (const inv of invMonth) {
+      const d = inv.issueDate
+      const m = d.getMonth()
+      const r = getRow(labelFor(inv.costCenter), inv.costCenter)
+      r.actual[m] += Number(inv.total)
+    }
+    for (const exp of expMonth) {
+      const d = exp.invoiceDate
+      const m = d.getMonth()
+      const r = getRow(labelFor(exp.costCenter), exp.costCenter)
+      r.actual[m] -= Number(exp.grossAmount)
+    }
+
+    // Build the response rows with delta + pct.
+    // Sort by |yearlyDelta| desc so the biggest
+    // over/under bubbles to the top — same UX as
+    // tier-44's tier-38 pie.
+    const rows = Array.from(map.values()).map((r) => {
+      const delta = r.target.map((t, i) =>
+        Number((r.actual[i] - t).toFixed(2)),
+      )
+      const pct = r.target.map((t, i) =>
+        t === 0 ? null : Number((r.actual[i] / t).toFixed(4)),
+      )
+      const targetTotal = Number(
+        r.target.reduce((s, v) => s + v, 0).toFixed(2),
+      )
+      const actualTotal = Number(
+        r.actual.reduce((s, v) => s + v, 0).toFixed(2),
+      )
+      return {
+        costCenter: r.costCenter,
+        label: r.label,
+        target: r.target,
+        actual: r.actual,
+        delta,
+        pct,
+        targetTotal,
+        actualTotal,
+        deltaTotal: Number((actualTotal - targetTotal).toFixed(2)),
+      }
+    })
+    rows.sort((a, b) => {
+      const da = Math.abs(b.deltaTotal) - Math.abs(a.deltaTotal)
+      if (da !== 0) return da
+      return a.costCenter.localeCompare(b.costCenter)
+    })
+
+    // Rollup totals.
+    const target = Array(12).fill(0)
+    const actual = Array(12).fill(0)
+    const delta = Array(12).fill(0)
+    const pct: (number | null)[] = Array(12).fill(0).map((_, i) => {
+      if (target[i] === 0) return null
+      return Number((actual[i] / target[i]).toFixed(4))
+    })
+    for (const r of rows) {
+      for (let i = 0; i < 12; i++) {
+        target[i] += r.target[i]
+        actual[i] += r.actual[i]
+        delta[i] += r.delta[i]
+      }
+    }
+    for (let i = 0; i < 12; i++) {
+      target[i] = Number(target[i].toFixed(2))
+      actual[i] = Number(actual[i].toFixed(2))
+      delta[i] = Number(delta[i].toFixed(2))
+      pct[i] = target[i] === 0 ? null : Number((actual[i] / target[i]).toFixed(4))
+    }
+    const targetTotal = Number(target.reduce((s, v) => s + v, 0).toFixed(2))
+    const actualTotal = Number(actual.reduce((s, v) => s + v, 0).toFixed(2))
+    const deltaTotal = Number(delta.reduce((s, v) => s + v, 0).toFixed(2))
+
+    return {
+      year,
+      rows,
+      totals: {
+        target,
+        actual,
+        delta,
+        pct,
+        targetTotal,
+        actualTotal,
+        deltaTotal,
+      },
       generatedAt: now.toISOString(),
     }
   }

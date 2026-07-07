@@ -85,6 +85,8 @@ model Company {
   // always create the same booking, which is not
   // the intent).
   voucherTemplates VoucherTemplate[]
+  // Tier 48: per-(year, costCenter) budget targets.
+  costCenterBudgets CostCenterBudget[]
   // Uploaded files (PDF / image scans of incoming
   // invoices, etc.) linked to Expenses / Vouchers
   // by entityType + entityId. Required for GoBD
@@ -1650,6 +1652,53 @@ model VoucherTemplate {
   updatedAt   DateTime  @updatedAt
 
   @@index([companyId, sortOrder])
+}
+
+// Tier 48: Cost-Center Budget.
+//
+// Per-(company, costCenter, year) row carrying 12
+// monthly target amounts. The cost-center yearly
+// report (tier-44) joins these to render
+// budget-vs-actual deltas. The "Nicht zugewiesen"
+// pseudo-cost-center maps to a row with costCenter =
+// NULL — the API collapses nulls to that bucket on
+// read (matches the tier-38/44/45/46 behaviour).
+//
+// Free-form costCenter string (not FK), mirroring
+// Invoice.costCenter / Expense.costCenter. The
+// budget is gross net target (positive = revenue
+// target, negative = expense cap). Stored as a JSON
+// array of 12 decimals to keep schema simple — most
+// Berater enter uniform monthly targets, so 12 floats
+// is ~250 bytes per row.
+model CostCenterBudget {
+  id            String   @id @default(uuid())
+  companyId     String
+  company       Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  // Cost-center stamp — same convention as
+  // Invoice.costCenter. NULL on the column maps to
+  // the "Nicht zugewiesen" pseudo-bucket.
+  costCenter    String?
+  year          Int      // 2000..2100
+  // 12-element array of monthly target amounts
+  // (gross). Index 0 = Jan, ..., 11 = Dec.
+  // Stored as JSON so we don't need a separate
+  // BudgetLine table — the array is small and
+  // always read as a unit.
+  monthlyTargets Json
+  // Optional human label so the Berater can name
+  // a budget ("FY2026 Marketing plan") without
+  // depending on the costCenter string.
+  label         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // One budget per (company, cc, year). NULL cc
+  // + same year = unique; "VERTRIEB" + same year =
+  // unique. The upsert in the controller relies on
+  // this index.
+  @@unique([companyId, costCenter, year])
+  @@index([companyId, year])
 }
 
 // Tier 6: FinTS bank connection. Stores the
