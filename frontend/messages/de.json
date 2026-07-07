@@ -1035,7 +1035,10 @@
     "txKindExpense": "Eingangsrechnung",
     "txEmpty": "Keine Buchungen für diesen Filter",
     "txPagination": "Einträge {from}–{to} von {total}",
-    "txLoadMore": "Mehr laden"
+    "txLoadMore": "Mehr laden",
+    "trendTitle": "Kostenstellen-Verlauf {year}",
+    "trendEmpty": "Keine Verlaufsdaten vorhanden",
+    "trendYAxis": "Netto (EUR)"
   },
   "product": {
     "title": "Produktverwaltung",

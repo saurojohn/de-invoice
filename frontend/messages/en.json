@@ -1035,7 +1035,10 @@
     "txKindExpense": "Expense receipt",
     "txEmpty": "No transactions for this filter",
     "txPagination": "Showing {from}–{to} of {total}",
-    "txLoadMore": "Load more"
+    "txLoadMore": "Load more",
+    "trendTitle": "Cost-Center Trend {year}",
+    "trendEmpty": "No trend data available",
+    "trendYAxis": "Net (EUR)"
   },
   "product": {
     "title": "Product Management",

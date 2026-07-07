@@ -1035,7 +1035,10 @@
     "txKindExpense": "进项发票",
     "txEmpty": "该筛选条件下无记录",
     "txPagination": "第 {from}–{to} 条，共 {total} 条",
-    "txLoadMore": "加载更多"
+    "txLoadMore": "加载更多",
+    "trendTitle": "成本中心趋势 {year}",
+    "trendEmpty": "暂无趋势数据",
+    "trendYAxis": "净额 (EUR)"
   },
   "product": {
     "title": "商品管理",

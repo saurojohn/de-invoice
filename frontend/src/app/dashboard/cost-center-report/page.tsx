@@ -23,6 +23,7 @@ import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { ThemeToggle } from "@/components/ThemeToggle"
 import { useI18n } from "@/components/useI18n"
 import { apiGet } from "@/lib/api"
+import CostCenterTrendChart from "./CostCenterTrendChart"
 
 interface CostCenterRow {
   costCenter: string
@@ -248,6 +249,16 @@ export default function CostCenterReportPage() {
           </div>
         )}
         {report && report.rows.length > 0 && (
+          <>
+          {/* Tier 47: 12-month trend chart. Rendered
+              above the table so the user sees the
+              shape of the year before diving into
+              the per-cc × per-month grid below. */}
+          <Card>
+            <CardContent className="p-4">
+              <CostCenterTrendChart rows={report.rows} year={year} />
+            </CardContent>
+          </Card>
           <Card>
             <CardContent className="p-0 overflow-x-auto">
               <table className="w-full text-sm">
@@ -404,6 +415,7 @@ export default function CostCenterReportPage() {
               </table>
             </CardContent>
           </Card>
+          </>
         )}
       </main>
     </div>
