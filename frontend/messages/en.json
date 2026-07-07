@@ -1018,7 +1018,10 @@
     "rowTotal": "Total",
     "empty": "No postings in the selected fiscal year",
     "loading": "Loading report…",
-    "error": "Failed to load the report"
+    "error": "Failed to load the report",
+    "monthlyTitle": "Cost-Center Report {month} {year}",
+    "monthlySubtitle": "Drill-in: only postings from the selected month. Click a month-cell in the yearly report to land here.",
+    "backToYear": "← Back to yearly report"
   },
   "product": {
     "title": "Product Management",

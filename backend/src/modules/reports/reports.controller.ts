@@ -919,6 +919,159 @@ async getSalesReport(
       generatedAt: now.toISOString(),
     }
   }
+
+  /**
+   * Tier 45: Cost-Center Monthly drill-in.
+   *
+   * Same aggregation shape as /cost-center-yearly but
+   * scoped to a single calendar month. Returns one row
+   * per cost-center that had any activity in the
+   * month — empty months produce no rows (not a
+   * zero-row with all zeros).
+   *
+   * The UI uses this for the monthly drill-in page
+   * (`/dashboard/cost-center-report/[year]/[month]`)
+   * and as the API behind clicking a month-cell on the
+   * yearly table.
+   *
+   * `month` is 1-indexed (1 = Jan, 12 = Dec) to match
+   * the URL param convention. Defaults to the current
+   * month when omitted.
+   */
+  @Get('cost-center-monthly')
+  @Require('reports.read')
+  async getCostCenterMonthly(
+    @Query('companyId') companyId: string,
+    @Query('year') yearRaw?: string,
+    @Query('month') monthRaw?: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const now = new Date()
+    const year = yearRaw ? Number(yearRaw) : now.getFullYear()
+    const month = monthRaw
+      ? Number(monthRaw)
+      : now.getMonth() + 1 // 0-indexed Date.getMonth() → 1-indexed
+    if (!Number.isFinite(year) || year < 2000 || year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+    if (!Number.isFinite(month) || month < 1 || month > 12) {
+      throw new BadRequestException('month muss zwischen 1 und 12 liegen')
+    }
+    // month-1 = 0-indexed for Date arithmetic.
+    const monthStart = new Date(year, month - 1, 1)
+    const monthEnd = new Date(year, month, 1)
+
+    // Two parallel queries — full-row findMany on
+    // Invoice + Expense bounded to the month. We don't
+    // need groupBy because there are no further
+    // buckets to compute (the monthly buckets from
+    // tier-44 collapse to a single value here).
+    const [invRows, expRows] = await Promise.all([
+      this.prisma.invoice.findMany({
+        where: {
+          companyId,
+          issueDate: { gte: monthStart, lt: monthEnd },
+          type: { in: ['INV', 'RCV'] },
+        },
+        select: {
+          costCenter: true,
+          total: true,
+          totalVat: true,
+        },
+      }),
+      this.prisma.expense.findMany({
+        where: {
+          companyId,
+          invoiceDate: { gte: monthStart, lt: monthEnd },
+          status: { in: ['booked', 'deductible'] },
+        },
+        select: {
+          costCenter: true,
+          grossAmount: true,
+          vatAmount: true,
+        },
+      }),
+    ])
+
+    const labelFor = (cc: string | null) =>
+      cc && cc.trim() ? cc.trim() : 'Nicht zugewiesen'
+
+    type Row = {
+      costCenter: string
+      revenue: number
+      expense: number
+      net: number
+      ust: number
+      vorsteuer: number
+      invoiceCount: number
+      expenseCount: number
+    }
+    const map = new Map<string, Row>()
+    const getRow = (key: string): Row => {
+      let r = map.get(key)
+      if (!r) {
+        r = {
+          costCenter: key,
+          revenue: 0,
+          expense: 0,
+          net: 0,
+          ust: 0,
+          vorsteuer: 0,
+          invoiceCount: 0,
+          expenseCount: 0,
+        }
+        map.set(key, r)
+      }
+      return r
+    }
+    for (const inv of invRows) {
+      const r = getRow(labelFor(inv.costCenter))
+      r.revenue += Number(inv.total)
+      r.ust += Number(inv.totalVat)
+      r.invoiceCount += 1
+    }
+    for (const exp of expRows) {
+      const r = getRow(labelFor(exp.costCenter))
+      r.expense += Number(exp.grossAmount)
+      r.vorsteuer += Number(exp.vatAmount)
+      r.expenseCount += 1
+    }
+
+    const rows = Array.from(map.values()).map((r) => ({
+      ...r,
+      net: r.revenue - r.expense,
+      revenue: Number(r.revenue.toFixed(2)),
+      expense: Number(r.expense.toFixed(2)),
+      ust: Number(r.ust.toFixed(2)),
+      vorsteuer: Number(r.vorsteuer.toFixed(2)),
+    }))
+    rows.sort((a, b) => {
+      const da = Math.abs(b.net) - Math.abs(a.net)
+      if (da !== 0) return da
+      return a.costCenter.localeCompare(b.costCenter)
+    })
+
+    const totals: Row = {
+      costCenter: '__TOTAL__',
+      revenue: Number(rows.reduce((s, r) => s + r.revenue, 0).toFixed(2)),
+      expense: Number(rows.reduce((s, r) => s + r.expense, 0).toFixed(2)),
+      net: Number(rows.reduce((s, r) => s + r.net, 0).toFixed(2)),
+      ust: Number(rows.reduce((s, r) => s + r.ust, 0).toFixed(2)),
+      vorsteuer: Number(
+        rows.reduce((s, r) => s + r.vorsteuer, 0).toFixed(2),
+      ),
+      invoiceCount: rows.reduce((s, r) => s + r.invoiceCount, 0),
+      expenseCount: rows.reduce((s, r) => s + r.expenseCount, 0),
+    }
+
+    return {
+      year,
+      month,
+      rows,
+      totals,
+      generatedAt: now.toISOString(),
+    }
+  }
 }
 
 /**

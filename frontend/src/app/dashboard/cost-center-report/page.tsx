@@ -331,7 +331,30 @@ export default function CostCenterReportPage() {
                           className={`py-2 px-2 text-right font-mono text-xs ${v >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}
                           data-testid="cc-row-month"
                         >
-                          {v === 0 ? "" : signed(v)}
+                          {/* Tier 45: wrap the value in a
+                              Link to the monthly drill-in.
+                              We only render the link when
+                              v !== 0 — a click on an empty
+                              cell would just land on an
+                              empty monthly report. The
+                              rowIndex in the testid makes
+                              month-cells selector-targetable
+                              in Playwright. */}
+                          {v === 0 ? (
+                            <span className="text-gray-300 dark:text-gray-600">
+                              —
+                            </span>
+                          ) : (
+                            <Link
+                              href={`/dashboard/cost-center-report/${year}/${i + 1}`}
+                              className="hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
+                              data-testid={`cc-row-month-link-${i}`}
+                              data-month={i + 1}
+                              title={`Drill-in ${monthShort[i]} ${year}`}
+                            >
+                              {signed(v)}
+                            </Link>
+                          )}
                         </td>
                       ))}
                     </tr>

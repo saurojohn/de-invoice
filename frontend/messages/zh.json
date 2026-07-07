@@ -1018,7 +1018,10 @@
     "rowTotal": "合计",
     "empty": "所选财年没有业务",
     "loading": "正在加载报表…",
-    "error": "报表加载失败"
+    "error": "报表加载失败",
+    "monthlyTitle": "成本中心报表 {year} 年 {month}",
+    "monthlySubtitle": "下钻视图：仅显示所选月份的业务。在年度报表中点击月份即可跳转至此。",
+    "backToYear": "← 返回年度报表"
   },
   "product": {
     "title": "商品管理",

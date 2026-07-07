@@ -1018,7 +1018,10 @@
     "rowTotal": "Summe",
     "empty": "Keine Buchungen im gewählten Geschäftsjahr",
     "loading": "Bericht wird geladen…",
-    "error": "Bericht konnte nicht geladen werden"
+    "error": "Bericht konnte nicht geladen werden",
+    "monthlyTitle": "Kostenstellen-Auswertung {month} {year}",
+    "monthlySubtitle": "Drill-in: nur Buchungen des ausgewählten Monats. Klicken Sie auf einen Monat in der Jahresauswertung, um hierher zu gelangen.",
+    "backToYear": "← Zurück zur Jahresauswertung"
   },
   "product": {
     "title": "Produktverwaltung",
