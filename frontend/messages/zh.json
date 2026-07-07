@@ -1021,7 +1021,21 @@
     "error": "报表加载失败",
     "monthlyTitle": "成本中心报表 {year} 年 {month}",
     "monthlySubtitle": "下钻视图：仅显示所选月份的业务。在年度报表中点击月份即可跳转至此。",
-    "backToYear": "← 返回年度报表"
+    "backToYear": "← 返回年度报表",
+    "txTitle": "{year} 年 {month} – {costCenter} 明细",
+    "txSubtitle": "{year} 年 {month} 归属成本中心 {costCenter} 的所有发票和费用凭证。在月度报表中点击成本中心即可跳转至此。",
+    "txColDate": "日期",
+    "txColType": "类型",
+    "txColNumber": "凭证号",
+    "txColCounterparty": "客户 / 供应商",
+    "txColAmount": "金额",
+    "txColVat": "税额",
+    "txColStatus": "状态",
+    "txKindInvoice": "销售发票",
+    "txKindExpense": "进项发票",
+    "txEmpty": "该筛选条件下无记录",
+    "txPagination": "第 {from}–{to} 条，共 {total} 条",
+    "txLoadMore": "加载更多"
   },
   "product": {
     "title": "商品管理",

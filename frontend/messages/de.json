@@ -1021,7 +1021,21 @@
     "error": "Bericht konnte nicht geladen werden",
     "monthlyTitle": "Kostenstellen-Auswertung {month} {year}",
     "monthlySubtitle": "Drill-in: nur Buchungen des ausgewählten Monats. Klicken Sie auf einen Monat in der Jahresauswertung, um hierher zu gelangen.",
-    "backToYear": "← Zurück zur Jahresauswertung"
+    "backToYear": "← Zurück zur Jahresauswertung",
+    "txTitle": "Buchungen {costCenter} – {month} {year}",
+    "txSubtitle": "Alle Rechnungen und Belege, die zur Kostenstelle {costCenter} im Monat {month} {year} gehören. Klicken Sie auf eine Kostenstelle in der Monatsauswertung, um hierher zu gelangen.",
+    "txColDate": "Datum",
+    "txColType": "Art",
+    "txColNumber": "Belegnummer",
+    "txColCounterparty": "Kunde / Lieferant",
+    "txColAmount": "Betrag",
+    "txColVat": "USt / Vorsteuer",
+    "txColStatus": "Status",
+    "txKindInvoice": "Rechnung",
+    "txKindExpense": "Eingangsrechnung",
+    "txEmpty": "Keine Buchungen für diesen Filter",
+    "txPagination": "Einträge {from}–{to} von {total}",
+    "txLoadMore": "Mehr laden"
   },
   "product": {
     "title": "Produktverwaltung",

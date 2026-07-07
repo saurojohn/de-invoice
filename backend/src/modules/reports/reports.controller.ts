@@ -1072,6 +1072,271 @@ async getSalesReport(
       generatedAt: now.toISOString(),
     }
   }
+
+  /**
+   * Tier 46: Cost-Center Transactions drill-in.
+   *
+   * Returns the actual invoices + expenses that
+   * contribute to a single (year, month, costCenter)
+   * bucket. The page
+   * `/dashboard/cost-center-report/[year]/[month]/[costCenter]`
+   * uses this to render a chronological list of
+   * postings — "where did this month's 504€ net come
+   * from?".
+   *
+   * The costCenter param matches the dashboard-v2
+   * bucket convention: null/empty → "Nicht
+   * zugewiesen". We URL-encode the bucket label so
+   * spaces and umlauts survive the round-trip; the
+   * decode happens here.
+   *
+   * Pagination via take + skip (defaults to 100 rows).
+   * No DB-level cursor — a date-sorted offset is fine
+   * for a single-month single-cc slice (bounded to a
+   * few hundred rows even for big clients).
+   */
+  @Get('cost-center-transactions')
+  @Require('reports.read')
+  async getCostCenterTransactions(
+    @Query('companyId') companyId: string,
+    @Query('year') yearRaw?: string,
+    @Query('month') monthRaw?: string,
+    @Query('costCenter') costCenterRaw?: string,
+    @Query('take') takeRaw?: string,
+    @Query('skip') skipRaw?: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const now = new Date()
+    const year = yearRaw ? Number(yearRaw) : now.getFullYear()
+    const month = monthRaw
+      ? Number(monthRaw)
+      : now.getMonth() + 1
+    if (!Number.isFinite(year) || year < 2000 || year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+    if (!Number.isFinite(month) || month < 1 || month > 12) {
+      throw new BadRequestException('month muss zwischen 1 und 12 liegen')
+    }
+    // URL-decode the cost-center label. Front-end
+    // sends encodeURIComponent(costCenter); on the
+    // server, Express decodes the query string by
+    // default so the raw value is already unescaped.
+    // We also normalise empty/null → 'Nicht
+    // zugewiesen' to match the bucket label from
+    // dashboard-v2 / tier-44/45.
+    const ccDecoded = costCenterRaw ?? ''
+    const ccBucket =
+      ccDecoded.trim() === '' || ccDecoded === 'Nicht zugewiesen'
+        ? null
+        : ccDecoded
+
+    const take = Math.min(
+      Math.max(Number(takeRaw) || 100, 1),
+      500,
+    )
+    const skip = Math.max(Number(skipRaw) || 0, 0)
+
+    const monthStart = new Date(year, month - 1, 1)
+    const monthEnd = new Date(year, month, 1)
+
+    // Two parallel queries — Invoice + Expense. The
+    // costCenter filter on the model column matches
+    // the same value the bucket query used (the
+    // service stamps the string verbatim into the
+    // column on create). NULL cc on the column matches
+    // when the bucket is "Nicht zugewiesen".
+    //
+    // Pagination note: we deliberately do NOT pass
+    // take/skip to the SQL queries, because that
+    // would slice the Invoice and Expense lists
+    // independently — the UI gets a mix of 2
+    // invoices + 2 expenses under "take=2" even
+    // though there are 100 invoices. We fetch the
+    // full slice (bounded by single month + single
+    // cc — typically <100 rows) and apply take/skip
+    // in JS after merging + date-sorting. The total
+    // counts still come from the parallel count
+    // query so the UI knows "hasMore" correctly.
+    const ccFilter = ccBucket === null ? null : ccBucket
+    const [invRows, expRows, invTotal, expTotal] = await Promise.all([
+      this.prisma.invoice.findMany({
+        where: {
+          companyId,
+          costCenter: ccFilter, // null matches costCenter IS NULL
+          issueDate: { gte: monthStart, lt: monthEnd },
+          type: { in: ['INV', 'RCV'] },
+        },
+        select: {
+          id: true,
+          invoiceNumber: true,
+          issueDate: true,
+          dueDate: true,
+          total: true,
+          totalVat: true,
+          currency: true,
+          customerName: true,
+          status: true,
+        },
+        orderBy: { issueDate: 'asc' },
+      }),
+      this.prisma.expense.findMany({
+        where: {
+          companyId,
+          costCenter: ccFilter,
+          invoiceDate: { gte: monthStart, lt: monthEnd },
+          status: { in: ['booked', 'deductible'] },
+        },
+        select: {
+          id: true,
+          invoiceNumber: true,
+          invoiceDate: true,
+          description: true,
+          supplierId: true,
+          grossAmount: true,
+          vatAmount: true,
+          status: true,
+        },
+        orderBy: { invoiceDate: 'asc' },
+      }),
+      // Counts for pagination total (so the UI can
+      // show "showing 1-50 of N"). Counting in
+      // parallel with the findMany keeps the request
+      // to one roundtrip + 1 extra count.
+      this.prisma.invoice.count({
+        where: {
+          companyId,
+          costCenter: ccFilter,
+          issueDate: { gte: monthStart, lt: monthEnd },
+          type: { in: ['INV', 'RCV'] },
+        },
+      }),
+      this.prisma.expense.count({
+        where: {
+          companyId,
+          costCenter: ccFilter,
+          invoiceDate: { gte: monthStart, lt: monthEnd },
+          status: { in: ['booked', 'deductible'] },
+        },
+      }),
+    ])
+
+    // Normalise to a single union shape — the UI
+    // renders one chronological table. `kind` is
+    // 'invoice' | 'expense' so the row knows which
+    // fields to show (number vs description, etc.).
+    type Tx = {
+      kind: 'invoice' | 'expense'
+      id: string
+      date: Date
+      number: string
+      counterparty: string
+      amount: number
+      vat: number
+      currency: string
+      status: string
+      _supplierId?: string | null
+    }
+    const tx: Tx[] = [
+      ...invRows.map((i) => ({
+        kind: 'invoice' as const,
+        id: i.id,
+        date: i.issueDate,
+        number: i.invoiceNumber,
+        counterparty: i.customerName || '',
+        amount: Number(i.total),
+        vat: Number(i.totalVat),
+        currency: i.currency,
+        status: i.status,
+      })),
+      ...expRows.map((e) => ({
+        kind: 'expense' as const,
+        id: e.id,
+        date: e.invoiceDate,
+        number: e.invoiceNumber || '',
+        // Expense has no supplierName column — just a
+        // supplierId FK. We resolve the supplier name
+        // below via the supplierNames map. Fallback to
+        // description if no supplier row is linked.
+        counterparty: e.description || '',
+        amount: Number(e.grossAmount),
+        vat: Number(e.vatAmount),
+        currency: 'EUR',
+        status: e.status,
+        // Internal field for the supplier name
+        // resolution step below. Stripped before the
+        // response.
+        _supplierId: e.supplierId,
+      })),
+    ]
+    // Resolve supplier names in one query (bounded
+    // by the page slice — at most `take` distinct
+    // supplierIds).
+    const supplierIds = Array.from(
+      new Set(
+        tx
+          .filter((t) => t.kind === 'expense' && t._supplierId)
+          .map((t) => t._supplierId as string),
+      ),
+    )
+    let supplierNames = new Map<string, string>()
+    if (supplierIds.length > 0) {
+      const suppliers = await this.prisma.supplier.findMany({
+        where: { id: { in: supplierIds } },
+        select: { id: true, name: true },
+      })
+      supplierNames = new Map(suppliers.map((s) => [s.id, s.name]))
+    }
+    // Apply the resolved name, falling back to the
+    // description we already set if no supplier row
+    // exists. Strip the internal _supplierId field
+    // before sending.
+    for (const t of tx) {
+      if (t.kind === 'expense' && t._supplierId) {
+        const n = supplierNames.get(t._supplierId)
+        if (n) t.counterparty = n
+      }
+      delete t._supplierId
+    }
+    tx.sort((a, b) => a.date.getTime() - b.date.getTime())
+
+    // Apply pagination AFTER the merge + sort so
+    // "take=2" returns the 2 earliest rows across
+    // invoices + expenses combined. Total counts
+    // still come from the parallel count() so the
+    // UI can show "showing 1-2 of 5".
+    const totalCombined = tx.length
+    const pagedTx = tx.slice(skip, skip + take)
+    const hasMore = skip + take < totalCombined
+
+    const totals = {
+      revenue: tx
+        .filter((t) => t.kind === 'invoice')
+        .reduce((s, t) => s + t.amount, 0),
+      expense: tx
+        .filter((t) => t.kind === 'expense')
+        .reduce((s, t) => s + t.amount, 0),
+      ust: tx
+        .filter((t) => t.kind === 'invoice')
+        .reduce((s, t) => s + t.vat, 0),
+      vorsteuer: tx
+        .filter((t) => t.kind === 'expense')
+        .reduce((s, t) => s + t.vat, 0),
+      invoiceCount: invRows.length,
+      expenseCount: expRows.length,
+      invoiceTotal: invTotal,
+      expenseTotal: expTotal,
+    }
+
+    return {
+      year,
+      month,
+      costCenter: ccBucket === null ? 'Nicht zugewiesen' : ccBucket,
+      transactions: pagedTx,
+      totals,
+      pagination: { take, skip, hasMore },
+      generatedAt: now.toISOString(),
+    }
+  }
 }
 
 /**

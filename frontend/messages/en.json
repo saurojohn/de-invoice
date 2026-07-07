@@ -1021,7 +1021,21 @@
     "error": "Failed to load the report",
     "monthlyTitle": "Cost-Center Report {month} {year}",
     "monthlySubtitle": "Drill-in: only postings from the selected month. Click a month-cell in the yearly report to land here.",
-    "backToYear": "← Back to yearly report"
+    "backToYear": "← Back to yearly report",
+    "txTitle": "Transactions {costCenter} – {month} {year}",
+    "txSubtitle": "All invoices and expense receipts that contribute to cost-center {costCenter} in {month} {year}. Click a cost-center in the monthly report to land here.",
+    "txColDate": "Date",
+    "txColType": "Type",
+    "txColNumber": "Doc number",
+    "txColCounterparty": "Customer / Supplier",
+    "txColAmount": "Amount",
+    "txColVat": "VAT",
+    "txColStatus": "Status",
+    "txKindInvoice": "Invoice",
+    "txKindExpense": "Expense receipt",
+    "txEmpty": "No transactions for this filter",
+    "txPagination": "Showing {from}–{to} of {total}",
+    "txLoadMore": "Load more"
   },
   "product": {
     "title": "Product Management",

@@ -210,7 +210,20 @@ export default function CostCenterMonthlyPage() {
                         className="py-2 px-4 font-medium"
                         data-testid="cc-monthly-row-name"
                       >
-                        {r.costCenter}
+                        {/* Tier 46: clicking the cost-center
+                            name on the monthly page drills
+                            into the transaction list. We
+                            encodeURIComponent so a bucket
+                            label like "Nicht zugewiesen"
+                            round-trips safely through the
+                            URL. */}
+                        <Link
+                          href={`/dashboard/cost-center-report/${yearNum}/${monthNum}/${encodeURIComponent(r.costCenter)}`}
+                          className="hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
+                          data-testid="cc-monthly-row-link"
+                        >
+                          {r.costCenter}
+                        </Link>
                       </td>
                       <td className="py-2 px-4 text-right font-mono">
                         {eur(r.revenue)}
