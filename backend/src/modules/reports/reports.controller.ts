@@ -703,6 +703,222 @@ async getSalesReport(
       generatedAt: now.toISOString(),
     }
   }
+
+  /**
+   * Tier 44: Cost-Center Jahresauswertung.
+   *
+   * Returns one row per cost-center with:
+   *   - revenue / expense / net  (full year)
+   *   - ust    / vorsteuer       (full year)
+   *   - invoiceCount / expenseCount
+   *   - monthly[1..12]           (net amount = revenue − expense per month)
+   *
+   * Covers the same set of source rows as the dashboard-v2
+   * pie (Invoice INV/RCV + Expense booked/deductible) but
+   * adds per-month granularity so the front-end can render
+   * a 12-cell heat-map / bar-grid per cost-center.
+   *
+   * `year` defaults to the current year. `costCenter`
+   * (optional) filters to a single stamp (the dashboard
+   * drill-down case).
+   */
+  @Get('cost-center-yearly')
+  @Require('reports.read')
+  async getCostCenterYearly(
+    @Query('companyId') companyId: string,
+    @Query('year') yearRaw?: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const now = new Date()
+    const year = yearRaw ? Number(yearRaw) : now.getFullYear()
+    if (!Number.isFinite(year) || year < 2000 || year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+    const yearStart = new Date(year, 0, 1)
+    const yearEnd = new Date(year + 1, 0, 1)
+
+    // Two parallel groupBys — Invoice + Expense — filtered
+    // to the full year. Same column selection as
+    // dashboard-v2 but no YTD shortcut (we need monthly
+    // resolution in the JS step).
+    const [invRows, expRows] = await Promise.all([
+      this.prisma.invoice.groupBy({
+        by: ['costCenter'],
+        where: {
+          companyId,
+          issueDate: { gte: yearStart, lt: yearEnd },
+          type: { in: ['INV', 'RCV'] },
+        },
+        _sum: { total: true, totalVat: true },
+        _count: { _all: true },
+      }),
+      this.prisma.expense.groupBy({
+        by: ['costCenter'],
+        where: {
+          companyId,
+          invoiceDate: { gte: yearStart, lt: yearEnd },
+          status: { in: ['booked', 'deductible'] },
+        },
+        _sum: { grossAmount: true, vatAmount: true },
+        _count: { _all: true },
+      }),
+    ])
+
+    // Per-line monthly distribution — we need to walk
+    // individual Invoice.total / Expense.grossAmount so
+    // we can bucket by issueDate / invoiceDate. groupBy
+    // can't pre-bucket by month.
+    //
+    // The invoiceDate index covers the WHERE; the row
+    // count for a single company-year is bounded (a few
+    // thousand at worst), so a flat findMany + JS fold
+    // beats a 12-query roundtrip. We only project the
+    // columns we actually use to keep the wire payload
+    // lean.
+    const [invMonth, expMonth] = await Promise.all([
+      this.prisma.invoice.findMany({
+        where: {
+          companyId,
+          issueDate: { gte: yearStart, lt: yearEnd },
+          type: { in: ['INV', 'RCV'] },
+        },
+        select: {
+          costCenter: true,
+          total: true,
+          issueDate: true,
+        },
+      }),
+      this.prisma.expense.findMany({
+        where: {
+          companyId,
+          invoiceDate: { gte: yearStart, lt: yearEnd },
+          status: { in: ['booked', 'deductible'] },
+        },
+        select: {
+          costCenter: true,
+          grossAmount: true,
+          invoiceDate: true,
+        },
+      }),
+    ])
+
+    const labelFor = (cc: string | null) =>
+      cc && cc.trim() ? cc.trim() : 'Nicht zugewiesen'
+
+    // Same merge shape as dashboard-v2's
+    // mergeCostCenterBreakdown — we extend it with
+    // monthly buckets.
+    type Row = {
+      costCenter: string
+      revenue: number
+      expense: number
+      net: number
+      ust: number
+      vorsteuer: number
+      invoiceCount: number
+      expenseCount: number
+      monthly: number[] // length 12, idx 0 = Jan, …, 11 = Dec
+    }
+    const map = new Map<string, Row>()
+    const getRow = (key: string): Row => {
+      let r = map.get(key)
+      if (!r) {
+        r = {
+          costCenter: key,
+          revenue: 0,
+          expense: 0,
+          net: 0,
+          ust: 0,
+          vorsteuer: 0,
+          invoiceCount: 0,
+          expenseCount: 0,
+          monthly: Array(12).fill(0),
+        }
+        map.set(key, r)
+      }
+      return r
+    }
+
+    for (const r of invRows) {
+      const row = getRow(labelFor(r.costCenter))
+      row.revenue += Number(r._sum?.total ?? 0)
+      row.ust += Number(r._sum?.totalVat ?? 0)
+      row.invoiceCount += r._count._all
+    }
+    for (const r of expRows) {
+      const row = getRow(labelFor(r.costCenter))
+      row.expense += Number(r._sum?.grossAmount ?? 0)
+      row.vorsteuer += Number(r._sum?.vatAmount ?? 0)
+      row.expenseCount += r._count._all
+    }
+    // Monthly: walk the per-line rows, bucket net by
+    // (costCenter, month-0-index).
+    for (const inv of invMonth) {
+      const d = inv.issueDate
+      if (!d) continue
+      const m = d.getMonth()
+      if (m < 0 || m > 11) continue
+      const row = getRow(labelFor(inv.costCenter))
+      row.monthly[m] += Number(inv.total)
+    }
+    for (const exp of expMonth) {
+      const d = exp.invoiceDate
+      if (!d) continue
+      const m = d.getMonth()
+      if (m < 0 || m > 11) continue
+      const row = getRow(labelFor(exp.costCenter))
+      row.monthly[m] -= Number(exp.grossAmount)
+    }
+
+    // Compute net + sort. Net = revenue − expense. We
+    // sort by |net| desc so the biggest cost center
+    // (positive or negative) leads — same UX as the
+    // dashboard pie. Ties broken alphabetically.
+    const rows = Array.from(map.values()).map((r) => ({
+      ...r,
+      net: r.revenue - r.expense,
+      monthly: r.monthly.map((v) => Number(v.toFixed(2))),
+      revenue: Number(r.revenue.toFixed(2)),
+      expense: Number(r.expense.toFixed(2)),
+      ust: Number(r.ust.toFixed(2)),
+      vorsteuer: Number(r.vorsteuer.toFixed(2)),
+    }))
+    rows.sort((a, b) => {
+      const da = Math.abs(b.net) - Math.abs(a.net)
+      if (da !== 0) return da
+      return a.costCenter.localeCompare(b.costCenter)
+    })
+
+    // Totals — the "Summe" row at the bottom of the
+    // table. Same shape as a single cost-center row but
+    // with monthly aggregated across all rows.
+    const monthlyTotal = Array(12).fill(0)
+    for (const r of rows) {
+      for (let i = 0; i < 12; i++) monthlyTotal[i] += r.monthly[i]
+    }
+    const totals = {
+      costCenter: '__TOTAL__',
+      revenue: Number(rows.reduce((s, r) => s + r.revenue, 0).toFixed(2)),
+      expense: Number(rows.reduce((s, r) => s + r.expense, 0).toFixed(2)),
+      net: Number(
+        rows.reduce((s, r) => s + r.net, 0).toFixed(2),
+      ),
+      ust: Number(rows.reduce((s, r) => s + r.ust, 0).toFixed(2)),
+      vorsteuer: Number(
+        rows.reduce((s, r) => s + r.vorsteuer, 0).toFixed(2),
+      ),
+      invoiceCount: rows.reduce((s, r) => s + r.invoiceCount, 0),
+      expenseCount: rows.reduce((s, r) => s + r.expenseCount, 0),
+      monthly: monthlyTotal.map((v) => Number(v.toFixed(2))),
+    }
+
+    return {
+      year,
+      rows,
+      totals,
+      generatedAt: now.toISOString(),
+    }
+  }
 }
 
 /**

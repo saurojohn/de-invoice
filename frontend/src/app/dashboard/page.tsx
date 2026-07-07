@@ -441,6 +441,14 @@ export default function DashboardPage() {
               <p className="text-gray-600 dark:text-gray-300">{t("dashboard.cardReportsDesc")}</p>
             </CardContent>
           </Card>
+          <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/cost-center-report")}>
+            <CardHeader>
+              <CardTitle>{t("nav.costCenterReport")}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-gray-600 dark:text-gray-300">{t("costCenterReport.subtitle")}</p>
+            </CardContent>
+          </Card>
           <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/reminders")}>
             <CardHeader>
               <CardTitle className="text-red-600 dark:text-red-400">{t("dashboard.cardRemindersTitle")}</CardTitle>

@@ -980,7 +980,8 @@
     "inventory": "Inventar",
     "email": "E-Mails",
     "recurring": "Abo-Rechnungen",
-    "cashbook": "Kassenbuch"
+    "cashbook": "Kassenbuch",
+    "costCenterReport": "Kostenstellen-Auswertung"
   },
   "paymentMethod": {
     "bankTransfer": "Überweisung",
@@ -998,6 +999,26 @@
     "days30": "30 Tage",
     "days60": "60 Tage",
     "days90": "90 Tage"
+  },
+  "costCenterReport": {
+    "title": "Kostenstellen-Jahresauswertung {year}",
+    "subtitle": "Aufschlüsselung nach Kostenstelle und Kalendermonat — Vorsteuer und Umsatzsteuer getrennt ausgewiesen.",
+    "year": "Geschäftsjahr",
+    "filterYear": "Jahr filtern",
+    "exportCsv": "CSV exportieren",
+    "colCostCenter": "Kostenstelle",
+    "colRevenue": "Erlöse (brutto)",
+    "colExpense": "Aufwand (brutto)",
+    "colNet": "Netto (Ergebnis)",
+    "colUst": "USt (§14)",
+    "colVorsteuer": "Vorsteuer (§15)",
+    "colInvoices": "Anzahl Rechnungen",
+    "colExpenses": "Anzahl Belege",
+    "monthShort": ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"],
+    "rowTotal": "Summe",
+    "empty": "Keine Buchungen im gewählten Geschäftsjahr",
+    "loading": "Bericht wird geladen…",
+    "error": "Bericht konnte nicht geladen werden"
   },
   "product": {
     "title": "Produktverwaltung",

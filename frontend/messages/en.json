@@ -980,7 +980,8 @@
     "inventory": "Inventory",
     "email": "Emails",
     "recurring": "Recurring",
-    "cashbook": "Cash Journal"
+    "cashbook": "Cash Journal",
+    "costCenterReport": "Cost-Center Report"
   },
   "paymentMethod": {
     "bankTransfer": "Bank Transfer",
@@ -998,6 +999,26 @@
     "days30": "30 days",
     "days60": "60 days",
     "days90": "90 days"
+  },
+  "costCenterReport": {
+    "title": "Cost-Center Annual Report {year}",
+    "subtitle": "Breakdown by cost-center and calendar month — output VAT and input VAT reported separately.",
+    "year": "Fiscal year",
+    "filterYear": "Filter year",
+    "exportCsv": "Export CSV",
+    "colCostCenter": "Cost Center",
+    "colRevenue": "Revenue (gross)",
+    "colExpense": "Expense (gross)",
+    "colNet": "Net",
+    "colUst": "Output VAT (§14)",
+    "colVorsteuer": "Input VAT (§15)",
+    "colInvoices": "Invoices",
+    "colExpenses": "Expense receipts",
+    "monthShort": ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+    "rowTotal": "Total",
+    "empty": "No postings in the selected fiscal year",
+    "loading": "Loading report…",
+    "error": "Failed to load the report"
   },
   "product": {
     "title": "Product Management",

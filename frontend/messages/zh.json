@@ -980,7 +980,8 @@
     "inventory": "库存",
     "email": "邮件",
     "recurring": "定期",
-    "cashbook": "现金账"
+    "cashbook": "现金账",
+    "costCenterReport": "成本中心报表"
   },
   "paymentMethod": {
     "bankTransfer": "银行转账",
@@ -998,6 +999,26 @@
     "days30": "30天",
     "days60": "60天",
     "days90": "90天"
+  },
+  "costCenterReport": {
+    "title": "成本中心年度报表 {year}",
+    "subtitle": "按成本中心和自然月份分类，销项税与进项税分开列示。",
+    "year": "财年",
+    "filterYear": "筛选年份",
+    "exportCsv": "导出 CSV",
+    "colCostCenter": "成本中心",
+    "colRevenue": "收入(含税)",
+    "colExpense": "支出(含税)",
+    "colNet": "净结果",
+    "colUst": "销项税(§14)",
+    "colVorsteuer": "进项税(§15)",
+    "colInvoices": "发票数",
+    "colExpenses": "费用凭证",
+    "monthShort": ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"],
+    "rowTotal": "合计",
+    "empty": "所选财年没有业务",
+    "loading": "正在加载报表…",
+    "error": "报表加载失败"
   },
   "product": {
     "title": "商品管理",
