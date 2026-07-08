@@ -35,6 +35,14 @@ export interface TemplateLineInput {
   // the template's lines cover the first and last;
   // the Vorsteuer line is added by the apply logic.
   vatRate?: number
+  // Tier 50: per-line DATEV stamps + description captured
+  // from the source voucher. Empty strings mean "not
+  // captured" — the user fills them in on apply. We
+  // accept them as optional here for backward compat
+  // with tier-14 templates (no cc/co/desc captured).
+  description?: string
+  costCenter?: string
+  costObject?: string
 }
 
 export interface ApplyResult {
@@ -44,6 +52,14 @@ export interface ApplyResult {
     debit: number
     credit: number
     description: string
+    // Tier 50: per-line DATEV stamps carried forward
+    // from the captured voucher. The apply endpoint
+    // preserves these so the resulting draft already
+    // has the right cost-center / cost-object /
+    // description per line. Empty strings mean
+    // "not captured" — the user fills them in.
+    costCenter: string
+    costObject: string
   }[]
   description: string
   // Pattern placeholders that the user must still
@@ -143,6 +159,116 @@ export class VoucherTemplateService {
   }
 
   /**
+   * Tier 50: capture an existing Voucher's lines into
+   * a new Template. The user clicks "Save as template"
+   * on the voucher detail page; we copy:
+   *
+   *   - the voucher's description (truncated to fit
+   *     the descriptionPattern column) as the new
+   *     template's name + pattern;
+   *   - the voucher's VoucherLine rows into the
+   *     linesJson format, including costCenter +
+   *     costObject + description per line. Tier 50
+   *     extends the linesJson schema to capture the
+   *     cc/co stamps — previously the schema only
+   *     stored accountNumber + side + vatRate.
+   *
+   * The amounts are deliberately NOT captured (same
+   * rationale as the existing template create —
+   * re-applying a template should let the Berater
+   * set a fresh amount). We also resolve each
+   * VoucherLine.accountId to its current
+   * accountNumber so the template survives a
+   * future chart-of-accounts renumber.
+   *
+   * Returns the new template id + the resolved
+   * linesJson so the front-end can show a
+   * confirmation.
+   */
+  async captureFromVoucher(
+    voucherId: string,
+    companyId: string,
+    options: { name?: string; description?: string } = {},
+  ) {
+    const voucher = await this.prisma.voucher.findFirst({
+      where: { id: voucherId, companyId },
+      include: {
+        lines: { include: { account: { select: { accountNumber: true } } } },
+      },
+    })
+    if (!voucher) throw new NotFoundException('Beleg nicht gefunden')
+    if (voucher.lines.length < 2) {
+      throw new BadRequestException(
+        'Vorlage braucht mindestens 2 Positionen',
+      )
+    }
+    // Map each VoucherLine to the template schema.
+    // We pick "side" by inspecting the line's debit
+    // vs credit — the existing apply logic uses
+    // side to balance the booking. l.debit is a
+    // Decimal (not number), so we coerce to Number
+    // before comparing.
+    const templateLines = voucher.lines.map((l) => ({
+      accountNumber: l.account?.accountNumber || '',
+      side: Number(l.debit) > 0 ? ('debit' as const) : ('credit' as const),
+      vatRate: 0, // captured but zeroed — the user
+      // can edit the template later if they want a
+      // VAT-aware Vorsteuer split.
+      costCenter: l.costCenter || '',
+      costObject: l.costObject || '',
+      description: l.description || '',
+    }))
+    // Filter out lines with no resolvable account
+    // number (a leftover from a deleted account).
+    const validLines = templateLines.filter(
+      (l) => l.accountNumber.length > 0,
+    )
+    if (validLines.length < 2) {
+      throw new BadRequestException(
+        'Zu wenige Positionen mit auflösbarer Kontonummer',
+      )
+    }
+    // Default name = voucher description (truncated
+    // to 60 chars) + a "(auto)" suffix so the user
+    // can recognise it as a captured template.
+    const desc = voucher.description || 'Erfasste Vorlage'
+    const name =
+      options.name || `${desc.substring(0, 50)}${desc.length > 50 ? '…' : ''} (auto)`
+    return this.prisma.voucherTemplate.create({
+      data: {
+        companyId,
+        name,
+        description: options.description ?? desc,
+        linesJson: JSON.stringify(validLines),
+        // Carry the voucher's description forward so
+        // applying the template pre-fills it.
+        descriptionPattern: voucher.description || null,
+        sortOrder: 0,
+      },
+    })
+  }
+
+  /**
+   * Tier 50: list templates in a structured shape the
+   * front-end can use directly to fill the create-
+   * voucher modal. Returns the parsed lines (with
+   * cc/co/description resolved) plus the template
+   * metadata. The existing `findAll` returns raw
+   * rows with a JSON linesJson string — convenient
+   * for list views but not for apply-modal rendering.
+   */
+  async listForApply(companyId: string) {
+    const rows = await this.findAll(companyId)
+    return rows.map((t) => ({
+      id: t.id,
+      name: t.name,
+      description: t.description,
+      descriptionPattern: t.descriptionPattern,
+      lines: JSON.parse(t.linesJson),
+    }))
+  }
+
+  /**
    * Resolve a template into a set of modal-ready lines
    * for a SPECIFIC amount and date. The amount is
    * applied to the side marked "debit" (with the
@@ -235,7 +361,9 @@ export class VoucherTemplateService {
           accountNumber: acct.accountNumber,
           debit: perDebitShare,
           credit: 0,
-          description: '',
+          description: dl.description || '',
+          costCenter: dl.costCenter || '',
+          costObject: dl.costObject || '',
         });
       }
       // Single Vorsteuer line
@@ -245,6 +373,8 @@ export class VoucherTemplateService {
         debit: vat,
         credit: 0,
         description: `Vorsteuer ${(vatRate * 100).toFixed(0)}%`,
+        costCenter: '',
+        costObject: '',
       });
       // Credit side (typically one Bank line) gets
       // the GROSS amount (= user-entered amount).
@@ -261,7 +391,9 @@ export class VoucherTemplateService {
           accountNumber: acct.accountNumber,
           debit: 0,
           credit: perCreditShare,
-          description: '',
+          description: cl.description || '',
+          costCenter: cl.costCenter || '',
+          costObject: cl.costObject || '',
         });
       }
     } else {
@@ -282,7 +414,9 @@ export class VoucherTemplateService {
           accountNumber: acct.accountNumber,
           debit: perDebitShare,
           credit: 0,
-          description: '',
+          description: dl.description || '',
+          costCenter: dl.costCenter || '',
+          costObject: dl.costObject || '',
         });
       }
       const perCreditShare = amount / creditLines.length;
@@ -298,7 +432,9 @@ export class VoucherTemplateService {
           accountNumber: acct.accountNumber,
           debit: 0,
           credit: perCreditShare,
-          description: '',
+          description: cl.description || '',
+          costCenter: cl.costCenter || '',
+          costObject: cl.costObject || '',
         });
       }
     }

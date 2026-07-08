@@ -14,6 +14,14 @@ export class VoucherTemplateController {
     return this.svc.findAll(companyId);
   }
 
+  @Get('list-for-apply')
+  @Require('invoice.read')
+  async listForApply(@Query('companyId') companyId: string) {
+    if (!companyId)
+      throw new BadRequestException('companyId ist erforderlich')
+    return this.svc.listForApply(companyId)
+  }
+
   @Get(':id')
   @Require('invoice.read')
   async findOne(@Param('id') id: string, @Query('companyId') companyId: string) {
@@ -63,5 +71,28 @@ export class VoucherTemplateController {
   ) {
     if (!companyId) throw new BadRequestException('companyId ist erforderlich');
     return this.svc.applyTemplate(id, companyId, body);
+  }
+
+  /**
+   * Tier 50: capture an existing Voucher into a new
+   * Template. The "Save as template" button on the
+   * voucher detail page fires this. Returns the new
+   * template id + name so the UI can show a
+   * confirmation toast.
+   *
+   * `name` is optional — defaults to "<voucher
+   * description> (auto)" so the user can recognise
+   * it as a captured template.
+   */
+  @Post('from-voucher/:voucherId')
+  @Require('invoice.create')
+  async captureFromVoucher(
+    @Param('voucherId') voucherId: string,
+    @Query('companyId') companyId: string,
+    @Body() body: { name?: string; description?: string },
+  ) {
+    if (!companyId)
+      throw new BadRequestException('companyId ist erforderlich')
+    return this.svc.captureFromVoucher(voucherId, companyId, body || {})
   }
 }

@@ -705,6 +705,10 @@ export default function AccountingPage() {
                 after applying — the apply result is a
                 starting point, not a final commitment. */}
             <div className="mt-3 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+              <p className="text-xs text-emerald-700 mb-2">
+                {t("accounting.applyTemplateHint") ||
+                  "Wählt eine gespeicherte Vorlage und füllt Positionen, Sachkonten, Kostenstellen und Beschreibungen automatisch aus."}
+              </p>
               <div className="grid grid-cols-12 gap-2 items-end">
                 <div className="col-span-6">
                   <label className="text-xs font-bold text-emerald-800 uppercase">
@@ -793,12 +797,23 @@ export default function AccountingPage() {
                         }
                         const data = await res.json()
                         // Convert server lines → draft lines.
+                        // Tier 50: also pre-fill costCenter +
+                        // costObject so the apply-template
+                        // flow is a real one-click template
+                        // (Sachkonto + Beträge + Stempel +
+                        // Beschreibung). The captured
+                        // template (tier-50 capture-from-
+                        // voucher) carries these forward;
+                        // tier-14 manual templates leave them
+                        // empty and the user fills in.
                         setDraftLines(
                           data.lines.map((l: any) => ({
                             accountId: l.accountId,
                             debit: l.debit.toFixed(2),
                             credit: l.credit.toFixed(2),
                             description: l.description || "",
+                            costCenter: l.costCenter || "",
+                            costObject: l.costObject || "",
                           })),
                         )
                         if (data.description && !draftDescription) {

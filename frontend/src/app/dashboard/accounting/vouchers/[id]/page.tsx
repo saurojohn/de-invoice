@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
-import { apiGet } from "@/lib/api"
+import { apiGet, apiPost } from "@/lib/api"
 import { ReceiptsPanel } from "@/components/ReceiptsPanel"
 
 // VoucherLine — the individual debit/credit lines that
@@ -145,6 +145,17 @@ export default function VoucherDetailPage() {
   }>>([])
   const [correctSaving, setCorrectSaving] = useState(false)
   const [correctError, setCorrectError] = useState<string | null>(null)
+
+  // Tier 50: "Als Vorlage speichern" modal state. Tiny
+  // prompt with a single name field; default pre-fills
+  // to "<voucher description> (auto)" so the user can
+  // either accept or override. Submits via
+  // POST /voucher-templates/from-voucher/:id.
+  const [showTemplateModal, setShowTemplateModal] = useState(false)
+  const [templateName, setTemplateName] = useState("")
+  const [templateSaving, setTemplateSaving] = useState(false)
+  const [templateError, setTemplateError] = useState<string | null>(null)
+  const [templateSaved, setTemplateSaved] = useState<string | null>(null)
 
   useEffect(() => {
     const companyId = localStorage.getItem("companyId")
@@ -365,6 +376,29 @@ export default function VoucherDetailPage() {
                     }}
                   >
                     {t("accounting.correctVoucher") || "Korrigieren"}
+                  </Button>
+                )}
+                {/* Tier 50: "Als Vorlage speichern" button.
+                    Captures the voucher's lines + cost-center
+                    stamps + description into a reusable
+                    VoucherTemplate so future vouchers with
+                    the same shape can be created in one
+                    click via the apply-template dropdown. */}
+                {voucher && (
+                  <Button
+                    data-testid="voucher-save-template-button"
+                    variant="outline"
+                    onClick={() => {
+                      setTemplateName(
+                        (voucher.description || "") + " (auto)",
+                      )
+                      setTemplateError(null)
+                      setTemplateSaved(null)
+                      setShowTemplateModal(true)
+                    }}
+                  >
+                    {t("voucherTemplate.saveAsTemplate") ||
+                      "Als Vorlage speichern"}
                   </Button>
                 )}
             {voucher &&
@@ -917,6 +951,124 @@ export default function VoucherDetailPage() {
                 disabled={correctSaving}
               >
                 {correctSaving ? "…" : "Korrektur anwenden"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tier 50: Save-as-template modal — single name
+          field + Submit. The backend captures the
+          voucher's lines, accountNumber-resolved per
+          line, plus per-line costCenter/costObject/
+          description. We only send the name override;
+          everything else is server-side from the
+          voucher itself. */}
+      {showTemplateModal && voucher && (
+        <div
+          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+          data-testid="voucher-save-template-modal"
+        >
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-6">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2">
+              {t("voucherTemplate.saveAsTemplate") ||
+                "Als Vorlage speichern"}
+            </h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+              {t("voucherTemplate.saveAsTemplateHint") ||
+                "Übernimmt alle Positionen, Sachkonten, Kostenstellen und Beschreibungen dieses Belegs in eine wiederverwendbare Vorlage."}
+            </p>
+
+            {templateError && (
+              <div
+                className="p-3 mb-3 bg-red-50 border border-red-200 text-red-800 rounded text-sm"
+                data-testid="voucher-save-template-error"
+              >
+                ✗ {templateError}
+              </div>
+            )}
+            {templateSaved && (
+              <div
+                className="p-3 mb-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded text-sm"
+                data-testid="voucher-save-template-success"
+              >
+                ✓ {t("voucherTemplate.saveAsTemplateSuccess") ||
+                  "Vorlage gespeichert"}{" "}
+                <span className="font-mono">{templateSaved}</span>
+              </div>
+            )}
+
+            <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
+              {t("voucherTemplate.name") || "Vorlagenname"}
+            </label>
+            <input
+              type="text"
+              value={templateName}
+              onChange={(e) => setTemplateName(e.target.value)}
+              placeholder={t("voucherTemplate.namePlaceholder") ||
+                "z.B. Bankgebühr-Buchung"}
+              className="w-full border rounded px-3 py-2 text-sm mb-4 dark:bg-gray-700 dark:border-gray-600"
+              data-testid="voucher-save-template-name"
+            />
+
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowTemplateModal(false)
+                  setTemplateSaved(null)
+                  setTemplateError(null)
+                }}
+                disabled={templateSaving}
+              >
+                {t("common.cancel") || "Abbrechen"}
+              </Button>
+              <Button
+                data-testid="voucher-save-template-submit"
+                onClick={async () => {
+                  if (!templateName.trim()) {
+                    setTemplateError(
+                      t("voucherTemplate.nameRequired") ||
+                        "Name ist erforderlich",
+                    )
+                    return
+                  }
+                  const companyId =
+                    localStorage.getItem("companyId") || ""
+                  setTemplateSaving(true)
+                  setTemplateError(null)
+                  try {
+                    const data = await apiPost<{
+                      id: string
+                      name: string
+                    }>(
+                      `/api/v1/voucher-templates/from-voucher/${voucher.id}?companyId=${companyId}`,
+                      { name: templateName.trim() },
+                    )
+                    setTemplateSaving(false)
+                    setTemplateSaved(data.name)
+                    // Auto-close on success after a short
+                    // delay so the user sees the green
+                    // confirmation. We don't navigate —
+                    // they probably want to keep editing
+                    // this voucher.
+                    setTimeout(() => {
+                      setShowTemplateModal(false)
+                      setTemplateSaved(null)
+                    }, 1200)
+                  } catch (e: any) {
+                    setTemplateSaving(false)
+                    setTemplateError(
+                      e?.message ||
+                        `HTTP ${e?.status || "?"}`,
+                    )
+                  }
+                }}
+                disabled={templateSaving || !templateName.trim()}
+              >
+                {templateSaving
+                  ? "…"
+                  : t("voucherTemplate.save") || "Speichern"}
               </Button>
             </div>
           </div>
