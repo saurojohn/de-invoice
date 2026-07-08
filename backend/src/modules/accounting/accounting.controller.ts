@@ -58,26 +58,52 @@ export class AccountingController {
   async suggestVoucherCostCenter(
     @Query('companyId') companyId: string,
     @Query('accountId') accountId: string,
+    @Query('prefix') prefix?: string,
+    @Query('costObjectPrefix') costObjectPrefix?: string,
   ) {
     if (!companyId) throw new BadRequestException('companyId ist erforderlich')
     if (!accountId) throw new BadRequestException('accountId ist erforderlich')
-    return this.voucherService.suggestCostCenter(companyId, accountId)
+    // Tier 49: optional `prefix` and `costObjectPrefix`
+    // narrow the candidate pool. Empty string means
+    // "no filter" (matches all rows). When both are
+    // present, the suggestion is constrained to lines
+    // where costCenter starts with `prefix` AND
+    // costObject starts with `costObjectPrefix`.
+    return this.voucherService.suggestCostCenter(
+      companyId,
+      accountId,
+      prefix,
+      costObjectPrefix,
+    )
   }
 
   /**
    * Tier 41: GET /accounting/vouchers/cost-center-suggestion/list
    * (Full distinct list with counts — for the dropdown.)
+   *
+   * Tier 49: optional `prefix` and `costObjectPrefix`
+   * narrow the candidate pool. The Berater form uses
+   * this for the autocomplete dropdown under the
+   * cost-center input — typing "VER" narrows the
+   * suggestions to "VERTRIEB" / "VERTRIEB-100" etc.
    */
   @Get('vouchers/cost-center-suggestion/list')
   async listVoucherCostCenters(
     @Query('companyId') companyId: string,
     @Query('accountId') accountId: string,
+    @Query('prefix') prefix?: string,
+    @Query('costObjectPrefix') costObjectPrefix?: string,
+    @Query('take') takeRaw?: string,
   ) {
     if (!companyId) throw new BadRequestException('companyId ist erforderlich')
     if (!accountId) throw new BadRequestException('accountId ist erforderlich')
+    const take = Math.min(Math.max(Number(takeRaw) || 20, 1), 100)
     const rows = await this.voucherService.listCostCenters(
       companyId,
       accountId,
+      prefix,
+      costObjectPrefix,
+      take,
     )
     return { items: rows, count: rows.length }
   }

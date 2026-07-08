@@ -121,6 +121,75 @@ export default function AccountingPage() {
   ])
   const [createError, setCreateError] = useState<string | null>(null)
   const [createSaving, setCreateSaving] = useState(false)
+  // Tier 49: per-line cost-center suggestion cache.
+  // Keyed by line index so the dropdown updates
+  // independently per row. Each entry is the
+  // prefix-filtered list from
+  // GET /vouchers/cost-center-suggestion/list.
+  // (Same backend endpoint as tier-41, just with a
+  // `prefix` query param added.)
+  const [ccSuggestions, setCcSuggestions] = useState<
+    Map<number, Array<{ costCenter: string; costObject: string | null; count: number }>>
+  >(new Map())
+  // Stable list id so the <datalist> attribute can
+  // be referenced from the input. We use a single
+  // id across all lines (each line uses the same
+  // list — the datalist is filtered by input value
+  // via the list="..." attribute).
+  const CC_DATALIST_ID = "tier49-cc-suggestions"
+
+  // Tier 49: debounced re-fetch of cost-center
+  // suggestions when the user types into a line.
+  // We track a `debounce` timer per line — when the
+  // user types, the timer resets; when it fires, we
+  // call GET /list with the typed value as `prefix`
+  // and store the result keyed by line index.
+  useEffect(() => {
+    // Single shared debounce timer per line. We use
+    // line index + the current costCenter value as
+    // the dependency key.
+    const timers: ReturnType<typeof setTimeout>[] = []
+    const next = new Map(ccSuggestions)
+    let dirty = false
+
+    draftLines.forEach((line, idx) => {
+      if (!line.accountId) return
+      const cc = (line.costCenter || "").trim()
+      // Only fetch when the user has typed something
+      // OR when the field is empty (to populate the
+      // dropdown with the full top list). Skip
+      // lines with no accountId yet.
+      const timer = setTimeout(async () => {
+        try {
+          const res = await apiGet<{
+            items: Array<{
+              costCenter: string
+              costObject: string | null
+              count: number
+            }>
+          }>(
+            `/api/v1/accounting/vouchers/cost-center-suggestion/list?companyId=${getCompanyId()}&accountId=${line.accountId}&prefix=${encodeURIComponent(cc)}`,
+          )
+          next.set(idx, res.items)
+          setCcSuggestions(new Map(next))
+          dirty = true
+        } catch {
+          // Soft-fail — leave the existing list in place.
+        }
+      }, 250)
+      timers.push(timer)
+    })
+
+    return () => {
+      timers.forEach(clearTimeout)
+      if (dirty) {
+        // No-op cleanup — the next effect run will set
+        // the latest state. The dirty flag is just to
+        // silence the unused warning.
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftLines])
   // Template-driven modal — when the user picks a
   // saved template, we POST /apply with the amount +
   // date to resolve the lines and description. The
@@ -370,6 +439,7 @@ export default function AccountingPage() {
             <Button
               onClick={openCreate}
               className="bg-emerald-600 text-white hover:bg-emerald-700"
+              data-testid="accounting-new-voucher"
             >
               + {t("accounting.newVoucher")}
             </Button>
@@ -859,6 +929,7 @@ export default function AccountingPage() {
                         <input
                           type="text"
                           value={line.costCenter}
+                          list={CC_DATALIST_ID}
                           onChange={(e) =>
                             updateLine(idx, {
                               costCenter: e.target.value,
@@ -958,9 +1029,46 @@ export default function AccountingPage() {
                           )}`}
                     </td>
                   </tr>
-                </tfoot>
-              </table>
-            </div>
+</tfoot>
+               </table>
+             </div>
+
+             {/* Tier 49: cost-center suggestion datalist.
+                 Each <option> shows the stamp + how many
+                 times the user has used it. We flatten
+                 the per-line map into a single set of
+                 <option>s because <datalist> doesn't
+                 natively support per-input filtering
+                 beyond the typed prefix — the browser
+                 already filters by the input's typed
+                 value, and the typed value matches
+                 because we refresh on every change.
+                 (See the useEffect above that re-fires
+                 the API per keystroke.) */}
+             <datalist id={CC_DATALIST_ID}>
+               {Array.from(ccSuggestions.values())
+                 .flat()
+                 .filter(
+                   (v, i, arr) =>
+                     arr.findIndex(
+                       (x) =>
+                         x.costCenter === v.costCenter &&
+                         x.costObject === v.costObject,
+                     ) === i,
+                 )
+                 .slice(0, 30)
+                 .map((s, i) => (
+                   <option
+                     key={`${s.costCenter}-${s.costObject || ""}-${i}`}
+                     value={s.costCenter}
+                     data-testid="tier49-cc-option"
+                   >
+                     {s.costObject
+                       ? `${s.costCenter} · ${s.costObject} (${s.count}×)`
+                       : `${s.costCenter} (${s.count}×)`}
+                   </option>
+                 ))}
+             </datalist>
 
             <div className="flex justify-between items-center mt-3">
               <Button variant="outline" onClick={addLine}>

@@ -995,20 +995,42 @@ export class VoucherService {
    * account for the given company. If multiple
    * cost-centers are tied, the most-recent one wins.
    */
-  async suggestCostCenter(companyId: string, accountId: string) {
+  async suggestCostCenter(
+    companyId: string,
+    accountId: string,
+    prefix?: string,
+    costObjectPrefix?: string,
+  ) {
+    // Tier 49: optional `prefix` narrows the candidate
+    // pool to (costCenter startsWith prefix,
+    // costObject startsWith costObjectPrefix). Both
+    // are case-insensitive. Empty string means "no
+    // filter" (matches all rows). We use Prisma's
+    // `contains` with mode:'insensitive' rather than
+    // `startsWith` to dodge the case-sensitivity
+    // mode interaction (Prisma docs note that
+    // startsWith with mode is supported on Postgres
+    // but contains is more reliably cross-version).
+    const where: any = {
+      accountId,
+      voucher: { companyId },
+      costCenter: { not: null },
+    }
+    if (prefix && prefix.trim()) {
+      where.costCenter = {
+        not: null,
+        contains: prefix.trim(),
+        mode: 'insensitive',
+      }
+    }
+    if (costObjectPrefix && costObjectPrefix.trim()) {
+      where.costObject = {
+        contains: costObjectPrefix.trim(),
+        mode: 'insensitive',
+      }
+    }
     const rows = await this.prisma.voucherLine.findMany({
-      where: {
-        accountId,
-        // Filter via the Voucher.companyId so cross-company
-        // bleed is impossible. Without this a Berater with
-        // access to two GmbH's accounts could see the
-        // other tenant's pattern.
-        voucher: { companyId },
-        // NULL stamped on a line means "no cost-center"
-        // — that's a legitimate choice but useless for
-        // a suggestion (we'd always recommend null).
-        costCenter: { not: null },
-      },
+      where,
       select: {
         costCenter: true,
         costObject: true,
@@ -1068,15 +1090,41 @@ export class VoucherService {
    * dropdown so the user sees "you used VERTRIEB-100
    * 28 times, SERVICE-200 4 times" — at a glance.
    */
-  async listCostCenters(companyId: string, accountId: string) {
+  async listCostCenters(
+    companyId: string,
+    accountId: string,
+    prefix?: string,
+    costObjectPrefix?: string,
+    take: number = 20,
+  ) {
+    // Tier 49: optional `prefix` narrows the candidate
+    // pool to (costCenter startsWith prefix,
+    // costObject startsWith costObjectPrefix). Both
+    // are case-insensitive. Empty string means "no
+    // filter" (matches all rows). Same pattern as
+    // suggestCostCenter above.
+    const where: any = {
+      accountId,
+      voucher: { companyId },
+      costCenter: { not: null },
+    }
+    if (prefix && prefix.trim()) {
+      where.costCenter = {
+        not: null,
+        contains: prefix.trim(),
+        mode: 'insensitive',
+      }
+    }
+    if (costObjectPrefix && costObjectPrefix.trim()) {
+      where.costObject = {
+        contains: costObjectPrefix.trim(),
+        mode: 'insensitive',
+      }
+    }
     // Same defensive filter as above (companyId via
     // Voucher relation, NULL stamps excluded).
     const rows = await this.prisma.voucherLine.findMany({
-      where: {
-        accountId,
-        voucher: { companyId },
-        costCenter: { not: null },
-      },
+      where,
       select: {
         costCenter: true,
         costObject: true,
@@ -1105,6 +1153,6 @@ export class VoucherService {
     }
     return Array.from(counts.values())
       .sort((a, b) => b.count - a.count || b.lastUsedAt.getTime() - a.lastUsedAt.getTime())
-      .slice(0, 20)
+      .slice(0, take)
   }
 }

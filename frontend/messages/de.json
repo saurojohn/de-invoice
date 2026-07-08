@@ -1047,6 +1047,8 @@
     "budgetsColLabel": "Bezeichnung",
     "budgetsColTotal": "Jahres-Summe",
     "budgetsColAction": "",
+    "ccSuggestHint": "Tippen Sie einen Buchstaben, um die Vorschläge einzugrenzen.",
+    "ccSuggestEmpty": "Keine Vorschläge für diesen Filter",
     "budgetsSave": "Speichern",
     "budgetsDelete": "Löschen",
     "budgetsConfirmDelete": "Dieses Budget wirklich löschen?",

@@ -1047,6 +1047,8 @@
     "budgetsColLabel": "说明",
     "budgetsColTotal": "年度合计",
     "budgetsColAction": "",
+    "ccSuggestHint": "输入字母可缩小建议范围。",
+    "ccSuggestEmpty": "无匹配建议",
     "budgetsSave": "保存",
     "budgetsDelete": "删除",
     "budgetsConfirmDelete": "确定删除该预算？",
