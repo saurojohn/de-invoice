@@ -345,6 +345,22 @@ export class InvoiceService {
         total: finalTotal,
         discountPercent: dto.discountPercent || null,
         discountAmount: discountAmount > 0 ? discountAmount : null,
+        // Tier 52: Skonto (cash discount for early
+        // payment). Both fields are nullable; the
+        // PDF + bank-import auto-match consult them
+        // when computing the Erlösminderung. We
+        // require BOTH to be set or BOTH null —
+        // half-set makes no sense (you can't offer
+        // a 2% discount "for some days" without
+        // saying how many).
+        skontoPercent:
+          dto.skontoPercent != null && dto.skontoDays != null
+            ? dto.skontoPercent
+            : null,
+        skontoDays:
+          dto.skontoPercent != null && dto.skontoDays != null
+            ? dto.skontoDays
+            : null,
         // For credit notes, store the link back to the original invoice.
         // The FK is nullable so this is a no-op for INV/PI/RCV.
         referenceInvoiceId: (dto.type === 'CN' && dto.referenceInvoiceId) ? dto.referenceInvoiceId : null,
@@ -585,6 +601,24 @@ export class InvoiceService {
         // Drop them here so the update actually persists.
         discountPercent: dto.discountPercent ?? undefined,
         discountAmount: dto.discountAmount ?? undefined,
+        // Tier 52: Skonto (cash discount for early
+        // payment). Same atomic-pair rule as on
+        // create — both fields together or neither.
+        // If the user clears only one of them on
+        // edit, the OTHER auto-clears to keep the
+        // invariant intact.
+        skontoPercent:
+          dto.skontoPercent != null && dto.skontoDays != null
+            ? dto.skontoPercent
+            : dto.skontoPercent === null
+            ? null
+            : undefined,
+        skontoDays:
+          dto.skontoPercent != null && dto.skontoDays != null
+            ? dto.skontoDays
+            : dto.skontoDays === null
+            ? null
+            : undefined,
         // Tier 27: USt-Behandlung editable in
         // same-day edit window. The audit trail
         // (InvoiceEditLog) captures the before/after

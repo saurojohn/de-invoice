@@ -424,6 +424,20 @@ model Invoice {
   totalVat       Decimal   @db.Decimal(12,4) @default(0)
   total          Decimal   @db.Decimal(12,4) @default(0)
   discountPercent Decimal?  @db.Decimal(5,2)
+  // Tier 52: Skonto (cash discount for early payment).
+  // `skontoPercent` is the discount rate (e.g. 2.00 for 2%)
+  // and `skontoDays` is the number of days from issueDate
+  // during which the discount is granted. The Skonto
+  // window expires at issueDate + skontoDays; payment
+  // received after that point doesn't qualify even if
+  // the bank-import auto-match thinks it does.
+  //
+  // Both columns NULL = no Skonto offered. The
+  // PDF adds the standard "Zahlbar bis DD.MM. mit X%
+  // Skonto, bis DD.MM. ohne Abzug" line when
+  // either column is set.
+  skontoPercent  Decimal?  @db.Decimal(5,2)
+  skontoDays     Int?
   discountAmount Decimal?   @db.Decimal(12,4)
 
   currency       String    @default("EUR")

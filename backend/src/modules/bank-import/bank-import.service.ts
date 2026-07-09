@@ -460,7 +460,21 @@ export class BankImportService {
       where: { id: reconciliationId, companyId },
       include: {
         bankTransaction: true,
-        invoice: { select: { id: true, total: true, type: true, status: true } },
+        invoice: {
+          select: {
+            id: true,
+            total: true,
+            type: true,
+            status: true,
+            // Tier 52: Skonto detection needs the
+            // discount window (skontoPercent +
+            // skontoDays) and the issueDate to
+            // compute the expiry.
+            skontoPercent: true,
+            skontoDays: true,
+            issueDate: true,
+          },
+        },
       },
     });
     if (!recon) throw new NotFoundException('Zuordnung nicht gefunden');
@@ -503,6 +517,54 @@ export class BankImportService {
       },
     );
 
+    // Tier 52: Skonto detection. The customer paid
+    // LESS than the invoice total — check if the
+    // difference matches a Skonto offer on the
+    // invoice, and the bank txn landed inside the
+    // Skonto window (issueDate + skontoDays).
+    //
+    // When yes, we add an Erlösminderung line (8730
+    // in SKR03) for the discount and reduce the
+    // Forderung line to the actual cash received.
+    // This keeps the bookkeeping honest — a "Skonto
+    // taken" discount is a revenue reduction, NOT
+    // a write-off.
+    let skontoAmount = 0;
+    const inv = recon.invoice as any;
+    if (
+      inv.skontoPercent != null &&
+      inv.skontoDays != null &&
+      applied < invTotal
+    ) {
+      const invIssueDate = new Date(
+        (recon.invoice as any).issueDate,
+      );
+      const skontoExpiry = new Date(invIssueDate);
+      skontoExpiry.setDate(
+        skontoExpiry.getDate() + inv.skontoDays,
+      );
+      skontoExpiry.setHours(23, 59, 59, 999);
+      const txnValueDate = new Date(
+        recon.bankTransaction.valueDate,
+      );
+      // Expected Skonto amount = total * (skontoPercent / 100).
+      // Both expected and actual are in EUR (with 2
+      // decimal places from the bank side). Compare
+      // cents-to-cents to avoid float noise — bank
+      // rounding is annoying, so allow a 1-cent tolerance.
+      const expectedSkontoAmount = (invTotal * Number(inv.skontoPercent)) / 100;
+      const actualSkontoAmount = invTotal - applied;
+      if (
+        txnValueDate <= skontoExpiry &&
+        Math.abs(expectedSkontoAmount - actualSkontoAmount) < 0.01
+      ) {
+        skontoAmount = Math.round(actualSkontoAmount * 100) / 100;
+        this.logger.log(
+          `Skonto detected: invoice=${recon.invoiceId} rate=${inv.skontoPercent}% amount=${skontoAmount}`,
+        );
+      }
+    }
+
     // Book a GoBD Voucher (Buchungsbeleg). The double-
     // entry posting for a customer payment is:
     //
@@ -511,6 +573,14 @@ export class BankImportService {
     //
     // The VAT was already booked when the invoice was
     // issued, so no USt line is needed here.
+    //
+    // When a Skonto was taken, an extra line splits
+    // the credit side:
+    //   Credit 8730 Erlösminderung    skontoAmount
+    //   Credit 1406 Forderung L+L     applied
+    // so the Forderung account reflects what was
+    // actually settled (cash in) — the Skonto is
+    // a separate revenue reduction.
     //
     // The voucher is linked back to the recon via
     // BankReconciliation.voucherId — that's the audit
@@ -523,6 +593,7 @@ export class BankImportService {
       recon.invoiceId,
       recon.bankTransaction.counterpartyName,
       recon.bankTransaction.purpose,
+      skontoAmount,
     );
 
     // Flip reconciliation to confirmed (with voucher link).
@@ -574,6 +645,7 @@ export class BankImportService {
     invoiceId: string,
     counterpartyName: string | null,
     purpose: string | null,
+    skontoAmount: number = 0,
   ) {
     // Resolve SKR03 / per-company accounts.
     const company = await this.prisma.company.findUnique({
@@ -603,7 +675,19 @@ export class BankImportService {
     // We round to 4 decimal places to match the
     // Decimal(12,4) column. VoucherService will
     // re-validate debit == credit.
-    const lines = [
+    //
+    // With Skonto, the credit side splits: a Skonto
+    // line on 8730 (Erlösminderung) for the discount,
+    // and a smaller Forderung line for the actual
+    // cash received. Bank debit = Forderung + Skonto
+    // (= the original invoice total, but the
+    // Forderung is now reduced by the cash delta).
+    const lines: Array<{
+      accountId: string;
+      description: string;
+      debit: number;
+      credit: number;
+    }> = [
       {
         accountId: bankAccount.id,
         description: `Bank ${counterparty}`,
@@ -617,6 +701,37 @@ export class BankImportService {
         credit: amount,
       },
     ];
+    if (skontoAmount > 0) {
+      // Tier 52: Erlösminderung Konto (SKR03: 8730
+      // — Gewährte Skonti). The original invoice
+      // booked Forderung at the GROSS total. The
+      // customer paid less, so we close the
+      // Forderung at the GROSS (the full debt) and
+      // book the discount as an Erlösminderung —
+      // a debit on 8730 that nets the missing cash
+      // against the revenue line.
+      //
+      // Booking (with Skonto):
+      //   Debit  1200 Bank           cash received (e.g. 98 €)
+      //   Debit  8730 Erlösminderung  Skonto      (e.g.  2 €)
+      //   Credit 1406 Forderung L+L   GROSS total (e.g. 100 €)
+      const erloesminderungAccount = await this.ensureAccount(
+        companyId,
+        '8730',
+        'Gewährte Skonti',
+        'expense',
+        'erloesminderung',
+      );
+      lines.push({
+        accountId: erloesminderungAccount.id,
+        description: `Skonto 2%`,
+        debit: skontoAmount,
+        credit: 0,
+      });
+      // Close the Forderung at the GROSS total
+      // (cash + Skonto = invoice total).
+      lines[1].credit = amount + skontoAmount;
+    }
 
     return this.voucherService.create({
       companyId,

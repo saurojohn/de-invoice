@@ -171,6 +171,11 @@ function CreateInvoicePageInner() {
     notes: "",
     discountPercent: 0,
     discountAmount: 0,
+    // Tier 52: Skonto (cash discount for early
+    // payment). Both fields together or both 0/empty
+    // — the server enforces the atomic-pair rule.
+    skontoPercent: 0,
+    skontoDays: 0,
     paymentMethod: "bank_transfer",
     paymentTerms: 0,
     // Tier 27: USt-Behandlung. The radio group
@@ -256,6 +261,11 @@ function CreateInvoicePageInner() {
             notes: inv.notes || '',
             discountPercent: Number(inv.discountPercent || 0),
             discountAmount: Number(inv.discountAmount || 0),
+            // Tier 52: prefill Skonto fields from the
+            // existing invoice (both null when no
+            // Skonto was set).
+            skontoPercent: Number(inv.skontoPercent || 0),
+            skontoDays: Number(inv.skontoDays || 0),
             paymentMethod: inv.paymentMethod || 'bank_transfer',
             paymentTerms: inv.paymentTerms ?? 0,
             language: inv.language || getDateLocale(),
@@ -722,6 +732,17 @@ function CreateInvoicePageInner() {
         // Non-empty values flow through verbatim.
         costCenter: form.costCenter?.trim() || undefined,
         costObject: form.costObject?.trim() || undefined,
+        // Tier 52: Skonto. Drop the pair when the user
+        // hasn't filled in both fields. The server also
+        // enforces "both or neither" — sending a lone
+        // percent would just be stored as null on both
+        // sides, but trimming here keeps the wire clean.
+        ...(form.skontoPercent > 0 && form.skontoDays > 0
+          ? {
+              skontoPercent: form.skontoPercent,
+              skontoDays: form.skontoDays,
+            }
+          : {}),
       }
       let createdId: string | null = null
       if (isEdit && editId) {
@@ -1610,6 +1631,67 @@ function CreateInvoicePageInner() {
                     min="0"
                     value={form.discountAmount}
                     onChange={(e) => setForm({ ...form, discountAmount: Number(e.target.value), discountPercent: 0 })}
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Tier 52: Skonto (cash discount for early
+              payment). Two side-by-side inputs: a percent
+              and a day count. Both set together = "Payable
+              within X days with Y% discount". The PDF
+              renders the standard German "Zahlbar bis
+              DD.MM. mit X% Skonto, bis DD.MM. ohne Abzug"
+              line. The bank-import auto-recognises the
+              discount when the customer pays within the
+              window. */}
+          <Card data-testid="skonto-card">
+            <CardHeader>
+              <CardTitle>{t("invoice.skonto") || "Skonto"}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                {t("invoice.skontoHint") ||
+                  "Optionaler Barzahlungsrabatt für vorzeitige Zahlung. Beispiel: 2% Skonto bei Zahlung innerhalb 14 Tagen."}
+              </p>
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    {t("invoice.skontoPercent") || "Skonto %"}
+                  </label>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    value={form.skontoPercent}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        skontoPercent: Number(e.target.value),
+                      })
+                    }
+                    data-testid="skonto-percent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    {t("invoice.skontoDays") || "Tage"}
+                  </label>
+                  <Input
+                    type="number"
+                    step="1"
+                    min="0"
+                    max="365"
+                    value={form.skontoDays}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        skontoDays: Number(e.target.value),
+                      })
+                    }
+                    data-testid="skonto-days"
                   />
                 </div>
               </div>

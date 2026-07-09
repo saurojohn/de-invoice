@@ -1,4 +1,4 @@
-import { IsString, IsArray, ValidateNested, IsNumber, IsOptional, IsDateString, IsBoolean, MaxLength } from 'class-validator';
+import { IsString, IsArray, ValidateNested, IsNumber, IsOptional, IsDateString, IsBoolean, MaxLength, IsInt, Min, Max } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class InvoiceItemDto {
@@ -88,7 +88,17 @@ export class CreateInvoiceDto {
   @IsString()
   @IsOptional()
   templateType?: string;
-  
+
+  // Tier 52: Skonto (cash discount for early payment).
+  // Both fields are optional; if both are set the PDF
+  // renders the standard "Zahlbar bis ... mit X% Skonto"
+  // line. Values > 100 (percent) or > 365 (days) are
+  // rejected — these are clearly mis-typed.
+  @IsNumber() @IsOptional() @Max(100) @Min(0)
+  skontoPercent?: number;
+  @IsInt() @IsOptional() @Max(365) @Min(0)
+  skontoDays?: number;
+
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => InvoiceItemDto)
@@ -170,6 +180,15 @@ export class UpdateInvoiceDto {
   @IsNumber() @IsOptional() paymentTerms?: number;
   @IsString() @IsOptional() paymentMethod?: string;
   @IsString() @IsOptional() templateType?: string;
+  // Tier 52: Skonto (cash discount for early payment).
+  // Both fields are optional; if both are set the PDF
+  // renders the standard "Zahlbar bis ... mit X% Skonto"
+  // line. Values > 100 (percent) or > 365 (days) are
+  // rejected — these are clearly mis-typed.
+  @IsNumber() @IsOptional() @Max(100) @Min(0)
+  skontoPercent?: number;
+  @IsInt() @IsOptional() @Max(365) @Min(0)
+  skontoDays?: number;
   @IsArray() @ValidateNested({ each: true }) @Type(() => InvoiceItemDto)
   @IsOptional() items?: InvoiceItemDto[];
 
