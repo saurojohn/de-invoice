@@ -31,6 +31,17 @@ interface Invoice {
   notes?: string | null
   currency: string
   templateType?: string
+  // Tier 52/54: Skonto fields drive the "Zahlbar bis
+  // X mit Y% Skonto, bis Z ohne Abzug" footer line.
+  // Both nullable; both set = render the line.
+  skontoPercent?: any
+  skontoDays?: any
+  // Tier 53/54: type='CN' carries the original
+  // invoiceNumber so the PDF header can read
+  // "Gutschrift zu <original>".
+  type?: string
+  referenceInvoiceId?: string | null
+  referenceInvoice?: { invoiceNumber: string } | null
 }
 
 interface CompanyInfo {
@@ -698,6 +709,43 @@ export async function generateInvoicePDF(
     if (renderConfig?.paymentTermsText) {
       doc.font(fontFor('regular')).fontSize(8).fillColor(textColor)
         .text(renderConfig.paymentTermsText, leftMargin, footerY - 42, { lineBreak: false })
+    }
+
+    // Tier 52/54: Skonto line — the standard German
+    // "Zahlbar bis DD.MM. mit X% Skonto, bis DD.MM.
+    // ohne Abzug" line, rendered just above the
+    // payment-terms text (or above the bank-info
+    // block when no paymentTermsText is set). Both
+    // skontoPercent and skontoDays must be set; the
+    // service enforces the atomic-pair rule.
+    //
+    // The Skonto-with window expires at
+    // issueDate + skontoDays. We render the
+    // formatted date in DE locale (dd.mm.yyyy) to
+    // match the rest of the PDF.
+    const skontoPercent = (invoice as any).skontoPercent
+    const skontoDays = (invoice as any).skontoDays
+    if (skontoPercent != null && skontoDays != null) {
+      const issue = new Date((invoice as any).issueDate)
+      const withDue = new Date(issue)
+      withDue.setDate(withDue.getDate() + Number(skontoDays))
+      const fmt = (d: Date) =>
+        d.toLocaleDateString('de-DE', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+        })
+      const skontoText = `Zahlbar bis ${fmt(withDue)} mit ${Number(skontoPercent).toFixed(skontoPercent % 1 === 0 ? 0 : 2)}% Skonto, bis ${fmt((invoice as any).dueDate)} ohne Abzug.`
+      doc
+        .font(fontFor('bold'))
+        .fontSize(8)
+        .fillColor(primaryColor)
+        .text(
+          skontoText,
+          leftMargin,
+          renderConfig?.paymentTermsText ? footerY - 28 : footerY - 42,
+          { lineBreak: false },
+        )
     }
     if (renderConfig?.reverseChargeNote && (invoice as any).reverseCharge) {
       doc.font(fontFor('bold')).fontSize(8).fillColor(primaryColor)
