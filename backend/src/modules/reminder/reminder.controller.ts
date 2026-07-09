@@ -512,6 +512,13 @@ export class ReminderController {
       // PDF generator skips the line when both are empty.
       costCenter: (inv as any).costCenter ?? null,
       costObject: (inv as any).costObject ?? null,
+      // Tier 55: pass Skonto stamps to the PDF so
+      // it can render the "Skonto-Fenster
+      // abgelaufen" note. Both nullable.
+      skontoPercent: (inv as any).skontoPercent != null
+        ? Number((inv as any).skontoPercent)
+        : null,
+      skontoDays: (inv as any).skontoDays ?? null,
       verzugszinsPct: (
         await this.reminderService.getFeeConfig(companyId)
       ).verzugszinsPct,

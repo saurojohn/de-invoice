@@ -237,6 +237,12 @@ export class AutoReminderService {
           // section when both are empty.
           costCenter: inv.costCenter ?? null,
           costObject: inv.costObject ?? null,
+          // Tier 55: pass Skonto stamps for the
+          // "Skonto-Fenster abgelaufen" note.
+          skontoPercent: inv.skontoPercent != null
+            ? Number(inv.skontoPercent)
+            : null,
+          skontoDays: inv.skontoDays ?? null,
         })
 
         // Render the email subject + body using the

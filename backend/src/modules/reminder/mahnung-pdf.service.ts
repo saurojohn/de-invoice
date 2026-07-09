@@ -77,6 +77,12 @@ export interface MahnungPdfInput {
    */
   costCenter?: string | null
   costObject?: string | null
+  // Tier 55: Skonto stamps copied from the
+  // source invoice. When set, the PDF adds an
+  // "Hinweis: das X% Skonto-Fenster (bis
+  // DD.MM.YYYY) ist abgelaufen" note.
+  skontoPercent?: number | null
+  skontoDays?: number | null
 }
 
 const PAGE_MARGIN = 50
@@ -278,6 +284,53 @@ export async function generateMahnungPDF(input: MahnungPdfInput): Promise<Buffer
       })
       y = doc.y + 8
       doc.fillColor("black")
+    }
+
+    // Tier 55: Skonto note. When the original invoice
+    // carried a Skonto offer (skontoPercent +
+    // skontoDays) AND the Mahnung is being sent AFTER
+    // the Skonto window expired (skontoExpiry <
+    // today), the Berater (and the customer) benefit
+    // from a clear "Skonto-Fenster ist abgelaufen"
+    // note. We render it BEFORE the overdue summary
+    // so the customer reads "yes, you missed the
+    // discount" before seeing the new deadline +
+    // fees.
+    //
+    // Layout: bold red, single line, sitting just
+    // below the cost-center row. Format matches the
+    // standard German legal-letter tone.
+    if (
+      input.skontoPercent != null &&
+      input.skontoDays != null &&
+      Number.isFinite(Number(input.skontoPercent)) &&
+      Number(input.skontoPercent) > 0 &&
+      Number.isFinite(Number(input.skontoDays)) &&
+      Number(input.skontoDays) > 0
+    ) {
+      const issue = new Date(input.invoiceDate)
+      const skontoExpiry = new Date(issue)
+      skontoExpiry.setDate(
+        skontoExpiry.getDate() + Number(input.skontoDays),
+      )
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      if (skontoExpiry < today) {
+        const fmt = (d: Date) =>
+          d.toLocaleDateString('de-DE', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+          })
+        const pctStr = Number(input.skontoPercent).toFixed(
+          Number(input.skontoPercent) % 1 === 0 ? 0 : 2,
+        )
+        const note = `Hinweis: das ${pctStr}% Skonto-Fenster (bis ${fmt(skontoExpiry)}) ist abgelaufen.`
+        doc.fontSize(9).font("Helvetica-Bold").fillColor("#b91c1c")
+        doc.text(note, PAGE_MARGIN, y, { width: CONTENT_WIDTH })
+        y = doc.y + 6
+        doc.fillColor("black").font("Helvetica")
+      }
     }
 
     // Overdue summary

@@ -29,6 +29,13 @@ export interface OverdueInvoice {
   // Tier 40: cost-center stamps copied from Invoice.
   // Sent-through to the Mahnung PDF generator.
   costCenter: string | null;
+  // Tier 55: Skonto stamps copied from Invoice. When
+  // set, the Mahnung PDF adds a "Hinweis: das X%
+  // Skonto-Fenster (bis DD.MM.YYYY) ist abgelaufen"
+  // note so the customer understands the discount
+  // is no longer available.
+  skontoPercent: number | null;
+  skontoDays: number | null;
   costObject: string | null;
 }
 
@@ -151,6 +158,13 @@ export class ReminderService {
         // referencing the underlying invoice.
         costCenter: (inv as any).costCenter ?? null,
         costObject: (inv as any).costObject ?? null,
+        // Tier 55: Skonto stamps feed the
+        // "Skonto-Fenster abgelaufen" note on the
+        // auto-send Mahnung PDF.
+        skontoPercent: (inv as any).skontoPercent != null
+          ? Number((inv as any).skontoPercent)
+          : null,
+        skontoDays: (inv as any).skontoDays ?? null,
       };
     });
   }
@@ -487,6 +501,14 @@ Mit freundlichen Grüßen,
       // Pulled from the source invoice when present.
       costCenter: (invoice as any).costCenter ?? null,
       costObject: (invoice as any).costObject ?? null,
+      // Tier 55: Skonto stamps drive the
+      // "Skonto-Fenster abgelaufen" note on the
+      // Mahnung PDF. Both nullable — null = no
+      // Skonto was offered on the original invoice.
+      skontoPercent: (invoice as any).skontoPercent != null
+        ? Number((invoice as any).skontoPercent)
+        : null,
+      skontoDays: (invoice as any).skontoDays ?? null,
     };
 
     // Render from the per-company DB template (or the
