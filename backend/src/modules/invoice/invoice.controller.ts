@@ -1032,6 +1032,53 @@ export class InvoiceController {
     });
   }
 
+  // Tier 53: Gutschrift (credit note) — generate a CN
+  // (Invoice with type='CN') from an existing invoice.
+  // The CN carries NEGATIVE line amounts (= the refund)
+  // and a referenceInvoiceId back to the original. The
+  // original invoice's open balance is automatically
+  // reduced by the CN amount — the customer statement
+  // shows the original minus the credit.
+  //
+  // Two shapes are supported:
+  //   - Full refund: omit `lines` and `amount`; the
+  //     CN mirrors every line of the original with a
+  //     negative sign.
+  //   - Partial refund: pass `lines: [{...}]` to
+  //     override specific lines (each line's
+  //     `unitPrice` is the new refund value, sign
+  //     doesn't matter — we negate), or pass
+  //     `amount: 100` to set a flat total.
+  //
+  // GoBD: the CN is a NEW invoice (its own number
+  // sequence, its own audit trail). We do NOT modify
+  // the original.
+  @Post(':id/credit-note')
+  @Require('invoice.write')
+  async createCreditNote(
+    @Param('id') id: string,
+    @Query('companyId') companyId: string,
+    @Body() body: {
+      amount?: number
+      lines?: Array<{
+        description: string
+        quantity?: number
+        unitPrice: number
+        vatRate?: number
+      }>
+      reason?: string
+    },
+  ) {
+    if (!companyId) {
+      throw new BadRequestException('companyId ist erforderlich')
+    }
+    return this.invoiceService.createCreditNote(
+      id,
+      companyId,
+      body || {},
+    )
+  }
+
   // Remove a recorded payment. Used to fix mistakes. May transition
   // the invoice status back from "paid" to "sent" if the remaining
   // total drops below the invoice total.

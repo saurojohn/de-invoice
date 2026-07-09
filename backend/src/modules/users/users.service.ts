@@ -42,6 +42,12 @@ const PERMISSIONS: Record<string, Role> = {
   'invoice.update': ROLES.ACCOUNTANT,
   'invoice.delete': ROLES.ACCOUNTANT,
   'invoice.send': ROLES.ACCOUNTANT,
+  // Tier 51/53: the InstallmentPlan module + the
+  // credit-note endpoint use 'invoice.write' as a
+  // shortcut for "create/update/delete on an
+  // invoice-related resource". Maps to the same
+  // ACCOUNTANT role as invoice.create.
+  'invoice.write': ROLES.ACCOUNTANT,
   'customer.read': ROLES.VIEWER,
   'customer.create': ROLES.ACCOUNTANT,
   'customer.update': ROLES.ACCOUNTANT,

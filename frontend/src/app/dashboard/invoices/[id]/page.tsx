@@ -111,6 +111,17 @@ export default function InvoiceDetailPage() {
   const [portalLinkError, setPortalLinkError] = useState<string | null>(null)
   const [portalLinkCopied, setPortalLinkCopied] = useState(false)
   const [showPayForm, setShowPayForm] = useState(false)
+  // Tier 53: Gutschrift modal state. `cnAmount` is
+  // the partial refund value (we always pass a flat
+  // amount to the backend — it generates a single
+  // "Erstattung" line on the CN). For full refund
+  // the user can clear the field; the backend then
+  // mirrors the original lines.
+  const [showCnModal, setShowCnModal] = useState(false)
+  const [cnAmount, setCnAmount] = useState<string>("")
+  const [cnReason, setCnReason] = useState<string>("")
+  const [cnSaving, setCnSaving] = useState(false)
+  const [cnError, setCnError] = useState<string | null>(null)
   const [payForm, setPayForm] = useState({
     amount: '',
     paymentDate: new Date().toISOString().split("T")[0],
@@ -945,15 +956,51 @@ export default function InvoiceDetailPage() {
         <Card className="mt-6">
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Zahlungen ({payments.length})</CardTitle>
-            {invoice.type !== "CN" && invoice.status !== "cancelled" && (
-              <Button
-                size="sm"
-                onClick={() => setShowPayForm(!showPayForm)}
-                variant={showPayForm ? "outline" : "default"}
-              >
-                {showPayForm ? "×" : "+ Zahlung erfassen"}
-              </Button>
-            )}
+            <div className="flex gap-2">
+              {/* Tier 53: Gutschrift (credit note) button.
+                  Only on INV-typed invoices (not CN) that
+                  aren't cancelled. Opens a tiny modal
+                  asking for the refund amount + reason;
+                  backend creates a CN with negative
+                  total + a synthetic Payment on this
+                  invoice. */}
+              {invoice.type !== "CN" &&
+                invoice.status !== "cancelled" && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    data-testid="credit-note-button"
+                    onClick={() => {
+                      setShowPayForm(false)
+                      setCnReason("")
+                      setCnAmount(
+                        Math.max(
+                          0,
+                          Number(invoice.total) -
+                            payments.reduce(
+                              (s, p) => s + Number(p.amount),
+                              0,
+                            ),
+                        ).toFixed(2),
+                      )
+                      setShowCnModal(true)
+                    }}
+                    className="border-orange-300 dark:border-orange-700 text-orange-700 dark:text-orange-300"
+                  >
+                    {t("invoice.creditNote") || "Gutschrift"}
+                  </Button>
+                )}
+              {invoice.type !== "CN" &&
+                invoice.status !== "cancelled" && (
+                  <Button
+                    size="sm"
+                    onClick={() => setShowPayForm(!showPayForm)}
+                    variant={showPayForm ? "outline" : "default"}
+                  >
+                    {showPayForm ? "×" : "+ Zahlung erfassen"}
+                  </Button>
+                )}
+            </div>
           </CardHeader>
           {showPayForm && (
             <CardContent className="bg-gray-50 dark:bg-gray-900 border-t">
@@ -1670,6 +1717,124 @@ export default function InvoiceDetailPage() {
                 {planSaving
                   ? "…"
                   : t("installmentPlan.create") || "Anlegen"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tier 53: Gutschrift (credit note) modal.
+          Two inputs: refund amount (pre-filled with
+          the open balance) + reason. Submitting POSTs
+          to /invoices/:id/credit-note. The backend
+          creates the CN and navigates the user to
+          the CN's detail page so they can see the
+          result + send it. */}
+      {showCnModal && invoice && (
+        <div
+          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+          data-testid="credit-note-modal"
+        >
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-6">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2">
+              {t("invoice.creditNote") || "Gutschrift erstellen"}
+            </h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+              {t("invoice.creditNoteHint") ||
+                "Erstattet einen Teil oder den vollen Betrag dieser Rechnung. Die Gutschrift erhält eine eigene Rechnungsnummer und reduziert den offenen Saldo."}
+            </p>
+
+            {cnError && (
+              <div
+                className="p-3 mb-3 bg-red-50 border border-red-200 text-red-800 rounded text-sm"
+                data-testid="credit-note-error"
+              >
+                ✗ {cnError}
+              </div>
+            )}
+
+            <div className="mb-3">
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
+                {t("invoice.creditNoteAmount") || "Erstattungsbetrag (€)"} *
+              </label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                value={cnAmount}
+                onChange={(e) => setCnAmount(e.target.value)}
+                data-testid="credit-note-amount"
+              />
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                {t("invoice.creditNoteAmountHint") ||
+                  "Leer lassen für volle Erstattung — alle Positionen der Originalrechnung werden 1:1 übernommen."}
+              </p>
+            </div>
+            <div className="mb-4">
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
+                {t("invoice.creditNoteReason") || "Grund (optional)"}
+              </label>
+              <Input
+                type="text"
+                value={cnReason}
+                onChange={(e) => setCnReason(e.target.value)}
+                placeholder={t("invoice.creditNoteReasonPlaceholder") ||
+                  "z.B. 3 von 10 Positionen nicht geliefert"}
+                data-testid="credit-note-reason"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowCnModal(false)
+                  setCnError(null)
+                }}
+                disabled={cnSaving}
+              >
+                {t("common.cancel") || "Abbrechen"}
+              </Button>
+              <Button
+                data-testid="credit-note-submit"
+                onClick={async () => {
+                  setCnError(null)
+                  setCnSaving(true)
+                  try {
+                    const payload: {
+                      amount?: number
+                      reason?: string
+                    } = {}
+                    if (cnAmount && Number(cnAmount) > 0) {
+                      payload.amount = Number(cnAmount)
+                    }
+                    if (cnReason.trim()) {
+                      payload.reason = cnReason.trim()
+                    }
+                    const cn = await apiPost<any>(
+                      `/api/v1/invoices/${invoice.id}/credit-note?companyId=${localStorage.getItem("companyId") || ""}`,
+                      payload,
+                    )
+                    setShowCnModal(false)
+                    // Navigate to the new CN's detail
+                    // page so the user sees the result
+                    // + can email it.
+                    router.push(
+                      `/dashboard/invoices/${cn.id}?companyId=${localStorage.getItem("companyId") || ""}`,
+                    )
+                  } catch (e: any) {
+                    setCnError(
+                      e?.message || "Fehler beim Erstellen",
+                    )
+                  } finally {
+                    setCnSaving(false)
+                  }
+                }}
+                disabled={cnSaving}
+              >
+                {cnSaving
+                  ? "…"
+                  : t("invoice.creditNote") || "Gutschrift erstellen"}
               </Button>
             </div>
           </div>

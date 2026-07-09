@@ -836,4 +836,282 @@ export class InvoiceService {
 
     return updated;
   }
+
+  /**
+   * Tier 53: Gutschrift (credit note) generator.
+   *
+   * Creates a new Invoice with `type='CN'` +
+   * `referenceInvoiceId=<original.id>`. Three modes:
+   *
+   *   1. Full refund: caller passes no `lines` /
+   *      `amount`. We mirror every line of the
+   *      original with a negative sign — the CN
+   *      total equals -original.total.
+   *
+   *   2. Partial refund with custom lines: caller
+   *      passes `lines: [{ description, quantity,
+   *      unitPrice, vatRate }]`. We negate unitPrice
+   *      so a refund of 100 € is unitPrice=100 (not
+   *      -100). The CN total = -sum of (qty * price).
+   *
+   *   3. Flat amount: caller passes `amount: 100`.
+   *      We generate a single "Erstattung" line on
+   *      the CN (no VAT) for that exact value.
+   *      Useful for "we owe them 50 € back, no
+   *      particular line" style refunds.
+   *
+   * The original invoice's open balance is reduced
+   * by the (absolute value of the) CN total. We do
+   * NOT mutate the original — the CN is a separate
+   * invoice with its own number sequence and audit
+   * trail.
+   *
+   * The original invoice's status flips to 'paid'
+   * automatically if the cumulative (payments +
+   * |CN|) >= total. The Mahnung service excludes
+   * such over-cleared invoices from its next run.
+   */
+  async createCreditNote(
+    originalId: string,
+    companyId: string,
+    opts: {
+      amount?: number
+      lines?: Array<{
+        description: string
+        quantity?: number
+        unitPrice: number
+        vatRate?: number
+      }>
+      reason?: string
+    },
+  ) {
+    const original = await this.prisma.invoice.findFirst({
+      where: { id: originalId, companyId },
+      include: { items: { orderBy: { sortOrder: 'asc' } } },
+    })
+    if (!original) {
+      throw new NotFoundException('Originalrechnung nicht gefunden')
+    }
+    if (original.type === 'CN') {
+      // A CN can reference another CN, but the user
+      // expectation is "credit to original invoice".
+      // Refuse to chain — surface a clear error.
+      throw new BadRequestException(
+        'Gutschriften können nicht aus weiteren Gutschriften erzeugt werden — bitte die Originalrechnung (Typ INV) auswählen.',
+      )
+    }
+    if (original.status === 'cancelled') {
+      throw new BadRequestException(
+        'Gutschrift kann nicht zu einer stornierten Rechnung erstellt werden',
+      )
+    }
+
+    // Build the line items for the CN. Three modes
+    // as documented above.
+    let cnLines: Array<{
+      description: string
+      quantity: number
+      unitPrice: number
+      vatRate: number
+    }>
+    if (opts.lines && opts.lines.length > 0) {
+      // Partial refund: caller-supplied lines. Negate
+      // unitPrice so the CN carries negative amounts.
+      cnLines = opts.lines.map((l) => ({
+        description: l.description,
+        quantity: l.quantity ?? 1,
+        unitPrice: -Math.abs(Number(l.unitPrice)),
+        vatRate: l.vatRate ?? 0.19,
+      }))
+    } else if (opts.amount != null && opts.amount > 0) {
+      // Flat amount: single "Erstattung" line. We
+      // don't add VAT — the user can override via
+      // lines: [...] if they need a VAT-bearing CN.
+      cnLines = [
+        {
+          description: opts.reason || 'Erstattung',
+          quantity: 1,
+          unitPrice: -Math.abs(Number(opts.amount)),
+          vatRate: 0,
+        },
+      ]
+    } else {
+      // Full refund: mirror every line of the original.
+      cnLines = original.items.map((it) => ({
+        description: it.description,
+        quantity: Number(it.quantity),
+        unitPrice: -Number(it.unitPrice),
+        vatRate: Number(it.vatRate ?? 0.19),
+      }))
+    }
+
+    // Compute the CN's totals using the same logic as
+    // the regular create flow. We use a small inline
+    // calculator (we don't have a "negative invoice"
+    // create DTO — the create DTO always expects
+    // positive unit prices).
+    let subtotal = 0
+    let totalVat = 0
+    for (const l of cnLines) {
+      const net = l.quantity * l.unitPrice
+      const vat = net * l.vatRate
+      subtotal += net
+      totalVat += vat
+    }
+    const total = subtotal + totalVat
+
+    // Allocate a new invoice number on the CN's
+    // number sequence. CNs use the same year/month
+    // numbering as the original — the prefix
+    // differentiates (CN-2026-001).
+    const now = new Date()
+    const year = now.getFullYear()
+    const month = now.getMonth() + 1
+    // Count existing CNs this year to set sequence.
+    const cnCount = await this.prisma.invoice.count({
+      where: {
+        companyId,
+        type: 'CN',
+        sequenceYear: year,
+      },
+    })
+    const sequenceNumber = cnCount + 1
+    const invoiceNumber = `CN-${year}-${String(sequenceNumber).padStart(3, '0')}`
+
+    // Create the CN + its items in a single
+    // transaction. If the items insert fails, the
+    // CN rollbacks and we don't end up with a
+    // half-built Gutschrift.
+    const cn = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.invoice.create({
+        data: {
+          companyId,
+          customerId: original.customerId,
+          invoiceNumber,
+          sequencePrefix: 'CN',
+          sequenceYear: year,
+          sequenceMonth: month,
+          sequenceNumber,
+          type: 'CN',
+          status: 'sent',
+          issueDate: now,
+          dueDate: now,
+          subtotal,
+          totalVat,
+          total,
+          // The original is the source — copy over
+          // the same cost-center stamps.
+          costCenter: original.costCenter,
+          costObject: original.costObject,
+          referenceInvoiceId: original.id,
+          // The CN's own notes line carries the
+          // reason (or a default "Gutschrift zu
+          // <original.invoiceNumber>").
+          notes: opts.reason
+            ? `Gutschrift zu ${original.invoiceNumber} — ${opts.reason}`
+            : `Gutschrift zu ${original.invoiceNumber}`,
+          // CNs don't carry their own Skonto — the
+          // original's Skonto already applied (or
+          // expired) at the time of the original
+          // payment. A subsequent refund is a
+          // separate transaction.
+          vatBreakdown: this.computeVatBreakdown(cnLines),
+          items: {
+            create: cnLines.map((l, i) => ({
+              description: l.description,
+              quantity: l.quantity,
+              unit: 'Stück',
+              unitPrice: l.unitPrice,
+              vatRate: l.vatRate,
+              netAmount: l.quantity * l.unitPrice,
+              vatAmount: l.quantity * l.unitPrice * l.vatRate,
+              grossAmount: l.quantity * l.unitPrice * (1 + l.vatRate),
+              sortOrder: i,
+              // No costCenter/costObject on CN
+              // lines — the original carried the
+              // stamps, and refunding doesn't
+              // reassign the original cost.
+            })),
+          },
+        },
+        include: { items: { orderBy: { sortOrder: 'asc' } } },
+      })
+
+      // Reduce the original invoice's open balance
+      // by the absolute value of the CN total. We
+      // do this by adding a synthetic Payment row
+      // of type 'credit_note' — that way the
+      // payment listing on the original shows
+      // exactly what cleared the balance, and the
+      // customer statement groups CNs together
+      // for the Berater.
+      //
+      // The Payment.amount is stored as the
+      // ABSOLUTE refund value (a positive number).
+      // The PaymentService treats positive amounts
+      // as inflows toward the invoice total.
+      await tx.payment.create({
+        data: {
+          invoiceId: original.id,
+          amount: Math.abs(total),
+          paymentDate: now,
+          paymentMethod: 'Gutschrift',
+          reference: `CN ${invoiceNumber}`,
+          notes: `Auto-verrechnet aus Gutschrift ${invoiceNumber}`,
+        },
+      })
+      return created
+    })
+
+    // After the transaction: re-check the original's
+    // status. If the new cumulative (payments + |CN|)
+    // >= total, the original flips to 'paid' and
+    // we fire the invoice.paid webhook.
+    const updatedOriginal = await this.prisma.invoice.findFirst({
+      where: { id: original.id, companyId },
+      include: {
+        payments: { select: { amount: true } },
+      },
+    })
+    if (updatedOriginal) {
+      const paid = updatedOriginal.payments.reduce(
+        (s, p) => s + Number(p.amount),
+        0,
+      )
+      if (
+        paid >= Number(updatedOriginal.total) &&
+        updatedOriginal.status !== 'paid'
+      ) {
+        await this.updateStatus(original.id, companyId, 'paid')
+      }
+    }
+
+    return cn
+  }
+
+  /**
+   * Helper: build the JSON VAT breakdown from a
+   * list of negative-priced line items. Same shape
+   * as the create flow's breakdown but for refunds.
+   */
+  private computeVatBreakdown(
+    lines: Array<{
+      quantity: number
+      unitPrice: number
+      vatRate: number
+    }>,
+  ) {
+    const byRate: Record<string, { rate: number; net: number; vat: number }> =
+      {}
+    for (const l of lines) {
+      const key = l.vatRate.toFixed(2)
+      if (!byRate[key]) {
+        byRate[key] = { rate: l.vatRate, net: 0, vat: 0 }
+      }
+      const net = l.quantity * l.unitPrice
+      byRate[key].net += net
+      byRate[key].vat += net * l.vatRate
+    }
+    return Object.values(byRate)
+  }
 }
