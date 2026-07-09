@@ -71,6 +71,26 @@ export default function InvoiceDetailPage() {
   const { t, getDateLocale } = useI18n()
   const [invoice, setInvoice] = useState<Invoice | null>(null)
   const [payments, setPayments] = useState<Payment[]>([])
+  // Tier 51: the (optional) Ratenplan attached to
+  // this invoice. `null` = invoice is paid in one
+  // lump, no plan. The plan carries per-Rate
+  // status that drives the Raten schedule below.
+  const [installmentPlan, setInstallmentPlan] = useState<any | null>(null)
+  const [showPlanModal, setShowPlanModal] = useState(false)
+  const [planSaving, setPlanSaving] = useState(false)
+  const [planError, setPlanError] = useState<string | null>(null)
+  const [planForm, setPlanForm] = useState({
+    installmentCount: '3',
+    intervalDays: '30',
+    firstDueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10),
+    notes: '',
+  })
+  // Per-Rate "als bezahlt markieren" — Betrag input
+  // stored as a map of installmentId → string so the
+  // user can type partial payments per Rate.
+  const [payRateAmount, setPayRateAmount] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
   const [sendResult, setSendResult] = useState<{ ok: boolean; message: string } | null>(null)
@@ -132,9 +152,17 @@ export default function InvoiceDetailPage() {
     Promise.all([
       apiGet<any>(`/api/v1/invoices/${params.id}?companyId=${companyId}`),
       apiGet<any[]>(`/api/v1/invoices/${params.id}/payments?companyId=${companyId}`),
-    ]).then(([inv, pmts]) => {
+      // Tier 51: try fetching the Ratenplan. The
+      // /by-invoice/:id endpoint returns the (one)
+      // plan attached to this invoice or null — no
+      // need to scan every active plan.
+      apiGet<any>(
+        `/api/v1/installment-plans/by-invoice/${params.id}?companyId=${companyId}`,
+      ).catch(() => null),
+    ]).then(([inv, pmts, plan]) => {
       setInvoice(inv)
       setPayments(Array.isArray(pmts) ? pmts : [])
+      setInstallmentPlan(plan)
     }).catch((err) => {
       console.error('Invoice detail load failed:', err)
     }).finally(() => setLoading(false))
@@ -1027,6 +1055,242 @@ export default function InvoiceDetailPage() {
           )}
         </Card>
 
+        {/* Tier 51: Ratenzahlung (installment plan). Shows
+            the schedule (N Raten with their due dates +
+            status) when a Ratenplan is attached; otherwise
+            offers a one-click "Ratenplan anlegen" button.
+            Each Rate carries its own pay button so the
+            Berater can mark individual Raten as paid when
+            a bank import comes in for a partial amount. */}
+        <Card className="mt-6" data-testid="installment-plan-card">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle>
+              {t("installmentPlan.title") || "Ratenplan"}
+              {installmentPlan && (
+                <span className="ml-2 text-xs font-normal text-gray-500 dark:text-gray-400">
+                  ({installmentPlan.installments.length}{" "}
+                  {t("installmentPlan.rates") || "Raten"})
+                </span>
+              )}
+            </CardTitle>
+            {!installmentPlan &&
+              invoice.type !== "CN" &&
+              invoice.status !== "cancelled" && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  data-testid="installment-plan-create-button"
+                  onClick={() => {
+                    setPlanError(null)
+                    setShowPlanModal(true)
+                  }}
+                >
+                  + {t("installmentPlan.create") || "Ratenplan anlegen"}
+                </Button>
+              )}
+          </CardHeader>
+          <CardContent>
+            {!installmentPlan ? (
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                {t("installmentPlan.empty") ||
+                  "Noch kein Ratenplan — klicke „Ratenplan anlegen\", um diese Rechnung in Teilbeträgen zu verwalten."}
+              </p>
+            ) : (
+              <div>
+                <div className="flex items-center gap-3 mb-3 text-sm">
+                  <span className="text-gray-500 dark:text-gray-400">
+                    {t("installmentPlan.total") || "Gesamtbetrag"}:
+                  </span>
+                  <span className="font-mono font-medium">
+                    {Number(installmentPlan.totalAmount).toFixed(2)} €
+                  </span>
+                  <span className="text-gray-400">·</span>
+                  <span className="text-gray-500 dark:text-gray-400">
+                    {t("installmentPlan.interval") || "Intervall"}:
+                  </span>
+                  <span>{installmentPlan.intervalDays} Tage</span>
+                  <span className="text-gray-400">·</span>
+                  <span
+                    className={`text-xs px-2 py-0.5 rounded ${
+                      installmentPlan.status === "active"
+                        ? "bg-blue-100 text-blue-800"
+                        : installmentPlan.status === "completed"
+                        ? "bg-emerald-100 text-emerald-800"
+                        : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200"
+                    }`}
+                  >
+                    {installmentPlan.status === "active"
+                      ? t("installmentPlan.statusActive") || "aktiv"
+                      : installmentPlan.status === "completed"
+                      ? t("installmentPlan.statusCompleted") ||
+                        "abgeschlossen"
+                      : t("installmentPlan.statusCancelled") || "storniert"}
+                  </span>
+                </div>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-xs uppercase text-gray-500 dark:text-gray-400 border-b">
+                      <th className="py-2 pr-2 w-10">#</th>
+                      <th className="py-2 pr-2">
+                        {t("installmentPlan.dueDate") || "Fällig"}
+                      </th>
+                      <th className="py-2 pr-2 text-right">
+                        {t("installmentPlan.amount") || "Betrag"}
+                      </th>
+                      <th className="py-2 pr-2 text-right">
+                        {t("installmentPlan.paid") || "Bezahlt"}
+                      </th>
+                      <th className="py-2 pr-2">
+                        {t("installmentPlan.status") || "Status"}
+                      </th>
+                      <th className="py-2 pr-2"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {installmentPlan.installments.map((inst: any) => (
+                      <tr
+                        key={inst.id}
+                        className="border-b"
+                        data-testid="installment-row"
+                      >
+                        <td className="py-2 pr-2 font-mono">
+                          {inst.sequenceNumber}
+                        </td>
+                        <td className="py-2 pr-2">
+                          {formatDate(inst.dueDate)}
+                        </td>
+                        <td className="py-2 pr-2 text-right font-mono">
+                          {Number(inst.amount).toFixed(2)} €
+                        </td>
+                        <td className="py-2 pr-2 text-right font-mono">
+                          {Number(inst.paidAmount).toFixed(2)} €
+                        </td>
+                        <td className="py-2 pr-2">
+                          <span
+                            className={`text-xs px-2 py-0.5 rounded ${
+                              inst.status === "paid"
+                                ? "bg-emerald-100 text-emerald-800"
+                                : inst.status === "partial"
+                                ? "bg-amber-100 text-amber-800"
+                                : inst.status === "overdue"
+                                ? "bg-red-100 text-red-800"
+                                : inst.status === "cancelled"
+                                ? "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200"
+                                : "bg-blue-100 text-blue-800"
+                            }`}
+                          >
+                            {inst.status === "paid"
+                              ? t("installmentPlan.paid") || "bezahlt"
+                              : inst.status === "partial"
+                              ? t("installmentPlan.partial") || "teilbezahlt"
+                              : inst.status === "overdue"
+                              ? t("installmentPlan.overdue") || "überfällig"
+                              : inst.status === "cancelled"
+                              ? t("installmentPlan.statusCancelled") ||
+                                "storniert"
+                              : t("installmentPlan.open") || "offen"}
+                          </span>
+                        </td>
+                        <td className="py-2 pr-2">
+                          {inst.status !== "paid" &&
+                            inst.status !== "cancelled" && (
+                              <div className="flex gap-1 items-center">
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  placeholder={(
+                                    Number(inst.amount) -
+                                      Number(inst.paidAmount)
+                                  ).toFixed(2)}
+                                  value={payRateAmount[inst.id] || ""}
+                                  onChange={(e) =>
+                                    setPayRateAmount({
+                                      ...payRateAmount,
+                                      [inst.id]: e.target.value,
+                                    })
+                                  }
+                                  className="w-24 border rounded px-1 py-0.5 text-right font-mono text-xs"
+                                  data-testid="installment-pay-amount"
+                                />
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  data-testid="installment-pay-button"
+                                  onClick={async () => {
+                                    const remaining =
+                                      Number(inst.amount) -
+                                      Number(inst.paidAmount)
+                                    const amt =
+                                      payRateAmount[inst.id] ??
+                                      remaining.toFixed(2)
+                                    if (!amt || Number(amt) <= 0) return
+                                    try {
+                                      const updated = await apiPost<any>(
+                                        `/api/v1/installment-plans/${installmentPlan.id}/installments/${inst.id}/pay?companyId=${localStorage.getItem("companyId") || ""}`,
+                                        { amount: Number(amt) },
+                                      )
+                                      setInstallmentPlan(updated)
+                                      setPayRateAmount({
+                                        ...payRateAmount,
+                                        [inst.id]: "",
+                                      })
+                                    } catch (e: any) {
+                                      alert(
+                                        e?.message || "Fehler beim Speichern",
+                                      )
+                                    }
+                                  }}
+                                >
+                                  ✓
+                                </Button>
+                              </div>
+                            )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {installmentPlan.status === "active" && (
+                  <div className="mt-3 flex justify-end">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-red-700 dark:text-red-300 border-red-300 dark:border-red-700"
+                      data-testid="installment-cancel-button"
+                      onClick={async () => {
+                        if (
+                          !confirm(
+                            t("installmentPlan.confirmCancel") ||
+                              "Ratenplan wirklich stornieren? Alle offenen Raten werden auf storniert gesetzt.",
+                          )
+                        ) {
+                          return
+                        }
+                        try {
+                          await apiDelete<any>(
+                            `/api/v1/installment-plans/${installmentPlan.id}?companyId=${localStorage.getItem("companyId") || ""}`,
+                          )
+                          // refresh plan
+                          const updated = await apiGet<any>(
+                            `/api/v1/installment-plans/${installmentPlan.id}?companyId=${localStorage.getItem("companyId") || ""}`,
+                          )
+                          setInstallmentPlan(updated)
+                        } catch (e: any) {
+                          alert(
+                            e?.message || "Fehler beim Stornieren",
+                          )
+                        }
+                      }}
+                    >
+                      {t("installmentPlan.cancel") || "Ratenplan stornieren"}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Notes */}
         {invoice.notes && (
           <Card className="mt-8">
@@ -1234,6 +1498,181 @@ export default function InvoiceDetailPage() {
               </div>
             </CardContent>
           </Card>
+        </div>
+      )}
+
+      {/* Tier 51: Create-Ratenplan modal. Four fields
+          (count, totalAmount, firstDueDate, intervalDays)
+          + a notes line. The amount defaults to the
+          outstanding invoice total (€ 1.234,56 style
+          already formatted). Submitting POSTs to
+          /installment-plans. */}
+      {showPlanModal && invoice && (
+        <div
+          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+          data-testid="installment-plan-modal"
+        >
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-6">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2">
+              {t("installmentPlan.createTitle") || "Ratenplan anlegen"}
+            </h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+              {t("installmentPlan.createHint") ||
+                "Diese Rechnung in mehrere Teilbeträge aufteilen. Jede Rate bekommt ein eigenes Fälligkeitsdatum."}
+            </p>
+
+            {planError && (
+              <div
+                className="p-3 mb-3 bg-red-50 border border-red-200 text-red-800 rounded text-sm"
+                data-testid="installment-plan-error"
+              >
+                ✗ {planError}
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
+                  {t("installmentPlan.count") || "Anzahl Raten"} *
+                </label>
+                <Input
+                  type="number"
+                  min="2"
+                  max="120"
+                  value={planForm.installmentCount}
+                  onChange={(e) =>
+                    setPlanForm({
+                      ...planForm,
+                      installmentCount: e.target.value,
+                    })
+                  }
+                  data-testid="installment-plan-count"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
+                  {t("installmentPlan.interval") || "Intervall (Tage)"}
+                </label>
+                <Input
+                  type="number"
+                  min="1"
+                  max="365"
+                  value={planForm.intervalDays}
+                  onChange={(e) =>
+                    setPlanForm({
+                      ...planForm,
+                      intervalDays: e.target.value,
+                    })
+                  }
+                  data-testid="installment-plan-interval"
+                />
+              </div>
+            </div>
+            <div className="mb-3">
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
+                {t("installmentPlan.total") || "Gesamtbetrag (€)"} *
+              </label>
+              <Input
+                type="number"
+                step="0.01"
+                defaultValue={Number(invoice.total).toFixed(2)}
+                onChange={(e) => {
+                  // store in planForm via spread of dynamic key
+                  ;(planForm as any).totalAmount = e.target.value
+                }}
+                data-testid="installment-plan-amount"
+              />
+            </div>
+            <div className="mb-3">
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
+                {t("installmentPlan.firstDue") || "Erste Fälligkeit"} *
+              </label>
+              <Input
+                type="date"
+                value={planForm.firstDueDate}
+                onChange={(e) =>
+                  setPlanForm({
+                    ...planForm,
+                    firstDueDate: e.target.value,
+                  })
+                }
+                data-testid="installment-plan-first-due"
+              />
+            </div>
+            <div className="mb-4">
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
+                {t("installmentPlan.notes") || "Notiz (optional)"}
+              </label>
+              <Input
+                type="text"
+                value={planForm.notes}
+                onChange={(e) =>
+                  setPlanForm({ ...planForm, notes: e.target.value })
+                }
+                data-testid="installment-plan-notes"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowPlanModal(false)
+                  setPlanError(null)
+                }}
+                disabled={planSaving}
+              >
+                {t("common.cancel") || "Abbrechen"}
+              </Button>
+              <Button
+                data-testid="installment-plan-submit"
+                onClick={async () => {
+                  setPlanError(null)
+                  const count = Number(planForm.installmentCount)
+                  if (!count || count < 2) {
+                    setPlanError("Mindestens 2 Raten erforderlich")
+                    return
+                  }
+                  const totalAmount = Number(
+                    (planForm as any).totalAmount ??
+                      Number(invoice.total).toFixed(2),
+                  )
+                  if (!totalAmount || totalAmount <= 0) {
+                    setPlanError("Betrag muss > 0 sein")
+                    return
+                  }
+                  setPlanSaving(true)
+                  try {
+                    const plan = await apiPost<any>(
+                      `/api/v1/installment-plans?companyId=${localStorage.getItem("companyId") || ""}`,
+                      {
+                        invoiceId: invoice.id,
+                        installmentCount: count,
+                        totalAmount,
+                        firstDueDate: new Date(planForm.firstDueDate)
+                          .toISOString(),
+                        intervalDays: Number(planForm.intervalDays) || 30,
+                        notes: planForm.notes || undefined,
+                      },
+                    )
+                    setInstallmentPlan(plan)
+                    setShowPlanModal(false)
+                  } catch (e: any) {
+                    setPlanError(
+                      e?.message || "Fehler beim Anlegen",
+                    )
+                  } finally {
+                    setPlanSaving(false)
+                  }
+                }}
+                disabled={planSaving}
+              >
+                {planSaving
+                  ? "…"
+                  : t("installmentPlan.create") || "Anlegen"}
+              </Button>
+            </div>
+          </div>
         </div>
       )}
       </div>

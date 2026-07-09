@@ -33,6 +33,7 @@ import { UsersModule } from './modules/users/users.module';
 import { RecurringModule } from './modules/recurring/recurring.module';
 import { CashBookModule } from './modules/cashbook/cashbook.module';
 import { BankImportModule } from './modules/bank-import/bank-import.module';
+import { InstallmentPlanModule } from './modules/installment-plan/installment-plan.module';
 import { SupplierModule } from './modules/supplier/supplier.module';
 import { ExpenseModule } from './modules/expense/expense.module';
 import { AttachmentsModule } from './modules/attachment/attachments.module';
@@ -93,6 +94,7 @@ import { WebhookModule } from './modules/webhook/webhook.module';
     RecurringModule,
     CashBookModule,
     BankImportModule,
+    InstallmentPlanModule,
     SupplierModule,
     ExpenseModule,
     AttachmentsModule,

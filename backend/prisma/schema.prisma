@@ -87,6 +87,8 @@ model Company {
   voucherTemplates VoucherTemplate[]
   // Tier 48: per-(year, costCenter) budget targets.
   costCenterBudgets CostCenterBudget[]
+  // Tier 51: all Ratenpläne for this company.
+  installmentPlans InstallmentPlan[]
   // Uploaded files (PDF / image scans of incoming
   // invoices, etc.) linked to Expenses / Vouchers
   // by entityType + entityId. Required for GoBD
@@ -228,6 +230,8 @@ model Customer {
 
   invoices     Invoice[]
   recurringInvoices RecurringInvoice[]
+  // Tier 51: all Ratenpläne for this customer.
+  installmentPlans InstallmentPlan[]
 
   @@index([companyId, name])
   @@index([companyId, vatId])
@@ -488,6 +492,10 @@ model Invoice {
   recurringInvoice   RecurringInvoice? @relation(fields: [recurringInvoiceId], references: [id], onDelete: SetNull)
   recurringRuns  RecurringRun[]
   cashBookEntries CashBookEntry[]
+  // Tier 51: 1:1 back-relation to the (optional) Ratenplan
+  // attached to this invoice. Null when no Ratenplan was
+  // set up — the invoice is paid in one lump.
+  installmentPlan InstallmentPlan?
 
   @@unique([companyId, invoiceNumber])
   @@index([companyId, issueDate])
@@ -1699,6 +1707,100 @@ model CostCenterBudget {
   // this index.
   @@unique([companyId, costCenter, year])
   @@index([companyId, year])
+}
+
+// Tier 51: Ratenzahlung — installment payment
+// plans for customer invoices. A plan is a 1:1
+// attachment to a single Invoice; it splits the
+// invoice total into N Raten with a configurable
+// interval (default 30 days = monthly). Each Rate
+// is tracked individually so the Berater can see
+// "what's still open / partial / paid" at a glance
+// without scanning the bank-import history.
+//
+// Money invariants (enforced in the service):
+//   sum(Installment.amount) == InstallmentPlan.totalAmount
+//   0 <= Installment.paidAmount <= Installment.amount
+//
+// status is denormalised (derived from paidAmount
+// + dueDate vs today) but cached so we can
+// index/filter on it for the Mahnung integration.
+model InstallmentPlan {
+  id                String        @id @default(uuid())
+  companyId         String
+  company           Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customerId        String
+  customer          Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  invoiceId         String        @unique
+  invoice           Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  // The Invoice.total that the plan splits up.
+  totalAmount       Decimal       @db.Decimal(12,4)
+  // Number of Raten — must be >= 2 (single-installment
+  // plans are not Raten, they're just a single payment).
+  installmentCount  Int
+  // Days between Raten. 30 = monthly, 7 = weekly,
+  // 90 = quarterly. The service validates the
+  // dueDate arithmetic on create.
+  intervalDays      Int           @default(30)
+  // The first Rate's due date. Subsequent Raten
+  // land at firstDueDate + N*intervalDays.
+  firstDueDate      DateTime      @db.Date
+
+  // Lifecycle: 'active' (in progress), 'completed'
+  // (all Raten paid), 'cancelled' (Ratenplan aborted
+  // — Berater voided it). GoBD: we keep cancelled
+  // rows for audit, just filter them out of active
+  // views.
+  status            String        @default("active")
+  notes             String?
+
+  installments      Installment[]
+
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  @@index([companyId, status])
+  @@index([customerId, status])
+}
+
+// Tier 51: One Rate (single installment) on a
+// Ratenplan. Carries the agreed amount + the
+// running paid amount + the moment the Rate was
+// fully settled.
+//
+// status is derived on every update (paidAmount +
+// dueDate vs now) but cached to make the
+// "open installments due this week" dashboard
+// query a simple index hit.
+model Installment {
+  id              String          @id @default(uuid())
+  planId          String
+  plan            InstallmentPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  // 1-based sequence number within the plan. 1st
+  // Rate = 1, 2nd = 2, etc. Stable identifier the
+  // user can talk about ("die dritte Rate").
+  sequenceNumber  Int
+  dueDate         DateTime        @db.Date
+  amount          Decimal         @db.Decimal(12,4)
+  paidAmount      Decimal         @db.Decimal(12,4) @default(0)
+  paidAt          DateTime?
+
+  // Cached lifecycle: 'open' (unpaid and not yet
+  // due), 'overdue' (unpaid but dueDate < today),
+  // 'partial' (paidAmount > 0 but < amount),
+  // 'paid' (paidAmount == amount). The service
+  // recomputes this on every paidAmount change
+  // AND on a daily cron (tier-36 dashboard) so
+  // 'overdue' updates even when no payment lands.
+  status          String          @default("open")
+
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@unique([planId, sequenceNumber])
+  @@index([status, dueDate])
 }
 
 // Tier 6: FinTS bank connection. Stores the
