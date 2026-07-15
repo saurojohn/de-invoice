@@ -90,8 +90,17 @@ export class ReminderService {
   }
 
   /**
-   * Find all overdue invoices for a company
+   * Find all overdue invoices for a company.
    * Overdue = status is 'sent' and dueDate < today
+   * AND NOT (skontoDays > 0 AND today <= issueDate + skontoDays).
+   *
+   * Tier 57: invoices still in their Skonto window
+   * are excluded — a Mahnung during the Skonto
+   * window is hostile ("forgot to pay?" when the
+   * customer can still take the discount). The
+   * filter is applied in JS after the Prisma
+   * query because the "issueDate + skontoDays"
+   * arithmetic is awkward to express in `where`.
    */
   async findOverdueInvoices(companyId: string): Promise<OverdueInvoice[]> {
     const today = new Date();
@@ -106,8 +115,28 @@ export class ReminderService {
         },
         type: 'INV', // Only standard invoices, not credit notes
       },
-      include: {
-        customer: true,
+      // Tier 57: use `select` (not `include`) so we
+      // can pull skontoDays + skontoPercent + issueDate
+      // for the post-query Skonto-window filter.
+      select: {
+        id: true,
+        invoiceNumber: true,
+        total: true,
+        dueDate: true,
+        skontoDays: true,
+        skontoPercent: true,
+        issueDate: true,
+        language: true,
+        costCenter: true,
+        costObject: true,
+        customer: {
+          select: {
+            id: true,
+            name: true,
+            contact: true,
+            address: true,
+          },
+        },
         emailSends: {
           where: {
             templateType: {
@@ -115,13 +144,48 @@ export class ReminderService {
             },
           },
           orderBy: { createdAt: 'desc' },
+          select: {
+            templateType: true,
+            createdAt: true,
+          },
         },
       },
       orderBy: { dueDate: 'asc' },
     });
 
-    return invoices.map((inv) => {
-      const dueDate = new Date(inv.dueDate!);
+    return invoices
+      // Tier 57: filter out invoices still in the
+      // Skonto window. For each invoice with
+      // skontoDays > 0, check if today <= issueDate
+      // + skontoDays. If yes, skip — the customer
+      // can still take the discount.
+      .filter((inv) => {
+        if (
+          inv.skontoDays == null ||
+          inv.skontoPercent == null ||
+          Number(inv.skontoDays) <= 0
+        ) {
+          return true
+        }
+        const skontoExpiry = new Date(inv.issueDate)
+        skontoExpiry.setDate(
+          skontoExpiry.getDate() + Number(inv.skontoDays),
+        )
+        skontoExpiry.setHours(23, 59, 59, 999)
+        if (today.getTime() <= skontoExpiry.getTime()) {
+          // Use console.debug since ReminderService
+          // doesn't inject Logger (matches the rest of
+          // the file's debug logging).
+          // eslint-disable-next-line no-console
+          console.debug(
+            `[SKIP-MAHNUNG] invoice ${inv.invoiceNumber}: Skonto window still open (expires ${skontoExpiry.toISOString().slice(0, 10)}), not sending Mahnung`,
+          )
+          return false
+        }
+        return true
+      })
+      .map((inv) => {
+        const dueDate = new Date(inv.dueDate!);
       const diffTime = today.getTime() - dueDate.getTime();
       const daysOverdue = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
