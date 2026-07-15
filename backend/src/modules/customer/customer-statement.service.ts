@@ -53,6 +53,27 @@ export interface StatementLine {
   docId?: string
 }
 
+export interface RatenplanLine {
+  /** Ratenplan row id. The frontend uses this to
+   *  open the Ratenplan modal on the invoice detail. */
+  planId: string
+  /** Invoice this Ratenplan is attached to. */
+  invoiceId: string
+  invoiceNumber: string
+  /** Sum of all open Raten (status=open|partial|overdue) in EUR. */
+  openAmount: number
+  /** The next 3 Raten (or fewer if the plan has <3 left),
+   *  sorted by dueDate asc. */
+  upcoming: Array<{
+    installmentId: string
+    sequenceNumber: number
+    dueDate: string
+    amount: number
+    paidAmount: number
+    status: 'open' | 'partial' | 'overdue' | 'paid' | 'cancelled'
+  }>
+}
+
 export interface CustomerStatement {
   customer: {
     id: string
@@ -77,7 +98,24 @@ export interface CustomerStatement {
      *  too much) this is 0 and the actual credit is shown separately
      *  in the closingBalance field. */
     openAmount: number
+    /** Tier 56: number of overdue Raten across all
+     *  active Ratenpläne. Drives the "next 3 Raten
+     *  due" hint on the statement. */
+    overdueRatenCount: number
+    /** Tier 56: total sum of Skonto taken in the
+     *  period (sum of (invoice.total - payment.amount)
+     *  for Skonto invoices where the payment landed
+     *  inside the Skonto window). Positive number
+     *  representing the total discount granted. */
+    skontoTakenAmount: number
   }
+  /** Tier 56: per-invoice Ratenplan schedule. Only
+   *  invoices with an ACTIVE Ratenplan (status='active')
+   *  are listed. The customer can see at a glance
+   *  "what's the next 3 Raten I owe on invoice
+   *  X". Sorted by total openAmount desc — the
+   *  biggest Ratenplan is at the top. */
+  ratenplanSchedule: RatenplanLine[]
   generatedAt: string
 }
 
@@ -260,6 +298,148 @@ export class CustomerStatementService {
     const closingBalance = running
     const openAmount = Math.max(0, closingBalance)
 
+    // ── Tier 56: Skonto taken in the period ──────
+    // We sum (invoice.total - payment.amount) for every
+    // Skonto invoice (skontoPercent != null) where the
+    // payment landed inside the period. The diff is
+    // the Skonto taken. A payment that's larger than
+    // the invoice total can't happen (the service
+    // caps the amount at invoice.total), so the diff
+    // is always >= 0.
+    //
+    // We deliberately skip the "Skonto taken" math
+    // for partial payments (where the customer paid
+    // a smaller amount but AFTER the Skonto window)
+    // — those aren't Skonto, they're normal partials.
+    // The check is "the payment was on a Skonto
+    // invoice AND the payment date is within the
+    // Skonto window". Computing that window requires
+    // knowing the invoice's issueDate + skontoDays
+    // which we have in `invoices` above.
+    let skontoTakenAmount = 0
+    {
+      // Build a quick lookup: invoiceId -> {issueDate, skontoDays, total}.
+      const invLookup = new Map<
+        string,
+        { issueDate: Date; skontoDays: number | null; total: number }
+      >()
+      for (const inv of invoices) {
+        // Re-fetch the full row to get skontoDays
+        // (the lightweight `select` above skipped it).
+        // In practice the customer statement service
+        // is called for a single customer so the
+        // N+1 cost is small; if it ever grows we
+        // can promote skontoDays to the same select.
+        const full = await this.prisma.invoice.findUnique({
+          where: { id: inv.id },
+          select: { issueDate: true, skontoDays: true, total: true },
+        })
+        if (!full) continue
+        invLookup.set(inv.id, {
+          issueDate: full.issueDate,
+          skontoDays: full.skontoDays,
+          total: Number(full.total),
+        })
+      }
+      // For each payment against a Skonto invoice,
+      // check the Skonto window: paymentDate must be
+      // <= issueDate + skontoDays.
+      for (const p of payments) {
+        // The Payment row carries invoiceId via the
+        // join we already loaded (p.invoice). We need
+        // invoiceId to look up the Skonto window.
+        // Add a tiny extra select if missing — but
+        // the join in the existing query selects
+        // only `invoice.invoiceNumber`, not the FK.
+        // Re-fetch the payment row to get the FK.
+        const paymentFull = await this.prisma.payment.findUnique({
+          where: { id: p.id },
+          select: { invoiceId: true },
+        })
+        if (!paymentFull) continue
+        const invMeta = invLookup.get(paymentFull.invoiceId)
+        if (!invMeta || invMeta.skontoDays == null) continue
+        const skontoExpiry = new Date(invMeta.issueDate)
+        skontoExpiry.setDate(
+          skontoExpiry.getDate() + invMeta.skontoDays,
+        )
+        skontoExpiry.setHours(23, 59, 59, 999)
+        if (new Date(p.paymentDate) > skontoExpiry) continue
+        // Skonto taken = invoice.total - payment.amount
+        // (always >= 0; both positive). We use the
+        // invoice's ORIGINAL gross total — a payment
+        // smaller than the gross total means the
+        // customer got a Skonto discount.
+        const skonto = invMeta.total - Math.abs(Number(p.amount))
+        if (skonto > 0.005) {
+          skontoTakenAmount += skonto
+        }
+      }
+    }
+
+    // ── Tier 56: Ratenplan schedule for open invoices ──
+    // We list every ACTIVE Ratenplan attached to one
+    // of the customer's invoices, with the next 3
+    // Raten (by dueDate asc) per plan. Sorted by
+    // total openAmount desc — biggest Ratenplan first.
+    const ratenplanSchedule: RatenplanLine[] = []
+    let overdueRatenCount = 0
+    {
+      const plans = await this.prisma.installmentPlan.findMany({
+        where: {
+          companyId,
+          customerId,
+          status: 'active',
+        },
+        include: {
+          invoice: {
+            select: { id: true, invoiceNumber: true },
+          },
+          installments: {
+            orderBy: { dueDate: 'asc' },
+          },
+        },
+      })
+      for (const plan of plans) {
+        // Sum the open Raten (status NOT in
+        // ['paid','cancelled']). 'overdue' counts.
+        const openInst = plan.installments.filter(
+          (i) => i.status !== 'paid' && i.status !== 'cancelled',
+        )
+        if (openInst.length === 0) continue
+        const openAmount = openInst.reduce(
+          (s, i) => s + Number(i.amount) - Number(i.paidAmount),
+          0,
+        )
+        // Count how many are overdue.
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+        for (const i of openInst) {
+          if (i.status === 'overdue' || (i.status === 'open' && new Date(i.dueDate) < today)) {
+            overdueRatenCount++
+          }
+        }
+        // The next 3 Raten — already sorted by dueDate asc.
+        const upcoming = openInst.slice(0, 3).map((i) => ({
+          installmentId: i.id,
+          sequenceNumber: i.sequenceNumber,
+          dueDate: new Date(i.dueDate).toISOString(),
+          amount: Number(i.amount),
+          paidAmount: Number(i.paidAmount),
+          status: i.status as RatenplanLine['upcoming'][number]['status'],
+        }))
+        ratenplanSchedule.push({
+          planId: plan.id,
+          invoiceId: plan.invoice.id,
+          invoiceNumber: plan.invoice.invoiceNumber,
+          openAmount,
+          upcoming,
+        })
+      }
+      // Sort by openAmount desc.
+      ratenplanSchedule.sort((a, b) => b.openAmount - a.openAmount)
+    }
+
     // Now apply the user-requested display order. Balances are
     // already attached to each line — sorting doesn't recompute
     // them, just reorders.
@@ -293,7 +473,10 @@ export class CustomerStatementService {
         creditsCount,
         creditsAmount,
         openAmount,
+        overdueRatenCount,
+        skontoTakenAmount,
       },
+      ratenplanSchedule,
       generatedAt: new Date().toISOString(),
     }
   }

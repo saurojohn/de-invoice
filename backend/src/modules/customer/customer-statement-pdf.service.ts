@@ -311,7 +311,25 @@ export async function generateStatementPdf(
     doc.text(fmtEur(data.totals.paymentsAmount), COL_AMOUNT_X, y, {
       width: 80, align: 'right',
     })
-    y = doc.y + 8
+    y = doc.y + 4
+
+    // Tier 56: Skonto taken in the period. Only
+    // render when > 0 (a customer with no Skonto
+    // shouldn't see a zero line on the statement).
+    // Single line, same visual weight as the
+    // count + sum rows above.
+    const skontoTaken = Number(data.totals.skontoTakenAmount ?? 0)
+    if (skontoTaken > 0.005) {
+      doc.text(
+        `Summe Skonto (in Anspruch genommen): 1`,
+        COL_DESC_X, y,
+      )
+      doc.text(fmtEur(skontoTaken), COL_AMOUNT_X, y, {
+        width: 80, align: 'right',
+      })
+      y = doc.y + 4
+    }
+    y = doc.y + 4
 
     doc.moveTo(PAGE_MARGIN, y).lineTo(PAGE_MARGIN + CONTENT_WIDTH, y).stroke()
     y = doc.y + 4
@@ -332,6 +350,66 @@ export async function generateStatementPdf(
         PAGE_MARGIN, y, { width: CONTENT_WIDTH },
       )
       y = doc.y + 8
+    }
+
+    // Tier 56: Ratenplan schedule section. Only
+    // render when the customer has at least one
+    // active Ratenplan. Each plan shows the next
+    // 3 Raten (or fewer if <3 left). Sorted by
+    // openAmount desc — biggest Ratenplan first.
+    const rps = data.ratenplanSchedule ?? []
+    if (rps.length > 0) {
+      // Check page break — the Ratenplan section
+      // can be tall (up to 4 lines per plan). If
+      // we're within 80pt of the bottom margin, page
+      // break.
+      if (y + 80 > PAGE_HEIGHT - PAGE_MARGIN) {
+        doc.addPage()
+        y = PAGE_MARGIN
+      }
+      y += 4
+      doc.font('Helvetica-Bold').fontSize(10)
+      doc.text('Offene Ratenpläne (nächste Fälligkeiten)', PAGE_MARGIN, y)
+      y = doc.y + 6
+      for (const plan of rps) {
+        // Plan header
+        if (y + 30 > PAGE_HEIGHT - PAGE_MARGIN) {
+          doc.addPage()
+          y = PAGE_MARGIN
+        }
+        doc.font('Helvetica-Bold').fontSize(9)
+        doc.text(
+          `Rechnung ${plan.invoiceNumber} — offen: ${fmtEur(plan.openAmount)}`,
+          PAGE_MARGIN, y,
+        )
+        y = doc.y + 4
+        // Upcoming Raten
+        doc.font('Helvetica').fontSize(8)
+        for (const r of plan.upcoming) {
+          if (y + 12 > PAGE_HEIGHT - PAGE_MARGIN) {
+            doc.addPage()
+            y = PAGE_MARGIN
+          }
+          // Status badge in light text
+          const statusLabel =
+            r.status === 'overdue'
+              ? 'ÜBERFÄLLIG'
+              : r.status === 'partial'
+              ? 'TEIL'
+              : r.status === 'paid'
+              ? 'BEZAHLT'
+              : r.status === 'cancelled'
+              ? 'STORNIERT'
+              : 'OFFEN'
+          doc.text(
+            `  · Rate ${r.sequenceNumber} fällig ${fmtDateDE(r.dueDate)} — ${fmtEur(r.amount)} [${statusLabel}]`,
+            PAGE_MARGIN, y,
+            { width: CONTENT_WIDTH },
+          )
+          y = doc.y + 4
+        }
+        y += 4
+      }
     }
 
     // ── Footer ───────────────────────────────────────
