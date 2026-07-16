@@ -952,6 +952,16 @@
     "languageHint": "Language of this invoice (can differ from UI language)",
     "installInstallmentPlan": "Installment Plan",
     "saveChanges": "Save Changes",
+    "einvoice": {
+      "downloadZugferd": "Download E-Invoice (ZUGFeRD)",
+      "downloadXRechnung": "Download XRechnung (XML)",
+      "downloadPdf": "Download plain PDF (no XML)",
+      "zugferdHint": "PDF/A-3 with embedded CrossIndustryInvoice XML (EN16931). Mandatory format for B2B recipients since 2025 (Wachstumschancengesetz §3b UStG).",
+      "xrechnungHint": "Pure XRechnung XML (UBL 2.1). Required by public-sector buyers and many ERP systems.",
+      "pdfHint": "Visual-only PDF without embedded XML — for printing or legacy recipients.",
+      "zugferdBadge": "E-Invoice compliant",
+      "xrechnungBadge": "XRechnung"
+    },
     "invoiceType": "Invoice Type",
     "typeInvoice": "Invoice",
     "typeCreditNote": "Credit Note",

@@ -732,13 +732,26 @@ export default function InvoiceDetailPage() {
                 {sendResult.ok ? "✓" : "✗"} {sendResult.message}
               </span>
             )}
-            <Button variant="outline" onClick={downloadXRechnung}>
+            <Button
+              variant="outline"
+              onClick={downloadXRechnung}
+              data-testid="invoice-download-xrechnung"
+            >
               XRechnung herunterladen
             </Button>
-            <Button variant="outline" onClick={downloadZUGFeRD}>
+            <Button
+              variant="outline"
+              onClick={downloadZUGFeRD}
+              data-testid="invoice-download-zugferd"
+            >
               ZUGFeRD herunterladen
             </Button>
-            <Button onClick={downloadPDF}>PDF herunterladen</Button>
+            <Button
+              onClick={downloadPDF}
+              data-testid="invoice-download-pdf"
+            >
+              PDF herunterladen
+            </Button>
             {/* Edit + Hard-delete are only allowed on the invoice's
                 issueDate. For past-date invoices the backend returns
                 403 — we hide the buttons and show a hint pointing

@@ -964,6 +964,16 @@
     "installInstallments": "Ratenzahlung",
     "installInstallmentPlan": "Ratenzahlungsplan",
     "saveChanges": "Änderungen speichern",
+    "einvoice": {
+      "downloadZugferd": "E-Rechnung (ZUGFeRD) herunterladen",
+      "downloadXRechnung": "XRechnung (XML) herunterladen",
+      "downloadPdf": "Reines PDF (ohne XML) herunterladen",
+      "zugferdHint": "PDF/A-3 mit eingebetteter CrossIndustryInvoice-XML nach EN16931. Pflichtformat für B2B-Empfänger seit 2025 (Wachstumschancengesetz §3b UStG).",
+      "xrechnungHint": "Reines XML nach XRechnung-Standard (UBL 2.1). Wird von öffentlichen Auftraggebern und vielen ERP-Systemen verlangt.",
+      "pdfHint": "Nur PDF ohne eingebettete XML — für Druck oder Legacy-Empfänger.",
+      "zugferdBadge": "E-Rechnung konform",
+      "xrechnungBadge": "XRechnung"
+    },
     "basicInfo": "Grundinformationen",
     "issueDate": "Rechnungsdatum",
     "dueDateEmpty": "Keine Fälligkeit (Sofort fällig)",

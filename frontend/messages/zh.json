@@ -966,6 +966,16 @@
     "installInstallments": "分期付款",
     "installInstallmentPlan": "分期计划",
     "saveChanges": "保存修改",
+    "einvoice": {
+      "downloadZugferd": "下载电子发票 (ZUGFeRD)",
+      "downloadXRechnung": "下载 XRechnung (XML)",
+      "downloadPdf": "下载纯 PDF (无 XML)",
+      "zugferdHint": "PDF/A-3 嵌入 CrossIndustryInvoice XML (EN16931)。自 2025 年起为 B2B 接收方强制格式 (德国《增长机会法》§3b UStG)。",
+      "xrechnungHint": "纯 XRechnung XML (UBL 2.1)。公共部门采购方和许多 ERP 系统要求。",
+      "pdfHint": "仅 PDF 不含嵌入 XML — 用于打印或旧版接收方。",
+      "zugferdBadge": "电子发票合规",
+      "xrechnungBadge": "XRechnung"
+    },
     "basicInfo": "基本信息",
     "issueDate": "开票日期",
     "taxTreatment": "增值税处理",
