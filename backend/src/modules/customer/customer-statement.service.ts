@@ -86,6 +86,15 @@ export interface CustomerStatement {
   openingBalance: number
   lines: StatementLine[]
   closingBalance: number
+  /** Tier 58: customer's current credit balance
+   *  (Kundenguthaben) — positive = customer is owed
+   *  money (e.g. overpaid an invoice, Gutschrift
+   *  overage, manual credit). Drawn from the
+   *  CustomerCreditTransaction ledger. Currency
+   *  is implicit EUR (the only currency the ledger
+   *  supports today; future multi-currency would
+   *  add `creditBalanceCurrency` here). */
+  creditBalance: number
   totals: {
     invoicesCount: number
     invoicesAmount: number
@@ -465,6 +474,14 @@ export class CustomerStatementService {
       openingBalance,
       lines,
       closingBalance,
+      // Tier 58: pull the current credit balance from the
+      // CustomerCreditTransaction ledger. Same value as
+      // GET /customers/:id/credit-balance, but co-located
+      // on the statement so the customer detail page can
+      // render a single "Guthaben" badge without an extra
+      // round-trip. Computed in the same generate() pass
+      // — the aggregate is a single index-backed SUM.
+      creditBalance: await this.getCreditBalance(companyId, customer.id),
       totals: {
         invoicesCount,
         invoicesAmount,
@@ -479,5 +496,27 @@ export class CustomerStatementService {
       ratenplanSchedule,
       generatedAt: new Date().toISOString(),
     }
+  }
+
+  /**
+   * Tier 58: current credit balance (Kundenguthaben) for a
+   * customer. SUM(amount) over the CustomerCreditTransaction
+   * ledger — same query CreditBalanceService.getCreditBalance
+   * runs, but inlined here so the statement generate() pass
+   * avoids an extra service call.
+   *
+   * The aggregate is index-backed (`companyId, customerId`
+   * composite index + `customerId, createdAt`). Even with
+   * thousands of ledger rows the query stays sub-millisecond.
+   */
+  private async getCreditBalance(
+    companyId: string,
+    customerId: string,
+  ): Promise<number> {
+    const sum = await this.prisma.customerCreditTransaction.aggregate({
+      where: { companyId, customerId },
+      _sum: { amount: true },
+    })
+    return Number(sum._sum.amount ?? 0)
   }
 }

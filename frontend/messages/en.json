@@ -424,6 +424,35 @@
     "createEroeffnung": "Create opening balance",
     "tooltip": "Cash in the till. Used as the starting value for the first daily close."
   },
+  "credit": {
+    "title": "Customer credit",
+    "currentBalance": "Current balance",
+    "issuePayout": "Issue refund (Auszahlung)",
+    "manualAdjust": "Manual adjustment",
+    "payoutDisabledHint": "A refund is only possible when the customer has a positive balance.",
+    "payoutTitle": "Issue refund to customer",
+    "payoutAmount": "Amount (EUR)",
+    "payoutDate": "Date",
+    "payoutBankAccount": "Bank account (debit 1200/1000)",
+    "payoutDescription": "Description (optional)",
+    "payoutDescriptionHint": "e.g. Q1-2026 refund",
+    "payoutSubmit": "Issue refund",
+    "payoutAccountingNote": "A voucher will be created: 1200 Bank (debit) ↔ 1400 Receivables (credit). The voucher appears in the journal and the DATEV export.",
+    "availableBalance": "Available balance",
+    "adjustTitle": "Manual adjustment",
+    "adjustAmountSigned": "Amount (positive = credit, negative = debit)",
+    "adjustDescription": "Reason",
+    "adjustDescriptionHint": "Why is the balance being corrected?",
+    "adjustSubmit": "Post adjustment",
+    "ledgerTitle": "Credit ledger",
+    "entries": "entries",
+    "empty": "No movements yet.",
+    "colDate": "Date",
+    "colType": "Type",
+    "colDescription": "Description",
+    "colAmount": "Amount",
+    "colBalanceAfter": "Balance"
+  },
   "common": {
     "appName": "German Invoice System",
     "welcome": "Welcome to German Invoice System",
@@ -1334,7 +1363,10 @@
     "orderNewestFirst": "Newest first",
     "orderOldestFirst": "Oldest first",
     "orderDescHint": "Newest activity at the top (default)",
-    "orderAscHint": "Oldest activity at the top (paper-ledger order)"
+    "orderAscHint": "Oldest activity at the top (paper-ledger order)",
+    "creditBalance": "Customer credit (running balance)",
+    "creditBalancePositiveNote": "The customer currently has a credit. On request, we refund the amount (Auszahlung) or apply it to the next invoice.",
+    "creditBalanceNegativeNote": "Note: negative balance — manual adjustment by the tax advisor recommended."
   },
   "storage": {
     "title": "Storage Settings",

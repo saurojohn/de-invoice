@@ -3,6 +3,7 @@ import type { Response } from 'express';
 import { CustomerService, ImportCustomerRow } from './customer.service';
 import { CustomerStatementService } from './customer-statement.service';
 import { CustomerStatementBatchService } from './customer-statement-batch.service';
+import { CreditBalanceService } from './credit-balance.service';
 import { CreateCustomerDto } from './dto/customer.dto';
 import { Auth, Require } from '../../auth/roles.decorator';
 
@@ -13,6 +14,7 @@ export class CustomerController {
     private customerService: CustomerService,
     private statementService: CustomerStatementService,
     private batchStatementService: CustomerStatementBatchService,
+    private creditBalanceService: CreditBalanceService,
   ) {}
 
   @Get()
@@ -84,6 +86,165 @@ export class CustomerController {
       'Content-Length': String(result.zipBuffer.length),
     })
     res.send(result.zipBuffer)
+  }
+
+  // ── Tier 58: customer credit balance (Kundenguthaben) ─────
+
+  /**
+   * Current credit balance (Kundenguthaben) for a customer.
+   * Returns the signed sum of all ledger rows: positive =
+   * customer has credit owed (e.g. overpaid an invoice),
+   * negative = customer owes the difference (Berater manual
+   * adjustments can go either way). EUR.
+   *
+   * Mirrors the response shape used elsewhere on this
+   * controller (flat object, snake_case keys) so the
+   * frontend can use a single parser.
+   */
+  @Get(':id/credit-balance')
+  @Require('customer.read')
+  async creditBalance(
+    @Param('id') id: string,
+    @Query('companyId') companyId: string,
+  ) {
+    this.assertCompanyId(companyId)
+    return this.creditBalanceService.getCreditBalance(companyId, id)
+  }
+
+  /**
+   * Full ledger (Kundenguthaben-Bewegungen) for a customer,
+   * oldest first. Each row carries `balanceAfter` so the UI
+   * can render a running balance with a single linear pass.
+   *
+   * Use case: the customer detail page's "Guthaben-Verlauf"
+   * tab — shows overpayments, Gutschrift overages, payouts,
+   * apply-to-invoice and manual adjustments in chronological
+   * order.
+   */
+  @Get(':id/credit-ledger')
+  @Require('customer.read')
+  async creditLedger(
+    @Param('id') id: string,
+    @Query('companyId') companyId: string,
+  ) {
+    this.assertCompanyId(companyId)
+    return this.creditBalanceService.getLedger(companyId, id)
+  }
+
+  /**
+   * Issue an Auszahlung (refund) to the customer. Posts a
+   * double-entry Voucher (1800 Bank Soll / 1210 Forderungen
+   * Haben) AND a ledger row that reduces the credit
+   * balance. The Voucher becomes part of the Buchungsjournal
+   * and the DATEV export.
+   *
+   * Body:
+   *   amount          number    required, > 0
+   *   paymentDate     ISO date  required
+   *   bankAccountId   string    required (Sachkonto 1800-style)
+   *   description     string    optional, defaults to
+   *                              "Auszahlung Guthaben an <name>"
+   *   createdById     string    optional, used for audit
+   *
+   * Returns the Voucher + ledger row IDs and the new balance.
+   *
+   * Permission: `customer.update` (the same Berater who can
+   * adjust customer master data can also issue a refund — the
+   * action is reversible by deleting the Voucher, but the
+   * ledger row stays for the audit trail).
+   */
+  @Post(':id/credit-payout')
+  @Require('customer.update')
+  async creditPayout(
+    @Param('id') id: string,
+    @Query('companyId') companyId: string,
+    @Body() body: {
+      amount: number;
+      paymentDate: string;
+      bankAccountId: string;
+      description?: string;
+      createdById?: string;
+    },
+  ) {
+    this.assertCompanyId(companyId)
+    if (!body || typeof body.amount !== 'number' || !body.paymentDate || !body.bankAccountId) {
+      throw new BadRequestException(
+        'amount, paymentDate, bankAccountId sind erforderlich',
+      )
+    }
+    return this.creditBalanceService.payout(companyId, id, {
+      amount: body.amount,
+      paymentDate: new Date(body.paymentDate),
+      bankAccountId: body.bankAccountId,
+      description: body.description,
+      createdById: body.createdById,
+    })
+  }
+
+  /**
+   * Apply credit balance to a specific invoice. Reduces the
+   * invoice's open balance by `amount` (capped at the
+   * current open balance), records a synthetic Payment row
+   * with `paymentMethod='Guthaben'` for the customer
+   * statement + aging report, and writes a negative ledger
+   * entry. If the credit closes the invoice entirely, the
+   * status flips to 'paid'.
+   *
+   * Body: { invoiceId, amount, createdById? }
+   */
+  @Post(':id/apply-credit')
+  @Require('customer.update')
+  async applyCredit(
+    @Param('id') id: string,
+    @Query('companyId') companyId: string,
+    @Body() body: {
+      invoiceId: string;
+      amount: number;
+      createdById?: string;
+    },
+  ) {
+    this.assertCompanyId(companyId)
+    if (!body || !body.invoiceId || typeof body.amount !== 'number') {
+      throw new BadRequestException('invoiceId und amount sind erforderlich')
+    }
+    return this.creditBalanceService.applyToInvoice(
+      companyId, id, body.invoiceId, body.amount, body.createdById,
+    )
+  }
+
+  /**
+   * Berater manual adjustment of the credit balance. Both
+   * signs supported: positive `amount` adds credit, negative
+   * uses it. Always records as type='manual' so the audit
+   * trail can distinguish Berater overrides from system-
+   * generated events.
+   *
+   * Body: { amount (signed), description, createdById? }
+   * `description` is required and stored verbatim — the
+   * Berater must leave a note explaining WHY.
+   */
+  @Post(':id/credit-adjust')
+  @Require('customer.update')
+  async creditAdjust(
+    @Param('id') id: string,
+    @Query('companyId') companyId: string,
+    @Body() body: {
+      amount: number;
+      description: string;
+      createdById?: string;
+    },
+  ) {
+    this.assertCompanyId(companyId)
+    if (!body || typeof body.amount !== 'number' || !body.description) {
+      throw new BadRequestException('amount und description sind erforderlich')
+    }
+    return this.creditBalanceService.manualAdjustment(
+      companyId, id, {
+        amount: body.amount,
+        description: body.description,
+        createdById: body.createdById,
+      },
+    )
   }
 
   @Get(':id')

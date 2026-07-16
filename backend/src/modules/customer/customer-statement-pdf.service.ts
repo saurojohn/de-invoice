@@ -352,6 +352,40 @@ export async function generateStatementPdf(
       y = doc.y + 8
     }
 
+    // Tier 58: separate "Kundenguthaben" line below
+    // the closing balance. The customer statement
+    // period-end balance (closingBalance) reflects the
+    // open invoices + payments + credits in the
+    // statement's date range — the credit-balance
+    // ledger is a separate running total that lives
+    // outside the period filter (it accumulates
+    // overpayments and Gutschrift overages over the
+    // customer's whole lifetime, until an Auszahlung
+    // or apply-to-invoice consumes it).
+    if (Math.abs(data.creditBalance) > 0.005) {
+      doc.moveTo(PAGE_MARGIN, y).lineTo(PAGE_MARGIN + CONTENT_WIDTH, y).stroke()
+      y = doc.y + 4
+      doc.font('Helvetica-Bold').fontSize(10).fillColor('#000000')
+      doc.text('Kundenguthaben (laufend)', COL_DATE_X, y)
+      doc.text(fmtEur(data.creditBalance), COL_BAL_X, y, {
+        width: 80, align: 'right',
+      })
+      y = doc.y + 4
+      doc.font('Helvetica').fontSize(8).fillColor('#444444')
+      if (data.creditBalance > 0) {
+        doc.text(
+          'Der Kunde hat aktuell ein Guthaben. Auf Anfrage erstatten wir den Betrag (Auszahlung) oder verrechnen ihn mit der nächsten Rechnung.',
+          PAGE_MARGIN, y, { width: CONTENT_WIDTH },
+        )
+      } else {
+        doc.text(
+          'Hinweis: negatives Guthaben — manueller Ausgleich durch den Steuerberater empfohlen.',
+          PAGE_MARGIN, y, { width: CONTENT_WIDTH },
+        )
+      }
+      y = doc.y + 8
+    }
+
     // Tier 56: Ratenplan schedule section. Only
     // render when the customer has at least one
     // active Ratenplan. Each plan shows the next

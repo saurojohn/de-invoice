@@ -31,6 +31,12 @@ interface CustomerStatement {
   openingBalance: number
   lines: StatementLine[]
   closingBalance: number
+  // Tier 58: customer's running credit balance
+  // (Kundenguthaben) — separate from the period
+  // closingBalance. Reflects overpayments + Gutschrift
+  // overages accumulated over the customer's whole
+  // lifetime, less any Auszahlung / apply-to-invoice.
+  creditBalance: number
   totals: {
     invoicesCount: number
     invoicesAmount: number
@@ -328,6 +334,47 @@ export default function CustomerStatementPage() {
                 )}
               </div>
             </div>
+
+            {/* Tier 58: Kundenguthaben badge. The period
+                closingBalance above reflects open invoices
+                inside the statement's date range. The
+                creditBalance is a separate running total
+                that lives outside the period — overpayments
+                + Gutschrift overages accumulated over the
+                customer's whole lifetime, less any
+                Auszahlung / apply-to-invoice. Render only
+                when non-zero so a clean customer doesn't
+                get a noisy empty badge. */}
+            {Math.abs(statement.creditBalance) > 0.005 && (
+              <div
+                className={
+                  "mt-3 border rounded p-3 " +
+                  (statement.creditBalance > 0
+                    ? "border-blue-300 bg-blue-50"
+                    : "border-orange-300 bg-orange-50")
+                }
+                data-testid="statement-credit-balance"
+              >
+                <div className="text-sm text-gray-500">
+                  {t("statement.creditBalance")}
+                </div>
+                <div className="text-xl font-mono font-bold">
+                  {fmtEur(statement.creditBalance)}
+                </div>
+                <div className="text-xs text-gray-600 mt-1">
+                  {statement.creditBalance > 0
+                    ? t("statement.creditBalancePositiveNote")
+                    : t("statement.creditBalanceNegativeNote")}
+                </div>
+                <button
+                  onClick={() => router.push(`/dashboard/customers/${id}/credit`)}
+                  className="mt-2 text-xs text-blue-700 hover:underline"
+                  data-testid="statement-credit-link"
+                >
+                  → {t("credit.ledgerTitle") || "Guthaben-Verlauf"}
+                </button>
+              </div>
+            )}
 
             {/* Line items table */}
             {statement.lines.length === 0 ? (

@@ -424,6 +424,35 @@
     "createEroeffnung": "Anfangsbestand anlegen",
     "tooltip": "Bargeld in der Kasse. Wird beim ersten Tagesabschluss als Startwert verwendet."
   },
+  "credit": {
+    "title": "Kundenguthaben",
+    "currentBalance": "Aktuelles Guthaben",
+    "issuePayout": "Auszahlung buchen",
+    "manualAdjust": "Manuelle Korrektur",
+    "payoutDisabledHint": "Eine Auszahlung ist erst möglich, wenn der Kunde ein positives Guthaben hat.",
+    "payoutTitle": "Auszahlung an Kunden buchen",
+    "payoutAmount": "Betrag (EUR)",
+    "payoutDate": "Datum",
+    "payoutBankAccount": "Bankkonto (Soll 1200/1000)",
+    "payoutDescription": "Beschreibung (optional)",
+    "payoutDescriptionHint": "z. B. Erstattung Q1-2026",
+    "payoutSubmit": "Auszahlung buchen",
+    "payoutAccountingNote": "Es wird ein Buchungsbeleg erstellt: 1200 Bank (Soll) ↔ 1400 Forderungen (Haben). Der Beleg erscheint im Journal und im DATEV-Export.",
+    "availableBalance": "Verfügbares Guthaben",
+    "adjustTitle": "Manuelle Korrektur",
+    "adjustAmountSigned": "Betrag (positiv = Gutschrift, negativ = Belastung)",
+    "adjustDescription": "Begründung",
+    "adjustDescriptionHint": "Warum wird das Guthaben korrigiert?",
+    "adjustSubmit": "Korrektur buchen",
+    "ledgerTitle": "Guthaben-Verlauf",
+    "entries": "Einträge",
+    "empty": "Keine Bewegungen vorhanden.",
+    "colDate": "Datum",
+    "colType": "Art",
+    "colDescription": "Beschreibung",
+    "colAmount": "Betrag",
+    "colBalanceAfter": "Saldo"
+  },
   "common": {
     "appName": "Rechnungsystem",
     "welcome": "Willkommen im deutschen Rechnungsystem",
@@ -1334,7 +1363,10 @@
     "orderNewestFirst": "Neueste zuerst",
     "orderOldestFirst": "Älteste zuerst",
     "orderDescHint": "Neueste Bewegung oben (Standard)",
-    "orderAscHint": "Älteste Bewegung oben (Buchführungs-Reihenfolge)"
+    "orderAscHint": "Älteste Bewegung oben (Buchführungs-Reihenfolge)",
+    "creditBalance": "Kundenguthaben (laufend)",
+    "creditBalancePositiveNote": "Der Kunde hat aktuell ein Guthaben. Auf Anfrage erstatten wir den Betrag (Auszahlung) oder verrechnen ihn mit der nächsten Rechnung.",
+    "creditBalanceNegativeNote": "Hinweis: negatives Guthaben — manueller Ausgleich durch den Steuerberater empfohlen."
   },
   "storage": {
     "title": "Speichereinstellungen",

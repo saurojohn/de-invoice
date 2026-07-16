@@ -7,6 +7,10 @@ import { StorageModule } from '../storage/storage.module';
 import { InvoiceTemplateModule } from '../invoice-template/invoice-template.module';
 import { WebhookModule } from '../webhook/webhook.module';
 import { ReminderModule } from '../reminder/reminder.module';
+// Tier 58: PaymentService.create() and InvoiceService.createCreditNote()
+// need CreditBalanceService to route overpayments / Gutschrift
+// overages into the customer credit ledger.
+import { CustomerModule } from '../customer/customer.module';
 
 @Module({
   controllers: [InvoiceController],
@@ -21,6 +25,8 @@ import { ReminderModule } from '../reminder/reminder.module';
     // 'paid'. Forward-only dep — ReminderModule doesn't import
     // back into Invoice.
     ReminderModule,
+    // Tier 58: see comment above.
+    CustomerModule,
   ],
   exports: [InvoiceService, PaymentService],
 })

@@ -2,6 +2,13 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { PrismaService } from '../../prisma/prisma.service';
 import { WebhookService } from '../webhook/webhook.service';
 import { ReminderService } from '../reminder/reminder.service';
+// Tier 58: when a Payment.amount exceeds the invoice's remaining
+// open balance, the overage flows to the customer's credit
+// balance (Kundenguthaben) ledger. The PaymentService creates
+// the Payment row at the full bank amount (so the bank-rec
+// audit is exact) and asks CreditBalanceService to book the
+// overage.
+import { CreditBalanceService } from '../customer/credit-balance.service';
 
 @Injectable()
 export class PaymentService {
@@ -16,6 +23,8 @@ export class PaymentService {
     // (cancelledAt stamp + reason="invoice paid") so the
     // GoBD trail shows the history exactly as it happened.
     private reminders: ReminderService,
+    // Tier 58: see class-level comment above.
+    private creditBalance: CreditBalanceService,
   ) {}
 
   /**
@@ -94,6 +103,54 @@ export class PaymentService {
     });
     const totalPaid = payments.reduce((s, p) => s + Number(p.amount), 0);
     const invoiceTotal = Number(invoice.total);
+
+    // Tier 58: detect overpayment. The customer paid more
+    // than the invoice's outstanding amount — the overage
+    // (totalPaid - invoiceTotal) becomes credit balance.
+    // We do this AFTER the payment row is inserted so the
+    // SUM(amount) includes the new payment.
+    //
+    // We call recordOverpayment for INV/RCV invoices only
+    // (not CN — a CN is itself a refund and any overage on
+    // a CN would be a bank-import mis-attribution; the
+    // service throws on CN payments above).
+    const overage = totalPaid - invoiceTotal;
+    if (
+      overage > 0.005 &&
+      (invoice.type === 'INV' || invoice.type === 'RCV')
+    ) {
+      try {
+        await this.creditBalance.recordOverpayment(
+          invoice.companyId,
+          invoice.customerId,
+          payment.id,
+          overage,
+          invoice.invoiceNumber,
+        )
+      } catch (err: any) {
+        // Soft-fail: log to ErrorEvent but don't 500
+        // the payment endpoint. The Payment row is
+        // already persisted; the credit balance is
+        // a derived view. The user can re-trigger
+        // the overage recording from a "repair"
+        // button if the audit demands it.
+        try {
+          await this.prisma.errorEvent.create({
+            data: {
+              source: 'backend',
+              kind: 'manual',
+              message: `Credit-balance overpayment record failed for invoice ${invoice.invoiceNumber}, payment ${payment.id}: ${err?.message ?? err}`,
+              stack: err?.stack,
+              fingerprint: `credit-overpayment-${payment.id}`,
+              companyId: invoice.companyId,
+            },
+          })
+        } catch {
+          // Ignore secondary failures.
+        }
+      }
+    }
+
     // Only INV/PI/RCV get status updates; PI is non-binding so we keep
     // it as "sent" even after payment.
     if (invoice.type === 'INV' && totalPaid >= invoiceTotal - 0.01) {

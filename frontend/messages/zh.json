@@ -424,6 +424,35 @@
     "createEroeffnung": "录入期初余额",
     "tooltip": "钱箱中的现金。首次日结时会作为起始值。"
   },
+  "credit": {
+    "title": "客户余额",
+    "currentBalance": "当前余额",
+    "issuePayout": "发起退款(Auszahlung)",
+    "manualAdjust": "手动调整",
+    "payoutDisabledHint": "仅当客户有正余额时才可发起退款。",
+    "payoutTitle": "向客户发起退款",
+    "payoutAmount": "金额(欧元)",
+    "payoutDate": "日期",
+    "payoutBankAccount": "银行账户(借方 1200/1000)",
+    "payoutDescription": "描述(可选)",
+    "payoutDescriptionHint": "例如 2026年Q1 退款",
+    "payoutSubmit": "发起退款",
+    "payoutAccountingNote": "将创建凭证:1200 银行(借方) ↔ 1400 应收账款(贷方)。凭证将出现在日记账和 DATEV 导出中。",
+    "availableBalance": "可用余额",
+    "adjustTitle": "手动调整",
+    "adjustAmountSigned": "金额(正数=贷方,负数=借方)",
+    "adjustDescription": "原因",
+    "adjustDescriptionHint": "为什么要调整余额?",
+    "adjustSubmit": "提交调整",
+    "ledgerTitle": "余额流水",
+    "entries": "条",
+    "empty": "暂无流水。",
+    "colDate": "日期",
+    "colType": "类型",
+    "colDescription": "描述",
+    "colAmount": "金额",
+    "colBalanceAfter": "余额"
+  },
   "common": {
     "appName": "发票系统",
     "welcome": "欢迎使用德国发票系统",
@@ -1334,7 +1363,10 @@
     "orderNewestFirst": "最新优先",
     "orderOldestFirst": "最早优先",
     "orderDescHint": "最新交易在上(默认)",
-    "orderAscHint": "最早交易在上(纸质账本顺序)"
+    "orderAscHint": "最早交易在上(纸质账本顺序)",
+    "creditBalance": "客户余额(滚动)",
+    "creditBalancePositiveNote": "客户当前有余额。可应客户要求退款(Auszahlung)或抵扣下一张发票。",
+    "creditBalanceNegativeNote": "注意:负余额 — 建议由税务顾问手动调整。"
   },
   "storage": {
     "title": "存储设置",

@@ -2,6 +2,13 @@ import { Injectable, NotFoundException, BadRequestException, ForbiddenException 
 import { PrismaService } from '../../prisma/prisma.service';
 import { WebhookService } from '../webhook/webhook.service';
 import { CreateInvoiceDto, UpdateInvoiceDto } from './dto/invoice.dto';
+// Tier 58: when a Gutschrift (CN) amount exceeds the original
+// invoice's remaining open balance, the overage becomes credit
+// balance (Kundenguthaben) instead of "overpaying" the original
+// past zero. The CN row itself carries the full refund amount
+// (so the USt-Voranmeldung sees the right number) and a
+// separate ledger entry books the overage.
+import { CreditBalanceService } from '../customer/credit-balance.service';
 
 export type InvoiceType = 'INV' | 'CN' | 'PI' | 'RCV';
 
@@ -17,6 +24,8 @@ export class InvoiceService {
   constructor(
     private prisma: PrismaService,
     private webhooks: WebhookService,
+    // Tier 58: see class-level comment above.
+    private creditBalance: CreditBalanceService,
   ) {}
 
   /**
@@ -887,7 +896,19 @@ export class InvoiceService {
   ) {
     const original = await this.prisma.invoice.findFirst({
       where: { id: originalId, companyId },
-      include: { items: { orderBy: { sortOrder: 'asc' } } },
+      include: {
+        items: { orderBy: { sortOrder: 'asc' } },
+        // Tier 58: we need the original's current payment
+        // total to compute the open balance — anything
+        // beyond the open balance flows to credit balance
+        // (Kundenguthaben) instead of "overpaying" the
+        // original past zero. The overage would otherwise
+        // be silently lost (the synthetic payment row
+        // would carry the full CN amount, but the original
+        // status flip would clamp at 'paid' and the extra
+        // would not be tracked anywhere).
+        payments: { select: { amount: true } },
+      },
     })
     if (!original) {
       throw new NotFoundException('Originalrechnung nicht gefunden')
@@ -1038,7 +1059,8 @@ export class InvoiceService {
       })
 
       // Reduce the original invoice's open balance
-      // by the absolute value of the CN total. We
+      // by the absolute value of the CN total, capped
+      // at the original's current open balance. We
       // do this by adding a synthetic Payment row
       // of type 'credit_note' — that way the
       // payment listing on the original shows
@@ -1046,21 +1068,48 @@ export class InvoiceService {
       // customer statement groups CNs together
       // for the Berater.
       //
-      // The Payment.amount is stored as the
-      // ABSOLUTE refund value (a positive number).
-      // The PaymentService treats positive amounts
-      // as inflows toward the invoice total.
+      // The Payment.amount is stored as a positive
+      // number (the absolute refund value). The
+      // PaymentService treats positive amounts as
+      // inflows toward the invoice total.
+      //
+      // Tier 58: the synthetic payment is CAPPED at
+      // the original's remaining open balance. The
+      // overage (CN total > original remaining) is
+      // captured separately as a credit-balance
+      // entry by CreditBalanceService.recordGutschriftOverage
+      // after this transaction commits. The CN row
+      // itself still carries the FULL refund amount
+      // (so the USt-Voranmeldung + DATEV export see
+      // the right number) — only the synthetic
+      // payment is capped.
+      const originalPaid = original.payments.reduce(
+        (s, p) => s + Number(p.amount),
+        0,
+      )
+      const originalRemaining = Math.max(
+        0,
+        Number(original.total) - originalPaid,
+      )
+      const cnAmount = Math.abs(total)
+      const syntheticPayment = Math.min(cnAmount, originalRemaining)
       await tx.payment.create({
         data: {
           invoiceId: original.id,
-          amount: Math.abs(total),
+          amount: syntheticPayment,
           paymentDate: now,
           paymentMethod: 'Gutschrift',
           reference: `CN ${invoiceNumber}`,
           notes: `Auto-verrechnet aus Gutschrift ${invoiceNumber}`,
         },
       })
-      return created
+      // Expose the overage to the caller via the
+      // created CN row's notes. We don't have a
+      // dedicated column for it, but the post-
+      // transaction handler below records the
+      // credit-balance ledger entry. The notes
+      // annotation is purely informational.
+      return { ...created, _gutschriftOverage: cnAmount - syntheticPayment }
     })
 
     // After the transaction: re-check the original's
@@ -1086,7 +1135,49 @@ export class InvoiceService {
       }
     }
 
-    return cn
+    // Tier 58: record the Gutschrift overage as a
+    // credit-balance ledger entry. The synthetic payment
+    // row inside the transaction was capped at the
+    // original's open balance — any leftover flows to
+    // Kundenguthaben instead of "overpaying" the original
+    // past zero (which would create a phantom credit
+    // that the customer statement can't explain).
+    const overage = (cn as any)._gutschriftOverage as number
+    if (overage > 0.005) {
+      try {
+        await this.creditBalance.recordGutschriftOverage(
+          companyId,
+          original.customerId,
+          cn.id,
+          overage,
+          original.invoiceNumber,
+        )
+      } catch (err: any) {
+        // Soft-fail: the Gutschrift itself succeeded;
+        // the credit-balance ledger is a derived view.
+        // Log to ErrorEvent so the Berater can re-trigger
+        // manually if the audit demands it.
+        try {
+          await this.prisma.errorEvent.create({
+            data: {
+              source: 'backend',
+              kind: 'manual',
+              message: `Credit-balance Gutschrift overage record failed for CN ${cn.invoiceNumber}, original ${original.invoiceNumber}: ${err?.message ?? err}`,
+              stack: err?.stack,
+              fingerprint: `credit-gutschrift-${cn.id}`,
+              companyId,
+            },
+          })
+        } catch {
+          // Ignore secondary failures.
+        }
+      }
+    }
+
+    // Strip the internal _gutschriftOverage field
+    // before returning — callers should not see it.
+    const { _gutschriftOverage, ...cnForCaller } = cn as any
+    return cnForCaller
   }
 
   /**

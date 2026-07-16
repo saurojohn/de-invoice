@@ -644,6 +644,17 @@ export default function CustomersPage() {
                   <button
                     onClick={(e) => {
                       e.stopPropagation()
+                      router.push(`/dashboard/customers/${customer.id}/credit`)
+                    }}
+                    className="text-gray-400 hover:text-blue-600 dark:text-blue-400 text-xs px-2 py-1 rounded hover:bg-blue-50"
+                    title={t("credit.title") || "Kundenguthaben"}
+                    data-testid="customer-credit-button"
+                  >
+                    💰
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
                       router.push(`/dashboard/customers/${customer.id}/statement`)
                     }}
                     className="text-gray-400 hover:text-blue-600 dark:text-blue-400 text-xs px-2 py-1 rounded hover:bg-blue-50"
