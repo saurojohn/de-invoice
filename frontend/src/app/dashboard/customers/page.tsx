@@ -636,11 +636,30 @@ export default function CustomersPage() {
               <Card
                 key={customer.id}
                 className="hover:shadow-lg transition cursor-pointer relative"
-                onClick={() => openModal(customer)}
+                // Tier 61: card click navigates to the new
+                // detail page instead of opening the edit
+                // modal. The edit modal is still reachable
+                // from the detail page's "Bearbeiten" button
+                // (and from a small "Edit" link in the
+                // card's top-right menu).
+                onClick={() => router.push(`/dashboard/customers/${customer.id}`)}
+                data-testid="customer-card"
+                data-customer-id={customer.id}
               >
                 {/* Action buttons — stopPropagation so they don't
                     open the edit modal when clicked. */}
                 <div className="absolute top-2 right-2 flex gap-1">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      openModal(customer)
+                    }}
+                    className="text-gray-400 hover:text-blue-600 dark:text-blue-400 text-xs px-2 py-1 rounded hover:bg-blue-50"
+                    title={t("common.edit") || "Bearbeiten"}
+                    data-testid="customer-edit-button"
+                  >
+                    ✏️
+                  </button>
                   <button
                     onClick={(e) => {
                       e.stopPropagation()

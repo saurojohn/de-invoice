@@ -91,6 +91,38 @@ export class CustomerController {
   // ── Tier 58: customer credit balance (Kundenguthaben) ─────
 
   /**
+   * Tier 61: customer detail-page summary endpoint. Returns
+   * the customer row + a flat stats object that the
+   * detail page can render in one round-trip. The drill-down
+   * tabs (Rechnungen / Ratenpläne / Mahnungen) call their
+   * own endpoints for the full lists — this summary is just
+   * the "KPI strip" at the top of the page:
+   *
+   *   - open balance (sum of unpaid invoices)
+   *   - overdue count (sent invoices past dueDate, not
+   *     already covered by a Skonto window — Tier 57)
+   *   - last invoice date + number
+   *   - last payment date + amount
+   *   - active installment plan count
+   *   - open Mahnung count (any status='open' rows)
+   *   - credit balance (Kundenguthaben) — Tier 58
+   *
+   * The path is declared BEFORE the `:id` route so Nest
+   * doesn't capture "summary" as a customer id (lesson
+   * memory: Nest route-order is declaration order, not
+   * parameter-vs-literal preference).
+   */
+  @Get(':id/summary')
+  @Require('customer.read')
+  async summary(
+    @Param('id') id: string,
+    @Query('companyId') companyId: string,
+  ) {
+    this.assertCompanyId(companyId)
+    return this.customerService.summary(id, companyId)
+  }
+
+  /**
    * Current credit balance (Kundenguthaben) for a customer.
    * Returns the signed sum of all ledger rows: positive =
    * customer has credit owed (e.g. overpaid an invoice),

@@ -368,6 +368,7 @@ export class ReminderController {
   async listMahnungen(
     @Query('companyId') companyId: string,
     @Query('invoiceId') invoiceId?: string,
+    @Query('customerId') customerId?: string,
     @Query('status') status?: 'open' | 'cancelled' | 'all',
   ) {
     if (!companyId) throw new BadRequestException('companyId ist erforderlich');
@@ -376,8 +377,14 @@ export class ReminderController {
         'status muss open | cancelled | all sein',
       );
     }
+    // Tier 61: customer filter — list every Mahnung for any
+    // of the customer's invoices. The service layer takes
+    // the customerId and joins through the invoice relation.
+    // We pass the filter through so the existing `invoiceId`
+    // filter is preserved for callers that already use it.
     const rows = await this.reminderService.listMahnungen(companyId, {
       invoiceId,
+      customerId,
       status: status || 'open',
     });
     return { mahnungen: rows, count: rows.length };

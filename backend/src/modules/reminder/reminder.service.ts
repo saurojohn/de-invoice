@@ -860,10 +860,19 @@ Mit freundlichen Grüßen,
    */
   async listMahnungen(
     companyId: string,
-    opts: { invoiceId?: string; status?: 'open' | 'cancelled' | 'all' } = {},
+    opts: {
+      invoiceId?: string;
+      // Tier 61: customer filter — joined through the
+      // invoice relation. Lets the customer detail page
+      // list every Mahnung for any of the customer's
+      // invoices in a single round-trip.
+      customerId?: string;
+      status?: 'open' | 'cancelled' | 'all';
+    } = {},
   ) {
     const where: any = { companyId }
     if (opts.invoiceId) where.invoiceId = opts.invoiceId
+    if (opts.customerId) where.invoice = { customerId: opts.customerId }
     if (opts.status === 'open') where.cancelledAt = null
     if (opts.status === 'cancelled') where.cancelledAt = { not: null }
     // 'all' → no extra filter

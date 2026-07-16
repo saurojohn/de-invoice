@@ -176,6 +176,202 @@ export class CustomerService {
   }
 
   /**
+   * Tier 61: detail-page summary. Returns the customer row
+   * plus a flat stats object that the React detail page can
+   * render in one round-trip. The drill-down tabs (Rechnungen
+   * / Ratenpläne / Mahnungen) call their own endpoints for
+   * the full lists — this summary is just the "KPI strip"
+   * at the top of the page.
+   *
+   * Why a dedicated endpoint instead of multiple round-trips:
+   *   - the detail page hydrates 5+ stats (open balance,
+   *     overdue count, last invoice, last payment, plans,
+   *     Mahnungen, credit balance). 7 round-trips on
+   *     every page load is too chatty.
+   *   - the queries are index-backed (customerId + status,
+   *     customerId + createdAt, customerId + customerId)
+   *     so the wall-clock cost is dominated by Prisma
+   *     round-trip overhead, not query time.
+   *   - the Skonto-aware overdue count reuses the same
+   *     findOverdueInvoices() logic as the Mahnung
+   *     scheduler (single source of truth — Tier 57).
+   *
+   * Skonto window: a Mahnung during the Skonto window is
+   * hostile ("forgot to pay?" when the customer can still
+   * take the discount), so the overdue count EXCLUDES
+   * invoices whose Skonto window is still open.
+   */
+  async summary(id: string, companyId: string) {
+    const customer = await this.findOne(id, companyId)
+    const now = new Date()
+
+    // Run all KPI queries in parallel — Prisma reuses
+    // the connection pool so the wall-clock cost is
+    // roughly one round-trip, not seven.
+    const [
+      openInvoices,
+      lastInvoice,
+      lastPayment,
+      activePlans,
+      openMahnungen,
+      creditSum,
+    ] = await Promise.all([
+      // Open invoices (sent/overdue, not draft, not
+      // cancelled) for the open-balance + overdue-count.
+      this.prisma.invoice.findMany({
+        where: {
+          companyId,
+          customerId: id,
+          status: { in: ['sent', 'overdue'] },
+          type: { in: ['INV', 'PI'] },
+        },
+        select: {
+          id: true,
+          invoiceNumber: true,
+          total: true,
+          dueDate: true,
+          issueDate: true,
+          skontoPercent: true,
+          skontoDays: true,
+          payments: { select: { amount: true } },
+        },
+      }),
+      // Most recent invoice (any status) for "last activity"
+      this.prisma.invoice.findFirst({
+        where: { companyId, customerId: id },
+        orderBy: { issueDate: 'desc' },
+        select: { id: true, invoiceNumber: true, issueDate: true, total: true, status: true, type: true },
+      }),
+      // Most recent payment on any of this customer's
+      // invoices — surfaces "customer paid in full last
+      // week" on the detail page so the Berater sees the
+      // relationship is healthy.
+      this.prisma.payment.findFirst({
+        where: { invoice: { customerId: id, companyId } },
+        orderBy: { paymentDate: 'desc' },
+        select: {
+          id: true,
+          amount: true,
+          paymentDate: true,
+          paymentMethod: true,
+          invoice: { select: { id: true, invoiceNumber: true } },
+        },
+      }),
+      // Active installment plans. Ratenpläne is the only
+      // billing construct that "carries forward" beyond
+      // the invoice lifecycle — listing them here is the
+      // Berater's only way to see "this customer is on
+      // a 6-Rate plan, 2 Rates paid, 4 to go".
+      this.prisma.installmentPlan.count({
+        where: { customerId: id, status: 'active' },
+      }),
+      // Open Mahnungen. The Mahnung table is linked via
+      // invoice (no direct customerId) so we use a
+      // relation filter. Tier 55 added the cancel() path
+      // so paid invoices auto-void their Mahnungen — the
+      // "open" filter matches the reminder service's
+      // own definition (`cancelledAt: null`).
+      this.prisma.mahnung.count({
+        where: {
+          cancelledAt: null,
+          invoice: { customerId: id, companyId },
+        },
+      }),
+      // Credit balance (Tier 58 ledger sum). SUM(amount)
+      // is the source of truth — the same value as
+      // GET /customers/:id/credit-balance.
+      this.prisma.customerCreditTransaction.aggregate({
+        where: { companyId, customerId: id },
+        _sum: { amount: true },
+      }),
+    ])
+
+    // Compute openBalance + overdueCount from the invoice
+    // rows. We can't use a Prisma aggregate here because
+    // we need the per-invoice remaining amount
+    // (total - sum(payments)), which Prisma can't express
+    // in a single `where` filter.
+    let openBalance = 0
+    let overdueCount = 0
+    for (const inv of openInvoices) {
+      const total = Number(inv.total)
+      const paid = inv.payments.reduce((s, p) => s + Number(p.amount), 0)
+      const open = Math.max(0, total - paid)
+      openBalance += open
+      // Skonto-aware: skip invoices in their Skonto
+      // window (Tier 57). The window is `issueDate +
+      // skontoDays` (NOT dueDate + skontoDays — the
+      // Skonto deadline is the EARLIER of the two).
+      if (open < 0.005) continue
+      if (!inv.dueDate) continue
+      const due = new Date(inv.dueDate)
+      if (due > now) continue // not yet overdue
+      // Skonto window check (mirror of ReminderService)
+      if (inv.skontoPercent && inv.skontoDays) {
+        const issue = new Date(inv.issueDate)
+        const skontoUntil = new Date(issue)
+        skontoUntil.setUTCDate(skontoUntil.getUTCDate() + inv.skontoDays)
+        if (skontoUntil >= due) {
+          // Skonto window is the earlier-or-equal deadline;
+          // if it's still in the future relative to now,
+          // skip the Mahnung.
+          if (now <= skontoUntil) continue
+        }
+      }
+      overdueCount += 1
+    }
+    openBalance = Math.round(openBalance * 100) / 100
+
+    return {
+      customer: {
+        id: customer.id,
+        name: customer.name,
+        customerNumber: customer.customerNumber,
+        type: customer.type,
+        vatId: customer.vatId,
+        taxExempt: customer.taxExempt,
+        address: customer.address,
+        contact: customer.contact,
+        paymentTerms: customer.paymentTerms,
+        creditLimit: customer.creditLimit ? Number(customer.creditLimit) : null,
+        tags: customer.tags,
+        metadata: customer.metadata,
+        createdAt: customer.createdAt.toISOString(),
+      },
+      stats: {
+        openBalance,
+        overdueCount,
+        openInvoiceCount: openInvoices.length,
+        activeInstallmentPlanCount: activePlans,
+        openMahnungCount: openMahnungen,
+        creditBalance: Number(creditSum._sum.amount ?? 0),
+        // Last activity (most recent invoice).
+        lastInvoice: lastInvoice
+          ? {
+              id: lastInvoice.id,
+              invoiceNumber: lastInvoice.invoiceNumber,
+              issueDate: lastInvoice.issueDate.toISOString(),
+              total: Number(lastInvoice.total),
+              status: lastInvoice.status,
+              type: lastInvoice.type,
+            }
+          : null,
+        // Last payment received.
+        lastPayment: lastPayment
+          ? {
+              id: lastPayment.id,
+              amount: Number(lastPayment.amount),
+              paymentDate: lastPayment.paymentDate.toISOString(),
+              paymentMethod: lastPayment.paymentMethod,
+              invoiceNumber: lastPayment.invoice.invoiceNumber,
+            }
+          : null,
+      },
+      generatedAt: now.toISOString(),
+    }
+  }
+
+  /**
    * Lookup by email (used for dedup detection during import).
    * Returns null when the email is missing or no match exists.
    */

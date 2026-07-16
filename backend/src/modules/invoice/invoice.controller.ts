@@ -84,6 +84,7 @@ export class InvoiceController {
   async findAll(
     @Query('companyId') companyId: string,
     @Query('status') status?: string,
+    @Query('customerId') customerId?: string,
     @Query('type') type?: string,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
@@ -93,6 +94,7 @@ export class InvoiceController {
   ) {
     return this.invoiceService.findAll(companyId, {
       status,
+      customerId,
       type,
       page: page ? Number(page) : undefined,
       pageSize: pageSize ? Number(pageSize) : undefined,
