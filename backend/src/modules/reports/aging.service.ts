@@ -13,6 +13,13 @@
  * Sorted desc by totalOpen so the biggest debtor is at the
  * top — that's what a collections clerk looks at first.
  *
+ * Tier 59: also includes the customer's current credit
+ * balance (Kundenguthaben) + the net open amount
+ * (totalOpen - creditBalance, floored at 0). The net
+ * amount is what the Berater should actually pursue:
+ * if a customer owes 5.000 EUR but has 200 EUR credit
+ * balance, the actionable Mahnung target is 4.800 EUR.
+ *
  * Payment handling: an invoice is fully paid when the sum
  * of its `Payment` rows ≥ `invoice.total`. The remaining
  * difference is what ages in the report.
@@ -26,6 +33,8 @@
  * SQL approach: load all sent/overdue invoices for the
  * company + their payments in a single round-trip, then
  * bucket in JS. N+1 avoided by the `include` on payments.
+ * Credit balances are loaded via a single `groupBy` query
+ * (O(1) round-trip) keyed by customerId.
  */
 
 import { Injectable } from '@nestjs/common';
@@ -50,6 +59,15 @@ export interface AgingRow {
   invoiceCount: number;
   buckets: Record<AgingBucket, number>;
   totalOpen: number;
+  /** Tier 59: customer credit balance (Kundenguthaben).
+   *  Positive = customer has credit (overpayment,
+   *  Gutschrift overage, manual credit). */
+  creditBalance: number;
+  /** Tier 59: net open = max(0, totalOpen - creditBalance).
+   *  This is the actionable Mahnung target — what the
+   *  Berater should actually pursue after applying
+   *  available credit. */
+  netOpen: number;
   oldestDaysOverdue: number;
 }
 
@@ -58,6 +76,14 @@ export interface AgingReport {
   asOf: string;
   totals: Record<AgingBucket, number>;
   grandTotal: number;
+  /** Tier 59: aggregate credit balance across all
+   *  listed customers. Useful for the report header
+   *  (e.g. "5.000 EUR offene Posten, 1.200 EUR
+   *  Kundenguthaben, 3.800 EUR Netto-Einzug"). */
+  totalCreditBalance: number;
+  /** Tier 59: grandTotal - totalCreditBalance,
+   *  floored at 0. */
+  grandNetTotal: number;
   customerCount: number;
   rows: AgingRow[];
 }
@@ -105,6 +131,16 @@ export class AgingService {
         invoiceCount: 0,
         buckets: { current: 0, '1-30': 0, '31-60': 0, '61-90': 0, '90+': 0 },
         totalOpen: 0,
+        // Tier 59: filled in below from the credit-balance
+        // groupBy query. Default 0 — for customers with no
+        // ledger rows, the groupBy won't include them and
+        // we fall through to 0.
+        creditBalance: 0,
+        // Tier 59: computed after creditBalance is filled
+        // in. Initialised to totalOpen so the late-pass
+        // (when the credit balance is 0) still produces
+        // netOpen === totalOpen.
+        netOpen: 0,
         oldestDaysOverdue: 0,
       }
       existing.invoiceCount += 1
@@ -112,6 +148,48 @@ export class AgingService {
       existing.totalOpen = Math.round((existing.totalOpen + open) * 100) / 100
       if (daysOverdue > existing.oldestDaysOverdue) existing.oldestDaysOverdue = daysOverdue
       byCustomer.set(key, existing)
+    }
+
+    // Tier 59: load every customer's credit balance in a
+    // single groupBy round-trip. We don't restrict to the
+    // customerIds in the aging report — customers with
+    // credit balance but no open invoices still contribute
+    // to `totalCreditBalance` / `grandNetTotal` (the
+    // header summary line). The per-row map below
+    // re-keys the credit totals by customerId; rows that
+    // have an open invoice get a per-row creditBalance,
+    // the rest contribute to the aggregate only.
+    const creditRows = await this.prisma.customerCreditTransaction.groupBy({
+      by: ['customerId'],
+      where: { companyId },
+      _sum: { amount: true },
+    })
+    const creditByCustomer = new Map<string, number>()
+    for (const r of creditRows) {
+      creditByCustomer.set(r.customerId, Number(r._sum.amount ?? 0))
+    }
+
+    // Apply credit balance + compute netOpen per row.
+    // totalCreditBalance sums EVERY customer's credit
+    // balance, not just the ones in the byCustomer map
+    // (a customer with no open invoices but a positive
+    // credit still contributes to the aggregate — the
+    // header summary line surfaces the total for the
+    // month-end report).
+    let totalCreditBalance = 0
+    for (const r of creditRows) {
+      const cb = Number(r._sum.amount ?? 0)
+      totalCreditBalance = Math.round((totalCreditBalance + cb) * 100) / 100
+    }
+    for (const row of byCustomer.values()) {
+      const cb = creditByCustomer.get(row.customerId) ?? 0
+      row.creditBalance = Math.round(cb * 100) / 100
+      // netOpen = max(0, totalOpen - creditBalance). If a
+      // customer has more credit than they owe, the net
+      // is 0 (we still list them with their negative
+      // credit so the Berater can see the surplus and
+      // consider an Auszahlung).
+      row.netOpen = Math.max(0, Math.round((row.totalOpen - row.creditBalance) * 100) / 100)
     }
 
     // Build totals
@@ -122,15 +200,28 @@ export class AgingService {
       }
     }
     const grandTotal = Math.round(BUCKET_ORDER.reduce((s, b) => s + totals[b], 0) * 100) / 100
+    const grandNetTotal = Math.max(
+      0,
+      Math.round((grandTotal - totalCreditBalance) * 100) / 100,
+    )
 
-    // Sort rows by totalOpen desc (biggest debtor first)
-    const rows = Array.from(byCustomer.values()).sort((a, b) => b.totalOpen - a.totalOpen)
+    // Sort rows by netOpen desc (biggest actionable debtor
+    // first). When two customers tie, fall back to totalOpen
+    // so a customer with a 0-net but high totalOpen (a
+    // credit-surplus case) still surfaces for the
+    // Auszahlung decision.
+    const rows = Array.from(byCustomer.values()).sort((a, b) => {
+      if (b.netOpen !== a.netOpen) return b.netOpen - a.netOpen
+      return b.totalOpen - a.totalOpen
+    })
 
     return {
       companyId,
       asOf: asOf.toISOString(),
       totals,
       grandTotal,
+      totalCreditBalance,
+      grandNetTotal,
       customerCount: rows.length,
       rows,
     }

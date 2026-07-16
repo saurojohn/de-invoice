@@ -18,6 +18,13 @@ interface AgingRow {
   invoiceCount: number
   buckets: Record<Bucket, number>
   totalOpen: number
+  // Tier 59: customer credit balance (Kundenguthaben)
+  // + the actionable net open amount after applying
+  // available credit. Clicking the credit badge jumps
+  // to the per-customer credit page where the Berater
+  // can issue an Auszahlung or apply-to-invoice.
+  creditBalance: number
+  netOpen: number
   oldestDaysOverdue: number
 }
 
@@ -26,6 +33,8 @@ interface AgingReport {
   asOf: string
   totals: Record<Bucket, number>
   grandTotal: number
+  totalCreditBalance: number
+  grandNetTotal: number
   customerCount: number
   rows: AgingRow[]
 }
@@ -79,16 +88,33 @@ export default function AgingReportPage() {
 
   const exportCsv = () => {
     if (!report) return
-    const header = ['Kunde', 'KdNr', 'Rechnungen', ...BUCKET_ORDER, 'Summe offen', 'Älteste überfällig (Tage)']
+    // Tier 59: extended CSV with credit balance + net
+    // open columns. The Berater uses this for month-end
+    // reporting — keeping credit + open in the same
+    // file means the Steuerberater sees the full picture
+    // without joining two separate exports.
+    const header = [
+      'Kunde', 'KdNr', 'Rechnungen', ...BUCKET_ORDER,
+      'Summe offen', 'Kundenguthaben', 'Netto offen', 'Älteste überfällig (Tage)',
+    ]
     const rows = sortedRows.map((r) => [
       r.customerName,
       r.customerNumber || '',
       String(r.invoiceCount),
       ...BUCKET_ORDER.map((b) => r.buckets[b].toFixed(2)),
       r.totalOpen.toFixed(2),
+      r.creditBalance.toFixed(2),
+      r.netOpen.toFixed(2),
       String(r.oldestDaysOverdue),
     ])
-    const totals = ['GESAMT', '', '', ...BUCKET_ORDER.map((b) => report.totals[b].toFixed(2)), report.grandTotal.toFixed(2), '']
+    const totals = [
+      'GESAMT', '', '',
+      ...BUCKET_ORDER.map((b) => report.totals[b].toFixed(2)),
+      report.grandTotal.toFixed(2),
+      report.totalCreditBalance.toFixed(2),
+      report.grandNetTotal.toFixed(2),
+      '',
+    ]
     const csv = [header, ...rows, totals]
       .map((r) => r.map((c) => /[",\n]/.test(c) ? `"${c.replace(/"/g, '""')}"` : c).join(';'))
       .join('\n')
@@ -117,6 +143,24 @@ export default function AgingReportPage() {
                 {report.customerCount} {t("aging.customers") || "Kunden"} ·{" "}
                 <span className="font-mono font-medium">€ {fmt(report.grandTotal)}</span>{" "}
                 {t("aging.openTotal") || "gesamt offen"}
+                {report.totalCreditBalance > 0.005 && (
+                  <>
+                    {" · "}
+                    <span
+                      className="font-mono font-medium text-blue-700"
+                      data-testid="aging-total-credit"
+                    >
+                      € {fmt(report.totalCreditBalance)} {t("aging.creditLabel") || "Guthaben"}
+                    </span>
+                    {" → "}
+                    <span
+                      className="font-mono font-semibold"
+                      data-testid="aging-grand-net"
+                    >
+                      € {fmt(report.grandNetTotal)} {t("aging.netOpen") || "netto offen"}
+                    </span>
+                  </>
+                )}
               </p>
             )}
           </div>
@@ -165,6 +209,18 @@ export default function AgingReportPage() {
                           {t("aging.colTotalOpen") || "Summe offen"}
                         </button>
                       </th>
+                      <th
+                        className="py-2 font-medium text-right text-blue-700"
+                        title={t("aging.colCreditHint") || "Kundenguthaben (laufender Saldo, Tier 58)"}
+                      >
+                        {t("aging.colCredit") || "Guthaben"}
+                      </th>
+                      <th
+                        className="py-2 font-medium text-right"
+                        title={t("aging.colNetHint") || "Summe offen minus Guthaben — der einziehbare Betrag"}
+                      >
+                        {t("aging.colNetOpen") || "Netto offen"}
+                      </th>
                       <th className="py-2 font-medium text-right">
                         <button onClick={() => setSortBy('oldest')} className="hover:underline">
                           {t("aging.colOldest") || "Älteste"}
@@ -192,6 +248,31 @@ export default function AgingReportPage() {
                           )
                         })}
                         <td className="py-2 text-right font-mono font-medium">€ {fmt(r.totalOpen)}</td>
+                        <td
+                          className="py-2 text-right font-mono"
+                          data-testid="aging-row-credit"
+                        >
+                          {r.creditBalance > 0.005 ? (
+                            <Link
+                              href={`/dashboard/customers/${r.customerId}/credit`}
+                              className="text-blue-700 hover:underline"
+                              title={t("aging.openCreditPage") || "Zum Guthaben-Verlauf"}
+                            >
+                              € {fmt(r.creditBalance)}
+                            </Link>
+                          ) : (
+                            <span className="text-gray-300">—</span>
+                          )}
+                        </td>
+                        <td
+                          className={
+                            "py-2 text-right font-mono font-semibold " +
+                            (r.netOpen > 0 ? "text-gray-900 dark:text-gray-100" : "text-emerald-700")
+                          }
+                          data-testid="aging-row-net"
+                        >
+                          € {fmt(r.netOpen)}
+                        </td>
                         <td className="py-2 text-right text-sm">
                           {r.oldestDaysOverdue > 0
                             ? <span className={r.oldestDaysOverdue > 60 ? "text-red-700 dark:text-red-300 font-medium" : "text-gray-600 dark:text-gray-300"}>
@@ -215,6 +296,20 @@ export default function AgingReportPage() {
                         </td>
                       ))}
                       <td className="py-3 text-right font-mono">€ {fmt(report.grandTotal)}</td>
+                      <td
+                        className="py-3 text-right font-mono text-blue-700"
+                        data-testid="aging-total-credit-row"
+                      >
+                        {report.totalCreditBalance > 0.005
+                          ? `€ ${fmt(report.totalCreditBalance)}`
+                          : "—"}
+                      </td>
+                      <td
+                        className="py-3 text-right font-mono"
+                        data-testid="aging-grand-net-row"
+                      >
+                        € {fmt(report.grandNetTotal)}
+                      </td>
                       <td></td>
                     </tr>
                   </tfoot>
