@@ -209,6 +209,16 @@ function CreateInvoicePageInner() {
     items: [{ description: "", productNumber: "", quantity: 1, unit: t("common2.unit"), unitPrice: 0, vatRate: 0.19 }] as InvoiceItem[],
   })
   const [loading, setLoading] = useState(false)
+  // Tier 62: USt-Behandlung auto-suggestion. Set when the
+  // user picks a customer; the radio group pre-fills with
+  // `suggestion.suggested` and the "Auto-Erkennung" hint
+  // shows `suggestion.reason`. The user can always override.
+  const [ustSuggestion, setUstSuggestion] = useState<{
+    suggested: 'standard' | 'reverseCharge' | 'euTransaction' | 'kleinunternehmer'
+    reason: string
+    customerHasVatId: boolean
+    isEuB2b: boolean
+  } | null>(null)
   // Top-of-page error from the initial-load fetch (e.g. 403 when
   // opening an old invoice in edit mode). Set here so we don't
   // crash when the user lands on /create?id=<old> directly.
@@ -349,6 +359,72 @@ function CreateInvoicePageInner() {
     setForm({ ...form, customerId: customer.id })
     setCustomerSearch(customer.name)
     setShowCustomerDropdown(false)
+    // Tier 62: fetch the USt-Behandlung auto-suggestion
+    // so the radio group can prefill. We don't apply the
+    // suggestion when the user has already made a manual
+    // choice (the radio is sticky once clicked) — only on
+    // first customer selection.
+    const companyId = typeof window !== "undefined"
+      ? localStorage.getItem("companyId")
+      : null
+    if (!companyId) return
+    apiGet<{
+      suggested: 'standard' | 'reverseCharge' | 'euTransaction' | 'kleinunternehmer'
+      reason: string
+      customerHasVatId: boolean
+      isEuB2b: boolean
+    }>(
+      `/api/v1/invoices/ust-behandlung-suggestion?companyId=${companyId}&customerId=${customer.id}`,
+    )
+      .then((s) => {
+        setUstSuggestion(s)
+        // Prefill the radio: map detector output → form
+        // booleans. We do this only if the user hasn't
+        // already chosen a tax treatment (the boolean
+        // form fields default to false on a new invoice;
+        // both false = 'standard' which is what the
+        // detector defaults to when there's nothing to
+        // detect, so the only "real" prefills are
+        // reverseCharge=true or euTransaction=true).
+        setForm((prev) => {
+          // Don't override if the user has already
+          // touched the radio. We detect "touched" by
+          // checking if either flag is set OR if a
+          // previous suggestion has been applied.
+          // For new invoices both flags are false
+          // initially, so the first apply is safe.
+          // If the user has clicked the radio, we leave
+          // their choice alone.
+          // (The form doesn't currently track "touched"
+          // state separately — for simplicity we apply
+          // the suggestion only when the form is in
+          // its initial state.)
+          if (prev.reverseCharge || prev.euTransaction) {
+            return prev
+          }
+          return {
+            ...prev,
+            reverseCharge: s.suggested === 'reverseCharge',
+            euTransaction: s.suggested === 'euTransaction',
+            // The kleinunternehmer treatment doesn't map
+            // to either of our two booleans — it's
+            // represented by leaving both false plus
+            // zeroing the item VAT rates. The form
+            // already does that when the user picks the
+            // option, so we just leave a hint for them
+            // via the suggestion.reason message.
+          }
+        })
+      })
+      .catch((err) => {
+        // Soft-fail: the detector is a hint, not a
+        // critical path. If the endpoint is down, the
+        // user still sees the form with the default
+        // 'standard' radio. Log to console for
+        // debugging.
+        console.error("ust-behandlung-suggestion failed:", err)
+        setUstSuggestion(null)
+      })
   }
 
   // Open the "create new customer" modal. Triggered from
@@ -1152,9 +1228,48 @@ function CreateInvoicePageInner() {
                   micro-business customers don't
                   have one) but the warning is loud. */}
               <div className="mt-4 p-3 border rounded-md bg-gray-50" data-testid="invoice-tax-treatment">
-                <label className="block text-sm font-medium mb-2">
-                  {t("invoice.taxTreatment")}
-                </label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium">
+                    {t("invoice.taxTreatment")}
+                  </label>
+                  {ustSuggestion && (
+                    <div className="flex items-center gap-2" data-testid="invoice-ust-suggestion-badges">
+                      {ustSuggestion.customerHasVatId && (
+                        <span
+                          className="text-[10px] px-2 py-0.5 rounded font-medium bg-emerald-100 text-emerald-800"
+                          data-testid="invoice-ust-suggestion-vatid-badge"
+                          title={t("invoice.ustSuggestionVatIdTitle") || "USt-ID des Kunden erkannt"}
+                        >
+                          ✓ USt-ID
+                        </span>
+                      )}
+                      {ustSuggestion.isEuB2b && (
+                        <span
+                          className="text-[10px] px-2 py-0.5 rounded font-medium bg-blue-100 text-blue-800"
+                          data-testid="invoice-ust-suggestion-eub2b-badge"
+                          title={t("invoice.ustSuggestionEuB2bTitle") || "EU-B2B — §1a oder §13b UStG"}
+                        >
+                          🇪🇺 EU B2B
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+                {/* Tier 62: Auto-Erkennung hint. Shows the reason
+                    the detector picked this USt-Behandlung so
+                    the Berater can confirm it's correct (and
+                    pick §1a vs §13b for EU B2B). */}
+                {ustSuggestion && (
+                  <div
+                    className="mb-2 p-2 rounded bg-blue-50 border border-blue-200 text-xs text-blue-900"
+                    data-testid="invoice-ust-suggestion-hint"
+                  >
+                    <span className="font-medium">
+                      {t("invoice.ustAutoDetected") || "Auto-Erkennung"}:
+                    </span>{" "}
+                    {ustSuggestion.reason}
+                  </div>
+                )}
                 <div className="space-y-1.5">
                   <label className="flex items-center gap-2 text-sm">
                     <input

@@ -11,6 +11,9 @@ import { MailService } from '../mail/mail.service';
 import { generateInvoicePDF, InvoiceRenderConfig } from '../../invoices/invoice-pdf.service';
 import { generateXRechnung, transformToXRechnungData } from '../../invoices/xrechnung.service';
 import { generateZUGFeRD } from '../../invoices/zugferd.service';
+// Tier 62: USt-Behandlung auto-detector (pure function, no
+// DI — we just import and call suggestUstBehandlung()).
+import { suggestUstBehandlung, UstSuggestion } from './ust-behandlung-detector';
 import { CreateInvoiceDto, UpdateInvoiceDto } from './dto/invoice.dto';
 import { Auth, Require } from '../../auth/roles.decorator';
 import { renderInvoiceEmail, defaultSalutationFor, type EmailLang } from '../mail/templates/invoice-email.template';
@@ -77,6 +80,80 @@ export class InvoiceController {
         .filter((x): x is string => !!x && x.trim().length > 0)
     }
     return result
+  }
+
+  /**
+   * Tier 62: USt-Behandlung auto-detection.
+   *
+   * Returns the suggested USt treatment for a (customer,
+   * company) pair so the invoice-create form can prefill
+   * the radio button. The user can always override — this
+   * is a hint, not a constraint.
+   *
+   * Decision tree (see ust-behandlung-detector.ts for full
+   * details):
+   *   - Customer has VAT ID + same country as company
+   *     → standard (Inland B2B)
+   *   - Customer has VAT ID + different EU country
+   *     → euTransaction (§1a UStG innergemeinschaftliche
+   *       Lieferung; or §13b UStG Reverse Charge for B2B
+   *       services — the Berater picks the right one)
+   *   - Customer has VAT ID + non-EU country
+   *     → standard (Ausfuhrlieferung)
+   *   - Customer has no VAT ID + EU country
+   *     → standard (B2C domestic)
+   *   - Customer has no VAT ID + non-EU
+   *     → standard (export)
+   *
+   * The endpoint is read-only (GET) and stateless — it
+   * doesn't create any DB rows. The detector itself is a
+   * pure function with no I/O, so the response is
+   * deterministic given the inputs.
+   *
+   * Path declared BEFORE `:id` to avoid Nest's route-
+   * order gotcha — a customer id of "ust-behandlung-
+   * suggestion" would otherwise capture the `:id` route.
+   */
+  @Get('ust-behandlung-suggestion')
+  @Require('invoice.read')
+  async ustBehandlungSuggestion(
+    @Query('companyId') companyId: string,
+    @Query('customerId') customerId: string,
+  ): Promise<UstSuggestion> {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    if (!customerId) throw new BadRequestException('customerId ist erforderlich')
+
+    // Fetch both records in parallel — the detector only
+    // needs a handful of fields so the projection is tight.
+    const [customer, company] = await Promise.all([
+      this.prisma.customer.findFirst({
+        where: { id: customerId, companyId },
+        select: {
+          vatId: true,
+          address: true,
+          taxExempt: true,
+        },
+      }),
+      this.prisma.company.findUnique({
+        where: { id: companyId },
+        select: { vatId: true, address: true },
+      }),
+    ])
+    if (!customer) {
+      throw new BadRequestException('Kunde nicht gefunden')
+    }
+    if (!company) {
+      throw new BadRequestException('Unternehmen nicht gefunden')
+    }
+    const customerAddress = (customer.address as Record<string, any>) || {}
+    return suggestUstBehandlung({
+      customerVatId: customer.vatId,
+      customerCountry: customerAddress.country ?? null,
+      customerTaxExempt: customer.taxExempt,
+      companyVatId: company.vatId,
+      companyCountry:
+        ((company.address as Record<string, any>) || {}).country ?? null,
+    })
   }
 
   @Get()
