@@ -1944,5 +1944,9 @@
     "cancelledBy": "Cancelled by",
     "pre": "Dunning history",
     "costCenter": "Cost center"
+  },
+  "mandant": {
+    "choose": "Choose Mandant",
+    "switch": "Switch Mandant"
   }
 }

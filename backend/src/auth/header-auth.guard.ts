@@ -6,6 +6,14 @@ import { PrismaService } from '../prisma/prisma.service';
  * and attaches the corresponding user object to `req.user`. Requires
  * BOTH headers; mismatched/expired/inactive users are rejected.
  *
+ * Tier 66 update: the access check is now via
+ * `UserCompany` (many-to-many) instead of `User.companyId`.
+ * A Berater (Steuerberater) has one row per Mandant;
+ * the guard verifies x-company-id is in the user's
+ * granted companies. The per-company role is read
+ * from UserCompany.role and attached to `req.user`
+ * (overrides User.role which is now the default).
+ *
  * NOTE: this is a header-based shim, not JWT. Fine for first-party
  * dashboard use. For per-action permission checks, use
  * `@Require('action')` on the controller method.
@@ -39,15 +47,33 @@ export class HeaderAuthGuard implements CanActivate {
     if (!user) {
       throw new UnauthorizedException('Ungültiger Benutzer')
     }
-    if (user.companyId !== companyId) {
-      // Cross-tenant access is never allowed.
-      throw new UnauthorizedException('Ungültige Firma-Zuordnung')
-    }
     if (user.status !== 'active') {
       throw new UnauthorizedException('Benutzer ist nicht aktiv')
     }
 
-    req.user = user
+    // Tier 66: verify the x-company-id is in the user's
+    // granted companies (UserCompany). This is the
+    // many-to-many check — replaces the old strict
+    // 1:1 User.companyId == companyId check.
+    const access = await this.prisma.userCompany.findUnique({
+      where: {
+        userId_companyId: { userId, companyId },
+      },
+      select: { role: true },
+    })
+    if (!access) {
+      // Cross-tenant access is never allowed. The user
+      // has no UserCompany row for this company — even
+      // if they once had access, this is the
+      // authoritative grant check.
+      throw new UnauthorizedException('Kein Zugriff auf diese Firma')
+    }
+
+    // Attach the user with the per-company role. The
+    // `@Require('xxx')` permission checks downstream
+    // use req.user.role — which now reflects the
+    // per-company role, not the global User.role.
+    req.user = { ...user, role: access.role }
     return true
   }
 }

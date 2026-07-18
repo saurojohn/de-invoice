@@ -138,6 +138,81 @@ export class UsersService {
   }
 
   /**
+   * Tier 66: list every company the user has access
+   * to. Each row is one UserCompany grant.
+   *
+   * `activeCompanyId` is the currently-active
+   * x-company-id — we mark the matching row
+   * `isActive=true` so the UI can render a
+   * checkmark next to it.
+   *
+   * Sort: the active Mandant first (UX), then
+   * alphabetical by company name for the rest.
+   */
+  async listAccessibleCompanies(
+    userId: string,
+    activeCompanyId?: string,
+  ) {
+    const rows = await this.prisma.userCompany.findMany({
+      where: { userId },
+      select: {
+        companyId: true,
+        role: true,
+        grantedAt: true,
+        company: {
+          select: {
+            id: true,
+            name: true,
+            legalName: true,
+            email: true,
+          },
+        },
+      },
+      orderBy: [{ company: { name: 'asc' } }],
+    })
+    return rows.map((r) => ({
+      id: r.company.id,
+      name: r.company.name,
+      legalName: r.company.legalName,
+      email: r.company.email,
+      role: r.role,
+      grantedAt: r.grantedAt,
+      isActive: r.companyId === activeCompanyId,
+    }))
+  }
+
+  /**
+   * Tier 66: validate + look up the target Mandant
+   * for a switch. Returns null when the user has no
+   * UserCompany row for the requested companyId —
+   * the controller translates that to a 403.
+   */
+  async switchActiveCompany(userId: string, targetCompanyId: string) {
+    const row = await this.prisma.userCompany.findUnique({
+      where: {
+        userId_companyId: { userId, companyId: targetCompanyId },
+      },
+      select: {
+        role: true,
+        company: {
+          select: {
+            id: true,
+            name: true,
+            legalName: true,
+          },
+        },
+      },
+    })
+    if (!row) return null
+    return {
+      id: row.company.id,
+      name: row.company.name,
+      legalName: row.company.legalName,
+      role: row.role,
+    }
+  }
+
+  /**
    * Create an invitation. Returns the raw token (only time it's visible).
    */
   async createInvitation(

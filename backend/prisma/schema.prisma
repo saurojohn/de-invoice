@@ -76,6 +76,9 @@ model Company {
   vatRates    VatRate[]
   vatRateHistories VatRateHistory[]
   invitations UserInvitation[]
+  // Tier 66: users who have access to this Mandant
+  // (back-relation of UserCompany).
+  userCompanies UserCompany[]
   // Per-company Voucher templates — a saved
   // pre-filled Buchungssatz that the Berater can
   // re-use to create a new Voucher in one click
@@ -110,8 +113,17 @@ model Company {
 
 model User {
   id                String    @id @default(uuid())
+  // Tier 66: User.companyId is now the "default
+  // login Mandant" — the company the user lands on
+  // immediately after login. The actual access
+  // control is via UserCompany (many-to-many),
+  // which can grant access to multiple companies
+  // for a Berater (Steuerberater) who manages
+  // several Mandanten.
   companyId        String?
   company          Company?  @relation(fields: [companyId], references: [id])
+  // UserCompany back-relation (Tier 66).
+  userCompanies    UserCompany[]
   email            String    @unique
   passwordHash     String
   // Role within the company: "admin" | "accountant" | "viewer"
@@ -171,6 +183,58 @@ model User {
   createdCreditTransactions CustomerCreditTransaction[]
   // Tier 64: Mahnungspausen this user created.
   createdMahnungspausen Mahnungspause[]
+  // Tier 66: companies this user has access to
+  // (a Berater/Steuerberater typically has multiple
+  // rows here; a single-Mandant user has exactly one).
+  grantedCompanies UserCompany[] @relation("GrantedBy")
+}
+
+/// Tier 66: Multi-Mandanten-Berater (many-to-many).
+///
+/// Each row grants a User access to a Company with
+/// a specific role. The Berater (Steuerberater)
+/// typically has one row per Mandant they manage —
+/// the HeaderAuthGuard checks UserCompany on every
+/// request to verify the x-company-id is one of the
+/// user's granted companies.
+///
+/// Why a separate table (not a comma-separated
+/// companyIds on User): the role can differ per
+/// company (e.g. Berater is admin on Mandant A and
+/// viewer on Mandant B — a common pattern for
+/// read-only auditing engagements).
+///
+/// Composite PK (userId, companyId) — the (user,company)
+/// pair is unique. A user can only have ONE role per
+/// company.
+///
+/// `grantedById` is the admin who added this user
+/// to the company (for audit: "who invited the
+/// Berater to this Mandant?").
+model UserCompany {
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  // Per-company role. Same vocabulary as User.role:
+  //   "admin"       — full access (incl. user mgmt)
+  //   "accountant"  — invoices / reports / dunning
+  //   "viewer"      — read-only
+  //   "berater"     — Steuerberater: same as
+  //                   accountant + can switch
+  //                   Mandant freely without losing
+  //                   context. Tier 66 v1 collapses
+  //                   "berater" into "admin" for
+  //                   permission checks; the value
+  //                   is preserved in audit trails.
+  role        String   @default("accountant")
+  grantedAt   DateTime @default(now())
+  grantedById String?
+  grantedBy   User?    @relation("GrantedBy", fields: [grantedById], references: [id], onDelete: SetNull)
+
+  @@id([userId, companyId])
+  @@index([userId])
+  @@index([companyId])
 }
 
 // Pending invitations — admin invites employee by email, employee clicks link to register

@@ -1944,5 +1944,9 @@
     "cancelledBy": "Storniert von",
     "pre": "Mahnhistorie",
     "costCenter": "Kostenstelle"
+  },
+  "mandant": {
+    "choose": "Mandant wählen",
+    "switch": "Mandant wechseln"
   }
 }

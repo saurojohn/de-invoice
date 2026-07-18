@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
+import MandantSwitcher from "@/components/MandantSwitcher"
 import { RevenueChart } from "@/components/RevenueChart"
 import { ThemeToggle } from "@/components/ThemeToggle"
 import { useI18n } from "@/components/useI18n"
@@ -172,6 +173,7 @@ export default function DashboardPage() {
             </Button>
           </div>
           <div className="flex items-center gap-4">
+            <MandantSwitcher />
             <LanguageSwitcher />
             <ThemeToggle />
             <Button variant="outline" onClick={() => {

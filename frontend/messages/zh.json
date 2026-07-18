@@ -1944,5 +1944,9 @@
     "cancelledBy": "撤销人",
     "pre": "催收历史",
     "costCenter": "成本中心"
+  },
+  "mandant": {
+    "choose": "选择客户",
+    "switch": "切换客户"
   }
 }

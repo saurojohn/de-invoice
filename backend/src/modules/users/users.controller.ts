@@ -38,6 +38,82 @@ export class UsersController {
   }
 
   /**
+   * Tier 66: list every company (Mandant) the
+   * currently-authenticated user has access to.
+   *
+   * Drives the "Mandant wechseln" dropdown in the
+   * header. Returns one row per UserCompany grant
+   * (i.e. one row per company the user can switch
+   * into) with the per-company role + a flag
+   * indicating whether the row is the user's
+   * CURRENTLY-ACTIVE Mandant.
+   *
+   * The current Mandant is determined by the
+   * x-company-id header (set by the dropdown's
+   * POST /me/switch handler). The flag lets the
+   * UI mark the active item with a checkmark.
+   *
+   * Auth: requires a valid user (any role) —
+   * the dropdown is for ALL users, not just
+   * admins, because every user with multi-
+   * Mandant access needs the switcher.
+   */
+  @Get('me/companies')
+  async myCompanies(@Req() req: AuthedRequest) {
+    const userId = req.user?.id
+    if (!userId) throw new BadRequestException('Unauthenticated')
+    // Read the active company from the request —
+    // the guard has already validated the user
+    // has access to it, so we don't need to
+    // verify again here.
+    const activeCompanyId = (req as any)?.headers?.['x-company-id']
+    const companies = await this.users.listAccessibleCompanies(
+      userId,
+      activeCompanyId,
+    )
+    return {
+      activeCompanyId: activeCompanyId || null,
+      companies,
+    }
+  }
+
+  /**
+   * Tier 66: switch the active Mandant.
+   *
+   * Validates the user has access to the requested
+   * companyId (via UserCompany), then returns the
+   * new active company metadata. The frontend
+   * updates the x-company-id cookie + localStorage
+   * and reloads — no other state is changed on
+   * the server (the "active company" is purely a
+   * client-side concept held in the x-company-id
+   * header).
+   *
+   * Why server-side validation: a malicious user
+   * could POST any companyId. We must verify the
+   * grant before returning success. If the user
+   * has no UserCompany row for the target, 403.
+   */
+  @Post('me/switch-company')
+  async switchCompany(
+    @Req() req: AuthedRequest,
+    @Body() body: { companyId: string },
+  ) {
+    const userId = req.user?.id
+    if (!userId) throw new BadRequestException('Unauthenticated')
+    if (!body?.companyId) {
+      throw new BadRequestException('companyId ist erforderlich')
+    }
+    const target = await this.users.switchActiveCompany(userId, body.companyId)
+    if (!target) {
+      // The user has no UserCompany row for this
+      // companyId — refuse.
+      throw new BadRequestException('Kein Zugriff auf diese Firma')
+    }
+    return target
+  }
+
+  /**
    * Invite a new user. Sends an email with the invite link.
    * Rate-limited: 10 per hour per IP.
    */
