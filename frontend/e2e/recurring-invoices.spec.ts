@@ -114,9 +114,14 @@ test.describe("Recurring invoices (Tier 30)", () => {
     await newButton.click()
 
     // The modal renders all required fields.
+    // Bumped the timeout from 5s to 10s — in the
+    // suite context the global throttler can 429
+    // some background fetches, which delays React
+    // state updates enough to flake a tight
+    // 5s wait.
     await expect(
       page.locator('[data-testid="recurring-form-name"]'),
-    ).toBeVisible({ timeout: 5_000 })
+    ).toBeVisible({ timeout: 10_000 })
     await expect(
       page.locator('[data-testid="recurring-form-customer"]'),
     ).toBeVisible()

@@ -18,6 +18,24 @@ interface DashboardStats {
   paidAmount: number
 }
 
+// Tier 63: recurring-invoice stats for the dashboard widget.
+// Mirrors the shape of `GET /api/v1/recurring-invoices/stats`.
+interface RecurringStats {
+  active: number
+  paused: number
+  dueThisWeek: number
+  runsThisMonth: number
+  failedLast30Days: number
+  dueThisWeekList: Array<{
+    id: string
+    name: string
+    nextRunAt: string
+    interval: string
+    intervalCount: number
+    customer: { id: string; name: string; customerNumber?: string | null }
+  }>
+}
+
 interface DashboardKpis {
   ytd: {
     revenue: number
@@ -76,6 +94,7 @@ export default function DashboardPage() {
   const { t, getDateLocale } = useI18n()
   const dl = getDateLocale()
   const [stats, setStats] = useState<DashboardStats | null>(null)
+  const [recurringStats, setRecurringStats] = useState<RecurringStats | null>(null)
   const [kpis, setKpis] = useState<DashboardKpis | null>(null)
   const [monthlyRevenue, setMonthlyRevenue] = useState<Array<{ month: string; totalAmount: number; invoiceCount?: number }>>([])
   const [recentInvoices, setRecentInvoices] = useState<RecentInvoice[]>([])
@@ -103,8 +122,16 @@ export default function DashboardPage() {
       apiGet<{ data: any[]; total: number }>(`/api/v1/invoices?companyId=${companyId}&pageSize=500`),
       apiGet<{ byMonth: any[] }>(`/api/v1/reports/sales?companyId=${companyId}&startDate=${startDate}&endDate=${endDate}`),
       apiGet<DashboardKpis>(`/api/v1/reports/dashboard?companyId=${companyId}`),
+      // Tier 63: recurring-invoice aggregate for the
+      // dashboard widget. We tolerate failure on this
+      // one — the widget falls back to "—/—" rather
+      // than breaking the whole dashboard if the
+      // endpoint is unreachable (e.g. during a hot
+      // reload mid-restart).
+      apiGet<RecurringStats>(`/api/v1/recurring-invoices/stats?companyId=${companyId}`)
+        .catch(() => null),
     ])
-      .then(([invoiceList, salesReport, dashboardKpis]) => {
+      .then(([invoiceList, salesReport, dashboardKpis, recurring]) => {
         const invoices = invoiceList?.data || []
         const pending = invoices
           .filter((inv: any) => inv.status === "sent" || inv.status === "draft" || inv.status === "overdue")
@@ -122,6 +149,7 @@ export default function DashboardPage() {
           overdueAmount: overdue,
           paidAmount: paid,
         })
+        setRecurringStats(recurring)
         setMonthlyRevenue(salesReport?.byMonth || [])
         setKpis(dashboardKpis || null)
         setRecentInvoices(invoices.slice(0, 8) as RecentInvoice[])
@@ -481,12 +509,40 @@ export default function DashboardPage() {
               <p className="text-gray-600 dark:text-gray-300">{t("dashboard.cardEmailDesc")}</p>
             </CardContent>
           </Card>
-          <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/recurring-invoices")}>
+          <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/recurring-invoices")} data-testid="dashboard-card-recurring">
             <CardHeader>
               <CardTitle>{t("dashboard.cardRecurringTitle")}</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-gray-600 dark:text-gray-300">{t("dashboard.cardRecurringDesc")}</p>
+              <p className="text-gray-600 dark:text-gray-300 mb-2">{t("dashboard.cardRecurringDesc")}</p>
+              {/* Tier 63: live counts. Falls back to em-dash
+                  while the /stats fetch is in flight or if
+                  it failed. The "due this week" badge is
+                  the most actionable — the user wants to
+                  know "do I have anything to review today?"
+                  without opening the page. */}
+              <div className="flex items-center gap-3 text-sm flex-wrap" data-testid="dashboard-recurring-stats">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200 font-medium" data-testid="dashboard-recurring-active">
+                  <span aria-hidden>●</span>
+                  {recurringStats
+                    ? t("dashboard.recurringActive", { count: recurringStats.active })
+                    : "—"}
+                </span>
+                {recurringStats && recurringStats.dueThisWeek > 0 && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 font-medium" data-testid="dashboard-recurring-due">
+                    {t("dashboard.recurringDueThisWeek", { count: recurringStats.dueThisWeek })}
+                  </span>
+                )}
+                {recurringStats && recurringStats.failedLast30Days > 0 && (
+                  <span
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 font-medium"
+                    data-testid="dashboard-recurring-failed"
+                    title={t("dashboard.recurringFailedTitle") || "Letzte 30 Tage fehlgeschlagen"}
+                  >
+                    ! {t("dashboard.recurringFailed", { count: recurringStats.failedLast30Days })}
+                  </span>
+                )}
+              </div>
             </CardContent>
           </Card>
           <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/cashbook")}>

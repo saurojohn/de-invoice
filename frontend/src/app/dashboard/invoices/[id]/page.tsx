@@ -445,6 +445,48 @@ export default function InvoiceDetailPage() {
     }
   }
 
+  // Tier 63: "Wiederkehrend machen" — convert this
+  // invoice into a recurring template. The user
+  // clicks the button, we fetch the prefill payload
+  // from the backend, stash it in sessionStorage,
+  // and route to the recurring-invoices page which
+  // reads the stash and opens the create modal
+  // pre-populated. sessionStorage (not localStorage)
+  // because the prefill is single-use: a stale
+  // prefill from a previous click shouldn't bleed
+  // into a fresh page-load.
+  const [converting, setConverting] = useState(false)
+  const [convertError, setConvertError] = useState<string | null>(null)
+  const convertToRecurring = async () => {
+    if (!invoice) return
+    setConvertError(null)
+    setConverting(true)
+    try {
+      const companyId =
+        typeof window !== "undefined"
+          ? localStorage.getItem("companyId")
+          : null
+      if (!companyId) {
+        setConvertError("Kein Unternehmen ausgewählt")
+        setConverting(false)
+        return
+      }
+      const prefill = await apiGet<any>(
+        `/api/v1/recurring-invoices/from-invoice/${invoice.id}?companyId=${companyId}`,
+      )
+      sessionStorage.setItem(
+        "recurring-prefill",
+        JSON.stringify(prefill),
+      )
+      router.push("/dashboard/recurring-invoices?prefill=1")
+    } catch (e: any) {
+      const msg = e?.message || "Konvertierung fehlgeschlagen"
+      setConvertError(msg)
+    } finally {
+      setConverting(false)
+    }
+  }
+
   const openEmailModal = () => {
     if (!invoice) return
     // Pre-fill from the customer's email and the German
@@ -1003,6 +1045,42 @@ export default function InvoiceDetailPage() {
                     {t("invoice.creditNote") || "Gutschrift"}
                   </Button>
                 )}
+              {/* Tier 63: "Wiederkehrend" button. Converts
+                  this invoice into a recurring template
+                  (prefill via /from-invoice/:id, then
+                  router.push to the recurring page with
+                  ?prefill=1). Hidden on CN (credit notes
+                  don't make sense as recurring sources) and
+                  on cancelled invoices. The handler is
+                  `converting` to disable the button while
+                  the prefill fetch is in flight. */}
+              {invoice.type !== "CN" &&
+                invoice.status !== "cancelled" && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    data-testid="make-recurring-button"
+                    onClick={convertToRecurring}
+                    disabled={converting}
+                    className="border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300"
+                    title={
+                      t("invoice.makeRecurringTitle") ||
+                      "Aus dieser Rechnung eine Abo-Vorlage erstellen"
+                    }
+                  >
+                    {converting
+                      ? "..."
+                      : t("invoice.makeRecurring") || "Wiederkehrend"}
+                  </Button>
+                )}
+              {convertError && (
+                <span
+                  className="text-sm text-red-600 dark:text-red-400"
+                  data-testid="make-recurring-error"
+                >
+                  {convertError}
+                </span>
+              )}
               {invoice.type !== "CN" &&
                 invoice.status !== "cancelled" && (
                   <Button

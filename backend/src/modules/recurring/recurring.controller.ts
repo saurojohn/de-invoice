@@ -14,6 +14,31 @@ export class RecurringController {
     return this.svc.list(companyId);
   }
 
+  @Get('stats')
+  @Require('invoice.read')
+  async stats(@Query('companyId') companyId: string) {
+    if (!companyId) throw new BadRequestException('companyId is required');
+    return this.svc.stats(companyId);
+  }
+
+  /**
+   * Tier 63: prefill payload for "convert this invoice
+   * into a recurring template". Returns the shape the
+   * recurring-invoices page create-modal consumes.
+   * Declared BEFORE `:id` per the NestJS route-order
+   * gotcha — first match wins, so `:id` would
+   * otherwise swallow "stats" / "from-invoice".
+   */
+  @Get('from-invoice/:invoiceId')
+  @Require('invoice.read')
+  async fromInvoice(
+    @Query('companyId') companyId: string,
+    @Param('invoiceId') invoiceId: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId is required');
+    return this.svc.fromInvoice(companyId, invoiceId);
+  }
+
   @Get(':id')
   @Require('invoice.read')
   async getOne(

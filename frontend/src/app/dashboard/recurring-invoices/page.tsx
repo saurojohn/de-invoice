@@ -96,6 +96,48 @@ export default function RecurringInvoicesPage() {
       .finally(() => setLoading(false))
   }, [router])
 
+  // Tier 63: detect ?prefill=1 in the URL (set by
+  // the invoice detail page's "Wiederkehrend" button)
+  // and open the create modal with the prefill payload
+  // from sessionStorage. The check runs once on mount;
+  // subsequent re-renders don't re-trigger the modal
+  // because we clear the search param via history.replace.
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const params = new URLSearchParams(window.location.search)
+    if (params.get("prefill") !== "1") return
+    const raw = sessionStorage.getItem("recurring-prefill")
+    if (!raw) return
+    try {
+      const p = JSON.parse(raw)
+      setEditing(null)
+      setName(p.name || "")
+      setCustomerId(p.customerId || "")
+      setInterval((p.interval as Interval) || "monthly")
+      setIntervalCount(p.intervalCount || 1)
+      setDayOfMonth(p.dayOfMonth || 1)
+      setStartDate(p.startDate || new Date().toISOString().split("T")[0])
+      setEndDate(p.endDate || "")
+      setInvoiceStatus(p.invoiceStatus || "draft")
+      setItems(p.items || [{ description: "", quantity: 1, unit: "Stück", unitPrice: 0, vatRate: 0.19 }])
+      setShowModal(true)
+      // Clean up so a refresh on the same page doesn't
+      // re-open the modal. sessionStorage is single-tab
+      // so this only affects the current tab.
+      sessionStorage.removeItem("recurring-prefill")
+      // Strip ?prefill=1 from the URL so a back-button
+      // nav doesn't re-open.
+      params.delete("prefill")
+      const newQs = params.toString()
+      const newUrl =
+        window.location.pathname + (newQs ? "?" + newQs : "")
+      window.history.replaceState({}, "", newUrl)
+    } catch (e) {
+      console.error("Failed to apply recurring prefill:", e)
+      sessionStorage.removeItem("recurring-prefill")
+    }
+  }, [customers])
+
   const openCreate = () => {
     setEditing(null)
     setName("")
@@ -405,26 +447,56 @@ export default function RecurringInvoicesPage() {
                             {tpl.runs.map((r) => (
                               <div
                                 key={r.id}
+                                data-testid="recurring-run-row"
+                                data-run-status={r.status}
                                 className={`flex items-center justify-between p-2 rounded ${
-                                  r.status === "success" ? "bg-emerald-50"
-                                  : r.status === "failed" ? "bg-red-50"
+                                  r.status === "success" ? "bg-emerald-50 dark:bg-emerald-950/30"
+                                  : r.status === "failed" ? "bg-red-50 dark:bg-red-950/30"
                                   : "bg-gray-50 dark:bg-gray-900"
                                 }`}
                               >
-                                <div>
+                                <div className="flex-1 min-w-0">
                                   <span className="font-mono text-xs">
                                     {fmtDate(r.periodStart, getDateLocale())} → {fmtDate(r.periodEnd, getDateLocale())}
                                   </span>
                                   <span className="ml-2 text-xs px-1.5 py-0.5 rounded bg-white dark:bg-gray-800 border">
                                     {r.trigger}
                                   </span>
+                                  {/* Tier 63: surface the failure
+                                      reason inline. Previously the
+                                      `errorMessage` field was set by
+                                      the service but never rendered
+                                      — the user had to query the DB
+                                      to see WHY a run failed. Now we
+                                      show it on the row, prefixed by
+                                      the localised "Fehler:" label. */}
+                                  {r.status === "failed" && r.errorMessage && (
+                                    <div
+                                      className="mt-1 text-xs text-red-700 dark:text-red-300 break-words"
+                                      data-testid="recurring-run-error"
+                                      title={r.errorMessage}
+                                    >
+                                      <span className="font-semibold">
+                                        {t("recurring.runError") || "Fehler"}:
+                                      </span>{" "}
+                                      {r.errorMessage}
+                                    </div>
+                                  )}
                                 </div>
-                                <div className="flex items-center gap-2">
-                                  <span className={`text-xs ${
-                                    r.status === "success" ? "text-emerald-700"
-                                    : r.status === "failed" ? "text-red-700 dark:text-red-300" : "text-gray-700 dark:text-gray-200"
-                                  }`}>
-                                    {r.status}
+                                <div className="flex items-center gap-2 ml-2">
+                                  <span
+                                    className={`text-xs px-1.5 py-0.5 rounded font-medium ${
+                                      r.status === "success" ? "bg-emerald-200 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200"
+                                      : r.status === "failed" ? "bg-red-200 text-red-800 dark:bg-red-900 dark:text-red-200"
+                                      : r.status === "skipped" ? "bg-amber-200 text-amber-800 dark:bg-amber-900 dark:text-amber-200"
+                                      : "bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-200"
+                                    }`}
+                                    data-testid="recurring-run-status-badge"
+                                  >
+                                    {r.status === "success" ? (t("recurring.runStatusSuccess") || "OK")
+                                      : r.status === "failed" ? (t("recurring.runStatusFailed") || "Fehler")
+                                      : r.status === "skipped" ? (t("recurring.runStatusSkipped") || "Übersprungen")
+                                      : r.status}
                                   </span>
                                   {r.invoiceId && (
                                     <Link
