@@ -77,6 +77,33 @@ export default function InvoiceDetailPage() {
   // status that drives the Raten schedule below.
   const [installmentPlan, setInstallmentPlan] = useState<any | null>(null)
   const [showPlanModal, setShowPlanModal] = useState(false)
+  // Tier 65: Auto-Ratenplan suggestion payload. The
+  // suggestion endpoint checks amount >= threshold,
+  // existing plan, customer active plan, etc. and
+  // returns pre-filled defaults for the modal. The
+  // banner is only rendered when `suggestion.eligible`
+  // is true. We tolerate failure on this fetch (the
+  // banner just doesn't show) — the modal is the
+  // primary UX path.
+  const [ratensplanSuggestion, setRatenplanSuggestion] =
+    useState<any | null>(null)
+  // Tier 65: separate modal for the "Ratenplan
+  // anbieten?" banner flow. Distinct from the
+  // existing `showPlanModal` (which edits an
+  // existing plan's Raten). When the user clicks
+  // "Ratenplan erstellen" on the banner, we
+  // pre-fill planForm from `ratensplanSuggestion.defaults`
+  // and open this modal.
+  const [showSuggestModal, setShowSuggestModal] = useState(false)
+  const [suggestSaving, setSuggestSaving] = useState(false)
+  const [suggestError, setSuggestError] = useState<string | null>(null)
+  const [suggestForm, setSuggestForm] = useState({
+    installmentCount: 3,
+    intervalDays: 30,
+    firstDueDate: "",
+    notes: "",
+    autoPause: true,
+  })
   const [planSaving, setPlanSaving] = useState(false)
   const [planError, setPlanError] = useState<string | null>(null)
   const [planForm, setPlanForm] = useState({
@@ -170,10 +197,18 @@ export default function InvoiceDetailPage() {
       apiGet<any>(
         `/api/v1/installment-plans/by-invoice/${params.id}?companyId=${companyId}`,
       ).catch(() => null),
-    ]).then(([inv, pmts, plan]) => {
+      // Tier 65: auto-Ratenplan suggestion. We catch
+      // the error so a missing endpoint (e.g. before
+      // a backend restart completes) doesn't break
+      // the page — the banner just doesn't render.
+      apiGet<any>(
+        `/api/v1/installment-plans/suggestion/${params.id}?companyId=${companyId}`,
+      ).catch(() => null),
+    ]).then(([inv, pmts, plan, sug]) => {
       setInvoice(inv)
       setPayments(Array.isArray(pmts) ? pmts : [])
       setInstallmentPlan(plan)
+      setRatenplanSuggestion(sug)
     }).catch((err) => {
       console.error('Invoice detail load failed:', err)
     }).finally(() => setLoading(false))
@@ -1240,6 +1275,72 @@ export default function InvoiceDetailPage() {
           )}
         </Card>
 
+        {/* Tier 65: Auto-Ratenplan banner. Shown when
+            the suggestion endpoint says the invoice
+            is eligible (amount >= threshold, no
+            existing plan, no customer active plan).
+            The banner disappears once the user creates
+            the plan (we re-fetch the suggestion after
+            a successful create). The banner is muted
+            (not loud) because the user just opened
+            this page for a different reason — they
+            shouldn't feel ambushed. */}
+        {ratensplanSuggestion?.eligible && !installmentPlan && (
+          <div
+            className="mt-6 p-4 rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30 flex items-start justify-between gap-4"
+            data-testid="ratensplan-suggest-banner"
+          >
+            <div>
+              <p className="font-medium text-sm text-amber-900 dark:text-amber-200">
+                ⏰ {t("invoice.ratensplanSuggestTitle") || "Ratenplan anbieten?"}
+              </p>
+              <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
+                {(
+                  t("invoice.ratensplanSuggestDesc") ||
+                  "Diese Rechnung über {amount} liegt über dem Schwellenwert von {threshold} EUR. Sie können dem Kunden einen Ratenplan anbieten."
+                )
+                  .replace(
+                    "{amount}",
+                    Number(invoice?.total || 0).toFixed(2) +
+                      " " +
+                      (invoice?.currency || "EUR"),
+                  )
+                  .replace("{threshold}", ratensplanSuggestion.threshold)}
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setSuggestError(null)
+                // Pre-fill the form from the
+                // suggestion defaults. The backend
+                // already computed firstDueDate =
+                // today + 14 days; we keep that
+                // unless the user wants to change it.
+                if (ratensplanSuggestion?.defaults) {
+                  setSuggestForm({
+                    installmentCount:
+                      ratensplanSuggestion.defaults.installmentCount,
+                    intervalDays:
+                      ratensplanSuggestion.defaults.intervalDays,
+                    firstDueDate:
+                      ratensplanSuggestion.defaults.firstDueDate,
+                    notes: ratensplanSuggestion.defaults.notes || "",
+                    autoPause: true,
+                  })
+                }
+                setShowSuggestModal(true)
+              }}
+              data-testid="ratensplan-suggest-button"
+              className="border-amber-400 dark:border-amber-600 text-amber-700 dark:text-amber-300"
+            >
+              {t("invoice.ratensplanSuggestButton") ||
+                "Ratenplan erstellen"}
+            </Button>
+          </div>
+        )}
+
         {/* Tier 51: Ratenzahlung (installment plan). Shows
             the schedule (N Raten with their due dates +
             status) when a Ratenplan is attached; otherwise
@@ -2118,6 +2219,187 @@ export default function InvoiceDetailPage() {
                 {invoicePauseSaving
                   ? "..."
                   : t("invoice.pauseAdd") || "Pause anlegen"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tier 65: Auto-Ratenplan create modal. Opens
+          from the banner button. Pre-filled with the
+          suggestion defaults. On submit, POSTs to
+          /installment-plans/from-invoice which creates
+          the plan AND auto-pauses the customer's
+          Mahnung in a single transaction. We refresh
+          the invoice detail on success (so the
+          Ratenplan card updates and the banner
+          disappears). */}
+      {showSuggestModal && invoice && ratensplanSuggestion && (
+        <div
+          className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+          data-testid="ratensplan-suggest-modal"
+          onClick={() => !suggestSaving && setShowSuggestModal(false)}
+        >
+          <div
+            className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-medium mb-1">
+              {t("invoice.ratensplanModalTitle") ||
+                "Ratenplan aus Rechnung erstellen"}
+            </h3>
+            <p className="text-xs text-gray-500 mb-4">
+              {t("invoice.ratensplanModalSubtitle") ||
+                "Die Mahnung für diesen Kunden wird automatisch pausiert, solange der Ratenplan läuft."}
+            </p>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  {t("invoice.ratensplanInstallmentCount") || "Anzahl Raten"}
+                </label>
+                <Input
+                  type="number"
+                  min={2}
+                  max={120}
+                  value={String(suggestForm.installmentCount)}
+                  onChange={(e) =>
+                    setSuggestForm({
+                      ...suggestForm,
+                      installmentCount: Number(e.target.value || 0),
+                    })
+                  }
+                  data-testid="ratensplan-modal-count"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  {t("invoice.ratensplanIntervalDays") || "Intervall (Tage)"}
+                </label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={365}
+                  value={String(suggestForm.intervalDays)}
+                  onChange={(e) =>
+                    setSuggestForm({
+                      ...suggestForm,
+                      intervalDays: Number(e.target.value || 0),
+                    })
+                  }
+                  data-testid="ratensplan-modal-interval"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  {t("invoice.ratensplanFirstDueDate") || "Erste Fälligkeit"}
+                </label>
+                <Input
+                  type="date"
+                  value={suggestForm.firstDueDate}
+                  onChange={(e) =>
+                    setSuggestForm({
+                      ...suggestForm,
+                      firstDueDate: e.target.value,
+                    })
+                  }
+                  data-testid="ratensplan-modal-first-due"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  {t("invoice.ratensplanNotes") || "Notizen (optional)"}
+                </label>
+                <Input
+                  value={suggestForm.notes}
+                  onChange={(e) =>
+                    setSuggestForm({
+                      ...suggestForm,
+                      notes: e.target.value,
+                    })
+                  }
+                  data-testid="ratensplan-modal-notes"
+                />
+              </div>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={suggestForm.autoPause}
+                  onChange={(e) =>
+                    setSuggestForm({
+                      ...suggestForm,
+                      autoPause: e.target.checked,
+                    })
+                  }
+                  data-testid="ratensplan-modal-auto-pause"
+                />
+                {t("invoice.ratensplanAutoPause") ||
+                  "Mahnung automatisch pausieren"}
+              </label>
+              {suggestError && (
+                <p
+                  className="text-sm text-red-600"
+                  data-testid="ratensplan-modal-error"
+                >
+                  {suggestError}
+                </p>
+              )}
+            </div>
+            <div className="flex gap-2 justify-end mt-5">
+              <Button
+                variant="outline"
+                onClick={() => setShowSuggestModal(false)}
+                disabled={suggestSaving}
+              >
+                {t("common.cancel") || "Abbrechen"}
+              </Button>
+              <Button
+                onClick={async () => {
+                  setSuggestSaving(true)
+                  setSuggestError(null)
+                  try {
+                    // Combined endpoint: creates the
+                    // plan AND auto-pauses the customer.
+                    const res = await apiFetch(
+                      `/api/v1/installment-plans/from-invoice?companyId=${localStorage.getItem("companyId") || ""}`,
+                      {
+                        method: "POST",
+                        throwOnError: false,
+                        body: {
+                          invoiceId: invoice.id,
+                          installmentCount: suggestForm.installmentCount,
+                          firstDueDate: suggestForm.firstDueDate,
+                          intervalDays: suggestForm.intervalDays,
+                          notes: suggestForm.notes,
+                          autoPause: suggestForm.autoPause,
+                        },
+                      },
+                    )
+                    if (!res.ok) {
+                      const err = await res.json().catch(() => ({}))
+                      throw new Error(
+                        err.message || `HTTP ${res.status}`,
+                      )
+                    }
+                    const plan = await res.json()
+                    setShowSuggestModal(false)
+                    setInstallmentPlan(plan)
+                    setRatenplanSuggestion(null) // hide banner
+                  } catch (e: any) {
+                    setSuggestError(
+                      e?.message ||
+                        t("common.error") ||
+                        "Fehler",
+                    )
+                  } finally {
+                    setSuggestSaving(false)
+                  }
+                }}
+                disabled={suggestSaving}
+                data-testid="ratensplan-modal-submit"
+              >
+                {suggestSaving
+                  ? "..."
+                  : t("invoice.ratensplanCreate") || "Ratenplan anlegen"}
               </Button>
             </div>
           </div>

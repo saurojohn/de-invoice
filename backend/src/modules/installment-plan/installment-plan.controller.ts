@@ -73,6 +73,24 @@ export class InstallmentPlanController {
     return this.svc.findByInvoice(invoiceId, companyId)
   }
 
+  /**
+   * Tier 65: Auto-Ratenplan suggestion. Returns
+   * `{eligible, threshold, defaults}` so the
+   * invoice detail page can render a "Ratenplan
+   * anbieten?" banner with the form pre-filled.
+   * Declared BEFORE `:id` per the route-order
+   * gotcha — first match wins.
+   */
+  @Get('suggestion/:invoiceId')
+  @Require('invoice.read')
+  async getRatenplanSuggestion(
+    @Param('invoiceId') invoiceId: string,
+    @Query('companyId') companyId: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    return this.svc.getRatenplanSuggestion(invoiceId, companyId)
+  }
+
   @Get(':id')
   @Require('invoice.read')
   async findOne(
@@ -91,6 +109,46 @@ export class InstallmentPlanController {
   ) {
     if (!companyId) throw new BadRequestException('companyId ist erforderlich')
     return this.svc.create(companyId, dto)
+  }
+
+  /**
+   * Tier 65: combined endpoint that creates a
+   * Ratenplan from an invoice AND auto-creates a
+   * customer-level Mahnungspause. The two writes
+   * happen in sequence (with rollback on pause
+   * failure) so we never end up with a plan
+   * without a pause (the customer would get
+   * Mahnungen the next day).
+   *
+   * Body shape:
+   *   { invoiceId, installmentCount, firstDueDate,
+   *     intervalDays?, notes?, autoPause?,
+   *     pauseReason?, createdById? }
+   */
+  @Post('from-invoice')
+  @Require('invoice.write')
+  async createFromInvoice(
+    @Query('companyId') companyId: string,
+    @Body() body: {
+      invoiceId: string
+      installmentCount: number
+      firstDueDate: string
+      intervalDays?: number
+      notes?: string
+      autoPause?: boolean
+      pauseReason?: string
+      createdById?: string
+    },
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    return this.svc.createFromInvoice(companyId, body.createdById, body.invoiceId, {
+      installmentCount: body.installmentCount,
+      firstDueDate: body.firstDueDate,
+      intervalDays: body.intervalDays,
+      notes: body.notes,
+      autoPause: body.autoPause,
+      pauseReason: body.pauseReason,
+    })
   }
 
   @Post(':id/installments/:installmentId/pay')
