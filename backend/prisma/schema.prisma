@@ -63,6 +63,7 @@ model Company {
   auditLogs   AuditLog[]
   errorEvents ErrorEvent[]
   emailSends   EmailSend[]
+  mahnungspausen Mahnungspause[]
   bankStatements BankStatement[]
   fintsConnections FinTSConnection[]
   invoiceTemplates InvoiceTemplate[]
@@ -168,6 +169,8 @@ model User {
   // Tier 58: credit-balance ledger entries this user
   // created (Auszahlung, apply, manual adjustments).
   createdCreditTransactions CustomerCreditTransaction[]
+  // Tier 64: Mahnungspausen this user created.
+  createdMahnungspausen Mahnungspause[]
 }
 
 // Pending invitations — admin invites employee by email, employee clicks link to register
@@ -243,6 +246,11 @@ model Customer {
   // invoice, manual adjustment). Customer's current credit balance
   // is the SUM(amount) over the rows.
   creditTransactions CustomerCreditTransaction[]
+  // Tier 64: Mahnungspausen attached to this customer.
+  // (A pause can be customer-level — for all invoices of
+  // this customer — or invoice-level — for one specific
+  // invoice; the latter is recorded on Invoice.mahnungspausen.)
+  mahnungspausen Mahnungspause[]
 
   @@index([companyId, name])
   @@index([companyId, vatId])
@@ -553,6 +561,10 @@ model Invoice {
   recurringInvoice   RecurringInvoice? @relation(fields: [recurringInvoiceId], references: [id], onDelete: SetNull)
   recurringRuns  RecurringRun[]
   cashBookEntries CashBookEntry[]
+  // Tier 64: invoice-level Mahnungspausen (a pause
+  // can be tied to a single invoice, not the whole
+  // customer).
+  mahnungspausen Mahnungspause[]
   // Tier 51: 1:1 back-relation to the (optional) Ratenplan
   // attached to this invoice. Null when no Ratenplan was
   // set up — the invoice is paid in one lump.
@@ -1408,6 +1420,65 @@ model RecurringRun {
   // (from a parallel cron tick) raises a P2002, which
   // the service catches and treats as "already ran".
   @@unique([recurringInvoiceId, periodStart])
+}
+
+/// Tier 64: Mahnungspause (reminder pause).
+///
+/// A pause excludes an invoice (or every invoice of a
+/// customer) from `ReminderService.findOverdueInvoices`
+/// for a defined window. Use cases:
+///   - Customer is on an InstallmentPlan (Ratenplan) —
+///     the schedule handles dunning; we shouldn't pile
+///     Mahnungen on top.
+///   - Customer disputed the invoice and an out-of-band
+///     resolution is in flight.
+///   - Berater knows the customer will pay next week
+///     and wants to skip this week's Mahnung.
+///
+/// Either `customerId` OR `invoiceId` is set (not
+/// both, not neither). The pause is active when
+/// `now` is in [pausedFrom, pausedUntil]. If
+/// `pausedUntil` is NULL, the pause is open-ended —
+/// the Berater must close it explicitly (DELETE
+/// or PATCH pausedUntil).
+///
+/// `cancelledAt` is the soft-cancel stamp. When the
+/// user "ends" a pause early, we set cancelledAt =
+/// now() and keep the row for audit (same pattern as
+/// Mahnung.cancelledAt — GoBD-relevant).
+///
+/// Index strategy: (companyId, customerId) and
+/// (companyId, invoiceId) so the reminder filter can
+/// do `WHERE customerId IN (...) AND active=true`
+/// in O(1) without a table scan.
+model Mahnungspause {
+  id           String   @id @default(uuid())
+  companyId    String
+  company      Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customerId   String?
+  customer     Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  invoiceId    String?
+  invoice      Invoice? @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  /// Free-text reason: "Ratenplan läuft bis 2026-12",
+  /// "Kunde bestreitet Forderung", "Manuell".
+  reason       String
+  /// Start of the pause (inclusive). Defaults to "now"
+  /// at create time. User can backdate if the dispute
+  /// started last week.
+  pausedFrom   DateTime
+  /// End of the pause (inclusive). NULL = open-ended.
+  pausedUntil  DateTime?
+  /// Soft-cancel stamp. When the user "ends" a pause
+  /// early, we set this and keep the row for audit.
+  cancelledAt  DateTime?
+  createdById  String?
+  createdBy    User?    @relation(fields: [createdById], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([companyId, customerId])
+  @@index([companyId, invoiceId])
+  @@index([companyId, cancelledAt])
 }
 
 /// Kassenbuch — German cash journal per §146 AO.

@@ -31,12 +31,13 @@ import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
 import { ErrorBanner } from "@/components/ui/error-banner"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
-import { apiGet, ApiError } from "@/lib/api"
+import { apiGet, apiFetch, ApiError } from "@/lib/api"
 
-type Tab = "invoices" | "plans" | "mahnungen" | "credit"
+type Tab = "invoices" | "plans" | "mahnungen" | "pauses" | "credit"
 
 interface CustomerSummary {
   customer: {
@@ -110,6 +111,23 @@ interface MahnungRow {
   cancelledAt: string | null
   createdAt: string
   invoice: { invoiceNumber: string; total: number }
+}
+
+// Tier 64: Mahnungspause row from /api/v1/mahnungspausen.
+// Either customerId (customer-level pause) or invoiceId
+// (single-invoice pause) is set; not both, not neither.
+interface MahnungspauseRow {
+  id: string
+  customerId: string | null
+  invoiceId: string | null
+  reason: string
+  pausedFrom: string
+  pausedUntil: string | null
+  cancelledAt: string | null
+  createdAt: string
+  customer?: { id: string; name: string; customerNumber?: string | null } | null
+  invoice?: { id: string; invoiceNumber: string; total: number | string; dueDate: string } | null
+  createdBy?: { id: string; email: string } | null
 }
 
 interface CreditLedgerRow {
@@ -192,6 +210,16 @@ export default function CustomerDetailPage() {
   const [plansLoading, setPlansLoading] = useState(false)
   const [mahnungen, setMahnungen] = useState<MahnungRow[] | null>(null)
   const [mahnungenLoading, setMahnungenLoading] = useState(false)
+  // Tier 64: Mahnungspause state for the "pauses" tab.
+  const [pauses, setPauses] = useState<MahnungspauseRow[] | null>(null)
+  const [pausesLoading, setPausesLoading] = useState(false)
+  const [showPauseModal, setShowPauseModal] = useState(false)
+  const [pauseSaving, setPauseSaving] = useState(false)
+  const [pauseError, setPauseError] = useState<string | null>(null)
+  const [pauseForm, setPauseForm] = useState({
+    reason: "",
+    pausedUntil: "",
+  })
   const [creditLedger, setCreditLedger] = useState<CreditLedgerRow[] | null>(null)
   const [creditLoading, setCreditLoading] = useState(false)
 
@@ -245,6 +273,18 @@ export default function CustomerDetailPage() {
         .then((d) => setMahnungen(d.mahnungen || []))
         .catch((err) => console.error("mahnungen load failed:", err))
         .finally(() => setMahnungenLoading(false))
+    }
+    // Tier 64: fetch the customer's Mahnungspausen
+    // (active + cancelled) when the tab is opened.
+    // Same lazy-fetch pattern as the other tabs.
+    if (tab === "pauses" && pauses === null && !pausesLoading) {
+      setPausesLoading(true)
+      apiGet<MahnungspauseRow[]>(
+        `/api/v1/mahnungspausen?companyId=${companyId}&customerId=${id}`,
+      )
+        .then((d) => setPauses(d))
+        .catch((err) => console.error("pauses load failed:", err))
+        .finally(() => setPausesLoading(false))
     }
     if (tab === "credit" && creditLedger === null && !creditLoading) {
       setCreditLoading(true)
@@ -507,6 +547,27 @@ export default function CustomerDetailPage() {
         </button>
         <button
           role="tab"
+          onClick={() => setTab("pauses")}
+          className={
+            "px-4 py-2 text-sm font-medium border-b-2 " +
+            (tab === "pauses"
+              ? "border-blue-600 text-blue-700"
+              : "border-transparent text-gray-500 hover:text-gray-700")
+          }
+          data-testid="tab-pauses"
+        >
+          ⏸ {t("customerDetail.tabPauses") || "Mahnungspausen"}
+          {pauses && pauses.filter((p) => !p.cancelledAt).length > 0 && (
+            <span
+              className="ml-1 text-xs px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800"
+              data-testid="tab-pauses-count"
+            >
+              {pauses.filter((p) => !p.cancelledAt).length}
+            </span>
+          )}
+        </button>
+        <button
+          role="tab"
           onClick={() => setTab("credit")}
           className={
             "px-4 py-2 text-sm font-medium border-b-2 " +
@@ -710,6 +771,277 @@ export default function CustomerDetailPage() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Tier 64: Mahnungspausen tab. Lists every
+          pause (active + cancelled) for this customer
+          with a "Pause hinzufügen" button to open
+          the create modal. Active pauses show in
+          amber, cancelled in muted gray. The modal
+          posts to /api/v1/mahnungspausen with
+          customerId=this customer's id; pausedUntil
+          is optional (NULL = open-ended). The list
+          reloads on success. */}
+      {tab === "pauses" && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-medium">
+                {t("customerDetail.pausesTitle") || "Mahnungspausen"}
+              </h3>
+              <Button
+                size="sm"
+                onClick={() => {
+                  setPauseError(null)
+                  setPauseForm({ reason: "", pausedUntil: "" })
+                  setShowPauseModal(true)
+                }}
+                data-testid="customer-pause-new-button"
+              >
+                + {t("customerDetail.pauseNew") || "Pause hinzufügen"}
+              </Button>
+            </div>
+            {pausesLoading && (
+              <p className="text-gray-500">{t("common.loading") || "Lädt..."}</p>
+            )}
+            {pauses && pauses.length === 0 && (
+              <p
+                className="text-center text-gray-500 py-8"
+                data-testid="customer-pauses-empty"
+              >
+                {t("customerDetail.pausesEmpty") ||
+                  "Keine Mahnungspausen für diesen Kunden."}
+              </p>
+            )}
+            {pauses && pauses.length > 0 && (
+              <div className="space-y-2" data-testid="customer-pauses-list">
+                {pauses.map((p) => {
+                  const isActive = !p.cancelledAt
+                  const isOpenEnded = !p.pausedUntil
+                  const fromShort = p.pausedFrom.slice(0, 10)
+                  const untilShort = isOpenEnded
+                    ? "∞"
+                    : p.pausedUntil!.slice(0, 10)
+                  return (
+                    <div
+                      key={p.id}
+                      data-testid="customer-pause-row"
+                      data-pause-active={isActive ? "true" : "false"}
+                      className={`p-3 rounded border ${
+                        isActive
+                          ? "border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30"
+                          : "border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900 opacity-70"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1">
+                          <p className="text-sm font-medium">
+                            {p.reason}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {fromShort} → {untilShort}
+                            {isOpenEnded && (
+                              <span className="ml-2 italic">
+                                {t("customerDetail.pauseOpenEnded") ||
+                                  "(unbefristet)"}
+                              </span>
+                            )}
+                            {p.cancelledAt && (
+                              <span className="ml-2 text-red-600">
+                                {t("customerDetail.pauseCancelled") ||
+                                  "(beendet)"}
+                              </span>
+                            )}
+                          </p>
+                          {p.createdBy && (
+                            <p className="text-xs text-gray-400 mt-1">
+                              {t("customerDetail.pauseCreatedBy") ||
+                                "Erstellt von"}{" "}
+                              {p.createdBy.email}
+                            </p>
+                          )}
+                        </div>
+                        {isActive && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={async () => {
+                              try {
+                                await apiFetch(
+                                  `/api/v1/mahnungspausen/${p.id}?companyId=${companyId}`,
+                                  { method: "DELETE" },
+                                )
+                                // Reload list
+                                setPauses(null)
+                                setPausesLoading(true)
+                                const d = await apiGet<MahnungspauseRow[]>(
+                                  `/api/v1/mahnungspausen?companyId=${companyId}&customerId=${id}`,
+                                )
+                                setPauses(d)
+                              } catch (e) {
+                                console.error("pause cancel failed:", e)
+                              } finally {
+                                setPausesLoading(false)
+                              }
+                            }}
+                            data-testid="customer-pause-cancel-button"
+                            className="text-red-600 dark:text-red-400 border-red-300 dark:border-red-700"
+                          >
+                            {t("customerDetail.pauseCancel") ||
+                              "Beenden"}
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+            {showPauseModal && (
+              <div
+                className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+                data-testid="customer-pause-modal"
+                onClick={() => setShowPauseModal(false)}
+              >
+                <div
+                  className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <h3 className="text-lg font-medium mb-3">
+                    {t("customerDetail.pauseModalTitle") ||
+                      "Mahnungspause hinzufügen"}
+                  </h3>
+                  <p className="text-xs text-gray-500 mb-4">
+                    {t("customerDetail.pauseModalSubtitle") ||
+                      "Diese Pause gilt für alle Rechnungen des Kunden. Über die Rechnungs-Detailseite kann auch eine einzelne Rechnung pausiert werden."}
+                  </p>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm font-medium mb-1">
+                        {t("customerDetail.pauseReason") || "Grund"} *
+                      </label>
+                      <Input
+                        value={pauseForm.reason}
+                        onChange={(e) =>
+                          setPauseForm({ ...pauseForm, reason: e.target.value })
+                        }
+                        placeholder={
+                          t("customerDetail.pauseReasonPlaceholder") ||
+                          "z.B. Ratenplan aktiv"
+                        }
+                        data-testid="customer-pause-reason-input"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">
+                        {t("customerDetail.pauseUntil") ||
+                          "Bis (optional, leer = unbefristet)"}
+                      </label>
+                      <Input
+                        type="date"
+                        value={pauseForm.pausedUntil}
+                        onChange={(e) =>
+                          setPauseForm({
+                            ...pauseForm,
+                            pausedUntil: e.target.value,
+                          })
+                        }
+                        data-testid="customer-pause-until-input"
+                      />
+                    </div>
+                    {pauseError && (
+                      <p
+                        className="text-sm text-red-600"
+                        data-testid="customer-pause-error"
+                      >
+                        {pauseError}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex gap-2 justify-end mt-5">
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowPauseModal(false)}
+                      disabled={pauseSaving}
+                    >
+                      {t("common.cancel") || "Abbrechen"}
+                    </Button>
+                    <Button
+                      onClick={async () => {
+                        if (!pauseForm.reason.trim()) {
+                          setPauseError(
+                            t("customerDetail.pauseReasonRequired") ||
+                              "Grund ist erforderlich",
+                          )
+                          return
+                        }
+                        setPauseSaving(true)
+                        setPauseError(null)
+                        try {
+                          // Use apiFetch here so the 400
+                          // response from the backend
+                          // (validation error) doesn't
+                          // throw — we want to show the
+                          // server's message inline.
+                          // apiFetch prepends API_BASE so
+                          // the URL hits the backend
+                          // directly (the Next.js dev
+                          // server has no rewrite for
+                          // /api/v1/mahnungspausen).
+                          const res = await apiFetch(
+                            `/api/v1/mahnungspausen?companyId=${companyId}`,
+                            {
+                              method: "POST",
+                              throwOnError: false,
+                              body: {
+                                customerId: id,
+                                reason: pauseForm.reason,
+                                pausedUntil: pauseForm.pausedUntil
+                                  ? new Date(
+                                      pauseForm.pausedUntil,
+                                    ).toISOString()
+                                  : null,
+                              },
+                            },
+                          )
+                          if (!res.ok) {
+                            const err = await res.json().catch(() => ({}))
+                            throw new Error(
+                              err.message ||
+                                `HTTP ${res.status}`,
+                            )
+                          }
+                          setShowPauseModal(false)
+                          // Reload the list
+                          setPauses(null)
+                          setPausesLoading(true)
+                          const d = await apiGet<MahnungspauseRow[]>(
+                            `/api/v1/mahnungspausen?companyId=${companyId}&customerId=${id}`,
+                          )
+                          setPauses(d)
+                        } catch (e: any) {
+                          setPauseError(
+                            e?.message ||
+                              t("common.error") ||
+                              "Fehler",
+                          )
+                        } finally {
+                          setPauseSaving(false)
+                        }
+                      }}
+                      disabled={pauseSaving}
+                      data-testid="customer-pause-submit"
+                    >
+                      {pauseSaving
+                        ? t("common.saving") || "Speichern..."
+                        : t("customerDetail.pauseAdd") || "Pause anlegen"}
+                    </Button>
+                  </div>
+                </div>
               </div>
             )}
           </CardContent>

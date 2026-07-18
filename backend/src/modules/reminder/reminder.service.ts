@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { MahnungspauseService } from './mahnungspause.service';
 
 export interface OverdueInvoice {
   id: string;
@@ -47,7 +48,15 @@ export interface ReminderTemplate {
 
 @Injectable()
 export class ReminderService {
-  constructor(protected prisma: PrismaService) {}
+  constructor(
+    protected prisma: PrismaService,
+    // Tier 64: Mahnungspause filter. findOverdueInvoices
+    // calls this to drop paused customers / invoices
+    // BEFORE the Skonto filter so the final list is
+    // a strict subset of "overdue AND not in Skonto
+    // window AND not paused".
+    protected pauseService: MahnungspauseService,
+  ) {}
 
   /**
    * Update a reminder template row directly. Used by the
@@ -153,7 +162,42 @@ export class ReminderService {
       orderBy: { dueDate: 'asc' },
     });
 
-    return invoices
+    // Tier 64: drop invoices that are currently
+    // covered by an active Mahnungspause. We pull
+    // the active pauses for the candidate customers
+    // in one round trip (Set lookups for the per-row
+    // filter), so the cost is O(N+M) where N is the
+    // candidate invoice count and M is the active-
+    // pause count for the company. For SH Leder's
+    // typical workload (a few dozen overdue invoices,
+    // 0-2 active pauses) this is a no-op.
+    const candidateCustomerIds = Array.from(
+      new Set(invoices.map((inv) => inv.customer.id)),
+    )
+    // Use the ACTUAL current time for the pause filter
+    // (not `today` which is midnight Berlin time). The
+    // pause's pausedFrom can be set to UTC midnight (e.g.
+    // "2026-07-18") which is 2026-07-18T00:00:00Z; in
+    // Berlin (CEST = UTC+2) that's 02:00 local. If the
+    // Berater creates a pause at 09:00 Berlin time on
+    // 2026-07-18, `today` (= 2026-07-18T00:00:00 Berlin =
+    // 2026-07-17T22:00:00Z) is BEFORE pausedFrom, so the
+    // filter "pausedFrom <= now" returns 0 rows. The fix
+    // is to pass `new Date()` (= 2026-07-18T09:00 Berlin
+    // = 2026-07-18T07:00:00Z) which is AFTER pausedFrom.
+    const { pausedCustomerIds, pausedInvoiceIds } =
+      await this.pauseService.getActivePausesForCustomers(
+        companyId,
+        candidateCustomerIds,
+        new Date(),
+      )
+    const filteredByPause = invoices.filter((inv) => {
+      if (pausedInvoiceIds.has(inv.id)) return false
+      if (pausedCustomerIds.has(inv.customer.id)) return false
+      return true
+    })
+
+    return filteredByPause
       // Tier 57: filter out invoices still in the
       // Skonto window. For each invoice with
       // skontoDays > 0, check if today <= issueDate
@@ -206,6 +250,14 @@ export class ReminderService {
         id: inv.id,
         invoiceNumber: inv.invoiceNumber,
         customer: {
+          // Tier 64: include `id` so the caller (the
+          // Mahnungspause filter in this same method)
+          // can match against the customerId of an
+          // active pause. The original response didn't
+          // carry the id because no consumer needed it;
+          // the tier 64 filter uses inv.customer.id
+          // directly (line ~177).
+          id: inv.customer.id,
           name: inv.customer.name,
           contact: inv.customer.contact as any,
           address: inv.customer.address as any,

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { useI18n } from "@/components/useI18n"
-import { apiGet, apiPost, apiPut, apiDelete, ApiError } from "@/lib/api"
+import { apiGet, apiPost, apiPut, apiDelete, apiFetch, ApiError } from "@/lib/api"
 import { substitute } from "@/lib/substitute"
 
 interface InvoiceItem {
@@ -457,6 +457,26 @@ export default function InvoiceDetailPage() {
   // into a fresh page-load.
   const [converting, setConverting] = useState(false)
   const [convertError, setConvertError] = useState<string | null>(null)
+
+  // Tier 64: per-invoice Mahnungspause. Shown only
+  // when the invoice is overdue (status='sent' or
+  // 'overdue' + past dueDate). The button opens a
+  // tiny modal asking for reason + pausedUntil.
+  // We don't pre-check the existing active pause
+  // here — clicking the button when a pause is
+  // already active is a 400 from the backend
+  // (which the modal surfaces inline).
+  const [showInvoicePauseModal, setShowInvoicePauseModal] =
+    useState(false)
+  const [invoicePauseSaving, setInvoicePauseSaving] = useState(false)
+  const [invoicePauseError, setInvoicePauseError] = useState<
+    string | null
+  >(null)
+  const [invoicePauseForm, setInvoicePauseForm] = useState({
+    reason: "",
+    pausedUntil: "",
+  })
+
   const convertToRecurring = async () => {
     if (!invoice) return
     setConvertError(null)
@@ -1073,6 +1093,33 @@ export default function InvoiceDetailPage() {
                       : t("invoice.makeRecurring") || "Wiederkehrend"}
                   </Button>
                 )}
+              {/* Tier 64: "Mahnung pausieren" button.
+                  Shown only on sent / overdue invoices
+                  (not drafts, not cancelled, not credit
+                  notes). Opens a modal that POSTs
+                  /api/v1/mahnungspausen with this
+                  invoice's id. The pause is per-invoice;
+                  a customer-level pause can be set from
+                  the customer detail page. */}
+              {(invoice.status === "sent" || invoice.status === "overdue") && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  data-testid="pause-invoice-button"
+                  onClick={() => {
+                    setInvoicePauseError(null)
+                    setInvoicePauseForm({ reason: "", pausedUntil: "" })
+                    setShowInvoicePauseModal(true)
+                  }}
+                  className="border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300"
+                  title={
+                    t("invoice.pauseInvoiceTitle") ||
+                    "Mahnung für diese Rechnung pausieren"
+                  }
+                >
+                  ⏸ {t("invoice.pauseInvoice") || "Mahnung pausieren"}
+                </Button>
+              )}
               {convertError && (
                 <span
                   className="text-sm text-red-600 dark:text-red-400"
@@ -1926,6 +1973,151 @@ export default function InvoiceDetailPage() {
                 {cnSaving
                   ? "…"
                   : t("invoice.creditNote") || "Gutschrift erstellen"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tier 64: invoice-level Mahnungspause modal.
+          Posts to /api/v1/mahnungspausen with this
+          invoice's id. pausedUntil is optional
+          (NULL = open-ended). On success we refresh
+          the invoice fetch so the "Mahnung pausieren"
+          button hides (the paused status is reflected
+          by the fact the invoice no longer shows up
+          in /reminders/overdue). */}
+      {showInvoicePauseModal && (
+        <div
+          className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+          data-testid="invoice-pause-modal"
+          onClick={() => setShowInvoicePauseModal(false)}
+        >
+          <div
+            className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-medium mb-3">
+              {t("invoice.pauseInvoiceModalTitle") ||
+                "Mahnung für diese Rechnung pausieren"}
+            </h3>
+            <p className="text-xs text-gray-500 mb-4">
+              {t("invoice.pauseInvoiceModalSubtitle") ||
+                "Die Rechnung wird aus der Mahnliste ausgeblendet, bis die Pause endet. Andere Rechnungen des Kunden sind davon nicht betroffen."}
+            </p>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  {t("invoice.pauseReason") || "Grund"} *
+                </label>
+                <Input
+                  value={invoicePauseForm.reason}
+                  onChange={(e) =>
+                    setInvoicePauseForm({
+                      ...invoicePauseForm,
+                      reason: e.target.value,
+                    })
+                  }
+                  placeholder={
+                    t("invoice.pauseReasonPlaceholder") ||
+                    "z.B. Forderung bestritten"
+                  }
+                  data-testid="invoice-pause-reason-input"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  {t("invoice.pauseUntil") ||
+                    "Bis (optional, leer = unbefristet)"}
+                </label>
+                <Input
+                  type="date"
+                  value={invoicePauseForm.pausedUntil}
+                  onChange={(e) =>
+                    setInvoicePauseForm({
+                      ...invoicePauseForm,
+                      pausedUntil: e.target.value,
+                    })
+                  }
+                  data-testid="invoice-pause-until-input"
+                />
+              </div>
+              {invoicePauseError && (
+                <p
+                  className="text-sm text-red-600"
+                  data-testid="invoice-pause-error"
+                >
+                  {invoicePauseError}
+                </p>
+              )}
+            </div>
+            <div className="flex gap-2 justify-end mt-5">
+              <Button
+                variant="outline"
+                onClick={() => setShowInvoicePauseModal(false)}
+                disabled={invoicePauseSaving}
+              >
+                {t("common.cancel") || "Abbrechen"}
+              </Button>
+              <Button
+                onClick={async () => {
+                  if (!invoicePauseForm.reason.trim()) {
+                    setInvoicePauseError(
+                      t("invoice.pauseReasonRequired") ||
+                        "Grund ist erforderlich",
+                    )
+                    return
+                  }
+                  setInvoicePauseSaving(true)
+                  setInvoicePauseError(null)
+                  try {
+                    // Use apiFetch (with throwOnError:
+                    // false) so the 400 response from
+                    // the backend (validation error)
+                    // doesn't throw — we want to show
+                    // the server's message inline.
+                    // apiFetch prepends API_BASE so
+                    // the URL hits the backend
+                    // directly (the Next.js dev
+                    // server has no rewrite for
+                    // /api/v1/mahnungspausen).
+                    const res = await apiFetch(
+                      `/api/v1/mahnungspausen?companyId=${localStorage.getItem("companyId") || ""}`,
+                      {
+                        method: "POST",
+                        throwOnError: false,
+                        body: {
+                          invoiceId: invoice.id,
+                          reason: invoicePauseForm.reason,
+                          pausedUntil: invoicePauseForm.pausedUntil
+                            ? new Date(
+                                invoicePauseForm.pausedUntil,
+                              ).toISOString()
+                            : null,
+                        },
+                      },
+                    )
+                    if (!res.ok) {
+                      const err = await res.json().catch(() => ({}))
+                      throw new Error(
+                        err.message || `HTTP ${res.status}`,
+                      )
+                    }
+                    setShowInvoicePauseModal(false)
+                  } catch (e: any) {
+                    setInvoicePauseError(
+                      e?.message || "Fehler",
+                    )
+                  } finally {
+                    setInvoicePauseSaving(false)
+                  }
+                }}
+                disabled={invoicePauseSaving}
+                data-testid="invoice-pause-submit"
+              >
+                {invoicePauseSaving
+                  ? "..."
+                  : t("invoice.pauseAdd") || "Pause anlegen"}
               </Button>
             </div>
           </div>
