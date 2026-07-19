@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import MandantSwitcher from "@/components/MandantSwitcher"
+import { ReadOnlyToggle, ReadOnlyBanner } from "@/components/ReadOnlyBanner"
 import { RevenueChart } from "@/components/RevenueChart"
 import { ThemeToggle } from "@/components/ThemeToggle"
 import { useI18n } from "@/components/useI18n"
@@ -164,6 +165,7 @@ export default function DashboardPage() {
 
   return (
     <main className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <ReadOnlyBanner />
       <header className="bg-white dark:bg-gray-800 border-b shadow-sm">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -174,6 +176,7 @@ export default function DashboardPage() {
           </div>
           <div className="flex items-center gap-4">
             <MandantSwitcher />
+            <ReadOnlyToggle />
             <LanguageSwitcher />
             <ThemeToggle />
             <Button variant="outline" onClick={() => {

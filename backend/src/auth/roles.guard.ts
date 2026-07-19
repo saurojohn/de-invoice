@@ -31,6 +31,50 @@ export class RolesGuard implements CanActivate {
     if (!UsersService.can(role, action as any)) {
       throw new ForbiddenException(`Unzureichende Berechtigung: ${action}`)
     }
+    // Tier 71: Read-Only Modus check.
+    //
+    // If the request is tagged as read-only (the
+    // HeaderAuthGuard reads `x-readonly: 1`) and
+    // the action is a *write* action (anything
+    // not in the read-only allowlist), we 403.
+    //
+    // The allowlist is the canonical list of
+    // action codes that DO NOT mutate state. Any
+    // new "read" action must be added here, or
+    // it will be 403'd in read-only mode.
+    //
+    // This is defence in depth: the UI also
+    // hides / disables mutation buttons, but
+    // a Steuerberater with the role "berater"
+    // can still send a POST from a curl. The
+    // guard is the authoritative check.
+    if (req.user?.readonly) {
+      // Read actions are allowed. Anything else
+      // (create / update / delete / send / submit)
+      // is a write and is blocked.
+      //
+      // The list mirrors the *.read actions
+      // defined in UsersService.PERMISSIONS —
+      // we keep it short and explicit so a new
+      // permission added later is BLOCKED in
+      // read-only mode until someone explicitly
+      // adds it here. Fail-safe > fail-open.
+      const READONLY_ALLOW = new Set<string>([
+        'users.read',
+        'invoice.read',
+        'customer.read',
+        'product.read',
+        'accounting.read',
+        'reports.read',
+        'ustva.read',
+        'audit.read',
+      ])
+      if (!READONLY_ALLOW.has(action)) {
+        throw new ForbiddenException(
+          `Read-Only Modus aktiv — Schreibvorgang "${action}" ist gesperrt`,
+        )
+      }
+    }
     return true
   }
 }

@@ -28,9 +28,16 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
 
 function authHeaders(): Record<string, string> {
   if (typeof window === "undefined") return {}
+  // Tier 71: read the "x-readonly" flag from
+  // localStorage. When set, every API request
+  // is tagged with x-readonly: 1, and the
+  // backend rejects all mutations (the
+  // Steuerberater-Modus). Default off.
+  const readonly = localStorage.getItem("readonly") === "1"
   return {
     "x-user-id": localStorage.getItem("userId") || "",
     "x-company-id": localStorage.getItem("companyId") || "",
+    ...(readonly ? { "x-readonly": "1" } : {}),
   }
 }
 

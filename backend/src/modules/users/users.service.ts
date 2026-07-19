@@ -15,11 +15,21 @@ export const ROLES = {
   ADMIN: 'admin',
   ACCOUNTANT: 'accountant',
   VIEWER: 'viewer',
+  // Tier 71: Berater (Steuerberater) — same
+  // permissions as ACCOUNTANT but the UI shows a
+  // "Read-Only Modus" banner and a one-click
+  // toggle. The role is preserved in audit
+  // trails so the Steuerberater's actions are
+  // traceable as such. Permission matrix
+  // doesn't differ from ACCOUNTANT — the
+  // read-only behaviour is a UI / x-readonly
+  // header concern, not a permission level.
+  BERATER: 'berater',
 } as const;
 
 export type Role = (typeof ROLES)[keyof typeof ROLES];
 
-const VALID_ROLES = new Set<string>([ROLES.ADMIN, ROLES.ACCOUNTANT, ROLES.VIEWER]);
+const VALID_ROLES = new Set<string>([ROLES.ADMIN, ROLES.ACCOUNTANT, ROLES.VIEWER, ROLES.BERATER]);
 
 /**
  * Permission matrix — keep this in sync with the frontend.
@@ -87,8 +97,14 @@ export class UsersService {
     if (!role) return false;
     const required = PERMISSIONS[action];
     if (!required) return false;
+    // Tier 71: 'berater' is treated as 'accountant'
+    // for the permission rank. The role distinction
+    // is preserved in audit trails + the UI, but
+    // the read-only behaviour is a UI concern, not
+    // a permission level.
+    const effective = role === 'berater' ? 'accountant' : role
     const rank = { viewer: 0, accountant: 1, admin: 2 } as Record<string, number>;
-    return (rank[role] ?? -1) >= (rank[required] ?? 99);
+    return (rank[effective] ?? -1) >= (rank[required] ?? 99);
   }
 
   /**

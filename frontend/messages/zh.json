@@ -1988,5 +1988,15 @@
     "groupCustomers": "客户",
     "groupInvoices": "发票",
     "groupProducts": "产品"
+  },
+  "readonly": {
+    "title": "只读模式",
+    "active": "只读模式已启用",
+    "activeDesc": "所有写入操作已禁用。只读查看是安全的。",
+    "deactivate": "停用",
+    "activate": "编辑模式",
+    "bannerOn": "只读",
+    "bannerOff": "编辑",
+    "writeBlocked": "只读模式已启用 — 写入被阻止"
   }
 }

@@ -1988,5 +1988,15 @@
     "groupCustomers": "Customers",
     "groupInvoices": "Invoices",
     "groupProducts": "Products"
+  },
+  "readonly": {
+    "title": "Read-Only Mode",
+    "active": "Read-Only Mode active",
+    "activeDesc": "all write operations are blocked. Read-only viewing is safe.",
+    "deactivate": "Deactivate",
+    "activate": "Edit Mode",
+    "bannerOn": "Read-Only",
+    "bannerOff": "Edit",
+    "writeBlocked": "Read-Only Mode active — write blocked"
   }
 }

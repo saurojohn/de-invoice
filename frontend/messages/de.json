@@ -1988,5 +1988,15 @@
     "groupCustomers": "Kunden",
     "groupInvoices": "Rechnungen",
     "groupProducts": "Produkte"
+  },
+  "readonly": {
+    "title": "Read-Only Modus",
+    "active": "Read-Only Modus aktiv",
+    "activeDesc": "alle Schreibvorgänge sind gesperrt. Schreibgeschützt anzeigen ist sicher.",
+    "deactivate": "Deaktivieren",
+    "activate": "Edit-Modus",
+    "bannerOn": "Read-Only",
+    "bannerOff": "Edit",
+    "writeBlocked": "Read-Only Modus aktiv — Schreibvorgang gesperrt"
   }
 }

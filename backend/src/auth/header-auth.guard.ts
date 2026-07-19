@@ -73,7 +73,20 @@ export class HeaderAuthGuard implements CanActivate {
     // `@Require('xxx')` permission checks downstream
     // use req.user.role — which now reflects the
     // per-company role, not the global User.role.
-    req.user = { ...user, role: access.role }
+    //
+    // Tier 71: also read the `x-readonly` header.
+    // When set to "1" / "true", the request is
+    // tagged as read-only and every mutation
+    // endpoint returns 403. The Steuerberater
+    // (or anyone) flips this on via a UI toggle
+    // to safely review a Mandant without risking
+    // an accidental write. The flag is per-request
+    // — there's no persistent server-side state.
+    const readonlyHeader = String(
+      req.headers['x-readonly'] || '',
+    ).toLowerCase()
+    const readonly = readonlyHeader === '1' || readonlyHeader === 'true'
+    req.user = { ...user, role: access.role, readonly }
     return true
   }
 }
