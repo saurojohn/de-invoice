@@ -34,25 +34,34 @@ export default defineConfig({
   testDir: "./e2e",
   fullyParallel: false, // single-user fixture; running in parallel would race
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 1 : 0,
+  // Tier 70: 1 retry in BOTH CI and local.
+  // Reason: the dev server cold-compiles routes
+  // on first hit (~10-15s for heavy pages), and
+  // the global 600/60s throttler can 429 a
+  // background fetch on a tight test burst.
+  // A single retry absorbs both without making
+  // the suite "always pass" — real failures
+  // still fail twice.
+  retries: 1,
   workers: 1,
   reporter: process.env.CI ? "list" : "list",
-  // The dev server cold-compiles routes on first
-  // hit (~10-15s for /dashboard/expenses with the
-  // OCR modal), and a multi-test run can take
-  // 60s+ per test as the Next.js dev server warms
-  // up. Bump the per-test timeout so tests don't
-  // get cut off mid-cold-compile.
-  timeout: 90_000,
+  // Tier 70: per-test timeout bumped to 120s.
+  // A cold compile of the OCR upload page can
+  // take 60-90s the very first time a test hits
+  // it; combined with the throttler 429 + retry
+  // the worst-case test is ~100s.
+  timeout: 120_000,
   use: {
     baseURL: "http://localhost:3100",
     trace: "on-first-retry",
-    // The Tier 12 EmptyState + ErrorBanner
-    // animations take ~200ms. Wait a
-    // bit longer than the default to
-    // catch them mid-transition.
-    actionTimeout: 10_000,
-    navigationTimeout: 20_000,
+    // Tier 70: action timeout 15s, navigation 30s.
+    // A cold-compile of /dashboard/expenses takes
+    // ~12s the first time. The old 10/20 was right
+    // on the edge — adding 50% headroom drops the
+    // flake count significantly without slowing
+    // the happy path meaningfully.
+    actionTimeout: 15_000,
+    navigationTimeout: 30_000,
     // Don't load images by default — the
     // dashboard uses inline SVGs.
     // setOffline to true would skip
@@ -64,6 +73,16 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"] },
     },
   ],
+  // Tier 70: globalSetup that warms up the dev
+  // servers before any test runs. The first test
+  // to hit /dashboard/expenses (or any heavy
+  // page) triggers a 10-15s cold compile; if we
+  // pre-warm those routes here, the first real
+  // test doesn't pay the cost. Best-effort:
+  // if any request fails we log and continue —
+  // the per-test retry will absorb the cold
+  // compile in the worst case.
+  globalSetup: "./e2e/global-setup.ts",
   // Don't start the webServer — the dev
   // backend + frontend are expected to
   // already be running (matches the e2e
