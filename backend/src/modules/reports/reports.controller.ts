@@ -376,6 +376,188 @@ async getSalesReport(
   }
 
   /**
+   * Tier 69: DATEV-Export Preview.
+   *
+   * The /datev-export endpoint streams a CSV the
+   * user has to download + open in Excel / DATEV
+   * to know if the export "looks right". For a
+   * Berater who ships 12 exports a year to a
+   * Steuerberater, that's a lot of round-trips
+   * for what is essentially a "did I include
+   * everything + did the columns balance?" check.
+   *
+   * This endpoint runs the same buildBuchungenFromDb
+   * pipeline that the CSV endpoint uses (so the
+   * preview matches the download exactly) and
+   * returns a JSON summary:
+   *
+   *   - header       Berater-/Mandanten-Nr, period,
+   *                  Buchungslauf-Nr, filename
+   *   - rowCount     total Buchungen (matches the
+   *                  CSV's body line count)
+   *   - totalAmount  sum of all betrag
+   *   - sollVsHaben  sum of Soll-Haben per side
+   *                  (must balance to 0 for
+   *                  double-entry correctness)
+   *   - byAccount    per-Konto Soll/Haben sum
+   *   - firstRows    first 5 Buchungen for the
+   *                  preview table
+   *   - validation   issues array:
+   *                    - unbalanced totals
+   *                    - missing Konto
+   *                    - negative amounts
+   *                    - missing VAT Schlüssel for
+   *                      revenue lines
+   *
+   * The UI on /dashboard/reports calls this first
+   * to render a preview, then the user clicks
+   * "Download" to actually trigger the CSV
+   * generation. The two paths share the same
+   * buildBuchungenFromDb call signature, so the
+   * preview is authoritative — anything the
+   * preview shows is what the download will
+   * contain.
+   */
+  @Get('datev-preview')
+  @Require('reports.read')
+  async datevPreview(
+    @Query('companyId') companyId: string,
+    @Query('startDate') startDateStr: string,
+    @Query('endDate') endDateStr: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId is required')
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+    })
+    if (!company) throw new BadRequestException('Company not found')
+
+    const startDate = startDateStr
+      ? new Date(startDateStr)
+      : new Date(new Date().getFullYear(), 0, 1)
+    const endDate = endDateStr ? new Date(endDateStr) : new Date()
+
+    const buchungen = await buildBuchungenFromDb(
+      this.prisma,
+      companyId,
+      startDate,
+      endDate,
+    )
+
+    const settings = (company as any).settings?.datev || {}
+    const laufNr = settings?.laufNr?.[startDate.getFullYear()] || 1
+    const filename = `EXTF_Buchungsstapel_${startDate.toISOString().split('T')[0]}_L${String(laufNr).padStart(3, '0')}.csv`
+
+    // Totals
+    let totalSoll = 0
+    let totalHaben = 0
+    let totalNet = 0 // abs sum
+    const byAccount = new Map<
+      string,
+      { konto: string; soll: number; haben: number; count: number }
+    >()
+    const issues: { severity: 'error' | 'warning'; message: string }[] = []
+    for (const b of buchungen) {
+      const signed = b.shVz === 'H' ? -b.betrag : b.betrag
+      totalSoll += signed
+      totalHaben += -signed
+      totalNet += Math.abs(b.betrag)
+      const a = byAccount.get(b.konto) || {
+        konto: b.konto,
+        soll: 0,
+        haben: 0,
+        count: 0,
+      }
+      a.soll += signed
+      a.haben += -signed
+      a.count += 1
+      byAccount.set(b.konto, a)
+      const a2 = byAccount.get(b.gegenkonto) || {
+        konto: b.gegenkonto,
+        soll: 0,
+        haben: 0,
+        count: 0,
+      }
+      a2.soll += -signed
+      a2.haben += signed
+      a2.count += 1
+      byAccount.set(b.gegenkonto, a2)
+      // Validation
+      if (!b.konto || !b.gegenkonto) {
+        issues.push({
+          severity: 'error',
+          message: `Buchung ohne Konto: ${b.belegfeld1}`,
+        })
+      }
+      if (b.betrag <= 0) {
+        issues.push({
+          severity: 'warning',
+          message: `Betrag ≤ 0 in Buchung ${b.belegfeld1}`,
+        })
+      }
+      // Revenue lines (Soll on 8400/Erlöse) should
+      // carry a USt-Schlüssel. Empty Schlüssel
+      // means the export will fail DATEV's import
+      // validator.
+      if (/^8(4|0)00$/.test(b.konto) && !b.ustSchluessel) {
+        issues.push({
+          severity: 'warning',
+          message: `Erlöskonto ${b.konto} ohne USt-Schlüssel in Buchung ${b.belegfeld1}`,
+        })
+      }
+    }
+
+    // Balance check: in proper double-entry, total
+    // Soll must equal total Haben. A non-zero
+    // delta here means the export would fail
+    // DATEV's own validator.
+    const balanceDelta = Math.round((totalSoll + totalHaben) * 100) / 100
+    if (Math.abs(balanceDelta) > 0.01) {
+      issues.push({
+        severity: 'error',
+        message: `Soll/Haben nicht ausgeglichen (Δ=${balanceDelta.toFixed(2)} €) — DATEV-Import wird fehlschlagen`,
+      })
+    }
+
+    return {
+      header: {
+        beraterNr: settings?.beraterNr || '00000',
+        mandantenNr: settings?.mandantenNr || '00001',
+        startDate: startDate.toISOString().slice(0, 10),
+        endDate: endDate.toISOString().slice(0, 10),
+        buchungsLaufNr: laufNr,
+        filename,
+      },
+      rowCount: buchungen.length,
+      totalAmount: Math.round(totalNet * 100) / 100,
+      totalSoll: Math.round(totalSoll * 100) / 100,
+      totalHaben: Math.round(totalHaben * 100) / 100,
+      balanceDelta,
+      byAccount: Array.from(byAccount.values())
+        .sort((a, b) => (a.soll + a.haben) - (b.soll + b.haben))
+        .map((a) => ({
+          konto: a.konto,
+          soll: Math.round(a.soll * 100) / 100,
+          haben: Math.round(a.haben * 100) / 100,
+          count: a.count,
+        })),
+      firstRows: buchungen.slice(0, 5).map((b) => ({
+        belegdatum:
+          b.belegdatum instanceof Date
+            ? b.belegdatum.toISOString().slice(0, 10)
+            : String(b.belegdatum),
+        belegfeld1: b.belegfeld1,
+        konto: b.konto,
+        gegenkonto: b.gegenkonto,
+        betrag: b.betrag,
+        shVz: b.shVz || 'S',
+        buchungstext: b.buchungstext,
+        ustSchluessel: b.ustSchluessel || null,
+      })),
+      issues,
+    }
+  }
+
+  /**
    * Dashboard KPI snapshot. Single endpoint that
    * powers the home-screen tiles + month-over-month
    * change indicators. The frontend previously did

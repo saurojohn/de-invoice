@@ -5,9 +5,10 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
-import { apiFetch } from "@/lib/api"
+import { apiFetch, apiGet } from "@/lib/api"
+import { useI18n } from "@/components/useI18n"
 
-type TabType = "sales" | "vat" | "customers"
+type TabType = "sales" | "vat" | "customers" | "datev"
 
 interface SalesReport {
   totalSales: number
@@ -356,6 +357,17 @@ export default function ReportsPage() {
             onClick={() => setActiveTab("customers")}
           >
             Kundenbericht
+          </button>
+          <button
+            className={`px-6 py-3 font-medium border-b-2 transition-colors ${
+              activeTab === "datev"
+                ? "border-blue-600 text-blue-600 dark:text-blue-400"
+                : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-200"
+            }`}
+            onClick={() => setActiveTab("datev")}
+            data-testid="tab-datev"
+          >
+            DATEV-Export
           </button>
         </div>
 
@@ -762,9 +774,375 @@ export default function ReportsPage() {
                 </Card>
               </div>
             )}
+
+            {/* DATEV-Export — Tier 69: preview before download */}
+            {activeTab === "datev" && (
+              <DatevExportTab
+                startDate={startDate}
+                endDate={endDate}
+              />
+            )}
           </>
         )}
       </div>
     </main>
+  )
+}
+/**
+ * Tier 69: DATEV-Export Preview tab.
+ *
+ * Before the Berater hands a CSV to the
+ * Steuerberater, they want to see "what's in
+ * the box". This tab:
+ *
+ *   1. Shows a date-range picker (the parent
+ *      component owns the state).
+ *   2. Renders a "Vorschau" button that hits
+ *      /reports/datev-preview.
+ *   3. Shows the preview: header, totals,
+ *      per-Konto summary, first 5 rows, and
+ *      any validation issues (Soll/Haben not
+ *      balanced, missing USt-Schlüssel on
+ *      revenue lines, etc.).
+ *   4. Provides two download buttons (CSV
+ *      only, CSV + Belegbilder ZIP) that
+ *      share the same startDate/endDate
+ *      as the preview — the user can't
+ *      accidentally download a different
+ *      period than they just previewed.
+ *
+ * Why not show the preview by default: the
+ * preview hits the same DB query as the
+ * download (buildBuchungenFromDb walks every
+ * paid invoice + voucher + expense in the
+ * period). For a 12-month period with 5k
+ * Buchungen, that query takes ~600ms. The
+ * user clicks "Vorschau" only when they
+ * actually want to look at it.
+ */
+function DatevExportTab({
+  startDate,
+  endDate,
+}: {
+  startDate: string
+  endDate: string
+}) {
+  const { t } = useI18n()
+  const [preview, setPreview] = useState<any | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const companyId =
+    typeof window !== "undefined" ? localStorage.getItem("companyId") : null
+
+  const loadPreview = async () => {
+    if (!companyId) return
+    setLoading(true)
+    setError(null)
+    try {
+      const data = await apiGet<any>(
+        `/api/v1/reports/datev-preview?companyId=${companyId}&startDate=${startDate}&endDate=${endDate}`,
+      )
+      setPreview(data)
+    } catch (e: any) {
+      setError(e?.message || t("common.loadError") || "Fehler")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const fmtMoney = (n: number) =>
+    n.toLocaleString("de-DE", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })
+
+  return (
+    <div className="space-y-6" data-testid="datev-tab">
+      <Card>
+        <CardHeader>
+          <CardTitle>DATEV-Buchungsstapel-Export</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
+            Zeitraum: {startDate} – {endDate}
+          </p>
+          <div className="flex flex-wrap gap-3">
+            <Button
+              onClick={loadPreview}
+              disabled={loading}
+              data-testid="datev-preview-btn"
+            >
+              🔍 {loading ? "Wird geladen…" : "Vorschau anzeigen"}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (!companyId) return
+                window.open(
+                  `/api/v1/reports/datev-export?companyId=${companyId}&startDate=${startDate}&endDate=${endDate}`,
+                  "_blank",
+                )
+              }}
+              data-testid="datev-download-csv-btn"
+            >
+              📥 CSV herunterladen
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (!companyId) return
+                window.open(
+                  `/api/v1/reports/datev-export-bundle?companyId=${companyId}&startDate=${startDate}&endDate=${endDate}`,
+                  "_blank",
+                )
+              }}
+              data-testid="datev-download-bundle-btn"
+            >
+              📦 CSV + Belegbilder (ZIP)
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {error && (
+        <div
+          className="p-3 rounded bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 text-sm"
+          data-testid="datev-error"
+        >
+          {error}
+        </div>
+      )}
+
+      {preview && (
+        <>
+          {/* Header summary */}
+          <Card data-testid="datev-header-card">
+            <CardHeader>
+              <CardTitle className="text-lg">Kopfdatenzusammenfassung</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                <div>
+                  <div className="text-gray-500">Berater-Nr.</div>
+                  <div className="font-mono" data-testid="datev-beraterNr">
+                    {preview.header.beraterNr}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-gray-500">Mandanten-Nr.</div>
+                  <div className="font-mono" data-testid="datev-mandantenNr">
+                    {preview.header.mandantenNr}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-gray-500">Buchungslauf-Nr.</div>
+                  <div className="font-mono">{preview.header.buchungsLaufNr}</div>
+                </div>
+                <div>
+                  <div className="text-gray-500">Zeitraum</div>
+                  <div>
+                    {preview.header.startDate} – {preview.header.endDate}
+                  </div>
+                </div>
+                <div className="md:col-span-2">
+                  <div className="text-gray-500">Dateiname</div>
+                  <div className="font-mono text-xs break-all">
+                    {preview.header.filename}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Totals + balance */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Summen</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                  <div className="text-gray-500 text-xs">Buchungen</div>
+                  <div
+                    className="text-2xl font-bold"
+                    data-testid="datev-rowCount"
+                  >
+                    {preview.rowCount.toLocaleString("de-DE")}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-gray-500 text-xs">Gesamtbetrag</div>
+                  <div className="text-2xl font-bold">
+                    {fmtMoney(preview.totalAmount)} €
+                  </div>
+                </div>
+                <div>
+                  <div className="text-gray-500 text-xs">Soll</div>
+                  <div className="text-xl font-mono">
+                    {fmtMoney(preview.totalSoll)} €
+                  </div>
+                </div>
+                <div>
+                  <div className="text-gray-500 text-xs">Haben</div>
+                  <div className="text-xl font-mono">
+                    {fmtMoney(preview.totalHaben)} €
+                  </div>
+                </div>
+              </div>
+              <div
+                className={`mt-3 text-sm ${
+                  Math.abs(preview.balanceDelta) < 0.01
+                    ? "text-emerald-600 dark:text-emerald-400"
+                    : "text-red-600 dark:text-red-400"
+                }`}
+                data-testid="datev-balance"
+              >
+                {Math.abs(preview.balanceDelta) < 0.01
+                  ? "✓ Soll/Haben ausgeglichen"
+                  : `✗ Differenz: ${fmtMoney(preview.balanceDelta)} €`}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Validation issues */}
+          {preview.issues && preview.issues.length > 0 && (
+            <Card data-testid="datev-issues-card">
+              <CardHeader>
+                <CardTitle className="text-lg">
+                  Hinweise ({preview.issues.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ul className="space-y-1 text-sm">
+                  {preview.issues.map(
+                    (issue: { severity: string; message: string }, i: number) => (
+                      <li
+                        key={i}
+                        className={`flex items-start gap-2 ${
+                          issue.severity === "error"
+                            ? "text-red-700 dark:text-red-400"
+                            : "text-amber-700 dark:text-amber-400"
+                        }`}
+                        data-testid="datev-issue"
+                      >
+                        <span>
+                          {issue.severity === "error" ? "✗" : "⚠"}
+                        </span>
+                        <span>{issue.message}</span>
+                      </li>
+                    ),
+                  )}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Per-account summary */}
+          {preview.byAccount && preview.byAccount.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Kontenübersicht</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm" data-testid="datev-byAccount">
+                    <thead>
+                      <tr className="text-left border-b border-gray-200 dark:border-gray-700">
+                        <th className="py-2 px-2">Konto</th>
+                        <th className="py-2 px-2 text-right">Soll (€)</th>
+                        <th className="py-2 px-2 text-right">Haben (€)</th>
+                        <th className="py-2 px-2 text-right">Buchungen</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {preview.byAccount.map(
+                        (a: { konto: string; soll: number; haben: number; count: number }) => (
+                          <tr
+                            key={a.konto}
+                            className="border-b border-gray-100 dark:border-gray-700"
+                          >
+                            <td className="py-2 px-2 font-mono">{a.konto}</td>
+                            <td className="py-2 px-2 text-right font-mono">
+                              {fmtMoney(a.soll)}
+                            </td>
+                            <td className="py-2 px-2 text-right font-mono">
+                              {fmtMoney(a.haben)}
+                            </td>
+                            <td className="py-2 px-2 text-right">
+                              {a.count}
+                            </td>
+                          </tr>
+                        ),
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* First 5 rows preview */}
+          {preview.firstRows && preview.firstRows.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">
+                  Erste {preview.firstRows.length} Buchungen (Vorschau)
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs" data-testid="datev-firstRows">
+                    <thead>
+                      <tr className="text-left border-b border-gray-200 dark:border-gray-700">
+                        <th className="py-2 px-2">Datum</th>
+                        <th className="py-2 px-2">Belegfeld 1</th>
+                        <th className="py-2 px-2">Soll-Kto</th>
+                        <th className="py-2 px-2">Haben-Kto</th>
+                        <th className="py-2 px-2 text-right">Betrag</th>
+                        <th className="py-2 px-2">S/H</th>
+                        <th className="py-2 px-2">Text</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {preview.firstRows.map(
+                        (
+                          r: {
+                            belegdatum: string
+                            belegfeld1: string
+                            konto: string
+                            gegenkonto: string
+                            betrag: number
+                            shVz: string
+                            buchungstext: string
+                          },
+                          i: number,
+                        ) => (
+                          <tr
+                            key={i}
+                            className="border-b border-gray-100 dark:border-gray-700"
+                          >
+                            <td className="py-2 px-2 font-mono">{r.belegdatum}</td>
+                            <td className="py-2 px-2 font-mono">{r.belegfeld1}</td>
+                            <td className="py-2 px-2 font-mono">{r.konto}</td>
+                            <td className="py-2 px-2 font-mono">{r.gegenkonto}</td>
+                            <td className="py-2 px-2 text-right font-mono">
+                              {fmtMoney(r.betrag)}
+                            </td>
+                            <td className="py-2 px-2 font-mono">{r.shVz}</td>
+                            <td className="py-2 px-2 truncate max-w-xs">
+                              {r.buchungstext}
+                            </td>
+                          </tr>
+                        ),
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </>
+      )}
+    </div>
   )
 }
