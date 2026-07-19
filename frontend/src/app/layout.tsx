@@ -6,6 +6,7 @@ import { THEME_PREHYDRATION_SCRIPT } from "@/components/useTheme";
 import { ToastProvider } from "@/components/useToast";
 import { GlobalErrorCapture } from "@/components/GlobalErrorCapture";
 import AuthCookieSync from "@/components/AuthCookieSync";
+import GlobalSearch from "@/components/GlobalSearch";
 
 // Geist only ships Latin glyphs by default. We need:
 //   - "latin"      for English (A-Z, a-z, basic punctuation)
@@ -77,7 +78,7 @@ export default function RootLayout({
           {THEME_PREHYDRATION_SCRIPT}
         </Script>
       </head>
-      <body className="min-h-full flex flex-col bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"><AuthCookieSync /><ToastProvider><GlobalErrorCapture>{children}</GlobalErrorCapture></ToastProvider></body>
+      <body className="min-h-full flex flex-col bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"><AuthCookieSync /><ToastProvider><GlobalErrorCapture>{children}</GlobalErrorCapture><GlobalSearch /></ToastProvider></body>
     </html>
   );
 }

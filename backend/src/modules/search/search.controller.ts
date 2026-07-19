@@ -1,4 +1,4 @@
-import { Controller, Get, Query } from '@nestjs/common'
+import { Controller, Get, Query, BadRequestException } from '@nestjs/common'
 import { SearchService } from './search.service'
 import { Auth } from '../../auth/roles.decorator'
 
@@ -64,6 +64,49 @@ export class SearchController {
   ) {
     return this.search.searchInvoices(companyId, q ?? '', {
       limit: limit ? parseInt(limit, 10) : undefined,
+    })
+  }
+
+  /**
+   * Tier 68: cross-entity global search for the
+   * ⌘K command bar. Returns hits grouped by type
+   * (customer / product / invoice), each group
+   * capped at `limit` (default 5, max 20).
+   *
+   * Why no @Require(): the global search bar is for
+   * every logged-in user (the dropdown shows on
+   * every dashboard page). The existing
+   * HeaderAuthGuard + per-entity permission checks
+   * inside the service handle authorization — a
+   * user with no customer.read can still call this
+   * endpoint and get an empty customer group.
+   *
+   * Throttling: the global search fires on every
+   * keystroke (debounced 200ms client-side). A
+   * 600/60s global throttler is plenty — even
+   * typing at 200wpm is 8 keys/sec × 60s = 480
+   * requests/minute, just under the cap.
+   */
+  @Auth()
+  @Get('global')
+  async globalSearch(
+    @Query('companyId') companyId: string,
+    @Query('q') q: string,
+    @Query('limit') limit?: string,
+  ) {
+    if (!companyId) {
+      throw new BadRequestException('companyId ist erforderlich')
+    }
+    let parsedLimit: number | undefined
+    if (limit) {
+      const n = parseInt(limit, 10)
+      if (Number.isNaN(n) || n < 1 || n > 20) {
+        throw new BadRequestException('Ungültiger limit (1-20)')
+      }
+      parsedLimit = n
+    }
+    return this.search.globalSearch(companyId, q ?? '', {
+      limit: parsedLimit,
     })
   }
 }

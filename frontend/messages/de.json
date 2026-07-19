@@ -1976,5 +1976,17 @@
     "detailTitle": "Änderung im Detail",
     "oldData": "Vorher",
     "newData": "Nachher"
+  },
+  "globalSearch": {
+    "shortcut": "Suche (⌘K)",
+    "placeholder": "Suchen...",
+    "hint": "Tippe mindestens 2 Zeichen, um Kunden, Rechnungen oder Produkte zu suchen.",
+    "empty": "Keine Treffer",
+    "hits": "Treffer",
+    "navigate": "navigieren",
+    "open": "öffnen",
+    "groupCustomers": "Kunden",
+    "groupInvoices": "Rechnungen",
+    "groupProducts": "Produkte"
   }
 }

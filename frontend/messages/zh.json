@@ -1976,5 +1976,17 @@
     "detailTitle": "变更详情",
     "oldData": "修改前",
     "newData": "修改后"
+  },
+  "globalSearch": {
+    "shortcut": "搜索 (⌘K)",
+    "placeholder": "搜索...",
+    "hint": "输入至少 2 个字符以搜索客户、发票或产品。",
+    "empty": "无结果",
+    "hits": "条结果",
+    "navigate": "导航",
+    "open": "打开",
+    "groupCustomers": "客户",
+    "groupInvoices": "发票",
+    "groupProducts": "产品"
   }
 }

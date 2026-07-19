@@ -393,6 +393,108 @@ export class SearchService {
       }
     })
   }
+
+  /**
+   * Tier 68: cross-entity global search for the
+   * ⌘K command bar. Runs the three per-entity
+   * searches in parallel and groups the hits by
+   * entity type.
+   *
+   * Why a separate method instead of letting the
+   * controller call the three search methods
+   * directly: the controller would have to know
+   * the per-group limit, the rank threshold, and
+   * how to merge. Centralising the merge here
+   * means the React component gets a single,
+   * predictable shape: `{ groups: [{ type, hits }] }`.
+   *
+   * Limit semantics: `limit` is the PER-GROUP cap.
+   * A user searching for "Müller" gets up to `limit`
+   * customer hits + `limit` invoice hits + `limit`
+   * product hits. We don't merge-sort across groups
+   * because the UI groups by type anyway — the user
+   * is choosing from one of three buckets, not from
+   * a single ranked list.
+   *
+   * Empty query (`q.length < 2`): the per-entity
+   * methods already return [] for short queries (the
+   * toTsQuery helper drops tokens shorter than 2
+   * chars). We return `{ groups: [] }` so the UI
+   * shows the empty hint instead of an empty result.
+   */
+  async globalSearch(
+    companyId: string,
+    q: string,
+    opts: { limit?: number } = {},
+  ): Promise<{
+    query: string
+    totalHits: number
+    groups: {
+      type: 'customer' | 'invoice' | 'product'
+      count: number
+      hits: {
+        id: string
+        title: string
+        subtitle: string
+        snippet: string
+        rank: number
+      }[]
+    }[]
+  }> {
+    const perGroupLimit = Math.min(opts.limit ?? 5, 20)
+    if (!q || q.trim().length < 2) {
+      return { query: q || '', totalHits: 0, groups: [] }
+    }
+    const [customers, products, invoices] = await Promise.all([
+      this.searchCustomers(companyId, q, { limit: perGroupLimit }),
+      this.searchProducts(companyId, q, { limit: perGroupLimit }),
+      this.searchInvoices(companyId, q, { limit: perGroupLimit }),
+    ])
+    const groups = [
+      {
+        type: 'customer' as const,
+        count: customers.length,
+        hits: customers.map((h) => ({
+          id: h.row.id,
+          title: h.row.name,
+          subtitle: h.row.customerNumber
+            ? `${h.row.customerNumber}${h.row.vatId ? ` · USt-ID ${h.row.vatId}` : ''}`
+            : h.row.vatId
+              ? `USt-ID ${h.row.vatId}`
+              : '',
+          snippet: h.snippet,
+          rank: h.rank,
+        })),
+      },
+      {
+        type: 'product' as const,
+        count: products.length,
+        hits: products.map((h) => ({
+          id: h.row.id,
+          title: h.row.name,
+          subtitle: h.row.sku || '',
+          snippet: h.snippet,
+          rank: h.rank,
+        })),
+      },
+      {
+        type: 'invoice' as const,
+        count: invoices.length,
+        hits: invoices.map((h) => ({
+          id: h.row.id,
+          title:
+            h.row.type === 'CN'
+              ? `${h.row.invoiceNumber} (Gutschrift)`
+              : h.row.invoiceNumber,
+          subtitle: `${h.row.customerName} · ${h.row.status}`,
+          snippet: h.snippet,
+          rank: h.rank,
+        })),
+      },
+    ].filter((g) => g.count > 0)
+    const totalHits = groups.reduce((a, g) => a + g.count, 0)
+    return { query: q, totalHits, groups }
+  }
 }
 
 /**
