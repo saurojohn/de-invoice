@@ -717,7 +717,9 @@
     "dashboardV2KpiOpenRec": "Open receivables",
     "costCenterTitle": "Revenue by cost center (YTD)",
     "costCenterEmpty": "No cost-center data yet",
-    "costCenterNet": "Net total"
+    "costCenterNet": "Net total",
+    "cardAuditTitle": "Audit Trail (GoBD)",
+    "cardAuditDesc": "View all changes to master data and vouchers, and export as CSV."
   },
   "email": {
     "title": "Email Center",
@@ -1948,5 +1950,31 @@
   "mandant": {
     "choose": "Choose Mandant",
     "switch": "Switch Mandant"
+  },
+  "audit": {
+    "title": "Audit Trail",
+    "exportCsv": "Export CSV",
+    "totalActions": "Total changes",
+    "newestChange": "Newest change",
+    "entityTypes": "Entity types",
+    "users": "Users",
+    "filters": "Filters",
+    "entityType": "Entity type",
+    "actionPrefix": "Action (prefix)",
+    "userId": "User ID",
+    "dateFrom": "Date from",
+    "dateTo": "Date to",
+    "resetFilters": "Reset",
+    "list": "Change log",
+    "entries": "entries",
+    "empty": "No entries",
+    "emptyDesc": "No changes found for the current filters.",
+    "timestamp": "Timestamp",
+    "action": "Action",
+    "user": "User",
+    "ipAddress": "IP",
+    "detailTitle": "Change details",
+    "oldData": "Before",
+    "newData": "After"
   }
 }

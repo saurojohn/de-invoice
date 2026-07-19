@@ -717,7 +717,9 @@
     "dashboardV2KpiOpenRec": "未收应收款",
     "costCenterTitle": "按成本中心划分的收入 (YTD)",
     "costCenterEmpty": "暂无成本中心数据",
-    "costCenterNet": "净额合计"
+    "costCenterNet": "净额合计",
+    "cardAuditTitle": "审计日志 (GoBD)",
+    "cardAuditDesc": "查看所有主数据和凭证的变更，并导出为 CSV。"
   },
   "email": {
     "title": "邮件中心",
@@ -1948,5 +1950,31 @@
   "mandant": {
     "choose": "选择客户",
     "switch": "切换客户"
+  },
+  "audit": {
+    "title": "审计日志",
+    "exportCsv": "导出 CSV",
+    "totalActions": "总变更数",
+    "newestChange": "最近变更",
+    "entityTypes": "实体类型",
+    "users": "用户",
+    "filters": "筛选条件",
+    "entityType": "实体类型",
+    "actionPrefix": "操作（前缀）",
+    "userId": "用户 ID",
+    "dateFrom": "起始日期",
+    "dateTo": "结束日期",
+    "resetFilters": "重置",
+    "list": "变更日志",
+    "entries": "条记录",
+    "empty": "无记录",
+    "emptyDesc": "当前筛选条件下没有变更记录。",
+    "timestamp": "时间戳",
+    "action": "操作",
+    "user": "用户",
+    "ipAddress": "IP",
+    "detailTitle": "变更详情",
+    "oldData": "修改前",
+    "newData": "修改后"
   }
 }

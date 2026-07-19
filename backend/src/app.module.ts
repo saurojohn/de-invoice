@@ -45,6 +45,7 @@ import { InvoiceTemplateModule } from './modules/invoice-template/invoice-templa
 import { PortalModule } from './modules/portal/portal.module';
 import { HealthModule } from './modules/health/health.module';
 import { WebhookModule } from './modules/webhook/webhook.module';
+import { AuditModule } from './modules/audit/audit.module';
 
 @Module({
   imports: [
@@ -106,6 +107,7 @@ import { WebhookModule } from './modules/webhook/webhook.module';
     PortalModule,
     HealthModule,
     WebhookModule,
+    AuditModule,
     ScheduleModule.forRoot(),
   ],
   providers: [

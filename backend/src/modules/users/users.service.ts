@@ -42,6 +42,10 @@ const PERMISSIONS: Record<string, Role> = {
   'invoice.update': ROLES.ACCOUNTANT,
   'invoice.delete': ROLES.ACCOUNTANT,
   'invoice.send': ROLES.ACCOUNTANT,
+  // Tier 67: audit-trail read access. Accountants
+  // (incl. Steuerberater) need to see who changed
+  // what for GoBD compliance; pure viewers don't.
+  'audit.read': ROLES.ACCOUNTANT,
   // Tier 51/53: the InstallmentPlan module + the
   // credit-note endpoint use 'invoice.write' as a
   // shortcut for "create/update/delete on an

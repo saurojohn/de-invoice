@@ -717,7 +717,9 @@
     "dashboardV2KpiOpenRec": "Offene Forderungen",
     "costCenterTitle": "Umsatz nach Kostenträger (YTD)",
     "costCenterEmpty": "Keine Kostenträger-Daten vorhanden",
-    "costCenterNet": "Netto-Summe"
+    "costCenterNet": "Netto-Summe",
+    "cardAuditTitle": "Audit-Trail (GoBD)",
+    "cardAuditDesc": "Alle Änderungen an Stammdaten und Belegen einsehen und als CSV exportieren."
   },
   "email": {
     "title": "E-Mail Center",
@@ -1948,5 +1950,31 @@
   "mandant": {
     "choose": "Mandant wählen",
     "switch": "Mandant wechseln"
+  },
+  "audit": {
+    "title": "Audit-Trail",
+    "exportCsv": "CSV exportieren",
+    "totalActions": "Änderungen gesamt",
+    "newestChange": "Letzte Änderung",
+    "entityTypes": "Entitätstypen",
+    "users": "Benutzer",
+    "filters": "Filter",
+    "entityType": "Entitätstyp",
+    "actionPrefix": "Aktion (Präfix)",
+    "userId": "Benutzer-ID",
+    "dateFrom": "Datum von",
+    "dateTo": "Datum bis",
+    "resetFilters": "Zurücksetzen",
+    "list": "Änderungsprotokoll",
+    "entries": "Einträge",
+    "empty": "Keine Einträge",
+    "emptyDesc": "Für die aktuellen Filter wurden keine Änderungen gefunden.",
+    "timestamp": "Zeitstempel",
+    "action": "Aktion",
+    "user": "Benutzer",
+    "ipAddress": "IP",
+    "detailTitle": "Änderung im Detail",
+    "oldData": "Vorher",
+    "newData": "Nachher"
   }
 }
