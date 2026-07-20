@@ -71,6 +71,22 @@ PY
 docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice < "$TMP_SQL"
 rm -f "$TMP_SQL"
 
+# Tier 66: HeaderAuthGuard now requires a UserCompany row.
+# 2FA is per-user, not per-company, but the guard verifies
+# access via UserCompany. Seed a grant so the test user
+# passes the guard for 2FA management endpoints.
+TMP_SQL=$(mktemp -t 2fa-grant.XXXXXX)
+python3 - <<PY > "$TMP_SQL"
+import os
+sql = f'''INSERT INTO "UserCompany" ("userId", "companyId", role, "grantedAt", "grantedById")
+VALUES ('{os.environ["TEST_USER_ID"]}', '{os.environ["COMPANY_ID"]}', 'admin', now(), '{os.environ["TEST_USER_ID"]}')
+ON CONFLICT ("userId", "companyId") DO NOTHING;
+'''
+print(sql, end='')
+PY
+docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice < "$TMP_SQL"
+rm -f "$TMP_SQL"
+
 # Test 1: verify the freshly-seeded user is queryable.
 # Tier 13: we no longer call /auth/login to obtain TEST_USER_ID —
 # the seed above already created the user with a known id, and the
@@ -82,7 +98,10 @@ rm -f "$TMP_SQL"
 LOGIN_STATUS=$(curl -sS -o /dev/null -w "%{http_code}" -X POST \
   -H "x-user-id: $TEST_USER_ID" -H "x-company-id: $COMPANY_ID" \
   "$API/api/v1/auth/2fa/status")
-assert_eq "2fa status accessible via HeaderAuthGuard" "$LOGIN_STATUS" "200"
+# Tier 73: NestJS @Post returns 201 by default (resource created).
+# The status endpoint is a read but uses @Post for consistency with
+# other 2FA management endpoints. We assert 201.
+assert_eq "2fa status accessible via HeaderAuthGuard" "$LOGIN_STATUS" "201"
 
 # Test 2: setup returns secret + QR + otpauth
 SETUP=$(curl -sS -X POST "$API/api/v1/auth/2fa/setup" \
