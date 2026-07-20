@@ -1998,5 +1998,21 @@
     "bannerOn": "Read-Only",
     "bannerOff": "Edit",
     "writeBlocked": "Read-Only Modus aktiv — Schreibvorgang gesperrt"
+  },
+  "signing": {
+    "title": "PDF-Signatur",
+    "description": "Diese Rechnung ist mit einer qualifizierten Signatur versehen — sie wurde seit der Erstellung nicht verändert.",
+    "certInfo": "Zertifikats-Informationen",
+    "subject": "Aussteller",
+    "fingerprint": "Fingerabdruck (SHA-256)",
+    "validUntil": "Gültig bis",
+    "verify": "Signatur prüfen",
+    "verified": "✓ Signatur gültig",
+    "notSigned": "PDF enthält keine Signatur",
+    "invalid": "✗ Signatur ungültig",
+    "signingCert": "Signatur-Zertifikat",
+    "regenerate": "Zertifikat neu generieren",
+    "regenerateConfirm": "Sind Sie sicher? Das alte Zertifikat wird ungültig.",
+    "signOnDownload": "Signatur beim Download einbetten"
   }
 }

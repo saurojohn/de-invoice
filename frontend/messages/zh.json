@@ -1998,5 +1998,21 @@
     "bannerOn": "只读",
     "bannerOff": "编辑",
     "writeBlocked": "只读模式已启用 — 写入被阻止"
+  },
+  "signing": {
+    "title": "PDF 签名",
+    "description": "此发票带有数字签名 — 自创建以来未被修改。",
+    "certInfo": "证书信息",
+    "subject": "颁发者",
+    "fingerprint": "指纹 (SHA-256)",
+    "validUntil": "有效期至",
+    "verify": "验证签名",
+    "verified": "✓ 签名有效",
+    "notSigned": "PDF 无签名",
+    "invalid": "✗ 签名无效",
+    "signingCert": "签名证书",
+    "regenerate": "重新生成证书",
+    "regenerateConfirm": "确定吗？旧证书将失效。",
+    "signOnDownload": "下载时嵌入签名"
   }
 }

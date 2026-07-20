@@ -1998,5 +1998,21 @@
     "bannerOn": "Read-Only",
     "bannerOff": "Edit",
     "writeBlocked": "Read-Only Mode active — write blocked"
+  },
+  "signing": {
+    "title": "PDF Signature",
+    "description": "This invoice carries a digital signature — it has not been altered since creation.",
+    "certInfo": "Certificate Information",
+    "subject": "Subject",
+    "fingerprint": "Fingerprint (SHA-256)",
+    "validUntil": "Valid until",
+    "verify": "Verify signature",
+    "verified": "✓ Signature valid",
+    "notSigned": "PDF has no signature",
+    "invalid": "✗ Signature invalid",
+    "signingCert": "Signing certificate",
+    "regenerate": "Regenerate certificate",
+    "regenerateConfirm": "Are you sure? The old certificate will be invalidated.",
+    "signOnDownload": "Embed signature on download"
   }
 }

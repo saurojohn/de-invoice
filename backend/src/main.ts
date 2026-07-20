@@ -1,6 +1,8 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { NestExpressApplication } from '@nestjs/platform-express';
+import { json, urlencoded } from 'express';
 import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './modules/system/system.filter';
 import { ErrorTrackingService } from './modules/system/error-tracking.service';
@@ -19,8 +21,16 @@ declare global {
 }
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const configService = app.get(ConfigService);
+
+  // Body size limit (10MB) for JSON + urlencoded — NestJS's default
+  // body parser limit is 100KB, which trips on a 370KB ZUGFeRD PDF
+  // base64'd (Tier 72 PDF signing needs to round-trip full PDFs
+  // through /signing/verify). We re-register the parsers here AFTER
+  // Nest's defaults so the new limits take effect.
+  app.use(json({ limit: '10mb' }));
+  app.use(urlencoded({ limit: '10mb', extended: true }));
 
   // 全局前缀 — exclude /metrics (Prometheus scrapers expect a
   // flat path with no version prefix). ExcludeForm is the
@@ -65,7 +75,12 @@ async function bootstrap() {
     maxAge: 86400, // Cache preflight 24h
   });
 
-  // Body size limit (10MB) for JSON payloads — Express default is 100kb which is too small
+  // Body size limit (10MB) is set above via app.use(json({ limit: '10mb' })).
+  // The hand-rolled content-length gate previously at this spot
+  // was removed in Tier 72 — the JSON body parser now returns
+  // its own 413 with a proper body, so a duplicate gate only
+  // caused double-checking. See the note above the metrics
+  // middleware for the full rationale.
   const expressApp = app.getHttpAdapter().getInstance();
   // Trust X-Forwarded-* headers from nginx (same host, loopback).
   //
@@ -86,13 +101,11 @@ async function bootstrap() {
   if (process.env.TRUST_PROXY === 'true') {
     expressApp.set('trust proxy', 'loopback')
   }
-  // @ts-ignore - express types
-  expressApp.use((req: any, res: any, next: any) => {
-    if (req.headers['content-length'] && parseInt(req.headers['content-length']) > 10 * 1024 * 1024) {
-      return res.status(413).json({ error: 'Payload too large' });
-    }
-    next();
-  });
+  // NOTE: the previous hand-rolled 10MB content-length gate was
+  // removed in Tier 72 once we re-registered the JSON body parser
+  // with `app.use(json({ limit: '10mb' }))` above. The body parser
+  // returns its own 413 with a proper JSON body for over-limit
+  // requests, so a separate gate only caused double-checking.
 
   // Metrics middleware — registered before any controller so it
   // wraps every request, including ones rejected by guards. The

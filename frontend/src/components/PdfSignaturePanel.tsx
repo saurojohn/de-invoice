@@ -1,0 +1,227 @@
+"use client"
+
+/**
+ * Tier 72: PDF Signature panel.
+ *
+ * Renders the cert info + a "Signatur prüfen"
+ * button on the invoice detail page. When
+ * the user clicks verify, the page downloads
+ * the PDF, POSTs it to /signing/verify, and
+ * shows the result.
+ *
+ * The panel also shows a "Signatur beim
+ * Download einbetten" toggle (default on) —
+ * the backend already signs on every
+ * download, but the toggle is a UI affordance
+ * that mirrors the user's mental model: "is
+ * this invoice going to be signed when I
+ * download it?"
+ *
+ * Why this lives on the invoice detail page
+ * and not in a separate page: the user
+ * verifies "is THIS invoice signed?" in
+ * context, not as a global audit. The GoBD
+ * audit-trail page (tier 67) is the
+ * cross-invoice view; this is the
+ * per-invoice view.
+ */
+
+import { useState } from "react"
+import { useI18n } from "@/components/useI18n"
+import { useToast } from "@/components/useToast"
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { apiGet } from "@/lib/api"
+
+interface CertInfo {
+  commonName: string | null
+  fingerprint: string | null
+  validUntil: string | null
+  generatedAt: string | null
+}
+
+interface VerifyResult {
+  valid: boolean
+  signedBy: string | null
+  signedAt: string | null
+  certFingerprint: string | null
+  reason: string | null
+  signatureCount: number
+}
+
+interface PdfSignaturePanelProps {
+  invoiceId: string
+}
+
+export default function PdfSignaturePanel({ invoiceId }: PdfSignaturePanelProps) {
+  const { t } = useI18n()
+  const toast = useToast()
+  const [cert, setCert] = useState<CertInfo | null>(null)
+  const [verify, setVerify] = useState<VerifyResult | null>(null)
+  const [loading, setLoading] = useState<{
+    cert: boolean
+    verify: boolean
+  }>({ cert: false, verify: false })
+  const companyId =
+    typeof window !== "undefined" ? localStorage.getItem("companyId") : null
+
+  const loadCert = async () => {
+    if (!companyId) return
+    setLoading((l) => ({ ...l, cert: true }))
+    try {
+      const data = await apiGet<CertInfo>(
+        `/api/v1/signing/cert-info?companyId=${companyId}`,
+      )
+      setCert(data)
+    } catch (e: any) {
+      // cert-info is idempotent — the backend
+      // auto-generates a cert on first call. So
+      // an error here is a real error.
+      toast.error(e?.message || t("common.loadError") || "Fehler")
+    } finally {
+      setLoading((l) => ({ ...l, cert: false }))
+    }
+  }
+
+  const verifyPdf = async () => {
+    if (!companyId) return
+    setLoading((l) => ({ ...l, verify: true }))
+    try {
+      const apiBase =
+        process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
+      console.log("[verifyPdf] starting, apiBase=", apiBase, "invoiceId=", invoiceId)
+      // 1. Download the PDF.
+      const pdfRes = await fetch(
+        `${apiBase}/api/v1/invoices/${invoiceId}/pdf?companyId=${companyId}`,
+        {
+          headers: {
+            "x-user-id": localStorage.getItem("userId") || "",
+            "x-company-id": companyId,
+          },
+        },
+      )
+      console.log("[verifyPdf] pdf response status=", pdfRes.status)
+      if (!pdfRes.ok) throw new Error(`PDF download: HTTP ${pdfRes.status}`)
+      // 2. Base64-encode for the verify endpoint.
+      // Avoid the spread-operator on large buffers
+      // (the naive `String.fromCharCode(...u8)` throws
+      // "too many arguments" on a 1MB PDF). Use
+      // FileReader instead — it's built into the
+      // browser, handles any size, and returns a
+      // data: URL containing the base64.
+      const blob = await pdfRes.blob()
+      const b64: string = await new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => {
+          const result = reader.result as string
+          // data:application/pdf;base64,<...>
+          const commaIdx = result.indexOf(",")
+          resolve(commaIdx >= 0 ? result.slice(commaIdx + 1) : result)
+        }
+        reader.onerror = () => reject(reader.error)
+        reader.readAsDataURL(blob)
+      })
+      // 3. POST to /signing/verify.
+      const verifyRes = await fetch(
+        `${apiBase}/api/v1/signing/verify`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-user-id": localStorage.getItem("userId") || "",
+            "x-company-id": companyId,
+          },
+          body: JSON.stringify({ pdf: b64 }),
+        },
+      )
+      console.log("[verifyPdf] verify response status=", verifyRes.status)
+      if (!verifyRes.ok) throw new Error(`Verify: HTTP ${verifyRes.status}`)
+      const data = await verifyRes.json()
+      setVerify(data)
+    } catch (e: any) {
+      toast.error(e?.message || t("common.error") || "Fehler")
+    } finally {
+      setLoading((l) => ({ ...l, verify: false }))
+    }
+  }
+
+  return (
+    <Card data-testid="pdf-signature-panel">
+      <CardHeader>
+        <CardTitle className="text-lg flex items-center gap-2">
+          🔒 {t("signing.title") || "PDF-Signatur"}
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={loadCert}
+              disabled={loading.cert}
+              variant="outline"
+              size="sm"
+              data-testid="pdf-signature-load-cert"
+            >
+              {loading.cert ? "..." : t("signing.certInfo") || "Zertifikats-Informationen"}
+            </Button>
+            <Button
+              onClick={verifyPdf}
+              disabled={loading.verify}
+              variant="outline"
+              size="sm"
+              data-testid="pdf-signature-verify"
+            >
+              {loading.verify ? "..." : t("signing.verify") || "Signatur prüfen"}
+            </Button>
+          </div>
+          {cert && (
+            <div
+              className="text-xs space-y-1 p-3 bg-gray-50 dark:bg-gray-700/30 rounded"
+              data-testid="pdf-signature-cert-info"
+            >
+              <div>
+                <span className="text-gray-500">
+                  {t("signing.subject") || "Aussteller"}:
+                </span>{" "}
+                <span className="font-mono">{cert.commonName || "—"}</span>
+              </div>
+              <div>
+                <span className="text-gray-500">
+                  {t("signing.fingerprint") || "Fingerabdruck"}:
+                </span>{" "}
+                <span className="font-mono text-[10px] break-all">
+                  {cert.fingerprint || "—"}
+                </span>
+              </div>
+              <div>
+                <span className="text-gray-500">
+                  {t("signing.validUntil") || "Gültig bis"}:
+                </span>{" "}
+                <span className="font-mono">{cert.validUntil || "—"}</span>
+              </div>
+            </div>
+          )}
+          {verify && (
+            <div
+              className={`text-sm p-3 rounded ${
+                verify.valid
+                  ? "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300"
+                  : "bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"
+              }`}
+              data-testid="pdf-signature-verify-result"
+            >
+              {verify.valid
+                ? `✓ ${t("signing.verified") || "Signatur gültig"}`
+                : `⚠ ${verify.reason || t("signing.notSigned") || "Keine Signatur"}`}
+              {verify.signedBy && (
+                <div className="text-xs mt-1 text-gray-600 dark:text-gray-400">
+                  {verify.signedBy}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}

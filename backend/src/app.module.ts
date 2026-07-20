@@ -46,6 +46,7 @@ import { PortalModule } from './modules/portal/portal.module';
 import { HealthModule } from './modules/health/health.module';
 import { WebhookModule } from './modules/webhook/webhook.module';
 import { AuditModule } from './modules/audit/audit.module';
+import { SigningModule } from './modules/signing/signing.module';
 
 @Module({
   imports: [
@@ -108,6 +109,7 @@ import { AuditModule } from './modules/audit/audit.module';
     HealthModule,
     WebhookModule,
     AuditModule,
+    SigningModule,
     ScheduleModule.forRoot(),
   ],
   providers: [

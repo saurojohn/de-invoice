@@ -8,6 +8,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { useI18n } from "@/components/useI18n"
 import { apiGet, apiPost, apiPut, apiDelete, apiFetch, ApiError } from "@/lib/api"
 import { substitute } from "@/lib/substitute"
+import PdfSignaturePanel from "@/components/PdfSignaturePanel"
 
 interface InvoiceItem {
   description: string
@@ -1011,6 +1012,11 @@ export default function InvoiceDetailPage() {
               </div>
             </CardContent>
           </Card>
+        </div>
+
+        {/* Tier 72: PDF signature panel (GoBD § 146) */}
+        <div className="mb-6">
+          <PdfSignaturePanel invoiceId={String(params?.id || '')} />
         </div>
 
         {/* Items Table */}

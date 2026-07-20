@@ -100,7 +100,7 @@ export class AuthController {
             action: 'login_failed_inactive',
             entityType: 'auth',
             entityId: user.id,
-            notes: `IP=${ip}`,
+            ipAddress: ip, userAgent: req?.headers['user-agent'] || null,
           },
         });
       } catch { /* ignore */ }
@@ -124,7 +124,7 @@ export class AuthController {
             action: 'login_failed',
             entityType: 'auth',
             entityId: dto.email,
-            notes: `IP=${ip} count=${a.count}`,
+            ipAddress: ip, userAgent: req?.headers['user-agent'] || null,
           },
         });
       } catch { /* ignore audit log errors */ }
@@ -140,7 +140,7 @@ export class AuthController {
           action: 'login_success',
           entityType: 'auth',
           entityId: user.id,
-          notes: `IP=${ip}`,
+          ipAddress: ip, userAgent: req?.headers['user-agent'] || null,
         },
       });
     } catch { /* ignore */ }
@@ -270,7 +270,7 @@ export class AuthController {
             action: 'password_reset_requested',
             entityType: 'auth',
             entityId: result.user.id,
-            notes: `IP=${req?.ip || 'unknown'}`,
+            ipAddress: req?.ip || null, userAgent: req?.headers['user-agent'] || null,
           },
         });
       } catch { /* ignore */ }
