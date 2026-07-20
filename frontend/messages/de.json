@@ -2061,5 +2061,20 @@
     "ytd": "Summe (YTD)",
     "invoices": "Rechnungen",
     "expenses": "Ausgaben"
+  },
+  "euer": {
+    "title": "Anlage EÜR (Vorschau)",
+    "subtitle": "Einnahmen-Überschuss-Rechnung gem. § 18 EStG — automatisch aus Ihren Buchungen generiert. Vom Steuerberater prüfen lassen.",
+    "year": "Geschäftsjahr",
+    "recompute": "Berechnen",
+    "downloadPdf": "PDF herunterladen",
+    "einnahmen": "Betriebseinnahmen",
+    "ausgaben": "Betriebsausgaben",
+    "gewinn": "Gewinn",
+    "verlust": "Verlust",
+    "invoices": "Rechnungen",
+    "expenses": "Ausgaben",
+    "generatedAt": "Erstellt",
+    "previewHint": "Vorschau — alle Werte automatisch berechnet. Vor der Einreichung durch den Steuerberater prüfen lassen."
   }
 }

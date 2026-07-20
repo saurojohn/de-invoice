@@ -2061,5 +2061,20 @@
     "ytd": "Total (YTD)",
     "invoices": "Invoices",
     "expenses": "Expenses"
+  },
+  "euer": {
+    "title": "EÜR attachment (preview)",
+    "subtitle": "Income / expense statement per § 18 EStG — auto-generated from your bookings. Have your tax advisor review.",
+    "year": "Fiscal year",
+    "recompute": "Compute",
+    "downloadPdf": "Download PDF",
+    "einnahmen": "Operating income",
+    "ausgaben": "Operating expenses",
+    "gewinn": "Profit",
+    "verlust": "Loss",
+    "invoices": "Invoices",
+    "expenses": "Expenses",
+    "generatedAt": "Generated",
+    "previewHint": "Preview — all values computed automatically. Have your tax advisor verify before filing."
   }
 }

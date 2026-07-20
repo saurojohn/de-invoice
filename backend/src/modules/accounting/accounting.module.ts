@@ -7,12 +7,13 @@ import { VoucherTemplateService } from './voucher-template.service';
 import { VoucherTemplateController } from './voucher-template.controller';
 import { JournalService } from './journal.service';
 import { JournalController } from './journal.controller';
+import { EuerService } from './euer.service';
 import { WebhookModule } from '../webhook/webhook.module';
 
 @Module({
   imports: [PrismaModule, WebhookModule],
   controllers: [AccountingController, VoucherTemplateController, JournalController],
-  providers: [AccountService, VoucherService, VoucherTemplateService, JournalService],
-  exports: [AccountService, VoucherService, VoucherTemplateService, JournalService],
+  providers: [AccountService, VoucherService, VoucherTemplateService, JournalService, EuerService],
+  exports: [AccountService, VoucherService, VoucherTemplateService, JournalService, EuerService],
 })
 export class AccountingModule {}

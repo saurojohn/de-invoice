@@ -1,8 +1,10 @@
-import { Controller, Get, Post, Put, Param, Query, Body, Res, Header, Req, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Param, Query, Body, Res, Header, Req, BadRequestException, UseGuards } from '@nestjs/common';
 import { Response } from 'express';
 import { AccountService } from './account.service';
 import { VoucherService } from './voucher.service';
 import { generateVoucherPDF } from '../../accounting/voucher-pdf.service';
+import { EuerService } from './euer.service';
+import { HeaderAuthGuard } from '../../auth/header-auth.guard';
 import { PrismaService } from '../../prisma/prisma.service';
 
 @Controller('accounting')
@@ -10,6 +12,7 @@ export class AccountingController {
   constructor(
     private accountService: AccountService,
     private voucherService: VoucherService,
+    private euer: EuerService,
     private prisma: PrismaService,
   ) {}
 
@@ -366,5 +369,74 @@ export class AccountingController {
         res.end();
       }
     }
+  }
+
+  /**
+   * Tier 76: Anlage EÜR (Einnahmen-Überschuss-Rechnung).
+   *
+   * Returns the EÜR for a given year as JSON:
+   *   - einnahmen[]    per-Kennziffer revenue lines
+   *   - ausgaben[]     per-Kennziffer expense lines
+   *   - totals         einnahmenTotal / ausgabenTotal / gewinn
+   *   - counts         invoices + expenses
+   *   - disclaimer     the "vom Steuerberater prüfen
+   *                    lassen" notice (UI displays it
+   *                    next to the table)
+   *
+   * `year` defaults to the previous calendar year
+   * (the EÜR is typically filed for the just-ended
+   * year in early Q1 of the next).
+   *
+   * Note: we explicitly add HeaderAuthGuard here
+   * (and on /euer.pdf) instead of relying on a
+   * class-level @Auth() — the rest of the
+   * accounting controller is intentionally opt-in
+   * for backward compat. The EÜR exposes revenue
+   * + expense totals, so a missing guard would
+   * leak the company's full P&L to anyone with
+   * the URL.
+   */
+  @Get('euer')
+  @UseGuards(HeaderAuthGuard)
+  async getEuer(
+    @Query('companyId') companyId: string,
+    @Query('year') yearRaw?: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const year = yearRaw
+      ? Number(yearRaw)
+      : new Date().getFullYear() - 1
+    if (!Number.isFinite(year) || year < 2000 || year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+    return this.euer.compute(companyId, year)
+  }
+
+  /**
+   * Tier 76: Anlage EÜR PDF.
+   *
+   * Single-page A4 PDF with the same Kennziffer
+   * breakdown as the JSON endpoint, formatted in
+   * a print-friendly layout. The PDF is a
+   * VORSCHAU (preview) — the disclaimer in the
+   * footer is the same one the Berater wants to
+   * see before signing.
+   */
+  @Get('euer.pdf')
+  @UseGuards(HeaderAuthGuard)
+  @Header('Content-Type', 'application/pdf')
+  async getEuerPdf(
+    @Res() res: Response,
+    @Query('companyId') companyId: string,
+    @Query('year') yearRaw?: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const year = yearRaw
+      ? Number(yearRaw)
+      : new Date().getFullYear() - 1
+    if (!Number.isFinite(year) || year < 2000 || year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+    await this.euer.renderPdf(companyId, year, res)
   }
 }

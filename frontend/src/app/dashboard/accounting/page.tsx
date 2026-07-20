@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
 import { apiGet, apiPost, apiFetch } from "@/lib/api"
+import { EuerSection } from "./EuerSection"
 
 // The enriched Voucher summary returned by the
 // GET /api/v1/accounting/vouchers endpoint. The list
@@ -1115,6 +1116,9 @@ export default function AccountingPage() {
           </div>
         </div>
       )}
-     </main>
+
+      {/* Tier 76: Anlage EÜR — yearly tax-filing preview */}
+      <EuerSection />
+    </main>
   )
 }
