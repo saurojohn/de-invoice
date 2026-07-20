@@ -7,8 +7,9 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { apiFetch, apiGet } from "@/lib/api"
 import { useI18n } from "@/components/useI18n"
+import { PnlTab } from "./PnlTab"
 
-type TabType = "sales" | "vat" | "customers" | "datev"
+type TabType = "sales" | "vat" | "customers" | "datev" | "pnl"
 
 interface SalesReport {
   totalSales: number
@@ -368,6 +369,17 @@ export default function ReportsPage() {
             data-testid="tab-datev"
           >
             DATEV-Export
+          </button>
+          <button
+            className={`px-6 py-3 font-medium border-b-2 transition-colors ${
+              activeTab === "pnl"
+                ? "border-blue-600 text-blue-600 dark:text-blue-400"
+                : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+            }`}
+            onClick={() => setActiveTab("pnl")}
+            data-testid="tab-pnl"
+          >
+            GuV (P&amp;L)
           </button>
         </div>
 
@@ -782,6 +794,9 @@ export default function ReportsPage() {
                 endDate={endDate}
               />
             )}
+
+            {/* Tier 75: P&L (Gewinn- und Verlustrechnung) */}
+            {activeTab === "pnl" && <PnlTab />}
           </>
         )}
       </div>

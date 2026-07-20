@@ -2045,5 +2045,21 @@
     "cardCashflowTitle": "Cash flow",
     "cardCashflowDesc": "12-month projection based on open items and recurring templates.",
     "loading": "Computing forecast…"
+  },
+  "pnl": {
+    "title": "Profit & Loss Statement",
+    "year": "Fiscal year",
+    "recompute": "Compute",
+    "month": "Month",
+    "revenue": "Revenue",
+    "material": "Cost of materials",
+    "other": "Other expenses",
+    "operatingResult": "Operating result",
+    "vat": "VAT (informational)",
+    "priorYear": "Prior year",
+    "change": "Change",
+    "ytd": "Total (YTD)",
+    "invoices": "Invoices",
+    "expenses": "Expenses"
   }
 }

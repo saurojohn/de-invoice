@@ -3,6 +3,7 @@ import type { Response } from 'express';
 import { ReportsService } from './reports.service';
 import { AgingService } from './aging.service';
 import { CashFlowService } from './cashflow.service';
+import { PnlService } from './pnl.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { generateDatevBuchungsstapel, buildBuchungenFromDb, collectBelegbilder } from './datev.service';
@@ -46,6 +47,7 @@ export class ReportsController {
     private readonly reportsService: ReportsService,
     private readonly agingService: AgingService,
     private readonly cashflow: CashFlowService,
+    private readonly pnl: PnlService,
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
   ) {}
@@ -940,6 +942,36 @@ async getSalesReport(
       startingBalance,
       fromDate: fromDateRaw ? new Date(fromDateRaw) : undefined,
     })
+  }
+
+  /**
+   * Tier 75: P&L (Gewinn- und Verlustrechnung).
+   *
+   * Monthly + YTD operating result for a given year,
+   * plus a prior-year comparison. The shape mirrors
+   * the BWA a Berater would deliver to the Mandant
+   * (Umsatzerlöse, Materialaufwand, Sonstige,
+   * Betriebsergebnis).
+   *
+   * `year` defaults to the current year. The
+   * Material/Sonstige split is derived from
+   * expense.category: anything starting with
+   * "Material" or "Waren" → Materialaufwand; the
+   * rest → Sonstige. A v2 could integrate a proper
+   * BWA category map.
+   */
+  @Get('pnl')
+  @Require('reports.read')
+  async getPnl(
+    @Query('companyId') companyId: string,
+    @Query('year') yearRaw?: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const year = yearRaw ? Number(yearRaw) : new Date().getFullYear()
+    if (!Number.isFinite(year) || year < 2000 || year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+    return this.pnl.compute(companyId, year)
   }
 
   /**

@@ -2045,5 +2045,21 @@
     "cardCashflowTitle": "Liquidität",
     "cardCashflowDesc": "12-Monats-Vorschau auf Basis offener Posten und wiederkehrender Vorlagen.",
     "loading": "Berechne Vorschau…"
+  },
+  "pnl": {
+    "title": "Gewinn- und Verlustrechnung",
+    "year": "Geschäftsjahr",
+    "recompute": "Berechnen",
+    "month": "Monat",
+    "revenue": "Umsatzerlöse",
+    "material": "Materialaufwand",
+    "other": "Sonstige Aufwendungen",
+    "operatingResult": "Betriebsergebnis",
+    "vat": "USt (informativ)",
+    "priorYear": "Vorjahr",
+    "change": "Veränderung",
+    "ytd": "Summe (YTD)",
+    "invoices": "Rechnungen",
+    "expenses": "Ausgaben"
   }
 }

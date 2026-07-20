@@ -5,12 +5,13 @@ import { ReportsService } from './reports.service';
 import { UstvaService } from './ustva.service';
 import { AgingService } from './aging.service';
 import { CashFlowService } from './cashflow.service';
+import { PnlService } from './pnl.service';
 import { StorageModule } from '../storage/storage.module';
 
 @Module({
   imports: [StorageModule],
   controllers: [ReportsController, UstvaController],
-  providers: [ReportsService, UstvaService, AgingService, CashFlowService],
-  exports: [ReportsService, UstvaService, AgingService, CashFlowService],
+  providers: [ReportsService, UstvaService, AgingService, CashFlowService, PnlService],
+  exports: [ReportsService, UstvaService, AgingService, CashFlowService, PnlService],
 })
 export class ReportsModule {}

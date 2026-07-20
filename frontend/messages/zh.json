@@ -2045,5 +2045,21 @@
     "cardCashflowTitle": "现金流",
     "cardCashflowDesc": "基于未结项目和循环模板的 12 个月预测。",
     "loading": "正在计算预测…"
+  },
+  "pnl": {
+    "title": "利润表（损益表）",
+    "year": "财年",
+    "recompute": "计算",
+    "month": "月份",
+    "revenue": "营业收入",
+    "material": "材料成本",
+    "other": "其他费用",
+    "operatingResult": "营业利润",
+    "vat": "增值税（参考）",
+    "priorYear": "上一年",
+    "change": "变化",
+    "ytd": "合计 (YTD)",
+    "invoices": "发票",
+    "expenses": "支出"
   }
 }
