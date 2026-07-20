@@ -2,6 +2,7 @@ import { Controller, Get, Query, BadRequestException, Res, Header, Post, Body, D
 import type { Response } from 'express';
 import { ReportsService } from './reports.service';
 import { AgingService } from './aging.service';
+import { CashFlowService } from './cashflow.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { generateDatevBuchungsstapel, buildBuchungenFromDb, collectBelegbilder } from './datev.service';
@@ -44,6 +45,7 @@ export class ReportsController {
   constructor(
     private readonly reportsService: ReportsService,
     private readonly agingService: AgingService,
+    private readonly cashflow: CashFlowService,
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
   ) {}
@@ -884,6 +886,60 @@ async getSalesReport(
       costCenterBreakdown: mergeCostCenterBreakdown(invByCc, expByCc),
       generatedAt: now.toISOString(),
     }
+  }
+
+  /**
+   * Tier 74: Liquiditätsplanung (Cash Flow Forecast).
+   *
+   * 12-month rolling forecast of the company's bank
+   * balance, starting from the user's current
+   * balance. Each month shows incoming (open invoices
+   * + projected recurring templates) and outgoing
+   * (booked expenses) plus the cumulative balance.
+   *
+   * The "trocken" warning (`firstDryMonth`) tells
+   * the user WHEN, not just IF, the company would
+   * go negative — that's the question every CFO /
+   * Steuerberater actually asks: "können wir die
+   * nächste Rate noch zahlen?"
+   *
+   * Query params:
+   *   - companyId       (required)
+   *   - months          (optional, 1-36, default 12)
+   *   - startingBalance (optional, default 0)
+   *   - fromDate        (optional, ISO date — defaults
+   *                      to start of current month)
+   *
+   * The startingBalance is NOT auto-derived from
+   * bank-import because (a) the sync may be stale
+   * and (b) many users have multiple accounts they
+   * want to net. The UI exposes an input for it.
+   */
+  @Get('cashflow')
+  @Require('reports.read')
+  async getCashflow(
+    @Query('companyId') companyId: string,
+    @Query('months') monthsRaw?: string,
+    @Query('startingBalance') startingBalanceRaw?: string,
+    @Query('fromDate') fromDateRaw?: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const months = monthsRaw ? parseInt(monthsRaw, 10) : 12
+    if (!Number.isFinite(months) || months < 1 || months > 36) {
+      throw new BadRequestException('months muss zwischen 1 und 36 liegen')
+    }
+    const startingBalance = startingBalanceRaw
+      ? Number(startingBalanceRaw.replace(',', '.'))
+      : 0
+    if (!Number.isFinite(startingBalance)) {
+      throw new BadRequestException('startingBalance ist keine gültige Zahl')
+    }
+    return this.cashflow.forecast({
+      companyId,
+      months,
+      startingBalance,
+      fromDate: fromDateRaw ? new Date(fromDateRaw) : undefined,
+    })
   }
 
   /**

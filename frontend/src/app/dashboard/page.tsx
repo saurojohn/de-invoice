@@ -474,6 +474,20 @@ export default function DashboardPage() {
               <p className="text-gray-600 dark:text-gray-300">{t("dashboard.cardReportsDesc")}</p>
             </CardContent>
           </Card>
+          <Card
+            className="cursor-pointer hover:shadow-lg transition-shadow"
+            onClick={() => router.push("/dashboard/cashflow")}
+            data-testid="dashboard-card-cashflow"
+          >
+            <CardHeader>
+              <CardTitle className="text-blue-600 dark:text-blue-400">
+                💧 {t("cashflow.cardCashflowTitle")}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-gray-600 dark:text-gray-300">{t("cashflow.cardCashflowDesc")}</p>
+            </CardContent>
+          </Card>
           <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/cost-center-report")}>
             <CardHeader>
               <CardTitle>{t("nav.costCenterReport")}</CardTitle>
