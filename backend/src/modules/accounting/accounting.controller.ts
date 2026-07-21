@@ -4,6 +4,7 @@ import { AccountService } from './account.service';
 import { VoucherService } from './voucher.service';
 import { generateVoucherPDF } from '../../accounting/voucher-pdf.service';
 import { EuerService } from './euer.service';
+import { AnlageSService } from './anlage-s.service';
 import { GobdArchiveService } from './gobd-archive.service';
 import { HeaderAuthGuard } from '../../auth/header-auth.guard';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -14,6 +15,7 @@ export class AccountingController {
     private accountService: AccountService,
     private voucherService: VoucherService,
     private euer: EuerService,
+    private anlageS: AnlageSService,
     private gobd: GobdArchiveService,
     private prisma: PrismaService,
   ) {}
@@ -440,6 +442,53 @@ export class AccountingController {
       throw new BadRequestException('year ist ungültig')
     }
     await this.euer.renderPdf(companyId, year, res)
+  }
+
+  /**
+   * Tier 80: Anlage S — Einkünfte aus selbständiger
+   * Arbeit (§ 18 EStG). The freelancer / self-
+   * employed counterpart to the EÜR (which is for
+   * § 15 EStG Gewerbebetrieb). Same Kennziffer
+   * vocabulary on the revenue side; expense side
+   * is shifted to the typical freelance
+   * deductible categories (Kfz, Fortbildung,
+   * Steuerberatung, etc.).
+   *
+   * Defaults: previous calendar year. Year
+   * validation matches /euer.
+   */
+  @Get('anlage-s')
+  @UseGuards(HeaderAuthGuard)
+  async getAnlageS(
+    @Query('companyId') companyId: string,
+    @Query('year') yearRaw?: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const year = yearRaw
+      ? Number(yearRaw)
+      : new Date().getFullYear() - 1
+    if (!Number.isFinite(year) || year < 2000 || year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+    return this.anlageS.compute(companyId, year)
+  }
+
+  @Get('anlage-s.pdf')
+  @UseGuards(HeaderAuthGuard)
+  @Header('Content-Type', 'application/pdf')
+  async getAnlageSPdf(
+    @Res() res: Response,
+    @Query('companyId') companyId: string,
+    @Query('year') yearRaw?: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const year = yearRaw
+      ? Number(yearRaw)
+      : new Date().getFullYear() - 1
+    if (!Number.isFinite(year) || year < 2000 || year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+    await this.anlageS.renderPdf(companyId, year, res)
   }
 
   /**

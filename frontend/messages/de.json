@@ -2154,5 +2154,20 @@
     "success": "Notiz gesendet.",
     "noteAcknowledged": "Notiz bestätigt.",
     "noteDismissed": "Notiz geschlossen."
+  },
+  "anlageS": {
+    "title": "Anlage S (Vorschau)",
+    "subtitle": "Einkünfte aus selbständiger Arbeit (§ 18 EStG) — automatisch aus Ihren Buchungen generiert. Vom Steuerberater prüfen lassen.",
+    "year": "Geschäftsjahr",
+    "recompute": "Berechnen",
+    "downloadPdf": "PDF herunterladen",
+    "einnahmen": "Betriebseinnahmen",
+    "ausgaben": "Betriebsausgaben",
+    "gewinn": "Gewinn",
+    "verlust": "Verlust",
+    "invoices": "Rechnungen",
+    "expenses": "Ausgaben",
+    "generatedAt": "Erstellt",
+    "previewHint": "Vorschau — alle Werte automatisch berechnet. Vor der Einreichung durch den Steuerberater prüfen."
   }
 }
