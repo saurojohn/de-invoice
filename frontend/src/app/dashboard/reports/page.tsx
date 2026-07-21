@@ -8,8 +8,9 @@ import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { apiFetch, apiGet } from "@/lib/api"
 import { useI18n } from "@/components/useI18n"
 import { PnlTab } from "./PnlTab"
+import { OssTab } from "./OssTab"
 
-type TabType = "sales" | "vat" | "customers" | "datev" | "pnl"
+type TabType = "sales" | "vat" | "customers" | "datev" | "pnl" | "oss"
 
 interface SalesReport {
   totalSales: number
@@ -380,6 +381,17 @@ export default function ReportsPage() {
             data-testid="tab-pnl"
           >
             GuV (P&amp;L)
+          </button>
+          <button
+            className={`px-6 py-3 font-medium border-b-2 transition-colors ${
+              activeTab === "oss"
+                ? "border-blue-600 text-blue-600 dark:text-blue-400"
+                : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+            }`}
+            onClick={() => setActiveTab("oss")}
+            data-testid="tab-oss"
+          >
+            EU OSS
           </button>
         </div>
 
@@ -797,6 +809,9 @@ export default function ReportsPage() {
 
             {/* Tier 75: P&L (Gewinn- und Verlustrechnung) */}
             {activeTab === "pnl" && <PnlTab />}
+
+            {/* Tier 78: EU OSS (One-Stop-Shop) */}
+            {activeTab === "oss" && <OssTab />}
           </>
         )}
       </div>
