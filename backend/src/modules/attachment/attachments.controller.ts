@@ -92,7 +92,7 @@ export class AttachmentsController {
       throw new BadRequestException('entityType und entityId sind erforderlich')
     }
     if (body.entityType !== 'expense' && body.entityType !== 'voucher') {
-      throw new BadRequestException(`entityType muss 'expense' oder 'voucher' sein (erhielt: ${body.entityType})`)
+      throw new BadRequestException(`entityType muss 'expense', 'voucher' oder 'berater-note' sein (erhielt: ${body.entityType})`)
     }
     return this.attachments.upload({
       companyId: body.companyId,

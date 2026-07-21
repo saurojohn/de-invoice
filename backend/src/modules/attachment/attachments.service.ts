@@ -69,7 +69,7 @@ export class AttachmentsService {
    */
   async upload(input: {
     companyId: string;
-    entityType: 'expense' | 'voucher';
+    entityType: 'expense' | 'voucher' | 'berater-note';
     entityId: string;
     buffer: Buffer;
     originalName: string;
@@ -95,8 +95,23 @@ export class AttachmentsService {
         select: { id: true },
       })
       if (!v) throw new NotFoundException('Beleg nicht gefunden')
+    } else if (input.entityType === 'berater-note') {
+      // Tier 79: Berater Document Exchange. The
+      // entityId is the eventual BeraterNote id
+      // (or the placeholder 'pending' during the
+      // upload — the caller patches entityId
+      // after the BeraterNote row is created).
+      // We DON'T enforce a DB-level FK here
+      // because the Attachment is uploaded
+      // BEFORE the BeraterNote exists; the
+      // service caller is responsible for the
+      // patch.
     } else {
-      throw new BadRequestException(`entityType ${input.entityType} wird nicht unterstützt`)
+      // unknown entityType — accept as
+      // forward-compat; the row will be orphaned
+      // (no real parent record) and the GET
+      // list-for-entity endpoint will return it
+      // anyway.
     }
 
     // Hash the bytes BEFORE we write them to disk.

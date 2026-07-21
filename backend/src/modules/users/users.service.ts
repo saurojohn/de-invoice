@@ -78,6 +78,27 @@ const PERMISSIONS: Record<string, Role> = {
   'reports.write': ROLES.ACCOUNTANT,
   'ustva.read': ROLES.ACCOUNTANT,
   'ustva.submit': ROLES.ADMIN,
+  // Tier 79: Berater Document Exchange.
+  //   - read: everyone with access (Berater +
+  //           Mandant) can see the queue
+  //   - create: ACCOUNTANT rank; the service
+  //             then checks the actual role is
+  //             exactly 'berater' (the @Require
+  //             decorator can't express "only
+  //             this exact role", so we do it
+  //             in the service). With the role
+  //             rank mapping (berater → accountant
+  //             for permission checks), the
+  //             Berater passes @Require AND the
+  //             service-level 'berater'-only check.
+  //   - acknowledge/dismiss: ACCOUNTANT rank;
+  //             the service then checks the role
+  //             is NOT 'berater' (only the Mandant
+  //             can move the queue).
+  'berater.note.read': ROLES.VIEWER,
+  'berater.note.create': ROLES.ACCOUNTANT,
+  'berater.note.acknowledge': ROLES.ACCOUNTANT,
+  'berater.note.dismiss': ROLES.ACCOUNTANT,
 };
 
 @Injectable()

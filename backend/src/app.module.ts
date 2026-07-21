@@ -47,6 +47,7 @@ import { HealthModule } from './modules/health/health.module';
 import { WebhookModule } from './modules/webhook/webhook.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { SigningModule } from './modules/signing/signing.module';
+import { BeraterModule } from './modules/berater/berater.module';
 
 @Module({
   imports: [
@@ -107,6 +108,7 @@ import { SigningModule } from './modules/signing/signing.module';
     InvoiceTemplateModule,
     PortalModule,
     HealthModule,
+    BeraterModule,
     WebhookModule,
     AuditModule,
     SigningModule,

@@ -108,6 +108,13 @@ model Company {
   // time of the booking.
   vatValidations VatValidationLog[]
 
+  // Tier 79: Berater Document Exchange notes
+  // targeted at this Mandant. Each row is a
+  // (Berater → Mandant) message + optional
+  // attachment. The Mandant's /dashboard/berater
+  // page lists these in a queue.
+  beraterNotes BeraterNote[]
+
   @@index([name])
 }
 
@@ -187,6 +194,12 @@ model User {
   // (a Berater/Steuerberater typically has multiple
   // rows here; a single-Mandant user has exactly one).
   grantedCompanies UserCompany[] @relation("GrantedBy")
+  // Tier 79: Berater Document Exchange — notes this
+  // user created (the Berater), acknowledged
+  // (the Mandant), or dismissed (the Mandant).
+  createdBeraterNotes     BeraterNote[] @relation("BeraterNoteCreatedBy")
+  acknowledgedBeraterNotes BeraterNote[] @relation("BeraterNoteAcknowledgedBy")
+  dismissedBeraterNotes   BeraterNote[] @relation("BeraterNoteDismissedBy")
 }
 
 /// Tier 66: Multi-Mandanten-Berater (many-to-many).
@@ -1166,6 +1179,16 @@ model Attachment {
   uploadedById  String?
   uploadedBy    User?   @relation("UploadedAttachments", fields: [uploadedById], references: [id])
 
+  // Tier 79: back-relation from BeraterNote. An
+  // Attachment used as a Berater note's supporting
+  // doc is still "expense" / "voucher" / etc. in
+  // entityType — the BeraterNote is the
+  // presentation layer on top. A given Attachment
+  // can back multiple BeraterNotes (one Beleg
+  // could be referenced by two notes on the same
+  // record), so the back-relation is many-to-one.
+  beraterNotes  BeraterNote[]
+
   createdAt     DateTime @default(now())
 
   @@index([companyId, entityType, entityId])
@@ -1189,6 +1212,114 @@ model AuditLog {
 
   @@index([companyId, createdAt])
   @@index([entityType, entityId])
+}
+
+/// Tier 79: Berater Document Exchange — the
+/// write-back channel from a Steuerberater
+/// (role='berater' on UserCompany) to the
+/// Mandant. Tier 66 + 71 gave the Berater
+/// read access; this tier adds the
+/// counterpart — the Berater can leave notes
+/// + upload supporting documents (Belege,
+/// Korrekturen) on specific records (an
+/// invoice, an expense, a voucher, etc.) and
+/// the Mandant sees them in a queue and can
+/// acknowledge or dismiss.
+///
+/// The Berater does NOT get write access to
+/// the underlying bookkeeping data — only to
+/// this dedicated "berater" namespace. A
+/// note is a suggestion + supporting doc, not
+/// a mutation. The Mandant acts on it (or
+/// not) in the normal application UI.
+///
+/// Lifecycle: open → acknowledged | dismissed.
+/// A note stays in the list until the
+/// Mandant moves it. We keep the dismissed
+/// notes visible (with status='dismissed')
+/// so the Berater can see "yep, the Mandant
+/// saw it and chose not to act" — important
+/// for the audit trail.
+/// Tier 79: Berater Document Exchange — the
+/// write-back channel from a Steuerberater
+/// (role='berater' on UserCompany) to the
+/// Mandant. Tier 66 + 71 gave the Berater
+/// read access; this tier adds the
+/// counterpart — the Berater can leave notes
+/// + upload supporting documents (Belege,
+/// Korrekturen) on specific records (an
+/// invoice, an expense, a voucher, etc.) and
+/// the Mandant sees them in a queue and can
+/// acknowledge or dismiss.
+///
+/// The Berater does NOT get write access to
+/// the underlying bookkeeping data — only to
+/// this dedicated "berater" namespace. A
+/// note is a suggestion + supporting doc, not
+/// a mutation. The Mandant acts on it (or
+/// not) in the normal application UI.
+///
+/// Lifecycle: open -> acknowledged | dismissed.
+/// A note stays in the list until the
+/// Mandant moves it. We keep the dismissed
+/// notes visible (with status='dismissed')
+/// so the Berater can see "yep, the Mandant
+/// saw it and chose not to act" — important
+/// for the audit trail.
+model BeraterNote {
+  id           String   @id @default(uuid())
+  companyId    String
+  company      Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  // The record the note is about. No DB-level
+  // FK because the entityType vocabulary spans
+  // many tables (invoice / expense / voucher /
+  // customer / …). The list endpoint + the
+  // frontend surface (entityType, entityId) so
+  // the Mandant can click through to the
+  // referenced record.
+  entityType   String
+  entityId     String
+  // Optional attachment (a corrected Beleg, a
+  // signed letter, a screenshot of the FA
+  // reply). Reuses the Attachment model so the
+  // file is stored + downloadable via the same
+  // path as every other file in the app. ON
+  // DELETE SET NULL: deleting the file row
+  // preserves the note (the text survives, the
+  // attachment just disappears from it).
+  attachmentId String?
+  attachment   Attachment? @relation(fields: [attachmentId], references: [id], onDelete: SetNull)
+  // Free-form text. Required. The controller
+  // enforces min 1 char + max 4 KB (a long
+  // explanation should be its own doc).
+  message      String
+  // 'open' (new, Mandant hasn't acted) |
+  // 'acknowledged' (Mandant saw + confirmed) |
+  // 'dismissed' (Mandant saw + chose not to act)
+  status       String   @default("open")
+  // The Berater who wrote the note. Must have
+  // role='berater' on the UserCompany for this
+  // companyId (enforced at the controller, not
+  // here — the model doesn't know about roles).
+  createdById  String
+  createdBy    User     @relation("BeraterNoteCreatedBy", fields: [createdById], references: [id])
+  createdAt    DateTime @default(now())
+  // Acknowledgement — the Mandant (or any user
+  // with non-berater role on the same
+  // UserCompany) confirms they've seen the note.
+  // We capture who + when for audit.
+  acknowledgedById String?
+  acknowledgedBy   User?   @relation("BeraterNoteAcknowledgedBy", fields: [acknowledgedById], references: [id])
+  acknowledgedAt   DateTime?
+  // Dismissal — the Mandant saw the note but
+  // chose not to act. Same capture pattern.
+  dismissedById String?
+  dismissedBy   User?   @relation("BeraterNoteDismissedBy", fields: [dismissedById], references: [id])
+  dismissedAt   DateTime?
+
+  @@index([companyId, status, createdAt])
+  @@index([entityType, entityId])
+  @@index([createdById, createdAt])
 }
 
 /// Captured runtime errors from both the backend (uncaught
