@@ -2076,5 +2076,21 @@
     "expenses": "支出",
     "generatedAt": "生成时间",
     "previewHint": "预览 — 所有数值自动计算。提交前请税务师审核。"
+  },
+  "gobd": {
+    "title": "GoBD 档案 (§ 147 AO)",
+    "subtitle": "年度归档，包含所有发票、支出、附件、DATEV 总账和审计日志。保留期：10 年。",
+    "year": "财年",
+    "recompute": "刷新预览",
+    "downloadZip": "下载 ZIP",
+    "invoiceCount": "发票",
+    "expenseCount": "支出",
+    "attachmentCount": "附件 (PDF)",
+    "auditLogCount": "审计条目",
+    "revenueNet": "收入净额",
+    "expenseNet": "支出净额",
+    "vat": "增值税",
+    "vorsteuer": "进项税",
+    "disclaimer": "档案包含发票 PDF、支出元数据 + 凭证、DATEV 总账和审计日志。MANIFEST 条目包含 SHA-256 哈希用于完整性验证。"
   }
 }

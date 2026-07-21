@@ -2076,5 +2076,21 @@
     "expenses": "Expenses",
     "generatedAt": "Generated",
     "previewHint": "Preview — all values computed automatically. Have your tax advisor verify before filing."
+  },
+  "gobd": {
+    "title": "GoBD archive (§ 147 AO)",
+    "subtitle": "Year-end archive with all invoices, expenses, attachments, DATEV ledger and audit log. Retention: 10 years.",
+    "year": "Fiscal year",
+    "recompute": "Refresh preview",
+    "downloadZip": "Download ZIP",
+    "invoiceCount": "Invoices",
+    "expenseCount": "Expenses",
+    "attachmentCount": "Attachments (PDF)",
+    "auditLogCount": "Audit entries",
+    "revenueNet": "Revenue net",
+    "expenseNet": "Expenses net",
+    "vat": "VAT",
+    "vorsteuer": "Input VAT",
+    "disclaimer": "The archive contains invoice PDFs, expense metadata + receipts, the DATEV ledger, and the audit log. The MANIFEST entry contains SHA-256 hashes for integrity verification."
   }
 }

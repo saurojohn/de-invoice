@@ -2076,5 +2076,21 @@
     "expenses": "Ausgaben",
     "generatedAt": "Erstellt",
     "previewHint": "Vorschau — alle Werte automatisch berechnet. Vor der Einreichung durch den Steuerberater prüfen lassen."
+  },
+  "gobd": {
+    "title": "GoBD-Archiv (§ 147 AO)",
+    "subtitle": "Jahresabschluss-Archiv mit allen Rechnungen, Ausgaben, Belegen, Buchungsstapel und Audit-Log. Aufbewahrungsfrist: 10 Jahre.",
+    "year": "Geschäftsjahr",
+    "recompute": "Vorschau aktualisieren",
+    "downloadZip": "ZIP herunterladen",
+    "invoiceCount": "Rechnungen",
+    "expenseCount": "Ausgaben",
+    "attachmentCount": "Belege (PDF)",
+    "auditLogCount": "Audit-Einträge",
+    "revenueNet": "Erlöse netto",
+    "expenseNet": "Aufwand netto",
+    "vat": "USt",
+    "vorsteuer": "Vorsteuer",
+    "disclaimer": "Das Archiv enthält Rechnungs-PDFs, Ausgaben-Metadaten + Belege, den DATEV-Buchungsstapel und das Audit-Log. Der MANIFEST-Eintrag enthält SHA-256-Hashes für die Integritätsprüfung."
   }
 }

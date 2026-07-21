@@ -4,6 +4,7 @@ import { AccountService } from './account.service';
 import { VoucherService } from './voucher.service';
 import { generateVoucherPDF } from '../../accounting/voucher-pdf.service';
 import { EuerService } from './euer.service';
+import { GobdArchiveService } from './gobd-archive.service';
 import { HeaderAuthGuard } from '../../auth/header-auth.guard';
 import { PrismaService } from '../../prisma/prisma.service';
 
@@ -13,6 +14,7 @@ export class AccountingController {
     private accountService: AccountService,
     private voucherService: VoucherService,
     private euer: EuerService,
+    private gobd: GobdArchiveService,
     private prisma: PrismaService,
   ) {}
 
@@ -438,5 +440,72 @@ export class AccountingController {
       throw new BadRequestException('year ist ungültig')
     }
     await this.euer.renderPdf(companyId, year, res)
+  }
+
+  /**
+   * Tier 77: GoBD Document Archive (§ 147 AO).
+   *
+   * Streams a ZIP archive containing every
+   * invoice PDF, every expense meta + receipt
+   * attachment, the DATEV Buchungsstapel CSV,
+   * the audit log, and a MANIFEST.json with
+   * SHA-256 hashes. The Mandant hands this to
+   * the Berater at year-end or to the
+   * Betriebsprüfer during a tax audit.
+   *
+   * Returns application/zip. The archive is
+   * generated on demand (no pre-stored archives
+   * — the source data is the DB, so storing
+   * pre-built copies would just duplicate the
+   * storage cost).
+   *
+   * The GoBD § 147 AO 10-year retention is
+   * satisfied as long as the source data is in
+   * the DB. The archive itself is a snapshot
+   * export — losing the ZIP doesn't lose the
+   * underlying records, but the Berater
+   * appreciates having the immutable copy
+   * for offline review.
+   */
+  @Get('gobd-archive')
+  @UseGuards(HeaderAuthGuard)
+  async getGobdArchive(
+    @Res() res: Response,
+    @Query('companyId') companyId: string,
+    @Query('year') yearRaw?: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const year = yearRaw
+      ? Number(yearRaw)
+      : new Date().getFullYear() - 1
+    if (!Number.isFinite(year) || year < 2000 || year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+    await this.gobd.streamArchive(companyId, year, res)
+  }
+
+  /**
+   * Tier 77: GoBD archive summary.
+   *
+   * Returns counts + totals without building
+   * the ZIP. Used by the UI to show the user
+   * what's in the archive BEFORE they download
+   * (a multi-MB download is much more pleasant
+   * after a confirmation dialog).
+   */
+  @Get('gobd-archive/summary')
+  @UseGuards(HeaderAuthGuard)
+  async getGobdArchiveSummary(
+    @Query('companyId') companyId: string,
+    @Query('year') yearRaw?: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const year = yearRaw
+      ? Number(yearRaw)
+      : new Date().getFullYear() - 1
+    if (!Number.isFinite(year) || year < 2000 || year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+    return this.gobd.getSummary(companyId, year)
   }
 }

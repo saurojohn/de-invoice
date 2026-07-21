@@ -9,6 +9,7 @@ import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
 import { apiGet, apiPost, apiFetch } from "@/lib/api"
 import { EuerSection } from "./EuerSection"
+import { GobdArchiveSection } from "./GobdArchiveSection"
 
 // The enriched Voucher summary returned by the
 // GET /api/v1/accounting/vouchers endpoint. The list
@@ -1119,6 +1120,9 @@ export default function AccountingPage() {
 
       {/* Tier 76: Anlage EÜR — yearly tax-filing preview */}
       <EuerSection />
+
+      {/* Tier 77: GoBD-Archiv (§ 147 AO 10-year retention) */}
+      <GobdArchiveSection />
     </main>
   )
 }
