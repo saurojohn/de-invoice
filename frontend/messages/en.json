@@ -2272,5 +2272,25 @@
     "disposeHint": "Enter sale date and price. The asset is removed from the balance sheet pool.",
     "disposeOk": "Asset disposed",
     "deleteHint": "A disposed asset can no longer be edited. Disposing documents the sale; for deletion, contact your tax advisor."
+  },
+  "anhang": {
+    "title": "Notes to the Financial Statements",
+    "subtitle": "PREVIEW per § 284 HGB — auto-generated from Bilanz + G+V + Asset register. Mandatory disclosures (§ 285 HGB) are marked and must be completed before filing.",
+    "year": "Fiscal year",
+    "recompute": "Compute",
+    "downloadPdf": "Download PDF",
+    "sectionI": "I. General Information",
+    "sectionII": "II. Accounting policies",
+    "sectionIII": "III. Notes to the Balance Sheet",
+    "sectionIV": "IV. Notes to the Income Statement",
+    "sectionV": "V. Other mandatory disclosures (§ 285 HGB)",
+    "beraterHint": "To be completed by the tax advisor",
+    "autoHint": "Auto-generated",
+    "countsBilanz": "Balance sheet",
+    "countsGuv": "P&L",
+    "ausgewiesen": "stated",
+    "nichtAusgewiesen": "not stated",
+    "generatedAt": "Generated",
+    "previewHint": "PREVIEW — auto-generated from the data in the system. Sections marked 'To be completed by the tax advisor' (§ 285 HGB mandatory disclosures) must be filled in before filing. Have your tax advisor verify before filing."
   }
 }

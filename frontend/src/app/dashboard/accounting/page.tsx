@@ -12,6 +12,7 @@ import { EuerSection } from "./EuerSection"
 import { AnlageSSection } from "./AnlageSSection"
 import { BilanzSection } from "./BilanzSection"
 import { GuVSection } from "./GuVSection"
+import { AnhangSection } from "./AnhangSection"
 import { GobdArchiveSection } from "./GobdArchiveSection"
 
 // The enriched Voucher summary returned by the
@@ -1132,6 +1133,9 @@ export default function AccountingPage() {
 
       {/* Tier 82: G+V Vorschau (§ 275 Abs. 2 HGB Gesamtkostenverfahren) */}
       <GuVSection />
+
+      {/* Tier 84: Anhang zum Jahresabschluss (§ 284 HGB) */}
+      <AnhangSection />
 
       {/* Tier 77: GoBD-Archiv (§ 147 AO 10-year retention) */}
       <GobdArchiveSection />

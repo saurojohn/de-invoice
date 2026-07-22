@@ -7,6 +7,7 @@ import { EuerService } from './euer.service';
 import { AnlageSService } from './anlage-s.service';
 import { BilanzService } from './bilanz.service';
 import { GuVService } from './guv.service';
+import { AnhangService } from './anhang.service';
 import { GobdArchiveService } from './gobd-archive.service';
 import { HeaderAuthGuard } from '../../auth/header-auth.guard';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -20,6 +21,7 @@ export class AccountingController {
     private anlageS: AnlageSService,
     private bilanz: BilanzService,
     private guv: GuVService,
+    private anhang: AnhangService,
     private gobd: GobdArchiveService,
     private prisma: PrismaService,
   ) {}
@@ -668,5 +670,56 @@ export class AccountingController {
       throw new BadRequestException('year ist ungültig')
     }
     await this.guv.renderPdf(companyId, year, res)
+  }
+
+  /**
+   * Tier 84: Anhang zum Jahresabschluss (§ 284 HGB).
+   *
+   * The third part of the Bilanz-pflichtige
+   * entity's Jahresabschluss. Pulls from the
+   * BilanzService + GuVService to cross-
+   * reference the position values + the
+   * "nicht ausgewiesen" notes. The
+   * Pflichtangaben section is marked
+   * "vom Berater zu ergänzen" — the Berater
+   * fills in the § 285 HGB disclosures
+   * (Haftungsverhältnisse, related-party,
+   * events after BS date, etc.).
+   *
+   * Year defaults to previous calendar year,
+   * matching the Bilanz + G+V endpoints.
+   */
+  @Get('anhang')
+  @UseGuards(HeaderAuthGuard)
+  async getAnhang(
+    @Query('companyId') companyId: string,
+    @Query('year') yearRaw?: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const year = yearRaw
+      ? Number(yearRaw)
+      : new Date().getFullYear() - 1
+    if (!Number.isFinite(year) || year < 2000 || year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+    return this.anhang.compute(companyId, year)
+  }
+
+  @Get('anhang.pdf')
+  @UseGuards(HeaderAuthGuard)
+  @Header('Content-Type', 'application/pdf')
+  async getAnhangPdf(
+    @Res() res: Response,
+    @Query('companyId') companyId: string,
+    @Query('year') yearRaw?: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const year = yearRaw
+      ? Number(yearRaw)
+      : new Date().getFullYear() - 1
+    if (!Number.isFinite(year) || year < 2000 || year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+    await this.anhang.renderPdf(companyId, year, res)
   }
 }

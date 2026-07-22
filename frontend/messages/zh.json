@@ -2272,5 +2272,25 @@
     "disposeHint": "输入出售日期和价格。该资产将从资产负债池中移除。",
     "disposeOk": "资产已处置",
     "deleteHint": "已处置的资产不能再编辑。处置记录出售；如需删除请联系税务师。"
+  },
+  "anhang": {
+    "title": "财务报表附注",
+    "subtitle": "按《德国商法典》§ 284 预览 — 自动从资产负债表 + 损益表 + 固定资产清册生成。强制披露（§ 285 HGB）已标记，提交前须由税务师补全。",
+    "year": "财年",
+    "recompute": "计算",
+    "downloadPdf": "下载 PDF",
+    "sectionI": "I. 一般信息",
+    "sectionII": "II. 会计政策",
+    "sectionIII": "III. 资产负债表附注",
+    "sectionIV": "IV. 损益表附注",
+    "sectionV": "V. 其它强制披露（§ 285 HGB）",
+    "beraterHint": "由税务师补全",
+    "autoHint": "自动生成",
+    "countsBilanz": "资产负债表",
+    "countsGuv": "损益表",
+    "ausgewiesen": "已列示",
+    "nichtAusgewiesen": "未列示",
+    "generatedAt": "生成时间",
+    "previewHint": "预览 — 由系统数据自动生成。标记为「由税务师补全」的章节（§ 285 HGB 强制披露）提交前须由税务师填写。提交前请税务师审核。"
   }
 }

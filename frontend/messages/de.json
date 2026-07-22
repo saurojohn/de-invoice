@@ -2272,5 +2272,25 @@
     "disposeHint": "Verkaufsdatum und -preis eingeben. Die Anlage wird aus dem Bilanz-Pool entfernt.",
     "disposeOk": "Anlage veräußert",
     "deleteHint": "Eine veräußerte Anlage kann nicht mehr bearbeitet werden. Veräußern dokumentiert den Verkauf; zum Löschen wenden Sie sich an den Berater."
+  },
+  "anhang": {
+    "title": "Anhang zum Jahresabschluss",
+    "subtitle": "VORSCHAU nach § 284 HGB — automatisch generiert aus Bilanz + G+V + Anlagenverzeichnis. Die Berater-Pflichtangaben (§ 285 HGB) sind markiert und müssen vor der Einreichung ergänzt werden.",
+    "year": "Geschäftsjahr",
+    "recompute": "Berechnen",
+    "downloadPdf": "PDF herunterladen",
+    "sectionI": "I. Allgemeine Angaben",
+    "sectionII": "II. Bilanzierungs- und Bewertungsmethoden",
+    "sectionIII": "III. Erläuterungen zur Bilanz",
+    "sectionIV": "IV. Erläuterungen zur G+V",
+    "sectionV": "V. Sonstige Pflichtangaben (§ 285 HGB)",
+    "beraterHint": "Vom Berater zu ergänzen",
+    "autoHint": "Automatisch generiert",
+    "countsBilanz": "Bilanz",
+    "countsGuv": "G+V",
+    "ausgewiesen": "ausgewiesen",
+    "nichtAusgewiesen": "nicht ausgewiesen",
+    "generatedAt": "Erstellt",
+    "previewHint": "VORSCHAU — automatisch generiert aus den vorhandenen Daten. Die als „Vom Berater zu ergänzen\" markierten Abschnitte (§ 285 HGB Pflichtangaben) müssen vor der Einreichung durch den Steuerberater ausgefüllt werden. Vor der Einreichung durch den Steuerberater prüfen lassen."
   }
 }
