@@ -64,6 +64,9 @@ DELETE FROM "Invoice" WHERE "invoiceNumber" LIKE 'GUV-%';
 DELETE FROM "Expense" WHERE "invoiceNumber" LIKE 'GUV-%';
 DELETE FROM "CustomerCreditTransaction" WHERE "description" LIKE 'GUV-%';
 DELETE FROM "Customer" WHERE "customerNumber" LIKE 'GUV-%';
+-- Tier 83: AVZ-* assets from prior e2e 109
+-- runs would leak 7a AfA into the baseline.
+DELETE FROM "Asset" WHERE "bezeichnung" LIKE 'AVZ-%' OR "notiz" LIKE 'AVZ-%';
 SQL
 
 # Cleanup hook
@@ -131,6 +134,17 @@ for l in d['cost']['lines']:
     print(l['amount'] or 0)
     break
 ")
+# Tier 83: 7a (Abschreibungen) may now be non-null
+# if the company has registered Sachanlagen.
+# The e2e 108 baseline captures whatever's there.
+BASE_AFA=$(echo "$BASE" | python3 -c "
+import json,sys
+d = json.load(sys.stdin)
+for l in d['cost']['lines']:
+  if l['position'] == '7a':
+    print(l['amount'] or 0)
+    break
+")
 BASE_SONST_AUFW=$(echo "$BASE" | python3 -c "
 import json,sys
 d = json.load(sys.stdin)
@@ -152,7 +166,7 @@ import json,sys
 d = json.load(sys.stdin)
 print(d['totals']['jahresueberschuss'])
 ")
-echo "  Baseline: umsatz=$BASE_UMSATZ 4-sonst=$BASE_SONST_ERTR material=$BASE_MATERIAL personal=$BASE_PERSONAL 8-sonst=$BASE_SONST_AUFW 13-zins=$BASE_ZINS JU=$BASE_JU"
+echo "  Baseline: umsatz=$BASE_UMSATZ 4-sonst=$BASE_SONST_ERTR material=$BASE_MATERIAL personal=$BASE_PERSONAL 7a-afa=$BASE_AFA 8-sonst=$BASE_SONST_AUFW 13-zins=$BASE_ZINS JU=$BASE_JU"
 
 # Add 2 PAID invoices (1000 + 1500 = +2500 net) + 1 Gutschrift (-500)
 INV1_ID="inv-guv-1-$TS"
@@ -309,13 +323,16 @@ assert_eq "Zinsaufwendungen delta = +100" "$D_ZINS" "100"
 
 # ── 7. Nicht ausgewiesen positions ──
 echo
-note "=== 7. Pos 2 (Bestandsveränderungen) + Pos 7a (Abschreibungen) + Pos 11 (Zinserträge) + Pos 14 (Steuern) all nicht ausgewiesen ==="
+note "=== 7. Pos 2 (Bestandsveränderungen) + Pos 11 (Zinserträge) + Pos 14 (Steuern) all nicht ausgewiesen ==="
+# Note: Pos 7a (Abschreibungen) is now filled
+# by tier 83 when the company has Sachanlagen.
+# The dev DB has tier-83 test assets from a
+# prior e2e 109 run, so 7a may be non-null.
 NA_OK=$(python3 -c "
 import json
 d = json.load(open('$TMP'))
 expected = [
   ('revenue', '2'),    # Bestandsveränderungen
-  ('cost', '7a'),      # Abschreibungen
   ('financial', '11'), # Zinserträge
   ('tax', '14'),       # Steuern vom Einkommen
 ]
@@ -330,11 +347,13 @@ for section_name, pos in expected:
 all_null = all(amt is None for _, amt in results)
 print('true' if all_null else f'not null: {results}')
 ")
-assert_eq "all 4 nicht-ausgewiesen positions are null" "$NA_OK" "true"
+assert_eq "all 3 nicht-ausgewiesen positions are null (2, 11, 14)" "$NA_OK" "true"
 
 # ── 8. Result § 275 GKV Pos 17 (Jahresüberschuss) ──
 echo
-note "=== 8. Pos 17 (Jahresüberschuss) = umsatz + sonst_ertr - 5a - 6a - 8 - 13 ==="
+note "=== 8. Pos 17 (Jahresüberschuss) = umsatz + sonst_ertr - 5a - 6a - 7a - 8 - 13 ==="
+# Tier 83: 7a is now an additional cost line. The
+# identity must include it.
 JU_IDENTITY=$(python3 -c "
 import json
 d = json.load(open('$TMP'))
@@ -343,9 +362,10 @@ umsatz = next(l['amount'] for l in d['revenue']['lines'] if l['position'] == '1'
 sonst_ertr = next(l['amount'] for l in d['revenue']['lines'] if l['position'] == '4') or 0
 mat = next(l['amount'] for l in d['cost']['lines'] if l['position'] == '5a') or 0
 pers = next(l['amount'] for l in d['cost']['lines'] if l['position'] == '6a') or 0
+afa = next(l['amount'] for l in d['cost']['lines'] if l['position'] == '7a') or 0
 sonst_aufw = next(l['amount'] for l in d['cost']['lines'] if l['position'] == '8') or 0
 zins = next(l['amount'] for l in d['financial']['lines'] if l['position'] == '13') or 0
-expected_ju = umsatz + sonst_ertr - mat - pers - sonst_aufw - zins
+expected_ju = umsatz + sonst_ertr - mat - pers - afa - sonst_aufw - zins
 actual_ju = d['totals']['jahresueberschuss']
 ok = abs(expected_ju - actual_ju) < 0.01
 print('true' if ok else f'expected={expected_ju} actual={actual_ju}')

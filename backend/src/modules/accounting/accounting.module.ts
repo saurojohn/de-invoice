@@ -14,9 +14,15 @@ import { GuVService } from './guv.service';
 import { GobdArchiveService } from './gobd-archive.service';
 import { StorageModule } from '../storage/storage.module';
 import { WebhookModule } from '../webhook/webhook.module';
+// Tier 83: Anlagenverzeichnis + AfA — the
+// AssetsService is injected into the
+// BilanzService + GuVService to fill the
+// Anlagevermögen (0100-0500) + Abschreibungen
+// (7a) positions on the HGB reports.
+import { AssetsModule } from '../assets/assets.module';
 
 @Module({
-  imports: [PrismaModule, StorageModule, WebhookModule],
+  imports: [PrismaModule, StorageModule, WebhookModule, AssetsModule],
   controllers: [AccountingController, VoucherTemplateController, JournalController],
   providers: [AccountService, VoucherService, VoucherTemplateService, JournalService, EuerService, AnlageSService, BilanzService, GuVService, GobdArchiveService],
   exports: [AccountService, VoucherService, VoucherTemplateService, JournalService, EuerService, AnlageSService, BilanzService, GuVService, GobdArchiveService],

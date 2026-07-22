@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
+import { AssetsService } from '../assets/assets.service'
 import { Response } from 'express'
 import PDFDocument from 'pdfkit'
 
@@ -129,7 +130,10 @@ function round2(n: number): number {
 
 @Injectable()
 export class GuVService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private assets: AssetsService,
+  ) {}
 
   async compute(companyId: string, year: number): Promise<GuVResult> {
     const yearStart = new Date(year, 0, 1)
@@ -246,6 +250,22 @@ export class GuVService {
       0,
     )
 
+    // Tier 83: pull the Asset pool + compute
+    // the annual AfA per asset. The 7a
+    // Abschreibungen line gets real data for
+    // companies that have registered Sachanlagen.
+    // For companies without assets, 7a stays
+    // "nicht ausgewiesen" (null).
+    const yearAssets = await this.prisma.asset.findMany({
+      where: { companyId },
+    })
+    const yearEndSnapshot = new Date(year, 11, 31, 23, 59, 59, 999)
+    const annualAfA = yearAssets.reduce(
+      (s, a) => s + this.assets.computeAfA(a, yearEndSnapshot).annualAfA,
+      0,
+    )
+    const hasAssets = yearAssets.length > 0
+
     // ===== BUILD SECTIONS =====
 
     // Revenue (§ 275 HGB GKV positions 1-4)
@@ -280,6 +300,12 @@ export class GuVService {
     }
 
     // Cost (§ 275 HGB GKV positions 5-8)
+    // 7a Abschreibungen uses the computed
+    // annual AfA (tier 83) when the company
+    // has registered Sachanlagen. Otherwise
+    // 7a stays "nicht ausgewiesen" — see the
+    // Anlagenverzeichnis page to register
+    // assets.
     const cost: GuVSection = {
       title: 'Aufwendungen',
       lines: [
@@ -296,8 +322,10 @@ export class GuVService {
         {
           position: '7a',
           label: 'Abschreibungen auf Sachanlagen',
-          amount: null,
-          note: 'AfA wird in de-invoice v1 nicht erfasst — aus dem Anlagenverzeichnis ergänzen.',
+          amount: hasAssets ? round2(annualAfA) : null,
+          note: hasAssets
+            ? 'Berechnet aus dem Anlagenverzeichnis (lineare AfA).'
+            : 'AfA wird berechnet, sobald Sachanlagen im Anlagenverzeichnis erfasst sind.',
         },
         {
           position: '8',
@@ -307,9 +335,12 @@ export class GuVService {
         },
       ],
       subtotal: round2(
-        materialaufwand + personalaufwand + sonstigeAufwendungen,
+        materialaufwand +
+          personalaufwand +
+          annualAfA +
+          sonstigeAufwendungen,
       ),
-      nichtAusgewiesen: 1,
+      nichtAusgewiesen: hasAssets ? 0 : 1,
     }
 
     // Financial result (§ 275 HGB GKV positions 9-13)

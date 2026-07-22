@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
+import { AssetsService, DEFAULT_BILANZ_KONTO } from '../assets/assets.service'
 import { Response } from 'express'
 import PDFDocument from 'pdfkit'
 
@@ -106,7 +107,10 @@ function round2(n: number): number {
 
 @Injectable()
 export class BilanzService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private assets: AssetsService,
+  ) {}
 
   async compute(companyId: string, year: number): Promise<BilanzResult> {
     // Snapshot date = end of fiscal year.
@@ -114,6 +118,55 @@ export class BilanzService {
     // Bilanz is a point-in-time view, not a
     // period view (unlike the G+V / EÜR).
     const snapshot = new Date(year, 11, 31, 23, 59, 59, 999)
+
+    // Tier 83: pull the Asset pool and compute
+    // the per-position Buchwert. The 0100-0500
+    // Anlagevermögen positions get real numbers
+    // for companies that have registered
+    // Sachanlagen. Companies without assets
+    // still see the lines as "nicht
+    // ausgewiesen" (the per-position amount
+    // stays null).
+    //
+    // Boundary convention: an asset disposed on
+    // the snapshot date itself is STILL in the
+    // pool. The disposal is a year-end event
+    // that lands on the next year's books
+    // (Veräußerungserlös vs Buchwert) — the
+    // Bilanz for year Y still shows the asset
+    // at its Buchwert, because it was owned
+    // for almost all of year Y. We use `gte`
+    // rather than `gt` on the verkauftAm
+    // cutoff to capture this.
+    const allAssets = await this.prisma.asset.findMany({
+      where: {
+        companyId,
+        OR: [
+          { verkauftAm: null },
+          { verkauftAm: { gte: snapshot } },
+        ],
+      },
+    })
+    const afaSummaries = allAssets.map((a) => this.assets.computeAfA(a, snapshot))
+
+    // Group the asset pool by § 266 HGB position
+    // (computed from `type` via the
+    // DEFAULT_BILANZ_KONTO map, with the
+    // user-overridden `bilanzKonto` winning if
+    // set).
+    const poolByPosition: Record<string, number> = {
+      '0100': 0,
+      '0200': 0,
+      '0300': 0,
+      '0400': 0,
+      '0500': 0,
+    }
+    const hasAssets = afaSummaries.length > 0
+    for (const summary of afaSummaries) {
+      const asset = allAssets.find((a) => a.id === summary.assetId)!
+      const pos = asset.bilanzKonto || DEFAULT_BILANZ_KONTO[asset.type as keyof typeof DEFAULT_BILANZ_KONTO] || '0400'
+      poolByPosition[pos] = (poolByPosition[pos] || 0) + summary.buchwert
+    }
 
     // ===== AKTIVA =====
 
@@ -197,19 +250,72 @@ export class BilanzService {
 
     // ===== BUILD SECTIONS =====
 
-    // Aktiva / A. Anlagevermögen — all nicht
-    // ausgewiesen (no AfA tracking yet).
+    // Aktiva / A. Anlagevermögen — partially
+    // computed (tier 83). The pool-by-position
+    // sums feed 0100-0400; 0500 is still
+    // nicht ausgewiesen (Anlagen im Bau) and
+    // any position with no assets stays at
+    // null. The subtotal is the sum across the
+    // 5 positions.
+    //
+    // Note: a position with `poolByPosition = 0`
+    // (e.g. fully-depreciated asset) is shown
+    // as 0, not null — the user can SEE the
+    // position is on the report (the asset
+    // exists, just depreciated to zero). Only
+    // positions with NO asset at all stay null.
+    //
+    // We track per-position "hasAnyAsset" so
+    // a 0-value position still renders as
+    // "0.00" instead of being hidden.
+    const hasAnyAssetAt = (pos: string) =>
+      afaSummaries.some(
+        (s) => {
+          const asset = allAssets.find((a) => a.id === s.assetId)!
+          const mapped = asset.bilanzKonto || DEFAULT_BILANZ_KONTO[asset.type as keyof typeof DEFAULT_BILANZ_KONTO] || '0400'
+          return mapped === pos
+        },
+      )
+
     const aktivaAV: BilanzSection = {
       title: 'A. Anlagevermögen',
       lines: [
-        { position: '0100', label: 'Konzessionen, gewerbliche Schutzrechte', amount: null },
-        { position: '0200', label: 'Grundstücke, grundstücksgleiche Rechte', amount: null },
-        { position: '0300', label: 'Technische Anlagen und Maschinen', amount: null },
-        { position: '0400', label: 'Andere Anlagen, Betriebs- und Geschäftsausstattung', amount: null },
-        { position: '0500', label: 'Geleistete Anzahlungen und Anlagen im Bau', amount: null },
+        {
+          position: '0100',
+          label: 'Konzessionen, gewerbliche Schutzrechte und ähnliche Rechte',
+          amount: hasAnyAssetAt('0100') ? round2(poolByPosition['0100'] || 0) : null,
+        },
+        {
+          position: '0200',
+          label: 'Grundstücke, grundstücksgleiche Rechte und Bauten',
+          amount: hasAnyAssetAt('0200') ? round2(poolByPosition['0200'] || 0) : null,
+        },
+        {
+          position: '0300',
+          label: 'Technische Anlagen und Maschinen',
+          amount: hasAnyAssetAt('0300') ? round2(poolByPosition['0300'] || 0) : null,
+        },
+        {
+          position: '0400',
+          label: 'Andere Anlagen, Betriebs- und Geschäftsausstattung',
+          amount: hasAnyAssetAt('0400') ? round2(poolByPosition['0400'] || 0) : null,
+        },
+        {
+          position: '0500',
+          label: 'Geleistete Anzahlungen und Anlagen im Bau',
+          amount: null,
+          note: 'Anlagen im Bau werden in de-invoice v1 nicht separat erfasst.',
+        },
       ],
-      subtotal: 0,
-      nichtAusgewiesen: 5,
+      subtotal: hasAssets
+        ? round2(
+            (poolByPosition['0100'] || 0) +
+            (poolByPosition['0200'] || 0) +
+            (poolByPosition['0300'] || 0) +
+            (poolByPosition['0400'] || 0),
+          )
+        : 0,
+      nichtAusgewiesen: hasAssets ? 1 : 5,
     }
 
     // Aktiva / B. Umlaufvermögen — partial.

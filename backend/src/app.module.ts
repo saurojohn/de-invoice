@@ -48,6 +48,13 @@ import { WebhookModule } from './modules/webhook/webhook.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { SigningModule } from './modules/signing/signing.module';
 import { BeraterModule } from './modules/berater/berater.module';
+// Tier 83: Anlagenverzeichnis + AfA. Owns the
+// Asset model (Sachanlagen) and the linear AfA
+// computation. The BilanzService + GuVService
+// read the Asset pool to fill the 0100-0500
+// Anlagevermögen + 7a Abschreibungen positions
+// on the § 266 HGB / § 275 HGB reports.
+import { AssetsModule } from './modules/assets/assets.module';
 
 @Module({
   imports: [
@@ -109,6 +116,7 @@ import { BeraterModule } from './modules/berater/berater.module';
     PortalModule,
     HealthModule,
     BeraterModule,
+    AssetsModule,
     WebhookModule,
     AuditModule,
     SigningModule,

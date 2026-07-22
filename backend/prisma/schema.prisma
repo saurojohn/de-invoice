@@ -115,6 +115,17 @@ model Company {
   // page lists these in a queue.
   beraterNotes BeraterNote[]
 
+  // Tier 83: Anlagenverzeichnis (Sachanlagen).
+  // Each Asset is a fixed asset the company
+  // owns — Grundstücke, Gebäude, Maschinen,
+  // Fahrzeuge, Betriebsausstattung, GWG,
+  // Software, etc. The AfaService computes the
+  // Buchwert at any snapshot date from the
+  // linear AfA schedule; the BilanzService
+  // reads the pool to fill the 0100-0500
+  // Anlagevermögen positions.
+  assets Asset[]
+
   @@index([name])
 }
 
@@ -2389,4 +2400,95 @@ model InvoiceTemplate {
 
   @@index([companyId, isDefault])
   @@index([companyId, templateType])
+}
+
+/// Tier 83: Anlagenverzeichnis (Sachanlagen / fixed
+/// assets) per § 266 HGB Aktiva A. Anlagevermögen.
+///
+/// Each row is one Sachanlage the company owns.
+/// The AfaService computes the linear-AfA
+/// schedule in-memory from anschaffungsDatum +
+/// anschaffungsKosten + nutzungsdauerMonate +
+/// restwert. The BilanzService reads the pool
+/// at a snapshot date (typically Dec 31) to fill
+/// the 0100-0500 Anlagevermögen positions; the
+/// GuVService uses the annual AfA to fill the
+/// 7a Abschreibungen line.
+///
+/// Bilanz mapping (§ 266 HGB, simplified v1):
+///   - Grundstueck       → 0200
+///   - Gebaeude          → 0200
+///   - Maschine          → 0300
+///   - Fahrzeug          → 0400
+///   - Betriebsausstattung → 0400
+///   - GWG (≤ 800 EUR)   → 0400 (Sofortabschreibung
+///                          in the year of purchase;
+///                          not amortised over ND —
+///                          v1 simplification: we use
+///                          linear AfA but the AfA
+///                          sum of the year is the
+///                          expense)
+///   - Software          → 0100
+///   - Sonstiges         → 0400
+///
+/// v2 work (not in scope):
+///   - Geometric / degressive AfA
+///   - Außerplanmäßige Abschreibungen (§ 253
+///     Abs. 3 HGB) + Zuschreibungen
+///   - Component approach (§ 253 Abs. 1 HGB S. 2)
+///   - Split GWG pool into separate Bilanz position
+///     (real accounting tracks GWG separately)
+///   - AfA-Buch (separate journal) for partial-
+///     year disposals
+model Asset {
+  id            String   @id @default(uuid())
+  companyId     String
+  company       Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  // 'Grundstueck' | 'Gebaeude' | 'Maschine' |
+  // 'Fahrzeug' | 'Betriebsausstattung' | 'GWG' |
+  // 'Software' | 'Sonstiges'
+  type          String
+  // Human-readable description, e.g. "Büro-Stuhl
+  // ergonomisch", "Firmenwagen VW Caddy".
+  bezeichnung   String
+  // Acquisition date. The AfA clock starts here.
+  anschaffungsDatum DateTime
+  // AHK (Anschaffungs-/Herstellungskosten). The
+  // gross cost basis; AfA is computed against
+  // (AHK - restwert).
+  anschaffungsKosten Decimal  @db.Decimal(14, 4)
+  // Nutzungsdauer in months per AfA-Tabelle
+  // (BMF, § 7 Abs. 1 EStG). Common: 36 months
+  // (Büroausstattung), 60 (Maschine), 96 (Fahrzeug),
+  // 240-600 (Gebäude), etc.
+  nutzungsdauerMonate Int
+  // Residual value (Restwert) at end of ND. Most
+  // business assets have Restwert = 0.
+  restwert      Decimal  @db.Decimal(14, 4) @default(0)
+  // AfA method. v1 supports 'linear' only. v2
+  // would add 'geometric' (degressive) for § 7
+  // Abs. 2 EStG assets.
+  afaMethode    String   @default("linear")
+  // Optional override: which Bilanz position this
+  // asset maps to. NULL = automatic mapping from
+  // `type`. Useful when a user wants a Maschine
+  // mapped to 0400 instead of 0300 (e.g. a
+  // piece of Betriebsausstattung that happens
+  // to be technical in nature).
+  bilanzKonto   String?
+  notiz         String?
+  // When the asset is sold / disposed. After
+  // verkauftAm is set, the asset no longer
+  // contributes to the Bilanz pool (the
+  // disposal event is the cutoff).
+  verkauftAm    DateTime?
+  // Sale price at disposal. NULL for write-offs.
+  verkaufsPreis Decimal? @db.Decimal(14, 4)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([companyId, type])
+  @@index([companyId, anschaffungsDatum])
+  @@index([verkauftAm])
 }
