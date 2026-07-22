@@ -13,6 +13,7 @@ import { AnlageSSection } from "./AnlageSSection"
 import { BilanzSection } from "./BilanzSection"
 import { GuVSection } from "./GuVSection"
 import { AnhangSection } from "./AnhangSection"
+import { BeraterPackagerSection } from "./BeraterPackagerSection"
 import { GobdArchiveSection } from "./GobdArchiveSection"
 
 // The enriched Voucher summary returned by the
@@ -1121,6 +1122,9 @@ export default function AccountingPage() {
           </div>
         </div>
       )}
+
+      {/* Tier 85: Anlage Steuererklärung packager — top-of-page callout */}
+      <BeraterPackagerSection />
 
       {/* Tier 76: Anlage EÜR — yearly tax-filing preview */}
       <EuerSection />

@@ -2292,5 +2292,20 @@
     "nichtAusgewiesen": "nicht ausgewiesen",
     "generatedAt": "Erstellt",
     "previewHint": "VORSCHAU — automatisch generiert aus den vorhandenen Daten. Die als „Vom Berater zu ergänzen\" markierten Abschnitte (§ 285 HGB Pflichtangaben) müssen vor der Einreichung durch den Steuerberater ausgefüllt werden. Vor der Einreichung durch den Steuerberater prüfen lassen."
+  },
+  "packager": {
+    "title": "Berater-Paket",
+    "subtitle": "Bündelt alle VORSCHAU-Reports (EÜR, Anlage S, Bilanz, G+V, Anhang, Anlagenverzeichnis + MANIFEST.md) in einem ZIP für die Übergabe an den Steuerberater.",
+    "downloadZip": "Berater-Paket herunterladen (.zip)",
+    "contents": "Inhalt des Pakets",
+    "contentEuer": "Anlage EÜR (Einnahmen-Überschuss-Rechnung) — Vorschau",
+    "contentAnlageS": "Anlage S (Einkünfte aus selbständiger Arbeit) — Vorschau",
+    "contentBilanz": "Bilanz (§ 266 HGB) — Vorschau",
+    "contentGuv": "Gewinn- und Verlustrechnung (§ 275 HGB) — Vorschau",
+    "contentAnhang": "Anhang zum Jahresabschluss (§ 284 HGB) — Vorschau",
+    "contentAssetCsv": "Anlagenverzeichnis (CSV) — Sachanlagen mit AfA",
+    "contentManifest": "MANIFEST.md — Inhaltsverzeichnis + Vorgehensweise",
+    "year": "Geschäftsjahr",
+    "previewHint": "VORSCHAU — die Berater-Paket ist eine ehrliche Vorschau, kein fertiger Jahresabschluss. Die nicht ausgewiesenen Positionen müssen vor der Einreichung durch den Steuerberater ergänzt werden. Vor der Übergabe durch den Steuerberater prüfen lassen."
   }
 }

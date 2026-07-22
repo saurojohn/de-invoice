@@ -8,6 +8,7 @@ import { AnlageSService } from './anlage-s.service';
 import { BilanzService } from './bilanz.service';
 import { GuVService } from './guv.service';
 import { AnhangService } from './anhang.service';
+import { BeraterPackagerService } from './berater-packager.service';
 import { GobdArchiveService } from './gobd-archive.service';
 import { HeaderAuthGuard } from '../../auth/header-auth.guard';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -22,6 +23,7 @@ export class AccountingController {
     private bilanz: BilanzService,
     private guv: GuVService,
     private anhang: AnhangService,
+    private beraterPackager: BeraterPackagerService,
     private gobd: GobdArchiveService,
     private prisma: PrismaService,
   ) {}
@@ -721,5 +723,40 @@ export class AccountingController {
       throw new BadRequestException('year ist ungültig')
     }
     await this.anhang.renderPdf(companyId, year, res)
+  }
+
+  /**
+   * Tier 85: Anlage Steuererklärung packager.
+   *
+   * Bundles every VORSCHAU report a Berater
+   * needs at year-end into a single ZIP:
+   * EÜR + Anlage S + Bilanz + G+V + Anhang +
+   * Anlagenverzeichnis (CSV) + MANIFEST.md.
+   * The Mandant hands this ZIP to the Berater
+   * at the year-end meeting.
+   *
+   * Streaming archiver (same pattern as
+   * GoBD-Archiv): the client starts receiving
+   * bytes before the whole archive is built.
+   * The packager renders all 5 PDFs in
+   * parallel via PassThrough fake-Response
+   * (a stand-in for `res` that captures bytes
+   * instead of writing to HTTP).
+   */
+  @Get('berater-packager')
+  @UseGuards(HeaderAuthGuard)
+  async getBeraterPackager(
+    @Res() res: Response,
+    @Query('companyId') companyId: string,
+    @Query('year') yearRaw?: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const year = yearRaw
+      ? Number(yearRaw)
+      : new Date().getFullYear() - 1
+    if (!Number.isFinite(year) || year < 2000 || year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+    await this.beraterPackager.streamPackage(companyId, year, res)
   }
 }

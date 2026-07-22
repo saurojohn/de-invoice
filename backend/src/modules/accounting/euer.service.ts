@@ -267,78 +267,124 @@ export class EuerService {
    * voucher-PDF.
    */
   async renderPdf(companyId: string, year: number, res: Response): Promise<void> {
-    const data = await this.compute(companyId, year)
-    const company = await this.prisma.company.findUnique({ where: { id: companyId } })
-
-    const doc = new PDFDocument({ size: 'A4', margin: 50 })
     res.setHeader('Content-Type', 'application/pdf')
     res.setHeader(
       'Content-Disposition',
       `attachment; filename="Anlage-EUR-${year}.pdf"`,
     )
-    doc.pipe(res)
+    const data = await this.compute(companyId, year)
+    const company = await this.prisma.company.findUnique({ where: { id: companyId } })
 
+    const doc = new PDFDocument({ size: 'A4', margin: 50 })
+    doc.pipe(res)
+    this.renderEurBody(doc, data, company)
+    doc.end()
+  }
+
+  /**
+   * Tier 85: render the EÜR PDF as a Buffer
+   * (for ZIP packaging — see
+   * BeraterPackagerService). The body is
+   * shared with renderPdf via the
+   * renderEurBody helper.
+   */
+  async renderBuffer(companyId: string, year: number): Promise<Buffer> {
+    const data = await this.compute(companyId, year)
+    const company = await this.prisma.company.findUnique({ where: { id: companyId } })
+
+    const doc = new PDFDocument({ size: 'A4', margin: 50 })
+    const chunks: Buffer[] = []
+    const sink = new (require('stream').Writable)({
+      write(chunk: Buffer, _enc: string, cb: () => void) {
+        chunks.push(chunk)
+        cb()
+      },
+    })
+    doc.pipe(sink)
+    this.renderEurBody(doc, data, company)
+    doc.end()
+    return new Promise<Buffer>((resolve, reject) => {
+      sink.on('finish', () => resolve(Buffer.concat(chunks)))
+      sink.on('error', reject)
+    })
+  }
+
+  private renderEurBody(
+    doc: PDFKit.PDFDocument,
+    data: any,
+    company: any,
+  ): void {
     // Header
     doc
       .fontSize(18)
       .font('Helvetica-Bold')
-      .text(`Anlage EÜR ${year}`, { align: 'left' })
+      .text(`Anlage EÜR ${data.year}`, { align: 'left' })
       .moveDown(0.2)
     doc
       .fontSize(10)
       .font('Helvetica')
-      .text(
-        `Einnahmen-Überschuss-Rechnung gem. § 18 EStG — ${company?.name || companyId}`,
-      )
-      .moveDown(1)
+      .text(`Einnahmen-Überschuss-Rechnung ${data.year}`)
+      .text(`${company?.name || ''}`)
+      .moveDown(0.5)
 
-    // Einnahmen block
+    // Einnahmen
     doc.fontSize(12).font('Helvetica-Bold').text('Betriebseinnahmen')
+    doc.fontSize(9).font('Helvetica')
+    for (const l of data.einnahmen) {
+      const y = doc.y
+      doc.text(l.kennziffer, 50, y, { continued: true, width: 50 })
+      doc.text(l.label, 100, y, { continued: true, width: 320 })
+      doc.text(this.fmtEur(l.amount), 420, y, { width: 125, align: 'right' })
+      doc.moveDown(0.1)
+    }
     doc.moveDown(0.3)
-    this.renderTable(doc, data.einnahmen, data.totals.einnahmenTotal)
-    doc.moveDown(0.8)
+    doc.font('Helvetica-Bold')
+    doc.text('Summe Einnahmen', 100, doc.y, { continued: true, width: 320 })
+    doc.text(this.fmtEur(data.totals.einnahmenTotal), 420, doc.y, { width: 125, align: 'right' })
+    doc.moveDown(0.5)
 
-    // Ausgaben block
-    doc.fontSize(12).font('Helvetica-Bold').text('Betriebsausgaben')
+    // Ausgaben
+    doc.font('Helvetica-Bold').fontSize(12).text('Betriebsausgaben')
+    doc.font('Helvetica').fontSize(9)
+    for (const l of data.ausgaben) {
+      const y = doc.y
+      doc.text(l.kennziffer, 50, y, { continued: true, width: 50 })
+      doc.text(l.label, 100, y, { continued: true, width: 320 })
+      doc.text(this.fmtEur(l.amount), 420, y, { width: 125, align: 'right' })
+      doc.moveDown(0.1)
+    }
     doc.moveDown(0.3)
-    this.renderTable(doc, data.ausgaben, data.totals.ausgabenTotal)
-    doc.moveDown(0.8)
+    doc.font('Helvetica-Bold')
+    doc.text('Summe Ausgaben', 100, doc.y, { continued: true, width: 320 })
+    doc.text(this.fmtEur(data.totals.ausgabenTotal), 420, doc.y, { width: 125, align: 'right' })
+    doc.moveDown(0.5)
 
-    // Gewinn block
-    doc.fontSize(14).font('Helvetica-Bold')
-    const result = data.totals.gewinn
-    doc
-      .fillColor(result >= 0 ? '#047857' : '#b91c1c')
-      .text(
-        result >= 0
-          ? `Gewinn: ${this.fmtEur(result)} €`
-          : `Verlust: ${this.fmtEur(Math.abs(result))} €`,
-      )
-      .fillColor('#000')
-    doc.moveDown(1.5)
+    // Gewinn/Verlust
+    const isProfit = data.totals.gewinn >= 0
+    doc.fontSize(12)
+    doc.fillColor(isProfit ? '#047857' : '#b91c1c')
+    doc.text(
+      isProfit
+        ? `Gewinn: ${this.fmtEur(data.totals.gewinn)} EUR`
+        : `Verlust: ${this.fmtEur(Math.abs(data.totals.gewinn))} EUR`,
+    )
+    doc.fillColor('#000')
+    doc.moveDown(0.5)
 
     // Disclaimer
-    doc
-      .fontSize(8)
-      .font('Helvetica-Oblique')
-      .fillColor('#666')
-      .text(data.disclaimer, { width: 495 })
-      .fillColor('#000')
+    doc.fontSize(8).font('Helvetica-Oblique').fillColor('#666')
+    doc.text(data.disclaimer, { width: 495 })
+    doc.fillColor('#000')
 
     // Footer
-    doc
-      .fontSize(7)
-      .font('Helvetica')
-      .fillColor('#999')
-      .text(
-        `Erstellt: ${new Date(data.generatedAt).toLocaleString('de-DE')}  |  ` +
-          `Rechnungen: ${data.counts.invoices}  |  Ausgaben: ${data.counts.expenses}  |  ` +
-          `de-invoice · Anlage EÜR Vorschau`,
-        { align: 'center' },
-      )
-      .fillColor('#000')
-
-    doc.end()
+    doc.fontSize(7).font('Helvetica').fillColor('#999')
+    doc.text(
+      `Erstellt: ${new Date(data.generatedAt).toLocaleString('de-DE')}  |  ` +
+        `Rechnungen: ${data.counts.invoices}  |  Ausgaben: ${data.counts.expenses}  |  ` +
+        `de-invoice · Anlage EÜR`,
+      { align: 'center' },
+    )
+    doc.fillColor('#000')
   }
 
   private renderTable(

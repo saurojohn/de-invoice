@@ -2292,5 +2292,20 @@
     "nichtAusgewiesen": "未列示",
     "generatedAt": "生成时间",
     "previewHint": "预览 — 由系统数据自动生成。标记为「由税务师补全」的章节（§ 285 HGB 强制披露）提交前须由税务师填写。提交前请税务师审核。"
+  },
+  "packager": {
+    "title": "税务师数据包",
+    "subtitle": "将所有 VORSCHAU 报告（EÜR、Anlage S、资产负债表、损益表、附注、固定资产清册 + MANIFEST.md）打包成一个 ZIP 文件，交付给税务师。",
+    "downloadZip": "下载税务师数据包 (.zip)",
+    "contents": "数据包内容",
+    "contentEuer": "Anlage EÜR（小型企业损益表）— 预览",
+    "contentAnlageS": "Anlage S（自雇劳动收入）— 预览",
+    "contentBilanz": "资产负债表（§ 266 HGB）— 预览",
+    "contentGuv": "损益表（§ 275 HGB）— 预览",
+    "contentAnhang": "财务报表附注（§ 284 HGB）— 预览",
+    "contentAssetCsv": "固定资产清册（CSV）— 含折旧的固定资产",
+    "contentManifest": "MANIFEST.md — 目录 + 流程",
+    "year": "财年",
+    "previewHint": "预览 — 税务师数据包是诚实的预览，不是终版年报。「未列示」的科目必须在提交前由税务师补全。交付前请税务师审核。"
   }
 }

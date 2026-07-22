@@ -2292,5 +2292,20 @@
     "nichtAusgewiesen": "not stated",
     "generatedAt": "Generated",
     "previewHint": "PREVIEW — auto-generated from the data in the system. Sections marked 'To be completed by the tax advisor' (§ 285 HGB mandatory disclosures) must be filled in before filing. Have your tax advisor verify before filing."
+  },
+  "packager": {
+    "title": "Tax advisor package",
+    "subtitle": "Bundles every VORSCHAU report (EÜR, Anlage S, Balance Sheet, P&L, Notes, Asset Register + MANIFEST.md) into a single ZIP for handover to your tax advisor.",
+    "downloadZip": "Download tax advisor package (.zip)",
+    "contents": "Package contents",
+    "contentEuer": "Anlage EÜR (Income statement for small business) — preview",
+    "contentAnlageS": "Anlage S (Self-employment income) — preview",
+    "contentBilanz": "Balance sheet (§ 266 HGB) — preview",
+    "contentGuv": "Income statement (§ 275 HGB) — preview",
+    "contentAnhang": "Notes to the financial statements (§ 284 HGB) — preview",
+    "contentAssetCsv": "Asset register (CSV) — fixed assets with depreciation",
+    "contentManifest": "MANIFEST.md — table of contents + workflow",
+    "year": "Fiscal year",
+    "previewHint": "PREVIEW — the tax advisor package is an honest preview, not a finalized annual report. The 'not stated' positions must be completed by your tax advisor before filing. Have your tax advisor verify before handover."
   }
 }
