@@ -9,6 +9,7 @@ import { JournalService } from './journal.service';
 import { JournalController } from './journal.controller';
 import { EuerService } from './euer.service';
 import { AnlageSService } from './anlage-s.service';
+import { BilanzService } from './bilanz.service';
 import { GobdArchiveService } from './gobd-archive.service';
 import { StorageModule } from '../storage/storage.module';
 import { WebhookModule } from '../webhook/webhook.module';
@@ -16,7 +17,7 @@ import { WebhookModule } from '../webhook/webhook.module';
 @Module({
   imports: [PrismaModule, StorageModule, WebhookModule],
   controllers: [AccountingController, VoucherTemplateController, JournalController],
-  providers: [AccountService, VoucherService, VoucherTemplateService, JournalService, EuerService, AnlageSService, GobdArchiveService],
-  exports: [AccountService, VoucherService, VoucherTemplateService, JournalService, EuerService, AnlageSService, GobdArchiveService],
+  providers: [AccountService, VoucherService, VoucherTemplateService, JournalService, EuerService, AnlageSService, BilanzService, GobdArchiveService],
+  exports: [AccountService, VoucherService, VoucherTemplateService, JournalService, EuerService, AnlageSService, BilanzService, GobdArchiveService],
 })
 export class AccountingModule {}

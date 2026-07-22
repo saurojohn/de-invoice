@@ -10,6 +10,7 @@ import { useI18n } from "@/components/useI18n"
 import { apiGet, apiPost, apiFetch } from "@/lib/api"
 import { EuerSection } from "./EuerSection"
 import { AnlageSSection } from "./AnlageSSection"
+import { BilanzSection } from "./BilanzSection"
 import { GobdArchiveSection } from "./GobdArchiveSection"
 
 // The enriched Voucher summary returned by the
@@ -1124,6 +1125,9 @@ export default function AccountingPage() {
 
       {/* Tier 80: Anlage S (§ 18 EStG self-employment) */}
       <AnlageSSection />
+
+      {/* Tier 81: Bilanz Vorschau (§ 266 HGB year-end snapshot) */}
+      <BilanzSection />
 
       {/* Tier 77: GoBD-Archiv (§ 147 AO 10-year retention) */}
       <GobdArchiveSection />

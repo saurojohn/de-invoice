@@ -5,6 +5,7 @@ import { VoucherService } from './voucher.service';
 import { generateVoucherPDF } from '../../accounting/voucher-pdf.service';
 import { EuerService } from './euer.service';
 import { AnlageSService } from './anlage-s.service';
+import { BilanzService } from './bilanz.service';
 import { GobdArchiveService } from './gobd-archive.service';
 import { HeaderAuthGuard } from '../../auth/header-auth.guard';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -16,6 +17,7 @@ export class AccountingController {
     private voucherService: VoucherService,
     private euer: EuerService,
     private anlageS: AnlageSService,
+    private bilanz: BilanzService,
     private gobd: GobdArchiveService,
     private prisma: PrismaService,
   ) {}
@@ -556,5 +558,55 @@ export class AccountingController {
       throw new BadRequestException('year ist ungültig')
     }
     return this.gobd.getSummary(companyId, year)
+  }
+
+  /**
+   * Tier 81: Bilanz (Balance Sheet) VORSCHAU.
+   *
+   * Year-end snapshot of Aktiva + Passiva for
+   * Bilanz-pflichtige entities (GmbH, AG, etc.
+   * per § 264 HGB). v1 only computes positions
+   * we can derive from existing data; the rest
+   * is "nicht ausgewiesen" with explanatory
+   * notes. The Berater completes the missing
+   * positions before filing.
+   *
+   * The Saldoposten in the Eigenkapital section
+   * balances the Bilanzgleichung. The user /
+   * Berater replaces it with the real equity
+   * from the SKR03 / Handelsregister.
+   */
+  @Get('bilanz')
+  @UseGuards(HeaderAuthGuard)
+  async getBilanz(
+    @Query('companyId') companyId: string,
+    @Query('year') yearRaw?: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const year = yearRaw
+      ? Number(yearRaw)
+      : new Date().getFullYear() - 1
+    if (!Number.isFinite(year) || year < 2000 || year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+    return this.bilanz.compute(companyId, year)
+  }
+
+  @Get('bilanz.pdf')
+  @UseGuards(HeaderAuthGuard)
+  @Header('Content-Type', 'application/pdf')
+  async getBilanzPdf(
+    @Res() res: Response,
+    @Query('companyId') companyId: string,
+    @Query('year') yearRaw?: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const year = yearRaw
+      ? Number(yearRaw)
+      : new Date().getFullYear() - 1
+    if (!Number.isFinite(year) || year < 2000 || year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+    await this.bilanz.renderPdf(companyId, year, res)
   }
 }
