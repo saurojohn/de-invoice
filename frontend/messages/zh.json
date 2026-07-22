@@ -2200,5 +2200,33 @@
     "totalsPassiva": "负债与权益合计",
     "totalsEigenkapital": "权益（平衡行）",
     "previewHint": "预览 — 仅部分数据由系统记账数据推导得出。剩余科目（固定资产、权益变动、准备金、应计项目）须由税务师从 SKR03 / 商业登记簿补全。权益行为占位符。"
+  },
+  "guv": {
+    "title": "损益表（预览）",
+    "subtitle": "按《德国商法典》§ 275 第 2 款 GKV（总量成本法）— 自动从您的收入、支出和客户预收款推导。没有数据来源的科目标记为「nicht ausgewiesen」（未列示）。税务师从固定资产清册、税务通知和 BWA 补全缺失的科目。",
+    "year": "财年",
+    "recompute": "计算",
+    "downloadPdf": "下载 PDF",
+    "revenue": "收入",
+    "cost": "支出",
+    "financial": "财务结果",
+    "tax": "税款",
+    "result": "年度结果",
+    "betriebsleistung": "营业业绩",
+    "betriebsergebnis": "营业利润",
+    "finanzergebnis": "财务结果",
+    "jahresueberschuss": "年度盈余",
+    "jahresfehlbetrag": "年度亏损",
+    "umsatzerloese": "营业收入",
+    "sonstigeErtrage": "其他经营性收入",
+    "materialaufwand": "材料费用",
+    "personalaufwand": "人员费用",
+    "sonstigeAufwendungen": "其他经营性支出",
+    "nichtAusgewiesen": "未列示",
+    "summe": "小计",
+    "summary": "汇总",
+    "generatedAt": "生成时间",
+    "counts": "发票 / 支出 / 客户预收",
+    "previewHint": "预览 — 仅部分数据由系统记账数据推导得出。剩余科目（折旧、存货变动、投资收益、利息收入、所得税）须由税务师补全。提交前请税务师审核。"
   }
 }

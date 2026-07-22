@@ -2200,5 +2200,33 @@
     "totalsPassiva": "Total liabilities & equity",
     "totalsEigenkapital": "Equity (balancing line)",
     "previewHint": "PREVIEW — only partially derived from the bookkeeping data in the system. The remaining positions (fixed assets, equity movements, provisions, accruals) must be completed by the tax advisor from the SKR03 / commercial register. The equity line is a placeholder."
+  },
+  "guv": {
+    "title": "Income Statement (preview)",
+    "subtitle": "G+V per § 275 (2) HGB (total cost method) — auto-derived from your revenue, expenses, and customer credits. Positions without source data are marked \"nicht ausgewiesen\" (not stated). Your tax advisor completes the missing positions from the fixed asset register, tax assessments, and the BWA.",
+    "year": "Fiscal year",
+    "recompute": "Compute",
+    "downloadPdf": "Download PDF",
+    "revenue": "Revenue",
+    "cost": "Expenses",
+    "financial": "Financial result",
+    "tax": "Taxes",
+    "result": "Annual result",
+    "betriebsleistung": "Operating performance",
+    "betriebsergebnis": "Operating result",
+    "finanzergebnis": "Financial result",
+    "jahresueberschuss": "Net income",
+    "jahresfehlbetrag": "Net loss",
+    "umsatzerloese": "Revenue",
+    "sonstigeErtrage": "Other operating income",
+    "materialaufwand": "Cost of materials",
+    "personalaufwand": "Personnel expenses",
+    "sonstigeAufwendungen": "Other operating expenses",
+    "nichtAusgewiesen": "not stated",
+    "summe": "Subtotal",
+    "summary": "Summary",
+    "generatedAt": "Generated",
+    "counts": "Invoices / Expenses / Credits",
+    "previewHint": "PREVIEW — only partially derived from the bookkeeping data in the system. The remaining positions (depreciation, inventory changes, investment income, interest income, income taxes) must be completed by the tax advisor. Have your tax advisor verify before filing."
   }
 }

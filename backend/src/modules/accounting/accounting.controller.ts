@@ -6,6 +6,7 @@ import { generateVoucherPDF } from '../../accounting/voucher-pdf.service';
 import { EuerService } from './euer.service';
 import { AnlageSService } from './anlage-s.service';
 import { BilanzService } from './bilanz.service';
+import { GuVService } from './guv.service';
 import { GobdArchiveService } from './gobd-archive.service';
 import { HeaderAuthGuard } from '../../auth/header-auth.guard';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -18,6 +19,7 @@ export class AccountingController {
     private euer: EuerService,
     private anlageS: AnlageSService,
     private bilanz: BilanzService,
+    private guv: GuVService,
     private gobd: GobdArchiveService,
     private prisma: PrismaService,
   ) {}
@@ -608,5 +610,63 @@ export class AccountingController {
       throw new BadRequestException('year ist ungültig')
     }
     await this.bilanz.renderPdf(companyId, year, res)
+  }
+
+  /**
+   * Tier 82: Anlage G+V (Gewinn- und Verlustrechnung).
+   *
+   * § 275 HGB Gesamtkostenverfahren (GKV) — the
+   * canonical income statement that pairs with
+   * the Bilanz for Bilanz-pflichtige entities.
+   * The Berater (Steuerberater) attaches the G+V
+   * to the Jahresabschluss (§ 242 HGB) and
+   * files it with the Bundesanzeiger for
+   * Kapitalgesellschaften.
+   *
+   * v1 computes the positions that map directly
+   * to Invoice + Expense + CustomerCredit data
+   * (Umsatzerlöse, Material-/Personal-/sonstige
+   * Aufwendungen, Sonstige betr. Erträge,
+   * Zinsaufwendungen); the rest is "nicht
+   * ausgewiesen" with explanatory notes. The
+   * Jahresüberschuss is the bottom line — it
+   * should match the year-over-year change in
+   * Bilanz Eigenkapital minus capital movements.
+   *
+   * Year defaults to previous calendar year,
+   * matching the EÜR / Anlage S / Bilanz.
+   */
+  @Get('guv')
+  @UseGuards(HeaderAuthGuard)
+  async getGuV(
+    @Query('companyId') companyId: string,
+    @Query('year') yearRaw?: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const year = yearRaw
+      ? Number(yearRaw)
+      : new Date().getFullYear() - 1
+    if (!Number.isFinite(year) || year < 2000 || year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+    return this.guv.compute(companyId, year)
+  }
+
+  @Get('guv.pdf')
+  @UseGuards(HeaderAuthGuard)
+  @Header('Content-Type', 'application/pdf')
+  async getGuVPdf(
+    @Res() res: Response,
+    @Query('companyId') companyId: string,
+    @Query('year') yearRaw?: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const year = yearRaw
+      ? Number(yearRaw)
+      : new Date().getFullYear() - 1
+    if (!Number.isFinite(year) || year < 2000 || year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+    await this.guv.renderPdf(companyId, year, res)
   }
 }

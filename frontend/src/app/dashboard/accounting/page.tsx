@@ -11,6 +11,7 @@ import { apiGet, apiPost, apiFetch } from "@/lib/api"
 import { EuerSection } from "./EuerSection"
 import { AnlageSSection } from "./AnlageSSection"
 import { BilanzSection } from "./BilanzSection"
+import { GuVSection } from "./GuVSection"
 import { GobdArchiveSection } from "./GobdArchiveSection"
 
 // The enriched Voucher summary returned by the
@@ -1128,6 +1129,9 @@ export default function AccountingPage() {
 
       {/* Tier 81: Bilanz Vorschau (§ 266 HGB year-end snapshot) */}
       <BilanzSection />
+
+      {/* Tier 82: G+V Vorschau (§ 275 Abs. 2 HGB Gesamtkostenverfahren) */}
+      <GuVSection />
 
       {/* Tier 77: GoBD-Archiv (§ 147 AO 10-year retention) */}
       <GobdArchiveSection />

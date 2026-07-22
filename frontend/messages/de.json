@@ -2200,5 +2200,33 @@
     "totalsPassiva": "Summe Passiva",
     "totalsEigenkapital": "Eigenkapital (Saldoposten)",
     "previewHint": "VORSCHAU — nur teilweise aus den vorhandenen Buchungsdaten abgeleitet. Die restlichen Positionen (Anlagevermögen, Eigenkapital-Bewegungen, Rückstellungen, RAP) muss der Steuerberater aus dem SKR03 / Handelsregister ergänzen. Der Saldoposten beim Eigenkapital ist ein Platzhalter."
+  },
+  "guv": {
+    "title": "Gewinn- und Verlustrechnung (Vorschau)",
+    "subtitle": "G+V nach § 275 Abs. 2 HGB (Gesamtkostenverfahren) — automatisch aus Ihren Umsätzen, Ausgaben und Kundenguthaben abgeleitet. Positionen ohne Datengrundlage sind als „nicht ausgewiesen\" markiert. Der Berater ergänzt die fehlenden Positionen aus dem Anlagenverzeichnis, den Steuerbescheiden und der BWA.",
+    "year": "Geschäftsjahr",
+    "recompute": "Berechnen",
+    "downloadPdf": "PDF herunterladen",
+    "revenue": "Erträge",
+    "cost": "Aufwendungen",
+    "financial": "Finanzergebnis",
+    "tax": "Steuern",
+    "result": "Jahresergebnis",
+    "betriebsleistung": "Betriebsleistung",
+    "betriebsergebnis": "Betriebsergebnis",
+    "finanzergebnis": "Finanzergebnis",
+    "jahresueberschuss": "Jahresüberschuss",
+    "jahresfehlbetrag": "Jahresfehlbetrag",
+    "umsatzerloese": "Umsatzerlöse",
+    "sonstigeErtrage": "Sonstige betriebliche Erträge",
+    "materialaufwand": "Materialaufwand",
+    "personalaufwand": "Personalaufwand",
+    "sonstigeAufwendungen": "Sonstige betriebliche Aufwendungen",
+    "nichtAusgewiesen": "nicht ausgewiesen",
+    "summe": "Summe",
+    "summary": "Zusammenfassung",
+    "generatedAt": "Erstellt",
+    "counts": "Rechnungen / Ausgaben / Gutschriften",
+    "previewHint": "VORSCHAU — nur teilweise aus den vorhandenen Buchungsdaten abgeleitet. Die restlichen Positionen (AfA, Bestandsveränderungen, Beteiligungserträge, Zinserträge, Steuern vom Einkommen und Ertrag) muss der Steuerberater ergänzen. Vor der Einreichung durch den Steuerberater prüfen lassen."
   }
 }
