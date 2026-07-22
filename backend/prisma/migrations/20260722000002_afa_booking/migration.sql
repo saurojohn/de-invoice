@@ -1,0 +1,41 @@
+-- Tier 87: AfA-Buchung (one-click auto-post).
+--
+-- Closes the "computed but not booked" loop
+-- from tier 83. The Anlagenverzeichnis
+-- computes AfA in-memory, but until now the
+-- G+V 7a + BWA 3100 + Anlage S 4600 lines
+-- showed the COMPUTED value without creating
+-- the underlying Expense row. A Berater
+-- reviewing the year-end would see the right
+-- number but no booking evidence in the
+-- expense ledger.
+--
+-- After this migration, the user can click
+-- "AfA buchen" on /dashboard/assets and the
+-- system creates one Expense row per Asset
+-- that has positive annualAfA for the
+-- selected year. The Expense carries:
+--   - relatedAssetId  → which Asset it
+--                        came from
+--   - afaYear         → which calendar year
+--                        the AfA is for
+--   - category='AfA'  → so the report
+--                        matchers can find it
+--   - vatRate=0       → UStG § 12 Abs. 3
+--                        (AfA is not taxable)
+--   - negative netAmount
+--
+-- The (relatedAssetId, afaYear) pair is
+-- UNIQUE for our purposes (idempotency).
+-- We don't enforce via a DB unique constraint
+-- because:
+--   (a) the report matchers don't need
+--       uniqueness, just lookup;
+--   (b) the AssetsService.bookAfa() handler
+--       does the dedup check atomically
+--       inside a transaction.
+-- Index is sufficient.
+
+ALTER TABLE "Expense" ADD COLUMN "relatedAssetId" TEXT;
+ALTER TABLE "Expense" ADD COLUMN "afaYear" INTEGER;
+CREATE INDEX "Expense_relatedAssetId_afaYear_idx" ON "Expense"("relatedAssetId", "afaYear");

@@ -430,6 +430,17 @@ model Expense {
   // supported when an expense doesn't fit the default.
   costCenter     String?   // DATEV Kostenstelle 1
   costObject     String?   // DATEV Kostenträger
+  // Tier 87: when this Expense was auto-posted
+  // by the Anlagenverzeichnis "AfA buchen" flow
+  // (one row per Asset per Year), these two
+  // fields carry the link back to the Asset.
+  // NULL for manually-entered expenses. The
+  // (relatedAssetId, afaYear) pair is the
+  // dedup key for re-running the booking
+  // (idempotent: "AfA buchen" twice for the
+  // same year = no double booking).
+  relatedAssetId String?
+  afaYear        Int?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -438,6 +449,7 @@ model Expense {
   @@index([companyId, invoiceDate])
   @@index([companyId, vatRate])
   @@index([supplierId])
+  @@index([relatedAssetId, afaYear])
 }
 
 // UStVA filing record — track submitted VAT returns

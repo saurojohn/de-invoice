@@ -90,7 +90,13 @@ export interface BwaResult {
     betriebsergebnisYtd: number
     betriebsergebnisVorjahresYtd: number
   }
-  counts: { invoices: number; expenses: number; assets: number }
+  counts: { invoices: number; expenses: number; assets: number; afaBookings: number }
+  // Tier 87: 'booked' = the 3100 line uses real
+  // Expense rows (AfA-buchen was clicked for this
+  // year). 'computed' = the 3100 line uses the
+  // in-memory Asset pool. Same value the UI shows
+  // in the "AfA-Status" badge.
+  afaSource: 'booked' | 'computed'
   generatedAt: string
   disclaimer: string
 }
@@ -119,12 +125,18 @@ export class BwaService {
     const vorjahresYtdStart = new Date(vorjahr, 0, 1)
     const vorjahresYtdEnd = new Date(vorjahr, month - 1 + 1, 0, 23, 59, 59, 999)
 
-    // Pull invoices + expenses for the year so we
-    // can filter by month in-memory. Pulling
-    // the full year (not 4 separate windows) is
-    // simpler than 4 parallel queries and gives
-    // us consistent counts.
-    const [invoices, expenses, assetList] = await Promise.all([
+    // Pull invoices + expenses + booked AfA rows
+    // for the year so we can filter by month
+    // in-memory. Pulling the full year (not 4
+    // separate windows) is simpler than 4 parallel
+    // queries and gives us consistent counts.
+    //
+    // Tier 87: we also pull the AfA Expense rows
+    // (category='AfA' AND afaYear=year) so the
+    // 3100 Abschreibungen line can use real
+    // booked values when present, falling back to
+    // the in-memory computed value otherwise.
+    const [invoices, expenses, assetList, bookedAfaRows] = await Promise.all([
       this.prisma.invoice.findMany({
         where: {
           companyId,
@@ -137,11 +149,26 @@ export class BwaService {
         where: {
           companyId,
           status: { in: ['booked', 'deductible'] },
+          // Tier 87: exclude booked AfA rows
+          // from the regular expense pool.
+          // They are picked up separately
+          // via `bookedAfaRows` and feed into
+          // 3100 only — not 3600 Sonstige.
+          category: { not: 'AfA' },
           invoiceDate: { gte: yearStart, lte: monthEnd },
         },
         select: { grossAmount: true, category: true, invoiceDate: true },
       }),
       this.prisma.asset.findMany({ where: { companyId } }),
+      this.prisma.expense.findMany({
+        where: {
+          companyId,
+          category: 'AfA',
+          afaYear: year,
+          relatedAssetId: { not: null },
+        },
+        select: { grossAmount: true, invoiceDate: true },
+      }),
     ])
 
     const sumInMonth = (vals: { date: Date; amount: number }[], start: Date, end: Date) =>
@@ -198,20 +225,39 @@ export class BwaService {
     const sonstigeYtd = sumExpense(sonstigeExpenses, yearStart, monthEnd)
     const zinsYtd = sumExpense(zinsExpenses, yearStart, monthEnd)
 
-    // 3100 AfA — computed per-asset for the BWA
-    // month. We use the asset's annualAfA * (months
-    // in the BWA month / 12) as a per-month proration.
-    // (This is a simplification — real DATEV BWA
-    // uses the exact booked AfA per month. v2
-    // would integrate with the AfA-Buch.)
-    const monthAfA = assetList.reduce(
-      (s, a) => s + (this.assets.computeAfA(a, monthEnd).annualAfA / 12),
+    // 3100 AfA — Tier 87: prefer booked AfA over
+    // computed. When the user has clicked
+    // "AfA buchen" for this year, the booked
+    // Expense rows are the source of truth and
+    // the BWA 3100 line shows them by month
+    // (a single Dec-31 booking = 0 for Jan-Nov,
+    // full amount for Dec). The YTD column is
+    // the cumulative sum of booked rows up to
+    // the BWA month. When no AfA has been
+    // booked for the year, we fall back to the
+    // in-memory computed value (annualAfA/12
+    // per month) — same v1 proration logic.
+    const totalBookedAfA = bookedAfaRows.reduce(
+      (s, e) => s + Number(e.grossAmount),
       0,
     )
-    const ytdAfA = assetList.reduce(
-      (s, a) => s + (this.assets.computeAfA(a, monthEnd).annualAfA * (month / 12)),
-      0,
-    )
+    const useBookedAfA = totalBookedAfA !== 0
+    const monthAfA = useBookedAfA
+      ? bookedAfaRows
+          .filter((e) => e.invoiceDate >= monthStart && e.invoiceDate <= monthEnd)
+          .reduce((s, e) => s + Number(e.grossAmount), 0)
+      : assetList.reduce(
+          (s, a) => s + (this.assets.computeAfA(a, monthEnd).annualAfA / 12),
+          0,
+        )
+    const ytdAfA = useBookedAfA
+      ? bookedAfaRows
+          .filter((e) => e.invoiceDate >= yearStart && e.invoiceDate <= monthEnd)
+          .reduce((s, e) => s + Number(e.grossAmount), 0)
+      : assetList.reduce(
+          (s, a) => s + (this.assets.computeAfA(a, monthEnd).annualAfA * (month / 12)),
+          0,
+        )
 
     // Vorjahres-YTD (Jan - same month prior year)
     // — needs separate queries because our
@@ -219,7 +265,7 @@ export class BwaService {
     // year. Same for vorjahres invoicing (we
     // don't store prior-year invoices in the
     // current-year query).
-    const [vorjahresInvoices, vorjahresExpenses] = await Promise.all([
+    const [vorjahresInvoices, vorjahresExpenses, vorjahresBookedAfa] = await Promise.all([
       this.prisma.invoice.findMany({
         where: {
           companyId,
@@ -232,9 +278,21 @@ export class BwaService {
         where: {
           companyId,
           status: { in: ['booked', 'deductible'] },
+          // Tier 87: exclude booked AfA from
+          // the regular Sonstige filter.
+          category: { not: 'AfA' },
           invoiceDate: { gte: vorjahresYtdStart, lte: vorjahresYtdEnd },
         },
         select: { grossAmount: true, category: true },
+      }),
+      this.prisma.expense.findMany({
+        where: {
+          companyId,
+          category: 'AfA',
+          afaYear: vorjahr,
+          relatedAssetId: { not: null },
+        },
+        select: { grossAmount: true, invoiceDate: true },
       }),
     ])
 
@@ -254,6 +312,9 @@ export class BwaService {
           !/^(Material|Waren|Rohstoffe?|Fremdleistung)/i.test(e.category || '') &&
           !/^(Personal|Lohn|Gehalt|SV)/i.test(e.category || ''),
       )
+      .reduce((s, e) => s + Number(e.grossAmount), 0)
+    const vorjahresYtdAfA = vorjahresBookedAfa
+      .filter((e) => e.invoiceDate >= vorjahresYtdStart && e.invoiceDate <= vorjahresYtdEnd)
       .reduce((s, e) => s + Number(e.grossAmount), 0)
 
     // Sonstige betriebliche Erträge (1300) —
@@ -332,8 +393,8 @@ export class BwaService {
         monat: round2(monthAfA),
         vormonat: 0,
         ytd: round2(ytdAfA),
-        vorjahresYtd: 0,
-        ytdChangePct: 0,
+        vorjahresYtd: round2(vorjahresYtdAfA),
+        ytdChangePct: pctChange(ytdAfA, vorjahresYtdAfA),
       },
       {
         bucket: '3600',
@@ -358,7 +419,7 @@ export class BwaService {
     const betriebsergebnisMonat = erloeseMonat - materialMonat - personalMonat - monthAfA - sonstigeMonat
     const betriebsergebnisYtd = erloeseYtd - materialYtd - personalYtd - ytdAfA - sonstigeYtd
     const betriebsergebnisVorjahresYtd =
-      erloeseVorjahresYtd - vorjahresYtdMaterial - vorjahresYtdPersonal - vorjahresYtdSonstige
+      erloeseVorjahresYtd - vorjahresYtdMaterial - vorjahresYtdPersonal - vorjahresYtdAfA - vorjahresYtdSonstige
 
     return {
       year,
@@ -386,7 +447,17 @@ export class BwaService {
         invoices: invoices.length,
         expenses: expenses.length,
         assets: assetList.length,
+        // Tier 87: how many AfA bookings exist
+        // for this year. 0 = computed fallback
+        // for the 3100 line; >0 = real booked
+        // AfA Expense rows.
+        afaBookings: bookedAfaRows.length,
       },
+      // Tier 87: expose to the UI which mode
+      // the 3100 line is in ('booked' from
+      // Expense rows, or 'computed' from the
+      // Asset pool).
+      afaSource: useBookedAfA ? 'booked' : 'computed',
       generatedAt: new Date().toISOString(),
       disclaimer:
         'Diese BWA ist eine VORSCHAU basierend auf den in de-invoice v1 verfügbaren ' +

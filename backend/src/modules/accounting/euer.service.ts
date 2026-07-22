@@ -166,12 +166,16 @@ export class EuerService {
         reverseCharge: true,
       },
     })
-    // Same approach for expenses.
+    // Same approach for expenses. Tier 87:
+    // exclude booked AfA rows (category='AfA')
+    // — AfA doesn't have a Kennziffer in EÜR
+    // (it lives in Anlage AVEINV).
     const expenses = await this.prisma.expense.findMany({
       where: {
         companyId,
         invoiceDate: { gte: yearStart, lte: yearEnd },
         status: { in: ['booked', 'deductible'] },
+        category: { not: 'AfA' },
       },
       select: {
         netAmount: true,
@@ -214,6 +218,14 @@ export class EuerService {
     const ausgabenBuckets = new Map<string, number>()
     for (const def of EXPENSE_LINES) ausgabenBuckets.set(def.kz, 0)
     for (const exp of expenses) {
+      // Tier 87: skip booked AfA rows. The EÜR
+      // (§ 4 Abs. 3 EStG) doesn't have a Kennziffer
+      // for AfA — AfA lives in Anlage AVEINV. If we
+      // let the row fall through to the 5900 fallback
+      // here, it would double-count (the AfA is
+      // already accounted for in Anlage S 4600 and
+      // G+V 7a / BWA 3100).
+      if (/^AfA/i.test(exp.category || '')) continue
       const matched = EXPENSE_LINES.find((d) => d.matcher(exp))
       const kz = matched?.kz || '5900'
       ausgabenBuckets.set(kz, (ausgabenBuckets.get(kz) || 0) + Number(exp.netAmount))

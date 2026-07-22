@@ -33,6 +33,53 @@ export class AssetsController {
     return this.assets.list(companyId)
   }
 
+  // ----------------------------------------------------------------
+  // Tier 87: AfA-Buchung (one-click auto-post)
+  // Declared BEFORE the :id routes — NestJS
+  // matches @Get(':id') for any single-segment
+  // path, so a literal 'booking-status' must
+  // come first to avoid being captured as
+  // findOne('booking-status', ...).
+  // ----------------------------------------------------------------
+
+  /**
+   * Booking-status for one year. Per asset,
+   * returns the computed annual AfA + whether
+   * it's been booked + the booked amount. The
+   * frontend uses this to show ✓/— badges.
+   */
+  @Get('booking-status')
+  async bookingStatus(
+    @Query('companyId') companyId: string,
+    @Query('year') yearRaw?: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const year = yearRaw ? Number(yearRaw) : new Date().getFullYear()
+    return this.assets.getBookingStatus(companyId, year)
+  }
+
+  /**
+   * One-click "AfA buchen" for a year. Walks
+   * the Asset pool and creates one Expense
+   * row per asset with positive annualAfA.
+   * Idempotent — re-running the same year
+   * does not double-book (dedup on
+   * relatedAssetId+afaYear).
+   *
+   * The `year` is required. If omitted, the
+   * system books for the current calendar
+   * year.
+   */
+  @Post('book-afa')
+  async bookAfa(
+    @Query('companyId') companyId: string,
+    @Query('year') yearRaw?: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const year = yearRaw ? Number(yearRaw) : new Date().getFullYear()
+    return this.assets.bookAfa(companyId, year)
+  }
+
   @Get(':id')
   async findOne(@Param('id') id: string, @Query('companyId') companyId: string) {
     if (!companyId) throw new BadRequestException('companyId ist erforderlich')

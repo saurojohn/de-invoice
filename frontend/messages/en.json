@@ -2271,7 +2271,20 @@
     "noAssets": "No assets yet — add fixed assets so the Bilanz + G+V can auto-fill the depreciation positions.",
     "disposeHint": "Enter sale date and price. The asset is removed from the balance sheet pool.",
     "disposeOk": "Asset disposed",
-    "deleteHint": "A disposed asset can no longer be edited. Disposing documents the sale; for deletion, contact your tax advisor."
+    "deleteHint": "A disposed asset can no longer be edited. Disposing documents the sale; for deletion, contact your tax advisor.",
+    "afaBuchung": "AfA booking",
+    "bookAfa": "Book AfA",
+    "bookAfaBooked": "AfA booked",
+    "bookAfaOk": "Booked {count} asset(s), {skipped} already booked, total: {total}",
+    "bookAfaConfirmTitle": "Confirm AfA booking",
+    "bookAfaConfirmHint": "Automatically creates one expense booking per asset for the year {year}. Affects P&L 7a, BWA 3100 and Anlage S 4600.",
+    "bookAfaConfirmFootnote": "Note: booking is idempotent — clicking again will not create duplicate entries. Already disposed assets are skipped.",
+    "bookAfaTotal": "Total",
+    "afaStatus": "AfA status",
+    "afaBooked": "booked",
+    "afaBookedHint": "AfA for this year has been booked (shows up in P&L 7a, BWA 3100, Anlage S 4600).",
+    "afaNotBooked": "not booked",
+    "afaNotBookedHint": "AfA has not been booked yet — the value appears only as a computed estimate in the reports. Click \"Book AfA\" above to create a real expense booking."
   },
   "anhang": {
     "title": "Notes to the Financial Statements",

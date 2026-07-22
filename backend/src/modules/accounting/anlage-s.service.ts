@@ -60,7 +60,16 @@ export interface AnlageSResult {
   counts: {
     invoices: number
     expenses: number
+    // Tier 87: how many AfA-Buchung rows
+    // for this year (one per Asset that
+    // was booked into 4600).
+    afaBookings: number
   }
+  // Tier 87: 'booked' if AfA-Buchung rows
+  // exist for this year (4600 has a real
+  // value). 'nicht_gebucht' if no booking
+  // has been made (4600 stays at 0).
+  afaSource: 'booked' | 'nicht_gebucht'
   generatedAt: string
   disclaimer: string
 }
@@ -197,12 +206,41 @@ export class AnlageSService {
         companyId,
         invoiceDate: { gte: yearStart, lte: yearEnd },
         status: { in: ['booked', 'deductible'] },
+        // Tier 87: booked AfA rows are
+        // excluded here and surfaced in
+        // the 4600 line via the explicit
+        // AfA-Buchung query below. Without
+        // this exclusion they would fall
+        // through to the 4720 "Übrige"
+        // fallback and double-count.
+        category: { not: 'AfA' },
       },
       select: {
         netAmount: true,
         category: true,
       },
     })
+
+    // Tier 87: AfA-Buchung rows for 4600. Pulled
+    // separately because the EXPENSE_LINES matcher
+    // for 4600 is a stub (returns false) — the
+    // booked AfA is a SIGNAL not a category match.
+    // We sum the netAmount (= -annualAfA, negative
+    // reduces profit) and write it to 4600 below.
+    const bookedAfa = await this.prisma.expense.findMany({
+      where: {
+        companyId,
+        invoiceDate: { gte: yearStart, lte: yearEnd },
+        category: 'AfA',
+        afaYear: year,
+        relatedAssetId: { not: null },
+      },
+      select: { netAmount: true },
+    })
+    const bookedAfaSum = bookedAfa.reduce(
+      (s, e) => s + Number(e.netAmount),
+      0,
+    )
 
     // Bucket revenues by Kennziffer. The
     // matchers are evaluated in order; the first
@@ -241,11 +279,27 @@ export class AnlageSService {
       label: d.label,
       amount: round2(einnahmenBuckets.get(d.kz) || 0),
     }))
-    const ausgaben: AnlageSLine[] = EXPENSE_LINES.map((d) => ({
-      kennziffer: d.kz,
-      label: d.label,
-      amount: round2(ausgabenBuckets.get(d.kz) || 0),
-    }))
+    const ausgaben: AnlageSLine[] = EXPENSE_LINES.map((d) => {
+      // Tier 87: 4600 AfA gets the booked AfA sum
+      // (negative netAmount). If no booking exists
+      // for this year, 4600 stays at 0 (the
+      // computed-fallback path would require an
+      // AssetsService import here; we keep v1
+      // simple — the user opens Anlagenverzeichnis
+      // and clicks "AfA buchen" to populate 4600).
+      if (d.kz === '4600') {
+        return {
+          kennziffer: d.kz,
+          label: d.label,
+          amount: round2(bookedAfaSum),
+        }
+      }
+      return {
+        kennziffer: d.kz,
+        label: d.label,
+        amount: round2(ausgabenBuckets.get(d.kz) || 0),
+      }
+    })
 
     const einnahmenTotal = einnahmen.reduce((s, l) => s + l.amount, 0)
     const ausgabenTotal = ausgaben.reduce((s, l) => s + l.amount, 0)
@@ -264,7 +318,13 @@ export class AnlageSService {
       counts: {
         invoices: invoices.length,
         expenses: expenses.length,
+        // Tier 87: how many AfA bookings exist
+        // for this year.
+        afaBookings: bookedAfa.length,
       },
+      // Tier 87: 4600 is "gebucht" if a booking
+      // exists, else "nicht gebucht" (0).
+      afaSource: bookedAfa.length > 0 ? 'booked' : 'nicht_gebucht',
       generatedAt: new Date().toISOString(),
       disclaimer:
         'Diese Vorschau wurde automatisch aus Ihren Buchungen generiert. ' +

@@ -2271,7 +2271,20 @@
     "noAssets": "Noch keine Anlagen erfasst — fügen Sie Sachanlagen hinzu, damit Bilanz + G+V die AfA-Positionen automatisch füllen.",
     "disposeHint": "Verkaufsdatum und -preis eingeben. Die Anlage wird aus dem Bilanz-Pool entfernt.",
     "disposeOk": "Anlage veräußert",
-    "deleteHint": "Eine veräußerte Anlage kann nicht mehr bearbeitet werden. Veräußern dokumentiert den Verkauf; zum Löschen wenden Sie sich an den Berater."
+    "deleteHint": "Eine veräußerte Anlage kann nicht mehr bearbeitet werden. Veräußern dokumentiert den Verkauf; zum Löschen wenden Sie sich an den Berater.",
+    "afaBuchung": "AfA-Buchung",
+    "bookAfa": "AfA buchen",
+    "bookAfaBooked": "AfA gebucht",
+    "bookAfaOk": "{count} Anlage(n) gebucht, {skipped} bereits gebucht, Gesamt: {total}",
+    "bookAfaConfirmTitle": "AfA buchen bestätigen",
+    "bookAfaConfirmHint": "Erstellt automatisch eine Ausgabenbuchung pro Anlage für das Jahr {year}. Die Buchung wirkt auf G+V 7a, BWA 3100 und Anlage S 4600.",
+    "bookAfaConfirmFootnote": "Hinweis: Die Buchung ist idempotent — ein erneuter Klick erzeugt keine doppelten Einträge. Bereits veräußerte Anlagen werden übersprungen.",
+    "bookAfaTotal": "Gesamt",
+    "afaStatus": "AfA-Status",
+    "afaBooked": "gebucht",
+    "afaBookedHint": "AfA für dieses Jahr wurde gebucht (erscheint in G+V 7a, BWA 3100, Anlage S 4600).",
+    "afaNotBooked": "nicht gebucht",
+    "afaNotBookedHint": "AfA wurde noch nicht gebucht — der Betrag wird nur rechnerisch in den Berichten ausgewiesen. Klicken Sie oben auf „AfA buchen\", um eine echte Ausgabenbuchung zu erzeugen."
   },
   "anhang": {
     "title": "Anhang zum Jahresabschluss",

@@ -119,7 +119,17 @@ export interface GuVResult {
     invoices: number
     expenses: number
     credits: number
+    // Tier 87: how many AfA-Buchung rows
+    // for this year (one per Asset that
+    // was booked into 7a).
+    afaBookings: number
+    assets: number
   }
+  // Tier 87: 'booked' if AfA-Buchung rows
+  // exist for this year (7a uses real
+  // bookings). 'computed' if 7a uses the
+  // in-memory Asset pool.
+  afaSource: 'booked' | 'computed'
   generatedAt: string
   disclaimer: string
 }
@@ -171,11 +181,20 @@ export class GuVService {
     // (4600-4720 Kennziffern) so the G+V cost
     // side stays consistent with what the
     // Anlage S / EÜR already show.
+    //
+    // Tier 87: booked AfA rows (category='AfA')
+    // are excluded from this pull — they feed
+    // into 7a Abschreibungen via a separate
+    // query (and only when the user has clicked
+    // "AfA buchen" for this year). Without this
+    // exclusion the AfA rows would land in the
+    // Sonstige bucket (8) and double-count.
     const expenses = await this.prisma.expense.findMany({
       where: {
         companyId,
         invoiceDate: { gte: yearStart, lte: yearEnd },
         status: { in: ['booked', 'deductible'] },
+        category: { not: 'AfA' },
       },
       select: {
         netAmount: true,
@@ -185,6 +204,27 @@ export class GuVService {
         category: true,
       },
     })
+
+    // Tier 87: AfA-Buchung rows. Pulled separately
+    // because they go straight to 7a Abschreibungen
+    // (and only when present — the in-memory
+    // computed value is the fallback when no
+    // booking has been made).
+    const bookedAfa = await this.prisma.expense.findMany({
+      where: {
+        companyId,
+        invoiceDate: { gte: yearStart, lte: yearEnd },
+        category: 'AfA',
+        afaYear: year,
+        relatedAssetId: { not: null },
+      },
+      select: { grossAmount: true },
+    })
+    const bookedAfASum = bookedAfa.reduce(
+      (s, e) => s + Number(e.grossAmount),
+      0,
+    )
+    const useBookedAfA = bookedAfASum !== 0
 
     // Bucket the expenses using Anlage S / EÜR
     // category matchers. The G+V groups them
@@ -201,13 +241,16 @@ export class GuVService {
     )
     // Sonstige betriebliche Aufwendungen = all
     // expenses NOT in material / personal / zins
-    // buckets. (The AfA lines are nicht
-    // ausgewiesen — no AfA tracking.)
+    // buckets. Tier 87: AfA is explicitly excluded
+    // here too, in case any leftover AfA rows
+    // slipped past the pull filter (defense in
+    // depth — the filter is the primary guard).
     const sonstigeExpenses = expenses.filter(
       (e) =>
         !/^(Material|Waren|Rohstoffe?|Fremdleistung)/i.test(e.category || '') &&
         !/^(Personal|Lohn|Gehalt|SV)/i.test(e.category || '') &&
-        !/^(Schuldzins|Zins)/i.test(e.category || ''),
+        !/^(Schuldzins|Zins)/i.test(e.category || '') &&
+        !/^AfA/i.test(e.category || ''),
     )
 
     const materialaufwand = materialExpenses.reduce(
@@ -300,12 +343,15 @@ export class GuVService {
     }
 
     // Cost (§ 275 HGB GKV positions 5-8)
-    // 7a Abschreibungen uses the computed
-    // annual AfA (tier 83) when the company
-    // has registered Sachanlagen. Otherwise
-    // 7a stays "nicht ausgewiesen" — see the
-    // Anlagenverzeichnis page to register
-    // assets.
+    // 7a Abschreibungen uses the BOOKED AfA sum
+    // when the user has clicked "AfA buchen"
+    // for this year (tier 87). Otherwise it
+    // falls back to the computed annual AfA
+    // from the Asset pool (tier 83). The
+    // expense line is "nicht ausgewiesen" only
+    // when the company has no assets AND no
+    // booking — both can be true together for
+    // a fresh company.
     const cost: GuVSection = {
       title: 'Aufwendungen',
       lines: [
@@ -322,10 +368,16 @@ export class GuVService {
         {
           position: '7a',
           label: 'Abschreibungen auf Sachanlagen',
-          amount: hasAssets ? round2(annualAfA) : null,
-          note: hasAssets
-            ? 'Berechnet aus dem Anlagenverzeichnis (lineare AfA).'
-            : 'AfA wird berechnet, sobald Sachanlagen im Anlagenverzeichnis erfasst sind.',
+          amount: useBookedAfA
+            ? round2(bookedAfASum)
+            : hasAssets
+              ? round2(annualAfA)
+              : null,
+          note: useBookedAfA
+            ? 'Gebucht aus Anlagenverzeichnis ("AfA buchen").'
+            : hasAssets
+              ? 'Berechnet aus dem Anlagenverzeichnis (lineare AfA).'
+              : 'AfA wird berechnet, sobald Sachanlagen im Anlagenverzeichnis erfasst sind.',
         },
         {
           position: '8',
@@ -337,10 +389,13 @@ export class GuVService {
       subtotal: round2(
         materialaufwand +
           personalaufwand +
-          annualAfA +
+          (useBookedAfA ? bookedAfASum : annualAfA) +
           sonstigeAufwendungen,
       ),
-      nichtAusgewiesen: hasAssets ? 0 : 1,
+      // 7a is "nicht ausgewiesen" only when we
+      // have neither a booking nor any assets.
+      nichtAusgewiesen:
+        useBookedAfA || hasAssets ? 0 : 1,
     }
 
     // Financial result (§ 275 HGB GKV positions 9-13)
@@ -449,7 +504,17 @@ export class GuVService {
         invoices: invoices.length,
         expenses: expenses.length,
         credits: credits.length,
+        // Tier 87: how many AfA bookings exist
+        // for this year. 0 = 7a line uses
+        // the in-memory computed value; >0 =
+        // 7a line uses real booked AfA Expense
+        // rows.
+        afaBookings: bookedAfa.length,
+        assets: yearAssets.length,
       },
+      // Tier 87: expose to the UI which mode
+      // the 7a line is in.
+      afaSource: useBookedAfA ? 'booked' : 'computed',
       generatedAt: new Date().toISOString(),
       disclaimer:
         'Diese G+V ist eine VORSCHAU nach § 275 Abs. 2 HGB Gesamtkostenverfahren. ' +

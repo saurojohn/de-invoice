@@ -26,6 +26,23 @@ interface Asset {
   updatedAt: string
 }
 
+/**
+ * Tier 87: Booking-status row for one asset
+ * for one year. Comes from
+ * GET /api/v1/assets/booking-status?year=YYYY
+ */
+interface BookingStatusRow {
+  assetId: string
+  bezeichnung: string
+  type: string
+  anschaffungsDatum: string
+  verkauftAm: string | null
+  computedAfA: number
+  booked: boolean
+  bookedAfA: number
+  expenseId: string | null
+}
+
 const TYPES = [
   "Grundstueck",
   "Gebaeude",
@@ -150,21 +167,31 @@ export default function AssetsPage() {
     verkauftAm: new Date().toISOString().slice(0, 10),
     verkaufsPreis: "",
   })
+  // Tier 87: AfA-Buchung state
+  const [bookingStatus, setBookingStatus] = useState<BookingStatusRow[]>([])
+  const [bookingSaving, setBookingSaving] = useState(false)
+  const [bookingConfirm, setBookingConfirm] = useState(false)
 
   const load = useCallback(async () => {
     const companyId = typeof window !== "undefined" ? localStorage.getItem("companyId") : null
     if (!companyId) return
     setLoading(true)
     try {
-      const data = await apiGet<Asset[]>(`/api/v1/assets?companyId=${companyId}`)
+      const [data, status] = await Promise.all([
+        apiGet<Asset[]>(`/api/v1/assets?companyId=${companyId}`),
+        apiGet<BookingStatusRow[]>(
+          `/api/v1/assets/booking-status?companyId=${companyId}&year=${year}`,
+        ),
+      ])
       setAssets(data || [])
+      setBookingStatus(status || [])
     } catch (e) {
       console.error("assets load failed", e)
       toastRef.current.error("Fehler beim Laden")
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [year])
 
   useEffect(() => {
     load()
@@ -257,6 +284,54 @@ export default function AssetsPage() {
     }
   }
 
+  // Tier 87: One-click "AfA buchen" for the
+  // selected year. Idempotent on the server
+  // (re-running is a no-op for already-booked
+  // assets). Reloads booking-status + assets
+  // after the call so the per-row badges + the
+  // summary card update in place.
+  const bookAfa = async () => {
+    const companyId = typeof window !== "undefined" ? localStorage.getItem("companyId") : null
+    if (!companyId) return
+    setBookingConfirm(false)
+    setBookingSaving(true)
+    try {
+      const result = await apiPost<{
+        year: number
+        bookedCount: number
+        skippedAlreadyCount: number
+        skippedZeroCount: number
+        totalAnnualAfA: number
+      }>(
+        `/api/v1/assets/book-afa?companyId=${companyId}&year=${year}`,
+        {},
+      )
+      toastRef.current.success(
+        tRef.current("assets.bookAfaOk")
+          .replace("{count}", String(result.bookedCount))
+          .replace("{skipped}", String(result.skippedAlreadyCount))
+          .replace("{total}", fmtEur(result.totalAnnualAfA)),
+      )
+      load()
+    } catch (e: any) {
+      const msg = e instanceof ApiError ? e.message : "Fehler beim Buchen"
+      toastRef.current.error(msg)
+    } finally {
+      setBookingSaving(false)
+    }
+  }
+
+  // Bookable = computedAfA > 0 AND not yet booked.
+  // The button shows the count + total to give
+  // the user a clear preview before they confirm.
+  const bookableRows = bookingStatus.filter(
+    (r) => !r.booked && r.computedAfA > 0,
+  )
+  const bookableTotal = bookableRows.reduce((s, r) => s + r.computedAfA, 0)
+  const alreadyBookedRows = bookingStatus.filter((r) => r.booked)
+  const alreadyBookedTotal = alreadyBookedRows.reduce((s, r) => s + r.bookedAfA, 0)
+  const bookingByAssetId = new Map(bookingStatus.map((r) => [r.assetId, r]))
+
   return (
     <main className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
       <div className="max-w-7xl mx-auto">
@@ -298,6 +373,44 @@ export default function AssetsPage() {
                   data-testid="assets-year"
                 />
               </div>
+              {/* Tier 87: one-click AfA-Buchung. The
+                  button toggles between "AfA buchen"
+                  (with preview count + total) and
+                  "AfA gebucht" (with the booked
+                  total + a small ✓). The confirm
+                  modal lists the per-asset amounts
+                  before the user commits. */}
+              {bookableRows.length > 0 ? (
+                <div>
+                  <label className="text-xs text-gray-500 dark:text-gray-400 uppercase">
+                    {t("assets.afaBuchung")}
+                  </label>
+                  <div className="flex items-center gap-2 mt-1">
+                    <Button
+                      onClick={() => setBookingConfirm(true)}
+                      disabled={bookingSaving}
+                      className="bg-emerald-600 text-white hover:bg-emerald-700"
+                      data-testid="assets-book-afa"
+                    >
+                      {bookingSaving
+                        ? "…"
+                        : `${t("assets.bookAfa")} (${bookableRows.length} • ${fmtEur(bookableTotal)})`}
+                    </Button>
+                  </div>
+                </div>
+              ) : alreadyBookedRows.length > 0 ? (
+                <div data-testid="assets-booked-badge">
+                  <label className="text-xs text-gray-500 dark:text-gray-400 uppercase">
+                    {t("assets.afaBuchung")}
+                  </label>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="inline-flex items-center gap-1 px-3 py-2 rounded bg-emerald-50 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-200 text-sm font-mono border border-emerald-200 dark:border-emerald-800">
+                      <span className="text-emerald-600">✓</span>
+                      {t("assets.bookAfaBooked")} ({fmtEur(alreadyBookedTotal)})
+                    </span>
+                  </div>
+                </div>
+              ) : null}
             </div>
           </CardContent>
         </Card>
@@ -368,6 +481,7 @@ export default function AssetsPage() {
                       <th className="text-right py-2 px-2 text-xs">{t("assets.akAfA")}</th>
                       <th className="text-right py-2 px-2 text-xs">{t("assets.buchwert")}</th>
                       <th className="text-right py-2 px-2 text-xs">{t("assets.jahresAfA")}</th>
+                      <th className="text-center py-2 px-2 text-xs">{t("assets.afaStatus")}</th>
                       <th className="text-center py-2 px-2 text-xs">{t("assets.actions")}</th>
                     </tr>
                   </thead>
@@ -375,6 +489,8 @@ export default function AssetsPage() {
                     {summaries.map((s) => {
                       const a = s.asset
                       const disposed = !!a.verkauftAm
+                      const booking = bookingByAssetId.get(a.id)
+                      const booked = booking?.booked ?? false
                       return (
                         <tr
                           key={a.id}
@@ -405,6 +521,31 @@ export default function AssetsPage() {
                           </td>
                           <td className="py-2 px-2 text-right font-mono text-xs">
                             {fmtEur(s.annualAfA)}
+                          </td>
+                          <td
+                            className="py-2 px-2 text-center"
+                            data-testid={`assets-afa-status-${a.id}`}
+                          >
+                            {disposed ? (
+                              <span className="text-xs text-gray-400">—</span>
+                            ) : booked ? (
+                              <span
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-50 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-800"
+                                title={t("assets.afaBookedHint")}
+                              >
+                                <span className="text-emerald-600">✓</span>
+                                {t("assets.afaBooked")}
+                              </span>
+                            ) : s.annualAfA > 0 ? (
+                              <span
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono bg-amber-50 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-800"
+                                title={t("assets.afaNotBookedHint")}
+                              >
+                                {t("assets.afaNotBooked")}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-gray-400">—</span>
+                            )}
                           </td>
                           <td className="py-2 px-2 text-center">
                             {!disposed && (
@@ -603,6 +744,78 @@ export default function AssetsPage() {
                 data-testid="assets-dispose-confirm"
               >
                 {t("assets.dispose")}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {bookingConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto">
+            <h2 className="text-xl font-bold mb-2">
+              {t("assets.bookAfaConfirmTitle")}
+            </h2>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+              {t("assets.bookAfaConfirmHint").replace("{year}", String(year))}
+            </p>
+            <div className="overflow-x-auto mb-4">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-xs">
+                    <th className="text-left py-2 px-2">{t("assets.bezeichnung")}</th>
+                    <th className="text-right py-2 px-2">{t("assets.anschaffungsKosten")}</th>
+                    <th className="text-right py-2 px-2">{t("assets.jahresAfA")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {bookableRows.map((r) => (
+                    <tr key={r.assetId} className="border-b">
+                      <td className="py-1 px-2 text-xs">{r.bezeichnung}</td>
+                      <td className="py-1 px-2 text-right text-xs font-mono">
+                        {fmtEur(
+                          Number(
+                            assets.find((a) => a.id === r.assetId)?.anschaffungsKosten ?? 0,
+                          ),
+                        )}
+                      </td>
+                      <td className="py-1 px-2 text-right text-xs font-mono font-bold">
+                        {fmtEur(r.computedAfA)}
+                      </td>
+                    </tr>
+                  ))}
+                  <tr className="border-t-2 border-t-gray-300">
+                    <td className="py-2 px-2 text-xs font-bold" colSpan={2}>
+                      {t("assets.bookAfaTotal")}
+                    </td>
+                    <td
+                      className="py-2 px-2 text-right text-sm font-mono font-bold"
+                      data-testid="assets-book-total"
+                    >
+                      {fmtEur(bookableTotal)}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+              {t("assets.bookAfaConfirmFootnote")}
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setBookingConfirm(false)}
+                disabled={bookingSaving}
+              >
+                {t("assets.cancel")}
+              </Button>
+              <Button
+                onClick={bookAfa}
+                disabled={bookingSaving}
+                className="bg-emerald-600 text-white hover:bg-emerald-700"
+                data-testid="assets-book-confirm"
+              >
+                {bookingSaving ? "…" : t("assets.bookAfa")}
               </Button>
             </div>
           </div>

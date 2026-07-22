@@ -2271,7 +2271,20 @@
     "noAssets": "暂无固定资产 — 添加后资产负债表和损益表将自动填充折旧行。",
     "disposeHint": "输入出售日期和价格。该资产将从资产负债池中移除。",
     "disposeOk": "资产已处置",
-    "deleteHint": "已处置的资产不能再编辑。处置记录出售；如需删除请联系税务师。"
+    "deleteHint": "已处置的资产不能再编辑。处置记录出售；如需删除请联系税务师。",
+    "afaBuchung": "AfA 簿记",
+    "bookAfa": "簿记 AfA",
+    "bookAfaBooked": "AfA 已簿记",
+    "bookAfaOk": "已簿记 {count} 项资产, {skipped} 项已簿记, 合计: {total}",
+    "bookAfaConfirmTitle": "确认簿记 AfA",
+    "bookAfaConfirmHint": "为 {year} 年度每项资产自动创建一笔费用簿记。影响 G+V 7a, BWA 3100 和 Anlage S 4600。",
+    "bookAfaConfirmFootnote": "提示: 簿记是幂等的 — 重复点击不会创建重复条目。已售出资产会被跳过。",
+    "bookAfaTotal": "合计",
+    "afaStatus": "AfA 状态",
+    "afaBooked": "已簿记",
+    "afaBookedHint": "本年度 AfA 已簿记 (反映在 G+V 7a, BWA 3100, Anlage S 4600)。",
+    "afaNotBooked": "未簿记",
+    "afaNotBookedHint": "AfA 尚未簿记 — 该金额仅在报表中作为计算值显示。点击上方的“簿记 AfA”可创建真实的费用簿记。"
   },
   "anhang": {
     "title": "财务报表附注",

@@ -7,7 +7,8 @@ import {
 import { PrismaService } from '../../prisma/prisma.service'
 
 /**
- * Tier 83: Anlagenverzeichnis (Asset Register).
+ * Tier 83+87: Anlagenverzeichnis (Asset Register)
+ * + AfA-Buchung (one-click auto-post).
  *
  * CRUD + dispose for Sachanlagen. The AfA
  * schedule (linear, per-month) is computed
@@ -18,30 +19,37 @@ import { PrismaService } from '../../prisma/prisma.service'
  * for the Buchwert / annual AfA at any point
  * in time.
  *
- * v1 honesty: the user can register a
- * Sachanlage but the AfA expense itself is
- * NOT auto-posted. The G+V "7a Abschreibungen"
- * line shows the COMPUTED annual AfA (so the
- * Berater sees the right number) but the
- * underlying Expense row is NOT created
- * automatically. The user can either:
- *   (a) accept the computed amount and have
- *       the system create the AfA expense
- *       row (future: one-click "AfA buchen"
- *       button in the Anlagenverzeichnis UI);
- *   (b) create the AfA expense row manually
- *       with the right amount; or
- *   (c) skip it and let the Berater book it
- *       outside the system.
+ * Tier 87 adds the booking side: a one-click
+ * "AfA buchen" flow on /dashboard/assets that
+ * creates one Expense row per Asset (with
+ * `category='AfA'`, `relatedAssetId`, `afaYear`)
+ * so the G+V 7a, BWA 3100, and Anlage S 4600
+ * lines show REAL booked values, not just
+ * computed numbers. The (relatedAssetId,
+ * afaYear) pair is the dedup key, so re-running
+ * the booking is idempotent.
+ *
+ * When a year has any booked AfA rows, the
+ * report services (BwaService, GuVService,
+ * AnlageSService) prefer the booked sum over
+ * the in-memory computed value. The BWA's
+ * monthly columns are derived from the year-end
+ * booking by `bookedSum / 12` proration (the
+ * same v1 simplification as the computed
+ * fallback). For exact per-month AfA figures,
+ * the user can split the booking into monthly
+ * rows manually — v2 work.
  *
  * v2 work (not in scope here):
- *   - One-click "AfA buchen" button
  *   - Geometric / degressive AfA
  *   - Außerplanmäßige Abschreibungen (§ 253
  *     Abs. 3 HGB) + Zuschreibungen
  *   - Component approach (§ 253 Abs. 1 HGB S. 2)
  *   - AfA-Buch (separate journal) for partial-
  *     year disposals
+ *   - Monthly AfA booking (one row per month
+ *     instead of one row per year)
+ *   - Storno / reversal flow (delete + audit)
  */
 
 export type AssetType =
@@ -289,6 +297,210 @@ export class AssetsService {
         verkauftAm: dto.verkauftAm,
         verkaufsPreis: dto.verkaufsPreis ?? 0,
       },
+    })
+  }
+
+  // ----------------------------------------------------------------
+  // Tier 87: AfA-Buchung (one-click auto-post)
+  // ----------------------------------------------------------------
+
+  /**
+   * One-click "AfA buchen" for a year. Walks the
+   * Asset pool, computes the annual AfA for each
+   * asset at year-end, and creates one Expense
+   * row per asset that has positive annualAfA
+   * for this year AND has not been booked yet.
+   *
+   * Idempotent: re-running for the same (asset,
+   * year) does not create a second row — we
+   * check `Expense.relatedAssetId + afaYear`
+   * inside the transaction. The dedup index
+   * `Expense_relatedAssetId_afaYear_idx` makes
+   * the lookup fast.
+   *
+   * Returns a summary: how many assets were
+   * considered, how many actually got booked
+   * (vs already-booked, vs zero-AfA), and the
+   * total booked amount. The frontend uses
+   * this to show a confirmation toast.
+   *
+   * The booking Expense has:
+   *   - category='AfA'        → matchers find it
+   *   - vatRate=0             → § 12 Abs. 3 UStG
+   *   - netAmount=-annualAfA  → reduces profit
+   *   - relatedAssetId        → back-link to Asset
+   *   - afaYear               → the calendar year
+   *   - invoiceDate=year-12-31 → year-end (DATEV
+   *                              convention for
+   *                              annual postings)
+   *   - status='booked'       → counts in UStVA
+   *                              Vorsteuer (=0 here)
+   */
+  async bookAfa(companyId: string, year: number) {
+    if (!companyId) {
+      throw new BadRequestException('companyId ist erforderlich')
+    }
+    if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+
+    const assets = await this.prisma.asset.findMany({
+      where: { companyId },
+    })
+    const yearEnd = new Date(year, 11, 31, 23, 59, 59, 999)
+    const yearEndDate = new Date(year, 11, 31)
+
+    // Pre-fetch existing bookings for this year so
+    // we can skip them in the loop (cheaper than a
+    // per-asset query).
+    const existing = await this.prisma.expense.findMany({
+      where: {
+        companyId,
+        afaYear: year,
+        relatedAssetId: { not: null },
+      },
+      select: { relatedAssetId: true, grossAmount: true },
+    })
+    const alreadyBookedByAsset = new Map<string, number>()
+    for (const e of existing) {
+      if (!e.relatedAssetId) continue
+      alreadyBookedByAsset.set(
+        e.relatedAssetId,
+        (alreadyBookedByAsset.get(e.relatedAssetId) ?? 0) +
+          Math.abs(Number(e.grossAmount)),
+      )
+    }
+
+    const booked: Array<{
+      assetId: string
+      assetName: string
+      expenseId: string
+      annualAfA: number
+    }> = []
+    const skippedAlready: Array<{ assetId: string; assetName: string }> = []
+    const skippedZero: Array<{ assetId: string; assetName: string }> = []
+
+    // We use a serial transaction (not a $transaction
+    // block) because we want to log per-row outcomes
+    // for the response payload, and a Prisma interactive
+    // transaction adds overhead for what is essentially
+    // a "find or create" per asset.
+    for (const a of assets) {
+      const summary = this.computeAfA(a, yearEnd)
+      if (summary.annualAfA <= 0) {
+        skippedZero.push({ assetId: a.id, assetName: a.bezeichnung })
+        continue
+      }
+      if (alreadyBookedByAsset.has(a.id)) {
+        skippedAlready.push({ assetId: a.id, assetName: a.bezeichnung })
+        continue
+      }
+      const expense = await this.prisma.expense.create({
+        data: {
+          companyId,
+          supplierId: null,
+          invoiceNumber: null,
+          description: `AfA ${a.bezeichnung} ${year}`,
+          invoiceDate: yearEndDate,
+          netAmount: -round2(summary.annualAfA),
+          vatRate: 0,
+          vatAmount: 0,
+          grossAmount: -round2(summary.annualAfA),
+          category: 'AfA',
+          isIntraEU: false,
+          isReverseCharge: false,
+          status: 'booked',
+          notes: `Automatisch gebucht aus Anlagenverzeichnis (Asset ${a.id})`,
+          relatedAssetId: a.id,
+          afaYear: year,
+        },
+      })
+      booked.push({
+        assetId: a.id,
+        assetName: a.bezeichnung,
+        expenseId: expense.id,
+        annualAfA: round2(summary.annualAfA),
+      })
+    }
+
+    const totalBooked = booked.reduce((s, b) => s + b.annualAfA, 0)
+    this.logger.log(
+      `AfA-Buchung ${companyId} year=${year}: booked=${booked.length} skippedAlready=${skippedAlready.length} skippedZero=${skippedZero.length} total=${round2(totalBooked)}`,
+    )
+    return {
+      year,
+      bookedCount: booked.length,
+      skippedAlreadyCount: skippedAlready.length,
+      skippedZeroCount: skippedZero.length,
+      totalAnnualAfA: round2(totalBooked),
+      booked,
+      skippedAlready,
+      skippedZero,
+    }
+  }
+
+  /**
+   * Booking-status for one year: per asset, return
+   * the computed annual AfA + whether it's been
+   * booked + the booked amount. The frontend
+   * uses this to show a "✓ gebucht" / "— nicht
+   * gebucht" badge on each row.
+   */
+  async getBookingStatus(companyId: string, year: number) {
+    if (!companyId) {
+      throw new BadRequestException('companyId ist erforderlich')
+    }
+    if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+
+    const [assets, existing] = await Promise.all([
+      this.prisma.asset.findMany({ where: { companyId } }),
+      this.prisma.expense.findMany({
+        where: {
+          companyId,
+          afaYear: year,
+          relatedAssetId: { not: null },
+        },
+        select: {
+          id: true,
+          relatedAssetId: true,
+          grossAmount: true,
+        },
+      }),
+    ])
+
+    const yearEnd = new Date(year, 11, 31, 23, 59, 59, 999)
+    const byAsset = new Map<
+      string,
+      { expenseId: string; bookedAfA: number }
+    >()
+    for (const e of existing) {
+      if (!e.relatedAssetId) continue
+      const prev = byAsset.get(e.relatedAssetId)
+      const add = Math.abs(Number(e.grossAmount))
+      byAsset.set(e.relatedAssetId, {
+        expenseId: prev?.expenseId ?? e.id,
+        bookedAfA: (prev?.bookedAfA ?? 0) + add,
+      })
+    }
+
+    return assets.map((a) => {
+      const summary = this.computeAfA(a, yearEnd)
+      const booking = byAsset.get(a.id) ?? null
+      const computedAfA = round2(summary.annualAfA)
+      const bookedAfA = booking ? round2(booking.bookedAfA) : 0
+      return {
+        assetId: a.id,
+        bezeichnung: a.bezeichnung,
+        type: a.type,
+        anschaffungsDatum: a.anschaffungsDatum,
+        verkauftAm: a.verkauftAm,
+        computedAfA,
+        booked: booking !== null,
+        bookedAfA,
+        expenseId: booking?.expenseId ?? null,
+      }
     })
   }
 
