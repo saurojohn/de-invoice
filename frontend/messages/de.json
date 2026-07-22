@@ -2307,5 +2307,30 @@
     "contentManifest": "MANIFEST.md — Inhaltsverzeichnis + Vorgehensweise",
     "year": "Geschäftsjahr",
     "previewHint": "VORSCHAU — die Berater-Paket ist eine ehrliche Vorschau, kein fertiger Jahresabschluss. Die nicht ausgewiesenen Positionen müssen vor der Einreichung durch den Steuerberater ergänzt werden. Vor der Übergabe durch den Steuerberater prüfen lassen."
+  },
+  "bwa": {
+    "title": "BWA (Betriebswirtschaftliche Auswertung)",
+    "subtitle": "DATEV-Standard-BWA mit Monatswert / Vormonat / YTD / Vorjahres-YTD / Δ %. Speist sich aus Rechnungen, Ausgaben und der AfA aus dem Anlagenverzeichnis.",
+    "year": "Geschäftsjahr",
+    "month": "Monat",
+    "recompute": "Berechnen",
+    "downloadPdf": "PDF herunterladen",
+    "monat": "Monat",
+    "vormonat": "Vormonat",
+    "ytd": "YTD",
+    "vorjahresYtd": "Vorjahres-YTD",
+    "change": "Δ %",
+    "bucket": "Konto",
+    "label": "Bezeichnung",
+    "betriebsergebnis": "Betriebsergebnis",
+    "bucketUmsatz": "Umsatzerlöse",
+    "bucketSonstigeErloese": "Sonstige betriebliche Erträge",
+    "bucketMaterial": "Materialaufwand",
+    "bucketPersonal": "Personalkosten",
+    "bucketAfA": "Abschreibungen (AfA)",
+    "bucketSonstige": "Sonstige betriebliche Aufwendungen",
+    "bucketZins": "Zinsaufwendungen",
+    "generatedAt": "Erstellt",
+    "previewHint": "VORSCHAU — basiert auf den in de-invoice v1 verfügbaren Daten. Positionen, die das System nicht erfasst (Bestandsveränderungen, aktivierte Eigenleistungen, Zinserträge, Beteiligungserträge, Steuern), sind nicht ausgewiesen. Der Steuerberater ergänzt die fehlenden Positionen aus dem SKR03 / der BWA-Quelldaten."
   }
 }

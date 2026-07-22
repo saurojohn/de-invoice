@@ -5,6 +5,7 @@ import { AgingService } from './aging.service';
 import { CashFlowService } from './cashflow.service';
 import { PnlService } from './pnl.service';
 import { OssService } from './oss.service';
+import { BwaService } from './bwa.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { generateDatevBuchungsstapel, buildBuchungenFromDb, collectBelegbilder } from './datev.service';
@@ -50,6 +51,7 @@ export class ReportsController {
     private readonly cashflow: CashFlowService,
     private readonly pnl: PnlService,
     private readonly oss: OssService,
+    private readonly bwa: BwaService,
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
   ) {}
@@ -1020,6 +1022,60 @@ async getSalesReport(
       throw new BadRequestException('quarter muss zwischen 1 und 4 liegen')
     }
     return this.oss.compute(companyId, year, quarter)
+  }
+
+  /**
+   * Tier 86: BWA (Betriebswirtschaftliche
+   * Auswertung). The monthly operating
+   * report that a Steuerberater sends to
+   * the Mandant. Canonical DATEV BWA
+   * structure (4-digit bucket codes 1000-
+   * 5999) with Monatswert / Vormonat / YTD /
+   * Vorjahres-YTD / % change.
+   *
+   * Defaults: current calendar year, current
+   * month. Year/month validation matches the
+   * other report endpoints.
+   */
+  @Get('bwa')
+  @Require('reports.read')
+  async getBwa(
+    @Query('companyId') companyId: string,
+    @Query('year') yearRaw?: string,
+    @Query('month') monthRaw?: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const now = new Date()
+    const year = yearRaw ? Number(yearRaw) : now.getFullYear()
+    if (!Number.isFinite(year) || year < 2000 || year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+    const month = monthRaw ? Number(monthRaw) : now.getMonth() + 1
+    if (!Number.isInteger(month) || month < 1 || month > 12) {
+      throw new BadRequestException('month muss zwischen 1 und 12 liegen')
+    }
+    return this.bwa.compute(companyId, year, month)
+  }
+
+  @Get('bwa.pdf')
+  @Header('Content-Type', 'application/pdf')
+  async getBwaPdf(
+    @Res() res: Response,
+    @Query('companyId') companyId: string,
+    @Query('year') yearRaw?: string,
+    @Query('month') monthRaw?: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const now = new Date()
+    const year = yearRaw ? Number(yearRaw) : now.getFullYear()
+    if (!Number.isFinite(year) || year < 2000 || year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+    const month = monthRaw ? Number(monthRaw) : now.getMonth() + 1
+    if (!Number.isInteger(month) || month < 1 || month > 12) {
+      throw new BadRequestException('month muss zwischen 1 und 12 liegen')
+    }
+    await this.bwa.renderPdf(companyId, year, month, res)
   }
 
   /**

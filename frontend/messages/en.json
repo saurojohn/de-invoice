@@ -2307,5 +2307,30 @@
     "contentManifest": "MANIFEST.md — table of contents + workflow",
     "year": "Fiscal year",
     "previewHint": "PREVIEW — the tax advisor package is an honest preview, not a finalized annual report. The 'not stated' positions must be completed by your tax advisor before filing. Have your tax advisor verify before handover."
+  },
+  "bwa": {
+    "title": "BWA (Operating analysis)",
+    "subtitle": "DATEV-standard BWA with monthly / previous month / YTD / prior-year-YTD / Δ %. Sources: invoices, expenses, and asset depreciation.",
+    "year": "Fiscal year",
+    "month": "Month",
+    "recompute": "Compute",
+    "downloadPdf": "Download PDF",
+    "monat": "Month",
+    "vormonat": "Previous month",
+    "ytd": "YTD",
+    "vorjahresYtd": "Prior-year YTD",
+    "change": "Δ %",
+    "bucket": "Account",
+    "label": "Description",
+    "betriebsergebnis": "Operating result",
+    "bucketUmsatz": "Revenue",
+    "bucketSonstigeErloese": "Other operating income",
+    "bucketMaterial": "Cost of materials",
+    "bucketPersonal": "Personnel expenses",
+    "bucketAfA": "Depreciation",
+    "bucketSonstige": "Other operating expenses",
+    "bucketZins": "Interest expenses",
+    "generatedAt": "Generated",
+    "previewHint": "PREVIEW — based on the data in de-invoice v1. Positions the system does not track (inventory changes, capitalised own services, interest income, investment income, taxes) are not stated. Your tax advisor completes the missing positions from the SKR03 / BWA source data."
   }
 }

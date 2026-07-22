@@ -9,8 +9,9 @@ import { apiFetch, apiGet } from "@/lib/api"
 import { useI18n } from "@/components/useI18n"
 import { PnlTab } from "./PnlTab"
 import { OssTab } from "./OssTab"
+import { BwaTab } from "./BwaTab"
 
-type TabType = "sales" | "vat" | "customers" | "datev" | "pnl" | "oss"
+type TabType = "sales" | "vat" | "customers" | "datev" | "pnl" | "oss" | "bwa"
 
 interface SalesReport {
   totalSales: number
@@ -392,6 +393,17 @@ export default function ReportsPage() {
             data-testid="tab-oss"
           >
             EU OSS
+          </button>
+          <button
+            className={`px-6 py-3 font-medium border-b-2 transition-colors ${
+              activeTab === "bwa"
+                ? "border-blue-600 text-blue-600 dark:text-blue-400"
+                : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+            }`}
+            onClick={() => setActiveTab("bwa")}
+            data-testid="tab-bwa"
+          >
+            BWA
           </button>
         </div>
 
@@ -812,6 +824,9 @@ export default function ReportsPage() {
 
             {/* Tier 78: EU OSS (One-Stop-Shop) */}
             {activeTab === "oss" && <OssTab />}
+
+            {/* Tier 86: BWA (Betriebswirtschaftliche Auswertung) */}
+            {activeTab === "bwa" && <BwaTab />}
           </>
         )}
       </div>

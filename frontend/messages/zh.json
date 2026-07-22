@@ -2307,5 +2307,30 @@
     "contentManifest": "MANIFEST.md — 目录 + 流程",
     "year": "财年",
     "previewHint": "预览 — 税务师数据包是诚实的预览，不是终版年报。「未列示」的科目必须在提交前由税务师补全。交付前请税务师审核。"
+  },
+  "bwa": {
+    "title": "BWA（经营情况分析）",
+    "subtitle": "DATEV 标准 BWA，含本月 / 上月 / YTD / 上年 YTD / Δ %。数据来源：发票、支出、固定资产折旧。",
+    "year": "财年",
+    "month": "月份",
+    "recompute": "计算",
+    "downloadPdf": "下载 PDF",
+    "monat": "本月",
+    "vormonat": "上月",
+    "ytd": "YTD",
+    "vorjahresYtd": "上年 YTD",
+    "change": "Δ %",
+    "bucket": "科目",
+    "label": "描述",
+    "betriebsergebnis": "经营结果",
+    "bucketUmsatz": "营业收入",
+    "bucketSonstigeErloese": "其他经营性收入",
+    "bucketMaterial": "材料费用",
+    "bucketPersonal": "人员费用",
+    "bucketAfA": "折旧",
+    "bucketSonstige": "其他经营性支出",
+    "bucketZins": "利息支出",
+    "generatedAt": "生成时间",
+    "previewHint": "预览 — 基于 de-invoice v1 中的数据。系统未追踪的科目（存货变动、自有服务资本化、利息收入、投资收入、税款）未列示。税务师从 SKR03 / BWA 源数据补全缺失的科目。"
   }
 }
