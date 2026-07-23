@@ -9,9 +9,18 @@ import {
   Req,
   UseGuards,
   BadRequestException,
+  NotFoundException,
 } from '@nestjs/common'
 import { HeaderAuthGuard } from '../../auth/header-auth.guard'
 import { AssetsService, AssetCreateDto, AssetUpdateDto, AssetDisposeDto } from './assets.service'
+// Tier 91: the auto-AfA scheduler is injected
+// into the controller so a test-only HTTP route
+// can call `forceTriggerForYear` (see
+// `_test/auto-booker-trigger` below). The
+// production trigger is the @Cron schedule, not
+// an HTTP route — this is a development/test
+// convenience.
+import { AfaAutoBookerScheduler } from './afa-auto-booker.scheduler'
 
 /**
  * Tier 83: Anlagenverzeichnis REST endpoints.
@@ -26,7 +35,13 @@ import { AssetsService, AssetCreateDto, AssetUpdateDto, AssetDisposeDto } from '
 @Controller('assets')
 @UseGuards(HeaderAuthGuard)
 export class AssetsController {
-  constructor(private assets: AssetsService) {}
+  constructor(
+    private assets: AssetsService,
+    // Tier 91: test-only injection for the
+    // auto-booker scheduler. The route below
+    // is dev/test only (gated on NODE_ENV).
+    private afaAutoBooker: AfaAutoBookerScheduler,
+  ) {}
 
   @Get()
   async list(@Query('companyId') companyId: string) {
@@ -137,6 +152,39 @@ export class AssetsController {
     if (!companyId) throw new BadRequestException('companyId ist erforderlich')
     const year = yearRaw ? Number(yearRaw) : new Date().getFullYear()
     return this.assets.bookAfaMonthly(companyId, year)
+  }
+
+  // ----------------------------------------------------------------
+  // Tier 91: Test-only auto-booker trigger.
+  // The production trigger is the @Cron schedule
+  // on AfaAutoBookerScheduler (5 0 1 * *, Berlin).
+  // This HTTP route is a dev/test convenience
+  // that calls `forceTriggerForYear(year)` so the
+  // e2e can verify the auto-booker flow without
+  // waiting for the 1st of the month.
+  //
+  // Gated on NODE_ENV !== 'production' so the
+  // route is unreachable in deployed envs. The
+  // path starts with `_test` to make the dev-only
+  // nature obvious in logs and in the OpenAPI
+  // surface.
+  // ----------------------------------------------------------------
+
+  @Post('_test/auto-booker-trigger')
+  async autoBookerTrigger(
+    @Query('year') yearRaw?: string,
+    @Query('companyId') companyId?: string,
+  ) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new NotFoundException()
+    }
+    const year = yearRaw ? Number(yearRaw) : new Date().getFullYear() - 1
+    // companyId is reserved for v2: per-company
+    // test trigger. v1 always books for all
+    // companies (the production cron does the
+    // same), so we accept but ignore it here.
+    void companyId
+    return this.afaAutoBooker.forceTriggerForYear(year)
   }
 
   @Get(':id')
