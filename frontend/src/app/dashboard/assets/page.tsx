@@ -176,6 +176,9 @@ export default function AssetsPage() {
   // Tier 89: separate confirm modal for the
   // monthly mode.
   const [bookingConfirmMonthly, setBookingConfirmMonthly] = useState(false)
+  // Tier 90: storno confirm modal.
+  const [stornoConfirm, setStornoConfirm] = useState(false)
+  const [stornoSaving, setStornoSaving] = useState(false)
 
   const load = useCallback(async () => {
     const companyId = typeof window !== "undefined" ? localStorage.getItem("companyId") : null
@@ -361,6 +364,40 @@ export default function AssetsPage() {
     }
   }
 
+  // Tier 90: storno flow. Deletes all booked
+  // AfA Expense rows for the year (any mode)
+  // + writes an audit log entry. After
+  // storno, the user can re-book in either
+  // mode. Idempotent (stornoedCount=0 if
+  // no bookings exist).
+  const stornoAfa = async () => {
+    const companyId = typeof window !== "undefined" ? localStorage.getItem("companyId") : null
+    if (!companyId) return
+    setStornoConfirm(false)
+    setStornoSaving(true)
+    try {
+      const result = await apiPost<{
+        year: number
+        stornoedCount: number
+        stornoedTotal: number
+      }>(
+        `/api/v1/assets/storno-afa?companyId=${companyId}&year=${year}`,
+        {},
+      )
+      toastRef.current.success(
+        tRef.current("assets.stornoAfaOk")
+          .replace("{count}", String(result.stornoedCount))
+          .replace("{total}", fmtEur(result.stornoedTotal)),
+      )
+      load()
+    } catch (e: any) {
+      const msg = e instanceof ApiError ? e.message : "Fehler beim Stornieren"
+      toastRef.current.error(msg)
+    } finally {
+      setStornoSaving(false)
+    }
+  }
+
   // Bookable = computedAfA > 0 AND not yet booked.
   // The button shows the count + total to give
   // the user a clear preview before they confirm.
@@ -476,6 +513,22 @@ export default function AssetsPage() {
                         {t("assets.afaBookedMonthly")}
                       </span>
                     )}
+                    {/* Tier 90: storno button. One click
+                        removes the entire booking
+                        (any mode) + writes an audit
+                        log entry. The user can then
+                        re-book in either mode. */}
+                    <Button
+                      onClick={() => setStornoConfirm(true)}
+                      disabled={stornoSaving}
+                      variant="outline"
+                      className="border-red-300 text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/30"
+                      data-testid="assets-storno-afa"
+                    >
+                      {stornoSaving
+                        ? "…"
+                        : `↩ ${t("assets.stornoAfa")}`}
+                    </Button>
                   </div>
                 </div>
               ) : null}
@@ -973,6 +1026,66 @@ export default function AssetsPage() {
                 data-testid="assets-book-monthly-confirm"
               >
                 {bookingSaving ? "…" : t("assets.bookAfaMonthly")}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {stornoConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-6">
+            <h2 className="text-xl font-bold mb-2 text-red-700 dark:text-red-300">
+              ↩ {t("assets.stornoAfaConfirmTitle")}
+            </h2>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+              {t("assets.stornoAfaConfirmHint")
+                .replace("{year}", String(year))
+                .replace("{count}", String(alreadyBookedRows.length))
+                .replace("{total}", fmtEur(alreadyBookedTotal))}
+            </p>
+            <div className="overflow-x-auto mb-4">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-xs">
+                    <th className="text-left py-2 px-2">
+                      {t("assets.bezeichnung")}
+                    </th>
+                    <th className="text-right py-2 px-2">
+                      {t("assets.jahresAfA")}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {alreadyBookedRows.map((r) => (
+                    <tr key={r.assetId} className="border-b">
+                      <td className="py-1 px-2 text-xs">{r.bezeichnung}</td>
+                      <td className="py-1 px-2 text-right text-xs font-mono">
+                        {fmtEur(r.bookedAfA)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+              {t("assets.stornoAfaConfirmFootnote")}
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setStornoConfirm(false)}
+                disabled={stornoSaving}
+              >
+                {t("assets.cancel")}
+              </Button>
+              <Button
+                onClick={stornoAfa}
+                disabled={stornoSaving}
+                className="bg-red-600 text-white hover:bg-red-700"
+                data-testid="assets-storno-confirm"
+              >
+                {stornoSaving ? "…" : t("assets.stornoAfa")}
               </Button>
             </div>
           </div>

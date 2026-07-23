@@ -6,6 +6,7 @@ import {
   Param,
   Query,
   Body,
+  Req,
   UseGuards,
   BadRequestException,
 } from '@nestjs/common'
@@ -78,6 +79,35 @@ export class AssetsController {
     if (!companyId) throw new BadRequestException('companyId ist erforderlich')
     const year = yearRaw ? Number(yearRaw) : new Date().getFullYear()
     return this.assets.bookAfa(companyId, year)
+  }
+
+  /**
+   * Tier 90: Storno all booked AfA Expense
+   * rows for the year (any mode: annual +
+   * monthly). After storno, the user can
+   * re-book in either mode. Idempotent
+   * (stornoedCount=0 if no bookings exist).
+   *
+   * Writes an AuditLog entry
+   * ('assets.afa.stornoed') so the Berater
+   * can see the storno event in the audit
+   * trail — the deleted Expense rows
+   * themselves are gone.
+   */
+  @Post('storno-afa')
+  async stornoAfa(
+    @Query('companyId') companyId: string,
+    @Query('year') yearRaw?: string,
+    @Req() req?: any,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const year = yearRaw ? Number(yearRaw) : new Date().getFullYear()
+    // The userId is in the x-user-id header
+    // (HeaderAuthGuard sets req.user). v1:
+    // pull it directly; falls back to null
+    // if the guard didn't run.
+    const userId: string | undefined = req?.user?.id
+    return this.assets.stornoAfa(companyId, year, userId)
   }
 
   /**

@@ -319,6 +319,82 @@ test("Tier 89: after POST book-afa-monthly the page shows monthly mode chip", as
   expect(text).toMatch(/monatlich|monthly|按月/)
 })
 
+test("Tier 90: storno button visible when booking exists, opens confirm modal", async ({ page }) => {
+  await injectAuth(page)
+  // Use year 2028 to avoid the mutex with
+  // the previous tests (which booked
+  // 2026 and 2027).
+  const created = await createTestAsset(page)
+  expect(created.id).toBeTruthy()
+  const STORNO_YEAR = 2028
+  // Book annual for 2028
+  const bookRes = await page.request.post(
+    `http://localhost:3001/api/v1/assets/book-afa?companyId=${testTokens!.companyId}&year=${STORNO_YEAR}`,
+    {
+      headers: {
+        "x-user-id": testTokens!.userId,
+        "x-company-id": testTokens!.companyId,
+      },
+      data: {},
+    },
+  )
+  expect(bookRes.status()).toBe(201)
+  // Load the page on year 2028 — the
+  // storno button should be visible.
+  await page.goto("/dashboard/assets")
+  await expect(page.getByTestId("assets-year")).toBeVisible({ timeout: 30_000 })
+  const yearInput = page.getByTestId("assets-year")
+  await yearInput.fill(String(STORNO_YEAR))
+  await page.waitForTimeout(2500)
+  const stornoBtn = page.getByTestId("assets-storno-afa")
+  await expect(stornoBtn).toBeVisible({ timeout: 10_000 })
+  // Click opens the confirm modal
+  await stornoBtn.click()
+  await expect(page.getByTestId("assets-storno-confirm")).toBeVisible({ timeout: 5_000 })
+})
+
+test("Tier 90: after storno, the page shows the booking button again", async ({ page }) => {
+  await injectAuth(page)
+  const created = await createTestAsset(page)
+  expect(created.id).toBeTruthy()
+  const STORNO_YEAR = 2028
+  // Book + storno
+  await page.request.post(
+    `http://localhost:3001/api/v1/assets/book-afa?companyId=${testTokens!.companyId}&year=${STORNO_YEAR}`,
+    {
+      headers: {
+        "x-user-id": testTokens!.userId,
+        "x-company-id": testTokens!.companyId,
+      },
+      data: {},
+    },
+  )
+  const stornoRes = await page.request.post(
+    `http://localhost:3001/api/v1/assets/storno-afa?companyId=${testTokens!.companyId}&year=${STORNO_YEAR}`,
+    {
+      headers: {
+        "x-user-id": testTokens!.userId,
+        "x-company-id": testTokens!.companyId,
+      },
+      data: {},
+    },
+  )
+  expect(stornoRes.status()).toBe(201)
+  const stornoBody = await stornoRes.json()
+  expect(stornoBody.stornoedCount).toBeGreaterThanOrEqual(1)
+  // Load the page on year 2028 — the
+  // booking button should be visible
+  // again (since the storno removed the
+  // booking).
+  await page.goto("/dashboard/assets")
+  await expect(page.getByTestId("assets-year")).toBeVisible({ timeout: 30_000 })
+  const yearInput = page.getByTestId("assets-year")
+  await yearInput.fill(String(STORNO_YEAR))
+  await page.waitForTimeout(2500)
+  // The booking button should be back.
+  await expect(page.getByTestId("assets-book-afa")).toBeVisible({ timeout: 10_000 })
+})
+
 test("assets-afa page is reachable without errors", async ({ page }) => {
   await injectAuth(page)
   const errors: string[] = []

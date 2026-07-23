@@ -2291,7 +2291,12 @@
     "bookAfaMonthlyConfirmHint": "Automatically creates 12 monthly expense bookings per asset for {year} (instead of 1 year-end booking). BWA 3100 then shows the booked AfA in each month instead of just December.",
     "bookAfaMonthlyConfirmFootnote": "Note: monthly and annual booking modes are mutually exclusive — you cannot switch modes after the first booking. To change, storno first.",
     "afaProMonat": "AfA per month",
-    "afaBookedMonthly": "monthly"
+    "afaBookedMonthly": "monthly",
+    "stornoAfa": "Storno AfA booking",
+    "stornoAfaOk": "Stornoed {count} AfA bookings, total: {total}",
+    "stornoAfaConfirmTitle": "Reverse AfA booking?",
+    "stornoAfaConfirmHint": "Deletes all {count} booked AfA expenses for {year} (total: {total}). The action is logged in the audit trail.",
+    "stornoAfaConfirmFootnote": "Note: After storno, the booking can be re-done in annual OR monthly mode. The audit log entries remain permanently."
   },
   "anhang": {
     "title": "Notes to the Financial Statements",

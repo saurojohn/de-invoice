@@ -2291,7 +2291,12 @@
     "bookAfaMonthlyConfirmHint": "为 {year} 年度每项资产自动创建 12 笔月度费用簿记 (而非 1 笔年末簿记)。BWA 3100 将显示每月的簿记 AfA, 而非仅 12 月。",
     "bookAfaMonthlyConfirmFootnote": "提示: 按月和按年簿记模式互斥 — 首次簿记后无法切换模式。如需切换, 请先取消簿记。",
     "afaProMonat": "每月 AfA",
-    "afaBookedMonthly": "按月"
+    "afaBookedMonthly": "按月",
+    "stornoAfa": "取消 AfA 簿记",
+    "stornoAfaOk": "已取消 {count} 个 AfA 簿记, 合计: {total}",
+    "stornoAfaConfirmTitle": "确认取消 AfA 簿记?",
+    "stornoAfaConfirmHint": "将删除 {year} 年度所有 {count} 笔已簿记的 AfA 费用 (合计: {total})。操作将在审计日志中记录。",
+    "stornoAfaConfirmFootnote": "提示: 取消后, 簿记可以按年或按月模式重新执行。审计日志记录将永久保留。"
   },
   "anhang": {
     "title": "财务报表附注",

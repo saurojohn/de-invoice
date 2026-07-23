@@ -2291,7 +2291,12 @@
     "bookAfaMonthlyConfirmHint": "Erstellt automatisch 12 monatliche Ausgabenbuchungen pro Anlage für {year} (statt 1 Jahres-Endbuchung). Die BWA 3100 zeigt dann den gebuchten AfA in jedem Monat statt nur im Dezember.",
     "bookAfaMonthlyConfirmFootnote": "Hinweis: Monatliche und jährliche Buchung schließen sich gegenseitig aus — der Modus kann nach der ersten Buchung nicht mehr gewechselt werden. Zum Wechsel zuerst stornieren.",
     "afaProMonat": "AfA pro Monat",
-    "afaBookedMonthly": "monatlich"
+    "afaBookedMonthly": "monatlich",
+    "stornoAfa": "AfA stornieren",
+    "stornoAfaOk": "{count} AfA-Buchungen storniert, Gesamt: {total}",
+    "stornoAfaConfirmTitle": "AfA-Buchung rückgängig machen?",
+    "stornoAfaConfirmHint": "Löscht alle {count} gebuchten AfA-Ausgaben für {year} (Gesamt: {total}). Der Vorgang wird im Audit-Log protokolliert.",
+    "stornoAfaConfirmFootnote": "Hinweis: Nach dem Storno kann die Buchung im jährlichen ODER monatlichen Modus erneut durchgeführt werden. Die Audit-Log-Einträge bleiben dauerhaft erhalten."
   },
   "anhang": {
     "title": "Anhang zum Jahresabschluss",

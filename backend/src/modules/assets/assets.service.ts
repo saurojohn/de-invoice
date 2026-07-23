@@ -656,6 +656,144 @@ export class AssetsService {
     }
   }
 
+  // ----------------------------------------------------------------
+  // Tier 90: AfA-Storno (Buchung rückgängig machen)
+  // ----------------------------------------------------------------
+
+  /**
+   * Storno all booked AfA Expense rows for
+   * the year (any mode: annual + monthly).
+   * The rows are physically deleted (not
+   * soft-deleted) so the rebook flow can
+   * re-create them cleanly. The user can
+   * then re-book in either mode.
+   *
+   * Idempotent: if no AfA bookings exist
+   * for the year, returns
+   * `stornoedCount=0` and does nothing.
+   *
+   * Audit trail: writes an AuditLog row
+   * with action='assets.afa.stornoed'
+   * carrying the year + the count +
+   * the original grossAmount sum. The
+   * audit log is the only durable
+   * evidence that the booking existed
+   * before storno (the Expense rows are
+   * gone).
+   *
+   * v1: simple DELETE + audit log. v2:
+   * could also support a "storno single
+   * asset" mode (delete one asset's
+   * rows) — not in v1.
+   */
+  async stornoAfa(
+    companyId: string,
+    year: number,
+    userId?: string,
+  ): Promise<{
+    year: number
+    stornoedCount: number
+    stornoedTotal: number
+  }> {
+    if (!companyId) {
+      throw new BadRequestException('companyId ist erforderlich')
+    }
+    if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+
+    // Find all booked AfA rows for the year
+    // (both annual + monthly modes — the
+    // `category='AfA'` predicate covers both
+    // since tier 87+89 set category='AfA' on
+    // all auto-posted rows).
+    const existing = await this.prisma.expense.findMany({
+      where: {
+        companyId,
+        afaYear: year,
+        relatedAssetId: { not: null },
+        category: 'AfA',
+      },
+      select: { id: true, grossAmount: true, afaMonth: true },
+    })
+
+    if (existing.length === 0) {
+      return {
+        year,
+        stornoedCount: 0,
+        stornoedTotal: 0,
+      }
+    }
+
+    const ids = existing.map((e) => e.id)
+    const stornoedTotal = round2(
+      existing.reduce((s, e) => s + Math.abs(Number(e.grossAmount)), 0),
+    )
+    // Detect which mode the user had booked
+    // for the audit log.
+    const hadAnnual = existing.some((e) => e.afaMonth == null)
+    const hadMonthly = existing.some((e) => e.afaMonth != null)
+    const modeDesc =
+      hadAnnual && hadMonthly
+        ? 'annual+monthly'
+        : hadMonthly
+          ? 'monthly'
+          : 'annual'
+
+    // Delete the rows. The audit log
+    // captures the evidence.
+    const { count } = await this.prisma.expense.deleteMany({
+      where: { id: { in: ids } },
+    })
+
+    // Write the audit log entry. The
+    // AuditLog extension (in prisma/
+    // audit-log.extension.ts) wraps every
+    // mutation with auto-audit. The
+    // .deleteMany() is auto-audited. The
+    // explicit `assets.afa.stornoed`
+    // entry below is a SEMANTIC marker
+    // (not auto-audited) so the Berater
+    // can see "this was a storno, not
+    // a manual delete" in the audit log.
+    try {
+      await this.prisma.auditLog.create({
+        data: {
+          companyId,
+          userId: userId ?? null,
+          action: 'assets.afa.stornoed',
+          entityType: 'AssetAfaBooking',
+          entityId: `year-${year}`,
+          oldData: {
+            year,
+            mode: modeDesc,
+            stornoedCount: count,
+            stornoedTotal,
+          } as any,
+          // No "new" state for a storno —
+          // the rows are gone.
+          ipAddress: null,
+          userAgent: 'de-invoice:AssetsService.stornoAfa',
+        },
+      })
+    } catch (err) {
+      // Audit log failure should not block
+      // the storno — log + continue.
+      this.logger.warn(
+        `Storno audit log write failed (year=${year}): ${(err as Error).message}`,
+      )
+    }
+
+    this.logger.log(
+      `AfA-Storno ${companyId} year=${year}: deleted=${count} total=${stornoedTotal} (mode=${modeDesc})`,
+    )
+    return {
+      year,
+      stornoedCount: count,
+      stornoedTotal,
+    }
+  }
+
   /**
    * Booking-status for one year: per asset, return
    * the computed annual AfA + whether it's been
