@@ -40,6 +40,8 @@ interface BookingStatusRow {
   computedAfA: number
   booked: boolean
   bookedAfA: number
+  // Tier 89: 'annual' | 'monthly' | null
+  bookingMode: "annual" | "monthly" | null
   expenseId: string | null
 }
 
@@ -171,6 +173,9 @@ export default function AssetsPage() {
   const [bookingStatus, setBookingStatus] = useState<BookingStatusRow[]>([])
   const [bookingSaving, setBookingSaving] = useState(false)
   const [bookingConfirm, setBookingConfirm] = useState(false)
+  // Tier 89: separate confirm modal for the
+  // monthly mode.
+  const [bookingConfirmMonthly, setBookingConfirmMonthly] = useState(false)
 
   const load = useCallback(async () => {
     const companyId = typeof window !== "undefined" ? localStorage.getItem("companyId") : null
@@ -298,6 +303,7 @@ export default function AssetsPage() {
     try {
       const result = await apiPost<{
         year: number
+        mode: "annual" | "monthly"
         bookedCount: number
         skippedAlreadyCount: number
         skippedZeroCount: number
@@ -310,6 +316,40 @@ export default function AssetsPage() {
         tRef.current("assets.bookAfaOk")
           .replace("{count}", String(result.bookedCount))
           .replace("{skipped}", String(result.skippedAlreadyCount))
+          .replace("{total}", fmtEur(result.totalAnnualAfA)),
+      )
+      load()
+    } catch (e: any) {
+      const msg = e instanceof ApiError ? e.message : "Fehler beim Buchen"
+      toastRef.current.error(msg)
+    } finally {
+      setBookingSaving(false)
+    }
+  }
+
+  // Tier 89: monthly booking flow. Same UI
+  // pattern as bookAfa but hits the
+  // /book-afa-monthly endpoint.
+  const bookAfaMonthly = async () => {
+    const companyId = typeof window !== "undefined" ? localStorage.getItem("companyId") : null
+    if (!companyId) return
+    setBookingConfirmMonthly(false)
+    setBookingSaving(true)
+    try {
+      const result = await apiPost<{
+        year: number
+        mode: "annual" | "monthly"
+        bookedCount: number
+        skippedAlreadyCount: number
+        skippedZeroCount: number
+        totalAnnualAfA: number
+      }>(
+        `/api/v1/assets/book-afa-monthly?companyId=${companyId}&year=${year}`,
+        {},
+      )
+      toastRef.current.success(
+        tRef.current("assets.bookAfaMonthlyOk")
+          .replace("{count}", String(result.bookedCount))
           .replace("{total}", fmtEur(result.totalAnnualAfA)),
       )
       load()
@@ -385,7 +425,7 @@ export default function AssetsPage() {
                   <label className="text-xs text-gray-500 dark:text-gray-400 uppercase">
                     {t("assets.afaBuchung")}
                   </label>
-                  <div className="flex items-center gap-2 mt-1">
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
                     <Button
                       onClick={() => setBookingConfirm(true)}
                       disabled={bookingSaving}
@@ -396,6 +436,21 @@ export default function AssetsPage() {
                         ? "…"
                         : `${t("assets.bookAfa")} (${bookableRows.length} • ${fmtEur(bookableTotal)})`}
                     </Button>
+                    {/* Tier 89: monthly mode — same
+                        count + total, but creates
+                        12 rows (one per month)
+                        instead of 1 year-end row. */}
+                    <Button
+                      onClick={() => setBookingConfirmMonthly(true)}
+                      disabled={bookingSaving}
+                      variant="outline"
+                      className="border-emerald-600 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30"
+                      data-testid="assets-book-afa-monthly"
+                    >
+                      {bookingSaving
+                        ? "…"
+                        : `${t("assets.bookAfaMonthly")} (${bookableRows.length} • ${fmtEur(bookableTotal)})`}
+                    </Button>
                   </div>
                 </div>
               ) : alreadyBookedRows.length > 0 ? (
@@ -403,11 +458,24 @@ export default function AssetsPage() {
                   <label className="text-xs text-gray-500 dark:text-gray-400 uppercase">
                     {t("assets.afaBuchung")}
                   </label>
-                  <div className="flex items-center gap-2 mt-1">
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
                     <span className="inline-flex items-center gap-1 px-3 py-2 rounded bg-emerald-50 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-200 text-sm font-mono border border-emerald-200 dark:border-emerald-800">
                       <span className="text-emerald-600">✓</span>
                       {t("assets.bookAfaBooked")} ({fmtEur(alreadyBookedTotal)})
                     </span>
+                    {/* Tier 89: show booking mode chip
+                        next to the booked badge so
+                        the user knows if the
+                        booking was annual or
+                        monthly. */}
+                    {alreadyBookedRows[0]?.bookingMode === "monthly" && (
+                      <span
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-mono bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-800"
+                        data-testid="assets-book-mode-monthly"
+                      >
+                        {t("assets.afaBookedMonthly")}
+                      </span>
+                    )}
                   </div>
                 </div>
               ) : null}
@@ -535,6 +603,11 @@ export default function AssetsPage() {
                               >
                                 <span className="text-emerald-600">✓</span>
                                 {t("assets.afaBooked")}
+                                {booking?.bookingMode === "monthly" && (
+                                  <span className="ml-1 text-[9px] text-emerald-600/80 font-normal">
+                                    {t("assets.afaBookedMonthly")}
+                                  </span>
+                                )}
                               </span>
                             ) : s.annualAfA > 0 ? (
                               <span
@@ -816,6 +889,90 @@ export default function AssetsPage() {
                 data-testid="assets-book-confirm"
               >
                 {bookingSaving ? "…" : t("assets.bookAfa")}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {bookingConfirmMonthly && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto">
+            <h2 className="text-xl font-bold mb-2">
+              {t("assets.bookAfaMonthlyConfirmTitle")}
+            </h2>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+              {t("assets.bookAfaMonthlyConfirmHint").replace("{year}", String(year))}
+            </p>
+            <div className="overflow-x-auto mb-4">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-xs">
+                    <th className="text-left py-2 px-2">{t("assets.bezeichnung")}</th>
+                    <th className="text-right py-2 px-2">{t("assets.anschaffungsKosten")}</th>
+                    <th className="text-right py-2 px-2">{t("assets.jahresAfA")}</th>
+                    <th className="text-right py-2 px-2">{t("assets.afaProMonat")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {bookableRows.map((r) => {
+                    const ak = Number(
+                      assets.find((a) => a.id === r.assetId)?.anschaffungsKosten ?? 0,
+                    )
+                    const monthly = r.computedAfA / 12
+                    return (
+                      <tr key={r.assetId} className="border-b">
+                        <td className="py-1 px-2 text-xs">{r.bezeichnung}</td>
+                        <td className="py-1 px-2 text-right text-xs font-mono">
+                          {fmtEur(ak)}
+                        </td>
+                        <td className="py-1 px-2 text-right text-xs font-mono">
+                          {fmtEur(r.computedAfA)}
+                        </td>
+                        <td className="py-1 px-2 text-right text-xs font-mono font-bold">
+                          {fmtEur(monthly)}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                  <tr className="border-t-2 border-t-gray-300">
+                    <td className="py-2 px-2 text-xs font-bold" colSpan={2}>
+                      {t("assets.bookAfaTotal")}
+                    </td>
+                    <td
+                      className="py-2 px-2 text-right text-sm font-mono font-bold"
+                      data-testid="assets-book-monthly-total-annual"
+                    >
+                      {fmtEur(bookableTotal)}
+                    </td>
+                    <td
+                      className="py-2 px-2 text-right text-sm font-mono font-bold"
+                      data-testid="assets-book-monthly-total"
+                    >
+                      {fmtEur(bookableTotal / 12)}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+              {t("assets.bookAfaMonthlyConfirmFootnote")}
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setBookingConfirmMonthly(false)}
+                disabled={bookingSaving}
+              >
+                {t("assets.cancel")}
+              </Button>
+              <Button
+                onClick={bookAfaMonthly}
+                disabled={bookingSaving}
+                className="bg-emerald-600 text-white hover:bg-emerald-700"
+                data-testid="assets-book-monthly-confirm"
+              >
+                {bookingSaving ? "…" : t("assets.bookAfaMonthly")}
               </Button>
             </div>
           </div>

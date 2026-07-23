@@ -1,0 +1,45 @@
+-- Tier 89: monthly AfA booking mode.
+--
+-- Tier 87 created a single year-end Expense
+-- row (dated 2026-12-31) per booked AfA.
+-- That worked for the G+V 7a + Anlage S
+-- 4600 totals but gave the BWA 3100
+-- a flat "0 Jan-Nov + full amount in Dec"
+-- pattern — because the booking only
+-- landed in December.
+--
+-- Tier 89 adds an alternate "AfA monatlich
+-- buchen" mode that creates 12 monthly
+-- rows (one per month, dated last day of
+-- the month, grossAmount = -annualAfA/12).
+-- The BWA 3100 then shows real booked
+-- AfA in each month instead of a single
+-- Dec spike. The G+V 7a + Anlage S 4600
+-- totals are unchanged (they already sum
+-- the full year).
+--
+-- The new column `afaMonth` (1-12) is the
+-- dedup key together with (relatedAssetId,
+-- afaYear, afaMonth) — annual bookings
+-- leave afaMonth=NULL; monthly bookings
+-- use afaMonth=1..12. The report services
+-- already sum all booked AfA for the year
+-- regardless of month, so no change needed
+-- to G+V / Anlage S.
+--
+-- The BWA 3100 already filters by
+-- invoiceDate, so monthly rows naturally
+-- show up in their respective month
+-- columns (the date range is [monthStart,
+-- monthEnd]). v1 BWA = "automatically
+-- works" for monthly mode.
+
+ALTER TABLE "Expense" ADD COLUMN "afaMonth" INTEGER;
+-- Partial index — annual bookings
+-- (afaMonth IS NULL) don't need to be
+-- indexed because we always pull by
+-- (relatedAssetId, afaYear) and then
+-- filter by month in app code. The
+-- index on (relatedAssetId, afaYear)
+-- from tier 87 still serves.
+CREATE INDEX "Expense_relatedAssetId_afaYear_afaMonth_idx" ON "Expense"("relatedAssetId", "afaYear", "afaMonth");

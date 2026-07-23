@@ -2284,7 +2284,14 @@
     "afaBooked": "已簿记",
     "afaBookedHint": "本年度 AfA 已簿记 (反映在 G+V 7a, BWA 3100, Anlage S 4600)。",
     "afaNotBooked": "未簿记",
-    "afaNotBookedHint": "AfA 尚未簿记 — 该金额仅在报表中作为计算值显示。点击上方的“簿记 AfA”可创建真实的费用簿记。"
+    "afaNotBookedHint": "AfA 尚未簿记 — 该金额仅在报表中作为计算值显示。点击上方的“簿记 AfA”可创建真实的费用簿记。",
+    "bookAfaMonthly": "按月簿记 AfA",
+    "bookAfaMonthlyOk": "已创建 {count} 个 AfA 簿记 (12个月 × 资产), 合计: {total}",
+    "bookAfaMonthlyConfirmTitle": "确认按月簿记 AfA",
+    "bookAfaMonthlyConfirmHint": "为 {year} 年度每项资产自动创建 12 笔月度费用簿记 (而非 1 笔年末簿记)。BWA 3100 将显示每月的簿记 AfA, 而非仅 12 月。",
+    "bookAfaMonthlyConfirmFootnote": "提示: 按月和按年簿记模式互斥 — 首次簿记后无法切换模式。如需切换, 请先取消簿记。",
+    "afaProMonat": "每月 AfA",
+    "afaBookedMonthly": "按月"
   },
   "anhang": {
     "title": "财务报表附注",

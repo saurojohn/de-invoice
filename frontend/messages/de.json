@@ -2284,7 +2284,14 @@
     "afaBooked": "gebucht",
     "afaBookedHint": "AfA für dieses Jahr wurde gebucht (erscheint in G+V 7a, BWA 3100, Anlage S 4600).",
     "afaNotBooked": "nicht gebucht",
-    "afaNotBookedHint": "AfA wurde noch nicht gebucht — der Betrag wird nur rechnerisch in den Berichten ausgewiesen. Klicken Sie oben auf „AfA buchen\", um eine echte Ausgabenbuchung zu erzeugen."
+    "afaNotBookedHint": "AfA wurde noch nicht gebucht — der Betrag wird nur rechnerisch in den Berichten ausgewiesen. Klicken Sie oben auf „AfA buchen\", um eine echte Ausgabenbuchung zu erzeugen.",
+    "bookAfaMonthly": "AfA monatlich buchen",
+    "bookAfaMonthlyOk": "{count} AfA-Buchungen erstellt (12 Monate × Anlagen), Gesamt: {total}",
+    "bookAfaMonthlyConfirmTitle": "AfA monatlich buchen bestätigen",
+    "bookAfaMonthlyConfirmHint": "Erstellt automatisch 12 monatliche Ausgabenbuchungen pro Anlage für {year} (statt 1 Jahres-Endbuchung). Die BWA 3100 zeigt dann den gebuchten AfA in jedem Monat statt nur im Dezember.",
+    "bookAfaMonthlyConfirmFootnote": "Hinweis: Monatliche und jährliche Buchung schließen sich gegenseitig aus — der Modus kann nach der ersten Buchung nicht mehr gewechselt werden. Zum Wechsel zuerst stornieren.",
+    "afaProMonat": "AfA pro Monat",
+    "afaBookedMonthly": "monatlich"
   },
   "anhang": {
     "title": "Anhang zum Jahresabschluss",

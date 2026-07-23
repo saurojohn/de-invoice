@@ -225,6 +225,100 @@ test("after POST book-afa the page shows the 'AfA gebucht' badge", async ({ page
   expect(text || "").toMatch(/gebucht|booked|已簿记/)
 })
 
+test("Tier 89: 'AfA monatlich buchen' button visible when bookable asset exists", async ({ page }) => {
+  await injectAuth(page)
+  // Use year 2027 to avoid the mutex with
+  // the previous annual test (which
+  // booked year 2026). The year picker
+  // also defaults to the current year.
+  const created = await createTestAsset(page)
+  await page.goto("/dashboard/assets")
+  await expect(page.getByTestId("assets-year")).toBeVisible({ timeout: 30_000 })
+  // Switch the year picker to 2027 (where
+  // we just seeded an asset that is NOT
+  // booked yet).
+  const yearInput = page.getByTestId("assets-year")
+  await yearInput.fill("2027")
+  await page.waitForTimeout(2500)
+  // Both booking buttons should be visible:
+  // - assets-book-afa (annual, tier 87)
+  // - assets-book-afa-monthly (tier 89, outline variant)
+  const annualBtn = page.getByTestId("assets-book-afa")
+  const monthlyBtn = page.getByTestId("assets-book-afa-monthly")
+  await expect(annualBtn).toBeVisible({ timeout: 10_000 })
+  await expect(monthlyBtn).toBeVisible({ timeout: 5_000 })
+})
+
+test("Tier 89: monthly booking button click opens monthly confirm modal", async ({ page }) => {
+  await injectAuth(page)
+  await createTestAsset(page)
+  await page.goto("/dashboard/assets")
+  await expect(page.getByTestId("assets-year")).toBeVisible({ timeout: 30_000 })
+  const yearInput = page.getByTestId("assets-year")
+  await yearInput.fill("2027")
+  await page.waitForTimeout(2500)
+  const monthlyBtn = page.getByTestId("assets-book-afa-monthly")
+  if (!(await monthlyBtn.isVisible().catch(() => false))) {
+    test.skip(true, "No bookable assets visible for year 2027")
+    return
+  }
+  await monthlyBtn.click()
+  // The monthly confirm modal shows the
+  // per-month amount + the per-asset total
+  // annual.
+  await expect(
+    page.getByTestId("assets-book-monthly-total-annual"),
+  ).toBeVisible({ timeout: 5_000 })
+  await expect(page.getByTestId("assets-book-monthly-total")).toBeVisible()
+  await expect(page.getByTestId("assets-book-monthly-confirm")).toBeVisible()
+})
+
+test("Tier 89: after POST book-afa-monthly the page shows monthly mode chip", async ({ page }) => {
+  await injectAuth(page)
+  // Use year 2027 to avoid the mutex with
+  // the previous annual test (which
+  // booked year 2026).
+  const created = await createTestAsset(page)
+  expect(created.id).toBeTruthy()
+  const MONTHLY_YEAR = 2027
+  const bookRes = await page.request.post(
+    `http://localhost:3001/api/v1/assets/book-afa-monthly?companyId=${testTokens!.companyId}&year=${MONTHLY_YEAR}`,
+    {
+      headers: {
+        "x-user-id": testTokens!.userId,
+        "x-company-id": testTokens!.companyId,
+      },
+      data: {},
+    },
+  )
+  expect(bookRes.status()).toBe(201)
+  const bookBody = await bookRes.json()
+  expect(bookBody.mode).toBe("monthly")
+  // bookedCount = N assets × 12 months. The
+  // dev DB may have other pre-existing
+  // assets, so we only assert >= 12.
+  expect(bookBody.bookedCount).toBeGreaterThanOrEqual(12)
+  expect(bookBody.bookedCount % 12).toBe(0)
+  // Leave the booking in place so the
+  // page can verify the monthly chip.
+  // afterAll() will clean up the T87PA-*
+  // test fixture (asset + 12 AfA rows).
+  await page.goto("/dashboard/assets")
+  await expect(page.getByTestId("assets-year")).toBeVisible({ timeout: 30_000 })
+  // Switch to the year we booked for.
+  const yearInput = page.getByTestId("assets-year")
+  await yearInput.fill(String(MONTHLY_YEAR))
+  await page.waitForTimeout(2500)
+  const statusCell = page.getByTestId(`assets-afa-status-${created.id}`)
+  await expect(statusCell).toBeVisible({ timeout: 10_000 })
+  const text = (await statusCell.textContent()) || ""
+  // The cell should contain both the
+  // booked label and the monthly mode
+  // chip (assets.afaBookedMonthly key).
+  expect(text).toMatch(/gebucht|booked|已簿记/)
+  expect(text).toMatch(/monatlich|monthly|按月/)
+})
+
 test("assets-afa page is reachable without errors", async ({ page }) => {
   await injectAuth(page)
   const errors: string[] = []

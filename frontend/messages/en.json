@@ -2284,7 +2284,14 @@
     "afaBooked": "booked",
     "afaBookedHint": "AfA for this year has been booked (shows up in P&L 7a, BWA 3100, Anlage S 4600).",
     "afaNotBooked": "not booked",
-    "afaNotBookedHint": "AfA has not been booked yet — the value appears only as a computed estimate in the reports. Click \"Book AfA\" above to create a real expense booking."
+    "afaNotBookedHint": "AfA has not been booked yet — the value appears only as a computed estimate in the reports. Click \"Book AfA\" above to create a real expense booking.",
+    "bookAfaMonthly": "Book AfA monthly",
+    "bookAfaMonthlyOk": "{count} AfA bookings created (12 months × assets), total: {total}",
+    "bookAfaMonthlyConfirmTitle": "Confirm AfA monthly booking",
+    "bookAfaMonthlyConfirmHint": "Automatically creates 12 monthly expense bookings per asset for {year} (instead of 1 year-end booking). BWA 3100 then shows the booked AfA in each month instead of just December.",
+    "bookAfaMonthlyConfirmFootnote": "Note: monthly and annual booking modes are mutually exclusive — you cannot switch modes after the first booking. To change, storno first.",
+    "afaProMonat": "AfA per month",
+    "afaBookedMonthly": "monthly"
   },
   "anhang": {
     "title": "Notes to the Financial Statements",

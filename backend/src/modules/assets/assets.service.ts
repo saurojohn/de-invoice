@@ -318,6 +318,12 @@ export class AssetsService {
    * `Expense_relatedAssetId_afaYear_idx` makes
    * the lookup fast.
    *
+   * Mutually exclusive with `bookAfaMonthly`
+   * (tier 89): if any monthly rows already exist
+   * for the year (afaMonth IS NOT NULL), this
+   * call fails with 400. The user must storno
+   * the monthly booking first.
+   *
    * Returns a summary: how many assets were
    * considered, how many actually got booked
    * (vs already-booked, vs zero-AfA), and the
@@ -330,6 +336,7 @@ export class AssetsService {
    *   - netAmount=-annualAfA  → reduces profit
    *   - relatedAssetId        → back-link to Asset
    *   - afaYear               → the calendar year
+   *   - afaMonth=NULL         → annual mode marker
    *   - invoiceDate=year-12-31 → year-end (DATEV
    *                              convention for
    *                              annual postings)
@@ -342,6 +349,26 @@ export class AssetsService {
     }
     if (!Number.isInteger(year) || year < 2000 || year > 2100) {
       throw new BadRequestException('year ist ungültig')
+    }
+
+    // Pre-check: refuse if any monthly
+    // booking already exists for the year
+    // (afaMonth IS NOT NULL with afaYear=year).
+    // The two modes are mutually exclusive —
+    // the user must storno the monthly
+    // booking first.
+    const monthlyExisting = await this.prisma.expense.count({
+      where: {
+        companyId,
+        afaYear: year,
+        relatedAssetId: { not: null },
+        afaMonth: { not: null },
+      },
+    })
+    if (monthlyExisting > 0) {
+      throw new BadRequestException(
+        'AfA wurde bereits monatlich gebucht. Bitte zuerst stornieren (siehe Anlagenverzeichnis) oder ein anderes Jahr wählen.',
+      )
     }
 
     const assets = await this.prisma.asset.findMany({
@@ -413,6 +440,7 @@ export class AssetsService {
           notes: `Automatisch gebucht aus Anlagenverzeichnis (Asset ${a.id})`,
           relatedAssetId: a.id,
           afaYear: year,
+          afaMonth: null,
         },
       })
       booked.push({
@@ -429,6 +457,195 @@ export class AssetsService {
     )
     return {
       year,
+      mode: 'annual' as const,
+      bookedCount: booked.length,
+      skippedAlreadyCount: skippedAlready.length,
+      skippedZeroCount: skippedZero.length,
+      totalAnnualAfA: round2(totalBooked),
+      booked,
+      skippedAlready,
+      skippedZero,
+    }
+  }
+
+  /**
+   * Tier 89: monthly AfA booking. Like
+   * `bookAfa` but creates 12 monthly rows
+   * per asset (one per month, dated last day
+   * of the month, grossAmount = -annualAfA/12
+   * each). The BWA 3100 line then shows real
+   * booked AfA in each month instead of the
+   * "0 Jan-Nov + full amount in Dec" pattern
+   * the annual booking produces.
+   *
+   * Mutually exclusive with the annual mode:
+   * if an annual booking already exists for
+   * any asset in the year, this call fails
+   * with a 400. The user must storno the
+   * annual booking first (or use a different
+   * year).
+   *
+   * Idempotent: re-running for the same year
+   * does not double-book (the
+   * (relatedAssetId, afaYear, afaMonth)
+   * triple is unique).
+   */
+  async bookAfaMonthly(companyId: string, year: number) {
+    if (!companyId) {
+      throw new BadRequestException('companyId ist erforderlich')
+    }
+    if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+
+    // Pre-check: refuse if any annual
+    // booking already exists for the year
+    // (afaMonth IS NULL with afaYear=year).
+    // The two modes are mutually exclusive —
+    // the user must storno the annual
+    // booking first.
+    const annualExisting = await this.prisma.expense.count({
+      where: {
+        companyId,
+        afaYear: year,
+        relatedAssetId: { not: null },
+        afaMonth: null,
+      },
+    })
+    if (annualExisting > 0) {
+      throw new BadRequestException(
+        'AfA wurde bereits jährlich gebucht. Bitte zuerst stornieren (siehe Anlagenverzeichnis) oder ein anderes Jahr wählen.',
+      )
+    }
+
+    const assets = await this.prisma.asset.findMany({
+      where: { companyId },
+    })
+    const yearEnd = new Date(year, 11, 31, 23, 59, 59, 999)
+
+    // Pre-fetch existing monthly bookings
+    // so we can skip them in the loop.
+    const existing = await this.prisma.expense.findMany({
+      where: {
+        companyId,
+        afaYear: year,
+        relatedAssetId: { not: null },
+        afaMonth: { not: null },
+      },
+      select: {
+        relatedAssetId: true,
+        afaMonth: true,
+        grossAmount: true,
+      },
+    })
+    const existingByAssetMonth = new Map<string, number>()
+    for (const e of existing) {
+      if (!e.relatedAssetId || e.afaMonth == null) continue
+      const key = `${e.relatedAssetId}|${e.afaMonth}`
+      existingByAssetMonth.set(
+        key,
+        (existingByAssetMonth.get(key) ?? 0) + Math.abs(Number(e.grossAmount)),
+      )
+    }
+
+    const booked: Array<{
+      assetId: string
+      assetName: string
+      month: number
+      expenseId: string
+      monthlyAfA: number
+    }> = []
+    const skippedAlready: Array<{
+      assetId: string
+      assetName: string
+      month: number
+    }> = []
+    const skippedZero: Array<{ assetId: string; assetName: string }> = []
+
+    for (const a of assets) {
+      const summary = this.computeAfA(a, yearEnd)
+      if (summary.annualAfA <= 0) {
+        skippedZero.push({ assetId: a.id, assetName: a.bezeichnung })
+        continue
+      }
+      // Split the annual AfA into 12 equal
+      // monthly amounts. The last month (Dec)
+      // absorbs the rounding remainder so the
+      // 12 months sum exactly to the annual
+      // total.
+      const monthlyBase = round2(summary.annualAfA / 12)
+      const monthlyAmounts: number[] = []
+      let allocated = 0
+      for (let m = 1; m <= 12; m++) {
+        let amount: number
+        if (m === 12) {
+          // Last month absorbs the rounding
+          // remainder: annualAfA - 11*monthlyBase
+          amount = round2(summary.annualAfA - 11 * monthlyBase)
+        } else {
+          amount = monthlyBase
+        }
+        monthlyAmounts.push(amount)
+        allocated += amount
+      }
+      // Sanity check: allocated should equal
+      // annualAfA. If not (due to repeated
+      // rounding), log a warning.
+      if (Math.abs(allocated - round2(summary.annualAfA)) > 0.01) {
+        this.logger.warn(
+          `AfA monthly split mismatch for ${a.id}: annual=${round2(summary.annualAfA)} allocated=${allocated}`,
+        )
+      }
+
+      for (let m = 1; m <= 12; m++) {
+        const key = `${a.id}|${m}`
+        if (existingByAssetMonth.has(key)) {
+          skippedAlready.push({ assetId: a.id, assetName: a.bezeichnung, month: m })
+          continue
+        }
+        const monthlyAmount = monthlyAmounts[m - 1]
+        // Last day of the month: new Date(year, m, 0)
+        // gives the last day of month m (since
+        // month is 0-indexed in JS Date).
+        const monthEndDate = new Date(year, m, 0, 12, 0, 0, 0)
+        const expense = await this.prisma.expense.create({
+          data: {
+            companyId,
+            supplierId: null,
+            invoiceNumber: null,
+            description: `AfA ${a.bezeichnung} ${year}-${String(m).padStart(2, '0')}`,
+            invoiceDate: monthEndDate,
+            netAmount: -monthlyAmount,
+            vatRate: 0,
+            vatAmount: 0,
+            grossAmount: -monthlyAmount,
+            category: 'AfA',
+            isIntraEU: false,
+            isReverseCharge: false,
+            status: 'booked',
+            notes: `Automatisch gebucht aus Anlagenverzeichnis (Asset ${a.id}, Monat ${m})`,
+            relatedAssetId: a.id,
+            afaYear: year,
+            afaMonth: m,
+          },
+        })
+        booked.push({
+          assetId: a.id,
+          assetName: a.bezeichnung,
+          month: m,
+          expenseId: expense.id,
+          monthlyAfA: monthlyAmount,
+        })
+      }
+    }
+
+    const totalBooked = booked.reduce((s, b) => s + b.monthlyAfA, 0)
+    this.logger.log(
+      `AfA-Monthly-Buchung ${companyId} year=${year}: booked=${booked.length} skippedAlready=${skippedAlready.length} skippedZero=${skippedZero.length} total=${round2(totalBooked)}`,
+    )
+    return {
+      year,
+      mode: 'monthly' as const,
       bookedCount: booked.length,
       skippedAlreadyCount: skippedAlready.length,
       skippedZeroCount: skippedZero.length,
@@ -442,9 +659,11 @@ export class AssetsService {
   /**
    * Booking-status for one year: per asset, return
    * the computed annual AfA + whether it's been
-   * booked + the booked amount. The frontend
+   * booked + the booked amount + the booking
+   * mode ('annual' | 'monthly'). The frontend
    * uses this to show a "✓ gebucht" / "— nicht
-   * gebucht" badge on each row.
+   * gebucht" badge on each row + the booking
+   * mode chip (tier 89).
    */
   async getBookingStatus(companyId: string, year: number) {
     if (!companyId) {
@@ -466,6 +685,9 @@ export class AssetsService {
           id: true,
           relatedAssetId: true,
           grossAmount: true,
+          // Tier 89: needed to detect booking
+          // mode (afaMonth != null → monthly)
+          afaMonth: true,
         },
       }),
     ])
@@ -473,15 +695,32 @@ export class AssetsService {
     const yearEnd = new Date(year, 11, 31, 23, 59, 59, 999)
     const byAsset = new Map<
       string,
-      { expenseId: string; bookedAfA: number }
+      {
+        expenseId: string
+        bookedAfA: number
+        mode: 'annual' | 'monthly'
+      }
     >()
     for (const e of existing) {
       if (!e.relatedAssetId) continue
       const prev = byAsset.get(e.relatedAssetId)
       const add = Math.abs(Number(e.grossAmount))
+      // Promote to monthly if any row has
+      // afaMonth set. The two modes are
+      // mutually exclusive per (asset, year)
+      // — book-afa refuses if monthly rows
+      // exist, book-afa-monthly refuses if
+      // annual rows exist.
+      const rowMode: 'annual' | 'monthly' =
+        e.afaMonth != null ? 'monthly' : 'annual'
+      const nextMode: 'annual' | 'monthly' =
+        prev?.mode === 'monthly' || rowMode === 'monthly'
+          ? 'monthly'
+          : 'annual'
       byAsset.set(e.relatedAssetId, {
         expenseId: prev?.expenseId ?? e.id,
         bookedAfA: (prev?.bookedAfA ?? 0) + add,
+        mode: nextMode,
       })
     }
 
@@ -499,6 +738,8 @@ export class AssetsService {
         computedAfA,
         booked: booking !== null,
         bookedAfA,
+        // Tier 89: 'annual' | 'monthly' | null
+        bookingMode: booking?.mode ?? null,
         expenseId: booking?.expenseId ?? null,
       }
     })

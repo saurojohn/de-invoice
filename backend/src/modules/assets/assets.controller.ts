@@ -80,6 +80,35 @@ export class AssetsController {
     return this.assets.bookAfa(companyId, year)
   }
 
+  /**
+   * Tier 89: "AfA monatlich buchen" — same
+   * flow as book-afa but creates 12 monthly
+   * rows per asset (one per month, dated
+   * last day of the month, grossAmount =
+   * -annualAfA/12 each). The BWA 3100 line
+   * then shows real booked AfA in each
+   * month instead of the "0 Jan-Nov + full
+   * amount in Dec" pattern of the annual
+   * mode.
+   *
+   * Mutually exclusive with the annual mode:
+   * 400 if an annual booking already exists
+   * for any asset in the year. The user
+   * must storno the annual booking first.
+   *
+   * Idempotent on (relatedAssetId, afaYear,
+   * afaMonth).
+   */
+  @Post('book-afa-monthly')
+  async bookAfaMonthly(
+    @Query('companyId') companyId: string,
+    @Query('year') yearRaw?: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const year = yearRaw ? Number(yearRaw) : new Date().getFullYear()
+    return this.assets.bookAfaMonthly(companyId, year)
+  }
+
   @Get(':id')
   async findOne(@Param('id') id: string, @Query('companyId') companyId: string) {
     if (!companyId) throw new BadRequestException('companyId ist erforderlich')
