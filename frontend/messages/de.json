@@ -2170,6 +2170,27 @@
     "generatedAt": "Erstellt",
     "previewHint": "Vorschau — alle Werte automatisch berechnet. Vor der Einreichung durch den Steuerberater prüfen."
   },
+  "anlageV": {
+    "title": "Anlage V (Vorschau)",
+    "subtitle": "Einkünfte aus Vermietung und Verpachtung (§ 21 EStG) — automatisch aus Ihren Buchungen generiert. Für Vermieter. Vom Steuerberater prüfen lassen.",
+    "year": "Geschäftsjahr",
+    "recompute": "Berechnen",
+    "downloadPdf": "PDF herunterladen",
+    "einnahmen": "Einnahmen",
+    "werbungskosten": "Werbungskosten",
+    "ueberschuss": "Überschuss",
+    "verlust": "Verlust",
+    "invoices": "Rechnungen",
+    "expenses": "Ausgaben",
+    "afaBookingsCount": "AfA-Buchungen",
+    "buildingAssets": "Mietobjekte",
+    "generatedAt": "Erstellt",
+    "afaSourceLabel": "AfA-Quelle (8600)",
+    "afaBooked": "✓ gebucht",
+    "afaComputed": "≈ berechnet",
+    "afaNotBooked": "— keine Daten",
+    "previewHint": "Vorschau — alle Werte automatisch berechnet. Vor der Einreichung durch den Steuerberater prüfen."
+  },
   "bilanz": {
     "title": "Bilanz (Vorschau)",
     "subtitle": "Vermögensübersicht zum 31.12. — automatisch aus Ihren offenen Posten, dem Kassenbestand und dem Kundenguthaben abgeleitet. Positionen ohne Datengrundlage sind als „nicht ausgewiesen\" markiert. Der Saldoposten beim Eigenkapital ist ein Platzhalter. Vor der Einreichung durch den Steuerberater ergänzen.",

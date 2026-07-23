@@ -2170,6 +2170,27 @@
     "generatedAt": "Generated",
     "previewHint": "Preview — all values computed automatically. Have your tax advisor verify before filing."
   },
+  "anlageV": {
+    "title": "Anlage V (preview)",
+    "subtitle": "Income from rental and leasing (§ 21 EStG) — auto-generated from your bookings. For landlords. Have your tax advisor review.",
+    "year": "Fiscal year",
+    "recompute": "Compute",
+    "downloadPdf": "Download PDF",
+    "einnahmen": "Income",
+    "werbungskosten": "Werbungskosten",
+    "ueberschuss": "Surplus",
+    "verlust": "Loss",
+    "invoices": "Invoices",
+    "expenses": "Expenses",
+    "afaBookingsCount": "AfA bookings",
+    "buildingAssets": "Rental properties",
+    "generatedAt": "Generated",
+    "afaSourceLabel": "AfA source (8600)",
+    "afaBooked": "✓ booked",
+    "afaComputed": "≈ computed",
+    "afaNotBooked": "— no data",
+    "previewHint": "Preview — all values computed automatically. Have your tax advisor verify before filing."
+  },
   "bilanz": {
     "title": "Balance Sheet (preview)",
     "subtitle": "Assets and liabilities snapshot as of Dec 31 — auto-derived from your open receivables, cash balance, and customer credits. Positions without source data are marked \"nicht ausgewiesen\" (not stated). The equity line is a placeholder. Have your tax advisor complete it before filing.",

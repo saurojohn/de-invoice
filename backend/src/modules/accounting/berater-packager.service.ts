@@ -2,6 +2,8 @@ import { Injectable, Logger } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import { EuerService } from './euer.service'
 import { AnlageSService } from './anlage-s.service'
+// Tier 92: Anlage V (Vermietung und Verpachtung).
+import { AnlageVService } from './anlage-v.service'
 import { BilanzService } from './bilanz.service'
 import { GuVService } from './guv.service'
 import { AnhangService } from './anhang.service'
@@ -19,10 +21,11 @@ import * as archiver from 'archiver'
  *
  *   01_Anlage-EUR.pdf            (tier 76)
  *   02_Anlage-S.pdf              (tier 80)
- *   03_Bilanz.pdf                (tier 81)
- *   04_Gewinn-und-Verlustrechnung.pdf   (tier 82)
- *   05_Anhang.pdf                (tier 84)
- *   06_Anlagenverzeichnis.csv    (tier 83)
+ *   03_Anlage-V.pdf              (tier 92, optional)
+ *   04_Bilanz.pdf                (tier 81)
+ *   05_Gewinn-und-Verlustrechnung.pdf   (tier 82)
+ *   06_Anhang.pdf                (tier 84)
+ *   07_Anlagenverzeichnis.csv    (tier 83)
  *   MANIFEST.md                  (this file)
  *
  * The packager reuses the existing PDF
@@ -31,6 +34,13 @@ import * as archiver from 'archiver'
  * bytes instead of writing to a real HTTP
  * response). No refactor of the 5 report
  * services is needed.
+ *
+ * Tier 92: Anlage V is included conditionally
+ * — only when the company has either
+ * (a) `settings.anlageV === true` opt-in OR
+ * (b) at least one building asset
+ * (Grundstueck/Gebaeude). Otherwise the PDF
+ * would just show 0s and confuse the Berater.
  *
  * Why PassThrough: each report's renderPdf
  * does `res.setHeader(...)` + `doc.pipe(res) +
@@ -66,6 +76,7 @@ export class BeraterPackagerService {
     private prisma: PrismaService,
     private euer: EuerService,
     private anlageS: AnlageSService,
+    private anlageV: AnlageVService,
     private bilanz: BilanzService,
     private guv: GuVService,
     private anhang: AnhangService,
@@ -77,6 +88,14 @@ export class BeraterPackagerService {
    * client. Same streaming pattern as
    * GobdArchiveService (archiver v8 class-
    * based API, zip level 9).
+   *
+   * Tier 92: Anlage V is generated
+   * conditionally — only if the company has
+   * building assets (Grundstueck/Gebaeude)
+   * OR `settings.anlageV === true`. An
+   * always-0 Anlage V PDF would just confuse
+   * the Berater (looks like missing data,
+   * not "this company is not a Vermieter").
    */
   async streamPackage(companyId: string, year: number, res: Response): Promise<void> {
     const company = await this.prisma.company.findUnique({ where: { id: companyId } })
@@ -97,10 +116,10 @@ export class BeraterPackagerService {
     })
     archive.pipe(res)
 
-    // Generate all 5 PDFs in parallel via
-    // renderToBuffer (PassThrough fake-Response
-    // captures the PDFKit output for each
-    // service's renderPdf).
+    // Generate all 5 core PDFs in parallel
+    // via renderToBuffer (PassThrough
+    // fake-Response captures the PDFKit
+    // output for each service's renderPdf).
     const yearEndSnapshot = new Date(year, 11, 31, 23, 59, 59, 999)
     const [
       euerPdf,
@@ -127,14 +146,55 @@ export class BeraterPackagerService {
       }),
     ])
 
+    // Tier 92: Anlage V is conditional on
+    // (a) the opt-in flag in settings OR
+    // (b) at least one building asset in the
+    // Anlagenverzeichnis. We check the asset
+    // list we just pulled.
+    const hasBuildingAssets = assetList.some(
+      (a) => a.type === 'Grundstueck' || a.type === 'Gebaeude',
+    )
+    const settings = (company.settings ?? {}) as Record<string, unknown>
+    const anlageVOptIn = settings.anlageV === true
+    const includeAnlageV = hasBuildingAssets || anlageVOptIn
+
     // Append each PDF (numbered so the
     // Berater can sort them in their
-    // filing system).
+    // filing system). Anlage V slot is
+    // reserved between Anlage S and Bilanz
+    // — the Berater expects "S → V → Bilanz"
+    // ordering for typical filings.
     archive.append(euerPdf, { name: '01_Anlage-EUR.pdf' })
     archive.append(anlageSPdf, { name: '02_Anlage-S.pdf' })
-    archive.append(bilanzPdf, { name: '03_Bilanz.pdf' })
-    archive.append(guvPdf, { name: '04_Gewinn-und-Verlustrechnung.pdf' })
-    archive.append(anhangPdf, { name: '05_Anhang.pdf' })
+
+    // Tier 92: Anlage V (optional).
+    const files: {
+      euer: string
+      anlageS: string
+      anlageV?: string
+      bilanz: string
+      guv: string
+      anhang: string
+      assetCsv: string
+    } = {
+      euer: '01_Anlage-EUR.pdf',
+      anlageS: '02_Anlage-S.pdf',
+      bilanz: includeAnlageV ? '04_Bilanz.pdf' : '03_Bilanz.pdf',
+      guv: includeAnlageV ? '05_Gewinn-und-Verlustrechnung.pdf' : '04_Gewinn-und-Verlustrechnung.pdf',
+      anhang: includeAnlageV ? '06_Anhang.pdf' : '05_Anhang.pdf',
+      assetCsv: includeAnlageV ? '07_Anlagenverzeichnis.csv' : '06_Anlagenverzeichnis.csv',
+    }
+    if (includeAnlageV) {
+      const anlageVPdf = await this.renderToBuffer((sink) =>
+        this.anlageV.renderPdf(companyId, year, sink),
+      )
+      archive.append(anlageVPdf, { name: '03_Anlage-V.pdf' })
+      files.anlageV = '03_Anlage-V.pdf'
+    }
+
+    archive.append(bilanzPdf, { name: files.bilanz })
+    archive.append(guvPdf, { name: files.guv })
+    archive.append(anhangPdf, { name: files.anhang })
 
     // Anlagenverzeichnis as CSV (lightweight
     // — the actual PDF render lives in the
@@ -144,18 +204,11 @@ export class BeraterPackagerService {
     // + annualAfA so the Berater sees the
     // same numbers as the Bilanz / G+V.
     const csv = this.buildAssetCsv(assetList, yearEndSnapshot)
-    archive.append(csv, { name: '06_Anlagenverzeichnis.csv' })
+    archive.append(csv, { name: files.assetCsv })
 
     // MANIFEST — explains what each file is
     // + the v1 honesty disclaimer.
-    const manifest = this.buildManifest(company, year, {
-      euer: '01_Anlage-EUR.pdf',
-      anlageS: '02_Anlage-S.pdf',
-      bilanz: '03_Bilanz.pdf',
-      guv: '04_Gewinn-und-Verlustrechnung.pdf',
-      anhang: '05_Anhang.pdf',
-      assetCsv: '06_Anlagenverzeichnis.csv',
-    })
+    const manifest = this.buildManifest(company, year, files)
     archive.append(manifest, { name: 'MANIFEST.md' })
 
     // Finalize the archive.
@@ -304,11 +357,16 @@ export class BeraterPackagerService {
    * text, readable in any editor or the
    * Berater's DMS. The disclaimer at the
    * top makes the v1 scope explicit.
+   *
+   * Tier 92: Anlage V is an optional row —
+   * only included when the company has
+   * building assets (Vermietung use case)
+   * OR `settings.anlageV === true`.
    */
   private buildManifest(
     company: { name: string; legalName: string | null; taxId: string | null; vatId: string | null },
     year: number,
-    files: { euer: string; anlageS: string; bilanz: string; guv: string; anhang: string; assetCsv: string },
+    files: { euer: string; anlageS: string; anlageV?: string; bilanz: string; guv: string; anhang: string; assetCsv: string },
   ): string {
     const lines: string[] = []
     lines.push(`# Berater-Paket ${year} — ${company.legalName || company.name}`)
@@ -326,6 +384,9 @@ export class BeraterPackagerService {
     lines.push(`| --- | --- |`)
     lines.push(`| \`${files.euer}\` | Anlage EÜR (Einnahmen-Überschuss-Rechnung) gem. § 18 EStG — Vorschau. Vorrangig für Kleinunternehmer und Einnahmen-Überschuss-Rechner. |`)
     lines.push(`| \`${files.anlageS}\` | Anlage S (Einkünfte aus selbständiger Arbeit) gem. § 18 EStG — Vorschau. Für Selbständige / Freiberufler. |`)
+    if (files.anlageV) {
+      lines.push(`| \`${files.anlageV}\` | Anlage V (Einkünfte aus Vermietung und Verpachtung) gem. § 21 EStG — Vorschau. Für Vermieter. Nur enthalten, wenn die Gesellschaft Mietobjekte (Grundstücke / Gebäude) im Anlagenverzeichnis führt. |`)
+    }
     lines.push(`| \`${files.bilanz}\` | Bilanz gem. § 266 HGB (Aktiva / Passiva) — Vorschau. Stichtag 31.12.${year}. |`)
     lines.push(`| \`${files.guv}\` | Gewinn- und Verlustrechnung gem. § 275 Abs. 2 HGB (Gesamtkostenverfahren) — Vorschau. |`)
     lines.push(`| \`${files.anhang}\` | Anhang zum Jahresabschluss gem. § 284 / § 285 HGB — Vorschau. Bilanzierungs- und Bewertungsmethoden + Pflichtangaben. |`)

@@ -2170,6 +2170,27 @@
     "generatedAt": "生成时间",
     "previewHint": "预览 — 所有数值自动计算。提交前请税务师审核。"
   },
+  "anlageV": {
+    "title": "Anlage V 附件（预览）",
+    "subtitle": "出租与租赁收入（§ 21 EStG）— 自动从您的记账生成。适用于房东。请税务师审核。",
+    "year": "财年",
+    "recompute": "计算",
+    "downloadPdf": "下载 PDF",
+    "einnahmen": "收入",
+    "werbungskosten": "Werbungskosten（费用支出）",
+    "ueberschuss": "盈余",
+    "verlust": "亏损",
+    "invoices": "发票",
+    "expenses": "支出",
+    "afaBookingsCount": "AfA 记账",
+    "buildingAssets": "出租物业",
+    "generatedAt": "生成时间",
+    "afaSourceLabel": "AfA 来源（8600）",
+    "afaBooked": "✓ 已记账",
+    "afaComputed": "≈ 已计算",
+    "afaNotBooked": "— 无数据",
+    "previewHint": "预览 — 所有数值自动计算。提交前请税务师审核。"
+  },
   "bilanz": {
     "title": "资产负债表（预览）",
     "subtitle": "12月31日资产负债快照 — 自动从您的未收应收款、现金余额和客户预收款汇总而成。没有数据来源的科目标记为「nicht ausgewiesen」（未列示）。权益行为占位符。提交前请税务师补全。",

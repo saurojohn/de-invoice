@@ -9,6 +9,9 @@ import { JournalService } from './journal.service';
 import { JournalController } from './journal.controller';
 import { EuerService } from './euer.service';
 import { AnlageSService } from './anlage-s.service';
+// Tier 92: Anlage V (Vermietung und Verpachtung,
+// § 21 EStG). Mirrors the AnlageSService pattern.
+import { AnlageVService } from './anlage-v.service';
 import { BilanzService } from './bilanz.service';
 import { GuVService } from './guv.service';
 import { AnhangService } from './anhang.service';
@@ -27,7 +30,7 @@ import { AssetsModule } from '../assets/assets.module';
 @Module({
   imports: [PrismaModule, StorageModule, WebhookModule, AssetsModule],
   controllers: [AccountingController, VoucherTemplateController, JournalController],
-  providers: [AccountService, VoucherService, VoucherTemplateService, JournalService, EuerService, AnlageSService, BilanzService, GuVService, AnhangService, BeraterPackagerService, EBilanzService, GobdArchiveService],
-  exports: [AccountService, VoucherService, VoucherTemplateService, JournalService, EuerService, AnlageSService, BilanzService, GuVService, AnhangService, BeraterPackagerService, EBilanzService, GobdArchiveService],
+  providers: [AccountService, VoucherService, VoucherTemplateService, JournalService, EuerService, AnlageSService, AnlageVService, BilanzService, GuVService, AnhangService, BeraterPackagerService, EBilanzService, GobdArchiveService],
+  exports: [AccountService, VoucherService, VoucherTemplateService, JournalService, EuerService, AnlageSService, AnlageVService, BilanzService, GuVService, AnhangService, BeraterPackagerService, EBilanzService, GobdArchiveService],
 })
 export class AccountingModule {}

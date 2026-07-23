@@ -5,6 +5,8 @@ import { VoucherService } from './voucher.service';
 import { generateVoucherPDF } from '../../accounting/voucher-pdf.service';
 import { EuerService } from './euer.service';
 import { AnlageSService } from './anlage-s.service';
+// Tier 92: Anlage V (Vermietung und Verpachtung).
+import { AnlageVService } from './anlage-v.service';
 import { BilanzService } from './bilanz.service';
 import { GuVService } from './guv.service';
 import { AnhangService } from './anhang.service';
@@ -21,6 +23,7 @@ export class AccountingController {
     private voucherService: VoucherService,
     private euer: EuerService,
     private anlageS: AnlageSService,
+    private anlageV: AnlageVService,
     private bilanz: BilanzService,
     private guv: GuVService,
     private anhang: AnhangService,
@@ -499,6 +502,59 @@ export class AccountingController {
       throw new BadRequestException('year ist ungültig')
     }
     await this.anlageS.renderPdf(companyId, year, res)
+  }
+
+  /**
+   * Tier 92: Anlage V — Einkünfte aus
+   * Vermietung und Verpachtung (§ 21 EStG).
+   * The German tax filing for landlords /
+   * Vermieter. v1 heuristic: ALL paid/sent/
+   * overdue invoices in the year are treated
+   * as Mieteinnahmen (assumes the user has
+   * one company per Vermietung use case).
+   *
+   * The 8600 Gebäude-AfA line is preferred
+   * from the booked AfA-Buchung rows (tier 87),
+   * falling back to the in-memory computed
+   * AfA from the Anlagenverzeichnis if no
+   * booking exists. Same preference order as
+   * Anlage S 4600.
+   *
+   * Defaults: previous calendar year. Year
+   * validation matches /euer.
+   */
+  @Get('anlage-v')
+  @UseGuards(HeaderAuthGuard)
+  async getAnlageV(
+    @Query('companyId') companyId: string,
+    @Query('year') yearRaw?: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const year = yearRaw
+      ? Number(yearRaw)
+      : new Date().getFullYear() - 1
+    if (!Number.isFinite(year) || year < 2000 || year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+    return this.anlageV.compute(companyId, year)
+  }
+
+  @Get('anlage-v.pdf')
+  @UseGuards(HeaderAuthGuard)
+  @Header('Content-Type', 'application/pdf')
+  async getAnlageVPdf(
+    @Res() res: Response,
+    @Query('companyId') companyId: string,
+    @Query('year') yearRaw?: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const year = yearRaw
+      ? Number(yearRaw)
+      : new Date().getFullYear() - 1
+    if (!Number.isFinite(year) || year < 2000 || year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+    await this.anlageV.renderPdf(companyId, year, res)
   }
 
   /**

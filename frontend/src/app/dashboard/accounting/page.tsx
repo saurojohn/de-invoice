@@ -10,6 +10,8 @@ import { useI18n } from "@/components/useI18n"
 import { apiGet, apiPost, apiFetch } from "@/lib/api"
 import { EuerSection } from "./EuerSection"
 import { AnlageSSection } from "./AnlageSSection"
+// Tier 92: Anlage V (Vermietung und Verpachtung).
+import { AnlageVSection } from "./AnlageVSection"
 import { BilanzSection } from "./BilanzSection"
 import { GuVSection } from "./GuVSection"
 import { AnhangSection } from "./AnhangSection"
@@ -1132,6 +1134,9 @@ export default function AccountingPage() {
 
       {/* Tier 80: Anlage S (§ 18 EStG self-employment) */}
       <AnlageSSection />
+
+      {/* Tier 92: Anlage V (§ 21 EStG rental / leasing income) */}
+      <AnlageVSection />
 
       {/* Tier 81: Bilanz Vorschau (§ 266 HGB year-end snapshot) */}
       <BilanzSection />
