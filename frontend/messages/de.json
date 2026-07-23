@@ -2345,5 +2345,19 @@
     "bucketZins": "Zinsaufwendungen",
     "generatedAt": "Erstellt",
     "previewHint": "VORSCHAU — basiert auf den in de-invoice v1 verfügbaren Daten. Positionen, die das System nicht erfasst (Bestandsveränderungen, aktivierte Eigenleistungen, Zinserträge, Beteiligungserträge, Steuern), sind nicht ausgewiesen. Der Steuerberater ergänzt die fehlenden Positionen aus dem SKR03 / der BWA-Quelldaten."
+  },
+  "ebilanz": {
+    "title": "E-Bilanz VORSCHAU (XBRL)",
+    "subtitle": "Erstellt automatisch eine BMF eBilanz-in-xtml VORSCHAU für das gewählte Geschäftsjahr. Berater ergänzt die Platzhalter-Positionen vor dem ELSTER-Upload.",
+    "year": "Geschäftsjahr",
+    "downloadXml": ".xbrl-Datei herunterladen",
+    "downloadPdf": "VORSCHAU-PDF herunterladen",
+    "vorschau": "VORSCHAU: BMF Taxonomy 6.7 — vom Steuerberater im ELSTER-Client zu validieren.",
+    "positionCount": "{computed} von {total} Pflichtpositionen berechnet. Restliche Positionen als Platzhalter für den Steuerberater.",
+    "positionLabel": "Bezeichnung",
+    "value": "Wert (EUR)",
+    "source": "Quelle",
+    "status": "Status",
+    "mappingTable": "Mapping-Tabelle (BMF → de-invoice)"
   }
 }

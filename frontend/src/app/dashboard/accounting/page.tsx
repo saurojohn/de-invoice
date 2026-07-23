@@ -14,6 +14,7 @@ import { BilanzSection } from "./BilanzSection"
 import { GuVSection } from "./GuVSection"
 import { AnhangSection } from "./AnhangSection"
 import { BeraterPackagerSection } from "./BeraterPackagerSection"
+import { EBilanzTab } from "./EBilanzTab"
 import { GobdArchiveSection } from "./GobdArchiveSection"
 
 // The enriched Voucher summary returned by the
@@ -1140,6 +1141,9 @@ export default function AccountingPage() {
 
       {/* Tier 84: Anhang zum Jahresabschluss (§ 284 HGB) */}
       <AnhangSection />
+
+      {/* Tier 88: E-Bilanz (XBRL) — BMF eBilanz-in-xtml VORSCHAU */}
+      <EBilanzTab />
 
       {/* Tier 77: GoBD-Archiv (§ 147 AO 10-year retention) */}
       <GobdArchiveSection />

@@ -2345,5 +2345,19 @@
     "bucketZins": "利息支出",
     "generatedAt": "生成时间",
     "previewHint": "预览 — 基于 de-invoice v1 中的数据。系统未追踪的科目（存货变动、自有服务资本化、利息收入、投资收入、税款）未列示。税务师从 SKR03 / BWA 源数据补全缺失的科目。"
+  },
+  "ebilanz": {
+    "title": "E-Bilanz 预览 (XBRL)",
+    "subtitle": "自动为所选年度生成 BMF eBilanz-in-xtml 预览。Berater 在 ELSTER 上传前补充占位符位置。",
+    "year": "会计年度",
+    "downloadXml": "下载 .xbrl 文件",
+    "downloadPdf": "下载预览 PDF",
+    "vorschau": "预览: BMF Taxonomy 6.7 — 由 Berater 在 ELSTER 客户端中验证。",
+    "positionCount": "已计算 {computed} / {total} 个必填位置。其余位置为 Berater 的占位符。",
+    "positionLabel": "名称",
+    "value": "金额 (EUR)",
+    "source": "来源",
+    "status": "状态",
+    "mappingTable": "映射表 (BMF → de-invoice)"
   }
 }

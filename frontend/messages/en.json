@@ -2345,5 +2345,19 @@
     "bucketZins": "Interest expenses",
     "generatedAt": "Generated",
     "previewHint": "PREVIEW — based on the data in de-invoice v1. Positions the system does not track (inventory changes, capitalised own services, interest income, investment income, taxes) are not stated. Your tax advisor completes the missing positions from the SKR03 / BWA source data."
+  },
+  "ebilanz": {
+    "title": "E-Bilanz VORSCHAU (XBRL)",
+    "subtitle": "Automatically generates a BMF eBilanz-in-xtml VORSCHAU for the selected year. Berater fills the placeholder positions before ELSTER upload.",
+    "year": "Fiscal year",
+    "downloadXml": "Download .xbrl file",
+    "downloadPdf": "Download VORSCHAU PDF",
+    "vorschau": "VORSCHAU: BMF Taxonomy 6.7 — to be validated by the Berater in the ELSTER client.",
+    "positionCount": "{computed} of {total} mandatory positions computed. Remaining positions are placeholders for the Berater.",
+    "positionLabel": "Label",
+    "value": "Value (EUR)",
+    "source": "Source",
+    "status": "Status",
+    "mappingTable": "Mapping table (BMF → de-invoice)"
   }
 }

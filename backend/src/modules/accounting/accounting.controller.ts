@@ -9,6 +9,7 @@ import { BilanzService } from './bilanz.service';
 import { GuVService } from './guv.service';
 import { AnhangService } from './anhang.service';
 import { BeraterPackagerService } from './berater-packager.service';
+import { EBilanzService } from './ebilanz.service';
 import { GobdArchiveService } from './gobd-archive.service';
 import { HeaderAuthGuard } from '../../auth/header-auth.guard';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -24,6 +25,7 @@ export class AccountingController {
     private guv: GuVService,
     private anhang: AnhangService,
     private beraterPackager: BeraterPackagerService,
+    private ebilanz: EBilanzService,
     private gobd: GobdArchiveService,
     private prisma: PrismaService,
   ) {}
@@ -758,5 +760,103 @@ export class AccountingController {
       throw new BadRequestException('year ist ungültig')
     }
     await this.beraterPackager.streamPackage(companyId, year, res)
+  }
+
+  // ----------------------------------------------------------------
+  // Tier 88: E-Bilanz (XBRL) — BMF
+  // eBilanz-in-xtml VORSCHAU.
+  //
+  // 3 routes — declared in this order so the
+  // literal paths (ebilanz / ebilanz.xml /
+  // ebilanz.pdf) don't collide with any
+  // future :id pattern.
+  // ----------------------------------------------------------------
+
+  /**
+   * JSON preview of the eBilanz mapping
+   * table for the year. Returns per-position
+   * { elementId, label, value, source,
+   *   computed, note } + the company
+   *   stammdaten + counts (X of Y
+   *   Pflichtpositionen berechnet).
+   *
+   * The frontend /dashboard/accounting tab
+   * hits this to render the mapping table +
+   * the count summary.
+   */
+  @Get('ebilanz')
+  @UseGuards(HeaderAuthGuard)
+  async getEBilanz(
+    @Query('companyId') companyId: string,
+    @Query('year') yearRaw?: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const year = yearRaw
+      ? Number(yearRaw)
+      : new Date().getFullYear() - 1
+    if (!Number.isFinite(year) || year < 2000 || year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+    return this.ebilanz.compute(companyId, year)
+  }
+
+  /**
+   * eBilanz-in-xtml XBRL instance document.
+   * The Berater downloads this and (after
+   * adding the BMF taxonomy schemaRef +
+   * filling the placeholder positions)
+   * uploads it to ELSTER Mein-ELSTER.
+   *
+   * Content-Type: application/xml (NOT
+   * application/xbrl — that's for the
+   * taxonomy XSD, not the instance
+   * document). The file extension is .xbrl
+   * per BMF convention.
+   */
+  @Get('ebilanz.xml')
+  @UseGuards(HeaderAuthGuard)
+  @Header('Content-Type', 'application/xml; charset=utf-8')
+  async getEBilanzXml(
+    @Res() res: Response,
+    @Query('companyId') companyId: string,
+    @Query('year') yearRaw?: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const year = yearRaw
+      ? Number(yearRaw)
+      : new Date().getFullYear() - 1
+    if (!Number.isFinite(year) || year < 2000 || year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+    const xml = await this.ebilanz.renderXml(companyId, year)
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="EBilanz-${year}.xbrl"`,
+    )
+    res.send(xml)
+  }
+
+  /**
+   * Human-readable PDF preview of the
+   * eBilanz mapping table. The Berater
+   * reviews this before uploading the .xbrl
+   * file to ELSTER.
+   */
+  @Get('ebilanz.pdf')
+  @UseGuards(HeaderAuthGuard)
+  @Header('Content-Type', 'application/pdf')
+  async getEBilanzPdf(
+    @Res() res: Response,
+    @Query('companyId') companyId: string,
+    @Query('year') yearRaw?: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const year = yearRaw
+      ? Number(yearRaw)
+      : new Date().getFullYear() - 1
+    if (!Number.isFinite(year) || year < 2000 || year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+    await this.ebilanz.renderPdf(companyId, year, res)
   }
 }
