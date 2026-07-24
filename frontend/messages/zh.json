@@ -2392,5 +2392,24 @@
     "source": "来源",
     "status": "状态",
     "mappingTable": "映射表 (BMF → de-invoice)"
+  },
+  "featureFlags": {
+    "title": "功能开关",
+    "subtitle": "每家公司的自动记账与税务师包裹开关。变更会记录在审计日志中。",
+    "save": "保存",
+    "reset": "重置",
+    "unsaved": "未保存的修改",
+    "noChanges": "无修改可保存。",
+    "savedOk": "设置已保存。",
+    "autoBookAfa": {
+      "label": "自动记账 AfA",
+      "description": "AfA 自动调度器在每月 1 日为该公司的所有固定资产记账上月的折旧。如需手动记账，请关闭。",
+      "nextRunLabel": "下次运行："
+    },
+    "anlageV": {
+      "label": "在税务师包裹中包含 Anlage V",
+      "description": "强制在年终税务师包裹 ZIP 中包含 Anlage V（出租与租赁收入，§ 21 EStG）。默认仅在公司有建筑物资产时包含。",
+      "effectLabel": "影响：Berater 包裹中的 03_Anlage-V.pdf"
+    }
   }
 }

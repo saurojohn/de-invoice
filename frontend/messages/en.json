@@ -2392,5 +2392,24 @@
     "source": "Source",
     "status": "Status",
     "mappingTable": "Mapping table (BMF → de-invoice)"
+  },
+  "featureFlags": {
+    "title": "Feature flags",
+    "subtitle": "Per-company switches for auto-booking and Berater packager. Changes are logged in the audit trail.",
+    "save": "Save",
+    "reset": "Reset",
+    "unsaved": "Unsaved changes",
+    "noChanges": "No changes to save.",
+    "savedOk": "Settings saved.",
+    "autoBookAfa": {
+      "label": "Auto-book AfA",
+      "description": "The auto-AfA scheduler books the previous month's AfA for every asset of this company on the 1st of each month. Disable if you want to book AfA manually.",
+      "nextRunLabel": "Next run:"
+    },
+    "anlageV": {
+      "label": "Include Anlage V in Berater packager",
+      "description": "Force-include Anlage V (rental & leasing income, § 21 EStG) in the year-end Berater packager ZIP. By default, only included when the company has building assets in the Anlagenverzeichnis.",
+      "effectLabel": "Affects: 03_Anlage-V.pdf in Berater packager"
+    }
   }
 }

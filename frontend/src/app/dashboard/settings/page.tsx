@@ -9,6 +9,8 @@ import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiGet, apiPost, apiPut, apiDelete, apiFetch, ApiError } from "@/lib/api"
+// Tier 94: feature flags card (autoBookAfa + anlageV).
+import { FeatureFlagsCard } from "./FeatureFlagsCard"
 
 interface StorageSettings {
   localPath: string
@@ -1455,6 +1457,9 @@ export default function SettingsPage() {
               )}
             </CardContent>
           </Card>
+
+          {/* Tier 94: Feature Flags (Auto-AfA + Anlage V) */}
+          <FeatureFlagsCard />
 
           {/* Storage Settings Card */}
           <Card>

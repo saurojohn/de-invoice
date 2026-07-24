@@ -1,8 +1,10 @@
-import { Controller, Get, Put, Post, Body, Param, UseInterceptors, UploadedFile, BadRequestException, Req } from '@nestjs/common';
+import { Controller, Get, Put, Patch, Post, Body, Param, UseInterceptors, UploadedFile, BadRequestException, Req, UseGuards, Header } from '@nestjs/common';
 import { CompanyService } from './company.service';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Auth, Require } from '../../auth/roles.decorator';
+import { HeaderAuthGuard } from '../../auth/header-auth.guard';
+import { PrismaService } from '../../prisma/prisma.service';
 import {
   SKR03_DEFAULTS,
   resolveDatevAccounts,
@@ -15,7 +17,10 @@ import { Request } from 'express';
 
 @Controller('companies')
 export class CompanyController {
-  constructor(private companyService: CompanyService) {}
+  constructor(
+    private companyService: CompanyService,
+    private prisma: PrismaService,
+  ) {}
 
   @Auth()
   @Get(':id')
@@ -188,6 +193,127 @@ export class CompanyController {
     }
   }
 
+  /**
+   * Tier 94: Feature flags for the per-company
+   * auto-posting + report opt-in toggles. Both
+   * flags live on Company.settings (JSONB) and
+   * default to OFF/ON respectively:
+   *
+   *   - autoBookAfa: default = true. The
+   *     AfaAutoBookerScheduler (tier 91) reads
+   *     this on every company to decide whether
+   *     to book the previous month. Set to false
+   *     to opt out (the user does the AfA booking
+   *     manually).
+   *
+   *   - anlageV: default = false. The Berater
+   *     packager (tier 85) reads this to decide
+   *     whether to include 03_Anlage-V.pdf in
+   *     the year-end ZIP. Set to true to force
+   *     inclusion (for landlords without
+   *     building assets in the Anlagenverzeichnis).
+   *
+   * The endpoint is exposed via PATCH (not PUT)
+   * because the flags are independent — the
+   * client can send either or both.
+   */
+  @Auth()
+  @Require('company.update')
+  @Patch(':id/feature-flags')
+  async updateFeatureFlags(
+    @Param('id') id: string,
+    @Body() body: { autoBookAfa?: boolean; anlageV?: boolean },
+    @Req() req: any,
+  ) {
+    if (body.autoBookAfa !== undefined && typeof body.autoBookAfa !== 'boolean') {
+      throw new BadRequestException('autoBookAfa muss ein Boolean sein')
+    }
+    if (body.anlageV !== undefined && typeof body.anlageV !== 'boolean') {
+      throw new BadRequestException('anlageV muss ein Boolean sein')
+    }
+    const company = await this.companyService.findById(id)
+    if (!company) {
+      throw new BadRequestException('Firma nicht gefunden')
+    }
+    const settings = ((company as any)?.settings ?? {}) as Record<string, unknown>
+    const prev = {
+      autoBookAfa: settings.autoBookAfa !== false,
+      anlageV: settings.anlageV === true,
+    }
+    const next: Record<string, unknown> = { ...settings }
+    if (body.autoBookAfa !== undefined) next.autoBookAfa = body.autoBookAfa
+    if (body.anlageV !== undefined) next.anlageV = body.anlageV
+
+    await this.companyService.update(id, { settings: next } as any)
+
+    // Audit log: who flipped the flag, when, and
+    // what the previous value was. The Berater
+    // can see "on 2026-07-24, Mavis turned off
+    // autoBookAfa (was true)" in the audit
+    // trail. The userId is in req.user via
+    // HeaderAuthGuard.
+    const userId = req?.user?.id || null
+    try {
+      await this.prisma.auditLog.create({
+        data: {
+          companyId: id,
+          userId,
+          action: 'company.feature_flags.updated',
+          entityType: 'Company',
+          entityId: id,
+          oldData: prev as any,
+          newData: {
+            autoBookAfa: body.autoBookAfa,
+            anlageV: body.anlageV,
+          } as any,
+          ipAddress: null,
+          userAgent: 'de-invoice:CompanyController.updateFeatureFlags',
+        },
+      })
+    } catch (err) {
+      // Audit log failure should not block the
+      // flag change — log + continue.
+      console.warn(`feature-flags audit log write failed: ${(err as Error).message}`)
+    }
+
+    return {
+      autoBookAfa: body.autoBookAfa !== undefined ? body.autoBookAfa : prev.autoBookAfa,
+      anlageV: body.anlageV !== undefined ? body.anlageV : prev.anlageV,
+    }
+  }
+
+  /**
+   * Tier 94: Read the current feature flags for
+   * the company. Returns the effective value
+   * (defaulting to true for autoBookAfa and
+   * false for anlageV if the settings key is
+   * missing) plus a "next auto-booker run" hint
+   * for the UI. The hint is computed from the
+   * same cron string (5 0 1 * *, Europe/Berlin)
+   * the scheduler uses; the value is a future
+   * ISO timestamp at the start of next month.
+   */
+  @Auth()
+  @Get(':id/feature-flags')
+  async getFeatureFlags(@Param('id') id: string) {
+    const company = await this.companyService.findById(id)
+    if (!company) {
+      throw new BadRequestException('Firma nicht gefunden')
+    }
+    const settings = ((company as any)?.settings ?? {}) as Record<string, unknown>
+    return {
+      autoBookAfa: settings.autoBookAfa !== false,
+      anlageV: settings.anlageV === true,
+      // The cron fires at 5 0 1 * * (00:05 on
+      // the 1st of each month, Berlin time).
+      // nextRunAt is the first-of-next-month
+      // at 00:05 Berlin. v1 hint: the UI just
+      // shows the month name. A precise ISO
+      // timestamp would be a +5 LOC addition.
+      nextAutoBookerRun: nextFirstOfMonthBerlin(),
+    }
+  }
+
   @Auth()
   @Post('upload-logo')
   @UseInterceptors(FileInterceptor('file', {
@@ -332,4 +458,37 @@ export class CompanyController {
     await this.companyService.update(companyId, { logoPath: null });
     return { ok: true, logoPath: null };
   }
+}
+
+/**
+ * Tier 94: compute the next "1st of next month
+ * at 00:05 Europe/Berlin" timestamp. v1 hint for
+ * the UI to show "Nächster Auto-AfA-Lauf: 01.08.2026".
+ *
+ * v1 simplification: returns the 1st of NEXT
+ * month in UTC. The actual cron runs at 5 0 1
+ * * * in Berlin time, which is 23:05 UTC the
+ * day before during CEST and 22:05 UTC the
+ * day before during CET. The 1-day-early UTC
+ * representation is close enough for the UI
+ * display — the user just wants to know
+ * "the auto-booker runs on the 1st of each
+ * month".
+ */
+function nextFirstOfMonthBerlin(): string {
+  const now = new Date()
+  const year = now.getUTCFullYear()
+  const month = now.getUTCMonth()
+  // 1st of NEXT month. If we're in December,
+  // next month = January of year+1.
+  const nextYear = month === 11 ? year + 1 : year
+  const nextMonth = (month + 1) % 12
+  // 00:05 UTC on the 1st. (The actual cron
+  // runs at 00:05 Berlin, which is 23:05 UTC
+  // the prior day during CEST and 22:05 UTC
+  // during CET. Returning 00:05 UTC on the
+  // 1st is a 1-2 hour approximation — fine
+  // for a UI hint.)
+  const d = new Date(Date.UTC(nextYear, nextMonth, 1, 0, 5, 0, 0))
+  return d.toISOString()
 }

@@ -2392,5 +2392,24 @@
     "source": "Quelle",
     "status": "Status",
     "mappingTable": "Mapping-Tabelle (BMF → de-invoice)"
+  },
+  "featureFlags": {
+    "title": "Funktions-Flags",
+    "subtitle": "Pro-Firma-Schalter für Auto-Buchungen und Berater-Packager. Änderungen werden im Audit-Log protokolliert.",
+    "save": "Speichern",
+    "reset": "Zurücksetzen",
+    "unsaved": "Ungespeicherte Änderungen",
+    "noChanges": "Keine Änderungen zum Speichern.",
+    "savedOk": "Einstellungen gespeichert.",
+    "autoBookAfa": {
+      "label": "AfA automatisch buchen",
+      "description": "Der Auto-AfA-Scheduler bucht am 1. jeden Monats die AfA des Vormonats für alle Sachanlagen dieser Firma. Deaktivieren, wenn Sie die AfA-Buchung manuell vornehmen möchten.",
+      "nextRunLabel": "Nächster Lauf:"
+    },
+    "anlageV": {
+      "label": "Anlage V im Berater-Paket einschließen",
+      "description": "Erzwingt die Aufnahme der Anlage V (Vermietung und Verpachtung, § 21 EStG) im year-end Berater-Paket ZIP. Standardmäßig nur enthalten, wenn die Firma Gebäude-Assets im Anlagenverzeichnis hat.",
+      "effectLabel": "Wirkt auf: 03_Anlage-V.pdf im Berater-Paket"
+    }
   }
 }
