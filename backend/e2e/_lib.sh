@@ -186,6 +186,35 @@ summary() {
   fi
 }
 
+# skip_if — skip the rest of the test if a
+# precondition is not met. Use for tests that
+# depend on dev DB state (e.g. "there exists
+# an overdue invoice"). The skip is logged
+# prominently so the absence of test signal
+# is visible in CI output.
+#
+# Usage:
+#   skip_if "no high-amount invoice for ratenplan test" \
+#           "test -n \"$HIGH_INV\""
+#   # OR a SQL pre-check:
+#   skip_if "no SH Leder customer" \
+#           "docker exec ... | grep -q SH Leder"
+#
+# The check is a bash command string. If it
+# succeeds (exit 0), the test continues
+# normally. If it fails, the test prints the
+# reason and exits 0 (skip = no test failure).
+SKIP_REASON=""
+skip_if() {
+  local reason="$1"
+  local check="$2"
+  if ! bash -c "$check" 2>/dev/null; then
+    echo -e "\n${YELLOW}⏭ SKIPPED${NC}: $reason"
+    echo "  (precondition failed: $check)"
+    exit 0
+  fi
+}
+
 # pdf_contains — checks if a string appears anywhere in the
 # decoded text of a PDF. PDF content streams are FlateDecode
 # compressed and the text inside is hex-encoded inside `TJ`

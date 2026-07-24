@@ -120,11 +120,16 @@ test.describe("Anlage EÜR — /dashboard/accounting", () => {
     // The total is just "Gewinn: X €" or "Verlust: X €"
     // — abs() the value to compare absolute amounts.
     const total = parseEur(totalText)
-    // Read the two tables' totals from the
-    // section headers ("Einnahmen (+X €)" and
-    // "Ausgaben (−X €)").
-    const einnahmenText = (await page.locator("h3").filter({ hasText: /Einnahmen|Betriebseinnahmen/ }).textContent()) || ""
-    const ausgabenText = (await page.locator("h3").filter({ hasText: /Ausgaben|Betriebsausgaben/ }).textContent()) || ""
+    // Scope h3 lookups to the euer-section so
+    // other Anlage forms on /dashboard/accounting
+    // (Anlage S, Anlage V, BWA, etc.) don't
+    // confuse the parser. v1 flake fix: the
+    // page-wide h3 query returned the FIRST
+    // h3 on the page which was the wrong one
+    // after tier 92+ added more sections.
+    const euerSection = page.getByTestId("euer-section")
+    const einnahmenText = (await euerSection.locator("h3").filter({ hasText: /Einnahmen|Betriebseinnahmen/ }).textContent()) || ""
+    const ausgabenText = (await euerSection.locator("h3").filter({ hasText: /Ausgaben|Betriebsausgaben/ }).textContent()) || ""
     const einn = parseEur(einnahmenText)
     const ausg = parseEur(ausgabenText)
     const expectedGewinn = Math.abs(einn - ausg)
