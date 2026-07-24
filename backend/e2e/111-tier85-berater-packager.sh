@@ -1,21 +1,27 @@
 #!/usr/bin/env bash
-# e2e 111: Tier 85 — Anlage Steuererklärung packager.
+# e2e 111: Tier 85 + 92 + 95 — Anlage Steuererklärung packager.
 #
 # Validates /api/v1/accounting/berater-packager:
 # the streaming ZIP endpoint that bundles every
-# VORSCHAU report (EÜR + Anlage S + Bilanz + G+V
-# + Anhang + Anlagenverzeichnis CSV + MANIFEST.md)
-# for the Berater's year-end review.
+# VORSCHAU report (EÜR + Anlage S + [Anlage V
+# conditional] + BWA + Bilanz + G+V + Anhang +
+# Anlagenverzeichnis CSV + MANIFEST.md) for the
+# Berater's year-end review.
+#
+# Tier 92 added Anlage V (optional, between S
+# and BWA). Tier 95 added BWA (always, between
+# Anlage-V slot and Bilanz). Total entries:
+# 8 without Anlage V, 9 with Anlage V.
 #
 # Tests:
 #   1. /berater-packager reachable (200) + correct
 #      content-type.
-#   2. ZIP archive has 7 entries (5 PDFs + 1 CSV
-#      + 1 MANIFEST.md).
+#   2. ZIP archive has 8 entries (6 PDFs + 1 CSV
+#      + 1 MANIFEST.md) when no Anlage V.
 #   3. Each PDF has the %PDF magic bytes.
-#   4. 06_Anlagenverzeichnis.csv has the right
+#   4. 07_Anlagenverzeichnis.csv has the right
 #      German semicolon header row.
-#   5. MANIFEST.md is German + lists all 6 file
+#   5. MANIFEST.md is German + lists all 7 file
 #      names + has Stammdaten.
 #   6. Year validation 1999, 2101 → 400.
 #   7. Cross-tenant → 401.
@@ -49,24 +55,27 @@ assert_eq "application/zip content-type" "$CT" "application/zip"
 MAGIC=$(head -c 4 "$ZIP_PATH" | od -An -tx1 | tr -d ' \n')
 assert_eq "ZIP magic bytes (50 4b 03 04)" "$MAGIC" "504b0304"
 
-# ── 2. ZIP has 7 entries ──
+# ── 2. ZIP has 8 entries (no Anlage V) ──
 echo
-note "=== 2. ZIP has 7 entries ==="
+note "=== 2. ZIP has 8 entries (tier 95: +1 BWA PDF) ==="
 # unzip -l output: 3 header lines (Archive, Length, ---)
 # + N entry lines + 2 footer lines (--- + "N files").
 # We grep only the entry lines by requiring a
 # leading length (digit) AND a date in column 3.
 ENTRY_COUNT=$(unzip -l "$ZIP_PATH" | awk '/^[ ]+[0-9]+[ ]+[0-9]{2}-[0-9]{2}-[0-9]{4}/' | wc -l | tr -d ' ')
-assert_eq "7 entries in ZIP" "$ENTRY_COUNT" "7"
+assert_eq "8 entries in ZIP" "$ENTRY_COUNT" "8"
 
-# Verify the file names
+# Verify the file names (no Anlage V — default
+# for SH Leder which has no building assets
+# and no opt-in flag).
 EXPECTED_FILES=(
   "01_Anlage-EUR.pdf"
   "02_Anlage-S.pdf"
-  "03_Bilanz.pdf"
-  "04_Gewinn-und-Verlustrechnung.pdf"
-  "05_Anhang.pdf"
-  "06_Anlagenverzeichnis.csv"
+  "03_BWA.pdf"
+  "04_Bilanz.pdf"
+  "05_Gewinn-und-Verlustrechnung.pdf"
+  "06_Anhang.pdf"
+  "07_Anlagenverzeichnis.csv"
   "MANIFEST.md"
 )
 for fname in "${EXPECTED_FILES[@]}"; do
@@ -79,16 +88,16 @@ done
 
 # ── 3. Each PDF has %PDF magic ──
 echo
-note "=== 3. All 5 PDFs have %PDF magic bytes ==="
-for fname in 01_Anlage-EUR.pdf 02_Anlage-S.pdf 03_Bilanz.pdf 04_Gewinn-und-Verlustrechnung.pdf 05_Anhang.pdf; do
+note "=== 3. All 6 PDFs have %PDF magic bytes ==="
+for fname in 01_Anlage-EUR.pdf 02_Anlage-S.pdf 03_BWA.pdf 04_Bilanz.pdf 05_Gewinn-und-Verlustrechnung.pdf 06_Anhang.pdf; do
   MAGIC=$(unzip -p "$ZIP_PATH" "$fname" | head -c 4 | od -An -tx1 | tr -d ' \n')
   assert_eq "  $fname PDF magic" "$MAGIC" "25504446"
 done
 
 # ── 4. Anlagenverzeichnis CSV header ──
 echo
-note "=== 4. 06_Anlagenverzeichnis.csv has correct German semicolon header ==="
-CSV_HEADER=$(unzip -p "$ZIP_PATH" 06_Anlagenverzeichnis.csv | head -2 | tail -1)
+note "=== 4. 07_Anlagenverzeichnis.csv has correct German semicolon header ==="
+CSV_HEADER=$(unzip -p "$ZIP_PATH" 07_Anlagenverzeichnis.csv | head -2 | tail -1)
 if echo "$CSV_HEADER" | grep -q "AHK"; then
   assert_eq "  CSV header has AHK column" "yes" "yes"
 else
@@ -105,9 +114,9 @@ else
   assert_eq "  CSV uses German semicolon separator" "yes" "no semicolon"
 fi
 
-# ── 5. MANIFEST.md is German + lists all 6 files + has Stammdaten ──
+# ── 5. MANIFEST.md is German + lists all 7 files + has Stammdaten ──
 echo
-note "=== 5. MANIFEST.md is German + complete ==="
+note "=== 5. MANIFEST.md is German + complete (tier 95: +BWA row) ==="
 MANIFEST=$(unzip -p "$ZIP_PATH" MANIFEST.md)
 if echo "$MANIFEST" | grep -q "Berater-Paket"; then
   assert_eq "  MANIFEST title 'Berater-Paket'" "yes" "yes"

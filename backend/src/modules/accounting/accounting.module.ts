@@ -26,9 +26,16 @@ import { WebhookModule } from '../webhook/webhook.module';
 // Anlagevermögen (0100-0500) + Abschreibungen
 // (7a) positions on the HGB reports.
 import { AssetsModule } from '../assets/assets.module';
+// Tier 95: ReportsModule provides the BwaService
+// that the BeraterPackagerService uses to render
+// the BWA PDF in the year-end ZIP. The BWA is
+// the monthly operating report; we render
+// the December version for the year-end packager
+// (Berater can see the full-year summary).
+import { ReportsModule } from '../reports/reports.module';
 
 @Module({
-  imports: [PrismaModule, StorageModule, WebhookModule, AssetsModule],
+  imports: [PrismaModule, StorageModule, WebhookModule, AssetsModule, ReportsModule],
   controllers: [AccountingController, VoucherTemplateController, JournalController],
   providers: [AccountService, VoucherService, VoucherTemplateService, JournalService, EuerService, AnlageSService, AnlageVService, BilanzService, GuVService, AnhangService, BeraterPackagerService, EBilanzService, GobdArchiveService],
   exports: [AccountService, VoucherService, VoucherTemplateService, JournalService, EuerService, AnlageSService, AnlageVService, BilanzService, GuVService, AnhangService, BeraterPackagerService, EBilanzService, GobdArchiveService],

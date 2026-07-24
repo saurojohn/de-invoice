@@ -8,6 +8,9 @@ import { BilanzService } from './bilanz.service'
 import { GuVService } from './guv.service'
 import { AnhangService } from './anhang.service'
 import { AssetsService } from '../assets/assets.service'
+// Tier 95: BwaService for the year-end BWA
+// (Betriebswirtschaftliche Auswertung) PDF.
+import { BwaService } from '../reports/bwa.service'
 import { Response } from 'express'
 import { PassThrough } from 'stream'
 import * as archiver from 'archiver'
@@ -22,10 +25,11 @@ import * as archiver from 'archiver'
  *   01_Anlage-EUR.pdf            (tier 76)
  *   02_Anlage-S.pdf              (tier 80)
  *   03_Anlage-V.pdf              (tier 92, optional)
- *   04_Bilanz.pdf                (tier 81)
- *   05_Gewinn-und-Verlustrechnung.pdf   (tier 82)
- *   06_Anhang.pdf                (tier 84)
- *   07_Anlagenverzeichnis.csv    (tier 83)
+ *   04_BWA.pdf                   (tier 95, December)
+ *   05_Bilanz.pdf                (tier 81)
+ *   06_Gewinn-und-Verlustrechnung.pdf   (tier 82)
+ *   07_Anhang.pdf                (tier 84)
+ *   08_Anlagenverzeichnis.csv    (tier 83)
  *   MANIFEST.md                  (this file)
  *
  * The packager reuses the existing PDF
@@ -41,6 +45,19 @@ import * as archiver from 'archiver'
  * (b) at least one building asset
  * (Grundstueck/Gebaeude). Otherwise the PDF
  * would just show 0s and confuse the Berater.
+ *
+ * Tier 95: BWA is always included. We render
+ * the December BWA (full year summary) — the
+ * Berater can see the full-year operating
+ * result alongside the Bilanz + G+V + Anhang
+ * in the year-end ZIP. The BWA's 14 lines
+ * (tier 93) include the new Raumkosten /
+ * Versicherungen / Werbung / Instandhaltung /
+ * Zinserträge / Steuern buckets so the
+ * Berater sees the same granular breakdown
+ * they'd get from a real DATEV BWA.
+ *
+ * v2 work (not in scope):
  *
  * Why PassThrough: each report's renderPdf
  * does `res.setHeader(...)` + `doc.pipe(res) +
@@ -81,6 +98,8 @@ export class BeraterPackagerService {
     private guv: GuVService,
     private anhang: AnhangService,
     private assets: AssetsService,
+    // Tier 95: BWA service for the year-end BWA PDF.
+    private bwa: BwaService,
   ) {}
 
   /**
@@ -116,10 +135,16 @@ export class BeraterPackagerService {
     })
     archive.pipe(res)
 
-    // Generate all 5 core PDFs in parallel
-    // via renderToBuffer (PassThrough
-    // fake-Response captures the PDFKit
-    // output for each service's renderPdf).
+    // Generate all 5 core PDFs + the BWA in
+    // parallel via renderToBuffer (PassThrough
+    // fake-Response captures the PDFKit output
+    // for each service's renderPdf).
+    //
+    // Tier 95: BWA is rendered for the December
+    // BWA (month=12) — the full-year summary the
+    // Berater wants to see alongside Bilanz +
+    // G+V at year-end. The earlier months are
+    // available via the regular /bwa endpoint.
     const yearEndSnapshot = new Date(year, 11, 31, 23, 59, 59, 999)
     const [
       euerPdf,
@@ -127,6 +152,7 @@ export class BeraterPackagerService {
       bilanzPdf,
       guvPdf,
       anhangPdf,
+      bwaPdf,
       assetList,
     ] = await Promise.all([
       this.renderToBuffer((sink) => this.euer.renderPdf(companyId, year, sink)),
@@ -134,6 +160,10 @@ export class BeraterPackagerService {
       this.renderToBuffer((sink) => this.bilanz.renderPdf(companyId, year, sink)),
       this.renderToBuffer((sink) => this.guv.renderPdf(companyId, year, sink)),
       this.renderToBuffer((sink) => this.anhang.renderPdf(companyId, year, sink)),
+      // Tier 95: BWA for December (full year).
+      this.renderToBuffer((sink) =>
+        this.bwa.renderPdf(companyId, year, 12, sink),
+      ),
       this.prisma.asset.findMany({
         where: {
           companyId,
@@ -161,9 +191,12 @@ export class BeraterPackagerService {
     // Append each PDF (numbered so the
     // Berater can sort them in their
     // filing system). Anlage V slot is
-    // reserved between Anlage S and Bilanz
-    // — the Berater expects "S → V → Bilanz"
-    // ordering for typical filings.
+    // reserved between Anlage S and BWA
+    // — the Berater expects "S → V → BWA"
+    // ordering for typical filings. BWA
+    // sits between V and Bilanz because
+    // it's the bridge between the Anlage
+    // forms and the HGB reports.
     archive.append(euerPdf, { name: '01_Anlage-EUR.pdf' })
     archive.append(anlageSPdf, { name: '02_Anlage-S.pdf' })
 
@@ -172,6 +205,7 @@ export class BeraterPackagerService {
       euer: string
       anlageS: string
       anlageV?: string
+      bwa: string
       bilanz: string
       guv: string
       anhang: string
@@ -179,10 +213,11 @@ export class BeraterPackagerService {
     } = {
       euer: '01_Anlage-EUR.pdf',
       anlageS: '02_Anlage-S.pdf',
-      bilanz: includeAnlageV ? '04_Bilanz.pdf' : '03_Bilanz.pdf',
-      guv: includeAnlageV ? '05_Gewinn-und-Verlustrechnung.pdf' : '04_Gewinn-und-Verlustrechnung.pdf',
-      anhang: includeAnlageV ? '06_Anhang.pdf' : '05_Anhang.pdf',
-      assetCsv: includeAnlageV ? '07_Anlagenverzeichnis.csv' : '06_Anlagenverzeichnis.csv',
+      bwa: includeAnlageV ? '04_BWA.pdf' : '03_BWA.pdf',
+      bilanz: includeAnlageV ? '05_Bilanz.pdf' : '04_Bilanz.pdf',
+      guv: includeAnlageV ? '06_Gewinn-und-Verlustrechnung.pdf' : '05_Gewinn-und-Verlustrechnung.pdf',
+      anhang: includeAnlageV ? '07_Anhang.pdf' : '06_Anhang.pdf',
+      assetCsv: includeAnlageV ? '08_Anlagenverzeichnis.csv' : '07_Anlagenverzeichnis.csv',
     }
     if (includeAnlageV) {
       const anlageVPdf = await this.renderToBuffer((sink) =>
@@ -191,6 +226,12 @@ export class BeraterPackagerService {
       archive.append(anlageVPdf, { name: '03_Anlage-V.pdf' })
       files.anlageV = '03_Anlage-V.pdf'
     }
+
+    // Tier 95: BWA (always included — full-year
+    // summary that complements the HGB
+    // reports). The 14-line breakdown
+    // (tier 93) is included in the PDF.
+    archive.append(bwaPdf, { name: files.bwa })
 
     archive.append(bilanzPdf, { name: files.bilanz })
     archive.append(guvPdf, { name: files.guv })
@@ -362,11 +403,17 @@ export class BeraterPackagerService {
    * only included when the company has
    * building assets (Vermietung use case)
    * OR `settings.anlageV === true`.
+   *
+   * Tier 95: BWA is always included as a
+   * December (full-year) PDF. The 14-line
+   * breakdown gives the Berater the same
+   * granular view they'd get from a real
+   * DATEV BWA.
    */
   private buildManifest(
     company: { name: string; legalName: string | null; taxId: string | null; vatId: string | null },
     year: number,
-    files: { euer: string; anlageS: string; anlageV?: string; bilanz: string; guv: string; anhang: string; assetCsv: string },
+    files: { euer: string; anlageS: string; anlageV?: string; bwa: string; bilanz: string; guv: string; anhang: string; assetCsv: string },
   ): string {
     const lines: string[] = []
     lines.push(`# Berater-Paket ${year} — ${company.legalName || company.name}`)
@@ -387,6 +434,7 @@ export class BeraterPackagerService {
     if (files.anlageV) {
       lines.push(`| \`${files.anlageV}\` | Anlage V (Einkünfte aus Vermietung und Verpachtung) gem. § 21 EStG — Vorschau. Für Vermieter. Nur enthalten, wenn die Gesellschaft Mietobjekte (Grundstücke / Gebäude) im Anlagenverzeichnis führt. |`)
     }
+    lines.push(`| \`${files.bwa}\` | BWA (Betriebswirtschaftliche Auswertung) gem. DATEV-Standard — Vorschau für Dezember ${year} (Jahressumme). 14 DATEV-Bucket-Codes: Umsatzerlöse / 4 Betriebliche Aufwands-Unterkategorien / Sonstige / Zinserträge (0 in v1) / Zinsaufwendungen / 2 Steuer-Buckets. Jahresergebnis = Betriebsergebnis + Finanzergebnis - Steuern. |`)
     lines.push(`| \`${files.bilanz}\` | Bilanz gem. § 266 HGB (Aktiva / Passiva) — Vorschau. Stichtag 31.12.${year}. |`)
     lines.push(`| \`${files.guv}\` | Gewinn- und Verlustrechnung gem. § 275 Abs. 2 HGB (Gesamtkostenverfahren) — Vorschau. |`)
     lines.push(`| \`${files.anhang}\` | Anhang zum Jahresabschluss gem. § 284 / § 285 HGB — Vorschau. Bilanzierungs- und Bewertungsmethoden + Pflichtangaben. |`)
