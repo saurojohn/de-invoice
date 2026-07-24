@@ -12,6 +12,12 @@ import { AnlageSService } from './anlage-s.service';
 // Tier 92: Anlage V (Vermietung und Verpachtung,
 // § 21 EStG). Mirrors the AnlageSService pattern.
 import { AnlageVService } from './anlage-v.service';
+// Tier 98: Anlage KAP (Kapitalerträge, § 20
+// EStG). Sibling of Anlage S + V — covers
+// investment income (Zinsen, Dividenden,
+// Veräußerungsgewinne). v1 heuristic:
+// bank transaction purpose regex.
+import { AnlageKAPService } from './anlage-kap.service';
 import { BilanzService } from './bilanz.service';
 import { GuVService } from './guv.service';
 import { AnhangService } from './anhang.service';
@@ -37,7 +43,7 @@ import { ReportsModule } from '../reports/reports.module';
 @Module({
   imports: [PrismaModule, StorageModule, WebhookModule, AssetsModule, ReportsModule],
   controllers: [AccountingController, VoucherTemplateController, JournalController],
-  providers: [AccountService, VoucherService, VoucherTemplateService, JournalService, EuerService, AnlageSService, AnlageVService, BilanzService, GuVService, AnhangService, BeraterPackagerService, EBilanzService, GobdArchiveService],
-  exports: [AccountService, VoucherService, VoucherTemplateService, JournalService, EuerService, AnlageSService, AnlageVService, BilanzService, GuVService, AnhangService, BeraterPackagerService, EBilanzService, GobdArchiveService],
+  providers: [AccountService, VoucherService, VoucherTemplateService, JournalService, EuerService, AnlageSService, AnlageVService, AnlageKAPService, BilanzService, GuVService, AnhangService, BeraterPackagerService, EBilanzService, GobdArchiveService],
+  exports: [AccountService, VoucherService, VoucherTemplateService, JournalService, EuerService, AnlageSService, AnlageVService, AnlageKAPService, BilanzService, GuVService, AnhangService, BeraterPackagerService, EBilanzService, GobdArchiveService],
 })
 export class AccountingModule {}

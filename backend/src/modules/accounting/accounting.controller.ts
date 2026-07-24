@@ -7,6 +7,9 @@ import { EuerService } from './euer.service';
 import { AnlageSService } from './anlage-s.service';
 // Tier 92: Anlage V (Vermietung und Verpachtung).
 import { AnlageVService } from './anlage-v.service';
+// Tier 98: Anlage KAP (Kapitalerträge,
+// § 20 EStG). Sibling of Anlage S / V.
+import { AnlageKAPService } from './anlage-kap.service';
 import { BilanzService } from './bilanz.service';
 import { GuVService } from './guv.service';
 import { AnhangService } from './anhang.service';
@@ -24,6 +27,9 @@ export class AccountingController {
     private euer: EuerService,
     private anlageS: AnlageSService,
     private anlageV: AnlageVService,
+    // Tier 98: Anlage KAP (Kapitalerträge,
+    // § 20 EStG) — sibling of Anlage S / V.
+    private anlageKAP: AnlageKAPService,
     private bilanz: BilanzService,
     private guv: GuVService,
     private anhang: AnhangService,
@@ -555,6 +561,61 @@ export class AccountingController {
       throw new BadRequestException('year ist ungültig')
     }
     await this.anlageV.renderPdf(companyId, year, res)
+  }
+
+  // =============================================================
+  // Tier 98 — Anlage KAP (Kapitalerträge, § 20 EStG)
+  // =============================================================
+  //
+  // The German tax filing for investment
+  // income: a year-end attachment to the
+  // Einkommensteuererklärung. Pairs with Anlage
+  // S (freelancer) and Anlage V (Vermietung).
+  // The 25% Abgeltungssteuer is normally
+  // deducted at source by the bank / depot —
+  // the Anlage KAP declares the gross + the
+  // Sparer-Pauschbetrag (1000 EUR) so the
+  // Finanzamt can apply the allowance.
+  //
+  // v1 heuristic: bank transactions with
+  // "Zins" / "Dividende" / "Ausschüttung" in
+  // the purpose field are tentatively classified
+  // as Kapitalerträge. The user adjusts in
+  // their ELSTER submission.
+  @Get('anlage-kap')
+  @UseGuards(HeaderAuthGuard)
+  async getAnlageKAP(
+    @Query('companyId') companyId: string,
+    @Query('year') yearRaw?: string,
+  ) {
+    if (!companyId)
+      throw new BadRequestException('companyId ist erforderlich')
+    const year = yearRaw
+      ? Number(yearRaw)
+      : new Date().getFullYear() - 1
+    if (!Number.isFinite(year) || year < 2000 || year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+    return this.anlageKAP.compute(companyId, year)
+  }
+
+  @Get('anlage-kap.pdf')
+  @UseGuards(HeaderAuthGuard)
+  @Header('Content-Type', 'application/pdf')
+  async getAnlageKAPPdf(
+    @Res() res: Response,
+    @Query('companyId') companyId: string,
+    @Query('year') yearRaw?: string,
+  ) {
+    if (!companyId)
+      throw new BadRequestException('companyId ist erforderlich')
+    const year = yearRaw
+      ? Number(yearRaw)
+      : new Date().getFullYear() - 1
+    if (!Number.isFinite(year) || year < 2000 || year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+    await this.anlageKAP.renderPdf(companyId, year, res)
   }
 
   /**

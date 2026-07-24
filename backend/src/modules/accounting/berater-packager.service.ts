@@ -4,6 +4,9 @@ import { EuerService } from './euer.service'
 import { AnlageSService } from './anlage-s.service'
 // Tier 92: Anlage V (Vermietung und Verpachtung).
 import { AnlageVService } from './anlage-v.service'
+// Tier 98: Anlage KAP (Kapitalerträge,
+// § 20 EStG) — sibling of Anlage S / V.
+import { AnlageKAPService } from './anlage-kap.service'
 import { BilanzService } from './bilanz.service'
 import { GuVService } from './guv.service'
 import { AnhangService } from './anhang.service'
@@ -94,6 +97,8 @@ export class BeraterPackagerService {
     private euer: EuerService,
     private anlageS: AnlageSService,
     private anlageV: AnlageVService,
+    // Tier 98: Anlage KAP service.
+    private anlageKAP: AnlageKAPService,
     private bilanz: BilanzService,
     private guv: GuVService,
     private anhang: AnhangService,
@@ -188,6 +193,32 @@ export class BeraterPackagerService {
     const anlageVOptIn = settings.anlageV === true
     const includeAnlageV = hasBuildingAssets || anlageVOptIn
 
+    // Tier 98: Anlage KAP is conditional on
+    // (a) the opt-in flag in settings OR
+    // (b) at least one bank transaction in
+    // the year that matches a Zinsertrag /
+    // Dividende heuristic. An always-0 Anlage
+    // KAP PDF would mislead the Berater —
+    // looks like missing data, not "this
+    // company has no investment income".
+    const anlageKAPOptIn = settings.anlageKAP === true
+    const yearStartSnapshot = new Date(year, 0, 1)
+    const bankTxInYear = await this.prisma.bankTransaction.findMany({
+      where: {
+        companyId,
+        valueDate: { gte: yearStartSnapshot, lte: yearEndSnapshot },
+      },
+      select: { amount: true, purpose: true, counterpartyIban: true },
+    })
+    const matchedKapTxs = bankTxInYear.filter(
+      (tx) =>
+        Number(tx.amount) > 0 &&
+        /Zins(en)?|Habenzins|Gutschriftszins|Dividende|Ausschüttung/i.test(
+          tx.purpose || '',
+        ),
+    )
+    const includeAnlageKAP = anlageKAPOptIn || matchedKapTxs.length > 0
+
     // Append each PDF (numbered so the
     // Berater can sort them in their
     // filing system). Anlage V slot is
@@ -196,15 +227,26 @@ export class BeraterPackagerService {
     // ordering for typical filings. BWA
     // sits between V and Bilanz because
     // it's the bridge between the Anlage
-    // forms and the HGB reports.
+    // forms and the HGB reports. Anlage
+    // KAP (tier 98) sits AFTER V — capital
+    // income is a separate Einkunftsart
+    // from rental income, so filing order
+    // is S → V → KAP → BWA.
     archive.append(euerPdf, { name: '01_Anlage-EUR.pdf' })
     archive.append(anlageSPdf, { name: '02_Anlage-S.pdf' })
 
     // Tier 92: Anlage V (optional).
+    // Tier 98: Anlage KAP (optional).
+    // The 4-way conditional shifts all
+    // subsequent file numbers: V absent +
+    // KAP present = 03_KAP. V present + KAP
+    // absent = 03_V. Both present = 03_V +
+    // 04_KAP. Both absent = BWA stays at 03.
     const files: {
       euer: string
       anlageS: string
       anlageV?: string
+      anlageKAP?: string
       bwa: string
       bilanz: string
       guv: string
@@ -213,11 +255,11 @@ export class BeraterPackagerService {
     } = {
       euer: '01_Anlage-EUR.pdf',
       anlageS: '02_Anlage-S.pdf',
-      bwa: includeAnlageV ? '04_BWA.pdf' : '03_BWA.pdf',
-      bilanz: includeAnlageV ? '05_Bilanz.pdf' : '04_Bilanz.pdf',
-      guv: includeAnlageV ? '06_Gewinn-und-Verlustrechnung.pdf' : '05_Gewinn-und-Verlustrechnung.pdf',
-      anhang: includeAnlageV ? '07_Anhang.pdf' : '06_Anhang.pdf',
-      assetCsv: includeAnlageV ? '08_Anlagenverzeichnis.csv' : '07_Anlagenverzeichnis.csv',
+      bwa: '00_BWA.pdf', // will be re-set below
+      bilanz: '00_Bilanz.pdf', // will be re-set below
+      guv: '00_Gewinn-und-Verlustrechnung.pdf',
+      anhang: '00_Anhang.pdf',
+      assetCsv: '00_Anlagenverzeichnis.csv',
     }
     if (includeAnlageV) {
       const anlageVPdf = await this.renderToBuffer((sink) =>
@@ -226,6 +268,32 @@ export class BeraterPackagerService {
       archive.append(anlageVPdf, { name: '03_Anlage-V.pdf' })
       files.anlageV = '03_Anlage-V.pdf'
     }
+    if (includeAnlageKAP) {
+      const anlageKAPPdf = await this.renderToBuffer((sink) =>
+        this.anlageKAP.renderPdf(companyId, year, sink),
+      )
+      const kapNum = includeAnlageV ? '04' : '03'
+      const kapName = `${kapNum}_Anlage-KAP.pdf`
+      archive.append(anlageKAPPdf, { name: kapName })
+      files.anlageKAP = kapName
+    }
+    // Compute the position of BWA, Bilanz,
+    // G+V, Anhang, Anlagenverzeichnis based
+    // on which optional Anlage forms are
+    // included. Each optional form pushes
+    // the subsequent files down by 1.
+    const trailingOffset =
+      (includeAnlageV ? 1 : 0) + (includeAnlageKAP ? 1 : 0)
+    const bwaNum = String(3 + trailingOffset).padStart(2, '0')
+    const bilanzNum = String(4 + trailingOffset).padStart(2, '0')
+    const guvNum = String(5 + trailingOffset).padStart(2, '0')
+    const anhangNum = String(6 + trailingOffset).padStart(2, '0')
+    const assetCsvNum = String(7 + trailingOffset).padStart(2, '0')
+    files.bwa = `${bwaNum}_BWA.pdf`
+    files.bilanz = `${bilanzNum}_Bilanz.pdf`
+    files.guv = `${guvNum}_Gewinn-und-Verlustrechnung.pdf`
+    files.anhang = `${anhangNum}_Anhang.pdf`
+    files.assetCsv = `${assetCsvNum}_Anlagenverzeichnis.csv`
 
     // Tier 95: BWA (always included — full-year
     // summary that complements the HGB
@@ -413,7 +481,7 @@ export class BeraterPackagerService {
   private buildManifest(
     company: { name: string; legalName: string | null; taxId: string | null; vatId: string | null },
     year: number,
-    files: { euer: string; anlageS: string; anlageV?: string; bwa: string; bilanz: string; guv: string; anhang: string; assetCsv: string },
+    files: { euer: string; anlageS: string; anlageV?: string; anlageKAP?: string; bwa: string; bilanz: string; guv: string; anhang: string; assetCsv: string },
   ): string {
     const lines: string[] = []
     lines.push(`# Berater-Paket ${year} — ${company.legalName || company.name}`)
@@ -433,6 +501,9 @@ export class BeraterPackagerService {
     lines.push(`| \`${files.anlageS}\` | Anlage S (Einkünfte aus selbständiger Arbeit) gem. § 18 EStG — Vorschau. Für Selbständige / Freiberufler. |`)
     if (files.anlageV) {
       lines.push(`| \`${files.anlageV}\` | Anlage V (Einkünfte aus Vermietung und Verpachtung) gem. § 21 EStG — Vorschau. Für Vermieter. Nur enthalten, wenn die Gesellschaft Mietobjekte (Grundstücke / Gebäude) im Anlagenverzeichnis führt. |`)
+    }
+    if (files.anlageKAP) {
+      lines.push(`| \`${files.anlageKAP}\` | Anlage KAP (Einkünfte aus Kapitalvermögen) gem. § 20 EStG — Vorschau. Für Privatinvestoren mit Zinserträgen / Dividenden. Nur enthalten, wenn Banktransaktionen als Zins-/Dividendeneingang klassifiziert wurden ODER \`settings.anlageKAP === true\`. Sparer-Pauschbetrag 1.000 EUR (2.000 EUR Zusammenveranlagung) berücksichtigt. 25% Abgeltungssteuer + 5.5% Soli werden erwartet (üblicherweise bereits von der Bank einbehalten). |`)
     }
     lines.push(`| \`${files.bwa}\` | BWA (Betriebswirtschaftliche Auswertung) gem. DATEV-Standard — Vorschau für Dezember ${year} (Jahressumme). 14 DATEV-Bucket-Codes: Umsatzerlöse / 4 Betriebliche Aufwands-Unterkategorien / Sonstige / Zinserträge (0 in v1) / Zinsaufwendungen / 2 Steuer-Buckets. Jahresergebnis = Betriebsergebnis + Finanzergebnis - Steuern. |`)
     lines.push(`| \`${files.bilanz}\` | Bilanz gem. § 266 HGB (Aktiva / Passiva) — Vorschau. Stichtag 31.12.${year}. |`)
