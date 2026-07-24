@@ -59,9 +59,17 @@ echo "  year: $(echo "$DATA" | python3 -c 'import json,sys; print(json.load(sys.
 COUNT_TOTAL=$(echo "$DATA" | python3 -c "import json,sys; print(json.load(sys.stdin)['counts']['total'])")
 COUNT_COMPUTED=$(echo "$DATA" | python3 -c "import json,sys; print(json.load(sys.stdin)['counts']['computed'])")
 COUNT_PLACEHOLDER=$(echo "$DATA" | python3 -c "import json,sys; print(json.load(sys.stdin)['counts']['placeholder'])")
-assert_eq "total positions >= 14" "$COUNT_TOTAL" "20"
-assert_eq "computed positions >= 14" "$COUNT_COMPUTED" "17"
-assert_eq "placeholder positions == 2 (subscribedCapital + manual.placeholder)" "$COUNT_PLACEHOLDER" "2"
+# Tier 97 (v2): the mapping table now has
+# 52 positions spanning Bilanz-Aktiva,
+# Bilanz-Passiva, G+V, Sonstige. The
+# original v1 (tier 88) had 20 positions
+# with 17 computed + 2 placeholder. v2
+# expands the table to cover the BMF GCD
+# 6.7 schema — most new positions are
+# placeholders for the Berater.
+assert_eq "total positions == 52 (tier 97 v2 expansion)" "$COUNT_TOTAL" "52"
+assert_eq "computed positions == 23 (Bilanz + G+V + Anhang computed)" "$COUNT_COMPUTED" "23"
+assert_eq "placeholder positions == 28 (Berater fills in ELSTER)" "$COUNT_PLACEHOLDER" "28"
 
 # ===== 2. /ebilanz.xml valid XML =====
 echo
@@ -145,12 +153,25 @@ assert_eq "Materialaufwand > 0" "$MAT_OK" "True"
 # ===== 6. Trailing comment lists the BMF-placeholder positions =====
 echo
 echo "=== 6. Trailing comment lists placeholder positions ==="
+# Tier 97 (v2): the placeholder block
+# lists all BMF positions the Berater
+# must fill in their ELSTER client. v1
+# had only 2 placeholders (subscribedCapital
+# + manual.placeholder). v2 has 28
+# placeholders — the TODO block now
+# spans Bilanz-Aktiva, Bilanz-Passiva,
+# G+V, Sonstige.
 HAS_SUBSCRIBED=$(echo "$XML" | grep -c "subscribedCapital")
-HAS_MANUAL=$(echo "$XML" | grep -c "manual.placeholder")
+HAS_LAGEBERICHT=$(echo "$XML" | grep -c "de-gcd:genInfo.lagebericht")
 HAS_TODO=$(echo "$XML" | grep -c "TODO (manuell)")
+# Count how many BMF positions the TODO
+# block lists (lines starting with "  - de-gcd:").
+# v1: 2 lines. v2: ~28 lines.
+TODO_LINES=$(echo "$XML" | grep -c "^  - de-gcd:")
 assert_eq "XML mentions subscribedCapital" "$([ "$HAS_SUBSCRIBED" -gt 0 ] && echo true || echo false)" "true"
-assert_eq "XML mentions manual.placeholder" "$([ "$HAS_MANUAL" -gt 0 ] && echo true || echo false)" "true"
+assert_eq "XML mentions lagebericht placeholder" "$([ "$HAS_LAGEBERICHT" -gt 0 ] && echo true || echo false)" "true"
 assert_eq "XML has TODO comment" "$([ "$HAS_TODO" -gt 0 ] && echo true || echo false)" "true"
+assert_eq "TODO block has >= 20 BMF placeholders (v2)" "$([ "$TODO_LINES" -ge 20 ] && echo true || echo false)" "true"
 
 # ===== 7. /ebilanz.pdf =====
 echo

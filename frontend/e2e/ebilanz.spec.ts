@@ -82,17 +82,57 @@ test("year input visible + counts summary renders", async ({ page }) => {
   await expect(page.getByTestId("ebilanz-counts")).toBeVisible({ timeout: 10_000 })
 })
 
-test("mapping table has 4 section groups (Aktiva, Passiva, G+V, Sonstige)", async ({ page }) => {
+test("mapping table has 17 section groups (tier 97 v2 expansion)", async ({ page }) => {
   await injectAuth(page)
   await page.goto("/dashboard/accounting")
   await expect(page.getByTestId("ebilanz-tab")).toBeVisible({ timeout: 30_000 })
   await expect(page.getByTestId("ebilanz-table")).toBeVisible({ timeout: 10_000 })
-  // The 4 section headers should be visible
-  for (const section of ["bilanzAktiva", "bilanzPassiva", "guv", "sonstige"]) {
+  // Tier 97 (v2): the mapping table now has
+  // 17 sub-sections (5 Aktiva + 5 Passiva +
+  // 5 G+V + sonstige), each as a header row
+  // in the ebilanz-table. Tier 88 (v1) had 4
+  // sections only. Test the canonical HGB
+  // § 266 split.
+  for (const section of [
+    "bilanzAktivaAnlage",
+    "bilanzAktivaUmlauf",
+    "bilanzAktivaRap",
+    "bilanzAktivaLatent",
+    "bilanzAktivaSumme",
+    "bilanzPassivaEigenkapital",
+    "bilanzPassivaRueckstellungen",
+    "bilanzPassivaVerbindlichkeiten",
+    "bilanzPassivaRap",
+    "bilanzPassivaLatent",
+    "bilanzPassivaSumme",
+    "guvErträge",
+    "guvAufwendungen",
+    "guvFinanzergebnis",
+    "guvSteuern",
+    "guvJahresergebnis",
+    "sonstige",
+  ]) {
     await expect(
       page.getByTestId(`ebilanz-section-${section}`),
     ).toBeVisible({ timeout: 5_000 })
   }
+})
+
+test("section groups show computed-count badge (X / Y berechnet)", async ({ page }) => {
+  await injectAuth(page)
+  await page.goto("/dashboard/accounting")
+  await expect(page.getByTestId("ebilanz-tab")).toBeVisible({ timeout: 30_000 })
+  await expect(page.getByTestId("ebilanz-table")).toBeVisible({ timeout: 10_000 })
+  // The Aktiva — Anlagevermögen section has
+  // 8 positions, 4 computed (intang + propAndBuild
+  // + plantAndMach + othTangAss). The Saldoposten
+  // section has 1 computed. Other sections vary.
+  // Spot-check that at least 3 sections show a
+  // "X / Y berechnet" badge.
+  const sectionsWithBadges = await page
+    .locator('[data-testid^="ebilanz-section-"][data-testid$="-count"]')
+    .count()
+  expect(sectionsWithBadges).toBeGreaterThanOrEqual(3)
 })
 
 test("Download .xbrl link uses full backend URL", async ({ page }) => {

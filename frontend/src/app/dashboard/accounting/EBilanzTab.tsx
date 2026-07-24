@@ -12,7 +12,28 @@ interface EBilanzPosition {
   elementId: string
   label: string
   source: string
-  section: "bilanzAktiva" | "bilanzPassiva" | "guv" | "sonstige"
+  // Tier 97 (v2): 17 sub-sections matching
+  // the BMF GCD 6.7 schema (Aktiva/Passiva
+  // split into 5 each, G+V into 5, sonstige).
+  // Tier 88 (v1) had 4 sections only.
+  section:
+    | "bilanzAktivaAnlage"
+    | "bilanzAktivaUmlauf"
+    | "bilanzAktivaRap"
+    | "bilanzAktivaLatent"
+    | "bilanzAktivaSumme"
+    | "bilanzPassivaEigenkapital"
+    | "bilanzPassivaRueckstellungen"
+    | "bilanzPassivaVerbindlichkeiten"
+    | "bilanzPassivaRap"
+    | "bilanzPassivaLatent"
+    | "bilanzPassivaSumme"
+    | "guvErträge"
+    | "guvAufwendungen"
+    | "guvFinanzergebnis"
+    | "guvSteuern"
+    | "guvJahresergebnis"
+    | "sonstige"
   computed: boolean
   value: number | null
   note?: string
@@ -53,17 +74,43 @@ function fmtEur(n: number | null | undefined): string {
 }
 
 const SECTION_ORDER: Array<EBilanzPosition["section"]> = [
-  "bilanzAktiva",
-  "bilanzPassiva",
-  "guv",
+  "bilanzAktivaAnlage",
+  "bilanzAktivaUmlauf",
+  "bilanzAktivaRap",
+  "bilanzAktivaLatent",
+  "bilanzAktivaSumme",
+  "bilanzPassivaEigenkapital",
+  "bilanzPassivaRueckstellungen",
+  "bilanzPassivaVerbindlichkeiten",
+  "bilanzPassivaRap",
+  "bilanzPassivaLatent",
+  "bilanzPassivaSumme",
+  "guvErträge",
+  "guvAufwendungen",
+  "guvFinanzergebnis",
+  "guvSteuern",
+  "guvJahresergebnis",
   "sonstige",
 ]
 
 const SECTION_TITLE: Record<EBilanzPosition["section"], string> = {
-  bilanzAktiva: "Bilanz — Aktiva",
-  bilanzPassiva: "Bilanz — Passiva",
-  guv: "Gewinn- und Verlustrechnung",
-  sonstige: "Sonstige Anlagen",
+  bilanzAktivaAnlage: "Aktiva — Anlagevermögen",
+  bilanzAktivaUmlauf: "Aktiva — Umlaufvermögen",
+  bilanzAktivaRap: "Aktiva — Rechnungsabgrenzungsposten",
+  bilanzAktivaLatent: "Aktiva — Latente Steuern",
+  bilanzAktivaSumme: "Aktiva — Summe",
+  bilanzPassivaEigenkapital: "Passiva — Eigenkapital",
+  bilanzPassivaRueckstellungen: "Passiva — Rückstellungen",
+  bilanzPassivaVerbindlichkeiten: "Passiva — Verbindlichkeiten",
+  bilanzPassivaRap: "Passiva — Rechnungsabgrenzungsposten",
+  bilanzPassivaLatent: "Passiva — Latente Steuern",
+  bilanzPassivaSumme: "Passiva — Summe",
+  guvErträge: "G+V — Betriebliche Erträge",
+  guvAufwendungen: "G+V — Betriebliche Aufwendungen",
+  guvFinanzergebnis: "G+V — Finanzergebnis",
+  guvSteuern: "G+V — Steuern",
+  guvJahresergebnis: "G+V — Jahresergebnis",
+  sonstige: "Sonstige — Anhang / Lagebericht / Generelle Infos",
 }
 
 /**
@@ -285,6 +332,15 @@ function SectionGroup({
   rows: EBilanzPosition[]
   title: string
 }) {
+  // Tier 97 (v2): per-section computed
+  // count is shown next to the section
+  // title so the user can see at a
+  // glance which sub-sections are
+  // fully auto-computed vs need
+  // Berater hand-fill.
+  const computedCount = rows.filter(
+    (p) => p.computed && p.value !== null,
+  ).length
   return (
     <>
       <tr
@@ -295,7 +351,13 @@ function SectionGroup({
           colSpan={5}
           className="py-2 px-2 text-xs uppercase font-bold text-gray-600 dark:text-gray-300"
         >
-          {title}
+          <span>{title}</span>
+          <span
+            className="ml-2 font-mono normal-case text-[10px] text-gray-500 dark:text-gray-400"
+            data-testid={`ebilanz-section-${section}-count`}
+          >
+            ({computedCount} / {rows.length} berechnet)
+          </span>
         </td>
       </tr>
       {rows.map((p) => (

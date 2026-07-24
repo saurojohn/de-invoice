@@ -13,6 +13,8 @@ import {
   EBILANZ_MAPPING,
   EBilanzMapping,
   mappingStats,
+  SECTION_TITLE,
+  SECTION_ORDER,
 } from "./ebilanz-mapping"
 
 /**
@@ -121,28 +123,68 @@ export class EBilanzService {
     }
 
     const valuesBySource: Record<string, number | null> = {
-      // Bilanz Aktiva — position codes from
-      // tier 81.
+      // Bilanz Aktiva — Anlagevermögen
       "bilanz.aktiva.fixass.intang": bilanzLineByCode.get("0100") ?? 0,
+      "bilanz.aktiva.fixass.goodwill": null, // placeholder
       "bilanz.aktiva.fixass.grundstuecke": bilanzLineByCode.get("0200") ?? 0,
       "bilanz.aktiva.fixass.maschinen": bilanzLineByCode.get("0300") ?? 0,
       "bilanz.aktiva.fixass.betriebsausstattung": bilanzLineByCode.get("0400") ?? 0,
+      "bilanz.aktiva.fixass.geleisteteAnzahlungen": null, // placeholder
+      "bilanz.aktiva.fixass.finanzanlagen": null, // placeholder (combined for shares/othFinAss)
+      // Bilanz Aktiva — Umlaufvermögen
       "bilanz.aktiva.currass.forderungen": bilanzLineByCode.get("1500") ?? 0,
+      "bilanz.aktiva.currass.sonstige": null, // placeholder
       "bilanz.aktiva.currass.liquide": bilanzLineByCode.get("1600+1700") ?? 0,
-      // Bilanz Passiva
-      "bilanz.passiva.cred.tradl": bilanzLineByCode.get("4000") ?? 0,
-      "bilanz.passiva.cred.kundenguthaben": bilanzLineByCode.get("4500") ?? 0,
-      "bilanz.passiva.equity.subscribed": bilanzLineByCode.get("2000") ?? null, // v1 placeholder
+      // Bilanz Aktiva — Aktive RAP
+      "bilanz.aktiva.rap.aktive": 0, // computed: 0 (de-invoice has no RAP model)
+      // Bilanz Aktiva — Aktive latente Steuern
+      "bilanz.aktiva.latenteSteuern": null, // placeholder
+      // Bilanz Aktiva — Summe
+      "bilanz.aktiva.summe": bilanzResult.totals.aktiva ?? 0,
+      // Bilanz Passiva — Eigenkapital
+      "bilanz.passiva.equity.subscribed": bilanzLineByCode.get("2000") ?? null, // placeholder
+      "bilanz.passiva.equity.kapitalruecklage": null, // placeholder
+      "bilanz.passiva.equity.gewinnruecklagen": null, // placeholder
+      "bilanz.passiva.equity.bilanzgewinn": guvResult.totals.jahresueberschuss ?? 0,
       "bilanz.passiva.equity.saldoposten": bilanzResult.totals.eigenkapital ?? 0,
-      // G+V — position codes from tier 82
+      // Bilanz Passiva — Rückstellungen
+      "bilanz.passiva.rueckstellungen": null, // placeholder (combined for all 3)
+      // Bilanz Passiva — Verbindlichkeiten
+      "bilanz.passiva.cred.banken": null, // placeholder
+      "bilanz.passiva.cred.anzahlungen": null, // placeholder
+      "bilanz.passiva.cred.tradl": bilanzLineByCode.get("4000") ?? 0,
+      "bilanz.passiva.cred.affil": null, // placeholder
+      "bilanz.passiva.cred.kundenguthaben": bilanzLineByCode.get("4500") ?? 0,
+      "bilanz.passiva.cred.sonstige": null, // placeholder
+      // Bilanz Passiva — Passive RAP
+      "bilanz.passiva.rap.passive": null, // placeholder
+      // Bilanz Passiva — Passive latente Steuern
+      "bilanz.passiva.latenteSteuern": null, // placeholder
+      // Bilanz Passiva — Summe
+      "bilanz.passiva.summe": bilanzResult.totals.passiva ?? 0,
+      // G+V — Erträge
       "guv.umsatzerloese": guvLineByCode.get("1") ?? 0,
+      "guv.bestandsveraenderungen": 0, // computed: 0 (de-invoice has no inventory)
+      "guv.eigenleistungen": 0, // computed: 0 (de-invoice does not capitalize own work)
       "guv.sonstigeErtrage": guvLineByCode.get("4") ?? 0,
+      // G+V — Aufwendungen
       "guv.materialaufwand": guvLineByCode.get("5a") ?? 0,
       "guv.personalaufwand": guvLineByCode.get("6a") ?? 0,
       "guv.afa": guvLineByCode.get("7a") ?? 0,
       "guv.sonstigeAufwendungen": guvLineByCode.get("8") ?? 0,
+      // G+V — Finanzergebnis
+      "guv.beteiligungsertrage": null, // placeholder
+      "guv.wertpapierertraege": null, // placeholder
+      "guv.sonstigeZinsertrage": null, // placeholder
       "guv.zinsaufwendungen": guvLineByCode.get("13") ?? 0,
+      "guv.afaFinanzanlagen": null, // placeholder
+      // G+V — Steuern
+      "guv.ertraegeErtragsteuern": null, // placeholder
+      "guv.sonstigeSteuern": null, // placeholder
+      // G+V — Jahresergebnis
       "guv.jahresueberschuss": guvResult.totals.jahresueberschuss ?? 0,
+      "guv.betriebsergebnis": guvResult.totals.betriebsergebnis ?? 0,
+      "guv.finanzergebnis": guvResult.totals.finanzergebnis ?? 0,
       // Anlagenverzeichnis (sums) — computed
       // locally from the asset pool. The
       // BilanzService positions 0100-0400
@@ -161,6 +203,10 @@ export class EBilanzService {
       }, 0),
       // Anhang — narrative only
       "anhang.narrative": null,
+      // General info — placeholders
+      "gen.berichtsstandard": null,
+      "gen.berichtszeitraum": null,
+      "gen.groessenklasse": null,
       // Placeholders
       "manual.placeholder": null,
     }
@@ -189,11 +235,17 @@ export class EBilanzService {
       mappingStats: mappingStats(),
       generatedAt: new Date().toISOString(),
       disclaimer:
-        "Diese E-Bilanz ist eine VORSCHAU basierend auf den in de-invoice v1 verfügbaren Daten. " +
-        "BMF Taxonomy 6.7 Positionen, die das System nicht erfasst (z. B. Eigenkapital-Differenzierung, " +
-        "Steuerrückstellungen, RAP, Sonderposten, Microsig-Positionen, Personengesellschaften-spezifische " +
-        "Felder), sind als nicht ausgewiesen markiert. Der Steuerberater ergänzt die fehlenden Positionen " +
-        "aus dem SKR03 / der BWA-Quelldaten im ELSTER-Mein-ELSTER-Client vor der Einreichung.",
+        "Diese E-Bilanz ist eine VORSCHAU basierend auf den in de-invoice v2 verfügbaren Daten. " +
+        "Die BMF Taxonomy 6.7 GCD-Positionen sind auf ~55 Positionen ausgeschöpft. " +
+        "Positionen, die das System nicht erfasst (z. B. Geschäfts- oder Firmenwert aus " +
+        "Firmenwert-Akquisitionen, Eigenkapital-Differenzierung über die Bilanzgleichung hinaus, " +
+        "Steuerrückstellungen, RAP, latente Steuern, Beteiligungen, Wertpapiererträge, " +
+        "Ertragsteuern, sonstige Steuern, Bankverbindlichkeiten, Anzahlungen, generelle " +
+        "Informationen, Microsig-Positionen, Personengesellschaften-spezifische Felder) sind als " +
+        "nicht ausgewiesen markiert. Der Steuerberater ergänzt die fehlenden Positionen aus dem " +
+        "SKR03 / der BWA-Quelldaten im ELSTER-Mein-ELSTER-Client vor der Einreichung. Diese " +
+        "VORSCHAU ersetzt nicht die ELSTER-Pflichtübermittlung und ist nicht XSD-validiert gegen " +
+        "die BMF Taxonomy 6.7 XSDs.",
     }
   }
 
@@ -259,11 +311,15 @@ export class EBilanzService {
       })
       .up()
       // Context for the current year-end
-      // snapshot. Real BMF eBilanz requires
-      // (a) the current year context, (b) the
-      // prior year comparison context, (c) the
-      // opening balance context. v1: current
-      // year only; v2 adds (b) + (c).
+      // snapshot. Tier 97 (v2): real BMF
+      // eBilanz requires (a) current year
+      // context, (b) prior year comparison
+      // context, (c) opening balance context.
+      // v1: current year only. v2 adds (b)
+      // the prior year instant — fact values
+      // for the prior year are computed from
+      // the same source data shifted to
+      // year-1; the Berater can override.
       .ele("context", { id: `current_${year}` })
       .ele("entity")
       .ele("identifier", { scheme: "http://www.de-invoice.de/company" })
@@ -273,6 +329,19 @@ export class EBilanzService {
       .ele("period")
       .ele("instant")
       .txt(`${year}-12-31`)
+      .up()
+      .up()
+      .up()
+      // Prior year comparison context (v2)
+      .ele("context", { id: `prior_${year - 1}` })
+      .ele("entity")
+      .ele("identifier", { scheme: "http://www.de-invoice.de/company" })
+      .txt(data.companyId)
+      .up()
+      .up()
+      .ele("period")
+      .ele("instant")
+      .txt(`${year - 1}-12-31`)
       .up()
       .up()
       .up()
@@ -336,15 +405,26 @@ export class EBilanzService {
   /**
    * Render the human-readable PDF (a
    * summary of the eBilanz for the Berater
-   * to review before the XML upload). v1
-   * is a simple A4 portrait: company
-   * header + mapping table (position /
-   * label / value / source / note) + the
+   * to review before the XML upload).
+   *
+   * v1: simple A4 portrait — company
+   * header + single mapping table + the
    * disclaimer footer.
    *
-   * v2: render the full G+V + Bilanz +
-   * Anhang as separate pages (same as
-   * Berater-Packager from tier 85).
+   * Tier 97 (v2): section-grouped layout.
+   * The first page has the company header
+   * + the position-count summary. Then
+   * each section (Anlagevermögen, Um-
+   * laufvermögen, Eigenkapital, Rück-
+   * stellungen, Verbindlichkeiten, G+V
+   * Erträge, etc.) gets its own page
+   * header + per-position table (label /
+   * BMF element / value / source) +
+   * section totals. This matches the
+   * HGB § 266 schema and is what the
+   * Berater expects in a paper review.
+   * The Berater-Packager (tier 85) uses
+   * the same per-section page pattern.
    */
   async renderPdf(companyId: string, year: number, res: Response): Promise<void> {
     const data = await this.compute(companyId, year)
@@ -359,7 +439,76 @@ export class EBilanzService {
     const doc = new PDFDocument({ size: "A4", margin: 40 })
     doc.pipe(res)
 
-    // Header
+    // Group positions by section in the
+    // canonical HGB § 266 order (Aktiva
+    // → Passiva → G+V → Sonstige). The
+    // runtime objects have `.value` added
+    // by compute(); declare the map's
+    // value type accordingly so the
+    // section page renderer can read it.
+    type PositionWithValue = EBilanzMapping & { value: number | null }
+    const positionsBySection = new Map<
+      EBilanzMapping["section"],
+      PositionWithValue[]
+    >()
+    for (const sec of SECTION_ORDER) {
+      positionsBySection.set(sec, [])
+    }
+    for (const p of data.positions as PositionWithValue[]) {
+      positionsBySection.get(p.section)?.push(p)
+    }
+
+    // ===== Page 1: Cover =====
+    this.renderCoverPage(doc, data, year)
+
+    // ===== Subsequent pages: one per section =====
+    for (const sec of SECTION_ORDER) {
+      const positions = positionsBySection.get(sec) ?? []
+      if (positions.length === 0) continue
+      doc.addPage()
+      this.renderSectionPage(doc, SECTION_TITLE[sec], positions, sec)
+    }
+
+    // ===== Last page: Disclaimer =====
+    doc.addPage()
+    doc
+      .fontSize(11)
+      .font("Helvetica-Bold")
+      .text("Hinweise zur VORSCHAU", { align: "left" })
+      .moveDown(0.5)
+    doc
+      .fontSize(8)
+      .font("Helvetica")
+      .fillColor("#333")
+      .text(data.disclaimer, 40, doc.y, { width: 515, align: "justify" })
+      .fillColor("black")
+    doc.moveDown(1)
+    doc
+      .fontSize(8)
+      .fillColor("#666")
+      .text(
+        "Diese VORSCHAU ersetzt nicht die ELSTER-Pflichtübermittlung. Der Steuerberater prüft die Platzhalter-Positionen und überträgt sie in den ELSTER-Mein-ELSTER-Client vor der Einreichung. Die XBRL-Datei (.xbrl) enthält die BMF GCD-Element-IDs (de-gcd: namespace) gemäß BMF Taxonomy 6.7.",
+        40,
+        doc.y,
+        { width: 515, align: "justify" },
+      )
+      .fillColor("black")
+
+    doc.end()
+  }
+
+  /**
+   * Render the cover page (page 1) — company
+   * header + position-count summary + per-
+   * section count breakdown. Same as v1's
+   * cover, but with a per-section counts
+   * table added at the bottom.
+   */
+  private renderCoverPage(
+    doc: any,
+    data: any,
+    year: number,
+  ): void {
     doc
       .fontSize(18)
       .font("Helvetica-Bold")
@@ -377,22 +526,79 @@ export class EBilanzService {
       )
       .moveDown()
 
-    // Counts summary
+    // Overall counts summary
     doc
       .fontSize(11)
       .font("Helvetica-Bold")
       .text(
         `${data.counts.computed} von ${data.counts.total} Pflichtpositionen berechnet (${data.counts.placeholder} als Platzhalter für den Steuerberater).`,
       )
+      .moveDown(1)
+
+    // Per-section counts breakdown
+    doc
+      .fontSize(10)
+      .font("Helvetica-Bold")
+      .text("Positionen pro Bereich", { align: "left" })
+      .moveDown(0.3)
+    doc.fontSize(8).font("Helvetica")
+
+    // Compute per-section totals (computed + total)
+    const perSection = new Map<string, { total: number; computed: number }>()
+    for (const p of data.positions) {
+      const s = perSection.get(p.section) ?? { total: 0, computed: 0 }
+      s.total += 1
+      if (p.computed && p.value !== null) s.computed += 1
+      perSection.set(p.section, s)
+    }
+
+    for (const sec of SECTION_ORDER) {
+      const s = perSection.get(sec)
+      if (!s || s.total === 0) continue
+      doc.text(
+        `${SECTION_TITLE[sec]}: ${s.computed} / ${s.total} berechnet`,
+        40,
+        doc.y,
+        { width: 515 },
+      )
+    }
+  }
+
+  /**
+   * Render one section page: section title +
+   * per-position table (label / BMF element /
+   * value / source / note) + section totals.
+   */
+  private renderSectionPage(
+    doc: any,
+    sectionTitle: string,
+    positions: Array<EBilanzMapping & { value: number | null }>,
+    section: EBilanzMapping["section"],
+  ): void {
+    doc
+      .fontSize(14)
+      .font("Helvetica-Bold")
+      .text(sectionTitle, { align: "left" })
       .moveDown(0.5)
 
-    // Mapping table
+    // Section summary (count)
+    const computed = positions.filter((p) => p.value !== null).length
+    doc
+      .fontSize(8)
+      .font("Helvetica")
+      .fillColor("#666")
+      .text(
+        `${computed} von ${positions.length} Positionen mit Wert ausgewiesen.`,
+      )
+      .fillColor("black")
+      .moveDown(0.5)
+
+    // Table header
     doc.fontSize(9).font("Helvetica-Bold")
-    doc.text("Position", 40, doc.y, { continued: true })
-    doc.text("BMF-Element", 220, doc.y, { continued: true })
-    doc.text("Wert (EUR)", 420, doc.y, { continued: true })
-    doc.text("Quelle", 480, doc.y)
-    doc.moveDown(0.3)
+    doc.text("Position", 40, doc.y, { width: 220 })
+    doc.text("BMF-Element", 265, doc.y, { width: 180 })
+    doc.text("Wert (EUR)", 450, doc.y, { width: 80, align: "right" })
+    doc.moveDown(0.2)
     doc.font("Helvetica").fontSize(8)
     doc
       .moveTo(40, doc.y)
@@ -400,13 +606,15 @@ export class EBilanzService {
       .stroke()
       .moveDown(0.3)
 
-    for (const pos of data.positions) {
+    // Per-position rows
+    let sectionTotal = 0
+    for (const pos of positions) {
       const valueStr = pos.value !== null ? pos.value.toFixed(2) : "—"
+      if (pos.value !== null) sectionTotal += pos.value
       const yStart = doc.y
-      doc.text(pos.label, 40, yStart, { width: 175 })
-      doc.text(pos.elementId, 220, yStart, { width: 195 })
-      doc.text(valueStr, 420, yStart, { width: 55, align: "right" })
-      doc.text(pos.source, 480, yStart, { width: 80 })
+      doc.text(pos.label, 40, yStart, { width: 220 })
+      doc.text(pos.elementId, 265, yStart, { width: 180 })
+      doc.text(valueStr, 450, yStart, { width: 80, align: "right" })
       doc.moveDown(0.2)
       if (pos.note) {
         doc
@@ -419,13 +627,23 @@ export class EBilanzService {
       }
     }
 
-    doc.moveDown(1)
-    doc
-      .fontSize(8)
-      .fillColor("#666")
-      .text(data.disclaimer, 40, doc.y, { width: 515, align: "justify" })
-      .fillColor("black")
-
-    doc.end()
+    // Section total (only for sections where
+    // summation makes sense: sums & G+V
+    // ergebnisse. For Anlagevermögen the sum
+    // IS the Anlagevermögen total; for G+V
+    // Erträge the sum is the "Summe Erträge"
+    // which differs from "Betriebsleistung" by
+    // § 275 HGB Pos 2/3).
+    if (sectionTotal !== 0) {
+      doc.moveDown(0.3)
+      doc.font("Helvetica-Bold").fontSize(9)
+      doc.text(
+        `Summe ${sectionTitle}: ${sectionTotal.toFixed(2)} EUR`,
+        40,
+        doc.y,
+        { width: 515, align: "right" },
+      )
+      doc.font("Helvetica").fontSize(8)
+    }
   }
 }
