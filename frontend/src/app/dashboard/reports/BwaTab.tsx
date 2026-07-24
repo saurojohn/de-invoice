@@ -35,8 +35,19 @@ interface BwaResult {
     betriebsergebnisMonat: number
     betriebsergebnisYtd: number
     betriebsergebnisVorjahresYtd: number
+    // Tier 93: BWA Granularitäts-Extension.
+    // Die Bottom-Lines vom § 275 HGB GKV.
+    finanzergebnisMonat: number
+    finanzergebnisYtd: number
+    finanzergebnisVorjahresYtd: number
+    steuernMonat: number
+    steuernYtd: number
+    steuernVorjahresYtd: number
+    jahresergebnisMonat: number
+    jahresergebnisYtd: number
+    jahresergebnisVorjahresYtd: number
   }
-  counts: { invoices: number; expenses: number; assets: number }
+  counts: { invoices: number; expenses: number; assets: number; afaBookings: number }
   generatedAt: string
   disclaimer: string
 }
@@ -269,6 +280,64 @@ export function BwaTab() {
                                 100,
                         )}
                       </td>
+                    </tr>
+                    {/* Tier 93: Finanzergebnis (4100 - 4200) */}
+                    <tr className="bg-gray-50/50 dark:bg-gray-800/50">
+                      <td className="py-1"></td>
+                      <td className="py-1 text-xs">Finanzergebnis (4100-4200)</td>
+                      <td className="py-1 text-right font-mono text-xs" data-testid="bwa-finanzergebnis-monat">
+                        {fmt(data.totals.finanzergebnisMonat)}
+                      </td>
+                      <td className="py-1 text-right font-mono text-gray-400 text-xs">—</td>
+                      <td className="py-1 text-right font-mono text-xs" data-testid="bwa-finanzergebnis-ytd">
+                        {fmt(data.totals.finanzergebnisYtd)}
+                      </td>
+                      <td className="py-1 text-right font-mono text-xs">
+                        {fmt(data.totals.finanzergebnisVorjahresYtd)}
+                      </td>
+                      <td className="py-1 text-right font-mono text-gray-400 text-xs">—</td>
+                    </tr>
+                    {/* Tier 93: Steuern (5000 + 5100) */}
+                    <tr className="bg-gray-50/50 dark:bg-gray-800/50">
+                      <td className="py-1"></td>
+                      <td className="py-1 text-xs">Steuern (5000+5100)</td>
+                      <td className="py-1 text-right font-mono text-xs" data-testid="bwa-steuern-monat">
+                        {fmt(data.totals.steuernMonat)}
+                      </td>
+                      <td className="py-1 text-right font-mono text-gray-400 text-xs">—</td>
+                      <td className="py-1 text-right font-mono text-xs" data-testid="bwa-steuern-ytd">
+                        {fmt(data.totals.steuernYtd)}
+                      </td>
+                      <td className="py-1 text-right font-mono text-xs">
+                        {fmt(data.totals.steuernVorjahresYtd)}
+                      </td>
+                      <td className="py-1 text-right font-mono text-gray-400 text-xs">—</td>
+                    </tr>
+                    {/* Tier 93: Jahresergebnis (Betriebsergebnis + Finanzergebnis - Steuern) */}
+                    <tr className="border-t border-gray-300 bg-gray-100 dark:bg-gray-900">
+                      <td className="py-1"></td>
+                      <td className="py-1 text-xs font-bold">Jahresergebnis</td>
+                      <td
+                        className="py-1 text-right font-mono font-bold"
+                        data-testid="bwa-jahresergebnis-monat"
+                      >
+                        {fmt(data.totals.jahresergebnisMonat)}
+                      </td>
+                      <td className="py-1 text-right font-mono text-gray-400">—</td>
+                      <td
+                        className={`py-1 text-right font-mono font-bold ${
+                          data.totals.jahresergebnisYtd >= 0
+                            ? "text-emerald-700 dark:text-emerald-300"
+                            : "text-red-700 dark:text-red-300"
+                        }`}
+                        data-testid="bwa-jahresergebnis-ytd"
+                      >
+                        {fmt(data.totals.jahresergebnisYtd)}
+                      </td>
+                      <td className="py-1 text-right font-mono font-bold">
+                        {fmt(data.totals.jahresergebnisVorjahresYtd)}
+                      </td>
+                      <td className="py-1 text-right font-mono text-xs">—</td>
                     </tr>
                   </tfoot>
                 </table>

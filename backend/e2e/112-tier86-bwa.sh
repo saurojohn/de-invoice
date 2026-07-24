@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# e2e 112: Tier 86 — BWA (Betriebswirtschaftliche
+# e2e 112: Tier 86 + 93 — BWA (Betriebswirtschaftliche
 # Auswertung).
 #
 # Validates the new /api/v1/reports/bwa + /bwa.pdf
@@ -9,29 +9,40 @@
 # codes (1000-5999) and Monat/Vormonat/YTD/
 # Vorjahres-YTD/Δ% columns.
 #
+# Tier 93: 7 new lines added (3200 Raumkosten,
+# 3300 Versicherungen, 3400 Werbung, 3500
+# Instandhaltung, 4100 Zinserträge, 5000
+# Steuern vom Einkommen, 5100 Sonstige
+# Steuern). Total lines went from 7 to 14.
+#
 # Tests:
-#   1. /bwa reachable + shape (7 standard lines).
+#   1. /bwa reachable + shape (14 lines).
 #   2. Each line has the 5 numeric columns
 #      (monat, vormonat, ytd, vorjahresYtd,
 #      ytdChangePct) + bucket + label.
-#   3. DATEV bucket codes 1000/1300/2000/3000/
-#      3100/3600/4200 are present.
+#   3. All 14 DATEV bucket codes 1000/1300/
+#      2000/3000/3100/3200/3300/3400/3500/
+#      3600/4100/4200/5000/5100 are present.
 #   4. Computed Umsatzerlöse matches Invoice
 #      sum in the year.
 #   5. Computed Materialaufwand matches
 #      Material-category Expense sum in the year.
 #   6. Computed Personalkosten matches Personal-
 #      category Expense sum in the year.
-#   7. Computed Sonstige betriebliche
-#      Aufwendungen matches other Expenses.
+#   7. Tier 93: Miete-category expense goes
+#      to 3200 Raumkosten, NOT 3600 Sonstige
+#      (the catchall shrunk).
 #   8. Betriebsergebnis identity: Erlöse -
-#      Material - Personal - AfA - sonstige.
-#   9. PDF endpoint returns application/pdf
+#      Material - Personal - AfA - 3200 -
+#      3300 - 3400 - 3500 - 3600.
+#   9. Tier 93: new totals (finanzergebnis,
+#      steuern, jahresergebnis) present.
+#  10. PDF endpoint returns application/pdf
 #      with %PDF magic bytes.
-#  10. Year validation 1999, 2101 → 400.
-#  11. Month validation 0, 13 → 400.
-#  12. Cross-tenant → 401.
-#  13. Missing companyId → 400.
+#  11. Year validation 1999, 2101 → 400.
+#  12. Month validation 0, 13 → 400.
+#  13. Cross-tenant → 401.
+#  14. Missing companyId → 400.
 
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -146,9 +157,9 @@ VALUES
   (gen_random_uuid()::text, '$COMPANY_ID', 'BWA-${TS}-EXP-4', 'Miete',        '2026-05-01'::date, 168.07, 0.19, 31.93, 200, 'Miete',        'booked', now(), now());
 EOF
 
-# ── 1. JSON shape + 7 lines ──
+# ── 1. JSON shape + 14 lines ──
 echo
-note "=== 1. /bwa reachable + 7 standard lines ==="
+note "=== 1. /bwa reachable + 14 standard lines (tier 93 added 7) ==="
 RAW=$(curl -sS -w "\n%{http_code}" \
   "$API/api/v1/reports/bwa?companyId=$COMPANY_ID&year=2026&month=6" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID")
@@ -166,13 +177,13 @@ print('true' if not missing else f'missing: {missing}')
 ")
 assert_eq "all top-level keys present" "$HAS_KEYS" "true"
 
-# 7 standard lines (1000, 1300, 2000, 3000, 3100, 3600, 4200)
+# Tier 93: 14 standard lines (was 7 in tier 86)
 NLINES=$(python3 -c "
 import json
 d = json.load(open('$TMP'))
 print(len(d['lines']))
 ")
-assert_eq "7 standard BWA lines" "$NLINES" "7"
+assert_eq "14 standard BWA lines" "$NLINES" "14"
 
 # ── 2. Each line has 5 numeric columns + bucket + label ──
 echo
@@ -188,13 +199,13 @@ print('true' if ok else 'false')
 ")
 assert_eq "all lines have required columns" "$ALL_OK" "true"
 
-# ── 3. DATEV bucket codes present ──
+# ── 3. DATEV bucket codes present (14 total) ──
 echo
-note "=== 3. DATEV bucket codes 1000/1300/2000/3000/3100/3600/4200 present ==="
+note "=== 3. DATEV bucket codes 1000-5100 present (tier 93) ==="
 BUCKETS_OK=$(python3 -c "
 import json
 d = json.load(open('$TMP'))
-expected = ['1000','1300','2000','3000','3100','3600','4200']
+expected = ['1000','1300','2000','3000','3100','3200','3300','3400','3500','3600','4100','4200','5000','5100']
 actual = [l['bucket'] for l in d['lines']]
 print('true' if actual == expected else f'got {actual}')
 ")
@@ -242,9 +253,28 @@ for l in d['lines']:
 D_PERS=$(python3 -c "print(int(float('$NEW_PERS_YTD') - float('$BASE_PERS_YTD')))")
 assert_eq "Personalkosten YTD delta = +400" "$D_PERS" "400"
 
-# ── 7. YTD Sonstige Aufwendungen delta = +200 ──
+# ── 7. Tier 93: Miete-category expense now goes to 3200 Raumkosten ──
 echo
-note "=== 7. YTD Sonstige betr. Aufw. (3600) delta = +200 (Miete) ==="
+note "=== 7. Tier 93: Miete-category → 3200 (NOT 3600) — catchall shrunk ==="
+NEW_RAUM_YTD=$(python3 -c "
+import json
+d = json.load(open('$TMP'))
+for l in d['lines']:
+  if l['bucket'] == '3200':
+    print(l['ytd'])
+    break
+")
+BASE_RAUM_YTD=$(echo "$BASE" | python3 -c "
+import json,sys
+d = json.load(sys.stdin)
+for l in d['lines']:
+  if l['bucket'] == '3200':
+    print(l['ytd'])
+    break
+")
+D_RAUM=$(python3 -c "print(int(float('$NEW_RAUM_YTD') - float('$BASE_RAUM_YTD')))")
+assert_eq "3200 Raumkosten YTD delta = +200 (Miete)" "$D_RAUM" "200"
+# And 3600 should NOT have the Miete delta.
 NEW_SONST_YTD=$(python3 -c "
 import json
 d = json.load(open('$TMP'))
@@ -254,24 +284,36 @@ for l in d['lines']:
     break
 ")
 D_SONST=$(python3 -c "print(int(float('$NEW_SONST_YTD') - float('$BASE_SONST_YTD')))")
-assert_eq "Sonstige Aufwendungen YTD delta = +200" "$D_SONST" "200"
+assert_eq "3600 Sonstige (catchall) NOT changed by Miete seed" "$D_SONST" "0"
 
-# ── 8. Betriebsergebnis identity: YTD = umsatz - mat - pers - afa - sonstige ──
+# ── 8. Betriebsergebnis identity: YTD = umsatz - mat - pers - afa - 3200/3300/3400/3500 - 3600 ──
 echo
-note "=== 8. Betriebsergebnis YTD identity ==="
+note "=== 8. Betriebsergebnis YTD identity (tier 93: also subtracts 3200/3300/3400/3500) ==="
 BE_IDENTITY=$(python3 -c "
 import json
 d = json.load(open('$TMP'))
-umsatz = next(l['ytd'] for l in d['lines'] if l['bucket'] == '1000')
-mat = next(l['ytd'] for l in d['lines'] if l['bucket'] == '2000')
-pers = next(l['ytd'] for l in d['lines'] if l['bucket'] == '3000')
-afa = next(l['ytd'] for l in d['lines'] if l['bucket'] == '3100')
-sonstige = next(l['ytd'] for l in d['lines'] if l['bucket'] == '3600')
-expected = umsatz - mat - pers - afa - sonstige
+def ytd(b): return next(l['ytd'] for l in d['lines'] if l['bucket'] == b)
+expected = (ytd('1000') - ytd('2000') - ytd('3000') - ytd('3100') -
+            ytd('3200') - ytd('3300') - ytd('3400') - ytd('3500') -
+            ytd('3600'))
 actual = d['totals']['betriebsergebnisYtd']
 print('true' if abs(expected - actual) < 0.01 else f'expected={expected} actual={actual}')
 ")
 assert_eq "Betriebsergebnis YTD identity" "$BE_IDENTITY" "true"
+
+# ── 8b. Tier 93: new totals present (finanzergebnis, steuern, jahresergebnis) ──
+echo
+note "=== 8b. Tier 93: new totals in response (finanzergebnis + steuern + jahresergebnis) ==="
+NEW_TOTALS=$(python3 -c "
+import json
+d = json.load(open('$TMP'))
+required = ['finanzergebnisMonat','finanzergebnisYtd','finanzergebnisVorjahresYtd',
+            'steuernMonat','steuernYtd','steuernVorjahresYtd',
+            'jahresergebnisMonat','jahresergebnisYtd','jahresergebnisVorjahresYtd']
+missing = [k for k in required if k not in d['totals']]
+print('true' if not missing else f'missing: {missing}')
+")
+assert_eq "new totals present" "$NEW_TOTALS" "true"
 
 # ── 9. PDF endpoint ──
 echo

@@ -2,22 +2,28 @@ import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
 
 /**
- * Tier 86: BWA tab on /dashboard/reports.
+ * Tier 86 + 93: BWA tab on /dashboard/reports.
  *
  * The page renders a year/month picker + a
- * recompute button + a 7-line BWA table with
- * Monat/Vormonat/YTD/Vorjahres-YTD/Δ% columns +
- * a Betriebsergebnis footer + PDF download +
- * disclaimer.
+ * recompute button + a 14-line BWA table
+ * (was 7 in tier 86, extended in tier 93)
+ * with Monat/Vormonat/YTD/Vorjahres-YTD/Δ%
+ * columns + a Betriebsergebnis footer +
+ * Finanzergebnis / Steuern / Jahresergebnis
+ * rows + PDF download + disclaimer.
  *
  *   1. Tab is clickable + BWA content visible.
  *   2. Year + month inputs visible.
- *   3. 7 standard BWA rows render.
+ *   3. 14 standard BWA rows render
+ *      (1000/1300/2000/3000/3100/3200/3300/
+ *       3400/3500/3600/4100/4200/5000/5100).
  *   4. Betriebsergebnis footer visible.
- *   5. PDF link uses full backend URL.
- *   6. Disclaimer visible.
+ *   5. Jahresergebnis footer visible
+ *      (tier 93: betr + fin - steuern).
+ *   6. PDF link uses full backend URL.
+ *   7. Disclaimer visible.
  *
- * Backend e2e 112 covers the API contract.
+ * Backend e2e 119 covers the API contract.
  * This file exercises the React page.
  */
 
@@ -81,14 +87,20 @@ test.describe("BWA — /dashboard/reports", () => {
     await expect(page.getByTestId("bwa-month")).toBeVisible()
   })
 
-  test("7 standard BWA rows render", async ({ page }) => {
+  test("14 standard BWA rows render (tier 93: 3200/3300/3400/3500/4100/5000/5100 added)", async ({ page }) => {
     await injectAuth(page)
     await page.goto("/dashboard/reports")
     await page.getByTestId("tab-bwa").click()
     await expect(page.getByTestId("bwa-tab")).toBeVisible({ timeout: 30_000 })
-    // 7 standard buckets: 1000/1300/2000/3000/
-    // 3100/3600/4200
-    for (const bucket of ["1000", "1300", "2000", "3000", "3100", "3600", "4200"]) {
+    // 14 standard buckets (tier 86 had 7; tier
+    // 93 added 7 more for the full DATEV
+    // breakdown).
+    const buckets = [
+      "1000", "1300", "2000", "3000", "3100",
+      "3200", "3300", "3400", "3500", "3600",
+      "4100", "4200", "5000", "5100",
+    ]
+    for (const bucket of buckets) {
       await expect(page.getByTestId(`bwa-row-${bucket}`)).toBeVisible()
     }
   })
@@ -100,6 +112,21 @@ test.describe("BWA — /dashboard/reports", () => {
     await expect(page.getByTestId("bwa-tab")).toBeVisible({ timeout: 30_000 })
     await expect(page.getByTestId("bwa-betriebsergebnis-monat")).toBeVisible()
     await expect(page.getByTestId("bwa-betriebsergebnis-ytd")).toBeVisible()
+  })
+
+  test("Tier 93: Jahresergebnis footer visible (betr + fin - steuern)", async ({ page }) => {
+    await injectAuth(page)
+    await page.goto("/dashboard/reports")
+    await page.getByTestId("tab-bwa").click()
+    await expect(page.getByTestId("bwa-tab")).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByTestId("bwa-jahresergebnis-monat")).toBeVisible()
+    await expect(page.getByTestId("bwa-jahresergebnis-ytd")).toBeVisible()
+    // Finanzergebnis + Steuern rows are the
+    // intermediate tfoot rows.
+    await expect(page.getByTestId("bwa-finanzergebnis-monat")).toBeVisible()
+    await expect(page.getByTestId("bwa-finanzergebnis-ytd")).toBeVisible()
+    await expect(page.getByTestId("bwa-steuern-monat")).toBeVisible()
+    await expect(page.getByTestId("bwa-steuern-ytd")).toBeVisible()
   })
 
   test("PDF link uses full backend URL", async ({ page }) => {

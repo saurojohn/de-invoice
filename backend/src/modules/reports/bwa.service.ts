@@ -5,7 +5,8 @@ import { Response } from 'express'
 import PDFDocument from 'pdfkit'
 
 /**
- * Tier 86: BWA (Betriebswirtschaftliche Auswertung).
+ * Tier 86 + 93: BWA (Betriebswirtschaftliche
+ * Auswertung).
  *
  * The monthly operating report that a
  * Steuerberater sends to the Mandant. The
@@ -24,39 +25,58 @@ import PDFDocument from 'pdfkit'
  * of the same numbers, in the format the
  * Mandant is used to from the Berater.
  *
+ * Tier 93: BWA granularity extended. The
+ * "3600 Sonstige betriebliche Aufw."
+ * catchall is split into:
+ *   3200  Raumkosten
+ *   3300  Versicherungen
+ *   3400  Werbung / Reise
+ *   3500  Instandhaltung
+ * (the canonical DATEV BWA structure). Plus:
+ *   4100  Zinserträge             (Finanzergebnis)
+ *   5000  Steuern vom Einkommen   (GewSt, KSt, ESt)
+ *   5100  Sonstige Steuern        (Grundsteuer, Kfz-Steuer)
+ *
+ * The matchers reuse the same category
+ * keywords as Anlage S / Anlage V so the
+ * user's existing categorization carries
+ * over to the BWA. The catchall 3600
+ * shrinks accordingly.
+ *
  * DATEV BWA bucket mapping (4-digit codes):
  *
  *   REVENUE (Erlöse):
- *     1000  Umsatzerlöse                (P&L: Invoice netTotal)
- *     1300  Sonstige betriebliche Erträge (P&L: positive credits)
+ *     1000  Umsatzerlöse                (Invoice netTotal)
+ *     1300  Sonstige betriebliche Erträge (CustomerCredit)
  *
- *   COST (Aufwendungen):
- *     2000  Materialaufwand             (Expense Material)
- *     3000  Personalkosten              (Expense Personal)
- *     3100  Abschreibungen               (Asset AfA)
- *     3600  Sonstige betriebl. Aufw.   (other Expenses)
- *     4200  Zinsaufwendungen            (Expense Schuldzins)
+ *   OPERATING COST (Betriebliche Aufwendungen):
+ *     2000  Materialaufwand             (Material/Waren)
+ *     3000  Personalkosten              (Personal/Lohn/Gehalt)
+ *     3100  Abschreibungen               (AfA)
+ *     3200  Raumkosten                   (Miete/Heizung/Nebenkosten)  [tier 93]
+ *     3300  Versicherungen               (Versicherung/Beitrag)        [tier 93]
+ *     3400  Werbung / Reise              (Werbung/Marketing/Reise)    [tier 93]
+ *     3500  Instandhaltung               (Reparatur/Wartung)           [tier 93]
+ *     3600  Sonstige betriebl. Aufw.    (catchall)
+ *
+ *   FINANZERGEBNIS:
+ *     4100  Zinserträge                 (0 in v1 — no data model)     [tier 93]
+ *     4200  Zinsaufwendungen            (Schuldzins/Zins/Darlehen)
+ *
+ *   STEUERN:
+ *     5000  Steuern vom Einkommen       (GewSt/KSt/ESt)               [tier 93]
+ *     5100  Sonstige Steuern            (Grundsteuer/Kfz-Steuer)      [tier 93]
  *
  *   NOT COMPUTED (nicht ausgewiesen):
  *     1100  Bestandsveränderungen
  *     1200  Aktivierte Eigenleistungen
- *     3200  Raumkosten
- *     3300  Versicherungen
- *     3400  Werbung / Reise
- *     3500  Instandhaltung
- *     4100  Zinserträge
  *     4400  Beteiligungserträge
  *     4500  Beteiligungs-Abschreibungen
- *     5000  Steuern vom Einkommen
- *     5100  Sonstige Steuern
  *
  * v2 work (not in scope):
- *   - Per-Expense category keyword overrides
+ *   - Per-Expense BWA-Bucket override field
  *     (today: reuses Anlage S / EÜR
  *     matchers)
- *   - Vorjahres-Vergleich per BWA bucket
- *     (today: only YTD vs Vorjahres-YTD
- *     per bucket)
  *   - DATEV BWA export (.bwa XML format
  *     for DATEV Kassenbuch / Rechnungswesen
  *     import)
@@ -89,6 +109,23 @@ export interface BwaResult {
     betriebsergebnisMonat: number
     betriebsergebnisYtd: number
     betriebsergebnisVorjahresYtd: number
+    // Tier 93: the new BWA lines also surface
+    // in the totals so the Berater can see the
+    // subtotals at a glance:
+    //   - finanzergebnisMonat = 4100 - 4200
+    //   - steuernMonat        = 5000 + 5100
+    //   - jahresergebnisMonat = betriebsergebnis
+    //                            + finanzergebnis
+    //                            - steuern
+    finanzergebnisMonat: number
+    finanzergebnisYtd: number
+    finanzergebnisVorjahresYtd: number
+    steuernMonat: number
+    steuernYtd: number
+    steuernVorjahresYtd: number
+    jahresergebnisMonat: number
+    jahresergebnisYtd: number
+    jahresergebnisVorjahresYtd: number
   }
   counts: { invoices: number; expenses: number; assets: number; afaBookings: number }
   // Tier 87: 'booked' = the 3100 line uses real
@@ -103,6 +140,45 @@ export interface BwaResult {
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100
+}
+
+// Tier 93: category-to-bucket matchers. The
+// catchall 3600 is the negation of all the
+// others. The matchers are evaluated in
+// order; the FIRST match wins. 4100 (Zins-
+// erträge) is in the table but returns 0
+// in v1 because the schema has no
+// Zinsertrag model.
+const BWA_BUCKET_MATCHERS: Array<{ bucket: string; test: (cat: string) => boolean }> = [
+  { bucket: '2000', test: (c) => /^(Material|Waren|Rohstoffe?|Fremdleistung)/i.test(c) },
+  { bucket: '3000', test: (c) => /^(Personal|Lohn|Gehalt|SV)/i.test(c) },
+  { bucket: '3100', test: () => false }, // signal from booked AfA, not from category
+  { bucket: '3200', test: (c) => /^(Miete|Raum|Heizung|Nebenkosten|Pacht)/i.test(c) },
+  { bucket: '3300', test: (c) => /^(Versicherung|Beitrag)/i.test(c) },
+  { bucket: '3400', test: (c) => /^(Werbung|Marketing|Reise|Bewirtung)/i.test(c) },
+  { bucket: '3500', test: (c) => /^(Reparatur|Instandhaltung|Wartung)/i.test(c) },
+  { bucket: '4200', test: (c) => /^(Schuldzins|Zins|Darlehen)/i.test(c) },
+  { bucket: '5000', test: (c) => /^(Gewerbesteuer|Körperschaftsteuer|Einkommensteuer|GewSt|KSt|ESt)/i.test(c) },
+  { bucket: '5100', test: (c) => /^(Grundsteuer|Kfz-Steuer|Umsatzsteuerzahllast)/i.test(c) },
+  { bucket: '3600', test: () => true }, // catchall — anything that didn't match above
+]
+
+/**
+ * Map an Expense.category to a BWA bucket.
+ * Returns the 4-digit bucket code. The
+ * 3100 / 4100 buckets are NOT matched here
+ * (3100 = booked AfA signal, 4100 = not
+ * in v1) — callers should handle those
+ * separately before falling through to
+ * this matcher.
+ */
+function bucketFor(category: string | null): string {
+  const c = category || ''
+  for (const m of BWA_BUCKET_MATCHERS) {
+    if (m.bucket === '3100' || m.bucket === '4100' || m.bucket === '3600') continue
+    if (m.test(c)) return m.bucket
+  }
+  return '3600' // catchall
 }
 
 @Injectable()
@@ -192,38 +268,72 @@ export class BwaService {
       monthEnd,
     )
 
-    // Materialaufwand (2000): Expense Material/Waren
-    const materialExpenses = expenses.filter((e) =>
-      /^(Material|Waren|Rohstoffe?|Fremdleistung)/i.test(e.category || ''),
-    )
-    const personalExpenses = expenses.filter((e) =>
-      /^(Personal|Lohn|Gehalt|SV)/i.test(e.category || ''),
-    )
-    const sonstigeExpenses = expenses.filter(
-      (e) =>
-        !/^(Material|Waren|Rohstoffe?|Fremdleistung)/i.test(e.category || '') &&
-        !/^(Personal|Lohn|Gehalt|SV)/i.test(e.category || '') &&
-        !/^(Schuldzins|Zins)/i.test(e.category || ''),
-    )
-    const zinsExpenses = expenses.filter((e) =>
-      /^(Schuldzins|Zins)/i.test(e.category || ''),
-    )
+    // Tier 93: bucket every expense ONCE by its
+    // category. The matchers in BWA_BUCKET_MATCHERS
+    // produce an 8-character key per expense. We
+    // then sum per bucket across the month / YTD
+    // windows. The result: 1 filter pass instead
+    // of 4 (the old code did material/personal/
+    // sonstige/zins separately).
+    //
+    // Each entry in the map: { date, amount, bucket }.
+    //
+    // Sign convention: BWA line values are
+    // always POSITIVE (the bucket label implies
+    // "Aufwand" / "Aufwendungen" / "Steuern", and
+    // the formula `erloese - material - ...` treats
+    // the positive line value as a deduction).
+    // We Math.abs() the amount so the BWA
+    // accepts both:
+    //   - legacy dev seed data with positive
+    //     grossAmount (e.g. the existing Material
+    //     rows)
+    //   - "correct" accounting sign with negative
+    //     grossAmount (= outflow, matches the
+    //     signing used in Anlage S / EÜR)
+    const bucketedExpenses = expenses.map((e) => ({
+      date: e.invoiceDate,
+      amount: Math.abs(Number(e.grossAmount)),
+      bucket: bucketFor(e.category),
+    }))
 
-    const sumExpense = (vals: any[], start: Date, end: Date) =>
+    // Helper: sum entries in a date window for a
+    // specific bucket. Negative amounts (which
+    // expenses naturally are) reduce the bucket.
+    const sumBucket = (bucket: string, start: Date, end: Date) =>
       sumInMonth(
-        vals.map((e) => ({ date: e.invoiceDate, amount: Number(e.grossAmount) })),
+        bucketedExpenses.filter((e) => e.bucket === bucket).map((e) => ({ date: e.date, amount: e.amount })),
         start,
         end,
       )
 
-    const materialMonat = sumExpense(materialExpenses, monthStart, monthEnd)
-    const personalMonat = sumExpense(personalExpenses, monthStart, monthEnd)
-    const sonstigeMonat = sumExpense(sonstigeExpenses, monthStart, monthEnd)
-    const zinsMonat = sumExpense(zinsExpenses, monthStart, monthEnd)
-    const materialYtd = sumExpense(materialExpenses, yearStart, monthEnd)
-    const personalYtd = sumExpense(personalExpenses, yearStart, monthEnd)
-    const sonstigeYtd = sumExpense(sonstigeExpenses, yearStart, monthEnd)
-    const zinsYtd = sumExpense(zinsExpenses, yearStart, monthEnd)
+    // Per-bucket aggregates (monat + ytd) for the
+    // new lines. The old aggregations (material/
+    // personal/sonstige/zins) are now specific
+    // bucket lookups instead of filter passes.
+    const materialMonat = sumBucket('2000', monthStart, monthEnd)
+    const personalMonat = sumBucket('3000', monthStart, monthEnd)
+    const afaMonat = 0 // filled below from bookedAfaRows
+    const raumMonat = sumBucket('3200', monthStart, monthEnd)
+    const versicherungMonat = sumBucket('3300', monthStart, monthEnd)
+    const werbungMonat = sumBucket('3400', monthStart, monthEnd)
+    const instandhaltungMonat = sumBucket('3500', monthStart, monthEnd)
+    const sonstigeMonat = sumBucket('3600', monthStart, monthEnd)
+    const zinsertragMonat = 0 // 4100 — no data in v1
+    const zinsaufwandMonat = sumBucket('4200', monthStart, monthEnd)
+    const steuernEinkommenMonat = sumBucket('5000', monthStart, monthEnd)
+    const sonstigeSteuernMonat = sumBucket('5100', monthStart, monthEnd)
+
+    const materialYtd = sumBucket('2000', yearStart, monthEnd)
+    const personalYtd = sumBucket('3000', yearStart, monthEnd)
+    const raumYtd = sumBucket('3200', yearStart, monthEnd)
+    const versicherungYtd = sumBucket('3300', yearStart, monthEnd)
+    const werbungYtd = sumBucket('3400', yearStart, monthEnd)
+    const instandhaltungYtd = sumBucket('3500', yearStart, monthEnd)
+    const sonstigeYtd = sumBucket('3600', yearStart, monthEnd)
+    const zinsaufwandYtd = sumBucket('4200', yearStart, monthEnd)
+    const steuernEinkommenYtd = sumBucket('5000', yearStart, monthEnd)
+    const sonstigeSteuernYtd = sumBucket('5100', yearStart, monthEnd)
 
     // 3100 AfA — Tier 87: prefer booked AfA over
     // computed. When the user has clicked
@@ -238,14 +348,14 @@ export class BwaService {
     // in-memory computed value (annualAfA/12
     // per month) — same v1 proration logic.
     const totalBookedAfA = bookedAfaRows.reduce(
-      (s, e) => s + Number(e.grossAmount),
+      (s, e) => s + Math.abs(Number(e.grossAmount)),
       0,
     )
     const useBookedAfA = totalBookedAfA !== 0
     const monthAfA = useBookedAfA
       ? bookedAfaRows
           .filter((e) => e.invoiceDate >= monthStart && e.invoiceDate <= monthEnd)
-          .reduce((s, e) => s + Number(e.grossAmount), 0)
+          .reduce((s, e) => s + Math.abs(Number(e.grossAmount)), 0)
       : assetList.reduce(
           (s, a) => s + (this.assets.computeAfA(a, monthEnd).annualAfA / 12),
           0,
@@ -253,7 +363,7 @@ export class BwaService {
     const ytdAfA = useBookedAfA
       ? bookedAfaRows
           .filter((e) => e.invoiceDate >= yearStart && e.invoiceDate <= monthEnd)
-          .reduce((s, e) => s + Number(e.grossAmount), 0)
+          .reduce((s, e) => s + Math.abs(Number(e.grossAmount)), 0)
       : assetList.reduce(
           (s, a) => s + (this.assets.computeAfA(a, monthEnd).annualAfA * (month / 12)),
           0,
@@ -300,22 +410,34 @@ export class BwaService {
       (s, i) => s + Number(i.subtotal),
       0,
     )
-    const vorjahresYtdMaterial = vorjahresExpenses
-      .filter((e) => /^(Material|Waren|Rohstoffe?|Fremdleistung)/i.test(e.category || ''))
-      .reduce((s, e) => s + Number(e.grossAmount), 0)
-    const vorjahresYtdPersonal = vorjahresExpenses
-      .filter((e) => /^(Personal|Lohn|Gehalt|SV)/i.test(e.category || ''))
-      .reduce((s, e) => s + Number(e.grossAmount), 0)
-    const vorjahresYtdSonstige = vorjahresExpenses
-      .filter(
-        (e) =>
-          !/^(Material|Waren|Rohstoffe?|Fremdleistung)/i.test(e.category || '') &&
-          !/^(Personal|Lohn|Gehalt|SV)/i.test(e.category || ''),
-      )
-      .reduce((s, e) => s + Number(e.grossAmount), 0)
+    // Tier 93: bucket the prior-year expenses the
+    // same way as the current year (one filter
+    // pass per expense, one sum per bucket). The
+    // vorjahresYtd per-bucket values feed the
+    // % change column in the new lines. Same
+    // Math.abs() convention as the current year
+    // (line values are positive).
+    const vorjahresBucketed = vorjahresExpenses.map((e) => ({
+      amount: Math.abs(Number(e.grossAmount)),
+      bucket: bucketFor(e.category),
+    }))
+    const vorjahresYtdByBucket = (bucket: string) =>
+      vorjahresBucketed.filter((e) => e.bucket === bucket).reduce((s, e) => s + e.amount, 0)
+
+    const vorjahresYtdMaterial = vorjahresYtdByBucket('2000')
+    const vorjahresYtdPersonal = vorjahresYtdByBucket('3000')
+    const vorjahresYtdRaum = vorjahresYtdByBucket('3200')
+    const vorjahresYtdVersicherung = vorjahresYtdByBucket('3300')
+    const vorjahresYtdWerbung = vorjahresYtdByBucket('3400')
+    const vorjahresYtdInstandhaltung = vorjahresYtdByBucket('3500')
+    const vorjahresYtdSonstige = vorjahresYtdByBucket('3600')
+    const vorjahresYtdZinsaufwand = vorjahresYtdByBucket('4200')
+    const vorjahresYtdSteuernEinkommen = vorjahresYtdByBucket('5000')
+    const vorjahresYtdSonstigeSteuern = vorjahresYtdByBucket('5100')
+
     const vorjahresYtdAfA = vorjahresBookedAfa
       .filter((e) => e.invoiceDate >= vorjahresYtdStart && e.invoiceDate <= vorjahresYtdEnd)
-      .reduce((s, e) => s + Number(e.grossAmount), 0)
+      .reduce((s, e) => s + Math.abs(Number(e.grossAmount)), 0)
 
     // Sonstige betriebliche Erträge (1300) —
     // positive customer credits in the year.
@@ -397,6 +519,42 @@ export class BwaService {
         ytdChangePct: pctChange(ytdAfA, vorjahresYtdAfA),
       },
       {
+        bucket: '3200',
+        label: 'Raumkosten (Miete, Heizung, Nebenkosten)',
+        monat: round2(raumMonat),
+        vormonat: 0,
+        ytd: round2(raumYtd),
+        vorjahresYtd: round2(vorjahresYtdRaum),
+        ytdChangePct: pctChange(raumYtd, vorjahresYtdRaum),
+      },
+      {
+        bucket: '3300',
+        label: 'Versicherungen, Beiträge',
+        monat: round2(versicherungMonat),
+        vormonat: 0,
+        ytd: round2(versicherungYtd),
+        vorjahresYtd: round2(vorjahresYtdVersicherung),
+        ytdChangePct: pctChange(versicherungYtd, vorjahresYtdVersicherung),
+      },
+      {
+        bucket: '3400',
+        label: 'Werbung, Reise, Bewirtung',
+        monat: round2(werbungMonat),
+        vormonat: 0,
+        ytd: round2(werbungYtd),
+        vorjahresYtd: round2(vorjahresYtdWerbung),
+        ytdChangePct: pctChange(werbungYtd, vorjahresYtdWerbung),
+      },
+      {
+        bucket: '3500',
+        label: 'Instandhaltung, Wartung, Reparatur',
+        monat: round2(instandhaltungMonat),
+        vormonat: 0,
+        ytd: round2(instandhaltungYtd),
+        vorjahresYtd: round2(vorjahresYtdInstandhaltung),
+        ytdChangePct: pctChange(instandhaltungYtd, vorjahresYtdInstandhaltung),
+      },
+      {
         bucket: '3600',
         label: 'Sonstige betriebliche Aufwendungen',
         monat: round2(sonstigeMonat),
@@ -406,20 +564,104 @@ export class BwaService {
         ytdChangePct: pctChange(sonstigeYtd, vorjahresYtdSonstige),
       },
       {
-        bucket: '4200',
-        label: 'Zinsaufwendungen',
-        monat: round2(zinsMonat),
+        // 4100 Zinserträge — no data model in v1
+        // (we'd need an "interest income" Expense
+        // category or a separate InterestIncome
+        // table). Shown as 0 with the disclaimer
+        // calling it out.
+        bucket: '4100',
+        label: 'Zinserträge',
+        monat: 0,
         vormonat: 0,
-        ytd: round2(zinsYtd),
+        ytd: 0,
         vorjahresYtd: 0,
         ytdChangePct: 0,
       },
+      {
+        bucket: '4200',
+        label: 'Zinsaufwendungen',
+        monat: round2(zinsaufwandMonat),
+        vormonat: 0,
+        ytd: round2(zinsaufwandYtd),
+        vorjahresYtd: round2(vorjahresYtdZinsaufwand),
+        ytdChangePct: pctChange(zinsaufwandYtd, vorjahresYtdZinsaufwand),
+      },
+      {
+        bucket: '5000',
+        label: 'Steuern vom Einkommen und Ertrag (GewSt, KSt, ESt)',
+        monat: round2(steuernEinkommenMonat),
+        vormonat: 0,
+        ytd: round2(steuernEinkommenYtd),
+        vorjahresYtd: round2(vorjahresYtdSteuernEinkommen),
+        ytdChangePct: pctChange(steuernEinkommenYtd, vorjahresYtdSteuernEinkommen),
+      },
+      {
+        bucket: '5100',
+        label: 'Sonstige Steuern (Grundsteuer, Kfz-Steuer)',
+        monat: round2(sonstigeSteuernMonat),
+        vormonat: 0,
+        ytd: round2(sonstigeSteuernYtd),
+        vorjahresYtd: round2(vorjahresYtdSonstigeSteuern),
+        ytdChangePct: pctChange(sonstigeSteuernYtd, vorjahresYtdSonstigeSteuern),
+      },
     ]
 
-    const betriebsergebnisMonat = erloeseMonat - materialMonat - personalMonat - monthAfA - sonstigeMonat
-    const betriebsergebnisYtd = erloeseYtd - materialYtd - personalYtd - ytdAfA - sonstigeYtd
+    // Tier 93: Betriebsergebnis now subtracts the
+    // 4 new operating-expense lines (3200/3300/
+    // 3400/3500) in addition to the original
+    // 2000/3000/3100/3600. The Finanzergebnis
+    // (4100-4200) and Steuern (5000+5100) are
+    // NOT in the Betriebsergebnis — they sit
+    // below the operating result per § 275 HGB.
+    const betriebsergebnisMonat =
+      erloeseMonat -
+      materialMonat -
+      personalMonat -
+      monthAfA -
+      raumMonat -
+      versicherungMonat -
+      werbungMonat -
+      instandhaltungMonat -
+      sonstigeMonat
+    const betriebsergebnisYtd =
+      erloeseYtd -
+      materialYtd -
+      personalYtd -
+      ytdAfA -
+      raumYtd -
+      versicherungYtd -
+      werbungYtd -
+      instandhaltungYtd -
+      sonstigeYtd
     const betriebsergebnisVorjahresYtd =
-      erloeseVorjahresYtd - vorjahresYtdMaterial - vorjahresYtdPersonal - vorjahresYtdAfA - vorjahresYtdSonstige
+      erloeseVorjahresYtd -
+      vorjahresYtdMaterial -
+      vorjahresYtdPersonal -
+      vorjahresYtdAfA -
+      vorjahresYtdRaum -
+      vorjahresYtdVersicherung -
+      vorjahresYtdWerbung -
+      vorjahresYtdInstandhaltung -
+      vorjahresYtdSonstige
+
+    // Tier 93: Finanzergebnis + Steuern + Jahresergebnis
+    // — the bottom of the § 275 HGB GKV. 4100 is
+    // 0 in v1, so finanzergebnis = -4200.
+    const finanzergebnisMonat = zinsertragMonat - zinsaufwandMonat
+    const finanzergebnisYtd = -zinsaufwandYtd
+    const finanzergebnisVorjahresYtd = -vorjahresYtdZinsaufwand
+    const steuernMonat = steuernEinkommenMonat + sonstigeSteuernMonat
+    const steuernYtd = steuernEinkommenYtd + sonstigeSteuernYtd
+    const steuernVorjahresYtd = vorjahresYtdSteuernEinkommen + vorjahresYtdSonstigeSteuern
+    const jahresergebnisMonat = round2(
+      betriebsergebnisMonat + finanzergebnisMonat - steuernMonat,
+    )
+    const jahresergebnisYtd = round2(
+      betriebsergebnisYtd + finanzergebnisYtd - steuernYtd,
+    )
+    const jahresergebnisVorjahresYtd = round2(
+      betriebsergebnisVorjahresYtd + finanzergebnisVorjahresYtd - steuernVorjahresYtd,
+    )
 
     return {
       year,
@@ -442,6 +684,15 @@ export class BwaService {
         betriebsergebnisMonat: round2(betriebsergebnisMonat),
         betriebsergebnisYtd: round2(betriebsergebnisYtd),
         betriebsergebnisVorjahresYtd: round2(betriebsergebnisVorjahresYtd),
+        finanzergebnisMonat: round2(finanzergebnisMonat),
+        finanzergebnisYtd: round2(finanzergebnisYtd),
+        finanzergebnisVorjahresYtd: round2(finanzergebnisVorjahresYtd),
+        steuernMonat: round2(steuernMonat),
+        steuernYtd: round2(steuernYtd),
+        steuernVorjahresYtd: round2(steuernVorjahresYtd),
+        jahresergebnisMonat,
+        jahresergebnisYtd,
+        jahresergebnisVorjahresYtd,
       },
       counts: {
         invoices: invoices.length,
@@ -461,10 +712,12 @@ export class BwaService {
       generatedAt: new Date().toISOString(),
       disclaimer:
         'Diese BWA ist eine VORSCHAU basierend auf den in de-invoice v1 verfügbaren ' +
-        'Daten. Positionen, die das System nicht erfasst (z. B. Bestandsveränderungen, ' +
-        'Aktivierte Eigenleistungen, Erbschaften, Zinserträge, Beteiligungserträge, ' +
-        'Steuern), sind nicht ausgewiesen. Der Steuerberater ergänzt die fehlenden ' +
-        'Positionen aus dem SKR03 / der BWA-Quelldaten.',
+        'Daten. Die 4100 Zinserträge sind im Berichtszeitraum 0 (kein eigenes ' +
+        'Zinsertrag-Modell — der Berater ergänzt diese aus dem SKR03-Konto 4100). ' +
+        'Beteiligungserträge (4400) und Beteiligungs-Abschreibungen (4500) sind ' +
+        'nicht ausgewiesen. Bestandsveränderungen (1100) und aktivierte Eigen-' +
+        'leistungen (1200) erfordern eine Bilanz und sind nicht abgedeckt. ' +
+        'Der Steuerberater ergänzt die fehlenden Positionen aus dem SKR03.',
     }
   }
 
@@ -557,6 +810,49 @@ export class BwaService {
       ),
       colChange,
       sumY,
+      { width: 95, align: 'right' },
+    )
+
+    // Tier 93: Finanzergebnis + Steuern + Jahresergebnis
+    // — the bottom of the § 275 HGB GKV.
+    doc.moveDown(0.3)
+    const finY = doc.y
+    doc.text('Finanzergebnis (4100-4200)', colLabel, finY, { width: 165 })
+    doc.text(this.fmtEur(data.totals.finanzergebnisMonat), colMonat, finY, { width: 90, align: 'right' })
+    doc.text('—', colVormonat, finY, { width: 85, align: 'right' })
+    doc.text(this.fmtEur(data.totals.finanzergebnisYtd), colYtd, finY, { width: 95, align: 'right' })
+    doc.text(this.fmtEur(data.totals.finanzergebnisVorjahresYtd), colVorYtd, finY, { width: 95, align: 'right' })
+    doc.text('—', colChange, finY, { width: 95, align: 'right' })
+
+    doc.moveDown(0.3)
+    const stY = doc.y
+    doc.text('Steuern (5000+5100)', colLabel, stY, { width: 165 })
+    doc.text(this.fmtEur(data.totals.steuernMonat), colMonat, stY, { width: 90, align: 'right' })
+    doc.text('—', colVormonat, stY, { width: 85, align: 'right' })
+    doc.text(this.fmtEur(data.totals.steuernYtd), colYtd, stY, { width: 95, align: 'right' })
+    doc.text(this.fmtEur(data.totals.steuernVorjahresYtd), colVorYtd, stY, { width: 95, align: 'right' })
+    doc.text('—', colChange, stY, { width: 95, align: 'right' })
+
+    doc.moveDown(0.3)
+    doc.moveTo(40, doc.y).lineTo(740, doc.y).stroke()
+    doc.moveDown(0.3)
+    doc.font('Helvetica-Bold').fontSize(11)
+    const jErgY = doc.y
+    doc.text('Jahresergebnis', colLabel, jErgY, { width: 165 })
+    doc.text(this.fmtEur(data.totals.jahresergebnisMonat), colMonat, jErgY, { width: 90, align: 'right' })
+    doc.text('—', colVormonat, jErgY, { width: 85, align: 'right' })
+    doc.text(this.fmtEur(data.totals.jahresergebnisYtd), colYtd, jErgY, { width: 95, align: 'right' })
+    doc.text(this.fmtEur(data.totals.jahresergebnisVorjahresYtd), colVorYtd, jErgY, { width: 95, align: 'right' })
+    doc.text(
+      this.fmtPct(
+        data.totals.jahresergebnisVorjahresYtd === 0
+          ? 0
+          : ((data.totals.jahresergebnisYtd - data.totals.jahresergebnisVorjahresYtd) /
+              Math.abs(data.totals.jahresergebnisVorjahresYtd)) *
+              100,
+      ),
+      colChange,
+      jErgY,
       { width: 95, align: 'right' },
     )
 
