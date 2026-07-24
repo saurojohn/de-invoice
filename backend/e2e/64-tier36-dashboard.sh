@@ -41,13 +41,29 @@ STATUS=$(curl -sS -o /tmp/t64_dash.json -w "%{http_code}" \
   "$API/api/v1/reports/dashboard-v2?companyId=$COMPANY_ID")
 assert_eq "dashboard-v2 returns 200" "$STATUS" "200"
 
-# Top-level keys
+# Top-level keys — check that the required
+# keys are present (set-based). Tier 66+ added
+# costCenterBreakdown to the dashboard response
+# (along with future tiers adding their own
+# sections); the original exact-equality check
+# would fail on any new top-level key. We just
+# want to assert the v1 contract: kpis +
+# arAging + generatedAt + recentActivity +
+# topCustomers.
 KEYS=$(jq -r 'keys | sort | join(",")' /tmp/t64_dash.json)
-EXPECTED="arAging,generatedAt,kpis,recentActivity,topCustomers"
-if [[ "$KEYS" == "$EXPECTED" ]]; then
-  pass "top-level keys: $KEYS"
+REQUIRED='arAging,generatedAt,kpis,recentActivity,topCustomers'
+MISSING=""
+IFS=',' read -ra REQ_ARR <<< "$REQUIRED"
+KEY_SET=",$KEYS,"
+for k in "${REQ_ARR[@]}"; do
+  if [[ ",$KEYS," != *",$k,"* ]]; then
+    MISSING="$MISSING $k"
+  fi
+done
+if [[ -z "$MISSING" ]]; then
+  pass "top-level keys contain all required (got: $KEYS)"
 else
-  fail "top-level keys: $KEYS (expected $EXPECTED)"
+  fail "top-level keys missing:$MISSING (got: $KEYS)"
 fi
 
 # ---- 3. kpis shape ----
