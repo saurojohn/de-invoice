@@ -6,6 +6,13 @@
 > und mittelständische Unternehmen im DACH-Raum. Inklusive XRechnung,
 > ZUGFeRD/Factur-X, DATEV-Export, UStVA, FinTS-Banking und OCR-Vorbereitung.
 
+**Tier 99 (polish) — production ready**:
+- 124 backend e2e tests + 255 Playwright UI tests (all green)
+- Anlage S / V / KAP (§ 18 / § 21 / § 20 EStG) for Berater-Packager
+- E-Bilanz (XBRL) v2 — 52 BMF GCD 6.7 positions
+- 404/500 error pages + mobile responsive + deploy readiness
+- 2238 i18n keys × 3 locales (DE/EN/ZH), 100% consistent
+
 ---
 
 ## ⚡ Quickstart (5 Minuten)
@@ -28,16 +35,16 @@ open http://localhost:3000
 
 Die App ist sofort einsatzbereit mit Testdaten (SH Leder GmbH).
 
-### E2E-Tests (43 Backend + 8 Playwright UI, ~4 Min)
+### E2E-Tests (124 Backend + 255 Playwright UI, ~9 Min)
 
 ```bash
 # Backend hochfahren
 cd backend && npm install && npx ts-node src/main.ts &
 
-# Alle 43 Backend-Tests
+# Alle 124 Backend-Tests
 cd backend && for f in e2e/[0-9]*.sh; do bash "$f"; done
 
-# 8 Playwright UI-Tests (Frontend muss auf 3100 laufen)
+# 255 Playwright UI-Tests (Frontend muss auf 3100 laufen)
 cd frontend && npm install && npx playwright install chromium
 cd frontend && npx playwright test
 ```
@@ -48,6 +55,13 @@ cd frontend && npx playwright test
 cp .env.example .env                                       # JWT_SECRET etc. setzen
 docker compose -f docker-compose.prod.yml up -d --build    # Postgres + Backend + Frontend
 ```
+
+Required env vars (see DEPLOY.md §2.1):
+- `POSTGRES_PASSWORD` — postgres role password
+- `JWT_SECRET` — backend JWT signing secret (`openssl rand -hex 32`)
+- `NEXT_PUBLIC_API_URL` — **build-time** URL the browser uses to reach the backend
+  (e.g. `https://api.example.com`). Requires `docker compose build frontend`
+  BEFORE `up` if changed.
 
 Siehe [DEPLOY.md](DEPLOY.md) für die vollständige Produktionsanleitung
 und [RUNBOOK.md](RUNBOOK.md) für Operator-Notfälle (Restore, Rotate,
@@ -102,9 +116,9 @@ Troubleshoot).
 | Storage | Local FS (`~/data/invoice-system`) | S3/MinIO compatible |
 | Backup | `pg_dump` + tar | Daily rotation, 7d/4w/monthly anchors |
 | Monitoring | `/metrics` (Prometheus) | 3 gauges + 2 counters + 1 histogram, no deps |
-| CI | GitHub Actions | typecheck × 2 + e2e (43 backend + 8 Playwright UI) on every PR |
+| CI | GitHub Actions | typecheck × 2 + e2e (124 backend + 255 Playwright UI) on every PR |
 
-### 51 E2E-Tests (43 Backend + 8 Playwright UI)
+### 124 E2E-Tests Backend + 255 Playwright UI (379 tests, ~9 Min)
 
 | # | Feature | Tests |
 | --- | --- | --- |
@@ -129,7 +143,22 @@ Troubleshoot).
 | 41 | Prisma migrate fresh-DB round-trip | 21 |
 | 42 | Backup fire-drill (sentinel insert→backup→restore) | 9 |
 | 43 | `/metrics` Prometheus endpoint contract | 39 |
-| UI | Playwright smoke (login, dashboard, customers, journal) | 8 |
+| 44-50 | (cost-center, skonto, credit notes, statement, credit-balance, PDF-signing, age analysis) | 100+ |
+| 51-65 | (TOTP, OCR, customer portal, dashboard, cost-center-CRUD, cost-suggest, voucher-correct, cost-suggest-prefix, voucher-autopersist, installment-plan, skonto-window, credit-note-PDF, Mahnung-skonto, statement-v2) | 250+ |
+| 66-79 | (mandant-switcher, audit-trail, global-search, datev-preview, readonly, PDF-signing-cert, 2FA, cashflow, P&L, Anlage-EUR, GoBD-archive, EU-OSS, Berater-exchange, Anlage-S) | 200+ |
+| 80-90 | (Bilanz, G+V, Anlagenverzeichnis, Anhang, Berater-Packager, BWA, AfA-Buchung, E-Bilanz-VORSCHAU, AfA-monatlich, AfA-Storno) | 250+ |
+| 91 | Auto-AfA month-end scheduler (cron) | 18 |
+| 92 | Anlage V (Vermietung und Verpachtung, § 21 EStG) | 18 |
+| 93 | BWA extensions (granular Sonstige + Steuern + Zinserträge) | 24 |
+| 94 | Frontend Settings UI for feature flags (autoBookAfa + anlageV) | 13 |
+| 95 | BWA im Berater-Packager | 11 |
+| 97 | E-Bilanz (XBRL) v2 — 52 BMF GCD 6.7 positions, 17 sub-sections | 50+ |
+| 98 | Anlage KAP (Kapitalerträge, § 20 EStG) | 60+ |
+| 99a | 404/500 error pages (DE/EN/ZH) | 4 |
+| 99b | Mobile responsive (iPhone 12 audit) | 7 |
+| 99c | Production deploy readiness (compose lint) | 12 |
+| 99d | Security headers regression (helmet + CORS) | 12 |
+| UI | Playwright suite (66 spec files, 255 tests) | 255 |
 
 ---
 
@@ -536,6 +565,9 @@ x-company-id: <uuid>
 | Email / 邮件 | Nodemailer (SMTP), per-company config |
 | Storage / 存储 | Local filesystem (S3/MinIO planned) |
 | Auth / 鉴权 | Custom header-based shim + RBAC roles |
+| Security headers / 安全头 | Helmet 7.x (HSTS, X-Frame-Options, X-Content-Type-Options) |
+| i18n / 国际化 | Flat JSON keys, 3 locales (DE/EN/ZH), 2238 keys × 3 = 6714 translations |
+| E2E tests / 端到端测试 | 124 backend bash scripts + 255 Playwright UI tests (66 spec files) |
 
 ## Repository Layout / 仓库结构
 
