@@ -6,9 +6,12 @@
 > und mittelständische Unternehmen im DACH-Raum. Inklusive XRechnung,
 > ZUGFeRD/Factur-X, DATEV-Export, UStVA, FinTS-Banking und OCR-Vorbereitung.
 
-**Tier 99 (polish) — production ready**:
-- 124 backend e2e tests + 255 Playwright UI tests (all green)
-- Anlage S / V / KAP (§ 18 / § 21 / § 20 EStG) for Berater-Packager
+**Tier 100 — Anlage G (Gewerbebetrieb, § 15 EStG) + 4th Anlage form**:
+- 125 backend e2e tests + 260 Playwright UI tests (all green)
+- Anlage G pairs with the EÜR: § 8/9 GewStG Hinzurechnungs-/Kürzungs-Mechanik
+  (Kz 4100 = 25% Miete/Pacht, Kz 5100 = 50% Kfz-Nutzungsanteil) + Gewerbeertrag
+  + Gewerbesteuer-Schätzung (3.5% × Hebesatz, default 400%)
+- Anlage S / V / KAP / G (§ 18 / § 21 / § 20 / § 15 EStG) for Berater-Packager
 - E-Bilanz (XBRL) v2 — 52 BMF GCD 6.7 positions
 - 404/500 error pages + mobile responsive + deploy readiness
 - 2238 i18n keys × 3 locales (DE/EN/ZH), 100% consistent
@@ -116,7 +119,7 @@ Troubleshoot).
 | Storage | Local FS (`~/data/invoice-system`) | S3/MinIO compatible |
 | Backup | `pg_dump` + tar | Daily rotation, 7d/4w/monthly anchors |
 | Monitoring | `/metrics` (Prometheus) | 3 gauges + 2 counters + 1 histogram, no deps |
-| CI | GitHub Actions | typecheck × 2 + e2e (124 backend + 255 Playwright UI) on every PR |
+| CI | GitHub Actions | typecheck × 2 + e2e (125 backend + 260 Playwright UI) on every PR |
 
 ### 124 E2E-Tests Backend + 255 Playwright UI (379 tests, ~9 Min)
 
@@ -566,8 +569,8 @@ x-company-id: <uuid>
 | Storage / 存储 | Local filesystem (S3/MinIO planned) |
 | Auth / 鉴权 | Custom header-based shim + RBAC roles |
 | Security headers / 安全头 | Helmet 7.x (HSTS, X-Frame-Options, X-Content-Type-Options) |
-| i18n / 国际化 | Flat JSON keys, 3 locales (DE/EN/ZH), 2238 keys × 3 = 6714 translations |
-| E2E tests / 端到端测试 | 124 backend bash scripts + 255 Playwright UI tests (66 spec files) |
+| i18n / 国际化 | Flat JSON keys, 3 locales (DE/EN/ZH), 2247 keys × 3 = 6741 translations |
+| E2E tests / 端到端测试 | 125 backend bash scripts + 260 Playwright UI tests (67 spec files) |
 
 ## Repository Layout / 仓库结构
 
