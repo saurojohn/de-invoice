@@ -57,6 +57,14 @@ cp frontend/.env.example frontend/.env.local
 # Fill in production values (DATABASE_URL, JWT_SECRET, SMTP, …)
 ```
 
+Required env vars (the `docker-compose.prod.yml` fails to start without
+these — they're declared as `${VAR:?VAR is required}`):
+- `POSTGRES_PASSWORD` — the postgres role password (see 2.2)
+- `JWT_SECRET` — the backend JWT signing secret (see below)
+- `NEXT_PUBLIC_API_URL` — the **public** URL the browser uses to reach
+  the backend (e.g. `https://api.example.com` or `http://localhost:3001`
+  in dev). This is baked into the frontend bundle at build time.
+
 Generate the JWT secret:
 ```bash
 openssl rand -hex 32
