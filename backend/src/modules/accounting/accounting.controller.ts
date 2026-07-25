@@ -14,7 +14,11 @@ import { AnlageKAPService } from './anlage-kap.service'
 // § 15 EStG). The 4th Anlage form — for
 // gewerbliche Einzelunternehmen +
 // Personengesellschaften. Pairs with EÜR.
-import { AnlageGService } from './anlage-g.service';
+import { AnlageGService } from './anlage-g.service'
+// Tier 101: Anlage N (Arbeitnehmereinkünfte,
+// § 3 EStG). The 5th Anlage form — for
+// Arbeitnehmer + Beamte + Teilzeit-Beschäftigte.
+import { AnlageNService } from './anlage-n.service';
 import { BilanzService } from './bilanz.service';
 import { GuVService } from './guv.service';
 import { AnhangService } from './anhang.service';
@@ -38,6 +42,9 @@ export class AccountingController {
     // Tier 100: Anlage G (Gewerbebetrieb,
     // § 15 EStG) — 4th Anlage form.
     private anlageG: AnlageGService,
+    // Tier 101: Anlage N (Arbeitnehmereinkünfte,
+    // § 3 EStG) — 5th Anlage form.
+    private anlageN: AnlageNService,
     private bilanz: BilanzService,
     private guv: GuVService,
     private anhang: AnhangService,
@@ -680,6 +687,151 @@ export class AccountingController {
       throw new BadRequestException('year ist ungültig')
     }
     await this.anlageG.renderPdf(companyId, year, res)
+  }
+
+  // =============================================================
+  // Tier 101 — Anlage N (Arbeitnehmereinkünfte, § 3 EStG)
+  // =============================================================
+  //
+  // The German tax filing for Arbeitnehmer
+  // (employees) + Beamte (civil servants) +
+  // Teilzeit-Beschäftigte (part-time workers).
+  // Pairs with the Lohnsteuerbescheinigung
+  // (annual wage tax certificate issued by
+  // the employer). The 5th Anlage form
+  // (after S / V / KAP / G).
+  //
+  // v1: data comes from
+  // Company.settings.lohnsteuerbescheinigungen
+  // (per-year map of BMF Kz values). The
+  // Werbungskosten / Sonderausgaben / aB
+  // come from the same settings (per-year
+  // map keyed by Kz). v1: user enters these
+  // manually via the section's input form.
+  //
+  // For a Mandant without any employment
+  // income (e.g. pure Freelancer with no
+  // side job), the section is empty + the
+  // Berater packager skips it.
+  @Get('anlage-n')
+  @UseGuards(HeaderAuthGuard)
+  async getAnlageN(
+    @Query('companyId') companyId: string,
+    @Query('year') yearRaw?: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const year = yearRaw
+      ? Number(yearRaw)
+      : new Date().getFullYear() - 1
+    if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+    return this.anlageN.compute(companyId, year)
+  }
+
+  @Get('anlage-n.pdf')
+  @UseGuards(HeaderAuthGuard)
+  @Header('Content-Type', 'application/pdf')
+  async getAnlageNPdf(
+    @Res() res: Response,
+    @Query('companyId') companyId: string,
+    @Query('year') yearRaw?: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const year = yearRaw
+      ? Number(yearRaw)
+      : new Date().getFullYear() - 1
+    if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+    await this.anlageN.renderPdf(companyId, year, res)
+  }
+
+  // Tier 101: PUT /anlage-n/settings — Update the
+  // per-year Lohnsteuerbescheinigung + Werbungs-
+  // kosten + Sonderausgaben + aB. Body:
+  //   { year: 2026, bruttoArbeitslohn, lohnsteuer,
+  //     soli, kirchensteuer, rv, av, kv, pv,
+  //     werbungskosten: { 140: 1500, 170: 200, ... },
+  //     sonderausgaben: { 200: 2000, ... },
+  //     aussergewoehnlicheBelastungen: { 230: 500, ... } }
+  // The endpoint stores these on
+  // Company.settings.{lohnsteuerbescheinigungen,
+  // werbungskosten, sonderausgaben,
+  // aussergewoehnlicheBelastungen}[year].
+  // Auth: HeaderAuthGuard (same as the GET).
+  @Put('anlage-n/settings')
+  @UseGuards(HeaderAuthGuard)
+  async updateAnlageNSettings(
+    @Query('companyId') companyId: string,
+    @Body() body: {
+      year: number
+      bruttoArbeitslohn?: number
+      lohnsteuer?: number
+      soli?: number
+      kirchensteuer?: number
+      rentenversicherung?: number
+      arbeitslosenversicherung?: number
+      krankenversicherung?: number
+      pflegeversicherung?: number
+      werbungskosten?: Record<string, number>
+      sonderausgaben?: Record<string, number>
+      aussergewoehnlicheBelastungen?: Record<string, number>
+    },
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    if (!body || !Number.isInteger(body.year) || body.year < 2000 || body.year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+    })
+    if (!company) throw new BadRequestException('Firma nicht gefunden')
+
+    const settings = ((company as any).settings ?? {}) as Record<string, any>
+    const lsbAll = (settings.lohnsteuerbescheinigungen as any) || {}
+    const wkAll = (settings.werbungskosten as any) || {}
+    const saAll = (settings.sonderausgaben as any) || {}
+    const abAll = (settings.aussergewoehnlicheBelastungen as any) || {}
+
+    const lsbUpdate: any = {
+      bruttoArbeitslohn: Number(body.bruttoArbeitslohn) || 0,
+      lohnsteuer: Number(body.lohnsteuer) || 0,
+      soli: Number(body.soli) || 0,
+      kirchensteuer: Number(body.kirchensteuer) || 0,
+      rentenversicherung: Number(body.rentenversicherung) || 0,
+      arbeitslosenversicherung: Number(body.arbeitslosenversicherung) || 0,
+      krankenversicherung: Number(body.krankenversicherung) || 0,
+      pflegeversicherung: Number(body.pflegeversicherung) || 0,
+    }
+    lsbAll[body.year] = lsbUpdate
+    if (body.werbungskosten) wkAll[body.year] = body.werbungskosten
+    if (body.sonderausgaben) saAll[body.year] = body.sonderausgaben
+    if (body.aussergewoehnlicheBelastungen) {
+      abAll[body.year] = body.aussergewoehnlicheBelastungen
+    }
+
+    const next = {
+      ...settings,
+      lohnsteuerbescheinigungen: lsbAll,
+      werbungskosten: wkAll,
+      sonderausgaben: saAll,
+      aussergewoehnlicheBelastungen: abAll,
+    }
+    await this.prisma.company.update({
+      where: { id: companyId },
+      data: { settings: next } as any,
+    })
+
+    return {
+      ok: true,
+      year: body.year,
+      lohnsteuerbescheinigung: lsbUpdate,
+      werbungskosten: wkAll[body.year] || {},
+      sonderausgaben: saAll[body.year] || {},
+      aussergewoehnlicheBelastungen: abAll[body.year] || {},
+    }
   }
 
   /**

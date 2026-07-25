@@ -15,6 +15,15 @@ import { AnlageKAPService } from './anlage-kap.service'
 // wants to review all Anlagen before the HGB
 // reports.
 import { AnlageGService } from './anlage-g.service'
+// Tier 101: Anlage N (Arbeitnehmereinkünfte,
+// § 3 EStG) — 5th Anlage form. For
+// Arbeitnehmer + Beamte + Teilzeit-Beschäftigte.
+// Filing order: EÜR → S → V → KAP → G → N →
+// BWA. Anlage N comes AFTER G because it covers
+// a separate Einkunftsart (Anstellung vs.
+// Gewerbe) and is filled from a different data
+// source (Lohnsteuerbescheinigung, not Buchungen).
+import { AnlageNService } from './anlage-n.service'
 import { BilanzService } from './bilanz.service'
 import { GuVService } from './guv.service'
 import { AnhangService } from './anhang.service'
@@ -109,6 +118,8 @@ export class BeraterPackagerService {
     private anlageKAP: AnlageKAPService,
     // Tier 100: Anlage G service.
     private anlageG: AnlageGService,
+    // Tier 101: Anlage N service.
+    private anlageN: AnlageNService,
     private bilanz: BilanzService,
     private guv: GuVService,
     private anhang: AnhangService,
@@ -247,6 +258,19 @@ export class BeraterPackagerService {
     })
     const includeAnlageG = anlageGOptIn || invoiceCount > 0
 
+    // Tier 101: Anlage N is conditional on
+    // (a) the opt-in flag in settings OR
+    // (b) the Lohnsteuerbescheinigung for the
+    // year has a non-zero Bruttoarbeitslohn.
+    // For pure Freelancer / pure Gewerbe
+    // companies (no employment income), the
+    // section is empty and excluded.
+    const anlageNOptIn = settings.anlageN === true
+    const lsbAll = (settings.lohnsteuerbescheinigungen as any) || {}
+    const lsbForYear = lsbAll[year] || {}
+    const bruttoInYear = Number(lsbForYear.bruttoArbeitslohn) || 0
+    const includeAnlageN = anlageNOptIn || bruttoInYear > 0
+
     // Append each PDF (numbered so the
     // Berater can sort them in their
     // filing system). Anlage V slot is
@@ -266,17 +290,19 @@ export class BeraterPackagerService {
     // Tier 92: Anlage V (optional).
     // Tier 98: Anlage KAP (optional).
     // Tier 100: Anlage G (optional).
-    // The 5-way conditional shifts all
+    // Tier 101: Anlage N (optional).
+    // The 6-way conditional shifts all
     // subsequent file numbers. The order
-    // is V → KAP → G: rental, capital,
-    // gewerbe. Each included form pushes
-    // the next slot by 1.
+    // is V → KAP → G → N: rental, capital,
+    // gewerbe, arbeitnehmer. Each included
+    // form pushes the next slot by 1.
     const files: {
       euer: string
       anlageS: string
       anlageV?: string
       anlageKAP?: string
       anlageG?: string
+      anlageN?: string
       bwa: string
       bilanz: string
       guv: string
@@ -318,6 +344,15 @@ export class BeraterPackagerService {
       const gName = `${String(optionalSlot).padStart(2, '0')}_Anlage-G.pdf`
       archive.append(anlageGPdf, { name: gName })
       files.anlageG = gName
+    }
+    if (includeAnlageN) {
+      const anlageNPdf = await this.renderToBuffer((sink) =>
+        this.anlageN.renderPdf(companyId, year, sink),
+      )
+      optionalSlot++
+      const nName = `${String(optionalSlot).padStart(2, '0')}_Anlage-N.pdf`
+      archive.append(anlageNPdf, { name: nName })
+      files.anlageN = nName
     }
     // Compute the position of BWA, Bilanz,
     // G+V, Anhang, Anlagenverzeichnis based
@@ -522,7 +557,7 @@ export class BeraterPackagerService {
   private buildManifest(
     company: { name: string; legalName: string | null; taxId: string | null; vatId: string | null },
     year: number,
-    files: { euer: string; anlageS: string; anlageV?: string; anlageKAP?: string; anlageG?: string; bwa: string; bilanz: string; guv: string; anhang: string; assetCsv: string },
+    files: { euer: string; anlageS: string; anlageV?: string; anlageKAP?: string; anlageG?: string; anlageN?: string; bwa: string; bilanz: string; guv: string; anhang: string; assetCsv: string },
   ): string {
     const lines: string[] = []
     lines.push(`# Berater-Paket ${year} — ${company.legalName || company.name}`)
@@ -548,6 +583,9 @@ export class BeraterPackagerService {
     }
     if (files.anlageG) {
       lines.push(`| \`${files.anlageG}\` | Anlage G (Einkünfte aus Gewerbebetrieb) gem. § 15 EStG — Vorschau. Für gewerbliche Einzelunternehmen und Personengesellschaften. Pairs with EÜR: § 8/9 GewStG Hinzurechnungen (Kz 4100 — 25% Miete/Pacht) + Kürzungen (Kz 5100 — 50% Kfz-Nutzungsanteil) werden automatisch aus den Buchungen abgeleitet. Die restlichen Hinzu-/Kürzungen sind Platzhalter. Gewerbesteuer-Schätzung (3.5% Steuermesszahl × Hebesatz) ist SEHR grob. Nur enthalten, wenn Rechnungen im Jahr vorhanden ODER \`settings.anlageG === true\`. Für Kapitalgesellschaften (GmbH/AG) ist stattdessen die KSt 1 abzugeben. |`)
+    }
+    if (files.anlageN) {
+      lines.push(`| \`${files.anlageN}\` | Anlage N (Einkünfte aus nichtselbständiger Arbeit) gem. § 3 EStG — Vorschau. Für Arbeitnehmer, Beamte, Gesellschafter-Geschäftsführer mit Anstellung, Teilzeit-Beschäftigte. Daten aus Company.settings.lohnsteuerbescheinigungen (per-year Map der BMF Kz 3-10). Werbungskosten mit Arbeitnehmer-Pauschbetrag 1.230 EUR + manuell eingetragene Werte (Entfernungspauschale, Fortbildung, etc.). Sonderausgaben + Außergewöhnliche Belastungen als Platzhalter. Nur enthalten, wenn Lohnsteuerbescheinigung für das Jahr erfasst ODER \`settings.anlageN === true\`. |`)
     }
     lines.push(`| \`${files.bwa}\` | BWA (Betriebswirtschaftliche Auswertung) gem. DATEV-Standard — Vorschau für Dezember ${year} (Jahressumme). 14 DATEV-Bucket-Codes: Umsatzerlöse / 4 Betriebliche Aufwands-Unterkategorien / Sonstige / Zinserträge (0 in v1) / Zinsaufwendungen / 2 Steuer-Buckets. Jahresergebnis = Betriebsergebnis + Finanzergebnis - Steuern. |`)
     lines.push(`| \`${files.bilanz}\` | Bilanz gem. § 266 HGB (Aktiva / Passiva) — Vorschau. Stichtag 31.12.${year}. |`)

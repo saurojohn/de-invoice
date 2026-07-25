@@ -221,16 +221,27 @@ export class CompanyController {
    *     Mandanten that the heuristic would miss,
    *     e.g. early Gründerjahre with 0 invoices).
    *
+   *   - anlageN (tier 101): default = false. The
+   *     Berater packager reads this to decide
+   *     whether to include the Anlage N PDF in
+   *     the year-end ZIP. Set to true to force
+   *     inclusion (for Mandanten with
+   *     employment income that the Lohnsteuer-
+   *     bescheinigung heuristic would miss, e.g.
+   *     when bruttoArbeitslohn hasn't been
+   *     entered yet but the user knows they
+   *     have to file).
+   *
    * The endpoint is exposed via PATCH (not PUT)
    * because the flags are independent — the
-   * client can send either or all three.
+   * client can send any combination of the 4.
    */
   @Auth()
   @Require('company.update')
   @Patch(':id/feature-flags')
   async updateFeatureFlags(
     @Param('id') id: string,
-    @Body() body: { autoBookAfa?: boolean; anlageV?: boolean; anlageG?: boolean },
+    @Body() body: { autoBookAfa?: boolean; anlageV?: boolean; anlageG?: boolean; anlageN?: boolean },
     @Req() req: any,
   ) {
     if (body.autoBookAfa !== undefined && typeof body.autoBookAfa !== 'boolean') {
@@ -242,6 +253,9 @@ export class CompanyController {
     if (body.anlageG !== undefined && typeof body.anlageG !== 'boolean') {
       throw new BadRequestException('anlageG muss ein Boolean sein')
     }
+    if (body.anlageN !== undefined && typeof body.anlageN !== 'boolean') {
+      throw new BadRequestException('anlageN muss ein Boolean sein')
+    }
     const company = await this.companyService.findById(id)
     if (!company) {
       throw new BadRequestException('Firma nicht gefunden')
@@ -251,11 +265,13 @@ export class CompanyController {
       autoBookAfa: settings.autoBookAfa !== false,
       anlageV: settings.anlageV === true,
       anlageG: settings.anlageG === true,
+      anlageN: settings.anlageN === true,
     }
     const next: Record<string, unknown> = { ...settings }
     if (body.autoBookAfa !== undefined) next.autoBookAfa = body.autoBookAfa
     if (body.anlageV !== undefined) next.anlageV = body.anlageV
     if (body.anlageG !== undefined) next.anlageG = body.anlageG
+    if (body.anlageN !== undefined) next.anlageN = body.anlageN
 
     await this.companyService.update(id, { settings: next } as any)
 
@@ -279,6 +295,7 @@ export class CompanyController {
             autoBookAfa: body.autoBookAfa,
             anlageV: body.anlageV,
             anlageG: body.anlageG,
+            anlageN: body.anlageN,
           } as any,
           ipAddress: null,
           userAgent: 'de-invoice:CompanyController.updateFeatureFlags',
@@ -294,6 +311,7 @@ export class CompanyController {
       autoBookAfa: body.autoBookAfa !== undefined ? body.autoBookAfa : prev.autoBookAfa,
       anlageV: body.anlageV !== undefined ? body.anlageV : prev.anlageV,
       anlageG: body.anlageG !== undefined ? body.anlageG : prev.anlageG,
+      anlageN: body.anlageN !== undefined ? body.anlageN : prev.anlageN,
     }
   }
 
@@ -320,6 +338,7 @@ export class CompanyController {
       autoBookAfa: settings.autoBookAfa !== false,
       anlageV: settings.anlageV === true,
       anlageG: settings.anlageG === true,
+      anlageN: settings.anlageN === true,
       // The cron fires at 5 0 1 * * (00:05 on
       // the 1st of each month, Berlin time).
       // nextRunAt is the first-of-next-month

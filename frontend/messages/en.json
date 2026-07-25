@@ -2243,6 +2243,39 @@
     "matchedMiete": "Rent/lease bookings",
     "generatedAt": "Generated"
   },
+  "anlageN": {
+    "title": "Anlage N (preview)",
+    "subtitle": "Income from employment (§ 3 EStG) — from your Lohnsteuerbescheinigung + manually-entered Werbungskosten / Sonderausgaben / Außergewöhnliche Belastungen. For employees, civil servants, managing directors with employment contracts, part-time workers. The Lohnsteuerbescheinigung is issued by your employer (one A4 page per year) — please enter the values below. Have your tax advisor review before filing.",
+    "year": "Fiscal year",
+    "recompute": "Compute",
+    "downloadPdf": "Download PDF",
+    "editLsb": "Edit Lohnsteuerbescheinigung",
+    "saveLsb": "Save",
+    "lsbMissing": "⚠ No Lohnsteuerbescheinigung recorded for this year. Please enter the values from your wage tax certificate below.",
+    "einnahmen": "Income",
+    "werbungskosten": "Werbungskosten (deductions)",
+    "sonderausgaben": "Sonderausgaben (special expenses)",
+    "aussergewoehnlicheBelastungen": "Extraordinary burdens",
+    "einkuenfte": "Income from employment",
+    "lohnsteuerInfo": "Wage tax credit (informational)",
+    "lohnsteuerHint": "These amounts have already been remitted to the Finanzamt by the employer and will be credited against the assessed income tax (§ 36 Abs. 2 EStG).",
+    "fields": {
+      "bruttoArbeitslohn": "Gross wage (Kz 3)",
+      "lohnsteuer": "Income tax (Kz 4)",
+      "soli": "Solidarity surcharge (Kz 5)",
+      "kirchensteuer": "Church tax (Kz 6)",
+      "rentenversicherung": "Pension insurance (Kz 7)",
+      "arbeitslosenversicherung": "Unemployment insurance (Kz 8)",
+      "krankenversicherung": "Health insurance (Kz 9)",
+      "pflegeversicherung": "Long-term care insurance (Kz 10)"
+    },
+    "fieldHint": "Copy the values from your Lohnsteuerbescheinigung. Enter to-the-cent — the Finanzamt rounds to full euros.",
+    "wkhint": "130 = Arbeitnehmer-Pauschbetrag (auto, 1.230 EUR). The other Kz (140-190) are manual — work days × km × 0.30 EUR for Entfernungspauschale etc.",
+    "sahint": "Vorsorgeaufwand above the basic cap (Rürup / Riester). The KV/PV portions are already deducted from the gross.",
+    "abhint": "Medical costs, disability (Pauschbetrag per GdB), funeral costs, care — deductible from 1% gross (reasonable burden).",
+    "savedOk": "Lohnsteuerbescheinigung saved.",
+    "generatedAt": "Generated"
+  },
   "bilanz": {
     "title": "Balance Sheet (preview)",
     "subtitle": "Assets and liabilities snapshot as of Dec 31 — auto-derived from your open receivables, cash balance, and customer credits. Positions without source data are marked \"nicht ausgewiesen\" (not stated). The equity line is a placeholder. Have your tax advisor complete it before filing.",
@@ -2467,6 +2500,11 @@
       "label": "Include Anlage G in Berater packager",
       "description": "Force-include Anlage G (trade / commercial income, § 15 EStG) in the year-end Berater packager ZIP. By default, only included when the company had commercial revenue (invoices) in the year. Capital companies (GmbH/AG) file a separate KSt 1 instead.",
       "effectLabel": "Affects: Anlage-G.pdf in Berater packager"
+    },
+    "anlageN": {
+      "label": "Include Anlage N in Berater packager",
+      "description": "Force-include Anlage N (employment income, § 3 EStG) in the year-end Berater packager ZIP. By default, only included when a Lohnsteuerbescheinigung is recorded in Company.settings.lohnsteuerbescheinigungen for the year. For employees, civil servants, managing directors with employment contracts.",
+      "effectLabel": "Affects: Anlage-N.pdf in Berater packager"
     }
   }
 }

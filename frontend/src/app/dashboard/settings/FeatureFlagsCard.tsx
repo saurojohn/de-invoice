@@ -11,14 +11,16 @@ interface FeatureFlags {
   autoBookAfa: boolean
   anlageV: boolean
   anlageG: boolean
+  anlageN: boolean
   nextAutoBookerRun: string
 }
 
 /**
  * Tier 94: Feature flags card.
  * Tier 100: added anlageG (Gewerbebetrieb).
+ * Tier 101: added anlageN (Arbeitnehmereinkünfte).
  *
- * The backend has 3 per-company feature flags
+ * The backend has 4 per-company feature flags
  * stored on Company.settings (JSONB):
  *
  *   - autoBookAfa (default = true). The
@@ -43,6 +45,16 @@ interface FeatureFlags {
  *     the heuristic would miss, e.g. early
  *     Gründerjahre with 0 invoices).
  *
+ *   - anlageN (tier 101, default = false). The
+ *     Berater packager reads this to decide
+ *     whether to include the Anlage N PDF in
+ *     the year-end ZIP. Set to true to force
+ *     inclusion (for Mandanten with employment
+ *     income that the Lohnsteuerbescheinigung
+ *     heuristic would miss, e.g. when brutto
+ *     hasn't been entered yet but the user
+ *     knows they have to file).
+ *
  * Each toggle is an explicit "Speichern"
  * action — we don't auto-save on every change
  * because (a) the user should see the
@@ -65,7 +77,7 @@ export function FeatureFlagsCard() {
   // Local draft state — the user toggles these
   // and clicks "Speichern" to commit. Reset
   // on successful save.
-  const [draft, setDraft] = useState<{ autoBookAfa: boolean; anlageV: boolean; anlageG: boolean } | null>(null)
+  const [draft, setDraft] = useState<{ autoBookAfa: boolean; anlageV: boolean; anlageG: boolean; anlageN: boolean } | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -79,6 +91,7 @@ export function FeatureFlagsCard() {
         autoBookAfa: result.autoBookAfa,
         anlageV: result.anlageV,
         anlageG: result.anlageG,
+        anlageN: result.anlageN,
       })
     } catch (e: any) {
       const msg = e instanceof ApiError ? e.message : tRef.current("common.loadError")
@@ -104,10 +117,11 @@ export function FeatureFlagsCard() {
       // receive. This makes the round-trip
       // idempotent (no "set to the same value"
       // side effects).
-      const body: { autoBookAfa?: boolean; anlageV?: boolean; anlageG?: boolean } = {}
+      const body: { autoBookAfa?: boolean; anlageV?: boolean; anlageG?: boolean; anlageN?: boolean } = {}
       if (draft.autoBookAfa !== flags.autoBookAfa) body.autoBookAfa = draft.autoBookAfa
       if (draft.anlageV !== flags.anlageV) body.anlageV = draft.anlageV
       if (draft.anlageG !== flags.anlageG) body.anlageG = draft.anlageG
+      if (draft.anlageN !== flags.anlageN) body.anlageN = draft.anlageN
       if (Object.keys(body).length === 0) {
         toastRef.current.info(tRef.current("featureFlags.noChanges"))
         setSaving(false)
@@ -144,7 +158,8 @@ export function FeatureFlagsCard() {
   const dirty =
     draft.autoBookAfa !== flags.autoBookAfa ||
     draft.anlageV !== flags.anlageV ||
-    draft.anlageG !== flags.anlageG
+    draft.anlageG !== flags.anlageG ||
+    draft.anlageN !== flags.anlageN
 
   return (
     <Card data-testid="feature-flags-card">
@@ -291,6 +306,48 @@ export function FeatureFlagsCard() {
           </label>
         </div>
 
+        {/* Tier 101: Anlage N toggle */}
+        <div
+          className="flex items-start justify-between gap-4 p-3 border rounded dark:border-gray-700"
+          data-testid="feature-flag-anlage-n"
+        >
+          <div className="flex-1">
+            <div className="font-medium text-sm">
+              {tRef.current("featureFlags.anlageN.label")}
+            </div>
+            <div className="text-xs text-gray-500 mt-1">
+              {tRef.current("featureFlags.anlageN.description")}
+            </div>
+            <div className="text-xs text-gray-400 mt-1">
+              {tRef.current("featureFlags.anlageN.effectLabel")}
+            </div>
+          </div>
+          <label className="inline-flex items-center cursor-pointer mt-1">
+            <input
+              type="checkbox"
+              className="sr-only"
+              checked={draft.anlageN}
+              onChange={(e) =>
+                setDraft({ ...draft, anlageN: e.target.checked })
+              }
+              data-testid="feature-flag-anlage-n-toggle"
+            />
+            <span
+              className={`w-11 h-6 rounded-full relative transition-colors ${
+                draft.anlageN
+                  ? "bg-emerald-500"
+                  : "bg-gray-300 dark:bg-gray-600"
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${
+                  draft.anlageN ? "translate-x-5" : ""
+                }`}
+              />
+            </span>
+          </label>
+        </div>
+
         <div className="flex items-center gap-3 pt-2 border-t dark:border-gray-700">
           <Button
             onClick={save}
@@ -306,6 +363,7 @@ export function FeatureFlagsCard() {
                 autoBookAfa: flags.autoBookAfa,
                 anlageV: flags.anlageV,
                 anlageG: flags.anlageG,
+                anlageN: flags.anlageN,
               })
             }
             disabled={!dirty || saving}

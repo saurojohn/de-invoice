@@ -2242,6 +2242,39 @@
     "matchedMiete": "Miete/Pacht-Buchungen",
     "generatedAt": "Erstellt"
   },
+  "anlageN": {
+    "title": "Anlage N (Vorschau)",
+    "subtitle": "Einkünfte aus nichtselbständiger Arbeit (§ 3 EStG) — aus Ihrer Lohnsteuerbescheinigung + manuell eingetragenen Werbungskosten / Sonderausgaben / Außergewöhnlichen Belastungen. Für Arbeitnehmer, Beamte, Gesellschafter-Geschäftsführer mit Anstellung, Teilzeit-Beschäftigte. Die Lohnsteuerbescheinigung wird vom Arbeitgeber ausgestellt (eine A4-Seite pro Jahr) — bitte unten eintragen. Vor der Einreichung durch den Steuerberater prüfen lassen.",
+    "year": "Geschäftsjahr",
+    "recompute": "Berechnen",
+    "downloadPdf": "PDF herunterladen",
+    "editLsb": "Lohnsteuerbescheinigung bearbeiten",
+    "saveLsb": "Speichern",
+    "lsbMissing": "⚠ Keine Lohnsteuerbescheinigung für dieses Jahr erfasst. Tragen Sie unten die Werte aus Ihrer Lohnsteuerbescheinigung ein.",
+    "einnahmen": "Einnahmen",
+    "werbungskosten": "Werbungskosten",
+    "sonderausgaben": "Sonderausgaben",
+    "aussergewoehnlicheBelastungen": "Außergewöhnliche Belastungen",
+    "einkuenfte": "Einkünfte aus nichtselbständiger Arbeit",
+    "lohnsteuerInfo": "Lohnsteuer-Anrechnung (zur Information)",
+    "lohnsteuerHint": "Diese Beträge wurden bereits vom Arbeitgeber ans Finanzamt abgeführt und werden in der Festsetzung auf die Einkommensteuer angerechnet (§ 36 Abs. 2 EStG).",
+    "fields": {
+      "bruttoArbeitslohn": "Bruttoarbeitslohn (Kz 3)",
+      "lohnsteuer": "Lohnsteuer (Kz 4)",
+      "soli": "Solidaritätszuschlag (Kz 5)",
+      "kirchensteuer": "Kirchensteuer (Kz 6)",
+      "rentenversicherung": "Rentenversicherung (Kz 7)",
+      "arbeitslosenversicherung": "Arbeitslosenversicherung (Kz 8)",
+      "krankenversicherung": "Krankenversicherung (Kz 9)",
+      "pflegeversicherung": "Pflegeversicherung (Kz 10)"
+    },
+    "fieldHint": "Werte aus Ihrer Lohnsteuerbescheinigung übernehmen. Cent-genau eingeben — das Finanzamt rundet auf volle Euro.",
+    "wkhint": "130 = Arbeitnehmer-Pauschbetrag (auto). Die übrigen Kz (140-190) sind manuell einzutragen — Anzahl der Arbeitstage × km × 0,30 EUR für Entfernungspauschale etc.",
+    "sahint": "Vorsorgeaufwand oberhalb des Grundhöchstbetrags (Basis-Rente, Riester). Die KV/PV-Anteile sind bereits im Brutto berücksichtigt.",
+    "abhint": "Krankheitskosten, Behinderung (Pauschbetrag je nach GdB), Bestattungskosten, Pflege — abzugsfähig ab 1% Brutto (zumutbare Belastung).",
+    "savedOk": "Lohnsteuerbescheinigung gespeichert.",
+    "generatedAt": "Erstellt"
+  },
   "bilanz": {
     "title": "Bilanz (Vorschau)",
     "subtitle": "Vermögensübersicht zum 31.12. — automatisch aus Ihren offenen Posten, dem Kassenbestand und dem Kundenguthaben abgeleitet. Positionen ohne Datengrundlage sind als „nicht ausgewiesen\" markiert. Der Saldoposten beim Eigenkapital ist ein Platzhalter. Vor der Einreichung durch den Steuerberater ergänzen.",
@@ -2466,6 +2499,11 @@
       "label": "Anlage G im Berater-Paket einschließen",
       "description": "Erzwingt die Aufnahme der Anlage G (Gewerbebetrieb, § 15 EStG) im year-end Berater-Paket ZIP. Standardmäßig nur enthalten, wenn die Firma gewerbliche Umsätze (Rechnungen) im Geschäftsjahr hatte. Für Kapitalgesellschaften (GmbH/AG) ist stattdessen die KSt 1 abzugeben.",
       "effectLabel": "Wirkt auf: Anlage-G.pdf im Berater-Paket"
+    },
+    "anlageN": {
+      "label": "Anlage N im Berater-Paket einschließen",
+      "description": "Erzwingt die Aufnahme der Anlage N (Arbeitnehmereinkünfte, § 3 EStG) im year-end Berater-Paket ZIP. Standardmäßig nur enthalten, wenn eine Lohnsteuerbescheinigung für das Geschäftsjahr in Company.settings.lohnsteuerbescheinigungen erfasst wurde. Für Arbeitnehmer, Beamte, Gesellschafter-Geschäftsführer mit Anstellung.",
+      "effectLabel": "Wirkt auf: Anlage-N.pdf im Berater-Paket"
     }
   }
 }

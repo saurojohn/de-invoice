@@ -2243,6 +2243,39 @@
     "matchedMiete": "租金/租赁账目",
     "generatedAt": "生成时间"
   },
+  "anlageN": {
+    "title": "Anlage N 附件（预览）",
+    "subtitle": "雇佣收入（§ 3 EStG）— 来源于您的工资税证明 + 手动输入的 Werbungskosten / 特殊支出 / 异常负担。适用于雇员、公务员、参股管理层兼雇员、兼职者。Lohnsteuerbescheinigung 由雇主每年出具（A4 一页）— 请在下方录入数值。提交前请税务师审核。",
+    "year": "财年",
+    "recompute": "计算",
+    "downloadPdf": "下载 PDF",
+    "editLsb": "编辑工资税证明",
+    "saveLsb": "保存",
+    "lsbMissing": "⚠ 本年度尚未录入工资税证明。请在下方录入您工资税证明中的数值。",
+    "einnahmen": "收入",
+    "werbungskosten": "Werbungskosten（扣除项）",
+    "sonderausgaben": "Sonderausgaben（特殊支出）",
+    "aussergewoehnlicheBelastungen": "异常负担",
+    "einkuenfte": "雇佣收入",
+    "lohnsteuerInfo": "工资税抵扣（参考信息）",
+    "lohnsteuerHint": "这些金额已由雇主代缴至财政局，将在税务核定中抵扣所得税（§ 36 Abs. 2 EStG）。",
+    "fields": {
+      "bruttoArbeitslohn": "总工资（Kz 3）",
+      "lohnsteuer": "所得税（Kz 4）",
+      "soli": "团结附加税（Kz 5）",
+      "kirchensteuer": "教会税（Kz 6）",
+      "rentenversicherung": "养老保险（Kz 7）",
+      "arbeitslosenversicherung": "失业保险（Kz 8）",
+      "krankenversicherung": "医疗保险（Kz 9）",
+      "pflegeversicherung": "长期护理保险（Kz 10）"
+    },
+    "fieldHint": "复制您工资税证明中的数值。精确到分 — 财政局将四舍五入到整欧元。",
+    "wkhint": "130 = 雇员免税额（自动 1.230 EUR）。其他 Kz（140-190）需手动输入 — 工作日 × 公里 × 0.30 EUR 计算通勤距离。",
+    "sahint": "基础免税额以上的养老储蓄（吕库普/里斯特）。KV/PV 部分已从总工资中扣除。",
+    "abhint": "医疗费用、残疾（按 GdB 免税额）、丧葬费用、护理 — 超过总收入 1% 起可抵扣（合理负担）。",
+    "savedOk": "工资税证明已保存。",
+    "generatedAt": "生成时间"
+  },
   "bilanz": {
     "title": "资产负债表（预览）",
     "subtitle": "12月31日资产负债快照 — 自动从您的未收应收款、现金余额和客户预收款汇总而成。没有数据来源的科目标记为「nicht ausgewiesen」（未列示）。权益行为占位符。提交前请税务师补全。",
@@ -2467,6 +2500,11 @@
       "label": "在税务师包裹中包含 Anlage G",
       "description": "强制在年终税务师包裹 ZIP 中包含 Anlage G（经营性收入，§ 15 EStG）。默认仅在当年公司有商业收入（开票）时包含。资合公司（GmbH/AG）需提交 KSt 1 公司所得税申报表。",
       "effectLabel": "影响：Berater 包裹中的 Anlage-G.pdf"
+    },
+    "anlageN": {
+      "label": "在税务师包裹中包含 Anlage N",
+      "description": "强制在年终税务师包裹 ZIP 中包含 Anlage N（雇佣收入，§ 3 EStG）。默认仅在 Company.settings.lohnsteuerbescheinigungen 中已录入当年工资税证明时包含。适用于雇员、公务员、参股管理层兼雇员。",
+      "effectLabel": "影响：Berater 包裹中的 Anlage-N.pdf"
     }
   }
 }

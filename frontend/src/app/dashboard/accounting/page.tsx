@@ -19,6 +19,11 @@ import { AnlageKAPSection } from "./AnlageKAPSection"
 // § 15 EStG) — 4th Anlage form. Pairs
 // with the EÜR.
 import { AnlageGSection } from "./AnlageGSection"
+// Tier 101: Anlage N (Arbeitnehmereinkünfte,
+// § 3 EStG) — 5th Anlage form. Reads
+// Lohnsteuerbescheinigung from
+// Company.settings.
+import { AnlageNSection } from "./AnlageNSection"
 import { BilanzSection } from "./BilanzSection"
 import { GuVSection } from "./GuVSection"
 import { AnhangSection } from "./AnhangSection"
@@ -1150,6 +1155,9 @@ export default function AccountingPage() {
 
       {/* Tier 100: Anlage G (§ 15 EStG trade / commercial) */}
       <AnlageGSection />
+
+      {/* Tier 101: Anlage N (§ 3 EStG employment income) */}
+      <AnlageNSection />
 
       {/* Tier 81: Bilanz Vorschau (§ 266 HGB year-end snapshot) */}
       <BilanzSection />
