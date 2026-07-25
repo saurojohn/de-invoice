@@ -5,7 +5,8 @@ import { readFileSync } from "fs"
  * Tier 94: Frontend Settings UI for feature flags.
  *
  * The settings page now has a "Funktions-Flags"
- * card with 2 toggles (autoBookAfa + anlageV)
+ * card with 3 toggles (autoBookAfa + anlageV
+ * + anlageG, tier 100)
  * + a save/reset pair + a "next run" hint
  * for the auto-booker.
  *
@@ -68,12 +69,13 @@ test.describe("Feature flags — /dashboard/settings", () => {
     await expect(page.getByTestId("feature-flags-card")).toBeVisible({ timeout: 30_000 })
   })
 
-  test("Both toggle rows render (autoBookAfa + anlageV)", async ({ page }) => {
+  test("All 3 toggle rows render (autoBookAfa + anlageV + anlageG)", async ({ page }) => {
     await injectAuth(page)
     await page.goto("/dashboard/settings")
     await expect(page.getByTestId("feature-flags-card")).toBeVisible({ timeout: 30_000 })
     await expect(page.getByTestId("feature-flag-auto-book-afa")).toBeVisible()
     await expect(page.getByTestId("feature-flag-anlage-v")).toBeVisible()
+    await expect(page.getByTestId("feature-flag-anlage-g")).toBeVisible()
   })
 
   test("Save button is disabled until a toggle is flipped", async ({ page }) => {

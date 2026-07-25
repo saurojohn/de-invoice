@@ -10,13 +10,15 @@ import { apiGet, apiPatch, ApiError } from "@/lib/api"
 interface FeatureFlags {
   autoBookAfa: boolean
   anlageV: boolean
+  anlageG: boolean
   nextAutoBookerRun: string
 }
 
 /**
  * Tier 94: Feature flags card.
+ * Tier 100: added anlageG (Gewerbebetrieb).
  *
- * The backend has 2 per-company feature flags
+ * The backend has 3 per-company feature flags
  * stored on Company.settings (JSONB):
  *
  *   - autoBookAfa (default = true). The
@@ -32,6 +34,14 @@ interface FeatureFlags {
  *     the year-end ZIP. Set to true to force
  *     inclusion (for landlords without
  *     building assets in the Anlagenverzeichnis).
+ *
+ *   - anlageG (tier 100, default = false). The
+ *     Berater packager reads this to decide
+ *     whether to include the Anlage G PDF in
+ *     the year-end ZIP. Set to true to force
+ *     inclusion (for gewerbliche Mandanten that
+ *     the heuristic would miss, e.g. early
+ *     Gründerjahre with 0 invoices).
  *
  * Each toggle is an explicit "Speichern"
  * action — we don't auto-save on every change
@@ -55,7 +65,7 @@ export function FeatureFlagsCard() {
   // Local draft state — the user toggles these
   // and clicks "Speichern" to commit. Reset
   // on successful save.
-  const [draft, setDraft] = useState<{ autoBookAfa: boolean; anlageV: boolean } | null>(null)
+  const [draft, setDraft] = useState<{ autoBookAfa: boolean; anlageV: boolean; anlageG: boolean } | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -68,6 +78,7 @@ export function FeatureFlagsCard() {
       setDraft({
         autoBookAfa: result.autoBookAfa,
         anlageV: result.anlageV,
+        anlageG: result.anlageG,
       })
     } catch (e: any) {
       const msg = e instanceof ApiError ? e.message : tRef.current("common.loadError")
@@ -93,9 +104,10 @@ export function FeatureFlagsCard() {
       // receive. This makes the round-trip
       // idempotent (no "set to the same value"
       // side effects).
-      const body: { autoBookAfa?: boolean; anlageV?: boolean } = {}
+      const body: { autoBookAfa?: boolean; anlageV?: boolean; anlageG?: boolean } = {}
       if (draft.autoBookAfa !== flags.autoBookAfa) body.autoBookAfa = draft.autoBookAfa
       if (draft.anlageV !== flags.anlageV) body.anlageV = draft.anlageV
+      if (draft.anlageG !== flags.anlageG) body.anlageG = draft.anlageG
       if (Object.keys(body).length === 0) {
         toastRef.current.info(tRef.current("featureFlags.noChanges"))
         setSaving(false)
@@ -130,7 +142,9 @@ export function FeatureFlagsCard() {
   if (!flags || !draft) return null
 
   const dirty =
-    draft.autoBookAfa !== flags.autoBookAfa || draft.anlageV !== flags.anlageV
+    draft.autoBookAfa !== flags.autoBookAfa ||
+    draft.anlageV !== flags.anlageV ||
+    draft.anlageG !== flags.anlageG
 
   return (
     <Card data-testid="feature-flags-card">
@@ -235,6 +249,48 @@ export function FeatureFlagsCard() {
           </label>
         </div>
 
+        {/* Tier 100: Anlage G toggle */}
+        <div
+          className="flex items-start justify-between gap-4 p-3 border rounded dark:border-gray-700"
+          data-testid="feature-flag-anlage-g"
+        >
+          <div className="flex-1">
+            <div className="font-medium text-sm">
+              {tRef.current("featureFlags.anlageG.label")}
+            </div>
+            <div className="text-xs text-gray-500 mt-1">
+              {tRef.current("featureFlags.anlageG.description")}
+            </div>
+            <div className="text-xs text-gray-400 mt-1">
+              {tRef.current("featureFlags.anlageG.effectLabel")}
+            </div>
+          </div>
+          <label className="inline-flex items-center cursor-pointer mt-1">
+            <input
+              type="checkbox"
+              className="sr-only"
+              checked={draft.anlageG}
+              onChange={(e) =>
+                setDraft({ ...draft, anlageG: e.target.checked })
+              }
+              data-testid="feature-flag-anlage-g-toggle"
+            />
+            <span
+              className={`w-11 h-6 rounded-full relative transition-colors ${
+                draft.anlageG
+                  ? "bg-emerald-500"
+                  : "bg-gray-300 dark:bg-gray-600"
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${
+                  draft.anlageG ? "translate-x-5" : ""
+                }`}
+              />
+            </span>
+          </label>
+        </div>
+
         <div className="flex items-center gap-3 pt-2 border-t dark:border-gray-700">
           <Button
             onClick={save}
@@ -249,6 +305,7 @@ export function FeatureFlagsCard() {
               setDraft({
                 autoBookAfa: flags.autoBookAfa,
                 anlageV: flags.anlageV,
+                anlageG: flags.anlageG,
               })
             }
             disabled={!dirty || saving}

@@ -15,6 +15,10 @@ import { AnlageVSection } from "./AnlageVSection"
 // Tier 98: Anlage KAP (Kapitalerträge,
 // § 20 EStG) — sibling of Anlage S / V.
 import { AnlageKAPSection } from "./AnlageKAPSection"
+// Tier 100: Anlage G (Gewerbebetrieb,
+// § 15 EStG) — 4th Anlage form. Pairs
+// with the EÜR.
+import { AnlageGSection } from "./AnlageGSection"
 import { BilanzSection } from "./BilanzSection"
 import { GuVSection } from "./GuVSection"
 import { AnhangSection } from "./AnhangSection"
@@ -1143,6 +1147,9 @@ export default function AccountingPage() {
 
       {/* Tier 98: Anlage KAP (§ 20 EStG capital income) */}
       <AnlageKAPSection />
+
+      {/* Tier 100: Anlage G (§ 15 EStG trade / commercial) */}
+      <AnlageGSection />
 
       {/* Tier 81: Bilanz Vorschau (§ 266 HGB year-end snapshot) */}
       <BilanzSection />

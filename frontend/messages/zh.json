@@ -2222,6 +2222,27 @@
     "matchedDividende": "股息收入",
     "generatedAt": "生成时间"
   },
+  "anlageG": {
+    "title": "Anlage G 附件（预览）",
+    "subtitle": "经营性收入（§ 15 EStG）— 自动从您的发票+营业支出+§ 8/9 GewStG 加回/扣除机制推导。适用于经营性个体户与人合公司。资合公司（GmbH/AG）需提交单独的 KSt 1 公司所得税申报表。提交前请税务师审核。",
+    "year": "财年",
+    "recompute": "计算",
+    "downloadPdf": "下载 PDF",
+    "einnahmen": "营业收入 / 收入",
+    "betriebsausgaben": "营业支出",
+    "hinzurechnungen": "加回（§ 8 GewStG）",
+    "kurzungen": "扣除（§ 9 GewStG）",
+    "gewinn": "盈利 / 亏损",
+    "gewerbeertrag": "经营性所得 + 工商税预估",
+    "gewStSchätzung": "工商税预估（非常粗略 — 请核实本地 Hebesatz！）",
+    "freibetrag": "免税额 § 11 Abs. 1 GewStG（个体户/人合公司）",
+    "hebesatz": "Hebesatz 税率乘数（默认 400 %）",
+    "hebesatzHint": "请根据所在市镇调整 — 如 Köln 470 %，München 490 %。Company.settings.hebesatz",
+    "hinzuHint": "仅 Kz 4100（25% 租金/租赁）从账目自动推导。其他加回项目（股东贷款利息、亏损分配、隐性存款）需税务师根据《工商税法》与合同补充。",
+    "kurzungHint": "仅 Kz 5100（50% 私用车辆部分）自动推导。其他扣除（1.2% 不动产收益从单位价值、人合公司利润分配）需根据合同补充。",
+    "matchedMiete": "租金/租赁账目",
+    "generatedAt": "生成时间"
+  },
   "bilanz": {
     "title": "资产负债表（预览）",
     "subtitle": "12月31日资产负债快照 — 自动从您的未收应收款、现金余额和客户预收款汇总而成。没有数据来源的科目标记为「nicht ausgewiesen」（未列示）。权益行为占位符。提交前请税务师补全。",
@@ -2441,6 +2462,11 @@
       "label": "在税务师包裹中包含 Anlage V",
       "description": "强制在年终税务师包裹 ZIP 中包含 Anlage V（出租与租赁收入，§ 21 EStG）。默认仅在公司有建筑物资产时包含。",
       "effectLabel": "影响：Berater 包裹中的 03_Anlage-V.pdf"
+    },
+    "anlageG": {
+      "label": "在税务师包裹中包含 Anlage G",
+      "description": "强制在年终税务师包裹 ZIP 中包含 Anlage G（经营性收入，§ 15 EStG）。默认仅在当年公司有商业收入（开票）时包含。资合公司（GmbH/AG）需提交 KSt 1 公司所得税申报表。",
+      "effectLabel": "影响：Berater 包裹中的 Anlage-G.pdf"
     }
   }
 }

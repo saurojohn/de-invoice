@@ -17,7 +17,13 @@ import { AnlageVService } from './anlage-v.service';
 // investment income (Zinsen, Dividenden,
 // Veräußerungsgewinne). v1 heuristic:
 // bank transaction purpose regex.
-import { AnlageKAPService } from './anlage-kap.service';
+import { AnlageKAPService } from './anlage-kap.service'
+// Tier 100: Anlage G (Gewerbebetrieb, § 15
+// EStG). The 4th Anlage form — for gewerbliche
+// Einzelunternehmen + Personengesellschaften.
+// Pairs with EÜR — adds § 8/9 GewStG Hinzu-/
+// Kürzungen on top of the EÜR sum.
+import { AnlageGService } from './anlage-g.service';
 import { BilanzService } from './bilanz.service';
 import { GuVService } from './guv.service';
 import { AnhangService } from './anhang.service';
@@ -43,7 +49,7 @@ import { ReportsModule } from '../reports/reports.module';
 @Module({
   imports: [PrismaModule, StorageModule, WebhookModule, AssetsModule, ReportsModule],
   controllers: [AccountingController, VoucherTemplateController, JournalController],
-  providers: [AccountService, VoucherService, VoucherTemplateService, JournalService, EuerService, AnlageSService, AnlageVService, AnlageKAPService, BilanzService, GuVService, AnhangService, BeraterPackagerService, EBilanzService, GobdArchiveService],
-  exports: [AccountService, VoucherService, VoucherTemplateService, JournalService, EuerService, AnlageSService, AnlageVService, AnlageKAPService, BilanzService, GuVService, AnhangService, BeraterPackagerService, EBilanzService, GobdArchiveService],
+  providers: [AccountService, VoucherService, VoucherTemplateService, JournalService, EuerService, AnlageSService, AnlageVService, AnlageKAPService, AnlageGService, BilanzService, GuVService, AnhangService, BeraterPackagerService, EBilanzService, GobdArchiveService],
+  exports: [AccountService, VoucherService, VoucherTemplateService, JournalService, EuerService, AnlageSService, AnlageVService, AnlageKAPService, AnlageGService, BilanzService, GuVService, AnhangService, BeraterPackagerService, EBilanzService, GobdArchiveService],
 })
 export class AccountingModule {}

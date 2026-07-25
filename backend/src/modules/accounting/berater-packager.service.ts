@@ -7,6 +7,14 @@ import { AnlageVService } from './anlage-v.service'
 // Tier 98: Anlage KAP (Kapitalerträge,
 // § 20 EStG) — sibling of Anlage S / V.
 import { AnlageKAPService } from './anlage-kap.service'
+// Tier 100: Anlage G (Gewerbebetrieb, § 15
+// EStG) — 4th Anlage form. Pairs with the EÜR.
+// Filing order: EÜR → S → V → KAP → G → BWA.
+// Anlage G comes AFTER KAP because it's a
+// separate form (not the EÜR) and the Berater
+// wants to review all Anlagen before the HGB
+// reports.
+import { AnlageGService } from './anlage-g.service'
 import { BilanzService } from './bilanz.service'
 import { GuVService } from './guv.service'
 import { AnhangService } from './anhang.service'
@@ -99,6 +107,8 @@ export class BeraterPackagerService {
     private anlageV: AnlageVService,
     // Tier 98: Anlage KAP service.
     private anlageKAP: AnlageKAPService,
+    // Tier 100: Anlage G service.
+    private anlageG: AnlageGService,
     private bilanz: BilanzService,
     private guv: GuVService,
     private anhang: AnhangService,
@@ -219,6 +229,24 @@ export class BeraterPackagerService {
     )
     const includeAnlageKAP = anlageKAPOptIn || matchedKapTxs.length > 0
 
+    // Tier 100: Anlage G is conditional on
+    // (a) the opt-in flag in settings OR
+    // (b) at least one paid/sent/overdue
+    // invoice in the year (Gewerbe heuristic).
+    // Always-0 Anlage G would mislead the
+    // Berater. For pure Freelancer companies
+    // (only Anlage S, no Anlage G) the section
+    // is silent and excluded.
+    const anlageGOptIn = settings.anlageG === true
+    const invoiceCount = await this.prisma.invoice.count({
+      where: {
+        companyId,
+        issueDate: { gte: yearStartSnapshot, lte: yearEndSnapshot },
+        status: { in: ['paid', 'sent', 'overdue'] },
+      },
+    })
+    const includeAnlageG = anlageGOptIn || invoiceCount > 0
+
     // Append each PDF (numbered so the
     // Berater can sort them in their
     // filing system). Anlage V slot is
@@ -237,16 +265,18 @@ export class BeraterPackagerService {
 
     // Tier 92: Anlage V (optional).
     // Tier 98: Anlage KAP (optional).
-    // The 4-way conditional shifts all
-    // subsequent file numbers: V absent +
-    // KAP present = 03_KAP. V present + KAP
-    // absent = 03_V. Both present = 03_V +
-    // 04_KAP. Both absent = BWA stays at 03.
+    // Tier 100: Anlage G (optional).
+    // The 5-way conditional shifts all
+    // subsequent file numbers. The order
+    // is V → KAP → G: rental, capital,
+    // gewerbe. Each included form pushes
+    // the next slot by 1.
     const files: {
       euer: string
       anlageS: string
       anlageV?: string
       anlageKAP?: string
+      anlageG?: string
       bwa: string
       bilanz: string
       guv: string
@@ -261,29 +291,40 @@ export class BeraterPackagerService {
       anhang: '00_Anhang.pdf',
       assetCsv: '00_Anlagenverzeichnis.csv',
     }
+    let optionalSlot = 2 // V is the 1st optional after EUR+S
     if (includeAnlageV) {
       const anlageVPdf = await this.renderToBuffer((sink) =>
         this.anlageV.renderPdf(companyId, year, sink),
       )
-      archive.append(anlageVPdf, { name: '03_Anlage-V.pdf' })
-      files.anlageV = '03_Anlage-V.pdf'
+      optionalSlot++
+      const vName = `${String(optionalSlot).padStart(2, '0')}_Anlage-V.pdf`
+      archive.append(anlageVPdf, { name: vName })
+      files.anlageV = vName
     }
     if (includeAnlageKAP) {
       const anlageKAPPdf = await this.renderToBuffer((sink) =>
         this.anlageKAP.renderPdf(companyId, year, sink),
       )
-      const kapNum = includeAnlageV ? '04' : '03'
-      const kapName = `${kapNum}_Anlage-KAP.pdf`
+      optionalSlot++
+      const kapName = `${String(optionalSlot).padStart(2, '0')}_Anlage-KAP.pdf`
       archive.append(anlageKAPPdf, { name: kapName })
       files.anlageKAP = kapName
+    }
+    if (includeAnlageG) {
+      const anlageGPdf = await this.renderToBuffer((sink) =>
+        this.anlageG.renderPdf(companyId, year, sink),
+      )
+      optionalSlot++
+      const gName = `${String(optionalSlot).padStart(2, '0')}_Anlage-G.pdf`
+      archive.append(anlageGPdf, { name: gName })
+      files.anlageG = gName
     }
     // Compute the position of BWA, Bilanz,
     // G+V, Anhang, Anlagenverzeichnis based
     // on which optional Anlage forms are
     // included. Each optional form pushes
     // the subsequent files down by 1.
-    const trailingOffset =
-      (includeAnlageV ? 1 : 0) + (includeAnlageKAP ? 1 : 0)
+    const trailingOffset = optionalSlot - 2
     const bwaNum = String(3 + trailingOffset).padStart(2, '0')
     const bilanzNum = String(4 + trailingOffset).padStart(2, '0')
     const guvNum = String(5 + trailingOffset).padStart(2, '0')
@@ -481,7 +522,7 @@ export class BeraterPackagerService {
   private buildManifest(
     company: { name: string; legalName: string | null; taxId: string | null; vatId: string | null },
     year: number,
-    files: { euer: string; anlageS: string; anlageV?: string; anlageKAP?: string; bwa: string; bilanz: string; guv: string; anhang: string; assetCsv: string },
+    files: { euer: string; anlageS: string; anlageV?: string; anlageKAP?: string; anlageG?: string; bwa: string; bilanz: string; guv: string; anhang: string; assetCsv: string },
   ): string {
     const lines: string[] = []
     lines.push(`# Berater-Paket ${year} — ${company.legalName || company.name}`)
@@ -504,6 +545,9 @@ export class BeraterPackagerService {
     }
     if (files.anlageKAP) {
       lines.push(`| \`${files.anlageKAP}\` | Anlage KAP (Einkünfte aus Kapitalvermögen) gem. § 20 EStG — Vorschau. Für Privatinvestoren mit Zinserträgen / Dividenden. Nur enthalten, wenn Banktransaktionen als Zins-/Dividendeneingang klassifiziert wurden ODER \`settings.anlageKAP === true\`. Sparer-Pauschbetrag 1.000 EUR (2.000 EUR Zusammenveranlagung) berücksichtigt. 25% Abgeltungssteuer + 5.5% Soli werden erwartet (üblicherweise bereits von der Bank einbehalten). |`)
+    }
+    if (files.anlageG) {
+      lines.push(`| \`${files.anlageG}\` | Anlage G (Einkünfte aus Gewerbebetrieb) gem. § 15 EStG — Vorschau. Für gewerbliche Einzelunternehmen und Personengesellschaften. Pairs with EÜR: § 8/9 GewStG Hinzurechnungen (Kz 4100 — 25% Miete/Pacht) + Kürzungen (Kz 5100 — 50% Kfz-Nutzungsanteil) werden automatisch aus den Buchungen abgeleitet. Die restlichen Hinzu-/Kürzungen sind Platzhalter. Gewerbesteuer-Schätzung (3.5% Steuermesszahl × Hebesatz) ist SEHR grob. Nur enthalten, wenn Rechnungen im Jahr vorhanden ODER \`settings.anlageG === true\`. Für Kapitalgesellschaften (GmbH/AG) ist stattdessen die KSt 1 abzugeben. |`)
     }
     lines.push(`| \`${files.bwa}\` | BWA (Betriebswirtschaftliche Auswertung) gem. DATEV-Standard — Vorschau für Dezember ${year} (Jahressumme). 14 DATEV-Bucket-Codes: Umsatzerlöse / 4 Betriebliche Aufwands-Unterkategorien / Sonstige / Zinserträge (0 in v1) / Zinsaufwendungen / 2 Steuer-Buckets. Jahresergebnis = Betriebsergebnis + Finanzergebnis - Steuern. |`)
     lines.push(`| \`${files.bilanz}\` | Bilanz gem. § 266 HGB (Aktiva / Passiva) — Vorschau. Stichtag 31.12.${year}. |`)

@@ -213,16 +213,24 @@ export class CompanyController {
    *     inclusion (for landlords without
    *     building assets in the Anlagenverzeichnis).
    *
+   *   - anlageG (tier 100): default = false. The
+   *     Berater packager (tier 85) reads this to
+   *     decide whether to include the Anlage G
+   *     PDF in the year-end ZIP. Set to true to
+   *     force inclusion (for gewerbliche
+   *     Mandanten that the heuristic would miss,
+   *     e.g. early Gründerjahre with 0 invoices).
+   *
    * The endpoint is exposed via PATCH (not PUT)
    * because the flags are independent — the
-   * client can send either or both.
+   * client can send either or all three.
    */
   @Auth()
   @Require('company.update')
   @Patch(':id/feature-flags')
   async updateFeatureFlags(
     @Param('id') id: string,
-    @Body() body: { autoBookAfa?: boolean; anlageV?: boolean },
+    @Body() body: { autoBookAfa?: boolean; anlageV?: boolean; anlageG?: boolean },
     @Req() req: any,
   ) {
     if (body.autoBookAfa !== undefined && typeof body.autoBookAfa !== 'boolean') {
@@ -230,6 +238,9 @@ export class CompanyController {
     }
     if (body.anlageV !== undefined && typeof body.anlageV !== 'boolean') {
       throw new BadRequestException('anlageV muss ein Boolean sein')
+    }
+    if (body.anlageG !== undefined && typeof body.anlageG !== 'boolean') {
+      throw new BadRequestException('anlageG muss ein Boolean sein')
     }
     const company = await this.companyService.findById(id)
     if (!company) {
@@ -239,10 +250,12 @@ export class CompanyController {
     const prev = {
       autoBookAfa: settings.autoBookAfa !== false,
       anlageV: settings.anlageV === true,
+      anlageG: settings.anlageG === true,
     }
     const next: Record<string, unknown> = { ...settings }
     if (body.autoBookAfa !== undefined) next.autoBookAfa = body.autoBookAfa
     if (body.anlageV !== undefined) next.anlageV = body.anlageV
+    if (body.anlageG !== undefined) next.anlageG = body.anlageG
 
     await this.companyService.update(id, { settings: next } as any)
 
@@ -265,6 +278,7 @@ export class CompanyController {
           newData: {
             autoBookAfa: body.autoBookAfa,
             anlageV: body.anlageV,
+            anlageG: body.anlageG,
           } as any,
           ipAddress: null,
           userAgent: 'de-invoice:CompanyController.updateFeatureFlags',
@@ -279,6 +293,7 @@ export class CompanyController {
     return {
       autoBookAfa: body.autoBookAfa !== undefined ? body.autoBookAfa : prev.autoBookAfa,
       anlageV: body.anlageV !== undefined ? body.anlageV : prev.anlageV,
+      anlageG: body.anlageG !== undefined ? body.anlageG : prev.anlageG,
     }
   }
 
@@ -304,6 +319,7 @@ export class CompanyController {
     return {
       autoBookAfa: settings.autoBookAfa !== false,
       anlageV: settings.anlageV === true,
+      anlageG: settings.anlageG === true,
       // The cron fires at 5 0 1 * * (00:05 on
       // the 1st of each month, Berlin time).
       // nextRunAt is the first-of-next-month

@@ -2222,6 +2222,27 @@
     "matchedDividende": "Dividend income",
     "generatedAt": "Generated"
   },
+  "anlageG": {
+    "title": "Anlage G (preview)",
+    "subtitle": "Trade / commercial income (§ 15 EStG) — auto-derived from invoices + Betriebsausgaben + § 8/9 GewStG Hinzurechnungs-/Kürzungs-Mechanik. For gewerbliche Einzelunternehmen and Personengesellschaften. Capital companies (GmbH/AG) file a separate KSt 1 instead. Have your tax advisor review before filing.",
+    "year": "Fiscal year",
+    "recompute": "Compute",
+    "downloadPdf": "Download PDF",
+    "einnahmen": "Revenue / Sales",
+    "betriebsausgaben": "Operating expenses",
+    "hinzurechnungen": "Add-backs (§ 8 GewStG)",
+    "kurzungen": "Deductions (§ 9 GewStG)",
+    "gewinn": "Profit / Loss",
+    "gewerbeertrag": "Trade income + Trade tax estimate",
+    "gewStSchätzung": "Trade tax estimate (very rough — verify municipal Hebesatz!)",
+    "freibetrag": "Allowance § 11 Abs. 1 GewStG (sole proprietor / partnership)",
+    "hebesatz": "Hebesatz (default 400 %)",
+    "hebesatzHint": "Adjust to your municipality — e.g. 470 % in Köln, 490 % in München. Company.settings.hebesatz",
+    "hinzuHint": "Only Kz 4100 (25% rent/lease) is auto-derived from bookings. Other add-backs (interest on shareholder loans, loss allocations, silent deposits) need to be added by the tax advisor from the Gewerbesteuergesetz and the contracts.",
+    "kurzungHint": "Only Kz 5100 (50% private-use share of vehicle expenses) is auto-derived. Other deductions (1.2% Grundstückserträge from the unit value, partnership profit allocations) need to be added from the contracts.",
+    "matchedMiete": "Rent/lease bookings",
+    "generatedAt": "Generated"
+  },
   "bilanz": {
     "title": "Balance Sheet (preview)",
     "subtitle": "Assets and liabilities snapshot as of Dec 31 — auto-derived from your open receivables, cash balance, and customer credits. Positions without source data are marked \"nicht ausgewiesen\" (not stated). The equity line is a placeholder. Have your tax advisor complete it before filing.",
@@ -2441,6 +2462,11 @@
       "label": "Include Anlage V in Berater packager",
       "description": "Force-include Anlage V (rental & leasing income, § 21 EStG) in the year-end Berater packager ZIP. By default, only included when the company has building assets in the Anlagenverzeichnis.",
       "effectLabel": "Affects: 03_Anlage-V.pdf in Berater packager"
+    },
+    "anlageG": {
+      "label": "Include Anlage G in Berater packager",
+      "description": "Force-include Anlage G (trade / commercial income, § 15 EStG) in the year-end Berater packager ZIP. By default, only included when the company had commercial revenue (invoices) in the year. Capital companies (GmbH/AG) file a separate KSt 1 instead.",
+      "effectLabel": "Affects: Anlage-G.pdf in Berater packager"
     }
   }
 }

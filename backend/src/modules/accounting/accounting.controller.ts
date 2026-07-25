@@ -9,7 +9,12 @@ import { AnlageSService } from './anlage-s.service';
 import { AnlageVService } from './anlage-v.service';
 // Tier 98: Anlage KAP (Kapitalerträge,
 // § 20 EStG). Sibling of Anlage S / V.
-import { AnlageKAPService } from './anlage-kap.service';
+import { AnlageKAPService } from './anlage-kap.service'
+// Tier 100: Anlage G (Gewerbebetrieb,
+// § 15 EStG). The 4th Anlage form — for
+// gewerbliche Einzelunternehmen +
+// Personengesellschaften. Pairs with EÜR.
+import { AnlageGService } from './anlage-g.service';
 import { BilanzService } from './bilanz.service';
 import { GuVService } from './guv.service';
 import { AnhangService } from './anhang.service';
@@ -30,6 +35,9 @@ export class AccountingController {
     // Tier 98: Anlage KAP (Kapitalerträge,
     // § 20 EStG) — sibling of Anlage S / V.
     private anlageKAP: AnlageKAPService,
+    // Tier 100: Anlage G (Gewerbebetrieb,
+    // § 15 EStG) — 4th Anlage form.
+    private anlageG: AnlageGService,
     private bilanz: BilanzService,
     private guv: GuVService,
     private anhang: AnhangService,
@@ -616,6 +624,62 @@ export class AccountingController {
       throw new BadRequestException('year ist ungültig')
     }
     await this.anlageKAP.renderPdf(companyId, year, res)
+  }
+
+  // =============================================================
+  // Tier 100 — Anlage G (Gewerbebetrieb, § 15 EStG)
+  // =============================================================
+  //
+  // The German tax filing for gewerbliche
+  // Einzelunternehmen + Personengesellschaften.
+  // Pairs with the EÜR: the EÜR computes
+  // Einnahmen - Betriebsausgaben, Anlage G adds
+  // the § 8/9 GewStG Hinzurechnungs-/Kürzungs-
+  // mechanism to derive the Gewerbeertrag.
+  //
+  // The 4th Anlage form (after S / V / KAP).
+  // Capital companies (GmbH/AG) file a separate
+  // KSt 1 instead — Anlage G is for
+  // einkommensteuer-pflichtige entities.
+  //
+  // v1 heuristic: All paid/sent/overdue invoices
+  // in the year are gewerbliche Umsatzerlöse.
+  // § 8/9 GewStG Korrekturen: only 4100 (25%
+  // Hinzurechnung Miete/Pacht) and 5100 (50%
+  // Kürzung Kfz-Nutzungsanteil) are computed;
+  // the rest is placeholder.
+  @Get('anlage-g')
+  @UseGuards(HeaderAuthGuard)
+  async getAnlageG(
+    @Query('companyId') companyId: string,
+    @Query('year') yearRaw?: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const year = yearRaw
+      ? Number(yearRaw)
+      : new Date().getFullYear() - 1
+    if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+    return this.anlageG.compute(companyId, year)
+  }
+
+  @Get('anlage-g.pdf')
+  @UseGuards(HeaderAuthGuard)
+  @Header('Content-Type', 'application/pdf')
+  async getAnlageGPdf(
+    @Res() res: Response,
+    @Query('companyId') companyId: string,
+    @Query('year') yearRaw?: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const year = yearRaw
+      ? Number(yearRaw)
+      : new Date().getFullYear() - 1
+    if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+    await this.anlageG.renderPdf(companyId, year, res)
   }
 
   /**

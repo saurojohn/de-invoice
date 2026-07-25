@@ -2221,6 +2221,27 @@
     "matchedDividende": "Dividenden",
     "generatedAt": "Erstellt"
   },
+  "anlageG": {
+    "title": "Anlage G (Vorschau)",
+    "subtitle": "Einkünfte aus Gewerbebetrieb (§ 15 EStG) — automatisch aus Ihren Rechnungen + Betriebsausgaben + § 8/9 GewStG Hinzurechnungs-/Kürzungs-Mechanik abgeleitet. Für gewerbliche Einzelunternehmen und Personengesellschaften. Für Kapitalgesellschaften (GmbH/AG) ist stattdessen die Körperschaftsteuererklärung KSt 1 abzugeben. Vor der Einreichung durch den Steuerberater prüfen lassen.",
+    "year": "Geschäftsjahr",
+    "recompute": "Berechnen",
+    "downloadPdf": "PDF herunterladen",
+    "einnahmen": "Umsatzerlöse / Erlöse",
+    "betriebsausgaben": "Betriebsausgaben",
+    "hinzurechnungen": "Hinzurechnungen (§ 8 GewStG)",
+    "kurzungen": "Kürzungen (§ 9 GewStG)",
+    "gewinn": "Gewinn / Verlust",
+    "gewerbeertrag": "Gewerbeertrag + Gewerbesteuer-Schätzung",
+    "gewStSchätzung": "Gewerbesteuer-Schätzung (sehr grob — Hebesatz prüfen!)",
+    "freibetrag": "Freibetrag § 11 Abs. 1 GewStG (Einzelunternehmen / PersG)",
+    "hebesatz": "Hebesatz (default 400 %)",
+    "hebesatzHint": "Hebesatz der Gemeinde anpassen — z.B. 470 % in Köln, 490 % in München. Company.settings.hebesatz",
+    "hinzuHint": "Nur Kz 4100 (25% Miete/Pacht) wird automatisch aus den Buchungen abgeleitet. Die übrigen Hinzurechnungen (Schuldzinsen, Mitunternehmer-Verlustanteile, stille Einlagen) muss der Steuerberater aus dem Gewerbesteuergesetz und den Verträgen ergänzen.",
+    "kurzungHint": "Nur Kz 5100 (50% Kfz-Nutzungsanteil) wird automatisch aus den Buchungen abgeleitet. Die übrigen Kürzungen (Grundstückserträge 1,2% Einheitswert, Mitunternehmer-Gewinnanteile) muss der Steuerberater aus den Verträgen ergänzen.",
+    "matchedMiete": "Miete/Pacht-Buchungen",
+    "generatedAt": "Erstellt"
+  },
   "bilanz": {
     "title": "Bilanz (Vorschau)",
     "subtitle": "Vermögensübersicht zum 31.12. — automatisch aus Ihren offenen Posten, dem Kassenbestand und dem Kundenguthaben abgeleitet. Positionen ohne Datengrundlage sind als „nicht ausgewiesen\" markiert. Der Saldoposten beim Eigenkapital ist ein Platzhalter. Vor der Einreichung durch den Steuerberater ergänzen.",
@@ -2440,6 +2461,11 @@
       "label": "Anlage V im Berater-Paket einschließen",
       "description": "Erzwingt die Aufnahme der Anlage V (Vermietung und Verpachtung, § 21 EStG) im year-end Berater-Paket ZIP. Standardmäßig nur enthalten, wenn die Firma Gebäude-Assets im Anlagenverzeichnis hat.",
       "effectLabel": "Wirkt auf: 03_Anlage-V.pdf im Berater-Paket"
+    },
+    "anlageG": {
+      "label": "Anlage G im Berater-Paket einschließen",
+      "description": "Erzwingt die Aufnahme der Anlage G (Gewerbebetrieb, § 15 EStG) im year-end Berater-Paket ZIP. Standardmäßig nur enthalten, wenn die Firma gewerbliche Umsätze (Rechnungen) im Geschäftsjahr hatte. Für Kapitalgesellschaften (GmbH/AG) ist stattdessen die KSt 1 abzugeben.",
+      "effectLabel": "Wirkt auf: Anlage-G.pdf im Berater-Paket"
     }
   }
 }
