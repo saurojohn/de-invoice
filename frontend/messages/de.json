@@ -488,6 +488,20 @@
     "notFound": "Nicht gefunden",
     "errorWithDetail": "Fehler: {detail}",
     "networkError": "Netzwerkfehler",
+    "pageNotFound": {
+      "title": "Seite nicht gefunden",
+      "subtitle": "Die angeforderte Seite existiert nicht oder wurde verschoben.",
+      "code": "Fehler 404",
+      "goHome": "Zur Startseite",
+      "goBack": "Zurück zur vorherigen Seite"
+    },
+    "serverError": {
+      "title": "Es ist ein Fehler aufgetreten",
+      "subtitle": "Ein unerwarteter Fehler ist aufgetreten. Bitte versuchen Sie es erneut.",
+      "code": "Fehler 500",
+      "retry": "Erneut versuchen",
+      "contactSupport": "Falls das Problem weiterhin besteht, wenden Sie sich bitte an den Support."
+    },
     "companyLogoAlt": "Firmenlogo",
     "saveError": "Fehler beim Speichern",
     "amount": "Betrag",
