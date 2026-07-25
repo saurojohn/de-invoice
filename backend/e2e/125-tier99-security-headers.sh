@@ -81,17 +81,27 @@ for entry in "${EXPECTED[@]}"; do
 done
 
 note "=== 2. CORS preflight allows the configured frontend origin ==="
+# Tier 99 (Polish #4) update: the test
+# previously hardcoded `http://localhost:3100`
+# as the allowed origin (the dev frontend
+# port). In the production smoke test the
+# frontend is on port 3000 instead, so the
+# CORS callback rejects 3100 and the test
+# fails. Allow override via ALLOWED_ORIGIN
+# env var (default: the dev port for local
+# testing).
+ALLOWED_ORIGIN="${ALLOWED_ORIGIN:-http://localhost:3100}"
 PREFLIGHT_STATUS=$(curl -sS -o /dev/null -w "%{http_code}" \
   -X OPTIONS \
-  -H "Origin: http://localhost:3100" \
+  -H "Origin: $ALLOWED_ORIGIN" \
   -H "Access-Control-Request-Method: GET" \
   -H "Access-Control-Request-Headers: x-user-id,x-company-id" \
   "$API/api/v1/invoices?companyId=$COMPANY_ID")
 # 204 No Content is the standard CORS preflight response
 if [[ "$PREFLIGHT_STATUS" == "204" ]]; then
-  pass "CORS preflight returns 204"
+  pass "CORS preflight returns 204 (allowed origin=$ALLOWED_ORIGIN)"
 else
-  fail "CORS preflight returned $PREFLIGHT_STATUS (expected 204)"
+  fail "CORS preflight returned $PREFLIGHT_STATUS (expected 204, origin=$ALLOWED_ORIGIN)"
 fi
 
 note "=== 3. CORS rejects unknown origins ==="
