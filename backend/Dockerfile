@@ -48,7 +48,19 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 COPY package.json package-lock.json* ./
-RUN npm ci --no-audit --no-fund
+# --legacy-peer-deps: pdfkit has a
+# peer-dep conflict with
+# @signpdf/placeholder-pdfkit (the
+# peer wants pdfkit ^1.x but we
+# use ^0.15.x — they're API-
+# compatible but npm 7+ refuses
+# to install). The dev .npmrc
+# already pins legacy-peer-deps=true
+# but we also pass the flag here
+# so `docker build --no-cache`
+# doesn't accidentally drop the
+# .npmrc and break the build.
+RUN npm ci --no-audit --no-fund --legacy-peer-deps
 
 # ─── Stage 2: dev (full source + prisma generated) ─────────────
 # The Prisma engine is platform-specific
