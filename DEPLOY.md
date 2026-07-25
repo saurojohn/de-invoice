@@ -87,8 +87,19 @@ docker compose up -d
 ```bash
 cd backend
 npx prisma generate
-npx prisma db push
-# init.sql recreates the generated columns (city_text, postal_code_text)
+# In the prod container, prefer `migrate deploy`
+# (the canonical migration path) over `db push`
+# (which is the dev convenience). Both work, but
+# migrate deploy ensures every migration file
+# is applied in order — which is what prod expects.
+npx prisma migrate deploy
+# init.sql adds the generated columns (city_text,
+# postal_code_text) and the search_tsv tsvector
+# columns + the FTS GIN indexes. These are NOT
+# in the Prisma schema (they're raw SQL additions
+# for full-text search) so `migrate deploy` won't
+# create them. Always re-run init.sql after the
+# migrations:
 psql -U de_invoice -d de_invoice -f prisma/init.sql
 ```
 
