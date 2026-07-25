@@ -79,7 +79,7 @@ export default function RootLayout({
           {THEME_PREHYDRATION_SCRIPT}
         </Script>
       </head>
-      <body className="min-h-full flex flex-col bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"><AuthCookieSync /><ToastProvider><GlobalErrorCapture><ReadOnlyProvider>{children}</ReadOnlyProvider></GlobalErrorCapture><GlobalSearch /></ToastProvider></body>
+      <body className="min-h-full flex flex-col bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 overflow-x-hidden"><AuthCookieSync /><ToastProvider><GlobalErrorCapture><ReadOnlyProvider>{children}</ReadOnlyProvider></GlobalErrorCapture><GlobalSearch /></ToastProvider></body>
     </html>
   );
 }

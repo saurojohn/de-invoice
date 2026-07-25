@@ -277,20 +277,20 @@ export function EBilanzTab() {
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
-              <table className="w-full text-sm" data-testid="ebilanz-table">
+              <table className="w-full text-sm table-fixed" data-testid="ebilanz-table">
                 <thead>
                   <tr className="border-b text-xs text-gray-500 dark:text-gray-400">
-                    <th className="text-left py-2 px-2">BMF-Element</th>
+                    <th className="text-left py-2 px-2 break-all">BMF-Element</th>
                     <th className="text-left py-2 px-2">
                       {tRef.current("ebilanz.positionLabel")}
                     </th>
-                    <th className="text-right py-2 px-2">
+                    <th className="text-right py-2 px-2 w-24">
                       {tRef.current("ebilanz.value")}
                     </th>
-                    <th className="text-left py-2 px-2">
+                    <th className="text-left py-2 px-2 hidden sm:table-cell">
                       {tRef.current("ebilanz.source")}
                     </th>
-                    <th className="text-center py-2 px-2">
+                    <th className="text-center py-2 px-2 w-16">
                       {tRef.current("ebilanz.status")}
                     </th>
                   </tr>
@@ -366,19 +366,19 @@ function SectionGroup({
           className="border-b"
           data-testid={`ebilanz-row-${p.elementId}`}
         >
-          <td className="py-2 px-2 font-mono text-xs">{p.elementId}</td>
-          <td className="py-2 px-2 text-xs">{p.label}</td>
+          <td className="py-2 px-2 font-mono text-xs break-all">{p.elementId}</td>
+          <td className="py-2 px-2 text-xs break-words">{p.label}</td>
           <td
-            className={`py-2 px-2 text-right font-mono text-xs ${
+            className={`py-2 px-2 text-right font-mono text-xs w-24 ${
               p.value !== null ? "font-bold" : "text-gray-400"
             }`}
           >
             {fmtEur(p.value)}
           </td>
-          <td className="py-2 px-2 font-mono text-[10px] text-gray-500">
+          <td className="py-2 px-2 font-mono text-[10px] text-gray-500 hidden sm:table-cell">
             {p.source}
           </td>
-          <td className="py-2 px-2 text-center">
+          <td className="py-2 px-2 text-center w-16">
             {p.computed && p.value !== null ? (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-50 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-800">
                 ✓
