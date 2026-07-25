@@ -2191,6 +2191,22 @@
     "afaNotBooked": "— keine Daten",
     "previewHint": "Vorschau — alle Werte automatisch berechnet. Vor der Einreichung durch den Steuerberater prüfen."
   },
+  "anlageKAP": {
+    "title": "Anlage KAP (Vorschau)",
+    "subtitle": "Einkünfte aus Kapitalvermögen (§ 20 EStG) — automatisch aus importierten Banktransaktionen generiert. Für Privatinvestoren mit Zinserträgen / Dividenden. Die 25% Abgeltungssteuer wird üblicherweise direkt von der Bank einbehalten. Vom Steuerberater prüfen lassen.",
+    "year": "Geschäftsjahr",
+    "recompute": "Berechnen",
+    "downloadPdf": "PDF herunterladen",
+    "einnahmen": "Einnahmen",
+    "abzuege": "Abzüge / Pauschbeträge",
+    "zuVersteuern": "Zu versteuern",
+    "abgeltungssteuer": "Erwartete Abgeltungssteuer + Soli (zur Information)",
+    "abgeltungHint": "Diese Beträge werden in der Regel direkt von der Bank / dem Depot einbehalten — siehe Jahresdepotauszug.",
+    "bankTransactions": "Bankbuchungen",
+    "matchedZins": "Zinserträge",
+    "matchedDividende": "Dividenden",
+    "generatedAt": "Erstellt"
+  },
   "bilanz": {
     "title": "Bilanz (Vorschau)",
     "subtitle": "Vermögensübersicht zum 31.12. — automatisch aus Ihren offenen Posten, dem Kassenbestand und dem Kundenguthaben abgeleitet. Positionen ohne Datengrundlage sind als „nicht ausgewiesen\" markiert. Der Saldoposten beim Eigenkapital ist ein Platzhalter. Vor der Einreichung durch den Steuerberater ergänzen.",

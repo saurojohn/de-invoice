@@ -12,6 +12,9 @@ import { EuerSection } from "./EuerSection"
 import { AnlageSSection } from "./AnlageSSection"
 // Tier 92: Anlage V (Vermietung und Verpachtung).
 import { AnlageVSection } from "./AnlageVSection"
+// Tier 98: Anlage KAP (Kapitalerträge,
+// § 20 EStG) — sibling of Anlage S / V.
+import { AnlageKAPSection } from "./AnlageKAPSection"
 import { BilanzSection } from "./BilanzSection"
 import { GuVSection } from "./GuVSection"
 import { AnhangSection } from "./AnhangSection"
@@ -1137,6 +1140,9 @@ export default function AccountingPage() {
 
       {/* Tier 92: Anlage V (§ 21 EStG rental / leasing income) */}
       <AnlageVSection />
+
+      {/* Tier 98: Anlage KAP (§ 20 EStG capital income) */}
+      <AnlageKAPSection />
 
       {/* Tier 81: Bilanz Vorschau (§ 266 HGB year-end snapshot) */}
       <BilanzSection />

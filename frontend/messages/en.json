@@ -2191,6 +2191,22 @@
     "afaNotBooked": "— no data",
     "previewHint": "Preview — all values computed automatically. Have your tax advisor verify before filing."
   },
+  "anlageKAP": {
+    "title": "Anlage KAP (preview)",
+    "subtitle": "Income from capital investments (§ 20 EStG) — auto-generated from imported bank transactions. For private investors with interest / dividend income. The 25% flat tax (Abgeltungssteuer) is usually deducted at source by the bank. Have your tax advisor review.",
+    "year": "Fiscal year",
+    "recompute": "Compute",
+    "downloadPdf": "Download PDF",
+    "einnahmen": "Income",
+    "abzuege": "Deductions / Allowances",
+    "zuVersteuern": "Taxable",
+    "abgeltungssteuer": "Expected flat tax + Soli (informational)",
+    "abgeltungHint": "These amounts are usually deducted at source by the bank / broker — see annual depot statement.",
+    "bankTransactions": "Bank transactions",
+    "matchedZins": "Interest income",
+    "matchedDividende": "Dividend income",
+    "generatedAt": "Generated"
+  },
   "bilanz": {
     "title": "Balance Sheet (preview)",
     "subtitle": "Assets and liabilities snapshot as of Dec 31 — auto-derived from your open receivables, cash balance, and customer credits. Positions without source data are marked \"nicht ausgewiesen\" (not stated). The equity line is a placeholder. Have your tax advisor complete it before filing.",

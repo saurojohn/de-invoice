@@ -2191,6 +2191,22 @@
     "afaNotBooked": "— 无数据",
     "previewHint": "预览 — 所有数值自动计算。提交前请税务师审核。"
   },
+  "anlageKAP": {
+    "title": "Anlage KAP 附件（预览）",
+    "subtitle": "资本收入（§ 20 EStG）— 自动从导入的银行交易生成。适用于有利息/股息收入的个人投资者。25% 资本利得税（Abgeltungssteuer）通常由银行代扣。请税务师审核。",
+    "year": "财年",
+    "recompute": "计算",
+    "downloadPdf": "下载 PDF",
+    "einnahmen": "收入",
+    "abzuege": "扣除 / 免税额",
+    "zuVersteuern": "应税金额",
+    "abgeltungssteuer": "预期资本利得税 + Soli（参考信息）",
+    "abgeltungHint": "这些金额通常由银行/券商代扣 — 详见年度券商对账单。",
+    "bankTransactions": "银行交易",
+    "matchedZins": "利息收入",
+    "matchedDividende": "股息收入",
+    "generatedAt": "生成时间"
+  },
   "bilanz": {
     "title": "资产负债表（预览）",
     "subtitle": "12月31日资产负债快照 — 自动从您的未收应收款、现金余额和客户预收款汇总而成。没有数据来源的科目标记为「nicht ausgewiesen」（未列示）。权益行为占位符。提交前请税务师补全。",
