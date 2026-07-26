@@ -121,7 +121,7 @@ Troubleshoot).
 | Storage | Local FS (`~/data/invoice-system`) | S3/MinIO compatible |
 | Backup | `pg_dump` + tar | Daily rotation, 7d/4w/monthly anchors |
 | Monitoring | `/metrics` (Prometheus) | 3 gauges + 2 counters + 1 histogram, no deps |
-| CI | GitHub Actions | typecheck × 2 + e2e (127 backend + 271 Playwright UI) on every PR |
+| CI | GitHub Actions | typecheck × 2 + e2e (128 backend + 276 Playwright UI) on every PR |
 
 ### 124 E2E-Tests Backend + 255 Playwright UI (379 tests, ~9 Min)
 
@@ -571,8 +571,8 @@ x-company-id: <uuid>
 | Storage / 存储 | Local filesystem (S3/MinIO planned) |
 | Auth / 鉴权 | Custom header-based shim + RBAC roles |
 | Security headers / 安全头 | Helmet 7.x (HSTS, X-Frame-Options, X-Content-Type-Options) |
-| i18n / 国际化 | Flat JSON keys, 3 locales (DE/EN/ZH), 2277 keys × 3 = 6831 translations |
-| E2E tests / 端到端测试 | 127 backend bash scripts + 271 Playwright UI tests (69 spec files) |
+| i18n / 国际化 | Flat JSON keys, 3 locales (DE/EN/ZH), 2292 keys × 3 = 6876 translations |
+| E2E tests / 端到端测试 | 128 backend bash scripts + 276 Playwright UI tests (70 spec files) |
 
 ## Repository Layout / 仓库结构
 
