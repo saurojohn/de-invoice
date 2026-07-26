@@ -6,19 +6,21 @@
 > und mittelständische Unternehmen im DACH-Raum. Inklusive XRechnung,
 > ZUGFeRD/Factur-X, DATEV-Export, UStVA, FinTS-Banking und OCR-Vorbereitung.
 
-**Tier 104 — Anlage Kind (Kinderfreibetrag + Kindergeld, § 32/33/33a EStG) + 7th Anlage form**:
-- 130 backend e2e tests + 281 Playwright UI tests (all green)
-- Anlage Kind reads Kinder array from Company.settings.kinder[year] (per-year
-  list of { name, birthDate, kindergeldEligible }) + auto-applies standard 2024
-  rates: Kindergeld 250 EUR/Kind (1-3, max 1.000 for 4+), Kinderfreibetrag
-  7.932 EUR/Kind (6.612 Existenzminimum + 1.320 BEAfA), Schulbescheinigung +
-  Behinderung-Pauschbetrag as Berater placeholders
-- Anlage S / V / KAP / G / N / R / Kind (§ 18 / § 21 / § 20 / § 15 / § 3 / § 22 /
-  § 32 EStG) for Berater-Packager — 9-way conditional shift (plus KSt 1)
+**Tier 105 — UStJA (Umsatzsteuerjahreserklärung, § 18 Abs. 3 UStG) + always-on annual VAT return**:
+- 131 backend e2e tests + 286 Playwright UI tests (all green)
+- UStJA aggregates 12 monthly UStVAs into the BMF Vordruck 2024 Kz 20-23
+  (Bemessungsgrundlagen 19%/7%) + Kz 41-44 (igL, Ausfuhren, sonstige) +
+  Kz 36 (Reverse Charge § 13b) + Kz 66 (Summe USt) + Kz 67 (Summe Vorsteuer) +
+  Kz 68 (Verbleibender Betrag = 66-67) + Kz 39 (Sondervorauszahlung = 1/11
+  der Jan-UStVA, § 47 Abs. 1 UStDV) + Kz 69 (Restzahlung = 68-39, fällig bis
+  31.07. des Folgejahres) + Kz 81 (Differenzbetrag)
+- Delegates per-month computation to existing UstvaService.compute()
+- Anlage S / V / KAP / G / N / R / Kind + UStJA for Berater-Packager —
+  10-way conditional shift (plus KSt 1, plus UStJA always-on)
 - 5th feature-flag toggle (anlageKind) — force-include in Berater package
 - E-Bilanz (XBRL) v2 — 52 BMF GCD 6.7 positions
 - 404/500 error pages + mobile responsive + deploy readiness
-- 2368 i18n keys × 3 locales (DE/EN/ZH), 100% consistent
+- 2384 i18n keys × 3 locales (DE/EN/ZH), 100% consistent
 
 ---
 
@@ -42,7 +44,7 @@ open http://localhost:3000
 
 Die App ist sofort einsatzbereit mit Testdaten (SH Leder GmbH).
 
-### E2E-Tests (130 Backend + 281 Playwright UI, ~9 Min)
+### E2E-Tests (131 Backend + 286 Playwright UI, ~9 Min)
 
 ```bash
 # Backend hochfahren
@@ -51,7 +53,7 @@ cd backend && npm install && npx ts-node src/main.ts &
 # Alle 130 Backend-Tests
 cd backend && for f in e2e/[0-9]*.sh; do bash "$f"; done
 
-# 281 Playwright UI-Tests (Frontend muss auf 3100 laufen)
+# 286 Playwright UI-Tests (Frontend muss auf 3100 laufen)
 cd frontend && npm install && npx playwright install chromium
 cd frontend && npx playwright test
 ```
@@ -123,9 +125,9 @@ Troubleshoot).
 | Storage | Local FS (`~/data/invoice-system`) | S3/MinIO compatible |
 | Backup | `pg_dump` + tar | Daily rotation, 7d/4w/monthly anchors |
 | Monitoring | `/metrics` (Prometheus) | 3 gauges + 2 counters + 1 histogram, no deps |
-| CI | GitHub Actions | typecheck × 2 + e2e (130 backend + 281 Playwright UI) on every PR |
+| CI | GitHub Actions | typecheck × 2 + e2e (131 backend + 286 Playwright UI) on every PR |
 
-### 130 E2E-Tests Backend + 281 Playwright UI (411 tests, ~9 Min)
+### 131 E2E-Tests Backend + 286 Playwright UI (417 tests, ~9 Min)
 
 | # | Feature | Tests |
 | --- | --- | --- |
@@ -170,7 +172,8 @@ Troubleshoot).
 | 102 | KSt 1 (Körperschaftsteuererklärung, § 1 KStG) | 30+ |
 | 103 | Anlage R (Einkünfte aus Renten und Bezügen, § 22 EStG) | 40+ |
 | 104 | Anlage Kind (Kinderfreibetrag + Kindergeld, § 32/33/33a EStG) | 50+ |
-| UI | Playwright suite (72 spec files, 281 tests) | 281 |
+| 105 | UStJA (Umsatzsteuerjahreserklärung, § 18 Abs. 3 UStG) | 50+ |
+| UI | Playwright suite (73 spec files, 286 tests) | 286 |
 
 ---
 
@@ -578,8 +581,8 @@ x-company-id: <uuid>
 | Storage / 存储 | Local filesystem (S3/MinIO planned) |
 | Auth / 鉴权 | Custom header-based shim + RBAC roles |
 | Security headers / 安全头 | Helmet 7.x (HSTS, X-Frame-Options, X-Content-Type-Options) |
-| i18n / 国际化 | Flat JSON keys, 3 locales (DE/EN/ZH), 2368 keys × 3 = 7104 translations |
-| E2E tests / 端到端测试 | 130 backend bash scripts + 281 Playwright UI tests (72 spec files) |
+| i18n / 国际化 | Flat JSON keys, 3 locales (DE/EN/ZH), 2384 keys × 3 = 7152 translations |
+| E2E tests / 端到端测试 | 131 backend bash scripts + 286 Playwright UI tests (73 spec files) |
 
 ## Repository Layout / 仓库结构
 
