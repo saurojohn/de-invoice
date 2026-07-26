@@ -6,20 +6,22 @@
 > und mittelständische Unternehmen im DACH-Raum. Inklusive XRechnung,
 > ZUGFeRD/Factur-X, DATEV-Export, UStVA, FinTS-Banking und OCR-Vorbereitung.
 
-**Tier 106 — GewSt-Erklärung (Gewerbesteuererklärung, BMF Vordruck GewSt 1A 2024) + always-on trade tax return**:
-- 132 backend e2e tests + 291 Playwright UI tests (all green)
-- GewSt-Erklärung reuses Gewerbeertrag + Hebesatz + Freibetrag from
-  Anlage G (tier 100) — single source of truth. Adds BMF Vordruck
-  Kz 5 (Steuermessbetrag = GE_nach_FB × 0.035) + Kz 7 (Hebesatz,
-  default 400) + Kz 10 (festzusetzende GewSt = Kz 5 × Kz 7 / 100) +
-  Kz 11 (Vorauszahlungen Q1-Q4, manuell vom Berater) + Kz 12
-  (Differenz = Kz 10 - Kz 11)
+**Tier 107 — UStJA ELSTER XML (BMF Datenlieferung for § 18 Abs. 3 UStG annual VAT return)**:
+- 133 backend e2e tests + 292 Playwright UI tests (all green)
+- UStJA ELSTER XML: same ERiC Datenlieferung envelope as the UStVA
+  monthly path, but AnlageName='AnlageUStJA' + Zeitraum is the
+  full calendar year (no Quartal/Monat) + Kz 66/67/68/39/69/81 from
+  the consolidated annual aggregation. BMF has required UStJA
+  submission via ELSTER since 2024 — this completes the compliance
+  chain alongside the UStVA monthly ELSTER export.
+- ASCII preview companion for visual sanity check (Mein-ELSTER
+  paste-import format).
 - Anlage S / V / KAP / G / N / R / Kind + UStJA + GewSt for Berater-Packager
   — 11-way conditional shift (plus KSt 1; UStJA + GewSt always-on)
 - 5th feature-flag toggle (anlageKind) — force-include in Berater package
 - E-Bilanz (XBRL) v2 — 52 BMF GCD 6.7 positions
 - 404/500 error pages + mobile responsive + deploy readiness
-- 2401 i18n keys × 3 locales (DE/EN/ZH), 100% consistent
+- 2405 i18n keys × 3 locales (DE/EN/ZH), 100% consistent
 
 ---
 
@@ -43,7 +45,7 @@ open http://localhost:3000
 
 Die App ist sofort einsatzbereit mit Testdaten (SH Leder GmbH).
 
-### E2E-Tests (132 Backend + 291 Playwright UI, ~9 Min)
+### E2E-Tests (133 Backend + 292 Playwright UI, ~9 Min)
 
 ```bash
 # Backend hochfahren
@@ -52,7 +54,7 @@ cd backend && npm install && npx ts-node src/main.ts &
 # Alle 130 Backend-Tests
 cd backend && for f in e2e/[0-9]*.sh; do bash "$f"; done
 
-# 291 Playwright UI-Tests (Frontend muss auf 3100 laufen)
+# 292 Playwright UI-Tests (Frontend muss auf 3100 laufen)
 cd frontend && npm install && npx playwright install chromium
 cd frontend && npx playwright test
 ```
@@ -124,9 +126,9 @@ Troubleshoot).
 | Storage | Local FS (`~/data/invoice-system`) | S3/MinIO compatible |
 | Backup | `pg_dump` + tar | Daily rotation, 7d/4w/monthly anchors |
 | Monitoring | `/metrics` (Prometheus) | 3 gauges + 2 counters + 1 histogram, no deps |
-| CI | GitHub Actions | typecheck × 2 + e2e (132 backend + 291 Playwright UI) on every PR |
+| CI | GitHub Actions | typecheck × 2 + e2e (133 backend + 292 Playwright UI) on every PR |
 
-### 132 E2E-Tests Backend + 291 Playwright UI (423 tests, ~9 Min)
+### 133 E2E-Tests Backend + 292 Playwright UI (425 tests, ~9 Min)
 
 | # | Feature | Tests |
 | --- | --- | --- |
@@ -173,7 +175,8 @@ Troubleshoot).
 | 104 | Anlage Kind (Kinderfreibetrag + Kindergeld, § 32/33/33a EStG) | 50+ |
 | 105 | UStJA (Umsatzsteuerjahreserklärung, § 18 Abs. 3 UStG) | 50+ |
 | 106 | GewSt-Erklärung (Gewerbesteuererklärung, BMF Vordruck GewSt 1A 2024) | 50+ |
-| UI | Playwright suite (74 spec files, 291 tests) | 291 |
+| 107 | UStJA ELSTER XML (BMF Datenlieferung for annual VAT return) | 50+ |
+| UI | Playwright suite (74 spec files, 292 tests) | 292 |
 
 ---
 
