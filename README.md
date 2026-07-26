@@ -6,6 +6,27 @@
 > und mittelständische Unternehmen im DACH-Raum. Inklusive XRechnung,
 > ZUGFeRD/Factur-X, DATEV-Export, UStVA, FinTS-Banking und OCR-Vorbereitung.
 
+**Tier 108 — SEPA pain.001 batch payments (ISO 20022 Sammelüberweisung)**:
+- 134 backend e2e tests + 297 Playwright UI tests (all green)
+- SEPA pain.001.001.09 XML generator: bundles open
+  Eingangsrechnungen (status='booked', paidAt IS NULL, supplier
+  with valid IBAN) into one pain.001 batch the Berater downloads
+  + uploads to the house bank's online banking portal.
+- `/dashboard/payments` page: checkbox list of unpaid expenses +
+  create-batch form (execution date + notes) + past batches table
+  with per-row XML download.
+- `SepaBatch` model + `Expense.paidAt` + `Expense.paidBySepaBatchId`
+  (with explicit `@relation("ExpensePaidByBatch")` to disambiguate
+  from the same-model relation).
+- Math identity: `CtrlSum = Σ CdtTrfTxInf.InstdAmt` in the XML
+  (verified by e2e 134 §10).
+- Permissions: extended `ROLE_PERMISSIONS` with `expense.read/write`
+  + `payment.read/write` (was 403-ing the unpaid endpoint before
+  the fix).
+- v1: read-only export + manual mark-as-paid (no SEPA network
+  integration). v2: pain.008 (Lastschriften / incoming direct
+  debits) + auto-reconciliation with bank-statement import.
+
 **Tier 107 — UStJA ELSTER XML (BMF Datenlieferung for § 18 Abs. 3 UStG annual VAT return)**:
 - 133 backend e2e tests + 292 Playwright UI tests (all green)
 - UStJA ELSTER XML: same ERiC Datenlieferung envelope as the UStVA
@@ -21,7 +42,7 @@
 - 5th feature-flag toggle (anlageKind) — force-include in Berater package
 - E-Bilanz (XBRL) v2 — 52 BMF GCD 6.7 positions
 - 404/500 error pages + mobile responsive + deploy readiness
-- 2405 i18n keys × 3 locales (DE/EN/ZH), 100% consistent
+- 2432 i18n keys × 3 locales (DE/EN/ZH), 100% consistent
 
 ---
 
@@ -45,16 +66,16 @@ open http://localhost:3000
 
 Die App ist sofort einsatzbereit mit Testdaten (SH Leder GmbH).
 
-### E2E-Tests (133 Backend + 292 Playwright UI, ~9 Min)
+### E2E-Tests (134 Backend + 297 Playwright UI, ~9 Min)
 
 ```bash
 # Backend hochfahren
 cd backend && npm install && npx ts-node src/main.ts &
 
-# Alle 130 Backend-Tests
+# Alle 134 Backend-Tests
 cd backend && for f in e2e/[0-9]*.sh; do bash "$f"; done
 
-# 292 Playwright UI-Tests (Frontend muss auf 3100 laufen)
+# 297 Playwright UI-Tests (Frontend muss auf 3100 laufen)
 cd frontend && npm install && npx playwright install chromium
 cd frontend && npx playwright test
 ```
@@ -126,9 +147,9 @@ Troubleshoot).
 | Storage | Local FS (`~/data/invoice-system`) | S3/MinIO compatible |
 | Backup | `pg_dump` + tar | Daily rotation, 7d/4w/monthly anchors |
 | Monitoring | `/metrics` (Prometheus) | 3 gauges + 2 counters + 1 histogram, no deps |
-| CI | GitHub Actions | typecheck × 2 + e2e (133 backend + 292 Playwright UI) on every PR |
+| CI | GitHub Actions | typecheck × 2 + e2e (134 backend + 297 Playwright UI) on every PR |
 
-### 133 E2E-Tests Backend + 292 Playwright UI (425 tests, ~9 Min)
+### 134 E2E-Tests Backend + 297 Playwright UI (431 tests, ~9 Min)
 
 | # | Feature | Tests |
 | --- | --- | --- |
@@ -176,7 +197,8 @@ Troubleshoot).
 | 105 | UStJA (Umsatzsteuerjahreserklärung, § 18 Abs. 3 UStG) | 50+ |
 | 106 | GewSt-Erklärung (Gewerbesteuererklärung, BMF Vordruck GewSt 1A 2024) | 50+ |
 | 107 | UStJA ELSTER XML (BMF Datenlieferung for annual VAT return) | 50+ |
-| UI | Playwright suite (74 spec files, 292 tests) | 292 |
+| 108 | SEPA pain.001 batch payments (ISO 20022 Sammelüberweisung) | 50+ |
+| UI | Playwright suite (75 spec files, 297 tests) | 297 |
 
 ---
 
@@ -584,8 +606,8 @@ x-company-id: <uuid>
 | Storage / 存储 | Local filesystem (S3/MinIO planned) |
 | Auth / 鉴权 | Custom header-based shim + RBAC roles |
 | Security headers / 安全头 | Helmet 7.x (HSTS, X-Frame-Options, X-Content-Type-Options) |
-| i18n / 国际化 | Flat JSON keys, 3 locales (DE/EN/ZH), 2405 keys × 3 = 7215 translations |
-| E2E tests / 端到端测试 | 133 backend bash scripts + 292 Playwright UI tests (74 spec files) |
+| i18n / 国际化 | Flat JSON keys, 3 locales (DE/EN/ZH), 2432 keys × 3 = 7296 translations |
+| E2E tests / 端到端测试 | 134 backend bash scripts + 297 Playwright UI tests (75 spec files) |
 
 ## Repository Layout / 仓库结构
 
