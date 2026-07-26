@@ -19,7 +19,7 @@
 - 5th feature-flag toggle (anlageKind) — force-include in Berater package
 - E-Bilanz (XBRL) v2 — 52 BMF GCD 6.7 positions
 - 404/500 error pages + mobile responsive + deploy readiness
-- 2400 i18n keys × 3 locales (DE/EN/ZH), 100% consistent
+- 2401 i18n keys × 3 locales (DE/EN/ZH), 100% consistent
 
 ---
 
@@ -581,7 +581,7 @@ x-company-id: <uuid>
 | Storage / 存储 | Local filesystem (S3/MinIO planned) |
 | Auth / 鉴权 | Custom header-based shim + RBAC roles |
 | Security headers / 安全头 | Helmet 7.x (HSTS, X-Frame-Options, X-Content-Type-Options) |
-| i18n / 国际化 | Flat JSON keys, 3 locales (DE/EN/ZH), 2400 keys × 3 = 7200 translations |
+| i18n / 国际化 | Flat JSON keys, 3 locales (DE/EN/ZH), 2400 keys × 3 = 7203 translations |
 | E2E tests / 端到端测试 | 132 backend bash scripts + 291 Playwright UI tests (74 spec files) |
 
 ## Repository Layout / 仓库结构
