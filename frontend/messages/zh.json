@@ -2267,13 +2267,35 @@
       "rentenversicherung": "养老保险（Kz 7）",
       "arbeitslosenversicherung": "失业保险（Kz 8）",
       "krankenversicherung": "医疗保险（Kz 9）",
-      "pflegeversicherung": "长期护理保险（Kz 10）"
+      "pflegeversicherung": "长期护理保险（Kz 10)"
     },
     "fieldHint": "复制您工资税证明中的数值。精确到分 — 财政局将四舍五入到整欧元。",
     "wkhint": "130 = 雇员免税额（自动 1.230 EUR）。其他 Kz（140-190）需手动输入 — 工作日 × 公里 × 0.30 EUR 计算通勤距离。",
     "sahint": "基础免税额以上的养老储蓄（吕库普/里斯特）。KV/PV 部分已从总工资中扣除。",
     "abhint": "医疗费用、残疾（按 GdB 免税额）、丧葬费用、护理 — 超过总收入 1% 起可抵扣（合理负担）。",
     "savedOk": "工资税证明已保存。",
+    "generatedAt": "生成时间"
+  },
+  "kst1": {
+    "title": "KSt 1 公司所得税申报（预览）",
+    "subtitle": "Körperschaftsteuererklärung（§ 1 Abs. 1 KStG）— 资合公司（GmbH、AG、KGaA）的核心报税表。Anlage G 不适用 — KSt 1 替代。读取 G+V 年度利润 + 计算 KSt 15% + Soli 5.5% + 工商税（GmbH 无 100k 免税额，默认 Hebesatz 400%）+ KSt 在工商税上的抵扣（§ 35 EStG / § 26 KStG）。KSt 修正（隐性利润分配、捐赠、亏损结转）为占位 — 税务师补充。提交前请税务师审核。",
+    "year": "财年",
+    "recompute": "计算",
+    "downloadPdf": "下载 PDF",
+    "kapitalgesellschaftHinweis": "✓ 法人实体 — KSt 1 是适用的申报表。",
+    "keinKStHinweis": "⚠ 此公司不是法人实体。KSt 1 仅适用于资合公司（GmbH、AG、KGaA、UG）。个体户/人合公司：Anlage G + 所得税申报。",
+    "jahresueberschuss": "年度盈利/亏损（来自 G+V § 275 HGB）",
+    "korrekturen": "KSt 修正（§ 8 KStG）",
+    "zve": "应税所得（ZvE）",
+    "kst": "公司所得税（15%）",
+    "soli": "团结附加税（KSt 的 5.5%）",
+    "gewst": "工商税（3.5% × Hebesatz）",
+    "kstAnrechnung": "KSt 在工商税上的抵扣（§ 35 EStG / § 26 KStG）",
+    "kstNachAnrechnung": "抵扣后公司所得税",
+    "zuZahlen": "应缴（抵扣后 KSt + Soli + 工商税）",
+    "kstHint": "KSt 预付款（Kz 60）此处未扣除 — 税务师在核定中冲抵预付款。",
+    "korrekturenHint": "这些修正（隐性利润分配、捐赠、亏损结转、§ 8b KStG）为占位 — 税务师从合同、捐赠收据、亏损结转通知补充。v2：在 Company.settings.kst1Korrekturen[year] 可编辑。",
+    "rechtsform": "法律形式",
     "generatedAt": "生成时间"
   },
   "bilanz": {

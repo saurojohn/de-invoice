@@ -24,6 +24,16 @@ import { AnlageGService } from './anlage-g.service'
 // Gewerbe) and is filled from a different data
 // source (Lohnsteuerbescheinigung, not Buchungen).
 import { AnlageNService } from './anlage-n.service'
+// Tier 102: KSt 1 (Körperschaftsteuererklärung,
+// § 1 Abs. 1 KStG) — primary tax form for
+// Kapitalgesellschaften (GmbH, AG, KGaA).
+// Anlage G is NOT applicable for GmbH — KSt 1
+// replaces it. Filing order: EÜR → S → V →
+// KAP → G (if PersG) → KSt 1 (if GmbH/AG) →
+// N → BWA. KSt 1 is mutually exclusive with
+// Anlage G: the packager includes ONE of them,
+// not both. The Rechtsform decides.
+import { KSt1Service } from './kst1.service'
 import { BilanzService } from './bilanz.service'
 import { GuVService } from './guv.service'
 import { AnhangService } from './anhang.service'
@@ -120,6 +130,8 @@ export class BeraterPackagerService {
     private anlageG: AnlageGService,
     // Tier 101: Anlage N service.
     private anlageN: AnlageNService,
+    // Tier 102: KSt 1 service.
+    private kst1: KSt1Service,
     private bilanz: BilanzService,
     private guv: GuVService,
     private anhang: AnhangService,
@@ -243,11 +255,18 @@ export class BeraterPackagerService {
     // Tier 100: Anlage G is conditional on
     // (a) the opt-in flag in settings OR
     // (b) at least one paid/sent/overdue
-    // invoice in the year (Gewerbe heuristic).
-    // Always-0 Anlage G would mislead the
-    // Berater. For pure Freelancer companies
-    // (only Anlage S, no Anlage G) the section
-    // is silent and excluded.
+    // invoice in the year (Gewerbe heuristic)
+    // AND the company is NOT a Kapitalgesellschaft
+    // (GmbH/AG/KGaA — they file KSt 1 instead,
+    // NOT Anlage G). Anlage G and KSt 1 are
+    // MUTUALLY EXCLUSIVE: Anlage G is for
+    // Einkommensteuer-pflichtige natürliche
+    // Personen (§ 15 EStG), KSt 1 is for
+    // KSt-pflichtige Körperschaften (§ 1 KStG).
+    // The opt-in flag is the forcing function
+    // when the heuristic is wrong (e.g. a
+    // GmbH-Geschäftsführer with Mitunternehmer-
+    // Einkünfte from a separate PersG).
     const anlageGOptIn = settings.anlageG === true
     const invoiceCount = await this.prisma.invoice.count({
       where: {
@@ -256,7 +275,17 @@ export class BeraterPackagerService {
         status: { in: ['paid', 'sent', 'overdue'] },
       },
     })
-    const includeAnlageG = anlageGOptIn || invoiceCount > 0
+    // Read rechtsform early (also used for KSt 1
+    // below) — repeat the look-up only if needed.
+    const companyForRechtsform = company
+    const rechtsformEarly = (companyForRechtsform as any)?.rechtsform || 'GmbH'
+    const isKapitalgesellschaftEarly = [
+      'GmbH',
+      'AG',
+      'KGaA',
+      'UG',
+    ].includes(rechtsformEarly)
+    const includeAnlageG = anlageGOptIn || (invoiceCount > 0 && !isKapitalgesellschaftEarly)
 
     // Tier 101: Anlage N is conditional on
     // (a) the opt-in flag in settings OR
@@ -270,6 +299,27 @@ export class BeraterPackagerService {
     const lsbForYear = lsbAll[year] || {}
     const bruttoInYear = Number(lsbForYear.bruttoArbeitslohn) || 0
     const includeAnlageN = anlageNOptIn || bruttoInYear > 0
+
+    // Tier 102: KSt 1 is conditional on
+    // (a) the company is a Kapitalgesellschaft
+    // (GmbH, AG, KGaA, UG) per Company.rechtsform
+    // OR (b) the opt-in flag in settings. The
+    // Rechtsform is the primary gate; the opt-in
+    // is for cases where the user has a GmbH
+    // but the Rechtsform field hasn't been set.
+    // Anlage G and KSt 1 are MUTUALLY EXCLUSIVE:
+    // Anlage G is for Einkommensteuer-pflichtige
+    // natürliche Personen (§ 15 EStG), KSt 1
+    // is for KSt-pflichtige Körperschaften
+    // (§ 1 KStG). A GmbH is a Körperschaft and
+    // files KSt 1, NOT Anlage G. A GbR/OHG is
+    // a Personengesellschaft and files Anlage G
+    // (for the Einkommensteuer of the Gesellschafter).
+    // Reuse the early Rechtsform check from above.
+    const rechtsform = rechtsformEarly
+    const isKapitalgesellschaft = isKapitalgesellschaftEarly
+    const kst1OptIn = settings.kst1 === true
+    const includeKst1 = kst1OptIn || isKapitalgesellschaft
 
     // Append each PDF (numbered so the
     // Berater can sort them in their
@@ -291,11 +341,12 @@ export class BeraterPackagerService {
     // Tier 98: Anlage KAP (optional).
     // Tier 100: Anlage G (optional).
     // Tier 101: Anlage N (optional).
-    // The 6-way conditional shifts all
-    // subsequent file numbers. The order
-    // is V → KAP → G → N: rental, capital,
-    // gewerbe, arbeitnehmer. Each included
-    // form pushes the next slot by 1.
+    // Tier 102: KSt 1 (optional, but for GmbH the
+    // PRIMARY form, mutually exclusive with Anlage G).
+    // The 7-way conditional shifts all subsequent
+    // file numbers. The order is V → KAP → G → N →
+    // KSt 1: rental, capital, gewerbe, arbeitnehmer,
+    // kst. Each included form pushes the next slot by 1.
     const files: {
       euer: string
       anlageS: string
@@ -303,6 +354,7 @@ export class BeraterPackagerService {
       anlageKAP?: string
       anlageG?: string
       anlageN?: string
+      kst1?: string
       bwa: string
       bilanz: string
       guv: string
@@ -353,6 +405,15 @@ export class BeraterPackagerService {
       const nName = `${String(optionalSlot).padStart(2, '0')}_Anlage-N.pdf`
       archive.append(anlageNPdf, { name: nName })
       files.anlageN = nName
+    }
+    if (includeKst1) {
+      const kst1Pdf = await this.renderToBuffer((sink) =>
+        this.kst1.renderPdf(companyId, year, sink),
+      )
+      optionalSlot++
+      const kst1Name = `${String(optionalSlot).padStart(2, '0')}_KSt1.pdf`
+      archive.append(kst1Pdf, { name: kst1Name })
+      files.kst1 = kst1Name
     }
     // Compute the position of BWA, Bilanz,
     // G+V, Anhang, Anlagenverzeichnis based
@@ -557,7 +618,7 @@ export class BeraterPackagerService {
   private buildManifest(
     company: { name: string; legalName: string | null; taxId: string | null; vatId: string | null },
     year: number,
-    files: { euer: string; anlageS: string; anlageV?: string; anlageKAP?: string; anlageG?: string; anlageN?: string; bwa: string; bilanz: string; guv: string; anhang: string; assetCsv: string },
+    files: { euer: string; anlageS: string; anlageV?: string; anlageKAP?: string; anlageG?: string; anlageN?: string; kst1?: string; bwa: string; bilanz: string; guv: string; anhang: string; assetCsv: string },
   ): string {
     const lines: string[] = []
     lines.push(`# Berater-Paket ${year} — ${company.legalName || company.name}`)
@@ -586,6 +647,9 @@ export class BeraterPackagerService {
     }
     if (files.anlageN) {
       lines.push(`| \`${files.anlageN}\` | Anlage N (Einkünfte aus nichtselbständiger Arbeit) gem. § 3 EStG — Vorschau. Für Arbeitnehmer, Beamte, Gesellschafter-Geschäftsführer mit Anstellung, Teilzeit-Beschäftigte. Daten aus Company.settings.lohnsteuerbescheinigungen (per-year Map der BMF Kz 3-10). Werbungskosten mit Arbeitnehmer-Pauschbetrag 1.230 EUR + manuell eingetragene Werte (Entfernungspauschale, Fortbildung, etc.). Sonderausgaben + Außergewöhnliche Belastungen als Platzhalter. Nur enthalten, wenn Lohnsteuerbescheinigung für das Jahr erfasst ODER \`settings.anlageN === true\`. |`)
+    }
+    if (files.kst1) {
+      lines.push(`| \`${files.kst1}\` | KSt 1 (Körperschaftsteuererklärung) gem. § 1 Abs. 1 KStG — Vorschau. PRIMARY tax form für Kapitalgesellschaften (GmbH, AG, KGaA, UG). Anlage G ist NICHT zutreffend — KSt 1 ersetzt es. KSt 15% + Soli 5.5% + GewSt (default Hebesatz 400 %, kein 100k Freibetrag für GmbH) + KSt-Anrechnung auf GewSt (§ 35 EStG / § 26 KStG: 3.8 × Messbetrag). Liest G+V Jahresüberschuss aus GuVService. KSt-Korrekturen (vGAs, Spenden, Verlustabzug, § 8b KStG) als Platzhalter. Nur enthalten, wenn Company.rechtsform in [GmbH, AG, KGaA, UG] ODER \`settings.kst1 === true\`. |`)
     }
     lines.push(`| \`${files.bwa}\` | BWA (Betriebswirtschaftliche Auswertung) gem. DATEV-Standard — Vorschau für Dezember ${year} (Jahressumme). 14 DATEV-Bucket-Codes: Umsatzerlöse / 4 Betriebliche Aufwands-Unterkategorien / Sonstige / Zinserträge (0 in v1) / Zinsaufwendungen / 2 Steuer-Buckets. Jahresergebnis = Betriebsergebnis + Finanzergebnis - Steuern. |`)
     lines.push(`| \`${files.bilanz}\` | Bilanz gem. § 266 HGB (Aktiva / Passiva) — Vorschau. Stichtag 31.12.${year}. |`)

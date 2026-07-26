@@ -29,7 +29,15 @@ import { AnlageGService } from './anlage-g.service'
 // Arbeitnehmer + Beamte + Teilzeit-Beschäftigte.
 // Data: Lohnsteuerbescheinigung + manual
 // Werbungskosten/Sonderausgaben/aB.
-import { AnlageNService } from './anlage-n.service';
+import { AnlageNService } from './anlage-n.service'
+// Tier 102: KSt 1 (Körperschaftsteuererklärung,
+// § 1 Abs. 1 KStG). The PRIMARY tax form for
+// Kapitalgesellschaften (GmbH, AG, KGaA).
+// Pairs with the E-Bilanz for the Jahresabschluss-
+// based filing. Reads the G+V Jahresüberschuss
+// from GuVService and applies the standard
+// KSt + GewSt + Anrechnung formula.
+import { KSt1Service } from './kst1.service';
 import { BilanzService } from './bilanz.service';
 import { GuVService } from './guv.service';
 import { AnhangService } from './anhang.service';
@@ -55,7 +63,7 @@ import { ReportsModule } from '../reports/reports.module';
 @Module({
   imports: [PrismaModule, StorageModule, WebhookModule, AssetsModule, ReportsModule],
   controllers: [AccountingController, VoucherTemplateController, JournalController],
-  providers: [AccountService, VoucherService, VoucherTemplateService, JournalService, EuerService, AnlageSService, AnlageVService, AnlageKAPService, AnlageGService, AnlageNService, BilanzService, GuVService, AnhangService, BeraterPackagerService, EBilanzService, GobdArchiveService],
-  exports: [AccountService, VoucherService, VoucherTemplateService, JournalService, EuerService, AnlageSService, AnlageVService, AnlageKAPService, AnlageGService, AnlageNService, BilanzService, GuVService, AnhangService, BeraterPackagerService, EBilanzService, GobdArchiveService],
+  providers: [AccountService, VoucherService, VoucherTemplateService, JournalService, EuerService, AnlageSService, AnlageVService, AnlageKAPService, AnlageGService, AnlageNService, KSt1Service, BilanzService, GuVService, AnhangService, BeraterPackagerService, EBilanzService, GobdArchiveService],
+  exports: [AccountService, VoucherService, VoucherTemplateService, JournalService, EuerService, AnlageSService, AnlageVService, AnlageKAPService, AnlageGService, AnlageNService, KSt1Service, BilanzService, GuVService, AnhangService, BeraterPackagerService, EBilanzService, GobdArchiveService],
 })
 export class AccountingModule {}

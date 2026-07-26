@@ -18,7 +18,11 @@ import { AnlageGService } from './anlage-g.service'
 // Tier 101: Anlage N (Arbeitnehmereinkünfte,
 // § 3 EStG). The 5th Anlage form — for
 // Arbeitnehmer + Beamte + Teilzeit-Beschäftigte.
-import { AnlageNService } from './anlage-n.service';
+import { AnlageNService } from './anlage-n.service'
+// Tier 102: KSt 1 (Körperschaftsteuererklärung,
+// § 1 Abs. 1 KStG). The PRIMARY tax form for
+// Kapitalgesellschaften (GmbH, AG, KGaA).
+import { KSt1Service } from './kst1.service';
 import { BilanzService } from './bilanz.service';
 import { GuVService } from './guv.service';
 import { AnhangService } from './anhang.service';
@@ -45,6 +49,9 @@ export class AccountingController {
     // Tier 101: Anlage N (Arbeitnehmereinkünfte,
     // § 3 EStG) — 5th Anlage form.
     private anlageN: AnlageNService,
+    // Tier 102: KSt 1 (Körperschaftsteuererklärung,
+    // § 1 Abs. 1 KStG) — primary for GmbH/AG.
+    private kst1: KSt1Service,
     private bilanz: BilanzService,
     private guv: GuVService,
     private anhang: AnhangService,
@@ -832,6 +839,56 @@ export class AccountingController {
       sonderausgaben: saAll[body.year] || {},
       aussergewoehnlicheBelastungen: abAll[body.year] || {},
     }
+  }
+
+  // =============================================================
+  // Tier 102 — KSt 1 (Körperschaftsteuererklärung, § 1 KStG)
+  // =============================================================
+  //
+  // The PRIMARY tax form for Kapitalgesellschaf-
+  // ten (GmbH, AG, KGaA, etc.). Pairs with the
+  // E-Bilanz (tier 88/97) for the Jahresabschluss-
+  // based filing. The Berater packager includes
+  // KSt 1 at slot 05 (after G, before N — KSt
+  // is company-level, N is personal income).
+  //
+  // v1: reads the G+V Jahresüberschuss from
+  // GuVService and applies the standard KSt
+  // + Soli + GewSt + Anrechnung formula.
+  // The KSt-Korrekturen (vGAs, Spenden, etc.)
+  // are placeholder for the Berater.
+  @Get('kst1')
+  @UseGuards(HeaderAuthGuard)
+  async getKSt1(
+    @Query('companyId') companyId: string,
+    @Query('year') yearRaw?: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const year = yearRaw
+      ? Number(yearRaw)
+      : new Date().getFullYear() - 1
+    if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+    return this.kst1.compute(companyId, year)
+  }
+
+  @Get('kst1.pdf')
+  @UseGuards(HeaderAuthGuard)
+  @Header('Content-Type', 'application/pdf')
+  async getKSt1Pdf(
+    @Res() res: Response,
+    @Query('companyId') companyId: string,
+    @Query('year') yearRaw?: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const year = yearRaw
+      ? Number(yearRaw)
+      : new Date().getFullYear() - 1
+    if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+    await this.kst1.renderPdf(companyId, year, res)
   }
 
   /**

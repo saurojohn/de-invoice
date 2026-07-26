@@ -24,6 +24,11 @@ import { AnlageGSection } from "./AnlageGSection"
 // Lohnsteuerbescheinigung from
 // Company.settings.
 import { AnlageNSection } from "./AnlageNSection"
+// Tier 102: KSt 1 (Körperschaftsteuererklärung,
+// § 1 KStG) — primary for GmbH/AG. Reads
+// G+V Jahresüberschuss + applies KSt + Soli +
+// GewSt + Anrechnung formula.
+import { KSt1Section } from "./KSt1Section"
 import { BilanzSection } from "./BilanzSection"
 import { GuVSection } from "./GuVSection"
 import { AnhangSection } from "./AnhangSection"
@@ -1158,6 +1163,9 @@ export default function AccountingPage() {
 
       {/* Tier 101: Anlage N (§ 3 EStG employment income) */}
       <AnlageNSection />
+
+      {/* Tier 102: KSt 1 (§ 1 KStG corporate tax — primary for GmbH) */}
+      <KSt1Section />
 
       {/* Tier 81: Bilanz Vorschau (§ 266 HGB year-end snapshot) */}
       <BilanzSection />

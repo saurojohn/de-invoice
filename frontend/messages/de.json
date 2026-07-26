@@ -2275,6 +2275,28 @@
     "savedOk": "Lohnsteuerbescheinigung gespeichert.",
     "generatedAt": "Erstellt"
   },
+  "kst1": {
+    "title": "KSt 1 (Vorschau)",
+    "subtitle": "Körperschaftsteuererklärung (§ 1 Abs. 1 KStG) — die PRIMÄRE Steuererklärung für Kapitalgesellschaften (GmbH, AG, KGaA). Anlage G ist hier NICHT zutreffend — KSt 1 ersetzt es. Liest den G+V Jahresüberschuss + berechnet KSt 15 % + Soli 5,5 % + GewSt (kein 100k Freibetrag für GmbH, default Hebesatz 400 %) + KSt-Anrechnung auf GewSt (§ 35 EStG / § 26 KStG). KSt-Korrekturen (verdeckte Gewinnausschüttungen, Spenden, Verlustabzug) sind Platzhalter — der Steuerberater ergänzt sie. Vor der Einreichung durch den Steuerberater prüfen lassen.",
+    "year": "Geschäftsjahr",
+    "recompute": "Berechnen",
+    "downloadPdf": "PDF herunterladen",
+    "kapitalgesellschaftHinweis": "✓ Körperschaft — KSt 1 ist die zutreffende Erklärung.",
+    "keinKStHinweis": "⚠ Diese Firma ist keine Kapitalgesellschaft. KSt 1 gilt nur für Körperschaften (GmbH, AG, KGaA, UG). Für Einkünfte aus Gewerbebetrieb Einzelunternehmen / Personengesellschaften: Anlage G + Einkommensteuererklärung.",
+    "jahresueberschuss": "Jahresüberschuss / -fehlbetrag (aus G+V § 275 HGB)",
+    "korrekturen": "KSt-Korrekturen (§ 8 KStG)",
+    "zve": "Zu versteuerndes Einkommen (ZvE)",
+    "kst": "Körperschaftsteuer (15 %)",
+    "soli": "Solidaritätszuschlag (5,5 % auf KSt)",
+    "gewst": "Gewerbesteuer (3,5 % × Hebesatz)",
+    "kstAnrechnung": "KSt-Anrechnung auf GewSt (§ 35 EStG / § 26 KStG)",
+    "kstNachAnrechnung": "Körperschaftsteuer nach Anrechnung",
+    "zuZahlen": "Zu zahlen (KSt nach Anrechnung + Soli + GewSt)",
+    "kstHint": "KSt-Vorauszahlungen (Kz 60) sind hier NICHT berücksichtigt — der Steuerberater subtrahiert die bereits gezahlten Vorauszahlungen in der Festsetzung.",
+    "korrekturenHint": "Diese Korrekturen (vGAs, Spenden, Verlustabzug, § 8b KStG) sind als Platzhalter markiert — der Steuerberater ergänzt sie aus den Verträgen, Spendenbescheinigungen und Verlustvortragsbescheiden. v2: editierbar unter Company.settings.kst1Korrekturen[year].",
+    "rechtsform": "Rechtsform",
+    "generatedAt": "Erstellt"
+  },
   "bilanz": {
     "title": "Bilanz (Vorschau)",
     "subtitle": "Vermögensübersicht zum 31.12. — automatisch aus Ihren offenen Posten, dem Kassenbestand und dem Kundenguthaben abgeleitet. Positionen ohne Datengrundlage sind als „nicht ausgewiesen\" markiert. Der Saldoposten beim Eigenkapital ist ein Platzhalter. Vor der Einreichung durch den Steuerberater ergänzen.",

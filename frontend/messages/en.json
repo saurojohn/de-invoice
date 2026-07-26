@@ -2276,6 +2276,28 @@
     "savedOk": "Lohnsteuerbescheinigung saved.",
     "generatedAt": "Generated"
   },
+  "kst1": {
+    "title": "KSt 1 (preview)",
+    "subtitle": "Corporate tax return (§ 1 Abs. 1 KStG) — the PRIMARY tax form for capital companies (GmbH, AG, KGaA). Anlage G is NOT applicable — KSt 1 replaces it. Reads the G+V Jahresüberschuss + computes KSt 15% + Soli 5.5% + GewSt (no 100k allowance for GmbH, default Hebesatz 400%) + KSt-Anrechnung auf GewSt (§ 35 EStG / § 26 KStG). KSt corrections (hidden profit distributions, donations, loss carryforward) are placeholder — the tax advisor adds them. Have your tax advisor review before filing.",
+    "year": "Fiscal year",
+    "recompute": "Compute",
+    "downloadPdf": "Download PDF",
+    "kapitalgesellschaftHinweis": "✓ Corporation — KSt 1 is the applicable return.",
+    "keinKStHinweis": "⚠ This company is not a capital company. KSt 1 only applies to corporations (GmbH, AG, KGaA, UG). For sole proprietors / partnerships with trade income: Anlage G + Einkommensteuererklärung.",
+    "jahresueberschuss": "Annual profit / loss (from G+V § 275 HGB)",
+    "korrekturen": "KSt corrections (§ 8 KStG)",
+    "zve": "Taxable income (ZvE)",
+    "kst": "Corporate tax (15%)",
+    "soli": "Solidarity surcharge (5.5% on KSt)",
+    "gewst": "Trade tax (3.5% × Hebesatz)",
+    "kstAnrechnung": "KSt credit against GewSt (§ 35 EStG / § 26 KStG)",
+    "kstNachAnrechnung": "Corporate tax after credit",
+    "zuZahlen": "Due (KSt after credit + Soli + GewSt)",
+    "kstHint": "KSt prepayments (Kz 60) are NOT subtracted here — the tax advisor offsets the prepayments in the assessment.",
+    "korrekturenHint": "These corrections (hidden profit distributions, donations, loss carryforward, § 8b KStG) are placeholder — the tax advisor adds them from contracts, donation receipts, and loss carryforward notices. v2: editable under Company.settings.kst1Korrekturen[year].",
+    "rechtsform": "Legal form",
+    "generatedAt": "Generated"
+  },
   "bilanz": {
     "title": "Balance Sheet (preview)",
     "subtitle": "Assets and liabilities snapshot as of Dec 31 — auto-derived from your open receivables, cash balance, and customer credits. Positions without source data are marked \"nicht ausgewiesen\" (not stated). The equity line is a placeholder. Have your tax advisor complete it before filing.",
