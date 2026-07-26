@@ -2298,6 +2298,32 @@
     "rechtsform": "法律形式",
     "generatedAt": "生成时间"
   },
+  "anlageR": {
+    "title": "Anlage R 附件（预览）",
+    "subtitle": "养老金与津贴收入（§ 22 EStG）— 来自您的养老金收入（DRV、BAV、里斯特、吕库普、私人年金、其他）+ 自动计算的征税比例（BMF 表，2026: 81%）+ Werbungskosten 免税额 102 EUR。适用于退休人员、养老金领取人和遗属年金领取人。请在下方输入您的养老金通知书上的毛额。提交前请税务师审核。",
+    "year": "财年",
+    "recompute": "计算",
+    "downloadPdf": "下载 PDF",
+    "editRenten": "编辑养老金收入",
+    "saveRenten": "保存",
+    "rentenMissing": "⚠ 本年度尚未录入养老金收入。请在下方输入您养老金通知书上的毛额。",
+    "einnahmen": "征税比例（按 Kz）",
+    "werbungskosten": "Werbungskosten",
+    "einkuenfte": "养老金收入",
+    "fields": {
+      "drv": "DRV（法定养老金）",
+      "bav": "BAV（职业养老金）",
+      "riester": "里斯特养老金",
+      "ruerup": "吕库普养老金",
+      "privat": "私人年金",
+      "sonstige": "其他（工伤金、遗属）"
+    },
+    "fieldHint": "从您的养老金通知书输入毛额（征税比例前）。精确到分。",
+    "besteuerungsanteilHint": "征税比例每年下降 1%：2005 = 50% → 2024 = 83% → 2057 = 50%（终值）。",
+    "wkHint": "210 = Werbungskosten 免税额（自动 102 EUR）。Kz 200 / 220 / 230 需手动输入。",
+    "savedOk": "养老金收入已保存。",
+    "generatedAt": "生成时间"
+  },
   "bilanz": {
     "title": "资产负债表（预览）",
     "subtitle": "12月31日资产负债快照 — 自动从您的未收应收款、现金余额和客户预收款汇总而成。没有数据来源的科目标记为「nicht ausgewiesen」（未列示）。权益行为占位符。提交前请税务师补全。",

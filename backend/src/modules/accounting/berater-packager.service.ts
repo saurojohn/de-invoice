@@ -34,6 +34,15 @@ import { AnlageNService } from './anlage-n.service'
 // Anlage G: the packager includes ONE of them,
 // not both. The Rechtsform decides.
 import { KSt1Service } from './kst1.service'
+// Tier 103: Anlage R (Einkünfte aus Renten und
+// Bezügen, § 22 EStG) — 6th Anlage form.
+// For retirees / pension recipients (DRV,
+// BAV, Riester, Rürup, private Rente). Filing
+// order: EÜR → S → V → KAP → G → N → R → BWA.
+// Anlage R is mutually exclusive with Rente-
+// bezüge from the Geschäftsführer (vs. the
+// company itself, which has no Rente).
+import { AnlageRService } from './anlage-r.service'
 import { BilanzService } from './bilanz.service'
 import { GuVService } from './guv.service'
 import { AnhangService } from './anhang.service'
@@ -132,6 +141,8 @@ export class BeraterPackagerService {
     private anlageN: AnlageNService,
     // Tier 102: KSt 1 service.
     private kst1: KSt1Service,
+    // Tier 103: Anlage R service.
+    private anlageR: AnlageRService,
     private bilanz: BilanzService,
     private guv: GuVService,
     private anhang: AnhangService,
@@ -321,6 +332,24 @@ export class BeraterPackagerService {
     const kst1OptIn = settings.kst1 === true
     const includeKst1 = kst1OptIn || isKapitalgesellschaft
 
+    // Tier 103: Anlage R is conditional on
+    // (a) the opt-in flag in settings OR
+    // (b) the Rentenbezüge for the year have a
+    // non-zero total (any of drv/bav/riester/
+    // ruerup/privat/sonstige > 0). The opt-in is
+    // for cases where the user knows they have
+    // to file Anlage R but haven't entered the
+    // Rentenbescheid yet.
+    const anlageROptIn = settings.anlageR === true
+    const rentenAllForYear = ((settings.renten as any) || {})[year] || {}
+    const rentenTotal = (Number(rentenAllForYear.drv) || 0) +
+      (Number(rentenAllForYear.bav) || 0) +
+      (Number(rentenAllForYear.riester) || 0) +
+      (Number(rentenAllForYear.ruerup) || 0) +
+      (Number(rentenAllForYear.privat) || 0) +
+      (Number(rentenAllForYear.sonstige) || 0)
+    const includeAnlageR = anlageROptIn || rentenTotal > 0
+
     // Append each PDF (numbered so the
     // Berater can sort them in their
     // filing system). Anlage V slot is
@@ -343,10 +372,12 @@ export class BeraterPackagerService {
     // Tier 101: Anlage N (optional).
     // Tier 102: KSt 1 (optional, but for GmbH the
     // PRIMARY form, mutually exclusive with Anlage G).
-    // The 7-way conditional shifts all subsequent
+    // Tier 103: Anlage R (optional, for retirees).
+    // The 8-way conditional shifts all subsequent
     // file numbers. The order is V → KAP → G → N →
-    // KSt 1: rental, capital, gewerbe, arbeitnehmer,
-    // kst. Each included form pushes the next slot by 1.
+    // KSt 1 → R: rental, capital, gewerbe, arbeitnehmer,
+    // kst, rente. Each included form pushes the
+    // next slot by 1.
     const files: {
       euer: string
       anlageS: string
@@ -355,6 +386,7 @@ export class BeraterPackagerService {
       anlageG?: string
       anlageN?: string
       kst1?: string
+      anlageR?: string
       bwa: string
       bilanz: string
       guv: string
@@ -414,6 +446,15 @@ export class BeraterPackagerService {
       const kst1Name = `${String(optionalSlot).padStart(2, '0')}_KSt1.pdf`
       archive.append(kst1Pdf, { name: kst1Name })
       files.kst1 = kst1Name
+    }
+    if (includeAnlageR) {
+      const anlageRPdf = await this.renderToBuffer((sink) =>
+        this.anlageR.renderPdf(companyId, year, sink),
+      )
+      optionalSlot++
+      const rName = `${String(optionalSlot).padStart(2, '0')}_Anlage-R.pdf`
+      archive.append(anlageRPdf, { name: rName })
+      files.anlageR = rName
     }
     // Compute the position of BWA, Bilanz,
     // G+V, Anhang, Anlagenverzeichnis based
@@ -618,7 +659,7 @@ export class BeraterPackagerService {
   private buildManifest(
     company: { name: string; legalName: string | null; taxId: string | null; vatId: string | null },
     year: number,
-    files: { euer: string; anlageS: string; anlageV?: string; anlageKAP?: string; anlageG?: string; anlageN?: string; kst1?: string; bwa: string; bilanz: string; guv: string; anhang: string; assetCsv: string },
+    files: { euer: string; anlageS: string; anlageV?: string; anlageKAP?: string; anlageG?: string; anlageN?: string; kst1?: string; anlageR?: string; bwa: string; bilanz: string; guv: string; anhang: string; assetCsv: string },
   ): string {
     const lines: string[] = []
     lines.push(`# Berater-Paket ${year} — ${company.legalName || company.name}`)
@@ -650,6 +691,9 @@ export class BeraterPackagerService {
     }
     if (files.kst1) {
       lines.push(`| \`${files.kst1}\` | KSt 1 (Körperschaftsteuererklärung) gem. § 1 Abs. 1 KStG — Vorschau. PRIMARY tax form für Kapitalgesellschaften (GmbH, AG, KGaA, UG). Anlage G ist NICHT zutreffend — KSt 1 ersetzt es. KSt 15% + Soli 5.5% + GewSt (default Hebesatz 400 %, kein 100k Freibetrag für GmbH) + KSt-Anrechnung auf GewSt (§ 35 EStG / § 26 KStG: 3.8 × Messbetrag). Liest G+V Jahresüberschuss aus GuVService. KSt-Korrekturen (vGAs, Spenden, Verlustabzug, § 8b KStG) als Platzhalter. Nur enthalten, wenn Company.rechtsform in [GmbH, AG, KGaA, UG] ODER \`settings.kst1 === true\`. |`)
+    }
+    if (files.anlageR) {
+      lines.push(`| \`${files.anlageR}\` | Anlage R (Einkünfte aus Renten und Bezügen) gem. § 22 EStG — Vorschau. Für Rentner / Pensionäre (DRV, BAV, Riester, Rürup, private Leibrenten). Besteuerungsanteil aus BMF-Tabelle (2026: 81 %), Ertragsanteil 50 % (v1) für private Leibrenten. Werbungskosten-Pauschbetrag 102 EUR (Kz 210) auto. Daten aus Company.settings.renten[year]. Nur enthalten, wenn Rentenbezüge für das Jahr erfasst ODER \`settings.anlageR === true\`. |`)
     }
     lines.push(`| \`${files.bwa}\` | BWA (Betriebswirtschaftliche Auswertung) gem. DATEV-Standard — Vorschau für Dezember ${year} (Jahressumme). 14 DATEV-Bucket-Codes: Umsatzerlöse / 4 Betriebliche Aufwands-Unterkategorien / Sonstige / Zinserträge (0 in v1) / Zinsaufwendungen / 2 Steuer-Buckets. Jahresergebnis = Betriebsergebnis + Finanzergebnis - Steuern. |`)
     lines.push(`| \`${files.bilanz}\` | Bilanz gem. § 266 HGB (Aktiva / Passiva) — Vorschau. Stichtag 31.12.${year}. |`)

@@ -29,6 +29,11 @@ import { AnlageNSection } from "./AnlageNSection"
 // G+V Jahresüberschuss + applies KSt + Soli +
 // GewSt + Anrechnung formula.
 import { KSt1Section } from "./KSt1Section"
+// Tier 103: Anlage R (Einkünfte aus Renten und
+// Bezügen, § 22 EStG) — 6th Anlage form. For
+// retirees / pension recipients. Reads
+// Rentenbezüge from Company.settings.renten.
+import { AnlageRSection } from "./AnlageRSection"
 import { BilanzSection } from "./BilanzSection"
 import { GuVSection } from "./GuVSection"
 import { AnhangSection } from "./AnhangSection"
@@ -1166,6 +1171,9 @@ export default function AccountingPage() {
 
       {/* Tier 102: KSt 1 (§ 1 KStG corporate tax — primary for GmbH) */}
       <KSt1Section />
+
+      {/* Tier 103: Anlage R (§ 22 EStG pension income) */}
+      <AnlageRSection />
 
       {/* Tier 81: Bilanz Vorschau (§ 266 HGB year-end snapshot) */}
       <BilanzSection />

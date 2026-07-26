@@ -2298,6 +2298,32 @@
     "rechtsform": "Legal form",
     "generatedAt": "Generated"
   },
+  "anlageR": {
+    "title": "Anlage R (preview)",
+    "subtitle": "Income from pensions (§ 22 EStG) — from your Rentenbezüge (DRV, BAV, Riester, Rürup, private Rente, Sonstige) + automatically computed Besteuerungsanteil (BMF table, 2026: 81%) + Werbungskosten-Pauschbetrag 102 EUR. For retirees, pensioners, and recipients of Witwen-/Waisenrente. Enter the gross Rentenbezüge from your Rentenbescheide below. Have your tax advisor review before filing.",
+    "year": "Fiscal year",
+    "recompute": "Compute",
+    "downloadPdf": "Download PDF",
+    "editRenten": "Edit Rentenbezüge",
+    "saveRenten": "Save",
+    "rentenMissing": "⚠ No Rentenbezüge recorded for this year. Please enter the gross Rentenbezüge from your pension notices below.",
+    "einnahmen": "Besteuerungsanteil per Kz",
+    "werbungskosten": "Werbungskosten",
+    "einkuenfte": "Income from pensions",
+    "fields": {
+      "drv": "DRV (statutory pension)",
+      "bav": "BAV (occupational pension)",
+      "riester": "Riester pension",
+      "ruerup": "Rürup pension",
+      "privat": "Private Leibrenten",
+      "sonstige": "Sonstige (accident, widow-)"
+    },
+    "fieldHint": "Enter the gross Rentenbezüge (before Besteuerungsanteil) from your pension notices. Enter to-the-cent.",
+    "besteuerungsanteilHint": "Besteuerungsanteil decreases by 1% per year: 2005 = 50% → 2024 = 83% → 2057 = 50% (final).",
+    "wkHint": "210 = Werbungskosten-Pauschbetrag (auto, 102 EUR). Kz 200 / 220 / 230 are manual.",
+    "savedOk": "Rentenbezüge saved.",
+    "generatedAt": "Generated"
+  },
   "bilanz": {
     "title": "Balance Sheet (preview)",
     "subtitle": "Assets and liabilities snapshot as of Dec 31 — auto-derived from your open receivables, cash balance, and customer credits. Positions without source data are marked \"nicht ausgewiesen\" (not stated). The equity line is a placeholder. Have your tax advisor complete it before filing.",

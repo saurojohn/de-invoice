@@ -22,7 +22,11 @@ import { AnlageNService } from './anlage-n.service'
 // Tier 102: KSt 1 (Körperschaftsteuererklärung,
 // § 1 Abs. 1 KStG). The PRIMARY tax form for
 // Kapitalgesellschaften (GmbH, AG, KGaA).
-import { KSt1Service } from './kst1.service';
+import { KSt1Service } from './kst1.service'
+// Tier 103: Anlage R (Einkünfte aus Renten und
+// Bezügen, § 22 EStG). The 6th Anlage form —
+// for retirees / pension recipients.
+import { AnlageRService } from './anlage-r.service';
 import { BilanzService } from './bilanz.service';
 import { GuVService } from './guv.service';
 import { AnhangService } from './anhang.service';
@@ -52,6 +56,9 @@ export class AccountingController {
     // Tier 102: KSt 1 (Körperschaftsteuererklärung,
     // § 1 Abs. 1 KStG) — primary for GmbH/AG.
     private kst1: KSt1Service,
+    // Tier 103: Anlage R (Einkünfte aus Renten und
+    // Bezügen, § 22 EStG) — 6th Anlage form.
+    private anlageR: AnlageRService,
     private bilanz: BilanzService,
     private guv: GuVService,
     private anhang: AnhangService,
@@ -889,6 +896,125 @@ export class AccountingController {
       throw new BadRequestException('year ist ungültig')
     }
     await this.kst1.renderPdf(companyId, year, res)
+  }
+
+  // =============================================================
+  // Tier 103 — Anlage R (Einkünfte aus Renten und Bezügen, § 22 EStG)
+  // =============================================================
+  //
+  // The German tax filing for retirees /
+  // pension recipients. The 6th Anlage form
+  // (after S / V / KAP / G / N). Covers:
+  //   - DRV (gesetzliche Rente)
+  //   - BAV (Betriebsrente)
+  //   - Riester-Rente
+  //   - Rürup-Rente
+  //   - Private Leibrenten
+  //   - Sonstige (Unfallrenten, etc.)
+  //
+  // v1: Besteuerungsanteil from BMF table per
+  // year. Ertragsanteil for private Rente
+  // simplified to 50% (the post-2012 default).
+  // Data from Company.settings.renten[year].
+  @Get('anlage-r')
+  @UseGuards(HeaderAuthGuard)
+  async getAnlageR(
+    @Query('companyId') companyId: string,
+    @Query('year') yearRaw?: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const year = yearRaw
+      ? Number(yearRaw)
+      : new Date().getFullYear() - 1
+    if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+    return this.anlageR.compute(companyId, year)
+  }
+
+  @Get('anlage-r.pdf')
+  @UseGuards(HeaderAuthGuard)
+  @Header('Content-Type', 'application/pdf')
+  async getAnlageRPdf(
+    @Res() res: Response,
+    @Query('companyId') companyId: string,
+    @Query('year') yearRaw?: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const year = yearRaw
+      ? Number(yearRaw)
+      : new Date().getFullYear() - 1
+    if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+    await this.anlageR.renderPdf(companyId, year, res)
+  }
+
+  // Tier 103: PUT /anlage-r/settings — Update the
+  // per-year Rentenbezüge + Werbungskosten.
+  // Body:
+  //   { year: 2026, drv, bav, riester, ruerup,
+  //     privat, sonstige,
+  //     werbungskosten: { 200, 220, 230 } }
+  // The endpoint stores these on
+  // Company.settings.{renten,
+  // rentenWerbungskosten}[year].
+  @Put('anlage-r/settings')
+  @UseGuards(HeaderAuthGuard)
+  async updateAnlageRSettings(
+    @Query('companyId') companyId: string,
+    @Body() body: {
+      year: number
+      drv?: number
+      bav?: number
+      riester?: number
+      ruerup?: number
+      privat?: number
+      sonstige?: number
+      werbungskosten?: Record<string, number>
+    },
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    if (!body || !Number.isInteger(body.year) || body.year < 2000 || body.year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+    })
+    if (!company) throw new BadRequestException('Firma nicht gefunden')
+
+    const settings = ((company as any).settings ?? {}) as Record<string, any>
+    const rentenAll = (settings.renten as any) || {}
+    const wkAll = (settings.rentenWerbungskosten as any) || {}
+
+    const rentenUpdate = {
+      drv: Math.max(0, Number(body.drv) || 0),
+      bav: Math.max(0, Number(body.bav) || 0),
+      riester: Math.max(0, Number(body.riester) || 0),
+      ruerup: Math.max(0, Number(body.ruerup) || 0),
+      privat: Math.max(0, Number(body.privat) || 0),
+      sonstige: Math.max(0, Number(body.sonstige) || 0),
+    }
+    rentenAll[body.year] = rentenUpdate
+    if (body.werbungskosten) wkAll[body.year] = body.werbungskosten
+
+    const next = {
+      ...settings,
+      renten: rentenAll,
+      rentenWerbungskosten: wkAll,
+    }
+    await this.prisma.company.update({
+      where: { id: companyId },
+      data: { settings: next } as any,
+    })
+
+    return {
+      ok: true,
+      year: body.year,
+      renten: rentenUpdate,
+      werbungskosten: wkAll[body.year] || {},
+    }
   }
 
   /**

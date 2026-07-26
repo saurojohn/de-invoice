@@ -2297,6 +2297,32 @@
     "rechtsform": "Rechtsform",
     "generatedAt": "Erstellt"
   },
+  "anlageR": {
+    "title": "Anlage R (Vorschau)",
+    "subtitle": "Einkünfte aus Renten und Bezügen (§ 22 EStG) — aus Ihren Rentenbezügen (DRV, BAV, Riester, Rürup, private Rente, Sonstige) + automatisch berechneter Besteuerungsanteil (BMF-Tabelle, 2026: 81 %) + Werbungskosten-Pauschbetrag 102 EUR. Für Rentner, Pensionäre und Empfänger von Witwen-/Waisenrente. Tragen Sie unten die Brutto-Rentenbezüge aus Ihren Rentenbescheiden ein. Vor der Einreichung durch den Steuerberater prüfen lassen.",
+    "year": "Geschäftsjahr",
+    "recompute": "Berechnen",
+    "downloadPdf": "PDF herunterladen",
+    "editRenten": "Rentenbezüge bearbeiten",
+    "saveRenten": "Speichern",
+    "rentenMissing": "⚠ Keine Rentenbezüge für dieses Jahr erfasst. Tragen Sie unten die Brutto-Rentenbezüge aus Ihren Rentenbescheiden ein.",
+    "einnahmen": "Besteuerungsanteil pro Kz",
+    "werbungskosten": "Werbungskosten",
+    "einkuenfte": "Einkünfte aus Renten und Bezügen",
+    "fields": {
+      "drv": "DRV (gesetzliche Rente)",
+      "bav": "BAV (Betriebsrente)",
+      "riester": "Riester-Rente",
+      "ruerup": "Rürup-Rente",
+      "privat": "Private Leibrenten",
+      "sonstige": "Sonstige (Unfallrente, Witwen-)"
+    },
+    "fieldHint": "Brutto-Rentenbezüge (vor Besteuerungsanteil) aus Ihren Rentenbescheiden eintragen. Cent-genau eingeben.",
+    "besteuerungsanteilHint": "Besteuerungsanteil fällt jährlich um 1 Prozentpunkt: 2005 = 50 % → 2024 = 83 % → 2057 = 50 % (final).",
+    "wkHint": "210 = Werbungskosten-Pauschbetrag (auto, 102 EUR). Kz 200 / 220 / 230 sind manuell einzutragen.",
+    "savedOk": "Rentenbezüge gespeichert.",
+    "generatedAt": "Erstellt"
+  },
   "bilanz": {
     "title": "Bilanz (Vorschau)",
     "subtitle": "Vermögensübersicht zum 31.12. — automatisch aus Ihren offenen Posten, dem Kassenbestand und dem Kundenguthaben abgeleitet. Positionen ohne Datengrundlage sind als „nicht ausgewiesen\" markiert. Der Saldoposten beim Eigenkapital ist ein Platzhalter. Vor der Einreichung durch den Steuerberater ergänzen.",
