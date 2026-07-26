@@ -6,18 +6,19 @@
 > und mittelständische Unternehmen im DACH-Raum. Inklusive XRechnung,
 > ZUGFeRD/Factur-X, DATEV-Export, UStVA, FinTS-Banking und OCR-Vorbereitung.
 
-**Tier 103 — Anlage R (Einkünfte aus Renten und Bezügen, § 22 EStG) + 6th Anlage form**:
-- 128 backend e2e tests + 276 Playwright UI tests (all green)
-- Anlage R reads Rentenbezüge from Company.settings (per-year DRV, BAV,
-  Riester, Rürup, private Rente) + auto-applies Besteuerungsanteil from
-  BMF table (2026: 81%, decreasing 1%/year to 50% in 2057) + Ertragsanteil 50%
-  for private Rente + Werbungskosten-Pauschbetrag 102 EUR
-- Anlage S / V / KAP / G / N / R (§ 18 / § 21 / § 20 / § 15 / § 3 / § 22 EStG) for
-  Berater-Packager — 8-way conditional shift (plus KSt 1)
+**Tier 104 — Anlage Kind (Kinderfreibetrag + Kindergeld, § 32/33/33a EStG) + 7th Anlage form**:
+- 130 backend e2e tests + 281 Playwright UI tests (all green)
+- Anlage Kind reads Kinder array from Company.settings.kinder[year] (per-year
+  list of { name, birthDate, kindergeldEligible }) + auto-applies standard 2024
+  rates: Kindergeld 250 EUR/Kind (1-3, max 1.000 for 4+), Kinderfreibetrag
+  7.932 EUR/Kind (6.612 Existenzminimum + 1.320 BEAfA), Schulbescheinigung +
+  Behinderung-Pauschbetrag as Berater placeholders
+- Anlage S / V / KAP / G / N / R / Kind (§ 18 / § 21 / § 20 / § 15 / § 3 / § 22 /
+  § 32 EStG) for Berater-Packager — 9-way conditional shift (plus KSt 1)
+- 5th feature-flag toggle (anlageKind) — force-include in Berater package
 - E-Bilanz (XBRL) v2 — 52 BMF GCD 6.7 positions
 - 404/500 error pages + mobile responsive + deploy readiness
-- 2292 i18n keys × 3 locales (DE/EN/ZH), 100% consistent
-- 2238 i18n keys × 3 locales (DE/EN/ZH), 100% consistent
+- 2368 i18n keys × 3 locales (DE/EN/ZH), 100% consistent
 
 ---
 
@@ -41,16 +42,16 @@ open http://localhost:3000
 
 Die App ist sofort einsatzbereit mit Testdaten (SH Leder GmbH).
 
-### E2E-Tests (124 Backend + 255 Playwright UI, ~9 Min)
+### E2E-Tests (130 Backend + 281 Playwright UI, ~9 Min)
 
 ```bash
 # Backend hochfahren
 cd backend && npm install && npx ts-node src/main.ts &
 
-# Alle 124 Backend-Tests
+# Alle 130 Backend-Tests
 cd backend && for f in e2e/[0-9]*.sh; do bash "$f"; done
 
-# 255 Playwright UI-Tests (Frontend muss auf 3100 laufen)
+# 281 Playwright UI-Tests (Frontend muss auf 3100 laufen)
 cd frontend && npm install && npx playwright install chromium
 cd frontend && npx playwright test
 ```
@@ -122,9 +123,9 @@ Troubleshoot).
 | Storage | Local FS (`~/data/invoice-system`) | S3/MinIO compatible |
 | Backup | `pg_dump` + tar | Daily rotation, 7d/4w/monthly anchors |
 | Monitoring | `/metrics` (Prometheus) | 3 gauges + 2 counters + 1 histogram, no deps |
-| CI | GitHub Actions | typecheck × 2 + e2e (128 backend + 276 Playwright UI) on every PR |
+| CI | GitHub Actions | typecheck × 2 + e2e (130 backend + 281 Playwright UI) on every PR |
 
-### 124 E2E-Tests Backend + 255 Playwright UI (379 tests, ~9 Min)
+### 130 E2E-Tests Backend + 281 Playwright UI (411 tests, ~9 Min)
 
 | # | Feature | Tests |
 | --- | --- | --- |
@@ -164,7 +165,12 @@ Troubleshoot).
 | 99b | Mobile responsive (iPhone 12 audit) | 7 |
 | 99c | Production deploy readiness (compose lint) | 12 |
 | 99d | Security headers regression (helmet + CORS) | 12 |
-| UI | Playwright suite (66 spec files, 255 tests) | 255 |
+| 100 | Anlage G (Gewerbebetrieb, § 15 EStG) | 50+ |
+| 101 | Anlage N (Arbeitnehmereinkünfte, § 3 EStG) | 40+ |
+| 102 | KSt 1 (Körperschaftsteuererklärung, § 1 KStG) | 30+ |
+| 103 | Anlage R (Einkünfte aus Renten und Bezügen, § 22 EStG) | 40+ |
+| 104 | Anlage Kind (Kinderfreibetrag + Kindergeld, § 32/33/33a EStG) | 50+ |
+| UI | Playwright suite (72 spec files, 281 tests) | 281 |
 
 ---
 
@@ -572,8 +578,8 @@ x-company-id: <uuid>
 | Storage / 存储 | Local filesystem (S3/MinIO planned) |
 | Auth / 鉴权 | Custom header-based shim + RBAC roles |
 | Security headers / 安全头 | Helmet 7.x (HSTS, X-Frame-Options, X-Content-Type-Options) |
-| i18n / 国际化 | Flat JSON keys, 3 locales (DE/EN/ZH), 2292 keys × 3 = 6876 translations |
-| E2E tests / 端到端测试 | 128 backend bash scripts + 276 Playwright UI tests (70 spec files) |
+| i18n / 国际化 | Flat JSON keys, 3 locales (DE/EN/ZH), 2368 keys × 3 = 7104 translations |
+| E2E tests / 端到端测试 | 130 backend bash scripts + 281 Playwright UI tests (72 spec files) |
 
 ## Repository Layout / 仓库结构
 
