@@ -6,16 +6,17 @@
 > und mittelständische Unternehmen im DACH-Raum. Inklusive XRechnung,
 > ZUGFeRD/Factur-X, DATEV-Export, UStVA, FinTS-Banking und OCR-Vorbereitung.
 
-**Tier 102 — KSt 1 (Körperschaftsteuererklärung, § 1 KStG) + primary for GmbH/AG**:
-- 127 backend e2e tests + 271 Playwright UI tests (all green)
-- KSt 1 reads the G+V Jahresüberschuss + applies KSt 15% + Soli 5.5% +
-  GewSt (no 100k Freibetrag for GmbH, default Hebesatz 400%) + KSt-Anrechnung
-  auf GewSt (3.8 × Messbetrag cap, § 35 EStG / § 26 KStG). 8 Korrekturen
-  (vGAs, Spenden, Verlustabzug, § 8b KStG) als Platzhalter
-- Anlage G and KSt 1 are mutually exclusive for Kapitalgesellschaften per
-  Company.rechtsform — 7-way Berater-packager shift
+**Tier 103 — Anlage R (Einkünfte aus Renten und Bezügen, § 22 EStG) + 6th Anlage form**:
+- 128 backend e2e tests + 276 Playwright UI tests (all green)
+- Anlage R reads Rentenbezüge from Company.settings (per-year DRV, BAV,
+  Riester, Rürup, private Rente) + auto-applies Besteuerungsanteil from
+  BMF table (2026: 81%, decreasing 1%/year to 50% in 2057) + Ertragsanteil 50%
+  for private Rente + Werbungskosten-Pauschbetrag 102 EUR
+- Anlage S / V / KAP / G / N / R (§ 18 / § 21 / § 20 / § 15 / § 3 / § 22 EStG) for
+  Berater-Packager — 8-way conditional shift (plus KSt 1)
 - E-Bilanz (XBRL) v2 — 52 BMF GCD 6.7 positions
 - 404/500 error pages + mobile responsive + deploy readiness
+- 2292 i18n keys × 3 locales (DE/EN/ZH), 100% consistent
 - 2238 i18n keys × 3 locales (DE/EN/ZH), 100% consistent
 
 ---
