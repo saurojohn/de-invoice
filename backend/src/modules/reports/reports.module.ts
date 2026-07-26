@@ -3,6 +3,7 @@ import { ReportsController } from './reports.controller';
 import { UstvaController } from './ustva.controller';
 import { ReportsService } from './reports.service';
 import { UstvaService } from './ustva.service';
+import { UstjaService } from './ustja.service';
 import { AgingService } from './aging.service';
 import { CashFlowService } from './cashflow.service';
 import { PnlService } from './pnl.service';
@@ -21,7 +22,7 @@ import { AssetsModule } from '../assets/assets.module';
 @Module({
   imports: [StorageModule, AssetsModule],
   controllers: [ReportsController, UstvaController],
-  providers: [ReportsService, UstvaService, AgingService, CashFlowService, PnlService, OssService, BwaService],
-  exports: [ReportsService, UstvaService, AgingService, CashFlowService, PnlService, OssService, BwaService],
+  providers: [ReportsService, UstvaService, UstjaService, AgingService, CashFlowService, PnlService, OssService, BwaService],
+  exports: [ReportsService, UstvaService, UstjaService, AgingService, CashFlowService, PnlService, OssService, BwaService],
 })
 export class ReportsModule {}

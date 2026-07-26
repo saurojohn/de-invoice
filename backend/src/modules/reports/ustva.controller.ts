@@ -2,6 +2,7 @@ import { Controller, Get, Post, Put, Delete, Body, Query, Param, BadRequestExcep
 import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { UstvaService } from './ustva.service';
+import { UstjaService } from './ustja.service';
 import { generateUstvaElsterXml, generateUstvaAsciiPreview, normaliseSteuernummer } from './elster.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Auth, Require } from '../../auth/roles.decorator';
@@ -11,6 +12,7 @@ import { Auth, Require } from '../../auth/roles.decorator';
 export class UstvaController {
   constructor(
     private ustva: UstvaService,
+    private ustja: UstjaService,
     private prisma: PrismaService,
   ) {}
 
@@ -185,5 +187,46 @@ export class UstvaController {
       companyName: company.name,
       filingId: filing.id,
     });
+  }
+
+  // ─── Tier 105: UStJA — Umsatzsteuerjahreserklärung
+  // The annual consolidation of the 12 monthly UStVAs.
+  // The user files this with the Finanzamt by 31.07.
+  // of the following year (§ 149 AO); the 12 UStVAs
+  // are Vorauszahlungen on the same liability.
+  //
+  // v1: read-only preview (no save). v2: native
+  // ELSTER-XML export similar to the UStVA path
+  // above. The PDF is for the Mandant's records +
+  // for the Berater packager.
+  // ────────────────────────────────────────────────
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Get('ustja')
+  @Require('ustva.read')
+  async getUstja(
+    @Query('companyId') companyId: string,
+    @Query('year') yearStr: string,
+  ) {
+    if (!companyId || !yearStr) {
+      throw new BadRequestException('companyId and year are required')
+    }
+    const year = parseInt(yearStr, 10)
+    return this.ustja.compute(companyId, year)
+  }
+
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Get('ustja.pdf')
+  @Require('ustva.read')
+  @Header('Content-Type', 'application/pdf')
+  async getUstjaPdf(
+    @Res() res: Response,
+    @Query('companyId') companyId: string,
+    @Query('year') yearStr: string,
+  ) {
+    if (!companyId || !yearStr) {
+      throw new BadRequestException('companyId and year are required')
+    }
+    const year = parseInt(yearStr, 10)
+    await this.ustja.renderPdf(companyId, year, res)
   }
 }

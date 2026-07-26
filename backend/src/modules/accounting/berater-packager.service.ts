@@ -47,8 +47,17 @@ import { AnlageRService } from './anlage-r.service'
 // Kindergeld, § 32 / § 33 / § 33a EStG) —
 // 7th Anlage form. For families with children.
 // Filing order: EÜR → S → V → KAP → G → N →
-// R → Kind → BWA.
+// R → Kind → UStJA → BWA.
 import { AnlageKindService } from './anlage-kind.service'
+// Tier 105: UStJA (Umsatzsteuerjahreserklärung,
+// § 18 Abs. 3 UStG). The annual USt return that
+// consolidates the 12 monthly UStVAs. Always
+// included for every company with USt obligation
+// (Kleinunternehmer § 19 UStG file once a year
+// instead of monthly UStVA; the UStJA is then
+// their only return). Filing order: EÜR → S → V →
+// KAP → G → N → KSt 1 → R → Kind → UStJA → BWA.
+import { UstjaService } from '../reports/ustja.service'
 import { BilanzService } from './bilanz.service'
 import { GuVService } from './guv.service'
 import { AnhangService } from './anhang.service'
@@ -151,6 +160,7 @@ export class BeraterPackagerService {
     private anlageR: AnlageRService,
     // Tier 104: Anlage Kind service.
     private anlageKind: AnlageKindService,
+    private ustja: UstjaService,
     private bilanz: BilanzService,
     private guv: GuVService,
     private anhang: AnhangService,
@@ -411,6 +421,7 @@ export class BeraterPackagerService {
       kst1?: string
       anlageR?: string
       anlageKind?: string
+      ustja: string
       bwa: string
       bilanz: string
       guv: string
@@ -419,6 +430,7 @@ export class BeraterPackagerService {
     } = {
       euer: '01_Anlage-EUR.pdf',
       anlageS: '02_Anlage-S.pdf',
+      ustja: '00_UStJA.pdf', // will be re-set below
       bwa: '00_BWA.pdf', // will be re-set below
       bilanz: '00_Bilanz.pdf', // will be re-set below
       guv: '00_Gewinn-und-Verlustrechnung.pdf',
@@ -489,17 +501,37 @@ export class BeraterPackagerService {
       archive.append(anlageKindPdf, { name: kindName })
       files.anlageKind = kindName
     }
+    // Tier 105: UStJA (Umsatzsteuerjahreserklärung)
+    // is ALWAYS included for every company with USt
+    // obligation. Sits between the Anlage series and
+    // the HGB reports (BWA / Bilanz / G+V / Anhang) —
+    // it's a separate Steuerart (USt, not ESt/KSt),
+    // so it logically belongs with the other
+    // Steuererklärungen even though it isn't an
+    // "Anlage" form. Position: optionalSlot + 1
+    // (3 when 0 optionals, 10 when all 7 are
+    // included). This shifts the trailing BWA /
+    // Bilanz / G+V / Anhang / Anlagenverzeichnis
+    // down by 1.
+    const ustjaPdf = await this.renderToBuffer((sink) =>
+      this.ustja.renderPdf(companyId, year, sink),
+    )
+    // Compute the trailing slot positions based on
+    // (a) the number of optional Anlage forms
+    // included and (b) the always-included UStJA.
+    // ustjaSlot = optionalSlot + 1, BWA = ustjaSlot + 1.
+    const ustjaSlot = optionalSlot + 1
+    const ustjaName = `${String(ustjaSlot).padStart(2, '0')}_UStJA.pdf`
+    archive.append(ustjaPdf, { name: ustjaName })
+    files.ustja = ustjaName
+
     // Compute the position of BWA, Bilanz,
-    // G+V, Anhang, Anlagenverzeichnis based
-    // on which optional Anlage forms are
-    // included. Each optional form pushes
-    // the subsequent files down by 1.
-    const trailingOffset = optionalSlot - 2
-    const bwaNum = String(3 + trailingOffset).padStart(2, '0')
-    const bilanzNum = String(4 + trailingOffset).padStart(2, '0')
-    const guvNum = String(5 + trailingOffset).padStart(2, '0')
-    const anhangNum = String(6 + trailingOffset).padStart(2, '0')
-    const assetCsvNum = String(7 + trailingOffset).padStart(2, '0')
+    // G+V, Anhang, Anlagenverzeichnis.
+    const bwaNum = String(ustjaSlot + 1).padStart(2, '0')
+    const bilanzNum = String(ustjaSlot + 2).padStart(2, '0')
+    const guvNum = String(ustjaSlot + 3).padStart(2, '0')
+    const anhangNum = String(ustjaSlot + 4).padStart(2, '0')
+    const assetCsvNum = String(ustjaSlot + 5).padStart(2, '0')
     files.bwa = `${bwaNum}_BWA.pdf`
     files.bilanz = `${bilanzNum}_Bilanz.pdf`
     files.guv = `${guvNum}_Gewinn-und-Verlustrechnung.pdf`
@@ -692,7 +724,7 @@ export class BeraterPackagerService {
   private buildManifest(
     company: { name: string; legalName: string | null; taxId: string | null; vatId: string | null },
     year: number,
-    files: { euer: string; anlageS: string; anlageV?: string; anlageKAP?: string; anlageG?: string; anlageN?: string; kst1?: string; anlageR?: string; anlageKind?: string; bwa: string; bilanz: string; guv: string; anhang: string; assetCsv: string },
+    files: { euer: string; anlageS: string; anlageV?: string; anlageKAP?: string; anlageG?: string; anlageN?: string; kst1?: string; anlageR?: string; anlageKind?: string; ustja: string; bwa: string; bilanz: string; guv: string; anhang: string; assetCsv: string },
   ): string {
     const lines: string[] = []
     lines.push(`# Berater-Paket ${year} — ${company.legalName || company.name}`)
@@ -731,6 +763,7 @@ export class BeraterPackagerService {
     if (files.anlageKind) {
       lines.push(`| \`${files.anlageKind}\` | Anlage Kind (Kinderfreibetrag + Kindergeld) gem. § 32 / § 33 / § 33a EStG — Vorschau. Für Familien mit Kindern. Kindergeld 250 EUR/Kind (1-3), max 1.000 EUR für 4+ Kinder (Stand 2024). Kinderfreibetrag 7.932 EUR/Kind (6.612 EUR sächliches Existenzminimum + 1.320 EUR BEAfA). Im Festsetzungs-Bescheid wird das MEISTGÜNSTIGE aus (Kindergeld) vs (Kinderfreibetrag × Steuersatz) angewendet. Daten aus Company.settings.kinder[year] (Array von { name, birthDate, kindergeldEligible }). Nur enthalten, wenn Kinder für das Jahr erfasst ODER \`settings.anlageKind === true\`. |`)
     }
+    lines.push(`| \`${files.ustja}\` | UStJA (Umsatzsteuerjahreserklärung) gem. § 18 Abs. 3 UStG (BMF Vordruck 2024) — Vorschau. Aggregiert die 12 monatlichen UStVAs (Jan–Dez) zu einer Jahres-USt. Kz 66 (Summe USt) = Σ Monate; Kz 67 (Summe Vorsteuer) = Σ Monate; Kz 68 (Verbleibender Betrag/Zahllast) = Kz 66 - Kz 67; Kz 39 (Sondervorauszahlung) = 1/11 der Jan-UStVA; Kz 69 (Restzahlung) = Kz 68 - Kz 39. BMF-Sätze 19%/7% per Stand 2024. Berater prüft § 1a/§ 13b UStG-Korrekturen, igL-Bestätigungen und EU-OSS-Sachverhalte. v1: vereinfachtes Modell ohne native ELSTER-XML-Übermittlung — Berater überträgt die Zahlen manuell in ELSTER oder seine StB-Software. IMMER enthalten. |`)
     lines.push(`| \`${files.bwa}\` | BWA (Betriebswirtschaftliche Auswertung) gem. DATEV-Standard — Vorschau für Dezember ${year} (Jahressumme). 14 DATEV-Bucket-Codes: Umsatzerlöse / 4 Betriebliche Aufwands-Unterkategorien / Sonstige / Zinserträge (0 in v1) / Zinsaufwendungen / 2 Steuer-Buckets. Jahresergebnis = Betriebsergebnis + Finanzergebnis - Steuern. |`)
     lines.push(`| \`${files.bilanz}\` | Bilanz gem. § 266 HGB (Aktiva / Passiva) — Vorschau. Stichtag 31.12.${year}. |`)
     lines.push(`| \`${files.guv}\` | Gewinn- und Verlustrechnung gem. § 275 Abs. 2 HGB (Gesamtkostenverfahren) — Vorschau. |`)

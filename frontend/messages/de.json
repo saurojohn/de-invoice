@@ -2582,5 +2582,23 @@
       "description": "Erzwingt die Aufnahme der Anlage Kind (Kinderfreibetrag + Kindergeld, § 32 / § 33 / § 33a EStG) im year-end Berater-Paket ZIP. Standardmäßig nur enthalten, wenn Kinder für das Geschäftsjahr in Company.settings.kinder erfasst wurden. Für Familien mit Kindern, für die Kindergeld bezogen oder Kinderfreibetrag geltend gemacht wird.",
       "effectLabel": "Wirkt auf: Anlage-Kind.pdf im Berater-Paket"
     }
+  },
+  "ustja": {
+    "title": "Umsatzsteuerjahreserklärung (UStJA)",
+    "subtitle": "Aggregiert die 12 monatlichen UStVAs (Jan–Dez) zu einer Jahres-USt (§ 18 Abs. 3 UStG, BMF Vordruck 2024). Im Festsetzungs-Bescheid wird die tatsächliche USt-Schuld des Mandanten festgesetzt; die monatlichen UStVAs sind Vorauszahlungen. Berater überträgt die Zahlen manuell in ELSTER oder seine StB-Software (v1: kein nativer ELSTER-XML-Export).",
+    "year": "Geschäftsjahr",
+    "recompute": "Berechnen",
+    "downloadPdf": "PDF herunterladen",
+    "monthlyBreakdown": "Monatliche Aufschlüsselung (12 × UStVA)",
+    "vorzeichen": "Vorzeichen",
+    "month": "Monat",
+    "umsatzsteuer": "Umsatzsteuer (Kz 66)",
+    "vorsteuer": "Vorsteuer (Kz 67)",
+    "zahllast": "Zahllast (Kz 68)",
+    "vordruck": "BMF Vordruck — Kennziffern",
+    "fieldsHint": "Besteuerungsgrundlagen (Kz 20-23) und Vorsteuer (Kz 67) stammen aus den 12 monatlichen UStVAs. Sondervorauszahlung (Kz 39) ist 1/11 der Jan-UStVA gemäß § 47 Abs. 1 UStDV. Restzahlung (Kz 69) ist bis 31.07. des Folgejahres an das Finanzamt zu entrichten.",
+    "totals": "Zusammenfassung",
+    "restzahlungHint": "Restzahlung (Kz 69) — bis 31.07. des Folgejahres an das Finanzamt",
+    "generatedAt": "Erstellt"
   }
 }

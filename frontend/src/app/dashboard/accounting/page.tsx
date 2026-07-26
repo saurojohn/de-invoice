@@ -39,6 +39,11 @@ import { AnlageRSection } from "./AnlageRSection"
 // 7th Anlage form. For families with children.
 // Reads Kinder array from Company.settings.kinder.
 import { AnlageKindSection } from "./AnlageKindSection"
+// Tier 105: UStJA (Umsatzsteuerjahreserklärung,
+// § 18 Abs. 3 UStG) — the annual VAT return
+// consolidating the 12 monthly UStVAs. Always
+// included in the Berater packager.
+import { UstjaSection } from "./UstjaSection"
 import { BilanzSection } from "./BilanzSection"
 import { GuVSection } from "./GuVSection"
 import { AnhangSection } from "./AnhangSection"
@@ -1182,6 +1187,9 @@ export default function AccountingPage() {
 
       {/* Tier 104: Anlage Kind (§ 32 EStG Kinderfreibetrag + Kindergeld) */}
       <AnlageKindSection />
+
+      {/* Tier 105: UStJA (§ 18 Abs. 3 UStG annual VAT return) */}
+      <UstjaSection />
 
       {/* Tier 81: Bilanz Vorschau (§ 266 HGB year-end snapshot) */}
       <BilanzSection />

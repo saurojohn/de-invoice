@@ -487,7 +487,6 @@
     "errorWithDetail": "错误：{detail}",
     "noData": "暂无数据",
     "notFound": "未找到",
-    "errorWithDetail": "错误：{detail}",
     "networkError": "网络错误",
     "pageNotFound": {
       "title": "页面未找到",
@@ -2583,5 +2582,23 @@
       "description": "强制在年终税务师包裹 ZIP 中包含 Anlage Kind（子女免税额 + 儿童津贴，§ 32 / § 33 / § 33a EStG）。默认仅在 Company.settings.kinder 中已录入当年子女时包含。适用于有子女并申请儿童津贴或子女免税额的家庭。",
       "effectLabel": "影响：Berater 包裹中的 Anlage-Kind.pdf"
     }
+  },
+  "ustja": {
+    "title": "年度增值税申报表 (UStJA)",
+    "subtitle": "将 12 个月的月度 UStVA（1月–12月）汇总为年度增值税申报（§ 18 Abs. 3 UStG，BMF 表格 2024）。在 Festsetzung 决定书中确定实际增值税负债；月度 UStVA 是预付款。税务师手动将数字传输到 ELSTER 或其 StB 软件（v1：无原生 ELSTER XML 导出）。",
+    "year": "财年",
+    "recompute": "重新计算",
+    "downloadPdf": "下载 PDF",
+    "monthlyBreakdown": "月度明细（12 × UStVA）",
+    "vorzeichen": "符号",
+    "month": "月份",
+    "umsatzsteuer": "销项税 (Kz 66)",
+    "vorsteuer": "进项税 (Kz 67)",
+    "zahllast": "应缴税款 (Kz 68)",
+    "vordruck": "BMF 表格字段",
+    "fieldsHint": "计税基础 (Kz 20-23) 和进项税 (Kz 67) 来自 12 个月度 UStVA。Sondervorauszahlung (Kz 39) 是 1 月 UStVA 的 1/11（§ 47 Abs. 1 UStDV）。Restzahlung (Kz 69) 应在次年 7 月 31 日前缴至财政局。",
+    "totals": "汇总",
+    "restzahlungHint": "Restzahlung (Kz 69) — 次年 7 月 31 日前缴至财政局",
+    "generatedAt": "生成于"
   }
 }

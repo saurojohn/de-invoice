@@ -487,7 +487,6 @@
     "errorWithDetail": "Error: {detail}",
     "noData": "No data",
     "notFound": "Not found",
-    "errorWithDetail": "Error: {detail}",
     "networkError": "Network error",
     "pageNotFound": {
       "title": "Page not found",
@@ -2583,5 +2582,23 @@
       "description": "Force-include Anlage Kind (Kinderfreibetrag + Kindergeld, § 32 / § 33 / § 33a EStG) in the year-end Berater packager ZIP. By default, only included when children are recorded in Company.settings.kinder for the year. For families with children claiming Kindergeld or Kinderfreibetrag.",
       "effectLabel": "Affects: Anlage-Kind.pdf in Berater packager"
     }
+  },
+  "ustja": {
+    "title": "Annual VAT Return (UStJA)",
+    "subtitle": "Aggregates the 12 monthly UStVAs (Jan–Dec) into an annual VAT return (§ 18 para. 3 UStG, BMF form 2024). The tax assessment sets the actual VAT liability; monthly UStVAs are prepayments. Tax advisor transfers the numbers manually to ELSTER or their StB software (v1: no native ELSTER XML export).",
+    "year": "Fiscal year",
+    "recompute": "Compute",
+    "downloadPdf": "Download PDF",
+    "monthlyBreakdown": "Monthly breakdown (12 × UStVA)",
+    "vorzeichen": "Sign",
+    "month": "Month",
+    "umsatzsteuer": "Output VAT (Kz 66)",
+    "vorsteuer": "Input VAT (Kz 67)",
+    "zahllast": "Tax payable (Kz 68)",
+    "vordruck": "BMF form — fields (Kennziffern)",
+    "fieldsHint": "Tax bases (Kz 20-23) and input VAT (Kz 67) are derived from the 12 monthly UStVAs. Sondervorauszahlung (Kz 39) is 1/11 of the January UStVA per § 47 para. 1 UStDV. Restzahlung (Kz 69) is due to the Finanzamt by July 31 of the following year.",
+    "totals": "Summary",
+    "restzahlungHint": "Restzahlung (Kz 69) — due to the Finanzamt by 31.07 of the following year",
+    "generatedAt": "Generated"
   }
 }
