@@ -31,6 +31,15 @@ import { AnlageRService } from './anlage-r.service'
 // Kindergeld, § 32 / § 33 / § 33a EStG). The
 // 7th Anlage form — for families with children.
 import { AnlageKindService } from './anlage-kind.service';
+// Tier 106: GewSt-Erklärung (Gewerbesteuererklärung,
+// BMF Vordruck GewSt 1A 2024) — the standalone
+// trade tax return. Always included in the Berater
+// packager for gewerbliche companies (or any company
+// with KSt 1 / Anlage G — those have a Steuermessbetrag
+// that flows into the § 35 EStG KSt-Anrechnung).
+// Reuses AnlageGService for the underlying
+// gewerbeertrag + hebesatz + freibetrag.
+import { GewstService } from './gewst.service';
 import { BilanzService } from './bilanz.service';
 import { GuVService } from './guv.service';
 import { AnhangService } from './anhang.service';
@@ -67,6 +76,7 @@ export class AccountingController {
     // Kindergeld, § 32 / § 33 / § 33a EStG) —
     // 7th Anlage form.
     private anlageKind: AnlageKindService,
+    private gewst: GewstService,
     private bilanz: BilanzService,
     private guv: GuVService,
     private anhang: AnhangService,
@@ -1136,6 +1146,99 @@ export class AccountingController {
       ok: true,
       year: body.year,
       kinder,
+    }
+  }
+
+  // =============================================================
+  // Tier 106: GewSt-Erklärung (Gewerbesteuererklärung,
+  // BMF Vordruck GewSt 1A 2024). The standalone trade
+  // tax return — independent from KSt 1 / Anlage G.
+  // Sits between the Anlage series and the HGB
+  // reports in the Berater packager.
+  // =============================================================
+  @Get('gewst')
+  @UseGuards(HeaderAuthGuard)
+  async getGewst(
+    @Query('companyId') companyId: string,
+    @Query('year') yearRaw?: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const year = yearRaw
+      ? Number(yearRaw)
+      : new Date().getFullYear() - 1
+    if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+    return this.gewst.compute(companyId, year)
+  }
+
+  @Get('gewst.pdf')
+  @UseGuards(HeaderAuthGuard)
+  @Header('Content-Type', 'application/pdf')
+  async getGewstPdf(
+    @Res() res: Response,
+    @Query('companyId') companyId: string,
+    @Query('year') yearRaw?: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const year = yearRaw
+      ? Number(yearRaw)
+      : new Date().getFullYear() - 1
+    if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+    await this.gewst.renderPdf(companyId, year, res)
+  }
+
+  // Tier 106: PUT /gewst/settings — Update the
+  // per-year Vorauszahlungen (Q1-Q4) from the
+  // 4 Quartalsbescheide. Body:
+  //   { year: 2026, q1, q2, q3, q4: number }
+  @Put('gewst/settings')
+  @UseGuards(HeaderAuthGuard)
+  async updateGewstSettings(
+    @Query('companyId') companyId: string,
+    @Body() body: {
+      year: number
+      q1?: number
+      q2?: number
+      q3?: number
+      q4?: number
+    },
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    if (!body || !Number.isInteger(body.year) || body.year < 2000 || body.year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+    })
+    if (!company) throw new BadRequestException('Firma nicht gefunden')
+
+    const settings = ((company as any).settings ?? {}) as Record<string, any>
+    const vorauszahlungenAll = (settings.gewstVorauszahlungen as any) || {}
+    const toNum = (v: any) => {
+      const n = Number(v)
+      return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : 0
+    }
+    vorauszahlungenAll[body.year] = {
+      q1: toNum(body.q1),
+      q2: toNum(body.q2),
+      q3: toNum(body.q3),
+      q4: toNum(body.q4),
+    }
+    const next = {
+      ...settings,
+      gewstVorauszahlungen: vorauszahlungenAll,
+    }
+    await this.prisma.company.update({
+      where: { id: companyId },
+      data: { settings: next } as any,
+    })
+    return {
+      ok: true,
+      year: body.year,
+      vorauszahlungen: vorauszahlungenAll[body.year],
     }
   }
 

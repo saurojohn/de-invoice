@@ -206,7 +206,8 @@ cd - >/dev/null
 # at slot 03 and UStJA at 04. With ALL other
 # optionals off (anlageV/KAP/G/N/R/Kind = false),
 # this is the expected 2-slot minimum offset.
-# Compute the expected UStJA slot dynamically.
+# (Tier 106: GewSt is always at slot +1 relative
+# to UStJA, so the trailing BWA is at UStJA + 2.)
 EXPECTED_USTJA_SLOT="04"
 USTJA_PRESENT=$(find /tmp/berater-minimal-$TS -name "${EXPECTED_USTJA_SLOT}_UStJA.pdf" | head -1)
 if [[ -n "$USTJA_PRESENT" ]]; then
@@ -223,10 +224,11 @@ else
   fi
 fi
 
-# BWA should be at EXPECTED_USTJA_SLOT + 1
-BWA_EXPECTED_SLOT=$(printf "%02d" $((10#$EXPECTED_USTJA_SLOT + 1)))
+# BWA is at UStJA + 2 (one extra slot for the always-on
+# GewSt-Erklärung, tier 106).
+BWA_EXPECTED_SLOT=$(printf "%02d" $((10#$EXPECTED_USTJA_SLOT + 2)))
 BWA_PRESENT=$(find /tmp/berater-minimal-$TS -name "${BWA_EXPECTED_SLOT}_BWA.pdf" | head -1)
-[[ -n "$BWA_PRESENT" ]] && pass "${BWA_EXPECTED_SLOT}_BWA.pdf present (UStJA pushed BWA)" || fail "${BWA_EXPECTED_SLOT}_BWA.pdf missing — BWA should be at slot ${BWA_EXPECTED_SLOT} after UStJA"
+[[ -n "$BWA_PRESENT" ]] && pass "${BWA_EXPECTED_SLOT}_BWA.pdf present (UStJA + GewSt pushed BWA)" || fail "${BWA_EXPECTED_SLOT}_BWA.pdf missing — BWA should be at slot ${BWA_EXPECTED_SLOT} after UStJA + GewSt"
 
 ls /tmp/berater-minimal-$TS/ | sort
 rm -rf /tmp/berater-minimal-$TS "$ZIP_PATH"

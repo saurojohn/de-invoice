@@ -44,6 +44,11 @@ import { AnlageKindSection } from "./AnlageKindSection"
 // consolidating the 12 monthly UStVAs. Always
 // included in the Berater packager.
 import { UstjaSection } from "./UstjaSection"
+// Tier 106: GewSt-Erklärung (Gewerbesteuererklärung,
+// BMF Vordruck GewSt 1A 2024) — the standalone
+// trade tax return. Reuses AnlageGService for
+// Gewerbeertrag + Hebesatz + Freibetrag.
+import { GewstSection } from "./GewstSection"
 import { BilanzSection } from "./BilanzSection"
 import { GuVSection } from "./GuVSection"
 import { AnhangSection } from "./AnhangSection"
@@ -1190,6 +1195,9 @@ export default function AccountingPage() {
 
       {/* Tier 105: UStJA (§ 18 Abs. 3 UStG annual VAT return) */}
       <UstjaSection />
+
+      {/* Tier 106: GewSt-Erklärung (BMF Vordruck GewSt 1A 2024 trade tax) */}
+      <GewstSection />
 
       {/* Tier 81: Bilanz Vorschau (§ 266 HGB year-end snapshot) */}
       <BilanzSection />
