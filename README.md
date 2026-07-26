@@ -585,7 +585,7 @@ x-company-id: <uuid>
 | Auth / 鉴权 | Custom header-based shim + RBAC roles |
 | Security headers / 安全头 | Helmet 7.x (HSTS, X-Frame-Options, X-Content-Type-Options) |
 | i18n / 国际化 | Flat JSON keys, 3 locales (DE/EN/ZH), 2400 keys × 3 = 7203 translations |
-| E2E tests / 端到端测试 | 132 backend bash scripts + 291 Playwright UI tests (74 spec files) |
+| E2E tests / 端到端测试 | 133 backend bash scripts + 292 Playwright UI tests (74 spec files) |
 
 ## Repository Layout / 仓库结构
 
