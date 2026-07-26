@@ -57,6 +57,7 @@ model Company {
   recurringInvoices RecurringInvoice[]
   recurringRuns RecurringRun[]
   cashBookEntries CashBookEntry[]
+  sepaBatches SepaBatch[]
   cashBookDailyCloses CashBookDailyClose[]
   accounts    Account[]
   vouchers    Voucher[]
@@ -454,6 +455,21 @@ model Expense {
   // for the (asset, year) pair, else it
   // fails with "AfA already booked (annual)".
   afaMonth       Int?
+  // Tier 108: SEPA pain.001 batch payment tracking.
+  // paidAt is set when the user runs a SEPA export
+  // and marks the expense as paid (the date is
+  // the planned execution date of the SEPA batch,
+  // not the actual bank settlement — the bank
+  // statement reconciles days later via the
+  // auto-import flow). paidBySepaBatchId links
+  // the expense to the SepaBatch that paid it.
+  // NULL for expenses that haven't been exported
+  // via SEPA yet. The (status='booked', paidAt IS NULL)
+  // query is the "unpaid expenses" set the Berater
+  // sees on /dashboard/payments.
+  paidAt         DateTime?
+  paidBySepaBatchId String?
+  paidBySepaBatch   SepaBatch? @relation("ExpensePaidByBatch", fields: [paidBySepaBatchId], references: [id])
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -462,6 +478,7 @@ model Expense {
   @@index([companyId, invoiceDate])
   @@index([companyId, vatRate])
   @@index([supplierId])
+  @@index([companyId, paidAt])
   @@index([relatedAssetId, afaYear])
   @@index([relatedAssetId, afaYear, afaMonth])
 }
@@ -2517,4 +2534,57 @@ model Asset {
   @@index([companyId, type])
   @@index([companyId, anschaffungsDatum])
   @@index([verkauftAm])
+}
+
+// Tier 108: SEPA pain.001 batch payment tracking.
+// The SepaBatch represents one XML export — typically
+// a monthly run that batches all "unpaid" expenses
+// into a single pain.001 file the Berater hands to
+// the bank (via the bank's online banking portal).
+// The pain.001 XML content is stored on the row
+// (size <50KB for typical batches with 50-100
+// payments, so storing in the DB is fine and avoids
+// a separate file system dependency).
+//
+// Status flow: draft → generated → submitted →
+// confirmed (or failed). v1 only persists draft +
+// generated; the user manually submits the XML to
+// the bank and updates the status to "submitted"
+// (v2: auto-detect via bank statement import).
+model SepaBatch {
+  id              String   @id @default(uuid())
+  companyId       String
+  company         Company  @relation(fields: [companyId], references: [id])
+  // The pain.001 XML content (UTF-8). Stored
+  // inline because the file is small + the user
+  // expects to re-download it from the UI later.
+  xmlContent      String   @db.Text
+  // Aggregated for fast list rendering.
+  paymentCount    Int
+  totalAmount     Decimal  @db.Decimal(14, 4)
+  // IBAN of the debtor (the company's own bank
+  // account). Defaults to Company.bankInfo.iban
+  // but can be overridden per batch (e.g. the
+  // Berater pays one batch from the main account,
+  // another from a sub-account).
+  debtorIban      String
+  debtorBic       String?
+  debtorName      String
+  // The planned execution date (SettlementDate
+  // in pain.001 parlance). NOT the actual bank
+  // settlement date — the bank statement
+  // reconciles days later via auto-import.
+  executionDate   DateTime
+  // The user's optional note (e.g. "März-
+  // Lieferantenrunde" / "March vendor run").
+  notes           String?
+  // Status: draft | generated | submitted | confirmed | failed
+  status          String   @default("generated")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  expenses        Expense[] @relation("ExpensePaidByBatch")
+
+  @@index([companyId, executionDate])
+  @@index([companyId, status])
 }

@@ -99,6 +99,23 @@ const PERMISSIONS: Record<string, Role> = {
   'berater.note.create': ROLES.ACCOUNTANT,
   'berater.note.acknowledge': ROLES.ACCOUNTANT,
   'berater.note.dismiss': ROLES.ACCOUNTANT,
+  // Tier 108: SEPA pain.001 batch payments.
+  //   - expense.read: open the list of unpaid
+  //                   payables and browse past
+  //                   batches (Berater + Mandant).
+  //   - expense.write: create a new batch (marks
+  //                    the selected expenses as
+  //                    paid, generates pain.001).
+  //   - payment.read / payment.write: reserved for
+  //     future payment-reconciliation endpoints
+  //     (e.g. matching incoming bank statements
+  //     against planned batches). Not used yet —
+  //     added here so the matrix stays in sync
+  //     with the planned v2 surface.
+  'expense.read': ROLES.VIEWER,
+  'expense.write': ROLES.ACCOUNTANT,
+  'payment.read': ROLES.VIEWER,
+  'payment.write': ROLES.ACCOUNTANT,
 };
 
 @Injectable()

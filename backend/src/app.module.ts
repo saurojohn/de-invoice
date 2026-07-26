@@ -12,6 +12,8 @@ import { ProductModule } from './modules/product/product.module';
 import { VatRateModule } from './modules/vat-rate/vat-rate.module';
 import { AccountingModule } from './modules/accounting/accounting.module';
 import { ReportsModule } from './modules/reports/reports.module';
+// Tier 108: SEPA pain.001 batch payments.
+import { PaymentsModule } from './modules/payments/payments.module';
 // Tier 28: full-text search with snippet highlight.
 // Owns the /search/customers, /search/products,
 // /search/invoices endpoints. The service queries
@@ -94,6 +96,7 @@ import { AssetsModule } from './modules/assets/assets.module';
     VatRateModule,
     AccountingModule,
     ReportsModule,
+    PaymentsModule,
     SearchModule,
     OcrModule,
     StorageModule,

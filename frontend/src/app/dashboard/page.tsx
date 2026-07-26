@@ -628,6 +628,14 @@ export default function DashboardPage() {
               <p className="text-gray-600 dark:text-gray-300">{t("dashboard.cardExpensesDesc")}</p>
             </CardContent>
           </Card>
+          <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/payments")} data-testid="dashboard-card-payments">
+            <CardHeader>
+              <CardTitle className="text-teal-700 dark:text-teal-300">{t("payments.cardTitle")}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-gray-600 dark:text-gray-300">{t("payments.cardDesc")}</p>
+            </CardContent>
+          </Card>
           <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/settings")}>
             <CardHeader>
               <CardTitle>{t("dashboard.cardSettingsTitle")}</CardTitle>
