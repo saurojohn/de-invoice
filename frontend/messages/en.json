@@ -2599,7 +2599,11 @@
     "fieldsHint": "Tax bases (Kz 20-23) and input VAT (Kz 67) are derived from the 12 monthly UStVAs. Sondervorauszahlung (Kz 39) is 1/11 of the January UStVA per § 47 para. 1 UStDV. Restzahlung (Kz 69) is due to the Finanzamt by July 31 of the following year.",
     "totals": "Summary",
     "restzahlungHint": "Restzahlung (Kz 69) — due to the Finanzamt by 31.07 of the following year",
-    "generatedAt": "Generated"
+    "generatedAt": "Generated",
+    "elsterXml": "ELSTER XML",
+    "elsterXmlHint": "Native BMF Datenlieferung packet for ELSTER upload. Since 2024, UStJA is mandatory via ELSTER.",
+    "asciiPreview": "ASCII preview",
+    "asciiPreviewHint": "Plain-text preview for sanity checking before upload (same format as Mein-ELSTER paste-import)."
   },
   "gewst": {
     "title": "Trade tax return (GewSt)",

@@ -2599,7 +2599,11 @@
     "fieldsHint": "计税基础 (Kz 20-23) 和进项税 (Kz 67) 来自 12 个月度 UStVA。Sondervorauszahlung (Kz 39) 是 1 月 UStVA 的 1/11（§ 47 Abs. 1 UStDV）。Restzahlung (Kz 69) 应在次年 7 月 31 日前缴至财政局。",
     "totals": "汇总",
     "restzahlungHint": "Restzahlung (Kz 69) — 次年 7 月 31 日前缴至财政局",
-    "generatedAt": "生成于"
+    "generatedAt": "生成于",
+    "elsterXml": "ELSTER XML",
+    "elsterXmlHint": "用于 ELSTER 上传的原生 BMF Datenlieferung 数据包。自 2024 年起，UStJA 强制通过 ELSTER 提交。",
+    "asciiPreview": "ASCII 预览",
+    "asciiPreviewHint": "用于上传前快速核对的纯文本预览（与 Mein-ELSTER 粘贴导入格式相同）。"
   },
   "gewst": {
     "title": "营业税务申报表 (GewSt)",

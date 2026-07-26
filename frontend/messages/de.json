@@ -2599,7 +2599,11 @@
     "fieldsHint": "Besteuerungsgrundlagen (Kz 20-23) und Vorsteuer (Kz 67) stammen aus den 12 monatlichen UStVAs. Sondervorauszahlung (Kz 39) ist 1/11 der Jan-UStVA gemäß § 47 Abs. 1 UStDV. Restzahlung (Kz 69) ist bis 31.07. des Folgejahres an das Finanzamt zu entrichten.",
     "totals": "Zusammenfassung",
     "restzahlungHint": "Restzahlung (Kz 69) — bis 31.07. des Folgejahres an das Finanzamt",
-    "generatedAt": "Erstellt"
+    "generatedAt": "Erstellt",
+    "elsterXml": "ELSTER XML",
+    "elsterXmlHint": "Native BMF-Datenlieferung-Paket für ELSTER-Upload. Seit 2024 ist UStJA verpflichtend über ELSTER einzureichen.",
+    "asciiPreview": "ASCII-Vorschau",
+    "asciiPreviewHint": "Plain-Text-Vorschau zur visuellen Prüfung vor dem Upload (gleiches Format wie Mein-ELSTER-Paste-Import)."
   },
   "gewst": {
     "title": "Gewerbesteuererklärung (GewSt)",

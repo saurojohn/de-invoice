@@ -104,15 +104,21 @@ export function UstjaSection() {
     }).format(n)
 
   const [pdfUrl, setPdfUrl] = useState<string>("#")
+  const [elsterXmlUrl, setElsterXmlUrl] = useState<string>("#")
+  const [asciiUrl, setAsciiUrl] = useState<string>("#")
   useEffect(() => {
     if (typeof window === "undefined") return
     const companyId = localStorage.getItem("companyId")
     if (!companyId) {
       setPdfUrl("#")
+      setElsterXmlUrl("#")
+      setAsciiUrl("#")
       return
     }
     const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
     setPdfUrl(`${apiBase}/api/v1/ustva/ustja.pdf?companyId=${companyId}&year=${year}`)
+    setElsterXmlUrl(`${apiBase}/api/v1/ustva/ustja/elster-xml?companyId=${companyId}&year=${year}&download=1`)
+    setAsciiUrl(`${apiBase}/api/v1/ustva/ustja/elster-xml?companyId=${companyId}&year=${year}&format=ascii`)
   }, [year])
 
   return (
@@ -160,6 +166,27 @@ export function UstjaSection() {
             >
               <Button variant="outline" type="button" disabled={pdfUrl === "#"}>
                 📄 {tRef.current("ustja.downloadPdf")}
+              </Button>
+            </a>
+          </div>
+          <div className="flex flex-wrap items-end gap-3 mb-4 -mt-2">
+            <a
+              href={elsterXmlUrl}
+              className="ml-auto"
+              data-testid="ustja-elster-xml-link"
+            >
+              <Button variant="outline" type="button" disabled={elsterXmlUrl === "#"} title={tRef.current("ustja.elsterXmlHint")}>
+                📤 {tRef.current("ustja.elsterXml")}
+              </Button>
+            </a>
+            <a
+              href={asciiUrl}
+              target="_blank"
+              rel="noreferrer"
+              data-testid="ustja-ascii-link"
+            >
+              <Button variant="outline" type="button" disabled={asciiUrl === "#"} title={tRef.current("ustja.asciiPreviewHint")}>
+                📋 {tRef.current("ustja.asciiPreview")}
               </Button>
             </a>
           </div>

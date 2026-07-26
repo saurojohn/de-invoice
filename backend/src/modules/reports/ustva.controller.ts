@@ -3,7 +3,13 @@ import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { UstvaService } from './ustva.service';
 import { UstjaService } from './ustja.service';
-import { generateUstvaElsterXml, generateUstvaAsciiPreview, normaliseSteuernummer } from './elster.service';
+import {
+  generateUstvaElsterXml,
+  generateUstvaAsciiPreview,
+  generateUstjaElsterXml,
+  generateUstjaAsciiPreview,
+  normaliseSteuernummer,
+} from './elster.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Auth, Require } from '../../auth/roles.decorator';
 
@@ -228,5 +234,72 @@ export class UstvaController {
     }
     const year = parseInt(yearStr, 10)
     await this.ustja.renderPdf(companyId, year, res)
+  }
+
+  // ─── Tier 107: UStJA ELSTER XML ────────────────
+  // The annual USt return as a Datenlieferung
+  // packet suitable for ELSTER upload. Same
+  // envelope as the UStVA path; the AnlageName
+  // is "AnlageUStJA" + the Zeitraum is the full
+  // calendar year (no Quartal or Monat). The
+  // BMF has required UStJA submission via ELSTER
+  // since 2024.
+  //
+  // Query params:
+  //   companyId — required
+  //   year      — required
+  //   format    — optional, "xml" (default) or "ascii"
+  //   download  — optional, "1" to force attachment
+  // ────────────────────────────────────────────────
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Get('ustja/elster-xml')
+  @Require('ustva.read')
+  @Header('Content-Type', 'application/xml; charset=utf-8')
+  async getUstjaElsterXml(
+    @Res({ passthrough: true }) res: Response,
+    @Query('companyId') companyId: string,
+    @Query('year') yearStr: string,
+    @Query('format') format?: 'xml' | 'ascii',
+    @Query('download') download?: string,
+  ) {
+    if (!companyId || !yearStr) {
+      throw new BadRequestException('companyId and year are required')
+    }
+    const year = parseInt(yearStr, 10)
+    if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+    })
+    if (!company) {
+      throw new BadRequestException('Firma nicht gefunden')
+    }
+    if (!company.taxId) {
+      throw new BadRequestException(
+        'Steuernummer im Firmenprofil fehlt. Bitte unter "Einstellungen" ergänzen.',
+      )
+    }
+    // Recompute the live data (don't trust a
+    // persisted snapshot — invoices/expenses
+    // can have changed since the last compute).
+    const data = await this.ustja.compute(companyId, year)
+    const filename = `UStJA_${year}_${company.name.replace(/[^A-Za-z0-9]/g, '_')}.${format === 'ascii' ? 'txt' : 'xml'}`
+    if (download === '1' || download === 'true') {
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
+    }
+    if (format === 'ascii') {
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8')
+      return generateUstjaAsciiPreview({
+        data,
+        taxNumber: company.taxId,
+        companyName: company.name,
+      })
+    }
+    return generateUstjaElsterXml({
+      data,
+      taxNumber: company.taxId,
+      companyName: company.name,
+    })
   }
 }

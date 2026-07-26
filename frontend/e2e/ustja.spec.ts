@@ -96,4 +96,17 @@ test.describe("UStJA — /dashboard/accounting", () => {
       { timeout: 10_000 },
     )
   })
+
+  test("ELSTER XML link uses full backend URL (Tier 107)", async ({ page }) => {
+    await injectAuth(page)
+    await page.goto("/dashboard/accounting")
+    await expect(page.getByTestId("ustja-section")).toBeVisible({ timeout: 30_000 })
+    const link = page.getByTestId("ustja-elster-xml-link")
+    await expect(link).toBeVisible({ timeout: 10_000 })
+    await expect(link).toHaveAttribute(
+      "href",
+      /^https?:\/\/[^/]+\/api\/v1\/ustva\/ustja\/elster-xml\?.*download=1/,
+      { timeout: 10_000 },
+    )
+  })
 })

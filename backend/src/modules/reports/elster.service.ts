@@ -45,6 +45,7 @@
  */
 
 import { UstvaData } from './ustva.service';
+import { UstjaResult } from './ustja.service';
 
 export interface ElsterUstvaExportInput {
   /** The computed UStVA data */
@@ -55,6 +56,23 @@ export interface ElsterUstvaExportInput {
   companyName: string;
   /** Optional filing identifier (used in <Vorgang> for traceability) */
   filingId?: string;
+}
+
+/**
+ * Tier 107: UStJA ELSTER export input. The annual
+ * USt return (§ 18 Abs. 3 UStG) consolidates the 12
+ * monthly UStVAs into the BMF Vordruck 2024 Kz
+ * fields — same Datenlieferung envelope as UStVA,
+ * but the Anlage name is "AnlageUStJA" + the
+ * Zeitraum is the full calendar year (no Quartal
+ * or Monat). The BMF has required UStJA
+ * submission via ELSTER since 2024.
+ */
+export interface ElsterUstjaExportInput {
+  data: UstjaResult
+  taxNumber: string
+  companyName: string
+  filingId?: string
 }
 
 /**
@@ -262,4 +280,171 @@ function escapeXml(text: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&apos;');
+}
+
+// =============================================================
+// Tier 107: UStJA — Umsatzsteuerjahreserklärung ELSTER
+// XML (BMF Vordruck 2024, Anlage UStJA).
+//
+// The annual USt return. Same Datenlieferung
+// envelope as the UStVA, but:
+//   - AnlageName = "AnlageUStJA" (vs UStVA's
+//     "AnlageUStVA")
+//   - Zeitraum has neither Quartal nor Monat
+//     (whole year only)
+//   - Kz numbers are the BMF UStJA fields
+//     (66 / 67 / 68 / 39 / 69 / 81 plus the
+//     Bemessungsgrundlagen 20-23 + Vorsteuer-
+//     breakdown 56-60)
+//
+// The 12 monthly UStVAs have already been
+// consolidated by the service (see
+// UstjaService.compute). What we add here is
+// the XML/ASCII serialisation for ELSTER
+// upload.
+// =============================================================
+
+/**
+ * Locate the UstjaLine with the given Kennziffer.
+ * Returns the line's `amount` (for Bemessungsgrundlage
+ * + flat amounts like Kz 68) or `vat` (for the
+ * Steuer-rate lines).
+ */
+function findUstjaLine(
+  data: UstjaResult,
+  kz: string,
+  field: 'amount' | 'vat' | 'net' = 'amount',
+): number {
+  const l = data.lines.find((x) => x.kennziffer === kz)
+  if (!l) return 0
+  if (field === 'net') return l.net ?? 0
+  if (field === 'vat') return l.vat ?? 0
+  return l.amount ?? 0
+}
+
+/**
+ * Build the full <Datenlieferung> XML for UStJA.
+ * Returns a UTF-8 string (no BOM).
+ */
+export function generateUstjaElsterXml(input: ElsterUstjaExportInput): string {
+  const { data, taxNumber, companyName, filingId } = input
+  const steuernummer = normaliseSteuernummer(taxNumber)
+  const jahr = String(data.year)
+
+  // All amounts in cents
+  const c = (eur: number) => Math.round(eur * 100)
+
+  // BMF UStJA 2024 Kennziffern:
+  //   Kz 20-23  Bemessungsgrundlagen by rate (19/7/0/sonstige)
+  //   Kz 36     §13b UStG Bemessungsgrundlage
+  //   Kz 41-44  steuerfreie Umsätze (igL / Ausfuhren / sonstige)
+  //   Kz 56-66  Vorsteuer breakdown (Kz 56: 19%, Kz 57: 7%, Kz 60: §13b)
+  //   Kz 66     Summe USt (consolidated from 12 monthly)
+  //   Kz 67     Summe Vorsteuer
+  //   Kz 39     Sondervorauszahlung (1/11 Jan-UStVA)
+  //   Kz 68     Verbleibender Betrag (Zahllast = 66-67)
+  //   Kz 69     Restzahlung (Kz 68 - Kz 39)
+  //   Kz 81     Differenzbetrag (= Kz 68)
+  const kzBlock = [
+    kzLine(20, c(findUstjaLine(data, '20', 'net'))),
+    kzLine(26, c(findUstjaLine(data, '20', 'vat'))),
+    kzLine(21, c(findUstjaLine(data, '21', 'net'))),
+    kzLine(27, c(findUstjaLine(data, '21', 'vat'))),
+    kzLine(22, c(findUstjaLine(data, '22', 'net'))),
+    // Kz 22 Steuer = 0 (igL / §4 Nr 1b are 0% rated)
+    kzLine(36, c(findUstjaLine(data, '36', 'net'))),
+    kzLine(41, c(findUstjaLine(data, '41', 'amount'))),
+    kzLine(43, c(findUstjaLine(data, '43', 'amount'))),
+    kzLine(44, c(findUstjaLine(data, '44', 'amount'))),
+    // Vorsteuer breakdown — v1 doesn't split per
+    // rate. Lump the VorsteuerTotal into Kz 66
+    // (Vorsteuer allgemein) and zero the others.
+    // v2: split per rate + igE + §13b.
+    kzLine(66, c(findUstjaLine(data, '66', 'amount'))),
+    kzLine(67, c(findUstjaLine(data, '67', 'amount'))),
+    kzLine(39, c(findUstjaLine(data, '39', 'amount'))),
+    kzLine(68, c(findUstjaLine(data, '68', 'amount'))),
+    kzLine(69, c(findUstjaLine(data, '69', 'amount'))),
+    kzLine(81, c(findUstjaLine(data, '81', 'amount'))),
+  ].join('\n        ')
+
+  // Transfer header — Anlage = "AnlageUStJA"
+  // (vs UStVA's "AnlageUStVA"). Vorgang = "UStJA".
+  const vorgang = filingId ? `Vorgang_${filingId}` : 'Vorgang_UStJA'
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<Datenlieferung xmlns="http://www.elster.de/elsterxml/schema/v1">
+  <Verarbeitungsinformationen>
+    <Erstellung>
+      <Eingangsdatum>${new Date().toISOString().split('T')[0]}</Eingangsdatum>
+    </Erstellung>
+    <Datenbestaetigung>false</Datenbestaetigung>
+    <TransferHeader>
+      <TransferTicket>${escapeXml(vorgang)}</TransferTicket>
+      <TestTicket>1</TestTicket>
+      <DatenArt>UStJA</DatenArt>
+      <AnlageName>AnlageUStJA</AnlageName>
+      <Vorgang>UStJA</Vorgang>
+      <Zeitraum>
+        <Jahr>${jahr}</Jahr>
+      </Zeitraum>
+    </TransferHeader>
+  </Verarbeitungsinformationen>
+
+  <Nutzdaten>
+    <Anlage USTJA="1">
+      <Steuernummer>${escapeXml(steuernummer)}</Steuernummer>
+      <Name>${escapeXml(companyName)}</Name>
+      <Zeitraum>
+        <Jahr>${jahr}</Jahr>
+      </Zeitraum>
+      <Kennzahlen>
+        ${kzBlock}
+      </Kennzahlen>
+    </Anlage>
+  </Nutzdaten>
+</Datenlieferung>
+`
+}
+
+/**
+ * Build a CSV-style "ASCII" preview of the UStJA —
+ * useful for developers / tax consultants who
+ * want to sanity-check the numbers before
+ * uploading to ELSTER.
+ */
+export function generateUstjaAsciiPreview(input: ElsterUstjaExportInput): string {
+  const { data, taxNumber, companyName } = input
+  const steuernummer = normaliseSteuernummer(taxNumber)
+  const c = (eur: number) => fmt13(Math.round(eur * 100))
+  const ln = (kz: string) => c(findUstjaLine(data, kz, 'amount'))
+  const lnVat = (kz: string) => c(findUstjaLine(data, kz, 'vat'))
+  const lnNet = (kz: string) => c(findUstjaLine(data, kz, 'net'))
+
+  const lines: string[] = []
+  lines.push(`# UStJA ASCII-Export (Mein-ELSTER-Paste-Format)`)
+  lines.push(`# Firma:        ${companyName}`)
+  lines.push(`# Steuernr.:    ${steuernummer}`)
+  lines.push(`# Zeitraum:     ${data.periodLabel}`)
+  lines.push(`# Erstellt am:  ${new Date().toLocaleString('de-DE')}`)
+  lines.push(``)
+  lines.push(`B-Kz020=${lnNet('20')}   # Bemessungsgrundlage 19%`)
+  lines.push(`B-Kz026=${lnVat('20')}   # Steuer 19%`)
+  lines.push(`B-Kz021=${lnNet('21')}   # Bemessungsgrundlage 7%`)
+  lines.push(`B-Kz027=${lnVat('21')}   # Steuer 7%`)
+  lines.push(`B-Kz036=${lnNet('36')}   # §13b Bemessungsgrundlage`)
+  lines.push(`B-Kz041=${ln('41')}   # igL`)
+  lines.push(`B-Kz043=${ln('43')}   # Ausfuhren (Drittland)`)
+  lines.push(`B-Kz044=${ln('44')}   # sonstige steuerfreie`)
+  lines.push(`B-Kz066=${ln('66')}   # Summe USt (Σ Monate)`)
+  lines.push(`B-Kz067=${ln('67')}   # Summe Vorsteuer`)
+  lines.push(`B-Kz039=${ln('39')}   # Sondervorauszahlung (1/11 Jan-UStVA)`)
+  lines.push(`B-Kz068=${ln('68')}   # Verbleibender Betrag (66-67)`)
+  lines.push(`B-Kz069=${ln('69')}   # Restzahlung (68-39)`)
+  lines.push(`B-Kz081=${ln('81')}   # Differenzbetrag`)
+  lines.push(``)
+  lines.push(
+    `# ${data.counts.monthsWithData}/12 Monate mit Daten konsolidiert.`,
+  )
+  return lines.join('\n')
 }
