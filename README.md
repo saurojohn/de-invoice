@@ -6,12 +6,14 @@
 > und mittelständische Unternehmen im DACH-Raum. Inklusive XRechnung,
 > ZUGFeRD/Factur-X, DATEV-Export, UStVA, FinTS-Banking und OCR-Vorbereitung.
 
-**Tier 100 — Anlage G (Gewerbebetrieb, § 15 EStG) + 4th Anlage form**:
-- 125 backend e2e tests + 260 Playwright UI tests (all green)
-- Anlage G pairs with the EÜR: § 8/9 GewStG Hinzurechnungs-/Kürzungs-Mechanik
-  (Kz 4100 = 25% Miete/Pacht, Kz 5100 = 50% Kfz-Nutzungsanteil) + Gewerbeertrag
-  + Gewerbesteuer-Schätzung (3.5% × Hebesatz, default 400%)
-- Anlage S / V / KAP / G (§ 18 / § 21 / § 20 / § 15 EStG) for Berater-Packager
+**Tier 102 — KSt 1 (Körperschaftsteuererklärung, § 1 KStG) + primary for GmbH/AG**:
+- 127 backend e2e tests + 271 Playwright UI tests (all green)
+- KSt 1 reads the G+V Jahresüberschuss + applies KSt 15% + Soli 5.5% +
+  GewSt (no 100k Freibetrag for GmbH, default Hebesatz 400%) + KSt-Anrechnung
+  auf GewSt (3.8 × Messbetrag cap, § 35 EStG / § 26 KStG). 8 Korrekturen
+  (vGAs, Spenden, Verlustabzug, § 8b KStG) als Platzhalter
+- Anlage G and KSt 1 are mutually exclusive for Kapitalgesellschaften per
+  Company.rechtsform — 7-way Berater-packager shift
 - E-Bilanz (XBRL) v2 — 52 BMF GCD 6.7 positions
 - 404/500 error pages + mobile responsive + deploy readiness
 - 2238 i18n keys × 3 locales (DE/EN/ZH), 100% consistent
