@@ -12,6 +12,7 @@ interface FeatureFlags {
   anlageV: boolean
   anlageG: boolean
   anlageN: boolean
+  anlageKind: boolean
   nextAutoBookerRun: string
 }
 
@@ -77,7 +78,7 @@ export function FeatureFlagsCard() {
   // Local draft state — the user toggles these
   // and clicks "Speichern" to commit. Reset
   // on successful save.
-  const [draft, setDraft] = useState<{ autoBookAfa: boolean; anlageV: boolean; anlageG: boolean; anlageN: boolean } | null>(null)
+  const [draft, setDraft] = useState<{ autoBookAfa: boolean; anlageV: boolean; anlageG: boolean; anlageN: boolean; anlageKind: boolean } | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -92,6 +93,7 @@ export function FeatureFlagsCard() {
         anlageV: result.anlageV,
         anlageG: result.anlageG,
         anlageN: result.anlageN,
+        anlageKind: result.anlageKind,
       })
     } catch (e: any) {
       const msg = e instanceof ApiError ? e.message : tRef.current("common.loadError")
@@ -117,11 +119,12 @@ export function FeatureFlagsCard() {
       // receive. This makes the round-trip
       // idempotent (no "set to the same value"
       // side effects).
-      const body: { autoBookAfa?: boolean; anlageV?: boolean; anlageG?: boolean; anlageN?: boolean } = {}
+      const body: { autoBookAfa?: boolean; anlageV?: boolean; anlageG?: boolean; anlageN?: boolean; anlageKind?: boolean } = {}
       if (draft.autoBookAfa !== flags.autoBookAfa) body.autoBookAfa = draft.autoBookAfa
       if (draft.anlageV !== flags.anlageV) body.anlageV = draft.anlageV
       if (draft.anlageG !== flags.anlageG) body.anlageG = draft.anlageG
       if (draft.anlageN !== flags.anlageN) body.anlageN = draft.anlageN
+      if (draft.anlageKind !== flags.anlageKind) body.anlageKind = draft.anlageKind
       if (Object.keys(body).length === 0) {
         toastRef.current.info(tRef.current("featureFlags.noChanges"))
         setSaving(false)
@@ -159,7 +162,8 @@ export function FeatureFlagsCard() {
     draft.autoBookAfa !== flags.autoBookAfa ||
     draft.anlageV !== flags.anlageV ||
     draft.anlageG !== flags.anlageG ||
-    draft.anlageN !== flags.anlageN
+    draft.anlageN !== flags.anlageN ||
+    draft.anlageKind !== flags.anlageKind
 
   return (
     <Card data-testid="feature-flags-card">
@@ -348,6 +352,48 @@ export function FeatureFlagsCard() {
           </label>
         </div>
 
+        {/* Tier 104: Anlage Kind toggle */}
+        <div
+          className="flex items-start justify-between gap-4 p-3 border rounded dark:border-gray-700"
+          data-testid="feature-flag-anlage-kind"
+        >
+          <div className="flex-1">
+            <div className="font-medium text-sm">
+              {tRef.current("featureFlags.anlageKind.label")}
+            </div>
+            <div className="text-xs text-gray-500 mt-1">
+              {tRef.current("featureFlags.anlageKind.description")}
+            </div>
+            <div className="text-xs text-gray-400 mt-1">
+              {tRef.current("featureFlags.anlageKind.effectLabel")}
+            </div>
+          </div>
+          <label className="inline-flex items-center cursor-pointer mt-1">
+            <input
+              type="checkbox"
+              className="sr-only"
+              checked={draft.anlageKind}
+              onChange={(e) =>
+                setDraft({ ...draft, anlageKind: e.target.checked })
+              }
+              data-testid="feature-flag-anlage-kind-toggle"
+            />
+            <span
+              className={`w-11 h-6 rounded-full relative transition-colors ${
+                draft.anlageKind
+                  ? "bg-emerald-500"
+                  : "bg-gray-300 dark:bg-gray-600"
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${
+                  draft.anlageKind ? "translate-x-5" : ""
+                }`}
+              />
+            </span>
+          </label>
+        </div>
+
         <div className="flex items-center gap-3 pt-2 border-t dark:border-gray-700">
           <Button
             onClick={save}
@@ -364,6 +410,7 @@ export function FeatureFlagsCard() {
                 anlageV: flags.anlageV,
                 anlageG: flags.anlageG,
                 anlageN: flags.anlageN,
+                anlageKind: flags.anlageKind,
               })
             }
             disabled={!dirty || saving}

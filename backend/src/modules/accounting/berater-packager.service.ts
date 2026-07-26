@@ -43,6 +43,12 @@ import { KSt1Service } from './kst1.service'
 // bezüge from the Geschäftsführer (vs. the
 // company itself, which has no Rente).
 import { AnlageRService } from './anlage-r.service'
+// Tier 104: Anlage Kind (Kinderfreibetrag +
+// Kindergeld, § 32 / § 33 / § 33a EStG) —
+// 7th Anlage form. For families with children.
+// Filing order: EÜR → S → V → KAP → G → N →
+// R → Kind → BWA.
+import { AnlageKindService } from './anlage-kind.service'
 import { BilanzService } from './bilanz.service'
 import { GuVService } from './guv.service'
 import { AnhangService } from './anhang.service'
@@ -143,6 +149,8 @@ export class BeraterPackagerService {
     private kst1: KSt1Service,
     // Tier 103: Anlage R service.
     private anlageR: AnlageRService,
+    // Tier 104: Anlage Kind service.
+    private anlageKind: AnlageKindService,
     private bilanz: BilanzService,
     private guv: GuVService,
     private anhang: AnhangService,
@@ -350,6 +358,20 @@ export class BeraterPackagerService {
       (Number(rentenAllForYear.sonstige) || 0)
     const includeAnlageR = anlageROptIn || rentenTotal > 0
 
+    // Tier 104: Anlage Kind is conditional on
+    // (a) the opt-in flag in settings OR
+    // (b) the Kinder list for the year has at
+    // least one entry. The opt-in is for cases
+    // where the user knows they have to file
+    // Anlage Kind but haven't entered the
+    // Kinder list yet.
+    const anlageKindOptIn = settings.anlageKind === true
+    const kinderAllForYear = ((settings.kinder as any) || {})[year] || []
+    const kinderCount = Array.isArray(kinderAllForYear)
+      ? kinderAllForYear.length
+      : 0
+    const includeAnlageKind = anlageKindOptIn || kinderCount > 0
+
     // Append each PDF (numbered so the
     // Berater can sort them in their
     // filing system). Anlage V slot is
@@ -373,11 +395,12 @@ export class BeraterPackagerService {
     // Tier 102: KSt 1 (optional, but for GmbH the
     // PRIMARY form, mutually exclusive with Anlage G).
     // Tier 103: Anlage R (optional, for retirees).
-    // The 8-way conditional shifts all subsequent
+    // Tier 104: Anlage Kind (optional, for families).
+    // The 9-way conditional shifts all subsequent
     // file numbers. The order is V → KAP → G → N →
-    // KSt 1 → R: rental, capital, gewerbe, arbeitnehmer,
-    // kst, rente. Each included form pushes the
-    // next slot by 1.
+    // KSt 1 → R → Kind: rental, capital, gewerbe,
+    // arbeitnehmer, kst, rente, kind. Each included
+    // form pushes the next slot by 1.
     const files: {
       euer: string
       anlageS: string
@@ -387,6 +410,7 @@ export class BeraterPackagerService {
       anlageN?: string
       kst1?: string
       anlageR?: string
+      anlageKind?: string
       bwa: string
       bilanz: string
       guv: string
@@ -455,6 +479,15 @@ export class BeraterPackagerService {
       const rName = `${String(optionalSlot).padStart(2, '0')}_Anlage-R.pdf`
       archive.append(anlageRPdf, { name: rName })
       files.anlageR = rName
+    }
+    if (includeAnlageKind) {
+      const anlageKindPdf = await this.renderToBuffer((sink) =>
+        this.anlageKind.renderPdf(companyId, year, sink),
+      )
+      optionalSlot++
+      const kindName = `${String(optionalSlot).padStart(2, '0')}_Anlage-Kind.pdf`
+      archive.append(anlageKindPdf, { name: kindName })
+      files.anlageKind = kindName
     }
     // Compute the position of BWA, Bilanz,
     // G+V, Anhang, Anlagenverzeichnis based
@@ -659,7 +692,7 @@ export class BeraterPackagerService {
   private buildManifest(
     company: { name: string; legalName: string | null; taxId: string | null; vatId: string | null },
     year: number,
-    files: { euer: string; anlageS: string; anlageV?: string; anlageKAP?: string; anlageG?: string; anlageN?: string; kst1?: string; anlageR?: string; bwa: string; bilanz: string; guv: string; anhang: string; assetCsv: string },
+    files: { euer: string; anlageS: string; anlageV?: string; anlageKAP?: string; anlageG?: string; anlageN?: string; kst1?: string; anlageR?: string; anlageKind?: string; bwa: string; bilanz: string; guv: string; anhang: string; assetCsv: string },
   ): string {
     const lines: string[] = []
     lines.push(`# Berater-Paket ${year} — ${company.legalName || company.name}`)
@@ -694,6 +727,9 @@ export class BeraterPackagerService {
     }
     if (files.anlageR) {
       lines.push(`| \`${files.anlageR}\` | Anlage R (Einkünfte aus Renten und Bezügen) gem. § 22 EStG — Vorschau. Für Rentner / Pensionäre (DRV, BAV, Riester, Rürup, private Leibrenten). Besteuerungsanteil aus BMF-Tabelle (2026: 81 %), Ertragsanteil 50 % (v1) für private Leibrenten. Werbungskosten-Pauschbetrag 102 EUR (Kz 210) auto. Daten aus Company.settings.renten[year]. Nur enthalten, wenn Rentenbezüge für das Jahr erfasst ODER \`settings.anlageR === true\`. |`)
+    }
+    if (files.anlageKind) {
+      lines.push(`| \`${files.anlageKind}\` | Anlage Kind (Kinderfreibetrag + Kindergeld) gem. § 32 / § 33 / § 33a EStG — Vorschau. Für Familien mit Kindern. Kindergeld 250 EUR/Kind (1-3), max 1.000 EUR für 4+ Kinder (Stand 2024). Kinderfreibetrag 7.932 EUR/Kind (6.612 EUR sächliches Existenzminimum + 1.320 EUR BEAfA). Im Festsetzungs-Bescheid wird das MEISTGÜNSTIGE aus (Kindergeld) vs (Kinderfreibetrag × Steuersatz) angewendet. Daten aus Company.settings.kinder[year] (Array von { name, birthDate, kindergeldEligible }). Nur enthalten, wenn Kinder für das Jahr erfasst ODER \`settings.anlageKind === true\`. |`)
     }
     lines.push(`| \`${files.bwa}\` | BWA (Betriebswirtschaftliche Auswertung) gem. DATEV-Standard — Vorschau für Dezember ${year} (Jahressumme). 14 DATEV-Bucket-Codes: Umsatzerlöse / 4 Betriebliche Aufwands-Unterkategorien / Sonstige / Zinserträge (0 in v1) / Zinsaufwendungen / 2 Steuer-Buckets. Jahresergebnis = Betriebsergebnis + Finanzergebnis - Steuern. |`)
     lines.push(`| \`${files.bilanz}\` | Bilanz gem. § 266 HGB (Aktiva / Passiva) — Vorschau. Stichtag 31.12.${year}. |`)

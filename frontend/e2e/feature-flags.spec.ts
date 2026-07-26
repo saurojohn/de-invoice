@@ -69,7 +69,7 @@ test.describe("Feature flags — /dashboard/settings", () => {
     await expect(page.getByTestId("feature-flags-card")).toBeVisible({ timeout: 30_000 })
   })
 
-  test("All 4 toggle rows render (autoBookAfa + anlageV + anlageG + anlageN)", async ({ page }) => {
+  test("All 5 toggle rows render (autoBookAfa + anlageV + anlageG + anlageN + anlageKind)", async ({ page }) => {
     await injectAuth(page)
     await page.goto("/dashboard/settings")
     await expect(page.getByTestId("feature-flags-card")).toBeVisible({ timeout: 30_000 })
@@ -77,6 +77,7 @@ test.describe("Feature flags — /dashboard/settings", () => {
     await expect(page.getByTestId("feature-flag-anlage-v")).toBeVisible()
     await expect(page.getByTestId("feature-flag-anlage-g")).toBeVisible()
     await expect(page.getByTestId("feature-flag-anlage-n")).toBeVisible()
+    await expect(page.getByTestId("feature-flag-anlage-kind")).toBeVisible()
   })
 
   test("Save button is disabled until a toggle is flipped", async ({ page }) => {
@@ -127,6 +128,21 @@ test.describe("Feature flags — /dashboard/settings", () => {
     const flag = page.getByTestId("feature-flag-anlage-v")
     const label = flag.locator("label")
     const toggle = page.getByTestId("feature-flag-anlage-v-toggle")
+    const wasChecked = await toggle.isChecked()
+
+    await label.click()
+    await page.getByTestId("feature-flags-save").click()
+    await expect(toggle).toBeChecked({ checked: !wasChecked })
+  })
+
+  test("Anlage Kind toggle + save persists the new value", async ({ page }) => {
+    await injectAuth(page)
+    await page.goto("/dashboard/settings")
+    await expect(page.getByTestId("feature-flags-card")).toBeVisible({ timeout: 30_000 })
+
+    const flag = page.getByTestId("feature-flag-anlage-kind")
+    const label = flag.locator("label")
+    const toggle = page.getByTestId("feature-flag-anlage-kind-toggle")
     const wasChecked = await toggle.isChecked()
 
     await label.click()

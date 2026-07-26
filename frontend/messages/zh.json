@@ -2324,6 +2324,30 @@
     "savedOk": "养老金收入已保存。",
     "generatedAt": "生成时间"
   },
+  "anlageKind": {
+    "title": "Anlage Kind 附件（预览）",
+    "subtitle": "子女免税额 + 儿童津贴（§ 32 / § 33 / § 33a EStG）— 适用于有子女的家庭。儿童津贴 250 EUR/孩（1-3），最多 4+ 孩 1,000 EUR（2024 标准）。子女免税额 7,932 EUR/孩（6,612 EUR 物质最低生活 + 1,320 EUR 抚养/教育需求）。税务局会按（儿童津贴）与（子女免税额 × 税率）中最有利的 — 您的税务师会审核。请在下方输入您的子女（来自儿童津贴通知 / 工资税证明）。提交前请税务师审核。",
+    "year": "财年",
+    "recompute": "计算",
+    "downloadPdf": "下载 PDF",
+    "editKinder": "编辑子女",
+    "saveKinder": "保存",
+    "kinderMissing": "⚠ 本年度尚未录入子女。请在下方输入您儿童津贴通知中的子女。",
+    "kindergeld": "儿童津贴（§ 66 EStG）",
+    "freibetrag": "子女免税额（§ 32 EStG）",
+    "summary": "汇总",
+    "addKind": "+ 添加子女",
+    "remove": "删除",
+    "fields": {
+      "name": "姓名",
+      "birthDate": "出生日期",
+      "kindergeldEligible": "儿童津贴资格"
+    },
+    "fieldHint": "从您的儿童津贴通知 / 工资税证明输入子女。出生日期 ISO 格式（YYYY-MM-DD）。",
+    "betragHint": "儿童津贴 250 EUR/孩（1-3），最多 4+ 孩 1,000 EUR。子女免税额 7,932 EUR/孩（6,612 EUR 物质最低生活 + 1,320 EUR 抚养/教育需求）。",
+    "savedOk": "子女已保存。",
+    "generatedAt": "生成时间"
+  },
   "bilanz": {
     "title": "资产负债表（预览）",
     "subtitle": "12月31日资产负债快照 — 自动从您的未收应收款、现金余额和客户预收款汇总而成。没有数据来源的科目标记为「nicht ausgewiesen」（未列示）。权益行为占位符。提交前请税务师补全。",
@@ -2553,6 +2577,11 @@
       "label": "在税务师包裹中包含 Anlage N",
       "description": "强制在年终税务师包裹 ZIP 中包含 Anlage N（雇佣收入，§ 3 EStG）。默认仅在 Company.settings.lohnsteuerbescheinigungen 中已录入当年工资税证明时包含。适用于雇员、公务员、参股管理层兼雇员。",
       "effectLabel": "影响：Berater 包裹中的 Anlage-N.pdf"
+    },
+    "anlageKind": {
+      "label": "在税务师包裹中包含 Anlage Kind",
+      "description": "强制在年终税务师包裹 ZIP 中包含 Anlage Kind（子女免税额 + 儿童津贴，§ 32 / § 33 / § 33a EStG）。默认仅在 Company.settings.kinder 中已录入当年子女时包含。适用于有子女并申请儿童津贴或子女免税额的家庭。",
+      "effectLabel": "影响：Berater 包裹中的 Anlage-Kind.pdf"
     }
   }
 }

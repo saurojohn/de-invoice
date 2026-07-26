@@ -34,6 +34,11 @@ import { KSt1Section } from "./KSt1Section"
 // retirees / pension recipients. Reads
 // Rentenbezüge from Company.settings.renten.
 import { AnlageRSection } from "./AnlageRSection"
+// Tier 104: Anlage Kind (Kinderfreibetrag +
+// Kindergeld, § 32 / § 33 / § 33a EStG) —
+// 7th Anlage form. For families with children.
+// Reads Kinder array from Company.settings.kinder.
+import { AnlageKindSection } from "./AnlageKindSection"
 import { BilanzSection } from "./BilanzSection"
 import { GuVSection } from "./GuVSection"
 import { AnhangSection } from "./AnhangSection"
@@ -1174,6 +1179,9 @@ export default function AccountingPage() {
 
       {/* Tier 103: Anlage R (§ 22 EStG pension income) */}
       <AnlageRSection />
+
+      {/* Tier 104: Anlage Kind (§ 32 EStG Kinderfreibetrag + Kindergeld) */}
+      <AnlageKindSection />
 
       {/* Tier 81: Bilanz Vorschau (§ 266 HGB year-end snapshot) */}
       <BilanzSection />

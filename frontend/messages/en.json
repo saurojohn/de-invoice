@@ -2324,6 +2324,30 @@
     "savedOk": "Rentenbezüge saved.",
     "generatedAt": "Generated"
   },
+  "anlageKind": {
+    "title": "Anlage Kind (preview)",
+    "subtitle": "Kinderfreibetrag + Kindergeld (§ 32 / § 33 / § 33a EStG) — for families with children. Kindergeld 250 EUR / child (1-3), max 1,000 EUR for 4+ children (as of 2024). Kinderfreibetrag 7,932 EUR / child (6,612 EUR subsistence minimum + 1,320 EUR care/education needs). The tax office applies the MORE FAVORABLE of (Kindergeld) vs (Kinderfreibetrag × tax rate) — your tax advisor verifies. Enter your children from the Kindergeldbescheid / Lohnsteuerbescheinigung below. Have your tax advisor review before filing.",
+    "year": "Fiscal year",
+    "recompute": "Compute",
+    "downloadPdf": "Download PDF",
+    "editKinder": "Edit children",
+    "saveKinder": "Save",
+    "kinderMissing": "⚠ No children recorded for this year. Please enter the children from your Kindergeldbescheid below.",
+    "kindergeld": "Kindergeld (§ 66 EStG)",
+    "freibetrag": "Kinderfreibetrag (§ 32 EStG)",
+    "summary": "Summary",
+    "addKind": "+ Add child",
+    "remove": "Remove",
+    "fields": {
+      "name": "Name",
+      "birthDate": "Date of birth",
+      "kindergeldEligible": "Eligible for Kindergeld"
+    },
+    "fieldHint": "Enter the children from the Kindergeldbescheid / Lohnsteuerbescheinigung. Date of birth in ISO format (YYYY-MM-DD).",
+    "betragHint": "Kindergeld 250 EUR / child (1-3), max 1,000 EUR for 4+ children. Kinderfreibetrag 7,932 EUR / child (6,612 EUR subsistence minimum + 1,320 EUR care/education needs).",
+    "savedOk": "Children saved.",
+    "generatedAt": "Generated"
+  },
   "bilanz": {
     "title": "Balance Sheet (preview)",
     "subtitle": "Assets and liabilities snapshot as of Dec 31 — auto-derived from your open receivables, cash balance, and customer credits. Positions without source data are marked \"nicht ausgewiesen\" (not stated). The equity line is a placeholder. Have your tax advisor complete it before filing.",
@@ -2553,6 +2577,11 @@
       "label": "Include Anlage N in Berater packager",
       "description": "Force-include Anlage N (employment income, § 3 EStG) in the year-end Berater packager ZIP. By default, only included when a Lohnsteuerbescheinigung is recorded in Company.settings.lohnsteuerbescheinigungen for the year. For employees, civil servants, managing directors with employment contracts.",
       "effectLabel": "Affects: Anlage-N.pdf in Berater packager"
+    },
+    "anlageKind": {
+      "label": "Include Anlage Kind in Berater packager",
+      "description": "Force-include Anlage Kind (Kinderfreibetrag + Kindergeld, § 32 / § 33 / § 33a EStG) in the year-end Berater packager ZIP. By default, only included when children are recorded in Company.settings.kinder for the year. For families with children claiming Kindergeld or Kinderfreibetrag.",
+      "effectLabel": "Affects: Anlage-Kind.pdf in Berater packager"
     }
   }
 }

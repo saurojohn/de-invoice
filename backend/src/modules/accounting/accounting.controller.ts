@@ -26,7 +26,11 @@ import { KSt1Service } from './kst1.service'
 // Tier 103: Anlage R (Einkünfte aus Renten und
 // Bezügen, § 22 EStG). The 6th Anlage form —
 // for retirees / pension recipients.
-import { AnlageRService } from './anlage-r.service';
+import { AnlageRService } from './anlage-r.service'
+// Tier 104: Anlage Kind (Kinderfreibetrag +
+// Kindergeld, § 32 / § 33 / § 33a EStG). The
+// 7th Anlage form — for families with children.
+import { AnlageKindService } from './anlage-kind.service';
 import { BilanzService } from './bilanz.service';
 import { GuVService } from './guv.service';
 import { AnhangService } from './anhang.service';
@@ -59,6 +63,10 @@ export class AccountingController {
     // Tier 103: Anlage R (Einkünfte aus Renten und
     // Bezügen, § 22 EStG) — 6th Anlage form.
     private anlageR: AnlageRService,
+    // Tier 104: Anlage Kind (Kinderfreibetrag +
+    // Kindergeld, § 32 / § 33 / § 33a EStG) —
+    // 7th Anlage form.
+    private anlageKind: AnlageKindService,
     private bilanz: BilanzService,
     private guv: GuVService,
     private anhang: AnhangService,
@@ -1014,6 +1022,120 @@ export class AccountingController {
       year: body.year,
       renten: rentenUpdate,
       werbungskosten: wkAll[body.year] || {},
+    }
+  }
+
+  // =============================================================
+  // Tier 104 — Anlage Kind (Kinderfreibetrag + Kindergeld)
+  // =============================================================
+  //
+  // The German tax filing for children. The
+  // 7th Anlage form (after S / V / KAP / G / N / R).
+  // Covers:
+  //   - Kinderfreibetrag (§ 32 EStG) per child
+  //   - Kindergeld (§ 66 EStG) per child
+  //   - Schulbescheinigung for over-18 children
+  //   - Behinderung Pauschbetrag for disabled children
+  //
+  // v1: each child is { name, birthDate,
+  // kindergeldEligible }. The service counts
+  // them + applies the standard Freibetrag +
+  // Kindergeld per year (2024 rates as default).
+  @Get('anlage-kind')
+  @UseGuards(HeaderAuthGuard)
+  async getAnlageKind(
+    @Query('companyId') companyId: string,
+    @Query('year') yearRaw?: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const year = yearRaw
+      ? Number(yearRaw)
+      : new Date().getFullYear() - 1
+    if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+    return this.anlageKind.compute(companyId, year)
+  }
+
+  @Get('anlage-kind.pdf')
+  @UseGuards(HeaderAuthGuard)
+  @Header('Content-Type', 'application/pdf')
+  async getAnlageKindPdf(
+    @Res() res: Response,
+    @Query('companyId') companyId: string,
+    @Query('year') yearRaw?: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const year = yearRaw
+      ? Number(yearRaw)
+      : new Date().getFullYear() - 1
+    if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+    await this.anlageKind.renderPdf(companyId, year, res)
+  }
+
+  // Tier 104: PUT /anlage-kind/settings — Update the
+  // per-year Kinder list. Body:
+  //   { year: 2026, kinder: [{ name, birthDate,
+  //     kindergeldEligible }, ...] }
+  @Put('anlage-kind/settings')
+  @UseGuards(HeaderAuthGuard)
+  async updateAnlageKindSettings(
+    @Query('companyId') companyId: string,
+    @Body() body: {
+      year: number
+      kinder: Array<{
+        name?: string
+        birthDate?: string
+        kindergeldEligible?: boolean
+      }>
+    },
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    if (!body || !Number.isInteger(body.year) || body.year < 2000 || body.year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+    if (!Array.isArray(body.kinder)) {
+      throw new BadRequestException('kinder[] ist erforderlich (Array)')
+    }
+
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+    })
+    if (!company) throw new BadRequestException('Firma nicht gefunden')
+
+    const settings = ((company as any).settings ?? {}) as Record<string, any>
+    const kinderAll = (settings.kinder as any) || {}
+
+    // Sanitize the input — strip empty/invalid
+    // entries, normalize booleans.
+    const kinder = body.kinder
+      .filter((k) => k && typeof k === 'object')
+      .map((k) => ({
+        name: String(k.name || '').trim() || 'Kind',
+        birthDate:
+          typeof k.birthDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(k.birthDate)
+            ? k.birthDate
+            : '',
+        kindergeldEligible: k.kindergeldEligible !== false,
+      }))
+
+    kinderAll[body.year] = kinder
+
+    const next = {
+      ...settings,
+      kinder: kinderAll,
+    }
+    await this.prisma.company.update({
+      where: { id: companyId },
+      data: { settings: next } as any,
+    })
+
+    return {
+      ok: true,
+      year: body.year,
+      kinder,
     }
   }
 
