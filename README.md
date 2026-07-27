@@ -6,6 +6,26 @@
 > und mittelständische Unternehmen im DACH-Raum. Inklusive XRechnung,
 > ZUGFeRD/Factur-X, DATEV-Export, UStVA, FinTS-Banking und OCR-Vorbereitung.
 
+**Tier 110 — Anlage AUS (Ausländische Einkünfte, § 34d EStG — the 9th Anlage form)**:
+- 136 backend e2e tests + 307 Playwright UI tests (all green)
+- Anlage AUS: international dimension. Per-entry 2-way
+  decision: hasDba=true → Freistellung (Progressionsvorbehalt
+  per § 32b EStG) / hasDba=false → Anrechnung (foreign tax
+  credited, § 34c EStG).
+- For KapG (GmbH/AG/KGaA/UG): § 8b KStG overrides — 95% of
+  foreign dividends exempt, 5% non-deductible.
+- BMF Vordruck Anlage AUS 2024 Kz: 5 (Progression), 6
+  (Taxable), 13 (Anrechnung), 20 (§ 8b Pauschale), 32
+  (Dividends), 34 (Interest), 40 (Gewerbe foreign), 42
+  (Employment foreign).
+- Berater packager: 13-way shift (Anlage AUS as 9th
+  optional). Auto-include when entries.length > 0.
+- 7th feature-flag toggle (anlageAus) — force-include in
+  Berater package regardless of heuristic.
+- v1: per-entry manual input. v2: auto-import from
+  broker PDFs + automatic Wechselkurs-Lookup +
+  complete DBA-table integration.
+
 **Tier 109 — Anlage SO (Sonstige Einkünfte, § 22 EStG — the 8th Anlage form)**:
 - 135 backend e2e tests + 302 Playwright UI tests (all green)
 - Anlage SO: catch-all for private Veräußerungsgeschäfte
@@ -87,16 +107,16 @@ open http://localhost:3000
 
 Die App ist sofort einsatzbereit mit Testdaten (SH Leder GmbH).
 
-### E2E-Tests (135 Backend + 302 Playwright UI, ~9 Min)
+### E2E-Tests (136 Backend + 307 Playwright UI, ~9 Min)
 
 ```bash
 # Backend hochfahren
 cd backend && npm install && npx ts-node src/main.ts &
 
-# Alle 135 Backend-Tests
+# Alle 136 Backend-Tests
 cd backend && for f in e2e/[0-9]*.sh; do bash "$f"; done
 
-# 302 Playwright UI-Tests (Frontend muss auf 3100 laufen)
+# 307 Playwright UI-Tests (Frontend muss auf 3100 laufen)
 cd frontend && npm install && npx playwright install chromium
 cd frontend && npx playwright test
 ```
@@ -168,9 +188,9 @@ Troubleshoot).
 | Storage | Local FS (`~/data/invoice-system`) | S3/MinIO compatible |
 | Backup | `pg_dump` + tar | Daily rotation, 7d/4w/monthly anchors |
 | Monitoring | `/metrics` (Prometheus) | 3 gauges + 2 counters + 1 histogram, no deps |
-| CI | GitHub Actions | typecheck × 2 + e2e (135 backend + 302 Playwright UI) on every PR |
+| CI | GitHub Actions | typecheck × 2 + e2e (136 backend + 307 Playwright UI) on every PR |
 
-### 135 E2E-Tests Backend + 302 Playwright UI (437 tests, ~9 Min)
+### 136 E2E-Tests Backend + 307 Playwright UI (443 tests, ~9 Min)
 
 | # | Feature | Tests |
 | --- | --- | --- |
@@ -220,7 +240,8 @@ Troubleshoot).
 | 107 | UStJA ELSTER XML (BMF Datenlieferung for annual VAT return) | 50+ |
 | 108 | SEPA pain.001 batch payments (ISO 20022 Sammelüberweisung) | 50+ |
 | 109 | Anlage SO (Sonstige Einkünfte, § 22 EStG — 8th Anlage form) | 60+ |
-| UI | Playwright suite (76 spec files, 302 tests) | 302 |
+| 110 | Anlage AUS (Ausländische Einkünfte, § 34d EStG — 9th Anlage form) | 70+ |
+| UI | Playwright suite (77 spec files, 307 tests) | 307 |
 
 ---
 
@@ -628,8 +649,8 @@ x-company-id: <uuid>
 | Storage / 存储 | Local filesystem (S3/MinIO planned) |
 | Auth / 鉴权 | Custom header-based shim + RBAC roles |
 | Security headers / 安全头 | Helmet 7.x (HSTS, X-Frame-Options, X-Content-Type-Options) |
-| i18n / 国际化 | Flat JSON keys, 3 locales (DE/EN/ZH), 2470 keys × 3 = 7410 translations |
-| E2E tests / 端到端测试 | 135 backend bash scripts + 302 Playwright UI tests (76 spec files) |
+| i18n / 国际化 | Flat JSON keys, 3 locales (DE/EN/ZH), 2512 keys × 3 = 7536 translations |
+| E2E tests / 端到端测试 | 136 backend bash scripts + 307 Playwright UI tests (77 spec files) |
 
 ## Repository Layout / 仓库结构
 
