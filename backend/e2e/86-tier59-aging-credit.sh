@@ -36,18 +36,76 @@ USER_ID="8c6a9669-0069-4137-a842-a66fd1d178d6"
 COMPANY_ID="ad257ec3-d319-479b-b870-3fe76e8f3111"
 
 # ───── 0. Wipe prior tier-59 fixtures (idempotent re-runs) ─────
+# Wipe the test customer + credit transactions so we
+# can re-create the customer with a fresh ID. The
+# customer was created with email "tier59@example.com"
+# on a prior run, so the unique-email index would
+# block re-creation unless we delete first. Invoices
+# must be deleted first to avoid FK violation.
 docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
 DELETE FROM "CustomerCreditTransaction" WHERE "companyId" = '$COMPANY_ID'
   AND "description" LIKE 'Tier59-%';
+DELETE FROM "InvoiceItem" WHERE "invoiceId" IN (SELECT id FROM "Invoice" WHERE "customerId" IN (SELECT id FROM "Customer" WHERE "name" = 'Tier59 Test GmbH'));
+DELETE FROM "Invoice" WHERE "customerId" IN (SELECT id FROM "Customer" WHERE "name" = 'Tier59 Test GmbH');
+DELETE FROM "Customer" WHERE "companyId" = '$COMPANY_ID' AND "name" = 'Tier59 Test GmbH';
 SQL
 pass "wiped prior tier-59 fixtures"
 
-# ───── 1. Pick a customer with at least 1 open invoice ─────
+# ───── 0b. Seed a fresh test customer + overdue invoice ─────
 # The aging report only lists customers that have unpaid
-# invoices. We pull the live aging report and pick the
-# first row (largest debtor) — this is more reliable
-# than guessing from the customers list (invoiceCount
-# counts all invoices, not just unpaid ones).
+# invoices. With the shared DB, there may be 0 open
+# invoices at this point (all prior tests' customers
+# were deleted). We seed a fresh customer + invoice
+# here so the test is self-sufficient.
+CUST_BODY=$(cat <<JSON
+{
+  "name": "Tier59 Test GmbH",
+  "type": "business",
+  "address": {"street":"Tier59str 1","postalCode":"50667","city":"Köln","country":"DE"},
+  "contact": {"email":"tier59@example.com"}
+}
+JSON
+)
+curl -sS -o /tmp/tier59_cust.json -w "%{http_code}" -X POST \
+  "$API/api/v1/customers?companyId=$COMPANY_ID" \
+  -H "Content-Type: application/json" \
+  -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
+  -d "$CUST_BODY" > /tmp/tier59_cust_status.txt
+[[ "$(cat /tmp/tier59_cust_status.txt)" = "201" ]] || (echo "FATAL: cust=$(cat /tmp/tier59_cust_status.txt) — $(cat /tmp/tier59_cust.json | head -c 200)" && exit 1)
+CUST_ID=$(python3 -c "import json; print(json.load(open('/tmp/tier59_cust.json'))['id'])")
+pass "seeded customer: Tier59 Test GmbH ($CUST_ID)"
+
+# Issue an invoice dated 60 days ago (overdue) + status=sent
+ISSUE_DATE=$(python3 -c "from datetime import datetime, timedelta; print((datetime.now() - timedelta(days=60)).strftime('%Y-%m-%d'))")
+DUE_DATE=$(python3 -c "from datetime import datetime, timedelta; print((datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d'))")
+INV_BODY=$(cat <<JSON
+{
+  "customerId": "$CUST_ID",
+  "issueDate": "$ISSUE_DATE",
+  "dueDate": "$DUE_DATE",
+  "items": [
+    {"description":"Tier59 material","quantity":1,"unitPrice":1000,"vatRate":0.19}
+  ]
+}
+JSON
+)
+api_post "/api/v1/invoices?companyId=$COMPANY_ID" "$INV_BODY"
+assert_status 201 "create overdue invoice"
+INV_ID=$(json_field "$BODY" "id")
+[[ -n "$INV_ID" ]] || (echo "FATAL: no invoice id" && exit 1)
+pass "seeded invoice: $INV_ID (1000 EUR net, overdue)"
+
+# Move invoice to status=sent so the aging report picks
+# it up. The aging report only shows sent/overdue
+# invoices (per aging.service.ts line 20). Without
+# this, the customer wouldn't appear in the aging
+# report and the credit-adjust test would 404.
+api_put "/api/v1/invoices/$INV_ID/status?companyId=$COMPANY_ID" \
+  '{"status":"sent"}'
+assert_status 200 "update invoice status to sent"
+pass "invoice status = sent (now in aging report)"
+
+# ───── 1. Pick our seeded customer (now in the aging report) ─────
 api_get "/api/v1/reports/aging?companyId=$COMPANY_ID"
 assert_status 200 "GET /reports/aging (initial pick)"
 # Save the body to a file so the python sub-shells can

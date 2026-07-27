@@ -58,19 +58,19 @@ docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
    SELECT 'l6'::text, 'v3'::text, a.id, 30.0000, 0, 'Test' FROM \"Account\" a WHERE \"companyId\"='$COMPANY_ID' AND \"accountNumber\"='4900';" >/dev/null 2>&1
 
 # Test 1: list returns all 3, ordered by date desc
-# take=200 — we have ~85 vouchers in the DB from other
-# tests, and the test seeders use date=2026-06-10 which
-# sorts in the middle of the list. With take=10 we'd
-# miss them. 200 leaves plenty of headroom.
-api_get "/api/v1/accounting/vouchers?companyId=$COMPANY_ID&take=200"
+# We use the `search` query param to scope to our test
+# fixtures. With 300+ vouchers in the DB from other
+# tests, the default `take=200` would silently drop
+# our seed rows. `search=VND-LIST` returns only our
+# 3 seeds regardless of the take value.
+api_get "/api/v1/accounting/vouchers?companyId=$COMPANY_ID&search=VND-LIST&take=200"
 assert_eq "list HTTP 200" "$STATUS" "200"
 LIST_COUNT=$(python3 -c "import json,sys; d=json.loads(sys.argv[1]); print(len(d['items']))" "$BODY")
 LIST_TOTAL=$(python3 -c "import json,sys; d=json.loads(sys.argv[1]); print(d['total'])" "$BODY")
 [ "$LIST_TOTAL" -ge 3 ] && echo "✓ list total >= 3 = $LIST_TOTAL" || { echo "✗ list total expected >= 3 actual=$LIST_TOTAL"; exit 1; }
 # Test 1.5: also assert the page cap doesn't drop our
-# seed rows (VND-LIST-*). Without the take=200 bump
-# these silently fall off the page and Tests 2-4 fail
-# with NOT_FOUND even though the endpoint is correct.
+# seed rows (VND-LIST-*). With the `search` filter,
+# the take=200 is plenty — we get exactly our 3.
 LIST_HAS_VND=$(python3 -c "
 import json,sys
 d = json.loads(sys.argv[1])

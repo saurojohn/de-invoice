@@ -44,6 +44,7 @@ COMPANY_ID="ad257ec3-d319-479b-b870-3fe76e8f3111"
 docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL
 DELETE FROM "Mahnung" WHERE "companyId" = '$COMPANY_ID';
 DELETE FROM "EmailSend" WHERE "companyId" = '$COMPANY_ID';
+DELETE FROM "CustomerCreditTransaction" WHERE "customerId" IN (SELECT id FROM "Customer" WHERE "companyId" = '$COMPANY_ID');
 DELETE FROM "PaymentLink" WHERE "invoiceId" IN (SELECT id FROM "Invoice" WHERE "companyId" = '$COMPANY_ID');
 DELETE FROM "Payment" WHERE "invoiceId" IN (SELECT id FROM "Invoice" WHERE "companyId" = '$COMPANY_ID');
 DELETE FROM "Invoice" WHERE "companyId" = '$COMPANY_ID';

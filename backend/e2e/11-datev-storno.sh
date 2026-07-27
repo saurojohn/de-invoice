@@ -23,6 +23,17 @@ docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"VoucherLine\" WHERE \"voucherId\" IN (SELECT id FROM \"Voucher\" WHERE \"voucherNumber\" LIKE 'VND-DT-%' OR \"voucherNumber\" LIKE 'VND-DT-%-S%');
    DELETE FROM \"Voucher\" WHERE \"voucherNumber\" LIKE 'VND-DT-%' OR \"voucherNumber\" LIKE 'VND-DT-%-S%';" >/dev/null 2>&1
 
+# Capture the baseline sum of account 4900 BEFORE the
+# test creates its own data. The Storno + original pair
+# this test creates will net to 0 on account 4900 —
+# we use baseline-snapshot (capture the SUM, then
+# assert the SUM-after equals the SUM-before).
+curl -sS -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
+  "http://localhost:3001/api/v1/reports/datev-export?companyId=$COMPANY_ID&startDate=2026-01-01&endDate=2026-12-31" \
+  -o /tmp/datev-vnd-dt-before.csv
+NET_4900_BEFORE=$(awk -F';' 'NR>1 && $7 == 4900 {if ($6 == "S") sum += $8; else sum -= $8} END {printf "%.2f\n", sum}' /tmp/datev-vnd-dt-before.csv)
+note "baseline sum account 4900 = $NET_4900_BEFORE (before test)"
+
 echo "=== Test: Storno in DATEV export ==="
 
 A4900=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
@@ -109,10 +120,16 @@ assert_eq "Storno amount = original amount" "$STO_AMT" "$ORIG_AMT"
 
 # Test 8: net effect on 4900 across the year is zero
 # Sum Storno's debit rows on 4900 (which is Haben in our
-# Soll/Haben semantics since Storno swapped).
+# Soll/Haben semantics since Storno swapped). The shared
+# DB has accumulated 4900 entries from prior tests —
+# we use baseline-snapshot: capture the SUM before the
+# test creates its own data, then assert the SUM-after
+# equals SUM-before (the Storno fully reverses the
+# original, net contribution = 0).
 NET_4900=$(awk -F';' 'NR>1 && $7 == 4900 {if ($6 == "S") sum += $8; else sum -= $8} END {printf "%.2f\n", sum}' /tmp/datev-vnd-dt.csv)
-# Expected: 0 (original +400 Storno -400)
-[ "$NET_4900" = "0.00" ] && echo "✓ net effect on 4900 across year = 0.00 (Storno fully reverses original)" || { echo "✗ net 4900 expected 0.00 actual=$NET_4900"; exit 1; }
+# Captured earlier as NET_4900_BEFORE (after cleaning
+# the test's previous runs, before creating new data)
+[ "$NET_4900" = "$NET_4900_BEFORE" ] && echo "✓ net effect on 4900 across year = $NET_4900 (Storno fully reverses original, baseline-snapshot)" || { echo "✗ net 4900 expected=$NET_4900_BEFORE actual=$NET_4900"; exit 1; }
 
 # Test 9: date filter on May ONLY — Storno should NOT appear
 curl -sS -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
