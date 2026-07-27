@@ -265,9 +265,23 @@ else
 fi
 
 # ───── 7. Cleanup ─────
+# Delete the credit transaction AND the seeded customer +
+# invoice. The aging report (and any test that calls
+# /reports/aging) would otherwise see this customer in
+# the report and other tests would either pick it up as
+# their fixture, or assert on a polluted list.
 docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
 DELETE FROM "CustomerCreditTransaction" WHERE "companyId" = '$COMPANY_ID'
   AND "description" LIKE 'Tier59-%';
+DELETE FROM "InvoiceItem"      WHERE "invoiceId" IN (
+  SELECT id FROM "Invoice" WHERE "customerId" IN (
+    SELECT id FROM "Customer" WHERE "companyId" = '$COMPANY_ID' AND "name" = 'Tier59 Test GmbH'
+  )
+);
+DELETE FROM "Invoice"          WHERE "customerId" IN (
+  SELECT id FROM "Customer" WHERE "companyId" = '$COMPANY_ID' AND "name" = 'Tier59 Test GmbH'
+);
+DELETE FROM "Customer"         WHERE "companyId" = '$COMPANY_ID' AND "name" = 'Tier59 Test GmbH';
 SQL
 pass "cleanup complete"
 
