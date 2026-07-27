@@ -51,6 +51,17 @@ DELETE FROM "Customer" WHERE "companyId" = '$COMPANY_ID' AND "name" = 'Tier59 Te
 SQL
 pass "wiped prior tier-59 fixtures"
 
+# ───── 0a. Capture the truly pristine pre-seed baseline ─────
+# The post-cleanup assertion needs to compare against
+# the state BEFORE this test seeded anything (otherwise
+# the seed's invoice is in the baseline, but cleanup
+# removes it, so baseline != post-cleanup).
+api_get "/api/v1/reports/aging?companyId=$COMPANY_ID" >/dev/null
+PRESEED_GRAND=$(python3 -c "import json,sys;print(json.load(sys.stdin)['grandTotal'])" <<< "$BODY")
+PRESEED_CREDIT=$(python3 -c "import json,sys;print(json.load(sys.stdin).get('totalCreditBalance', 0))" <<< "$BODY")
+PRESEED_NET=$(python3 -c "import json,sys;print(json.load(sys.stdin).get('grandNetTotal', 0))" <<< "$BODY")
+pass "pre-seed baseline grandTotal=$PRESEED_GRAND totalCreditBalance=$PRESEED_CREDIT grandNetTotal=$PRESEED_NET"
+
 # ───── 0b. Seed a fresh test customer + overdue invoice ─────
 # The aging report only lists customers that have unpaid
 # invoices. With the shared DB, there may be 0 open
@@ -285,12 +296,19 @@ DELETE FROM "Customer"         WHERE "companyId" = '$COMPANY_ID' AND "name" = 'T
 SQL
 pass "cleanup complete"
 
-# ───── 8. After cleanup, credit balance returns to baseline ─────
+# ───── 8. After cleanup, aging report returns to pre-seed baseline ─────
+# We compare against the pre-seed baseline (captured in
+# step 0a BEFORE the customer + invoice were seeded),
+# not the in-test baseline (which includes the seed).
+# Cleanup deletes the seed, so post-cleanup should
+# match the state before the seed existed.
 api_get "/api/v1/reports/aging?companyId=$COMPANY_ID"
 POST_CLEAN_CB=$(python3 -c "import json,sys;print(json.load(sys.stdin)['totalCreditBalance'])" <<< "$BODY")
 POST_CLEAN_NET=$(python3 -c "import json,sys;print(json.load(sys.stdin)['grandNetTotal'])" <<< "$BODY")
-assert_eq "post-cleanup totalCreditBalance === baseline" "$POST_CLEAN_CB" "$BASE_CREDIT"
-assert_eq "post-cleanup grandNetTotal === baseline" "$POST_CLEAN_NET" "$BASE_NET"
+POST_CLEAN_GRAND=$(python3 -c "import json,sys;print(json.load(sys.stdin)['grandTotal'])" <<< "$BODY")
+assert_eq "post-cleanup grandTotal === pre-seed baseline" "$POST_CLEAN_GRAND" "$PRESEED_GRAND"
+assert_eq "post-cleanup totalCreditBalance === pre-seed baseline" "$POST_CLEAN_CB" "$PRESEED_CREDIT"
+assert_eq "post-cleanup grandNetTotal === pre-seed baseline" "$POST_CLEAN_NET" "$PRESEED_NET"
 
 summary
 exit $?
