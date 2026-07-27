@@ -112,11 +112,17 @@ FROM generate_series(1, 5);
 " > /dev/null
 
 # ───── 1. GET /cost-center-suggestion returns the historical pair ─────
+# Use prefix=VERTRIEB- to scope the suggest query to
+# our historical data only. Without the prefix, the
+# suggest might pick up PLAY-WRITE from Tier 49's
+# fixture (which has the same row count). The prefix
+# makes the test deterministic regardless of prior
+# test runs.
 echo
 echo "=== 1. GET /cost-center-suggestion returns historical pair ==="
 curl -sS -o /tmp/t43_sug.json -w "%{http_code}" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-  "$API/api/v1/accounting/vouchers/cost-center-suggestion?companyId=$COMPANY_ID&accountId=$SACHKONTO_4960" > /dev/null
+  "$API/api/v1/accounting/vouchers/cost-center-suggestion?companyId=$COMPANY_ID&accountId=$SACHKONTO_4960&prefix=VERTRIEB-" > /dev/null
 SUG_CC=$(python3 -c "import json; print(json.load(open('/tmp/t43_sug.json'))['costCenter'])")
 SUG_CO=$(python3 -c "import json; print(json.load(open('/tmp/t43_sug.json'))['costObject'])")
 assert_eq "suggest returns VERTRIEB-100" "$SUG_CC" "VERTRIEB-100"

@@ -74,11 +74,11 @@ JSON
     exit 1
   fi
 }
-# 2x VERTRIEB-100 + PROJ-2026-Q3 (most-used)
-mk_voucher "a" "VERTRIEB-100" "PROJ-2026-Q3" "1.20"
-mk_voucher "b" "VERTRIEB-100" "PROJ-2026-Q3" "0.50"
-# 1x SERVICE-200 (less common)
-mk_voucher "c" "SERVICE-200" "PROJ-2026-Q3" "0.80"
+# 2x Tier41-V100 + Tier41-PQ3 (most-used)
+mk_voucher "a" "Tier41-V100" "Tier41-PQ3" "1.20"
+mk_voucher "b" "Tier41-V100" "Tier41-PQ3" "0.50"
+# 1x Tier41-S200 (less common)
+mk_voucher "c" "Tier41-S200" "Tier41-PQ3" "0.80"
 echo "  seeded 3 Vouchers on Sachkonto 4960"
 
 # ───── 1. POST /vouchers persisted costCenter on lines ─────
@@ -93,34 +93,40 @@ LINE_COUNT_CC=$(docker exec -i de-invoice-postgres psql -U de_invoice -d de_invo
 echo "  3 lines have non-null costCenter ✓"
 
 # ───── 2. GET /cost-center-suggestion returns top-1 ─────
+# Use `prefix=Tier41-` to scope the suggest query to our
+# test fixtures only. Without the prefix, the suggestion
+# would pick up the most-used cost center from ALL of
+# the shared DB's prior test runs (PLAY-WRITE from
+# Tier 49 etc.) and the test would fail.
 echo
 echo "=== 2. GET /vouchers/cost-center-suggestion ==="
 curl -sS -o /tmp/t41_sug.json -w "%{http_code}" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-  "$API/api/v1/accounting/vouchers/cost-center-suggestion?companyId=$COMPANY_ID&accountId=$SACHKONTO_4960" > /dev/null
+  "$API/api/v1/accounting/vouchers/cost-center-suggestion?companyId=$COMPANY_ID&accountId=$SACHKONTO_4960&prefix=Tier41-" > /dev/null
 TOP_CC=$(python3 -c "import json; print(json.load(open('/tmp/t41_sug.json'))['costCenter'])")
 TOP_CO=$(python3 -c "import json; print(json.load(open('/tmp/t41_sug.json'))['costObject'])")
 TOTAL_LINES=$(python3 -c "import json; print(json.load(open('/tmp/t41_sug.json'))['totalLines'])")
-assert_eq "top cc is VERTRIEB-100" "$TOP_CC" "VERTRIEB-100"
-assert_eq "top co is PROJ-2026-Q3" "$TOP_CO" "PROJ-2026-Q3"
+assert_eq "top cc is Tier41-V100" "$TOP_CC" "Tier41-V100"
+assert_eq "top co is Tier41-PQ3" "$TOP_CO" "Tier41-PQ3"
 [ "$TOTAL_LINES" -eq 3 ] || (echo "FATAL: totalLines expected 3, got $TOTAL_LINES" && exit 1)
-echo "  top: VERTRIEB-100 / PROJ-2026-Q3 (3 lines) ✓"
+echo "  top: Tier41-V100 / Tier41-PQ3 (3 lines) ✓"
 
 # ───── 3. GET /cost-center-suggestion/list returns ranked distinct list ─────
+# Same `prefix=Tier41-` scope as the suggest endpoint.
 echo
 echo "=== 3. GET /vouchers/cost-center-suggestion/list ==="
 curl -sS -o /tmp/t41_list.json -w "%{http_code}" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-  "$API/api/v1/accounting/vouchers/cost-center-suggestion/list?companyId=$COMPANY_ID&accountId=$SACHKONTO_4960" > /dev/null
+  "$API/api/v1/accounting/vouchers/cost-center-suggestion/list?companyId=$COMPANY_ID&accountId=$SACHKONTO_4960&prefix=Tier41-" > /dev/null
 TOP_COUNT=$(python3 -c "import json; print(json.load(open('/tmp/t41_list.json'))['items'][0]['count'])")
 TOP_CC=$(python3 -c "import json; print(json.load(open('/tmp/t41_list.json'))['items'][0]['costCenter'])")
 SECOND_CC=$(python3 -c "import json; print(json.load(open('/tmp/t41_list.json'))['items'][1]['costCenter'])")
 SECOND_COUNT=$(python3 -c "import json; print(json.load(open('/tmp/t41_list.json'))['items'][1]['count'])")
-assert_eq "list[0] cc VERTRIEB-100" "$TOP_CC" "VERTRIEB-100"
+assert_eq "list[0] cc Tier41-V100" "$TOP_CC" "Tier41-V100"
 [ "$TOP_COUNT" -eq 2 ] || (echo "FATAL: list[0].count expected 2, got $TOP_COUNT" && exit 1)
-assert_eq "list[1] cc SERVICE-200" "$SECOND_CC" "SERVICE-200"
+assert_eq "list[1] cc Tier41-S200" "$SECOND_CC" "Tier41-S200"
 [ "$SECOND_COUNT" -eq 1 ] || (echo "FATAL: list[1].count expected 1, got $SECOND_COUNT" && exit 1)
-echo "  list[0]: VERTRIEB-100 (×2)  list[1]: SERVICE-200 (×1) ✓"
+echo "  list[0]: Tier41-V100 (×2)  list[1]: Tier41-S200 (×1) ✓"
 
 # ───── 4. Bad inputs ─────
 echo
