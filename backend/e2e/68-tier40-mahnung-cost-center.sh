@@ -201,9 +201,4 @@ DELETE FROM "Invoice"    WHERE "customerId" IN (SELECT id FROM "Customer" WHERE 
 DELETE FROM "Customer"   WHERE "name" LIKE 'Tier40%' AND "companyId" = '$COMPANY_ID';
 SQL
 
-if [ -n "$FAILS" ]; then
-  echo "$FAILS assertion(s) FAILED"
-  exit 1
-fi
-echo
-echo "ALL PASSED"
+summary "Tier N"

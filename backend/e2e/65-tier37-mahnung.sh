@@ -326,10 +326,4 @@ DELETE FROM "Invoice" WHERE "companyId" = '$COMPANY_ID';
 DELETE FROM "Customer" WHERE "companyId" = '$COMPANY_ID';
 SQL
 
-# Use [ -z "$FAILS" ] || fail pattern from lib.sh
-if [ -n "$FAILS" ]; then
-  echo "$FAILS assertion(s) FAILED"
-  exit 1
-fi
-echo
-echo "ALL PASSED"
+summary "Tier N"

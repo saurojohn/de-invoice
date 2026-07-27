@@ -24,6 +24,17 @@ pass() { echo -e "${GREEN}✓${NC} $1"; }
 fail() { echo -e "${RED}✗${NC} $1"; FAILS=$((FAILS+1)); }
 note() { echo -e "${YELLOW}…${NC} $1"; }
 FAILS=0
+# Test summary printer — called by tests as the last
+# command. Prints "ALL PASSED" or "N assertion(s) FAILED"
+# and returns 0 or 1 respectively. The previous idiom
+# `if [ -n "$FAILS" ]; then echo ...; exit 1; fi` was
+# BROKEN because $FAILS starts as "0" (a non-empty
+# string), so `[ -n "0" ]` is always true and the test
+# always exits 1 even when 0 assertions failed. Tests
+# that need to print the summary can call this as their
+# last statement. The fallback `summary` (line ~197) is
+# kept for backward compatibility — see below.
+
 
 # ---- Auth ----
 # Cache the auth headers in a temp file so multiple tests

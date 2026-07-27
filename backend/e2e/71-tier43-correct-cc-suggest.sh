@@ -188,9 +188,4 @@ DELETE FROM "Voucher"     WHERE "description" LIKE 'Tier43%' AND "companyId" = '
 -- any leftover noise from other tier e2es.
 SQL
 
-if [ -n "$FAILS" ]; then
-  echo "$FAILS assertion(s) FAILED"
-  exit 1
-fi
-echo
-echo "ALL PASSED"
+summary "Tier N"

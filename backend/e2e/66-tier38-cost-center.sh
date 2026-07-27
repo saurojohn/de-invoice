@@ -251,9 +251,4 @@ DELETE FROM "Expense" WHERE "description" LIKE 'Tier 38%' AND "companyId" = '$CO
 DELETE FROM "Customer" WHERE "name" = 'Tier38 CC Kunde' AND "companyId" = '$COMPANY_ID';
 SQL
 
-if [ -n "$FAILS" ]; then
-  echo "$FAILS assertion(s) FAILED"
-  exit 1
-fi
-echo
-echo "ALL PASSED"
+summary "Tier N"

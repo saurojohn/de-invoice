@@ -204,9 +204,4 @@ DELETE FROM "VoucherLine" WHERE "voucherId" IN (
 DELETE FROM "Voucher" WHERE "description" LIKE 'Tier42%' AND "companyId" = '$COMPANY_ID';
 SQL
 
-if [ -n "$FAILS" ]; then
-  echo "$FAILS assertion(s) FAILED"
-  exit 1
-fi
-echo
-echo "ALL PASSED"
+summary "Tier N"
