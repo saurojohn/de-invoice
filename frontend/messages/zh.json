@@ -2581,6 +2581,11 @@
       "label": "在税务师包裹中包含 Anlage Kind",
       "description": "强制在年终税务师包裹 ZIP 中包含 Anlage Kind（子女免税额 + 儿童津贴，§ 32 / § 33 / § 33a EStG）。默认仅在 Company.settings.kinder 中已录入当年子女时包含。适用于有子女并申请儿童津贴或子女免税额的家庭。",
       "effectLabel": "影响：Berater 包裹中的 Anlage-Kind.pdf"
+    },
+    "anlageSo": {
+      "label": "在 Berater 包裹中包含 Anlage SO",
+      "description": "强制在年终 Berater 包裹 ZIP 中包含 Anlage SO（其他收入，§ 22 EStG）。默认仅在财年的 Company.settings.anlageSO 中录入了私人 Veräußerungsgeschäfte 或经常性收入时才包含。适用于私人出售（加密货币、黄金、股票）和经常性收入（私人养老金、抚养费）。",
+      "effectLabel": "影响：Berater 包裹中的 Anlage-SO.pdf"
     }
   },
   "ustja": {
@@ -2663,5 +2668,42 @@
     "fromSupplier": "来自",
     "cardPaymentsTitle": "SEPA 批量付款",
     "cardPaymentsDesc": "把待付 Eingangsrechnungen 打包成 pain.001 XML 上传银行。"
+  },
+  "anlageSo": {
+    "title": "Anlage SO（其他收入）",
+    "subtitle": "其他收入 (§ 22 EStG) — 私人 Veräußerungsgeschäfte（加密货币 / 黄金 / 股票在 Spekulationsfrist 内）+ 经常性收入（私人养老金、抚养费）。Veräußerungsgewinne 免税额 600 EUR/年 (§ 23 Abs. 3 Satz 5 EStG)。",
+    "year": "财年",
+    "recompute": "重算",
+    "downloadPdf": "下载 PDF",
+    "transactions": "私人 Veräußerungsgeschäfte (§ 23 EStG)",
+    "transactionsHint": "Spekulationsfrist 内的每笔出售（证券 1 年 / 其他资产 10 年）都需要缴个税。Frist 外的出售免税。",
+    "addTransaction": "添加交易",
+    "removeTransaction": "删除",
+    "type": "类型",
+    "wertpapier": "证券（1 年 Frist）",
+    "sonstige": "其他资产（10 年 Frist）",
+    "description": "说明",
+    "acquisitionDate": "购入日期",
+    "acquisitionCost": "购入成本 (€)",
+    "saleDate": "出售日期",
+    "salePrice": "出售金额 (€)",
+    "gain": "收益 / 亏损",
+    "wiederkehrende": "经常性收入 (§ 22 Nr. 1 EStG)",
+    "wiederkehrendeHint": "私人养老金、Versorgungsleistungen、抚养费。Werbungskosten-Pauschbetrag 102 EUR（法定养老金）。",
+    "wiederkehrendeBezuege": "收入 (€)",
+    "werbungskosten": "Werbungskosten (€)",
+    "save": "保存",
+    "savedOk": "Anlage SO 数据已保存。",
+    "vordruck": "BMF 表格 Anlage SO 2024 — Kennziffern",
+    "freigrenze": "免税额 (§ 23 Abs. 3 Satz 5 EStG)",
+    "totals": "汇总",
+    "transactionCount": "交易数",
+    "inFrist": "Frist 内",
+    "outOfFrist": "Frist 外",
+    "vorschau": "预览",
+    "emptyTransactions": "暂无私人 Veräußerungsgeschäfte。点击“添加交易”录入。",
+    "emptyWiederkehrende": "暂无经常性收入。请在下方录入私人养老金 / 抚养费。",
+    "loadError": "加载 Anlage SO 数据失败",
+    "saveError": "保存失败"
   }
 }

@@ -31,6 +31,12 @@ import { AnlageRService } from './anlage-r.service'
 // Kindergeld, § 32 / § 33 / § 33a EStG). The
 // 7th Anlage form — for families with children.
 import { AnlageKindService } from './anlage-kind.service';
+// Tier 109: Anlage SO (Sonstige Einkünfte,
+// § 22 EStG). The 8th Anlage form — the catch-all
+// for private Veräußerungsgeschäfte (Krypto / Gold /
+// Aktien innerhalb Spekulationsfrist) and
+// wiederkehrende Bezüge (private Pensionen, Unterhalt).
+import { AnlageSOService } from './anlage-so.service';
 // Tier 106: GewSt-Erklärung (Gewerbesteuererklärung,
 // BMF Vordruck GewSt 1A 2024) — the standalone
 // trade tax return. Always included in the Berater
@@ -76,6 +82,11 @@ export class AccountingController {
     // Kindergeld, § 32 / § 33 / § 33a EStG) —
     // 7th Anlage form.
     private anlageKind: AnlageKindService,
+    // Tier 109: Anlage SO (Sonstige Einkünfte,
+    // § 22 EStG) — 8th Anlage form. Catch-all
+    // for private Veräußerungsgeschäfte and
+    // wiederkehrende Bezüge.
+    private anlageSo: AnlageSOService,
     private gewst: GewstService,
     private bilanz: BilanzService,
     private guv: GuVService,
@@ -1146,6 +1157,147 @@ export class AccountingController {
       ok: true,
       year: body.year,
       kinder,
+    }
+  }
+
+  // =============================================================
+  // Tier 109: Anlage SO (Sonstige Einkünfte,
+  // § 22 EStG). The 8th Anlage form — for
+  // private Veräußerungsgeschäfte (Krypto / Gold /
+  // Aktien innerhalb Spekulationsfrist) and
+  // wiederkehrende Bezüge (private Pensionen,
+  // Unterhalt). Sits between Anlage Kind and the
+  // UStJA block in the Berater packager.
+  // =============================================================
+
+  @Get('anlage-so')
+  @UseGuards(HeaderAuthGuard)
+  async getAnlageSo(
+    @Query('companyId') companyId: string,
+    @Query('year') yearRaw?: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const year = yearRaw
+      ? Number(yearRaw)
+      : new Date().getFullYear() - 1
+    if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+    return this.anlageSo.compute(companyId, year)
+  }
+
+  @Get('anlage-so.pdf')
+  @UseGuards(HeaderAuthGuard)
+  @Header('Content-Type', 'application/pdf')
+  async getAnlageSoPdf(
+    @Res() res: Response,
+    @Query('companyId') companyId: string,
+    @Query('year') yearRaw?: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const year = yearRaw
+      ? Number(yearRaw)
+      : new Date().getFullYear() - 1
+    if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+    await this.anlageSo.renderPdf(companyId, year, res)
+  }
+
+  // Tier 109: PUT /anlage-so/settings — Update the
+  // per-year transactions + wiederkehrende Bezüge.
+  // Body: { year, transactions: [{ type, description,
+  //   acquisitionDate, acquisitionCost, saleDate,
+  //   salePrice }], wiederkehrendeBezuege, werbungskosten }
+  @Put('anlage-so/settings')
+  @UseGuards(HeaderAuthGuard)
+  async updateAnlageSoSettings(
+    @Query('companyId') companyId: string,
+    @Body() body: {
+      year: number
+      transactions: Array<{
+        type?: 'wertpapier' | 'sonstige'
+        description?: string
+        acquisitionDate?: string
+        acquisitionCost?: number
+        saleDate?: string
+        salePrice?: number
+      }>
+      wiederkehrendeBezuege?: number
+      werbungskosten?: number
+    },
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    if (!body || !Number.isInteger(body.year) || body.year < 2000 || body.year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+    if (!Array.isArray(body.transactions)) {
+      throw new BadRequestException('transactions[] ist erforderlich (Array)')
+    }
+
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+    })
+    if (!company) throw new BadRequestException('Firma nicht gefunden')
+
+    const settings = ((company as any).settings ?? {}) as Record<string, any>
+    const anlageSoAll = (settings.anlageSO as any) || {}
+
+    // Sanitize the input — strip empty/invalid entries,
+    // normalize types + booleans. Empty transaction
+    // rows (no description + no dates) are dropped.
+    const transactions = body.transactions
+      .filter((t) => t && typeof t === 'object')
+      .map((t) => {
+        const type: 'wertpapier' | 'sonstige' =
+          t.type === 'wertpapier' ? 'wertpapier' : 'sonstige'
+        return {
+          type,
+          description: String(t.description || '').trim(),
+          acquisitionDate:
+            typeof t.acquisitionDate === 'string' &&
+            /^\d{4}-\d{2}-\d{2}$/.test(t.acquisitionDate)
+              ? t.acquisitionDate
+              : '',
+          acquisitionCost: Number(t.acquisitionCost) || 0,
+          saleDate:
+            typeof t.saleDate === 'string' &&
+            /^\d{4}-\d{2}-\d{2}$/.test(t.saleDate)
+              ? t.saleDate
+              : '',
+          salePrice: Number(t.salePrice) || 0,
+        }
+      })
+      .filter(
+        (t) =>
+          // Drop rows with no useful data at all
+          t.description || t.acquisitionDate || t.saleDate,
+      )
+
+    const wiederkehrendeBezuege = Number(body.wiederkehrendeBezuege) || 0
+    const werbungskosten = Number(body.werbungskosten) || 0
+
+    anlageSoAll[body.year] = {
+      transactions,
+      wiederkehrendeBezuege,
+      werbungskosten,
+    }
+
+    const next = {
+      ...settings,
+      anlageSO: anlageSoAll,
+    }
+    await this.prisma.company.update({
+      where: { id: companyId },
+      data: { settings: next } as any,
+    })
+
+    return {
+      ok: true,
+      year: body.year,
+      transactions,
+      wiederkehrendeBezuege,
+      werbungskosten,
     }
   }
 

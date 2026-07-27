@@ -2581,6 +2581,11 @@
       "label": "Anlage Kind im Berater-Paket einschließen",
       "description": "Erzwingt die Aufnahme der Anlage Kind (Kinderfreibetrag + Kindergeld, § 32 / § 33 / § 33a EStG) im year-end Berater-Paket ZIP. Standardmäßig nur enthalten, wenn Kinder für das Geschäftsjahr in Company.settings.kinder erfasst wurden. Für Familien mit Kindern, für die Kindergeld bezogen oder Kinderfreibetrag geltend gemacht wird.",
       "effectLabel": "Wirkt auf: Anlage-Kind.pdf im Berater-Paket"
+    },
+    "anlageSo": {
+      "label": "Anlage SO im Berater-Paket einschließen",
+      "description": "Erzwingt die Aufnahme der Anlage SO (Sonstige Einkünfte, § 22 EStG) im year-end Berater-Paket ZIP. Standardmäßig nur enthalten, wenn private Veräußerungsgeschäfte oder wiederkehrende Bezüge für das Geschäftsjahr in Company.settings.anlageSO erfasst wurden. Für private Veräußerungen (Krypto, Gold, Aktien) und wiederkehrende Bezüge (private Pensionen, Unterhalt).",
+      "effectLabel": "Wirkt auf: Anlage-SO.pdf im Berater-Paket"
     }
   },
   "ustja": {
@@ -2663,5 +2668,42 @@
     "fromSupplier": "von",
     "cardPaymentsTitle": "SEPA-Sammelzahlung",
     "cardPaymentsDesc": "Sammelt offene Eingangsrechnungen in einer pain.001-XML für den Bank-Upload."
+  },
+  "anlageSo": {
+    "title": "Anlage SO (Sonstige Einkünfte)",
+    "subtitle": "Sonstige Einkünfte (§ 22 EStG) — private Veräußerungsgeschäfte (Krypto / Gold / Aktien innerhalb der Spekulationsfrist) + wiederkehrende Bezüge (private Pensionen, Unterhaltsleistungen). Freigrenze 600 EUR/Jahr für Veräußerungsgewinne (§ 23 Abs. 3 Satz 5 EStG).",
+    "year": "Geschäftsjahr",
+    "recompute": "Berechnen",
+    "downloadPdf": "PDF herunterladen",
+    "transactions": "Private Veräußerungsgeschäfte (§ 23 EStG)",
+    "transactionsHint": "Jede Veräußerung innerhalb der Spekulationsfrist (1 Jahr Wertpapiere / 10 Jahre Sonstige) ist einkommensteuerpflichtig. Verkäufe außerhalb der Frist sind steuerfrei.",
+    "addTransaction": "Veräußerung hinzufügen",
+    "removeTransaction": "Entfernen",
+    "type": "Art",
+    "wertpapier": "Wertpapier (1 Jahr Frist)",
+    "sonstige": "Sonstige WG (10 Jahre Frist)",
+    "description": "Bezeichnung",
+    "acquisitionDate": "Anschaffungsdatum",
+    "acquisitionCost": "Anschaffungskosten (€)",
+    "saleDate": "Verkaufsdatum",
+    "salePrice": "Verkaufserlös (€)",
+    "gain": "Gewinn / Verlust",
+    "wiederkehrende": "Wiederkehrende Bezüge (§ 22 Nr. 1 EStG)",
+    "wiederkehrendeHint": "Private Pensionen, Versorgungsleistungen, Unterhaltsleistungen. Werbungskosten-Pauschbetrag 102 EUR (gesetzliche Renten).",
+    "wiederkehrendeBezuege": "Bezüge (€)",
+    "werbungskosten": "Werbungskosten (€)",
+    "save": "Speichern",
+    "savedOk": "Anlage SO Daten gespeichert.",
+    "vordruck": "BMF Vordruck Anlage SO 2024 — Kennziffern",
+    "freigrenze": "Freigrenze (§ 23 Abs. 3 Satz 5 EStG)",
+    "totals": "Zusammenfassung",
+    "transactionCount": "Veräußerungen",
+    "inFrist": "in Frist",
+    "outOfFrist": "außerhalb Frist",
+    "vorschau": "VORSCHAU",
+    "emptyTransactions": "Keine privaten Veräußerungsgeschäfte erfasst. Klicken Sie 'Veräußerung hinzufügen' um eine Transaktion einzutragen.",
+    "emptyWiederkehrende": "Keine wiederkehrenden Bezüge erfasst. Tragen Sie unten private Pensionen / Unterhaltsleistungen ein.",
+    "loadError": "Fehler beim Laden der Anlage SO Daten",
+    "saveError": "Fehler beim Speichern"
   }
 }

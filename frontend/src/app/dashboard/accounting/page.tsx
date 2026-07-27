@@ -39,6 +39,14 @@ import { AnlageRSection } from "./AnlageRSection"
 // 7th Anlage form. For families with children.
 // Reads Kinder array from Company.settings.kinder.
 import { AnlageKindSection } from "./AnlageKindSection"
+// Tier 109: Anlage SO (Sonstige Einkünfte,
+// § 22 EStG) — 8th Anlage form. Catch-all
+// for private Veräußerungsgeschäfte (Krypto /
+// Gold / Aktien innerhalb Spekulationsfrist)
+// + wiederkehrende Bezüge. Reads transactions
+// + wiederkehrendeBezuege from
+// Company.settings.anlageSO[year].
+import { AnlageSOSection } from "./AnlageSOSection"
 // Tier 105: UStJA (Umsatzsteuerjahreserklärung,
 // § 18 Abs. 3 UStG) — the annual VAT return
 // consolidating the 12 monthly UStVAs. Always
@@ -1192,6 +1200,9 @@ export default function AccountingPage() {
 
       {/* Tier 104: Anlage Kind (§ 32 EStG Kinderfreibetrag + Kindergeld) */}
       <AnlageKindSection />
+
+      {/* Tier 109: Anlage SO (§ 22 EStG sonstige Einkünfte) */}
+      <AnlageSOSection />
 
       {/* Tier 105: UStJA (§ 18 Abs. 3 UStG annual VAT return) */}
       <UstjaSection />

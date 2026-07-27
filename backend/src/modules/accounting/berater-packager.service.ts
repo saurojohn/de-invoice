@@ -47,8 +47,16 @@ import { AnlageRService } from './anlage-r.service'
 // Kindergeld, § 32 / § 33 / § 33a EStG) —
 // 7th Anlage form. For families with children.
 // Filing order: EÜR → S → V → KAP → G → N →
-// R → Kind → UStJA → BWA.
+// R → Kind → SO → UStJA → GewSt → BWA.
 import { AnlageKindService } from './anlage-kind.service'
+// Tier 109: Anlage SO (Sonstige Einkünfte,
+// § 22 EStG) — 8th Anlage form. Catch-all
+// for private Veräußerungsgeschäfte (Krypto /
+// Gold / Aktien innerhalb Spekulationsfrist)
+// and wiederkehrende Bezüge. Optional —
+// auto-include when transactions.length > 0
+// OR wiederkehrendeBezuege > 0.
+import { AnlageSOService } from './anlage-so.service'
 // Tier 105: UStJA (Umsatzsteuerjahreserklärung,
 // § 18 Abs. 3 UStG). The annual USt return that
 // consolidates the 12 monthly UStVAs. Always
@@ -168,6 +176,8 @@ export class BeraterPackagerService {
     private anlageR: AnlageRService,
     // Tier 104: Anlage Kind service.
     private anlageKind: AnlageKindService,
+    // Tier 109: Anlage SO service.
+    private anlageSo: AnlageSOService,
     private ustja: UstjaService,
     private gewst: GewstService,
     private bilanz: BilanzService,
@@ -391,6 +401,27 @@ export class BeraterPackagerService {
       : 0
     const includeAnlageKind = anlageKindOptIn || kinderCount > 0
 
+    // Tier 109: Anlage SO auto-include heuristic —
+    // include when the user has entered at least one
+    // private Veräußerungsgeschäft OR has
+    // wiederkehrende Bezüge. v1 ignores the
+    // werbungskosten field as the auto-include signal
+    // (that's paired with wiederkehrendeBezuege).
+    // The opt-in flag `anlageSo === true` forces
+    // inclusion regardless of the heuristic.
+    const anlageSoOptIn = settings.anlageSo === true
+    const anlageSoAllForYear = ((settings.anlageSO as any) || {})[year] || {}
+    const soTxCount = Array.isArray(anlageSoAllForYear.transactions)
+      ? anlageSoAllForYear.transactions.filter(
+          (t: any) => t && (t.description || t.acquisitionDate || t.saleDate),
+        ).length
+      : 0
+    const soWiederkehrendeBezuege = Number(
+      anlageSoAllForYear.wiederkehrendeBezuege,
+    ) || 0
+    const includeAnlageSo =
+      anlageSoOptIn || soTxCount > 0 || soWiederkehrendeBezuege > 0
+
     // Append each PDF (numbered so the
     // Berater can sort them in their
     // filing system). Anlage V slot is
@@ -430,6 +461,7 @@ export class BeraterPackagerService {
       kst1?: string
       anlageR?: string
       anlageKind?: string
+      anlageSo?: string
       ustja: string
       gewst: string
       bwa: string
@@ -512,6 +544,25 @@ export class BeraterPackagerService {
       archive.append(anlageKindPdf, { name: kindName })
       files.anlageKind = kindName
     }
+    // Tier 109: Anlage SO (Sonstige Einkünfte,
+    // § 22 EStG) is OPTIONAL — auto-include when
+    // transactions.length > 0 OR
+    // wiederkehrendeBezuege > 0. Sits between
+    // Anlage Kind and UStJA. Position: depends
+    // on the optional count (currently 8th
+    // optional, so when all are included SO is
+    // at slot 10, just before UStJA at 11).
+    // Tier 109 also added the `anlageSo` opt-in
+    // flag (Company.settings.anlageSo === true).
+    if (includeAnlageSo) {
+      const anlageSoPdf = await this.renderToBuffer((sink) =>
+        this.anlageSo.renderPdf(companyId, year, sink),
+      )
+      optionalSlot++
+      const soName = `${String(optionalSlot).padStart(2, '0')}_Anlage-SO.pdf`
+      archive.append(anlageSoPdf, { name: soName })
+      files.anlageSo = soName
+    }
     // Tier 105: UStJA (Umsatzsteuerjahreserklärung)
     // is ALWAYS included for every company with USt
     // obligation. Sits between the Anlage series and
@@ -520,7 +571,7 @@ export class BeraterPackagerService {
     // so it logically belongs with the other
     // Steuererklärungen even though it isn't an
     // "Anlage" form. Position: optionalSlot + 1
-    // (3 when 0 optionals, 10 when all 7 are
+    // (3 when 0 optionals, 11 when all 8 are
     // included).
     const ustjaPdf = await this.renderToBuffer((sink) =>
       this.ustja.renderPdf(companyId, year, sink),
@@ -535,7 +586,7 @@ export class BeraterPackagerService {
     // for every gewerbliche company (Einzelunternehmen,
     // PersG, AND KapG). Sits between UStJA and BWA.
     // Position: optionalSlot + 2 (4 when 0 optionals,
-    // 11 when all 7 are included).
+    // 12 when all 8 are included).
     const gewstPdf = await this.renderToBuffer((sink) =>
       this.gewst.renderPdf(companyId, year, sink),
     )
@@ -545,9 +596,15 @@ export class BeraterPackagerService {
     files.gewst = gewstName
 
     // Compute the position of BWA, Bilanz,
-    // G+V, Anhang, Anlagenverzeichnis. Both UStJA
-    // (slot N+1) AND GewSt (slot N+2) are always
+    // G+V, Anhang, Anlagenverzeichnis. UStJA
+    // (slot N+1) + GewSt (slot N+2) are always
     // included, so the trailing starts at N+3.
+    // Tier 109 added Anlage SO as the 8th
+    // optional, pushing the trailing from N+2
+    // (pre-tier-105) → N+3 (post-tier-106) →
+    // unchanged here (SO is conditional, only
+    // shifts when included). The bwaNum below
+    // is now gewstSlot + 1 regardless of SO.
     const bwaNum = String(gewstSlot + 1).padStart(2, '0')
     const bilanzNum = String(gewstSlot + 2).padStart(2, '0')
     const guvNum = String(gewstSlot + 3).padStart(2, '0')
@@ -745,7 +802,7 @@ export class BeraterPackagerService {
   private buildManifest(
     company: { name: string; legalName: string | null; taxId: string | null; vatId: string | null },
     year: number,
-    files: { euer: string; anlageS: string; anlageV?: string; anlageKAP?: string; anlageG?: string; anlageN?: string; kst1?: string; anlageR?: string; anlageKind?: string; ustja: string; gewst: string; bwa: string; bilanz: string; guv: string; anhang: string; assetCsv: string },
+    files: { euer: string; anlageS: string; anlageV?: string; anlageKAP?: string; anlageG?: string; anlageN?: string; kst1?: string; anlageR?: string; anlageKind?: string; anlageSo?: string; ustja: string; gewst: string; bwa: string; bilanz: string; guv: string; anhang: string; assetCsv: string },
   ): string {
     const lines: string[] = []
     lines.push(`# Berater-Paket ${year} — ${company.legalName || company.name}`)

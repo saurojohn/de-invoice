@@ -13,6 +13,7 @@ interface FeatureFlags {
   anlageG: boolean
   anlageN: boolean
   anlageKind: boolean
+  anlageSo: boolean
   nextAutoBookerRun: string
 }
 
@@ -78,7 +79,7 @@ export function FeatureFlagsCard() {
   // Local draft state — the user toggles these
   // and clicks "Speichern" to commit. Reset
   // on successful save.
-  const [draft, setDraft] = useState<{ autoBookAfa: boolean; anlageV: boolean; anlageG: boolean; anlageN: boolean; anlageKind: boolean } | null>(null)
+  const [draft, setDraft] = useState<{ autoBookAfa: boolean; anlageV: boolean; anlageG: boolean; anlageN: boolean; anlageKind: boolean; anlageSo: boolean } | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -94,6 +95,7 @@ export function FeatureFlagsCard() {
         anlageG: result.anlageG,
         anlageN: result.anlageN,
         anlageKind: result.anlageKind,
+        anlageSo: result.anlageSo,
       })
     } catch (e: any) {
       const msg = e instanceof ApiError ? e.message : tRef.current("common.loadError")
@@ -119,12 +121,13 @@ export function FeatureFlagsCard() {
       // receive. This makes the round-trip
       // idempotent (no "set to the same value"
       // side effects).
-      const body: { autoBookAfa?: boolean; anlageV?: boolean; anlageG?: boolean; anlageN?: boolean; anlageKind?: boolean } = {}
+      const body: { autoBookAfa?: boolean; anlageV?: boolean; anlageG?: boolean; anlageN?: boolean; anlageKind?: boolean; anlageSo?: boolean } = {}
       if (draft.autoBookAfa !== flags.autoBookAfa) body.autoBookAfa = draft.autoBookAfa
       if (draft.anlageV !== flags.anlageV) body.anlageV = draft.anlageV
       if (draft.anlageG !== flags.anlageG) body.anlageG = draft.anlageG
       if (draft.anlageN !== flags.anlageN) body.anlageN = draft.anlageN
       if (draft.anlageKind !== flags.anlageKind) body.anlageKind = draft.anlageKind
+      if (draft.anlageSo !== flags.anlageSo) body.anlageSo = draft.anlageSo
       if (Object.keys(body).length === 0) {
         toastRef.current.info(tRef.current("featureFlags.noChanges"))
         setSaving(false)
@@ -163,7 +166,8 @@ export function FeatureFlagsCard() {
     draft.anlageV !== flags.anlageV ||
     draft.anlageG !== flags.anlageG ||
     draft.anlageN !== flags.anlageN ||
-    draft.anlageKind !== flags.anlageKind
+    draft.anlageKind !== flags.anlageKind ||
+    draft.anlageSo !== flags.anlageSo
 
   return (
     <Card data-testid="feature-flags-card">
@@ -394,6 +398,48 @@ export function FeatureFlagsCard() {
           </label>
         </div>
 
+        {/* Tier 109: Anlage SO toggle */}
+        <div
+          className="flex items-start justify-between gap-4 p-3 border rounded dark:border-gray-700"
+          data-testid="feature-flag-anlage-so"
+        >
+          <div className="flex-1">
+            <div className="font-medium text-sm">
+              {tRef.current("featureFlags.anlageSo.label")}
+            </div>
+            <div className="text-xs text-gray-500 mt-1">
+              {tRef.current("featureFlags.anlageSo.description")}
+            </div>
+            <div className="text-xs text-gray-400 mt-1">
+              {tRef.current("featureFlags.anlageSo.effectLabel")}
+            </div>
+          </div>
+          <label className="inline-flex items-center cursor-pointer mt-1">
+            <input
+              type="checkbox"
+              className="sr-only"
+              checked={draft.anlageSo}
+              onChange={(e) =>
+                setDraft({ ...draft, anlageSo: e.target.checked })
+              }
+              data-testid="feature-flag-anlage-so-toggle"
+            />
+            <span
+              className={`w-11 h-6 rounded-full relative transition-colors ${
+                draft.anlageSo
+                  ? "bg-emerald-500"
+                  : "bg-gray-300 dark:bg-gray-600"
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${
+                  draft.anlageSo ? "translate-x-5" : ""
+                }`}
+              />
+            </span>
+          </label>
+        </div>
+
         <div className="flex items-center gap-3 pt-2 border-t dark:border-gray-700">
           <Button
             onClick={save}
@@ -411,6 +457,7 @@ export function FeatureFlagsCard() {
                 anlageG: flags.anlageG,
                 anlageN: flags.anlageN,
                 anlageKind: flags.anlageKind,
+                anlageSo: flags.anlageSo,
               })
             }
             disabled={!dirty || saving}

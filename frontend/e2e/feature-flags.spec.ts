@@ -69,7 +69,7 @@ test.describe("Feature flags — /dashboard/settings", () => {
     await expect(page.getByTestId("feature-flags-card")).toBeVisible({ timeout: 30_000 })
   })
 
-  test("All 5 toggle rows render (autoBookAfa + anlageV + anlageG + anlageN + anlageKind)", async ({ page }) => {
+  test("All 6 toggle rows render (autoBookAfa + anlageV + anlageG + anlageN + anlageKind + anlageSo)", async ({ page }) => {
     await injectAuth(page)
     await page.goto("/dashboard/settings")
     await expect(page.getByTestId("feature-flags-card")).toBeVisible({ timeout: 30_000 })
@@ -78,6 +78,7 @@ test.describe("Feature flags — /dashboard/settings", () => {
     await expect(page.getByTestId("feature-flag-anlage-g")).toBeVisible()
     await expect(page.getByTestId("feature-flag-anlage-n")).toBeVisible()
     await expect(page.getByTestId("feature-flag-anlage-kind")).toBeVisible()
+    await expect(page.getByTestId("feature-flag-anlage-so")).toBeVisible()
   })
 
   test("Save button is disabled until a toggle is flipped", async ({ page }) => {

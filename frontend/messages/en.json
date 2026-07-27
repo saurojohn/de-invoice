@@ -2581,6 +2581,11 @@
       "label": "Include Anlage Kind in Berater packager",
       "description": "Force-include Anlage Kind (Kinderfreibetrag + Kindergeld, § 32 / § 33 / § 33a EStG) in the year-end Berater packager ZIP. By default, only included when children are recorded in Company.settings.kinder for the year. For families with children claiming Kindergeld or Kinderfreibetrag.",
       "effectLabel": "Affects: Anlage-Kind.pdf in Berater packager"
+    },
+    "anlageSo": {
+      "label": "Include Anlage SO in Berater package",
+      "description": "Force-include the Anlage SO (Other income, § 22 EStG) in the year-end Berater package ZIP. By default only included if private Veräußerungsgeschäfte or wiederkehrende Bezüge were entered for the fiscal year in Company.settings.anlageSO. For private sales (crypto, gold, stocks) and recurring income (private pensions, maintenance).",
+      "effectLabel": "Affects: Anlage-SO.pdf in the Berater package"
     }
   },
   "ustja": {
@@ -2663,5 +2668,42 @@
     "fromSupplier": "from",
     "cardPaymentsTitle": "SEPA batch payment",
     "cardPaymentsDesc": "Bundles open Eingangsrechnungen into a pain.001 XML for bank upload."
+  },
+  "anlageSo": {
+    "title": "Anlage SO (Other Income)",
+    "subtitle": "Other income (§ 22 EStG) — private Veräußerungsgeschäfte (crypto / gold / stocks within the Spekulationsfrist) + wiederkehrende Bezüge (private pensions, maintenance). €600/year Freigrenze for Veräußerungsgewinne (§ 23 Abs. 3 sentence 5 EStG).",
+    "year": "Fiscal year",
+    "recompute": "Recompute",
+    "downloadPdf": "Download PDF",
+    "transactions": "Private Veräußerungsgeschäfte (§ 23 EStG)",
+    "transactionsHint": "Each sale within the Spekulationsfrist (1 year for securities / 10 years for other assets) is income-tax-liable. Sales outside the Frist are tax-free.",
+    "addTransaction": "Add transaction",
+    "removeTransaction": "Remove",
+    "type": "Type",
+    "wertpapier": "Securities (1 year Frist)",
+    "sonstige": "Other WG (10 years Frist)",
+    "description": "Description",
+    "acquisitionDate": "Acquisition date",
+    "acquisitionCost": "Acquisition cost (€)",
+    "saleDate": "Sale date",
+    "salePrice": "Sale price (€)",
+    "gain": "Gain / Loss",
+    "wiederkehrende": "Wiederkehrende Bezüge (§ 22 Nr. 1 EStG)",
+    "wiederkehrendeHint": "Private pensions, Versorgungsleistungen, maintenance payments. Werbungskosten-Pauschbetrag €102 (statutory pensions).",
+    "wiederkehrendeBezuege": "Income (€)",
+    "werbungskosten": "Werbungskosten (€)",
+    "save": "Save",
+    "savedOk": "Anlage SO data saved.",
+    "vordruck": "BMF form Anlage SO 2024 — fields (Kennziffern)",
+    "freigrenze": "Freigrenze (§ 23 Abs. 3 sentence 5 EStG)",
+    "totals": "Summary",
+    "transactionCount": "Transactions",
+    "inFrist": "in Frist",
+    "outOfFrist": "outside Frist",
+    "vorschau": "PREVIEW",
+    "emptyTransactions": "No private Veräußerungsgeschäfte entered. Click 'Add transaction' to add a transaction.",
+    "emptyWiederkehrende": "No wiederkehrende Bezüge entered. Add private pensions / maintenance payments below.",
+    "loadError": "Failed to load Anlage SO data",
+    "saveError": "Failed to save"
   }
 }
