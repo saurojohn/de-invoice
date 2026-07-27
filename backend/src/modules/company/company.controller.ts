@@ -241,7 +241,7 @@ export class CompanyController {
   @Patch(':id/feature-flags')
   async updateFeatureFlags(
     @Param('id') id: string,
-    @Body() body: { autoBookAfa?: boolean; anlageV?: boolean; anlageG?: boolean; anlageN?: boolean; anlageKind?: boolean; anlageSo?: boolean },
+    @Body() body: { autoBookAfa?: boolean; anlageV?: boolean; anlageG?: boolean; anlageN?: boolean; anlageKind?: boolean; anlageSo?: boolean; anlageAus?: boolean },
     @Req() req: any,
   ) {
     if (body.autoBookAfa !== undefined && typeof body.autoBookAfa !== 'boolean') {
@@ -262,6 +262,9 @@ export class CompanyController {
     if (body.anlageSo !== undefined && typeof body.anlageSo !== 'boolean') {
       throw new BadRequestException('anlageSo muss ein Boolean sein')
     }
+    if (body.anlageAus !== undefined && typeof body.anlageAus !== 'boolean') {
+      throw new BadRequestException('anlageAus muss ein Boolean sein')
+    }
     const company = await this.companyService.findById(id)
     if (!company) {
       throw new BadRequestException('Firma nicht gefunden')
@@ -274,6 +277,7 @@ export class CompanyController {
       anlageN: settings.anlageN === true,
       anlageKind: settings.anlageKind === true,
       anlageSo: settings.anlageSo === true,
+      anlageAus: settings.anlageAus === true,
     }
     const next: Record<string, unknown> = { ...settings }
     if (body.autoBookAfa !== undefined) next.autoBookAfa = body.autoBookAfa
@@ -282,6 +286,7 @@ export class CompanyController {
     if (body.anlageN !== undefined) next.anlageN = body.anlageN
     if (body.anlageKind !== undefined) next.anlageKind = body.anlageKind
     if (body.anlageSo !== undefined) next.anlageSo = body.anlageSo
+    if (body.anlageAus !== undefined) next.anlageAus = body.anlageAus
 
     await this.companyService.update(id, { settings: next } as any)
 
@@ -308,6 +313,7 @@ export class CompanyController {
             anlageN: body.anlageN,
             anlageKind: body.anlageKind,
             anlageSo: body.anlageSo,
+            anlageAus: body.anlageAus,
           } as any,
           ipAddress: null,
           userAgent: 'de-invoice:CompanyController.updateFeatureFlags',
@@ -326,6 +332,7 @@ export class CompanyController {
       anlageN: body.anlageN !== undefined ? body.anlageN : prev.anlageN,
       anlageKind: body.anlageKind !== undefined ? body.anlageKind : prev.anlageKind,
       anlageSo: body.anlageSo !== undefined ? body.anlageSo : prev.anlageSo,
+      anlageAus: body.anlageAus !== undefined ? body.anlageAus : prev.anlageAus,
     }
   }
 
@@ -355,6 +362,7 @@ export class CompanyController {
       anlageN: settings.anlageN === true,
       anlageKind: settings.anlageKind === true,
       anlageSo: settings.anlageSo === true,
+      anlageAus: settings.anlageAus === true,
       // The cron fires at 5 0 1 * * (00:05 on
       // the 1st of each month, Berlin time).
       // nextRunAt is the first-of-next-month

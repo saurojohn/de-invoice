@@ -37,6 +37,13 @@ import { AnlageKindService } from './anlage-kind.service';
 // Aktien innerhalb Spekulationsfrist) and
 // wiederkehrende Bezüge (private Pensionen, Unterhalt).
 import { AnlageSOService } from './anlage-so.service';
+// Tier 110: Anlage AUS (Ausländische Einkünfte,
+// § 34d EStG). The 9th Anlage form — the
+// international dimension. Freistellung vs
+// Anrechnung per DBA, § 8b KStG for KapG
+// dividends, Progressionsvorbehalt for DBA-exempt
+// income.
+import { AnlageAUSService } from './anlage-aus.service';
 // Tier 106: GewSt-Erklärung (Gewerbesteuererklärung,
 // BMF Vordruck GewSt 1A 2024) — the standalone
 // trade tax return. Always included in the Berater
@@ -87,6 +94,11 @@ export class AccountingController {
     // for private Veräußerungsgeschäfte and
     // wiederkehrende Bezüge.
     private anlageSo: AnlageSOService,
+    // Tier 110: Anlage AUS (Ausländische
+    // Einkünfte, § 34d EStG) — 9th Anlage
+    // form. Freistellung vs Anrechnung per
+    // DBA, § 8b KStG for KapG dividends.
+    private anlageAus: AnlageAUSService,
     private gewst: GewstService,
     private bilanz: BilanzService,
     private guv: GuVService,
@@ -1298,6 +1310,136 @@ export class AccountingController {
       transactions,
       wiederkehrendeBezuege,
       werbungskosten,
+    }
+  }
+
+  // =============================================================
+  // Tier 110: Anlage AUS (Ausländische Einkünfte,
+  // § 34d EStG). The 9th Anlage form — for
+  // income sourced outside Germany that is
+  // taxable in Germany. Sits between Anlage SO
+  // and the UStJA block in the Berater packager.
+  // =============================================================
+
+  @Get('anlage-aus')
+  @UseGuards(HeaderAuthGuard)
+  async getAnlageAus(
+    @Query('companyId') companyId: string,
+    @Query('year') yearRaw?: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const year = yearRaw
+      ? Number(yearRaw)
+      : new Date().getFullYear() - 1
+    if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+    return this.anlageAus.compute(companyId, year)
+  }
+
+  @Get('anlage-aus.pdf')
+  @UseGuards(HeaderAuthGuard)
+  @Header('Content-Type', 'application/pdf')
+  async getAnlageAusPdf(
+    @Res() res: Response,
+    @Query('companyId') companyId: string,
+    @Query('year') yearRaw?: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const year = yearRaw
+      ? Number(yearRaw)
+      : new Date().getFullYear() - 1
+    if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+    await this.anlageAus.renderPdf(companyId, year, res)
+  }
+
+  // Tier 110: PUT /anlage-aus/settings — Update the
+  // per-year entries. Body:
+  //   { year, entries: [{ country, countryName, hasDba,
+  //     incomeType, grossAmount, foreignTaxPaid,
+  //     description }] }
+  @Put('anlage-aus/settings')
+  @UseGuards(HeaderAuthGuard)
+  async updateAnlageAusSettings(
+    @Query('companyId') companyId: string,
+    @Body() body: {
+      year: number
+      entries: Array<{
+        country?: string
+        countryName?: string
+        hasDba?: boolean
+        incomeType?: string
+        grossAmount?: number
+        foreignTaxPaid?: number
+        description?: string
+      }>
+    },
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    if (!body || !Number.isInteger(body.year) || body.year < 2000 || body.year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+    if (!Array.isArray(body.entries)) {
+      throw new BadRequestException('entries[] ist erforderlich (Array)')
+    }
+
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+    })
+    if (!company) throw new BadRequestException('Firma nicht gefunden')
+
+    const settings = ((company as any).settings ?? {}) as Record<string, any>
+    const anlageAusAll = (settings.anlageAUS as any) || {}
+
+    const VALID_TYPES = [
+      'dividend',
+      'interest',
+      'rental',
+      'employment',
+      'business',
+      'selfEmployment',
+      'agriculture',
+      'other',
+    ]
+
+    const entries = body.entries
+      .filter((e) => e && typeof e === 'object')
+      .map((e) => {
+        const incomeType = VALID_TYPES.includes(String(e.incomeType || ''))
+          ? String(e.incomeType)
+          : 'other'
+        return {
+          country: String(e.country || '').trim().toUpperCase().slice(0, 2),
+          countryName: String(e.countryName || '').trim(),
+          hasDba: e.hasDba === true,
+          incomeType,
+          grossAmount: Number(e.grossAmount) || 0,
+          foreignTaxPaid: Number(e.foreignTaxPaid) || 0,
+          description: String(e.description || '').trim(),
+        }
+      })
+      .filter(
+        (e) =>
+          e.country || e.countryName || e.description || e.grossAmount > 0,
+      )
+
+    anlageAusAll[body.year] = { entries }
+
+    const next = {
+      ...settings,
+      anlageAUS: anlageAusAll,
+    }
+    await this.prisma.company.update({
+      where: { id: companyId },
+      data: { settings: next } as any,
+    })
+
+    return {
+      ok: true,
+      year: body.year,
+      entries,
     }
   }
 

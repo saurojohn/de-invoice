@@ -57,6 +57,13 @@ import { AnlageKindService } from './anlage-kind.service'
 // auto-include when transactions.length > 0
 // OR wiederkehrendeBezuege > 0.
 import { AnlageSOService } from './anlage-so.service'
+// Tier 110: Anlage AUS (Ausländische Einkünfte,
+// § 34d EStG) — 9th Anlage form. The
+// international dimension. Freistellung vs
+// Anrechnung per DBA, § 8b KStG for KapG
+// dividends, Progressionsvorbehalt. Optional —
+// auto-include when entries.length > 0.
+import { AnlageAUSService } from './anlage-aus.service'
 // Tier 105: UStJA (Umsatzsteuerjahreserklärung,
 // § 18 Abs. 3 UStG). The annual USt return that
 // consolidates the 12 monthly UStVAs. Always
@@ -178,6 +185,8 @@ export class BeraterPackagerService {
     private anlageKind: AnlageKindService,
     // Tier 109: Anlage SO service.
     private anlageSo: AnlageSOService,
+    // Tier 110: Anlage AUS service.
+    private anlageAus: AnlageAUSService,
     private ustja: UstjaService,
     private gewst: GewstService,
     private bilanz: BilanzService,
@@ -422,6 +431,24 @@ export class BeraterPackagerService {
     const includeAnlageSo =
       anlageSoOptIn || soTxCount > 0 || soWiederkehrendeBezuege > 0
 
+    // Tier 110: Anlage AUS auto-include heuristic —
+    // include when the user has entered at least one
+    // foreign income entry. The opt-in flag
+    // `anlageAus === true` forces inclusion
+    // regardless of the heuristic. The § 8b KStG
+    // rule (5% non-deductible for KapG dividends)
+    // is applied inside the AnlageAUSService
+    // based on the Company's rechtsform.
+    const anlageAusOptIn = settings.anlageAus === true
+    const anlageAusAllForYear = ((settings.anlageAUS as any) || {})[year] || {}
+    const ausEntryCount = Array.isArray(anlageAusAllForYear.entries)
+      ? anlageAusAllForYear.entries.filter(
+          (e: any) =>
+            e && (e.country || e.countryName || e.description || e.grossAmount > 0),
+        ).length
+      : 0
+    const includeAnlageAus = anlageAusOptIn || ausEntryCount > 0
+
     // Append each PDF (numbered so the
     // Berater can sort them in their
     // filing system). Anlage V slot is
@@ -462,6 +489,7 @@ export class BeraterPackagerService {
       anlageR?: string
       anlageKind?: string
       anlageSo?: string
+      anlageAus?: string
       ustja: string
       gewst: string
       bwa: string
@@ -562,6 +590,24 @@ export class BeraterPackagerService {
       const soName = `${String(optionalSlot).padStart(2, '0')}_Anlage-SO.pdf`
       archive.append(anlageSoPdf, { name: soName })
       files.anlageSo = soName
+    }
+    // Tier 110: Anlage AUS (Ausländische Einkünfte,
+    // § 34d EStG) is OPTIONAL — auto-include when
+    // entries.length > 0. Sits between Anlage SO
+    // and UStJA. Position: depends on the
+    // optional count (currently 9th optional, so
+    // when all are included AUS is at slot 11,
+    // just before UStJA at 12). Tier 110 also
+    // added the `anlageAus` opt-in flag
+    // (Company.settings.anlageAus === true).
+    if (includeAnlageAus) {
+      const anlageAusPdf = await this.renderToBuffer((sink) =>
+        this.anlageAus.renderPdf(companyId, year, sink),
+      )
+      optionalSlot++
+      const ausName = `${String(optionalSlot).padStart(2, '0')}_Anlage-AUS.pdf`
+      archive.append(anlageAusPdf, { name: ausName })
+      files.anlageAus = ausName
     }
     // Tier 105: UStJA (Umsatzsteuerjahreserklärung)
     // is ALWAYS included for every company with USt
@@ -802,7 +848,7 @@ export class BeraterPackagerService {
   private buildManifest(
     company: { name: string; legalName: string | null; taxId: string | null; vatId: string | null },
     year: number,
-    files: { euer: string; anlageS: string; anlageV?: string; anlageKAP?: string; anlageG?: string; anlageN?: string; kst1?: string; anlageR?: string; anlageKind?: string; anlageSo?: string; ustja: string; gewst: string; bwa: string; bilanz: string; guv: string; anhang: string; assetCsv: string },
+    files: { euer: string; anlageS: string; anlageV?: string; anlageKAP?: string; anlageG?: string; anlageN?: string; kst1?: string; anlageR?: string; anlageKind?: string; anlageSo?: string; anlageAus?: string; ustja: string; gewst: string; bwa: string; bilanz: string; guv: string; anhang: string; assetCsv: string },
   ): string {
     const lines: string[] = []
     lines.push(`# Berater-Paket ${year} — ${company.legalName || company.name}`)

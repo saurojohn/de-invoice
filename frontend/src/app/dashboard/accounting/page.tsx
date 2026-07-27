@@ -47,6 +47,13 @@ import { AnlageKindSection } from "./AnlageKindSection"
 // + wiederkehrendeBezuege from
 // Company.settings.anlageSO[year].
 import { AnlageSOSection } from "./AnlageSOSection"
+// Tier 110: Anlage AUS (Ausländische Einkünfte,
+// § 34d EStG) — 9th Anlage form. The
+// international dimension. Freistellung vs
+// Anrechnung per DBA, § 8b KStG for KapG
+// dividends. Reads entries from
+// Company.settings.anlageAUS[year].
+import { AnlageAUSSection } from "./AnlageAUSSection"
 // Tier 105: UStJA (Umsatzsteuerjahreserklärung,
 // § 18 Abs. 3 UStG) — the annual VAT return
 // consolidating the 12 monthly UStVAs. Always
@@ -1203,6 +1210,9 @@ export default function AccountingPage() {
 
       {/* Tier 109: Anlage SO (§ 22 EStG sonstige Einkünfte) */}
       <AnlageSOSection />
+
+      {/* Tier 110: Anlage AUS (§ 34d EStG ausländische Einkünfte) */}
+      <AnlageAUSSection />
 
       {/* Tier 105: UStJA (§ 18 Abs. 3 UStG annual VAT return) */}
       <UstjaSection />

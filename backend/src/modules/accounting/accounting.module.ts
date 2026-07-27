@@ -57,6 +57,13 @@ import { AnlageKindService } from './anlage-kind.service';
 // wiederkehrende Bezüge. Freigrenze 600 EUR/Jahr
 // (§ 23 Abs. 3 Satz 5 EStG).
 import { AnlageSOService } from './anlage-so.service';
+// Tier 110: Anlage AUS (Ausländische Einkünfte,
+// § 34d EStG). The 9th Anlage form — the
+// international dimension. Freistellung vs
+// Anrechnung per DBA, § 8b KStG for KapG
+// dividends, Progressionsvorbehalt for
+// DBA-exempt income.
+import { AnlageAUSService } from './anlage-aus.service';
 // Tier 106: GewSt-Erklärung (Gewerbesteuererklärung,
 // BMF Vordruck GewSt 1A 2024). Reuses AnlageGService
 // for the underlying gewerbeertrag + hebesatz.
@@ -86,7 +93,7 @@ import { ReportsModule } from '../reports/reports.module';
 @Module({
   imports: [PrismaModule, StorageModule, WebhookModule, AssetsModule, ReportsModule],
   controllers: [AccountingController, VoucherTemplateController, JournalController],
-  providers: [AccountService, VoucherService, VoucherTemplateService, JournalService, EuerService, AnlageSService, AnlageVService, AnlageKAPService, AnlageGService, AnlageNService, KSt1Service, AnlageRService, AnlageKindService, AnlageSOService, GewstService, BilanzService, GuVService, AnhangService, BeraterPackagerService, EBilanzService, GobdArchiveService],
-  exports: [AccountService, VoucherService, VoucherTemplateService, JournalService, EuerService, AnlageSService, AnlageVService, AnlageKAPService, AnlageGService, AnlageNService, KSt1Service, AnlageRService, AnlageKindService, AnlageSOService, GewstService, BilanzService, GuVService, AnhangService, BeraterPackagerService, EBilanzService, GobdArchiveService],
+  providers: [AccountService, VoucherService, VoucherTemplateService, JournalService, EuerService, AnlageSService, AnlageVService, AnlageKAPService, AnlageGService, AnlageNService, KSt1Service, AnlageRService, AnlageKindService, AnlageSOService, AnlageAUSService, GewstService, BilanzService, GuVService, AnhangService, BeraterPackagerService, EBilanzService, GobdArchiveService],
+  exports: [AccountService, VoucherService, VoucherTemplateService, JournalService, EuerService, AnlageSService, AnlageVService, AnlageKAPService, AnlageGService, AnlageNService, KSt1Service, AnlageRService, AnlageKindService, AnlageSOService, AnlageAUSService, GewstService, BilanzService, GuVService, AnhangService, BeraterPackagerService, EBilanzService, GobdArchiveService],
 })
 export class AccountingModule {}

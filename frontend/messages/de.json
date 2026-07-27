@@ -2586,6 +2586,11 @@
       "label": "Anlage SO im Berater-Paket einschließen",
       "description": "Erzwingt die Aufnahme der Anlage SO (Sonstige Einkünfte, § 22 EStG) im year-end Berater-Paket ZIP. Standardmäßig nur enthalten, wenn private Veräußerungsgeschäfte oder wiederkehrende Bezüge für das Geschäftsjahr in Company.settings.anlageSO erfasst wurden. Für private Veräußerungen (Krypto, Gold, Aktien) und wiederkehrende Bezüge (private Pensionen, Unterhalt).",
       "effectLabel": "Wirkt auf: Anlage-SO.pdf im Berater-Paket"
+    },
+    "anlageAus": {
+      "label": "Anlage AUS im Berater-Paket einschließen",
+      "description": "Erzwingt die Aufnahme der Anlage AUS (Ausländische Einkünfte, § 34d EStG) im year-end Berater-Paket ZIP. Standardmäßig nur enthalten, wenn ausländische Einkünfte für das Geschäftsjahr in Company.settings.anlageAUS erfasst wurden. Für Mandanten mit Auslandsgeschäften, ausländischen Dividenden / Zinsen / Mieteinnahmen, oder DBA-Freistellung.",
+      "effectLabel": "Wirkt auf: Anlage-AUS.pdf im Berater-Paket"
     }
   },
   "ustja": {
@@ -2704,6 +2709,47 @@
     "emptyTransactions": "Keine privaten Veräußerungsgeschäfte erfasst. Klicken Sie 'Veräußerung hinzufügen' um eine Transaktion einzutragen.",
     "emptyWiederkehrende": "Keine wiederkehrenden Bezüge erfasst. Tragen Sie unten private Pensionen / Unterhaltsleistungen ein.",
     "loadError": "Fehler beim Laden der Anlage SO Daten",
+    "saveError": "Fehler beim Speichern"
+  },
+  "anlageAus": {
+    "title": "Anlage AUS (Ausländische Einkünfte)",
+    "subtitle": "Ausländische Einkünfte (§ 34d EStG) — für Einkünfte aus dem Ausland, die in Deutschland steuerpflichtig sind. Bei DBA-Freistellung Progressionsvorbehalt (§ 32b EStG); ohne DBA Anrechnung der ausländischen Steuer. Für KapG (GmbH / AG / KGaA / UG): § 8b KStG — 95% der ausländischen Dividenden steuerfrei, 5% nicht abziehbare Betriebsausgaben.",
+    "year": "Geschäftsjahr",
+    "recompute": "Berechnen",
+    "downloadPdf": "PDF herunterladen",
+    "entries": "Ausländische Einkünfte pro Land",
+    "entriesHint": "Pro Land eine Zeile. Bei mehreren Einkünften aus dem gleichen Land mehrere Zeilen mit unterschiedlichen Einkunftsarten.",
+    "addEntry": "Einkunft hinzufügen",
+    "removeEntry": "Entfernen",
+    "country": "Land (ISO)",
+    "countryName": "Land",
+    "hasDba": "DBA",
+    "hasDbaYes": "DBA-Freistellung",
+    "hasDbaNo": "Anrechnung",
+    "incomeType": "Einkunftsart",
+    "dividend": "Dividende (Nr. 5)",
+    "interest": "Zinsen (Nr. 5)",
+    "rental": "Vermietung (Nr. 6)",
+    "employment": "Nichtselbst. Arbeit (Nr. 4)",
+    "business": "Gewerbebetrieb (Nr. 2)",
+    "selfEmployment": "Selbst. Arbeit (Nr. 3)",
+    "agriculture": "Land-/Forstwirtschaft (Nr. 1)",
+    "other": "Sonstige (Nr. 7)",
+    "grossAmount": "Bruttobetrag (EUR)",
+    "foreignTaxPaid": "Ausländische Steuer (EUR)",
+    "description": "Beschreibung",
+    "save": "Speichern",
+    "savedOk": "Anlage AUS Daten gespeichert.",
+    "vordruck": "BMF Vordruck Anlage AUS 2024 — Kennziffern",
+    "totals": "Zusammenfassung",
+    "progressionsvorbehalt": "Progressionsvorbehalt (§ 32b EStG)",
+    "taxableInland": "Steuerpflichtig (DE)",
+    "anrechnungsbetrag": "Anrechnungsbetrag (§ 34c EStG)",
+    "paragraph8b": "§ 8b KStG Pauschale",
+    "countryCount": "Länder",
+    "isKapg": "KapG (§ 8b KStG anwendbar)",
+    "emptyEntries": "Keine ausländischen Einkünfte erfasst. Klicken Sie 'Einkunft hinzufügen' um eine Zeile pro Land einzutragen.",
+    "loadError": "Fehler beim Laden der Anlage AUS Daten",
     "saveError": "Fehler beim Speichern"
   }
 }

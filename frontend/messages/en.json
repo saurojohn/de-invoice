@@ -2586,6 +2586,11 @@
       "label": "Include Anlage SO in Berater package",
       "description": "Force-include the Anlage SO (Other income, § 22 EStG) in the year-end Berater package ZIP. By default only included if private Veräußerungsgeschäfte or wiederkehrende Bezüge were entered for the fiscal year in Company.settings.anlageSO. For private sales (crypto, gold, stocks) and recurring income (private pensions, maintenance).",
       "effectLabel": "Affects: Anlage-SO.pdf in the Berater package"
+    },
+    "anlageAus": {
+      "label": "Include Anlage AUS in Berater package",
+      "description": "Force-include the Anlage AUS (Foreign income, § 34d EStG) in the year-end Berater package ZIP. By default only included if foreign income entries were entered for the fiscal year in Company.settings.anlageAUS. For Mandanten with foreign business, foreign dividends/interest/rental, or DBA-exempt income.",
+      "effectLabel": "Affects: Anlage-AUS.pdf in the Berater package"
     }
   },
   "ustja": {
@@ -2704,6 +2709,47 @@
     "emptyTransactions": "No private Veräußerungsgeschäfte entered. Click 'Add transaction' to add a transaction.",
     "emptyWiederkehrende": "No wiederkehrende Bezüge entered. Add private pensions / maintenance payments below.",
     "loadError": "Failed to load Anlage SO data",
+    "saveError": "Failed to save"
+  },
+  "anlageAus": {
+    "title": "Anlage AUS (Foreign Income)",
+    "subtitle": "Foreign income (§ 34d EStG) — for income sourced outside Germany that is taxable in Germany. DBA-exempt income gets Progressionsvorbehalt (§ 32b EStG); without DBA, foreign tax is credited. For KapG (GmbH/AG/KGaA/UG): § 8b KStG — 95% of foreign dividends tax-free, 5% non-deductible.",
+    "year": "Fiscal year",
+    "recompute": "Recompute",
+    "downloadPdf": "Download PDF",
+    "entries": "Foreign income per country",
+    "entriesHint": "One row per country. For multiple income types in the same country, add multiple rows.",
+    "addEntry": "Add entry",
+    "removeEntry": "Remove",
+    "country": "Country (ISO)",
+    "countryName": "Country",
+    "hasDba": "DBA",
+    "hasDbaYes": "DBA exemption",
+    "hasDbaNo": "Credit method",
+    "incomeType": "Income type",
+    "dividend": "Dividend (Nr. 5)",
+    "interest": "Interest (Nr. 5)",
+    "rental": "Rental (Nr. 6)",
+    "employment": "Employment (Nr. 4)",
+    "business": "Business (Nr. 2)",
+    "selfEmployment": "Self-employment (Nr. 3)",
+    "agriculture": "Agriculture (Nr. 1)",
+    "other": "Other (Nr. 7)",
+    "grossAmount": "Gross amount (EUR)",
+    "foreignTaxPaid": "Foreign tax (EUR)",
+    "description": "Description",
+    "save": "Save",
+    "savedOk": "Anlage AUS data saved.",
+    "vordruck": "BMF form Anlage AUS 2024 — fields (Kennziffern)",
+    "totals": "Summary",
+    "progressionsvorbehalt": "Progressionsvorbehalt (§ 32b EStG)",
+    "taxableInland": "Taxable in Germany",
+    "anrechnungsbetrag": "Credit amount (§ 34c EStG)",
+    "paragraph8b": "§ 8b KStG flat-rate",
+    "countryCount": "Countries",
+    "isKapg": "KapG (§ 8b KStG applicable)",
+    "emptyEntries": "No foreign income entered. Click 'Add entry' to add a row per country.",
+    "loadError": "Failed to load Anlage AUS data",
     "saveError": "Failed to save"
   }
 }

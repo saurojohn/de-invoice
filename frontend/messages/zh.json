@@ -2586,6 +2586,11 @@
       "label": "在 Berater 包裹中包含 Anlage SO",
       "description": "强制在年终 Berater 包裹 ZIP 中包含 Anlage SO（其他收入，§ 22 EStG）。默认仅在财年的 Company.settings.anlageSO 中录入了私人 Veräußerungsgeschäfte 或经常性收入时才包含。适用于私人出售（加密货币、黄金、股票）和经常性收入（私人养老金、抚养费）。",
       "effectLabel": "影响：Berater 包裹中的 Anlage-SO.pdf"
+    },
+    "anlageAus": {
+      "label": "在 Berater 包裹中包含 Anlage AUS",
+      "description": "强制在年终 Berater 包裹 ZIP 中包含 Anlage AUS（境外收入，§ 34d EStG）。默认仅在财年的 Company.settings.anlageAUS 中录入了境外收入时才包含。适用于有境外业务、境外股息/利息/租金，或 DBA 免税收入的 Mandant。",
+      "effectLabel": "影响：Berater 包裹中的 Anlage-AUS.pdf"
     }
   },
   "ustja": {
@@ -2704,6 +2709,47 @@
     "emptyTransactions": "暂无私人 Veräußerungsgeschäfte。点击“添加交易”录入。",
     "emptyWiederkehrende": "暂无经常性收入。请在下方录入私人养老金 / 抚养费。",
     "loadError": "加载 Anlage SO 数据失败",
+    "saveError": "保存失败"
+  },
+  "anlageAus": {
+    "title": "Anlage AUS（境外收入）",
+    "subtitle": "境外收入 (§ 34d EStG) — 来源于境外但在德国应税的收入。DBA 免税收入按 § 32b EStG 适用累进附加（Progressionsvorbehalt）；无 DBA 时抵扣境外已纳税款。KapG（GmbH/AG/KGaA/UG）适用 § 8b KStG：境外股息 95% 免税，5% 不可抵扣。",
+    "year": "财年",
+    "recompute": "重算",
+    "downloadPdf": "下载 PDF",
+    "entries": "按国家的境外收入",
+    "entriesHint": "每个国家一行。同一国家多种收入类型时，添加多行。",
+    "addEntry": "添加收入",
+    "removeEntry": "删除",
+    "country": "国家 (ISO)",
+    "countryName": "国家",
+    "hasDba": "DBA",
+    "hasDbaYes": "DBA 免税",
+    "hasDbaNo": "抵扣法",
+    "incomeType": "收入类型",
+    "dividend": "股息 (Nr. 5)",
+    "interest": "利息 (Nr. 5)",
+    "rental": "出租 (Nr. 6)",
+    "employment": "雇佣 (Nr. 4)",
+    "business": "经营 (Nr. 2)",
+    "selfEmployment": "个人劳动 (Nr. 3)",
+    "agriculture": "农林 (Nr. 1)",
+    "other": "其他 (Nr. 7)",
+    "grossAmount": "毛收入 (EUR)",
+    "foreignTaxPaid": "境外已纳税 (EUR)",
+    "description": "说明",
+    "save": "保存",
+    "savedOk": "Anlage AUS 数据已保存。",
+    "vordruck": "BMF 表格 Anlage AUS 2024 — Kennziffern",
+    "totals": "汇总",
+    "progressionsvorbehalt": "累进附加 (§ 32b EStG)",
+    "taxableInland": "德国应税",
+    "anrechnungsbetrag": "抵扣金额 (§ 34c EStG)",
+    "paragraph8b": "§ 8b KStG 比例",
+    "countryCount": "国家数",
+    "isKapg": "KapG（适用 § 8b KStG）",
+    "emptyEntries": "暂无境外收入。点击“添加收入”按国家录入。",
+    "loadError": "加载 Anlage AUS 数据失败",
     "saveError": "保存失败"
   }
 }
