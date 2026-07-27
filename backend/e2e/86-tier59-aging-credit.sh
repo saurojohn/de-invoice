@@ -190,10 +190,15 @@ api_get "/api/v1/reports/aging?companyId=$COMPANY_ID"
 assert_status 200 "GET /reports/aging after credit"
 AFTER_CREDIT=$(python3 -c "import json,sys;print(json.load(sys.stdin)['totalCreditBalance'])" <<< "$BODY")
 AFTER_NET=$(python3 -c "import json,sys;print(json.load(sys.stdin)['grandNetTotal'])" <<< "$BODY")
-assert_eq "totalCreditBalance === 150" "$AFTER_CREDIT" "150"
-# grandNetTotal === max(0, grandTotal - 150)
-EXPECTED_NET=$(python3 -c "print(max(0, $BASE_GRAND - 150))")
-assert_eq "grandNetTotal === max(0, grandTotal - 150)" "$AFTER_NET" "$EXPECTED_NET"
+# Use baseline-snapshot pattern: the total credit balance
+# is whatever was there before + the 150 we just added.
+# (Earlier absolute assertion broke when the shared DB had
+# residue from prior runs.)
+EXPECTED_CREDIT=$(python3 -c "print($BASE_CREDIT + 150)")
+assert_eq "totalCreditBalance === base + 150" "$AFTER_CREDIT" "$EXPECTED_CREDIT"
+# grandNetTotal === max(0, grandTotal - totalCreditBalance)
+EXPECTED_NET=$(python3 -c "print(max(0, $BASE_GRAND - ($BASE_CREDIT + 150)))")
+assert_eq "grandNetTotal === max(0, grandTotal - (base + 150))" "$AFTER_NET" "$EXPECTED_NET"
 
 # Find this customer's row
 AFTER_ROW=$(python3 -c "
