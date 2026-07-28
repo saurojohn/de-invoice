@@ -47,7 +47,18 @@ pass "wiped prior tier-60 fixtures"
 # ───── 1. Seed an invoice (use existing customer) ─────
 CUST_ID=$(docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT id FROM \"Customer\" WHERE \"companyId\" = '$COMPANY_ID' AND name LIKE 'Müller%' LIMIT 1")
-[[ -n "$CUST_ID" ]] || (echo "FATAL: no customer" && exit 1)
+if [[ -z "$CUST_ID" ]]; then
+  # Polish #10: seed a self-sufficient Müller customer. Earlier
+  # the 65 cleanup wiped all customers, so 87 saw 0 in batch runs.
+  T60_EMAIL="t60-$(date +%s)@example.com"
+  docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+    DELETE FROM \"SepaDirectDebitMandate\"   WHERE \"companyId\" = '$COMPANY_ID' AND \"debitorName\" = 'Müller GmbH';
+    DELETE FROM \"Customer\"                  WHERE \"companyId\" = '$COMPANY_ID' AND \"name\" = 'Müller GmbH';" >/dev/null 2>&1
+  api_post "/api/v1/customers?companyId=$COMPANY_ID" \
+    "{\"name\":\"Müller GmbH\",\"type\":\"business\",\"address\":{\"street\":\"Musterstr 1\",\"postalCode\":\"50667\",\"city\":\"Köln\",\"country\":\"DE\"},\"contact\":{\"email\":\"$T60_EMAIL\"}}"
+  assert_status 201 "seed Müller customer"
+  CUST_ID=$(json_field "$BODY" id)
+fi
 TODAY=$(date -u +%Y-%m-%dT00:00:00.000Z)
 api_post "/api/v1/invoices?companyId=$COMPANY_ID" \
   "{\"customerId\":\"$CUST_ID\",\"issueDate\":\"$TODAY\",\"dueDate\":\"$TODAY\",\"items\":[{\"description\":\"Tier60 ZUGFeRD test\",\"quantity\":1,\"unitPrice\":100,\"vatRate\":0.19}]}"

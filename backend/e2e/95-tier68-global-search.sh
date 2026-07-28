@@ -37,6 +37,16 @@ COMPANY_ID="ad257ec3-d319-479b-b870-3fe76e8f3111"
 stash() { printf '%s' "$BODY" > "$1"; }
 jsf() { python3 -c "import json,sys; print(json.load(sys.stdin).get('$1', ''))" < "$2"; }
 
+# Polish #10: seed a self-sufficient customer with "ANS" in
+# the name (the global search index is built from name +
+# customerNumber + vatId + address, so seeding a name with
+# "ANS" guarantees the q=ANS test has at least one hit
+# regardless of shared-DB state from prior runs).
+T95_EMAIL="t95-$(date +%s)@example.com"
+api_post "/api/v1/customers?companyId=$COMPANY_ID" \
+  "{\"name\":\"ANS Test Kunde\",\"type\":\"business\",\"address\":{\"street\":\"Teststr 1\",\"postalCode\":\"50667\",\"city\":\"Köln\",\"country\":\"DE\"},\"contact\":{\"email\":\"$T95_EMAIL\"}}"
+assert_status 201 "seed ANS customer"
+
 # ───── 1. Query "ANS" (matches the dev DB customer name "ANS Test Kunde") ─────
 echo
 note "=== 1. q=ANS → customer hits ==="
