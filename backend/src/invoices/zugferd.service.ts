@@ -22,6 +22,14 @@ import { generateInvoicePDF } from './invoice-pdf.service';
 export interface ZUGFeRDOptions {
   version?: '1.0' | '2.0' | '2.1';
   conformanceLevel?: 'BASIC' | 'EN16931' | 'EXTENDED';
+  /**
+   * Tier 7.5 visual config (fontFamily / primaryColor /
+   * layoutDensity / footerText / paymentTermsText).
+   * Polish #10: forwarded to generateInvoicePDF so
+   * ZUGFeRD output honours the company's InvoiceTemplate
+   * (previously always used Helvetica + black).
+   */
+  templateConfig?: import('./invoice-pdf.service').InvoiceRenderConfig;
 }
 
 /**
@@ -95,7 +103,7 @@ export async function generateZUGFeRD(
   //
   // The footer's "ZUGFeRD konform" line is rendered on top of
   // the standard PDF via the ZUGFeRD layer below.
-  const visualPdf = await generateInvoicePDF(invoice as any, company as any, 'standard');
+  const visualPdf = await generateInvoicePDF(invoice as any, company as any, 'standard', options.templateConfig);
 
   // Embed the XML into the PDF — machines read this part.
   // This is the step that turns a "PDF with a ZUGFeRD footer"

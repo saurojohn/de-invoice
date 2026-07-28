@@ -538,9 +538,19 @@ export class InvoiceController {
       // render. The embedded step is ~80-120ms on a typical
       // workstation — small enough that we don't need a
       // separate cached /zugferd endpoint.
+      //
+      // Polish #10 fix: pass `templateConfig` as the 4th
+      // argument to generateInvoicePDF. The PDF generator
+      // reads the per-template fontFamily / primaryColor /
+      // layoutDensity from THIS argument, not from
+      // companyCtx.templateConfig. Without the 4th arg,
+      // the PDF always uses the Helvetica default + black
+      // text regardless of the InvoiceTemplate config —
+      // 34-template-applied.sh asserts on the rendered
+      // font and color, so this was a real bug.
       const pdfBuffer = format === 'zugferd'
-        ? await generateZUGFeRD(invoice as any, companyCtx as any)
-        : await generateInvoicePDF(invoice as any, companyCtx as any)
+        ? await generateZUGFeRD(invoice as any, companyCtx as any, { templateConfig: templateConfig as any })
+        : await generateInvoicePDF(invoice as any, companyCtx as any, invoice.templateType || 'standard', templateConfig as any)
 
       // Auto-save PDF to local storage. The path is the
       // visual PDF (same content whether ZUGFeRD or plain)

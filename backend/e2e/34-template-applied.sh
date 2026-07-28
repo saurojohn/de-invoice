@@ -48,15 +48,31 @@ COMPANY_ID="ad257ec3-d319-479b-b870-3fe76e8f3111"
 docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
   DELETE FROM \"InvoiceTemplate\" WHERE \"companyId\" = '$COMPANY_ID';" >/dev/null 2>&1
 
-# Find an existing invoice
-INV_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
-  SELECT id FROM \"Invoice\" WHERE \"companyId\" = '$COMPANY_ID' AND status != 'cancelled' ORDER BY \"issueDate\" DESC LIMIT 1;" 2>/dev/null | tr -d ' ')
-
-if [[ -z "$INV_ID" ]]; then
-  fail "No invoice found — need at least one to render against"
-  exit 1
-fi
-note "Using invoice $INV_ID"
+# ----- Seed a self-sufficient customer + invoice (Polish #10) -----
+# Earlier tiers (e.g. 65) wipe all invoices for the company
+# at the start of their run. The 34 test used to depend on
+# "any existing invoice" being there, but in a batch run
+# the 65 cleanup runs first and 34 sees 0 invoices. We now
+# seed our own to make 34 batch-stable.
+# Tier 112 also added SepaDirectDebitMandate → Customer FK,
+# so we wipe the mandate first to keep the seed idempotent
+# across re-runs.
+CUST_EMAIL="t34-$(date +%s)@example.com"
+docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+  DELETE FROM \"SepaDirectDebitCollection\" WHERE \"companyId\" = '$COMPANY_ID';
+  DELETE FROM \"SepaDirectDebitBatch\"     WHERE \"companyId\" = '$COMPANY_ID';
+  DELETE FROM \"SepaDirectDebitMandate\"   WHERE \"companyId\" = '$COMPANY_ID';
+  DELETE FROM \"Customer\"                  WHERE \"companyId\" = '$COMPANY_ID' AND \"name\" = 'T34 Template Test';
+" >/dev/null 2>&1
+api_post "/api/v1/customers?companyId=$COMPANY_ID" \
+  "{\"name\":\"T34 Template Test\",\"type\":\"business\",\"address\":{\"street\":\"Str 1\",\"postalCode\":\"50667\",\"city\":\"Köln\",\"country\":\"DE\"},\"contact\":{\"email\":\"$CUST_EMAIL\"}}"
+assert_status 201 "seed customer"
+CUST_ID=$(json_field "$BODY" id)
+api_post "/api/v1/invoices?companyId=$COMPANY_ID" \
+  "{\"customerId\":\"$CUST_ID\",\"issueDate\":\"2026-07-01\",\"dueDate\":\"2026-07-31\",\"items\":[{\"description\":\"T34 test item\",\"quantity\":1,\"unitPrice\":100,\"vatRate\":0.19}]}"
+assert_status 201 "seed invoice"
+INV_ID=$(json_field "$BODY" id)
+note "Seeded invoice $INV_ID"
 
 # ----- 1. Baseline: PDF without template (Helvetica only) -----
 curl -sS -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
