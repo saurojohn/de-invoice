@@ -27,14 +27,27 @@ cleanup_cashbook
 USER_ID="8c6a9669-0069-4137-a842-a66fd1d178d6"
 COMPANY_ID="ad257ec3-d319-479b-b870-3fe76e8f3111"
 
-# ───── 0. Wipe prior tier-44 fixtures ─────
+# ───── 0. Wipe prior tier-44 fixtures + ensure a customer exists ─────
+# Polish #10: the 65 test used to wipe all customers at the
+# start, so 72 would see 0 customers. We now scope 65's
+# wipe to its own customers (Tier37-*), but the existing
+# customers can still be deleted by other test runs. Seed
+# a self-sufficient Tier44 customer if needed.
 docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
 DELETE FROM "InvoiceItem" WHERE "invoiceId" IN (
   SELECT id FROM "Invoice" WHERE "companyId" = '$COMPANY_ID' AND "invoiceNumber" LIKE 'Tier44%'
 );
 DELETE FROM "Invoice"     WHERE "companyId" = '$COMPANY_ID' AND "invoiceNumber" LIKE 'Tier44%';
 DELETE FROM "Expense"     WHERE "companyId" = '$COMPANY_ID' AND "invoiceNumber" LIKE 'Tier44%';
+DELETE FROM "SepaDirectDebitCollection" WHERE "companyId" = '$COMPANY_ID' AND "mandateId" IN (SELECT id FROM "SepaDirectDebitMandate" WHERE "debitorName" = 'Tier44 Test Kunde');
+DELETE FROM "SepaDirectDebitMandate"   WHERE "companyId" = '$COMPANY_ID' AND "debitorName" = 'Tier44 Test Kunde';
+DELETE FROM "Customer"                  WHERE "companyId" = '$COMPANY_ID' AND "name" = 'Tier44 Test Kunde';
 SQL
+# Seed a Tier44 customer (idempotent: re-run is safe)
+TIER44_EMAIL="t44-$(date +%s)@example.com"
+api_post "/api/v1/customers?companyId=$COMPANY_ID" \
+  "{\"name\":\"Tier44 Test Kunde\",\"type\":\"business\",\"address\":{\"street\":\"Teststr 1\",\"postalCode\":\"50667\",\"city\":\"Köln\",\"country\":\"DE\"},\"contact\":{\"email\":\"$TIER44_EMAIL\"}}"
+assert_status 201 "seed Tier44 customer"
 
 # ───── 1. Capture baseline (BEFORE seed) ─────
 # Pre-existing test rows from prior tier e2es inflate

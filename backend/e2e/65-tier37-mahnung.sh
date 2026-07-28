@@ -35,28 +35,46 @@ cleanup_cashbook
 USER_ID="8c6a9669-0069-4137-a842-a66fd1d178d6"
 COMPANY_ID="ad257ec3-d319-479b-b870-3fe76e8f3111"
 
-# Wipe leftover Mahnungen + EmailSend + payments + links
-# for any invoices tied to the previous run's test customer.
-# We scope by companyId only — the test owns the companyId
-# fixture, and we'd rather be aggressive than have a stale
-# FK invalidate the next run. payment.service depends on
-# payments → invoice, and PaymentLink cascades from invoice.
-# Note: Tier 112 added SepaDirectDebitMandate →
+# Wipe ONLY the Tier37 test customer's data (scoped by
+# name LIKE 'Tier37%'). Polish #10: the previous
+# version wiped ALL customers for the company, which
+# broke every downstream test that depended on a
+# pre-existing customer (e.g. 72, 73, 74, 75,
+# 78-84, 87, 88). We now scope the wipe to the
+# 65-specific customer by name.
+# Tier 112 also added SepaDirectDebitMandate →
 # Customer (FK). The cleanup must delete mandates
 # first, otherwise the customer DELETE blocks with
 # "foreign key constraint violated" and the test
 # re-runs leak the t37@example.com row forever.
 docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL
-DELETE FROM "Mahnung" WHERE "companyId" = '$COMPANY_ID';
-DELETE FROM "EmailSend" WHERE "companyId" = '$COMPANY_ID';
-DELETE FROM "SepaDirectDebitCollection" WHERE "companyId" = '$COMPANY_ID';
-DELETE FROM "SepaDirectDebitBatch"     WHERE "companyId" = '$COMPANY_ID';
-DELETE FROM "SepaDirectDebitMandate"   WHERE "companyId" = '$COMPANY_ID';
-DELETE FROM "CustomerCreditTransaction" WHERE "customerId" IN (SELECT id FROM "Customer" WHERE "companyId" = '$COMPANY_ID');
-DELETE FROM "PaymentLink" WHERE "invoiceId" IN (SELECT id FROM "Invoice" WHERE "companyId" = '$COMPANY_ID');
-DELETE FROM "Payment" WHERE "invoiceId" IN (SELECT id FROM "Invoice" WHERE "companyId" = '$COMPANY_ID');
-DELETE FROM "Invoice" WHERE "companyId" = '$COMPANY_ID';
-DELETE FROM "Customer" WHERE "companyId" = '$COMPANY_ID';
+DELETE FROM "Mahnung" WHERE "companyId" = '$COMPANY_ID'
+  AND "customerId" IN (SELECT id FROM "Customer" WHERE "name" LIKE 'Tier37%');
+DELETE FROM "EmailSend" WHERE "companyId" = '$COMPANY_ID'
+  AND "customerId" IN (SELECT id FROM "Customer" WHERE "name" LIKE 'Tier37%');
+DELETE FROM "SepaDirectDebitCollection" WHERE "companyId" = '$COMPANY_ID'
+  AND "mandateId" IN (SELECT id FROM "SepaDirectDebitMandate" WHERE "debitorName" LIKE 'Tier37%');
+DELETE FROM "SepaDirectDebitBatch" WHERE "companyId" = '$COMPANY_ID'
+  AND "notes" LIKE 'Tier37%';
+DELETE FROM "SepaDirectDebitMandate" WHERE "companyId" = '$COMPANY_ID'
+  AND "debitorName" LIKE 'Tier37%';
+DELETE FROM "CustomerCreditTransaction" WHERE "companyId" = '$COMPANY_ID'
+  AND "customerId" IN (SELECT id FROM "Customer" WHERE "name" LIKE 'Tier37%');
+DELETE FROM "PaymentLink" WHERE "invoiceId" IN (
+  SELECT id FROM "Invoice" WHERE "companyId" = '$COMPANY_ID'
+  AND "customerId" IN (SELECT id FROM "Customer" WHERE "name" LIKE 'Tier37%')
+);
+DELETE FROM "Payment" WHERE "invoiceId" IN (
+  SELECT id FROM "Invoice" WHERE "companyId" = '$COMPANY_ID'
+  AND "customerId" IN (SELECT id FROM "Customer" WHERE "name" LIKE 'Tier37%')
+);
+DELETE FROM "InvoiceItem" WHERE "invoiceId" IN (
+  SELECT id FROM "Invoice" WHERE "companyId" = '$COMPANY_ID'
+  AND "customerId" IN (SELECT id FROM "Customer" WHERE "name" LIKE 'Tier37%')
+);
+DELETE FROM "Invoice" WHERE "companyId" = '$COMPANY_ID'
+  AND "customerId" IN (SELECT id FROM "Customer" WHERE "name" LIKE 'Tier37%');
+DELETE FROM "Customer" WHERE "companyId" = '$COMPANY_ID' AND "name" LIKE 'Tier37%';
 SQL
 
 # ───── Seed: customer + invoice (overdue, status=sent) ─────
