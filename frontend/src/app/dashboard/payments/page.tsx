@@ -28,7 +28,7 @@
 // confirming.
 
 import { useEffect, useState, useCallback, useMemo, useRef } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
 import Link from "next/link"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -105,6 +105,7 @@ function statusBadgeColor(s: string) {
 
 export default function PaymentsPage() {
   const router = useRouter()
+  const pathname = usePathname()
   const { t } = useI18n()
   const toast = useToast()
   const toastRef = useRef(toast)
@@ -263,6 +264,36 @@ export default function PaymentsPage() {
             <Button variant="outline" onClick={() => router.push("/dashboard")}>
               ← {t("dashboard.title")}
             </Button>
+          </div>
+        </div>
+
+        {/* Tier 112: sub-nav tabs split SEPA pain.001 ↔ pain.008. */}
+        <div className="container mx-auto px-4">
+          <div className="flex border-b" data-testid="payments-tabs">
+            <button
+              type="button"
+              onClick={() => router.push("/dashboard/payments")}
+              className={`px-6 py-3 font-medium border-b-2 transition-colors ${
+                pathname === "/dashboard/payments"
+                  ? "border-blue-600 text-blue-600 dark:text-blue-400"
+                  : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+              }`}
+              data-testid="tab-pain001"
+            >
+              {t("directDebit.tabOutgoing")}
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push("/dashboard/payments/direct-debit")}
+              className={`px-6 py-3 font-medium border-b-2 transition-colors ${
+                pathname === "/dashboard/payments/direct-debit"
+                  ? "border-blue-600 text-blue-600 dark:text-blue-400"
+                  : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+              }`}
+              data-testid="tab-pain008"
+            >
+              {t("directDebit.tabIncoming")}
+            </button>
           </div>
         </div>
       </header>

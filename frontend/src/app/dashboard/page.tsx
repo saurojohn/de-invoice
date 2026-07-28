@@ -636,6 +636,21 @@ export default function DashboardPage() {
               <p className="text-gray-600 dark:text-gray-300">{t("payments.cardDesc")}</p>
             </CardContent>
           </Card>
+          {/* Tier 112: SEPA pain.008 (Lastschrift / incoming
+              direct debits) — the customer-side counterpart to
+              the pain.001 "Sammelüberweisung" card above. The
+              user creates SEPA-Lastschriftmandate, picks open
+              invoices, and produces a pain.008 XML for the
+              house bank. Sits next to its sibling for natural
+              visual grouping. */}
+          <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/payments/direct-debit")} data-testid="dashboard-card-direct-debit">
+            <CardHeader>
+              <CardTitle className="text-indigo-700 dark:text-indigo-300">{t("directDebit.title")}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-gray-600 dark:text-gray-300">{t("directDebit.subtitle")}</p>
+            </CardContent>
+          </Card>
           <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/settings")}>
             <CardHeader>
               <CardTitle>{t("dashboard.cardSettingsTitle")}</CardTitle>

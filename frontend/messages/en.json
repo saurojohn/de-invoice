@@ -2674,6 +2674,92 @@
     "cardPaymentsTitle": "SEPA batch payment",
     "cardPaymentsDesc": "Bundles open Eingangsrechnungen into a pain.001 XML for bank upload."
   },
+  "directDebit": {
+    "title": "SEPA Direct Debits (pain.008)",
+    "subtitle": "Collect due invoices via SEPA direct debit. Create mandates, pick open invoices, generate a pain.008 XML for bank upload.",
+    "tabOutgoing": "Outgoing payments (pain.001)",
+    "tabIncoming": "Incoming direct debits (pain.008)",
+    "mandatesCard": {
+      "title": "SEPA direct-debit mandates",
+      "subtitle": "Direct-debit mandates are signed by your customers and authorise you to collect due invoices via SEPA. Each customer can have multiple mandates (e.g. for different subscription contracts).",
+      "addMandate": "New mandate",
+      "emptyState": "No mandates yet. Create a mandate to start collecting via direct debit.",
+      "columns": {
+        "customer": "Customer",
+        "reference": "Mandate reference",
+        "type": "Type",
+        "iban": "IBAN",
+        "status": "Status",
+        "actions": "Action"
+      },
+      "typeCore": "CORE (B2C)",
+      "typeB2B": "B2B (business)",
+      "statusActive": "Active",
+      "statusRevoked": "Revoked",
+      "revokeButton": "Revoke",
+      "revokeConfirm": "Really revoke this mandate? This action cannot be undone.",
+      "revokeReason": "Reason for revocation (optional)",
+      "form": {
+        "title": "New mandate",
+        "customer": "Customer",
+        "customerPlaceholder": "Select customer…",
+        "dateOfSignature": "Date of signature",
+        "type": "Type",
+        "typeCoreHelp": "CORE = B2C (consumer, 8-week right of revocation)",
+        "typeB2BHelp": "B2B = business customers (no revocation right)",
+        "iban": "IBAN",
+        "ibanHelp": "German IBAN: DE + 2 check digits + 18 digits (e.g. DE89370400440532013000)",
+        "bic": "BIC (optional)",
+        "debitorName": "Account holder",
+        "description": "Description (optional)",
+        "descriptionPlaceholder": "e.g. membership fee 2026",
+        "submit": "Create mandate",
+        "cancel": "Cancel"
+      }
+    },
+    "openInvoicesCard": {
+      "title": "Open invoices for direct debit",
+      "subtitle": "Select the invoices to collect via direct debit. Only invoices with an active mandate are listed.",
+      "emptyState": "No open invoices with a mandate. Create a mandate first.",
+      "selectedCount": "invoices selected",
+      "totalAmount": "Total: EUR {amount}",
+      "executionDate": "Execution date",
+      "executionDateHelp": "Date the bank will collect the direct debit (due date + at least 5 banking days).",
+      "createBatch": "Create direct-debit batch",
+      "noSelected": "No invoices selected",
+      "columns": {
+        "invoiceNumber": "Invoice no.",
+        "customer": "Customer",
+        "dueDate": "Due date",
+        "amount": "Amount",
+        "mandate": "Mandate"
+      }
+    },
+    "batchesCard": {
+      "title": "Recent direct-debit batches",
+      "emptyState": "No batches yet.",
+      "downloadXml": "Download XML",
+      "columns": {
+        "date": "Date",
+        "creditorId": "Creditor ID",
+        "type": "Type",
+        "count": "Count",
+        "total": "Total",
+        "status": "Status"
+      }
+    },
+    "toast": {
+      "mandateCreated": "Mandate created",
+      "mandateRevoked": "Mandate revoked",
+      "batchCreated": "Direct-debit batch created ({count} invoices, EUR {amount})",
+      "error": "Error: {message}",
+      "createError": "Could not create mandate",
+      "revokeError": "Could not revoke mandate",
+      "batchCreateError": "Could not create batch",
+      "selectCustomer": "Please select a customer",
+      "invalidIban": "IBAN must start with 2 uppercase letters + 2 digits (e.g. DE89…)"
+    }
+  },
   "anlageSo": {
     "title": "Anlage SO (Other Income)",
     "subtitle": "Other income (§ 22 EStG) — private Veräußerungsgeschäfte (crypto / gold / stocks within the Spekulationsfrist) + wiederkehrende Bezüge (private pensions, maintenance). €600/year Freigrenze for Veräußerungsgewinne (§ 23 Abs. 3 sentence 5 EStG).",

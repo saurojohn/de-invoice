@@ -2674,6 +2674,92 @@
     "cardPaymentsTitle": "SEPA 批量付款",
     "cardPaymentsDesc": "把待付 Eingangsrechnungen 打包成 pain.001 XML 上传银行。"
   },
+  "directDebit": {
+    "title": "SEPA 直接借记 (pain.008)",
+    "subtitle": "通过 SEPA 直接借记收回到期发票。创建授权委托、选择待收发票、生成 pain.008 XML 上传银行。",
+    "tabOutgoing": "外发付款 (pain.001)",
+    "tabIncoming": "入账直接借记 (pain.008)",
+    "mandatesCard": {
+      "title": "SEPA 直接借记授权",
+      "subtitle": "直接借记授权由客户签字，授权您通过 SEPA 收回到期发票。每个客户可拥有多个授权（例如不同的订阅合同）。",
+      "addMandate": "新增授权",
+      "emptyState": "暂无授权。请先创建一个授权以启动直接借记收款。",
+      "columns": {
+        "customer": "客户",
+        "reference": "授权编号",
+        "type": "类型",
+        "iban": "IBAN",
+        "status": "状态",
+        "actions": "操作"
+      },
+      "typeCore": "CORE (B2C)",
+      "typeB2B": "B2B (企业)",
+      "statusActive": "有效",
+      "statusRevoked": "已撤销",
+      "revokeButton": "撤销",
+      "revokeConfirm": "确认撤销此授权？此操作不可撤销。",
+      "revokeReason": "撤销原因（可选）",
+      "form": {
+        "title": "新增授权",
+        "customer": "客户",
+        "customerPlaceholder": "请选择客户…",
+        "dateOfSignature": "签字日期",
+        "type": "类型",
+        "typeCoreHelp": "CORE = B2C（消费者，8 周撤销权）",
+        "typeB2BHelp": "B2B = 企业客户（无撤销权）",
+        "iban": "IBAN",
+        "ibanHelp": "德国 IBAN：DE + 2 位校验位 + 18 位数字（如 DE89370400440532013000）",
+        "bic": "BIC（可选）",
+        "debitorName": "账户持有人",
+        "description": "说明（可选）",
+        "descriptionPlaceholder": "例如 2026 年会员费",
+        "submit": "创建授权",
+        "cancel": "取消"
+      }
+    },
+    "openInvoicesCard": {
+      "title": "直接借记待收发票",
+      "subtitle": "选择通过直接借记收款的发票。仅列出具有有效授权的发票。",
+      "emptyState": "没有带授权的待收发票。请先创建一个授权。",
+      "selectedCount": "张发票已选",
+      "totalAmount": "合计：{amount} EUR",
+      "executionDate": "执行日期",
+      "executionDateHelp": "银行扣款日期（到期日 + 至少 5 个银行工作日）。",
+      "createBatch": "生成直接借记批次",
+      "noSelected": "未选发票",
+      "columns": {
+        "invoiceNumber": "发票号",
+        "customer": "客户",
+        "dueDate": "到期日",
+        "amount": "金额",
+        "mandate": "授权"
+      }
+    },
+    "batchesCard": {
+      "title": "最近直接借记批次",
+      "emptyState": "暂无批次。",
+      "downloadXml": "下载 XML",
+      "columns": {
+        "date": "日期",
+        "creditorId": "收款人 ID",
+        "type": "类型",
+        "count": "数量",
+        "total": "合计",
+        "status": "状态"
+      }
+    },
+    "toast": {
+      "mandateCreated": "授权已创建",
+      "mandateRevoked": "授权已撤销",
+      "batchCreated": "直接借记批次已创建（{count} 张发票，{amount} EUR）",
+      "error": "错误：{message}",
+      "createError": "创建授权失败",
+      "revokeError": "撤销授权失败",
+      "batchCreateError": "批次创建失败",
+      "selectCustomer": "请选择一位客户",
+      "invalidIban": "IBAN 必须以 2 个大写字母 + 2 位数字开头（如 DE89…）"
+    }
+  },
   "anlageSo": {
     "title": "Anlage SO（其他收入）",
     "subtitle": "其他收入 (§ 22 EStG) — 私人 Veräußerungsgeschäfte（加密货币 / 黄金 / 股票在 Spekulationsfrist 内）+ 经常性收入（私人养老金、抚养费）。Veräußerungsgewinne 免税额 600 EUR/年 (§ 23 Abs. 3 Satz 5 EStG)。",

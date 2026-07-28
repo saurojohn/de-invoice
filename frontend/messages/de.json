@@ -2674,6 +2674,92 @@
     "cardPaymentsTitle": "SEPA-Sammelzahlung",
     "cardPaymentsDesc": "Sammelt offene Eingangsrechnungen in einer pain.001-XML für den Bank-Upload."
   },
+  "directDebit": {
+    "title": "SEPA-Lastschriften (pain.008)",
+    "subtitle": "Ziehen Sie fällige Rechnungen per SEPA-Lastschrift ein. Erstellen Sie Mandate, wählen Sie offene Rechnungen und erzeugen Sie eine pain.008-XML-Datei für den Bank-Upload.",
+    "tabOutgoing": "Ausgehende Zahlungen (pain.001)",
+    "tabIncoming": "Eingehende Lastschriften (pain.008)",
+    "mandatesCard": {
+      "title": "SEPA-Lastschriftmandate",
+      "subtitle": "Lastschriftmandate werden von Ihren Kunden unterschrieben und berechtigen Sie, fällige Rechnungen per SEPA-Lastschrift einzuziehen. Pro Kunde können mehrere Mandate bestehen (z.B. für unterschiedliche Abo-Verträge).",
+      "addMandate": "Neues Mandat",
+      "emptyState": "Noch keine Mandate vorhanden. Erstellen Sie ein Mandat, um Lastschriften einzuziehen.",
+      "columns": {
+        "customer": "Kunde",
+        "reference": "Mandatsreferenz",
+        "type": "Typ",
+        "iban": "IBAN",
+        "status": "Status",
+        "actions": "Aktion"
+      },
+      "typeCore": "CORE (B2C)",
+      "typeB2B": "B2B (Geschäftskunde)",
+      "statusActive": "Aktiv",
+      "statusRevoked": "Widerrufen",
+      "revokeButton": "Widerrufen",
+      "revokeConfirm": "Mandat wirklich widerrufen? Diese Aktion kann nicht rückgängig gemacht werden.",
+      "revokeReason": "Grund des Widerrufs (optional)",
+      "form": {
+        "title": "Neues Mandat",
+        "customer": "Kunde",
+        "customerPlaceholder": "Kunde auswählen…",
+        "dateOfSignature": "Datum der Unterschrift",
+        "type": "Typ",
+        "typeCoreHelp": "CORE = B2C (Verbraucher, 8-Wochen-Widerrufsrecht)",
+        "typeB2BHelp": "B2B = Geschäftskunden (kein Widerrufsrecht)",
+        "iban": "IBAN",
+        "ibanHelp": "Deutsche IBAN: DE + 2 Prüfziffern + 18 Ziffern (z.B. DE89370400440532013000)",
+        "bic": "BIC (optional)",
+        "debitorName": "Kontoinhaber",
+        "description": "Beschreibung (optional)",
+        "descriptionPlaceholder": "z.B. Mitgliedsbeitrag 2026",
+        "submit": "Mandat erstellen",
+        "cancel": "Abbrechen"
+      }
+    },
+    "openInvoicesCard": {
+      "title": "Offene Rechnungen für Lastschrift",
+      "subtitle": "Wählen Sie die Rechnungen, die Sie per Lastschrift einziehen möchten. Nur Rechnungen mit aktivem Mandat sind gelistet.",
+      "emptyState": "Keine offenen Rechnungen mit Mandat. Erstellen Sie zuerst ein Mandat.",
+      "selectedCount": "Rechnungen ausgewählt",
+      "totalAmount": "Summe: {amount} EUR",
+      "executionDate": "Ausführungsdatum",
+      "executionDateHelp": "Datum, an dem die Bank die Lastschrift einziehen soll (Fälligkeit + mind. 5 Bankarbeitstage).",
+      "createBatch": "Lastschrift-Batch erzeugen",
+      "noSelected": "Keine Rechnungen ausgewählt",
+      "columns": {
+        "invoiceNumber": "Rechnungsnummer",
+        "customer": "Kunde",
+        "dueDate": "Fällig am",
+        "amount": "Betrag",
+        "mandate": "Mandat"
+      }
+    },
+    "batchesCard": {
+      "title": "Letzte Lastschrift-Batches",
+      "emptyState": "Noch keine Batches erzeugt.",
+      "downloadXml": "XML herunterladen",
+      "columns": {
+        "date": "Datum",
+        "creditorId": "Gläubiger-ID",
+        "type": "Typ",
+        "count": "Anzahl",
+        "total": "Summe",
+        "status": "Status"
+      }
+    },
+    "toast": {
+      "mandateCreated": "Mandat erstellt",
+      "mandateRevoked": "Mandat widerrufen",
+      "batchCreated": "Lastschrift-Batch erzeugt ({count} Rechnungen, {amount} EUR)",
+      "error": "Fehler: {message}",
+      "createError": "Mandat konnte nicht erstellt werden",
+      "revokeError": "Mandat konnte nicht widerrufen werden",
+      "batchCreateError": "Batch konnte nicht erzeugt werden",
+      "selectCustomer": "Bitte einen Kunden auswählen",
+      "invalidIban": "IBAN muss mit 2 Großbuchstaben + 2 Ziffern beginnen (z.B. DE89…)"
+    }
+  },
   "anlageSo": {
     "title": "Anlage SO (Sonstige Einkünfte)",
     "subtitle": "Sonstige Einkünfte (§ 22 EStG) — private Veräußerungsgeschäfte (Krypto / Gold / Aktien innerhalb der Spekulationsfrist) + wiederkehrende Bezüge (private Pensionen, Unterhaltsleistungen). Freigrenze 600 EUR/Jahr für Veräußerungsgewinne (§ 23 Abs. 3 Satz 5 EStG).",
