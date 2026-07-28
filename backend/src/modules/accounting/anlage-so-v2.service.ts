@@ -245,21 +245,21 @@ function parseCsvRow(
   const explicitType = (raw.type || '').trim().toLowerCase()
   const description = (raw.description || '').trim()
 
-  const acqDate = parseDeDate(raw.acquisitionDate || '')
+  const acqDate = parseDeDate(raw.acquisitiondate || '')
   if (!acqDate) {
-    warnings.push(`row ${rowIndex}: acquisitionDate ungültig (${raw.acquisitionDate})`)
+    warnings.push(`row ${rowIndex}: acquisitionDate ungültig (${raw.acquisitiondate})`)
   }
-  const saleDate = parseDeDate(raw.saleDate || '')
+  const saleDate = parseDeDate(raw.saledate || '')
   if (!saleDate) {
-    warnings.push(`row ${rowIndex}: saleDate ungültig (${raw.saleDate})`)
+    warnings.push(`row ${rowIndex}: saleDate ungültig (${raw.saledate})`)
   }
-  const acqCost = parseDeDecimal(raw.acquisitionCost || '')
+  const acqCost = parseDeDecimal(raw.acquisitioncost || '')
   if (acqCost === null) {
-    warnings.push(`row ${rowIndex}: acquisitionCost ungültig (${raw.acquisitionCost})`)
+    warnings.push(`row ${rowIndex}: acquisitionCost ungültig (${raw.acquisitioncost})`)
   }
-  const salePrice = parseDeDecimal(raw.salePrice || '')
+  const salePrice = parseDeDecimal(raw.saleprice || '')
   if (salePrice === null) {
-    warnings.push(`row ${rowIndex}: salePrice ungültig (${raw.salePrice})`)
+    warnings.push(`row ${rowIndex}: salePrice ungültig (${raw.saleprice})`)
   }
 
   const type: 'wertpapier' | 'sonstige' =

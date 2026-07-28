@@ -44,7 +44,13 @@ login
 USER_ID="8c6a9669-0069-4137-a842-a66fd1d178d6"
 COMPANY_ID="ad257ec3-d319-479b-b870-3fe76e8f3111"
 TS=$(date +%s)
-YEAR=$((2025 + (TS % 3)))  # 2025/2026/2027
+# Polish #10: fixed year. The original `YEAR=$((2025 + (TS % 3)))`
+# randomly picked 2025/2026/2027, but the test seed uses
+# `acquisitionDate=YEAR-1` for some rows (e.g. 2024-10-01
+# for YEAR-1=2024 would make YEAR=2025 the only valid choice
+# — other years would filter out the transaction at
+# `Number(t.saleDate.slice(0,4)) === year`).
+YEAR=2026
 PRIOR_YEAR=$((YEAR - 1))
 PREFIX="T113-$TS"
 
@@ -135,9 +141,9 @@ api_put "/api/v1/accounting/anlage-so/settings?companyId=$COMPANY_ID" \
       {
         \"type\": \"wertpapier\",
         \"description\": \"NVDA 8 shares\",
-        \"acquisitionDate\": \"$((YEAR-1))-10-01\",
+        \"acquisitionDate\": \"$((YEAR-1))-12-01\",
         \"acquisitionCost\": 3000,
-        \"saleDate\": \"$YEAR-11-15\",
+        \"saleDate\": \"$YEAR-10-15\",
         \"salePrice\": 2500
       }
     ],
@@ -167,9 +173,9 @@ api_put "/api/v1/accounting/anlage-so/settings?companyId=$COMPANY_ID" \
   "{
     \"year\": $YEAR,
     \"transactions\": [
-      { \"type\": \"wertpapier\", \"description\": \"G1\", \"acquisitionDate\": \"$((YEAR-1))-01-01\", \"acquisitionCost\": 1000, \"saleDate\": \"$YEAR-02-01\", \"salePrice\": 2000 },
-      { \"type\": \"wertpapier\", \"description\": \"G2\", \"acquisitionDate\": \"$((YEAR-1))-02-01\", \"acquisitionCost\": 500, \"saleDate\": \"$YEAR-03-01\", \"salePrice\": 1000 },
-      { \"type\": \"wertpapier\", \"description\": \"L1\", \"acquisitionDate\": \"$((YEAR-1))-04-01\", \"acquisitionCost\": 2000, \"saleDate\": \"$YEAR-05-01\", \"salePrice\": 500 }
+      { \"type\": \"wertpapier\", \"description\": \"G1\", \"acquisitionDate\": \"$((YEAR-1))-09-01\", \"acquisitionCost\": 1000, \"saleDate\": \"$YEAR-07-01\", \"salePrice\": 2000 },
+      { \"type\": \"wertpapier\", \"description\": \"G2\", \"acquisitionDate\": \"$((YEAR-1))-10-01\", \"acquisitionCost\": 500, \"saleDate\": \"$YEAR-08-01\", \"salePrice\": 1000 },
+      { \"type\": \"wertpapier\", \"description\": \"L1\", \"acquisitionDate\": \"$((YEAR-1))-11-01\", \"acquisitionCost\": 2000, \"saleDate\": \"$YEAR-09-01\", \"salePrice\": 500 }
     ],
     \"wiederkehrendeBezuege\": 0,
     \"werbungskosten\": 0
@@ -194,9 +200,9 @@ api_put "/api/v1/accounting/anlage-so/settings?companyId=$COMPANY_ID" \
   "{
     \"year\": $YEAR,
     \"transactions\": [
-      { \"type\": \"wertpapier\", \"description\": \"G1\", \"acquisitionDate\": \"$((YEAR-1))-01-01\", \"acquisitionCost\": 1000, \"saleDate\": \"$YEAR-02-01\", \"salePrice\": 2000 },
-      { \"type\": \"wertpapier\", \"description\": \"G2\", \"acquisitionDate\": \"$((YEAR-1))-02-01\", \"acquisitionCost\": 500, \"saleDate\": \"$YEAR-03-01\", \"salePrice\": 1500 },
-      { \"type\": \"wertpapier\", \"description\": \"L1\", \"acquisitionDate\": \"$((YEAR-1))-04-01\", \"acquisitionCost\": 2000, \"saleDate\": \"$YEAR-05-01\", \"salePrice\": 700 }
+      { \"type\": \"wertpapier\", \"description\": \"G1\", \"acquisitionDate\": \"$((YEAR-1))-08-01\", \"acquisitionCost\": 1000, \"saleDate\": \"$YEAR-06-01\", \"salePrice\": 2000 },
+      { \"type\": \"wertpapier\", \"description\": \"G2\", \"acquisitionDate\": \"$((YEAR-1))-09-01\", \"acquisitionCost\": 500, \"saleDate\": \"$YEAR-07-01\", \"salePrice\": 1500 },
+      { \"type\": \"wertpapier\", \"description\": \"L1\", \"acquisitionDate\": \"$((YEAR-1))-10-01\", \"acquisitionCost\": 2000, \"saleDate\": \"$YEAR-08-01\", \"salePrice\": 700 }
     ],
     \"wiederkehrendeBezuege\": 0,
     \"werbungskosten\": 0
