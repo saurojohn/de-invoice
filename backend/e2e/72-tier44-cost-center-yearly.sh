@@ -32,8 +32,31 @@ COMPANY_ID="ad257ec3-d319-479b-b870-3fe76e8f3111"
 # start, so 72 would see 0 customers. We now scope 65's
 # wipe to its own customers (Tier37-*), but the existing
 # customers can still be deleted by other test runs. Seed
-# a self-sufficient Tier44 customer if needed.
+# a self-sufficient Tier44 customer if needed. Also wipe
+# any residue VERTRIEB / MARKETING / WERKSTATT rows from
+# prior tests that would inflate the cost-center aggregation.
 docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+DELETE FROM "Payment" WHERE "invoiceId" IN (
+  SELECT id FROM "Invoice" WHERE "companyId" = '$COMPANY_ID'
+  AND "costCenter" IN ('VERTRIEB', 'MARKETING', 'WERKSTATT')
+  AND "issueDate" >= '2026-01-01' AND "issueDate" < '2027-01-01'
+);
+DELETE FROM "PaymentLink" WHERE "invoiceId" IN (
+  SELECT id FROM "Invoice" WHERE "companyId" = '$COMPANY_ID'
+  AND "costCenter" IN ('VERTRIEB', 'MARKETING', 'WERKSTATT')
+  AND "issueDate" >= '2026-01-01' AND "issueDate" < '2027-01-01'
+);
+DELETE FROM "InvoiceItem" WHERE "invoiceId" IN (
+  SELECT id FROM "Invoice" WHERE "companyId" = '$COMPANY_ID'
+  AND "costCenter" IN ('VERTRIEB', 'MARKETING', 'WERKSTATT')
+  AND "issueDate" >= '2026-01-01' AND "issueDate" < '2027-01-01'
+);
+DELETE FROM "Invoice" WHERE "companyId" = '$COMPANY_ID'
+  AND "costCenter" IN ('VERTRIEB', 'MARKETING', 'WERKSTATT')
+  AND "issueDate" >= '2026-01-01' AND "issueDate" < '2027-01-01';
+DELETE FROM "Expense" WHERE "companyId" = '$COMPANY_ID'
+  AND "costCenter" IN ('VERTRIEB', 'MARKETING', 'WERKSTATT')
+  AND "invoiceDate" >= '2026-01-01' AND "invoiceDate" < '2027-01-01';
 DELETE FROM "InvoiceItem" WHERE "invoiceId" IN (
   SELECT id FROM "Invoice" WHERE "companyId" = '$COMPANY_ID' AND "invoiceNumber" LIKE 'Tier44%'
 );

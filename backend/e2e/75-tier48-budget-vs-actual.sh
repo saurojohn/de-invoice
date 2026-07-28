@@ -34,13 +34,39 @@ cleanup_cashbook
 USER_ID="8c6a9669-0069-4137-a842-a66fd1d178d6"
 COMPANY_ID="ad257ec3-d319-479b-b870-3fe76e8f3111"
 
-# ───── 0. Wipe prior tier-48 fixtures ─────
+# ───── 0. Wipe prior tier-48 fixtures + residue from other tests ─────
+# Polish #10: also wipe residue VERTRIEB / MARKETING invoices
+# + expenses from prior test runs (72, 73, 74 etc.). The
+# budget-vs-actual report groups by costCenter, so any
+# pre-existing VERTRIEB row would inflate the assertion.
 docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
 DELETE FROM "InvoiceItem" WHERE "invoiceId" IN (
   SELECT id FROM "Invoice" WHERE "companyId" = '$COMPANY_ID' AND "invoiceNumber" LIKE 'Tier48%'
 );
 DELETE FROM "Invoice"     WHERE "companyId" = '$COMPANY_ID' AND "invoiceNumber" LIKE 'Tier48%';
 DELETE FROM "Expense"     WHERE "companyId" = '$COMPANY_ID' AND "invoiceNumber" LIKE 'Tier48%';
+-- Wipe residue cost-center rows from prior tier tests
+DELETE FROM "Payment" WHERE "invoiceId" IN (
+  SELECT id FROM "Invoice" WHERE "companyId" = '$COMPANY_ID'
+  AND "costCenter" IN ('VERTRIEB', 'MARKETING', 'WERKSTATT')
+  AND "issueDate" >= '2026-01-01' AND "issueDate" < '2027-01-01'
+);
+DELETE FROM "PaymentLink" WHERE "invoiceId" IN (
+  SELECT id FROM "Invoice" WHERE "companyId" = '$COMPANY_ID'
+  AND "costCenter" IN ('VERTRIEB', 'MARKETING', 'WERKSTATT')
+  AND "issueDate" >= '2026-01-01' AND "issueDate" < '2027-01-01'
+);
+DELETE FROM "InvoiceItem" WHERE "invoiceId" IN (
+  SELECT id FROM "Invoice" WHERE "companyId" = '$COMPANY_ID'
+  AND "costCenter" IN ('VERTRIEB', 'MARKETING', 'WERKSTATT')
+  AND "issueDate" >= '2026-01-01' AND "issueDate" < '2027-01-01'
+);
+DELETE FROM "Invoice" WHERE "companyId" = '$COMPANY_ID'
+  AND "costCenter" IN ('VERTRIEB', 'MARKETING', 'WERKSTATT')
+  AND "issueDate" >= '2026-01-01' AND "issueDate" < '2027-01-01';
+DELETE FROM "Expense" WHERE "companyId" = '$COMPANY_ID'
+  AND "costCenter" IN ('VERTRIEB', 'MARKETING', 'WERKSTATT')
+  AND "invoiceDate" >= '2026-01-01' AND "invoiceDate" < '2027-01-01';
 DELETE FROM "CostCenterBudget" WHERE "companyId" = '$COMPANY_ID';
 SQL
 
