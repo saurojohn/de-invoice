@@ -58,6 +58,12 @@ model Company {
   recurringRuns RecurringRun[]
   cashBookEntries CashBookEntry[]
   sepaBatches SepaBatch[]
+  // Tier 112: SEPA pain.008 (Lastschrift / direct
+  // debit) — mandates, batches, and the per-line
+  // collections within each batch.
+  sepaDirectDebitMandates   SepaDirectDebitMandate[]
+  sepaDirectDebitBatches    SepaDirectDebitBatch[]
+  sepaDirectDebitCollections SepaDirectDebitCollection[]
   cashBookDailyCloses CashBookDailyClose[]
   accounts    Account[]
   vouchers    Voucher[]
@@ -340,6 +346,12 @@ model Customer {
   // this customer — or invoice-level — for one specific
   // invoice; the latter is recorded on Invoice.mahnungspausen.)
   mahnungspausen Mahnungspause[]
+  // Tier 112: SEPA pain.008 mandates signed by this
+  // customer. One customer can sign multiple mandates
+  // (e.g. one per subscription, one per product line).
+  // Historical mandates that were revoked stay here for
+  // audit (the collection rows reference them).
+  sepaDirectDebitMandates SepaDirectDebitMandate[]
 
   @@index([companyId, name])
   @@index([companyId, vatId])
@@ -700,6 +712,24 @@ model Invoice {
   // attached to this invoice. Null when no Ratenplan was
   // set up — the invoice is paid in one lump.
   installmentPlan InstallmentPlan?
+  // Tier 112: when this Invoice was collected via a
+  // SEPA pain.008 direct-debit batch, this column
+  // points to the SepaDirectDebitBatch row. Null when
+  // the invoice is settled by a regular bank transfer
+  // (Überweisung) or cash. Mirrors the inverse of the
+  // SepaBatch.paidBySepaBatchId pattern on Expense
+  // (pain.001), but the relation is on the Invoice
+  // here because direct debits target the customer's
+  // account (and the customer owns the invoice), not
+  // the supplier.
+  collectedBySepaBatchId String?
+  collectedBySepaBatch   SepaDirectDebitBatch? @relation("InvoiceCollectedByBatch", fields: [collectedBySepaBatchId], references: [id])
+  // Tier 112: 1:1 back-relation to the (optional)
+  // SepaDirectDebitCollection row that targets this
+  // invoice. Mirrors the installmentPlan pattern —
+  // one Invoice can be collected by at most one direct-
+  // debit transaction (you can't double-collect).
+  sepaDirectDebitCollection SepaDirectDebitCollection? @relation("InvoiceDirectDebit")
 
   @@unique([companyId, invoiceNumber])
   @@index([companyId, issueDate])
@@ -2587,4 +2617,214 @@ model SepaBatch {
 
   @@index([companyId, executionDate])
   @@index([companyId, status])
+}
+
+// Tier 112: SEPA pain.008 (Lastschrift / Direct Debit)
+// Mandat (Lastschriftmandat). Per the SEPA Core Direct
+// Debit Scheme Rulebook (CORE) and the SEPA Business-to-
+// Business Direct Debit Scheme Rulebook (B2B), every
+// direct debit collection must reference a valid mandate
+// previously signed by the debtor (the customer). The
+// mandate carries:
+//   - Mandatsreferenz (mandate reference): unique
+//     alphanumeric ID assigned by the creditor
+//   - Datum der Unterschrift (date of signature): the
+//     day the customer signed the paper / online
+//     mandate form
+//   - Typ (type): 'CORE' (B2C, the default) or 'B2B'
+//     (business-to-business, no Widerruf protection)
+//   - IBAN + BIC + Kontoinhaber of the debtor account
+//     (validated at signature time; later changes
+//     require a new mandate per §5.5 of the Rulebook)
+//
+// A mandate can be revoked by either side. We mark it
+// `status='revoked'` instead of deleting so that the
+// audit trail of past collections is preserved. The
+// Bank can also signal "Lastschrift rückbelastet"
+// (R-Transaction / Rücklast) — that lives on the
+// SepaDirectDebitReturn table, not here.
+model SepaDirectDebitMandate {
+  id                String   @id @default(uuid())
+  companyId         String
+  company           Company  @relation(fields: [companyId], references: [id])
+  customerId        String
+  customer          Customer @relation(fields: [customerId], references: [id])
+
+  // Mandatsreferenz. Unique per company (the
+  // Bundesbank convention) but not per customer —
+  // a single customer could in theory sign multiple
+  // mandates for different purposes (e.g. one for
+  // membership fees, one for shop purchases). We
+  // generate this on create if not provided.
+  mandateReference  String
+  // Datum der Unterschrift. The ISO date the customer
+  // signed the mandate. Required by §5.2 of the
+  // Scheme Rulebook.
+  dateOfSignature   DateTime
+  // 'CORE' = SEPA Core Direct Debit (B2C, default,
+  //   8-week Widerrufsrecht for the debtor, 14-day
+  //   Vorabankündigung required) or 'B2B' =
+  //   SEPA B2B Direct Debit (business-to-business,
+  //   no Widerrufsrecht, 1-day Vorabankündigung).
+  //   The type determines the `<LclInstrm><Cd>` in
+  //   the pain.008 XML and the pre-notification
+  //   deadline logic.
+  type              String   @default("CORE")
+  // The debtor's account that's being debited.
+  iban              String
+  bic               String?
+  // The Kontoinhaber (account holder). We capture
+  // it because it may differ from Customer.name
+  // (e.g. third-party payer).
+  debitorName       String
+  // Optional description (e.g. "Mitgliedsbeitrag
+  // 2026" or "Strom-Abo DE123456789"). Free-form.
+  description       String?
+  // 'active' | 'revoked'. Default 'active'. A
+  // revoked mandate can no longer be used for new
+  // collections, but historical collections still
+  // reference it.
+  status            String   @default("active")
+  // Optional timestamp of when the mandate was
+  // revoked (NULL when still active).
+  revokedAt         DateTime?
+  // Optional reason for the revocation (free-form,
+  // e.g. "Kunde hat Vertrag gekündigt").
+  revokedReason     String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Back-relation to the direct-debit batches that
+  // used this mandate. A single mandate can power
+  // many collections (recurring subscriptions) or
+  // just one (single-shot ad-hoc).
+  collections       SepaDirectDebitCollection[]
+
+  @@unique([companyId, mandateReference])
+  @@index([companyId, customerId])
+  @@index([companyId, status])
+}
+
+// Tier 112: One row per DrctDbtTxInf in a pain.008
+// batch. Linking through a junction table (rather
+// than directly on the batch) lets us model the
+// many-to-one between Collection and Mandate (one
+// mandate can be used by many collections) AND the
+// one-to-many between Collection and Batch (one
+// batch has many collections). Each row also
+// records the Pre-Notification (Vorabankündigung)
+// tracking: when we sent the advance notice to
+// the customer, and the deadline (T-minus 14 for
+// CORE, T-minus 1 for B2B).
+model SepaDirectDebitCollection {
+  id                  String   @id @default(uuid())
+  companyId           String
+  company             Company  @relation(fields: [companyId], references: [id])
+  batchId             String
+  batch               SepaDirectDebitBatch @relation("BatchCollections", fields: [batchId], references: [id], onDelete: Cascade)
+  mandateId           String
+  mandate             SepaDirectDebitMandate @relation(fields: [mandateId], references: [id])
+  // The Invoice that's being collected. 1:1 — a
+  // single collection targets a single invoice.
+  // (For a customer that wants to pay multiple
+  // invoices in one debit, the user creates one
+  // collection per invoice and the pain.008 PmtInf
+  // groups them under one <PmtInf>.)
+  invoiceId           String   @unique
+  invoice             Invoice  @relation("InvoiceDirectDebit", fields: [invoiceId], references: [id])
+  // The amount to collect in EUR. May differ from
+  // Invoice.total if the user wants to split the
+  // invoice across multiple debits (rare; v1 just
+  // requires total == invoice.total).
+  amount              Decimal  @db.Decimal(14, 4)
+  // The pre-notification (Vorabankündigung) tracking:
+  // when we sent the advance notice + the deadline
+  // (T-minus 14 for CORE, T-minus 1 for B2B).
+  preNotificationSentAt DateTime?
+  preNotificationDeadline DateTime?
+  // 'pending' | 'pre_notified' | 'collected' | 'failed' | 'returned'
+  //   pending:       created, not yet due
+  //   pre_notified:  Vorabankündigung sent
+  //   collected:     bank confirmed the debit
+  //   failed:        could not collect (e.g. no mandate)
+  //   returned:      R-Transaction (Rücklastschrift)
+  // v1 sets this to 'pre_notified' on batch creation
+  // (we treat the batch generation as the moment of
+  // pre-notification — the user is expected to email
+  // the customer themselves; v2 wires up an actual
+  // email send).
+  status              String   @default("pre_notified")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([companyId, batchId])
+  @@index([companyId, mandateId])
+  @@index([status])
+}
+
+// Tier 112: SEPA pain.008 batch header (the Sammel-
+// Lastschrift). The XmlContent is the entire pain.008
+// document; one batch = one PmtInf = one debtor
+// (the company) debiting N customers. This is the
+// inverse of Tier 108 (pain.001) where one batch
+// debits one creditor (the company) crediting N
+// suppliers. The two are symmetric on the XML side
+// but opposite on the accounting side.
+model SepaDirectDebitBatch {
+  id                  String   @id @default(uuid())
+  companyId           String
+  company             Company  @relation(fields: [companyId], references: [id])
+  // The pain.008 XML content. UTF-8 inline.
+  xmlContent          String   @db.Text
+  // Aggregated for fast list rendering.
+  collectionCount     Int
+  totalAmount         Decimal  @db.Decimal(14, 4)
+  // The creditor (we, the company) is on the receiving
+  // side. We default to Company.bankInfo.iban etc.
+  // but allow per-batch override (e.g. a separate
+  // Gläubiger-ID per brand).
+  creditorIban        String
+  creditorBic         String?
+  creditorName        String
+  // The Gläubiger-Identifikationsnummer (creditor
+  // identifier) assigned by the Bundesbank to the
+  // company. Required for all SEPA Core / B2B
+  // direct debits — without it, the bank rejects
+  // the batch. Format: 18 chars (DE + 2 check
+  // digits + 8-char Geschäftsbereich + 5-char
+  // Register-Nr + 1 filler). Defaults to a
+  // company-level setting; can be overridden.
+  creditorIdentifier  String
+  // The planned collection date (SettlementDate for
+  // the creditor; EarliestSettlementDate for the
+  // debtor). The bank settles T+1 for B2C CORE,
+  // T+1 for B2B.
+  executionDate       DateTime
+  // 'CORE' | 'B2B' — affects the `<LclInstrm><Cd>`,
+  // the pre-notification deadline logic, and the
+  //   acceptance window. The whole batch has ONE
+  //   type (per §2.2 of the Rulebook, a PmtInf
+  //   can only carry transactions of a single
+  //   type).
+  type                String   @default("CORE")
+  // The user's optional note (e.g. "Monats-
+  // Beiträge" / "Monthly fees").
+  notes               String?
+  // Status: draft | generated | submitted | confirmed | failed
+  status              String   @default("generated")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  // Back-relations
+  collections         SepaDirectDebitCollection[] @relation("BatchCollections")
+  // The invoices that were collected by this batch.
+  // Symmetric to the ExpensePaidByBatch pattern on
+  // SepaBatch (pain.001), but for invoices (not
+  // expenses) since direct debits target the
+  // customer's invoice.
+  invoices            Invoice[] @relation("InvoiceCollectedByBatch")
+
+  @@index([companyId, executionDate])
+  @@index([companyId, status])
+  @@index([companyId, type])
 }
