@@ -30,6 +30,36 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# Polish #10: the test used to expect "already has 167+ customers
+# from earlier tests" — but the 65 cleanup wipes all customers
+# at the start of its run, so by the time 54 runs in a batch
+# there might be 0. Bulk-insert 120 test customers if the
+# current count is too low. Idempotent: re-running is safe.
+EXISTING=$(docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+  "SELECT COUNT(*) FROM \"Customer\" WHERE \"companyId\" = '$COMPANY_ID' AND \"name\" LIKE 'Tier20-%'")
+NEED=$((120 - EXISTING))
+if [[ $NEED -gt 0 ]]; then
+  note "Seeding $NEED Tier20-* test customers for the batch statement test"
+  docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+INSERT INTO "Customer" (id, "companyId", name, type, address, "contact", "paymentTerms", "createdAt", "updatedAt")
+SELECT gen_random_uuid()::text,
+       '$COMPANY_ID',
+       'Tier20-' || lpad(g::text, 4, '0'),
+       'business',
+       '{"street":"Teststr","postalCode":"50667","city":"Köln","country":"DE"}'::jsonb,
+       '{}'::jsonb,
+       30,
+       now(),
+       now()
+FROM generate_series(1, $NEED) AS g
+ON CONFLICT DO NOTHING;
+SQL
+fi
+# Re-count to verify
+EXISTING=$(docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+  "SELECT COUNT(*) FROM \"Customer\" WHERE \"companyId\" = '$COMPANY_ID' AND \"name\" LIKE 'Tier20-%'")
+pass "Tier20-* customers available: $EXISTING"
+
 # ── Test 1: happy path returns 200 + application/zip ──
 note "Fetching batch ZIP for June 2026..."
 HTTP=$(curl -s -o "$TMP_ZIP" -w "%{http_code}|%{content_type}" \
