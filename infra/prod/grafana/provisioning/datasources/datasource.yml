@@ -1,0 +1,21 @@
+# Auto-provisioned Grafana datasources (Tier 114).
+# Grafana reads this on first start; existing datasources
+# with the same name are kept (it doesn't overwrite).
+# To change, edit this file and restart grafana:
+#   docker compose -f monitoring.yml restart grafana
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    # The Prometheus container's DNS name on the deinvoicenet
+    # network. Grafana talks to it directly, not via 127.0.0.1.
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      timeInterval: "15s"
+      httpMethod: POST
+      manageAlerts: false

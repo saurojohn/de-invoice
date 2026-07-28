@@ -2,9 +2,9 @@
 # ─────────────────────────────────────────────────────────────────
 # de-invoice production stack — single-host Docker Compose
 #
-# Architecture (Tier 17):
+# Architecture (Tier 114 — Caddy replaces nginx):
 #
-#   Internet ──► nginx (80/443)
+#   Internet ──► caddy (80/443, auto-TLS via Let's Encrypt)
 #                    │
 #                    ├─► frontend:3000 (Next.js standalone)
 #                    └─► backend:3001  (NestJS + ts-node)
@@ -18,9 +18,11 @@
 # and the frontend can reach the backend by hostname.
 #
 # Volumes:
-#   - pgdata      Postgres data (persistent across restarts)
-#   - storage     /data/invoice-system (PDFs, attachments)
-#   - backups     pg_dump output + retention
+#   - pgdata        Postgres data (persistent across restarts)
+#   - storage       /data/invoice-system (PDFs, attachments)
+#   - backups       pg_dump output + retention
+#   - caddy_data    Caddy's cert + ACME account state
+#   - caddy_config  Caddy's runtime config (snippets, on-demand)
 #
 # Usage:
 #   cp .env.example .env  # then edit secrets
@@ -42,10 +44,11 @@
 #     the simplest deploy that meets
 #     GoBD §146 AO retention + RPO <24h.
 #
-# Why nginx in front instead of exposing
+# Why Caddy in front instead of exposing
 # frontend/backend directly:
-#   - SSL termination (one place to
-#     manage certs, not three)
+#   - Auto-TLS: Caddy does ACME + renewal
+#     itself. No certbot, no cron, no
+#     manual rotation.
 #   - Rate limiting per IP (defense
 #     against credential stuffing on
 #     /api/v1/auth/login)
@@ -53,15 +56,21 @@
 #     and .next/static
 #   - HSTS + secure cookie flags
 #
-# Why nginx is not in docker:
-#   - Cert renewal (certbot) is much
-#     simpler when nginx is on the
-#     host filesystem. Inside a
-#     container you'd need to mount
-#     /etc/letsencrypt and renew via
-#     sidecar container.
-#   - nginx is small (~10MB), doesn't
-#     need to scale with the app.
+# Why Caddy IS in docker (Tier 114, vs Tier 17's host-nginx):
+#   - Caddy stores certs + the ACME
+#     account in a data dir that maps
+#     cleanly to a named volume. No
+#     host /etc/letsencrypt to wrangle.
+#   - Caddy reads its config from a
+#     file; mounting the Caddyfile as
+#     a bind-mount makes it part of
+#     the deployable artifact (no
+#     drift between repo and what's
+#     running).
+#   - One `docker compose up -d` brings
+#     up the entire stack — proxy
+#     included. No host-side nginx
+#     install step.
 # ─────────────────────────────────────────────────────────────────
 
 networks:
@@ -78,8 +87,16 @@ volumes:
   backups:
     # pg_dump output. The backup container writes here.
     # The host can also mount this volume to copy backups offsite.
-  nginxconf:
-    # nginx config + certs (read-only mount in the nginx container)
+  caddy_data:
+    # Caddy's data dir — stores issued certs, ACME account
+    # state, and on-demand TLS state. Without this volume
+    # the certs would be lost on every `docker compose up`
+    # and Let's Encrypt would hit its rate limit fast.
+  caddy_config:
+    # Caddy's config dir — stores the active config.json
+    # (rewritten on every reload) and any admin-API snippets.
+    # Kept separate from caddy_data so you can wipe one
+    # without losing the other.
 
 services:
   # ─── Postgres ───────────────────────────────────────────────
@@ -292,3 +309,66 @@ services:
       HEALTHCHECK_PING_URL: ${HEALTHCHECK_PING_URL:-}
     volumes:
       - backups:/backups
+
+  # ─── Caddy (reverse proxy + auto-TLS) ──────────────────
+  # Tier 114: replaces the host-nginx pattern from
+  # Tier 17. Caddy auto-issues + auto-renews Let's
+  # Encrypt certs via the ACME HTTP-01 challenge.
+  #
+  # Why ports 80 + 443 on the host:
+  #   - 80 is needed for the HTTP-01 challenge. Caddy
+  #     binds a tiny listener that serves /.well-known/
+  #     acme-challenge/<token> for the LE validator.
+  #   - 443 is the production HTTPS port. Caddy serves
+  #     the app and redirects 80 → 443 by default.
+  #   - The Caddyfile (bind-mounted) defines the site
+  #     block + reverse-proxy rules.
+  #
+  # Volume plan:
+  #   - /data is the Caddy data dir (certs + ACME
+  #     account). Persisting this is critical — without
+  #     it every container restart re-issues a cert and
+  #     hits the LE rate limit within a day.
+  #   - /config is where Caddy writes its active
+  #     config.json. Useful for inspecting what Caddy
+  #     thinks the config is (after macro expansion).
+  caddy:
+    image: caddy:2-alpine
+    container_name: de-invoice-caddy
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+    networks: [deinvoicenet]
+    labels:
+      de-invoice.observability: "true"
+      de-invoice.service: "caddy"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      # Caddy reads the Caddyfile from the bind-mount
+      # above. No env vars needed for the basic config;
+      # the Caddyfile's `email` directive is where the
+      # LE-registration email lives.
+      CADDY_ADMIN: "0.0.0.0:2019"
+    # No healthcheck on the caddy container itself.
+    # Caddy's admin API at :2019 is for runtime config
+    # (reload, on-demand TLS); checking it from the
+    # compose level adds noise without value. The
+    # backend /api/v1/health behind Caddy is the
+    # real readiness signal.
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    # Run the caddy process in the foreground. The
+    # caddy:2-alpine image's default CMD already does
+    # this; left explicit for clarity.
+    command: ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", ""]

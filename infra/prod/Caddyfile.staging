@@ -1,0 +1,114 @@
+# ─────────────────────────────────────────────────────────────────
+# de-invoice — Caddy staging config (Tier 114)
+#
+# Same shape as Caddyfile, but points at Let's Encrypt's STAGING
+# ACME endpoint. The staging endpoint issues dummy certs that
+# browsers reject with a scary warning — this is intentional.
+# You use this to verify the Caddy config + the domain mapping
+# WITHOUT hitting Let's Encrypt's prod rate limit (5 certs / 7
+# days / registered domain).
+#
+# Usage on the staging VPS:
+#   caddy run --config /etc/caddy/Caddyfile.staging
+#
+# OR, if you're running Caddy in the docker-compose stack:
+#   docker compose -f docker-compose.yml -f docker-compose.staging.yml up -d
+#   # (docker-compose.staging.yml would override the Caddyfile
+#   #   bind-mount to Caddyfile.staging)
+#
+# When you're done testing:
+#   - Switch back to the regular Caddyfile
+#   - Delete the staging cert from Caddy's data dir
+#     (`docker volume rm deinvoicenet_caddy_data` for a clean
+#     slate — only if you want to clear the staging certs)
+# ─────────────────────────────────────────────────────────────────
+
+{
+    # STAGING ACME directory — issues untrusted test certs.
+    # DO NOT use in production.
+    email ops@shleder.de
+    acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
+    # Optional: on first start Caddy prints a warning that
+    # staging certs are untrusted. Acknowledge it so the
+    # container doesn't keep printing the warning.
+    on_demand_tls {
+        ask "I understand that staging certs are untrusted"
+    }
+}
+
+staging.rechnung.shleder.de {
+
+    @metrics path /metrics
+    @health path /api/v1/health
+    @health_deep path /api/v1/health/deep
+    reverse_proxy @metrics @health @health_deep backend:3001 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+
+    @api path /api/*
+    reverse_proxy @api backend:3001 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+        timeout 60s
+        flush_interval -1
+    }
+
+    @storage path /storage/*
+    reverse_proxy @storage backend:3001 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+    @uploads path /uploads/*
+    rewrite @uploads /api/v1/storage/files{path.1}
+    reverse_proxy @uploads backend:3001 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+
+    @auth path /api/v1/auth/*
+    route @auth {
+        rate_limit {remote_host} 10r/m
+        reverse_proxy backend:3001 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    @static path /_next/static/* /favicon.ico /robots.txt
+    header @static Cache-Control "public, max-age=31536000, immutable"
+
+    reverse_proxy frontend:3000 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+
+    header {
+        Strict-Transport-Security "max-age=300; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        X-XSS-Protection "1; mode=block"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Permissions-Policy "geolocation=(), microphone=(), camera=()"
+        -Server
+    }
+
+    encode zstd gzip
+
+    log {
+        output stdout
+        level INFO
+    }
+}

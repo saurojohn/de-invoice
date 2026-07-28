@@ -1,0 +1,170 @@
+# syntax=yaml/docker-compose-spec
+# ─────────────────────────────────────────────────────────────────
+# de-invoice monitoring stack (Tier 114, OPT-IN overlay)
+#
+# Adds Prometheus + Grafana + the canonical host/DB exporters
+# to the main prod stack. Use:
+#
+#   docker compose -f docker-compose.yml \
+#                  -f monitoring.yml \
+#                  up -d
+#
+# What this adds (over the base docker-compose.yml):
+#   - prometheus:9090       scrapes /metrics every 15s
+#   - grafana:3001          pre-provisioned dashboards
+#   - node_exporter:9100    host CPU / RAM / disk / network
+#   - postgres_exporter:9187
+#                           DB connections, query duration,
+#                           replication lag, locks
+#
+# How this differs from the older observability overlay
+# (docker-compose.observability.yml, Tier 18):
+#   - No Loki / Promtail (logs) — see observability.yml for that
+#   - Adds node_exporter + postgres_exporter (the Tier 114 ask)
+#   - Lean (~250MB RAM vs ~1.4GB) — fits a 4GB VPS comfortably
+#   - The Tier 18 observability overlay and this monitoring
+#     overlay can be combined: `-f docker-compose.yml -f
+#     monitoring.yml -f docker-compose.observability.yml`.
+#     Prometheus will scrape exporters from both, Grafana
+#     will see both Prometheus and Loki as datasources.
+#
+# All Grafana / Prometheus / exporter services are bound to
+# 127.0.0.1 on the host. Reach them via SSH tunnel:
+#   ssh -L 3001:localhost:3001 deploy@vps   # Grafana
+#   ssh -L 9090:localhost:9090 deploy@vps   # Prometheus
+# ─────────────────────────────────────────────────────────────────
+
+networks:
+  deinvoicenet:
+    # The overlay file extends the existing deinvoicenet
+    # network created by the main compose. If that
+    # network doesn't exist yet (e.g. you started with
+    # just this overlay), `docker compose` will create
+    # it lazily on first `up`.
+    name: deinvoicenet
+    external: true
+
+volumes:
+  prometheusdata:
+  grafanadata:
+
+services:
+  # ─── Prometheus ──────────────────────────────────────────
+  # Scrape interval 15s. The full scrape config lives in
+  # infra/prod/prometheus/prometheus.yml.
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: de-invoice-prometheus
+    restart: unless-stopped
+    networks: [deinvoicenet]
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+      - '--storage.tsdb.retention.time=30d'
+    volumes:
+      - ./prometheus:/etc/prometheus:ro
+      - prometheusdata:/prometheus
+    ports:
+      - "127.0.0.1:9090:9090"   # localhost only — SSH-tunnel to use
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:9090/-/ready || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # ─── Grafana ─────────────────────────────────────────────
+  # Auto-provisions:
+  #   - Prometheus as the default datasource
+  #   - Two pre-built dashboards (de-invoice-app, de-invoice-infra)
+  # Change the admin password in .env (GRAFANA_ADMIN_PASSWORD)
+  # BEFORE bringing this up for the first time.
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: de-invoice-grafana
+    restart: unless-stopped
+    networks: [deinvoicenet]
+    depends_on:
+      prometheus:
+        condition: service_started
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_USAGE_STATS_ENABLED: "false"
+      # Default home dashboard = the app one.
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/de-invoice-app.json
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafanadata:/var/lib/grafana
+    ports:
+      - "127.0.0.1:3001:3000"   # host:3001 (localhost only) → container:3000
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  # ─── node_exporter ───────────────────────────────────────
+  # Host-level CPU / RAM / disk / network. Listens on 9100
+  # inside the container; only Prometheus scrapes it.
+  # Doesn't need to be on the host network because the
+  # standard kernel + cgroup + filesystem metrics work
+  # fine from the bind-mount below.
+  node_exporter:
+    image: prom/node-exporter:v1.8.2
+    container_name: de-invoice-node-exporter
+    restart: unless-stopped
+    networks: [deinvoicenet]
+    command:
+      - '--path.rootfs=/host'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+      - '--collector.filesystem.fs-types-exclude=^(tmpfs|overlay|aufs|squashfs).*'
+    volumes:
+      - /:/host:ro,rslave
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+
+  # ─── postgres_exporter ───────────────────────────────────
+  # Surfaces pg_stat_activity, pg_stat_database, locks,
+  # replication lag, and a couple of dozen other DB
+  # metrics. Reads connection details from the environment
+  # (DATA_SOURCE_NAME) which the compose file builds from
+  # the same POSTGRES_* vars as the backend uses.
+  postgres_exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: de-invoice-postgres-exporter
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [deinvoicenet]
+    environment:
+      # DATA_SOURCE_NAME is the libpq URI; postgres_exporter
+      # parses it on startup. The user must have pg_read_all_stats
+      # (or be the superuser) — we use the app user which has
+      # enough privileges for the metrics we care about.
+      DATA_SOURCE_NAME: "postgresql://${POSTGRES_USER:-de_invoice}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-de_invoice}?sslmode=disable"
+      # Expose only the queries that work on PG 16.
+      PG_EXPORTER_AUTO_DISCOVER_DATABASES: "true"
+      PG_EXPORTER_EXCLUDE_DATABASES: "template0,template1"
+    deploy:
+      resources:
+        limits:
+          memory: 64M

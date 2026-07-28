@@ -18,7 +18,7 @@
 #   3. Installs + configures UFW firewall
 #      (only 22, 80, 443 open to the world;
 #      monitoring stack ports 9090/3001/9093
-#      bound to 127.0.0.1 — see Tier 18)
+#      bound to 127.0.0.1 — see Tier 18/114)
 #   4. Installs fail2ban (SSH brute-force
 #      protection; default 5-retry ban)
 #   5. Installs + configures unattended-upgrades
@@ -35,13 +35,22 @@
 #      add the public key to the deploy user's
 #      authorized_keys)
 #
+# Tier 114 change:
+#   - This script NO LONGER installs nginx or
+#     certbot. The Caddy container (started by
+#     docker-compose) handles TLS termination
+#     and ACME renewal. UFW still opens 80 + 443
+#     so Caddy can serve the HTTP-01 challenge.
+#
 # What this script does NOT do (must be done
 # by hand before the app can run):
 #   - DNS A record from domain → VPS IP
 #   - .env file with real POSTGRES_PASSWORD,
 #     JWT_SECRET, FINTS_PIN_ENC_KEY, etc.
-#   - Let's Encrypt cert (certbot runs once
-#     the DNS is in place)
+#   - Let's Encrypt cert: handled by Caddy
+#     automatically on first request, ONCE
+#     DNS is in place. No manual certbot run
+#     needed anymore (Tier 114 change).
 #
 # Idempotent: re-running on an already-hardened
 # host is safe (skips completed steps).
@@ -108,10 +117,13 @@ ufw default allow outgoing
 # SSH (operator access)
 ufw allow "$SSH_PORT/tcp" comment "SSH"
 # HTTP+HTTPS (the only public-facing services;
-# nginx terminates TLS and proxies to the
-# backend/frontend containers on the deinvoicenet)
-ufw allow 80/tcp comment "HTTP (certbot redirect)"
-ufw allow 443/tcp comment "HTTPS (nginx)"
+# Caddy terminates TLS and proxies to the
+# backend/frontend containers on the deinvoicenet.
+# Port 80 is needed for the Let's Encrypt
+# HTTP-01 challenge; Caddy redirects 80→443
+# automatically.)
+ufw allow 80/tcp comment "HTTP (ACME + redirect)"
+ufw allow 443/tcp comment "HTTPS (Caddy)"
 # Monitoring stack is bound to 127.0.0.1 by
 # the docker-compose overlay — UFW is not
 # relevant for those. The operator accesses
@@ -237,9 +249,10 @@ echo
 echo "2. POINT YOUR DOMAIN at this VPS (DNS A record)"
 echo "   Then verify: dig +short your-domain.com"
 echo
-echo "3. RUN certbot (after DNS resolves):"
-echo "   apt-get install -y certbot python3-certbot-nginx"
-echo "   certbot --nginx -d your-domain.com -d www.your-domain.com"
+echo "3. NO CERTBOT STEP NEEDED (Tier 114):"
+echo "   Caddy auto-issues a Let's Encrypt cert on the"
+echo "   first request to the domain. Just make sure"
+echo "   DNS is in place before bringing the stack up."
 echo
 echo "4. GENERATE PRODUCTION SECRETS and put in $INSTALL_DIR/infra/prod/.env:"
 echo "   openssl rand -hex 64   # JWT_SECRET"
@@ -253,6 +266,8 @@ echo "   docker compose up -d"
 echo
 echo "6. (Optional) RUN THE OBSERVABILITY OVERLAY:"
 echo "   docker compose -f docker-compose.yml -f docker-compose.observability.yml up -d"
+echo "   (or use the new monitoring.yml from Tier 114 for"
+echo "   the recommended Prometheus + Grafana + exporters stack)"
 echo
 echo "7. (Optional) ENABLE CLOUDFLARE real-IP restore:"
 echo "   See $INSTALL_DIR/infra/cloudflare/README.md"

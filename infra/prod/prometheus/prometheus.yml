@@ -1,0 +1,85 @@
+# Prometheus configuration for de-invoice (Tier 114).
+#
+# Self-contained scrape config for the `monitoring.yml`
+# overlay. Targets:
+#   - prometheus itself (sanity)
+#   - the de-invoice backend's /metrics endpoint
+#   - node_exporter (host CPU/RAM/disk/network)
+#   - postgres_exporter (DB connections, locks, query time)
+#
+# Scrape interval: 15s. Lower (e.g. 5s) gives smoother graphs
+# but 3x the disk usage. 15s is the sweet spot for a
+# single-tenant app.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  # 30 days of retention. Override at runtime with
+  # --storage.tsdb.retention.time if you need more.
+  retention.time: 30d
+
+scrape_configs:
+  # ─── Backend (NestJS /metrics) ────────────────────────
+  # The backend's own metrics. See the backend's
+  # /metrics endpoint for the actual metric names
+  # (http_requests_total, http_request_duration_seconds,
+  # nodejs_heap_size_used_bytes, ...).
+  - job_name: de-invoice
+    metrics_path: /metrics
+    scrape_interval: 15s
+    scrape_timeout: 10s
+    static_configs:
+      - targets:
+          - backend:3001
+        labels:
+          service: de-invoice-backend
+          tier: app
+
+  # ─── Prometheus itself ────────────────────────────────
+  - job_name: prometheus
+    static_configs:
+      - targets:
+          - localhost:9090
+
+  # ─── node_exporter (host metrics) ─────────────────────
+  - job_name: node
+    static_configs:
+      - targets:
+          - node_exporter:9100
+        labels:
+          service: host
+          tier: infra
+
+  # ─── postgres_exporter (DB metrics) ───────────────────
+  - job_name: postgres
+    static_configs:
+      - targets:
+          - postgres_exporter:9187
+        labels:
+          service: postgres
+          tier: data
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+# Alertmanager wiring.
+# The shipped alert rules need a running Alertmanager
+# to actually fire notifications. To enable:
+#   1. Bring up the observability overlay:
+#        docker compose -f monitoring.yml \
+#                       -f docker-compose.observability.yml up -d
+#   2. The Alertmanager service in observability.yml
+#      listens on alertmanager:9093. The block below
+#      points Prometheus at it.
+#   3. Configure receivers in .env (SLACK_WEBHOOK_URL,
+#      SMTP_*, OPS_EMAIL) and restart alertmanager.
+#
+# If you don't bring up the observability overlay, the
+# rules still get evaluated and show up in the Prometheus
+# UI as "Pending" / "Firing" — but no notifications fire.
+#
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093

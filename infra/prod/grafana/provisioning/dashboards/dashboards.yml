@@ -1,0 +1,18 @@
+# Auto-provisioned Grafana dashboard provider (Tier 114).
+# Tells Grafana to load any .json file under
+# /var/lib/grafana/dashboards/ (which is the bind-mount
+# in monitoring.yml → ./grafana/dashboards/).
+
+apiVersion: 1
+
+providers:
+  - name: de-invoice
+    orgId: 1
+    folder: de-invoice
+    type: file
+    disableDeletion: true
+    updateIntervalSeconds: 30
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

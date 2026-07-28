@@ -1,6 +1,23 @@
-# de-invoice — Production Deployment (Tier 17)
+# de-invoice — Production Deployment (Tier 114)
 
 Single-host Docker Compose deployment for SH Leder GmbH's invoice web app.
+
+> **What's new in Tier 114** — this tier replaces the host-installed
+> **nginx + certbot** stack with a **Caddy** container, ships a
+> complete Hetzner Cloud (and DigitalOcean) deploy runbook, an
+> upgraded backup script with encryption + rclone, a Prometheus
+> + Grafana monitoring overlay, and a security + DR-test checklist.
+> **New deployments use Caddy out of the box**; existing Tier 17
+> installs migrate via [`MIGRATION-nginx-to-caddy.md`](MIGRATION-nginx-to-caddy.md).
+>
+> **Quick links**:
+> - Deploy: [`HETZNER-DEPLOY.md`](HETZNER-DEPLOY.md) · [`DIGITALOCEAN-DEPLOY.md`](DIGITALOCEAN-DEPLOY.md)
+> - Runbook: [`RUNBOOK.md`](RUNBOOK.md)
+> - Security: [`SECURITY.md`](SECURITY.md)
+> - DR test: [`DR-TEST.md`](DR-TEST.md)
+> - nginx → Caddy: [`MIGRATION-nginx-to-caddy.md`](MIGRATION-nginx-to-caddy.md)
+> - Monitoring overlay: [`monitoring.yml`](monitoring.yml) · [Prometheus config](prometheus/) · [Grafana dashboards](grafana/)
+> - Legacy nginx config: [`nginx.conf`](nginx.conf) (kept for history; no longer used)
 
 ## Architecture
 
@@ -15,8 +32,8 @@ Single-host Docker Compose deployment for SH Leder GmbH's invoice web app.
                      │
                      ▼
               ┌─────────────┐
-              │   nginx     │   ← TLS termination (certbot)
-              │  (host)     │      rate limit on /api/v1/auth
+              │   Caddy     │   ← TLS termination (auto-LE, Tier 114)
+              │  (container)│      rate limit on /api/v1/auth
               └──────┬──────┘      security headers
                      │             CF real-IP restore (if CF enabled)
         ┌────────────┴────────────┐
@@ -41,22 +58,31 @@ Single-host Docker Compose deployment for SH Leder GmbH's invoice web app.
                         └─────────────┘
 ```
 
-Five long-running services:
+Six long-running services (was five before Tier 114):
 
-| Service    | Image                              | Port (host) | Restart policy   |
-|------------|------------------------------------|-------------|------------------|
-| postgres   | `postgres:16-alpine`               | —           | unless-stopped   |
-| backend    | `de-invoice-backend:latest` (local)| —           | unless-stopped   |
-| frontend   | `de-invoice-frontend:latest` (local)| —          | unless-stopped   |
-| backup     | `prodrigestivill/postgres-backup-local` | —     | unless-stopped   |
-| nginx      | host-installed                     | 80, 443     | host systemd     |
+| Service    | Image                              | Port (host)        | Restart policy   |
+|------------|------------------------------------|--------------------|------------------|
+| postgres   | `postgres:16-alpine`               | —                  | unless-stopped   |
+| backend    | `de-invoice-backend:latest` (local)| —                  | unless-stopped   |
+| frontend   | `de-invoice-frontend:latest` (local)| —                 | unless-stopped   |
+| backup     | `prodrigestivill/postgres-backup-local` | —            | unless-stopped   |
+| caddy      | `caddy:2-alpine`                   | 80, 443            | unless-stopped   |
+| ~~nginx~~  | _removed in Tier 114_              | _—_                | _—_              |
+
+The `monitoring.yml` overlay (opt-in) adds `prometheus` + `grafana`
++ `node_exporter` + `postgres_exporter` — all bound to 127.0.0.1
+on the host. Reach them via SSH tunnel.
 
 All app services share the `deinvoicenet` Docker bridge network so they can
-talk to each other by hostname (`postgres`, `backend`, `frontend`).
+talk to each other by hostname (`postgres`, `backend`, `frontend`,
+`caddy`).
 
-nginx is intentionally NOT in a container. Certbot renews Let's Encrypt
-certificates against a host-installed nginx on port 80, which is much simpler
-than the sidecar / volume-mount approach.
+**Why Caddy is in a container (Tier 114 change):**
+Caddy stores its issued certs + the ACME account in a data dir that maps
+cleanly to a named Docker volume. The Caddyfile is bind-mounted as a
+read-only config file — no host-side `apt install caddy`, no
+`/etc/caddy/Caddyfile` drift. `docker compose up -d` brings up the
+entire stack (proxy included) in one command.
 
 ## Prerequisites
 
@@ -70,12 +96,19 @@ than the sidecar / volume-mount approach.
 
 ## One-time setup
 
-### 1. Install nginx + certbot on the host
+> Tier 114 streamlined this from 5 manual steps to 1.
+> Follow [`HETZNER-DEPLOY.md`](HETZNER-DEPLOY.md) for the full
+> end-to-end walkthrough (Hetzner + DigitalOcean both work). The
+> short version is below.
 
-```bash
-sudo apt update
-sudo apt install -y nginx certbot python3-certbot-nginx
-```
+### 1. Nothing to install — Caddy ships in the compose stack
+
+Tier 17 required `apt install -y nginx certbot python3-certbot-nginx`
+on the host, plus a manual `certbot --nginx` dance, plus a re-apply
+of the nginx config because certbot adds lines you don't want.
+**Tier 114 drops all of that.** The `caddy` service in
+`infra/prod/docker-compose.yml` handles TLS + ACME + auto-renewal.
+UFW still needs 80 + 443 open (the `deploy-prep.sh` script does this).
 
 ### 2. Copy this infra directory to the host
 
@@ -95,6 +128,7 @@ cd /opt/de-invoice
 ```bash
 cd /opt/de-invoice/infra/prod
 cp .env.example .env
+chmod 600 .env
 $EDITOR .env
 ```
 
@@ -105,46 +139,26 @@ Generate strong secrets:
 openssl rand -base64 32
 
 # JWT secret (used for session tokens)
+openssl rand -hex 64
+
+# FinTS PIN encryption key (real-mode bank connections)
 openssl rand -hex 32
 ```
 
 Paste them into `.env`. Save and exit.
 
-### 4. Install the nginx config
+### 4. (No step 4 — no nginx config to install)
 
-```bash
-sudo cp infra/prod/nginx.conf /etc/nginx/sites-available/rechnung.shleder.de
-sudo ln -sf /etc/nginx/sites-available/rechnung.shleder.de /etc/nginx/sites-enabled/
-sudo nginx -t                  # check syntax
-```
+### 5. (No step 5 — Caddy auto-issues the LE cert on first request)
 
-### 5. Get a Let's Encrypt certificate
+The first time a request hits `https://rechnung.shleder.de`, Caddy
+runs the ACME HTTP-01 challenge on port 80, gets the cert from
+Let's Encrypt, installs it, and serves the page. Total time from
+first request to "site loads": usually <10s.
 
-certbot edits the nginx config in place; after it runs, re-apply our
-nginx.conf to make sure our rate-limit / proxy headers aren't lost:
-
-```bash
-# Staging first (avoids Let's Encrypt rate limits during testing)
-sudo certbot --nginx -d rechnung.shleder.de --staging
-
-# Verify nginx config is still good
-sudo nginx -t
-
-# If staging worked, do the real thing
-sudo certbot --nginx -d rechnung.shleder.de
-
-# Re-apply our full nginx.conf (certbot adds some lines we don't want)
-sudo cp infra/prod/nginx.conf /etc/nginx/sites-available/rechnung.shleder.de
-sudo nginx -t && sudo systemctl reload nginx
-```
-
-Certbot installs a systemd timer that renews the cert every 60 days.
-Verify it's active:
-
-```bash
-sudo systemctl status certbot.timer
-sudo certbot renew --dry-run
-```
+If you want to test against Let's Encrypt's STAGING endpoint
+(issues untrusted test certs) first, see
+[`Caddyfile.staging`](Caddyfile.staging).
 
 ### 6. Build and start the stack
 
@@ -359,42 +373,58 @@ RTO: ~1h (from "VPS alive" to "stack serving traffic").
 
 - Docker healthchecks on every service (compose restarts failed containers).
 - Backend `/api/v1/health` returns 200 if Nest is up, 503 if any critical dependency is down.
+- Caddy logs every request to stdout (visible in `docker compose logs caddy`).
 
-### Recommended add-ons (not included)
+### Recommended add-ons
 
-- **Uptime monitoring**: Healthchecks.io or UptimeRobot pinging
-  `/api/v1/health` every 5 minutes.
+- **External uptime monitoring**: Healthchecks.io or UptimeRobot pinging
+  `/api/v1/health` every 5 minutes. See [`RUNBOOK.md` §1](RUNBOOK.md#1-health-checks).
+- **Prometheus + Grafana**: enable the
+  [`monitoring.yml`](monitoring.yml) overlay (Tier 114 recommended) or the
+  older [`docker-compose.observability.yml`](docker-compose.observability.yml)
+  (Tier 18 — adds Loki + Promtail on top). Both ship pre-built dashboards.
 - **Backup monitoring**: the backup container pings Healthchecks.io
-  after each successful run (set `HEALTHCHECK_URL` in .env).
-- **Log aggregation**: promtail → Loki or vector → ELK. Out of scope
-  for Tier 17; the `infra/prometheus/scrape.yml` already has scrape
-  configs if you want to add a metrics endpoint to the backend later.
-- **Disk usage alerts**: `df -h /var/lib/docker/volumes/` and alert at 80%.
+  after each successful run (set `HEALTHCHECK_URL` in .env). For richer
+  alerting, use the upgraded `scripts/backup-prod.sh` (Tier 114) which
+  also posts to a Slack/Discord webhook.
+- **Disk usage alerts**: the `DeInvoiceDiskSpaceLow` alert in
+  `prometheus/alerts.yml` fires at 85% full. The monitoring overlay
+  needs to be enabled for the alert to actually deliver.
+
+The full security checklist lives in [`SECURITY.md`](SECURITY.md).
 
 ## Security
 
-- All traffic is HTTPS; HTTP redirects to HTTPS.
-- `Strict-Transport-Security` is set to 6 months. Once you've confirmed
-  HTTPS works reliably, raise it to 1 year and add `preload` to submit
-  to the browser preload list.
-- `/api/v1/auth/login` is rate-limited to 10 req/min per IP at the
-  nginx level (defense in depth — the backend also has `@Throttle(5, 60)`).
-- All containers run as root inside the container, but Docker isolation
-  (separate PID/net/mount namespaces) is the security boundary —
-  not "non-root inside the container". See `backend/Dockerfile` for
-  the long-form reasoning.
-- Webhook payloads are HMAC-SHA256 signed. The signing secret is
-  shown once at webhook creation time; the backend stores only the hash.
-- VIES rate limiting prevents accidentally hammering the EU's free API.
+> Full checklist in [`SECURITY.md`](SECURITY.md). Summary:
+>
+> - All traffic is HTTPS; HTTP redirects to HTTPS.
+> - `Strict-Transport-Security` is set to **1 year** + `includeSubDomains`
+>   + `preload` (Caddyfile). After a month of reliable HTTPS, submit to
+>   https://hstspreload.org/.
+> - `/api/v1/auth/*` is rate-limited to 10 req/min per IP at the
+>   Caddy level (defense in depth — the backend also has `@Throttle(5, 60)`).
+> - All containers run as root inside the container, but Docker isolation
+>   (separate PID/net/mount namespaces) is the security boundary —
+>   not "non-root inside the container". See `backend/Dockerfile` for
+>   the long-form reasoning.
+> - Webhook payloads are HMAC-SHA256 signed. The signing secret is
+>   shown once at webhook creation time; the backend stores only the hash.
+> - VIES rate limiting prevents accidentally hammering the EU's free API.
 
 ### Secrets rotation
 
-- `JWT_SECRET` — rotate via `openssl rand -hex 32`, update `.env`,
-  `docker compose up -d backend`. All users get logged out (cookies invalidated).
-- `POSTGRES_PASSWORD` — rotate manually: `ALTER USER de_invoice
-  PASSWORD 'new'` in psql, then update `.env` and `docker compose up -d
-  backend`. No data loss.
-- Let's Encrypt — auto-renews every 60 days via certbot systemd timer.
+> Full procedures in [`RUNBOOK.md` §3](RUNBOOK.md#3-common-operations).
+> TL;DR:
+>
+> - `JWT_SECRET` — rotate via `openssl rand -hex 64`, update `.env`,
+>   `docker compose up -d backend`. All users get logged out (cookies invalidated).
+> - `POSTGRES_PASSWORD` — rotate manually: `ALTER USER de_invoice
+>   PASSWORD 'new'` in psql, then update `.env` and `docker compose up -d
+>   backend`. No data loss.
+> - `FINTS_PIN_ENC_KEY` — DO NOT rotate. Losing it means every bank
+>   connection must be re-created (real-mode FinTS only).
+> - Let's Encrypt — auto-renews ~30 days before expiry via Caddy.
+>   No action needed. Verify with `curl -vI https://rechnung.shleder.de | grep expire`.
 
 ## What's NOT in this tier
 
@@ -403,6 +433,13 @@ RTO: ~1h (from "VPS alive" to "stack serving traffic").
 - **Auto-scaling**. Not needed at this scale.
 - **Blue-green deploys**. The 30s downtime on backend restart is
   acceptable for one user.
+- **Log aggregation** (Loki / ELK / Datadog). The
+  `docker-compose.observability.yml` overlay (Tier 18) adds
+  Loki + Promtail; enable it if you need it. Tier 114's
+  `monitoring.yml` is metrics-only.
+- **WAF** (Web Application Firewall). Cloudflare's free tier +
+  Caddy's rate limit cover the common cases. If you ever get
+  targeted traffic, add a WAF.
 
 ## Cloudflare mode (optional, Tier 19)
 
@@ -411,15 +448,14 @@ origin IP stays hidden, you get free DDoS protection + bot
 filtering), see `infra/cloudflare/README.md` for the full setup.
 
 **TL;DR**: enable the orange-cloud toggle in CF DNS, set SSL mode
-to **Full (Strict)**, then enable the
-`/etc/nginx/cloudflare/cloudflare-real-ip.conf` include in this
-file's `http {}` block (uncomment the line near the top — it's
-commented out by default since dev deployments don't need it).
+to **Full (Strict)**, then uncomment the `trusted_proxies` +
+`client_ip_headers` block at the bottom of [`Caddyfile`](Caddyfile)
+(it's commented out by default since dev deployments don't need it).
 
 The CF real-IP restore means:
-- `$remote_addr` = visitor's real IP (not CF edge IP) in nginx
-- rate-limit zone (10 req/min on auth) works correctly
-- access log records visitor IPs
+- `{remote_host}` in Caddy = visitor's real IP (not CF edge IP)
+- Caddy's `rate_limit` on `/api/v1/auth` works correctly
+- Caddy access log records visitor IPs
 - backend `req.ip` (via `trust proxy: 'loopback'`) = visitor IP
 
 Without this, every CF-fronted visitor shares one CF edge IP
@@ -543,3 +579,14 @@ Retention: 30 days (same as pg_dump backups).
 - Tier 17: Production stack with nginx, postgres, backup.
 - Tier 18: Observability overlay (Prometheus + Grafana + Loki + Promtail + cAdvisor).
 - Tier 19: Cloudflare real-IP restore + auto-refresh + backend trust-proxy hardening.
+- Tier 24: `deploy-prep.sh` host-hardening script + rollback + smoke-test scripts.
+- **Tier 114**: nginx → **Caddy** migration (auto-TLS, in-container). New
+  deploy runbooks ([`HETZNER-DEPLOY.md`](HETZNER-DEPLOY.md),
+  [`DIGITALOCEAN-DEPLOY.md`](DIGITALOCEAN-DEPLOY.md),
+  [`MIGRATION-nginx-to-caddy.md`](MIGRATION-nginx-to-caddy.md)).
+  Upgraded `scripts/backup-prod.sh` with rclone + gpg + webhook +
+  restore-test. New [`monitoring.yml`](monitoring.yml) overlay
+  (Prometheus + Grafana + node_exporter + postgres_exporter).
+  [`RUNBOOK.md`](RUNBOOK.md) for day-to-day ops.
+  [`SECURITY.md`](SECURITY.md) checklist. [`DR-TEST.md`](DR-TEST.md)
+  quarterly DR plan.

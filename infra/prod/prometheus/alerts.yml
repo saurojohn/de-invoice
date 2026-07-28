@@ -1,0 +1,176 @@
+# Prometheus alert rules for de-invoice (Tier 114).
+#
+# Severity levels:
+#   critical  → page on-call, repeat every hour until resolved
+#   warning   → Slack once a day, doesn't page
+#
+# Most alerts have a `for:` clause so brief blips don't fire.
+# Tune by editing the file and running:
+#   docker compose -f monitoring.yml restart prometheus
+#
+# Routing of these alerts to Slack/email is done in the
+# Alertmanager config in
+# infra/observability/alertmanager/alertmanager.yml
+# (Tier 23). The shipped `monitoring.yml` overlay does
+# NOT include Alertmanager — it's in the older
+# docker-compose.observability.yml.
+
+groups:
+  # ─── App-level (backend) ──────────────────────────────
+  - name: de-invoice-app
+    rules:
+      - alert: DeInvoiceDown
+        expr: up{job="de-invoice"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "de-invoice backend is down"
+          description: "The NestJS /metrics endpoint has been unreachable for 2 minutes. The app is not serving requests. Check 'docker compose logs backend'."
+
+      - alert: DeInvoiceHighMemory
+        expr: process_resident_memory_bytes{job="de-invoice"} > 900 * 1024 * 1024
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "de-invoice backend RSS > 900 MB"
+          description: "Backend has been using > 900 MB of RSS for 5 minutes. This is the warning threshold before the 1 GB container limit is hit. Consider restarting or scaling."
+
+      - alert: DeInvoiceErrorRateHigh
+        expr: |
+          sum(rate(http_requests_total{job="de-invoice", status=~"5.."}[5m]))
+            /
+          sum(rate(http_requests_total{job="de-invoice"}[5m]))
+            > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "de-invoice 5xx rate > 5%"
+          description: "More than 5% of backend responses have been 5xx for the last 5 minutes. Check the backend logs."
+
+      - alert: DeInvoiceSlowResponses
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le, route) (rate(http_request_duration_seconds_bucket{job="de-invoice"}[5m]))
+          ) > 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "de-invoice p95 latency > 1s"
+          description: "The p95 response time for the {{ $labels.route }} route has been > 1s for 10 minutes. The /api/v1/accounting/journal/pdf route is excluded — it's expected to be slow."
+
+  # ─── Database ─────────────────────────────────────────
+  - name: de-invoice-db
+    rules:
+      - alert: DeInvoiceDbDown
+        expr: pg_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "de-invoice Postgres is down"
+          description: "postgres_exporter cannot reach the database. Either the postgres container is down or the connection details changed."
+
+      - alert: DeInvoiceDbConnectionsHigh
+        expr: |
+          sum(pg_stat_activity_count{state="active"}) > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "de-invoice active DB connections > 80"
+          description: "Postgres has more than 80 active connections. The default max is 100. If this keeps climbing, you have a connection leak — check the backend's Prisma pool config."
+
+      - alert: DeInvoiceDbLocksHigh
+        expr: pg_locks_count > 50
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "de-invoice DB has > 50 active locks"
+          description: "Postgres has more than 50 locks held. Usually a sign of a long-running transaction or a deadlock waiting to happen."
+
+  # ─── Storage / disk ───────────────────────────────────
+  - name: de-invoice-storage
+    rules:
+      - alert: DeInvoiceStorageNotWritable
+        # Synthetic — we don't currently expose this from
+        # the backend, but the rule is in place for when
+        # we do. Fires when the backend's /health/deep
+        # returns non-200 for 5 min.
+        expr: probe_success{job="de-invoice-storage"} == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "de-invoice storage volume not writable"
+          description: "The backend cannot write to /data/invoice-system. New PDFs + receipts will fail to save. Check the storage volume and the backend's logs."
+
+      - alert: DeInvoiceDiskSpaceLow
+        expr: |
+          100 - (
+            (node_filesystem_avail_bytes{mountpoint="/",job="node"} * 100)
+            / node_filesystem_size_bytes{mountpoint="/",job="node"}
+          ) > 85
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "de-invoice disk > 85% full"
+          description: "The root filesystem is > 85% full. Either prune old Docker images, increase the VPS volume, or move backups off-site."
+
+  # ─── Backups ──────────────────────────────────────────
+  - name: de-invoice-backups
+    rules:
+      - alert: DeInvoiceBackupStale
+        # This alert is intended to be wired to a
+        # pg_dump-success metric from the backup script.
+        # The script doesn't currently expose one to
+        # Prometheus (it pings Healthchecks.io instead),
+        # so the rule is a placeholder. To enable, add
+        # a tiny textfile-collector sidecar that the
+        # backup script writes to (see Tier 114 backlog).
+        expr: time() - de_invoice_last_backup_success_seconds > 36 * 3600
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "de-invoice backup is stale (>36h)"
+          description: "No successful backup has been recorded in over 36 hours. Check the backup cron and the off-site upload target."
+
+  # ─── TLS ──────────────────────────────────────────────
+  - name: de-invoice-tls
+    rules:
+      - alert: DeInvoiceCertExpiringSoon
+        # Synthesised from the Caddyfile's cert info.
+        # Caddy doesn't natively expose cert expiry to
+        # Prometheus; the recommended workaround is
+        # `blackbox_exporter` probing
+        # https://rechnung.shleder.de and checking the
+        # cert chain. We don't ship blackbox_exporter in
+        # this overlay; the rule is a placeholder.
+        expr: probe_ssl_earliest_cert_expiry{job="blackbox-tls"} - time() < 14 * 86400
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "de-invoice TLS cert expires in <14 days"
+          description: "The Let's Encrypt cert for rechnung.shleder.de expires soon. Caddy auto-renews at <30 days left; if this is firing, renewal is failing. Check Caddy's logs."
+
+  # ─── Heartbeat ────────────────────────────────────────
+  - name: de-invoice-heartbeat
+    rules:
+      - alert: DeInvoiceDeadMansSwitch
+        # Fires every 6 hours as a heartbeat. If you
+        # STOP receiving this alert, the entire
+        # alerting chain is broken — check Prometheus
+        # `/-/ready` and Alertmanager `/-/healthy`.
+        expr: vector(1)
+        labels:
+          severity: none
+        annotations:
+          summary: "de-invoice monitoring heartbeat"
+          description: "This alert fires every 6 hours. Its presence in Alertmanager means the chain is working."

@@ -1,0 +1,191 @@
+# ─────────────────────────────────────────────────────────────────
+# de-invoice — Caddy reverse-proxy config (Tier 114)
+#
+# Caddy auto-issues + auto-renews Let's Encrypt certs via the ACME
+# HTTP-01 challenge. No certbot, no cron, no manual renewal. Caddy
+# reads this file on the fly, so a `caddy reload` (or a container
+# restart) is all that's needed to pick up config changes.
+#
+# This file is mounted into the `caddy` service in
+# `docker-compose.yml` (see the `caddy` service definition). The
+# caddy container needs ports 80 + 443 on the host so the HTTP-01
+# challenge works.
+#
+# Reverse proxy targets (backend:3001, frontend:3000) resolve via
+# the `deinvoicenet` Docker network that all the prod services
+# share.
+#
+# Why Caddy instead of nginx (Tier 17):
+#   - Auto-TLS: no certbot, no systemd timer, no cron. Caddy
+#     does the ACME dance itself and renews at <30 days left.
+#   - Shorter config: this whole file replaces ~280 lines of
+#     nginx.conf with equivalent semantics.
+#   - Cloudflare real-IP restore is also simpler — Caddy has
+#     `trusted_proxies` + `client_ip_headers` for the
+#     CF-Connecting-IP header.
+# ─────────────────────────────────────────────────────────────────
+
+# ─── Production site ───────────────────────────────────────
+# Replace the email with an address you actually monitor — Let's
+# Encrypt sends expiry warnings here.
+{
+    email ops@shleder.de
+    # ACME directory: default (production Let's Encrypt).
+    # For staging, see Caddyfile.staging.
+    acme_ca https://acme-v02.api.letsencrypt.org/directory
+}
+
+rechnung.shleder.de, www.rechnung.shleder.de {
+
+    # ── Observability endpoints ───────────────────────────
+    # Mirrors the /metrics, /api/v1/health, /api/v1/health/deep
+    # blocks that were in nginx.conf. Caddy matches on the full
+    # path; `@metrics`, `@health`, `@health_deep` are named
+    # matchers reused below.
+    @metrics path /metrics
+    @health path /api/v1/health
+    @health_deep path /api/v1/health/deep
+
+    # All three proxy straight to the backend with no access log
+    # — they're polled every 15s by Prometheus; logging them
+    # would drown out the real traffic.
+    reverse_proxy @metrics @health @health_deep backend:3001 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+
+    # ── API ──────────────────────────────────────────────
+    # Everything under /api/ goes to the NestJS backend.
+    # Long timeouts for the journal PDF endpoint
+    # (/api/v1/accounting/journal/pdf can take 5-10s for a full
+    # year of vouchers) and no buffering for streaming
+    # responses.
+    @api path /api/*
+    reverse_proxy @api backend:3001 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+        # Long timeout for /api/v1/accounting/journal/pdf
+        timeout 60s
+        # Stream responses (PDFs, large exports) without
+        # buffering the whole body in Caddy's memory.
+        flush_interval -1
+    }
+
+    # ── /storage/* + /uploads/* ──────────────────────────
+    # The backend serves these from /api/v1/storage/files/* but
+    # we expose them under cleaner /storage/* and /uploads/*
+    # URLs (matches the old nginx.conf behaviour). Caddy strips
+    # the /storage prefix and forwards to the backend with the
+    # remainder as the path.
+    @storage path /storage/*
+    reverse_proxy @storage backend:3001 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+    # Caddy doesn't have a one-line equivalent of nginx's
+    # `proxy_pass http://de_invoice_backend/api/v1/storage/files/`
+    # (which strips /storage AND appends the backend path). For
+    # parity, rewrite /uploads/ → /api/v1/storage/files/.
+    @uploads path /uploads/*
+    rewrite @uploads /api/v1/storage/files{path.1}
+    reverse_proxy @uploads backend:3001 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+
+    # ── Rate limit /api/v1/auth/* ───────────────────────
+    # 10 requests/minute per source IP. Defense in depth — the
+    # backend's own @Throttle(5, 60) catches anything that
+    # sneaks through. Caddy's `rate_limit` is per-handler, not
+    # per-zone like nginx, so we declare it inside the
+    # `route` below (otherwise the matcher wouldn't scope it).
+    @auth path /api/v1/auth/*
+    route @auth {
+        rate_limit {remote_host} 10r/m
+        reverse_proxy backend:3001 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    # ── Frontend (Next.js) ──────────────────────────────
+    # Everything else → the Next.js standalone server. Static
+    # assets get a long cache header (they're content-hashed
+    # so safe to cache for a year).
+    @static path /_next/static/* /favicon.ico /robots.txt
+    header @static Cache-Control "public, max-age=31536000, immutable"
+
+    reverse_proxy frontend:3000 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+
+    # ── Security headers ─────────────────────────────────
+    # Applied to every response.
+    header {
+        # HSTS — 1 year, include subdomains, preload.
+        # Once you're confident HTTPS is working reliably,
+        # submit https://hstspreload.org/ to get your domain
+        # into the browser preload list.
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        # Prevent MIME sniffing.
+        X-Content-Type-Options "nosniff"
+        # Clickjacking protection.
+        X-Frame-Options "SAMEORIGIN"
+        # XSS filter (legacy but harmless for old browsers).
+        X-XSS-Protection "1; mode=block"
+        # Referrer policy.
+        Referrer-Policy "strict-origin-when-cross-origin"
+        # Disable features we don't use.
+        Permissions-Policy "geolocation=(), microphone=(), camera=()"
+        # Remove the Server header (Caddy adds it by default;
+        # we don't want to advertise the version).
+        -Server
+    }
+
+    # ── Compression ──────────────────────────────────────
+    # zstd first (faster, newer), gzip fallback for older
+    # clients. Caddy's `encode` directive applies both.
+    encode zstd gzip
+
+    # ── Access log ───────────────────────────────────────
+    # Default Caddy log is JSON-ish to stdout. If you want a
+    # plain-text log file, mount a volume on /var/log/caddy
+    # and add `log { output file /var/log/caddy/access.log }`.
+    # For now we let docker logs capture everything.
+    log {
+        output stdout
+        level INFO
+    }
+}
+
+# ─── Optional: Cloudflare real-IP restore ─────────────────
+# If you're running behind Cloudflare (orange-cloud DNS), every
+# connection comes from a CF edge IP and {remote_host} above is
+# the CF edge IP, not the visitor. Caddy has built-in support:
+# uncomment the block below to restore the real visitor IP via
+# the CF-Connecting-IP header (set by CF, not spoofable).
+#
+#   1. Get the current CF IP ranges:
+#        curl -s https://www.cloudflare.com/ips-v4 > /etc/caddy/cf-ips-v4.txt
+#        curl -s https://www.cloudflare.com/ips-v6 > /etc/caddy/cf-ips-v6.txt
+#   2. Restart caddy.
+#
+# Without this, the rate-limit zone on /api/v1/auth will bucket
+# every CF-fronted visitor into the same edge IP — making the
+# limit meaningless.
+#
+# trusted_proxies static <cf-range-1> <cf-range-2> ...
+# client_ip_headers CF-Connecting-IP
