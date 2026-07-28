@@ -57,6 +57,12 @@ import { AnlageKindService } from './anlage-kind.service'
 // auto-include when transactions.length > 0
 // OR wiederkehrendeBezuege > 0.
 import { AnlageSOService } from './anlage-so.service'
+// Tier 113 v2: Anlage SO v2 — same shape as v1 plus
+// the loss-verrechnung block (§ 23 Abs. 3 Satz 3-5
+// EStG) and the Kz 99 (Verlustvortrag) line. The
+// Berater packager now uses the v2 renderer (which
+// includes both the v1 math and the new block).
+import { AnlageSOV2Service } from './anlage-so-v2.service'
 // Tier 110: Anlage AUS (Ausländische Einkünfte,
 // § 34d EStG) — 9th Anlage form. The
 // international dimension. Freistellung vs
@@ -185,6 +191,14 @@ export class BeraterPackagerService {
     private anlageKind: AnlageKindService,
     // Tier 109: Anlage SO service.
     private anlageSo: AnlageSOService,
+    // Tier 113 v2: Anlage SO v2 service — loss-
+    // verrechnung + CSV/expense import. The v1
+    // service is kept for backward compat (the
+    // /anlage-so + /anlage-so.pdf endpoints still
+    // call v1). The Berater packager uses v2 to
+    // get the Kz 99 line + the loss-verrechnung
+    // summary block on the PDF.
+    private anlageSoV2: AnlageSOV2Service,
     // Tier 110: Anlage AUS service.
     private anlageAus: AnlageAUSService,
     private ustja: UstjaService,
@@ -582,9 +596,17 @@ export class BeraterPackagerService {
     // at slot 10, just before UStJA at 11).
     // Tier 109 also added the `anlageSo` opt-in
     // flag (Company.settings.anlageSo === true).
+    //
+    // Tier 113 v2: Anlage SO PDF now rendered by
+    // AnlageSOV2Service (same v1 layout + the new
+    // Verlustverrechnung block + the Kz 99 line).
+    // v1 service stays in place for the legacy
+    // /anlage-so.pdf endpoint. Filename in the
+    // packager is unchanged so existing Berater
+    // download scripts still find it.
     if (includeAnlageSo) {
       const anlageSoPdf = await this.renderToBuffer((sink) =>
-        this.anlageSo.renderPdf(companyId, year, sink),
+        this.anlageSoV2.renderPdf(companyId, year, sink),
       )
       optionalSlot++
       const soName = `${String(optionalSlot).padStart(2, '0')}_Anlage-SO.pdf`

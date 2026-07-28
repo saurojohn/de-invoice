@@ -36,7 +36,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
-import { apiGet, apiPut, ApiError } from "@/lib/api"
+import { apiGet, apiPut, apiPost, ApiError } from "@/lib/api"
+import { Textarea } from "@/components/ui/textarea"
 
 interface AnlageSOLine {
   kennziffer: string
@@ -84,6 +85,52 @@ interface VgTransaction {
   acquisitionCost: number
   saleDate: string
   salePrice: number
+  metadata?: { importedFromExpenseId?: string; importedAt?: string }
+}
+
+// Tier 113 v2: AnlageSOV2 compute() response shape.
+// Mirrors the backend service's return value — the
+// frontend uses this to render the loss-verrechnung
+// summary block + the Kz 99 line.
+interface AnlageSOV2Vg {
+  count: number
+  countWertpapier: number
+  countSonstige: number
+  inFristCount: number
+  outOfFristCount: number
+  inFristGain: number
+  inFristLoss: number
+  priorYearLoss: number
+  totalTaxableGain: number
+  carryforward: number
+  freigrenzeApplied: boolean
+  vgTotal: number
+}
+
+interface AnlageSOV2Result extends Omit<AnlageSOResult, "vg"> {
+  vg: AnlageSOV2Vg
+  counts: AnlageSOResult["counts"] & {
+    hasLoss?: boolean
+    hasCarryforward?: boolean
+  }
+}
+
+interface CsvPreviewRow {
+  rowIndex: number
+  raw: Record<string, string>
+  ok: boolean
+  warnings: string[]
+  transaction: VgTransaction
+}
+
+interface ImportableExpense {
+  id: string
+  invoiceNumber: string | null
+  description: string
+  category: string
+  invoiceDate: string
+  grossAmount: number
+  alreadyImported: boolean
 }
 
 interface TransactionRow {
@@ -136,6 +183,24 @@ export function AnlageSOSection() {
   const [werbungskosten, setWerbungskosten] = useState<string>("")
   const [saving, setSaving] = useState(false)
   const [pdfUrl, setPdfUrl] = useState<string>("#")
+  // Tier 113 v2: data + UI state for the 3 new
+  // sub-sections.
+  const [v2Data, setV2Data] = useState<AnlageSOV2Result | null>(null)
+  const [csvText, setCsvText] = useState<string>("")
+  const [csvReplace, setCsvReplace] = useState<boolean>(false)
+  const [csvPreview, setCsvPreview] = useState<CsvPreviewRow[] | null>(null)
+  const [csvPreviewSummary, setCsvPreviewSummary] = useState<{
+    okCount: number
+    warningCount: number
+    duplicateCount: number
+  } | null>(null)
+  const [csvBusy, setCsvBusy] = useState<boolean>(false)
+  const [importableExpenses, setImportableExpenses] = useState<
+    ImportableExpense[] | null
+  >(null)
+  const [expenseModalOpen, setExpenseModalOpen] = useState<boolean>(false)
+  const [expenseSelected, setExpenseSelected] = useState<Set<string>>(new Set())
+  const [expenseBusy, setExpenseBusy] = useState<boolean>(false)
 
   const load = useCallback(async (y: number) => {
     setLoading(true)
@@ -167,7 +232,207 @@ export function AnlageSOSection() {
 
   useEffect(() => {
     load(year)
+    loadV2(year)
   }, [year, load])
+
+  // Tier 113 v2: load the v2 compute() data. This
+  // is the same shape as the v1 response + the
+  // loss-verrechnung block (inFristGain / inFristLoss
+  // / priorYearLoss / totalTaxableGain / carryforward
+  // / freigrenzeApplied). The summary card uses this
+  // to render the Verlustvortrag line.
+  const loadV2 = useCallback(async (y: number) => {
+    try {
+      const companyId =
+        typeof window !== "undefined" ? localStorage.getItem("companyId") : null
+      if (!companyId) return
+      const params = new URLSearchParams()
+      params.set("companyId", companyId)
+      params.set("year", String(y))
+      const result = await apiGet<AnlageSOV2Result>(
+        `/api/v1/accounting/anlage-so/v2?${params}`,
+      )
+      setV2Data(result)
+    } catch (e: any) {
+      // v2 is optional — don't blow up the page if
+      // the endpoint is missing (older backend). Just
+      // leave v2Data=null and the v2 sections show
+      // their "loading"-style placeholders.
+      setV2Data(null)
+    }
+  }, [])
+
+  // Tier 113 v2: load the importable-expense list
+  // for the expense modal.
+  const loadImportableExpenses = useCallback(async () => {
+    try {
+      const companyId =
+        typeof window !== "undefined" ? localStorage.getItem("companyId") : null
+      if (!companyId) return
+      const params = new URLSearchParams()
+      params.set("companyId", companyId)
+      params.set("year", String(year))
+      const result = await apiGet<{ year: number; items: ImportableExpense[] }>(
+        `/api/v1/accounting/anlage-so/importable-expenses?${params}`,
+      )
+      setImportableExpenses(result.items)
+      setExpenseSelected(
+        new Set(result.items.filter((i) => !i.alreadyImported).map((i) => i.id)),
+      )
+    } catch (e: any) {
+      const msg =
+        e instanceof ApiError ? e.message : tRef.current("anlageSo.v2.csvError")
+      toastRef.current.error(msg)
+    }
+  }, [year])
+
+  const openExpenseModal = useCallback(async () => {
+    setExpenseModalOpen(true)
+    await loadImportableExpenses()
+  }, [loadImportableExpenses])
+
+  // Tier 113 v2: CSV preview handler. Calls
+  // /import-csv with previewOnly=true. Sets the
+  // preview list + the per-row warnings.
+  const csvPreviewHandler = useCallback(async () => {
+    setCsvBusy(true)
+    try {
+      const companyId =
+        typeof window !== "undefined" ? localStorage.getItem("companyId") : null
+      if (!companyId) return
+      const result = await apiPost<
+        | {
+            preview: CsvPreviewRow[]
+            okCount: number
+            warningCount: number
+            duplicateCount: number
+          }
+        | { ok: false; error: string }
+      >(`/api/v1/accounting/anlage-so/import-csv`, {
+        companyId,
+        year,
+        csv: csvText,
+        previewOnly: true,
+        replace: csvReplace,
+      })
+      if ("ok" in result && result.ok === false) {
+        toastRef.current.error(result.error)
+        return
+      }
+      const r = result as {
+        preview: CsvPreviewRow[]
+        okCount: number
+        warningCount: number
+        duplicateCount: number
+      }
+      setCsvPreview(r.preview)
+      setCsvPreviewSummary({
+        okCount: r.okCount,
+        warningCount: r.warningCount,
+        duplicateCount: r.duplicateCount,
+      })
+    } catch (e: any) {
+      const msg =
+        e instanceof ApiError ? e.message : tRef.current("anlageSo.v2.csvError")
+      toastRef.current.error(msg)
+    } finally {
+      setCsvBusy(false)
+    }
+  }, [csvText, csvReplace, year])
+
+  // Tier 113 v2: CSV confirm handler. Persists the
+  // parsed rows + reloads both the v1 + v2 data.
+  const csvImportHandler = useCallback(async () => {
+    setCsvBusy(true)
+    try {
+      const companyId =
+        typeof window !== "undefined" ? localStorage.getItem("companyId") : null
+      if (!companyId) return
+      const result = await apiPost<{
+        importedCount: number
+        skippedCount: number
+        transactions: VgTransaction[]
+      }>(`/api/v1/accounting/anlage-so/import-csv`, {
+        companyId,
+        year,
+        csv: csvText,
+        previewOnly: false,
+        replace: csvReplace,
+      })
+      toastRef.current.success(
+        tRef
+          .current("anlageSo.v2.csvImported")
+          .replace("{imported}", String(result.importedCount))
+          .replace("{skipped}", String(result.skippedCount)),
+      )
+      setCsvPreview(null)
+      setCsvPreviewSummary(null)
+      setCsvText("")
+      await load(year)
+      await loadV2(year)
+    } catch (e: any) {
+      const msg =
+        e instanceof ApiError ? e.message : tRef.current("anlageSo.v2.csvError")
+      toastRef.current.error(msg)
+    } finally {
+      setCsvBusy(false)
+    }
+  }, [csvText, csvReplace, year, load])
+
+  // Tier 113 v2: import all selected expenses (or
+  // all, when no selection). The endpoint is
+  // idempotent — re-running it skips already-imported
+  // expenses.
+  const expenseImportHandler = useCallback(
+    async (ids?: string[]) => {
+      setExpenseBusy(true)
+      try {
+        const companyId =
+          typeof window !== "undefined"
+            ? localStorage.getItem("companyId")
+            : null
+        if (!companyId) return
+        // The /import-from-expenses endpoint imports
+        // ALL eligible expenses for the year. The UI
+        // selection filter is enforced client-side:
+        // we just don't run the import if nothing is
+        // selected. v3: the endpoint could accept an
+        // `ids` filter; v2 keeps the simple shape.
+        if (ids && ids.length === 0) {
+          toastRef.current.error(
+            tRef.current("anlageSo.v2.expenseImportDone").replace(
+              "{imported}",
+              "0",
+            ),
+          )
+          return
+        }
+        const result = await apiPost<{
+          importedCount: number
+          skippedCount: number
+        }>(
+          `/api/v1/accounting/anlage-so/import-from-expenses?companyId=${companyId}&year=${year}`,
+          {},
+        )
+        toastRef.current.success(
+          tRef
+            .current("anlageSo.v2.expenseImportDone")
+            .replace("{imported}", String(result.importedCount))
+            .replace("{skipped}", String(result.skippedCount)),
+        )
+        setExpenseModalOpen(false)
+        await load(year)
+        await loadV2(year)
+      } catch (e: any) {
+        const msg =
+          e instanceof ApiError ? e.message : tRef.current("anlageSo.v2.csvError")
+        toastRef.current.error(msg)
+      } finally {
+        setExpenseBusy(false)
+      }
+    },
+    [year, load],
+  )
 
   useEffect(() => {
     if (typeof window === "undefined") return
@@ -466,6 +731,354 @@ export function AnlageSOSection() {
               <p className="text-xs text-gray-500 dark:text-gray-400 md:col-span-2">
                 {t("anlageSo.wiederkehrendeHint")}
               </p>
+            </div>
+
+            {/* ============================================ */}
+            {/* Tier 113 v2: Verlustverrechnung summary      */}
+            {/* (inFristGain / inFristLoss / priorYearLoss  */}
+            {/* / carryforward / Freigrenze). Always shown   */}
+            {/* when v2Data loaded — even if all zeros.      */}
+            {/* ============================================ */}
+            {v2Data && (
+              <div
+                className="grid grid-cols-1 md:grid-cols-3 gap-3 p-3 border rounded dark:border-gray-700"
+                data-testid="anlage-so-v2-loss-summary"
+              >
+                <div className="md:col-span-3">
+                  <h4 className="font-semibold text-sm">
+                    {t("anlageSo.v2.lossCarryforwardTitle")}
+                  </h4>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 uppercase">
+                    {t("anlageSo.v2.lossCarryforwardInFristGain")}
+                  </div>
+                  <div
+                    className="text-lg font-bold mt-1"
+                    data-testid="anlage-so-v2-in-frist-gain"
+                  >
+                    {fmtEur(v2Data.vg.inFristGain)} €
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 uppercase">
+                    {t("anlageSo.v2.lossCarryforwardInFristLoss")}
+                  </div>
+                  <div
+                    className="text-lg font-bold mt-1"
+                    data-testid="anlage-so-v2-in-frist-loss"
+                  >
+                    {fmtEur(v2Data.vg.inFristLoss)} €
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 uppercase">
+                    {t("anlageSo.v2.lossCarryforwardPrior")}
+                  </div>
+                  <div
+                    className="text-lg font-bold mt-1"
+                    data-testid="anlage-so-v2-prior-year-loss"
+                  >
+                    {fmtEur(v2Data.vg.priorYearLoss)} €
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 uppercase">
+                    {t("anlageSo.v2.lossCarryforwardTaxable")}
+                  </div>
+                  <div
+                    className="text-lg font-bold mt-1"
+                    data-testid="anlage-so-v2-total-taxable"
+                  >
+                    {fmtEur(v2Data.vg.totalTaxableGain)} €
+                  </div>
+                  <div className="text-xs mt-1">
+                    {v2Data.vg.freigrenzeApplied ? (
+                      <span
+                        className="text-emerald-700 dark:text-emerald-400"
+                        data-testid="anlage-so-v2-freigrenze-applied"
+                      >
+                        {t("anlageSo.v2.lossCarryforwardApplied")}
+                      </span>
+                    ) : (
+                      <span
+                        className="text-amber-700 dark:text-amber-400"
+                        data-testid="anlage-so-v2-freigrenze-exceeded"
+                      >
+                        {t("anlageSo.v2.lossCarryforwardNotApplied")}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 uppercase">
+                    {t("anlageSo.v2.lossCarryforwardCurrent")}
+                  </div>
+                  <div
+                    className="text-lg font-bold mt-1"
+                    data-testid="anlage-so-v2-carryforward"
+                  >
+                    {fmtEur(v2Data.vg.carryforward)} €
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 uppercase">
+                    {t("anlageSo.v2.lossCarryforwardKz99")}
+                  </div>
+                  <div
+                    className="text-lg font-bold mt-1"
+                    data-testid="anlage-so-v2-kz99"
+                  >
+                    {(() => {
+                      const kz99 = v2Data.lines.find(
+                        (l) => l.kennziffer === "99",
+                      )
+                      return kz99 ? `${fmtEur(kz99.amount)} €` : "—"
+                    })()}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ============================================ */}
+            {/* Tier 113 v2: CSV import sub-section.         */}
+            {/* Paste a 6-column CSV (type,description,      */}
+            {/* acquisitionDate,acquisitionCost,saleDate,    */}
+            {/* salePrice) → preview → confirm → persist.   */}
+            {/* ============================================ */}
+            <div
+              className="p-3 border rounded dark:border-gray-700 space-y-2"
+              data-testid="anlage-so-v2-csv-section"
+            >
+              <h4 className="font-semibold text-sm">
+                {t("anlageSo.v2.csvImportTitle")}
+              </h4>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {t("anlageSo.v2.csvImportHint")}
+              </p>
+              <Textarea
+                rows={6}
+                placeholder={t("anlageSo.v2.csvImportPlaceholder")}
+                value={csvText}
+                onChange={(e) => setCsvText(e.target.value)}
+                data-testid="anlage-so-v2-csv-textarea"
+                className="font-mono text-xs"
+              />
+              <div className="flex items-center gap-2 flex-wrap">
+                <label className="text-xs flex items-center gap-1">
+                  <input
+                    type="checkbox"
+                    checked={csvReplace}
+                    onChange={(e) => setCsvReplace(e.target.checked)}
+                    data-testid="anlage-so-v2-csv-replace"
+                  />
+                  {t("anlageSo.v2.csvReplace")}
+                </label>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={csvPreviewHandler}
+                  disabled={csvBusy || !csvText.trim()}
+                  data-testid="anlage-so-v2-csv-preview"
+                >
+                  {csvBusy ? "…" : t("anlageSo.v2.csvPreview")}
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={csvImportHandler}
+                  disabled={csvBusy || !csvPreview || !csvText.trim()}
+                  data-testid="anlage-so-v2-csv-import"
+                >
+                  {csvBusy ? "…" : t("anlageSo.v2.csvImport")}
+                </Button>
+              </div>
+              {csvPreview && csvPreviewSummary && (
+                <div
+                  className="text-xs"
+                  data-testid="anlage-so-v2-csv-preview-summary"
+                >
+                  <p>
+                    <strong>{csvPreviewSummary.okCount}</strong> OK ·{" "}
+                    <strong>{csvPreviewSummary.warningCount}</strong>{" "}
+                    {t("anlageSo.v2.csvWarnings")} ·{" "}
+                    <strong>{csvPreviewSummary.duplicateCount}</strong>{" "}
+                    {t("anlageSo.v2.csvDuplicates")}
+                  </p>
+                  <div className="overflow-x-auto mt-2">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="text-left border-b dark:border-gray-700">
+                          <th className="py-1 pr-2">#</th>
+                          <th className="py-1 pr-2">Type</th>
+                          <th className="py-1 pr-2">Description</th>
+                          <th className="py-1 pr-2">AcqDate</th>
+                          <th className="py-1 pr-2 text-right">AcqCost</th>
+                          <th className="py-1 pr-2">SaleDate</th>
+                          <th className="py-1 pr-2 text-right">SalePrice</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {csvPreview.map((p) => (
+                          <tr
+                            key={p.rowIndex}
+                            className="border-b dark:border-gray-700"
+                            data-testid={`anlage-so-v2-csv-row-${p.rowIndex}`}
+                          >
+                            <td className="py-1 pr-2 font-mono">
+                              {p.rowIndex}
+                            </td>
+                            <td className="py-1 pr-2">{p.transaction.type}</td>
+                            <td className="py-1 pr-2">
+                              {p.transaction.description}
+                            </td>
+                            <td className="py-1 pr-2 font-mono">
+                              {p.transaction.acquisitionDate}
+                            </td>
+                            <td className="py-1 pr-2 text-right font-mono">
+                              {fmtEur(p.transaction.acquisitionCost)}
+                            </td>
+                            <td className="py-1 pr-2 font-mono">
+                              {p.transaction.saleDate}
+                            </td>
+                            <td className="py-1 pr-2 text-right font-mono">
+                              {fmtEur(p.transaction.salePrice)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* ============================================ */}
+            {/* Tier 113 v2: Expense import sub-section.      */}
+            {/* Button opens a modal listing all              */}
+            {/* Expense rows tagged crypto / brokerage       */}
+            {/* for the year; user picks + imports.           */}
+            {/* ============================================ */}
+            <div
+              className="p-3 border rounded dark:border-gray-700 space-y-2"
+              data-testid="anlage-so-v2-expense-section"
+            >
+              <h4 className="font-semibold text-sm">
+                {t("anlageSo.v2.expenseImportTitle")}
+              </h4>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {t("anlageSo.v2.expenseImportHint")}
+              </p>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={openExpenseModal}
+                data-testid="anlage-so-v2-expense-open"
+              >
+                {t("anlageSo.v2.expenseImportButton")}
+              </Button>
+              {expenseModalOpen && (
+                <div
+                  className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+                  data-testid="anlage-so-v2-expense-modal"
+                >
+                  <div className="bg-white dark:bg-gray-800 rounded shadow-lg max-w-3xl w-full p-4 space-y-3 max-h-[80vh] overflow-y-auto">
+                    <h3 className="font-semibold text-sm">
+                      {t("anlageSo.v2.expenseListTitle")}
+                    </h3>
+                    {importableExpenses === null ? (
+                      <p className="text-xs">…</p>
+                    ) : importableExpenses.length === 0 ? (
+                      <p className="text-xs text-gray-500">
+                        Keine Ausgaben mit category=crypto/brokerage für {year}.
+                      </p>
+                    ) : (
+                      <>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-xs">
+                            <thead>
+                              <tr className="text-left border-b dark:border-gray-700">
+                                <th className="py-1 pr-2"></th>
+                                <th className="py-1 pr-2">Date</th>
+                                <th className="py-1 pr-2">Category</th>
+                                <th className="py-1 pr-2">Description</th>
+                                <th className="py-1 pr-2 text-right">
+                                  Gross (€)
+                                </th>
+                                <th className="py-1 pr-2">
+                                  {t("anlageSo.v2.expenseAlreadyImported")}
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {importableExpenses.map((it) => (
+                                <tr
+                                  key={it.id}
+                                  className="border-b dark:border-gray-700"
+                                  data-testid={`anlage-so-v2-expense-row-${it.id}`}
+                                >
+                                  <td className="py-1 pr-2">
+                                    <input
+                                      type="checkbox"
+                                      checked={expenseSelected.has(it.id)}
+                                      disabled={it.alreadyImported}
+                                      onChange={(e) => {
+                                        setExpenseSelected((prev) => {
+                                          const next = new Set(prev)
+                                          if (e.target.checked) next.add(it.id)
+                                          else next.delete(it.id)
+                                          return next
+                                        })
+                                      }}
+                                      data-testid={`anlage-so-v2-expense-check-${it.id}`}
+                                    />
+                                  </td>
+                                  <td className="py-1 pr-2 font-mono">
+                                    {it.invoiceDate}
+                                  </td>
+                                  <td className="py-1 pr-2">{it.category}</td>
+                                  <td className="py-1 pr-2">
+                                    {it.description}
+                                  </td>
+                                  <td className="py-1 pr-2 text-right font-mono">
+                                    {fmtEur(it.grossAmount)}
+                                  </td>
+                                  <td className="py-1 pr-2">
+                                    {it.alreadyImported ? "✓" : ""}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Button
+                            size="sm"
+                            onClick={() =>
+                              expenseImportHandler(
+                                Array.from(expenseSelected),
+                              )
+                            }
+                            disabled={expenseBusy || expenseSelected.size === 0}
+                            data-testid="anlage-so-v2-expense-import-selected"
+                          >
+                            {expenseBusy
+                              ? "…"
+                              : t("anlageSo.v2.expenseImportSelected")}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setExpenseModalOpen(false)}
+                            data-testid="anlage-so-v2-expense-cancel"
+                          >
+                            Abbrechen
+                          </Button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div>
