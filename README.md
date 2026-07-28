@@ -6,6 +6,43 @@
 > und mittelständische Unternehmen im DACH-Raum. Inklusive XRechnung,
 > ZUGFeRD/Factur-X, DATEV-Export, UStVA, FinTS-Banking und OCR-Vorbereitung.
 
+**Tier 112 — SEPA pain.008 (Lastschrift / Direct Debit — incoming payments)**:
+- 137 backend e2e tests + 333 Playwright UI tests (all green)
+- The customer-side counterpart to Tier 108 (pain.001).
+  Instead of paying suppliers, here the company RECEIVES
+  money from customers via SEPA direct debit.
+- SEPA-Lastschriftmandat (mandate) per customer: CORE (B2C,
+  14-day Vorabankündigung + 8-Wochen-Widerruf) or B2B
+  (1-day Vorabankündigung, no Widerruf).
+- Auto-generated Mandatsreferenz format:
+  `MANDATE-{K-NNNN}-{YYYYMMDD}-{NNNN}`. One customer can
+  sign multiple mandates (e.g. per subscription).
+- pain.008.001.02 XML schema: `<CstmrDrctDbtInitn>` →
+  `<GrpHdr>` → `<PmtInf>` (PmtMtd=DD, SvcLvl=SEPA,
+  LclInstrm={CORE|B2B}, CdtrSchmeId with Gläubiger-ID) →
+  N× `<DrctDbtTxInf>` (PmtId + InstdAmt + DrctDbtTx{MndtId,
+  DtOfSgntr} + DbtrAgt + Dbtr + DbtrAcct + RmtInf).
+- §2.2 Scheme Rulebook enforced: all collections in one
+  batch must use the same type. Mixed CORE+B2B → 400.
+- Pre-notification deadline: executionDate - 14 (CORE) /
+  - 1 (B2B). v1: stamps preNotificationSentAt; v2 wires
+  actual email send.
+- 18-char Gläubiger-Identifikationsnummer (Bundesbank) per
+  company, stored in `Company.settings.sepaCreditorIdentifier`
+  with auto-derived fallback from company UUID.
+- `/dashboard/payments/direct-debit` page (1031 LOC) with
+  three cards: Mandate manager, Open-invoices picker,
+  Past-batches history. Tab bar shared with pain.001.
+- E2E 137 (17 sections, 60+ assertions): mandate CRUD +
+  validation, open-invoice eligibility, batch generation,
+  XML structure + math identity (CtrlSum = Σ InstdAmt),
+  CORE vs B2B deadline, mixed-type rejection, revoked /
+  mismatched mandate rejection, cross-tenant 401, XML
+  download, two mandates per customer.
+- v1: no R-Transaction (Rücklastschrift) auto-credit.
+  v2: SEPA pain.008 return handling + email-driven
+  pre-notification + automatic mandate renewal reminders.
+
 **Tier 110 — Anlage AUS (Ausländische Einkünfte, § 34d EStG — the 9th Anlage form)**:
 - 136 backend e2e tests + 307 Playwright UI tests (all green)
 - Anlage AUS: international dimension. Per-entry 2-way
@@ -107,16 +144,16 @@ open http://localhost:3000
 
 Die App ist sofort einsatzbereit mit Testdaten (SH Leder GmbH).
 
-### E2E-Tests (136 Backend + 307 Playwright UI, ~9 Min)
+### E2E-Tests (137 Backend + 333 Playwright UI, ~9 Min)
 
 ```bash
 # Backend hochfahren
 cd backend && npm install && npx ts-node src/main.ts &
 
-# Alle 136 Backend-Tests
+# Alle 137 Backend-Tests
 cd backend && for f in e2e/[0-9]*.sh; do bash "$f"; done
 
-# 307 Playwright UI-Tests (Frontend muss auf 3100 laufen)
+# 333 Playwright UI-Tests (Frontend muss auf 3100 laufen)
 cd frontend && npm install && npx playwright install chromium
 cd frontend && npx playwright test
 ```
@@ -188,9 +225,9 @@ Troubleshoot).
 | Storage | Local FS (`~/data/invoice-system`) | S3/MinIO compatible |
 | Backup | `pg_dump` + tar | Daily rotation, 7d/4w/monthly anchors |
 | Monitoring | `/metrics` (Prometheus) | 3 gauges + 2 counters + 1 histogram, no deps |
-| CI | GitHub Actions | typecheck × 2 + e2e (136 backend + 307 Playwright UI) on every PR |
+| CI | GitHub Actions | typecheck × 2 + e2e (137 backend + 333 Playwright UI) on every PR |
 
-### 136 E2E-Tests Backend + 307 Playwright UI (443 tests, ~9 Min)
+### 137 E2E-Tests Backend + 333 Playwright UI (470 tests, ~9 Min)
 
 | # | Feature | Tests |
 | --- | --- | --- |
@@ -241,7 +278,8 @@ Troubleshoot).
 | 108 | SEPA pain.001 batch payments (ISO 20022 Sammelüberweisung) | 50+ |
 | 109 | Anlage SO (Sonstige Einkünfte, § 22 EStG — 8th Anlage form) | 60+ |
 | 110 | Anlage AUS (Ausländische Einkünfte, § 34d EStG — 9th Anlage form) | 70+ |
-| UI | Playwright suite (77 spec files, 307 tests) | 307 |
+| 112 | SEPA pain.008 (Lastschrift / incoming direct debits) | 60+ |
+| UI | Playwright suite (77 spec files, 333 tests) | 333 |
 
 ---
 
@@ -283,6 +321,13 @@ B2B-Anwendungsfälle im DACH-Raum).
 - **UStVA** (Umsatzsteuervoranmeldung) mit allen Kennzahlen
   (Zeilen 20–23 Umsätze, 26–29 steuerfrei, 36 Reverse Charge,
   50–66 Vorsteuer, 81 Differenzbetrag)
+- **SEPA pain.001** (Sammelüberweisung, ISO 20022) — bündelt
+  offene Ausgaben zu einer XML-Datei für die Hausbank
+- **SEPA pain.008** (Lastschrift, ISO 20022) — das Kunden­gegenstück.
+  Pro Kunde ein SEPA-Lastschriftmandat (CORE/B2B),
+  Gläubiger-Identifikationsnummer, Vorabankündigung gemäß
+  §2.2 SEPA Scheme Rulebook, pain.008.001.02 XML mit
+  MndtId + DtOfSgntr je Lastschrift
 - Ausgabenverwaltung mit Zuordnung zu UStVA-Zeilen
 - Audit-Log
 
@@ -427,6 +472,14 @@ B2B invoicing use-case in the DACH region).
 - UStVA (Umsatzsteuervoranmeldung) declaration with full Kennzahlen
   (lines 20-23 sales, 26-29 exempt, 36 reverse charge, 50-66 input tax,
   81 Differenzbetrag)
+- **SEPA pain.001** (bulk credit transfer, ISO 20022) — bundles
+  open payables into a single XML for the house bank
+- **SEPA pain.008** (direct debit, ISO 20022) — the
+  customer-side counterpart. Per-customer SEPA
+  Lastschriftmandat (CORE/B2B), creditor identifier
+  (Gläubiger-ID), pre-notification per §2.2 Scheme
+  Rulebook, pain.008.001.02 XML with MndtId + DtOfSgntr
+  per debit
 - Expense tracking with UStVA line assignment
 - Audit log
 
@@ -545,6 +598,12 @@ Proprietary — built for SH Leder GmbH internal use.
 - **UStVA**(增值税预申报)含完整 Kennzahlen
   (20–23 行销售额、26–29 行免税、36 行反向征收、
   50–66 行进项税、81 行差额)
+- **SEPA pain.001** (批量付款转账, ISO 20022) — 将待付
+  费用打包成一份 XML,提交给开户行
+- **SEPA pain.008** (直接借记, ISO 20022) — 客户侧的
+  对应功能。每个客户一份 SEPA Lastschriftmandat
+  (CORE/B2B), 债权人识别号, 按 §2.2 规则进行
+  提前通知, 导出 pain.008.001.02 XML
 - 费用管理,可对应到 UStVA 行
 - 审计日志
 
