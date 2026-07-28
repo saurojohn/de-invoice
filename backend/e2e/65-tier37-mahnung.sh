@@ -41,9 +41,17 @@ COMPANY_ID="ad257ec3-d319-479b-b870-3fe76e8f3111"
 # fixture, and we'd rather be aggressive than have a stale
 # FK invalidate the next run. payment.service depends on
 # payments → invoice, and PaymentLink cascades from invoice.
+# Note: Tier 112 added SepaDirectDebitMandate →
+# Customer (FK). The cleanup must delete mandates
+# first, otherwise the customer DELETE blocks with
+# "foreign key constraint violated" and the test
+# re-runs leak the t37@example.com row forever.
 docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL
 DELETE FROM "Mahnung" WHERE "companyId" = '$COMPANY_ID';
 DELETE FROM "EmailSend" WHERE "companyId" = '$COMPANY_ID';
+DELETE FROM "SepaDirectDebitCollection" WHERE "companyId" = '$COMPANY_ID';
+DELETE FROM "SepaDirectDebitBatch"     WHERE "companyId" = '$COMPANY_ID';
+DELETE FROM "SepaDirectDebitMandate"   WHERE "companyId" = '$COMPANY_ID';
 DELETE FROM "CustomerCreditTransaction" WHERE "customerId" IN (SELECT id FROM "Customer" WHERE "companyId" = '$COMPANY_ID');
 DELETE FROM "PaymentLink" WHERE "invoiceId" IN (SELECT id FROM "Invoice" WHERE "companyId" = '$COMPANY_ID');
 DELETE FROM "Payment" WHERE "invoiceId" IN (SELECT id FROM "Invoice" WHERE "companyId" = '$COMPANY_ID');
