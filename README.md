@@ -6,8 +6,47 @@
 > und mittelständische Unternehmen im DACH-Raum. Inklusive XRechnung,
 > ZUGFeRD/Factur-X, DATEV-Export, UStVA, FinTS-Banking und OCR-Vorbereitung.
 
-**Tier 116 — KoSIT Validator 1.6.2 integration (XRechnung 3.0.2 official validation)**:
+**Tier 117 — XRechnung generator: UBL 2.1 XSD element order + BR-DE compliance**:
 - 140 backend e2e tests + 337 Playwright UI tests (all green)
+- Generator now produces UBL 2.1 XSD-compliant XML that
+  passes KoSIT Validator 1.6.2 with `acceptance: ACCEPTABLE`
+  for all 4 invoice types (B2B, B2B-OSS, B2G, Skonto).
+- Fixes applied to `backend/src/invoices/xrechnung.service.ts`:
+  - **UBLVersionID=2.1** added (XRechnung 3.0 expects it)
+  - **Element ordering** matches the UBL 2.1 XSD sequence
+    (UBLVersionID → CustomizationID → ProfileID → ID →
+    IssueDate → DueDate → InvoiceTypeCode → Note →
+    DocumentCurrencyCode → TaxCurrencyCode (omitted per
+    BR-53) → LineCountNumeric → BuyerReference →
+    InvoicePeriod → SupplierParty → CustomerParty →
+    PaymentMeans → PaymentTerms → AllowanceCharge →
+    TaxTotal → LegalMonetaryTotal → InvoiceLine)
+  - **Note** moved from end of invoice to after
+    `InvoiceTypeCode` (XSD position)
+  - **TaxCurrencyCode** omitted when equal to
+    `DocumentCurrencyCode` (BR-53)
+  - **InvoiceLine / AllowanceCharge** + **TaxTotal**
+    positioned BEFORE `Item` and `Price` (XSD position)
+  - **ItemLocationQuantity** (UBL 2.0) replaced with
+    **Item / ClassifiedTaxCategory** (UBL 2.1)
+  - **InvoicePeriod** (BG-14) added with StartDate = EndDate
+    = issueDate — satisfies BR-DE-TMP-32 for service invoices
+  - **Seller Contact** (BR-DE-2/6/7) now includes Name +
+    Telephone (BT-42) + ElectronicMail (BT-43) — sourced
+    from `Company.email` + `Company.phone` columns
+  - **Customer EndpointID** falls back to Leitweg-ID
+    (scheme 9930) when no VAT-ID is present — required for
+    B2G buyers (BR-DE-TMP-1)
+  - **AllowanceCharge** currencyID now derived from
+    `data.currency` (was hardcoded `EUR`)
+- e2e `139-tier115-xrechnung.sh`: now also asserts
+  UBLVersionID=2.1, LineCountNumeric, and BuyerReference
+  is after DocumentCurrencyCode (line-number order check).
+- e2e `140-tier116-kosIT.sh`: now asserts
+  `engine=kosit` returns `schema=Y`, `schematron=Y`,
+  `acceptance=ACCEPTABLE` for B2B, B2B-OSS, B2G, Skonto.
+
+**Tier 116 — KoSIT Validator 1.6.2 integration (XRechnung 3.0.2 official validation)**:
 - Replaces the in-process BR-* check (Tier 115) with the
   official KoSIT Validator 1.6.2 for full EN 16931 compliance
   (150+ rules: BR-*, BR-CO-*, BR-DEC-*, BR-S-*).
@@ -27,12 +66,6 @@
   (idempotent, downloads from KoSIT releases + OASIS UBL).
   JDK 17 (Eclipse Temurin, ~300MB) is added to `.gitignore`
   and downloaded by `setup.sh`.
-- **Note on schema validation**: the UBL 2.1 XSD is strict
-  about element ordering. The current XRechnung generator
-  (Tier 115) produces some REJECT results due to XSD order.
-  Hand-written UBL 2.1 samples (e.g. the official koSIT
-  test instances) return ACCEPTABLE. The KoSIT integration
-  itself works — generator fixes are a follow-up.
 
 **Tier 115 — XRechnung 3.0.2 (German B2B e-invoice — mandatory since 2025)**:
 - 139 backend e2e tests + 337 Playwright UI tests (all green)

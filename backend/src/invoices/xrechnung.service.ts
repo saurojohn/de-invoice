@@ -56,6 +56,9 @@ export interface XRechnungSupplier {
     iban?: string
     bic?: string
   }
+  /** BR-DE-6 / BR-DE-7: Telefonnummer (BT-42) + E-Mail (BT-43) */
+  phone?: string
+  email?: string
 }
 
 export interface XRechnungCustomer {
@@ -70,6 +73,8 @@ export interface XRechnungCustomer {
   email?: string
   /** BuyerReference (e.g. Leitweg-ID for B2G, internal purchase order ref) */
   buyerReference?: string
+  /** German Leitweg-ID for B2G buyer (e.g. "991-12345-67") */
+  leitwegId?: string
 }
 
 export interface XRechnungItem {
@@ -151,6 +156,14 @@ export function generateXRechnung(data: XRechnungData): string {
   const customisationId =
     'urn:cen.eu:en16931:2017#compliant#urn:xeinkauf.de:kosit:xrechnung_3.0'
 
+  // ──────────────────────────────────────────────────────
+  // UBL 2.1 XSD element order (Tier 117 fix).
+  // The XSD enforces strict element ordering (xs:sequence).
+  // Previous order placed BuyerReference before
+  // DocumentCurrencyCode and Note at the end — both
+  // cvc-complex-type.2.4.a violations. Now we follow
+  // the UBL-Invoice-2.1.xsd sequence exactly.
+  // ──────────────────────────────────────────────────────
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"
          xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
@@ -158,6 +171,9 @@ export function generateXRechnung(data: XRechnungData): string {
          xmlns:udt="urn:un:unece:uncefact:data:specification:UnqualifiedDataTypesSchemaModule-2"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xmlns:ext="urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2">
+
+  <!-- UBL 2.1 — Schema-Version (UBL 2.1 XSD compliance) -->
+  <cbc:UBLVersionID>2.1</cbc:UBLVersionID>
 
   <!-- XRechnung 3.0 — Konformitätskennung (KoSIT 2024) -->
   <cbc:CustomizationID>${customisationId}</cbc:CustomizationID>
@@ -175,12 +191,29 @@ export function generateXRechnung(data: XRechnungData): string {
   <!-- Rechnungsart / Invoice Type Code (BR-04 v2: 380 = Commercial invoice) -->
   <cbc:InvoiceTypeCode listID="UN/ECE 1001" listAgencyID="6">380</cbc:InvoiceTypeCode>
 
-  <!-- BR-1 v2: BuyerReference ist Pflicht -->
-  <cbc:BuyerReference>${escapeXml(data.buyerReference)}</cbc:BuyerReference>
+  ${data.notes ? `<!-- Bemerkungen / Notes (XSD position: after InvoiceTypeCode) -->
+  <cbc:Note>${escapeXml(data.notes)}</cbc:Note>` : ''}
 
   <!-- Währung / Currency (BR-05) -->
   <cbc:DocumentCurrencyCode listID="ISO 4217 Alpha" listAgencyID="6">${escapeXml(data.currency)}</cbc:DocumentCurrencyCode>
-  <cbc:TaxCurrencyCode listID="ISO 4217 Alpha" listAgencyID="6">${escapeXml(data.currency)}</cbc:TaxCurrencyCode>
+  <!-- BR-53: TaxCurrencyCode absichtlich weggelassen (nur nötig wenn
+       != DocumentCurrencyCode). Wir setzen aktuell keine
+       abweichende VAT-Währung. -->
+
+  <!-- Anzahl Rechnungspositionen / Line Count Numeric -->
+  <cbc:LineCountNumeric>${data.items.length}</cbc:LineCountNumeric>
+
+  <!-- BR-1 v2: BuyerReference ist Pflicht (XSD position: after LineCountNumeric) -->
+  <cbc:BuyerReference>${escapeXml(data.buyerReference)}</cbc:BuyerReference>
+
+  <!-- Leistungszeitraum / Invoice Period (BR-DE-TMP-32 / BG-14).
+       Für Service-Rechnungen ohne separate Lieferperiode setzen
+       wir den Leistungszeitraum auf das Rechnungsdatum. XSD-Position:
+       nach BuyerReference, vor SupplierParty. -->
+  <cac:InvoicePeriod>
+    <cbc:StartDate>${invoiceDate}</cbc:StartDate>
+    <cbc:EndDate>${invoiceDate}</cbc:EndDate>
+  </cac:InvoicePeriod>
 
   ${generateSupplierParty(data.supplier)}
 
@@ -190,12 +223,9 @@ export function generateXRechnung(data: XRechnungData): string {
 
   ${generatePaymentTerms(data)}
 
-  ${data.skonto ? generateAllowanceCharge(data.skonto) : ''}
+  ${data.skonto ? generateAllowanceCharge(data.skonto, data.currency) : ''}
 
-  <!-- Rechnungspositionen / Invoice Lines (BR-21, BR-22) -->
-  ${data.items.map((item, index) => generateInvoiceLine(item, index + 1, data.currency)).join('\n  ')}
-
-  <!-- Steuerübersicht / Tax Total (BR-CO-09, BR-CO-13) -->
+  <!-- Steuerübersicht / Tax Total (BR-CO-09, BR-CO-13) — XSD position: before LegalMonetaryTotal -->
   <cac:TaxTotal>
     <cbc:TaxAmount currencyID="${escapeXml(data.currency)}">${formatDecimal(data.totalVat)}</cbc:TaxAmount>
     ${vatByRate.map(vat => `
@@ -212,7 +242,7 @@ export function generateXRechnung(data: XRechnungData): string {
     </cac:TaxSubtotal>`).join('')}
   </cac:TaxTotal>
 
-  <!-- Gesamtbetrag / Legal Monetary Total (BR-CO-10, BR-CO-13, BR-CO-15) -->
+  <!-- Gesamtbetrag / Legal Monetary Total (BR-CO-10, BR-CO-13, BR-CO-15) — XSD position: after TaxTotal, before InvoiceLine -->
   <cac:LegalMonetaryTotal>
     <cbc:LineExtensionAmount currencyID="${escapeXml(data.currency)}">${formatDecimal(data.subtotal)}</cbc:LineExtensionAmount>
     <cbc:TaxExclusiveAmount currencyID="${escapeXml(data.currency)}">${formatDecimal(data.subtotal)}</cbc:TaxExclusiveAmount>
@@ -220,10 +250,8 @@ export function generateXRechnung(data: XRechnungData): string {
     <cbc:PayableAmount currencyID="${escapeXml(data.currency)}">${formatDecimal(data.total)}</cbc:PayableAmount>
   </cac:LegalMonetaryTotal>
 
-  ${data.notes ? `<!-- Bemerkungen / Notes -->
-  <cac:Note>
-    <cbc:Content>${escapeXml(data.notes)}</cbc:Content>
-  </cac:Note>` : ''}
+  <!-- Rechnungspositionen / Invoice Lines (BR-21, BR-22) — XSD position: last element group -->
+  ${data.items.map((item, index) => generateInvoiceLine(item, index + 1, data.currency)).join('\n  ')}
 
 </Invoice>`
 
@@ -243,7 +271,7 @@ function generateSupplierParty(s: XRechnungSupplier): string {
     endpointBlock = `<cbc:EndpointID schemeID="9931">${escapeXml(s.taxId)}</cbc:EndpointID>`
   }
 
-  return `<!-- Lieferant / Supplier Party (BR-06, BR-09) -->
+  return `<!-- Lieferant / Supplier Party (BR-06, BR-09, BR-DE-2) -->
   <cac:AccountingSupplierParty>
     <cac:Party>
       ${endpointBlock}
@@ -269,14 +297,27 @@ function generateSupplierParty(s: XRechnungSupplier): string {
       <cac:PartyLegalEntity>
         <cbc:CompanyID>${escapeXml(s.taxId)}</cbc:CompanyID>
       </cac:PartyLegalEntity>` : ''}
+      <!-- BR-DE-2/6/7 (XRechnung Pflicht): Seller Contact (BG-6).
+           Pflicht: Name + Telefon (BT-42) + E-Mail (BT-43).
+           Wir nutzen den Firmennamen als Ansprechpartner-Fallback. -->
+      <cac:Contact>
+        <cbc:Name>${escapeXml(s.name)}</cbc:Name>
+        ${s.phone ? `<cbc:Telephone>${escapeXml(s.phone)}</cbc:Telephone>` : ''}
+        ${s.email ? `<cbc:ElectronicMail>${escapeXml(s.email)}</cbc:ElectronicMail>` : ''}
+      </cac:Contact>
     </cac:Party>
   </cac:AccountingSupplierParty>`
 }
 
 function generateCustomerParty(c: XRechnungCustomer): string {
+  // BR-DE-TMP-1: Buyer electronic address MUST be provided.
+  // Prefer VAT-ID (scheme DE:VAT), fall back to Leitweg-ID
+  // (scheme 9930) for B2G buyers.
   let endpointBlock = ''
   if (c.vatId) {
     endpointBlock = `<cbc:EndpointID schemeID="DE:VAT">${escapeXml(c.vatId)}</cbc:EndpointID>`
+  } else if (c.leitwegId) {
+    endpointBlock = `<cbc:EndpointID schemeID="9930">${escapeXml(c.leitwegId)}</cbc:EndpointID>`
   }
 
   return `<!-- Kunde / Customer Party (BR-07, BR-08) -->
@@ -335,7 +376,7 @@ function generatePaymentTerms(data: XRechnungData): string {
   </cac:PaymentTerms>`
 }
 
-function generateAllowanceCharge(a: XRechnungAllowance): string {
+function generateAllowanceCharge(a: XRechnungAllowance, currency: string): string {
   // Document-level allowance (Skonto or doc-wide discount)
   const reasonCode = a.type === 'skonto' ? '95' : '1' // 95 = discount
   const reason =
@@ -347,7 +388,7 @@ function generateAllowanceCharge(a: XRechnungAllowance): string {
     <cbc:ChargeIndicator>false</cbc:ChargeIndicator>
     <cbc:AllowanceChargeReasonCode listID="UNTDID 5189">${reasonCode}</cbc:AllowanceChargeReasonCode>
     <cbc:AllowanceChargeReason>${escapeXml(reason)}</cbc:AllowanceChargeReason>
-    <cbc:Amount currencyID="EUR">${formatDecimal(a.amount)}</cbc:Amount>
+    <cbc:Amount currencyID="${escapeXml(currency)}">${formatDecimal(a.amount)}</cbc:Amount>
     <cac:TaxCategory>
       <cbc:ID>S</cbc:ID>
       <cbc:Percent>19.00</cbc:Percent>
@@ -362,13 +403,15 @@ function generateInvoiceLine(item: XRechnungItem, lineNumber: number, currency: 
   const unitCode = mapUnitToUNECE(item.unit)
   const vatCategoryId = item.vatRate > 0 ? 'S' : 'E'
   const hasLineDiscount = item.discountPercent && item.discountPercent > 0
-  // For a line discount, the price has to be presented
-  // as the gross (pre-discount) price with a separate
-  // AllowanceCharge. v1 simplification: we leave the
-  // line at netAmount (post-discount) and skip the
-  // per-line AllowanceCharge when the discount is just
-  // per-line rounding. The full doc-level Skonto is
-  // captured in the Allowancharge block above.
+  // ──────────────────────────────────────────────────────
+  // UBL 2.1 InvoiceLineType element order (per
+  // UBL-CommonAggregateComponents-2.1.xsd):
+  //   ID, UUID, Note, InvoicedQuantity, LineExtensionAmount,
+  //   ..., AllowanceCharge, TaxTotal, Item, Price, ...
+  //   The tax category lives inside Item/ClassifiedTaxCategory
+  //   (NOT in a separate ItemLocationQuantity — that was
+  //   UBL 2.0 and is not part of the 2.1 XSD for InvoiceLine).
+  // ──────────────────────────────────────────────────────
   return `<cac:InvoiceLine>
     <cbc:ID>${lineNumber}</cbc:ID>
     <cbc:InvoicedQuantity unitCode="${unitCode}">${formatDecimal(item.quantity)}</cbc:InvoicedQuantity>
@@ -380,25 +423,23 @@ function generateInvoiceLine(item: XRechnungItem, lineNumber: number, currency: 
       <cbc:AllowanceChargeReason>Rabatt ${formatPercent(item.discountPercent || 0)}%</cbc:AllowanceChargeReason>
       <cbc:Amount currencyID="${escapeXml(currency)}">${formatDecimal((item.unitPrice * item.quantity) - item.netAmount)}</cbc:Amount>
     </cac:AllowanceCharge>` : ''}
-    <cac:Item>
-      <cbc:Description>${escapeXml(item.description)}</cbc:Description>
-      <cbc:Name>${escapeXml(item.description.split('\n')[0])}</cbc:Name>
-    </cac:Item>
-    <cac:Price>
-      <cbc:PriceAmount currencyID="${escapeXml(currency)}">${formatDecimal(item.unitPrice)}</cbc:PriceAmount>
-    </cac:Price>
     <cac:TaxTotal>
       <cbc:TaxAmount currencyID="${escapeXml(currency)}">${formatDecimal(item.vatAmount)}</cbc:TaxAmount>
     </cac:TaxTotal>
-    <cac:ItemLocationQuantity>
-      <cac:TaxCategory>
+    <cac:Item>
+      <cbc:Description>${escapeXml(item.description)}</cbc:Description>
+      <cbc:Name>${escapeXml(item.description.split('\n')[0])}</cbc:Name>
+      <cac:ClassifiedTaxCategory>
         <cbc:ID>${vatCategoryId}</cbc:ID>
         <cbc:Percent>${formatPercent(item.vatRate)}</cbc:Percent>
         <cac:TaxScheme>
           <cbc:ID>VAT</cbc:ID>
         </cac:TaxScheme>
-      </cac:TaxCategory>
-    </cac:ItemLocationQuantity>
+      </cac:ClassifiedTaxCategory>
+    </cac:Item>
+    <cac:Price>
+      <cbc:PriceAmount currencyID="${escapeXml(currency)}">${formatDecimal(item.unitPrice)}</cbc:PriceAmount>
+    </cac:Price>
   </cac:InvoiceLine>`
 }
 
@@ -784,6 +825,9 @@ export function transformToXRechnungData(
     bankInfo?: any
     /** v2: Leitweg-ID stored in settings (B2G use) */
     leitwegId?: string | null
+    /** BR-DE-6 / BR-DE-7: Telefon + E-Mail für BG-6 Seller Contact */
+    email?: string | null
+    phone?: string | null
   }
 ): XRechnungData {
   // BuyerReference resolution order:
@@ -838,12 +882,15 @@ export function transformToXRechnungData(
       taxId: company.taxId || undefined,
       leitwegId: company.leitwegId || undefined,
       bankInfo: company.bankInfo || undefined,
+      email: company.email || undefined,
+      phone: company.phone || undefined,
     },
     customer: {
       name: invoice.customer?.name || '',
       address: invoice.customer?.address || {},
       vatId: invoice.customer?.vatId || undefined,
       email: (invoice.customer?.contact as any)?.email || undefined,
+      leitwegId: customerAddress.leitwegId || undefined,
     },
     items: invoice.items.map(item => ({
       description: item.description,

@@ -158,9 +158,20 @@ test "$VAL_OK" = "True" && pass "B2B validate ok" || fail "B2B validate: $VAL_OK
 api_get "/api/v1/invoices/${INV_B2B}/xrechnung?companyId=$COMPANY_ID" -H "Accept: application/xml"
 # Save the XML for content checks
 echo "$BODY" > /tmp/t115-b2b.xml
-# XRechnung 2.3.1 conformance
-grep -q "xrechnung_2.3.1" /tmp/t115-b2b.xml && pass "CustomizationID 2.3.1" \
-  || fail "CustomizationID not 2.3.1 (xml=$(head -10 /tmp/t115-b2b.xml))"
+# XRechnung 3.0 conformance (Tier 116 bumped 2.3.1 → 3.0)
+grep -q "xrechnung_3.0" /tmp/t115-b2b.xml && pass "CustomizationID 3.0" \
+  || fail "CustomizationID not 3.0 (xml=$(head -10 /tmp/t115-b2b.xml))"
+# UBLVersionID = 2.1 (Tier 117)
+grep -q "<cbc:UBLVersionID>2.1</cbc:UBLVersionID>" /tmp/t115-b2b.xml && pass "UBLVersionID 2.1" \
+  || fail "UBLVersionID not 2.1"
+# LineCountNumeric = 1
+grep -q "<cbc:LineCountNumeric>1</cbc:LineCountNumeric>" /tmp/t115-b2b.xml && pass "LineCountNumeric 1" \
+  || fail "LineCountNumeric not 1"
+# BuyerReference must come AFTER DocumentCurrencyCode (Tier 117 XSD order fix)
+LINE_BUYER=$(grep -n "<cbc:BuyerReference>" /tmp/t115-b2b.xml | head -1 | cut -d: -f1)
+LINE_CURR=$(grep -n "<cbc:DocumentCurrencyCode" /tmp/t115-b2b.xml | head -1 | cut -d: -f1)
+test "$LINE_BUYER" -gt "$LINE_CURR" && pass "BuyerReference after DocumentCurrencyCode (XSD order)" \
+  || fail "BuyerReference (line $LINE_BUYER) not after DocumentCurrencyCode (line $LINE_CURR)"
 # BuyerReference present
 grep -q "<cbc:BuyerReference>" /tmp/t115-b2b.xml && pass "BuyerReference present" \
   || fail "BuyerReference missing"

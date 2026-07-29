@@ -178,23 +178,45 @@ if [ -n "$DUR" ] && [ "$DUR" -gt 0 ]; then
 else
   fail "durationMs not set: '$DUR'"
 fi
-# Note: my generated XRechnung may not pass the UBL 2.1 XSD
-# (we have element-ordering issues to fix separately). The
-# KoSIT result is still meaningful: it RAN the validator
-# and returned a result object. The acceptance might be
-# REJECT (XSD error) — that's still a valid result.
+
+# ───── 3.0 Tier 117: UBL 2.1 XSD element order fix ─────
+# Before Tier 117, the generator emitted cvc-complex-type.2.4.a
+# errors (BuyerReference before DocumentCurrencyCode, Note at
+# the end, ItemLocationQuantity instead of ClassifiedTaxCategory).
+# After the fix, the generator must pass both XSD and Schematron.
+# Note: schema/schematron are returned as Y/N strings (not booleans).
+SCHEMA_FLAG=$(json_field "$BODY" "schema")
+test "$SCHEMA_FLAG" = "Y" && pass "Tier 117: schema=Y (UBL 2.1 XSD order fix)" \
+  || { fail "Tier 117: schema=$SCHEMA_FLAG (XSD still fails)"; echo "BODY=$BODY" | head -2; }
+SCHEMA_FLAG=$(json_field "$BODY" "schematron")
+test "$SCHEMA_FLAG" = "Y" && pass "Tier 117: schematron=Y (XRechnung 3.0 rules)" \
+  || { fail "Tier 117: schematron=$SCHEMA_FLAG"; echo "BODY=$BODY" | head -2; }
+test "$ACCEPTANCE" = "ACCEPTABLE" && pass "Tier 117: acceptance=ACCEPTABLE" \
+  || fail "Tier 117: acceptance=$ACCEPTANCE (expected ACCEPTABLE)"
 
 # Test 3.1: same call for Skonto invoice
 api_get "/api/v1/invoices/${INV_SK}/xrechnung/validate?companyId=$COMPANY_ID&engine=kosit"
 ENGINE_SK=$(json_field "$BODY" "engine")
 test "$ENGINE_SK" = "kosit" && pass "Skonto invoice: engine=kosit" \
   || fail "Skonto: engine=$ENGINE_SK"
+SK_ACCEPTANCE=$(json_field "$BODY" "acceptance")
+test "$SK_ACCEPTANCE" = "ACCEPTABLE" && pass "Tier 117: Skonto acceptance=ACCEPTABLE" \
+  || fail "Tier 117: Skonto acceptance=$SK_ACCEPTANCE (expected ACCEPTABLE)"
 
 # Test 3.2: B2G invoice (with Leitweg-ID as BuyerReference)
 api_get "/api/v1/invoices/${INV_B2G}/xrechnung/validate?companyId=$COMPANY_ID&engine=kosit"
 ENGINE_B2G=$(json_field "$BODY" "engine")
 test "$ENGINE_B2G" = "kosit" && pass "B2G invoice: engine=kosit" \
   || fail "B2G: engine=$ENGINE_B2G"
+B2G_ACCEPTANCE=$(json_field "$BODY" "acceptance")
+test "$B2G_ACCEPTANCE" = "ACCEPTABLE" && pass "Tier 117: B2G acceptance=ACCEPTABLE" \
+  || fail "Tier 117: B2G acceptance=$B2G_ACCEPTANCE (expected ACCEPTABLE)"
+
+# Test 3.3: B2B-OSS (Austrian buyer)
+api_get "/api/v1/invoices/${INV_OSS}/xrechnung/validate?companyId=$COMPANY_ID&engine=kosit"
+OSS_ACCEPTANCE=$(json_field "$BODY" "acceptance")
+test "$OSS_ACCEPTANCE" = "ACCEPTABLE" && pass "Tier 117: B2B-OSS acceptance=ACCEPTABLE" \
+  || fail "Tier 117: B2B-OSS acceptance=$OSS_ACCEPTANCE (expected ACCEPTABLE)"
 
 # ───── 4. Engine=invalid → 400 ─────
 note "=== 4. engine=invalid → 400 ==="
