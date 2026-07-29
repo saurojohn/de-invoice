@@ -6,6 +6,33 @@
 > und mittelständische Unternehmen im DACH-Raum. Inklusive XRechnung,
 > ZUGFeRD/Factur-X, DATEV-Export, UStVA, FinTS-Banking und OCR-Vorbereitung.
 
+**Tier 115 — XRechnung 2.3.1 (German B2B e-invoice — mandatory since 2025)**:
+- 139 backend e2e tests + 337 Playwright UI tests (all green)
+- Upgraded the existing XRechnung service from v1.2
+  (UBL 2.0) to v2.3.1 (UBL 2.1 + KoSIT 2.3.1 CIUS, the
+  current spec from 2024).
+- **BuyerReference** is now mandatory (BR-1 v2).
+  Auto-derived from `customer.address.buyerReference`
+  → `customer.address.leitwegId` → customer name.
+- **PaymentMeans** block with IBAN + BIC (BR-16
+  validation, including the regex check).
+- **AllowanceCharge** for Skonto (per-invoice + future
+  per-line Rabatt). Reason codes: 95 (Skonto), 1
+  (discount).
+- **Leitweg-ID** for B2G invoices: stored in
+  `customer.address.leitwegId` or `company.settings.leitwegId`.
+  Surfaced as the BuyerReference for B2G.
+- **EndpointID scheme IDs** standardised: 9930 (Leitweg-ID),
+  9931 (Steuernummer), DE:VAT (VAT), EM (email).
+- **Validation endpoint** `GET /invoices/:id/xrechnung/validate`:
+  returns `{ valid, errors, warnings }` with the
+  EN 16931 business-rule names (BR-01, BR-02, BR-04-09,
+  BR-16, BR-21, BR-22, BR-CO-09/10/13). Catches common
+  data issues before the XML is generated.
+- ProfileID changed to `urn:fdc:peppol.eu:2017:poacc:billing:01:1.0`
+  (Peppol BIS Billing) — the standard that XRechnung
+  2.3.1 aligns with.
+
 **Tier 112 — SEPA pain.008 (Lastschrift / Direct Debit — incoming payments)**:
 - 137 backend e2e tests + 333 Playwright UI tests (all green)
 - The customer-side counterpart to Tier 108 (pain.001).

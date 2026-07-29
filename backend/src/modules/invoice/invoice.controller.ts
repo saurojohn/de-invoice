@@ -9,7 +9,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { MailService } from '../mail/mail.service';
 import { generateInvoicePDF, InvoiceRenderConfig } from '../../invoices/invoice-pdf.service';
-import { generateXRechnung, transformToXRechnungData } from '../../invoices/xrechnung.service';
+import { generateXRechnung, transformToXRechnungData, validateXRechnung } from '../../invoices/xrechnung.service';
 import { generateZUGFeRD } from '../../invoices/zugferd.service';
 // Tier 62: USt-Behandlung auto-detector (pure function, no
 // DI — we just import and call suggestUstBehandlung()).
@@ -616,7 +616,15 @@ export class InvoiceController {
         res.status(404).json({ error: 'Company not found' })
         return
       }
-      const xrechnungData = transformToXRechnungData(invoice, company)
+      // Tier 115: pull the B2G Leitweg-ID from
+      // settings.leitwegId. Stored in JSONB settings rather
+      // than as a top-level column (same convention as
+      // rechtsform, sepaCreditorIdentifier, etc.).
+      const companyWithLeitweg = {
+        ...company,
+        leitwegId: (company.settings as any)?.leitwegId || null,
+      } as any
+      const xrechnungData = transformToXRechnungData(invoice, companyWithLeitweg)
       const xmlContent = generateXRechnung(xrechnungData)
       const buffer = Buffer.from(xmlContent, 'utf-8')
       res.set({
@@ -645,7 +653,11 @@ export class InvoiceController {
         return;
       }
 
-      const xrechnungData = transformToXRechnungData(invoice, company);
+      const companyWithLeitweg = {
+        ...company,
+        leitwegId: (company.settings as any)?.leitwegId || null,
+      } as any;
+      const xrechnungData = transformToXRechnungData(invoice, companyWithLeitweg);
       const xmlContent = generateXRechnung(xrechnungData);
 
       const buffer = Buffer.from(xmlContent, 'utf-8');
@@ -660,6 +672,31 @@ export class InvoiceController {
       console.error('XRechnung generation error:', error);
       res.status(500).json({ error: 'XRechnung generation failed' });
     }
+  }
+
+  /**
+   * Tier 115: XRechnung BR-* validation. Returns the
+   * list of EN 16931 business-rule errors + warnings
+   * before the user actually downloads the XML. Useful
+   * for the "validate before send" UI flow.
+   */
+  @Get(':id/xrechnung/validate')
+  @Require('invoice.read')
+  async validateInvoiceXRechnung(
+    @Param('id') id: string,
+    @Query('companyId') companyId: string,
+  ) {
+    const invoice = await this.invoiceService.findOne(id, companyId)
+    const company = await this.prisma.company.findUnique({ where: { id: companyId } })
+    if (!company) {
+      throw new BadRequestException('Company not found')
+    }
+    const companyWithLeitweg = {
+      ...company,
+      leitwegId: (company.settings as any)?.leitwegId || null,
+    } as any
+    const xrechnungData = transformToXRechnungData(invoice, companyWithLeitweg)
+    return validateXRechnung(xrechnungData)
   }
 
   // ZUGFeRD download endpoint

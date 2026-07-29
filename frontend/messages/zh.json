@@ -2913,5 +2913,26 @@
     "saveAsTemplate": "另存为模板",
     "saveAsTemplateHint": "将此凭证另存为模板以便重复使用",
     "saveAsTemplateSuccess": "模板保存成功"
+  },
+  "xrechnung": {
+    "title": "XRechnung",
+    "description": "XRechnung 2.3.1 — 德国电子发票标准 (EN 16931 / KoSIT)",
+    "download": "下载 XRechnung",
+    "downloadXml": "下载 XRechnung XML",
+    "validate": "验证 XRechnung",
+    "validated": "XRechnung 有效",
+    "validationFailed": "XRechnung 验证失败",
+    "br": "业务规则",
+    "errors": "错误",
+    "warnings": "警告",
+    "noErrors": "无错误",
+    "mandatory": "XRechnung 2.0 起为必填项",
+    "buyerReference": "BuyerReference (B2G 政府的 Leitweg-ID)",
+    "mandatoryB2G": "B2G 发票必填 (Leitweg-ID)"
+  },
+  "leitwegId": {
+    "title": "Leitweg-ID",
+    "description": "用于 XRechnung-B2G (联邦/州发票) 的 Leitweg-ID",
+    "format": "格式: 12 位数字带连字符 (如 991-12345-67)"
   }
 }

@@ -2913,5 +2913,26 @@
     "saveAsTemplate": "Als Vorlage speichern",
     "saveAsTemplateHint": "Speichern Sie diesen Beleg als Vorlage für die Wiederverwendung",
     "saveAsTemplateSuccess": "Vorlage erfolgreich gespeichert"
+  },
+  "xrechnung": {
+    "title": "XRechnung",
+    "description": "XRechnung 2.3.1 — Deutscher E-Rechnung-Standard (EN 16931 / KoSIT)",
+    "download": "XRechnung herunterladen",
+    "downloadXml": "XRechnung XML herunterladen",
+    "validate": "XRechnung validieren",
+    "validated": "XRechnung ist gültig",
+    "validationFailed": "XRechnung-Validierung fehlgeschlagen",
+    "br": "Geschäftsregel",
+    "errors": "Fehler",
+    "warnings": "Warnungen",
+    "noErrors": "Keine Fehler",
+    "mandatory": "Pflichtfeld seit XRechnung 2.0",
+    "buyerReference": "BuyerReference (Leitweg-ID für B2G)",
+    "mandatoryB2G": "Für B2G-Rechnungen Pflicht (Leitweg-ID)"
+  },
+  "leitwegId": {
+    "title": "Leitweg-ID",
+    "description": "Leitweg-ID für XRechnung-B2G (Bund/Länder-Rechnungen)",
+    "format": "Format: 12-stellige Nummer mit Bindestrichen (z. B. 991-12345-67)"
   }
 }

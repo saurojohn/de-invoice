@@ -2913,5 +2913,26 @@
     "saveAsTemplate": "Save as template",
     "saveAsTemplateHint": "Save this voucher as a template for reuse",
     "saveAsTemplateSuccess": "Template saved successfully"
+  },
+  "xrechnung": {
+    "title": "XRechnung",
+    "description": "XRechnung 2.3.1 — German e-invoice standard (EN 16931 / KoSIT)",
+    "download": "Download XRechnung",
+    "downloadXml": "Download XRechnung XML",
+    "validate": "Validate XRechnung",
+    "validated": "XRechnung is valid",
+    "validationFailed": "XRechnung validation failed",
+    "br": "Business rule",
+    "errors": "Errors",
+    "warnings": "Warnings",
+    "noErrors": "No errors",
+    "mandatory": "Mandatory since XRechnung 2.0",
+    "buyerReference": "BuyerReference (Leitweg-ID for B2G)",
+    "mandatoryB2G": "Required for B2G invoices (Leitweg-ID)"
+  },
+  "leitwegId": {
+    "title": "Leitweg-ID",
+    "description": "Leitweg-ID for XRechnung-B2G (Federal/State invoices)",
+    "format": "Format: 12-digit number with dashes (e.g. 991-12345-67)"
   }
 }
