@@ -37,10 +37,15 @@ cleanup_cashbook
 USER_ID="8c6a9669-0069-4137-a842-a66fd1d178d6"
 COMPANY_ID="ad257ec3-d319-479b-b870-3fe76e8f3111"
 
-# ───── 0. Wipe prior tier-53 fixtures ─────
+# ───── 0. Wipe prior tier-53 fixtures + all CNs for the company ─────
+# Polish #11: delete ALL CNs for the company (not just Tier53
+# ones). The CN number sequence is per-company-per-year, so
+# any orphan CN from a prior test run can break the next
+# run's `cnCount + 1` calculation. We also delete the
+# original Tier53 invoices (and their payments/items) so
+# the test starts from a known-clean state.
 docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
--- Delete any CNs we created (cascade kills their items
--- + the synthetic Payment rows we put on the original).
+-- Tier53 CNs (cascading: items + synthetic payment)
 DELETE FROM "VoucherLine" WHERE "voucherId" IN (
   SELECT v.id FROM "Voucher" v
   LEFT JOIN "Invoice" i ON i."voucherRefId" = v.id
@@ -57,6 +62,15 @@ DELETE FROM "Payment" WHERE "invoiceId" IN (
     SELECT id FROM "Invoice" WHERE "companyId" = '$COMPANY_ID' AND "invoiceNumber" LIKE 'Tier53%'
   )
 );
+-- Wipe ALL CNs for the company to reset the CN sequence
+DELETE FROM "SepaDirectDebitCollection" WHERE "invoiceId" IN (
+  SELECT id FROM "Invoice" WHERE "companyId" = '$COMPANY_ID' AND type = 'CN'
+);
+DELETE FROM "InvoiceItem" WHERE "invoiceId" IN (
+  SELECT id FROM "Invoice" WHERE "companyId" = '$COMPANY_ID' AND type = 'CN'
+);
+DELETE FROM "Invoice" WHERE "companyId" = '$COMPANY_ID' AND type = 'CN';
+-- Then the Tier53 invoices + their Tier53 CNs
 DELETE FROM "InvoiceItem" WHERE "invoiceId" IN (
   SELECT id FROM "Invoice" WHERE "companyId" = '$COMPANY_ID' AND ("invoiceNumber" LIKE 'Tier53%' OR "invoiceNumber" LIKE 'CN-Tier53%')
 );
