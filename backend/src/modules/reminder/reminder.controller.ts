@@ -267,6 +267,26 @@ export class ReminderController {
     if (!companyId) {
       throw new BadRequestException('companyId ist erforderlich');
     }
+    // Polish #11: respect the per-company autoReminderEnabled
+    // toggle. The scheduled runForCompany() in
+    // auto-reminder.scheduler.ts already checks this and
+    // short-circuits with summary.skipped += 1. The
+    // manual /auto-run endpoint previously bypassed the
+    // check, so a "disabled" company could still get
+    // reminders sent by hitting this endpoint. Now both
+    // paths honour the same flag.
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { settings: true },
+    });
+    const settings = (company?.settings as any) || {};
+    if (settings.autoReminderEnabled === false) {
+      return {
+        ok: true,
+        sent: 0,
+        message: 'Auto-Reminder ist für diese Firma deaktiviert (autoReminderEnabled=false).',
+      };
+    }
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const sent = await this.autoReminder.runForCompany(companyId, today);
