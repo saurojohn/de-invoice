@@ -518,7 +518,9 @@
     "info": "Info",
     "loadError": "Fehler beim Laden",
     "reset": "Zurücksetzen",
-    "retry": "Erneut versuchen"
+    "retry": "Erneut versuchen",
+    "all": "Alle",
+    "previous": "Zurück"
   },
   "common2": {
     "newInvoice": "Neue Rechnung",
@@ -1084,7 +1086,12 @@
     "ratensplanNotes": "Notizen (optional)",
     "ratensplanAutoPause": "Mahnung automatisch pausieren",
     "ratensplanCreate": "Ratenplan anlegen",
-    "ratensplanNotEligible": "Ratenplan für diese Rechnung nicht empfohlen: {reason}"
+    "ratensplanNotEligible": "Ratenplan für diese Rechnung nicht empfohlen: {reason}",
+    "statusCancelled": "Storniert",
+    "statusDraft": "Entwurf",
+    "statusOverdue": "Überfällig",
+    "statusPaid": "Bezahlt",
+    "statusSent": "Versendet"
   },
   "invoiceTemplates": {
     "title": "Rechnungsvorlagen",
@@ -1166,7 +1173,8 @@
     "email": "E-Mails",
     "recurring": "Abo-Rechnungen",
     "cashbook": "Kassenbuch",
-    "costCenterReport": "Kostenstellen-Auswertung"
+    "costCenterReport": "Kostenstellen-Auswertung",
+    "reminders": "Mahnungen"
   },
   "paymentMethod": {
     "bankTransfer": "Überweisung",
@@ -1959,7 +1967,10 @@
     "cancelledAt": "Storniert am",
     "cancelledBy": "Storniert von",
     "pre": "Mahnhistorie",
-    "costCenter": "Kostenstelle"
+    "costCenter": "Kostenstelle",
+    "neueFrist": "Neue Frist",
+    "statusCancelled": "Storniert",
+    "statusOpen": "Offen"
   },
   "mandant": {
     "choose": "Mandant wählen",
@@ -2672,7 +2683,8 @@
     "executionDateToday": "heute",
     "fromSupplier": "von",
     "cardPaymentsTitle": "SEPA-Sammelzahlung",
-    "cardPaymentsDesc": "Sammelt offene Eingangsrechnungen in einer pain.001-XML für den Bank-Upload."
+    "cardPaymentsDesc": "Sammelt offene Eingangsrechnungen in einer pain.001-XML für den Bank-Upload.",
+    "unpaidExpenses": "Unbezahlte Auslagen"
   },
   "directDebit": {
     "title": "SEPA-Lastschriften (pain.008)",
@@ -2867,5 +2879,39 @@
     "emptyEntries": "Keine ausländischen Einkünfte erfasst. Klicken Sie 'Einkunft hinzufügen' um eine Zeile pro Land einzutragen.",
     "loadError": "Fehler beim Laden der Anlage AUS Daten",
     "saveError": "Fehler beim Speichern"
+  },
+  "installmentPlan": {
+    "amount": "Betrag",
+    "cancel": "Stornieren",
+    "confirmCancel": "Stornierung bestätigen",
+    "count": "Anzahl Raten",
+    "create": "Ratenplan erstellen",
+    "createHint": "Erstellen Sie einen Ratenplan, um die Zahlung in mehreren Raten zu ermöglichen.",
+    "createTitle": "Neuen Ratenplan erstellen",
+    "dueDate": "Fälligkeitsdatum",
+    "empty": "Keine Ratenpläne vorhanden",
+    "firstDue": "Erste Rate",
+    "interval": "Intervall",
+    "notes": "Notizen",
+    "open": "Offen",
+    "overdue": "Überfällig",
+    "paid": "Bezahlt",
+    "partial": "Teilweise bezahlt",
+    "rates": "Raten",
+    "status": "Status",
+    "statusActive": "Aktiv",
+    "statusCancelled": "Storniert",
+    "statusCompleted": "Abgeschlossen",
+    "title": "Ratenplan",
+    "total": "Gesamtbetrag"
+  },
+  "voucherTemplate": {
+    "name": "Name",
+    "namePlaceholder": "Vorlagenname eingeben",
+    "nameRequired": "Name ist erforderlich",
+    "save": "Speichern",
+    "saveAsTemplate": "Als Vorlage speichern",
+    "saveAsTemplateHint": "Speichern Sie diesen Beleg als Vorlage für die Wiederverwendung",
+    "saveAsTemplateSuccess": "Vorlage erfolgreich gespeichert"
   }
 }

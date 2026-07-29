@@ -518,7 +518,9 @@
     "info": "信息",
     "loadError": "加载错误",
     "reset": "重置",
-    "retry": "重试"
+    "retry": "重试",
+    "all": "全部",
+    "previous": "上一步"
   },
   "common2": {
     "newInvoice": "新建发票",
@@ -1084,7 +1086,12 @@
     "ratensplanNotes": "备注(可选)",
     "ratensplanAutoPause": "自动暂停催款",
     "ratensplanCreate": "创建计划",
-    "ratensplanNotEligible": "不建议为此发票创建分期计划:{reason}"
+    "ratensplanNotEligible": "不建议为此发票创建分期计划:{reason}",
+    "statusCancelled": "已取消",
+    "statusDraft": "草稿",
+    "statusOverdue": "已逾期",
+    "statusPaid": "已支付",
+    "statusSent": "已发送"
   },
   "invoiceTemplates": {
     "title": "发票模板",
@@ -1166,7 +1173,8 @@
     "email": "邮件",
     "recurring": "定期",
     "cashbook": "现金账",
-    "costCenterReport": "成本中心报表"
+    "costCenterReport": "成本中心报表",
+    "reminders": "催款"
   },
   "paymentMethod": {
     "bankTransfer": "银行转账",
@@ -1959,7 +1967,10 @@
     "cancelledAt": "撤销于",
     "cancelledBy": "撤销人",
     "pre": "催收历史",
-    "costCenter": "成本中心"
+    "costCenter": "成本中心",
+    "neueFrist": "新期限",
+    "statusCancelled": "已取消",
+    "statusOpen": "未付"
   },
   "mandant": {
     "choose": "选择客户",
@@ -2672,7 +2683,8 @@
     "executionDateToday": "今天",
     "fromSupplier": "来自",
     "cardPaymentsTitle": "SEPA 批量付款",
-    "cardPaymentsDesc": "把待付 Eingangsrechnungen 打包成 pain.001 XML 上传银行。"
+    "cardPaymentsDesc": "把待付 Eingangsrechnungen 打包成 pain.001 XML 上传银行。",
+    "unpaidExpenses": "未付支出"
   },
   "directDebit": {
     "title": "SEPA 直接借记 (pain.008)",
@@ -2867,5 +2879,39 @@
     "emptyEntries": "暂无境外收入。点击“添加收入”按国家录入。",
     "loadError": "加载 Anlage AUS 数据失败",
     "saveError": "保存失败"
+  },
+  "installmentPlan": {
+    "amount": "金额",
+    "cancel": "取消",
+    "confirmCancel": "确认取消",
+    "count": "分期数",
+    "create": "创建分期计划",
+    "createHint": "创建分期付款计划,允许分多期付款。",
+    "createTitle": "创建新分期计划",
+    "dueDate": "到期日",
+    "empty": "暂无分期计划",
+    "firstDue": "首期",
+    "interval": "间隔",
+    "notes": "备注",
+    "open": "未付",
+    "overdue": "逾期",
+    "paid": "已付",
+    "partial": "部分付款",
+    "rates": "分期",
+    "status": "状态",
+    "statusActive": "生效中",
+    "statusCancelled": "已取消",
+    "statusCompleted": "已完成",
+    "title": "分期计划",
+    "total": "总金额"
+  },
+  "voucherTemplate": {
+    "name": "名称",
+    "namePlaceholder": "输入模板名称",
+    "nameRequired": "名称为必填项",
+    "save": "保存",
+    "saveAsTemplate": "另存为模板",
+    "saveAsTemplateHint": "将此凭证另存为模板以便重复使用",
+    "saveAsTemplateSuccess": "模板保存成功"
   }
 }

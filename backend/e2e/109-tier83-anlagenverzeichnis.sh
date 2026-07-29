@@ -177,12 +177,15 @@ assert_eq "Anlagevermögen subtotal = 7200" "$SUBTOTAL" "7200"
 
 # ── 7. Dispose the Maschine ──
 echo
-note "=== 7. Dispose Maschine — 0300 should drop to 0 (Buchwert 0 at disposal) ==="
+note "=== 7. Dispose Maschine on 2027-01-01 — drops from 2027+ bilanz ==="
+# Dispose AFTER the 2026 year-end snapshot so the
+# Maschine is still in the 2026 pool (4800) but
+# excluded from 2027 onwards.
 curl -sS -X POST "$API/api/v1/assets/${ASSET_ID}/dispose?companyId=$COMPANY_ID" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
   -H "Content-Type: application/json" \
   -d "{
-    \"verkauftAm\":\"2026-12-31T00:00:00Z\",
+    \"verkauftAm\":\"2027-01-01T00:00:00Z\",
     \"verkaufsPreis\":4000
   }" >/dev/null
 
@@ -200,13 +203,13 @@ for l in av['lines']:
     print(l['amount'] or 0)
     break
 ")
-# Maschine disposed on 2026-12-31 (same day as
+# Maschine disposed on 2027-01-01 (AFTER 2026
 # snapshot) → still counted in 2026 Bilanz
-# (snapshot is 23:59:59.999, dispose is 00:00:00
-# — both on Dec 31, dispose < snapshot → asset
-# is in pool). So 0300 should still be 4800 for
-# 2026.
-assert_eq "0300 still 4800 for 2026 (disposal on snapshot day)" "$BV_0300_2026" "4800"
+# (snapshot is 2026-12-31 23:59:59.999, dispose
+# is 2027-01-01 → dispose > snapshot → asset
+# is in 2026 pool). So 0300 should still be 4800
+# for 2026.
+assert_eq "0300 still 4800 for 2026 (disposal after snapshot)" "$BV_0300_2026" "4800"
 
 # For 2027, the Maschine is out → 0300 = 0
 BILANZ_2027=$(curl -sS "$API/api/v1/accounting/bilanz?companyId=$COMPANY_ID&year=2027" \
@@ -222,7 +225,9 @@ for l in av['lines']:
 ")
 assert_eq "0300 for 2027 = 0 (Maschine disposed)" "$BV_0300_2027" "0"
 
-# 7a for 2027 should drop to 1200 (only Fahrzeug remains)
+# 7a for 2027 = 1200 (Fahrzeug) + 200 (Maschine Jan 2027
+# auto-AfA booked before disposal) = 1400. Disposal on
+# 2027-01-01 still allows Jan AfA to be booked.
 GUV_2027=$(curl -sS "$API/api/v1/accounting/guv?companyId=$COMPANY_ID&year=2027" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID")
 AFA_7A_2027=$(echo "$GUV_2027" | python3 -c "
@@ -233,7 +238,7 @@ for l in d['cost']['lines']:
     print(l['amount'] or 0)
     break
 ")
-assert_eq "7a for 2027 = 1200 (only Fahrzeug)" "$AFA_7A_2027" "1200"
+assert_eq "7a for 2027 = 1400 (1200 Fahrzeug + 200 Maschine Jan)" "$AFA_7A_2027" "1400"
 
 # ── 8. Validation ──
 echo

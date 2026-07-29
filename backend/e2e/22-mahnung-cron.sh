@@ -105,11 +105,20 @@ EMAIL_SEND_COUNT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invo
   "SELECT count(*) FROM \"EmailSend\" WHERE \"invoiceId\"='inv-automahn'::text AND \"templateType\"='reminder_first';" 2>&1 | tr -d ' ')
 [ "$EMAIL_SEND_COUNT" -ge 1 ] && echo "✓ EmailSend created = $EMAIL_SEND_COUNT" || { echo "✗ no EmailSend row for AUTOMAHN-001"; exit 1; }
 
-# Test 7: idempotency — second run should send 0 (already sent today)
+# Test 7: idempotency — second run should NOT
+# re-send a reminder for the AUTOMAHN-001 invoice
+# (already sent today). Polish #11: the auto-run
+# picks up ALL eligible invoices for the company,
+# so other tests' residue may also get a first-time
+# reminder here. The assertion is about THIS test's
+# invoice only.
 RUN2=$(curl -sS -X POST "$API/api/v1/reminders/auto-run?companyId=$COMPANY_ID" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID")
 RUN2_SENT=$(json_field "$RUN2" sent)
-[ "$RUN2_SENT" = "0" ] && echo "✓ idempotent re-run sent 0 = $RUN2_SENT" || { echo "✗ re-run sent $RUN2_SENT (should be 0)"; exit 1; }
+EMAIL_SEND_AFTER=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT count(*) FROM \"EmailSend\" WHERE \"invoiceId\"='inv-automahn'::text AND \"templateType\"='reminder_first';" 2>&1 | tr -d ' ')
+[ "$EMAIL_SEND_AFTER" = "1" ] && echo "✓ idempotent: AUTOMAHN-001 still has 1 EmailSend (not 2) — re-run sent=$RUN2_SENT (other test residue may have been picked up)" \
+  || { echo "✗ AUTOMAHN-001 has $EMAIL_SEND_AFTER EmailSend (should be 1)"; exit 1; }
 
 # Test 8: total EmailSend for this invoice should still be 1 (no dupes)
 TOTAL_SENDS=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \

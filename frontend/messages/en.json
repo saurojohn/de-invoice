@@ -518,7 +518,9 @@
     "info": "Info",
     "loadError": "Error loading",
     "reset": "Reset",
-    "retry": "Retry"
+    "retry": "Retry",
+    "all": "All",
+    "previous": "Previous"
   },
   "common2": {
     "newInvoice": "New Invoice",
@@ -1084,7 +1086,12 @@
     "ratensplanNotes": "Notes (optional)",
     "ratensplanAutoPause": "Auto-pause reminders",
     "ratensplanCreate": "Create plan",
-    "ratensplanNotEligible": "Installment plan not recommended for this invoice: {reason}"
+    "ratensplanNotEligible": "Installment plan not recommended for this invoice: {reason}",
+    "statusCancelled": "Cancelled",
+    "statusDraft": "Draft",
+    "statusOverdue": "Overdue",
+    "statusPaid": "Paid",
+    "statusSent": "Sent"
   },
   "invoiceTemplates": {
     "title": "Invoice templates",
@@ -1166,7 +1173,8 @@
     "email": "Emails",
     "recurring": "Recurring",
     "cashbook": "Cash Journal",
-    "costCenterReport": "Cost-Center Report"
+    "costCenterReport": "Cost-Center Report",
+    "reminders": "Reminders"
   },
   "paymentMethod": {
     "bankTransfer": "Bank Transfer",
@@ -1959,7 +1967,10 @@
     "cancelledAt": "Cancelled at",
     "cancelledBy": "Cancelled by",
     "pre": "Dunning history",
-    "costCenter": "Cost center"
+    "costCenter": "Cost center",
+    "neueFrist": "New deadline",
+    "statusCancelled": "Cancelled",
+    "statusOpen": "Open"
   },
   "mandant": {
     "choose": "Choose Mandant",
@@ -2672,7 +2683,8 @@
     "executionDateToday": "today",
     "fromSupplier": "from",
     "cardPaymentsTitle": "SEPA batch payment",
-    "cardPaymentsDesc": "Bundles open Eingangsrechnungen into a pain.001 XML for bank upload."
+    "cardPaymentsDesc": "Bundles open Eingangsrechnungen into a pain.001 XML for bank upload.",
+    "unpaidExpenses": "Unpaid expenses"
   },
   "directDebit": {
     "title": "SEPA Direct Debits (pain.008)",
@@ -2867,5 +2879,39 @@
     "emptyEntries": "No foreign income entered. Click 'Add entry' to add a row per country.",
     "loadError": "Failed to load Anlage AUS data",
     "saveError": "Failed to save"
+  },
+  "installmentPlan": {
+    "amount": "Amount",
+    "cancel": "Cancel",
+    "confirmCancel": "Confirm cancellation",
+    "count": "Number of installments",
+    "create": "Create installment plan",
+    "createHint": "Create an installment plan to allow payment in multiple installments.",
+    "createTitle": "Create new installment plan",
+    "dueDate": "Due date",
+    "empty": "No installment plans available",
+    "firstDue": "First installment",
+    "interval": "Interval",
+    "notes": "Notes",
+    "open": "Open",
+    "overdue": "Overdue",
+    "paid": "Paid",
+    "partial": "Partially paid",
+    "rates": "Installments",
+    "status": "Status",
+    "statusActive": "Active",
+    "statusCancelled": "Cancelled",
+    "statusCompleted": "Completed",
+    "title": "Installment Plan",
+    "total": "Total amount"
+  },
+  "voucherTemplate": {
+    "name": "Name",
+    "namePlaceholder": "Enter template name",
+    "nameRequired": "Name is required",
+    "save": "Save",
+    "saveAsTemplate": "Save as template",
+    "saveAsTemplateHint": "Save this voucher as a template for reuse",
+    "saveAsTemplateSuccess": "Template saved successfully"
   }
 }

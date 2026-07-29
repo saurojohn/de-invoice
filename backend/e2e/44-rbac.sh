@@ -122,6 +122,16 @@ INSERT INTO "User" (id, "companyId", email, "passwordHash", role, status, "creat
 VALUES
   ('${VIEWER_ID}', '${COMPANY_ID}', '${VIEWER_EMAIL}', '${PWHASH_ESC}', 'viewer', 'active', now()),
   ('${ACCOUNTANT_ID}', '${COMPANY_ID}', '${ACCOUNTANT_EMAIL}', '${PWHASH_ESC}', 'accountant', 'active', now());
+-- Also insert UserCompany grant rows (the
+-- HeaderAuthGuard checks this many-to-many table
+-- to verify the user has access to the company).
+-- Note: UserCompany has no `id` column — PK is
+-- (userId, companyId).
+INSERT INTO "UserCompany" ("userId", "companyId", role, "grantedAt")
+VALUES
+  ('${VIEWER_ID}', '${COMPANY_ID}', 'viewer', now()),
+  ('${ACCOUNTANT_ID}', '${COMPANY_ID}', 'accountant', now())
+ON CONFLICT ("userId", "companyId") DO NOTHING;
 SQL
 
 # Verify the inserts

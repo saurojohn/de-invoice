@@ -69,9 +69,13 @@ note "=== Test prefix: $PREFIX / year: $YEAR / priorYear: $PRIOR_YEAR ==="
 api_put "/api/v1/accounting/anlage-so/settings?companyId=$COMPANY_ID" \
   "{\"year\": $YEAR, \"transactions\": [], \"wiederkehrendeBezuege\": 0, \"werbungskosten\": 0}" >/dev/null
 docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+-- Wipe ALL tier-113 expense fixtures (across all PREFIX
+-- runs) so the importable-expenses count + import count
+-- are deterministic.
 DELETE FROM "Expense"
   WHERE "companyId" = '$COMPANY_ID'
-    AND description LIKE '${PREFIX}%';
+    AND (description LIKE 'INV-T113-%' OR description LIKE 'T113-%'
+         OR description LIKE 'DEBUG%' OR description LIKE 'INV-DEBUG-%');
 -- Wipe the carryforward map (it lives outside the
 -- anlageSO[year] block, so the settings PUT doesn't
 -- clear it).
@@ -174,7 +178,7 @@ api_put "/api/v1/accounting/anlage-so/settings?companyId=$COMPANY_ID" \
     \"year\": $YEAR,
     \"transactions\": [
       { \"type\": \"wertpapier\", \"description\": \"G1\", \"acquisitionDate\": \"$((YEAR-1))-09-01\", \"acquisitionCost\": 1000, \"saleDate\": \"$YEAR-07-01\", \"salePrice\": 2000 },
-      { \"type\": \"wertpapier\", \"description\": \"G2\", \"acquisitionDate\": \"$((YEAR-1))-10-01\", \"acquisitionCost\": 500, \"saleDate\": \"$YEAR-08-01\", \"salePrice\": 1000 },
+      { \"type\": \"wertpapier\", \"description\": \"G2\", \"acquisitionDate\": \"$((YEAR-1))-10-01\", \"acquisitionCost\": 1500, \"saleDate\": \"$YEAR-08-01\", \"salePrice\": 2500 },
       { \"type\": \"wertpapier\", \"description\": \"L1\", \"acquisitionDate\": \"$((YEAR-1))-11-01\", \"acquisitionCost\": 2000, \"saleDate\": \"$YEAR-09-01\", \"salePrice\": 500 }
     ],
     \"wiederkehrendeBezuege\": 0,
@@ -216,12 +220,16 @@ test "$FGA4" = "False" && pass "freigrenzeApplied = false" || fail "freigrenzeAp
 # ───── 5. Loss carryforward: gain=100, loss=1000 → carryforward=900 ─────
 echo
 note "=== 5. Loss carryforward: gain=100, loss=1000 ==="
+# All transactions must be < 1 year held (Wertpapier
+# Frist) to count as in-Frist. Use acquisitionDate in
+# the autumn of YEAR-1 so saleDate in spring of YEAR
+# is well within Frist.
 api_put "/api/v1/accounting/anlage-so/settings?companyId=$COMPANY_ID" \
   "{
     \"year\": $YEAR,
     \"transactions\": [
-      { \"type\": \"wertpapier\", \"description\": \"Tiny gain\", \"acquisitionDate\": \"$((YEAR-1))-01-01\", \"acquisitionCost\": 1000, \"saleDate\": \"$YEAR-02-01\", \"salePrice\": 1100 },
-      { \"type\": \"wertpapier\", \"description\": \"Big loss\", \"acquisitionDate\": \"$((YEAR-1))-04-01\", \"acquisitionCost\": 5000, \"saleDate\": \"$YEAR-05-01\", \"salePrice\": 4000 }
+      { \"type\": \"wertpapier\", \"description\": \"Tiny gain\", \"acquisitionDate\": \"$((YEAR-1))-09-15\", \"acquisitionCost\": 1000, \"saleDate\": \"$YEAR-05-01\", \"salePrice\": 1100 },
+      { \"type\": \"wertpapier\", \"description\": \"Big loss\", \"acquisitionDate\": \"$((YEAR-1))-10-01\", \"acquisitionCost\": 5000, \"saleDate\": \"$YEAR-06-01\", \"salePrice\": 4000 }
     ],
     \"wiederkehrendeBezuege\": 0,
     \"werbungskosten\": 0
@@ -261,7 +269,7 @@ api_put "/api/v1/accounting/anlage-so/settings?companyId=$COMPANY_ID" \
   "{
     \"year\": $YEAR,
     \"transactions\": [
-      { \"type\": \"wertpapier\", \"description\": \"Small gain\", \"acquisitionDate\": \"$((YEAR-1))-01-01\", \"acquisitionCost\": 1000, \"saleDate\": \"$YEAR-02-01\", \"salePrice\": 1200 }
+      { \"type\": \"wertpapier\", \"description\": \"Small gain\", \"acquisitionDate\": \"$((YEAR-1))-12-01\", \"acquisitionCost\": 1000, \"saleDate\": \"$YEAR-02-01\", \"salePrice\": 1200 }
     ],
     \"wiederkehrendeBezuege\": 0,
     \"werbungskosten\": 0
@@ -308,11 +316,17 @@ note "=== 8. CSV import: 4 rows ==="
 api_put "/api/v1/accounting/anlage-so/settings?companyId=$COMPANY_ID" \
   "{\"year\": $YEAR, \"transactions\": [], \"wiederkehrendeBezuege\": 0, \"werbungskosten\": 0}" >/dev/null
 
+# Note: decimal values use German "1.234,56" notation
+# but the parser splits on "," first then handles
+# quoted fields. To avoid splitting the German decimal
+# comma, we use PLAIN integers (no decimals) in the
+# acquisitionCost/salePrice columns. saleDate is
+# optional — empty cells just skip that field.
 CSV='type,description,acquisitionDate,acquisitionCost,saleDate,salePrice
-wertpapier,AAPL 100,15.03.2024,12000,00,20.06.2024,15500,00
-sonstige,Goldbarren,10.01.2024,5000,00,15.07.2024,6500,00
-wertpapier,BTC 0,5,01.02.2024,8000,00,28.08.2024,12000,00
-,MSFT unknown,,5000,00,01.03.2024,6500,00'
+wertpapier,AAPL 100,15.03.'"$((YEAR-1))"',12000,20.06.'"$YEAR"',15500
+sonstige,Goldbarren,10.01.'"$((YEAR-1))"',5000,15.07.'"$YEAR"',6500
+wertpapier,BTC 0.5,01.02.'"$((YEAR-1))"',8000,28.08.'"$YEAR"',12000
+,MSFT unknown,01.04.'"$((YEAR-1))"',5000,01.03.'"$YEAR"',6500'
 
 # Preview
 api_post "/api/v1/accounting/anlage-so/import-csv" \
@@ -322,7 +336,7 @@ api_post "/api/v1/accounting/anlage-so/import-csv" \
     \"csv\": $(echo "$CSV" | python3 -c "import json,sys; print(json.dumps(sys.stdin.read()))"),
     \"previewOnly\": true
   }"
-assert_status "200" "POST /import-csv (preview)"
+assert_status "201" "POST /import-csv (preview)"
 PREV_COUNT=$(echo "$BODY" | python3 -c "import json,sys; print(len(json.load(sys.stdin)['preview']))")
 OK_COUNT=$(json_field "$BODY" "okCount")
 assert_eq "preview has 4 rows" "$PREV_COUNT" "4"
@@ -336,7 +350,7 @@ api_post "/api/v1/accounting/anlage-so/import-csv" \
     \"csv\": $(echo "$CSV" | python3 -c "import json,sys; print(json.dumps(sys.stdin.read()))"),
     \"previewOnly\": false
   }"
-assert_status "200" "POST /import-csv (confirm)"
+assert_status "201" "POST /import-csv (confirm)"
 IMPORTED=$(json_field "$BODY" "importedCount")
 assert_eq "importedCount = 4" "$IMPORTED" "4"
 
@@ -355,9 +369,11 @@ BAD_DATE_STATUS=$(curl -sS -o /dev/null -w "%{http_code}" -X POST \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
   -d "{\"companyId\":\"$COMPANY_ID\",\"year\":$YEAR,\"csv\":\"type,description,acquisitionDate,acquisitionCost,saleDate,salePrice\nwertpapier,Bad date,NOTADATE,1000,01.01.$YEAR,1500\",\"previewOnly\":true}" \
   "$API/api/v1/accounting/anlage-so/import-csv")
-test "$BAD_DATE_STATUS" = "200" && pass "bad date → preview 200 (row marked ok=false)" || fail "bad date → $BAD_DATE_STATUS (expected 200 with row warning)"
-# The preview still returns 200 — the row has a
-# warning, but the rest of the CSV is valid.
+test "$BAD_DATE_STATUS" = "200" -o "$BAD_DATE_STATUS" = "201" && pass "bad date → preview 2xx (row marked ok=false)" || fail "bad date → $BAD_DATE_STATUS (expected 200/201 with row warning)"
+# The preview still returns 2xx — the row has a
+# warning, but the rest of the CSV is valid. The
+# endpoint returns 201 (NestJS default for POST
+# resource creation) rather than 200.
 
 # Bad decimal
 api_post "/api/v1/accounting/anlage-so/import-csv" \
@@ -367,7 +383,7 @@ api_post "/api/v1/accounting/anlage-so/import-csv" \
     \"csv\": \"type,description,acquisitionDate,acquisitionCost,saleDate,salePrice\nwertpapier,Bad,01.01.$((YEAR-1)),NOTANUMBER,01.01.$YEAR,1500\",
     \"previewOnly\": true
   }"
-assert_status "200" "bad decimal → preview 200"
+test "$STATUS" = "200" -o "$STATUS" = "201" && pass "bad decimal → preview 2xx" || fail "bad decimal → $STATUS (expected 200/201)"
 
 # Missing required column (acquisitionCost) → 400
 MISSING_COL_STATUS=$(curl -sS -o /dev/null -w "%{http_code}" -X POST \
@@ -408,7 +424,7 @@ api_post "/api/v1/accounting/anlage-so/import-csv" \
     \"csv\": $(echo "$CSV" | python3 -c "import json,sys; print(json.dumps(sys.stdin.read()))"),
     \"previewOnly\": false
   }"
-assert_status "200" "POST /import-csv (dedup confirm)"
+assert_status "201" "POST /import-csv (dedup confirm)"
 SKIPPED10=$(json_field "$BODY" "skippedCount")
 IMPORTED10=$(json_field "$BODY" "importedCount")
 assert_eq "dedup: skippedCount = 4" "$SKIPPED10" "4"
@@ -430,7 +446,7 @@ assert_eq "importable-expenses.items = 3" "$ITEM_COUNT" "3"
 
 # Now import them
 api_post "/api/v1/accounting/anlage-so/import-from-expenses?companyId=$COMPANY_ID&year=$YEAR" "{}"
-assert_status "200" "POST /import-from-expenses"
+assert_status "201" "POST /import-from-expenses"
 IMPORTED11=$(json_field "$BODY" "importedCount")
 SKIPPED11=$(json_field "$BODY" "skippedCount")
 assert_eq "importedCount = 3" "$IMPORTED11" "3"
@@ -445,7 +461,7 @@ assert_eq "vg.count = 3 (after expense import)" "$TX11" "3"
 echo
 note "=== 12. Expense re-import: re-import → all skipped ==="
 api_post "/api/v1/accounting/anlage-so/import-from-expenses?companyId=$COMPANY_ID&year=$YEAR" "{}"
-assert_status "200" "POST /import-from-expenses (re-import)"
+assert_status "201" "POST /import-from-expenses (re-import)"
 IMPORTED12=$(json_field "$BODY" "importedCount")
 SKIPPED12=$(json_field "$BODY" "skippedCount")
 assert_eq "re-import: importedCount = 0" "$IMPORTED12" "0"
@@ -454,11 +470,15 @@ assert_eq "re-import: skippedCount = 3" "$SKIPPED12" "3"
 # ───── 13. Berater packager: Kz 99 line + Verlustvortrag ─────
 echo
 note "=== 13. Berater packager: Kz 99 + Verlustvortrag ==="
-# Seed a carryforward so the Kz 99 line shows up.
+# Seed a PRIOR-year carryforward so the v2 compute()
+# picks it up as `priorYearLoss` and surfaces a Kz 99
+# (Verlustvortrag) line in the response. With no
+# current-year in-Frist activity, carryforward =
+# max(0, 0 + 500 - 0) = 500.
 docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
 UPDATE "Company" SET settings = settings
   || jsonb_build_object('anlageSOLossCarryforward',
-       jsonb_build_object('$YEAR'::text, 500::numeric))
+       jsonb_build_object('$PRIOR_YEAR'::text, 500::numeric))
   WHERE id = '$COMPANY_ID';
 SQL
 

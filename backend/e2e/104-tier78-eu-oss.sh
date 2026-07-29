@@ -59,6 +59,21 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# Capture baseline counts (Polish #10: shared DB has
+# residue from prior runs, so we assert deltas not
+# absolutes). The test seeds 4 eligible + 1 each
+# excluded; the baseline is whatever was already
+# there.
+api_get "/api/v1/reports/oss?companyId=$COMPANY_ID&year=2026&quarter=2"
+TMP_BASELINE=$(mktemp -t oss-baseline.XXXXXX.json)
+echo "$BODY" > "$TMP_BASELINE"
+BASELINE_ELIG=$(python3 -c "import json;d=json.load(open('$TMP_BASELINE'));print(d['counts']['eligible'])")
+BASELINE_B2B=$(python3 -c "import json;d=json.load(open('$TMP_BASELINE'));print(d['counts']['excludedB2B'])")
+BASELINE_SC=$(python3 -c "import json;d=json.load(open('$TMP_BASELINE'));print(d['counts']['excludedSameCountry'])")
+BASELINE_NEU=$(python3 -c "import json;d=json.load(open('$TMP_BASELINE'));print(d['counts']['excludedNonEU'])")
+BASELINE_DR=$(python3 -c "import json;d=json.load(open('$TMP_BASELINE'));print(d['counts']['excludedDraft'])")
+rm -f "$TMP_BASELINE"
+
 # ── Seed test fixtures ──
 echo
 note "=== Seeding test customers + invoices ==="
@@ -216,15 +231,15 @@ import json
 d = json.load(open('$TMP'))
 c = d['counts']
 ok = (
-  c['eligible'] == 4 and
-  c['excludedB2B'] == 1 and
-  c['excludedSameCountry'] == 1 and
-  c['excludedNonEU'] == 1 and
-  c['excludedDraft'] == 1
+  c['eligible'] == $BASELINE_ELIG + 4 and
+  c['excludedB2B'] == $BASELINE_B2B + 1 and
+  c['excludedSameCountry'] == $BASELINE_SC + 1 and
+  c['excludedNonEU'] == $BASELINE_NEU + 1 and
+  c['excludedDraft'] == $BASELINE_DR + 1
 )
-print('true' if ok else f'counts: {c}')
+print('true' if ok else f'counts: {c}, baseline: elig={$BASELINE_ELIG} b2b={$BASELINE_B2B} sc={$BASELINE_SC} neu={$BASELINE_NEU} dr={$BASELINE_DR}')
 ")
-assert_eq "counts: 4 eligible / 1 each excluded" "$EXCL_OK" "true"
+assert_eq "counts: 4 eligible / 1 each excluded (delta from baseline)" "$EXCL_OK" "true"
 
 # ── 4. Per-line counts: NL has 1 invoice, 2 rate-buckets ──
 echo

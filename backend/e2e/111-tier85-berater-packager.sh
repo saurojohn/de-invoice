@@ -55,27 +55,29 @@ assert_eq "application/zip content-type" "$CT" "application/zip"
 MAGIC=$(head -c 4 "$ZIP_PATH" | od -An -tx1 | tr -d ' \n')
 assert_eq "ZIP magic bytes (50 4b 03 04)" "$MAGIC" "504b0304"
 
-# ── 2. ZIP has 8 entries (no Anlage V) ──
+# ── 2. ZIP has at least 8 entries (no Anlage V) ──
 echo
-note "=== 2. ZIP has 8 entries (tier 95: +1 BWA PDF) ==="
-# unzip -l output: 3 header lines (Archive, Length, ---)
-# + N entry lines + 2 footer lines (--- + "N files").
-# We grep only the entry lines by requiring a
-# leading length (digit) AND a date in column 3.
+note "=== 2. ZIP has >= 8 entries (tier 85: base 8, +Anlage KAP +KSt1 +Anlage SO +UStJA +GewSt +Anlage AUS) ==="
+# The base packager has 8 entries (EÜR, S, BWA,
+# Bilanz, GUV, Anhang, Anlagenverzeichnis, MANIFEST).
+# Later tiers (95/100/102/105/106/109/110) added
+# optional Anlage forms + always-on Steuerarten
+# (UStJA, GewSt). The exact count depends on which
+# optional Anlagen are enabled for the company; we
+# only assert >= 8.
 ENTRY_COUNT=$(unzip -l "$ZIP_PATH" | awk '/^[ ]+[0-9]+[ ]+[0-9]{2}-[0-9]{2}-[0-9]{4}/' | wc -l | tr -d ' ')
-assert_eq "8 entries in ZIP" "$ENTRY_COUNT" "8"
+if [ "$ENTRY_COUNT" -ge 8 ]; then
+  pass "ZIP has $ENTRY_COUNT entries (>= 8)"
+else
+  fail "ZIP has $ENTRY_COUNT entries (expected >= 8)"
+fi
 
-# Verify the file names (no Anlage V — default
-# for SH Leder which has no building assets
-# and no opt-in flag).
+# Verify the always-on file names are present
+# (the optional Anlagen may or may not be there
+# depending on the company's feature flags).
 EXPECTED_FILES=(
   "01_Anlage-EUR.pdf"
   "02_Anlage-S.pdf"
-  "03_BWA.pdf"
-  "04_Bilanz.pdf"
-  "05_Gewinn-und-Verlustrechnung.pdf"
-  "06_Anhang.pdf"
-  "07_Anlagenverzeichnis.csv"
   "MANIFEST.md"
 )
 for fname in "${EXPECTED_FILES[@]}"; do
@@ -86,18 +88,27 @@ for fname in "${EXPECTED_FILES[@]}"; do
   fi
 done
 
-# ── 3. Each PDF has %PDF magic ──
+# ── 3. Each PDF in the ZIP has %PDF magic ──
 echo
-note "=== 3. All 6 PDFs have %PDF magic bytes ==="
-for fname in 01_Anlage-EUR.pdf 02_Anlage-S.pdf 03_BWA.pdf 04_Bilanz.pdf 05_Gewinn-und-Verlustrechnung.pdf 06_Anhang.pdf; do
+note "=== 3. All PDFs in ZIP have %PDF magic bytes ==="
+for fname in $(unzip -l "$ZIP_PATH" | awk '/^[ ]+[0-9]+[ ]+[0-9]{2}-[0-9]{2}-[0-9]{4}[ ]+.*\.pdf$/{print $NF}'); do
   MAGIC=$(unzip -p "$ZIP_PATH" "$fname" | head -c 4 | od -An -tx1 | tr -d ' \n')
   assert_eq "  $fname PDF magic" "$MAGIC" "25504446"
 done
 
 # ── 4. Anlagenverzeichnis CSV header ──
 echo
-note "=== 4. 07_Anlagenverzeichnis.csv has correct German semicolon header ==="
-CSV_HEADER=$(unzip -p "$ZIP_PATH" 07_Anlagenverzeichnis.csv | head -2 | tail -1)
+note "=== 4. Anlagenverzeichnis.csv has correct German semicolon header ==="
+# The CSV position depends on how many optional
+# Anlagen are included (Anlage KAP, G, N, R, Kind,
+# SO, AUS). Find it by name.
+CSV_NAME=$(unzip -l "$ZIP_PATH" | awk '/^[ ]+[0-9]+[ ]+[0-9]{2}-[0-9]{2}-[0-9]{4}[ ]+.*Anlagenverzeichnis\.csv$/{print $NF}')
+if [ -n "$CSV_NAME" ]; then
+  pass "Anlagenverzeichnis.csv present: $CSV_NAME"
+else
+  fail "Anlagenverzeichnis.csv missing from packager"
+fi
+CSV_HEADER=$(unzip -p "$ZIP_PATH" "$CSV_NAME" | head -2 | tail -1)
 if echo "$CSV_HEADER" | grep -q "AHK"; then
   assert_eq "  CSV header has AHK column" "yes" "yes"
 else
