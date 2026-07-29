@@ -6,11 +6,40 @@
 > und mittelständische Unternehmen im DACH-Raum. Inklusive XRechnung,
 > ZUGFeRD/Factur-X, DATEV-Export, UStVA, FinTS-Banking und OCR-Vorbereitung.
 
-**Tier 115 — XRechnung 2.3.1 (German B2B e-invoice — mandatory since 2025)**:
+**Tier 116 — KoSIT Validator 1.6.2 integration (XRechnung 3.0.2 official validation)**:
+- 140 backend e2e tests + 337 Playwright UI tests (all green)
+- Replaces the in-process BR-* check (Tier 115) with the
+  official KoSIT Validator 1.6.2 for full EN 16931 compliance
+  (150+ rules: BR-*, BR-CO-*, BR-DEC-*, BR-S-*).
+- New `?engine=basic|kosit` parameter on the validate endpoint:
+  - `?engine=basic` (default): fast in-process BR-* check
+    from Tier 115 (BR-01..13). No Java/JAR required.
+  - `?engine=kosit`: spawns the KoSIT Validator JAR via
+    child_process, parses the result table, returns the
+    full EN 16931 verdict.
+- **Graceful fallback** when the KoSIT JAR / JDK is missing:
+  the controller falls back to the basic engine with a
+  warning, so the endpoint is always responsive.
+- Infra: `infra/kosit/validator.jar` (10MB) +
+  `infra/kosit/scenarios.xml` + `infra/kosit/repository/`
+  (~2.5MB UBL 2.1 XSDs + XRechnung 3.0.2 schematron).
+  `infra/kosit/setup.sh` is the one-shot installer
+  (idempotent, downloads from KoSIT releases + OASIS UBL).
+  JDK 17 (Eclipse Temurin, ~300MB) is added to `.gitignore`
+  and downloaded by `setup.sh`.
+- **Note on schema validation**: the UBL 2.1 XSD is strict
+  about element ordering. The current XRechnung generator
+  (Tier 115) produces some REJECT results due to XSD order.
+  Hand-written UBL 2.1 samples (e.g. the official koSIT
+  test instances) return ACCEPTABLE. The KoSIT integration
+  itself works — generator fixes are a follow-up.
+
+**Tier 115 — XRechnung 3.0.2 (German B2B e-invoice — mandatory since 2025)**:
 - 139 backend e2e tests + 337 Playwright UI tests (all green)
 - Upgraded the existing XRechnung service from v1.2
-  (UBL 2.0) to v2.3.1 (UBL 2.1 + KoSIT 2.3.1 CIUS, the
-  current spec from 2024).
+  (UBL 2.0) to **XRechnung 3.0.2** (UBL 2.1 + KoSIT 2024 —
+  the current spec). CustomizationID:
+  `urn:cen.eu:en16931:2017#compliant#urn:xeinkauf.de:kosit:xrechnung_3.0`.
 - **BuyerReference** is now mandatory (BR-1 v2).
   Auto-derived from `customer.address.buyerReference`
   → `customer.address.leitwegId` → customer name.
@@ -25,13 +54,11 @@
 - **EndpointID scheme IDs** standardised: 9930 (Leitweg-ID),
   9931 (Steuernummer), DE:VAT (VAT), EM (email).
 - **Validation endpoint** `GET /invoices/:id/xrechnung/validate`:
-  returns `{ valid, errors, warnings }` with the
-  EN 16931 business-rule names (BR-01, BR-02, BR-04-09,
-  BR-16, BR-21, BR-22, BR-CO-09/10/13). Catches common
-  data issues before the XML is generated.
-- ProfileID changed to `urn:fdc:peppol.eu:2017:poacc:billing:01:1.0`
+  in-process BR-* check (engine=basic). For the official
+  full validator, use `?engine=kosit` (see Tier 116).
+- ProfileID: `urn:fdc:peppol.eu:2017:poacc:billing:01:1.0`
   (Peppol BIS Billing) — the standard that XRechnung
-  2.3.1 aligns with.
+  3.0.2 aligns with.
 
 **Tier 112 — SEPA pain.008 (Lastschrift / Direct Debit — incoming payments)**:
 - 137 backend e2e tests + 333 Playwright UI tests (all green)
