@@ -52,3 +52,6 @@ test_zugferd_*.pdf
 # TypeScript incremental build cache
 *.tsbuildinfo
 test-results/
+
+# KoSIT Validator JDK (large binary, downloaded by setup-kosit.sh)
+infra/java/jdk-*/

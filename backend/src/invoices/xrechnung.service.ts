@@ -1,17 +1,22 @@
 import { Prisma } from '@prisma/client';
 
 /**
- * XRechnung Service — Tier 115
- * Generates electronic invoices in UBL 2.1 + XRechnung 2.3.1
- * (KoSIT, 2024) — the German government CIUS that builds on
+ * XRechnung Service — Tier 115/116
+ * Generates electronic invoices in UBL 2.1 + XRechnung 3.0
+ * (KoSIT 2024) — the German government CIUS that builds on
  * EN 16931. XRechnung is mandatory for German B2B invoices
  * since 2025-01-01 (Wachstumschancengesetz).
  *
- * Spec: urn:xoev-de:kosit:standard:xrechnung_2.3.1
+ * Spec: urn:xeinkauf.de:kosit:xrechnung_3.0 (XRechnung 3.0.2)
  * Schema: UBL 2.1 (universal)
  * Validation: KoSIT validator (CIUS-level + business rules
  * BR-01, BR-02, BR-04, BR-05, BR-06, BR-09, BR-16, BR-21,
  * BR-22, BR-CO-09, BR-CO-10, BR-CO-13, BR-CO-15)
+ *
+ * v3 changes from v2 (2.3.1 → 3.0):
+ *   - New CIUS identifier (urn:xeinkauf.de:kosit:xrechnung_3.0)
+ *   - Schematron 2.5.0 enforces additional rules
+ *   - Common.sch shared between UBL + CII variants
  *
  * v2 changes from v1 (1.2 → 2.3.1):
  *   - BuyerReference is now MANDATORY (BR-1 v2)
@@ -24,6 +29,8 @@ import { Prisma } from '@prisma/client';
  * The service is consumed by:
  *   - GET /invoices/:id/xrechnung         (raw XML download)
  *   - GET /invoices/:id/xrechnung/validate (BR-* check, JSON)
+ *     - ?engine=basic (default, fast in-process BR-* check)
+ *     - ?engine=kosit  (full KoSIT JAR validation)
  *   - zugferd.service.ts (Factur-X reuses the data transform)
  */
 
@@ -137,18 +144,22 @@ export function generateXRechnung(data: XRechnungData): string {
   // Group VAT by rate for TaxSubtotal
   const vatByRate = groupVatByRate(data.items)
 
-  // XRechnung 2.3.1 conformance identifier
+  // XRechnung 3.0 conformance identifier (current spec, 2024)
+  // Replaces the 2.3.1 / 1.2 IDs from earlier versions. The
+  // KoSIT Schematron 2.5.0 / XRechnung 3.0.2 rules enforce
+  // this exact identifier.
   const customisationId =
-    'urn:cen.eu:en16931:2017#compliant#urn:xoev-de:kosit:standard:xrechnung_2.3.1'
+    'urn:cen.eu:en16931:2017#compliant#urn:xeinkauf.de:kosit:xrechnung_3.0'
 
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<Invoice xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
+<Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"
+         xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
          xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2"
          xmlns:udt="urn:un:unece:uncefact:data:specification:UnqualifiedDataTypesSchemaModule-2"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xmlns:ext="urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2">
 
-  <!-- XRechnung 2.3.1 — Konformitätskennung -->
+  <!-- XRechnung 3.0 — Konformitätskennung (KoSIT 2024) -->
   <cbc:CustomizationID>${customisationId}</cbc:CustomizationID>
   <cbc:ProfileID>urn:fdc:peppol.eu:2017:poacc:billing:01:1.0</cbc:ProfileID>
 

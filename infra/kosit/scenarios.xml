@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  KoSIT Validator scenarios.xml — XRechnung 3.0.2
+
+  Configures the KoSIT validator (validator-1.6.2.jar)
+  to validate XRechnung XML against:
+    1. UBL 2.1 XSD schema (structural)
+    2. XRechnung 3.0 Schematron rules (CIUS-level BR-*)
+
+  Invoked from the backend via:
+    java -jar validator.jar -s scenarios.xml -r result.xml input.xml
+
+  The validator emits a <rep:report> with all rule
+  violations. The KoSITValidatorService parses this
+  into the same { valid, errors, warnings } shape as
+  the in-process validateXRechnung().
+
+  References:
+    - validator.jar: KoSIT Validator 1.6.2
+      (https://github.com/itplr-kosit/validator/releases/tag/v1.6.2)
+    - UBL 2.1 XSD: included in the validator's standalone jar
+    - XRechnung 3.0.2 schematron: xrechnung-schematron 2.5.0
+      (https://github.com/itplr-kosit/xrechnung-schematron/releases/tag/v2.5.0)
+-->
+<scenarios xmlns="http://www.xoev.de/de/validator/framework/1/scenarios" frameworkVersion="1.1.2">
+    <name>de-invoice — XRechnung 3.0 Validation</name>
+    <author>de-invoice</author>
+    <date>2026-07-29</date>
+    <description>
+        <p>XRechnung 3.0 / UBL 2.1 validation for German B2B e-invoices.
+           Combines UBL 2.1 schema (XSD) + XRechnung 3.0.2 schematron rules.</p>
+    </description>
+
+    <scenario>
+        <name>XRechnung-UBL-3.0</name>
+        <description>
+            <p>Validate a UBL 2.1 Invoice against the XRechnung 3.0 CIUS.
+               The XRechnung 3.0.2 schematron (XRechnung-UBL-validation.xsl)
+               enforces all BR-*, BR-CO-*, BR-DEC-* and BR-S-* rules.</p>
+        </description>
+
+        <!-- UBL 2.1 namespaces -->
+        <namespace prefix="cac">urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2</namespace>
+        <namespace prefix="cbc">urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2</namespace>
+        <namespace prefix="udt">urn:un:unece:uncefact:data:specification:UnqualifiedDataTypesSchemaModule-2</namespace>
+        <namespace prefix="ubl">urn:oasis:names:specification:ubl:schema:xsd:Invoice-2</namespace>
+
+        <!-- Match only the Invoice root element (not CreditNote
+             — that's a separate scenario for the future) -->
+        <match>/ubl:Invoice</match>
+
+        <!-- 1. UBL 2.1 XSD validation (structural integrity) -->
+        <validateWithXmlSchema>
+            <resource>
+                <name>UBL Invoice 2.1 XSD</name>
+                <!-- Path is relative to the -r repository directory
+                     (the xsd/maindoc/ subfolder we maintain, mirroring
+                     the official UBL 2.1 distribution layout). -->
+                <location>xsd/maindoc/UBL-Invoice-2.1.xsd</location>
+            </resource>
+        </validateWithXmlSchema>
+
+        <!-- 2. XRechnung 3.0.2 schematron (CIUS-level rules) -->
+        <validateWithSchematron>
+            <resource>
+                <name>XRechnung 3.0 UBL validation</name>
+                <location>schematron/ubl/XRechnung-UBL-validation.xsl</location>
+            </resource>
+        </validateWithSchematron>
+
+        <!-- The standard KoSIT report template (from
+             https://github.com/itplr-kosit/validator
+             /src/test/resources/examples/simple/repository/report.xsl)
+             The validator runs the report.xsl against the
+             internal report-input document to produce a
+             printable report. -->
+        <createReport>
+            <resource>
+                <name>Report for eRechnung</name>
+                <location>report.xsl</location>
+            </resource>
+        </createReport>
+    </scenario>
+
+    <!-- noScenarioReport: required by scenarios.xsd.
+         Uses the same report.xsl template as the scenarios
+         (so an unmatched input still produces a printable
+         report, not a crash). -->
+    <noScenarioReport>
+        <resource>
+            <name>default</name>
+            <location>report.xsl</location>
+        </resource>
+    </noScenarioReport>
+</scenarios>

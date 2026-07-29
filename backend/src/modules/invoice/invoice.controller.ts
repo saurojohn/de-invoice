@@ -10,6 +10,10 @@ import { StorageService } from '../storage/storage.service';
 import { MailService } from '../mail/mail.service';
 import { generateInvoicePDF, InvoiceRenderConfig } from '../../invoices/invoice-pdf.service';
 import { generateXRechnung, transformToXRechnungData, validateXRechnung } from '../../invoices/xrechnung.service';
+import {
+  validateXRechnungWithKoSIT,
+  KoSITValidatorUnavailableError,
+} from '../../invoices/kosIT-validator.service';
 import { generateZUGFeRD } from '../../invoices/zugferd.service';
 // Tier 62: USt-Behandlung auto-detector (pure function, no
 // DI — we just import and call suggestUstBehandlung()).
@@ -675,16 +679,20 @@ export class InvoiceController {
   }
 
   /**
-   * Tier 115: XRechnung BR-* validation. Returns the
-   * list of EN 16931 business-rule errors + warnings
-   * before the user actually downloads the XML. Useful
-   * for the "validate before send" UI flow.
+   * Tier 115/116: XRechnung validation. Two engines:
+   *   - ?engine=basic (default): in-process EN 16931 BR-*
+   *     check (Tier 115). Fast, no Java/JAR required.
+   *   - ?engine=kosit: full KoSIT Validator 1.6.2 (Tier 116)
+   *     with 150+ rules including all BR-*, BR-CO-*, BR-DEC-*
+   *     and BR-S-*. Falls back to basic if KoSIT is
+   *     unavailable (returns the basic result + a note).
    */
   @Get(':id/xrechnung/validate')
   @Require('invoice.read')
   async validateInvoiceXRechnung(
     @Param('id') id: string,
     @Query('companyId') companyId: string,
+    @Query('engine') engineRaw?: string,
   ) {
     const invoice = await this.invoiceService.findOne(id, companyId)
     const company = await this.prisma.company.findUnique({ where: { id: companyId } })
@@ -695,6 +703,39 @@ export class InvoiceController {
       ...company,
       leitwegId: (company.settings as any)?.leitwegId || null,
     } as any
+    const engine = (engineRaw || 'basic').toLowerCase()
+    if (engine !== 'basic' && engine !== 'kosit') {
+      throw new BadRequestException(
+        `Invalid engine "${engineRaw}". Use "basic" (default, fast in-process BR-* check) or "kosit" (full KoSIT JAR validation).`,
+      )
+    }
+
+    if (engine === 'kosit') {
+      // Tier 116: call the KoSIT Validator JAR. Falls back
+      // to basic with a note if the JAR / JDK is missing.
+      const xrechnungData = transformToXRechnungData(invoice, companyWithLeitweg)
+      const xml = generateXRechnung(xrechnungData)
+      try {
+        return await validateXRechnungWithKoSIT(xml)
+      } catch (err: any) {
+        if (err instanceof KoSITValidatorUnavailableError) {
+          const basic = validateXRechnung(xrechnungData)
+          return {
+            ...basic,
+            engine: 'kosit-unavailable' as const,
+            warnings: [
+              ...basic.warnings,
+              {
+                rule: 'BT-ENGINE',
+                message: `KoSIT Validator not available: ${err.message}. Falling back to in-process BR-* check.`,
+              },
+            ],
+          }
+        }
+        throw err
+      }
+    }
+    // engine=basic (default) — fast in-process BR-* check
     const xrechnungData = transformToXRechnungData(invoice, companyWithLeitweg)
     return validateXRechnung(xrechnungData)
   }
