@@ -200,8 +200,13 @@ note "=== 5. EÜR aggregation: sums all invoices in EUR ==="
 # pattern: capture the SUM of all 2026 invoices EXCEPT
 # the 3 test ones (as the test's "PRE"), then expect
 # post-test 4100 = PRE + delta.
+# We exclude the test's own PREFIX AND GUV-* (which
+# the 108 GuV test may have left behind if its EXIT
+# trap didn't fire). The PRE should reflect "all 2026
+# invoices except our 3 test ones + any GUV-test
+# residue from a prior run".
 PRE_4100=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
-  "SELECT COALESCE(SUM(\"eurSubtotal\"),0)::text FROM \"Invoice\" WHERE \"companyId\"='$COMPANY_ID' AND status IN ('paid','sent','overdue') AND \"invoiceNumber\" NOT LIKE '${PREFIX}-%' AND EXTRACT(YEAR FROM \"issueDate\")=${YEAR};" 2>&1 | tr -d ' ' | head -1)
+  "SELECT COALESCE(SUM(\"eurSubtotal\"),0)::text FROM \"Invoice\" WHERE \"companyId\"='$COMPANY_ID' AND status IN ('paid','sent','overdue') AND \"invoiceNumber\" NOT LIKE '${PREFIX}-%' AND \"invoiceNumber\" NOT LIKE 'GUV-%' AND EXTRACT(YEAR FROM \"issueDate\")=${YEAR};" 2>&1 | tr -d ' ' | head -1)
 
 EXPECTED_DELTA=$(python3 -c "
 print(round(

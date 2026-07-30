@@ -6,6 +6,42 @@
 > und mittelständische Unternehmen im DACH-Raum. Inklusive XRechnung,
 > ZUGFeRD/Factur-X, DATEV-Export, UStVA, FinTS-Banking und OCR-Vorbereitung.
 
+**Tier 118.5 — Cross-currency aggregation in UStVA / BWA / PnL / GuV (Tier 118 follow-up)**:
+- 142 backend e2e tests + 337 Playwright UI tests (all green)
+- The four German Finanzamt-facing reports (BWA,
+  PnL / GuV, UStVA) now aggregate in EUR across
+  currencies, mirroring what Tier 118 did for the
+  EÜR. The original-currency amounts stay on the
+  customer-facing PDF / XRechnung; the EUR
+  equivalents (pre-computed at issue time from the
+  ECB rate) are what the reports sum.
+- **BWA** (`bwa.service.ts`): `invoiceMonat`,
+  `invoiceVormonat`, `invoiceYtd`, `vorjahresYtdInvoice`
+  use `eurSubtotal ?? subtotal` for the BWA 1000
+  (Umsatzerlöse) line.
+- **PnL** (`pnl.service.ts`): `_sum` aggregates
+  include `eurSubtotal` and `eurTotalVat` alongside
+  the original amounts; the result map picks EUR
+  first with original as fallback.
+- **GuV** (`accounting/guv.service.ts`): `umsatzerloese`
+  and downstream lines use `eurSubtotal ?? subtotal`.
+- **UStVA** (`ustva.service.ts`): per-invoice EUR
+  conversion factor `eurSubtotal / subtotal`
+  (defaults to 1 for null rows), applied to each
+  line's `netAmount` / `vatAmount` before bucketing
+  into the Kennziffern. EUR-foreign sales land in
+  the same Kz 81 / 86 / 77 buckets as EUR sales.
+- e2e `142-tier118-5-eur-aggregation.sh`: 6
+  sections, 9+ assertions — covers baseline+delta
+  pattern for BWA / PnL / GuV (UStVA shape varies
+  across versions, smoke-tested). Pre-query
+  excludes the test's own PREFIX AND GUV-%
+  (residual fixtures from the 108 GUV test).
+- Regression: 101, 108, 112, 139, 140, 141, 58, 60
+  all still pass.
+- 141 PRE query also now excludes `GUV-%` to
+  tolerate 108 test pollution.
+
 **Tier 118 — Multi-currency (Invoice.currency + ECB rates + EUR aggregation)**:
 - 141 backend e2e tests + 337 Playwright UI tests (all green)
 - Invoices can now be issued in any ISO 4217 currency

@@ -219,7 +219,13 @@ export class BwaService {
           status: { in: ['paid', 'sent', 'overdue'] },
           issueDate: { gte: yearStart, lte: monthEnd },
         },
-        select: { subtotal: true, issueDate: true },
+        // Tier 118.5: BWA is a German BWA (Betriebswirtschaftliche
+        // Auswertung) which sums everything in EUR. We pull
+        // `eurSubtotal` (pre-computed at issue time from the
+        // ECB rate) and fall back to `subtotal` for legacy
+        // rows that pre-date Tier 118 (the column was added
+        // nullable and backfilled for existing rows).
+        select: { subtotal: true, eurSubtotal: true, issueDate: true },
       }),
       this.prisma.expense.findMany({
         where: {
@@ -252,18 +258,23 @@ export class BwaService {
         .filter((v) => v.date >= start && v.date <= end)
         .reduce((s, v) => s + v.amount, 0)
 
+    // Tier 118.5: aggregate in EUR. Prefer eurSubtotal
+    // (pre-computed at issue time), fall back to
+    // subtotal for legacy rows.
+    const eurSubtotal = (i: { subtotal: any; eurSubtotal: any }) =>
+      i.eurSubtotal != null ? Number(i.eurSubtotal) : Number(i.subtotal)
     const invoiceMonat = sumInMonth(
-      invoices.map((i) => ({ date: i.issueDate, amount: Number(i.subtotal) })),
+      invoices.map((i) => ({ date: i.issueDate, amount: eurSubtotal(i) })),
       monthStart,
       monthEnd,
     )
     const invoiceVormonat = sumInMonth(
-      invoices.map((i) => ({ date: i.issueDate, amount: Number(i.subtotal) })),
+      invoices.map((i) => ({ date: i.issueDate, amount: eurSubtotal(i) })),
       vormonatStart,
       vormonatEnd,
     )
     const invoiceYtd = sumInMonth(
-      invoices.map((i) => ({ date: i.issueDate, amount: Number(i.subtotal) })),
+      invoices.map((i) => ({ date: i.issueDate, amount: eurSubtotal(i) })),
       yearStart,
       monthEnd,
     )
@@ -382,7 +393,10 @@ export class BwaService {
           status: { in: ['paid', 'sent', 'overdue'] },
           issueDate: { gte: vorjahresYtdStart, lte: vorjahresYtdEnd },
         },
-        select: { subtotal: true },
+        // Tier 118.5: prior-year aggregation in EUR.
+        // eurSubtotal for multi-currency, fallback to
+        // subtotal for legacy null rows.
+        select: { subtotal: true, eurSubtotal: true },
       }),
       this.prisma.expense.findMany({
         where: {
@@ -407,7 +421,7 @@ export class BwaService {
     ])
 
     const vorjahresYtdInvoice = vorjahresInvoices.reduce(
-      (s, i) => s + Number(i.subtotal),
+      (s, i) => s + (i.eurSubtotal != null ? Number(i.eurSubtotal) : Number(i.subtotal)),
       0,
     )
     // Tier 93: bucket the prior-year expenses the

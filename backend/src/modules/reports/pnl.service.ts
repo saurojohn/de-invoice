@@ -115,7 +115,15 @@ export class PnlService {
             issueDate: { gte: m.mStart, lte: m.mEnd },
             status: { in: ['paid', 'sent', 'overdue', 'draft'] },
           },
-          _sum: { subtotal: true, totalVat: true },
+          // Tier 118.5: aggregate the EUR equivalents
+          // (eurSubtotal / eurTotalVat). The PnL is a
+          // German BWA-style form that sums everything
+          // in EUR regardless of source currency. The
+          // raw subtotal / totalVat columns are
+          // summed too for the fallback path (legacy
+          // rows where eurSubtotal is null). The
+          // service below picks eurSubtotal first.
+          _sum: { subtotal: true, totalVat: true, eurSubtotal: true, eurTotalVat: true },
           _count: { _all: true },
         }).then((r) => ({ kind: 'cy' as const, idx: m.idx, value: r })),
         // Material expenses for the current year.
@@ -155,7 +163,8 @@ export class PnlService {
             issueDate: { gte: m.pStart, lte: m.pEnd },
             status: { in: ['paid', 'sent', 'overdue', 'draft'] },
           },
-          _sum: { subtotal: true, totalVat: true },
+          // Tier 118.5: prior-year aggregation in EUR
+          _sum: { subtotal: true, totalVat: true, eurSubtotal: true, eurTotalVat: true },
         }).then((r) => ({ kind: 'py' as const, idx: m.idx, value: r })),
         this.prisma.expense.aggregate({
           where: {
@@ -191,14 +200,24 @@ export class PnlService {
 
     const result: PnlMonth[] = months.map((m) => {
       const s = byMonth.get(m.idx) || {};
-      const revenue = Number(s.cy?._sum?.subtotal || 0);
-      const vat = Number(s.cy?._sum?.totalVat || 0);
+      // Tier 118.5: prefer eurSubtotal / eurTotalVat
+      // (pre-computed at issue time from the ECB rate)
+      // over the original-currency subtotal / totalVat.
+      // Fall back to the original amounts for legacy
+      // rows where the EUR columns are still null.
+      const sumEur = (s_?: AggRow, eurKey?: 'eurSubtotal' | 'eurTotalVat', origKey?: 'subtotal' | 'totalVat') => {
+        const eur = s_?._sum?.[eurKey!]
+        if (eur != null) return Number(eur)
+        return Number(s_?._sum?.[origKey!] || 0)
+      }
+      const revenue = sumEur(s.cy, 'eurSubtotal', 'subtotal')
+      const vat = sumEur(s.cy, 'eurTotalVat', 'totalVat')
       const mat = Number(s.cyMat?._sum?.netAmount || 0);
       const totalExp = Number(s.cyExp?._sum?.netAmount || 0);
       const otherExp = Math.max(0, totalExp - mat);
       const operatingResult = revenue - mat - otherExp;
       // Prior year
-      const pRev = Number(s.py?._sum?.subtotal || 0);
+      const pRev = sumEur(s.py, 'eurSubtotal', 'subtotal')
       const pMat = Number(s.pyMat?._sum?.netAmount || 0);
       const pTotal = Number(s.pyExp?._sum?.netAmount || 0);
       const pOther = Math.max(0, pTotal - pMat);

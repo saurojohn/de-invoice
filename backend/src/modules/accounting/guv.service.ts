@@ -163,14 +163,26 @@ export class GuVService {
         issueDate: { gte: yearStart, lte: yearEnd },
         status: { in: ['paid', 'sent', 'overdue'] },
       },
+      // Tier 118.5: G+V is a German BWA-style form
+      // that sums everything in EUR. Pull the
+      // pre-computed EUR equivalents alongside the
+      // original-currency amounts.
       select: {
         subtotal: true,
         totalVat: true,
+        eurSubtotal: true,
+        eurTotalVat: true,
         reverseCharge: true,
       },
     })
+    // Tier 118.5: aggregate in EUR. Prefer
+    // eurSubtotal (pre-computed at issue time from
+    // the ECB rate); fall back to the original
+    // subtotal for legacy rows where the EUR
+    // columns are still null.
     const umsatzerloese = invoices.reduce(
-      (s, inv) => s + Number(inv.subtotal),
+      (s, inv) =>
+        s + (inv.eurSubtotal != null ? Number(inv.eurSubtotal) : Number(inv.subtotal)),
       0,
     )
 

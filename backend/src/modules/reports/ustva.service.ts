@@ -95,6 +95,12 @@ export class UstvaService {
         status: { in: ['paid', 'sent', 'overdue'] }, // finalized
         type: { in: ['INV', 'PI'] },                  // standard sales only; CN subtracts
       },
+      // Tier 118.5: pull `subtotal` + `eurSubtotal` so we
+      // can convert line-level amounts to EUR for the
+      // Voranmeldung (the Finanzamt form is EUR-denominated).
+      // For EUR invoices the factor is 1.0; for non-EUR
+      // it's `eurSubtotal / subtotal` (or 1.0 if the
+      // column is null on legacy rows).
       include: { items: true, customer: true },
     });
 
@@ -126,15 +132,29 @@ export class UstvaService {
       salesByRateMap.set(rate, existing);
     };
 
+    // Tier 118.5: per-invoice EUR conversion factor.
+    // The factor is 1.0 for EUR invoices, otherwise
+    // `eurSubtotal / subtotal`. The factor is the same
+    // for all line items in the same invoice (the
+    // ECB rate is a single number, not per-line). We
+    // apply it to each line's netAmount / vatAmount
+    // before bucketing into the UStVA Kennziffern.
+    const eurFactor = (inv: { subtotal: any; eurSubtotal: any }) => {
+      if (inv.eurSubtotal == null) return 1
+      const f = Number(inv.eurSubtotal) / Number(inv.subtotal)
+      return isFinite(f) && f > 0 ? f : 1
+    }
+
     for (const inv of salesInvoices) {
       const customerCountry = (inv.customer as any)?.country || '';
       const customerVatId = (inv.customer as any)?.vatId || '';
       const isGermanVatId = customerVatId.startsWith('DE');
+      const f = eurFactor(inv)
 
       for (const item of inv.items) {
         const rate = Number(item.vatRate);
-        const net = Number(item.netAmount);
-        const vat = Number(item.vatAmount);
+        const net = Number(item.netAmount) * f;
+        const vat = Number(item.vatAmount) * f;
 
         if (rate > 0) {
           addToRate(rate, net, vat);
@@ -153,10 +173,11 @@ export class UstvaService {
 
     // Credit notes — subtract from sales (CN items have negative net/vat)
     for (const cn of creditNotes) {
+      const f = eurFactor(cn)
       for (const item of cn.items) {
         const rate = Number(item.vatRate);
-        const net = Number(item.netAmount);
-        const vat = Number(item.vatAmount);
+        const net = Number(item.netAmount) * f;
+        const vat = Number(item.vatAmount) * f;
         if (rate > 0) {
           addToRate(rate, net, vat); // CN is already negative
         }
