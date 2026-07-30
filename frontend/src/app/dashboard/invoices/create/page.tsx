@@ -1188,13 +1188,13 @@ function CreateInvoicePageInner() {
                     and stores the EUR equivalent for aggregation. */}
                 <div>
                   <label className="block text-sm font-medium mb-1">
-                    {t("currency.label") || "Währung"}
+                    {t("invoice.currency") || "Währung"}
                   </label>
                   <select
                     className="w-full h-10 border rounded-md px-3"
                     value={form.currency}
                     onChange={(e) => setForm({ ...form, currency: e.target.value })}
-                    title={t("currency.hint") || "ISO 4217 Währungscode. EUR bleibt unverändert; USD/CHF/GBP werden zum ECB-Tageskurs in EUR umgerechnet."}
+                    title={t("invoice.currencyHint") || "ISO 4217 Währungscode. EUR bleibt unverändert; USD/CHF/GBP werden zum ECB-Tageskurs in EUR umgerechnet."}
                     data-testid="invoice-currency"
                   >
                     <option value="EUR">EUR (€)</option>

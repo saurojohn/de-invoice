@@ -33,10 +33,15 @@ note "=== Test prefix: $PREFIX ==="
 
 # ───── 0. Wipe prior CronHealth rows + verify schema ─────
 note "=== 0. Cleanup + schema check ==="
+# Wipe ALL CronHealth rows so the "all 7 grey" assertion
+# in step 1 is deterministic. The production webhook-
+# retry-worker has already recorded ticks in the dev
+# DB, so we clean them out here (the cron will re-
+# record a tick within a minute).
 docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
-DELETE FROM "CronHealth" WHERE "name" LIKE 'T119-%' OR "name" LIKE 'webhook-retry-worker' OR "name" LIKE 'cron-health-cleanup';
+DELETE FROM "CronHealth";
 SQL
-pass "wiped prior CronHealth rows"
+pass "wiped all CronHealth rows"
 
 # Verify the table exists (schema push must have run)
 TABLE_EXISTS=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \

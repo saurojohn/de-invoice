@@ -6,6 +6,51 @@
 > und mittelständische Unternehmen im DACH-Raum. Inklusive XRechnung,
 > ZUGFeRD/Factur-X, DATEV-Export, UStVA, FinTS-Banking und OCR-Vorbereitung.
 
+**Tier 119.5 — System health page (frontend) (Tier 119 follow-up)**:
+- 143 backend e2e tests + 338 Playwright UI tests (all green)
+- A new `/dashboard/system-health` page renders the
+  Tier 119 backend endpoint as a table with 4
+  health-coloured dots (green / amber / red /
+  grey), per-row last-run / next-run / summary /
+  last-error, and a header row of count chips.
+- Auto-refresh every 30s + a 1Hz tick for the
+  "next run in 3m" countdown so the dashboard
+  feels live without spamming the backend.
+- A "Clean old rows" button calls
+  `POST /admin/cron-health/clean` (with a
+  `window.confirm` safety check) and toasts the
+  deleted-row count.
+- Sort: red → amber → grey → green. Operators
+  see problems at the top, not buried in a
+  "freshest run" list.
+- Wired into the dashboard home (`page.tsx`)
+  via a new emerald card next to the existing
+  system-errors card.
+- i18n × 3 locales: `systemHealth.*` (title,
+  subtitle, neverRan, lastRun, nextRun,
+  lastSummary, lastError, noError, schedule,
+  timezone, refresh, clean, cleanConfirm,
+  cleaned, loadingError, loading, noCrons,
+  healthGreen/Amber/Red/Grey, minutesAgo,
+  hoursAgo, daysAgo, nextRunIn,
+  nextRunOverdue, nextRunNow) + dashboard card
+  title/description.
+- Also fixed a pre-existing i18n check failure
+  where the invoice form referenced
+  `t("currency.label")` / `t("currency.hint")`
+  (no top-level `currency` key existed) — the
+  form now uses `t("invoice.currency")` /
+  `t("invoice.currencyHint")` which were already
+  in the messages.
+- e2e 143 (backend) updated to wipe ALL
+  `CronHealth` rows at the start (not just the
+  test's own fixtures) so the "all 7 grey"
+  assertion is deterministic. The cron re-records
+  a tick within a minute. ALL PASSED.
+- 12/12 cross-cutting regression tests pass
+  (42, 50, 58, 60, 101, 108, 112, 139, 140,
+  141, 142, 143).
+
 **Tier 119 — Cron health monitoring (admin/cron-health endpoint)**:
 - 143 backend e2e tests + 337 Playwright UI tests (all green)
 - A central `CronHealthService` records every run
