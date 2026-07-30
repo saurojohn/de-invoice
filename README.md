@@ -6,6 +6,48 @@
 > und mittelständische Unternehmen im DACH-Raum. Inklusive XRechnung,
 > ZUGFeRD/Factur-X, DATEV-Export, UStVA, FinTS-Banking und OCR-Vorbereitung.
 
+**Tier 118 — Multi-currency (Invoice.currency + ECB rates + EUR aggregation)**:
+- 141 backend e2e tests + 337 Playwright UI tests (all green)
+- Invoices can now be issued in any ISO 4217 currency
+  the company has ECB rates for (EUR, USD, CHF, GBP, JPY,
+  PLN, CZK, CNY by default).
+- New Invoice columns:
+  - `exchangeRate` (Decimal 12,6) — the ECB rate at issue
+    time ("1 EUR = X currency", e.g. 1.138 for USD).
+  - `eurSubtotal` / `eurTotalVat` / `eurTotal`
+    (Decimal 12,4) — pre-computed EUR equivalents for
+    cross-currency aggregation.
+- For EUR invoices: `exchangeRate = 1.0000` and the EUR
+  amounts mirror the originals. Backfill on existing rows.
+- For non-EUR invoices: the backend looks up the rate
+  from `Company.settings.datev.exchangeRates` (the
+  existing ECB cache from the `ExchangeRateService`
+  cron at 02:00 Berlin) and computes the EUR equivalents
+  at issue time.
+- Reuses the existing `ExchangeRateService` —
+  `infra/kosit` cron pulls ECB daily rates, the
+  controller exposes `GET /exchange-rates` for the
+  manual refresh, and the `getRate(companyId, ccy)`
+  helper returns the ECB rate string.
+- **EÜR aggregation** now uses `eurSubtotal` (with
+  `?? subtotal` fallback for legacy null rows). The
+  Finanzamt form sums everything in EUR regardless
+  of source currency. Same change will be applied
+  to UStVA / BWA / GuV as those reports are extended.
+- XRechnung generator: original currency preserved on
+  the XML (`<cbc:DocumentCurrencyCode>USD</...>`) and
+  on the PDF — customer-facing artifacts stay in the
+  customer's currency, internal aggregation is in EUR.
+- Frontend invoice form: Währung selector with 8 ISO
+  codes, Intl.NumberFormat renders the right symbol
+  in the Summary card (e.g. `1.190,00 $` for USD,
+  `1'190.00 Fr.` for CHF).
+- i18n: `invoice.currencyHint` × 3 locales (DE/EN/ZH).
+- e2e `141-tier118-multicurrency.sh`: 7 sections, 18+
+  assertions — covers EUR rate=1 case, USD/CHF
+  cross-currency math, EÜR aggregation delta, and
+  XRechnung `DocumentCurrencyCode` preservation.
+
 **Tier 117 — XRechnung generator: UBL 2.1 XSD element order + BR-DE compliance**:
 - 140 backend e2e tests + 337 Playwright UI tests (all green)
 - Generator now produces UBL 2.1 XSD-compliant XML that

@@ -11,6 +11,12 @@ import { ReminderModule } from '../reminder/reminder.module';
 // need CreditBalanceService to route overpayments / Gutschrift
 // overages into the customer credit ledger.
 import { CustomerModule } from '../customer/customer.module';
+// Tier 118: multi-currency. InvoiceService.create() needs
+// ExchangeRateService to compute the EUR equivalent at issue
+// time (subtotal/totalVat/total stay in the original currency;
+// eurSubtotal/eurTotalVat/eurTotal are pre-computed for
+// cross-currency aggregation in EÜR/UStVA/BWA/GuV).
+import { ExchangeRateModule } from '../exchange-rate/exchange-rate.module';
 
 @Module({
   controllers: [InvoiceController],
@@ -27,6 +33,8 @@ import { CustomerModule } from '../customer/customer.module';
     ReminderModule,
     // Tier 58: see comment above.
     CustomerModule,
+    // Tier 118: see comment above.
+    ExchangeRateModule,
   ],
   exports: [InvoiceService, PaymentService],
 })

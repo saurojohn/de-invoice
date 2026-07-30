@@ -1036,6 +1036,7 @@
     "referenceInvoice": "Referenzrechnung",
     "referenceInvoiceHelp": "Gutschrift bezieht sich auf die ursprüngliche Rechnung",
     "currency": "Währung",
+    "currencyHint": "ISO 4217 Währungscode. EUR bleibt unverändert; USD/CHF/GBP werden zum ECB-Tageskurs in EUR umgerechnet.",
     "cashPayment": "Barzahlung",
     "bankTransfer": "Überweisung",
     "cash": "Bargeld",

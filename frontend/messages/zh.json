@@ -1036,6 +1036,7 @@
     "referenceInvoice": "关联原发票",
     "referenceInvoiceHelp": "贷项通知单关联原始发票",
     "currency": "货币",
+    "currencyHint": "ISO 4217 货币代码。EUR 保持不变;USD/CHF/GBP 按欧洲央行每日参考汇率换算为 EUR。",
     "cashPayment": "现金支付",
     "bankTransfer": "银行转账",
     "cash": "现金",

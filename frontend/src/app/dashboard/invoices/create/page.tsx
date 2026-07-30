@@ -201,6 +201,14 @@ function CreateInvoicePageInner() {
     // can also type a new value; the e2e 67 covers that path.
     costCenter: "",
     costObject: "",
+    // Tier 118: multi-currency. The invoice can be
+    // issued in any ISO 4217 currency the company has
+    // rates for. The default is EUR (most B2B
+    // invoices in Germany). When set to a non-EUR
+    // code, the backend looks up the ECB rate and
+    // stores the EUR equivalent for cross-currency
+    // aggregation (EÜR, UStVA, BWA).
+    currency: "EUR",
     // Rechnungssprache — default to the current UI locale so the
     // user doesn't have to change anything when their UI is already
     // in the language they want the invoice in. They can still
@@ -288,6 +296,10 @@ function CreateInvoicePageInner() {
             // (see below) from these two booleans.
             reverseCharge: Boolean(inv.reverseCharge),
             euTransaction: Boolean(inv.euTransaction),
+            // Tier 118: prefill the currency on edit.
+            // Falls back to EUR for legacy rows that
+            // don't have a currency set.
+            currency: inv.currency || 'EUR',
             items: (inv.items || []).map((it: any) => ({
               description: it.description || '',
               productNumber: it.productNumber || '',
@@ -742,6 +754,21 @@ function CreateInvoicePageInner() {
     return calculateSubtotal() - calculateDiscount() + calculateVat()
   }
 
+  // Tier 118: format an amount in the selected currency.
+  // Uses Intl.NumberFormat for the per-currency symbol
+  // placement; falls back to "<amount> <CCY>" for codes
+  // Intl doesn't recognise (rare in practice).
+  const fmtCurrency = (n: number, ccy: string): string => {
+    try {
+      return new Intl.NumberFormat("de-DE", {
+        style: "currency",
+        currency: ccy,
+      }).format(n)
+    } catch {
+      return `${n.toFixed(2)} ${ccy}`
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     await saveAndNavigate(false)
@@ -1151,6 +1178,33 @@ function CreateInvoicePageInner() {
                     <option value="de-DE">Deutsch</option>
                     <option value="en-US">English</option>
                     <option value="zh-CN">中文</option>
+                  </select>
+                </div>
+
+                {/* Tier 118: multi-currency. The invoice can be
+                    issued in any currency the company has ECB
+                    rates for. The default is EUR (most B2B).
+                    For non-EUR the backend looks up the ECB rate
+                    and stores the EUR equivalent for aggregation. */}
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    {t("currency.label") || "Währung"}
+                  </label>
+                  <select
+                    className="w-full h-10 border rounded-md px-3"
+                    value={form.currency}
+                    onChange={(e) => setForm({ ...form, currency: e.target.value })}
+                    title={t("currency.hint") || "ISO 4217 Währungscode. EUR bleibt unverändert; USD/CHF/GBP werden zum ECB-Tageskurs in EUR umgerechnet."}
+                    data-testid="invoice-currency"
+                  >
+                    <option value="EUR">EUR (€)</option>
+                    <option value="USD">USD ($)</option>
+                    <option value="CHF">CHF (Fr.)</option>
+                    <option value="GBP">GBP (£)</option>
+                    <option value="JPY">JPY (¥)</option>
+                    <option value="PLN">PLN (zł)</option>
+                    <option value="CZK">CZK (Kč)</option>
+                    <option value="CNY">CNY (¥)</option>
                   </select>
                 </div>
 
@@ -1846,7 +1900,11 @@ function CreateInvoicePageInner() {
             </CardContent>
           </Card>
 
-          {/* Summary Card */}
+          {/* Summary Card — shows amounts in the SELECTED
+              currency (form.currency). For non-EUR the user
+              sees the original-currency total on the PDF /
+              XRechnung; the EUR equivalent is computed at
+              save time and stored on the row for aggregation. */}
           <Card className="bg-gray-50 dark:bg-gray-900">
             <CardHeader>
               <CardTitle>{t("common2.summary")}</CardTitle>
@@ -1854,21 +1912,21 @@ function CreateInvoicePageInner() {
             <CardContent className="space-y-2">
               <div className="flex justify-between">
                 <span className="text-gray-600 dark:text-gray-300">{t("invoice.subtotal")} ({t("common2.net")}):</span>
-                <span>€{calculateSubtotal().toFixed(2)}</span>
+                <span data-testid="summary-subtotal">{fmtCurrency(calculateSubtotal(), form.currency)}</span>
               </div>
               {calculateDiscount() > 0 && (
                 <div className="flex justify-between text-green-600 dark:text-green-400">
                   <span>{t("invoice.discount")}:</span>
-                  <span>-€{calculateDiscount().toFixed(2)}</span>
+                  <span>-{fmtCurrency(calculateDiscount(), form.currency)}</span>
                 </div>
               )}
               <div className="flex justify-between">
                 <span className="text-gray-600 dark:text-gray-300">{t("invoice.vat")}:</span>
-                <span>€{calculateVat().toFixed(2)}</span>
+                <span data-testid="summary-vat">{fmtCurrency(calculateVat(), form.currency)}</span>
               </div>
               <div className="flex justify-between text-xl font-bold border-t pt-3">
                 <span>{t("common2.totalGross")}:</span>
-                <span className="text-blue-600 dark:text-blue-400">€{calculateTotal().toFixed(2)}</span>
+                <span className="text-blue-600 dark:text-blue-400" data-testid="summary-total">{fmtCurrency(calculateTotal(), form.currency)}</span>
               </div>
             </CardContent>
           </Card>

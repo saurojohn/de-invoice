@@ -641,6 +641,30 @@ model Invoice {
   currency       String    @default("EUR")
   language       String    @default("de-DE")
 
+  // Tier 118: multi-currency support.
+  // ECB daily reference rates (fetched by
+  // ExchangeRateService) are stored as "1 EUR = X currency"
+  // — e.g. 1.1467 for USD, 0.86653 for GBP. The inverse
+  // (1 / rate) is the currency → EUR conversion factor.
+  //
+  // For EUR invoices, `exchangeRate` is 1.0000 and
+  // `eurSubtotal`/`eurTotalVat`/`eurTotal` mirror the
+  // original amounts (rate=1 → no conversion).
+  //
+  // For non-EUR invoices, the EUR amounts are computed
+  // at issue time using the cached ECB rate and stored
+  // on the invoice row. The original currency + total
+  // stay on the line items / PDF / XRechnung — the
+  // EUR values are only used for AGGREGATION across
+  // currencies in EÜR, UStVA, BWA, GuV, etc.
+  //
+  // Nullable for backward compat: legacy EUR invoices
+  // without a rate are treated as rate=1.
+  exchangeRate   Decimal?  @db.Decimal(12,6)
+  eurSubtotal    Decimal?  @db.Decimal(12,4)
+  eurTotalVat    Decimal?  @db.Decimal(12,4)
+  eurTotal       Decimal?  @db.Decimal(12,4)
+
   vatBreakdown   Json?
   reverseCharge  Boolean   @default(false)
   euTransaction  Boolean   @default(false)

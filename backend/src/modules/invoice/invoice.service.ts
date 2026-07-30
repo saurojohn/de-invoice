@@ -9,6 +9,13 @@ import { CreateInvoiceDto, UpdateInvoiceDto } from './dto/invoice.dto';
 // (so the USt-Voranmeldung sees the right number) and a
 // separate ledger entry books the overage.
 import { CreditBalanceService } from '../customer/credit-balance.service';
+// Tier 118: multi-currency. For non-EUR invoices, the create
+// flow looks up the cached ECB rate and stores the EUR
+// equivalent on the row (eurSubtotal / eurTotalVat / eurTotal).
+// The original currency + original totals stay on the row for
+// the PDF / XRechnung / customer-facing display. The EUR
+// amounts are what EÜR / UStVA / BWA / GuV aggregate over.
+import { ExchangeRateService } from '../exchange-rate/exchange-rate.service';
 
 export type InvoiceType = 'INV' | 'CN' | 'PI' | 'RCV';
 
@@ -26,6 +33,8 @@ export class InvoiceService {
     private webhooks: WebhookService,
     // Tier 58: see class-level comment above.
     private creditBalance: CreditBalanceService,
+    // Tier 118: see class-level comment above.
+    private exchangeRates: ExchangeRateService,
   ) {}
 
   /**
@@ -335,6 +344,56 @@ export class InvoiceService {
     const dueDate = dto.dueDate ? new Date(dto.dueDate) : null;
     const deliveryDate = dto.deliveryDate ? new Date(dto.deliveryDate) : null;
 
+    // ──────────────────────────────────────────────────────
+    // Tier 118: multi-currency. Look up the ECB rate
+    // for the invoice's currency and pre-compute the
+    // EUR equivalents at issue time. For EUR invoices
+    // the rate is 1.0000 and the EUR amounts mirror
+    // the originals.
+    //
+    // The lookup is best-effort: if no rate is cached
+    // yet (the cron hasn't run since the company was
+    // created), we fall back to rate=1 and the EUR
+    // values mirror the originals. The user can hit
+    // the manual "Jetzt aktualisieren" button on the
+    // DATEV settings page to populate rates and
+    // re-issue affected invoices.
+    //
+    // For reverse-charge + igE invoices, the EUR
+    // conversion still happens — the VAT on these
+    // invoices is reported by the buyer, not us, but
+    // the invoice total still contributes to EÜR
+    // revenue.
+    // ──────────────────────────────────────────────────────
+    const invoiceCurrency = (dto.currency || 'EUR').toUpperCase()
+    let exchangeRateStr = '1.0000'
+    if (invoiceCurrency !== 'EUR') {
+      try {
+        exchangeRateStr = await this.exchangeRates.getRate(companyId, invoiceCurrency)
+      } catch (e: any) {
+        // Fall through with rate=1.0000 — the
+        // invoice is still created, just without
+        // an EUR equivalent.
+        console.warn(
+          `[Tier 118] Failed to look up rate for ${invoiceCurrency}, falling back to 1.0000: ${e?.message}`,
+        )
+      }
+    }
+    const exchangeRate = parseFloat(exchangeRateStr)
+    // EUR = currency / rate (since rate = 1 EUR = X currency)
+    const eurSubtotal =
+      invoiceCurrency === 'EUR'
+        ? finalSubtotal
+        : Math.round((finalSubtotal / exchangeRate) * 10000) / 10000
+    const eurTotalVat =
+      invoiceCurrency === 'EUR'
+        ? finalTotalVat
+        : Math.round((finalTotalVat / exchangeRate) * 10000) / 10000
+    const eurTotal =
+      invoiceCurrency === 'EUR'
+        ? finalTotal
+        : Math.round((finalTotal / exchangeRate) * 10000) / 10000
+
     const invoice = await this.prisma.invoice.create({
       data: {
         companyId,
@@ -347,6 +406,14 @@ export class InvoiceService {
         status: 'draft',
         currency: dto.currency || 'EUR',
         language: dto.language || 'de-DE',
+        // Tier 118: multi-currency. Pre-computed EUR
+        // equivalents for cross-currency aggregation.
+        // For EUR invoices all three mirror the
+        // originals (rate=1).
+        exchangeRate: invoiceCurrency === 'EUR' ? 1.0 : exchangeRate,
+        eurSubtotal,
+        eurTotalVat,
+        eurTotal,
         notes: dto.notes,
         templateType: dto.templateType || 'standard',
         subtotal: finalSubtotal,
@@ -575,6 +642,39 @@ export class InvoiceService {
         discountPercent: discountPercent || null,
         discountAmount: discountAmount > 0 ? discountAmount : null,
       };
+      // Tier 118: re-compute EUR equivalents on edit
+      // when totals change. Currency may have changed
+      // too (user can flip EUR ↔ USD on a same-day
+      // edit). We re-derive everything from the
+      // EFFECTIVE currency (new value if passed, else
+      // existing).
+      const effectiveCurrency = (dto.currency ?? existing.currency ?? 'EUR').toUpperCase()
+      if (effectiveCurrency !== 'EUR') {
+        let rateStr = '1.0000'
+        try {
+          rateStr = await this.exchangeRates.getRate(companyId, effectiveCurrency)
+        } catch {
+          rateStr = '1.0000'
+        }
+        const rate = parseFloat(rateStr)
+        const t = totalsData
+        totalsData = {
+          ...t,
+          exchangeRate: rate,
+          eurSubtotal: Math.round((t.subtotal / rate) * 10000) / 10000,
+          eurTotalVat: Math.round((t.totalVat / rate) * 10000) / 10000,
+          eurTotal: Math.round((t.total / rate) * 10000) / 10000,
+        }
+      } else {
+        // EUR: rate=1, EUR amounts = originals
+        totalsData = {
+          ...totalsData,
+          exchangeRate: 1.0,
+          eurSubtotal: totalsData.subtotal,
+          eurTotalVat: totalsData.totalVat,
+          eurTotal: totalsData.total,
+        }
+      }
     }
 
     return this.prisma.invoice.update({

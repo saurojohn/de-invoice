@@ -159,6 +159,25 @@ export class EuerService {
       select: {
         subtotal: true,
         totalVat: true,
+        // Tier 118: cross-currency aggregation.
+        // EÜR is a German Finanzamt form that adds
+        // everything up in EUR. Pre-invoice amounts
+        // stay in the original currency on the PDF
+        // and XRechnung; the EÜR service uses
+        // `eurTotal` / `eurSubtotal` / `eurTotalVat`
+        // (pre-computed at issue time from the ECB
+        // rate) so a USD invoice + a EUR invoice
+        // land on the same revenue line in €.
+        //
+        // `eurSubtotal` / `eurTotalVat` may be null
+        // for legacy invoices issued before Tier
+        // 118; the Prisma `Decimal?` column
+        // serialises to null in those cases. We
+        // `?? 0` to fall back to the legacy
+        // behaviour (treat as EUR, no conversion).
+        eurSubtotal: true,
+        eurTotalVat: true,
+        eurTotal: true,
         // Invoice has a single `reverseCharge`
         // boolean (the seller-side flag — true for
         // igL + §13b cases). intra-EU purchases on
@@ -204,7 +223,11 @@ export class EuerService {
     const einnahmenBuckets = new Map<string, number>()
     for (const def of REVENUE_LINES) einnahmenBuckets.set(def.kz, 0)
     for (const inv of invoices) {
-      const subtotal = Number(inv.subtotal)
+      // Tier 118: aggregate in EUR. Prefer the
+      // pre-computed eurSubtotal; fall back to the
+      // original subtotal if the column is null
+      // (legacy invoices, manual DB rows).
+      const subtotal = inv.eurSubtotal != null ? Number(inv.eurSubtotal) : Number(inv.subtotal)
       if (subtotal < 0) {
         // Gutschrift — offset Kz 4100 (negative)
         einnahmenBuckets.set('4100', (einnahmenBuckets.get('4100') || 0) + subtotal)

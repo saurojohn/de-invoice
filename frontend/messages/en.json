@@ -1052,6 +1052,7 @@
     "cash": "Cash",
     "cashPayment": "Cash payment",
     "currency": "Currency",
+    "currencyHint": "ISO 4217 currency code. EUR stays unchanged; USD/CHF/GBP are converted to EUR at the ECB daily reference rate.",
     "dueDateEmpty": "No due date (due immediately)",
     "dueDateImmediately": "Due immediately",
     "installments": "Installments",
