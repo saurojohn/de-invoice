@@ -1,25 +1,25 @@
 /**
  * CronHealthService — Tier 119 system health monitoring.
  *
- * Each of the 7 background crons (webhook-retry,
+ * Each of the 8 background crons (webhook-retry,
  * fints-sync, reminder-auto-send, vat-reverify,
  * exchange-rate-refresh, afa-auto-booker,
- * recurring-invoices) calls `record()` after every
- * run. The admin UI reads `list()` to show the
- * latest status of every cron.
+ * recurring-invoices, daily-auto-backup) calls
+ * `record()` after every run. The admin UI reads
+ * `list()` to show the latest status of every cron.
  *
  * Why a service (not just SQL)?
  *   - Single source of truth for the schema
  *     (truncate error messages, normalise status
  *     to a small enum, default the startedAt to now).
- *   - The wrappers in the 7 schedulers stay
+ *   - The wrappers in the 8 schedulers stay
  *     one-liners: `try { ... } catch (e) { record(name,
  *     'failed', e); throw }` — the alternative (raw
  *     Prisma writes in each scheduler) would have
- *     duplicated the same try/finally logic 7 times.
+ *     duplicated the same try/finally logic 8 times.
  *   - `list()` joins the latest row per cron in a
  *     single query (raw SQL via $queryRaw is faster
- *     than 7 Prisma findFirst calls when the table
+ *     than 8 Prisma findFirst calls when the table
  *     grows).
  *
  * The `expected` map is a hand-curated registry of
@@ -88,6 +88,7 @@ export class CronHealthService {
     { name: 'exchange-rate-refresh', schedule: '0 2 * * *', timeZone: 'Europe/Berlin', intervalMinutes: 1440 },
     { name: 'afa-auto-booker', schedule: '5 0 1 * *', timeZone: 'Europe/Berlin', intervalMinutes: 43200 },
     { name: 'recurring-invoices-daily', schedule: '0 6 * * *', timeZone: 'Europe/Berlin', intervalMinutes: 1440 },
+    { name: 'daily-auto-backup', schedule: '0 4 * * *', timeZone: 'Europe/Berlin', intervalMinutes: 1440 },
   ]
 
   /**

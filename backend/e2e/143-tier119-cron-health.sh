@@ -2,9 +2,10 @@
 # e2e 143: Tier 119 — Cron health monitoring.
 #
 # Verifies the /admin/cron-health endpoint surfaces
-# last-run info for the 7 known crons. We can't wait
-# for the daily schedules to fire (vat-reverify
-# doesn't run until 02:00, etc.), so this test:
+# last-run info for the 8 known crons (Tier 120 added
+# daily-auto-backup). We can't wait for the daily
+# schedules to fire (vat-reverify doesn't run until
+# 02:00, etc.), so this test:
 #
 #   1. Wipes any prior CronHealth rows
 #   2. Calls the endpoint — every cron should be
@@ -50,18 +51,18 @@ test "$TABLE_EXISTS" = "1" && pass "CronHealth table exists" \
   || fail "CronHealth table missing — did prisma db push run?"
 
 # ───── 1. Fresh endpoint → all "grey" ─────
-note "=== 1. Fresh state: all 7 crons grey ==="
+note "=== 1. Fresh state: all 8 crons grey ==="
 api_get "/api/v1/admin/cron-health"
 COUNT=$(echo "$BODY" | python3 -c "import json,sys;print(len(json.load(sys.stdin)))")
-test "$COUNT" = "7" && pass "endpoint returns 7 crons" \
-  || fail "expected 7 crons, got $COUNT"
+test "$COUNT" = "8" && pass "endpoint returns 8 crons" \
+  || fail "expected 8 crons, got $COUNT"
 GREY_COUNT=$(echo "$BODY" | python3 -c "
 import json,sys
 d = json.load(sys.stdin)
 print(sum(1 for c in d if c.get('health') == 'grey'))
 ")
-test "$GREY_COUNT" = "7" && pass "all 7 crons are grey (fresh DB)" \
-  || fail "expected 7 grey, got $GREY_COUNT"
+test "$GREY_COUNT" = "8" && pass "all 8 crons are grey (fresh DB)" \
+  || fail "expected 8 grey, got $GREY_COUNT"
 
 # Verify the schedule info is present
 SCHEDULES=$(echo "$BODY" | python3 -c "
