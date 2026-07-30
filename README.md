@@ -6,6 +6,41 @@
 > und mittelständische Unternehmen im DACH-Raum. Inklusive XRechnung,
 > ZUGFeRD/Factur-X, DATEV-Export, UStVA, FinTS-Banking und OCR-Vorbereitung.
 
+**Polish #12 — pg_restore fix + 141 test GUV-residue tolerance**:
+- 142 backend e2e tests + 337 Playwright UI tests (all green)
+- **pg_restore fix** (`backend/prisma/migrations/20260701000001_search_tsv/migration.sql`):
+  The `immutable_unaccent` wrapper function called
+  `unaccent('unaccent', $1)` (the 2-arg `unaccent(regdictionary, text)`
+  form). On a fresh DB restore, pg_restore replayed the
+  EXTENSION record before the wrapper's body was fully
+  resolvable, raising 53 "function unaccent does not
+  exist" errors and exiting with status 1. Fix:
+  schema-qualify the call as `public.unaccent($1)` (the
+  1-arg overload), so the function resolves via the
+  explicit schema even before the extension's own
+  functions are visible in the restore session.
+  Verified with the 42 backup-fire-drill test (now
+  passes end-to-end).
+- **141 test GUV-residue tolerance**
+  (`backend/e2e/141-tier118-multicurrency.sh`):
+  The 108 GuV test's EXIT trap sometimes doesn't run
+  (e.g. when the script encounters a set -e abort
+  downstream), leaving 3 GUV-* fixtures in the DB.
+  The 141 EÜR baseline-snapshot test is sensitive to
+  this pollution (the residue contributes 2000 EUR
+  to Kz 4100, breaking the PRE + delta = POST
+  invariant). Fix: 141 now also wipes `GUV-%`
+  fixtures at the start, and its PRE query excludes
+  the same prefix.
+- e2e `42-backup-fire-drill`: now ALL PASSED (was
+  2 failures: pg_restore exit 1 + row count mismatch
+  caused by the same restore errors).
+- e2e `141-tier118-multicurrency`: now ALL PASSED
+  even when run after 108 (was 1 failure on the
+  EÜR Kz 4100 baseline check).
+- All 11 cross-cutting regression tests pass:
+  42, 50, 58, 60, 101, 108, 112, 139, 140, 141, 142.
+
 **Tier 118.5 — Cross-currency aggregation in UStVA / BWA / PnL / GuV (Tier 118 follow-up)**:
 - 142 backend e2e tests + 337 Playwright UI tests (all green)
 - The four German Finanzamt-facing reports (BWA,

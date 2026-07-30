@@ -33,12 +33,12 @@ note "=== Test prefix: $PREFIX / year: $YEAR ==="
 note "=== 0. Cleanup + ECB rate cache check ==="
 docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
 DELETE FROM "InvoiceItem" WHERE "invoiceId" IN (
-  SELECT id FROM "Invoice" WHERE "invoiceNumber" LIKE 'T118-%'
+  SELECT id FROM "Invoice" WHERE "invoiceNumber" LIKE 'T118-%' OR "invoiceNumber" LIKE 'GUV-%'
 );
-DELETE FROM "Invoice" WHERE "invoiceNumber" LIKE 'T118-%';
-DELETE FROM "Customer" WHERE "customerNumber" LIKE 'T118-%' OR name LIKE 'T118-%';
+DELETE FROM "Invoice" WHERE "invoiceNumber" LIKE 'T118-%' OR "invoiceNumber" LIKE 'GUV-%';
+DELETE FROM "Customer" WHERE "customerNumber" LIKE 'T118-%' OR name LIKE 'T118-%' OR "customerNumber" LIKE 'GUV-%';
 SQL
-pass "wiped prior tier-118 fixtures"
+pass "wiped prior tier-118 + GUV-residue fixtures"
 
 # Fetch current ECB rates via the public API and store
 # them in Company.settings.datev.exchangeRates. This

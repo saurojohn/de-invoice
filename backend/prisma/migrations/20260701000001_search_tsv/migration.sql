@@ -49,6 +49,20 @@ CREATE EXTENSION IF NOT EXISTS unaccent;
 --     generated columns. The built-in unaccent(), to_tsvector(regconfig, text)
 --     and array_to_string() are STABLE — the wrappers below hardcode
 --     the regconfig / separator string so PG considers them immutable.
+-- Use the schema-qualified `public.unaccent(text)` reference
+-- so PG resolves the function via the explicit schema even
+-- during pg_restore when the EXTENSION record has been
+-- replayed but the extension's own functions aren't yet
+-- visible in the current session. The 1-arg form delegates
+-- to the default dictionary (no extra validation needed —
+-- the 2-arg form `unaccent(regdictionary, text)` requires
+-- the dictionary to be registered, which is timing-
+-- dependent during restore).
+--
+-- This is a Tier-117.5 / Polish #12 fix: prior versions
+-- called the unqualified `unaccent($1)` and pg_restore
+-- raised "function unaccent(text) does not exist" with 53
+-- errors on every fresh restore.
 CREATE OR REPLACE FUNCTION immutable_unaccent(text)
   RETURNS text
   LANGUAGE sql
@@ -56,7 +70,7 @@ CREATE OR REPLACE FUNCTION immutable_unaccent(text)
   PARALLEL SAFE
   STRICT
 AS $$
-  SELECT unaccent('unaccent', $1)
+  SELECT public.unaccent($1)
 $$;
 
 CREATE OR REPLACE FUNCTION immutable_to_tsvector_simple(text)
