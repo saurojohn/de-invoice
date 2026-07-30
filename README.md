@@ -6,6 +6,30 @@
 > und mittelständische Unternehmen im DACH-Raum. Inklusive XRechnung,
 > ZUGFeRD/Factur-X, DATEV-Export, UStVA, FinTS-Banking und OCR-Vorbereitung.
 
+**Polish #13 — 108 GuV cleanup reliability**:
+- 142 backend e2e tests + 337 Playwright UI tests (all green)
+- The 108 GuV test's EXIT trap used
+  `<<SQL >/dev/null 2>&1` (heredoc + redirect combo)
+  which had a stdin-buffering race when invoked
+  from inside an EXIT trap on macOS bash. The
+  cleanup appeared to succeed but the docker
+  exec's SQL never actually ran, leaving 3
+  GUV-* fixtures in the DB and contaminating
+  the 141 / 142 / BWA / PnL / GuV / UStVA tests'
+  baseline-snapshot assertions.
+- Fix: 5 separate `docker exec psql -c "DELETE ..."
+  >/dev/null` calls. Each call has its own
+  stdin, no heredoc-vs-redirect parsing race, and
+  the user can see psql's `DELETE N` output if
+  they need to debug. Also broadened the pattern
+  from `GUV-${TS}-%` to `GUV-%` so a missed TS
+  capture doesn't leak residue from a prior run.
+- 3 consecutive 108 runs now leave 0 GUV-*
+  fixtures (verified).
+- The 141 / 142 tests still keep their defensive
+  `GUV-%` cleanup + PRE exclusion as belt-and-
+  suspenders, but the root cause is now fixed.
+
 **Polish #12 — pg_restore fix + 141 test GUV-residue tolerance**:
 - 142 backend e2e tests + 337 Playwright UI tests (all green)
 - **pg_restore fix** (`backend/prisma/migrations/20260701000001_search_tsv/migration.sql`):

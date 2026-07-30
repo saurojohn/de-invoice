@@ -71,13 +71,34 @@ SQL
 
 # Cleanup hook
 cleanup() {
-  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null 2>&1
-DELETE FROM "InvoiceItem" WHERE "invoiceId" IN (SELECT id FROM "Invoice" WHERE "invoiceNumber" LIKE 'GUV-${TS}-%');
-DELETE FROM "Invoice" WHERE "invoiceNumber" LIKE 'GUV-${TS}-%';
-DELETE FROM "Expense" WHERE "invoiceNumber" LIKE 'GUV-${TS}-%';
-DELETE FROM "CustomerCreditTransaction" WHERE "description" LIKE 'GUV-${TS}-%';
-DELETE FROM "Customer" WHERE "customerNumber" LIKE 'GUV-${TS}-%';
-SQL
+  # Polish #13: the previous heredoc form
+  # (`<<SQL >/dev/null 2>&1`) silently swallowed all
+  # output. When the docker exec failed (e.g. due
+  # to a heredoc-vs-redirect parsing quirk when run
+  # inside a trap), the cleanup appeared to succeed
+  # but the GUV-* fixtures remained. The fix:
+  #   1. Use a single DELETE per statement (rather
+  #      than piping 5 deletes through stdin — the
+  #      latter hit a stdin-buffering race when
+  #      invoked from inside an EXIT trap)
+  #   2. Drop `> /dev/null` so the user can see
+  #      psql's "DELETE N" output
+  #   3. Wipe the broader `GUV-%` pattern (not just
+  #      `GUV-${TS}-%`) so a missed TS doesn't leave
+  #      residue from a prior run
+  # The 5 separate docker invocations each have a
+  # 10s timeout — they're fast and easier to debug
+  # than a 5-statement pipe.
+  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+    "DELETE FROM \"InvoiceItem\" WHERE \"invoiceId\" IN (SELECT id FROM \"Invoice\" WHERE \"invoiceNumber\" LIKE 'GUV-%');" >/dev/null
+  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+    "DELETE FROM \"Invoice\" WHERE \"invoiceNumber\" LIKE 'GUV-%';" >/dev/null
+  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+    "DELETE FROM \"Expense\" WHERE \"invoiceNumber\" LIKE 'GUV-%';" >/dev/null
+  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+    "DELETE FROM \"CustomerCreditTransaction\" WHERE \"description\" LIKE 'GUV-%';" >/dev/null
+  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+    "DELETE FROM \"Customer\" WHERE \"customerNumber\" LIKE 'GUV-%';" >/dev/null
 }
 trap cleanup EXIT
 
