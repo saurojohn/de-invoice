@@ -116,6 +116,15 @@ const PERMISSIONS: Record<string, Role> = {
   'expense.write': ROLES.ACCOUNTANT,
   'payment.read': ROLES.VIEWER,
   'payment.write': ROLES.ACCOUNTANT,
+  // Tier 119: system health (cron status).
+  // The health dashboard is a debugging tool for
+  // the Mandant + Berater — same rank as reports
+  // (view-only) since reading the schedule doesn't
+  // mutate state. `admin.read` (the actual permission
+  // code on the controller) is mapped to
+  // ACCOUNTANT so the Berater + the Mandant can both
+  // see "why didn't the webhook-retry run?".
+  'admin.read': ROLES.ACCOUNTANT,
 };
 
 @Injectable()

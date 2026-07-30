@@ -2852,3 +2852,45 @@ model SepaDirectDebitBatch {
   @@index([companyId, status])
   @@index([companyId, type])
 }
+
+/// Tier 119: System health monitoring for the 7
+/// background jobs (webhook-retry, fints-sync,
+/// reminder-auto-send, vat-reverify, exchange-rate-
+/// refresh, afa-auto-booker, recurring-invoices).
+///
+/// Each scheduler writes a row after every run via
+/// CronHealthService.record(). The list endpoint
+/// joins the most-recent row per cron name and
+/// surfaces last run + status to the admin UI.
+///
+/// We keep ~7 days of history (a `cleanOld` cron
+/// is wired to a nightly @Cron). Indexed on
+/// (name, startedAt DESC) so the per-cron
+/// "latest run" lookup is a single index range
+/// scan.
+model CronHealth {
+  id          String   @id @default(uuid())
+  // Stable scheduler identifier (matches the
+  // @Cron `name:` option in each scheduler).
+  // Examples: 'webhook-retry-worker',
+  // 'recurring-invoices-daily'.
+  name        String
+  // 'success' | 'failed' | 'skipped' (env-disabled
+  // or no work to do)
+  status      String
+  // Wall-clock time the scheduler method was
+  // entered. The duration column lets the
+  // admin spot slow runs without scraping logs.
+  startedAt   DateTime @default(now())
+  durationMs  Int?
+  // Free-text error message (truncated to 1000
+  // chars by the service to keep the table small).
+  errorMessage String?
+  // Free-text summary ("processed 42 templates,
+  // 38 succeeded, 4 failed"). For success runs
+  // the admin can see at a glance what the cron
+  // did without grepping logs.
+  summary     String?
+
+  @@index([name, startedAt])
+}

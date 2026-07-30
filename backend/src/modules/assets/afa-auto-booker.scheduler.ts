@@ -49,6 +49,9 @@ import { Injectable, Logger } from "@nestjs/common"
 import { Cron } from "@nestjs/schedule"
 import { PrismaService } from "../../prisma/prisma.service"
 import { AssetsService } from "./assets.service"
+// Tier 119: record every cron tick to the shared
+// CronHealthService for the admin dashboard.
+import { CronHealthService } from "../admin/cron-health.service"
 
 @Injectable()
 export class AfaAutoBookerScheduler {
@@ -57,6 +60,7 @@ export class AfaAutoBookerScheduler {
   constructor(
     private prisma: PrismaService,
     private assets: AssetsService,
+    private health: CronHealthService,
   ) {}
 
   /**
@@ -68,8 +72,12 @@ export class AfaAutoBookerScheduler {
    * and we don't want to compete with
    * them for the DB connection pool.
    */
-  @Cron("5 0 1 * *", { timeZone: "Europe/Berlin" })
+  @Cron("5 0 1 * *", {
+    name: "afa-auto-booker",
+    timeZone: "Europe/Berlin",
+  })
   async runAfaAutoBooker() {
+    return this.health.wrap("afa-auto-booker", async () => {
     const now = new Date()
     // "Previous month" in Berlin
     // timezone — important because the
@@ -162,6 +170,8 @@ export class AfaAutoBookerScheduler {
         `AfA auto-booker errors: ${JSON.stringify(errors)}`,
       )
     }
+    return `companies=${companies.length} booked=${bookedCount} skipped=${skippedCount} errors=${errorCount}`
+    })
   }
 
   /**

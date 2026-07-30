@@ -6,6 +6,48 @@
 > und mittelständische Unternehmen im DACH-Raum. Inklusive XRechnung,
 > ZUGFeRD/Factur-X, DATEV-Export, UStVA, FinTS-Banking und OCR-Vorbereitung.
 
+**Tier 119 — Cron health monitoring (admin/cron-health endpoint)**:
+- 143 backend e2e tests + 337 Playwright UI tests (all green)
+- A central `CronHealthService` records every run
+  of the 7 background crons (webhook-retry, fints-
+  sync, reminder-auto-send, vat-reverify,
+  exchange-rate-refresh, afa-auto-booker,
+  recurring-invoices + the new `cron-health-
+  cleanup`) into a `CronHealth` table. The
+  admin endpoint surfaces last-run / next-run /
+  status / last-error for the Berater + Mandant
+  overview page.
+- `CronHealthService.wrap(name, fn)` is the
+  shared try/catch helper. Each scheduler calls
+  `this.health.wrap('<name>', async () => { …
+  })` so the try/catch + duration + error capture
+  is in ONE place (not duplicated 7× across the
+  schedulers).
+- `list()` joins the most-recent row per cron via
+  `DISTINCT ON (name)` (Postgres-specific but
+  matches the project's de-invoice stack) and
+  computes a `health` colour:
+  - `'green'` last run succeeded and < 2× interval
+    ago
+  - `'amber'` last run > 2× interval ago (cron
+    looks stuck)
+  - `'red'` last run failed
+  - `'grey'` never ran (fresh DB)
+- `POST /api/v1/admin/cron-health/clean` deletes
+  rows older than 7 days. Wired to a nightly
+  `cron-health-cleanup` @Cron at 03:00 Berlin.
+- `users.service.ts` adds `'admin.read':
+  ROLES.ACCOUNTANT` so the Berater + Mandant can
+  both see the dashboard (same rank as reports).
+- e2e `143-tier119-cron-health.sh`: 6 sections,
+  13+ assertions — covers the table existence,
+  fresh DB "all grey", the 4 health colours
+  (green/red/amber/grey via fake-tick inserts),
+  and the clean endpoint. ALL PASSED.
+- 12/12 cross-cutting regression tests pass
+  (42, 50, 58, 60, 101, 108, 112, 139, 140, 141,
+  142, 143).
+
 **Polish #13 — 108 GuV cleanup reliability**:
 - 142 backend e2e tests + 337 Playwright UI tests (all green)
 - The 108 GuV test's EXIT trap used

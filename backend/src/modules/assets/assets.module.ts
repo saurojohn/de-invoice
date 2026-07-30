@@ -3,9 +3,12 @@ import { PrismaModule } from '../../prisma/prisma.module'
 import { AssetsController } from './assets.controller'
 import { AssetsService } from './assets.service'
 import { AfaAutoBookerScheduler } from './afa-auto-booker.scheduler'
+// Tier 119: AfaAutoBookerScheduler injects
+// CronHealthService for the @Cron body wrap.
+import { AdminModule } from '../admin/admin.module'
 
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, AdminModule],
   controllers: [AssetsController],
   providers: [
     AssetsService,

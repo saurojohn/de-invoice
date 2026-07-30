@@ -52,6 +52,10 @@ import {
 } from '@nestjs/common'
 import { Cron } from '@nestjs/schedule'
 import { PrismaService } from '../../prisma/prisma.service'
+// Tier 119: the daily @Cron body is wrapped with
+// the shared CronHealthService so the admin
+// dashboard can surface the last run + last error.
+import { CronHealthService } from '../admin/cron-health.service'
 
 // The 7 currencies we care about. ECB has 30+ but
 // supporting all of them adds noise — the typical
@@ -100,7 +104,14 @@ interface CsvRow {
 export class ExchangeRateService {
   private readonly logger = new Logger(ExchangeRateService.name)
 
-  constructor(private prisma: PrismaService) {}
+  // Tier 119: the daily ECB refresh @Cron wraps
+  // itself with `this.health.wrap(...)` so the
+  // admin dashboard can show "exchange-rate-
+  // refresh last ran N hours ago, last error: …".
+  constructor(
+    private prisma: PrismaService,
+    private health: CronHealthService,
+  ) {}
 
   /**
    * Fetch + parse the ECB CSV. Returns the most
@@ -222,34 +233,53 @@ export class ExchangeRateService {
   @Cron('0 2 * * *', { timeZone: 'Europe/Berlin' })
   async refreshAllCompanies() {
     this.logger.log('ECB rate refresh: starting')
-    let snapshot: ExchangeRateSnapshot
-    try {
-      snapshot = await this.fetchEcbRates()
-    } catch (e: any) {
-      this.logger.error(`ECB rate refresh: fetch failed — ${e?.message}`)
-      return
-    }
-    this.logger.log(
-      `ECB rate refresh: ${Object.keys(snapshot.rates).length} rates for ${snapshot.date}`,
-    )
-    const companies = await this.prisma.company.findMany({
-      select: { id: true, settings: true },
-    })
-    let ok = 0
-    let fail = 0
-    for (const c of companies) {
+    // Tier 119: wrap with CronHealthService so the
+    // admin dashboard surfaces "exchange-rate-
+    // refresh last ran N hours ago". The wrap
+    // re-throws on failure so the next cron retries
+    // the fetch. We use the existing exchangeRate
+    // service's own getRate() helper indirectly —
+    // the service itself is the cron source so we
+    // just `this.health.wrap()` here.
+    return this.health.wrap('exchange-rate-refresh', async () => {
+      let snapshot: ExchangeRateSnapshot
       try {
-        await this.saveRatesForCompany(c.id, snapshot)
-        ok++
+        snapshot = await this.fetchEcbRates()
       } catch (e: any) {
-        this.logger.warn(
-          `ECB rate refresh: company ${c.id} save failed — ${e?.message}`,
-        )
-        fail++
+        this.logger.error(`ECB rate refresh: fetch failed — ${e?.message}`)
+        throw e
       }
-    }
-    this.logger.log(`ECB rate refresh: ${ok} ok, ${fail} fail`)
+      this.logger.log(
+        `ECB rate refresh: ${Object.keys(snapshot.rates).length} rates for ${snapshot.date}`,
+      )
+      const companies = await this.prisma.company.findMany({
+        select: { id: true, settings: true },
+      })
+      let ok = 0
+      let fail = 0
+      for (const c of companies) {
+        try {
+          await this.saveRatesForCompany(c.id, snapshot)
+          ok++
+        } catch (e: any) {
+          this.logger.warn(
+            `ECB rate refresh: company ${c.id} save failed — ${e?.message}`,
+          )
+          fail++
+        }
+      }
+      this.logger.log(`ECB rate refresh: ${ok} ok, ${fail} fail`)
+      return `${Object.keys(snapshot.rates).length} rates, ${ok} ok, ${fail} fail`
+    })
   }
+
+  /**
+   * Persist the snapshot to
+   * Company.settings.datev.exchangeRates. We
+   * preserve any non-rate keys already in
+   * `datev` (the Berater-Nr / Mandanten-Nr /
+   * openingBalances stay intact).
+   */
 
   /**
    * Persist the snapshot to

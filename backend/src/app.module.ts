@@ -33,6 +33,7 @@ import { ReminderModule } from './modules/reminder/reminder.module';
 import { MailModule } from './modules/mail/mail.module';
 import { UsersModule } from './modules/users/users.module';
 import { RecurringModule } from './modules/recurring/recurring.module';
+import { AdminModule } from './modules/admin/admin.module';
 import { CashBookModule } from './modules/cashbook/cashbook.module';
 import { BankImportModule } from './modules/bank-import/bank-import.module';
 import { InstallmentPlanModule } from './modules/installment-plan/installment-plan.module';
@@ -105,6 +106,7 @@ import { AssetsModule } from './modules/assets/assets.module';
     ExchangeRateModule,
     UsersModule,
     RecurringModule,
+    AdminModule,
     CashBookModule,
     BankImportModule,
     InstallmentPlanModule,

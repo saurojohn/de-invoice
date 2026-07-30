@@ -7,6 +7,9 @@ import { MahnungspauseController } from './mahnungspause.controller'
 import { PrismaModule } from '../../prisma/prisma.module'
 import { MailModule } from '../mail/mail.module'
 import { SystemModule } from '../system/system.module'
+// Tier 119: AutoReminderService injects
+// CronHealthService for the @Cron body wrap.
+import { AdminModule } from '../admin/admin.module'
 
 @Module({
   controllers: [ReminderController, MahnungspauseController],
@@ -15,7 +18,7 @@ import { SystemModule } from '../system/system.module'
     AutoReminderService,
     MahnungspauseService,
   ],
-  imports: [PrismaModule, MailModule, SystemModule],
+  imports: [PrismaModule, MailModule, SystemModule, AdminModule],
   // Export MahnungspauseService so ReminderService can
   // inject it (the two live in the same module, so
   // DI works without exporting, but exporting makes

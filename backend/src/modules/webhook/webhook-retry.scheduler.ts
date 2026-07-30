@@ -54,42 +54,59 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { Cron, CronExpression } from '@nestjs/schedule'
 import { WebhookService } from './webhook.service'
+// Tier 119: every scheduler body is wrapped with
+// the shared CronHealthService so the admin
+// dashboard can surface "last run" / "last error"
+// for the webhook-retry-worker alongside the other
+// 6 crons.
+import { CronHealthService } from '../admin/cron-health.service'
 
 @Injectable()
 export class WebhookRetryWorker {
   private readonly logger = new Logger(WebhookRetryWorker.name)
 
-  constructor(private readonly webhooks: WebhookService) {}
+  constructor(
+    private readonly webhooks: WebhookService,
+    private readonly health: CronHealthService,
+  ) {}
 
   // Every minute. If the backend is
   // down for 2 hours, the next startup
   // resumes from the DB state — no lost
   // retries.
   @Cron(CronExpression.EVERY_MINUTE, { name: 'webhook-retry-worker' })
-  async run(): Promise<void> {
+  async run(): Promise<string | void> {
+    // No-op when there's nothing to do: still
+    // record a 'success' tick so the admin
+    // dashboard can see "this cron is alive"
+    // (the "amber" detection in CronHealthService
+    // flags crons that haven't run in 2× their
+    // interval). Skipping the record would make a
+    // healthy idle cron look stuck.
     const due = await this.webhooks.findDueRetries(50)
-    if (due.length === 0) return
-
-    this.logger.log(`webhook retry worker: ${due.length} due deliveries`)
-
-    let succeeded = 0
-    let failed = 0
-    let exhausted = 0
-    for (const d of due) {
-      try {
-        const result = await this.webhooks.retryDelivery(d.id)
-        if (result === 'success') succeeded++
-        else if (result === 'exhausted') exhausted++
-        else failed++
-      } catch (err) {
-        failed++
-        this.logger.warn(
-          `webhook retry ${d.id} threw: ${(err as Error).message}`,
-        )
+    return this.health.wrap('webhook-retry-worker', async () => {
+      if (due.length === 0) return 'idle (0 due)'
+      this.logger.log(`webhook retry worker: ${due.length} due deliveries`)
+      let succeeded = 0
+      let failed = 0
+      let exhausted = 0
+      for (const d of due) {
+        try {
+          const result = await this.webhooks.retryDelivery(d.id)
+          if (result === 'success') succeeded++
+          else if (result === 'exhausted') exhausted++
+          else failed++
+        } catch (err) {
+          failed++
+          this.logger.warn(
+            `webhook retry ${d.id} threw: ${(err as Error).message}`,
+          )
+        }
       }
-    }
-    this.logger.log(
-      `webhook retry worker: done — ${succeeded} succeeded, ${failed} failed, ${exhausted} exhausted`,
-    )
+      this.logger.log(
+        `webhook retry worker: done — ${succeeded} succeeded, ${failed} failed, ${exhausted} exhausted`,
+      )
+      return `${succeeded} succeeded, ${failed} failed, ${exhausted} exhausted`
+    })
   }
 }

@@ -2,6 +2,11 @@ import { Injectable, Logger } from '@nestjs/common'
 import { Cron } from '@nestjs/schedule'
 import { FinTsService } from './fints.service'
 import { PrismaService } from '../../prisma/prisma.service'
+// Tier 119: the @Cron body wraps itself with
+// CronHealthService so the admin dashboard can
+// surface "fints-sync last ran N hours ago, last
+// error: …" alongside the other 6 crons.
+import { CronHealthService } from '../admin/cron-health.service'
 
 /**
  * Tier 6.5: Auto-sync scheduler.
@@ -61,15 +66,22 @@ export class FintsSyncScheduler {
   constructor(
     private fints: FinTsService,
     private prisma: PrismaService,
+    private health: CronHealthService,
   ) {}
 
-  @Cron('0 */4 * * *', { timeZone: 'Europe/Berlin' })
+  @Cron('0 */4 * * *', {
+    name: 'fints-sync',
+    timeZone: 'Europe/Berlin',
+  })
   async runScheduled() {
     this.logger.log('Cron fints-auto-sync: starting')
-    const result = await this.runAutoSync()
-    this.logger.log(
-      `Cron fints-auto-sync: done (${result.ok} ok, ${result.needsTan} needs_tan, ${result.failed} failed of ${result.connections} connections)`,
-    )
+    return this.health.wrap('fints-sync', async () => {
+      const result = await this.runAutoSync()
+      this.logger.log(
+        `Cron fints-auto-sync: done (${result.ok} ok, ${result.needsTan} needs_tan, ${result.failed} failed of ${result.connections} connections)`,
+      )
+      return `${result.ok} ok, ${result.needsTan} needs_tan, ${result.failed} failed of ${result.connections} connections`
+    })
   }
 
   /**

@@ -44,6 +44,9 @@ import { Cron } from "@nestjs/schedule"
 import { PrismaService } from "../../prisma/prisma.service"
 import { MailService } from "../mail/mail.service"
 import { ReminderService } from "./reminder.service"
+// Tier 119: every cron tick records to the shared
+// CronHealthService for the admin dashboard.
+import { CronHealthService } from "../admin/cron-health.service"
 import {
   generateMahnungPDF,
   computeNeueFrist,
@@ -71,6 +74,10 @@ export class AutoReminderService {
     private readonly mail: MailService,
     private readonly reminders: ReminderService,
     private readonly errors: ErrorTrackingService,
+    // Tier 119: record every cron tick to the shared
+    // health table so the admin dashboard can see
+    // "reminder-auto-send last ran 14h ago".
+    private readonly health: CronHealthService,
   ) {}
 
   /**
@@ -80,13 +87,17 @@ export class AutoReminderService {
    * fires at 09:00 UTC = 11:00/10:00 Berlin depending on
    * DST — wrong window for B2B email.
    */
-  @Cron("0 9 * * *", { timeZone: "Europe/Berlin" })
+  @Cron("0 9 * * *", {
+    name: "reminder-auto-send",
+    timeZone: "Europe/Berlin",
+  })
   async runDaily() {
     if (process.env.DISABLE_CRON === "1") {
       this.logger.log("[AUTO-REMINDER] disabled by env, skipping")
       return
     }
     this.logger.log("[AUTO-REMINDER] daily run starting")
+    return this.health.wrap("reminder-auto-send", async () => {
     const summary = { sent: 0, skipped: 0, failed: 0, companies: 0 }
     const today = new Date()
     today.setHours(0, 0, 0, 0)
@@ -132,7 +143,8 @@ export class AutoReminderService {
     this.logger.log(
       `[AUTO-REMINDER] done: ${summary.sent} sent, ${summary.skipped} skipped, ${summary.failed} failed, ${summary.companies} companies`,
     )
-    return summary
+    return `${summary.sent} sent, ${summary.skipped} skipped, ${summary.failed} failed, ${summary.companies} companies`
+    })
   }
 
   /**

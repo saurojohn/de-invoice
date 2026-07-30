@@ -35,7 +35,9 @@
  */
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
-import { VatValidationService } from './vat-validation.service';
+import { VatValidationService } from './vat-validation.service'
+// Tier 119: CronHealthService for the @Cron wrap.
+import { CronHealthService } from '../admin/cron-health.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
 
@@ -95,6 +97,9 @@ export class VatReverifyScheduler {
     private readonly prisma: PrismaService,
     private readonly vatValidation: VatValidationService,
     private readonly mail: MailService,
+    // Tier 119: every cron tick records to the shared
+    // CronHealthService for the admin dashboard.
+    private readonly health: CronHealthService,
   ) {
     this.logger.log('VatReverifyScheduler CONSTRUCTOR ran (this means DI is wiring us up)')
   }
@@ -108,6 +113,7 @@ export class VatReverifyScheduler {
       this.logger.debug('Skipping (DISABLE_CRON=1)')
       return
     }
+    return this.health.wrap('vat-reverify-daily', async () => {
     // Reset dedupe set at the start of the day
     const today = new Date().toISOString().slice(0, 10)
     // (We keep entries from today and drop yesterday.)
@@ -134,6 +140,8 @@ export class VatReverifyScheduler {
     this.logger.log(
       `Re-verify done. customers=${stats.customers} suppliers=${stats.suppliers} transitions=${stats.transitions} errors=${stats.errors}`,
     )
+    return `customers=${stats.customers} suppliers=${stats.suppliers} transitions=${stats.transitions} errors=${stats.errors}`
+    })
   }
 
   /**

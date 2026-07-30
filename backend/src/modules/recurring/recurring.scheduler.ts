@@ -1,6 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { RecurringService } from './recurring.service';
+// Tier 119: wrap every scheduler body with the
+// shared CronHealthService so the admin dashboard
+// can show "last run" / "next run" / "last error".
+// The wrap is a no-op on the happy path; on
+// failure it records the error message before
+// re-throwing so the cron keeps its retry
+// semantics.
+import { CronHealthService } from '../admin/cron-health.service';
 
 /**
  * Daily cron tick for recurring invoice generation.
@@ -23,7 +31,10 @@ import { RecurringService } from './recurring.service';
 export class RecurringScheduler {
   private readonly logger = new Logger(RecurringScheduler.name);
 
-  constructor(private readonly svc: RecurringService) {}
+  constructor(
+    private readonly svc: RecurringService,
+    private readonly health: CronHealthService,
+  ) {}
 
   /**
    * Run at 06:00 every day in Europe/Berlin. The trailing
@@ -43,18 +54,16 @@ export class RecurringScheduler {
       return
     }
     this.logger.log('Recurring-invoice daily tick starting')
-    const t0 = Date.now()
-    try {
+    return this.health.wrap('recurring-invoices-daily', async () => {
       const results = await this.svc.runDueTemplates()
       const succeeded = results.filter((r) => r.result === 'success').length
       const failed = results.filter((r) => r.result === 'failed').length
       const skipped = results.filter((r) => r.result === 'skipped').length
       this.logger.log(
-        `Recurring-invoice tick done in ${Date.now() - t0}ms — ` +
+        `Recurring-invoice tick done — ` +
         `success: ${succeeded}, failed: ${failed}, skipped: ${skipped}`,
       )
-    } catch (e: any) {
-      this.logger.error(`Recurring-invoice tick crashed: ${e?.message}`, e?.stack)
-    }
+      return `success: ${succeeded}, failed: ${failed}, skipped: ${skipped}`
+    })
   }
 }
