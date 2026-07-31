@@ -532,11 +532,15 @@ export default function CustomersPage() {
   return (
     <main className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <header className="bg-white dark:bg-gray-800 border-b shadow-sm">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-blue-600 dark:text-blue-400">{t("customer.title")}</h1>
-          <div className="flex gap-2 items-center">
+        {/* Tier 121: responsive header — same pattern
+            as /dashboard/invoices. flex-wrap so the
+            buttons drop to a second row on a 375px
+            phone instead of clipping. */}
+        <div className="container mx-auto px-3 sm:px-4 py-3 sm:py-4 flex flex-wrap items-center justify-between gap-2">
+          <h1 className="text-xl sm:text-2xl font-bold text-blue-600 dark:text-blue-400">{t("customer.title")}</h1>
+          <div className="flex flex-wrap gap-2 items-center">
             <LanguageSwitcher />
-            <Button variant="outline" onClick={() => setShowImport(true)}>
+            <Button size="sm" variant="outline" onClick={() => setShowImport(true)}>
               📥 Import
             </Button>
             <ExportCSVButton
@@ -571,7 +575,7 @@ export default function CustomersPage() {
         </div>
       </header>
 
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8">
         {/* Search input lives OUTSIDE the !loading gate below — the
             input must stay mounted (and keep focus / cursor position)
             while a fetch is in flight, otherwise the user can't

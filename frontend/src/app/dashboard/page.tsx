@@ -192,7 +192,7 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8">
         {/* KPI Tiles — YTD + Month-over-Month change
             indicators. The "change" arrows come from
             the dashboard endpoint's `changes` field

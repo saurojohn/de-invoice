@@ -784,10 +784,14 @@ export default function InvoiceDetailPage() {
   return (
     <main className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <header className="bg-white dark:bg-gray-800 border-b shadow-sm">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button variant="outline" onClick={() => router.push("/dashboard/invoices")}>Zurück</Button>
-            <h1 className="text-2xl font-bold text-blue-600 dark:text-blue-400">{invoice.invoiceNumber}</h1>
+        {/* Tier 121: flex-wrap + responsive padding. The
+            header has 3+ controls (back, invoice #,
+            status dropdown) — on a 375px phone they
+            stack vertically instead of clipping. */}
+        <div className="container mx-auto px-3 sm:px-4 py-3 sm:py-4 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-4">
+            <Button size="sm" variant="outline" onClick={() => router.push("/dashboard/invoices")}>Zurück</Button>
+            <h1 className="text-xl sm:text-2xl font-bold text-blue-600 dark:text-blue-400">{invoice.invoiceNumber}</h1>
             {/* Status as a quick-change dropdown — invoice state moves
                 through draft → sent → paid (or overdue/cancelled). */}
             <select
@@ -885,7 +889,7 @@ export default function InvoiceDetailPage() {
         </div>
       </header>
 
-      <div className="container mx-auto px-4 py-8 max-w-4xl">
+      <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8 max-w-4xl">
         {/* Sender letterhead (header card). Shown both on screen and
             in browser print. Mirrors the PDF's v5 header block:
               - Logo + Company info share the same top row.
@@ -1023,7 +1027,13 @@ export default function InvoiceDetailPage() {
         <Card className="mb-8">
           <CardHeader><CardTitle>Positionen</CardTitle></CardHeader>
           <CardContent className="p-0">
-            <table className="w-full">
+            {/* Tier 121: overflow-x-auto + min-width so the
+                line-items table scrolls horizontally on
+                a phone instead of pushing the card out
+                of bounds. The min-w-[640px] gives the
+                columns enough room to be readable. */}
+            <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px]">
               <thead className="bg-gray-50 dark:bg-gray-900 border-b">
                 <tr>
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300">Beschreibung</th>
@@ -1049,6 +1059,7 @@ export default function InvoiceDetailPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           </CardContent>
         </Card>
 

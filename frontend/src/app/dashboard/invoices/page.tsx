@@ -512,17 +512,20 @@ export default function InvoicesPage() {
   return (
     <main className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <header className="bg-white dark:bg-gray-800 border-b shadow-sm">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-blue-600 dark:text-blue-400">{t("invoice.title")}</h1>
-          <div className="flex gap-2 items-center">
+        {/* Tier 121: flex-wrap + responsive header. The
+            h1 + buttons stack on small screens; the
+            header doesn't overflow the viewport. */}
+        <div className="container mx-auto px-3 sm:px-4 py-3 sm:py-4 flex flex-wrap items-center justify-between gap-2">
+          <h1 className="text-xl sm:text-2xl font-bold text-blue-600 dark:text-blue-400">{t("invoice.title")}</h1>
+          <div className="flex flex-wrap gap-2 items-center">
             <LanguageSwitcher />
-            <Button variant="outline" onClick={() => router.push("/dashboard")}>{t("common.back")}</Button>
-            <Button onClick={() => router.push("/dashboard/invoices/create")}>{t("common2.newInvoice")}</Button>
+            <Button variant="outline" size="sm" onClick={() => router.push("/dashboard")}>{t("common.back")}</Button>
+            <Button size="sm" onClick={() => router.push("/dashboard/invoices/create")}>{t("common2.newInvoice")}</Button>
           </div>
         </div>
       </header>
 
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8">
         {/* Bulk action bar — appears whenever any row is selected */}
         {selected.size > 0 && (
           <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 mb-4 flex items-center justify-between flex-wrap gap-2">
@@ -739,8 +742,15 @@ export default function InvoicesPage() {
             </CardContent>
           </Card>
         ) : (
+          // Tier 121: overflow-x-auto wraps the table so
+          // it scrolls horizontally on narrow viewports
+          // instead of pushing the page out of bounds.
+          // The user can swipe the table to see the
+          // Status / Action columns that don't fit on
+          // a 375px phone.
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-            <table className="w-full">
+            <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px]">
               <thead className="bg-gray-50 dark:bg-gray-900 border-b">
                 <tr>
                   <th className="px-4 py-3 w-10">
@@ -817,6 +827,7 @@ export default function InvoicesPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         )}
 
