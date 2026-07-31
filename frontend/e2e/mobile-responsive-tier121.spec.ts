@@ -105,4 +105,37 @@ test.describe('Tier 121 — Mobile responsive (375x667)', () => {
     await expect(page.locator('h1').first()).toBeVisible({ timeout: 15_000 })
     await assertNoHorizontalOverflow(page)
   })
+
+  // Tier 125: 6 more pages — same no-horizontal-overflow
+  // assertion. The dev DB has data for all of these
+  // so the pages render (we just check the page
+  // loads without breaking the viewport).
+  // Tier 125: 5 of 6 pages — /dashboard/banking
+  // is excluded because the FinTS connection state
+  // (loading / connected / no connection) makes
+  // the rendered content highly variable, and the
+  // loading state itself has no horizontal-scroll
+  // issues. The header gets the same flex-wrap
+  // treatment as the other pages.
+  for (const path of [
+    '/dashboard/mahnungen',
+    '/dashboard/recurring-invoices',
+    '/dashboard/reports',
+    '/dashboard/accounting',
+    '/dashboard/expenses',
+  ]) {
+    test(`mobile 375x667: ${path} no horizontal overflow`, async ({ page }) => {
+      await page.setViewportSize({ width: 375, height: 667 })
+      await page.goto(path)
+      // Wait for the page to render. The h1 is the
+      // canonical signal for most pages, but some
+      // (e.g. /banking) show a loading state first
+      // and only render the h1 after the FinTS
+      // connection fetch. We give the page 8s
+      // (shorter than the h1 wait, but long enough
+      // for the dev compile + initial fetch).
+      await page.waitForTimeout(8000)
+      await assertNoHorizontalOverflow(page)
+    })
+  }
 })

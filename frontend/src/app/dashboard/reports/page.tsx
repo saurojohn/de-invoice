@@ -303,10 +303,12 @@ export default function ReportsPage() {
   return (
     <main className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <header className="bg-white dark:bg-gray-800 border-b shadow-sm">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-blue-600 dark:text-blue-400">Berichtscenter</h1>
-          <div className="flex gap-2 items-center">
-            <Button variant="outline" onClick={() => router.push("/dashboard/reports/aging")}>
+        {/* Tier 125: responsive header — flex-wrap so
+            the 2 buttons + h1 don't clip on mobile. */}
+        <div className="container mx-auto px-3 sm:px-4 py-3 sm:py-4 flex flex-wrap items-center justify-between gap-2">
+          <h1 className="text-xl sm:text-2xl font-bold text-blue-600 dark:text-blue-400">Berichtscenter</h1>
+          <div className="flex flex-wrap gap-2 items-center">
+            <Button size="sm" variant="outline" onClick={() => router.push("/dashboard/reports/aging")}>
               Altersstruktur
             </Button>
             <Button variant="outline" onClick={exportDatev}>
@@ -328,9 +330,14 @@ export default function ReportsPage() {
         </div>
       </header>
 
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8">
         {/* Tab Navigation */}
-        <div className="flex border-b mb-6">
+        {/* Tier 125: overflow-x-auto so the 4 long
+            German tab labels (Umsatzbericht /
+            MwSt-Bericht / Kundenbericht / DATEV-...)
+            scroll horizontally on a 375px phone
+            instead of pushing the page out of bounds. */}
+        <div className="flex border-b mb-6 overflow-x-auto">
           <button
             className={`px-6 py-3 font-medium border-b-2 transition-colors ${
               activeTab === "sales"
@@ -530,7 +537,7 @@ export default function ReportsPage() {
                   </CardHeader>
                   <CardContent>
                     <div className="overflow-x-auto">
-                      <table className="w-full">
+                      <table className="w-full min-w-[640px]">
                         <thead className="bg-gray-50 dark:bg-gray-900 border-b">
                           <tr>
                             <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300">Monat</th>
@@ -571,7 +578,7 @@ export default function ReportsPage() {
                   </CardHeader>
                   <CardContent>
                     <div className="overflow-x-auto">
-                      <table className="w-full">
+                      <table className="w-full min-w-[640px]">
                         <thead className="bg-gray-50 dark:bg-gray-900 border-b">
                           <tr>
                             <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300">Kunde</th>
@@ -608,7 +615,7 @@ export default function ReportsPage() {
                     </CardHeader>
                     <CardContent>
                       <div className="overflow-x-auto">
-                        <table className="w-full">
+                        <table className="w-full min-w-[640px]">
                           <thead className="bg-gray-50 dark:bg-gray-900 border-b">
                             <tr>
                               <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300">Jahr</th>
@@ -684,7 +691,7 @@ export default function ReportsPage() {
                   </CardHeader>
                   <CardContent>
                     <div className="overflow-x-auto">
-                      <table className="w-full">
+                      <table className="w-full min-w-[640px]">
                         <thead className="bg-gray-50 dark:bg-gray-900 border-b">
                           <tr>
                             <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300">MwSt-Satz</th>
@@ -770,7 +777,7 @@ export default function ReportsPage() {
                   </CardHeader>
                   <CardContent>
                     <div className="overflow-x-auto">
-                      <table className="w-full">
+                      <table className="w-full min-w-[640px]">
                         <thead className="bg-gray-50 dark:bg-gray-900 border-b">
                           <tr>
                             <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300">Kunde</th>

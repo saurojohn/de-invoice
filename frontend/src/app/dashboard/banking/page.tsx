@@ -365,16 +365,18 @@ export default function BankingPage() {
   }
 
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="p-3 sm:p-6 max-w-6xl mx-auto space-y-4 sm:space-y-6">
+      {/* Tier 125: responsive padding + flex-wrap header.
+          Same pattern as the other dashboard list pages. */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h1 className="text-2xl font-bold">{t("banking.title")}</h1>
+          <h1 className="text-xl sm:text-2xl font-bold">{t("banking.title")}</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
             {t("banking.subtitle")}
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={handleAutoMatch}>
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="outline" onClick={handleAutoMatch}>
             {t("banking.autoMatch")}
           </Button>
           <Button
@@ -482,7 +484,7 @@ export default function BankingPage() {
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full min-w-[640px] text-sm">
                 <thead>
                   <tr className="text-left text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
                     <th className="py-2 pr-3">{t("banking.txnDate")}</th>
@@ -559,7 +561,7 @@ export default function BankingPage() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full min-w-[640px] text-sm">
                 <thead>
                   <tr className="text-left text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
                     <th className="py-2 pr-3">

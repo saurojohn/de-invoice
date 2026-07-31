@@ -486,18 +486,18 @@ export default function AccountingPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
+    <main className="min-h-screen bg-gray-50 dark:bg-gray-900 p-3 sm:p-6">
       <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex flex-wrap justify-between items-center gap-2 mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100">
               {t("accounting.vouchers")}
             </h1>
             <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
               {t("accounting.voucherList")} — {t("accounting.voucherJournalHint")}
             </p>
           </div>
-          <div className="flex gap-2 items-center">
+          <div className="flex flex-wrap gap-2 items-center">
             <Button
               onClick={openCreate}
               className="bg-emerald-600 text-white hover:bg-emerald-700"
@@ -636,7 +636,7 @@ export default function AccountingPage() {
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full">
+                <table className="w-full min-w-[640px]">
                   <thead>
                     <tr className="border-b">
                       <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">
@@ -912,7 +912,7 @@ export default function AccountingPage() {
             </div>
 
             <div className="border rounded-lg overflow-hidden">
-              <table className="w-full">
+              <table className="w-full min-w-[640px]">
                 <thead className="bg-gray-50 dark:bg-gray-900">
                   <tr>
                     <th className="text-left px-3 py-2 text-xs font-medium text-gray-500 dark:text-gray-400">

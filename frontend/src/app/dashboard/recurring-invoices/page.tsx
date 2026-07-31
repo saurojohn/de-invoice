@@ -299,10 +299,12 @@ export default function RecurringInvoicesPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex justify-between items-center mb-6">
+      {/* Tier 125: responsive padding — same pattern as
+          the other list pages in Tier 121. */}
+      <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8">
+        <div className="flex flex-wrap justify-between items-center gap-2 mb-6">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100">
               {t("recurring.title") || "Wiederkehrende Rechnungen"}
             </h1>
             <p className="text-gray-500 dark:text-gray-400 mt-1">

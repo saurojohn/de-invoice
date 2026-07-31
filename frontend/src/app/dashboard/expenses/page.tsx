@@ -260,18 +260,18 @@ export default function ExpensesPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
+    <main className="min-h-screen bg-gray-50 dark:bg-gray-900 p-3 sm:p-6">
       <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex flex-wrap justify-between items-center gap-2 mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100">
               {t("expenses.title")}
             </h1>
             <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
               {t("expenses.subtitle")}
             </p>
           </div>
-          <div className="flex gap-2 items-center">
+          <div className="flex flex-wrap gap-2 items-center">
             <LanguageSwitcher />
             <button
               onClick={() => router.push("/dashboard")}
@@ -545,7 +545,7 @@ export default function ExpensesPage() {
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full">
+                <table className="w-full min-w-[640px]">
                   <thead>
                     <tr className="border-b">
                       <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">
