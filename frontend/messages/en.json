@@ -3023,5 +3023,26 @@
     "saveError": "Save failed",
     "loadError": "Failed to load dunning settings",
     "invalidConfig": "Thresholds must be strictly increasing (1 < 2 < 3)"
+  },
+  "cronHistory": {
+    "title": "Cron history",
+    "backToHealth": "← Back to overview",
+    "cronName": "Cron name",
+    "stats": "Stats (last 20 runs)",
+    "success": "Successful",
+    "failed": "Failed",
+    "skipped": "Skipped",
+    "avgDuration": "Average duration",
+    "p95Duration": "p95 duration",
+    "filterByStatus": "Filter by status",
+    "allStatuses": "All",
+    "startedAt": "Started",
+    "duration": "Duration",
+    "error": "Error message",
+    "summary": "Summary",
+    "noRuns": "No runs found.",
+    "loadMore": "Load more",
+    "loading": "Loading…",
+    "loadError": "Failed to load history"
   }
 }

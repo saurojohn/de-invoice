@@ -222,13 +222,29 @@ function CronRow({ row, now, t, getDateLocale, locale }: {
     grey: t("systemHealth.healthGrey"),
   }[row.health]
   return (
-    <tr className="border-b last:border-b-0" data-testid={`cron-row-${row.name}`}>
+    <tr
+      className="border-b last:border-b-0 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50"
+      data-testid={`cron-row-${row.name}`}
+      onClick={() => {
+        // Tier 124: click on a cron row → drill into
+        // its history. The page reads `:name` from
+        // the URL and calls /admin/cron-health/:name/
+        // history.
+        if (typeof window !== "undefined") {
+          window.location.href = `/dashboard/system-health/${encodeURIComponent(
+            row.name,
+          )}`
+        }
+      }}
+    >
       <td className="py-2 pr-3">
         <div className="flex items-center gap-2" title={healthLabel}>
           <span className={`inline-block w-2.5 h-2.5 rounded-full ${dotClass}`} />
         </div>
       </td>
-      <td className="py-2 pr-3 font-mono text-xs">{row.name}</td>
+      <td className="py-2 pr-3 font-mono text-xs underline text-blue-600 dark:text-blue-400">
+        {row.name}
+      </td>
       <td className="py-2 pr-3 font-mono text-xs">
         {row.schedule} <span className="text-gray-500">({row.timeZone})</span>
       </td>

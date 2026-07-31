@@ -257,4 +257,132 @@ export class CronHealthService {
     })
     return count
   }
+
+  /**
+   * Tier 124: per-cron history (newest-first) with
+   * optional status filter. Returns the most recent
+   * `limit` runs for one cron, paginated by `skip`
+   * (so the UI can load more on scroll).
+   *
+   * The total count is returned in a separate
+   * parallel query so the UI can show "X of N
+   * runs" and a "load more" button without an
+   * extra round-trip.
+   *
+   * `status` is optional — when set, the WHERE
+   * clause filters to that exact status (the UI
+   * uses this to show only failed runs for
+   * debugging). When null, all statuses are
+   * returned.
+   *
+   * The shape mirrors CronHealthRow's per-run
+   * fields (id, status, startedAt, durationMs,
+   * errorMessage, summary) so the UI can render
+   * history rows with the same look as the main
+   * table.
+   */
+  async history(
+    name: string,
+    opts: { limit?: number; skip?: number; status?: CronStatus } = {},
+  ): Promise<{
+    items: Array<{
+      id: string
+      name: string
+      status: CronStatus
+      startedAt: Date
+      durationMs: number | null
+      errorMessage: string | null
+      summary: string | null
+    }>
+    total: number
+    stats: {
+      successCount: number
+      failedCount: number
+      skippedCount: number
+      avgDurationMs: number | null
+      p95DurationMs: number | null
+    }
+  }> {
+    const limit = Math.min(Math.max(opts.limit ?? 50, 1), 200)
+    const skip = Math.max(opts.skip ?? 0, 0)
+    const where: any = { name }
+    if (opts.status) where.status = opts.status
+
+    // Parallel: items + total + stats. The stats
+    // query is over the last 20 runs (so it
+    // reflects recent performance, not all-time).
+    const [items, total, recent] = await Promise.all([
+      this.prisma.cronHealth.findMany({
+        where,
+        orderBy: { startedAt: "desc" },
+        take: limit,
+        skip,
+      }),
+      this.prisma.cronHealth.count({ where }),
+      // Stats: aggregate over the last 20 runs
+      // (independent of the status filter — we
+      // want the all-statuses trend, not just
+      // failed).
+      this.prisma.cronHealth.findMany({
+        where: { name },
+        orderBy: { startedAt: "desc" },
+        take: 20,
+        select: { status: true, durationMs: true },
+      }),
+    ])
+
+    // Compute stats
+    let successCount = 0
+    let failedCount = 0
+    let skippedCount = 0
+    const durations: number[] = []
+    for (const r of recent) {
+      if (r.status === "success") successCount++
+      else if (r.status === "failed") failedCount++
+      else if (r.status === "skipped") skippedCount++
+      if (r.durationMs != null) durations.push(r.durationMs)
+    }
+    const avgDurationMs =
+      durations.length > 0
+        ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length)
+        : null
+    // p95: sort ascending, take the 95th-percentile
+    // value. With <20 samples, p95 = the largest.
+    let p95DurationMs: number | null = null
+    if (durations.length > 0) {
+      const sorted = [...durations].sort((a, b) => a - b)
+      const idx = Math.min(
+        sorted.length - 1,
+        Math.floor(sorted.length * 0.95),
+      )
+      p95DurationMs = sorted[idx]
+    }
+
+    return {
+      items: items.map((r) => ({
+        id: r.id,
+        name: r.name,
+        // Cast: Prisma returns status as plain
+        // `string` (the column is `String` in
+        // schema.prisma). The value is one of the
+        // 3 CronStatus values by convention; we
+        // cast here rather than migrating the
+        // schema. Tier 119+ uses this same
+        // pattern.
+        status: r.status as CronStatus,
+        startedAt: r.startedAt,
+        durationMs: r.durationMs,
+        errorMessage: r.errorMessage,
+        summary: r.summary,
+      })),
+      total,
+      stats: {
+        successCount,
+        failedCount,
+        skippedCount,
+        avgDurationMs,
+        p95DurationMs,
+      },
+    }
+  }
 }

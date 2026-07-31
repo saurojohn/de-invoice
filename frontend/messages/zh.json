@@ -3023,5 +3023,26 @@
     "saveError": "保存失败",
     "loadError": "加载催收设置失败",
     "invalidConfig": "阈值必须递增 (1级 < 2级 < 3级)"
+  },
+  "cronHistory": {
+    "title": "Cron历史",
+    "backToHealth": "← 返回总览",
+    "cronName": "Cron名称",
+    "stats": "统计 (最近20次)",
+    "success": "成功",
+    "failed": "失败",
+    "skipped": "跳过",
+    "avgDuration": "平均耗时",
+    "p95Duration": "p95耗时",
+    "filterByStatus": "按状态筛选",
+    "allStatuses": "全部",
+    "startedAt": "开始时间",
+    "duration": "耗时",
+    "error": "错误信息",
+    "summary": "摘要",
+    "noRuns": "未找到运行记录。",
+    "loadMore": "加载更多",
+    "loading": "加载中…",
+    "loadError": "加载历史失败"
   }
 }

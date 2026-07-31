@@ -3023,5 +3023,26 @@
     "saveError": "Speichern fehlgeschlagen",
     "loadError": "Laden der Mahnungs-Einstellungen fehlgeschlagen",
     "invalidConfig": "Schwellen müssen aufsteigend sein (Stufe 1 < 2 < 3)"
+  },
+  "cronHistory": {
+    "title": "Cron-Verlauf",
+    "backToHealth": "← Zurück zur Übersicht",
+    "cronName": "Cron-Name",
+    "stats": "Statistik (letzte 20 Läufe)",
+    "success": "Erfolgreich",
+    "failed": "Fehlgeschlagen",
+    "skipped": "Übersprungen",
+    "avgDuration": "Durchschnittliche Dauer",
+    "p95Duration": "p95-Dauer",
+    "filterByStatus": "Nach Status filtern",
+    "allStatuses": "Alle",
+    "startedAt": "Gestartet",
+    "duration": "Dauer",
+    "error": "Fehlermeldung",
+    "summary": "Zusammenfassung",
+    "noRuns": "Keine Läufe gefunden.",
+    "loadMore": "Mehr laden",
+    "loading": "Lade…",
+    "loadError": "Fehler beim Laden des Verlaufs"
   }
 }
