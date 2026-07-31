@@ -206,7 +206,7 @@ note "=== 5. EÜR aggregation: sums all invoices in EUR ==="
 # invoices except our 3 test ones + any GUV-test
 # residue from a prior run".
 PRE_4100=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
-  "SELECT COALESCE(SUM(\"eurSubtotal\"),0)::text FROM \"Invoice\" WHERE \"companyId\"='$COMPANY_ID' AND status IN ('paid','sent','overdue') AND \"invoiceNumber\" NOT LIKE '${PREFIX}-%' AND \"invoiceNumber\" NOT LIKE 'GUV-%' AND EXTRACT(YEAR FROM \"issueDate\")=${YEAR};" 2>&1 | tr -d ' ' | head -1)
+  "SELECT COALESCE(SUM(COALESCE(\"eurSubtotal\", subtotal)),0)::text FROM \"Invoice\" WHERE \"companyId\"='$COMPANY_ID' AND status IN ('paid','sent','overdue') AND \"invoiceNumber\" NOT LIKE '${PREFIX}-%' AND \"invoiceNumber\" NOT LIKE 'GUV-%' AND EXTRACT(YEAR FROM \"issueDate\")=${YEAR};" 2>&1 | tr -d ' ' | head -1)
 
 EXPECTED_DELTA=$(python3 -c "
 print(round(
