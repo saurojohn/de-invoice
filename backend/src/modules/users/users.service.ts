@@ -45,6 +45,7 @@ const PERMISSIONS: Record<string, Role> = {
   'users.changeRole': ROLES.ADMIN,
   'users.deactivate': ROLES.ADMIN,
   // company settings
+  'company.read': ROLES.VIEWER,
   'company.update': ROLES.ADMIN,
   // business data
   'invoice.read': ROLES.VIEWER,

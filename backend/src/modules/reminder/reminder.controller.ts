@@ -7,6 +7,12 @@ import { Request } from 'express';
 import { generateMahnungPDF, computeNeueFrist } from './mahnung-pdf.service';
 import { countWerktage } from './werktage';
 import type { Response } from 'express';
+import { DunningConfigDto } from './dto/dunning-config.dto';
+import {
+  readDunningConfig,
+  DEFAULT_DUNNING_CONFIG,
+  DunningConfig,
+} from './reminder.service';
 
 // Mirrors the constant in auto-reminder.scheduler.ts — kept
 // inline because the scheduler file is a class member, not
@@ -592,5 +598,76 @@ export class ReminderController {
       }
       throw err;
     }
+  }
+
+  /**
+   * Tier 123: per-company dunning config.
+   *
+   * GET /api/v1/reminders/dunning-config?companyId=X
+   *   → returns the current config (with defaults
+   *     filled in for missing fields) so the UI
+   *     always has a complete form.
+   *
+   * PUT /api/v1/reminders/dunning-config
+   *   body: DunningConfigDto
+   *   → updates Company.settings.dunning. The DTO
+   *     validates monotonic thresholds (level1 <
+   *     level2 < level3) and non-negative fees.
+   *
+   * Both endpoints require `company.update` (the
+   * Berater / Mandant / Admin) — same as the rest
+   * of the company settings endpoints.
+   */
+  @Get('dunning-config')
+  @Require('company.read')
+  async getDunningConfig(@Query('companyId') companyId: string) {
+    if (!companyId) {
+      throw new BadRequestException('companyId is required')
+    }
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { settings: true },
+    })
+    if (!company) {
+      throw new NotFoundException('Company not found')
+    }
+    return readDunningConfig(company.settings)
+  }
+
+  @Put('dunning-config')
+  @Require('company.update')
+  async updateDunningConfig(
+    @Query('companyId') companyId: string,
+    @Body() body: DunningConfigDto,
+  ) {
+    if (!companyId) {
+      throw new BadRequestException('companyId is required')
+    }
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { settings: true },
+    })
+    if (!company) {
+      throw new NotFoundException('Company not found')
+    }
+    const current = (company.settings as any) || {}
+    const newSettings = {
+      ...current,
+      dunning: {
+        level1Days: body.level1Days,
+        level2Days: body.level2Days,
+        level3Days: body.level3Days,
+        level1Fee: body.level1Fee,
+        level2Fee: body.level2Fee,
+        level3Fee: body.level3Fee,
+      },
+    }
+    await this.prisma.company.update({
+      where: { id: companyId },
+      data: { settings: newSettings },
+    })
+    // Return the saved config (in case the DTO
+    // mutated any value via the validator).
+    return body
   }
 }

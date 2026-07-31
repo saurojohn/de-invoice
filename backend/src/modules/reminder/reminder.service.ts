@@ -2,6 +2,71 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MahnungspauseService } from './mahnungspause.service';
 
+/**
+ * Tier 123: per-company dunning config.
+ *
+ * Stored in `Company.settings.dunning` (JSONB).
+ * Each company can customise:
+ *   - The 3 Werktage thresholds (when to send
+ *     each of the 3 Mahnung levels)
+ *   - The 3 fees (Mahngebühr) applied at each
+ *     level — €0 default, but the Berater
+ *     (Steuerberater) often wants 5/10/15 EUR
+ *     for B2B clients to make the dunning real
+ *
+ * The defaults match German Mittelstand best
+ * practice: friendly reminder at 1 Werktag
+ * overdue, formal 1. Mahnung at 7 Werktage, final
+ * 2. Mahnung at 14 Werktage.
+ *
+ * Validation: thresholds must be strictly
+ * increasing (level1 < level2 < level3) so the
+ * cron doesn't pick a later level before an
+ * earlier one. Fees must be >= 0.
+ */
+export interface DunningConfig {
+  /** Werktage after dueDate before level 1 (Zahlungserinnerung) */
+  level1Days: number
+  /** Werktage after dueDate before level 2 (1. Mahnung) */
+  level2Days: number
+  /** Werktage after dueDate before level 3 (2. Mahnung) */
+  level3Days: number
+  /** Late fee in EUR for level 1 (default 0 — friendly) */
+  level1Fee: number
+  /** Late fee in EUR for level 2 (default 5) */
+  level2Fee: number
+  /** Late fee in EUR for level 3 (default 10) */
+  level3Fee: number
+}
+
+export const DEFAULT_DUNNING_CONFIG: DunningConfig = {
+  level1Days: 1,
+  level2Days: 7,
+  level3Days: 14,
+  level1Fee: 0,
+  level2Fee: 5.0,
+  level3Fee: 10.0,
+}
+
+/**
+ * Read + validate the dunning config from a
+ * Company.settings JSONB. Missing fields fall
+ * back to defaults. Validation throws BadRequest
+ * if the thresholds aren't strictly increasing
+ * or fees are negative.
+ */
+export function readDunningConfig(settings: unknown): DunningConfig {
+  const raw =
+    settings && typeof settings === 'object'
+      ? (settings as any).dunning
+      : undefined
+  const merged: DunningConfig = {
+    ...DEFAULT_DUNNING_CONFIG,
+    ...(raw && typeof raw === 'object' ? raw : {}),
+  }
+  return merged
+}
+
 export interface OverdueInvoice {
   id: string;
   invoiceNumber: string;

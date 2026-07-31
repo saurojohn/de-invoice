@@ -3007,5 +3007,21 @@
     "title": "Leitweg-ID",
     "description": "用于 XRechnung-B2G (联邦/州发票) 的 Leitweg-ID",
     "format": "格式: 12 位数字带连字符 (如 991-12345-67)"
+  },
+  "dunning": {
+    "title": "催收设置",
+    "subtitle": "三级催收的工作日阈值 + 滞纳金",
+    "level1Title": "付款提醒 (1级)",
+    "level2Title": "第1次催款 (2级)",
+    "level3Title": "第2次催款 (3级)",
+    "daysOverdue": "逾期工作日",
+    "fee": "滞纳金 (EUR)",
+    "feeHelper": "0 = 无费用。建议: 0/5/10 EUR。",
+    "daysHelper": "阈值必须递增 (1级 < 2级 < 3级)。",
+    "save": "保存",
+    "saved": "催收设置已保存",
+    "saveError": "保存失败",
+    "loadError": "加载催收设置失败",
+    "invalidConfig": "阈值必须递增 (1级 < 2级 < 3级)"
   }
 }

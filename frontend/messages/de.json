@@ -3007,5 +3007,21 @@
     "title": "Leitweg-ID",
     "description": "Leitweg-ID für XRechnung-B2G (Bund/Länder-Rechnungen)",
     "format": "Format: 12-stellige Nummer mit Bindestrichen (z. B. 991-12345-67)"
+  },
+  "dunning": {
+    "title": "Mahnungs-Einstellungen",
+    "subtitle": "Werktage-Schwellen und Mahngebühren für die 3 Mahnstufen",
+    "level1Title": "Zahlungserinnerung (1. Stufe)",
+    "level2Title": "1. Mahnung (2. Stufe)",
+    "level3Title": "2. Mahnung (3. Stufe)",
+    "daysOverdue": "Werktage nach Fälligkeit",
+    "fee": "Mahngebühr (EUR)",
+    "feeHelper": "0 = keine Gebühr. Empfohlen: 0/5/10 EUR.",
+    "daysHelper": "Schwellen müssen aufsteigend sein (Stufe 1 < 2 < 3).",
+    "save": "Speichern",
+    "saved": "Mahnungs-Einstellungen gespeichert",
+    "saveError": "Speichern fehlgeschlagen",
+    "loadError": "Laden der Mahnungs-Einstellungen fehlgeschlagen",
+    "invalidConfig": "Schwellen müssen aufsteigend sein (Stufe 1 < 2 < 3)"
   }
 }

@@ -3007,5 +3007,21 @@
     "title": "Leitweg-ID",
     "description": "Leitweg-ID for XRechnung-B2G (Federal/State invoices)",
     "format": "Format: 12-digit number with dashes (e.g. 991-12345-67)"
+  },
+  "dunning": {
+    "title": "Dunning settings",
+    "subtitle": "Werktag thresholds + fees for the 3 Mahnung levels",
+    "level1Title": "Payment reminder (level 1)",
+    "level2Title": "1. Mahnung (level 2)",
+    "level3Title": "2. Mahnung (level 3)",
+    "daysOverdue": "Werktage past due date",
+    "fee": "Late fee (EUR)",
+    "feeHelper": "0 = no fee. Recommended: 0/5/10 EUR.",
+    "daysHelper": "Thresholds must be strictly increasing (1 < 2 < 3).",
+    "save": "Save",
+    "saved": "Dunning settings saved",
+    "saveError": "Save failed",
+    "loadError": "Failed to load dunning settings",
+    "invalidConfig": "Thresholds must be strictly increasing (1 < 2 < 3)"
   }
 }

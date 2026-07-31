@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
+import DunningConfigCard from "@/components/DunningConfigCard"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiGet, apiPost, apiPut, apiDelete, apiFetch, ApiError } from "@/lib/api"
@@ -1037,6 +1038,15 @@ export default function SettingsPage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Tier 123: Dunning Config Card.
+              The 3 Mahnung levels (Zahlungserinnerung,
+              1. Mahnung, 2. Mahnung) have configurable
+              Werktage thresholds + late fees. Without
+              this UI, the operator had to edit the
+              backend's auto-reminder.scheduler.ts and
+              redeploy. */}
+          <DunningConfigCard />
 
           {/* Invoice Settings Card */}
           <Card>

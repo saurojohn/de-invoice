@@ -44,6 +44,7 @@ import { Cron } from "@nestjs/schedule"
 import { PrismaService } from "../../prisma/prisma.service"
 import { MailService } from "../mail/mail.service"
 import { ReminderService } from "./reminder.service"
+import { readDunningConfig } from "./reminder.service"
 // Tier 119: every cron tick records to the shared
 // CronHealthService for the admin dashboard.
 import { CronHealthService } from "../admin/cron-health.service"
@@ -215,8 +216,32 @@ export class AutoReminderService {
         // Werktage for this level. Otherwise customers
         // get a Mahnung the day after the due date, which
         // is too aggressive.
-        const minOverdue = level === "first" ? 1 : level === "second" ? 7 : 14
+        //
+        // Tier 123: thresholds come from the per-company
+        // dunning config (Company.settings.dunning).
+        // Falls back to the German Mittelstand defaults
+        // (1/7/14 Werktage) when unset. The config is
+        // validated in `readDunningConfig` so a bad
+        // config (e.g. level2 < level1) won't reach here.
+        const dunningConfig = readDunningConfig(company.settings)
+        const minOverdue =
+          level === "first"
+            ? dunningConfig.level1Days
+            : level === "second"
+            ? dunningConfig.level2Days
+            : dunningConfig.level3Days
         if (werktageOverdue < minOverdue) continue
+
+        // Tier 123: late fee from the dunning config.
+        // Per-level — typically 0/5/10 EUR for the
+        // default config. The Mahnung PDF renders the
+        // fee under the overdue-amount table.
+        const mahngebuehr =
+          level === "first"
+            ? dunningConfig.level1Fee
+            : level === "second"
+            ? dunningConfig.level2Fee
+            : dunningConfig.level3Fee
 
         // 3c: generate Mahnung PDF and prepare the email.
         const neueFrist = computeNeueFrist(today, level)
@@ -228,6 +253,7 @@ export class AutoReminderService {
           invoiceDate: new Date(inv.issueDate),
           dueDate,
           totalAmount: total,
+          mahngebuehr,
           customer: inv.customer,
           company: {
             name: company.name,
