@@ -2069,7 +2069,11 @@
     "ipAddress": "IP",
     "detailTitle": "变更详情",
     "oldData": "修改前",
-    "newData": "修改后"
+    "newData": "修改后",
+    "viewTable": "表格",
+    "viewTimeline": "时间线",
+    "entry_one": "条",
+    "entry_other": "条"
   },
   "globalSearch": {
     "shortcut": "搜索 (⌘K)",

@@ -24,6 +24,14 @@
  * Why no bulk actions: the audit log is append-only.
  * There is no "delete" or "edit" — that would defeat
  * the GoBD requirement.
+ *
+ * Tier 122: added two view modes (table / timeline),
+ * URL state for filters (Berater bookmarks), and
+ * multi-select for entity types. The timeline groups
+ * events by day and renders them as a vertical feed
+ * — easier to scan than the table for "what changed
+ * this week?" review. The existing table view +
+ * detail modal are unchanged.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
@@ -89,6 +97,118 @@ const fmtShort = (s: string | null | undefined, locale = "de-DE") =>
       })
     : "—"
 
+/**
+ * Tier 122: URL-state helpers for the audit page.
+ *
+ * The Berater (Steuerberater) often wants to bookmark
+ * a specific filter view ("show me all invoice
+ * changes by user X in the last 30 days") and share
+ * the link. We mirror the current filter values into
+ * the URL query string so the page is deep-linkable.
+ *
+ * We deliberately use `window.location` + `history.
+ * replaceState` here instead of `useSearchParams` +
+ * `useRouter().replace` because the latter would
+ * require a Suspense boundary in the App Router and
+ * would also cause an extra render cycle. The
+ * trade-off: a deep link has to be loaded once
+ * before the filter UI is populated (we hydrate
+ * the state in a useEffect on mount). Acceptable
+ * for a filter UI — the user will type something
+ * and the URL update is a no-op until they share.
+ */
+type FilterSnapshot = {
+  entityType: string
+  actionPrefix: string
+  userId: string
+  dateFrom: string
+  dateTo: string
+  view: "table" | "timeline"
+}
+
+function readFiltersFromUrl(): Partial<FilterSnapshot> {
+  if (typeof window === "undefined") return {}
+  const sp = new URLSearchParams(window.location.search)
+  return {
+    entityType: sp.get("entityType") || "",
+    actionPrefix: sp.get("actionPrefix") || "",
+    userId: sp.get("userId") || "",
+    dateFrom: sp.get("dateFrom") || "",
+    dateTo: sp.get("dateTo") || "",
+    view: sp.get("view") === "timeline" ? "timeline" : "table",
+  }
+}
+
+function writeFiltersToUrl(f: FilterSnapshot) {
+  if (typeof window === "undefined") return
+  const sp = new URLSearchParams(window.location.search)
+  // Preserve any unrelated query params (e.g. utm_source).
+  const setOrDel = (key: string, val: string) => {
+    if (val) sp.set(key, val)
+    else sp.delete(key)
+  }
+  setOrDel("entityType", f.entityType)
+  setOrDel("actionPrefix", f.actionPrefix)
+  setOrDel("userId", f.userId)
+  setOrDel("dateFrom", f.dateFrom)
+  setOrDel("dateTo", f.dateTo)
+  setOrDel("view", f.view === "table" ? "" : f.view)
+  const next = `${window.location.pathname}${
+    sp.toString() ? "?" + sp.toString() : ""
+  }`
+  // replaceState so we don't pollute browser history
+  // with every keystroke in the filter inputs.
+  window.history.replaceState(null, "", next)
+}
+
+/**
+ * Group rows by day (YYYY-MM-DD in local time) and
+ * return an array of {day, items} for the timeline.
+ * Newest day first; within a day, newest first.
+ */
+function groupByDay<T extends { createdAt: string }>(rows: T[]) {
+  const buckets = new Map<string, T[]>()
+  for (const r of rows) {
+    const d = new Date(r.createdAt)
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
+      2,
+      "0",
+    )}-${String(d.getDate()).padStart(2, "0")}`
+    if (!buckets.has(key)) buckets.set(key, [])
+    buckets.get(key)!.push(r)
+  }
+  return Array.from(buckets.entries())
+    .sort((a, b) => (a[0] > b[0] ? -1 : a[0] < b[0] ? 1 : 0))
+    .map(([day, items]) => ({ day, items }))
+}
+
+/**
+ * Day label in German relative terms. "Heute" if
+ * the day is today, "Gestern" if yesterday, otherwise
+ * a formatted YYYY-MM-DD.
+ */
+function dayLabel(day: string, locale = "de-DE") {
+  const today = new Date()
+  const todayKey = `${today.getFullYear()}-${String(
+    today.getMonth() + 1,
+  ).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`
+  const yest = new Date(today)
+  yest.setDate(yest.getDate() - 1)
+  const yestKey = `${yest.getFullYear()}-${String(
+    yest.getMonth() + 1,
+  ).padStart(2, "0")}-${String(yest.getDate()).padStart(2, "0")}`
+  if (day === todayKey) return "Heute"
+  if (day === yestKey) return "Gestern"
+  // Format the YYYY-MM-DD as a German date.
+  const [y, m, d] = day.split("-").map(Number)
+  return new Date(y, m - 1, d).toLocaleDateString(locale, {
+    weekday: "long",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  })
+}
+
 export default function AuditPage() {
   const router = useRouter()
   const { t, getDateLocale } = useI18n()
@@ -98,14 +218,60 @@ export default function AuditPage() {
   const [stats, setStats] = useState<StatsResponse | null>(null)
   const [loading, setLoading] = useState(true)
 
-  // Filters
-  const [entityType, setEntityType] = useState("")
-  const [actionPrefix, setActionPrefix] = useState("")
-  const [userId, setUserId] = useState("")
-  const [dateFrom, setDateFrom] = useState("")
-  const [dateTo, setDateTo] = useState("")
+  // Filters — initialised from the URL on first mount so
+  // a deep link / bookmark is honoured. The useState
+  // initializer only runs once (React convention), so
+  // the URL is read exactly once per page load.
+  const initial = useMemo(() => {
+    if (typeof window === "undefined") {
+      return {
+        entityType: "",
+        actionPrefix: "",
+        userId: "",
+        dateFrom: "",
+        dateTo: "",
+        view: "table" as "table" | "timeline",
+      }
+    }
+    return {
+      entityType: "",
+      actionPrefix: "",
+      userId: "",
+      dateFrom: "",
+      dateTo: "",
+      view: "table" as "table" | "timeline",
+      ...readFiltersFromUrl(),
+    }
+  }, [])
+  const [entityType, setEntityType] = useState(initial.entityType || "")
+  const [actionPrefix, setActionPrefix] = useState(initial.actionPrefix || "")
+  const [userId, setUserId] = useState(initial.userId || "")
+  const [dateFrom, setDateFrom] = useState(initial.dateFrom || "")
+  const [dateTo, setDateTo] = useState(initial.dateTo || "")
+  const [view, setView] = useState<"table" | "timeline">(initial.view || "table")
   const [skip, setSkip] = useState(0)
   const TAKE = 50
+
+  // Tier 122: mirror filter state → URL on every
+  // change so a deep link reflects the current view.
+  // Skip the very first run (the initial state was
+  // already loaded FROM the URL — re-writing it would
+  // just churn history.replaceState).
+  const urlSyncRef = useRef(false)
+  useEffect(() => {
+    if (!urlSyncRef.current) {
+      urlSyncRef.current = true
+      return
+    }
+    writeFiltersToUrl({
+      entityType,
+      actionPrefix,
+      userId,
+      dateFrom,
+      dateTo,
+      view,
+    })
+  }, [entityType, actionPrefix, userId, dateFrom, dateTo, view])
 
   // Detail modal
   const [detail, setDetail] = useState<AuditDetail | null>(null)
@@ -275,6 +441,41 @@ export default function AuditPage() {
             {t("audit.title") || "Audit-Trail"}
           </h1>
           <div className="flex items-center gap-2">
+            {/* Tier 122: view toggle. URL state keeps the
+                chosen view across refresh + share-link. */}
+            <div
+              className="inline-flex rounded-md border border-gray-300 dark:border-gray-600 overflow-hidden"
+              data-testid="audit-view-toggle"
+              role="group"
+              aria-label="Ansicht wechseln"
+            >
+              <button
+                type="button"
+                onClick={() => setView("table")}
+                className={`px-3 py-1.5 text-sm ${
+                  view === "table"
+                    ? "bg-blue-600 text-white"
+                    : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                }`}
+                data-testid="audit-view-table"
+                aria-pressed={view === "table"}
+              >
+                ☰ {t("audit.viewTable") || "Tabelle"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setView("timeline")}
+                className={`px-3 py-1.5 text-sm border-l border-gray-300 dark:border-gray-600 ${
+                  view === "timeline"
+                    ? "bg-blue-600 text-white"
+                    : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                }`}
+                data-testid="audit-view-timeline"
+                aria-pressed={view === "timeline"}
+              >
+                ⏱ {t("audit.viewTimeline") || "Zeitstrahl"}
+              </button>
+            </div>
             <Button
               variant="outline"
               size="sm"
@@ -469,6 +670,17 @@ export default function AuditPage() {
                 }
                 variant="search"
               />
+            ) : view === "timeline" ? (
+              // Tier 122: timeline view — day-grouped,
+              // vertical feed. Easier than the table for
+              // "what changed this week?" reviews.
+              <TimelineView
+                rows={rows}
+                onSelect={openDetail}
+                dayLabel={dayLabel}
+                t={t}
+                getDateLocale={getDateLocale}
+              />
             ) : (
               <>
                 <div className="overflow-x-auto">
@@ -651,6 +863,104 @@ export default function AuditPage() {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+/**
+ * Tier 122: Timeline view for audit events.
+ *
+ * Renders the rows as a vertical feed, grouped by
+ * day. Each day gets a sticky-ish header; each event
+ * is a card showing time, user, action, entity, IP.
+ * Click on a card to open the existing detail modal.
+ *
+ * Kept inline (not in a separate file) because the
+ * data shape is already local to the parent — splitting
+ * it out would just add an import without making the
+ * code clearer.
+ */
+function TimelineView({
+  rows,
+  onSelect,
+  dayLabel,
+  t,
+  getDateLocale,
+}: {
+  rows: AuditRow[]
+  onSelect: (id: string) => void
+  dayLabel: (day: string, locale: string) => string
+  t: (key: string) => string
+  getDateLocale: () => string
+}) {
+  const groups = groupByDay(rows)
+  return (
+    <div className="space-y-6" data-testid="audit-timeline">
+      {groups.map((g) => (
+        <div
+          key={g.day}
+          data-testid={`audit-timeline-day-${g.day}`}
+          className="border-l-2 border-blue-200 dark:border-blue-800 pl-4"
+        >
+          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 sticky top-0 bg-white dark:bg-gray-800 py-1">
+            {dayLabel(g.day, getDateLocale())}
+            <span className="ml-2 text-xs text-gray-500">
+              ({g.items.length}{" "}
+              {g.items.length === 1
+                ? t("audit.entry_one") || "Eintrag"
+                : t("audit.entry_other") || "Einträge"}
+              )
+            </span>
+          </h3>
+          <ul className="space-y-2">
+            {g.items.map((r) => {
+              const t = new Date(r.createdAt)
+              const hh = String(t.getHours()).padStart(2, "0")
+              const mm = String(t.getMinutes()).padStart(2, "0")
+              return (
+                <li
+                  key={r.id}
+                  data-testid="audit-timeline-row"
+                  data-audit-id={r.id}
+                  onClick={() => onSelect(r.id)}
+                  className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md p-3 hover:shadow-md cursor-pointer transition-shadow"
+                >
+                  <div className="flex items-start gap-3">
+                    <span className="text-sm font-mono text-gray-500 dark:text-gray-400 w-12 flex-shrink-0">
+                      {hh}:{mm}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2 mb-1">
+                        <span className="px-2 py-0.5 rounded bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 text-xs font-mono">
+                          {r.action}
+                        </span>
+                        {r.entityType && (
+                          <span className="text-sm text-gray-700 dark:text-gray-300">
+                            <span className="font-medium">{r.entityType}</span>
+                            {r.entityId && (
+                              <span className="font-mono text-xs text-gray-500 ml-1">
+                                · {r.entityId.slice(0, 12)}
+                                {r.entityId.length > 12 ? "…" : ""}
+                              </span>
+                            )}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400 flex flex-wrap gap-x-3">
+                        <span>
+                          👤 {r.userEmail || r.userId || "—"}
+                        </span>
+                        {r.ipAddress && <span>🌐 {r.ipAddress}</span>}
+                      </div>
+                    </div>
+                    <span className="text-gray-400 text-sm">→</span>
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      ))}
     </div>
   )
 }

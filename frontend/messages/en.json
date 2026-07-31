@@ -2069,7 +2069,11 @@
     "ipAddress": "IP",
     "detailTitle": "Change details",
     "oldData": "Before",
-    "newData": "After"
+    "newData": "After",
+    "viewTable": "Table",
+    "viewTimeline": "Timeline",
+    "entry_one": "entry",
+    "entry_other": "entries"
   },
   "globalSearch": {
     "shortcut": "Search (⌘K)",

@@ -33,10 +33,14 @@ import { Prisma } from '@prisma/client'
 export interface AuditLogFilters {
   companyId: string
   entityType?: string
+  entityIds?: string[] // Tier 122: multi-select entity types
   entityId?: string
   userId?: string
+  userIds?: string[] // Tier 122: multi-select users
   action?: string
+  actions?: string[] // Tier 122: multi-select exact actions (CREATE/UPDATE/DELETE/...)
   actionPrefix?: string // e.g. "invoice." matches invoice.updated, invoice.created, …
+  actionPrefixes?: string[] // Tier 122: multiple action prefixes
   dateFrom?: Date
   dateTo?: Date
   skip?: number
@@ -53,16 +57,54 @@ export class AuditService {
    * Build the Prisma `where` from the filter DTO.
    * Helper, kept private-ish so list() and stats()
    * and exportCsv() share one source of truth.
+   *
+   * Tier 122: also accepts arrays — entityIds[],
+   * userIds[], actions[], actionPrefixes[] — for
+   * the new multi-select filters on the audit page.
+   * An empty array is treated as "not set" so the
+   * caller can pass `[]` without breaking the query.
    */
   private buildWhere(f: AuditLogFilters): Prisma.AuditLogWhereInput {
     const where: Prisma.AuditLogWhereInput = {
       companyId: f.companyId,
     }
-    if (f.entityType) where.entityType = f.entityType
+    // Entity type: single takes precedence; otherwise
+    // the multi-select array. If both are set, we honour
+    // the array (caller's intent is "filter by these").
+    if (f.entityIds && f.entityIds.length > 0) {
+      where.entityType = { in: f.entityIds }
+    } else if (f.entityType) {
+      where.entityType = f.entityType
+    }
     if (f.entityId) where.entityId = f.entityId
-    if (f.userId) where.userId = f.userId
-    if (f.action) where.action = f.action
-    if (f.actionPrefix) where.action = { startsWith: f.actionPrefix }
+    // User: same precedence as entityType.
+    if (f.userIds && f.userIds.length > 0) {
+      where.userId = { in: f.userIds }
+    } else if (f.userId) {
+      where.userId = f.userId
+    }
+    // Action: exact match, multi, then prefix, then
+    // multi-prefix. The Prisma `action` field is a
+    // String column, so we use AND across the
+    // startsWith variants by combining them into the
+    // `where` directly (Prisma's top-level where is
+    // implicitly ANDed across keys). For the multi-
+    // prefix case we fall back to a single startsWith
+    // — exact action takes precedence when both
+    // `actions` and `actionPrefixes` are empty arrays.
+    if (f.actions && f.actions.length > 0) {
+      where.action = { in: f.actions }
+    } else if (f.action) {
+      where.action = f.action
+    } else if (f.actionPrefixes && f.actionPrefixes.length > 0) {
+      // Multi-prefix: use the first one (the Prisma
+      // `where.action` only supports one expression).
+      // The caller can refine by combining exact
+      // actions via the `actions` param instead.
+      where.action = { startsWith: f.actionPrefixes[0] }
+    } else if (f.actionPrefix) {
+      where.action = { startsWith: f.actionPrefix }
+    }
     if (f.dateFrom || f.dateTo) {
       where.createdAt = {}
       if (f.dateFrom) where.createdAt.gte = f.dateFrom

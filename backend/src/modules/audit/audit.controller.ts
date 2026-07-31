@@ -51,10 +51,16 @@ export class AuditController {
   async list(
     @Query('companyId') companyId: string,
     @Query('entityType') entityType?: string,
+    // Tier 122: comma-separated lists for multi-select
+    // (e.g. `?entities=Invoice,Customer`).
+    @Query('entities') entities?: string,
     @Query('entityId') entityId?: string,
     @Query('userId') userId?: string,
+    @Query('userIds') userIds?: string,
     @Query('action') action?: string,
+    @Query('actions') actions?: string,
     @Query('actionPrefix') actionPrefix?: string,
+    @Query('actionPrefixes') actionPrefixes?: string,
     @Query('dateFrom') dateFrom?: string,
     @Query('dateTo') dateTo?: string,
     @Query('skip') skip?: string,
@@ -64,10 +70,14 @@ export class AuditController {
     const f = parseFilters({
       companyId,
       entityType,
+      entities,
       entityId,
       userId,
+      userIds,
       action,
+      actions,
       actionPrefix,
+      actionPrefixes,
       dateFrom,
       dateTo,
       skip,
@@ -90,10 +100,14 @@ export class AuditController {
     @Res() res: Response,
     @Query('companyId') companyId: string,
     @Query('entityType') entityType?: string,
+    @Query('entities') entities?: string,
     @Query('entityId') entityId?: string,
     @Query('userId') userId?: string,
+    @Query('userIds') userIds?: string,
     @Query('action') action?: string,
+    @Query('actions') actions?: string,
     @Query('actionPrefix') actionPrefix?: string,
+    @Query('actionPrefixes') actionPrefixes?: string,
     @Query('dateFrom') dateFrom?: string,
     @Query('dateTo') dateTo?: string,
   ) {
@@ -101,10 +115,14 @@ export class AuditController {
     const f = parseFilters({
       companyId,
       entityType,
+      entities,
       entityId,
       userId,
+      userIds,
       action,
+      actions,
       actionPrefix,
+      actionPrefixes,
       dateFrom,
       dateTo,
     })
@@ -146,10 +164,14 @@ export class AuditController {
 function parseFilters(raw: {
   companyId: string
   entityType?: string
+  entities?: string
   entityId?: string
   userId?: string
+  userIds?: string
   action?: string
+  actions?: string
   actionPrefix?: string
+  actionPrefixes?: string
   dateFrom?: string
   dateTo?: string
   skip?: string
@@ -157,10 +179,39 @@ function parseFilters(raw: {
 }): AuditLogFilters {
   const f: AuditLogFilters = { companyId: raw.companyId }
   if (raw.entityType) f.entityType = raw.entityType
+  // Tier 122: comma-separated multi-select
+  if (raw.entities) {
+    const list = raw.entities
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0)
+    if (list.length > 0) f.entityIds = list
+  }
   if (raw.entityId) f.entityId = raw.entityId
   if (raw.userId) f.userId = raw.userId
+  if (raw.userIds) {
+    const list = raw.userIds
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0)
+    if (list.length > 0) f.userIds = list
+  }
   if (raw.action) f.action = raw.action
+  if (raw.actions) {
+    const list = raw.actions
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0)
+    if (list.length > 0) f.actions = list
+  }
   if (raw.actionPrefix) f.actionPrefix = raw.actionPrefix
+  if (raw.actionPrefixes) {
+    const list = raw.actionPrefixes
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0)
+    if (list.length > 0) f.actionPrefixes = list
+  }
   if (raw.dateFrom) {
     const d = new Date(raw.dateFrom)
     if (Number.isNaN(d.getTime()))
