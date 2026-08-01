@@ -1,0 +1,8 @@
+# Production env files — NEVER commit. They contain
+# real passwords / secrets. .env.example is the only
+# file that should ever be tracked.
+.env
+.env.prod
+.env.prod.generated
+.env.local
+.env.*.local
