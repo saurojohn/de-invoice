@@ -161,8 +161,8 @@ services:
   # itself is in backend/.
   backend:
     build:
-      context: ../..
-      dockerfile: backend/Dockerfile
+      context: ../../backend
+      dockerfile: Dockerfile
     image: de-invoice-backend:latest
     container_name: de-invoice-backend
     restart: unless-stopped
@@ -204,8 +204,8 @@ services:
   # ─── Frontend (Next.js standalone) ──────────────────────────
   frontend:
     build:
-      context: ../..
-      dockerfile: frontend/Dockerfile
+      context: ../../frontend
+      dockerfile: Dockerfile
     image: de-invoice-frontend:latest
     container_name: de-invoice-frontend
     restart: unless-stopped
