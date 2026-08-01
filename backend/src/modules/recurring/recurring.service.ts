@@ -1,5 +1,12 @@
 import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+// Tier 129: send the generated invoice to the customer
+// after a successful template run. The service throws
+// for "manual" callers when no email is set; for
+// "recurring" callers it returns { skipped: true } so
+// we can record a 'skipped' RecurringRun rather than
+// crashing the cron tick.
+import { InvoiceEmailService } from '../invoice/invoice-email.service';
 
 /**
  * Recurring invoice (Abo-Rechnung) service.
@@ -51,7 +58,10 @@ export interface RecurringInput {
 export class RecurringService {
   private readonly logger = new Logger(RecurringService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private invoiceEmailService: InvoiceEmailService,
+  ) {}
 
   /**
    * Compute the FIRST nextRunAt for a brand-new template.
@@ -444,6 +454,32 @@ export class RecurringService {
    * serialise concurrent runs; the run row is the
    * idempotency key (unique on templateId+periodStart).
    */
+  /**
+   * Tier 129: convenience wrapper for the manual
+   * "Jetzt generieren" button. The button path goes
+   * through the controller, which can't easily await
+   * a side effect after the fact — so we wrap the
+   * run + the email in a single call. The cron path
+   * (runDueTemplates) calls runOne + emailGeneratedInvoice
+   * inline because it needs to keep the per-template
+   * result list.
+   */
+  async runOneAndEmail(
+    companyId: string,
+    templateId: string,
+    options: { trigger: 'manual' | 'scheduled'; now?: Date } = { trigger: 'manual' },
+  ) {
+    const result = await this.runOne(companyId, templateId, options)
+    // Fire-and-forget: don't await, so the controller
+    // returns the invoice ID immediately. The email
+    // is logged to the backend log when it completes
+    // (success or skip or fail). A failure here can
+    // never affect the invoice generation outcome.
+    this.emailGeneratedInvoice(templateId, companyId, result.invoiceId)
+      .catch((err) => this.logger.warn(`emailGeneratedInvoice threw: ${err?.message || err}`))
+    return result
+  }
+
   async runOne(
     companyId: string,
     templateId: string,
@@ -701,6 +737,54 @@ export class RecurringService {
       try {
         const r = await this.runOne(t.companyId, t.id, { trigger: 'scheduled', now })
         results.push({ templateId: t.id, result: 'success', invoiceId: r.invoiceId })
+
+        // Tier 129: auto-email the generated invoice
+        // to the customer (if sendEmail=true on the
+        // template). We do this AFTER runOne() returned
+        // so the email send is outside the DB
+        // transaction — a slow SMTP roundtrip doesn't
+        // hold a row lock. A failure to send the email
+        // is logged to the recurring-run row but does
+        // NOT downgrade the run to 'failed': the
+        // invoice was created, the customer just
+        // didn't get the email notification. The
+        // operator can re-send manually from the
+        // invoice detail page.
+        const tpl = await this.prisma.recurringInvoice.findUnique({
+          where: { id: t.id },
+          select: { sendEmail: true, language: true },
+        })
+        if (tpl?.sendEmail) {
+          try {
+            const emailResult = await this.invoiceEmailService.sendInvoiceByEmail(
+              r.invoiceId,
+              t.companyId,
+              {
+                language: tpl.language?.startsWith('en') ? 'en'
+                  : tpl.language?.startsWith('zh') ? 'zh'
+                  : 'de',
+                source: 'recurring',
+              },
+            )
+            if (emailResult.skipped) {
+              this.logger.warn(
+                `recurring email skipped for invoice ${r.invoiceId}: ${emailResult.skipReason} (${emailResult.error})`,
+              )
+            } else if (!emailResult.success) {
+              this.logger.warn(
+                `recurring email failed for invoice ${r.invoiceId}: ${emailResult.error}`,
+              )
+            } else {
+              this.logger.log(
+                `recurring email sent for invoice ${r.invoiceId} → ${emailResult.recipient} (smtp=${emailResult.smtpConfigured})`,
+              )
+            }
+          } catch (emailErr: any) {
+            this.logger.warn(
+              `recurring email threw for invoice ${r.invoiceId}: ${emailErr?.message || emailErr}`,
+            )
+          }
+        }
       } catch (e: any) {
         const msg = e?.message || String(e)
         const result: 'failed' | 'skipped' = msg.includes('endDate') || msg.includes('paused') ? 'skipped' : 'failed'
@@ -722,6 +806,58 @@ export class RecurringService {
       }
     }
     return results
+  }
+
+  /**
+   * Tier 129: post-generation hook — send the freshly
+   * created invoice to the customer. Called by both
+   * the cron path (runDueTemplates) and the manual
+   * "Jetzt generieren" button (the controller calls
+   * runOne directly, not runDueTemplates). Failures
+   * are logged but never throw — the invoice was
+   * already created, a failed email is a notification
+   * issue, not a generation issue.
+   */
+  async emailGeneratedInvoice(
+    templateId: string,
+    companyId: string,
+    invoiceId: string,
+  ): Promise<void> {
+    const tpl = await this.prisma.recurringInvoice.findUnique({
+      where: { id: templateId },
+      select: { sendEmail: true, language: true },
+    })
+    if (!tpl?.sendEmail) return
+
+    try {
+      const result = await this.invoiceEmailService.sendInvoiceByEmail(
+        invoiceId,
+        companyId,
+        {
+          language: tpl.language?.startsWith('en') ? 'en'
+            : tpl.language?.startsWith('zh') ? 'zh'
+            : 'de',
+          source: 'recurring',
+        },
+      )
+      if (result.skipped) {
+        this.logger.warn(
+          `recurring email skipped for invoice ${invoiceId}: ${result.skipReason} (${result.error})`,
+        )
+      } else if (!result.success) {
+        this.logger.warn(
+          `recurring email failed for invoice ${invoiceId}: ${result.error}`,
+        )
+      } else {
+        this.logger.log(
+          `recurring email sent for invoice ${invoiceId} → ${result.recipient} (smtp=${result.smtpConfigured})`,
+        )
+      }
+    } catch (err: any) {
+      this.logger.warn(
+        `recurring email threw for invoice ${invoiceId}: ${err?.message || err}`,
+      )
+    }
   }
 
   /**

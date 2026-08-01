@@ -20,8 +20,13 @@ import { generateZUGFeRD } from '../../invoices/zugferd.service';
 import { suggestUstBehandlung, UstSuggestion } from './ust-behandlung-detector';
 import { CreateInvoiceDto, UpdateInvoiceDto } from './dto/invoice.dto';
 import { Auth, Require } from '../../auth/roles.decorator';
-import { renderInvoiceEmail, defaultSalutationFor, type EmailLang } from '../mail/templates/invoice-email.template';
+// Tier 129: renderInvoiceEmail + EmailLang moved to
+// InvoiceEmailService. The controller still has the
+// PDF-generation imports (line 11) for the preview
+// endpoints.
 import { InvoiceTemplateService } from '../invoice-template/invoice-template.service';
+// Tier 129: see comment on the constructor.
+import { InvoiceEmailService } from './invoice-email.service';
 
 @Auth()
 @Controller('invoices')
@@ -33,6 +38,10 @@ export class InvoiceController {
     private mailService: MailService,
     private templateService: InvoiceTemplateService,
     private paymentService: PaymentService,
+    // Tier 129: extracted the email-send workflow.
+    // Controller still owns the route + permission
+    // check, then delegates to the service.
+    private invoiceEmailService: InvoiceEmailService,
   ) {}
 
   /**
@@ -902,167 +911,15 @@ export class InvoiceController {
       createdById?: string;
     },
   ) {
-    const invoice = await this.invoiceService.findOne(id, companyId);
-    const company = await this.prisma.company.findUnique({ where: { id: companyId } });
-    const customer = invoice.customer;
-
-    // Recipient resolution: overrideTo (form) > customer.contact.email
-    // (DB). Validate overrideTo if provided — the form should not be
-    // able to inject arbitrary content as the recipient.
-    const defaultRecipient = (customer?.contact as any)?.email;
-    const recipientEmail = (body?.overrideTo || defaultRecipient || '').trim();
-    if (!recipientEmail) {
-      throw new Error('Kunde hat keine E-Mail-Adresse hinterlegt');
-    }
-    // Basic RFC 5322 sanity check — the full RFC is huge; we just
-    // catch the obvious "no @" / "no domain" cases. The SMTP
-    // transporter does the authoritative validation.
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail)) {
-      throw new BadRequestException(`Ungültige Empfänger-E-Mail: ${recipientEmail}`);
-    }
-
-    const recipientName = customer.name || '';
-    const invoiceNumber = invoice.invoiceNumber;
-    const totalAmount = parseFloat(invoice.total.toString());
-    const lang: EmailLang =
-      body?.language === 'en' || body?.language === 'zh' ? body.language : 'de';
-
-    // Locale-aware number / date formatting. Matches what the
-    // frontend shows in the form-preview (so what the user sees
-    // is what gets sent).
-    const fmtAmount = (n: number, l: EmailLang): string => {
-      try {
-        const locale = l === 'de' ? 'de-DE' : l === 'en' ? 'en-US' : 'zh-CN';
-        return new Intl.NumberFormat(locale, {
-          style: 'currency',
-          currency: invoice.currency || 'EUR',
-        }).format(n);
-      } catch {
-        return `${n.toFixed(2)} ${invoice.currency || 'EUR'}`;
-      }
-    };
-    const fmtDate = (d: Date | null, l: EmailLang): string => {
-      if (!d) return '—';
-      try {
-        const locale = l === 'de' ? 'de-DE' : l === 'en' ? 'en-US' : 'zh-CN';
-        return new Intl.DateTimeFormat(locale, {
-          day: '2-digit', month: '2-digit', year: 'numeric',
-        }).format(d);
-      } catch {
-        return d.toISOString().slice(0, 10);
-      }
-    };
-
-    const salutation = (body?.salutation && body.salutation.trim()) ||
-      defaultSalutationFor(lang, !!recipientName.trim());
-
-    // Render the template (used as the default if the form didn't
-    // override subject / body).
-    const tpl = renderInvoiceEmail(lang, {
-      invoiceNumber,
-      customerName: recipientName,
-      amount: fmtAmount(totalAmount, lang),
-      dueDate: fmtDate(invoice.dueDate ? new Date(invoice.dueDate) : null, lang),
-      companyName: company?.name || '',
-      salutation,
+    // Tier 129: the actual email workflow now lives in
+    // InvoiceEmailService so the recurring scheduler can
+    // call it without going through the HTTP layer.
+    // The controller still owns the route + permission
+    // check + request body shape.
+    return this.invoiceEmailService.sendInvoiceByEmail(id, companyId, {
+      ...body,
+      source: 'manual',
     });
-
-    // Apply user overrides (length-capped to keep a malicious payload
-    // from filling a 100KB subject line).
-    const subject = (body?.overrideSubject || tpl.subject).slice(0, 250).trim();
-    const text = (body?.overrideBody || tpl.text).slice(0, 4000).trim();
-
-    // Build PDF buffer (with tier 7.5
-    // visual config from the per-company
-    // InvoiceTemplate if any)
-    const renderConfig = await this.resolveTemplateConfig(
-      companyId,
-      invoice.templateType || 'standard',
-      (invoice as any).templateId,
-    )
-    const pdfBuffer = await generateInvoicePDF(
-      invoice,
-      {
-        name: company?.name || '',
-        address: company?.address || {},
-        vatId: company?.vatId || undefined,
-        taxId: company?.taxId || undefined,
-        bankInfo: company?.bankInfo || undefined,
-        logoPath: company?.logoPath || undefined,
-      },
-      invoice.templateType || 'standard',
-      renderConfig,
-    );
-
-    // CC: explicit user email (from request) is the primary mechanism.
-    // We don't pull from Company because there's no email field on Company;
-    // settings.email could be a future addition.
-    const ccList: string[] = [];
-    if (body?.ccEmail && body.ccEmail.trim()) ccList.push(body.ccEmail.trim());
-    if (Array.isArray(body?.extraCc)) {
-      for (const c of body.extraCc) {
-        if (typeof c === 'string' && c.trim()) ccList.push(c.trim());
-      }
-    }
-
-    // Send
-    const result = await this.mailService.send(companyId, {
-      to: recipientEmail,
-      cc: ccList.length ? ccList : undefined,
-      subject,
-      text,
-      attachments: [
-        {
-          filename: `${invoiceNumber}.pdf`,
-          content: pdfBuffer,
-          contentType: 'application/pdf',
-        },
-      ],
-    });
-
-    // Mark invoice as sent (best-effort)
-    try {
-      await this.prisma.invoice.update({
-        where: { id },
-        data: { status: invoice.status === 'draft' ? 'sent' : invoice.status },
-      });
-    } catch (e) {
-      /* ignore */
-    }
-
-    // Record email send — gracefully handle invalid createdById (FK constraint)
-    const smtpConfigured = await this.mailService.isConfiguredFor(companyId);
-    let createdById: string | undefined = body?.createdById;
-    if (createdById) {
-      const userExists = await this.prisma.user.findUnique({ where: { id: createdById } });
-      if (!userExists) createdById = undefined;
-    }
-    const emailSend = await this.prisma.emailSend.create({
-      data: {
-        companyId,
-        invoiceId: id,
-        templateType: 'invoice',
-        recipientEmail,
-        recipientName,
-        subject,
-        bodyPreview: text.slice(0, 500),
-        attachmentPaths: [`${invoiceNumber}.pdf`],
-        status: smtpConfigured ? 'sent' : 'opened',
-        sentAt: new Date(),
-        createdById,
-      },
-    });
-
-    return {
-      success: true,
-      emailSendId: emailSend.id,
-      messageId: result.messageId,
-      recipient: recipientEmail,
-      cc: ccList,
-      subject,
-      smtpConfigured,
-      language: lang,
-    };
   }
 
   /**

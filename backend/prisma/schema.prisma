@@ -1658,6 +1658,16 @@ model RecurringInvoice {
   // Paused templates don't fire. UI toggles this when the
   // customer pays ahead, the contract is on hold, etc.
   isActive      Boolean  @default(true)
+  // Tier 129: when true, the scheduler emails the
+  // generated invoice to the customer's contact.email
+  // via the same path as the manual "Per E-Mail senden"
+  // button on the invoice detail page. Default true
+  // because the user explicitly opted into recurring
+  // generation — they want the customer to see it.
+  // Operators can disable per-template for "internal
+  // draft" use cases (e.g. a subscription that the
+  // billing team reviews before sending).
+  sendEmail     Boolean  @default(true)
   createdById   String?
   createdBy     User?    @relation("RecurringCreator", fields: [createdById], references: [id])
   createdAt     DateTime @default(now())

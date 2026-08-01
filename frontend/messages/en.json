@@ -1319,6 +1319,7 @@
     "startDate": "Start",
     "endDate": "End (optional)",
     "invoiceStatus": "Invoice status",
+    "sendEmail": "Email invoice to customer after generation",
     "items": "Line items",
     "addItem": "Item",
     "nextRun": "Next",

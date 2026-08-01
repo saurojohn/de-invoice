@@ -1319,6 +1319,7 @@
     "startDate": "开始",
     "endDate": "结束 (可选)",
     "invoiceStatus": "发票状态",
+    "sendEmail": "生成后自动发送发票给客户",
     "items": "明细行",
     "addItem": "添加行",
     "nextRun": "下次",

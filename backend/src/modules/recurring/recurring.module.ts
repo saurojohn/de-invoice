@@ -7,9 +7,18 @@ import { RecurringScheduler } from './recurring.scheduler';
 // dashboard can see "recurring-invoices-daily last
 // ran N hours ago" alongside the other 6 crons.
 import { AdminModule } from '../admin/admin.module';
+// Tier 129: after a successful template run, the
+// service emails the generated invoice to the
+// customer (when sendEmail=true on the template).
+// We import InvoiceModule (not just the email
+// service) to keep the DI graph consistent —
+// InvoiceEmailService's own dependencies (Prisma,
+// MailService, StorageService, InvoiceTemplateService)
+// are already wired in InvoiceModule.
+import { InvoiceModule } from '../invoice/invoice.module';
 
 @Module({
-  imports: [AdminModule],
+  imports: [AdminModule, InvoiceModule],
   controllers: [RecurringController],
   providers: [RecurringService, RecurringScheduler],
   exports: [RecurringService],

@@ -111,7 +111,13 @@ export class RecurringController {
     @Param('id') id: string,
   ) {
     if (!companyId) throw new BadRequestException('companyId is required');
-    return this.svc.runOne(companyId, id, { trigger: 'manual' });
+    // Tier 129: runOneAndEmail wraps runOne + the
+    // post-generation email send (no-op if
+    // template.sendEmail=false). Fire-and-forget on
+    // the email — the controller returns the invoice
+    // ID immediately, the email completes in the
+    // background and is logged.
+    return this.svc.runOneAndEmail(companyId, id, { trigger: 'manual' });
   }
 
   /**

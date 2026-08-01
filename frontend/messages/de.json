@@ -1319,6 +1319,7 @@
     "startDate": "Start",
     "endDate": "Ende (optional)",
     "invoiceStatus": "Rechnungs-Status",
+    "sendEmail": "Rechnung nach Generierung an Kunden senden",
     "items": "Positionen",
     "addItem": "Position",
     "nextRun": "Nächste",

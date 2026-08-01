@@ -37,6 +37,14 @@ interface RecurringTemplate {
   notes: string | null
   invoiceStatus: 'draft' | 'sent'
   isActive: boolean
+  // Tier 129: when true, the scheduler emails the
+  // generated invoice to the customer via the same
+  // path as the manual "Per E-Mail senden" button.
+  // Default true. We keep the field in the type
+  // even when the backend is older (the field is
+  // ignored on save) so older backends don't crash
+  // the form.
+  sendEmail: boolean
   createdAt: string
   items: (RecurringItem & { id: string; position: number })[]
   _count: { runs: number; invoices: number }
@@ -74,6 +82,14 @@ export default function RecurringInvoicesPage() {
   const [startDate, setStartDate] = useState(new Date().toISOString().split("T")[0])
   const [endDate, setEndDate] = useState("")
   const [invoiceStatus, setInvoiceStatus] = useState<"draft" | "sent">("draft")
+  // Tier 129: when true, the scheduler emails the
+  // generated invoice to the customer. Default
+  // true — the user opted into recurring generation,
+  // they want the customer notified. Uncheck this
+  // for "internal review" templates where the
+  // billing team wants to look at the generated
+  // invoice before it goes out.
+  const [sendEmail, setSendEmail] = useState(true)
   const [items, setItems] = useState<RecurringItem[]>([
     { description: "", quantity: 1, unit: "Stück", unitPrice: 0, vatRate: 0.19 },
   ])
@@ -162,6 +178,12 @@ export default function RecurringInvoicesPage() {
     setStartDate(tpl.startDate.split("T")[0])
     setEndDate(tpl.endDate ? tpl.endDate.split("T")[0] : "")
     setInvoiceStatus(tpl.invoiceStatus)
+    // Tier 129: load the sendEmail flag too. Older
+    // backend versions don't have this field — we
+    // default to true (the safe default = "send the
+    // email") so a fresh fetch on an old backend
+    // doesn't silently disable notifications.
+    setSendEmail(tpl.sendEmail ?? true)
     setItems(tpl.items.map((it) => ({
       description: it.description,
       productNumber: it.productNumber,
@@ -213,6 +235,10 @@ export default function RecurringInvoicesPage() {
         startDate,
         endDate: endDate || null,
         invoiceStatus,
+        // Tier 129: include the sendEmail flag so the
+        // scheduler knows whether to auto-email. Old
+        // backends ignore the unknown field.
+        sendEmail,
         items,
       }
       if (editing) {
@@ -631,6 +657,28 @@ export default function RecurringInvoicesPage() {
                       <option value="draft">{t("recurring.status_draft") || "Entwurf"}</option>
                       <option value="sent">{t("recurring.status_sent") || "Versendet"}</option>
                     </select>
+                  </div>
+                  {/* Tier 129: sendEmail checkbox. When
+                      checked, the scheduler emails the
+                      generated invoice to the customer
+                      after each successful run. Same path
+                      as the manual "Per E-Mail senden"
+                      button on the invoice detail page. */}
+                  <div className="flex items-center pt-6">
+                    <input
+                      type="checkbox"
+                      id="recurring-send-email"
+                      checked={sendEmail}
+                      onChange={(e) => setSendEmail(e.target.checked)}
+                      className="mr-2"
+                      data-testid="recurring-form-send-email"
+                    />
+                    <label
+                      htmlFor="recurring-send-email"
+                      className="text-sm font-medium cursor-pointer"
+                    >
+                      {t("recurring.sendEmail") || "Rechnung nach Generierung an Kunden senden"}
+                    </label>
                   </div>
                 </div>
 

@@ -2,6 +2,11 @@ import { Module } from '@nestjs/common';
 import { InvoiceController } from './invoice.controller';
 import { InvoiceService } from './invoice.service';
 import { PaymentService } from './payment.service';
+// Tier 129: extracted the invoice-by-email workflow
+// into a service so the recurring scheduler can call
+// it without going through the HTTP layer. Both the
+// manual button + the cron share the same code path.
+import { InvoiceEmailService } from './invoice-email.service';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { StorageModule } from '../storage/storage.module';
 import { InvoiceTemplateModule } from '../invoice-template/invoice-template.module';
@@ -20,7 +25,7 @@ import { ExchangeRateModule } from '../exchange-rate/exchange-rate.module';
 
 @Module({
   controllers: [InvoiceController],
-  providers: [InvoiceService, PaymentService],
+  providers: [InvoiceService, PaymentService, InvoiceEmailService],
   imports: [
     PrismaModule,
     StorageModule,
@@ -36,6 +41,6 @@ import { ExchangeRateModule } from '../exchange-rate/exchange-rate.module';
     // Tier 118: see comment above.
     ExchangeRateModule,
   ],
-  exports: [InvoiceService, PaymentService],
+  exports: [InvoiceService, PaymentService, InvoiceEmailService],
 })
 export class InvoiceModule {}
