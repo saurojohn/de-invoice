@@ -38,6 +38,14 @@ const WARM_ROUTES = [
   "/dashboard/recurring-invoices",
   "/dashboard/mahnungen",
   "/dashboard/audit",
+  // Tier 126: warm the 2 detail pages so the
+  // cold compile doesn't race with the h1 wait
+  // in the mobile-responsive spec. The detail
+  // pages are heavier (Card layout + tab tables
+  // for customer) and were the source of 20s+
+  // h1 waits when first hit in a cold test.
+  "/dashboard/invoices/11deeb35-7147-4bdc-86d9-a302b4f80f3e",
+  "/dashboard/customers/b3f7b274-7696-44b8-9345-8bfd460b3e47",
 ]
 
 const WARM_API_ROUTES = [

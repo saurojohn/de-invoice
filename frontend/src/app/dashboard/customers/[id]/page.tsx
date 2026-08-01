@@ -341,8 +341,10 @@ export default function CustomerDetailPage() {
 
   return (
     <div className="container mx-auto p-4 md:p-8">
-      {/* Header */}
-      <header className="mb-6 flex items-start justify-between gap-4">
+      {/* Header — Tier 126: flex-wrap so the 5 right-side
+          controls (3 lang + Zurück + Kontoauszug) drop
+          to a second row on 375px phones. */}
+      <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1
             className="text-2xl md:text-3xl font-bold"
@@ -370,7 +372,7 @@ export default function CustomerDetailPage() {
             </p>
           )}
         </div>
-        <div className="flex gap-2 flex-shrink-0">
+        <div className="flex flex-wrap gap-2">
           <LanguageSwitcher />
           <Button
             variant="outline"
@@ -493,7 +495,7 @@ export default function CustomerDetailPage() {
 
       {/* Tabs */}
       <div
-        className="border-b border-gray-200 dark:border-gray-700 mb-4 flex gap-2"
+        className="border-b border-gray-200 dark:border-gray-700 mb-4 flex gap-2 overflow-x-auto"
         role="tablist"
       >
         <button
@@ -605,7 +607,7 @@ export default function CustomerDetailPage() {
             )}
             {invoices && invoices.length > 0 && (
               <div className="overflow-x-auto">
-                <table className="w-full text-sm" data-testid="tab-invoices-table">
+                <table className="w-full min-w-[640px] text-sm" data-testid="tab-invoices-table">
                   <thead className="border-b-2">
                     <tr className="text-left text-gray-500">
                       <th className="py-2 font-medium">{t("invoice.number") || "Nr."}</th>
@@ -669,7 +671,7 @@ export default function CustomerDetailPage() {
             )}
             {plans && plans.length > 0 && (
               <div className="overflow-x-auto">
-                <table className="w-full text-sm" data-testid="tab-plans-table">
+                <table className="w-full min-w-[640px] text-sm" data-testid="tab-plans-table">
                   <thead className="border-b-2">
                     <tr className="text-left text-gray-500">
                       <th className="py-2 font-medium">{t("customerDetail.interval") || "Intervall"}</th>
@@ -729,7 +731,7 @@ export default function CustomerDetailPage() {
             )}
             {mahnungen && mahnungen.length > 0 && (
               <div className="overflow-x-auto">
-                <table className="w-full text-sm" data-testid="tab-mahnungen-table">
+                <table className="w-full min-w-[640px] text-sm" data-testid="tab-mahnungen-table">
                   <thead className="border-b-2">
                     <tr className="text-left text-gray-500">
                       <th className="py-2 font-medium">{t("customerDetail.invoice") || "Rechnung"}</th>
@@ -1062,7 +1064,7 @@ export default function CustomerDetailPage() {
             )}
             {creditLedger && creditLedger.length > 0 && (
               <div className="overflow-x-auto">
-                <table className="w-full text-sm" data-testid="tab-credit-table">
+                <table className="w-full min-w-[640px] text-sm" data-testid="tab-credit-table">
                   <thead className="border-b-2">
                     <tr className="text-left text-gray-500">
                       <th className="py-2 font-medium">{t("credit.colDate") || "Datum"}</th>

@@ -966,7 +966,15 @@ export default function InvoiceDetailPage() {
             user asked for; we pick a Tailwind class instead of an
             arbitrary [15px] value to stay in the design system. */}
         <div className="grid md:grid-cols-2 gap-8 mb-8">
-          <Card>
+          {/* Tier 126: min-w-0 so the grid item can shrink
+              below its content's intrinsic min-width. The
+              sender address line uses whitespace-nowrap +
+              text-ellipsis, which gives the Card a
+              ~415px min-width on a 375px phone (the
+              address "SH Leder GmbH · Otto-Hahn..." is
+              long). Without min-w-0, the grid column
+              forces the whole page to overflow. */}
+          <Card className="min-w-0">
             <CardHeader>
               <CardTitle>
                 {invoice.company?.name || "Kundeninformationen"}
@@ -1083,7 +1091,7 @@ export default function InvoiceDetailPage() {
         <Card className="mt-6">
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Zahlungen ({payments.length})</CardTitle>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               {/* Tier 53: Gutschrift (credit note) button.
                   Only on INV-typed invoices (not CN) that
                   aren't cancelled. Opens a tiny modal
@@ -1259,7 +1267,7 @@ export default function InvoiceDetailPage() {
             </CardContent>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full min-w-[640px] text-sm">
                 <thead>
                   <tr className="border-b">
                     <th className="text-left px-4 py-2 font-medium">Datum</th>
@@ -1430,7 +1438,8 @@ export default function InvoiceDetailPage() {
                       : t("installmentPlan.statusCancelled") || "storniert"}
                   </span>
                 </div>
-                <table className="w-full text-sm">
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[640px] text-sm">
                   <thead>
                     <tr className="text-left text-xs uppercase text-gray-500 dark:text-gray-400 border-b">
                       <th className="py-2 pr-2 w-10">#</th>
@@ -1553,6 +1562,7 @@ export default function InvoiceDetailPage() {
                     ))}
                   </tbody>
                 </table>
+                </div>
                 {installmentPlan.status === "active" && (
                   <div className="mt-3 flex justify-end">
                     <Button

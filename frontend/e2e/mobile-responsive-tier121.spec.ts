@@ -1,18 +1,21 @@
 /**
- * Playwright spec — Tier 121 mobile responsive.
+ * Playwright spec — Tier 121 + 125 + 126 mobile responsive.
  *
- * Verifies the 3 most-used dashboard pages don't
- * overflow horizontally on a 375x667 phone viewport:
+ * Tier 121: 3 top-level pages (dashboard home,
+ * invoices list, customers list) + invoice list
+ * header wrap + tablet sanity check.
  *
- *   1. /dashboard (home — already responsive)
- *   2. /dashboard/invoices (list — added overflow-x-auto
- *      + responsive padding in Tier 121)
- *   3. /dashboard/customers (list — added responsive
- *      header padding in Tier 121)
+ * Tier 125: 5 more list/detail pages (mahnungen,
+ * recurring-invoices, reports, accounting,
+ * expenses) — same pattern.
  *
- * The invoice detail page is also tested briefly
- * to confirm the items table scrolls horizontally
- * instead of clipping.
+ * Tier 126: 2 detail pages (invoice detail,
+ * customer detail) — all of their inner tables
+ * (items, payments, installments, customer
+ * invoices/plans/mahnungen/credit) now have
+ * overflow-x-auto + min-w-[640px] so they scroll
+ * horizontally on a 375px phone instead of
+ * pushing the page out of bounds.
  *
  * What "no horizontal overflow" means:
  *   `document.body.scrollWidth <= window.innerWidth + 1`
@@ -138,4 +141,34 @@ test.describe('Tier 121 — Mobile responsive (375x667)', () => {
       await assertNoHorizontalOverflow(page)
     })
   }
+
+  // Tier 126: 2 detail pages — invoice detail
+  // (highest-frequency page) + customer detail
+  // (4 tab tables). Use a real invoice + customer
+  // ID from the dev DB.
+  test('mobile 375x667: invoice detail no horizontal overflow', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 667 })
+    await page.goto('/dashboard/invoices/11deeb35-7147-4bdc-86d9-a302b4f80f3e')
+    await expect(page.locator('h1').first()).toBeVisible({ timeout: 15_000 })
+    // Give the items + payments + (if present)
+    // installments tables a moment to render.
+    await page.waitForTimeout(2000)
+    await assertNoHorizontalOverflow(page)
+  })
+
+  test('mobile 375x667: customer detail no horizontal overflow', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 667 })
+    await page.goto('/dashboard/customers/b3f7b274-7696-44b8-9345-8bfd460b3e47')
+    await expect(page.locator('h1').first()).toBeVisible({ timeout: 15_000 })
+    await page.waitForTimeout(2000)
+    await assertNoHorizontalOverflow(page)
+  })
+
+  test('tablet 768x1024: invoice detail no horizontal overflow', async ({ page }) => {
+    await page.setViewportSize({ width: 768, height: 1024 })
+    await page.goto('/dashboard/invoices/11deeb35-7147-4bdc-86d9-a302b4f80f3e')
+    await expect(page.locator('h1').first()).toBeVisible({ timeout: 15_000 })
+    await page.waitForTimeout(2000)
+    await assertNoHorizontalOverflow(page)
+  })
 })
