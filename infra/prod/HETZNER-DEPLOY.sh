@@ -142,10 +142,15 @@ if [[ "$EXISTING" == "1" ]]; then
   log "  company $COMPANY_ID already exists, skipping"
 else
   log "  inserting company '$COMPANY_NAME' (id=$COMPANY_ID)"
+  # The Company.address column is NOT NULL (jsonb) since the
+  # address-fields migration. We seed with an empty JSONB
+  # object — the operator can fill it in via the Settings page
+  # after first login. defaultPaymentDays is also NOT NULL
+  # but has a DEFAULT 30 so we don't pass it.
   docker compose -f infra/prod/docker-compose.yml exec -T postgres \
     psql -U de_invoice -d de_invoice -c "
-      INSERT INTO \"Company\" (id, name, \"createdAt\", \"updatedAt\")
-      VALUES ('$COMPANY_ID', '$COMPANY_NAME', NOW(), NOW());
+      INSERT INTO \"Company\" (id, name, address, \"createdAt\", \"updatedAt\")
+      VALUES ('$COMPANY_ID', '$COMPANY_NAME', '{}'::jsonb, NOW(), NOW());
     "
 fi
 

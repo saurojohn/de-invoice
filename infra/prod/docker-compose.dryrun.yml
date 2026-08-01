@@ -1,0 +1,77 @@
+# ─────────────────────────────────────────────────────────────────
+# docker-compose.dryrun.yml — Tier 127.5 local dry-run
+#
+# Overrides docker-compose.prod.yml (Tier 11, smoke-tested in
+# Tier 99) so we can verify the prod images build + start +
+# serve /api/v1/health on a LOCAL docker, without touching
+# the dev stack on the same box.
+#
+# Differs from prod:
+#   - container_name: de-invoice-dryrun-* (avoids clashing with
+#     the dev containers on the same machine — the prod
+#     compose uses de-invoice-postgres-prod and
+#     de-invoice-backend, which conflict with de-invoice-
+#     postgres and a future dev backend)
+#   - port 3002 instead of 3001 (dev backend runs on 3001)
+#   - DRY_RUN=1 marker env so we can detect it in code
+#   - Drops the storage volume mount (dry-run has no PDFs)
+#   - Wipe pgdata + storage volumes on `down -v`
+#
+# Usage:
+#   cd /path/to/repo
+#   docker compose -f docker-compose.prod.yml \
+#     -f infra/prod/docker-compose.dryrun.yml \
+#     --env-file infra/prod/.env.dryrun \
+#     up -d --build
+#   # health check
+#   docker compose -f docker-compose.prod.yml \
+#     -f infra/prod/docker-compose.dryrun.yml \
+#     exec backend wget -q -O- http://localhost:3001/api/v1/health
+#   # teardown
+#   docker compose -f docker-compose.prod.yml \
+#     -f infra/prod/docker-compose.dryrun.yml \
+#     down -v
+# ─────────────────────────────────────────────────────────────────
+
+services:
+  postgres:
+    container_name: de-invoice-dryrun-postgres
+    # Same image as prod (postgres:16-alpine). No build context
+    # change needed — image: pulls from registry.
+    # No host port mapping — backend reaches it via the
+    # compose-internal network. (Mapping to 5433 collides with
+    # a previously leaked dryrun container, and the dev stack
+    # already uses 5432.)
+    expose:
+      - "5432"
+    environment:
+      POSTGRES_DB: deinvoice_dryrun
+      POSTGRES_USER: deinvoice_dryrun
+      POSTGRES_PASSWORD: dryrun_local_pw
+
+  backend:
+    container_name: de-invoice-dryrun-backend
+    ports:
+      - "3002:3001"  # 3001 is taken by the dev backend
+    environment:
+      # Override DATABASE_URL to point at the renamed postgres
+      # + dryrun credentials. The hostname 'postgres' still
+      # works because both containers are on the same
+      # compose-internal network.
+      DATABASE_URL: postgresql://deinvoice_dryrun:dryrun_local_pw@postgres:5432/deinvoice_dryrun?schema=public&connection_limit=2
+      FRONTEND_URL: http://localhost:3000
+      JWT_SECRET: dryrun-jwt-secret-not-for-prod-do-not-use-anywhere-real
+      FINTS_PIN_ENC_KEY: 0000000000000000000000000000000000000000000000000000000000000000
+      NODE_ENV: production
+      DRY_RUN: "1"
+      LOG_LEVEL: debug
+    # No storage volume mount — dry-run has no PDFs / XRechnung
+    # to write. The default STORAGE_PATH=/data/invoice-system
+    # is in the image; the backend will create it on first
+    # write. Without a volume it dies on container remove,
+    # which is fine for a dry-run.
+
+  # Drop the prod frontend (we're not testing browser UX in
+  # this dry-run; backend health check is enough).
+  frontend:
+    profiles: ["never"]
