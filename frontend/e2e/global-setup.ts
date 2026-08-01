@@ -46,6 +46,10 @@ const WARM_ROUTES = [
   // h1 waits when first hit in a cold test.
   "/dashboard/invoices/11deeb35-7147-4bdc-86d9-a302b4f80f3e",
   "/dashboard/customers/b3f7b274-7696-44b8-9345-8bfd460b3e47",
+  // Tier 128: VIES button spec hits the same
+  // customer detail page; keep this duplicate
+  // to keep the warm list readable (a future
+  // refactor could de-dup with a Set).
 ]
 
 const WARM_API_ROUTES = [

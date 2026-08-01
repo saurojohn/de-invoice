@@ -35,7 +35,7 @@ import { Input } from "@/components/ui/input"
 import { ErrorBanner } from "@/components/ui/error-banner"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
-import { apiGet, apiFetch, ApiError } from "@/lib/api"
+import { apiGet, apiPost, apiFetch, ApiError } from "@/lib/api"
 
 type Tab = "invoices" | "plans" | "mahnungen" | "pauses" | "credit"
 
@@ -141,6 +141,23 @@ interface CreditLedgerRow {
   createdAt: string
 }
 
+// Tier 128: matches the VatCheckResult interface
+// in backend/src/modules/vat-validation/vat-validation.service.ts.
+// Status 'unreachable' is folded into the same gray
+// "ungeprüft" badge as no-prior-check; the user just
+// sees "we couldn't reach VIES right now, try again
+// later". 'invalid' → red, 'valid' → green.
+interface VatCheckResult {
+  status: "valid" | "invalid" | "unreachable"
+  name?: string
+  address?: string
+  countryCode?: string
+  errorCode?: string
+  errorMessage?: string
+  durationMs?: number
+  checkedAt?: string
+}
+
 function fmtEur(n: number, locale: string = "de-DE"): string {
   return new Intl.NumberFormat(locale, {
     style: "currency",
@@ -201,6 +218,19 @@ export default function CustomerDetailPage() {
   const [error, setError] = useState<string | null>(null)
   const [tab, setTab] = useState<Tab>("invoices")
 
+  // Tier 128: VIES (EU VAT-ID validation) state.
+  // The latest result drives the badge color next
+  // to the USt-ID in the header. Run a fresh check
+  // via runViesCheck() on button click; the latest
+  // is also loaded on mount if the customer has
+  // a vatId. The countryCode is the EU member
+  // state the check returned (DE/FR/IT/...) —
+  // useful because the user-supplied prefix can
+  // be wrong (e.g. "GB" instead of "XI" post-Brexit).
+  const [viesLatest, setViesLatest] = useState<VatCheckResult | null>(null)
+  const [viesChecking, setViesChecking] = useState(false)
+  const [viesError, setViesError] = useState<string | null>(null)
+
   // Tab data — lazy-loaded on first tab activation.
   // Each tab keeps its own loading flag so the user can
   // switch back without re-fetching.
@@ -243,6 +273,55 @@ export default function CustomerDetailPage() {
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
   }, [companyId, id])
+
+  // Tier 128: load the most recent VIES check for this
+  // customer (if any). Tolerates failure silently — the
+  // header badge just stays hidden until the user
+  // clicks "USt-ID prüfen". Re-runs on every mount and
+  // when the customer id changes.
+  useEffect(() => {
+    if (!companyId || !id) return
+    let cancelled = false
+    apiGet<VatCheckResult | null>(
+      `/api/v1/vat-validation/latest?companyId=${companyId}&entityType=customer&entityId=${id}`,
+    )
+      .then((d) => { if (!cancelled) setViesLatest(d) })
+      .catch(() => { /* tolerate — no prior check is fine */ })
+    return () => { cancelled = true }
+  }, [companyId, id])
+
+  /**
+   * Tier 128: trigger a fresh VIES check for this
+   * customer's vatId. Optimistic: set checking=true
+   * and clear any prior error. The button stays
+   * disabled until the call resolves. On success, the
+   * returned logId is included in the badge tooltip
+   * (so the user can look up the audit-trail row
+   * later). On error, we show a short red message
+   * inline; we don't throw a toast — VIES is a
+   * non-blocking "best effort" check.
+   */
+  const runViesCheck = async () => {
+    if (!companyId || !id || !summary?.customer.vatId || viesChecking) return
+    setViesChecking(true)
+    setViesError(null)
+    try {
+      const result = await apiPost<VatCheckResult & { logId: string }>(
+        `/api/v1/vat-validation/check`,
+        {
+          companyId,
+          entityType: "customer",
+          entityId: id,
+          vatId: summary.customer.vatId,
+        },
+      )
+      setViesLatest({ ...result })
+    } catch (err) {
+      setViesError(err instanceof ApiError ? err.message : String(err))
+    } finally {
+      setViesChecking(false)
+    }
+  }
 
   // Lazy-load tab data on first activation.
   useEffect(() => {
@@ -366,6 +445,63 @@ export default function CustomerDetailPage() {
               <span className="ml-3 text-orange-700">⚠ Steuerbefreit</span>
             )}
           </p>
+          {/* Tier 128: VIES USt-ID verify button + result badge.
+              The badge color is driven by the most recent check:
+                green  = valid (status=valid)
+                red    = invalid (status=invalid)
+                gray   = unchecked (no prior check)
+                blue   = currently checking
+              Clicking the button POSTs to /vat-validation/check
+              and refreshes the latest result. The history is
+              shown via the customer-update-existing
+              <ViesHistoryPanel/> below the header. */}
+          {customer.vatId && (
+            <div className="mt-2 flex items-center gap-2 text-sm">
+              <button
+                type="button"
+                onClick={runViesCheck}
+                disabled={viesChecking}
+                data-testid="vies-verify-button"
+                className={`px-3 py-1 rounded border text-xs font-medium transition-colors ${
+                  viesChecking
+                    ? "bg-blue-50 dark:bg-blue-900/30 border-blue-300 text-blue-700 dark:text-blue-300 cursor-wait"
+                    : "bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                }`}
+              >
+                {viesChecking
+                  ? (t("customer.vatChecking") || "Prüfe…")
+                  : (t("customer.vatCheckNow") || "USt-ID prüfen")}
+              </button>
+              {/* Result badge — shows the last known status */}
+              {viesLatest && (
+                <span
+                  data-testid="vies-result-badge"
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${
+                    viesLatest.status === "valid"
+                      ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300"
+                      : viesLatest.status === "invalid"
+                      ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300"
+                      : "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
+                  }`}
+                  title={viesLatest.errorMessage || ""}
+                >
+                  {viesLatest.status === "valid"
+                    ? `✓ ${t("customer.vatStatusValid") || "Gültig"}`
+                    : viesLatest.status === "invalid"
+                    ? `✗ ${t("customer.vatStatusInvalid") || "Ungültig"}`
+                    : `? ${t("customer.vatStatusUnreachable") || "VIES nicht erreichbar"}`}
+                  {viesLatest.countryCode && (
+                    <span className="font-mono opacity-75">({viesLatest.countryCode})</span>
+                  )}
+                </span>
+              )}
+              {viesError && (
+                <span className="text-xs text-red-600 dark:text-red-400">
+                  {viesError}
+                </span>
+              )}
+            </div>
+          )}
           {fullAddress && (
             <p className="text-gray-600 dark:text-gray-300 mt-1 text-sm">
               {fullAddress}
