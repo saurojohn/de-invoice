@@ -231,6 +231,22 @@ export default function CustomerDetailPage() {
   const [viesChecking, setViesChecking] = useState(false)
   const [viesError, setViesError] = useState<string | null>(null)
 
+  // Tier 132: portal session generator. The admin
+  // clicks "Portal-Login-Link generieren" → we POST
+  // to /customer-portal/admin/create-session → the
+  // backend creates a 30-day session + emails the
+  // customer the link (NO-SMTP mode logs to stdout
+  // for dev verification). The returned URL is
+  // shown in a modal so the admin can copy + paste
+  // it into an email / WhatsApp / phone call.
+  const [portalLink, setPortalLink] = useState<{
+    url: string
+    email: string
+    expiresAt: string
+  } | null>(null)
+  const [portalLinkGenerating, setPortalLinkGenerating] = useState(false)
+  const [portalLinkCopied, setPortalLinkCopied] = useState(false)
+
   // Tab data — lazy-loaded on first tab activation.
   // Each tab keeps its own loading flag so the user can
   // switch back without re-fetching.
@@ -320,6 +336,65 @@ export default function CustomerDetailPage() {
       setViesError(err instanceof ApiError ? err.message : String(err))
     } finally {
       setViesChecking(false)
+    }
+  }
+
+  /**
+   * Tier 132: generate a portal-login link for this
+   * customer. The backend creates a 30-day session,
+   * emails the link to the customer's contact.email
+   * (NO-SMTP in dev logs the URL to stdout), and
+   * returns the URL. We show it in a modal so the
+   * admin can copy + paste it into any channel
+   * (WhatsApp, phone call, separate email).
+   *
+   * Bypasses the public rate-limit (the admin is
+   * the trust boundary, not a random visitor).
+   */
+  const generatePortalLink = async () => {
+    if (!companyId || !id || portalLinkGenerating) return
+    setPortalLinkGenerating(true)
+    setPortalLinkCopied(false)
+    try {
+      const result = await apiPost<{
+        sent: boolean
+        url: string
+        email: string
+        customerId: string
+        expiresAt: string
+      }>(
+        `/api/v1/customer-portal/admin/create-session`,
+        { customerId: id, companyId },
+      )
+      if (result.url) {
+        setPortalLink({
+          url: result.url,
+          email: result.email,
+          expiresAt: result.expiresAt,
+        })
+      }
+    } catch (err) {
+      // Reuse the VIES error pattern (inline red text
+      // in the header). A toast would be nicer but
+      // we don't have a global toast system on this
+      // page yet.
+      setViesError(err instanceof ApiError ? err.message : String(err))
+    } finally {
+      setPortalLinkGenerating(false)
+    }
+  }
+
+  const copyPortalLink = async () => {
+    if (!portalLink?.url) return
+    try {
+      await navigator.clipboard.writeText(portalLink.url)
+      setPortalLinkCopied(true)
+      setTimeout(() => setPortalLinkCopied(false), 3000)
+    } catch {
+      // Clipboard API can be blocked (older browsers,
+      // insecure contexts). Fall back to a manual
+      // select-and-copy prompt.
+      window.prompt("Bitte den Link manuell kopieren:", portalLink.url)
     }
   }
 
@@ -516,6 +591,30 @@ export default function CustomerDetailPage() {
             data-testid="customer-detail-back"
           >
             ← {t("common.back") || "Zurück"}
+          </Button>
+          {/* Tier 132: generate a portal-login link for
+              this customer. The backend creates a 30-day
+              session + emails the link (NO-SMTP in dev
+              logs to stdout). We show the URL in a modal
+              so the admin can copy + paste it into any
+              channel. The button is disabled if the
+              customer has no email on file. */}
+          <Button
+            variant="outline"
+            onClick={generatePortalLink}
+            disabled={portalLinkGenerating || !(customer as any).contact?.email}
+            data-testid="customer-portal-generate-button"
+            title={
+              (customer as any).contact?.email
+                ? (t("customer.portalLinkTooltip") ||
+                    "Erzeugt einen 30-Tage Login-Link zum Kundenportal und sendet ihn an den Kunden")
+                : (t("customer.portalLinkNoEmail") ||
+                    "Kunde hat keine E-Mail-Adresse hinterlegt")
+            }
+          >
+            {portalLinkGenerating
+              ? "⏳"
+              : `🔗 ${t("customer.portalLink") || "Portal-Login-Link"}`}
           </Button>
           <Button
             onClick={() => router.push(`/dashboard/customers/${id}/statement`)}
@@ -1250,6 +1349,62 @@ export default function CustomerDetailPage() {
             )}
           </CardContent>
         </Card>
+      )}
+
+      {/* Tier 132: portal-link modal. Shows the
+          generated URL + Copy button + the recipient
+          email + the expiry. The Copy button flips
+          to "Kopiert!" for 3 seconds after success
+          (using portalLinkCopied state). */}
+      {portalLink && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+          onClick={() => setPortalLink(null)}
+          data-testid="customer-portal-modal-backdrop"
+        >
+          <div
+            className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6"
+            onClick={(e) => e.stopPropagation()}
+            data-testid="customer-portal-modal"
+          >
+            <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">
+              🔗 {t("customer.portalLinkModalTitle") || "Portal-Login-Link"}
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+              {t("customer.portalLinkModalDesc") ||
+                "Der Link wurde per E-Mail an den Kunden gesendet (NO-SMTP in Dev: nur Log). Du kannst ihn hier auch manuell kopieren:"}
+            </p>
+            <div className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded p-2 text-xs font-mono break-all mb-3">
+              {portalLink.url}
+            </div>
+            <div className="text-xs text-gray-500 dark:text-gray-400 mb-4 space-y-0.5">
+              <p>
+                <strong>Empfänger:</strong> {portalLink.email}
+              </p>
+              <p>
+                <strong>{t("customer.portalLinkExpires") || "Gültig bis"}:</strong>{" "}
+                {new Date(portalLink.expiresAt).toLocaleDateString("de-DE")}
+              </p>
+            </div>
+            <div className="flex gap-2 justify-end flex-wrap">
+              <Button
+                variant="outline"
+                onClick={() => setPortalLink(null)}
+                data-testid="customer-portal-modal-close"
+              >
+                {t("common.close") || "Schließen"}
+              </Button>
+              <Button
+                onClick={copyPortalLink}
+                data-testid="customer-portal-modal-copy"
+              >
+                {portalLinkCopied
+                  ? `✓ ${t("customer.portalLinkCopied") || "Kopiert!"}`
+                  : `📋 ${t("customer.portalLinkCopy") || "Link kopieren"}`}
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

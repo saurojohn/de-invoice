@@ -655,7 +655,15 @@
     "saved": "Kunde gespeichert",
     "batchExport": "Batch-Export",
     "batchExportTitle": "Alle Kontoauszüge exportieren",
-    "batchExportSubtitle": "Generiert ein PDF pro Kunde für den gewählten Zeitraum, verpackt als ZIP. Ideal für den Monatsabschluss."
+    "batchExportSubtitle": "Generiert ein PDF pro Kunde für den gewählten Zeitraum, verpackt als ZIP. Ideal für den Monatsabschluss.",
+    "portalLink": "Portal-Login-Link",
+    "portalLinkTooltip": "Erzeugt einen 30-Tage Login-Link zum Kundenportal und sendet ihn an den Kunden",
+    "portalLinkNoEmail": "Kunde hat keine E-Mail-Adresse hinterlegt",
+    "portalLinkModalTitle": "Portal-Login-Link",
+    "portalLinkModalDesc": "Der Link wurde per E-Mail an den Kunden gesendet (NO-SMTP in Dev: nur Log). Du kannst ihn hier auch manuell kopieren:",
+    "portalLinkExpires": "Gültig bis",
+    "portalLinkCopy": "Link kopieren",
+    "portalLinkCopied": "Kopiert!"
   },
   "dashboard": {
     "title": "Dashboard",

@@ -655,7 +655,15 @@
     "saved": "Customer saved",
     "batchExport": "Batch Export",
     "batchExportTitle": "Export all statements",
-    "batchExportSubtitle": "Generates one PDF per customer for the chosen period, packaged as a ZIP. Ideal for monthly close."
+    "batchExportSubtitle": "Generates one PDF per customer for the chosen period, packaged as a ZIP. Ideal for monthly close.",
+    "portalLink": "Portal login link",
+    "portalLinkTooltip": "Creates a 30-day login link to the customer portal and sends it to the customer",
+    "portalLinkNoEmail": "Customer has no email address on file",
+    "portalLinkModalTitle": "Portal login link",
+    "portalLinkModalDesc": "The link was emailed to the customer (NO-SMTP in dev: log only). You can also copy it manually here:",
+    "portalLinkExpires": "Valid until",
+    "portalLinkCopy": "Copy link",
+    "portalLinkCopied": "Copied!"
   },
   "dashboard": {
     "title": "Dashboard",

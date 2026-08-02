@@ -35,6 +35,7 @@
  */
 import {
   BadRequestException,
+  Body,
   Controller,
   Get,
   Header,
@@ -46,10 +47,19 @@ import {
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { CustomerPortalService } from './customer-portal.service';
+// Tier 132: admin endpoints sit behind the auth
+// guard (HeaderAuthGuard + @Require). They bypass
+// the public rate-limit because the operator is
+// the trust boundary, not a random visitor.
+import { Auth, Require } from '../../auth/roles.decorator';
+import { PrismaService } from '../../prisma/prisma.service';
 
 @Controller('customer-portal')
 export class CustomerPortalController {
-  constructor(private readonly svc: CustomerPortalService) {}
+  constructor(
+    private readonly svc: CustomerPortalService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   @Post('request-session')
   async requestSession(
@@ -119,6 +129,64 @@ export class CustomerPortalController {
         ? Number((req.body as any).amount)
         : undefined
     return this.svc.markInvoicePaid(token, id, amount)
+  }
+
+  // ─── Admin endpoints (Tier 132) ──────────────────────
+  // Operator can generate a portal session for a
+  // specific customer — used by the "Portal-Login
+  // senden" button on the customer detail page. Bypasses
+  // the public rate-limit (operator is the trust
+  // boundary). Returns the full URL the admin can
+  // copy + paste into an email / WhatsApp.
+  @Auth()
+  @Post('admin/create-session')
+  @Require('customer.update')
+  async adminCreateSession(
+    @Body() body: { customerId?: string; companyId?: string },
+    @Req() req: Request,
+  ) {
+    if (!body?.customerId) {
+      throw new BadRequestException('customerId is required')
+    }
+    // Look up the customer's contact.email. The
+    // service.requestSession takes the email and
+    // does the rate-limit + token generation. We
+    // intentionally don't have a per-customerId rate
+    // limit here (admin clicks = low frequency) —
+    // the public email path's limit is what protects
+    // against abuse.
+    const customer = await this.prisma.customer.findFirst({
+      where: {
+        id: body.customerId,
+        companyId: body.companyId,
+      },
+    })
+    if (!customer) {
+      throw new BadRequestException('Kunde nicht gefunden')
+    }
+    const email = (customer.contact as any)?.email
+    if (!email) {
+      throw new BadRequestException('Kunde hat keine E-Mail-Adresse hinterlegt')
+    }
+    const origin = this.originFromRequest(req)
+    const result = await this.svc.requestSession(email, origin, req.ip as string)
+    // requestSession always returns { sent: true } —
+    // we need the actual URL to give the admin. Re-read
+    // the latest session row.
+    const latest = await this.prisma.customerPortalSession.findFirst({
+      where: { email: email.toLowerCase() },
+      orderBy: { createdAt: 'desc' },
+    })
+    const url = latest
+      ? `${origin.replace(/\/$/, '')}/portal?token=${latest.token}`
+      : null
+    return {
+      ...result,
+      url,
+      email,
+      customerId: customer.id,
+      expiresAt: latest?.expiresAt,
+    }
   }
 
   private originFromRequest(req: Request): string {

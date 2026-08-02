@@ -655,7 +655,15 @@
     "saved": "客户已保存",
     "batchExport": "批量导出",
     "batchExportTitle": "导出所有对账单",
-    "batchExportSubtitle": "为每个客户生成所选期间的 PDF,打包为 ZIP。适合月末结算。"
+    "batchExportSubtitle": "为每个客户生成所选期间的 PDF,打包为 ZIP。适合月末结算。",
+    "portalLink": "门户登录链接",
+    "portalLinkTooltip": "生成30天的客户门户登录链接并发送给客户",
+    "portalLinkNoEmail": "客户没有留下电子邮件地址",
+    "portalLinkModalTitle": "门户登录链接",
+    "portalLinkModalDesc": "链接已通过电子邮件发送给客户（开发模式下NO-SMTP：仅记录日志）。您也可以在此处手动复制：",
+    "portalLinkExpires": "有效期至",
+    "portalLinkCopy": "复制链接",
+    "portalLinkCopied": "已复制！"
   },
   "dashboard": {
     "title": "仪表盘",
