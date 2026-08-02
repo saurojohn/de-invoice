@@ -21,6 +21,15 @@
  *     recent checks. The detail page's "Verlauf"
  *     tab renders this as a table.
  *
+ *   POST /vat-validation/batch-check — body has
+ *     { companyId, entityType, limit? }. Walks
+ *     every customer/supplier with a VAT ID and
+ *     runs validateAndLog on each. Used by the
+ *     "Alle USt-IDs prüfen" button on the
+ *     customers/suppliers list pages. Slow
+ *     (1-2 min for 50 entities) — the frontend
+ *     shows a progress modal.
+ *
  * Mounted at /api/v1/vat-validation.
  */
 
@@ -33,6 +42,7 @@ import {
   Res,
   BadRequestException,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { Auth, Require } from '../../auth/roles.decorator';
 import {
   VatReverifyScheduler,
@@ -148,6 +158,40 @@ export class VatValidationController {
         durationMs: true,
         createdAt: true,
       },
+    })
+  }
+
+  /**
+   * Tier 134: batch-check every customer/supplier
+   * with a VAT ID. Used by the "Alle USt-IDs prüfen"
+   * button on the list pages. Capped at 100 entities
+   * (1-2 min) and rate-limited 1/min per company so
+   * a double-click doesn't trigger two parallel
+   * batches. The frontend shows a progress modal
+   * while this is in flight.
+   *
+   * Returns: { total, valid, invalid, unreachable,
+   * skipped, durationMs, results: [...] }.
+   *
+   * Permission: customer.update (same as the
+   * per-entity check).
+   */
+  @Post('batch-check')
+  @Require('customer.update')
+  @Throttle({ default: { limit: 1, ttl: 60_000 } })
+  async batchCheck(
+    @Body() body: {
+      companyId: string
+      entityType?: 'customer' | 'supplier'
+      limit?: number
+    },
+  ) {
+    if (!body?.companyId) {
+      throw new BadRequestException('companyId is required')
+    }
+    const entityType = body.entityType === 'supplier' ? 'supplier' : 'customer'
+    return this.service.batchCheckAll(body.companyId, entityType, {
+      limit: body.limit,
     })
   }
 

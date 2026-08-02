@@ -1160,6 +1160,157 @@ export class VatValidationService {
     }
   }
 
+  /**
+   * Tier 134: batch-check every entity of a given
+   * type for one company. Walks customers (or
+   * suppliers) with a non-empty VAT ID, runs
+   * `validateAndLog` on each, and returns the
+   * aggregate counts + per-entity results.
+   *
+   * Used by the "Alle USt-IDs prüfen" button on
+   * the customers/suppliers list pages. VIES is
+   * slow (~1-2s per call) and the local token-
+   * bucket rate limiter (acquireRateToken inside
+   * validateAndLog) means a 50-customer batch can
+   * take 1-2 minutes. We accept that: this is a
+   * one-shot bulk operation, the frontend shows
+   * a progress modal, and the user can navigate
+   * away (the request keeps running server-side).
+   *
+   * Cap: 100 entities per call. Anything more
+   * would tie up the request for >5 min which
+   * is past most reverse-proxy timeouts.
+   *
+   * Errors: if the VIES circuit breaker is OPEN,
+   * every per-entity call short-circuits with
+   * status='unreachable' and the global error
+   * message. The function never throws — the
+   * caller always gets a structured result.
+   */
+  async batchCheckAll(
+    companyId: string,
+    entityType: 'customer' | 'supplier',
+    opts: { limit?: number } = {},
+  ): Promise<{
+    total: number
+    valid: number
+    invalid: number
+    unreachable: number
+    skipped: number
+    durationMs: number
+    results: Array<{
+      entityId: string
+      entityName: string
+      vatId: string
+      status: 'valid' | 'invalid' | 'unreachable' | 'pending'
+      cached: boolean
+      errorMessage: string | null
+      durationMs: number
+    }>
+  }> {
+    const limit = Math.min(100, Math.max(1, opts.limit ?? 100))
+    const startedAt = Date.now()
+    // Pull the entities with a VAT ID. We don't
+    // join the latest vatValidationLog here — each
+    // per-entity call does its own cache check.
+    const where =
+      entityType === 'customer'
+        ? { companyId, vatId: { not: null } }
+        : { companyId, vatId: { not: null } }
+    const entities =
+      entityType === 'customer'
+        ? await this.prisma.customer.findMany({
+            where,
+            take: limit,
+            select: { id: true, name: true, vatId: true },
+            orderBy: { name: 'asc' },
+          })
+        : await this.prisma.supplier.findMany({
+            where,
+            take: limit,
+            select: { id: true, name: true, vatId: true },
+            orderBy: { name: 'asc' },
+          })
+    const results: Array<{
+      entityId: string
+      entityName: string
+      vatId: string
+      status: 'valid' | 'invalid' | 'unreachable' | 'pending'
+      cached: boolean
+      errorMessage: string | null
+      durationMs: number
+    }> = []
+    let valid = 0,
+      invalid = 0,
+      unreachable = 0,
+      skipped = 0
+    for (const ent of entities) {
+      const vat = (ent.vatId || '').trim()
+      if (!vat) {
+        skipped++
+        results.push({
+          entityId: ent.id,
+          entityName: ent.name,
+          vatId: '',
+          status: 'invalid',
+          cached: false,
+          errorMessage: 'no VAT ID',
+          durationMs: 0,
+        })
+        continue
+      }
+      try {
+        const r = await this.validateAndLog(
+          companyId,
+          entityType,
+          ent.id,
+          vat,
+        )
+        if (r.status === 'valid') valid++
+        else if (r.status === 'unreachable') unreachable++
+        else invalid++ // 'invalid' or 'pending'
+        results.push({
+          entityId: ent.id,
+          entityName: ent.name,
+          vatId: vat,
+          status: r.status,
+          cached: r.cached,
+          errorMessage: r.errorMessage ?? null,
+          durationMs: r.durationMs,
+        })
+      } catch (e: any) {
+        // A single failure (network blip, parse
+        // bug) should not abort the whole batch.
+        unreachable++
+        this.logger.error(
+          `batch ${entityType} ${ent.id} failed: ${e?.message || e}`,
+        )
+        results.push({
+          entityId: ent.id,
+          entityName: ent.name,
+          vatId: vat,
+          status: 'unreachable',
+          cached: false,
+          errorMessage: e?.message || String(e),
+          durationMs: 0,
+        })
+      }
+    }
+    const durationMs = Date.now() - startedAt
+    this.logger.log(
+      `batch ${entityType} check done. total=${entities.length} valid=${valid} invalid=${invalid} unreachable=${unreachable} skipped=${skipped} duration=${durationMs}ms`,
+    )
+    return {
+      total: entities.length,
+      valid,
+      invalid,
+      unreachable,
+      skipped,
+      durationMs,
+      results,
+    }
+  }
+
   // ---- Rate limiter (token bucket per msCode) ----
   //
   // VIES doesn't document a public rate limit, but
