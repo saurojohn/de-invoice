@@ -700,6 +700,10 @@ model Invoice {
 
   notes          String?
   internalNotes  String?
+  // Tier 138: internal team notes. Never shown
+  // to the customer, in the PDF, or in the
+  // customer portal — purely internal.
+  internalNotesRel  InvoiceInternalNote[]
   templateType   String    @default("standard")
   // DATEV Kostenstelle 1 + Kostenträger. Optional. The
   // user can stamp each invoice with a cost center
@@ -773,6 +777,36 @@ model Invoice {
   @@index([companyId, status])
   @@index([companyId, type])
   @@index([dueDate])
+}
+
+/// Tier 138: Internal team notes attached to an
+/// invoice. Distinct from the customer-facing
+/// `Invoice.notes` (Bemerkungen) — these never
+/// appear in the PDF, the customer portal, or
+/// the email body. GoBD § 146 Abs. 4 AO
+/// ("innerbetriebliche Aufzeichnungen") — must
+/// be modifiable separately from the invoice
+/// data and clearly marked as internal.
+///
+/// Append-only at the API level: the controller
+/// exposes GET + POST + DELETE (own / admin),
+/// but no PUT. Edits are modeled as a new
+/// note + a tombstone via DELETE on the old
+/// one, so the audit trail is clean.
+///
+/// Cascade on Invoice so a hard-deleted invoice
+/// doesn't leave orphan notes.
+model InvoiceInternalNote {
+  id        String   @id @default(uuid())
+  companyId String
+  invoiceId String
+  invoice   Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  userId    String?
+  userEmail String?  // denormalised so deleted users don't blank the display
+  body      String
+  createdAt DateTime @default(now())
+
+  @@index([companyId, invoiceId, createdAt])
 }
 
 model InvoiceItem {

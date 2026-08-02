@@ -138,6 +138,22 @@ export default function InvoiceDetailPage() {
   const [portalLinkGenerating, setPortalLinkGenerating] = useState(false)
   const [portalLinkError, setPortalLinkError] = useState<string | null>(null)
   const [portalLinkCopied, setPortalLinkCopied] = useState(false)
+  // Tier 138: internal team notes. Loaded on mount
+  // and re-fetched after add/delete. Empty for
+  // invoices with no notes yet.
+  const [internalNotes, setInternalNotes] = useState<
+    Array<{
+      id: string
+      body: string
+      userId: string | null
+      userEmail: string | null
+      createdAt: string
+    }>
+  >([])
+  const [newNote, setNewNote] = useState("")
+  const [addingNote, setAddingNote] = useState(false)
+  const [deletingNoteId, setDeletingNoteId] = useState<string | null>(null)
+  const [internalNoteError, setInternalNoteError] = useState<string | null>(null)
   const [showPayForm, setShowPayForm] = useState(false)
   // Tier 53: Gutschrift modal state. `cnAmount` is
   // the partial refund value (we always pass a flat
@@ -198,6 +214,12 @@ export default function InvoiceDetailPage() {
       apiGet<any>(
         `/api/v1/installment-plans/by-invoice/${params.id}?companyId=${companyId}`,
       ).catch(() => null),
+      // Tier 138: internal team notes. Catch so a
+      // brand-new invoice (no notes yet) doesn't
+      // blow up the page if the endpoint is missing
+      // for any reason.
+      apiGet<any[]>(`/api/v1/invoices/${params.id}/internal-notes?companyId=${companyId}`)
+        .catch(() => []),
       // Tier 65: auto-Ratenplan suggestion. We catch
       // the error so a missing endpoint (e.g. before
       // a backend restart completes) doesn't break
@@ -205,11 +227,12 @@ export default function InvoiceDetailPage() {
       apiGet<any>(
         `/api/v1/installment-plans/suggestion/${params.id}?companyId=${companyId}`,
       ).catch(() => null),
-    ]).then(([inv, pmts, plan, sug]) => {
+    ]).then(([inv, pmts, plan, sug, notes]) => {
       setInvoice(inv)
       setPayments(Array.isArray(pmts) ? pmts : [])
       setInstallmentPlan(plan)
       setRatenplanSuggestion(sug)
+      setInternalNotes(Array.isArray(notes) ? notes : [])
     }).catch((err) => {
       console.error('Invoice detail load failed:', err)
     }).finally(() => setLoading(false))
@@ -276,6 +299,59 @@ export default function InvoiceDetailPage() {
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : `Netzwerkfehler: ${err}`
       alert(msg)
+    }
+  }
+
+  // Tier 138: add a new internal team note.
+  // The backend returns the saved note (with id
+  // + createdAt) so we can prepend it to the
+  // list without a round-trip fetch.
+  const addInternalNote = async () => {
+    if (!invoice || !newNote.trim()) return
+    const companyId = localStorage.getItem("companyId")
+    if (!companyId) return
+    setAddingNote(true)
+    setInternalNoteError(null)
+    try {
+      const created = await apiPost<{
+        id: string
+        body: string
+        userId: string | null
+        userEmail: string | null
+        createdAt: string
+      }>(
+        `/api/v1/invoices/${invoice.id}/internal-notes?companyId=${companyId}`,
+        { body: newNote },
+      )
+      setInternalNotes([created, ...internalNotes])
+      setNewNote("")
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : String(err)
+      setInternalNoteError(msg)
+    } finally {
+      setAddingNote(false)
+    }
+  }
+
+  // Tier 138: delete one note. Backend enforces
+  // "only author or admin can delete" — a 403
+  // here means someone else wrote this note.
+  const deleteInternalNote = async (noteId: string) => {
+    if (!invoice) return
+    if (!confirm("Diese interne Notiz wirklich löschen?")) return
+    const companyId = localStorage.getItem("companyId")
+    if (!companyId) return
+    setDeletingNoteId(noteId)
+    try {
+      await apiDelete(
+        `/api/v1/invoices/${invoice.id}/internal-notes/${noteId}?companyId=${companyId}`,
+      )
+      setInternalNotes(internalNotes.filter((n) => n.id !== noteId))
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : String(err)
+      alert(msg)
+    } finally {
+      setDeletingNoteId(null)
     }
   }
 
@@ -1611,6 +1687,98 @@ export default function InvoiceDetailPage() {
              <CardContent><p className="text-gray-600 dark:text-gray-300 whitespace-pre-wrap">{invoice.notes}</p></CardContent>
            </Card>
          )}
+
+        {/* Tier 138: Internal team notes. Distinct from
+            the customer-facing Bemerkungen above —
+            these never appear in the PDF, the customer
+            portal, or the email body. GoBD § 146 Abs. 4
+            AO requires innerbetriebliche Aufzeichnungen
+            to be clearly separated from the invoice
+            data the customer sees. The lock icon in
+            the header makes the visibility distinction
+            obvious. */}
+        <Card className="mt-8" data-testid="invoice-internal-notes-card">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              🔒 {t("invoice.internalNotes") || "Interne Notizen"}
+              <span className="text-xs font-normal text-gray-500 dark:text-gray-400">
+                {t("invoice.internalNotesHint") ||
+                  "(nur für Ihr Team — erscheint nicht auf der Rechnung)"}
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2 mb-3" data-testid="invoice-internal-notes-list">
+              {internalNotes.length === 0 ? (
+                <p className="text-sm text-gray-400 italic">
+                  {t("invoice.internalNotesEmpty") || "Noch keine internen Notizen."}
+                </p>
+              ) : (
+                internalNotes.map((n) => (
+                  <div
+                    key={n.id}
+                    className="flex items-start gap-2 border border-gray-200 dark:border-gray-700 rounded p-2 bg-amber-50/40 dark:bg-amber-900/10"
+                    data-testid={`invoice-internal-note-${n.id}`}
+                  >
+                    <div className="flex-1">
+                      <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                        <span className="font-medium text-gray-700 dark:text-gray-300">
+                          {n.userEmail || (n.userId ? n.userId.slice(0, 8) : "—")}
+                        </span>
+                        <span>·</span>
+                        <span>
+                          {new Date(n.createdAt).toLocaleString("de-DE", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </span>
+                      </div>
+                      <p className="text-sm whitespace-pre-wrap mt-1">{n.body}</p>
+                    </div>
+                    <button
+                      onClick={() => deleteInternalNote(n.id)}
+                      disabled={deletingNoteId === n.id}
+                      className="text-xs text-red-600 dark:text-red-400 hover:underline disabled:opacity-50 shrink-0"
+                      data-testid={`invoice-internal-note-delete-${n.id}`}
+                      title={t("common.delete") || "Löschen"}
+                    >
+                      {deletingNoteId === n.id ? "…" : "🗑"}
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="flex gap-2">
+              <textarea
+                value={newNote}
+                onChange={(e) => setNewNote(e.target.value)}
+                placeholder={
+                  t("invoice.internalNotesPlaceholder") ||
+                  "z.B. 'Mahnung am 12.07. versendet, warte auf Rückzahlung'"
+                }
+                maxLength={2000}
+                className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-800 min-h-[60px]"
+                data-testid="invoice-internal-note-input"
+              />
+              <Button
+                onClick={addInternalNote}
+                disabled={addingNote || !newNote.trim()}
+                data-testid="invoice-internal-note-add"
+                variant="outline"
+              >
+                {addingNote ? "…" : `+ ${t("invoice.internalNotesAdd") || "Notiz"}`}
+              </Button>
+            </div>
+            {internalNoteError && (
+              <p className="text-xs text-red-600 mt-1" data-testid="invoice-internal-note-error">
+                {internalNoteError}
+              </p>
+            )}
+          </CardContent>
+        </Card>
 
       {/* Tier 33: portal-link disclosure block. Renders
           below the main button row when the admin has

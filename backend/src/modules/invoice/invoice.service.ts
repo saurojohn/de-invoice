@@ -1305,4 +1305,83 @@ export class InvoiceService {
     }
     return Object.values(byRate)
   }
+
+  // ---- Tier 138: internal team notes ----
+  //
+  // Append-only at the API surface: GET (list),
+  // POST (create), DELETE (own / admin). No PUT —
+  // edits are modeled as a new note + DELETE on
+  // the old one so the audit trail is clean.
+  // `Invoice.notes` (Bemerkungen) is the customer-
+  // facing field; these are purely internal,
+  // excluded from the PDF and the customer portal.
+
+  async listInternalNotes(companyId: string, invoiceId: string) {
+    // Make sure the invoice belongs to this company
+    // before returning notes — otherwise a guessed
+    // invoiceId from another tenant would leak its
+    // internal notes.
+    const inv = await this.prisma.invoice.findFirst({
+      where: { id: invoiceId, companyId },
+      select: { id: true },
+    })
+    if (!inv) throw new NotFoundException('Invoice not found')
+    return this.prisma.invoiceInternalNote.findMany({
+      where: { companyId, invoiceId },
+      orderBy: { createdAt: 'desc' },
+    })
+  }
+
+  async createInternalNote(
+    companyId: string,
+    invoiceId: string,
+    body: string,
+    user: { id?: string; email?: string | null },
+  ) {
+    const trimmed = (body || '').trim()
+    if (!trimmed) {
+      throw new BadRequestException('body is required')
+    }
+    if (trimmed.length > 2000) {
+      throw new BadRequestException('body too long (max 2000 chars)')
+    }
+    const inv = await this.prisma.invoice.findFirst({
+      where: { id: invoiceId, companyId },
+      select: { id: true },
+    })
+    if (!inv) throw new NotFoundException('Invoice not found')
+    return this.prisma.invoiceInternalNote.create({
+      data: {
+        companyId,
+        invoiceId,
+        userId: user.id || null,
+        userEmail: user.email || null,
+        body: trimmed,
+      },
+    })
+  }
+
+  async deleteInternalNote(
+    companyId: string,
+    invoiceId: string,
+    noteId: string,
+    user: { id?: string; email?: string | null; isAdmin?: boolean },
+  ) {
+    const note = await this.prisma.invoiceInternalNote.findFirst({
+      where: { id: noteId, companyId, invoiceId },
+    })
+    if (!note) throw new NotFoundException('Note not found')
+    // Only the author OR an admin can delete. This
+    // prevents a teammate from wiping someone else's
+    // observation.
+    const isAuthor =
+      user.id && note.userId && note.userId === user.id
+    if (!isAuthor && !user.isAdmin) {
+      throw new ForbiddenException(
+        'You can only delete your own notes (or be an admin)',
+      )
+    }
+    await this.prisma.invoiceInternalNote.delete({ where: { id: noteId } })
+    return { ok: true }
+  }
 }
