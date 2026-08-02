@@ -47,6 +47,11 @@ import { TwoFactorModule } from './modules/auth/two-factor/two-factor.module';
 import { FinTsModule } from './modules/fints/fints.module';
 import { InvoiceTemplateModule } from './modules/invoice-template/invoice-template.module';
 import { PortalModule } from './modules/portal/portal.module';
+// Tier 130: customer-portal = the multi-invoice
+// login flow (request session by email → see all
+// invoices). Distinct from the existing portal
+// module which is the single-invoice payment link.
+import { CustomerPortalModule } from './modules/customer-portal/customer-portal.module';
 import { HealthModule } from './modules/health/health.module';
 import { WebhookModule } from './modules/webhook/webhook.module';
 import { AuditModule } from './modules/audit/audit.module';
@@ -120,6 +125,8 @@ import { AssetsModule } from './modules/assets/assets.module';
     TwoFactorModule,
     FinTsModule,
     InvoiceTemplateModule,
+    // Tier 130: see customer-portal/customer-portal.module.ts
+    CustomerPortalModule,
     PortalModule,
     HealthModule,
     BeraterModule,
