@@ -119,7 +119,8 @@ const fmtShort = (s: string | null | undefined, locale = "de-DE") =>
  */
 type FilterSnapshot = {
   entityType: string
-  actionPrefix: string
+  actionPrefix: string          // legacy single prefix (kept for back-compat with old URLs)
+  actionPrefixes: string[]      // Tier 135: multi-select action prefixes (OR semantics)
   userId: string
   dateFrom: string
   dateTo: string
@@ -129,9 +130,23 @@ type FilterSnapshot = {
 function readFiltersFromUrl(): Partial<FilterSnapshot> {
   if (typeof window === "undefined") return {}
   const sp = new URLSearchParams(window.location.search)
+  // Tier 135: read multi-select actionPrefixes (comma-separated)
+  // or fall back to the legacy single actionPrefix. Whichever
+  // is present wins. We DON'T merge them — a deep link with both
+  // is treated as the multi-select value (URLs from old code
+  // only have actionPrefix, so they get migrated naturally).
+  let prefixes: string[] = []
+  const apx = sp.get("actionPrefixes")
+  if (apx) {
+    prefixes = apx.split(",").map((s) => s.trim()).filter(Boolean)
+  } else {
+    const ap = sp.get("actionPrefix")
+    if (ap) prefixes = [ap]
+  }
   return {
     entityType: sp.get("entityType") || "",
-    actionPrefix: sp.get("actionPrefix") || "",
+    actionPrefix: prefixes[0] || "",
+    actionPrefixes: prefixes,
     userId: sp.get("userId") || "",
     dateFrom: sp.get("dateFrom") || "",
     dateTo: sp.get("dateTo") || "",
@@ -148,7 +163,11 @@ function writeFiltersToUrl(f: FilterSnapshot) {
     else sp.delete(key)
   }
   setOrDel("entityType", f.entityType)
-  setOrDel("actionPrefix", f.actionPrefix)
+  // Tier 135: prefer the multi-select param. If exactly one
+  // prefix is selected, also write to the legacy `actionPrefix`
+  // so old bookmarks that read actionPrefix still work.
+  setOrDel("actionPrefixes", f.actionPrefixes.join(","))
+  setOrDel("actionPrefix", f.actionPrefixes.length === 1 ? f.actionPrefixes[0] : "")
   setOrDel("userId", f.userId)
   setOrDel("dateFrom", f.dateFrom)
   setOrDel("dateTo", f.dateTo)
@@ -227,6 +246,7 @@ export default function AuditPage() {
       return {
         entityType: "",
         actionPrefix: "",
+        actionPrefixes: [] as string[],
         userId: "",
         dateFrom: "",
         dateTo: "",
@@ -236,6 +256,7 @@ export default function AuditPage() {
     return {
       entityType: "",
       actionPrefix: "",
+      actionPrefixes: [] as string[],
       userId: "",
       dateFrom: "",
       dateTo: "",
@@ -245,6 +266,13 @@ export default function AuditPage() {
   }, [])
   const [entityType, setEntityType] = useState(initial.entityType || "")
   const [actionPrefix, setActionPrefix] = useState(initial.actionPrefix || "")
+  // Tier 135: multi-select action prefixes (replaces
+  // the legacy single-string actionPrefix in the UI).
+  // The two are kept in sync: actionPrefix is the
+  // legacy single string for back-compat reads.
+  const [actionPrefixes, setActionPrefixes] = useState<string[]>(
+    initial.actionPrefixes || (initial.actionPrefix ? [initial.actionPrefix] : []),
+  )
   const [userId, setUserId] = useState(initial.userId || "")
   const [dateFrom, setDateFrom] = useState(initial.dateFrom || "")
   const [dateTo, setDateTo] = useState(initial.dateTo || "")
@@ -265,13 +293,14 @@ export default function AuditPage() {
     }
     writeFiltersToUrl({
       entityType,
-      actionPrefix,
+      actionPrefix: actionPrefixes[0] || "",
+      actionPrefixes,
       userId,
       dateFrom,
       dateTo,
       view,
     })
-  }, [entityType, actionPrefix, userId, dateFrom, dateTo, view])
+  }, [entityType, actionPrefixes, userId, dateFrom, dateTo, view])
 
   // Detail modal
   const [detail, setDetail] = useState<AuditDetail | null>(null)
@@ -300,7 +329,13 @@ export default function AuditPage() {
       const params = new URLSearchParams()
       params.set("companyId", companyId)
       if (entityType) params.set("entityType", entityType)
-      if (actionPrefix) params.set("actionPrefix", actionPrefix)
+      // Tier 135: prefer the multi-select param. Falls back
+      // to the legacy single actionPrefix if no multi-set.
+      if (actionPrefixes.length > 0) {
+        params.set("actionPrefixes", actionPrefixes.join(","))
+      } else if (actionPrefix) {
+        params.set("actionPrefix", actionPrefix)
+      }
       if (userId) params.set("userId", userId)
       if (dateFrom) params.set("dateFrom", dateFrom)
       if (dateTo) params.set("dateTo", dateTo + "T23:59:59.999Z")
@@ -324,7 +359,7 @@ export default function AuditPage() {
     } finally {
       setLoading(false)
     }
-  }, [companyId, entityType, actionPrefix, userId, dateFrom, dateTo, skip])
+  }, [companyId, entityType, actionPrefix, actionPrefixes, userId, dateFrom, dateTo, skip])
 
   useEffect(() => {
     if (!companyId) {
@@ -337,6 +372,7 @@ export default function AuditPage() {
   const resetFilters = () => {
     setEntityType("")
     setActionPrefix("")
+    setActionPrefixes([])
     setUserId("")
     setDateFrom("")
     setDateTo("")
@@ -372,12 +408,86 @@ export default function AuditPage() {
     return Array.from(set).sort()
   }, [stats])
 
+  // Tier 135: derive the list of action-prefix
+  // chips from `stats.byAction`. We group by the
+  // prefix (everything before the last ".") so a
+  // chip like "invoice." subsumes "invoice.created"
+  // + "invoice.updated" + "invoice.deleted" +
+  // anything else under the same domain. Counts are
+  // summed so the chip shows the total volume under
+  // that prefix. The chip list is sorted by count
+  // desc so the highest-traffic actions are first.
+  const actionPrefixChips = useMemo(() => {
+    const map = new Map<string, number>()
+    stats?.byAction.forEach((b) => {
+      if (!b.action) return
+      // Find the last "." — everything before it is
+      // the "domain" (invoice, customer, payment, …).
+      // For actions without a dot (e.g. "LOGIN") we
+      // use the whole action as the chip key so they
+      // still appear in the list.
+      const lastDot = b.action.lastIndexOf(".")
+      const prefix = lastDot > 0 ? b.action.slice(0, lastDot + 1) : b.action
+      map.set(prefix, (map.get(prefix) || 0) + b.count)
+    })
+    return Array.from(map.entries())
+      .map(([prefix, count]) => ({ prefix, count }))
+      .sort((a, b) => b.count - a.count)
+  }, [stats])
+
+  // Quick date preset: fill dateFrom/dateTo from a
+  // human-friendly label. "Heute" = today, "7 Tage"
+  // = last 7 days incl today, "30 Tage" = last 30
+  // days, "Quartal" = current calendar quarter
+  // (Jan-Mar / Apr-Jun / Jul-Sep / Oct-Dec), "Leer"
+  // = clear both. Returns ISO yyyy-mm-dd for the
+  // <input type="date"> fields.
+  const applyDatePreset = (preset: "today" | "7d" | "30d" | "quarter" | "clear") => {
+    const today = new Date()
+    const fmt = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+        d.getDate(),
+      ).padStart(2, "0")}`
+    if (preset === "clear") {
+      setDateFrom("")
+      setDateTo("")
+      setSkip(0)
+      return
+    }
+    if (preset === "today") {
+      setDateFrom(fmt(today))
+      setDateTo(fmt(today))
+    } else if (preset === "7d") {
+      const from = new Date(today)
+      from.setDate(from.getDate() - 6)
+      setDateFrom(fmt(from))
+      setDateTo(fmt(today))
+    } else if (preset === "30d") {
+      const from = new Date(today)
+      from.setDate(from.getDate() - 29)
+      setDateFrom(fmt(from))
+      setDateTo(fmt(today))
+    } else if (preset === "quarter") {
+      // Calendar quarter: Q1=Jan-Mar, Q2=Apr-Jun, …
+      const q = Math.floor(today.getMonth() / 3)
+      const from = new Date(today.getFullYear(), q * 3, 1)
+      const to = new Date(today.getFullYear(), q * 3 + 3, 0)
+      setDateFrom(fmt(from))
+      setDateTo(fmt(to))
+    }
+    setSkip(0)
+  }
+
   const exportCsvUrl = useMemo(() => {
     if (!companyId) return "#"
     const params = new URLSearchParams()
     params.set("companyId", companyId)
     if (entityType) params.set("entityType", entityType)
-    if (actionPrefix) params.set("actionPrefix", actionPrefix)
+    if (actionPrefixes.length > 0) {
+      params.set("actionPrefixes", actionPrefixes.join(","))
+    } else if (actionPrefix) {
+      params.set("actionPrefix", actionPrefix)
+    }
     if (userId) params.set("userId", userId)
     if (dateFrom) params.set("dateFrom", dateFrom)
     if (dateTo) params.set("dateTo", dateTo + "T23:59:59.999Z")
@@ -395,7 +505,7 @@ export default function AuditPage() {
     // helper instead of a plain href. The href
     // is still useful as the "Copy link" target.
     return `${base}/api/v1/audit-logs/export.csv?${params.toString()}`
-  }, [companyId, entityType, actionPrefix, userId, dateFrom, dateTo])
+  }, [companyId, entityType, actionPrefix, actionPrefixes, userId, dateFrom, dateTo])
 
   const downloadCsv = async () => {
     if (!companyId) return
@@ -403,7 +513,11 @@ export default function AuditPage() {
       const params = new URLSearchParams()
       params.set("companyId", companyId)
       if (entityType) params.set("entityType", entityType)
-      if (actionPrefix) params.set("actionPrefix", actionPrefix)
+      if (actionPrefixes.length > 0) {
+        params.set("actionPrefixes", actionPrefixes.join(","))
+      } else if (actionPrefix) {
+        params.set("actionPrefix", actionPrefix)
+      }
       if (userId) params.set("userId", userId)
       if (dateFrom) params.set("dateFrom", dateFrom)
       if (dateTo) params.set("dateTo", dateTo + "T23:59:59.999Z")
@@ -568,21 +682,66 @@ export default function AuditPage() {
                   ))}
                 </select>
               </div>
-              <div>
+              <div className="md:col-span-3">
                 <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
                   {t("audit.actionPrefix") || "Aktion (Präfix)"}
                 </label>
-                <input
-                  type="text"
-                  value={actionPrefix}
-                  onChange={(e) => {
-                    setActionPrefix(e.target.value)
-                    setSkip(0)
-                  }}
-                  placeholder="z.B. invoice."
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-sm"
-                  data-testid="audit-filter-action"
-                />
+                {/* Tier 135: action chips. Each chip
+                    represents a prefix group (e.g.
+                    "invoice.") and selecting it adds
+                    that prefix to the filter (OR
+                    semantics across selected chips).
+                    Sourced from stats.byAction so the
+                    chips only show prefixes that
+                    actually have rows in the DB. */}
+                <div
+                  className="flex flex-wrap gap-1.5"
+                  data-testid="audit-filter-action-chips"
+                >
+                  {actionPrefixChips.length === 0 ? (
+                    <span className="text-xs text-gray-400 italic">
+                      —
+                    </span>
+                  ) : (
+                    actionPrefixChips.map((c) => {
+                      const active = actionPrefixes.includes(c.prefix)
+                      return (
+                        <button
+                          key={c.prefix}
+                          type="button"
+                          onClick={() => {
+                            if (active) {
+                              setActionPrefixes(
+                                actionPrefixes.filter((p) => p !== c.prefix),
+                              )
+                            } else {
+                              setActionPrefixes([...actionPrefixes, c.prefix])
+                            }
+                            setSkip(0)
+                          }}
+                          className={`text-xs px-2.5 py-1 rounded-full border transition ${
+                            active
+                              ? "bg-blue-600 text-white border-blue-600"
+                              : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700"
+                          }`}
+                          data-testid={`audit-action-chip-${c.prefix.replace(/\W/g, "_")}`}
+                          aria-pressed={active}
+                        >
+                          {c.prefix}{" "}
+                          <span
+                            className={
+                              active
+                                ? "text-blue-100"
+                                : "text-gray-400"
+                            }
+                          >
+                            ({c.count})
+                          </span>
+                        </button>
+                      )
+                    })
+                  )}
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
@@ -629,6 +788,62 @@ export default function AuditPage() {
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-sm"
                   data-testid="audit-filter-dateTo"
                 />
+              </div>
+              <div className="md:col-span-3">
+                {/* Tier 135: quick date presets. Common
+                    auditor workflows (this quarter for
+                    UStVA prep, last 30 days for a
+                    monthly review) become a single
+                    click. Each button auto-fills
+                    dateFrom/dateTo and triggers a
+                    re-fetch. "Eigener Zeitraum" is
+                    implicit — the two date inputs above
+                    still work for custom ranges. */}
+                <div
+                  className="flex flex-wrap gap-1.5"
+                  data-testid="audit-filter-date-presets"
+                >
+                  <button
+                    type="button"
+                    onClick={() => applyDatePreset("today")}
+                    className="text-xs px-2.5 py-1 rounded-full border bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700"
+                    data-testid="audit-date-preset-today"
+                  >
+                    📅 {t("audit.presetToday") || "Heute"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyDatePreset("7d")}
+                    className="text-xs px-2.5 py-1 rounded-full border bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700"
+                    data-testid="audit-date-preset-7d"
+                  >
+                    7 {t("audit.presetDays") || "Tage"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyDatePreset("30d")}
+                    className="text-xs px-2.5 py-1 rounded-full border bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700"
+                    data-testid="audit-date-preset-30d"
+                  >
+                    30 {t("audit.presetDays") || "Tage"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyDatePreset("quarter")}
+                    className="text-xs px-2.5 py-1 rounded-full border bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700"
+                    data-testid="audit-date-preset-quarter"
+                  >
+                    📊 {t("audit.presetQuarter") || "Quartal"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyDatePreset("clear")}
+                    className="text-xs px-2.5 py-1 rounded-full border bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700"
+                    data-testid="audit-date-preset-clear"
+                  >
+                    ↺ {t("audit.presetClear") || "Zeitraum löschen"}
+                  </button>
+                </div>
               </div>
               <div className="flex items-end">
                 <Button

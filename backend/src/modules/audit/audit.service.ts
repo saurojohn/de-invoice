@@ -97,11 +97,16 @@ export class AuditService {
     } else if (f.action) {
       where.action = f.action
     } else if (f.actionPrefixes && f.actionPrefixes.length > 0) {
-      // Multi-prefix: use the first one (the Prisma
-      // `where.action` only supports one expression).
-      // The caller can refine by combining exact
-      // actions via the `actions` param instead.
-      where.action = { startsWith: f.actionPrefixes[0] }
+      // Tier 135: multi-prefix with OR semantics.
+      // Prisma's top-level `where.action` only
+      // accepts one expression, so we drop it and
+      // use `where.OR` with a startsWith per prefix.
+      // We can't combine this with other where.action
+      // expressions, but the else-if chain above
+      // guarantees this branch is exclusive.
+      where.OR = f.actionPrefixes.map((p) => ({
+        action: { startsWith: p },
+      }))
     } else if (f.actionPrefix) {
       where.action = { startsWith: f.actionPrefix }
     }
