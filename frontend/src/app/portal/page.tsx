@@ -291,7 +291,23 @@ function PortalPageInner() {
                     className="border-b border-gray-100 dark:border-gray-700 last:border-b-0"
                     data-testid={`portal-invoice-row-${inv.invoiceNumber}`}
                   >
-                    <td className="px-4 py-3 font-mono">{inv.invoiceNumber}</td>
+                    <td className="px-4 py-3 font-mono">
+                      {/* Tier 133: clickable invoice number
+                          links to the detail page with the
+                          session token. The user can also
+                          just download the PDF or mark-paid
+                          from the row directly — these are
+                          quick actions. The detail view is
+                          for the full breakdown (line items
+                          + payment history). */}
+                      <a
+                        href={`/portal/invoice/${inv.id}?token=${encodeURIComponent(token)}`}
+                        className="text-blue-600 dark:text-blue-400 hover:underline"
+                        data-testid={`portal-invoice-link-${inv.invoiceNumber}`}
+                      >
+                        {inv.invoiceNumber}
+                      </a>
+                    </td>
                     <td className="px-4 py-3">{fmtDate(inv.issueDate)}</td>
                     <td className="px-4 py-3">
                       {fmtDate(inv.dueDate)}
