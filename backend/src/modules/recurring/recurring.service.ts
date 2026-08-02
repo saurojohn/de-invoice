@@ -900,4 +900,91 @@ export class RecurringService {
       total: Math.round(total * 100) / 100,
     }
   }
+
+  /**
+   * Tier 136: preview the email that would be sent
+   * if this template ran right now. Returns the same
+   * shape the actual sendInvoiceByEmail flow
+   * produces (subject + body + recipient + sample
+   * dates), but with:
+   *   - sample invoice number `INV-XXXX-YYYY`
+   *     (the real one is only assigned on persist)
+   *   - amounts pulled from the template's items
+   *   - due date = today + paymentTerms days
+   *   - recipient = customer.contact.email
+   *   - locale = the template's language (or DE)
+   *
+   * The point of this endpoint: the operator can
+   * see exactly what the customer will receive
+   * before flipping `sendEmail=true` and saving.
+   * Catches mistakes like "Betrag fehlt im Text"
+   * or "falsche Anrede" without spamming the real
+   * customer inbox.
+   *
+   * Permission: invoice.read (same as previewNext).
+   */
+  async previewEmail(companyId: string, templateId: string) {
+    const tpl = await this.prisma.recurringInvoice.findFirst({
+      where: { id: templateId, companyId },
+      include: {
+        items: { orderBy: { position: 'asc' } },
+        customer: true,
+        company: true,
+      },
+    })
+    if (!tpl) throw new BadRequestException('Recurring invoice not found')
+    // Reuse previewNext for the totals — it already
+    // handles the rounding, period dates, and per-
+    // item math. We discard the items list and only
+    // need the totals + due date.
+    const preview = await this.previewNext(companyId, templateId)
+    const lang = (tpl.language || 'de-DE') as
+      | 'de-DE'
+      | 'en-US'
+      | 'zh-CN'
+    const emailLang: 'de' | 'en' | 'zh' =
+      lang === 'en-US' ? 'en' : lang === 'zh-CN' ? 'zh' : 'de'
+    const recipient = (tpl.customer?.contact as any)?.email || null
+    const customerName = tpl.customer?.name || ''
+    // The company "salutation" in the email template
+    // is locale-aware; we use the salutation helper
+    // from the template module to keep this in sync.
+    const { defaultSalutationFor, renderInvoiceEmail } = await import(
+      '../mail/templates/invoice-email.template'
+    )
+    const salutation = defaultSalutationFor(emailLang, Boolean(customerName))
+    const amount = new Intl.NumberFormat(
+      emailLang === 'en' ? 'en-US' : emailLang === 'zh' ? 'zh-CN' : 'de-DE',
+      { style: 'currency', currency: tpl.currency || 'EUR' },
+    ).format(preview.total)
+    const dueDateStr = new Intl.DateTimeFormat(
+      emailLang === 'en' ? 'en-US' : emailLang === 'zh' ? 'zh-CN' : 'de-DE',
+      {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      },
+    ).format(new Date(preview.dueDate))
+    const sampleInvoiceNumber = `INV-XXXX-${new Date().getFullYear()}-????`
+    const rendered = renderInvoiceEmail(emailLang, {
+      invoiceNumber: sampleInvoiceNumber,
+      customerName,
+      amount,
+      dueDate: dueDateStr,
+      companyName: tpl.company?.name || '',
+      salutation,
+    })
+    return {
+      subject: rendered.subject,
+      text: rendered.text,
+      recipient,
+      recipientMissing: !recipient,
+      sample: {
+        invoiceNumber: sampleInvoiceNumber,
+        amount,
+        dueDate: dueDateStr,
+        language: emailLang,
+      },
+    }
+  }
 }

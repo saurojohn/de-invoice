@@ -134,4 +134,23 @@ export class RecurringController {
     if (!companyId) throw new BadRequestException('companyId is required');
     return this.svc.previewNext(companyId, id);
   }
+
+  /**
+   * Tier 136: preview the email that would be sent
+   * if this template ran right now. Returns the
+   * rendered subject + body (with sample invoice
+   * number + amounts), the recipient address, and
+   * a flag if no recipient is on file. The operator
+   * can sanity-check the email BEFORE flipping
+   * sendEmail=true.
+   */
+  @Get(':id/preview-email')
+  @Require('invoice.read')
+  async previewEmail(
+    @Query('companyId') companyId: string,
+    @Param('id') id: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId is required');
+    return this.svc.previewEmail(companyId, id);
+  }
 }

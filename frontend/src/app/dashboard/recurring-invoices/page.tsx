@@ -67,6 +67,27 @@ export default function RecurringInvoicesPage() {
   const [customers, setCustomers] = useState<Customer[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
+  // Tier 136: email preview modal state.
+  // Only meaningful for existing templates (we need
+  // the saved ID to query the preview endpoint).
+  // Pre-save: show a disabled "Save first" hint.
+  const [emailPreview, setEmailPreview] = useState<{
+    open: boolean
+    loading: boolean
+    data?: {
+      subject: string
+      text: string
+      recipient: string | null
+      recipientMissing: boolean
+      sample: {
+        invoiceNumber: string
+        amount: string
+        dueDate: string
+        language: 'de' | 'en' | 'zh'
+      }
+    }
+    error?: string
+  }>({ open: false, loading: false })
   const [editing, setEditing] = useState<RecurringTemplate | null>(null)
   const [expanded, setExpanded] = useState<string | null>(null)
   const [preview, setPreview] = useState<{ subject: string; body: string } | null>(null)
@@ -199,6 +220,51 @@ export default function RecurringInvoicesPage() {
     setShowModal(false)
     setEditing(null)
   }
+
+  // Tier 136: fetch the email preview for the
+  // currently-edited template. We need a saved
+  // template ID (the backend reads the saved
+  // language + customer + items from the DB), so
+  // a new (un-saved) template can't be previewed
+  // — we surface a "Save first" hint in the UI.
+  const previewEmail = async () => {
+    if (!editing?.id) {
+      setEmailPreview({
+        open: true,
+        loading: false,
+        error: t("recurring.emailPreviewSaveFirst") || "Bitte zuerst speichern, dann ist eine Vorschau möglich.",
+      })
+      return
+    }
+    const companyId = localStorage.getItem("companyId")
+    if (!companyId) return
+    setEmailPreview({ open: true, loading: true })
+    try {
+      const data = await apiGet<{
+        subject: string
+        text: string
+        recipient: string | null
+        recipientMissing: boolean
+        sample: {
+          invoiceNumber: string
+          amount: string
+          dueDate: string
+          language: 'de' | 'en' | 'zh'
+        }
+      }>(
+        `/api/v1/recurring-invoices/${editing.id}/preview-email?companyId=${companyId}`,
+      )
+      setEmailPreview({ open: true, loading: false, data })
+    } catch (err) {
+      setEmailPreview({
+        open: true,
+        loading: false,
+        error: err instanceof Error ? err.message : String(err),
+      })
+    }
+  }
+  const closeEmailPreview = () =>
+    setEmailPreview({ open: false, loading: false })
 
   const addItem = () => {
     setItems([...items, { description: "", quantity: 1, unit: "Stück", unitPrice: 0, vatRate: 0.19 }])
@@ -404,8 +470,13 @@ export default function RecurringInvoicesPage() {
                       {tpl._count?.runs ?? 0} runs / {tpl._count?.invoices ?? 0} inv.
                     </div>
 
-                    {/* Actions */}
-                    <div className="flex gap-1 ml-auto">
+                    {/* Actions — Tier 136: flex-wrap so the
+                        5 buttons (▸/▾, Generieren, Pause,
+                        Bearbeiten, 🗑) wrap to a 2nd row on
+                        375px instead of overflowing the card
+                        right edge. The ml-auto keeps them
+                        right-aligned when the row fits. */}
+                    <div className="flex flex-wrap gap-1 ml-auto">
                       <Button size="sm" variant="outline" onClick={() => expandTpl(tpl)}>
                         {expanded === tpl.id ? "▾" : "▸"}
                       </Button>
@@ -679,6 +750,28 @@ export default function RecurringInvoicesPage() {
                     >
                       {t("recurring.sendEmail") || "Rechnung nach Generierung an Kunden senden"}
                     </label>
+                    {/* Tier 136: Email-Vorschau button. Sits
+                        next to the sendEmail label so the
+                        operator can see exactly what the
+                        customer will receive before
+                        flipping sendEmail=true. Disabled
+                        with a hint when the template
+                        hasn't been saved yet (we need the
+                        ID to query the backend). */}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={previewEmail}
+                      className="ml-3"
+                      data-testid="recurring-form-preview-email"
+                      title={
+                        editing?.id
+                          ? (t("recurring.emailPreview") || "Email-Vorschau anzeigen")
+                          : (t("recurring.emailPreviewSaveFirstHint") || "Erst speichern, dann ist eine Vorschau möglich")
+                      }
+                    >
+                      📧 {t("recurring.emailPreview") || "Email-Vorschau"}
+                    </Button>
                   </div>
                 </div>
 
@@ -787,6 +880,122 @@ export default function RecurringInvoicesPage() {
               </div>
             </CardContent>
           </Card>
+        </div>
+      )}
+
+      {/* Tier 136: Email-Vorschau modal. Shows the
+          rendered subject + body (with sample invoice
+          number, amounts, due date) the customer
+          would receive if the template ran right now.
+          Three states: loading (spinner), error
+          (red banner), data (subject + recipient +
+          body). The body uses whitespace-pre-wrap so
+          newlines in the email render as line breaks. */}
+      {emailPreview.open && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          onClick={closeEmailPreview}
+          data-testid="recurring-email-preview-modal"
+        >
+          <div
+            className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-2xl max-h-[90vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-lg font-semibold mb-1">
+              📧 {t("recurring.emailPreviewTitle") || "Email-Vorschau"}
+            </h2>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+              {t("recurring.emailPreviewDesc") ||
+                "So sieht die automatische Email aus. Werte sind Beispieldaten (Rechnungsnummer, Fälligkeit)."}
+            </p>
+
+            {emailPreview.loading && (
+              <div
+                className="py-8 flex flex-col items-center"
+                data-testid="recurring-email-preview-loading"
+              >
+                <div className="animate-spin rounded-full h-10 w-10 border-4 border-blue-200 border-t-blue-600 mb-3" />
+                <p className="text-sm text-gray-700 dark:text-gray-300">
+                  {t("common.loading") || "Wird geladen…"}
+                </p>
+              </div>
+            )}
+
+            {emailPreview.error && (
+              <div
+                className="mb-3 p-3 bg-amber-50 border border-amber-200 text-amber-900 rounded text-sm"
+                data-testid="recurring-email-preview-error"
+              >
+                {emailPreview.error}
+              </div>
+            )}
+
+            {emailPreview.data && (
+              <div
+                className="flex-1 overflow-y-auto"
+                data-testid="recurring-email-preview-data"
+              >
+                {emailPreview.data.recipientMissing && (
+                  <div className="mb-3 p-3 bg-red-50 border border-red-200 text-red-800 rounded text-sm">
+                    ⚠{" "}
+                    {t("recurring.emailPreviewNoRecipient") ||
+                      "Kein Empfänger: Der Kunde hat keine E-Mail-Adresse hinterlegt."}
+                  </div>
+                )}
+                <div className="mb-3">
+                  <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">
+                    {t("recurring.emailPreviewRecipient") || "Empfänger"}
+                  </div>
+                  <div
+                    className="text-sm font-mono"
+                    data-testid="recurring-email-preview-recipient"
+                  >
+                    {emailPreview.data.recipient || "—"}
+                  </div>
+                </div>
+                <div className="mb-3">
+                  <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">
+                    {t("recurring.emailPreviewSubject") || "Betreff"}
+                  </div>
+                  <div
+                    className="text-sm font-medium"
+                    data-testid="recurring-email-preview-subject"
+                  >
+                    {emailPreview.data.subject}
+                  </div>
+                </div>
+                <div className="mb-3">
+                  <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">
+                    {t("recurring.emailPreviewBody") || "Text"}
+                  </div>
+                  <pre
+                    className="text-sm bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded p-3 whitespace-pre-wrap font-sans"
+                    data-testid="recurring-email-preview-body"
+                  >
+                    {emailPreview.data.text}
+                  </pre>
+                </div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">
+                  <span className="font-semibold">
+                    {t("recurring.emailPreviewSample") || "Beispieldaten"}:
+                  </span>{" "}
+                  {emailPreview.data.sample.invoiceNumber} ·{" "}
+                  {emailPreview.data.sample.amount} ·{" "}
+                  {t("recurring.emailPreviewDue") || "Fällig"}{" "}
+                  {emailPreview.data.sample.dueDate}
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end mt-4">
+              <Button
+                onClick={closeEmailPreview}
+                data-testid="recurring-email-preview-close"
+              >
+                {t("common.close") || "Schließen"}
+              </Button>
+            </div>
+          </div>
         </div>
       )}
     </div>
