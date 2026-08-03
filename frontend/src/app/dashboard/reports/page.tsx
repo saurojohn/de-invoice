@@ -952,6 +952,27 @@ function DatevExportTab({
             >
               📦 CSV + Belegbilder (ZIP)
             </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (!companyId) return
+                // Tier 142: monthly split. The Berater
+                // gets one ZIP with one CSV per month
+                // (2026-07/, 2026-08/, ...) + a per-month
+                // Belegbilder subfolder so each month can
+                // be imported as its own Buchungslauf.
+                // Sequential laufNr (L001, L002, ...) keeps
+                // the DATEV import order deterministic.
+                window.open(
+                  `/api/v1/reports/datev-export-monthly?companyId=${companyId}&startDate=${startDate}&endDate=${endDate}`,
+                  "_blank",
+                )
+              }}
+              data-testid="datev-download-monthly-btn"
+              title="Erzeugt einen ZIP-Ordner mit einer CSV pro Monat + Belegbilder pro Monat — für Buchungslauf pro Monat in DATEV."
+            >
+              📅 Per Monat aufteilen (ZIP)
+            </Button>
           </div>
         </CardContent>
       </Card>

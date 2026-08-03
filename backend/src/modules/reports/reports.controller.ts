@@ -384,6 +384,222 @@ async getSalesReport(
   }
 
   /**
+   * Tier 142: DATEV monthly export.
+   *
+   * The /datev-export-bundle endpoint produces ONE
+   * CSV covering the entire date range + one global
+   * Belegbilder folder. The Berater then has to
+   * re-split the CSV in Excel by month before
+   * importing it into DATEV, because the DATEV
+   * import UI expects one Buchungslauf per period.
+   *
+   * This endpoint walks the date range month by
+   * month and produces one CSV per month, each
+   * inside its own folder with its own Belegbilder
+   * subfolder. Result: the Berater can drag the
+   * whole ZIP into DATEV, then import each
+   * monthly folder as a separate Buchungslauf.
+   *
+   * ZIP layout:
+   *   2026-01/
+   *     EXTF_Buchungsstapel_2026-01-31_L001.csv
+   *     Belegbilder/
+   *       INV-2026-000001.pdf
+   *       BK-2026-...pdf
+   *   2026-02/
+   *     EXTF_Buchungsstapel_2026-02-28_L002.csv
+   *     Belegbilder/
+   *       ...
+   *   MANIFEST.json
+   *
+   * laufNr is sequential across months (1, 2, 3...)
+   * so the DATEV import order is deterministic.
+   * The starting laufNr is the company's stored
+   * value for that year, or 1 if unset.
+   *
+   * Empty months are skipped — if a month has 0
+   * Buchungen there's no CSV to produce. The
+   * MANIFEST.json still records every month in
+   * the range, including the empty ones, so the
+   * Berater sees "0 Buchungen" instead of "month
+   * missing" (the latter would be a red flag).
+   */
+  @Get('datev-export-monthly')
+  @Require('reports.read')
+  async datevExportMonthly(
+    @Query('companyId') companyId: string,
+    @Query('startDate') startDateStr: string,
+    @Query('endDate') endDateStr: string,
+    @Res() res: Response,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId is required');
+    const company = await this.prisma.company.findUnique({ where: { id: companyId } });
+    if (!company) throw new BadRequestException('Company not found');
+
+    // Normalise the date range to month boundaries.
+    // startDate → 1st of that month. endDate → last
+    // day of that month. Anything inside is bucketed
+    // by its `datum` (the row's booking date, not
+    // the issue date or the import date).
+    const requestedStart = startDateStr
+      ? new Date(startDateStr)
+      : new Date(new Date().getFullYear(), 0, 1);
+    const requestedEnd = endDateStr
+      ? new Date(endDateStr)
+      : new Date();
+    if (isNaN(requestedStart.getTime()) || isNaN(requestedEnd.getTime())) {
+      throw new BadRequestException('startDate / endDate invalid')
+    }
+    if (requestedStart > requestedEnd) {
+      throw new BadRequestException('startDate must be ≤ endDate')
+    }
+    const firstMonth = new Date(requestedStart.getFullYear(), requestedStart.getMonth(), 1)
+    const lastMonthEnd = new Date(requestedEnd.getFullYear(), requestedEnd.getMonth() + 1, 0, 23, 59, 59, 999)
+
+    const year = firstMonth.getFullYear()
+    const settings = (company as any).settings?.datev || {}
+    const baseLaufNr = settings?.laufNr?.[year] || 1
+
+    const beraterNr = settings?.beraterNr || '00000'
+    const mandantenNr = settings?.mandantenNr || '00001'
+    const openingBalances = settings?.openingBalances || []
+
+    // Walk every month in [firstMonth, lastMonthEnd].
+    // For each: build Buchungen, generate CSV, collect
+    // Belegbilder, then push into the archive under
+    // YYYY-MM/.
+    const months: Array<{
+      key: string
+      start: string
+      end: string
+      laufNr: number
+      buchungenCount: number
+      belegbilderIncluded: number
+      belegbilderMissing: number
+      csvBytes: number
+    }> = []
+
+    const archive = new (archiver as any).ZipArchive({ zlib: { level: 9 } })
+    const outerFilename = `EXTF_Buchungsstapel_Monatlich_${year}-${String(firstMonth.getMonth() + 1).padStart(2, '0')}_bis_${year}-${String(lastMonthEnd.getMonth() + 1).padStart(2, '0')}.zip`
+    res.setHeader('Content-Type', 'application/zip')
+    res.setHeader('Content-Disposition', `attachment; filename="${outerFilename}"`)
+    archive.pipe(res)
+
+    let monthIdx = 0
+    let cursor = new Date(firstMonth)
+    while (cursor <= lastMonthEnd) {
+      const monthStart = new Date(cursor)
+      const monthEnd = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0, 23, 59, 59, 999)
+      const monthKey = `${monthStart.getFullYear()}-${String(monthStart.getMonth() + 1).padStart(2, '0')}`
+      const laufNr = baseLaufNr + monthIdx
+
+      // 1) Buchungen for this month.
+      const buchungen = await buildBuchungenFromDb(
+        this.prisma,
+        companyId,
+        monthStart,
+        monthEnd,
+      )
+      // 2) CSV.
+      const csv = generateDatevBuchungsstapel({
+        company: {
+          id: company.id,
+          name: company.name,
+          taxId: company.taxId,
+          beraterNr,
+          mandantenNr,
+        },
+        startDate: monthStart,
+        endDate: monthEnd,
+        buchungen,
+        buchungsLaufNr: laufNr,
+        // Only the FIRST month of the year carries
+        // the Eröffnungsbuchungen — otherwise the
+        // opening balances would double-count across
+        // months.
+        openingBalances: monthIdx === 0 ? openingBalances : [],
+      })
+      // 3) Belegbilder for this month.
+      const belegbilder = await collectBelegbilder(
+        this.prisma,
+        companyId,
+        monthStart,
+        monthEnd,
+      )
+      const csvFilename = `EXTF_Buchungsstapel_${monthKey}-${String(monthEnd.getDate()).padStart(2, '0')}_L${String(laufNr).padStart(3, '0')}.csv`
+      const storageRoot = (this.storage as any).config?.localPath || ''
+      let includedCount = 0
+      let missingCount = 0
+      // Only emit a folder + CSV if the month has
+      // any Buchungen OR any Belegbilder. Empty
+      // months get a "0 Buchungen" entry in the
+      // MANIFEST only — no folder. Keeps the
+      // Berater's import dialog uncluttered.
+      if (buchungen.length > 0 || belegbilder.length > 0) {
+        archive.append(csv, { name: `${monthKey}/${csvFilename}` })
+        for (const b of belegbilder) {
+          const fullPath = path.join(storageRoot, b.relativePath)
+          if (!fs.existsSync(fullPath)) {
+            missingCount++
+            continue
+          }
+          const ext = extFromPath(b.relativePath)
+          const safeName = sanitizeFilename(b.belegfeld1)
+          archive.file(fullPath, {
+            name: `${monthKey}/Belegbilder/${safeName}.${ext}`,
+          })
+          includedCount++
+        }
+      }
+      months.push({
+        key: monthKey,
+        start: monthStart.toISOString(),
+        end: monthEnd.toISOString(),
+        laufNr,
+        buchungenCount: buchungen.length,
+        belegbilderIncluded: includedCount,
+        belegbilderMissing: missingCount,
+        csvBytes: Buffer.byteLength(csv, 'latin1'),
+      })
+
+      // Advance to next month.
+      cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1)
+      monthIdx++
+    }
+
+    // MANIFEST.json — same shape as the bundle, plus
+    // a per-month breakdown so the Berater can
+    // audit what landed in each folder without
+    // opening every CSV.
+    const totalBuchungen = months.reduce((s, m) => s + m.buchungenCount, 0)
+    const totalBelegIncluded = months.reduce((s, m) => s + m.belegbilderIncluded, 0)
+    const totalBelegMissing = months.reduce((s, m) => s + m.belegbilderMissing, 0)
+    archive.append(
+      JSON.stringify(
+        {
+          generatedAt: new Date().toISOString(),
+          company: company.name,
+          companyId: company.id,
+          startDate: firstMonth.toISOString(),
+          endDate: lastMonthEnd.toISOString(),
+          months,
+          totals: {
+            months: months.length,
+            buchungen: totalBuchungen,
+            belegbilderIncluded: totalBelegIncluded,
+            belegbilderMissing: totalBelegMissing,
+          },
+        },
+        null,
+        2,
+      ),
+      { name: 'MANIFEST.json' },
+    )
+
+    await archive.finalize()
+  }
+
+  /**
    * Tier 69: DATEV-Export Preview.
    *
    * The /datev-export endpoint streams a CSV the
