@@ -372,6 +372,112 @@ export class CustomerService {
   }
 
   /**
+   * Tier 144: email log for a single customer.
+   *
+   * Returns the chronological history of every
+   * email the system has sent to this customer:
+   *   - Invoice mails (original, reminders)
+   *   - Dunning letters (Mahnung)
+   *   - Statements (Kontoauszug)
+   *   - Any bulk-send batch
+   *
+   * The Berater's primary use case: "did we
+   * send the second reminder to BWA Test Kunde
+   * on Friday?" — without this endpoint they
+   * have to dig through the audit log + the
+   * reminder scheduler output.
+   *
+   * Filter sources:
+   *   1. invoice.customerId = id  (most common —
+   *      every invoice mail has this link)
+   *   2. recipientEmail = customer.email
+   *      (catches standalone emails that don't
+   *      have an invoice relation)
+   *
+   * Both are OR'd so a single query returns
+   * the full picture.
+   */
+  async getEmails(
+    id: string,
+    companyId: string,
+    opts: {
+      skip?: number
+      take?: number
+      status?: string
+      templateType?: string
+      from?: Date
+      to?: Date
+    } = {},
+  ) {
+    const customer = await this.findOne(id, companyId)
+    // Customer's email lives inside the `contact`
+    // JSON (not a top-level field). We read it via
+    // path so we can match EmailSend.recipientEmail
+    // case-insensitively.
+    const contact = (customer.contact as any) ?? {}
+    const customerEmail =
+      typeof contact.email === 'string' ? contact.email.toLowerCase() : null
+    const where: any = {
+      companyId,
+      OR: [
+        { invoice: { customerId: id } },
+        ...(customerEmail
+          ? [{ recipientEmail: { equals: customerEmail, mode: 'insensitive' as const } }]
+          : []),
+      ],
+    }
+    if (opts.status) where.status = opts.status
+    if (opts.templateType) where.templateType = opts.templateType
+    if (opts.from || opts.to) {
+      where.createdAt = {}
+      if (opts.from) where.createdAt.gte = opts.from
+      if (opts.to) where.createdAt.lte = opts.to
+    }
+    const take = Math.min(opts.take ?? 50, 200)
+    const skip = Math.max(opts.skip ?? 0, 0)
+    const [rows, total] = await Promise.all([
+      this.prisma.emailSend.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take,
+        skip,
+        select: {
+          id: true,
+          subject: true,
+          recipientEmail: true,
+          recipientName: true,
+          templateType: true,
+          status: true,
+          sentAt: true,
+          bodyPreview: true,
+          createdAt: true,
+          invoice: { select: { id: true, invoiceNumber: true } },
+          createdBy: { select: { id: true, email: true } },
+        },
+      }),
+      this.prisma.emailSend.count({ where }),
+    ])
+    return {
+      rows: rows.map((r) => ({
+        id: r.id,
+        subject: r.subject,
+        recipientEmail: r.recipientEmail,
+        recipientName: r.recipientName,
+        templateType: r.templateType,
+        status: r.status,
+        sentAt: r.sentAt,
+        bodyPreview: r.bodyPreview,
+        createdAt: r.createdAt,
+        invoice: r.invoice,
+        createdBy: r.createdBy,
+      })),
+      total,
+      take,
+      skip,
+    }
+  }
+
+  /**
    * Lookup by email (used for dedup detection during import).
    * Returns null when the email is missing or no match exists.
    */

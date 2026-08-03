@@ -123,6 +123,66 @@ export class CustomerController {
   }
 
   /**
+   * Tier 144: email-Verlauf for one customer.
+   *
+   * Returns every email the system has sent to
+   * this customer: invoice mails, Mahnung
+   * letters, Kontoauszug emails, bulk-send
+   * batches. Filter sources:
+   *   - invoice.customerId = id  (most common)
+   *   - recipientEmail = customer.email
+   *     (catches standalone emails)
+   *
+   * Optional filters:
+   *   - status (sent / opened / bounced / failed)
+   *   - templateType (invoice / reminder / statement / ...)
+   *   - from / to (date range on createdAt)
+   *   - skip / take (pagination, max 200)
+   */
+  @Get(':id/emails')
+  @Require('customer.read')
+  async emails(
+    @Param('id') id: string,
+    @Query('companyId') companyId: string,
+    @Query('status') status?: string,
+    @Query('templateType') templateType?: string,
+    @Query('from') fromStr?: string,
+    @Query('to') toStr?: string,
+    @Query('skip') skipStr?: string,
+    @Query('take') takeStr?: string,
+  ) {
+    this.assertCompanyId(companyId)
+    const opts: any = {}
+    if (status) opts.status = status
+    if (templateType) opts.templateType = templateType
+    if (fromStr) {
+      const d = new Date(fromStr)
+      if (isNaN(d.getTime()))
+        throw new BadRequestException('Invalid from (expected ISO 8601)')
+      opts.from = d
+    }
+    if (toStr) {
+      const d = new Date(toStr)
+      if (isNaN(d.getTime()))
+        throw new BadRequestException('Invalid to (expected ISO 8601)')
+      opts.to = d
+    }
+    if (skipStr) {
+      const n = parseInt(skipStr, 10)
+      if (isNaN(n) || n < 0)
+        throw new BadRequestException('Invalid skip')
+      opts.skip = n
+    }
+    if (takeStr) {
+      const n = parseInt(takeStr, 10)
+      if (isNaN(n) || n < 1 || n > 200)
+        throw new BadRequestException('Invalid take (1-200)')
+      opts.take = n
+    }
+    return this.customerService.getEmails(id, companyId, opts)
+  }
+
+  /**
    * Current credit balance (Kundenguthaben) for a customer.
    * Returns the signed sum of all ledger rows: positive =
    * customer has credit owed (e.g. overpaid an invoice),

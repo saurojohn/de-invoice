@@ -37,7 +37,7 @@ import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
 import { apiGet, apiPost, apiFetch, ApiError } from "@/lib/api"
 
-type Tab = "invoices" | "plans" | "mahnungen" | "pauses" | "credit"
+type Tab = "invoices" | "plans" | "mahnungen" | "pauses" | "credit" | "emails"
 
 interface CustomerSummary {
   customer: {
@@ -139,6 +139,24 @@ interface CreditLedgerRow {
   referenceType: string | null
   referenceId: string | null
   createdAt: string
+}
+
+// Tier 144: one row in the email-Verlauf tab.
+// Shape mirrors the backend EmailSend select —
+// date, recipient, subject, template, status,
+// + the linked invoice (if any) for quick pivot.
+interface EmailRow {
+  id: string
+  subject: string | null
+  recipientEmail: string
+  recipientName: string | null
+  templateType: string | null
+  status: string
+  sentAt: string | null
+  bodyPreview: string | null
+  createdAt: string
+  invoice: { id: string; invoiceNumber: string } | null
+  createdBy: { id: string; email: string } | null
 }
 
 // Tier 128: matches the VatCheckResult interface
@@ -268,6 +286,14 @@ export default function CustomerDetailPage() {
   })
   const [creditLedger, setCreditLedger] = useState<CreditLedgerRow[] | null>(null)
   const [creditLoading, setCreditLoading] = useState(false)
+  // Tier 144: email-Verlauf state. The Berater
+  // asks "did we already send the second reminder
+  // to BWA?" — this tab shows every email the
+  // system has sent to this customer.
+  const [emails, setEmails] = useState<EmailRow[] | null>(null)
+  const [emailsLoading, setEmailsLoading] = useState(false)
+  // Detail modal for a clicked email row.
+  const [emailDetail, setEmailDetail] = useState<EmailRow | null>(null)
 
   useEffect(() => {
     const stored = typeof window !== "undefined" ? localStorage.getItem("companyId") : null
@@ -449,7 +475,19 @@ export default function CustomerDetailPage() {
         .catch((err) => console.error("credit ledger load failed:", err))
         .finally(() => setCreditLoading(false))
     }
-  }, [tab, companyId, id, invoices, plans, mahnungen, creditLedger, invoicesLoading, plansLoading, mahnungenLoading, creditLoading])
+    // Tier 144: email-Verlauf. Lazy-load the same
+    // way as the other tabs — only on first open,
+    // and only if the user actually navigates there.
+    if (tab === "emails" && emails === null && !emailsLoading) {
+      setEmailsLoading(true)
+      apiGet<{ rows: EmailRow[]; total: number }>(
+        `/api/v1/customers/${id}/emails?companyId=${companyId}&take=200`,
+      )
+        .then((d) => setEmails(d.rows))
+        .catch((err) => console.error("emails load failed:", err))
+        .finally(() => setEmailsLoading(false))
+    }
+  }, [tab, companyId, id, invoices, plans, mahnungen, creditLedger, invoicesLoading, plansLoading, mahnungenLoading, creditLoading, emails, emailsLoading])
 
   if (!companyId) {
     return (
@@ -815,6 +853,24 @@ export default function CustomerDetailPage() {
           data-testid="tab-credit"
         >
           💰 {t("customerDetail.tabCredit") || "Guthaben"}
+        </button>
+        <button
+          role="tab"
+          onClick={() => setTab("emails")}
+          className={
+            "px-4 py-2 text-sm font-medium border-b-2 " +
+            (tab === "emails"
+              ? "border-blue-600 text-blue-700"
+              : "border-transparent text-gray-500 hover:text-gray-700")
+          }
+          data-testid="tab-emails"
+        >
+          📧 {t("customerDetail.tabEmails") || "E-Mail-Verlauf"}
+          {emails && emails.length > 0 && (
+            <span className="ml-1 text-xs px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-700">
+              {emails.length}
+            </span>
+          )}
         </button>
         <Link
           href={`/dashboard/customers/${id}/credit`}
@@ -1349,6 +1405,190 @@ export default function CustomerDetailPage() {
             )}
           </CardContent>
         </Card>
+      )}
+
+      {/* Tier 144: email-Verlauf. The Berater's
+          primary use case: "did we already send
+          the second reminder to BWA?" — every
+          email the system has ever sent to this
+          customer is here, with status + body
+          preview. Click a row to see the full
+          body in a modal. */}
+      {tab === "emails" && (
+        <Card>
+          <CardContent className="pt-6">
+            {emailsLoading && (
+              <p className="text-gray-500">{t("common.loading") || "Lädt..."}</p>
+            )}
+            {emails && emails.length === 0 && (
+              <p
+                className="text-center text-gray-500 py-8"
+                data-testid="tab-emails-empty"
+              >
+                {t("customerDetail.noEmails") ||
+                  "Noch keine E-Mails an diesen Kunden versendet."}
+              </p>
+            )}
+            {emails && emails.length > 0 && (
+              <div className="overflow-x-auto">
+                <table
+                  className="w-full min-w-[640px] text-sm"
+                  data-testid="tab-emails-table"
+                >
+                  <thead>
+                    <tr className="border-b border-gray-200 dark:border-gray-700">
+                      <th className="text-left px-2 py-2 text-xs font-medium text-gray-500">
+                        {t("customerDetail.emailColDate") || "Datum"}
+                      </th>
+                      <th className="text-left px-2 py-2 text-xs font-medium text-gray-500">
+                        {t("customerDetail.emailColSubject") || "Betreff"}
+                      </th>
+                      <th className="text-left px-2 py-2 text-xs font-medium text-gray-500">
+                        {t("customerDetail.emailColTemplate") || "Vorlage"}
+                      </th>
+                      <th className="text-left px-2 py-2 text-xs font-medium text-gray-500">
+                        {t("customerDetail.emailColInvoice") || "Rechnung"}
+                      </th>
+                      <th className="text-left px-2 py-2 text-xs font-medium text-gray-500">
+                        {t("customerDetail.emailColStatus") || "Status"}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {emails.map((e) => (
+                      <tr
+                        key={e.id}
+                        className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
+                        onClick={() => setEmailDetail(e)}
+                        data-testid="tab-emails-row"
+                      >
+                        <td className="px-2 py-2 text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                          {fmtDateDE(e.sentAt || e.createdAt)}
+                        </td>
+                        <td className="px-2 py-2 text-gray-900 dark:text-gray-100">
+                          {e.subject || "—"}
+                        </td>
+                        <td className="px-2 py-2 text-gray-600 dark:text-gray-400 text-xs">
+                          {e.templateType || "—"}
+                        </td>
+                        <td className="px-2 py-2 text-blue-700 dark:text-blue-400 text-xs">
+                          {e.invoice ? e.invoice.invoiceNumber : "—"}
+                        </td>
+                        <td className="px-2 py-2">
+                          <span
+                            className={
+                              "text-xs px-1.5 py-0.5 rounded-full " +
+                              (e.status === "opened"
+                                ? "bg-green-100 text-green-800"
+                                : e.status === "bounced" || e.status === "failed"
+                                  ? "bg-red-100 text-red-800"
+                                  : "bg-gray-100 text-gray-700")
+                            }
+                          >
+                            {e.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Tier 144: email detail modal. Shows the
+          full body preview (the EmailSend row
+          stores a truncated version of the body
+          — long enough for the Berater to see
+          "yes, this is the right email" but not
+          the full multi-paragraph text). The
+          modal also shows recipient, sent-at,
+          template type, and a link to the linked
+          invoice (if any). */}
+      {emailDetail && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+          data-testid="email-detail-modal"
+          onClick={() => setEmailDetail(null)}
+        >
+          <div
+            className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-6 py-4 border-b flex items-center justify-between">
+              <h3 className="font-semibold text-lg">
+                {t("customerDetail.emailDetailTitle") || "E-Mail-Details"}
+              </h3>
+              <button
+                className="text-gray-400 hover:text-gray-600 text-xl"
+                onClick={() => setEmailDetail(null)}
+                aria-label="Schließen"
+                data-testid="email-detail-close"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="px-6 py-4 overflow-y-auto flex-1 space-y-3 text-sm">
+              <div>
+                <span className="text-gray-500">
+                  {t("customerDetail.emailDetailRecipient") || "Empfänger"}:
+                </span>{" "}
+                <span className="font-mono" data-testid="email-detail-recipient">
+                  {emailDetail.recipientEmail}
+                </span>
+              </div>
+              <div>
+                <span className="text-gray-500">
+                  {t("customerDetail.emailDetailSentAt") || "Gesendet"}:
+                </span>{" "}
+                {fmtDateDE(emailDetail.sentAt || emailDetail.createdAt)}
+              </div>
+              <div>
+                <span className="text-gray-500">
+                  {t("customerDetail.emailDetailSubject") || "Betreff"}:
+                </span>{" "}
+                <span className="font-medium" data-testid="email-detail-subject">
+                  {emailDetail.subject || "—"}
+                </span>
+              </div>
+              <div>
+                <span className="text-gray-500">
+                  {t("customerDetail.emailDetailTemplate") || "Vorlage"}:
+                </span>{" "}
+                <span className="font-mono text-xs">
+                  {emailDetail.templateType || "—"}
+                </span>
+              </div>
+              {emailDetail.invoice && (
+                <div>
+                  <span className="text-gray-500">
+                    {t("customerDetail.emailDetailInvoice") || "Rechnung"}:
+                  </span>{" "}
+                  <a
+                    href={`/dashboard/invoices/${emailDetail.invoice.id}`}
+                    className="text-blue-600 hover:underline"
+                    data-testid="email-detail-invoice"
+                  >
+                    {emailDetail.invoice.invoiceNumber}
+                  </a>
+                </div>
+              )}
+              <div className="pt-2 border-t">
+                <div className="text-gray-500 mb-1">
+                  {t("customerDetail.emailDetailBody") || "Vorschau"}:
+                </div>
+                <pre
+                  className="whitespace-pre-wrap text-xs text-gray-800 dark:text-gray-200 font-sans"
+                  data-testid="email-detail-body"
+                >
+                  {emailDetail.bodyPreview || "(kein Inhalt)"}
+                </pre>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Tier 132: portal-link modal. Shows the
