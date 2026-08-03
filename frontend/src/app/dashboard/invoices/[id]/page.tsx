@@ -154,6 +154,25 @@ export default function InvoiceDetailPage() {
   const [addingNote, setAddingNote] = useState(false)
   const [deletingNoteId, setDeletingNoteId] = useState<string | null>(null)
   const [internalNoteError, setInternalNoteError] = useState<string | null>(null)
+  // Tier 140: invoice Belege (attachments). Reuses
+  // the /api/v1/attachments endpoint with
+  // entityType='invoice'; the /:id/attachments
+  // list proxy on the invoice controller returns
+  // them filtered to this invoice.
+  const [invoiceAttachments, setInvoiceAttachments] = useState<
+    Array<{
+      id: string
+      originalName: string
+      mimeType: string
+      size: number
+      createdAt: string
+      uploadedById: string | null
+      uploadedBy: { id: string; email: string } | null
+    }>
+  >([])
+  const [uploadingAttachment, setUploadingAttachment] = useState(false)
+  const [deletingAttachmentId, setDeletingAttachmentId] = useState<string | null>(null)
+  const [attachmentError, setAttachmentError] = useState<string | null>(null)
   const [showPayForm, setShowPayForm] = useState(false)
   // Tier 53: Gutschrift modal state. `cnAmount` is
   // the partial refund value (we always pass a flat
@@ -220,6 +239,11 @@ export default function InvoiceDetailPage() {
       // for any reason.
       apiGet<any[]>(`/api/v1/invoices/${params.id}/internal-notes?companyId=${companyId}`)
         .catch(() => []),
+      // Tier 140: invoice Belege. Same defensive
+      // .catch — a brand-new invoice has no
+      // attachments.
+      apiGet<any[]>(`/api/v1/invoices/${params.id}/attachments?companyId=${companyId}`)
+        .catch(() => []),
       // Tier 65: auto-Ratenplan suggestion. We catch
       // the error so a missing endpoint (e.g. before
       // a backend restart completes) doesn't break
@@ -227,12 +251,13 @@ export default function InvoiceDetailPage() {
       apiGet<any>(
         `/api/v1/installment-plans/suggestion/${params.id}?companyId=${companyId}`,
       ).catch(() => null),
-    ]).then(([inv, pmts, plan, sug, notes]) => {
+    ]).then(([inv, pmts, plan, sug, notes, atts]) => {
       setInvoice(inv)
       setPayments(Array.isArray(pmts) ? pmts : [])
       setInstallmentPlan(plan)
       setRatenplanSuggestion(sug)
       setInternalNotes(Array.isArray(notes) ? notes : [])
+      setInvoiceAttachments(Array.isArray(atts) ? atts : [])
     }).catch((err) => {
       console.error('Invoice detail load failed:', err)
     }).finally(() => setLoading(false))
@@ -352,6 +377,89 @@ export default function InvoiceDetailPage() {
       alert(msg)
     } finally {
       setDeletingNoteId(null)
+    }
+  }
+
+  // Tier 140: upload a new Beleg to this invoice.
+  // The upload goes through the generic
+  // /api/v1/attachments endpoint with
+  // entityType='invoice' + entityId=invoiceId. The
+  // server pipeline (storage → OCR → content-hash
+  // → DB row) is the same as expenses / vouchers,
+  // so a PDF gets its fulltext extracted in the
+  // background and the audit trail (hash + uploader
+  // + timestamp) is in the same shape as every
+  // other Beleg.
+  const uploadInvoiceAttachment = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    if (!invoice) return
+    const file = e.target.files?.[0]
+    if (!file) return
+    const companyId = localStorage.getItem("companyId")
+    const userId = localStorage.getItem("userId")
+    if (!companyId) return
+    // Reset the input so picking the same file
+    // twice still triggers onChange.
+    e.target.value = ""
+    if (file.size > 10 * 1024 * 1024) {
+      setAttachmentError("Datei zu groß (max. 10MB).")
+      return
+    }
+    setUploadingAttachment(true)
+    setAttachmentError(null)
+    try {
+      const fd = new FormData()
+      fd.append("file", file)
+      fd.append("companyId", companyId)
+      fd.append("entityType", "invoice")
+      fd.append("entityId", invoice.id)
+      if (userId) fd.append("uploadedById", userId)
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
+      const res = await fetch(`${apiBase}/api/v1/attachments`, {
+        method: "POST",
+        headers: {
+          "x-user-id": userId || "",
+          "x-company-id": companyId,
+        },
+        body: fd,
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        const msg = Array.isArray(data.message)
+          ? data.message.join(", ")
+          : data.message || `HTTP ${res.status}`
+        throw new Error(msg)
+      }
+      const created = await res.json()
+      setInvoiceAttachments([...invoiceAttachments, created])
+    } catch (err) {
+      setAttachmentError(
+        err instanceof Error ? err.message : String(err),
+      )
+    } finally {
+      setUploadingAttachment(false)
+    }
+  }
+
+  const deleteInvoiceAttachment = async (attachmentId: string) => {
+    if (!invoice) return
+    if (!confirm("Diesen Beleg wirklich löschen?")) return
+    const companyId = localStorage.getItem("companyId")
+    if (!companyId) return
+    setDeletingAttachmentId(attachmentId)
+    try {
+      await apiDelete(
+        `/api/v1/invoices/${invoice.id}/attachments/${attachmentId}?companyId=${companyId}`,
+      )
+      setInvoiceAttachments(
+        invoiceAttachments.filter((a) => a.id !== attachmentId),
+      )
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : String(err)
+      alert(msg)
+    } finally {
+      setDeletingAttachmentId(null)
     }
   }
 
@@ -1687,6 +1795,105 @@ export default function InvoiceDetailPage() {
              <CardContent><p className="text-gray-600 dark:text-gray-300 whitespace-pre-wrap">{invoice.notes}</p></CardContent>
            </Card>
          )}
+
+        {/* Tier 140: Belege (attachments) for this
+            invoice. PDF / JPG / PNG, max 10MB each.
+            Common use: a signed delivery note, a
+            customer-side credit-note scan, a
+            payment-receipt screenshot, a GoBD §147
+            AO "Sonstige Belege" attachment. Reuses
+            the /api/v1/attachments endpoint with
+            entityType='invoice' so the storage +
+            OCR + content-hash pipeline is shared
+            with expenses / vouchers / berater-notes.
+            Click any row's 📥 to download. */}
+        <Card className="mt-8" data-testid="invoice-attachments-card">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              📎 {t("invoice.attachments") || "Belege"}
+              {invoiceAttachments.length > 0 && (
+                <span className="text-xs font-normal text-gray-500 dark:text-gray-400">
+                  ({invoiceAttachments.length})
+                </span>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2 mb-3" data-testid="invoice-attachments-list">
+              {invoiceAttachments.length === 0 ? (
+                <p className="text-sm text-gray-400 italic">
+                  {t("invoice.attachmentsEmpty") || "Noch keine Belege hochgeladen."}
+                </p>
+              ) : (
+                invoiceAttachments.map((a) => (
+                  <div
+                    key={a.id}
+                    className="flex items-center gap-2 border border-gray-200 dark:border-gray-700 rounded p-2"
+                    data-testid={`invoice-attachment-${a.id}`}
+                  >
+                    <span className="text-lg">
+                      {a.mimeType?.startsWith("image/") ? "🖼" : a.mimeType === "application/pdf" ? "📄" : "📎"}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <a
+                        href={`/api/v1/attachments/${a.id}/file?companyId=${localStorage.getItem("companyId") || ""}&download=1`}
+                        className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline truncate block"
+                        data-testid={`invoice-attachment-download-${a.id}`}
+                        title={a.originalName}
+                      >
+                        {a.originalName}
+                      </a>
+                      <div className="text-xs text-gray-500">
+                        {Math.round((a.size || 0) / 1024)} KB ·{" "}
+                        {a.uploadedBy?.email || (a.uploadedById || "").slice(0, 8)} ·{" "}
+                        {new Date(a.createdAt).toLocaleString("de-DE", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                        })}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => deleteInvoiceAttachment(a.id)}
+                      disabled={deletingAttachmentId === a.id}
+                      className="text-xs text-red-600 dark:text-red-400 hover:underline disabled:opacity-50 shrink-0"
+                      data-testid={`invoice-attachment-delete-${a.id}`}
+                      title={t("common.delete") || "Löschen"}
+                    >
+                      {deletingAttachmentId === a.id ? "…" : "🗑"}
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+            <div>
+              <label
+                className="text-xs font-medium text-gray-600 dark:text-gray-300 cursor-pointer hover:underline"
+                data-testid="invoice-attachment-upload-label"
+              >
+                📎 {t("invoice.attachmentUpload") || "Beleg hochladen (PDF, JPG, PNG — max 10MB)"}
+                <input
+                  type="file"
+                  accept="application/pdf,image/jpeg,image/png,image/gif,image/webp"
+                  onChange={uploadInvoiceAttachment}
+                  disabled={uploadingAttachment}
+                  className="hidden"
+                  data-testid="invoice-attachment-upload-input"
+                />
+              </label>
+              {uploadingAttachment && (
+                <p className="text-xs text-gray-500 mt-1" data-testid="invoice-attachment-uploading">
+                  {t("common.uploading") || "Wird hochgeladen…"}
+                </p>
+              )}
+              {attachmentError && (
+                <p className="text-xs text-red-600 mt-1" data-testid="invoice-attachment-error">
+                  {attachmentError}
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Tier 138: Internal team notes. Distinct from
             the customer-facing Bemerkungen above —

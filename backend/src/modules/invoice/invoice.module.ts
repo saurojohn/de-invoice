@@ -22,6 +22,9 @@ import { CustomerModule } from '../customer/customer.module';
 // eurSubtotal/eurTotalVat/eurTotal are pre-computed for
 // cross-currency aggregation in EÜR/UStVA/BWA/GuV).
 import { ExchangeRateModule } from '../exchange-rate/exchange-rate.module';
+// Tier 140: reuses AttachmentsService for the
+// invoice-level Belege proxy endpoints.
+import { AttachmentsModule } from '../attachment/attachments.module';
 
 @Module({
   controllers: [InvoiceController],
@@ -31,6 +34,7 @@ import { ExchangeRateModule } from '../exchange-rate/exchange-rate.module';
     StorageModule,
     InvoiceTemplateModule,
     WebhookModule,
+    AttachmentsModule,
     // Tier 37: PaymentService needs ReminderService so it can
     // auto-cancel open Mahnungen when the invoice flips to
     // 'paid'. Forward-only dep — ReminderModule doesn't import

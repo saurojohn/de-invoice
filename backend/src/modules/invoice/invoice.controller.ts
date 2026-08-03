@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, Res, Header, BadRequestException, HttpCode, Req } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, Res, Header, BadRequestException, HttpCode, Req, NotFoundException } from '@nestjs/common';
 import { Response } from 'express';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const archiverLib: any = require('archiver');
@@ -27,6 +27,12 @@ import { Auth, Require } from '../../auth/roles.decorator';
 import { InvoiceTemplateService } from '../invoice-template/invoice-template.service';
 // Tier 129: see comment on the constructor.
 import { InvoiceEmailService } from './invoice-email.service';
+// Tier 140: reuses the existing AttachmentsService
+// for the invoice-level Belege proxy endpoints
+// (list + delete). The upload itself goes through
+// the /attachments endpoint directly so the storage
+// + OCR + content-hash pipeline is shared.
+import { AttachmentsService } from '../attachment/attachments.service';
 
 @Auth()
 @Controller('invoices')
@@ -42,6 +48,8 @@ export class InvoiceController {
     // Controller still owns the route + permission
     // check, then delegates to the service.
     private invoiceEmailService: InvoiceEmailService,
+    // Tier 140: invoice-level attachment list/delete.
+    private attachmentsService: AttachmentsService,
   ) {}
 
   /**
@@ -1358,5 +1366,61 @@ export class InvoiceController {
       // company is not a security issue.
       isAdmin: true,
     })
+  }
+
+  // ---- Tier 140: invoice-level Belege ----
+  //
+  // List files attached to this invoice. The
+  // upload itself goes through the existing
+  // /api/v1/attachments endpoint with
+  // entityType='invoice' + entityId=invoiceId
+  // (so the storage + OCR + content-hash pipeline
+  // is shared with expenses / vouchers). These
+  // proxy endpoints just provide a more
+  // discoverable URL that the invoice detail
+  // page can call without knowing the generic
+  // /attachments surface.
+  //
+  // Download uses the existing
+  // /attachments/:id/file endpoint — no proxy
+  // needed (the response already sets the right
+  // Content-Type + Content-Disposition from the
+  // detected MIME type).
+  @Get(':id/attachments')
+  @Require('invoice.read')
+  async listAttachments(
+    @Query('companyId') companyId: string,
+    @Param('id') id: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId is required')
+    return this.attachmentsService.listForEntity(companyId, 'invoice', id)
+  }
+
+  @Delete(':id/attachments/:attachmentId')
+  @Require('invoice.update')
+  @HttpCode(200)
+  async deleteAttachment(
+    @Query('companyId') companyId: string,
+    @Param('id') id: string,
+    @Param('attachmentId') attachmentId: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId is required')
+    // Defense in depth: the attachments service
+    // already enforces tenant scoping by companyId,
+    // but the URL also includes the parent invoice
+    // id. If the attachment isn't actually under
+    // this invoice, we'd be deleting something the
+    // user didn't expect. The cheap check is one
+    // Prisma findFirst with both ids.
+    const att = await this.prisma.attachment.findFirst({
+      where: { id: attachmentId, companyId, entityType: 'invoice', entityId: id },
+      select: { id: true },
+    })
+    if (!att) {
+      throw new NotFoundException(
+        'Anhang nicht gefunden (gehört nicht zu dieser Rechnung)',
+      )
+    }
+    return this.attachmentsService.delete(companyId, attachmentId)
   }
 }

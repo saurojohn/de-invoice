@@ -69,7 +69,7 @@ export class AttachmentsService {
    */
   async upload(input: {
     companyId: string;
-    entityType: 'expense' | 'voucher' | 'berater-note';
+    entityType: 'expense' | 'voucher' | 'berater-note' | 'invoice';
     entityId: string;
     buffer: Buffer;
     originalName: string;
@@ -106,6 +106,18 @@ export class AttachmentsService {
       // BEFORE the BeraterNote exists; the
       // service caller is responsible for the
       // patch.
+    } else if (input.entityType === 'invoice') {
+      // Tier 140: outbound-invoice Belege. The
+      // attachment can be any document the
+      // Mandant / Berater wants to keep with
+      // the invoice — a signed delivery note,
+      // a customer-side credit-note scan, a
+      // payment receipt screenshot, etc.
+      const inv = await this.prisma.invoice.findFirst({
+        where: { id: input.entityId, companyId: input.companyId },
+        select: { id: true },
+      })
+      if (!inv) throw new NotFoundException('Rechnung nicht gefunden')
     } else {
       // unknown entityType — accept as
       // forward-compat; the row will be orphaned
