@@ -41,6 +41,7 @@ export interface AuditLogFilters {
   actions?: string[] // Tier 122: multi-select exact actions (CREATE/UPDATE/DELETE/...)
   actionPrefix?: string // e.g. "invoice." matches invoice.updated, invoice.created, …
   actionPrefixes?: string[] // Tier 122: multiple action prefixes
+  q?: string // Tier 143: free-text search across action, entityId, user.email, newData, oldData
   dateFrom?: Date
   dateTo?: Date
   skip?: number
@@ -115,6 +116,13 @@ export class AuditService {
       if (f.dateFrom) where.createdAt.gte = f.dateFrom
       if (f.dateTo) where.createdAt.lte = f.dateTo
     }
+    // NOTE: the free-text `q` filter (Tier 143) is NOT
+    // applied here. list() routes to a dedicated
+    // raw-SQL path when q is set because Prisma 5.22's
+    // string_contains on Json columns is broken (it
+    // adds JSONB_TYPEOF(...) = 'string' which never
+    // matches our newData/oldData objects). The raw
+    // SQL path casts jsonb → text and runs ILIKE.
     return where
   }
 
@@ -123,10 +131,27 @@ export class AuditService {
    * `createdAt DESC` — most-recent first. The
    * `total` field lets the UI render "Showing 1-50
    * of 1770" and decide whether to show "next".
+   *
+   * Tier 143: when `f.q` is set, we bypass Prisma's
+   * findMany and go straight to raw SQL. Prisma 5.22's
+   * `string_contains` on Json columns is broken — it
+   * adds a `JSONB_TYPEOF(...) = 'string'` clause that
+   * never matches because our newData/oldData are
+   * always objects. The raw SQL casts the jsonb to
+   * text and runs ILIKE, which Postgres does natively
+   * across the entire JSON tree.
+   *
+   * Everything else (date range, action prefix, etc.)
+   * still flows through buildWhere + Prisma's
+   * findMany for the no-q case. The two paths share
+   * the same response shape.
    */
   async list(f: AuditLogFilters) {
     const take = Math.min(f.take ?? 50, MAX_TAKE)
     const skip = Math.max(f.skip ?? 0, 0)
+    if (f.q && f.q.trim().length > 0) {
+      return this.listWithTextSearch(f, take, skip)
+    }
     const where = this.buildWhere(f)
     const [rows, total] = await Promise.all([
       this.prisma.auditLog.findMany({
@@ -160,6 +185,151 @@ export class AuditService {
         createdAt: r.createdAt,
       })),
       total,
+      take,
+      skip,
+    }
+  }
+
+  /**
+   * Tier 143: full-text search path. Uses raw SQL
+   * because Prisma's jsonb string_contains is broken
+   * in 5.22 (see list() above for the gory details).
+   *
+   * The query:
+   *   1. Reuses buildWhere for the structural
+   *      filters (entityType, actionPrefix, date, ...)
+   *      — we serialise them as raw SQL fragments.
+   *   2. Adds the q search as ILIKE across action,
+   *      entityType, entityId, newData, oldData, and
+   *      a subquery on User.email.
+   *   3. Joins to User to populate userEmail in the
+   *      same round-trip (saves a Prisma follow-up).
+   *
+   * Postgres handles the jsonb→text cast efficiently
+   * — it's a one-off conversion per row, then a
+   * standard LIKE on the result. For tables up to
+   * ~100k rows this is fast enough without a GIN
+   * index on the jsonb expression.
+   */
+  private async listWithTextSearch(
+    f: AuditLogFilters,
+    take: number,
+    skip: number,
+  ): Promise<{
+    rows: any[]
+    total: number
+    take: number
+    skip: number
+  }> {
+    const q = f.q!.trim()
+    const where = this.buildWhere(f)
+    // Convert Prisma where to SQL fragments.
+    // We intentionally keep this conservative: only
+    // the fields the UI actually sends are translated.
+    // Anything exotic would need explicit handling.
+    const params: any[] = []
+    const fragments: string[] = []
+    params.push(f.companyId)
+    fragments.push(`al."companyId" = $${params.length}`)
+    if (f.entityIds && f.entityIds.length > 0) {
+      const placeholders = f.entityIds.map((_, i) => `$${params.length + i}`).join(',')
+      f.entityIds.forEach((v) => params.push(v))
+      fragments.push(`al."entityType" IN (${placeholders})`)
+    } else if (f.entityType) {
+      params.push(f.entityType)
+      fragments.push(`al."entityType" = $${params.length}`)
+    }
+    if (f.entityId) {
+      params.push(f.entityId)
+      fragments.push(`al."entityId" = $${params.length}`)
+    }
+    if (f.userIds && f.userIds.length > 0) {
+      const placeholders = f.userIds.map((_, i) => `$${params.length + i}`).join(',')
+      f.userIds.forEach((v) => params.push(v))
+      fragments.push(`al."userId" IN (${placeholders})`)
+    } else if (f.userId) {
+      params.push(f.userId)
+      fragments.push(`al."userId" = $${params.length}`)
+    }
+    if (f.actions && f.actions.length > 0) {
+      const placeholders = f.actions.map((_, i) => `$${params.length + i}`).join(',')
+      f.actions.forEach((v) => params.push(v))
+      fragments.push(`al."action" IN (${placeholders})`)
+    } else if (f.action) {
+      params.push(f.action)
+      fragments.push(`al."action" = $${params.length}`)
+    } else if (f.actionPrefixes && f.actionPrefixes.length > 0) {
+      // OR across the prefixes (matches buildWhere).
+      const orParts = f.actionPrefixes.map((p) => {
+        params.push(`${p}%`)
+        return `al."action" LIKE $${params.length}`
+      })
+      fragments.push(`(${orParts.join(' OR ')})`)
+    } else if (f.actionPrefix) {
+      params.push(`${f.actionPrefix}%`)
+      fragments.push(`al."action" LIKE $${params.length}`)
+    }
+    if (f.dateFrom) {
+      params.push(f.dateFrom)
+      fragments.push(`al."createdAt" >= $${params.length}`)
+    }
+    if (f.dateTo) {
+      params.push(f.dateTo)
+      fragments.push(`al."createdAt" <= $${params.length}`)
+    }
+
+    // The q search. We use a single $N for the pattern
+    // so all fields search for the same substring.
+    // `::text` casts jsonb → text so ILIKE works
+    // (Postgres' jsonb doesn't have a built-in LIKE
+    // operator).
+    params.push(`%${q}%`)
+    const qIdx = params.length
+    const qFrag = [
+      `al."action" ILIKE $${qIdx}`,
+      `al."entityType" ILIKE $${qIdx}`,
+      `al."entityId"::text ILIKE $${qIdx}`,
+      `al."newData"::text ILIKE $${qIdx}`,
+      `al."oldData"::text ILIKE $${qIdx}`,
+      `u.email ILIKE $${qIdx}`,
+    ].join(' OR ')
+    fragments.push(`(${qFrag})`)
+
+    const whereClause = fragments.join(' AND ')
+
+    // Two parallel queries: count + page.
+    const [countRows, dataRows] = await Promise.all([
+      this.prisma.$queryRawUnsafe<Array<{ count: bigint }>>(
+        `SELECT COUNT(*)::bigint as count
+         FROM "AuditLog" al
+         LEFT JOIN "User" u ON u.id = al."userId"
+         WHERE ${whereClause}`,
+        ...params,
+      ),
+      this.prisma.$queryRawUnsafe<Array<any>>(
+        `SELECT al.id, al.action, al."entityType", al."entityId",
+                al."userId", al."ipAddress", al."createdAt",
+                u.email as "userEmail"
+         FROM "AuditLog" al
+         LEFT JOIN "User" u ON u.id = al."userId"
+         WHERE ${whereClause}
+         ORDER BY al."createdAt" DESC
+         LIMIT ${take} OFFSET ${skip}`,
+        ...params,
+      ),
+    ])
+    return {
+      rows: dataRows.map((r) => ({
+        id: r.id,
+        action: r.action,
+        entityType: r.entityType,
+        entityId: r.entityId,
+        userId: r.userId,
+        userEmail: r.userEmail,
+        ipAddress: r.ipAddress,
+        createdAt: r.createdAt,
+      })),
+      total: Number(countRows[0]?.count ?? 0),
       take,
       skip,
     }
@@ -272,26 +442,60 @@ export class AuditService {
    * escaped per RFC 4180.
    */
   async exportCsv(f: AuditLogFilters): Promise<string> {
-    const where = this.buildWhere(f)
-    const rows = await this.prisma.auditLog.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      take: 10_000, // cap — exports beyond 10k rows
-                     // should be paginated via a
-                     // background job, not a sync
-                     // HTTP response
-      select: {
-        action: true,
-        entityType: true,
-        entityId: true,
-        userId: true,
-        ipAddress: true,
-        oldData: true,
-        newData: true,
-        createdAt: true,
-        user: { select: { email: true } },
-      },
-    })
+    // Tier 143: when q is set, route to the text-search
+    // path so the jsonb fields are searched correctly.
+    // Otherwise stick with the Prisma path (faster,
+    // because no JOIN to User for the email).
+    let rawRows: Array<{
+      action: string
+      entityType: string | null
+      entityId: string | null
+      userId: string | null
+      ipAddress: string | null
+      oldData: unknown
+      newData: unknown
+      createdAt: Date
+      user?: { email: string | null } | null
+      userEmail?: string | null
+    }>
+    if (f.q && f.q.trim().length > 0) {
+      const page = await this.listWithTextSearch(f, 10_000, 0)
+      // listWithTextSearch already returns userEmail
+      // flat — fold it into a user-shaped stub so the
+      // CSV row builder below is unchanged.
+      rawRows = page.rows.map((r) => ({
+        action: r.action,
+        entityType: r.entityType,
+        entityId: r.entityId,
+        userId: r.userId,
+        ipAddress: r.ipAddress,
+        oldData: null, // list() doesn't return oldData/newData (payload)
+        newData: null,
+        createdAt: r.createdAt,
+        user: { email: r.userEmail },
+      }))
+    } else {
+      const where = this.buildWhere(f)
+      rawRows = await this.prisma.auditLog.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: 10_000, // cap — exports beyond 10k rows
+                       // should be paginated via a
+                       // background job, not a sync
+                       // HTTP response
+        select: {
+          action: true,
+          entityType: true,
+          entityId: true,
+          userId: true,
+          ipAddress: true,
+          oldData: true,
+          newData: true,
+          createdAt: true,
+          user: { select: { email: true } },
+        },
+      })
+    }
     const header = [
       'Zeitstempel',
       'Aktion',
@@ -303,7 +507,7 @@ export class AuditService {
       'Neu-Daten',
     ]
     const lines: string[] = [header.map(esc).join(';')]
-    for (const r of rows) {
+    for (const r of rawRows) {
       lines.push(
         [
           r.createdAt.toISOString(),

@@ -63,6 +63,11 @@ export class AuditController {
     @Query('actionPrefixes') actionPrefixes?: string,
     @Query('dateFrom') dateFrom?: string,
     @Query('dateTo') dateTo?: string,
+    // Tier 143: free-text search. Hits action,
+    // entityType, entityId, user.email, newData,
+    // oldData — case-insensitive on the text fields,
+    // substring on the jsonb blobs.
+    @Query('q') q?: string,
     @Query('skip') skip?: string,
     @Query('take') take?: string,
   ) {
@@ -78,6 +83,7 @@ export class AuditController {
       actions,
       actionPrefix,
       actionPrefixes,
+      q,
       dateFrom,
       dateTo,
       skip,
@@ -110,6 +116,7 @@ export class AuditController {
     @Query('actionPrefixes') actionPrefixes?: string,
     @Query('dateFrom') dateFrom?: string,
     @Query('dateTo') dateTo?: string,
+    @Query('q') q?: string,
   ) {
     if (!companyId) throw new BadRequestException('companyId ist erforderlich')
     const f = parseFilters({
@@ -123,6 +130,7 @@ export class AuditController {
       actions,
       actionPrefix,
       actionPrefixes,
+      q,
       dateFrom,
       dateTo,
     })
@@ -172,6 +180,7 @@ function parseFilters(raw: {
   actions?: string
   actionPrefix?: string
   actionPrefixes?: string
+  q?: string
   dateFrom?: string
   dateTo?: string
   skip?: string
@@ -212,6 +221,9 @@ function parseFilters(raw: {
       .filter((s) => s.length > 0)
     if (list.length > 0) f.actionPrefixes = list
   }
+  // Tier 143: free-text search. Trim so a stray
+  // space from the URL doesn't match every row.
+  if (raw.q && raw.q.trim().length > 0) f.q = raw.q.trim()
   if (raw.dateFrom) {
     const d = new Date(raw.dateFrom)
     if (Number.isNaN(d.getTime()))

@@ -122,6 +122,7 @@ type FilterSnapshot = {
   actionPrefix: string          // legacy single prefix (kept for back-compat with old URLs)
   actionPrefixes: string[]      // Tier 135: multi-select action prefixes (OR semantics)
   userId: string
+  q: string                     // Tier 143: free-text search
   dateFrom: string
   dateTo: string
   view: "table" | "timeline"
@@ -139,8 +140,7 @@ function readFiltersFromUrl(): Partial<FilterSnapshot> {
   const apx = sp.get("actionPrefixes")
   if (apx) {
     prefixes = apx.split(",").map((s) => s.trim()).filter(Boolean)
-  } else {
-    const ap = sp.get("actionPrefix")
+  } else {    const ap = sp.get("actionPrefix")
     if (ap) prefixes = [ap]
   }
   return {
@@ -148,6 +148,7 @@ function readFiltersFromUrl(): Partial<FilterSnapshot> {
     actionPrefix: prefixes[0] || "",
     actionPrefixes: prefixes,
     userId: sp.get("userId") || "",
+    q: sp.get("q") || "",
     dateFrom: sp.get("dateFrom") || "",
     dateTo: sp.get("dateTo") || "",
     view: sp.get("view") === "timeline" ? "timeline" : "table",
@@ -169,6 +170,7 @@ function writeFiltersToUrl(f: FilterSnapshot) {
   setOrDel("actionPrefixes", f.actionPrefixes.join(","))
   setOrDel("actionPrefix", f.actionPrefixes.length === 1 ? f.actionPrefixes[0] : "")
   setOrDel("userId", f.userId)
+  setOrDel("q", f.q)
   setOrDel("dateFrom", f.dateFrom)
   setOrDel("dateTo", f.dateTo)
   setOrDel("view", f.view === "table" ? "" : f.view)
@@ -248,6 +250,7 @@ export default function AuditPage() {
         actionPrefix: "",
         actionPrefixes: [] as string[],
         userId: "",
+        q: "",
         dateFrom: "",
         dateTo: "",
         view: "table" as "table" | "timeline",
@@ -258,6 +261,7 @@ export default function AuditPage() {
       actionPrefix: "",
       actionPrefixes: [] as string[],
       userId: "",
+      q: "",
       dateFrom: "",
       dateTo: "",
       view: "table" as "table" | "timeline",
@@ -274,6 +278,15 @@ export default function AuditPage() {
     initial.actionPrefixes || (initial.actionPrefix ? [initial.actionPrefix] : []),
   )
   const [userId, setUserId] = useState(initial.userId || "")
+  // Tier 143: free-text search. Debounced 300ms so we
+  // don't refetch on every keystroke when the user is
+  // typing a longer invoice number.
+  const [q, setQ] = useState(initial.q || "")
+  const [qDebounced, setQDebounced] = useState(initial.q || "")
+  useEffect(() => {
+    const t = setTimeout(() => setQDebounced(q), 300)
+    return () => clearTimeout(t)
+  }, [q])
   const [dateFrom, setDateFrom] = useState(initial.dateFrom || "")
   const [dateTo, setDateTo] = useState(initial.dateTo || "")
   const [view, setView] = useState<"table" | "timeline">(initial.view || "table")
@@ -296,11 +309,12 @@ export default function AuditPage() {
       actionPrefix: actionPrefixes[0] || "",
       actionPrefixes,
       userId,
+      q,
       dateFrom,
       dateTo,
       view,
     })
-  }, [entityType, actionPrefixes, userId, dateFrom, dateTo, view])
+  }, [entityType, actionPrefixes, userId, q, dateFrom, dateTo, view])
 
   // Detail modal
   const [detail, setDetail] = useState<AuditDetail | null>(null)
@@ -337,6 +351,11 @@ export default function AuditPage() {
         params.set("actionPrefix", actionPrefix)
       }
       if (userId) params.set("userId", userId)
+      // Tier 143: free-text search. Send the
+      // DEBOUNCED value so the URL state matches
+      // what the API actually queried (the raw `q`
+      // might still be mid-typing).
+      if (qDebounced) params.set("q", qDebounced)
       if (dateFrom) params.set("dateFrom", dateFrom)
       if (dateTo) params.set("dateTo", dateTo + "T23:59:59.999Z")
       params.set("skip", String(skip))
@@ -359,7 +378,7 @@ export default function AuditPage() {
     } finally {
       setLoading(false)
     }
-  }, [companyId, entityType, actionPrefix, actionPrefixes, userId, dateFrom, dateTo, skip])
+  }, [companyId, entityType, actionPrefix, actionPrefixes, userId, qDebounced, dateFrom, dateTo, skip])
 
   useEffect(() => {
     if (!companyId) {
@@ -489,6 +508,7 @@ export default function AuditPage() {
       params.set("actionPrefix", actionPrefix)
     }
     if (userId) params.set("userId", userId)
+    if (qDebounced) params.set("q", qDebounced)
     if (dateFrom) params.set("dateFrom", dateFrom)
     if (dateTo) params.set("dateTo", dateTo + "T23:59:59.999Z")
     const base =
@@ -505,7 +525,7 @@ export default function AuditPage() {
     // helper instead of a plain href. The href
     // is still useful as the "Copy link" target.
     return `${base}/api/v1/audit-logs/export.csv?${params.toString()}`
-  }, [companyId, entityType, actionPrefix, actionPrefixes, userId, dateFrom, dateTo])
+  }, [companyId, entityType, actionPrefix, actionPrefixes, userId, qDebounced, dateFrom, dateTo])
 
   const downloadCsv = async () => {
     if (!companyId) return
@@ -519,6 +539,7 @@ export default function AuditPage() {
         params.set("actionPrefix", actionPrefix)
       }
       if (userId) params.set("userId", userId)
+      if (qDebounced) params.set("q", qDebounced)
       if (dateFrom) params.set("dateFrom", dateFrom)
       if (dateTo) params.set("dateTo", dateTo + "T23:59:59.999Z")
       const res = await fetch(
@@ -660,6 +681,52 @@ export default function AuditPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
+            {/* Tier 143: free-text search. Full-width above
+                the other filters so it's the most visible
+                input — the Berater's primary use case is
+                "find the row about invoice INV-2026-000203",
+                not "filter by exact entity type". */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
+                {t("audit.searchLabel") || "Volltext-Suche"}
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">
+                  🔍
+                </span>
+                <input
+                  type="text"
+                  value={q}
+                  onChange={(e) => {
+                    setQ(e.target.value)
+                    setSkip(0)
+                  }}
+                  placeholder={
+                    t("audit.searchPlaceholder") ||
+                    "Rechnungsnummer, Kunde, Benutzer, Aktion…"
+                  }
+                  className="w-full pl-9 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-sm"
+                  data-testid="audit-filter-q"
+                />
+                {q && (
+                  <button
+                    onClick={() => {
+                      setQ("")
+                      setSkip(0)
+                    }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm"
+                    data-testid="audit-filter-q-clear"
+                    aria-label="Suche löschen"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                {t("audit.searchHint") ||
+                  "Durchsucht Aktion, Entitätstyp, Benutzer-E-Mail und JSON-Inhalte (Rechnungsnummer, Kundenname, etc.)."}
+              </p>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
