@@ -330,18 +330,109 @@ export default function InvoicesPage() {
     setBulkSendError(null)
     setBulkSendProgress(null)
     try {
-      const { apiFetch, ApiError } = await import("@/lib/api")
-      const data = await apiFetch(
+      // apiPost (not raw apiFetch) so we get the parsed
+      // JSON body — the modal reads `.total / .succeeded /
+      // .failed` from this object.
+      const { apiPost, ApiError } = await import("@/lib/api")
+      const data = await apiPost<any>(
         `/api/v1/invoices/bulk-send-email?companyId=${companyId}`,
         {
-          method: "POST",
-          body: {
-            invoiceIds: Array.from(selected),
-            concurrency: 5,
-          },
+          invoiceIds: Array.from(selected),
+          concurrency: 5,
         },
       )
-      setBulkSendProgress(data as any)
+      setBulkSendProgress(data)
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : "Netzwerkfehler"
+      setBulkSendError(msg)
+    } finally {
+      setBulkSending(false)
+    }
+  }
+
+  /**
+   * Tier 141: bulk-send-by-filter.
+   *
+   * The single-selection bulk-send above only knows
+   * the IDs the user ticked. The "send ALL overdue
+   * in Q3" workflow doesn't fit that mental model —
+   * the user picked a *date range* and a *status*,
+   * not individual rows. So this variant:
+   *
+   *   1. Reuses the same `dateFrom/dateTo/type/status`
+   *      filter the date-range CSV/ZIP exports use.
+   *   2. POSTs to /invoices/bulk-send-by-filter which
+   *      chains findForExport + bulkSendEmails under
+   *      the hood (capped at 100).
+   *   3. Reuses the exact same progress modal
+   *      (`bulkSendProgress` + total/succeeded/failed
+   *      tiles) so the UI is consistent.
+   *
+   * The button is the date-range bar's natural home —
+   * next to CSV / ZIP (PDF) / ZIP (ZUGFeRD). Same
+   * green pill, same conditional render on dateFrom/
+   * dateTo. Adds a window.confirm() with the count
+   * so a user can't fire 100 emails by accident.
+   */
+  const bulkSendByFilter = async () => {
+    if (!dateFrom && !dateTo) {
+      alert("Bitte zuerst einen Zeitraum (Von / Bis) wählen.")
+      return
+    }
+    const companyId = localStorage.getItem("companyId")
+    if (!companyId) return
+    // dryRun pre-flight — give the user a real number
+    // before we ask for confirmation. If the count is
+    // 0 we bail out, no point asking.
+    let previewCount = 0
+    try {
+      // apiPost (not raw apiFetch) so we get the parsed
+      // JSON body — `.total` lives on the parsed object.
+      const { apiPost } = await import("@/lib/api")
+      const data = await apiPost<any>(
+        `/api/v1/invoices/bulk-send-by-filter?companyId=${companyId}`,
+        {
+          dateFrom: dateFrom || undefined,
+          dateTo: dateTo || undefined,
+          type: typeFilter || undefined,
+          status: statusFilter || undefined,
+          dryRun: true,
+        },
+      )
+      previewCount = (data as any)?.total ?? 0
+    } catch (err) {
+      // Fall back to the table total if the dryRun
+      // call failed for any reason — better an
+      // approximate count than no button at all.
+      previewCount = total
+    }
+    if (previewCount === 0) {
+      alert(
+        t("invoices.bulkSendRangeEmpty") ||
+          "Keine Rechnungen im Zeitraum gefunden.",
+      )
+      return
+    }
+    const confirmMsg = (
+      t("invoices.bulkSendRangeConfirm") ||
+          "Möchten Sie {count} Rechnungen aus dem Zeitraum jetzt per E-Mail versenden?"
+      ).replace("{count}", String(previewCount))
+    if (!window.confirm(confirmMsg)) return
+    setBulkSending(true)
+    setBulkSendError(null)
+    setBulkSendProgress(null)
+    try {
+      const { apiPost, ApiError } = await import("@/lib/api")
+      const data = await apiPost<any>(
+        `/api/v1/invoices/bulk-send-by-filter?companyId=${companyId}`,
+        {
+          dateFrom: dateFrom || undefined,
+          dateTo: dateTo || undefined,
+          type: typeFilter || undefined,
+          status: statusFilter || undefined,
+        },
+      )
+      setBulkSendProgress(data)
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : "Netzwerkfehler"
       setBulkSendError(msg)
@@ -686,6 +777,22 @@ export default function InvoicesPage() {
                 disabled={total === 0 || bulkDownloading}
               >
                 {bulkDownloading ? "…" : "ZIP (ZUGFeRD)"}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={bulkSendByFilter}
+                disabled={total === 0 || bulkSending || bulkDownloading}
+                data-testid="bulk-send-range"
+                title={
+                  t("invoices.bulkSendRangeHint") ||
+                  "Sendet alle Rechnungen im Zeitraum (max. 100) per E-Mail."
+                }
+                className="border-blue-300 text-blue-700 hover:bg-blue-50"
+              >
+                {bulkSending
+                  ? (t("invoices.bulkSending") || "Sende…")
+                  : (t("invoices.bulkSendRange") || "📧 E-Mails senden")}
               </Button>
             </div>
           </div>

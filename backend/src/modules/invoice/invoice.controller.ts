@@ -1013,6 +1013,75 @@ export class InvoiceController {
    * success is normal, the caller walks `results` to
    * see which rows need a retry.
    */
+  @Post('bulk-send-by-filter')
+  @Require('invoice.send')
+  async bulkSendByFilter(
+    @Query('companyId') companyId: string,
+    @Body() body: {
+      dateFrom?: string;
+      dateTo?: string;
+      type?: string;
+      status?: string;
+      language?: 'de' | 'en' | 'zh';
+      overrideSubject?: string;
+      overrideBody?: string;
+      concurrency?: number;
+      dryRun?: boolean;
+    },
+  ) {
+    if (!companyId) {
+      throw new BadRequestException('companyId ist erforderlich')
+    }
+    if (!body?.dateFrom && !body?.dateTo) {
+      throw new BadRequestException(
+        'dateFrom oder dateTo ist erforderlich (gleiche Logik wie der CSV-Export)',
+      )
+    }
+    // 1. Resolve every invoice matching the date
+    //    range (+ type/status filter) via the same
+    //    helper the CSV/ZIP exports use. This keeps
+    //    "all overdue in Q3" consistent across
+    //    every batch workflow — one filter, three
+    //    output formats (CSV / ZIP / emails).
+    const rows = await this.invoiceService.findForExport(companyId, {
+      dateFrom: body.dateFrom,
+      dateTo: body.dateTo,
+      type: body.type,
+      status: body.status,
+    })
+    if (rows.length === 0) {
+      return {
+        total: 0,
+        succeeded: 0,
+        failed: 0,
+        skipped: 0,
+        results: [],
+        message: 'Keine Rechnungen im Zeitraum gefunden',
+      }
+    }
+    if (rows.length > 100) {
+      throw new BadRequestException(
+        `Maximal 100 Rechnungen pro Anfrage (gefunden: ${rows.length})`,
+      )
+    }
+    // 2. Delegate to the existing bulk-send-email
+    //    worker pool. We pass the full filter
+    //    pipeline through (override subject/body,
+    //    language, dryRun) so a single button
+    //    can power a monthly reminder batch
+    //    ("Alle überfälligen im Oktober senden")
+    //    with a custom subject, or just default
+    //    to the per-invoice template.
+    return this.bulkSendEmails(companyId, {
+      invoiceIds: rows.map((r: any) => r.id),
+      language: body.language,
+      overrideSubject: body.overrideSubject,
+      overrideBody: body.overrideBody,
+      concurrency: body.concurrency,
+      dryRun: body.dryRun,
+    })
+  }
+
   @Post('bulk-send-email')
   @Require('invoice.send')
   async bulkSendEmails(
