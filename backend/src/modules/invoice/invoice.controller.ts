@@ -326,16 +326,56 @@ export class InvoiceController {
         }
       }
 
-      // Always add a manifest with the list of included invoices.
-      const manifest = [
+      // Always add a manifest with the list of
+      // included invoices. Tier 139: enrich the
+      // manifest with invoice number + issue date +
+      // customer name (was just the id list before,
+      // which is useless to a Steuerberater who
+      // doesn't speak UUID). We re-fetch a small
+      // per-invoice projection in one query to
+      // avoid N+1 — the bulk-download is the one
+      // path that does N lookups for N invoices
+      // already (one PDF per invoice), so an extra
+      // one Prisma query for the manifest is
+      // negligible.
+      const meta = await this.prisma.invoice.findMany({
+        where: { id: { in: ids } },
+        select: {
+          id: true,
+          invoiceNumber: true,
+          issueDate: true,
+          total: true,
+          currency: true,
+          customer: { select: { name: true, customerNumber: true } },
+        },
+      })
+      const metaById = new Map(meta.map((m: any) => [m.id, m]))
+      const manifestLines: string[] = [
         `# Rechnungs-Bündel`,
         `# Erstellt am: ${new Date().toISOString()}`,
         `# Format: ${format.toUpperCase()}`,
         `# Enthalten: ${okCount} / Angefragt: ${ids.length}`,
         ``,
-        ...ids.map((id) => (usedNames.has(id) ? id : `${id} (FEHLER: nicht enthalten)`)),
-      ].join('\n')
-      zip.append(manifest, { name: '_manifest.txt' })
+      ]
+      for (const id of ids) {
+        const m: any = metaById.get(id)
+        if (m) {
+          const date = m.issueDate
+            ? new Date(m.issueDate).toISOString().slice(0, 10)
+            : '—'
+          const total = `${Number(m.total || 0).toFixed(2)} ${m.currency || 'EUR'}`
+          const cust = m.customer?.name || '—'
+          const custNo = m.customer?.customerNumber
+            ? ` (${m.customer.customerNumber})`
+            : ''
+          manifestLines.push(
+            `  ${m.invoiceNumber}  ${date}  ${total}  ${cust}${custNo}`,
+          )
+        } else {
+          manifestLines.push(`  ${id}  —  —  (FEHLER: nicht enthalten)`)
+        }
+      }
+      zip.append(manifestLines.join('\n'), { name: '_manifest.txt' })
 
       if (failed.length > 0) {
         const errorReport =
