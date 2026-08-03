@@ -294,6 +294,24 @@ export default function CustomerDetailPage() {
   const [emailsLoading, setEmailsLoading] = useState(false)
   // Detail modal for a clicked email row.
   const [emailDetail, setEmailDetail] = useState<EmailRow | null>(null)
+  // Tier 145: internal Berater-Notizen on the
+  // customer. Parallel to the invoice-internal-
+  // notes UI (Tier 138). NOT visible to the
+  // customer via the portal / PDF / email —
+  // GoBD § 146 Abs. 4 AO compliance.
+  const [internalNotes, setInternalNotes] = useState<
+    {
+      id: string
+      body: string
+      userEmail: string | null
+      userId: string | null
+      createdAt: string
+    }[]
+  >([])
+  const [newInternalNote, setNewInternalNote] = useState("")
+  const [addingInternalNote, setAddingInternalNote] = useState(false)
+  const [deletingInternalNoteId, setDeletingInternalNoteId] = useState<string | null>(null)
+  const [internalNoteError, setInternalNoteError] = useState<string | null>(null)
 
   useEffect(() => {
     const stored = typeof window !== "undefined" ? localStorage.getItem("companyId") : null
@@ -488,6 +506,55 @@ export default function CustomerDetailPage() {
         .finally(() => setEmailsLoading(false))
     }
   }, [tab, companyId, id, invoices, plans, mahnungen, creditLedger, invoicesLoading, plansLoading, mahnungenLoading, creditLoading, emails, emailsLoading])
+
+  // Tier 145: load internal notes on mount. The
+  // notes card is always visible (not behind a
+  // tab), so we always fetch on first render.
+  // Same pattern as the invoice-detail page.
+  useEffect(() => {
+    if (!companyId || !id) return
+    apiGet<any[]>(`/api/v1/customers/${id}/internal-notes?companyId=${companyId}`)
+      .then((notes) => setInternalNotes(Array.isArray(notes) ? notes : []))
+      .catch((err) => console.error("internal notes load failed:", err))
+  }, [companyId, id])
+
+  const addInternalNote = async () => {
+    const trimmed = newInternalNote.trim()
+    if (!trimmed || !companyId) return
+    setAddingInternalNote(true)
+    setInternalNoteError(null)
+    try {
+      const { apiPost, ApiError } = await import("@/lib/api")
+      const created = await apiPost<any>(
+        `/api/v1/customers/${id}/internal-notes?companyId=${companyId}`,
+        { body: trimmed },
+      )
+      setInternalNotes([created, ...internalNotes])
+      setNewInternalNote("")
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : "Fehler"
+      setInternalNoteError(msg)
+    } finally {
+      setAddingInternalNote(false)
+    }
+  }
+
+  const deleteInternalNote = async (noteId: string) => {
+    if (!companyId) return
+    setDeletingInternalNoteId(noteId)
+    try {
+      const { apiDelete, ApiError } = await import("@/lib/api")
+      await apiDelete(
+        `/api/v1/customers/${id}/internal-notes/${noteId}?companyId=${companyId}`,
+      )
+      setInternalNotes(internalNotes.filter((n) => n.id !== noteId))
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : "Fehler"
+      setInternalNoteError(msg)
+    } finally {
+      setDeletingInternalNoteId(null)
+    }
+  }
 
   if (!companyId) {
     return (
@@ -1590,6 +1657,108 @@ export default function CustomerDetailPage() {
           </div>
         </div>
       )}
+
+      {/* Tier 145: internal Berater-Notizen on the
+          customer. Parallel to the invoice-internal-
+          notes card (Tier 138). Same GoBD § 146 Abs. 4
+          AO compliance angle: internal communication
+          between Berater + admin that the customer
+          must NEVER see. Goes into a separate table
+          (NOT a field on Customer) so the visibility
+          boundary is enforced at the data layer.
+          The lock icon in the header makes the
+          distinction obvious. */}
+      <Card className="mt-8" data-testid="customer-internal-notes-card">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            🔒 {t("customerDetail.internalNotes") || "Interne Notizen"}
+            <span className="text-xs font-normal text-gray-500 dark:text-gray-400">
+              {t("customerDetail.internalNotesHint") ||
+                "(nur für Ihr Team — erscheint nicht im Kundenportal)"}
+            </span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div
+            className="space-y-2 mb-3"
+            data-testid="customer-internal-notes-list"
+          >
+            {internalNotes.length === 0 ? (
+              <p className="text-sm text-gray-400 italic">
+                {t("customerDetail.internalNotesEmpty") ||
+                  "Noch keine internen Notizen."}
+              </p>
+            ) : (
+              internalNotes.map((n) => (
+                <div
+                  key={n.id}
+                  className="flex items-start gap-2 border border-gray-200 dark:border-gray-700 rounded p-2 bg-amber-50/40 dark:bg-amber-900/10"
+                  data-testid={`customer-internal-note-${n.id}`}
+                >
+                  <div className="flex-1">
+                    <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                      <span className="font-medium text-gray-700 dark:text-gray-300">
+                        {n.userEmail || (n.userId ? n.userId.slice(0, 8) : "—")}
+                      </span>
+                      <span>·</span>
+                      <span>
+                        {new Date(n.createdAt).toLocaleString("de-DE", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                    </div>
+                    <p className="text-sm whitespace-pre-wrap mt-1">{n.body}</p>
+                  </div>
+                  <button
+                    onClick={() => deleteInternalNote(n.id)}
+                    disabled={deletingInternalNoteId === n.id}
+                    className="text-xs text-red-600 dark:text-red-400 hover:underline disabled:opacity-50 shrink-0"
+                    data-testid={`customer-internal-note-delete-${n.id}`}
+                    title={t("common.delete") || "Löschen"}
+                  >
+                    {deletingInternalNoteId === n.id ? "…" : "🗑"}
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+          <div className="flex gap-2">
+            <textarea
+              value={newInternalNote}
+              onChange={(e) => setNewInternalNote(e.target.value)}
+              placeholder={
+                t("customerDetail.internalNotesPlaceholder") ||
+                "z.B. 'Kunde hat am 12.07. angerufen, wartet auf 2. Mahnung'"
+              }
+              maxLength={2000}
+              className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-800 min-h-[60px]"
+              data-testid="customer-internal-note-input"
+            />
+            <Button
+              onClick={addInternalNote}
+              disabled={addingInternalNote || !newInternalNote.trim()}
+              data-testid="customer-internal-note-add"
+              variant="outline"
+            >
+              {addingInternalNote
+                ? "…"
+                : `+ ${t("customerDetail.internalNotesAdd") || "Notiz"}`}
+            </Button>
+          </div>
+          {internalNoteError && (
+            <p
+              className="text-xs text-red-600 mt-1"
+              data-testid="customer-internal-note-error"
+            >
+              {internalNoteError}
+            </p>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Tier 132: portal-link modal. Shows the
           generated URL + Copy button + the recipient

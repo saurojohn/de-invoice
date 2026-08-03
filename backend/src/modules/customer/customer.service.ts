@@ -478,6 +478,91 @@ export class CustomerService {
   }
 
   /**
+   * Tier 145: internal Berater-Notizen on a customer.
+   *
+   * Parallel to the invoice-internal-notes API
+   * (Tier 138). The same GoBD § 146 Abs. 4 AO
+   * compliance angle applies: internal
+   * communication between the Berater and the
+   * admin that the customer must NEVER see.
+   * Goes into a separate table (NOT a field on
+   * Customer) so the visibility boundary is
+   * enforced at the data layer — there is no
+   * way the customer-portal / PDF / email
+   * templates can accidentally render these.
+   *
+   * - listInternalNotes: 200 newest first
+   * - createInternalNote: 1..2000 char body, denormalised user email
+   * - deleteInternalNote: only the author or an admin
+   */
+  async listInternalNotes(companyId: string, customerId: string) {
+    // Verify the customer belongs to this company
+    // first — otherwise a guessed customerId from
+    // another tenant would leak its internal notes.
+    const cust = await this.findOne(customerId, companyId)
+    if (!cust) throw new NotFoundException('Customer not found')
+    return this.prisma.customerInternalNote.findMany({
+      where: { companyId, customerId },
+      orderBy: { createdAt: 'desc' },
+    })
+  }
+
+  async createInternalNote(
+    companyId: string,
+    customerId: string,
+    body: string,
+    user: { id?: string; email?: string | null },
+  ) {
+    const trimmed = (body || '').trim()
+    if (!trimmed) {
+      throw new BadRequestException('body is required')
+    }
+    if (trimmed.length > 2000) {
+      throw new BadRequestException('body too long (max 2000 chars)')
+    }
+    const cust = await this.findOne(customerId, companyId)
+    if (!cust) throw new NotFoundException('Customer not found')
+    return this.prisma.customerInternalNote.create({
+      data: {
+        companyId,
+        customerId,
+        userId: user.id,
+        userEmail: user.email ?? null,
+        body: trimmed,
+      },
+    })
+  }
+
+  async deleteInternalNote(
+    companyId: string,
+    customerId: string,
+    noteId: string,
+    actor: { id?: string; role?: string | null },
+  ) {
+    // Tenant isolation: confirm the customer
+    // belongs to this company first.
+    const cust = await this.findOne(customerId, companyId)
+    if (!cust) throw new NotFoundException('Customer not found')
+    const note = await this.prisma.customerInternalNote.findFirst({
+      where: { id: noteId, companyId, customerId },
+    })
+    if (!note) throw new NotFoundException('Note not found')
+    // Authorization: only the original author or
+    // an admin can delete. Otherwise any admin
+    // could wipe another admin's notes — bad
+    // audit trail.
+    const isAuthor = note.userId && actor.id && note.userId === actor.id
+    const isAdmin = (actor.role || '').toLowerCase() === 'admin'
+    if (!isAuthor && !isAdmin) {
+      throw new BadRequestException(
+        'Nur der Autor oder ein Admin kann diese Notiz löschen',
+      )
+    }
+    await this.prisma.customerInternalNote.delete({ where: { id: noteId } })
+    return { ok: true }
+  }
+
+  /**
    * Lookup by email (used for dedup detection during import).
    * Returns null when the email is missing or no match exists.
    */

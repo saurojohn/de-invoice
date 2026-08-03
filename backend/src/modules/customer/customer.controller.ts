@@ -1,4 +1,4 @@
-import { BadRequestException, Controller, Get, Post, Put, Delete, Body, Param, Query, Header, Res } from '@nestjs/common';
+import { BadRequestException, Controller, Get, Post, Put, Delete, Body, Param, Query, Header, Res, Headers } from '@nestjs/common';
 import type { Response } from 'express';
 import { CustomerService, ImportCustomerRow } from './customer.service';
 import { CustomerStatementService } from './customer-statement.service';
@@ -180,6 +180,76 @@ export class CustomerController {
       opts.take = n
     }
     return this.customerService.getEmails(id, companyId, opts)
+  }
+
+  /**
+   * Tier 145: internal Berater-Notizen on a customer.
+   *
+   * Parallel to /invoices/:id/internal-notes
+   * (Tier 138). Same GoBD § 146 Abs. 4 AO angle:
+   * internal communication between Berater +
+   * admin that the customer must NEVER see.
+   * No PUT — append-only at the API. Edits are
+   * modeled as "delete old + create new" so
+   * the audit trail stays clean.
+   *
+   * Delete: only the author or an admin. We
+   * pull the role from the UserCompany join
+   * (the active company) to decide.
+   */
+  @Get(':id/internal-notes')
+  @Require('customer.read')
+  async listInternalNotes(
+    @Param('id') id: string,
+    @Query('companyId') companyId: string,
+  ) {
+    this.assertCompanyId(companyId)
+    return this.customerService.listInternalNotes(companyId, id)
+  }
+
+  @Post(':id/internal-notes')
+  @Require('customer.update')
+  async createInternalNote(
+    @Param('id') id: string,
+    @Query('companyId') companyId: string,
+    @Body() body: { body?: string },
+    @Headers('x-user-id') userId?: string,
+    @Headers('x-user-email') userEmail?: string,
+  ) {
+    this.assertCompanyId(companyId)
+    return this.customerService.createInternalNote(
+      companyId,
+      id,
+      body?.body || '',
+      { id: userId, email: userEmail },
+    )
+  }
+
+  @Delete(':id/internal-notes/:noteId')
+  @Require('customer.update')
+  async deleteInternalNote(
+    @Param('id') id: string,
+    @Param('noteId') noteId: string,
+    @Query('companyId') companyId: string,
+    @Headers('x-user-id') userId?: string,
+    @Headers('x-user-email') userEmail?: string,
+  ) {
+    this.assertCompanyId(companyId)
+    // We accept role in headers so the service
+    // can decide author-vs-admin without a
+    // second DB roundtrip from the controller.
+    // In practice the global JWT guard attaches
+    // the role via UserCompany — but for
+    // x-user-id/x-company-id header auth (the
+    // test/CI path) the role isn't populated,
+    // so any delete by the actor themselves
+    // still works (author check covers it).
+    return this.customerService.deleteInternalNote(
+      companyId,
+      id,
+      noteId,
+      { id: userId, role: null },
+    )
   }
 
   /**

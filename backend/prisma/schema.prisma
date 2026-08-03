@@ -364,6 +364,12 @@ model Customer {
   // email). Expired sessions are deleted by the
   // nightly cleanup job.
   portalSessions CustomerPortalSession[]
+  // Tier 145: internal Berater-Notizen on the
+  // customer. NOT visible to the customer via
+  // the portal or any PDF / email — same
+  // visibility rules as InvoiceInternalNote
+  // (Tier 138). GoBD § 146 Abs. 4 AO.
+  internalNotes CustomerInternalNote[]
 
   @@index([companyId, name])
   @@index([companyId, vatId])
@@ -807,6 +813,33 @@ model InvoiceInternalNote {
   createdAt DateTime @default(now())
 
   @@index([companyId, invoiceId, createdAt])
+}
+
+/// Tier 145: Berater-Notizen on a customer.
+///
+/// Parallel to InvoiceInternalNote (Tier 138).
+/// Same GoBD § 146 Abs. 4 AO compliance angle:
+/// internal communication between Berater +
+/// admin that the customer must NEVER see.
+/// Goes into a separate table (NOT a field on
+/// Customer) so the visibility boundary is
+/// enforced at the data layer — there is no
+/// way the customer-portal / PDF / email
+/// templates can accidentally render these.
+///
+/// Cascade on Customer so a hard-deleted
+/// customer doesn't leave orphan notes.
+model CustomerInternalNote {
+  id        String   @id @default(uuid())
+  companyId String
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  userId    String?
+  userEmail String?  // denormalised so deleted users don't blank the display
+  body      String
+  createdAt DateTime @default(now())
+
+  @@index([companyId, customerId, createdAt])
 }
 
 model InvoiceItem {
