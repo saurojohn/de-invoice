@@ -687,6 +687,8 @@
     "countryPlaceholder": "例如：德国",
     "searchPlaceholder": "按名称、税号、客户编号、城市、邮编搜索...",
     "noMatching": "没有符合搜索条件的客户。",
+    "filterByTags": "标签筛选:",
+    "tagFilterClear": "全部清除",
     "nextCustomerNumber": "下一个客户编号",
     "noCustomersDesc": "添加您的第一个客户以开始创建发票。",
     "noMatchingDesc": "请尝试其他搜索词或调整筛选条件。",

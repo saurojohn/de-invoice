@@ -687,6 +687,8 @@
     "countryPlaceholder": "e.g. Germany",
     "searchPlaceholder": "Search by name, VAT ID, customer number, city, postal code...",
     "noMatching": "No customers match your search.",
+    "filterByTags": "Tag filter:",
+    "tagFilterClear": "Clear all",
     "nextCustomerNumber": "Next customer number",
     "noCustomersDesc": "Add your first customer to start creating invoices.",
     "noMatchingDesc": "Try a different search term or adjust the filters.",

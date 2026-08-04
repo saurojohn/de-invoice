@@ -687,6 +687,8 @@
     "countryPlaceholder": "z.B. Deutschland",
     "searchPlaceholder": "Name, USt-ID, Kundennummer, Stadt, PLZ suchen...",
     "noMatching": "Keine Kunden entsprechen der Suche.",
+    "filterByTags": "Tag-Filter:",
+    "tagFilterClear": "Alle entfernen",
     "nextCustomerNumber": "Nächste Kundennummer",
     "noCustomersDesc": "Fügen Sie Ihren ersten Kunden hinzu, um Rechnungen zu erstellen.",
     "noMatchingDesc": "Versuchen Sie einen anderen Suchbegriff oder passen Sie die Filter an.",

@@ -48,12 +48,31 @@ export class CustomerService {
    */
   async findAll(
     companyId: string,
-    opts: { page?: number; pageSize?: number; search?: string } = {},
+    opts: {
+      page?: number
+      pageSize?: number
+      search?: string
+      // Tier 148: tag filter. The user picks one
+      // or more tag chips at the top of the
+      // customers list page; we filter to customers
+      // that have ALL of those tags (AND semantics
+      // — picking "VIP" + "Late-payer" shows only
+      // customers that are both). Use hasSome
+      // (OR) if you want either-or; we picked
+      // hasEvery because the common workflow is
+      // "narrow down by combining tags".
+      tags?: string[]
+    } = {},
   ) {
     const page = Math.max(1, opts.page ?? 1)
     const pageSize = Math.min(200, Math.max(1, opts.pageSize ?? 50))
     const skip = (page - 1) * pageSize
     const where: any = { companyId }
+    if (opts.tags && opts.tags.length > 0) {
+      // Postgres array @> operator — every tag
+      // must be present in the customer's tags[].
+      where.tags = { hasEvery: opts.tags }
+    }
     if (opts.search && opts.search.trim()) {
       const q = opts.search.trim()
       // Smart customer-number lookup: if the user types a string that

@@ -36,6 +36,12 @@ interface Customer {
   // invoice for this customer, plus the total invoice count.
   lastInvoiceDate?: string | null
   invoiceCount?: number
+  // Tier 148: free-form tags array. The Berater
+  // uses this for categorisation — "VIP",
+  // "Late-payer", "Industry:Retail", etc.
+  // Filtered via `?tags=VIP,B2B` (AND semantics)
+  // on the backend.
+  tags?: string[]
 }
 
 export default function CustomersPage() {
@@ -54,6 +60,10 @@ export default function CustomersPage() {
   const [showModal, setShowModal] = useState(false)
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null)
   const [search, setSearch] = useState('')
+  // Tier 148: tag filter. Array of picked tags
+  // (AND semantics). Picked tags appear as
+  // removable chips above the table.
+  const [tagFilter, setTagFilter] = useState<string[]>([])
   const [page, setPage] = useState(1)
   // Tier 28: search snippets for highlighting.
   // Keyed by customer.id → snippet string with
@@ -121,6 +131,10 @@ export default function CustomersPage() {
       pageSize: String(pageSize),
     })
     if (search.trim()) params.append('search', search.trim())
+    // Tier 148: comma-separated tag filter.
+    // AND semantics — every picked tag must
+    // be present on the customer.
+    if (tagFilter.length > 0) params.append('tags', tagFilter.join(','))
     setLoading(true)
     apiGet<any>(`/api/v1/customers?${params}`)
       .then((data) => {
@@ -136,7 +150,7 @@ export default function CustomersPage() {
       })
       .finally(() => setLoading(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [router, page, search])
+  }, [router, page, search, tagFilter])
 
   // Debounce search input so we don't fire a request on every keystroke
   const [searchInput, setSearchInput] = useState('')
@@ -677,6 +691,96 @@ export default function CustomersPage() {
             placeholder={t("customer.searchPlaceholder") || "Name, USt-ID, Kundennummer, Stadt, PLZ suchen..."}
             className="w-full md:w-1/2 px-3 py-2 border border-gray dark:border-gray-700-300 dark:border-gray-600 rounded-md text-sm"
           />
+          {/* Tier 148: tag filter chips. We surface
+              the most common tags from the current
+              dataset so the user can see "VIP" or
+              "Late-payer" at a glance and pick one
+              with a single click. Picked tags appear
+              in the active-filter row below. */}
+          {(() => {
+            const allTags = new Map<string, number>()
+            for (const c of customers) {
+              for (const tag of c.tags || []) {
+                allTags.set(tag, (allTags.get(tag) || 0) + 1)
+              }
+            }
+            const sortedTags = Array.from(allTags.entries()).sort(
+              (a, b) => b[1] - a[1],
+            )
+            if (sortedTags.length === 0) return null
+            return (
+              <div
+                className="flex flex-wrap gap-1.5 mt-2"
+                data-testid="customer-tag-suggestions"
+              >
+                {sortedTags.map(([tag, count]) => {
+                  const active = tagFilter.includes(tag)
+                  return (
+                    <button
+                      key={tag}
+                      onClick={() => {
+                        if (active) {
+                          setTagFilter(tagFilter.filter((t) => t !== tag))
+                        } else {
+                          setTagFilter([...tagFilter, tag])
+                        }
+                        setPage(1)
+                      }}
+                      className={
+                        "text-xs px-2 py-1 rounded-full border " +
+                        (active
+                          ? "bg-blue-600 text-white border-blue-600"
+                          : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50")
+                      }
+                      data-testid={`customer-tag-chip-${tag}`}
+                    >
+                      {tag}{" "}
+                      <span
+                        className={
+                          active ? "text-blue-100" : "text-gray-400"
+                        }
+                      >
+                        ({count})
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            )
+          })()}
+          {tagFilter.length > 0 && (
+            <div
+              className="flex items-center gap-2 mt-2"
+              data-testid="customer-tag-filter"
+            >
+              <span className="text-xs text-gray-500">
+                {t("customer.filterByTags") || "Filter:"}
+              </span>
+              {tagFilter.map((tag) => (
+                <button
+                  key={tag}
+                  onClick={() => {
+                    setTagFilter(tagFilter.filter((t) => t !== tag))
+                    setPage(1)
+                  }}
+                  className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 hover:bg-blue-200"
+                  data-testid={`customer-tag-active-${tag}`}
+                >
+                  {tag} ✕
+                </button>
+              ))}
+              <button
+                onClick={() => {
+                  setTagFilter([])
+                  setPage(1)
+                }}
+                className="text-xs text-gray-500 hover:text-gray-700 underline"
+                data-testid="customer-tag-clear"
+              >
+                {t("customer.tagFilterClear") || "Alle entfernen"}
+              </button>
+            </div>
+          )}
           {search && (
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
               {customers.length} Treffer

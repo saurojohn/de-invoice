@@ -24,12 +24,20 @@ export class CustomerController {
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
     @Query('search') search?: string,
+    // Tier 148: comma-separated tag filter.
+    // `?tags=VIP,Late-payer` returns customers
+    // that have BOTH tags (AND semantics).
+    @Query('tags') tags?: string,
   ) {
     this.assertCompanyId(companyId)
+    const tagList = tags
+      ? tags.split(',').map((s) => s.trim()).filter(Boolean)
+      : undefined
     return this.customerService.findAll(companyId, {
       page: page ? Number(page) : undefined,
       pageSize: pageSize ? Number(pageSize) : undefined,
       search,
+      tags: tagList && tagList.length > 0 ? tagList : undefined,
     });
   }
 
