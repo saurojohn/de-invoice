@@ -153,4 +153,62 @@ export class RecurringController {
     if (!companyId) throw new BadRequestException('companyId is required');
     return this.svc.previewEmail(companyId, id);
   }
+
+  /**
+   * Tier 147: list every invoice this template
+   * has ever generated.
+   *
+   * The admin's primary question for a long-
+   * running template: "what did the Hosting
+   * Wartungsvertrag generate in 2025?" — without
+   * this endpoint they'd have to walk the full
+   * audit log + filter by action=invoice.created
+   * + grep for the template id. Now it's one
+   * GET away.
+   *
+   * Filters: date range, status, customerId.
+   * Sorted by issueDate DESC (newest first).
+   * Paginated, max 200.
+   */
+  @Get(':id/generated-invoices')
+  @Require('invoice.read')
+  async generatedInvoices(
+    @Query('companyId') companyId: string,
+    @Param('id') id: string,
+    @Query('from') fromStr?: string,
+    @Query('to') toStr?: string,
+    @Query('status') status?: string,
+    @Query('customerId') customerId?: string,
+    @Query('skip') skipStr?: string,
+    @Query('take') takeStr?: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId is required')
+    const opts: any = { templateId: id }
+    if (fromStr) {
+      const d = new Date(fromStr)
+      if (isNaN(d.getTime()))
+        throw new BadRequestException('Invalid from (ISO 8601)')
+      opts.from = d
+    }
+    if (toStr) {
+      const d = new Date(toStr)
+      if (isNaN(d.getTime()))
+        throw new BadRequestException('Invalid to (ISO 8601)')
+      opts.to = d
+    }
+    if (status) opts.status = status
+    if (customerId) opts.customerId = customerId
+    if (skipStr) {
+      const n = parseInt(skipStr, 10)
+      if (isNaN(n) || n < 0) throw new BadRequestException('Invalid skip')
+      opts.skip = n
+    }
+    if (takeStr) {
+      const n = parseInt(takeStr, 10)
+      if (isNaN(n) || n < 1 || n > 200)
+        throw new BadRequestException('Invalid take (1-200)')
+      opts.take = n
+    }
+    return this.svc.generatedInvoices(companyId, opts)
+  }
 }

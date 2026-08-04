@@ -63,6 +63,14 @@ const fmtMoney = (n: number) =>
 export default function RecurringInvoicesPage() {
   const router = useRouter()
   const { t, getDateLocale } = useI18n()
+  // Read companyId once at component mount so the
+  // Tier 147 generated-invoices button (and any
+  // other inline event handlers) can use it
+  // without re-reading localStorage.
+  const companyId =
+    typeof window !== "undefined"
+      ? localStorage.getItem("companyId") || ""
+      : ""
   const [templates, setTemplates] = useState<RecurringTemplate[]>([])
   const [customers, setCustomers] = useState<Customer[]>([])
   const [loading, setLoading] = useState(true)
@@ -92,6 +100,28 @@ export default function RecurringInvoicesPage() {
   const [expanded, setExpanded] = useState<string | null>(null)
   const [preview, setPreview] = useState<{ subject: string; body: string } | null>(null)
   const [saving, setSaving] = useState(false)
+  // Tier 147: generated-invoices modal. The
+  // admin clicks "📋 Verlauf" on a template row
+  // to see every invoice this template has
+  // ever generated. Same modal pattern as the
+  // email-preview modal (Tier 136).
+  const [generatedFor, setGeneratedFor] = useState<RecurringTemplate | null>(null)
+  const [generated, setGenerated] = useState<{
+    rows: Array<{
+      id: string
+      invoiceNumber: string
+      type: string
+      status: string
+      currency: string
+      total: number
+      issueDate: string
+      dueDate: string | null
+      customer: { id: string; name: string; customerNumber: string | null }
+    }>
+    total: number
+    summary: { totalAmount: number; byStatus: Record<string, { count: number; total: number }> }
+  } | null>(null)
+  const [generatedLoading, setGeneratedLoading] = useState(false)
   const [runError, setRunError] = useState<string | null>(null)
 
   // Form state
@@ -488,6 +518,25 @@ export default function RecurringInvoicesPage() {
                       </Button>
                       <Button size="sm" variant="outline" onClick={() => openEdit(tpl)} data-testid="recurring-edit">
                         {t("common.edit") || "Bearbeiten"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setGeneratedFor(tpl)
+                          setGenerated(null)
+                          setGeneratedLoading(true)
+                          apiGet<any>(
+                            `/api/v1/recurring-invoices/${tpl.id}/generated-invoices?companyId=${companyId}&take=200`,
+                          )
+                            .then((d) => setGenerated(d))
+                            .catch((err) => console.error("generated-invoices load failed:", err))
+                            .finally(() => setGeneratedLoading(false))
+                        }}
+                        data-testid="recurring-generated-invoices"
+                        title={t("recurring.generatedTitle") || "Generierte Rechnungen dieser Vorlage anzeigen"}
+                      >
+                        📋 {t("recurring.generatedBtn") || "Verlauf"}
                       </Button>
                       <Button size="sm" variant="ghost" onClick={() => deleteTpl(tpl)} data-testid="recurring-delete">
                         🗑
@@ -991,6 +1040,205 @@ export default function RecurringInvoicesPage() {
               <Button
                 onClick={closeEmailPreview}
                 data-testid="recurring-email-preview-close"
+              >
+                {t("common.close") || "Schließen"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tier 147: generated-invoices modal. Shows
+          every invoice this template has ever
+          generated, sorted newest-first. The
+          header summary tile (totalAmount +
+          byStatus breakdown) gives the admin a
+          quick "what's the lifetime of this
+          template?" view. Click a row to open
+          the invoice detail page in a new tab. */}
+      {generatedFor && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+          data-testid="recurring-generated-modal"
+          onClick={() => {
+            setGeneratedFor(null)
+            setGenerated(null)
+          }}
+        >
+          <div
+            className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-3xl w-full max-h-[85vh] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-6 py-4 border-b flex items-center justify-between">
+              <h3 className="font-semibold text-lg">
+                📋 {t("recurring.generatedTitle") || "Generierte Rechnungen"} ·{" "}
+                <span className="text-sm font-normal text-gray-500">
+                  {generatedFor.name}
+                </span>
+              </h3>
+              <button
+                className="text-gray-400 hover:text-gray-600 text-xl"
+                onClick={() => {
+                  setGeneratedFor(null)
+                  setGenerated(null)
+                }}
+                data-testid="recurring-generated-close"
+                aria-label="Schließen"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="px-6 py-4 overflow-y-auto flex-1 text-sm">
+              {generatedLoading && (
+                <p className="text-gray-500">
+                  {t("common.loading") || "Lädt..."}
+                </p>
+              )}
+              {generated && generated.summary && (
+                <div
+                  className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4"
+                  data-testid="recurring-generated-summary"
+                >
+                  <div className="bg-blue-50 dark:bg-blue-900/20 rounded px-3 py-2">
+                    <div className="text-xs text-gray-500">
+                      {t("recurring.generatedCount") || "Anzahl"}
+                    </div>
+                    <div className="text-lg font-semibold">{generated.total}</div>
+                  </div>
+                  <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded px-3 py-2">
+                    <div className="text-xs text-gray-500">
+                      {t("recurring.generatedTotal") || "Gesamt"}
+                    </div>
+                    <div className="text-lg font-semibold">
+                      {generated.summary.totalAmount.toLocaleString("de-DE", {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}{" "}
+                      €
+                    </div>
+                  </div>
+                  {Object.entries(generated.summary.byStatus).map(([status, agg]) => (
+                    <div
+                      key={status}
+                      className="bg-gray-50 dark:bg-gray-700/30 rounded px-3 py-2"
+                    >
+                      <div className="text-xs text-gray-500">{status}</div>
+                      <div className="text-sm font-semibold">
+                        {agg.count} ·{" "}
+                        {agg.total.toLocaleString("de-DE", {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}{" "}
+                        €
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {generated && generated.rows.length === 0 && (
+                <p
+                  className="text-center text-gray-500 py-8"
+                  data-testid="recurring-generated-empty"
+                >
+                  {t("recurring.generatedEmpty") ||
+                    "Diese Vorlage hat noch keine Rechnungen generiert."}
+                </p>
+              )}
+              {generated && generated.rows.length > 0 && (
+                <div className="overflow-x-auto">
+                  <table
+                    className="w-full min-w-[640px] text-xs"
+                    data-testid="recurring-generated-table"
+                  >
+                    <thead>
+                      <tr className="border-b border-gray-200 dark:border-gray-700">
+                        <th className="text-left py-1 px-1">
+                          {t("recurring.generatedColDate") || "Datum"}
+                        </th>
+                        <th className="text-left py-1 px-1">
+                          {t("recurring.generatedColInvoice") || "Rechnung"}
+                        </th>
+                        <th className="text-left py-1 px-1">
+                          {t("recurring.generatedColCustomer") || "Kunde"}
+                        </th>
+                        <th className="text-right py-1 px-1">
+                          {t("recurring.generatedColTotal") || "Betrag"}
+                        </th>
+                        <th className="text-left py-1 px-1">
+                          {t("recurring.generatedColStatus") || "Status"}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {generated.rows.map((r) => (
+                        <tr
+                          key={r.id}
+                          className="border-b border-gray-100 dark:border-gray-800"
+                          data-testid="recurring-generated-row"
+                        >
+                          <td className="py-1 px-1 whitespace-nowrap">
+                            {new Date(r.issueDate).toLocaleDateString("de-DE", {
+                              day: "2-digit",
+                              month: "2-digit",
+                              year: "numeric",
+                            })}
+                          </td>
+                          <td className="py-1 px-1">
+                            <a
+                              href={`/dashboard/invoices/${r.id}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-blue-600 hover:underline font-mono"
+                              data-testid="recurring-generated-invoice-link"
+                            >
+                              {r.invoiceNumber}
+                            </a>
+                          </td>
+                          <td className="py-1 px-1">
+                            <a
+                              href={`/dashboard/customers/${r.customer.id}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-blue-600 hover:underline"
+                            >
+                              {r.customer.name}
+                            </a>
+                          </td>
+                          <td className="text-right py-1 px-1 font-mono">
+                            {r.total.toLocaleString("de-DE", {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}{" "}
+                            €
+                          </td>
+                          <td className="py-1 px-1">
+                            <span
+                              className={
+                                "text-xs px-1.5 py-0.5 rounded-full " +
+                                (r.status === "paid"
+                                  ? "bg-green-100 text-green-800"
+                                  : r.status === "overdue"
+                                    ? "bg-red-100 text-red-800"
+                                    : "bg-gray-100 text-gray-700")
+                              }
+                            >
+                              {r.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+            <div className="px-6 py-4 border-t flex justify-end">
+              <Button
+                onClick={() => {
+                  setGeneratedFor(null)
+                  setGenerated(null)
+                }}
+                data-testid="recurring-generated-done"
               >
                 {t("common.close") || "Schließen"}
               </Button>

@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 // Tier 129: send the generated invoice to the customer
 // after a successful template run. The service throws
@@ -984,6 +984,119 @@ export class RecurringService {
         amount,
         dueDate: dueDateStr,
         language: emailLang,
+      },
+    }
+  }
+
+  /**
+   * Tier 147: list every invoice this template
+   * has ever generated.
+   *
+   * Confirms the template belongs to the
+   * tenant first (otherwise a guessed templateId
+   * from another tenant would leak their
+   * generated invoice numbers + customer names).
+   *
+   * Sorted by issueDate DESC so the latest
+   * generation is at the top — the admin
+   * usually wants to confirm "did last month's
+   * cron actually fire?" first.
+   *
+   * Optional filters: date range (on issueDate),
+   * status, customerId. Skip/take pagination
+   * caps at 200.
+   */
+  async generatedInvoices(
+    companyId: string,
+    opts: {
+      templateId: string
+      from?: Date
+      to?: Date
+      status?: string
+      customerId?: string
+      skip?: number
+      take?: number
+    },
+  ) {
+    // Tenant isolation
+    const template = await this.prisma.recurringInvoice.findFirst({
+      where: { id: opts.templateId, companyId },
+      select: { id: true, name: true },
+    })
+    if (!template) throw new NotFoundException('Recurring template not found')
+
+    const where: any = {
+      companyId,
+      recurringInvoiceId: opts.templateId,
+    }
+    if (opts.status) where.status = opts.status
+    if (opts.customerId) where.customerId = opts.customerId
+    if (opts.from || opts.to) {
+      where.issueDate = {}
+      if (opts.from) where.issueDate.gte = opts.from
+      if (opts.to) where.issueDate.lte = opts.to
+    }
+    const take = Math.min(opts.take ?? 50, 200)
+    const skip = Math.max(opts.skip ?? 0, 0)
+    const [rows, total, totals] = await Promise.all([
+      this.prisma.invoice.findMany({
+        where,
+        orderBy: { issueDate: 'desc' },
+        take,
+        skip,
+        select: {
+          id: true,
+          invoiceNumber: true,
+          type: true,
+          status: true,
+          currency: true,
+          total: true,
+          issueDate: true,
+          dueDate: true,
+          customer: { select: { id: true, name: true, customerNumber: true } },
+        },
+      }),
+      this.prisma.invoice.count({ where }),
+      // Aggregate stats: total amount + paid vs
+      // open count, for the header summary card.
+      this.prisma.invoice.groupBy({
+        by: ['status'],
+        where,
+        _sum: { total: true },
+        _count: true,
+      }),
+    ])
+
+    // Aggregate the status breakdown into a flat
+    // shape the frontend can render directly.
+    const byStatus: Record<string, { count: number; total: number }> = {}
+    let totalAmount = 0
+    for (const g of totals) {
+      byStatus[g.status] = {
+        count: g._count,
+        total: Number(g._sum.total ?? 0),
+      }
+      totalAmount += Number(g._sum.total ?? 0)
+    }
+    return {
+      template: { id: template.id, name: template.name },
+      rows: rows.map((r) => ({
+        id: r.id,
+        invoiceNumber: r.invoiceNumber,
+        type: r.type,
+        status: r.status,
+        currency: r.currency,
+        total: Number(r.total),
+        issueDate: r.issueDate,
+        dueDate: r.dueDate,
+        customer: r.customer,
+      })),
+      total,
+      take,
+      skip,
+      summary: {
+        totalAmount,
+        byStatus,
       },
     }
   }
