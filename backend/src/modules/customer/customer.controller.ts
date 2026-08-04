@@ -1,4 +1,4 @@
-import { BadRequestException, Controller, Get, Post, Put, Delete, Body, Param, Query, Header, Res, Headers } from '@nestjs/common';
+import { BadRequestException, Controller, Get, Post, Put, Delete, Body, Param, Query, Header, Res, Headers, HttpCode } from '@nestjs/common';
 import type { Response } from 'express';
 import { CustomerService, ImportCustomerRow } from './customer.service';
 import { CustomerStatementService } from './customer-statement.service';
@@ -488,6 +488,77 @@ export class CustomerController {
     )
   }
 
+  /**
+   * Tier 149: customer merge.
+   *
+   * Two-step flow, same pattern as Tier 146
+   * payment allocation:
+   *   1. POST /merge/preview
+   *      → dry-run, returns the counts of every
+   *        relation that would be moved + the
+   *        merged tag set
+   *   2. POST /merge
+   *      → actually does the merge in a single
+   *        Prisma $transaction
+   *
+   * Why a separate preview: a single merge can
+   * touch hundreds of rows. The admin should
+   * see "this will move 47 invoices, 3 recurring
+   * templates, 12 SEPA mandates" before
+   * committing.
+   *
+   * Source ID is passed in the body, not the
+   * URL — this is a write operation against
+   * TWO resources at once (source + target),
+   * neither of which is a natural URL anchor.
+   *
+   * DECLARED BEFORE `:id` per the NestJS
+   * route-order gotcha — first match wins, so
+   * `:id` would otherwise swallow "merge".
+   */
+  @Post('merge/preview')
+  @HttpCode(200) // preview is a dry-run, not a
+                  // resource creation — return 200,
+                  // not the @Post() default of 201
+  @Require('customer.update')
+  async previewMerge(
+    @Query('companyId') companyId: string,
+    @Body() body: { sourceId?: string; targetId?: string },
+  ) {
+    this.assertCompanyId(companyId)
+    if (!body?.sourceId || !body?.targetId) {
+      throw new BadRequestException('sourceId and targetId are required')
+    }
+    return this.customerService.previewMerge(
+      companyId,
+      body.sourceId,
+      body.targetId,
+    )
+  }
+
+  @Post('merge')
+  @HttpCode(200) // the merge performs multiple
+                  // updates but doesn't create a
+                  // new resource — the new state
+                  // is "source is gone, target
+                  // absorbed it" which is more
+                  // 200 OK than 201 Created
+  @Require('customer.update')
+  async merge(
+    @Query('companyId') companyId: string,
+    @Body() body: { sourceId?: string; targetId?: string },
+  ) {
+    this.assertCompanyId(companyId)
+    if (!body?.sourceId || !body?.targetId) {
+      throw new BadRequestException('sourceId and targetId are required')
+    }
+    return this.customerService.mergeCustomers(
+      companyId,
+      body.sourceId,
+      body.targetId,
+    )
+  }
+
   @Get(':id')
   @Require('customer.read')
   async findOne(@Param('id') id: string, @Query('companyId') companyId: string) {
@@ -670,6 +741,34 @@ export class CustomerController {
       `Invalid order='${order}' (expected 'asc' or 'desc')`,
     )
   }
+
+  /**
+   * Tier 149: customer merge.
+   *
+   * Two-step flow, same pattern as Tier 146
+   * payment allocation:
+   *   1. POST /merge/preview
+   *      → dry-run, returns the counts of every
+   *        relation that would be moved + the
+   *        merged tag set
+   *   2. POST /merge
+   *      → actually does the merge in a single
+   *        Prisma $transaction
+   *
+   * Why a separate preview: a single merge can
+   * touch hundreds of rows. The admin should
+   * see "this will move 47 invoices, 3 recurring
+   * templates, 12 SEPA mandates" before
+   * committing.
+   *
+   * Source ID is passed in the body, not the
+   * URL — this is a write operation against
+   * TWO resources at once (source + target),
+   * neither of which is a natural URL anchor.
+   */
+  // (merge routes declared BEFORE :id, see
+  // the earlier block — NestJS first-match-wins
+  // means :id would otherwise swallow "merge".)
 
   @Delete(':id')
   @Require('customer.delete')

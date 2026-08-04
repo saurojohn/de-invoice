@@ -328,6 +328,32 @@ export default function CustomerDetailPage() {
     unallocatedAmount: number
   } | null>(null)
   const [allocateError, setAllocateError] = useState<string | null>(null)
+  // Tier 149: customer merge. The "Zusammenführen"
+  // button opens this modal. The admin searches
+  // for the duplicate customer, clicks it, sees
+  // a preview of how many rows will move, then
+  // confirms. After the merge, we route to the
+  // target customer's detail page (the source
+  // is gone, so /customers/<sourceId> 404s).
+  const [mergeOpen, setMergeOpen] = useState(false)
+  const [mergeSearch, setMergeSearch] = useState("")
+  const [mergeSearchResults, setMergeSearchResults] = useState<
+    Array<{ id: string; name: string; customerNumber: string | null }>
+  >([])
+  const [mergeSearching, setMergeSearching] = useState(false)
+  const [mergeSourceId, setMergeSourceId] = useState<string | null>(null)
+  const [mergePreview, setMergePreview] = useState<{
+    source: { id: string; name: string; customerNumber: string | null }
+    target: { id: string; name: string; customerNumber: string | null }
+    counts: Record<string, number>
+    mergedTags: string[]
+  } | null>(null)
+  const [mergeSubmitting, setMergeSubmitting] = useState(false)
+  const [mergeError, setMergeError] = useState<string | null>(null)
+  const [mergeDone, setMergeDone] = useState<{
+    moved: Record<string, number>
+    mergedTags: string[]
+  } | null>(null)
   // Tier 145: internal Berater-Notizen on the
   // customer. Parallel to the invoice-internal-
   // notes UI (Tier 138). NOT visible to the
@@ -552,6 +578,31 @@ export default function CustomerDetailPage() {
       .catch((err) => console.error("internal notes load failed:", err))
   }, [companyId, id])
 
+  // Tier 149: search for the merge-target
+  // customer. 300ms debounce so we don't
+  // refetch on every keystroke.
+  useEffect(() => {
+    if (!mergeOpen || !mergeSearch.trim() || !companyId) {
+      setMergeSearchResults([])
+      return
+    }
+    const t = setTimeout(() => {
+      setMergeSearching(true)
+      apiGet<{ data: Array<{ id: string; name: string; customerNumber: string | null }> }>(
+        `/api/v1/customers?companyId=${companyId}&search=${encodeURIComponent(mergeSearch.trim())}&pageSize=10`,
+      )
+        .then((d) => {
+          // Filter out the current customer —
+          // can't merge into self.
+          const filtered = (d.data || []).filter((c) => c.id !== id)
+          setMergeSearchResults(filtered)
+        })
+        .catch((err) => console.error("merge search failed:", err))
+        .finally(() => setMergeSearching(false))
+    }, 300)
+    return () => clearTimeout(t)
+  }, [mergeSearch, mergeOpen, companyId, id])
+
   const addInternalNote = async () => {
     const trimmed = newInternalNote.trim()
     if (!trimmed || !companyId) return
@@ -768,6 +819,14 @@ export default function CustomerDetailPage() {
             className="border-emerald-300 text-emerald-700 hover:bg-emerald-50"
           >
             💰 {t("customerDetail.allocatePayment") || "Zahlung zuordnen"}
+          </Button>
+          <Button
+            onClick={() => setMergeOpen(true)}
+            data-testid="customer-detail-merge"
+            variant="outline"
+            className="border-amber-300 text-amber-700 hover:bg-amber-50"
+          >
+            🔀 {t("customerDetail.mergeBtn") || "Zusammenführen"}
           </Button>
         </div>
       </header>
@@ -1982,6 +2041,256 @@ export default function CustomerDetailPage() {
                     setInvoices(null)
                   }}
                   data-testid="allocate-done"
+                >
+                  {t("common.close") || "Schließen"}
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Tier 149: customer merge modal.
+          Two-step flow: search for the duplicate
+          (source), see the preview counts, then
+          confirm. After success we route to the
+          target customer's page — the source is
+          gone, so reloading the source URL would
+          404. */}
+      {mergeOpen && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+          data-testid="merge-modal"
+          onClick={() => {
+            if (mergeSubmitting) return
+            setMergeOpen(false)
+            setMergeSearch("")
+            setMergeSearchResults([])
+            setMergeSourceId(null)
+            setMergePreview(null)
+            setMergeError(null)
+            setMergeDone(null)
+          }}
+        >
+          <div
+            className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[85vh] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-6 py-4 border-b flex items-center justify-between">
+              <h3 className="font-semibold text-lg">
+                🔀 {t("customerDetail.mergeTitle") || "Kunden zusammenführen"}
+              </h3>
+              <button
+                className="text-gray-400 hover:text-gray-600 text-xl"
+                onClick={() => {
+                  if (mergeSubmitting) return
+                  setMergeOpen(false)
+                  setMergeSearch("")
+                  setMergeSearchResults([])
+                  setMergeSourceId(null)
+                  setMergePreview(null)
+                  setMergeError(null)
+                  setMergeDone(null)
+                }}
+                data-testid="merge-close"
+                aria-label="Schließen"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="px-6 py-4 overflow-y-auto flex-1 space-y-3 text-sm">
+              {!mergeDone && (
+                <>
+                  <p className="text-xs text-gray-500">
+                    {t("customerDetail.mergeIntro") ||
+                      "Wähle den Duplikat-Kunden aus. Alle Rechnungen, Recurring-Vorlagen, Mahnungen, SEPA-Mandate usw. werden auf diesen Kunden übertragen. Der Duplikat-Kunde wird gelöscht."}
+                  </p>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">
+                      {t("customerDetail.mergeSourceLabel") || "Duplikat (Quelle)"}
+                    </label>
+                    <input
+                      type="text"
+                      value={mergeSearch}
+                      onChange={(e) => setMergeSearch(e.target.value)}
+                      placeholder={
+                        t("customerDetail.mergeSourcePlaceholder") ||
+                        "Kunden suchen..."
+                      }
+                      data-testid="merge-search-input"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded text-sm"
+                    />
+                    {mergeSearching && (
+                      <p className="text-xs text-gray-500 mt-1">Suche läuft…</p>
+                    )}
+                    {mergeSearchResults.length > 0 && (
+                      <div
+                        className="border border-gray-200 dark:border-gray-700 rounded mt-1 max-h-40 overflow-y-auto"
+                        data-testid="merge-search-results"
+                      >
+                        {mergeSearchResults.map((c) => (
+                          <button
+                            key={c.id}
+                            onClick={async () => {
+                              setMergeSourceId(c.id)
+                              setMergePreview(null)
+                              setMergeError(null)
+                              try {
+                                const { apiPost, ApiError } = await import(
+                                  "@/lib/api"
+                                )
+                                const data = await apiPost<any>(
+                                  `/api/v1/customers/merge/preview?companyId=${companyId}`,
+                                  { sourceId: c.id, targetId: id },
+                                )
+                                setMergePreview(data)
+                              } catch (err) {
+                                const msg =
+                                  err instanceof ApiError ? err.message : "Fehler"
+                                setMergeError(msg)
+                              }
+                            }}
+                            className={
+                              "block w-full text-left px-3 py-2 text-sm hover:bg-blue-50 dark:hover:bg-blue-900/30 " +
+                              (mergeSourceId === c.id
+                                ? "bg-blue-100 dark:bg-blue-900/40"
+                                : "")
+                            }
+                            data-testid={`merge-source-${c.id}`}
+                          >
+                            <div className="font-medium">{c.name}</div>
+                            {c.customerNumber && (
+                              <div className="text-xs text-gray-500">
+                                {c.customerNumber}
+                              </div>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {mergePreview && (
+                    <div
+                      className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 rounded text-xs"
+                      data-testid="merge-preview"
+                    >
+                      <p className="font-semibold text-amber-900 dark:text-amber-200 mb-2">
+                        {t("customerDetail.mergePreviewTitle") ||
+                          "Vorschau — diese Daten werden verschoben:"}
+                      </p>
+                      <ul className="space-y-0.5 text-amber-900 dark:text-amber-200">
+                        {Object.entries(mergePreview.counts).map(([key, count]) =>
+                          Number(count) > 0 ? (
+                            <li key={key} className="flex justify-between">
+                              <span>{key}</span>
+                              <span className="font-mono font-semibold">
+                                {String(count)}
+                              </span>
+                            </li>
+                          ) : null,
+                        )}
+                      </ul>
+                      {mergePreview.mergedTags.length > 0 && (
+                        <p className="mt-2">
+                          {t("customerDetail.mergePreviewTags") ||
+                            "Zusammengeführte Tags:"}{" "}
+                          <span className="font-mono">
+                            {mergePreview.mergedTags.join(", ")}
+                          </span>
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {mergeError && (
+                    <p
+                      className="text-xs text-red-600"
+                      data-testid="merge-error"
+                    >
+                      {mergeError}
+                    </p>
+                  )}
+                </>
+              )}
+
+              {mergeDone && (
+                <div
+                  className="p-3 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 rounded text-sm"
+                  data-testid="merge-done"
+                >
+                  <p className="font-medium text-emerald-800 dark:text-emerald-200">
+                    ✓ {t("customerDetail.mergeSuccess") || "Zusammenführung erfolgreich."}
+                  </p>
+                  <p className="text-xs mt-1 text-emerald-700 dark:text-emerald-300">
+                    {Object.entries(mergeDone.moved)
+                      .filter(([, count]) => Number(count) > 0)
+                      .map(([key, count]) => `${key}: ${String(count)}`)
+                      .join(" · ") || "(keine Daten verschoben)"}
+                  </p>
+                </div>
+              )}
+            </div>
+            {!mergeDone && (
+              <div className="px-6 py-4 border-t flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setMergeOpen(false)
+                    setMergeSearch("")
+                    setMergeSearchResults([])
+                    setMergeSourceId(null)
+                    setMergePreview(null)
+                    setMergeError(null)
+                  }}
+                  data-testid="merge-cancel"
+                  disabled={mergeSubmitting}
+                >
+                  {t("common.cancel") || "Abbrechen"}
+                </Button>
+                <Button
+                  onClick={async () => {
+                    if (!mergeSourceId) return
+                    setMergeSubmitting(true)
+                    setMergeError(null)
+                    try {
+                      const { apiPost, ApiError } = await import("@/lib/api")
+                      const data = await apiPost<any>(
+                        `/api/v1/customers/merge?companyId=${companyId}`,
+                        { sourceId: mergeSourceId, targetId: id },
+                      )
+                      setMergeDone({
+                        moved: data.moved,
+                        mergedTags: data.mergedTags,
+                      })
+                    } catch (err) {
+                      const msg = err instanceof ApiError ? err.message : "Fehler"
+                      setMergeError(msg)
+                    } finally {
+                      setMergeSubmitting(false)
+                    }
+                  }}
+                  disabled={!mergeSourceId || mergeSubmitting}
+                  data-testid="merge-confirm"
+                  className="bg-amber-600 hover:bg-amber-700 text-white"
+                >
+                  {mergeSubmitting
+                    ? "…"
+                    : `🔀 ${t("customerDetail.mergeConfirm") || "Zusammenführen"}`}
+                </Button>
+              </div>
+            )}
+            {mergeDone && (
+              <div className="px-6 py-4 border-t flex justify-end">
+                <Button
+                  onClick={() => {
+                    // Route to the target customer's
+                    // page — the source is gone, so
+                    // the current URL would 404 on
+                    // reload.
+                    router.push(`/dashboard/customers/${id}`)
+                  }}
+                  data-testid="merge-redirect"
                 >
                   {t("common.close") || "Schließen"}
                 </Button>

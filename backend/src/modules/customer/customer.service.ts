@@ -1053,6 +1053,292 @@ export class CustomerService {
   }
 
   /**
+   * Tier 149: customer merge preview.
+   *
+   * Returns the count of rows that would be
+   * moved from `sourceId` to `targetId` for
+   * every relation that has a customerId FK.
+   * NO writes — the admin sees the numbers
+   * first, then confirms.
+   *
+   * Tenant isolation: both customers must
+   * belong to the same company. A merge across
+   * tenants is impossible.
+   */
+  async previewMerge(
+    companyId: string,
+    sourceId: string,
+    targetId: string,
+  ): Promise<{
+    source: { id: string; name: string; customerNumber: string | null }
+    target: { id: string; name: string; customerNumber: string | null }
+    counts: Record<string, number>
+    mergedTags: string[]
+  }> {
+    if (sourceId === targetId) {
+      throw new BadRequestException(
+        'sourceId und targetId müssen verschieden sein',
+      )
+    }
+    const [source, target] = await Promise.all([
+      this.findOne(sourceId, companyId),
+      this.findOne(targetId, companyId),
+    ])
+
+    // The exact list mirrors what merge()
+    // touches — every relation with a direct
+    // customerId FK. (RecurringRun is reached
+    // transitively via RecurringInvoice; when
+    // the merge re-points RecurringInvoice rows,
+    // the RecurringRun rows automatically follow
+    // because they reference recurringInvoiceId
+    // not customerId.)
+    const [
+      invoices,
+      recurringInvoices,
+      mahnungspausen,
+      sepaMandates,
+      installmentPlans,
+      customerCreditTx,
+      customerInternalNotes,
+      customerPortalSessions,
+    ] = await Promise.all([
+      this.prisma.invoice.count({
+        where: { companyId, customerId: sourceId },
+      }),
+      this.prisma.recurringInvoice.count({
+        where: { companyId, customerId: sourceId },
+      }),
+      this.prisma.mahnungspause.count({
+        where: { companyId, customerId: sourceId },
+      }),
+      this.prisma.sepaDirectDebitMandate.count({
+        where: { companyId, customerId: sourceId },
+      }),
+      this.prisma.installmentPlan.count({
+        where: { companyId, customerId: sourceId },
+      }),
+      this.prisma.customerCreditTransaction.count({
+        where: { companyId, customerId: sourceId },
+      }),
+      this.prisma.customerInternalNote.count({
+        where: { companyId, customerId: sourceId },
+      }),
+      this.prisma.customerPortalSession.count({
+        where: { companyId, customerId: sourceId },
+      }),
+    ])
+
+    // Tags: union of both customers' tag arrays,
+    // deduped. We don't pick "source wins" or
+    // "target wins" — every tag the source has
+    // is preserved on the target.
+    const mergedTags = Array.from(
+      new Set<string>([...(target.tags || []), ...(source.tags || [])]),
+    ).sort()
+
+    return {
+      source: {
+        id: source.id,
+        name: source.name,
+        customerNumber: source.customerNumber,
+      },
+      target: {
+        id: target.id,
+        name: target.name,
+        customerNumber: target.customerNumber,
+      },
+      counts: {
+        invoices,
+        recurringInvoices,
+        mahnungspausen,
+        sepaMandates,
+        installmentPlans,
+        customerCreditTx,
+        customerInternalNotes,
+        customerPortalSessions,
+      },
+      mergedTags,
+    }
+  }
+
+  /**
+   * Tier 149: customer merge (write).
+   *
+   * The admin has seen the preview, confirmed,
+   * and now we actually move every relation
+   * from sourceId to targetId in a single
+   * Prisma $transaction. The transaction is
+   * critical — a crash mid-loop would leave
+   * half-migrated rows that are much worse
+   * than no migration at all (e.g. some
+   * invoices point to target, some to source,
+   * none are queryable as "all for customer X").
+   *
+   * What happens to the source:
+   *   1. Every customerId FK → re-pointed
+   *   2. Tags are merged (union)
+   *   3. The source row is deleted
+   *
+   * What does NOT happen:
+   *   - The source's customerNumber is NOT
+   *     moved to the target. customer numbers
+   *     are stable identifiers; we'd break
+   *     any external integration that
+   *     references the old number. If the
+   *     admin wants to renumber, that's a
+   *     separate workflow.
+   *   - The target's address/contact/vatId is
+   *     NOT overwritten with the source's
+   *     values. The merge is "keep the target
+   *     as-is, just consolidate relations".
+   *     Manual cleanup of the address/contact
+   *     is left to the admin afterwards.
+   *
+   * Returns the same shape as previewMerge +
+   * a `merged` flag = true.
+   */
+  async mergeCustomers(
+    companyId: string,
+    sourceId: string,
+    targetId: string,
+  ) {
+    if (sourceId === targetId) {
+      throw new BadRequestException(
+        'sourceId und targetId müssen verschieden sein',
+      )
+    }
+    // Tenant isolation. We re-validate BOTH
+    // customers belong to this company inside
+    // the transaction so a concurrent delete
+    // can't sneak in between the check and the
+    // write.
+    const [source, target] = await Promise.all([
+      this.findOne(sourceId, companyId),
+      this.findOne(targetId, companyId),
+    ])
+
+    // Pre-compute the merged tag set so the
+    // transaction is a single read-write block.
+    const mergedTags = Array.from(
+      new Set<string>([...(target.tags || []), ...(source.tags || [])]),
+    ).sort()
+
+    const moved = await this.prisma.$transaction(async (tx) => {
+      // Re-verify ownership INSIDE the transaction
+      // (defense in depth — a parallel request
+      // could delete the source/target between
+      // the outer findOne and the actual write).
+      const stillOwns = await tx.customer.findMany({
+        where: { id: { in: [sourceId, targetId] }, companyId },
+        select: { id: true },
+      })
+      if (stillOwns.length !== 2) {
+        throw new NotFoundException(
+          'source oder target existiert nicht mehr (gelöscht während des Merge)',
+        )
+      }
+      // 1) Re-point every customerId FK. We use
+      // updateMany (not raw SQL) so the tenant
+      // scope is automatic and the result is
+      // type-safe.
+      const invoiceUpdate = await tx.invoice.updateMany({
+        where: { companyId, customerId: sourceId },
+        data: { customerId: targetId },
+      })
+      const recurringUpdate = await tx.recurringInvoice.updateMany({
+        where: { companyId, customerId: sourceId },
+        data: { customerId: targetId },
+      })
+      // (RecurringRun doesn't have a direct
+      // customerId — it's reached transitively
+      // via the recurringInvoiceId → RecurringInvoice
+      // relation. The RecurringInvoice re-point
+      // above automatically takes the RecurringRun
+      // rows with it.)
+      const mahnungspauseUpdate = await tx.mahnungspause.updateMany({
+        where: { companyId, customerId: sourceId },
+        data: { customerId: targetId },
+      })
+      const sepaUpdate = await tx.sepaDirectDebitMandate.updateMany({
+        where: { companyId, customerId: sourceId },
+        data: { customerId: targetId },
+      })
+      const installmentUpdate = await tx.installmentPlan.updateMany({
+        where: { companyId, customerId: sourceId },
+        data: { customerId: targetId },
+      })
+      const creditUpdate = await tx.customerCreditTransaction.updateMany({
+        where: { companyId, customerId: sourceId },
+        data: { customerId: targetId },
+      })
+      const internalNoteUpdate = await tx.customerInternalNote.updateMany({
+        where: { companyId, customerId: sourceId },
+        data: { customerId: targetId },
+      })
+      const portalSessionUpdate = await tx.customerPortalSession.updateMany({
+        where: { companyId, customerId: sourceId },
+        data: { customerId: targetId },
+      })
+      // 2) Merge tags on the target.
+      await tx.customer.update({
+        where: { id: targetId },
+        data: { tags: mergedTags },
+      })
+      // 3) Delete the source. By now every
+      // customerId FK that pointed to it has
+      // been re-pointed, so the delete can't
+      // fail on FK constraint.
+      await tx.customer.delete({ where: { id: sourceId } })
+
+      return {
+        invoices: invoiceUpdate.count,
+        recurringInvoices: recurringUpdate.count,
+        mahnungspausen: mahnungspauseUpdate.count,
+        sepaMandates: sepaUpdate.count,
+        installmentPlans: installmentUpdate.count,
+        customerCreditTx: creditUpdate.count,
+        customerInternalNotes: internalNoteUpdate.count,
+        customerPortalSessions: portalSessionUpdate.count,
+      }
+    })
+
+    // Webhook + audit log fire OUTSIDE the
+    // transaction (these are external side
+    // effects, they shouldn't roll back the
+    // merge if they fail).
+    this.webhooks
+      .emit({
+        id: `cust_${sourceId}_merged_${Date.now()}`,
+        type: 'customer.merged',
+        occurredAt: new Date().toISOString(),
+        companyId,
+        data: {
+          sourceId,
+          targetId,
+          moved,
+        },
+      })
+      .catch((err) => console.error('webhook emit(customer.merged) failed:', err))
+
+    return {
+      source: {
+        id: source.id,
+        name: source.name,
+        customerNumber: source.customerNumber,
+      },
+      target: {
+        id: target.id,
+        name: target.name,
+        customerNumber: target.customerNumber,
+      },
+      moved,
+      mergedTags,
+      merged: true,
+    }
+  }
+
+  /**
    * Delete a customer. Refuses if the customer has any invoices —
    * we don't want to leave dangling FK references in the audit log
    * and we should let the user archive the customer instead.
