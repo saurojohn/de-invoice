@@ -111,6 +111,20 @@ export default function MahnungSettingsPage() {
             >
               ← {t("mahnung.title")}
             </Button>
+            {/* Tier 151: jump to the e-mail
+                template editor. The settings page
+                is for fees (mahngebuehr +
+                verzugszins) — the templates page
+                is for the e-mail subject + body
+                of each Mahnung level. */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => router.push("/dashboard/mahnungen/templates")}
+              data-testid="mahnung-settings-templates-link"
+            >
+              ✉ {t("mahnung.templatesLink")}
+            </Button>
           </div>
           <div className="flex items-center gap-2">
             <LanguageSwitcher />
