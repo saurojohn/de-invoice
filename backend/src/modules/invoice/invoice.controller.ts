@@ -840,6 +840,71 @@ export class InvoiceController {
     }
   }
 
+  /**
+   * Tier 150: duplicate detection.
+   *
+   * When the admin is creating a new invoice,
+   * we look for similar invoices in the
+   * recent past (same customer + same total +
+   * nearby issueDate). If we find any, we
+   * surface them so the admin can confirm
+   * "no, this is a new one" before clicking
+   * Submit.
+   *
+   * Matching rules:
+   *   - Same companyId (tenant isolation)
+   *   - Same customerId
+   *   - Amount within 0.01 EUR (handles float
+   *     rounding)
+   *   - issueDate within ±7 days of the input
+   *   - status NOT 'cancelled' (cancelled
+   *     invoices are noise — they were
+   *     cancelled for a reason)
+   *   - type IN ('INV','PI') — credit notes
+   *     and receipts are different documents
+   *
+   * DECLARED BEFORE `:id` per the NestJS
+   * route-order gotcha (first match wins;
+   * `:id` would otherwise swallow
+   * "duplicate-check").
+   */
+  @Get('duplicate-check')
+  @Require('invoice.read')
+  async duplicateCheck(
+    @Query('companyId') companyId: string,
+    @Query('customerId') customerId: string,
+    @Query('amount') amountStr: string,
+    @Query('issueDate') issueDateStr: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    if (!customerId) {
+      throw new BadRequestException('customerId is required')
+    }
+    const amount = parseFloat(amountStr)
+    if (!amount || isNaN(amount) || amount <= 0) {
+      throw new BadRequestException('amount must be a positive number')
+    }
+    if (!issueDateStr) {
+      throw new BadRequestException('issueDate is required (ISO 8601)')
+    }
+    const issueDate = new Date(issueDateStr)
+    if (isNaN(issueDate.getTime())) {
+      throw new BadRequestException('issueDate is invalid')
+    }
+    // ±7 day window
+    const from = new Date(issueDate)
+    from.setDate(from.getDate() - 7)
+    const to = new Date(issueDate)
+    to.setDate(to.getDate() + 7)
+    return this.invoiceService.findDuplicates(
+      companyId,
+      customerId,
+      amount,
+      from,
+      to,
+    )
+  }
+
   @Get(':id')
   @Require('invoice.read')
   async findOne(@Param('id') id: string, @Query('companyId') companyId: string) {
@@ -1232,6 +1297,11 @@ export class InvoiceController {
   // ─── Payments ──────────────────────────────────────────────────────
   // List all payments recorded against an invoice.
   @Get(':id/payments')
+
+  // ─── Payments ──────────────────────────────────────────────────────
+  // List all payments recorded against an invoice.
+  // (The duplicate-check route was moved above to
+  //  escape the `:id` greedy match.)
   @Require('invoice.read')
   async listPayments(
     @Param('id') id: string,

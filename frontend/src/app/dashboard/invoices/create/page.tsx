@@ -231,6 +231,24 @@ function CreateInvoicePageInner() {
   // opening an old invoice in edit mode). Set here so we don't
   // crash when the user lands on /create?id=<old> directly.
   const [loadError, setLoadError] = useState<string | null>(null)
+  // Tier 150: possible-duplicate warning. While the user
+  // is filling the form, we ask the backend "is there
+  // already an invoice like this one?" and surface the
+  // matches in a banner above the form. The user can
+  // still submit — this is a warning, not a block.
+  //
+  // We only run on NEW invoices (isEdit === false). In
+  // edit mode every invoice trivially matches itself, so
+  // the banner would always be red and just be noise.
+  const [duplicates, setDuplicates] = useState<Array<{
+    id: string
+    invoiceNumber: string
+    type: string
+    status: string
+    total: number
+    currency: string
+    issueDate: string
+  }>>([])
 
   useEffect(() => {
     const companyId = localStorage.getItem("companyId")
@@ -337,6 +355,74 @@ function CreateInvoicePageInner() {
       console.error('Invoice create dropdowns fetch failed:', err)
     })
   }, [router])
+
+  // Tier 150: watch the form for a likely-duplicate
+  // combination (same customer + similar amount + nearby
+  // issueDate) and surface a warning banner. Debounced
+  // 500ms so a fast typer doesn't fire 10 requests per
+  // keystroke. The effect depends on the three inputs
+  // — customerId, issueDate, and the recomputed total
+  // (recomputed via the calculateTotal() helper above
+  // because total isn't a state field, it's derived).
+  //
+  // Only runs in create mode (not edit). In edit mode
+  // the current invoice is itself a match, so the
+  // banner would always show — not useful.
+  useEffect(() => {
+    if (isEdit) {
+      setDuplicates([])
+      return
+    }
+    const companyId = typeof window !== "undefined"
+      ? localStorage.getItem("companyId")
+      : null
+    if (!companyId) return
+    if (!form.customerId || !form.issueDate) {
+      setDuplicates([])
+      return
+    }
+    const total = calculateTotal()
+    // No need to warn for €0 invoices (e.g. a draft
+    // preview) — a €0 match would be every zero invoice
+    // ever issued and would just be noise.
+    if (!total || total <= 0) {
+      setDuplicates([])
+      return
+    }
+    const handle = setTimeout(() => {
+      const params = new URLSearchParams({
+        companyId,
+        customerId: form.customerId,
+        amount: String(total),
+        issueDate: form.issueDate,
+      })
+      // Soft-fail: the duplicate check is a warning,
+      // not a critical path. If the endpoint 404s (very
+      // old backend) or 500s, just don't show the
+      // banner. Logging to console for debugging.
+      apiGet<{ matches: any[]; count: number }>(
+        `/api/v1/invoices/duplicate-check?${params.toString()}`,
+      )
+        .then((res) => {
+          if (res && Array.isArray(res.matches)) {
+            setDuplicates(res.matches)
+          } else {
+            setDuplicates([])
+          }
+        })
+        .catch((err) => {
+          // Soft-fail. Don't crash the form.
+          console.error("duplicate-check failed:", err)
+          setDuplicates([])
+        })
+    }, 500)
+    return () => clearTimeout(handle)
+    // calculateTotal() reads from form.items /
+    // form.discountPercent / form.discountAmount, so
+    // we list them as deps to re-run on any line-item
+    // or discount change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEdit, form.customerId, form.issueDate, form.items, form.discountPercent, form.discountAmount, form.currency])
 
   // Search customers by name, customer number, VAT ID, city,
   // and postal code. Mirrors the backend's pg_trgm search
@@ -965,6 +1051,65 @@ function CreateInvoicePageInner() {
           </div>
         )}
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Tier 150: Possible-duplicate warning banner.
+              Shown when the backend finds existing invoices
+              that match (customerId, amount±0.01, issueDate±7d).
+              Click "Ansehen" on a row to jump to the
+              suspected-duplicate invoice. This is a WARNING
+              only — the user can still submit if they confirm
+              it's a legitimate new invoice. */}
+          {duplicates.length > 0 && (
+            <div
+              data-testid="duplicate-warning"
+              className="border-l-4 border-amber-500 bg-amber-50 dark:bg-amber-900/30 dark:border-amber-400 p-4 rounded-r shadow-sm"
+              role="alert"
+            >
+              <div className="flex items-start gap-3">
+                <span className="text-2xl leading-none" aria-hidden="true">⚠️</span>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-sm font-semibold text-amber-900 dark:text-amber-100 mb-1">
+                    {t("invoice.duplicateCheckTitle")}
+                  </h3>
+                  <p className="text-sm text-amber-800 dark:text-amber-200 mb-3">
+                    {t("invoice.duplicateCheckWarning", { count: duplicates.length })}
+                  </p>
+                  <ul className="space-y-1.5 text-sm">
+                    {duplicates.slice(0, 3).map((d) => (
+                      <li
+                        key={d.id}
+                        data-testid="duplicate-warning-row"
+                        className="flex flex-wrap items-center gap-2 text-amber-900 dark:text-amber-100"
+                      >
+                        <span className="font-mono font-semibold">{d.invoiceNumber}</span>
+                        <span className="text-amber-700 dark:text-amber-300">·</span>
+                        <span>
+                          {d.total.toLocaleString("de-DE", { style: "currency", currency: d.currency })}
+                        </span>
+                        <span className="text-amber-700 dark:text-amber-300">·</span>
+                        <span>{String(d.issueDate).slice(0, 10)}</span>
+                        <span className="text-amber-700 dark:text-amber-300">·</span>
+                        <span className="text-xs uppercase tracking-wide">{d.status}</span>
+                        <a
+                          href={`/dashboard/invoices/${d.id}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          data-testid="duplicate-warning-link"
+                          className="ml-auto underline text-amber-700 dark:text-amber-200 hover:text-amber-900 dark:hover:text-amber-50"
+                        >
+                          {t("invoice.duplicateCheckView")} →
+                        </a>
+                      </li>
+                    ))}
+                    {duplicates.length > 3 && (
+                      <li className="text-xs text-amber-700 dark:text-amber-300 italic">
+                        {t("invoice.duplicateCheckMore", { count: duplicates.length - 3 })}
+                      </li>
+                    )}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          )}
           {/* Basic Info Card */}
           <Card>
             <CardHeader>
@@ -1062,6 +1207,7 @@ function CreateInvoicePageInner() {
                       filteredCustomers.map((c) => (
                         <div
                           key={c.id}
+                          data-testid="invoice-customer-option"
                           className="px-3 py-2 hover:bg-blue-50 cursor-pointer border-b last:border-b-0"
                           onMouseDown={(e) => {
                             // onMouseDown so the click fires
@@ -1676,6 +1822,7 @@ function CreateInvoicePageInner() {
                       min="1"
                       value={item.quantity}
                       className="w-16"
+                      data-testid="item-quantity"
                       onChange={(e) => {
                         const items = [...form.items]
                         items[index].quantity = Number(e.target.value)
@@ -1698,6 +1845,7 @@ function CreateInvoicePageInner() {
                       step="0.01"
                       min="0"
                       value={item.unitPrice}
+                      data-testid="item-unit-price"
                       onChange={(e) => {
                         const items = [...form.items]
                         items[index].unitPrice = Number(e.target.value)

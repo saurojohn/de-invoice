@@ -41,8 +41,7 @@ export class InvoiceService {
    * Paginated invoice list with optional filters.
    * Search matches invoice number and customer name (case-insensitive).
    * Returns `{ data, total, page, pageSize, totalPages }`.
-   */
-  async findAll(
+   */  async findAll(
     companyId: string,
     filters: {
       status?: string;
@@ -95,6 +94,83 @@ export class InvoiceService {
       page: pg,
       pageSize: ps,
       totalPages: Math.ceil(total / ps) || 1,
+    }
+  }
+
+  /**
+   * Tier 150: find possible duplicate invoices.
+   *
+   * The admin is creating a new invoice with
+   * amount X for customer C on date D. We
+   * look for any existing invoice that
+   * matches (customer=C, amount≈X, date≈D)
+   * and return them. The frontend shows them
+   * in a "Possible duplicate" warning banner.
+   *
+   * Tolerance:
+   *   - amount: within 0.01 EUR (handles float
+   *     rounding — two invoices totalling
+   *     119.0000 vs 119.0001 should match)
+   *   - date: within ±7 days (catches the
+   *     common case of "I think I issued this
+   *     Tuesday but I already did Wednesday")
+   *
+   * We do NOT count cancelled invoices
+   * (status='cancelled') as duplicates — they
+   * were voided for a reason, and surfacing
+   * them would create false positives.
+   *
+   * Type filter: only INV + PI. Credit notes
+   * (CN) and receipts (RCV) are different
+   * documents, not duplicates.
+   */
+  async findDuplicates(
+    companyId: string,
+    customerId: string,
+    amount: number,
+    from: Date,
+    to: Date,
+  ) {
+    // Look 1 cent above and below the input
+    // amount. Prisma's Decimal column doesn't
+    // support `Math.abs(...)` on the server
+    // side directly via the typed query API,
+    // so we use a small "epsilon" range.
+    const epsilon = 0.01
+    const rows = await this.prisma.invoice.findMany({
+      where: {
+        companyId,
+        customerId,
+        type: { in: ['INV', 'PI'] },
+        status: { not: 'cancelled' },
+        total: { gte: amount - epsilon, lte: amount + epsilon },
+        issueDate: { gte: from, lte: to },
+      },
+      orderBy: { issueDate: 'desc' },
+      take: 10,
+      select: {
+        id: true,
+        invoiceNumber: true,
+        type: true,
+        status: true,
+        total: true,
+        currency: true,
+        issueDate: true,
+        customer: { select: { id: true, name: true } },
+      },
+    })
+    return {
+      matches: rows.map((r) => ({
+        id: r.id,
+        invoiceNumber: r.invoiceNumber,
+        type: r.type,
+        status: r.status,
+        total: Number(r.total),
+        currency: r.currency,
+        issueDate: r.issueDate,
+        customer: r.customer,
+      })),
+      count: rows.length,
     }
   }
 
