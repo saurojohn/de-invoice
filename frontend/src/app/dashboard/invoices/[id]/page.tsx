@@ -697,6 +697,165 @@ export default function InvoiceDetailPage() {
     pausedUntil: "",
   })
 
+  // Tier 152: manual Mahnung send. The Berater
+  // wants to fire a Mahnung for ONE invoice
+  // right now, without waiting for the cron
+  // or going through /reminders. The existing
+  // /reminders/:id/email-data + /reminders/send
+  // endpoints are sufficient — this is just a
+  // UX layer that wraps them in a modal.
+  //
+  // We hold the rendered email-data so the
+  // user can see the subject + body before
+  // clicking Senden. Level defaults to
+  // (existing reminderCount + 1) so the
+  // escalation chain (first → second → final)
+  // is preserved.
+  type MahnungLevel = 'first' | 'second' | 'final'
+  const [showSendMahnungModal, setShowSendMahnungModal] =
+    useState(false)
+  const [mahnungLevel, setMahnungLevel] = useState<MahnungLevel>('first')
+  const [mahnungEmailData, setMahnungEmailData] = useState<{
+    recipientEmail: string
+    recipientName: string
+    subject: string
+    body: string
+  } | null>(null)
+  const [mahnungEmailLoading, setMahnungEmailLoading] = useState(false)
+  const [mahnungEmailError, setMahnungEmailError] = useState<
+    string | null
+  >(null)
+  const [mahnungSending, setMahnungSending] = useState(false)
+  const [mahnungSendError, setMahnungSendError] = useState<string | null>(
+    null,
+  )
+  const [mahnungSendOk, setMahnungSendOk] = useState(false)
+
+  // Tier 152: open the send-Mahnung modal. We
+  // default the level to 'first' (the lowest
+  // escalation step) — the user can pick a
+  // different one from the dropdown. After
+  // open, we immediately fetch the rendered
+  // email-data for the default level so the
+  // subject + body show up in the preview
+  // block.
+  const openSendMahnungModal = async () => {
+    if (!invoice) return
+    setMahnungLevel('first')
+    setMahnungEmailData(null)
+    setMahnungEmailError(null)
+    setMahnungSendError(null)
+    setMahnungSendOk(false)
+    setShowSendMahnungModal(true)
+    // Fetch the preview for the default level
+    const companyId =
+      typeof window !== "undefined"
+        ? localStorage.getItem("companyId")
+        : null
+    if (!companyId) return
+    setMahnungEmailLoading(true)
+    try {
+      const data = await apiGet<{
+        recipientEmail: string
+        recipientName: string
+        subject: string
+        body: string
+        level: MahnungLevel
+      }>(
+        `/api/v1/reminders/${invoice.id}/email-data?companyId=${companyId}&level=first`,
+      )
+      setMahnungEmailData(data)
+    } catch (err) {
+      const msg =
+        err instanceof ApiError
+          ? err.message
+          : "Vorschau konnte nicht geladen werden"
+      setMahnungEmailError(msg)
+    } finally {
+      setMahnungEmailLoading(false)
+    }
+  }
+
+  // Re-fetch the email-data when the user
+  // changes the level selector. Cheap (just a
+  // template re-render) — no debounce needed.
+  const handleMahnungLevelChange = async (
+    newLevel: MahnungLevel,
+  ) => {
+    if (!invoice) return
+    setMahnungLevel(newLevel)
+    setMahnungEmailData(null)
+    setMahnungEmailError(null)
+    const companyId =
+      typeof window !== "undefined"
+        ? localStorage.getItem("companyId")
+        : null
+    if (!companyId) return
+    setMahnungEmailLoading(true)
+    try {
+      const data = await apiGet<{
+        recipientEmail: string
+        recipientName: string
+        subject: string
+        body: string
+        level: MahnungLevel
+      }>(
+        `/api/v1/reminders/${invoice.id}/email-data?companyId=${companyId}&level=${newLevel}`,
+      )
+      setMahnungEmailData(data)
+    } catch (err) {
+      const msg =
+        err instanceof ApiError ? err.message : "Vorschau fehlgeschlagen"
+      setMahnungEmailError(msg)
+    } finally {
+      setMahnungEmailLoading(false)
+    }
+  }
+
+  const handleSendMahnungNow = async () => {
+    if (!invoice || !mahnungEmailData) return
+    if (
+      !window.confirm(
+        t("invoice.sendMahnungConfirm") || "Mahnung jetzt versenden?",
+      )
+    ) {
+      return
+    }
+    const companyId =
+      typeof window !== "undefined"
+        ? localStorage.getItem("companyId")
+        : null
+    if (!companyId) return
+    setMahnungSending(true)
+    setMahnungSendError(null)
+    try {
+      const userId =
+        typeof window !== "undefined"
+          ? localStorage.getItem("userId")
+          : null
+      await apiPost(`/api/v1/reminders/send`, {
+        companyId,
+        invoiceId: invoice.id,
+        recipientEmail: mahnungEmailData.recipientEmail,
+        recipientName: mahnungEmailData.recipientName,
+        subject: mahnungEmailData.subject,
+        body: mahnungEmailData.body,
+        level: mahnungLevel,
+        ...(userId ? { createdById: userId } : {}),
+      })
+      setMahnungSendOk(true)
+    } catch (err) {
+      const msg =
+        err instanceof ApiError
+          ? err.message
+          : t("invoice.sendMahnungError") ||
+            "Mahnung konnte nicht versendet werden"
+      setMahnungSendError(msg)
+    } finally {
+      setMahnungSending(false)
+    }
+  }
+
   const convertToRecurring = async () => {
     if (!invoice) return
     setConvertError(null)
@@ -1364,6 +1523,27 @@ export default function InvoiceDetailPage() {
                   ⏸ {t("invoice.pauseInvoice") || "Mahnung pausieren"}
                 </Button>
               )}
+              {/* Tier 152: manual Mahnung send. Only
+                  show for genuinely overdue invoices
+                  (status sent/overdue + dueDate in
+                  the past). Drafts / cancelled /
+                  credit notes are excluded. */}
+              {(invoice.status === "sent" || invoice.status === "overdue") &&
+                invoice.dueDate &&
+                new Date(invoice.dueDate).getTime() < Date.now() && (
+                  <Button
+                    size="sm"
+                    onClick={openSendMahnungModal}
+                    data-testid="send-mahnung-button"
+                    className="bg-red-600 hover:bg-red-700 text-white"
+                    title={
+                      t("invoice.sendMahnung") ||
+                      "Mahnung senden"
+                    }
+                  >
+                    📨 {t("invoice.sendMahnung") || "Mahnung senden"}
+                  </Button>
+                )}
               {convertError && (
                 <span
                   className="text-sm text-red-600 dark:text-red-400"
@@ -2802,6 +2982,182 @@ export default function InvoiceDetailPage() {
                 {suggestSaving
                   ? "..."
                   : t("invoice.ratensplanCreate") || "Ratenplan anlegen"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tier 152: manual Mahnung send modal.
+          Opens from the "📨 Mahnung senden" button
+          next to "Mahnung pausieren". The user
+          picks a level, sees the rendered subject
+          + body, and confirms the send. The
+          preview block updates when the level
+          changes (re-fetches /email-data). On
+          success we show a green confirmation and
+          leave the modal open so the user can
+          close it deliberately. */}
+      {showSendMahnungModal && invoice && (
+        <div
+          className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+          data-testid="send-mahnung-modal"
+          onClick={() =>
+            !mahnungSending && setShowSendMahnungModal(false)
+          }
+        >
+          <div
+            className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-2xl shadow-xl max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3
+              className="text-lg font-medium mb-2"
+              data-testid="send-mahnung-title"
+            >
+              📨 {t("invoice.sendMahnungTitle") || "Mahnung manuell versenden"}
+            </h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+              {t("invoice.sendMahnungSubtitle") ||
+                "Diese Rechnung sofort per E-Mail mahnen — unabhängig vom automatischen Mahnlauf."}
+            </p>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  {t("invoice.sendMahnungLevel") || "Mahnstufe"}
+                </label>
+                <select
+                  value={mahnungLevel}
+                  onChange={(e) =>
+                    handleMahnungLevelChange(
+                      e.target.value as MahnungLevel,
+                    )
+                  }
+                  disabled={mahnungSending || mahnungEmailLoading}
+                  data-testid="send-mahnung-level"
+                  className="w-full px-3 py-2 border rounded-md bg-white dark:bg-gray-800 dark:border-gray-700"
+                >
+                  <option value="first">
+                    1. {t("reminder.level1") || "Zahlungserinnerung"}
+                  </option>
+                  <option value="second">
+                    2. {t("reminder.level2") || "1. Mahnung"}
+                  </option>
+                  <option value="final">
+                    {t("reminder.levelFinal") || "Letzte Mahnung"}
+                  </option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  {t("invoice.sendMahnungRecipient") || "Empfänger"}
+                </label>
+                {mahnungEmailLoading ? (
+                  <p className="text-sm text-gray-500">Lade…</p>
+                ) : mahnungEmailData ? (
+                  <p
+                    className="text-sm"
+                    data-testid="send-mahnung-recipient"
+                  >
+                    <span className="font-medium">
+                      {mahnungEmailData.recipientName}
+                    </span>{" "}
+                    &lt;{mahnungEmailData.recipientEmail}&gt;
+                  </p>
+                ) : (
+                  <p
+                    className="text-sm text-red-600"
+                    data-testid="send-mahnung-no-email"
+                  >
+                    {t("invoice.sendMahnungNoEmail") ||
+                      "Diese Rechnung hat keine gültige Kunden-E-Mail-Adresse."}
+                  </p>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  {t("invoice.sendMahnungSubject") || "Betreff (Vorschau)"}
+                </label>
+                {mahnungEmailLoading ? (
+                  <p className="text-sm text-gray-500">…</p>
+                ) : mahnungEmailData ? (
+                  <p
+                    className="text-sm font-semibold border-l-2 border-gray-200 dark:border-gray-600 pl-2"
+                    data-testid="send-mahnung-subject"
+                  >
+                    {mahnungEmailData.subject}
+                  </p>
+                ) : (
+                  <p className="text-sm text-gray-400">—</p>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  {t("invoice.sendMahnungBody") || "E-Mail-Text (Vorschau)"}
+                </label>
+                {mahnungEmailLoading ? (
+                  <p className="text-sm text-gray-500">…</p>
+                ) : mahnungEmailData ? (
+                  <pre
+                    className="text-sm whitespace-pre-wrap font-sans border-l-2 border-gray-200 dark:border-gray-600 pl-2 max-h-64 overflow-y-auto"
+                    data-testid="send-mahnung-body"
+                  >
+                    {mahnungEmailData.body}
+                  </pre>
+                ) : (
+                  <p className="text-sm text-gray-400">—</p>
+                )}
+              </div>
+              {mahnungEmailError && (
+                <p
+                  className="text-sm text-red-600"
+                  data-testid="send-mahnung-error"
+                >
+                  {mahnungEmailError}
+                </p>
+              )}
+              {mahnungSendError && (
+                <p
+                  className="text-sm text-red-600"
+                  data-testid="send-mahnung-send-error"
+                >
+                  {mahnungSendError}
+                </p>
+              )}
+              {mahnungSendOk && (
+                <p
+                  className="text-sm text-green-600 dark:text-green-400"
+                  data-testid="send-mahnung-send-ok"
+                >
+                  ✓ {t("invoice.sendMahnungOk") || "Mahnung wurde versendet"}
+                </p>
+              )}
+            </div>
+            <div className="flex gap-2 justify-end mt-5">
+              <Button
+                variant="outline"
+                onClick={() => setShowSendMahnungModal(false)}
+                disabled={mahnungSending}
+                data-testid="send-mahnung-cancel"
+              >
+                {t("common.cancel") || "Abbrechen"}
+              </Button>
+              <Button
+                onClick={handleSendMahnungNow}
+                disabled={
+                  mahnungSending ||
+                  mahnungEmailLoading ||
+                  !mahnungEmailData ||
+                  !mahnungEmailData.recipientEmail ||
+                  mahnungSendOk
+                }
+                data-testid="send-mahnung-confirm"
+                className="bg-red-600 hover:bg-red-700 text-white"
+              >
+                {mahnungSending
+                  ? "…"
+                  : mahnungSendOk
+                  ? "✓ " + (t("invoice.sendMahnungOk") || "Mahnung wurde versendet")
+                  : "📨 " + (t("invoice.sendMahnung") || "Mahnung senden")}
               </Button>
             </div>
           </div>
