@@ -294,6 +294,40 @@ export default function CustomerDetailPage() {
   const [emailsLoading, setEmailsLoading] = useState(false)
   // Detail modal for a clicked email row.
   const [emailDetail, setEmailDetail] = useState<EmailRow | null>(null)
+  // Tier 146: payment allocation wizard. The
+  // admin opens a modal, enters the amount,
+  // sees the proposed allocation (oldest-
+  // first dry-run), then confirms. Writes
+  // happen via the POST /allocate-payment
+  // endpoint; the GET /allocate-payment/preview
+  // endpoint returns the dry-run.
+  const [allocateOpen, setAllocateOpen] = useState(false)
+  const [allocateAmount, setAllocateAmount] = useState("")
+  const [allocateDate, setAllocateDate] = useState(() => {
+    return new Date().toISOString().slice(0, 10)
+  })
+  const [allocateMethod, setAllocateMethod] = useState("Überweisung")
+  const [allocateReference, setAllocateReference] = useState("")
+  const [allocatePreview, setAllocatePreview] = useState<{
+    invoices: Array<{
+      invoiceId: string
+      invoiceNumber: string
+      dueDate: string | null
+      total: number
+      alreadyPaid: number
+      remaining: number
+      applied: number
+    }>
+    unallocatedAmount: number
+    totalOutstanding: number
+  } | null>(null)
+  const [allocateSubmitting, setAllocateSubmitting] = useState(false)
+  const [allocateResult, setAllocateResult] = useState<{
+    appliedCount: number
+    appliedTotal: number
+    unallocatedAmount: number
+  } | null>(null)
+  const [allocateError, setAllocateError] = useState<string | null>(null)
   // Tier 145: internal Berater-Notizen on the
   // customer. Parallel to the invoice-internal-
   // notes UI (Tier 138). NOT visible to the
@@ -726,6 +760,14 @@ export default function CustomerDetailPage() {
             data-testid="customer-detail-statement"
           >
             📊 {t("statement.title") || "Kontoauszug"}
+          </Button>
+          <Button
+            onClick={() => setAllocateOpen(true)}
+            data-testid="customer-detail-allocate-payment"
+            variant="outline"
+            className="border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+          >
+            💰 {t("customerDetail.allocatePayment") || "Zahlung zuordnen"}
           </Button>
         </div>
       </header>
@@ -1654,6 +1696,297 @@ export default function CustomerDetailPage() {
                 </pre>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tier 146: payment allocation modal.
+          Two-step flow:
+            1. user enters amount / date / method
+            2. system shows the proposed allocation
+               (oldest first by dueDate) as a
+               preview table
+            3. user clicks Bestätigen
+            4. POST writes the Payment rows
+          The preview step is a dry-run — no
+          Payment rows are created until the user
+          clicks Bestätigen. */}
+      {allocateOpen && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+          data-testid="allocate-modal"
+          onClick={() => setAllocateOpen(false)}
+        >
+          <div
+            className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[85vh] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-6 py-4 border-b flex items-center justify-between">
+              <h3 className="font-semibold text-lg">
+                💰 {t("customerDetail.allocateTitle") || "Zahlung zuordnen"}
+              </h3>
+              <button
+                className="text-gray-400 hover:text-gray-600 text-xl"
+                onClick={() => {
+                  setAllocateOpen(false)
+                  setAllocatePreview(null)
+                  setAllocateResult(null)
+                  setAllocateError(null)
+                }}
+                data-testid="allocate-close"
+                aria-label="Schließen"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="px-6 py-4 overflow-y-auto flex-1 space-y-3 text-sm">
+              {!allocateResult && (
+                <>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">
+                      {t("customerDetail.allocateAmount") || "Betrag"} (€)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      value={allocateAmount}
+                      onChange={(e) => setAllocateAmount(e.target.value)}
+                      data-testid="allocate-amount"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded text-sm"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">
+                        {t("customerDetail.allocateDate") || "Zahldatum"}
+                      </label>
+                      <input
+                        type="date"
+                        value={allocateDate}
+                        onChange={(e) => setAllocateDate(e.target.value)}
+                        data-testid="allocate-date"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">
+                        {t("customerDetail.allocateMethod") || "Zahlweg"}
+                      </label>
+                      <select
+                        value={allocateMethod}
+                        onChange={(e) => setAllocateMethod(e.target.value)}
+                        data-testid="allocate-method"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded text-sm"
+                      >
+                        <option value="Überweisung">Überweisung</option>
+                        <option value="SEPA-Lastschrift">SEPA-Lastschrift</option>
+                        <option value="Bargeld">Bargeld</option>
+                        <option value="Verrechnung">Verrechnung</option>
+                        <option value="Sonstiges">Sonstiges</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">
+                      {t("customerDetail.allocateReference") ||
+                        "Referenz (optional)"}
+                    </label>
+                    <input
+                      type="text"
+                      value={allocateReference}
+                      onChange={(e) => setAllocateReference(e.target.value)}
+                      placeholder="z.B. SEPA-Mandat, Kontoauszug-Nr."
+                      data-testid="allocate-reference"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded text-sm"
+                    />
+                  </div>
+                  <div className="flex gap-2 pt-2">
+                    <Button
+                      onClick={async () => {
+                        const amount = parseFloat(allocateAmount)
+                        if (!amount || amount <= 0) {
+                          setAllocateError("Betrag muss > 0 sein")
+                          return
+                        }
+                        setAllocateError(null)
+                        setAllocatePreview(null)
+                        try {
+                          const { apiGet, ApiError } = await import("@/lib/api")
+                          const data = await apiGet<any>(
+                            `/api/v1/customers/${id}/allocate-payment/preview?companyId=${companyId}&amount=${amount}`,
+                          )
+                          setAllocatePreview(data)
+                        } catch (err) {
+                          const msg = err instanceof ApiError ? err.message : "Fehler"
+                          setAllocateError(msg)
+                        }
+                      }}
+                      data-testid="allocate-preview-btn"
+                    >
+                      🔍 {t("customerDetail.allocatePreviewBtn") || "Vorschau"}
+                    </Button>
+                  </div>
+                  {allocateError && (
+                    <p
+                      className="text-xs text-red-600"
+                      data-testid="allocate-error"
+                    >
+                      {allocateError}
+                    </p>
+                  )}
+                </>
+              )}
+
+              {allocatePreview && !allocateResult && (
+                <div data-testid="allocate-preview">
+                  <h4 className="text-sm font-medium mb-2">
+                    {t("customerDetail.allocatePreviewTitle") ||
+                      "Vorgeschlagene Zuordnung (älteste zuerst):"}
+                  </h4>
+                  <table className="w-full text-xs mb-3">
+                    <thead>
+                      <tr className="border-b border-gray-200 dark:border-gray-700">
+                        <th className="text-left py-1">Rechnung</th>
+                        <th className="text-right py-1">Offen</th>
+                        <th className="text-right py-1">Anwendung</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {allocatePreview.invoices.map((inv) => (
+                        <tr
+                          key={inv.invoiceId}
+                          className="border-b border-gray-100 dark:border-gray-800"
+                        >
+                          <td className="py-1 font-mono">{inv.invoiceNumber}</td>
+                          <td className="text-right py-1">
+                            {fmtEur(inv.remaining)} €
+                          </td>
+                          <td
+                            className="text-right py-1 font-semibold text-emerald-700"
+                            data-testid={`allocate-apply-${inv.invoiceId}`}
+                          >
+                            {fmtEur(inv.applied)} €
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <div className="flex justify-between text-xs border-t pt-2">
+                    <span>
+                      {t("customerDetail.allocateUnallocated") ||
+                        "Nicht zugeordnet:"}
+                    </span>
+                    <span
+                      className={
+                        allocatePreview.unallocatedAmount > 0
+                          ? "font-semibold text-amber-700"
+                          : "font-semibold text-emerald-700"
+                      }
+                      data-testid="allocate-unallocated"
+                    >
+                      {fmtEur(allocatePreview.unallocatedAmount)} €
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {allocateResult && (
+                <div
+                  className="p-3 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 rounded text-sm"
+                  data-testid="allocate-result"
+                >
+                  <p className="font-medium text-emerald-800 dark:text-emerald-200">
+                    ✓{" "}
+                    {t("customerDetail.allocateSuccess") ||
+                      "Zahlung zugeordnet."}
+                  </p>
+                  <p className="text-xs mt-1 text-emerald-700 dark:text-emerald-300">
+                    {t("customerDetail.allocateSuccessCount") ||
+                      "{count} Rechnungen bezahlt, {total} € angewendet"
+                        .replace("{count}", String(allocateResult.appliedCount))
+                        .replace("{total}", fmtEur(allocateResult.appliedTotal))}
+                    {allocateResult.unallocatedAmount > 0 && (
+                      <span className="block mt-1 text-amber-700">
+                        (
+                        {(t("customerDetail.allocateUnallocated") ||
+                          "Nicht zugeordnet:") +
+                          " " +
+                          fmtEur(allocateResult.unallocatedAmount) +
+                          " €"}
+                        )
+                      </span>
+                    )}
+                  </p>
+                </div>
+              )}
+            </div>
+            {allocatePreview && !allocateResult && (
+              <div className="px-6 py-4 border-t flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setAllocatePreview(null)}
+                  data-testid="allocate-back"
+                >
+                  ← {t("common.back") || "Zurück"}
+                </Button>
+                <Button
+                  onClick={async () => {
+                    setAllocateSubmitting(true)
+                    setAllocateError(null)
+                    try {
+                      const { apiPost, ApiError } = await import("@/lib/api")
+                      const data = await apiPost<any>(
+                        `/api/v1/customers/${id}/allocate-payment?companyId=${companyId}`,
+                        {
+                          amount: parseFloat(allocateAmount),
+                          paymentDate: allocateDate,
+                          paymentMethod: allocateMethod,
+                          reference: allocateReference || undefined,
+                        },
+                      )
+                      setAllocateResult({
+                        appliedCount: data.appliedCount,
+                        appliedTotal: data.appliedTotal,
+                        unallocatedAmount: data.unallocatedAmount,
+                      })
+                      setAllocatePreview(null)
+                    } catch (err) {
+                      const msg = err instanceof ApiError ? err.message : "Fehler"
+                      setAllocateError(msg)
+                    } finally {
+                      setAllocateSubmitting(false)
+                    }
+                  }}
+                  disabled={allocateSubmitting}
+                  data-testid="allocate-confirm"
+                >
+                  {allocateSubmitting
+                    ? "…"
+                    : `✓ ${t("customerDetail.allocateConfirm") || "Zuordnung bestätigen"}`}
+                </Button>
+              </div>
+            )}
+            {allocateResult && (
+              <div className="px-6 py-4 border-t flex justify-end">
+                <Button
+                  onClick={() => {
+                    setAllocateOpen(false)
+                    setAllocateResult(null)
+                    setAllocatePreview(null)
+                    setAllocateAmount("")
+                    setAllocateReference("")
+                    // Reload the invoices list so the
+                    // "Bezahlt" status updates are
+                    // visible.
+                    setInvoices(null)
+                  }}
+                  data-testid="allocate-done"
+                >
+                  {t("common.close") || "Schließen"}
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       )}

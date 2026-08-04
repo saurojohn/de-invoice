@@ -183,6 +183,77 @@ export class CustomerController {
   }
 
   /**
+   * Tier 146: payment allocation (Zahlung zuordnen).
+   *
+   * Two-step flow:
+   *   - GET  /:id/allocate-payment/preview?amount=X
+   *     → dry-run, returns the proposed allocation
+   *       list (no writes)
+   *   - POST /:id/allocate-payment
+   *     → actually writes the Payment rows + bumps
+   *       fully-settled invoices to 'paid'
+   *
+   * Both share the same helper in customer.service
+   * (buildAllocation) so the preview is exactly
+   * what the write does.
+   *
+   * Strategy: oldest first by dueDate. The Berater
+   * can review the preview, then confirm.
+   */
+  @Get(':id/allocate-payment/preview')
+  @Require('customer.update')
+  async previewAllocatePayment(
+    @Param('id') id: string,
+    @Query('companyId') companyId: string,
+    @Query('amount') amountStr: string,
+  ) {
+    this.assertCompanyId(companyId)
+    const amount = parseFloat(amountStr)
+    if (!amount || isNaN(amount) || amount <= 0) {
+      throw new BadRequestException('amount must be a positive number')
+    }
+    return this.customerService.previewAllocatePayment(
+      companyId,
+      id,
+      amount,
+    )
+  }
+
+  @Post(':id/allocate-payment')
+  @Require('customer.update')
+  async allocatePayment(
+    @Param('id') id: string,
+    @Query('companyId') companyId: string,
+    @Body() body: {
+      amount?: number
+      paymentDate?: string
+      paymentMethod?: string
+      reference?: string
+      notes?: string
+    },
+  ) {
+    this.assertCompanyId(companyId)
+    const amount = Number(body?.amount)
+    if (!amount || isNaN(amount) || amount <= 0) {
+      throw new BadRequestException('amount must be a positive number')
+    }
+    if (!body?.paymentDate) {
+      throw new BadRequestException('paymentDate is required (ISO 8601)')
+    }
+    const d = new Date(body.paymentDate)
+    if (isNaN(d.getTime())) {
+      throw new BadRequestException('paymentDate is invalid')
+    }
+    return this.customerService.allocatePayment(companyId, id, {
+      amount,
+      paymentDate: d,
+      paymentMethod: body.paymentMethod || '',
+      reference: body.reference,
+      notes: body.notes,
+    })
+  }
+
+  /**
    * Tier 145: internal Berater-Notizen on a customer.
    *
    * Parallel to /invoices/:id/internal-notes

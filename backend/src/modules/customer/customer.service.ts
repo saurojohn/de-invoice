@@ -478,6 +478,216 @@ export class CustomerService {
   }
 
   /**
+   * Tier 146: payment allocation (Zahlung zuordnen).
+   *
+   * The admin records a payment from a customer and
+   * asks the system to apply it to open invoices.
+   * Strategy is "oldest first" by default — the
+   * one with the earliest dueDate gets paid first.
+   *
+   * Two-step flow:
+   *   1. previewAllocatePayment: dry-run. Walks the
+   *      open invoices, applies as much of the
+   *      payment as possible, returns the proposed
+   *      allocation list. NO writes.
+   *   2. allocatePayment: same logic, but writes
+   *      the Payment rows AND updates each invoice
+   *      to status='paid' when fully settled.
+   *
+   * Both use the same helper to walk the open
+   * invoices — only the side effect differs. This
+   * way the preview is exactly what the write does
+   * (no surprises).
+   *
+   * The remaining amount (when the payment is
+   * smaller than the total outstanding) is returned
+   * as `unallocatedAmount` — the admin can then
+   * decide to apply it as Kundenguthaben (Tier 58)
+   * or leave it as a partial payment on the last
+   * invoice.
+   */
+  private async buildAllocation(
+    companyId: string,
+    customerId: string,
+    amount: number,
+  ): Promise<{
+    invoices: Array<{
+      invoiceId: string
+      invoiceNumber: string
+      dueDate: Date | null
+      total: number
+      alreadyPaid: number
+      remaining: number
+      applied: number
+    }>
+    unallocatedAmount: number
+    totalOutstanding: number
+  }> {
+    // Find every open invoice (sent/overdue, not
+    // draft, not cancelled, not yet fully paid).
+    // We compute "remaining" client-side because
+    // a per-row SUM(payments) aggregate would be
+    // a second roundtrip; for a typical customer
+    // (< 50 open invoices) this is fast.
+    const openInvoices = await this.prisma.invoice.findMany({
+      where: {
+        companyId,
+        customerId,
+        status: { in: ['sent', 'overdue'] },
+        type: { in: ['INV', 'PI'] },
+      },
+      include: {
+        payments: { select: { amount: true } },
+      },
+      orderBy: { dueDate: 'asc' },
+    })
+
+    let remaining = amount
+    const invoices: Array<{
+      invoiceId: string
+      invoiceNumber: string
+      dueDate: Date | null
+      total: number
+      alreadyPaid: number
+      remaining: number
+      applied: number
+    }> = []
+    let totalOutstanding = 0
+
+    for (const inv of openInvoices) {
+      const total = Number(inv.total)
+      const alreadyPaid = inv.payments.reduce(
+        (s, p) => s + Number(p.amount),
+        0,
+      )
+      const outstanding = Math.max(total - alreadyPaid, 0)
+      totalOutstanding += outstanding
+      if (outstanding <= 0) continue
+      const applied = Math.min(outstanding, remaining)
+      remaining = Math.max(remaining - applied, 0)
+      invoices.push({
+        invoiceId: inv.id,
+        invoiceNumber: inv.invoiceNumber,
+        dueDate: inv.dueDate,
+        total,
+        alreadyPaid,
+        remaining: outstanding,
+        applied,
+      })
+    }
+    return {
+      invoices,
+      unallocatedAmount: remaining,
+      totalOutstanding,
+    }
+  }
+
+  /**
+   * Dry-run: walk the open invoices and return
+   * the proposed allocation. No writes. The admin
+   * shows this in the modal so they can review
+   * "would INV-001 get €2000 and INV-002 get €1500?"
+   * before confirming.
+   */
+  async previewAllocatePayment(
+    companyId: string,
+    customerId: string,
+    amount: number,
+  ) {
+    if (!amount || amount <= 0) {
+      throw new BadRequestException('amount must be > 0')
+    }
+    // Tenant isolation: confirm the customer
+    // belongs to this company first. Otherwise a
+    // guessed customerId from another tenant would
+    // allocate payments against the wrong tenant's
+    // invoices.
+    await this.findOne(customerId, companyId)
+    return this.buildAllocation(companyId, customerId, amount)
+  }
+
+  /**
+   * Actually write the allocation. Same walk as
+   * preview, but each "applied > 0" row gets a
+   * Payment row + the invoice gets bumped to
+   * 'paid' when its total is fully covered.
+   *
+   * Returns the same shape as preview + appliedCount
+   * + appliedTotal. The frontend uses appliedCount
+   * to show "3 Rechnungen bezahlt, 1.500 € Rest".
+   */
+  async allocatePayment(
+    companyId: string,
+    customerId: string,
+    args: {
+      amount: number
+      paymentDate: Date
+      paymentMethod: string
+      reference?: string
+      notes?: string
+    },
+  ) {
+    if (!args.amount || args.amount <= 0) {
+      throw new BadRequestException('amount must be > 0')
+    }
+    if (!args.paymentMethod || !args.paymentMethod.trim()) {
+      throw new BadRequestException('paymentMethod is required')
+    }
+    await this.findOne(customerId, companyId)
+    const preview = await this.buildAllocation(
+      companyId,
+      customerId,
+      args.amount,
+    )
+
+    // Walk the same allocation, writing Payment
+    // rows. We use a Prisma transaction so that
+    // either every Payment row + invoice status
+    // change lands, or none does — no half-paid
+    // state on a crash.
+    const appliedInvoices: typeof preview.invoices = []
+    await this.prisma.$transaction(async (tx) => {
+      for (const alloc of preview.invoices) {
+        if (alloc.applied <= 0) continue
+        await tx.payment.create({
+          data: {
+            invoiceId: alloc.invoiceId,
+            amount: alloc.applied,
+            paymentDate: args.paymentDate,
+            paymentMethod: args.paymentMethod,
+            reference: args.reference || null,
+            notes: args.notes || null,
+          },
+        })
+        // Bump the invoice to 'paid' when fully
+        // settled (total - alreadyPaid - applied <= 0).
+        // The Tier 32 / Prisma audit-log extension
+        // will pick this up automatically — no
+        // manual write to AuditLog here.
+        if (alloc.applied >= alloc.remaining) {
+          await tx.invoice.update({
+            where: { id: alloc.invoiceId },
+            data: { status: 'paid' },
+          })
+        }
+        appliedInvoices.push(alloc)
+      }
+    })
+
+    const appliedTotal = appliedInvoices.reduce(
+      (s, a) => s + a.applied,
+      0,
+    )
+    return {
+      appliedCount: appliedInvoices.length,
+      appliedTotal,
+      unallocatedAmount: preview.unallocatedAmount,
+      totalOutstanding: preview.totalOutstanding,
+      applied: appliedInvoices,
+    }
+  }
+
+  /**
    * Tier 145: internal Berater-Notizen on a customer.
    *
    * Parallel to the invoice-internal-notes API
