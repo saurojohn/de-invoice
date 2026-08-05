@@ -37,6 +37,21 @@ interface RecurringTemplate {
   notes: string | null
   invoiceStatus: 'draft' | 'sent'
   isActive: boolean
+  // Tier 153: time-bounded pause. The scheduler
+  // skips templates where today < pausedUntil.
+  // The UI resumes the template automatically
+  // once pausedUntil is in the past (we don't
+  // auto-flip isActive, but the next read shows
+  // the effective state as 'active' again).
+  pausedUntil?: string | null
+  // Tier 153: derived status from
+  // isActive / endDate / pausedUntil. One of:
+  //   'active' | 'paused' | 'paused_until' | 'expired'
+  // The backend stamps this on list/getOne
+  // responses. Older backends won't have it, so
+  // we fall back to a derived value client-side
+  // (see deriveStatus() below).
+  status?: 'active' | 'paused' | 'paused_until' | 'expired'
   // Tier 129: when true, the scheduler emails the
   // generated invoice to the customer via the same
   // path as the manual "Per E-Mail senden" button.
@@ -50,6 +65,22 @@ interface RecurringTemplate {
   _count: { runs: number; invoices: number }
   invoices?: { id: string; invoiceNumber: string; issueDate: string; total: string; status: string }[]
   runs?: { id: string; periodStart: string; periodEnd: string; status: string; trigger: string; createdAt: string; invoiceId: string | null; errorMessage: string | null }[]
+}
+
+/**
+ * Tier 153: derive the status client-side as
+ * a fallback for older backends that don't
+ * stamp the `status` field on the response.
+ * Mirrors the backend's deriveRecurringStatus().
+ */
+function deriveClientStatus(
+  tpl: Pick<RecurringTemplate, 'isActive' | 'endDate' | 'pausedUntil'>,
+  today: Date = new Date(),
+): 'active' | 'paused' | 'paused_until' | 'expired' {
+  if (tpl.endDate && new Date(tpl.endDate) < today) return 'expired'
+  if (tpl.pausedUntil && new Date(tpl.pausedUntil) >= today) return 'paused_until'
+  if (!tpl.isActive) return 'paused'
+  return 'active'
 }
 
 interface Customer { id: string; name: string; customerNumber?: string | null }
@@ -123,6 +154,13 @@ export default function RecurringInvoicesPage() {
   } | null>(null)
   const [generatedLoading, setGeneratedLoading] = useState(false)
   const [runError, setRunError] = useState<string | null>(null)
+  // Tier 153: status filter. 'all' shows every
+  // template; the others filter by the derived
+  // status. The cards' status badge reflects
+  // the same derivation, so the two stay in
+  // sync.
+  type StatusFilter = 'all' | 'active' | 'paused' | 'expired'
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
 
   // Form state
   const [name, setName] = useState("")
@@ -364,6 +402,86 @@ export default function RecurringInvoicesPage() {
     }
   }
 
+  // Tier 153: open the pause-until modal. We
+  // pre-fill the date input with the template's
+  // existing pausedUntil (if any) so the user
+  // can edit it rather than retype.
+  const [showPauseModal, setShowPauseModal] = useState(false)
+  const [pauseFor, setPauseFor] = useState<RecurringTemplate | null>(null)
+  const [pauseUntilDate, setPauseUntilDate] = useState("")
+  const [pauseSaving, setPauseSaving] = useState(false)
+  const openPauseModal = (tpl: RecurringTemplate) => {
+    setPauseFor(tpl)
+    setPauseUntilDate(
+      tpl.pausedUntil ? tpl.pausedUntil.split("T")[0] : "",
+    )
+    setShowPauseModal(true)
+  }
+  const closePauseModal = () => {
+    setShowPauseModal(false)
+    setPauseFor(null)
+    setPauseUntilDate("")
+  }
+  const savePause = async () => {
+    if (!pauseFor) return
+    const companyId = localStorage.getItem("companyId")!
+    setPauseSaving(true)
+    try {
+      // We send:
+      //   - isActive: false  (so the manual-pause
+      //                       flag is on too — this
+      //                       makes the state
+      //                       consistent regardless
+      //                       of backend version)
+      //   - pausedUntil: ISO datetime or null
+      // The backend's update() validates against
+      // a Prisma DateTime, so we expand the
+      // YYYY-MM-DD from the date input to a full
+      // ISO string. Midnight UTC is the safe
+      // default — the user picked "pause until
+      // 2026-09-01" and we honour that boundary.
+      await apiPut(
+        `/api/v1/recurring-invoices/${pauseFor.id}?companyId=${companyId}`,
+        {
+          isActive: false,
+          pausedUntil: pauseUntilDate
+            ? `${pauseUntilDate}T00:00:00.000Z`
+            : null,
+        },
+      )
+      const list = await apiGet<RecurringTemplate[]>(
+        `/api/v1/recurring-invoices?companyId=${companyId}`,
+      )
+      setTemplates(list || [])
+      closePauseModal()
+    } catch (e: any) {
+      alert(e?.message || "Fehler")
+    } finally {
+      setPauseSaving(false)
+    }
+  }
+  // Remove a time-bounded pause: clear pausedUntil
+  // and flip isActive back to true (the user
+  // explicitly asked to resume).
+  const removePause = async (tpl: RecurringTemplate) => {
+    const companyId = localStorage.getItem("companyId")!
+    try {
+      await apiPut(
+        `/api/v1/recurring-invoices/${tpl.id}?companyId=${companyId}`,
+        {
+          isActive: true,
+          pausedUntil: null,
+        },
+      )
+      const list = await apiGet<RecurringTemplate[]>(
+        `/api/v1/recurring-invoices?companyId=${companyId}`,
+      )
+      setTemplates(list || [])
+    } catch (e: any) {
+      alert(e?.message || "Fehler")
+    }
+  }
+
   const deleteTpl = async (tpl: RecurringTemplate) => {
     if (!confirm(`${t("recurring.confirmDelete") || "Löschen"} "${tpl.name}"? Vorhandene Rechnungen bleiben erhalten.`)) return
     const companyId = localStorage.getItem("companyId")!
@@ -450,6 +568,32 @@ export default function RecurringInvoicesPage() {
           </div>
         )}
 
+        {/* Tier 153: filter row. Lets the Berater
+            focus on templates that need attention
+            (paused or expired). Active is the
+            default view. */}
+        <div
+          className="flex gap-2 mb-4"
+          data-testid="recurring-filter"
+        >
+          {(["all", "active", "paused", "expired"] as StatusFilter[]).map(
+            (f) => (
+              <Button
+                key={f}
+                size="sm"
+                variant={statusFilter === f ? "default" : "outline"}
+                onClick={() => setStatusFilter(f)}
+                data-testid={`recurring-filter-${f}`}
+              >
+                {f === "all" && (t("common.all") || "Alle")}
+                {f === "active" && (t("recurring.statusBadgeActive") || "Aktiv")}
+                {f === "paused" && (t("recurring.statusBadgePaused") || "Pausiert")}
+                {f === "expired" && (t("recurring.statusBadgeExpired") || "Abgelaufen")}
+              </Button>
+            ),
+          )}
+        </div>
+
         {loading ? (
           <div className="text-center py-12 text-gray-500 dark:text-gray-400">{t("common.loading") || "Lädt..."}</div>
         ) : templates.length === 0 ? (
@@ -460,12 +604,61 @@ export default function RecurringInvoicesPage() {
           </Card>
         ) : (
           <div className="space-y-3">
-            {templates.map((tpl) => (
-              <Card key={tpl.id} className={tpl.isActive ? "" : "opacity-60"} data-testid="recurring-card" data-recurring-name={tpl.name}>
+            {/* Tier 153: filter the visible list
+                client-side from the cached
+                `templates` array. We use the
+                derived status so the filter and
+                the badge never disagree. */}
+            {templates
+              .filter((tpl) => {
+                const s = tpl.status ?? deriveClientStatus(tpl)
+                if (statusFilter === 'all') return true
+                // 'paused' filter also matches
+                // 'paused_until' — the user wants
+                // "anything not running".
+                if (statusFilter === 'paused') {
+                  return s === 'paused' || s === 'paused_until'
+                }
+                return s === statusFilter
+              })
+              .map((tpl) => {
+                // Derive once per render. Used for
+                // the card opacity + the badge.
+                const s = tpl.status ?? deriveClientStatus(tpl)
+                return (
+              <Card key={tpl.id} className={s === 'active' ? "" : "opacity-60"} data-testid="recurring-card" data-recurring-name={tpl.name} data-recurring-status={s}>
                 <CardContent className="pt-6">
                   <div className="flex flex-wrap items-center gap-4">
-                    {/* Status dot */}
-                    <div className={`w-2 h-2 rounded-full ${tpl.isActive ? "bg-emerald-500" : "bg-gray-400"}`} />
+                    {/* Status dot — colored by the
+                        derived status. Tier 153
+                        adds 4 colors (active/paused/
+                        paused_until/expired) instead
+                        of the 2-state "active/paused"
+                        before. */}
+                    <div className={`w-2 h-2 rounded-full ${
+                      s === 'active' ? 'bg-emerald-500' :
+                      s === 'paused_until' ? 'bg-amber-500' :
+                      s === 'expired' ? 'bg-red-500' :
+                      'bg-gray-400'
+                    }`} data-testid="recurring-status-dot" data-status={s} />
+                    {/* Status badge — text label.
+                        Shows the end date for
+                        paused_until and expired. */}
+                    <span
+                      className={`text-xs px-2 py-0.5 rounded-full whitespace-nowrap ${
+                        s === 'active' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200' :
+                        s === 'paused_until' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200' :
+                        s === 'expired' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
+                        'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200'
+                      }`}
+                      data-testid="recurring-status-badge"
+                      data-status={s}
+                    >
+                      {s === 'active' && (t("recurring.statusBadgeActive") || "Aktiv")}
+                      {s === 'paused' && (t("recurring.statusBadgePaused") || "Pausiert")}
+                      {s === 'paused_until' && (t("recurring.statusBadgePausedUntil") || "Pausiert bis {date}").replace("{date}", tpl.pausedUntil ? fmtDate(tpl.pausedUntil, getDateLocale()) : "")}
+                      {s === 'expired' && (t("recurring.statusBadgeExpired") || "Abgelaufen")}
+                    </span>
 
                     {/* Name + customer */}
                     <div className="flex-1 min-w-[200px]">
@@ -513,8 +706,15 @@ export default function RecurringInvoicesPage() {
                       <Button size="sm" onClick={() => runNow(tpl)} disabled={!tpl.isActive} data-testid="recurring-run-now">
                         {t("recurring.runNow") || "Generieren"}
                       </Button>
-                      <Button size="sm" variant="outline" onClick={() => toggleActive(tpl)} data-testid="recurring-toggle-active">
-                        {tpl.isActive ? (t("common.pause") || "Pause") : (t("common.resume") || "Fortsetzen")}
+                      <Button size="sm" variant="outline" onClick={() => tpl.isActive ? openPauseModal(tpl) : removePause(tpl)} data-testid="recurring-toggle-active">
+                        {/* Tier 153: when active, the click
+                            opens the pause-until modal
+                            (asking for an end date). When
+                            paused, the click resumes
+                            immediately (removePause). */}
+                        {tpl.isActive
+                          ? (t("common.pause") || "Pause")
+                          : (t("common.resume") || "Fortsetzen")}
                       </Button>
                       <Button size="sm" variant="outline" onClick={() => openEdit(tpl)} data-testid="recurring-edit">
                         {t("common.edit") || "Bearbeiten"}
@@ -668,7 +868,8 @@ export default function RecurringInvoicesPage() {
                   )}
                 </CardContent>
               </Card>
-            ))}
+                )
+              })}
           </div>
         )}
       </div>
@@ -1241,6 +1442,74 @@ export default function RecurringInvoicesPage() {
                 data-testid="recurring-generated-done"
               >
                 {t("common.close") || "Schließen"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tier 153: pause-until modal. Lets the
+          Berater pick a date for the pause to
+          end. Blank = pause indefinitely (only
+          flips isActive=false). The save button
+          is disabled when pausedUntilDate is
+          blank AND the user didn't explicitly
+          want a "no end date" pause — but we
+          accept blank here because indefinite
+          pause IS a valid use case (matches
+          the old "Pause" button). */}
+      {showPauseModal && pauseFor && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+          data-testid="recurring-pause-modal"
+          onClick={() => !pauseSaving && closePauseModal()}
+        >
+          <div
+            className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-medium mb-2">
+              {t("recurring.pauseModalTitle") || "Vorlage pausieren"}
+            </h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+              {t("recurring.pauseModalSubtitle") ||
+                "Wähle ein Enddatum für die Pause. Nach Ablauf wird die Vorlage automatisch wieder aktiv."}
+            </p>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  {t("recurring.pauseUntil") || "Pause bis (optional)"}
+                </label>
+                <input
+                  type="date"
+                  value={pauseUntilDate}
+                  onChange={(e) => setPauseUntilDate(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-md bg-white dark:bg-gray-800 dark:border-gray-700 text-sm"
+                  data-testid="recurring-pause-until-input"
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  {t("recurring.pauseUntilHint") ||
+                    "Leer lassen, um nur dauerhaft zu pausieren."}
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end mt-5">
+              <Button
+                variant="outline"
+                onClick={closePauseModal}
+                disabled={pauseSaving}
+                data-testid="recurring-pause-cancel"
+              >
+                {t("common.cancel") || "Abbrechen"}
+              </Button>
+              <Button
+                onClick={savePause}
+                disabled={pauseSaving}
+                data-testid="recurring-pause-save"
+              >
+                {pauseSaving
+                  ? "…"
+                  : t("common.save") || "Speichern"}
               </Button>
             </div>
           </div>

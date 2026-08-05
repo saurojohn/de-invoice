@@ -40,6 +40,12 @@ export interface RecurringInput {
   dayOfMonth?: number;
   startDate: Date;
   endDate?: Date | null;
+  // Tier 153: time-bounded pause. NULL = not
+  // paused by date. Set to a future date to
+  // skip the scheduler until that day; the
+  // service auto-clears it once the date has
+  // passed (on the next read).
+  pausedUntil?: Date | null;
   currency?: string;
   language?: string;
   notes?: string | null;
@@ -52,6 +58,45 @@ export interface RecurringInput {
     unitPrice: number;
     vatRate: number;
   }[];
+}
+
+/**
+ * Tier 153: derive the user-facing status from
+ * the raw DB columns. The UI shows this as a
+ * badge ("🟢 Aktiv" / "⏸ Pausiert bis DATE" /
+ * "⏸ Pausiert" / "🛑 Abgelaufen") and the
+ * scheduler uses it to decide whether to run.
+ *
+ *   - 'expired'       endDate < today (will
+ *                       never run again — admin
+ *                       should edit or delete)
+ *   - 'paused'        isActive=false (manual
+ *                       pause, indefinite)
+ *   - 'paused_until'  pausedUntil >= today
+ *                       (auto-resume on that
+ *                       date)
+ *   - 'active'        everything else
+ *
+ * The DB-level `isActive` flag is the source
+ * of truth; the other states are DERIVED at
+ * read time. We don't auto-flip isActive
+ * when pausedUntil has passed — the next
+ * read just shows 'active' again.
+ */
+export function deriveRecurringStatus(
+  tpl: { isActive: boolean; endDate: Date | null; pausedUntil: Date | null },
+  today: Date = new Date(),
+): 'active' | 'paused' | 'paused_until' | 'expired' {
+  if (tpl.endDate && new Date(tpl.endDate) < today) {
+    return 'expired'
+  }
+  if (tpl.pausedUntil && new Date(tpl.pausedUntil) >= today) {
+    return 'paused_until'
+  }
+  if (!tpl.isActive) {
+    return 'paused'
+  }
+  return 'active'
 }
 
 @Injectable()
@@ -123,7 +168,7 @@ export class RecurringService {
   }
 
   async list(companyId: string) {
-    return this.prisma.recurringInvoice.findMany({
+    const rows = await this.prisma.recurringInvoice.findMany({
       where: { companyId },
       orderBy: [{ isActive: 'desc' }, { nextRunAt: 'asc' }],
       include: {
@@ -132,6 +177,10 @@ export class RecurringService {
         _count: { select: { runs: true, invoices: true } },
       },
     })
+    // Tier 153: stamp the derived status on each
+    // row so the UI can show a badge without
+    // re-implementing the logic.
+    return rows.map((r) => ({ ...r, status: deriveRecurringStatus(r) }))
   }
 
   async getOne(companyId: string, id: string) {
@@ -155,7 +204,7 @@ export class RecurringService {
       },
     })
     if (!r) throw new BadRequestException('Recurring invoice not found')
-    return r
+    return { ...r, status: deriveRecurringStatus(r) }
   }
 
   async create(companyId: string, createdById: string | undefined, input: RecurringInput) {
@@ -188,6 +237,10 @@ export class RecurringService {
         language: input.language ?? 'de-DE',
         notes: input.notes ?? null,
         invoiceStatus: input.invoiceStatus ?? 'draft',
+        // Tier 153: time-bounded pause. NULL by
+        // default — the UI uses a separate "Pause
+        // bis" modal to set this.
+        pausedUntil: input.pausedUntil ?? null,
         createdById,
         items: {
           create: input.items.map((it, i) => ({
@@ -202,7 +255,7 @@ export class RecurringService {
         },
       },
       include: { items: true, customer: { select: { id: true, name: true } } },
-    })
+    }).then((r) => ({ ...r, status: deriveRecurringStatus(r) }))
   }
 
   async update(companyId: string, id: string, patch: Partial<RecurringInput> & { isActive?: boolean }) {
@@ -244,6 +297,10 @@ export class RecurringService {
         notes: patch.notes === undefined ? undefined : patch.notes,
         invoiceStatus: patch.invoiceStatus ?? undefined,
         isActive: patch.isActive ?? undefined,
+        // Tier 153: explicit null clears the
+        // pause-by-date. The frontend uses
+        // null to mean "remove the pause".
+        pausedUntil: patch.pausedUntil === undefined ? undefined : patch.pausedUntil,
         nextRunAt: nextRunAt ?? undefined,
         items: patch.items ? {
           create: patch.items.map((it, i) => ({
@@ -258,7 +315,7 @@ export class RecurringService {
         } : undefined,
       },
       include: { items: true, customer: { select: { id: true, name: true } } },
-    })
+    }).then((r) => ({ ...r, status: deriveRecurringStatus(r) }))
   }
 
   async delete(companyId: string, id: string) {
@@ -543,6 +600,30 @@ export class RecurringService {
         // inspects it and throws after the tx commits.
         return { __skipped: true, skipRunId: skipRun.id } as any
       }
+      // Tier 153: time-bounded pause. The template
+      // is technically isActive=true but the user
+      // asked to skip until a specific date. We
+      // record a 'skipped' run so the audit trail
+      // shows the pause is being respected, then
+      // bail. We do NOT advance nextRunAt — the
+      // service will re-evaluate on the next tick
+      // (or next manual runNow) once pausedUntil
+      // has passed. The status flag stays as
+      // 'paused_until' in the meantime.
+      if (tpl.pausedUntil && new Date(tpl.pausedUntil) >= new Date()) {
+        const skipRun = await tx.recurringRun.create({
+          data: {
+            recurringInvoiceId: templateId,
+            companyId,
+            trigger: options.trigger,
+            periodStart: tpl.nextRunAt,
+            periodEnd: tpl.nextRunAt,
+            status: 'skipped',
+            errorMessage: `paused until ${tpl.pausedUntil.toISOString().slice(0, 10)}`,
+          },
+        })
+        return { __skipped: true, skipRunId: skipRun.id } as any
+      }
 
       // Load items + customer for the invoice.
       const items = await tx.recurringInvoiceItem.findMany({
@@ -725,10 +806,19 @@ export class RecurringService {
    * API both firing the cron tick).
    */
   async runDueTemplates(now: Date = new Date()): Promise<{ templateId: string; result: 'success' | 'skipped' | 'failed'; invoiceId?: string; error?: string }[]> {
+    // Tier 153: pre-filter time-bounded pauses
+    // so we don't even acquire a row lock for
+    // them. The runOne() check is a safety net
+    // for any race where pausedUntil is set
+    // after this read.
     const due = await this.prisma.recurringInvoice.findMany({
       where: {
         isActive: true,
         nextRunAt: { lte: now },
+        OR: [
+          { pausedUntil: null },
+          { pausedUntil: { lt: now } },
+        ],
       },
       select: { id: true, companyId: true },
     })

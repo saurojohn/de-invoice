@@ -1792,6 +1792,15 @@ model RecurringInvoice {
   // Paused templates don't fire. UI toggles this when the
   // customer pays ahead, the contract is on hold, etc.
   isActive      Boolean  @default(true)
+  // Tier 153: time-bounded pause. The scheduler
+  // skips templates where today < pausedUntil.
+  // The UI resumes the template automatically
+  // once pausedUntil is in the past (we don't
+  // auto-flip isActive, but the next GET shows
+  // the effective state as 'active' again).
+  // NULL = not paused-by-date. The full pause
+  // flag is isActive=false.
+  pausedUntil   DateTime?
   // Tier 129: when true, the scheduler emails the
   // generated invoice to the customer's contact.email
   // via the same path as the manual "Per E-Mail senden"
