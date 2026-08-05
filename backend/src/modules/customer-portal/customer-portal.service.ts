@@ -91,6 +91,13 @@ export interface PortalCustomerSummary {
     name: string;
     customerNumber: string | null;
     type: string;
+    // Tier 155: profile-edit fields. Same shape
+    // the GET /profile endpoint returns, so the
+    // page can read the customer's contact info
+    // from the initial data load without a
+    // second round-trip.
+    vatId: string | null;
+    contact: any;
     address: any;
   };
   invoices: PortalInvoiceRow[];
@@ -336,6 +343,13 @@ export class CustomerPortalService {
         name: session.customer.name,
         customerNumber: session.customer.customerNumber,
         type: session.customer.type,
+        // Tier 155: also surface the contact + vatId
+        // here so the profile card on the portal page
+        // can render without a second API call. The
+        // PATCH endpoint still validates + merges the
+        // same fields, so this is a "free" read.
+        vatId: session.customer.vatId,
+        contact: (session.customer.contact as any) ?? {},
         address: session.customer.address || {},
       },
       invoices,
@@ -456,6 +470,160 @@ export class CustomerPortalService {
       }),
     ])
     return { ok: true, invoiceId }
+  }
+
+  /**
+   * Tier 155: return the customer the session
+   * is bound to. The customer is the only thing
+   * the customer can edit — there's no
+   * companyId or other scope to worry about.
+   * The service returns the public fields
+   * (no internalNotes, no paymentTerms, no
+   * creditLimit, no tags) — those are
+   * operator-only.
+   */
+  async getCustomerProfile(token: string) {
+    const { session, customer } = await this.resolveSessionAndCustomer(token)
+    return {
+      id: customer.id,
+      name: customer.name,
+      customerNumber: customer.customerNumber,
+      type: customer.type,
+      vatId: customer.vatId,
+      contact: (customer.contact as any) ?? {},
+      address: (customer.address as any) ?? {},
+    }
+  }
+
+  /**
+   * Tier 155: update the customer's own profile.
+   * We MERGE into contact / address (not
+   * replace) so a partial PATCH preserves the
+   * other fields. Validation:
+   *   - email format (if provided)
+   *   - name not empty (if provided)
+   * No other validation — phone, address, vatId
+   * are all free-text in this app.
+   */
+  async updateCustomerProfile(
+    token: string,
+    patch: {
+      name?: string
+      vatId?: string | null
+      contact?: {
+        email?: string | null
+        phone?: string | null
+        name?: string | null
+      }
+      address?: {
+        street?: string | null
+        postalCode?: string | null
+        city?: string | null
+        country?: string | null
+      }
+    },
+  ) {
+    const { customer: c } = await this.resolveSessionAndCustomer(token)
+
+    // Validation
+    if (patch.name !== undefined) {
+      if (typeof patch.name !== 'string' || patch.name.trim().length === 0) {
+        throw new BadRequestException('name is required')
+      }
+    }
+    if (patch.contact?.email !== undefined && patch.contact.email !== null) {
+      const e = String(patch.contact.email).trim()
+      if (e && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) {
+        throw new BadRequestException(
+          `Ungültige E-Mail-Adresse: ${e}`,
+        )
+      }
+    }
+
+    // Merge contact + address (don't replace)
+    const currentContact = (c.contact as any) ?? {}
+    const currentAddress = (c.address as any) ?? {}
+    const mergedContact: Record<string, any> = { ...currentContact }
+    const mergedAddress: Record<string, any> = { ...currentAddress }
+    if (patch.contact) {
+      for (const k of ['email', 'phone', 'name'] as const) {
+        if (patch.contact[k] !== undefined) {
+          const v = patch.contact[k]
+          if (v === null) {
+            delete mergedContact[k]
+          } else {
+            mergedContact[k] = String(v).trim() || undefined
+          }
+        }
+      }
+    }
+    if (patch.address) {
+      for (const k of ['street', 'postalCode', 'city', 'country'] as const) {
+        if (patch.address[k] !== undefined) {
+          const v = patch.address[k]
+          if (v === null) {
+            delete mergedAddress[k]
+          } else {
+            mergedAddress[k] = String(v).trim() || undefined
+          }
+        }
+      }
+    }
+
+    const updated = await this.prisma.customer.update({
+      where: { id: c.id },
+      data: {
+        // Top-level fields
+        ...(patch.name !== undefined ? { name: patch.name.trim() } : {}),
+        ...(patch.vatId !== undefined
+          ? { vatId: patch.vatId ? String(patch.vatId).trim() : null }
+          : {}),
+        // JSON columns — full replace (we just merged above)
+        contact: mergedContact as any,
+        address: mergedAddress as any,
+      },
+    })
+
+    this.logger.log(
+      `portal profile updated for customer=${updated.id} ` +
+      `contact.email=${mergedContact.email ?? '(none)'} ` +
+      `address.city=${mergedAddress.city ?? '(none)'}`,
+    )
+
+    return {
+      id: updated.id,
+      name: updated.name,
+      customerNumber: updated.customerNumber,
+      type: updated.type,
+      vatId: updated.vatId,
+      contact: (updated.contact as any) ?? {},
+      address: (updated.address as any) ?? {},
+    }
+  }
+
+  /**
+   * Tier 155 helper: resolve the session AND
+   * eagerly load the customer (the typical use
+   * case for profile endpoints). Returns both
+   * so the caller can do session-level checks
+   * (lastUsedAt, expiresAt) AND access the
+   * customer fields without a second roundtrip.
+   */
+  private async resolveSessionAndCustomer(token: string) {
+    const session = await this.resolveSession(token)
+    const customer = await this.prisma.customer.findFirst({
+      where: {
+        id: session.customerId,
+        companyId: session.companyId,
+      },
+    })
+    if (!customer) {
+      // Should be impossible (the session FK
+      // would have blocked the insert) but
+      // guard anyway.
+      throw new NotFoundException('Customer not found')
+    }
+    return { session, customer }
   }
 
   private async resolveSession(token: string) {

@@ -39,7 +39,9 @@ import {
   Controller,
   Get,
   Header,
+  HttpCode,
   Param,
+  Patch,
   Post,
   Query,
   Req,
@@ -129,6 +131,61 @@ export class CustomerPortalController {
         ? Number((req.body as any).amount)
         : undefined
     return this.svc.markInvoicePaid(token, id, amount)
+  }
+
+  /**
+   * Tier 155: profile editing. The customer can
+   * update their own contact info (name, email,
+   * phone) and billing address from the portal.
+   * Token-auth (same as the rest of the
+   * customer-portal routes). The customer is
+   * bound to the session, so they can ONLY
+   * update their own row — no way to specify
+   * a different customerId.
+   *
+   * Declared BEFORE the `invoice/:id` route per
+   * the NestJS first-match-wins gotcha. The path
+   * segment is `profile` so it can't collide
+   * with `invoice/:id` anyway, but keeping the
+   * convention tidy.
+   */
+  @Get('profile')
+  async getProfile(@Query('token') token: string) {
+    if (!token) {
+      throw new BadRequestException('token is required')
+    }
+    return this.svc.getCustomerProfile(token)
+  }
+
+  @Patch('profile')
+  @HttpCode(200)
+  async updateProfile(
+    @Query('token') token: string,
+    @Body() body: {
+      name?: string
+      vatId?: string | null
+      // The contact object is partial —
+      // omitted keys are preserved. The frontend
+      // sends the whole shape so it's easier to
+      // reason about; we still merge here so a
+      // partial POST (e.g. just the email) works.
+      contact?: {
+        email?: string | null
+        phone?: string | null
+        name?: string | null
+      }
+      address?: {
+        street?: string | null
+        postalCode?: string | null
+        city?: string | null
+        country?: string | null
+      }
+    },
+  ) {
+    if (!token) {
+      throw new BadRequestException('token is required')
+    }
+    return this.svc.updateCustomerProfile(token, body || {})
   }
 
   // ─── Admin endpoints (Tier 132) ──────────────────────
