@@ -3,6 +3,7 @@ import type { Response } from 'express';
 import { CustomerService, ImportCustomerRow } from './customer.service';
 import { CustomerStatementService } from './customer-statement.service';
 import { CustomerStatementBatchService } from './customer-statement-batch.service';
+import { CustomerStatementEmailService } from './customer-statement-email.service';
 import { CreditBalanceService } from './credit-balance.service';
 import { CreateCustomerDto } from './dto/customer.dto';
 import { Auth, Require } from '../../auth/roles.decorator';
@@ -14,6 +15,7 @@ export class CustomerController {
     private customerService: CustomerService,
     private statementService: CustomerStatementService,
     private batchStatementService: CustomerStatementBatchService,
+    private statementEmailService: CustomerStatementEmailService,
     private creditBalanceService: CreditBalanceService,
   ) {}
 
@@ -690,6 +692,39 @@ export class CustomerController {
       'Content-Length': String(pdf.length),
     })
     res.send(pdf)
+  }
+
+  /**
+   * Tier 154: send the Kontoauszug to the
+   * customer's contact.email. Same from/to
+   * range as the GET /:id/statement endpoint.
+   * The PDF is generated in-memory (we don't
+   * hit the GET endpoint from inside — that
+   * would loop through HTTP for no reason).
+   *
+   * Records an EmailSend row with
+   * templateType='statement' so the customer
+   * detail page's email-Verlauf (Tier 144)
+   * surfaces the send.
+   */
+  @Post(':id/statement.email')
+  @Require('customer.update')
+  @HttpCode(200)
+  async sendStatementEmail(
+    @Param('id') id: string,
+    @Body() body: { companyId: string; from: string; to: string; order?: 'asc' | 'desc' },
+  ) {
+    if (!body?.companyId) throw new BadRequestException('companyId is required')
+    if (!body?.from || !body?.to) {
+      throw new BadRequestException('from and to are required (YYYY-MM-DD)')
+    }
+    return this.statementEmailService.sendStatementByEmail(
+      id,
+      body.companyId,
+      body.from,
+      body.to,
+      { order: body.order },
+    )
   }
 
   /**

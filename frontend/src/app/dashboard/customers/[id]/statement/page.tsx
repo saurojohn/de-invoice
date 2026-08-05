@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { ErrorBanner } from "@/components/ui/error-banner"
 import { useI18n } from "@/components/useI18n"
-import { apiGet, apiFetch, ApiError } from "@/lib/api"
+import { apiGet, apiPost, apiFetch, ApiError } from "@/lib/api"
 
 interface StatementLine {
   date: string
@@ -172,6 +172,76 @@ export default function CustomerStatementPage() {
     }
   }
 
+  // Tier 154: send the statement by email.
+  // Same period as the displayed statement.
+  // We don't gate on `statement` being present
+  // (the user might want to email a different
+  // range — they just changed the inputs).
+  // We DO require a customerId to be in the URL
+  // — the parent page already gates on that.
+  const [sendingEmail, setSendingEmail] = useState(false)
+  const [emailResult, setEmailResult] = useState<{
+    kind: "ok" | "err"
+    msg: string
+  } | null>(null)
+  const sendByEmail = async () => {
+    if (!companyId) return
+    setSendingEmail(true)
+    setEmailResult(null)
+    try {
+      const res = await apiPost<{
+        success: boolean
+        emailSendId: string
+        recipientEmail: string
+        period: { from: string; to: string }
+        smtpConfigured: boolean
+      }>(
+        `/api/v1/customers/${id}/statement.email`,
+        {
+          companyId,
+          from,
+          to,
+          order,
+        },
+      )
+      // SMTP not configured → console transport
+      // (dev fallback). The email is recorded
+      // but not actually sent. We surface this
+      // as a soft success + a hint.
+      const hint = res.smtpConfigured
+        ? ""
+        : " (SMTP not configured — logged to console)"
+      setEmailResult({
+        kind: "ok",
+        msg:
+          (t("statement.emailSent") || "Statement sent to {recipient}.").replace(
+            "{recipient}",
+            res.recipientEmail,
+          ) + hint,
+      })
+    } catch (err) {
+      const msg =
+        err instanceof ApiError
+          ? err.message
+          : String((err as any)?.message || err)
+      // "Kunde hat keine E-Mail-Adresse" is the
+      // common case — use a friendlier copy.
+      const isNoEmail = /keine e-mail|email address/i.test(msg)
+      setEmailResult({
+        kind: "err",
+        msg: isNoEmail
+          ? t("statement.emailNoRecipient") ||
+            "No email address on file for this customer."
+          : (t("statement.emailSendError") || "Statement could not be sent: {error}").replace(
+              "{error}",
+              msg,
+            ),
+      })
+    } finally {
+      setSendingEmail(false)
+    }
+  }
+
   return (
     <div className="p-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-4">
@@ -270,9 +340,49 @@ export default function CustomerStatementPage() {
             >
               {downloading ? "..." : t("statement.downloadPdf")}
             </Button>
+            {/* Tier 154: send the same period to
+                the customer's contact.email. We
+                don't require `statement` to be
+                loaded — the user may have just
+                changed the range and wants to
+                email a fresh one. The button is
+                disabled only while a send is in
+                flight. */}
+            <Button
+              variant="outline"
+              onClick={sendByEmail}
+              disabled={sendingEmail}
+              data-testid="statement-send-email-button"
+            >
+              {sendingEmail
+                ? (t("statement.sendingEmail") || "Sending…")
+                : "📧 " + (t("statement.sendEmail") || "Per E-Mail senden")}
+            </Button>
           </div>
         </CardContent>
       </Card>
+
+      {/* Tier 154: inline result banner for the
+          email send. Green on success, red on
+          failure. Cleared on the next send. */}
+      {emailResult && (
+        <div
+          className={
+            "mb-4 p-3 rounded text-sm border " +
+            (emailResult.kind === "ok"
+              ? "bg-green-50 border-green-200 text-green-800 dark:bg-green-900/30 dark:border-green-700 dark:text-green-200"
+              : "bg-red-50 border-red-200 text-red-800 dark:bg-red-900/30 dark:border-red-700 dark:text-red-200")
+          }
+          data-testid={
+            emailResult.kind === "ok"
+              ? "statement-email-sent-ok"
+              : "statement-email-sent-error"
+          }
+        >
+          {emailResult.kind === "ok" ? "✓ " : "✗ "}
+          {emailResult.msg}
+        </div>
+      )}
 
       {error && <ErrorBanner title={t("common.error") || "Fehler"} message={error} />}
 
