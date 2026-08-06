@@ -640,7 +640,8 @@
     "paid": "已付",
     "status": "状态",
     "type": "类型",
-    "invoice": "发票"
+    "invoice": "发票",
+    "creditLimit": "信用额度"
   },
   "customer": {
     "title": "客户管理",
@@ -796,7 +797,13 @@
     "costCenterEmpty": "暂无成本中心数据",
     "costCenterNet": "净额合计",
     "cardAuditTitle": "审计日志 (GoBD)",
-    "cardAuditDesc": "查看所有主数据和凭证的变更，并导出为 CSV。"
+    "cardAuditDesc": "查看所有主数据和凭证的变更，并导出为 CSV。",
+    "creditLimitTitle": "信用额度使用情况",
+    "creditOver": "已超额",
+    "creditWarning": "预警",
+    "creditBadgeOver": "已超额",
+    "creditBadgeWarning": "预警",
+    "creditMore": "更多 — 详见客户列表"
   },
   "email": {
     "title": "邮件中心",

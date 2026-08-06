@@ -640,7 +640,8 @@
     "paid": "Bezahlt",
     "status": "Status",
     "type": "Art",
-    "invoice": "Rechnung"
+    "invoice": "Rechnung",
+    "creditLimit": "Kreditlimit"
   },
   "customer": {
     "title": "Kundenverwaltung",
@@ -796,7 +797,13 @@
     "costCenterEmpty": "Keine Kostenträger-Daten vorhanden",
     "costCenterNet": "Netto-Summe",
     "cardAuditTitle": "Audit-Trail (GoBD)",
-    "cardAuditDesc": "Alle Änderungen an Stammdaten und Belegen einsehen und als CSV exportieren."
+    "cardAuditDesc": "Alle Änderungen an Stammdaten und Belegen einsehen und als CSV exportieren.",
+    "creditLimitTitle": "Kreditlimit-Auslastung",
+    "creditOver": "überschritten",
+    "creditWarning": "Warnung",
+    "creditBadgeOver": "Überschritten",
+    "creditBadgeWarning": "Warnung",
+    "creditMore": "weitere — siehe Kundenliste"
   },
   "email": {
     "title": "E-Mail Center",

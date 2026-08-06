@@ -133,6 +133,23 @@ export class CustomerController {
   }
 
   /**
+   * Tier 159: credit-limit utilization for the whole
+   * company. Returns every customer with a non-NULL
+   * creditLimit + their open-invoice sum + status
+   * ('ok' / 'warning' / 'over'). Consumed by the
+   * dashboard widget and the customer detail card.
+   *
+   * Declared BEFORE `:id/...` so NestJS doesn't
+   * capture "credit-utilization" as a customer id.
+   */
+  @Get('credit-utilization')
+  @Require('customer.read')
+  async creditUtilization(@Query('companyId') companyId: string) {
+    this.assertCompanyId(companyId)
+    return this.customerService.creditUtilization(companyId)
+  }
+
+  /**
    * Tier 144: email-Verlauf for one customer.
    *
    * Returns every email the system has sent to

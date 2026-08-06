@@ -833,7 +833,7 @@ export default function CustomerDetailPage() {
 
       {/* KPI strip */}
       <div
-        className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6"
+        className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3 mb-6"
         data-testid="customer-detail-kpi-strip"
       >
         <Card>
@@ -932,6 +932,64 @@ export default function CustomerDetailPage() {
             </p>
           </CardContent>
         </Card>
+        {/* Tier 159: credit-limit utilization. Only
+            renders when the customer has a non-NULL
+            creditLimit (the schema field defaults to
+            NULL, so most customers won't have one).
+            The progress bar is clamped at 100% even
+            when utilization exceeds 100% — the badge
+            + the red colour already convey the
+            "over-limit" state, the bar just needs to
+            show the visual cap. */}
+        {customer.creditLimit != null && customer.creditLimit > 0 && (() => {
+          const limit = customer.creditLimit
+          const open = stats.openBalance
+          const utilization = (open / limit) * 100
+          const clampedPct = Math.min(utilization, 100)
+          // Three buckets: ok (<80%) / warning (80-100%)
+          // / over (>100%). The colour is the same as
+          // the dashboard widget so the operator has
+          // one mental model.
+          const bucket: 'ok' | 'warning' | 'over' =
+            open > limit ? 'over' : utilization >= 80 ? 'warning' : 'ok'
+          const bucketColor =
+            bucket === 'over'
+              ? 'text-red-700 dark:text-red-400'
+              : bucket === 'warning'
+                ? 'text-amber-700 dark:text-amber-400'
+                : 'text-emerald-700 dark:text-emerald-400'
+          const barColor =
+            bucket === 'over'
+              ? 'bg-red-500'
+              : bucket === 'warning'
+                ? 'bg-amber-500'
+                : 'bg-emerald-500'
+          return (
+            <Card data-testid="kpi-credit-limit" data-bucket={bucket}>
+              <CardContent className="pt-4">
+                <p className="text-xs text-gray-500">
+                  {t("customerDetail.creditLimit") || "Kreditlimit"}
+                </p>
+                <p
+                  className={"text-xl font-mono font-bold " + bucketColor}
+                  data-testid="kpi-credit-limit-pct"
+                >
+                  {Math.round(utilization * 10) / 10}%
+                </p>
+                <p className="text-xs text-gray-400">
+                  {fmtEur(open)} / {fmtEur(limit)}
+                </p>
+                <div className="mt-2 h-1.5 w-full bg-gray-200 dark:bg-gray-700 rounded overflow-hidden">
+                  <div
+                    className={"h-full " + barColor}
+                    style={{ width: clampedPct + "%" }}
+                    data-testid="kpi-credit-limit-bar"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          )
+        })()}
       </div>
 
       {/* Tabs */}

@@ -100,6 +100,20 @@ export default function DashboardPage() {
   const [kpis, setKpis] = useState<DashboardKpis | null>(null)
   const [monthlyRevenue, setMonthlyRevenue] = useState<Array<{ month: string; totalAmount: number; invoiceCount?: number }>>([])
   const [recentInvoices, setRecentInvoices] = useState<RecentInvoice[]>([])
+  // Tier 159: per-customer credit utilization
+  // (openBalance / creditLimit). Surface over-limit
+  // customers + warning-zone customers at the top of
+  // the dashboard so the Berater sees them before
+  // the next Mahnung-Lauf.
+  const [creditUtilization, setCreditUtilization] = useState<Array<{
+    customerId: string
+    customerName: string
+    customerNumber: string | null
+    creditLimit: number
+    totalOpen: number
+    utilization: number
+    status: 'ok' | 'warning' | 'over'
+  }>>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -132,8 +146,22 @@ export default function DashboardPage() {
       // reload mid-restart).
       apiGet<RecurringStats>(`/api/v1/recurring-invoices/stats?companyId=${companyId}`)
         .catch(() => null),
+      // Tier 159: per-customer credit utilization.
+      // Soft-fail — the widget hides itself if the
+      // endpoint errors out (no customers with
+      // creditLimit, or the endpoint is down).
+      apiGet<Array<{
+        customerId: string
+        customerName: string
+        customerNumber: string | null
+        creditLimit: number
+        totalOpen: number
+        utilization: number
+        status: 'ok' | 'warning' | 'over'
+      }>>(`/api/v1/customers/credit-utilization?companyId=${companyId}`)
+        .catch(() => [] as any),
     ])
-      .then(([invoiceList, salesReport, dashboardKpis, recurring]) => {
+      .then(([invoiceList, salesReport, dashboardKpis, recurring, creditRows]) => {
         const invoices = invoiceList?.data || []
         const pending = invoices
           .filter((inv: any) => inv.status === "sent" || inv.status === "draft" || inv.status === "overdue")
@@ -155,6 +183,7 @@ export default function DashboardPage() {
         setMonthlyRevenue(salesReport?.byMonth || [])
         setKpis(dashboardKpis || null)
         setRecentInvoices(invoices.slice(0, 8) as RecentInvoice[])
+        setCreditUtilization(creditRows || [])
         setLoading(false)
       })
       .catch((err) => {
@@ -325,6 +354,115 @@ export default function DashboardPage() {
             <RevenueChart data={kpis?.byMonth || monthlyRevenue} height={240} />
           </CardContent>
         </Card>
+
+        {/* Tier 159: credit-limit widget. Shows the
+            customers that are over (or near) their
+            credit limit. Sorted by severity
+            (over > warning > ok) and within each
+            bucket by utilization DESC. Soft hide when
+            the company has no customers with a limit
+            set (the backend returns [] for the empty
+            case). Capped at 5 rows to keep the
+            dashboard scannable. */}
+        {creditUtilization.length > 0 && (
+          <Card className="mb-8" data-testid="dashboard-credit-limit">
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between flex-wrap gap-2">
+                <span>
+                  {t("dashboard.creditLimitTitle") || "Kreditlimit-Auslastung"}
+                </span>
+                <span className="text-xs text-gray-500">
+                  {creditUtilization.filter((r) => r.status === 'over').length}{" "}
+                  {t("dashboard.creditOver") || "überschritten"} ·{" "}
+                  {creditUtilization.filter((r) => r.status === 'warning').length}{" "}
+                  {t("dashboard.creditWarning") || "Warnung"}
+                </span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {creditUtilization.slice(0, 5).map((row) => {
+                  const bucketColor =
+                    row.status === 'over'
+                      ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700'
+                      : row.status === 'warning'
+                        ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700'
+                        : 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-700'
+                  const pct = Math.min(row.utilization, 100)
+                  const barColor =
+                    row.status === 'over'
+                      ? 'bg-red-500'
+                      : row.status === 'warning'
+                        ? 'bg-amber-500'
+                        : 'bg-emerald-500'
+                  return (
+                    <button
+                      key={row.customerId}
+                      type="button"
+                      onClick={() => router.push(`/dashboard/customers/${row.customerId}`)}
+                      className={
+                        "w-full p-3 border rounded text-left hover:shadow transition-shadow " +
+                        bucketColor
+                      }
+                      data-testid={`dashboard-credit-row-${row.customerId}`}
+                      data-bucket={row.status}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-medium text-sm">
+                          {row.customerNumber
+                            ? `${row.customerNumber} — ${row.customerName}`
+                            : row.customerName}
+                        </span>
+                        <span
+                          className={
+                            "text-sm font-mono font-bold " +
+                            (row.status === 'over'
+                              ? 'text-red-700 dark:text-red-300'
+                              : row.status === 'warning'
+                                ? 'text-amber-700 dark:text-amber-300'
+                                : 'text-emerald-700 dark:text-emerald-300')
+                          }
+                          data-testid={`dashboard-credit-pct-${row.customerId}`}
+                        >
+                          {Math.round(row.utilization * 10) / 10}%
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
+                        <span className="font-mono">
+                          {row.totalOpen.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
+                          {" "}/ {" "}
+                          {row.creditLimit.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
+                        </span>
+                        {row.status === 'over' && (
+                          <span className="px-1.5 py-0.5 rounded bg-red-200 dark:bg-red-800 text-red-900 dark:text-red-100 text-xs font-medium">
+                            {t("dashboard.creditBadgeOver") || "Überschritten"}
+                          </span>
+                        )}
+                        {row.status === 'warning' && (
+                          <span className="px-1.5 py-0.5 rounded bg-amber-200 dark:bg-amber-800 text-amber-900 dark:text-amber-100 text-xs font-medium">
+                            {t("dashboard.creditBadgeWarning") || "Warnung"}
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-1.5 h-1.5 w-full bg-gray-200 dark:bg-gray-700 rounded overflow-hidden">
+                        <div
+                          className={"h-full " + barColor}
+                          style={{ width: pct + "%" }}
+                        />
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+              {creditUtilization.length > 5 && (
+                <p className="text-xs text-gray-500 mt-2 text-center">
+                  +{creditUtilization.length - 5}{" "}
+                  {t("dashboard.creditMore") || "weitere — siehe Kundenliste"}
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Recent invoices */}
         {recentInvoices.length > 0 && (

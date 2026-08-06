@@ -640,7 +640,8 @@
     "paid": "Paid",
     "status": "Status",
     "type": "Type",
-    "invoice": "Invoice"
+    "invoice": "Invoice",
+    "creditLimit": "Credit limit"
   },
   "customer": {
     "title": "Customer Management",
@@ -796,7 +797,13 @@
     "costCenterEmpty": "No cost-center data yet",
     "costCenterNet": "Net total",
     "cardAuditTitle": "Audit Trail (GoBD)",
-    "cardAuditDesc": "View all changes to master data and vouchers, and export as CSV."
+    "cardAuditDesc": "View all changes to master data and vouchers, and export as CSV.",
+    "creditLimitTitle": "Credit-limit utilization",
+    "creditOver": "over limit",
+    "creditWarning": "warning",
+    "creditBadgeOver": "Over",
+    "creditBadgeWarning": "Warning",
+    "creditMore": "more — see customer list"
   },
   "email": {
     "title": "Email Center",

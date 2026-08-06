@@ -391,6 +391,95 @@ export class CustomerService {
   }
 
   /**
+   * Tier 159: credit-limit utilization for the whole
+   * company. Returns every customer with a non-NULL
+   * creditLimit + their open-invoice sum, sorted by
+   * utilization DESC (over-limit customers surface
+   * first). The dashboard widget + the customer detail
+   * card both consume this shape.
+   *
+   * Open invoice definition: status NOT IN ('paid',
+   * 'cancelled'). We sum the raw total (not the EUR
+   * equivalent) because the limit is in the same
+   * currency. If a customer has multi-currency open
+   * invoices, the dashboard shows the raw sum; the
+   * per-customer detail page can show a per-currency
+   * breakdown if we ever need it.
+   *
+   * The SQL is two queries:
+   *   1. SELECT customers WHERE creditLimit IS NOT NULL
+   *   2. SELECT customerId, SUM(total) FROM Invoice
+   *      WHERE status NOT IN ('paid','cancelled')
+   *      AND customerId IN (...) GROUP BY customerId
+   * That avoids a per-customer round-trip (the naive
+   * "for each customer, sum their invoices" pattern
+   * would be N+1 and slow on a 500-customer tenant).
+   */
+  async creditUtilization(companyId: string) {
+    const customers = await this.prisma.customer.findMany({
+      where: {
+        companyId,
+        creditLimit: { not: null },
+      },
+      select: {
+        id: true,
+        name: true,
+        customerNumber: true,
+        creditLimit: true,
+      },
+      orderBy: { name: 'asc' },
+    })
+    if (customers.length === 0) return []
+
+    const ids = customers.map((c) => c.id)
+    const openSums = await this.prisma.invoice.groupBy({
+      by: ['customerId'],
+      where: {
+        companyId,
+        customerId: { in: ids },
+        status: { notIn: ['paid', 'cancelled'] },
+      },
+      _sum: { total: true },
+    })
+    const openByCustomer = new Map<string, number>(
+      openSums.map((row) => [row.customerId, Number(row._sum.total || 0)]),
+    )
+
+    const rows = customers.map((c) => {
+      const limit = Number(c.creditLimit)
+      const open = openByCustomer.get(c.id) || 0
+      const utilization = limit > 0 ? (open / limit) * 100 : 0
+      // 80% / 100% thresholds. The 'warning' bucket
+      // surfaces "approaching limit" customers so the
+      // Berater can pre-empt a Mahnung later. The
+      // 'over' bucket is the headline — these are
+      // customers who already owe more than the limit
+      // and should not receive new goods/services.
+      const status: 'ok' | 'warning' | 'over' =
+        open > limit ? 'over' : utilization >= 80 ? 'warning' : 'ok'
+      return {
+        customerId: c.id,
+        customerName: c.name,
+        customerNumber: c.customerNumber,
+        creditLimit: limit,
+        totalOpen: round2(open),
+        utilization: Math.round(utilization * 10) / 10,
+        status,
+      }
+    })
+    // Sort: 'over' first, then 'warning', then 'ok'
+    // (within each bucket: highest utilization first).
+    const order = { over: 0, warning: 1, ok: 2 } as const
+    rows.sort((a, b) => {
+      const sa = order[a.status]
+      const sb = order[b.status]
+      if (sa !== sb) return sa - sb
+      return b.utilization - a.utilization
+    })
+    return rows
+  }
+
+  /**
    * Tier 144: email log for a single customer.
    *
    * Returns the chronological history of every
@@ -1497,4 +1586,8 @@ export class CustomerService {
     }
     return result
   }
+}
+
+function round2(n: number): number {
+  return Math.round(n * 100) / 100
 }
