@@ -84,6 +84,7 @@ model Company {
   expenses    Expense[]
   ustvaFilings UStvaFiling[]
   reminderTemplates ReminderTemplate[]
+  noteTemplates     NoteTemplate[]
   mahnungen        Mahnung[] 
   vatRates    VatRate[]
   vatRateHistories VatRateHistory[]
@@ -1652,6 +1653,39 @@ model ReminderTemplate {
 
   @@unique([companyId, level])
   @@index([companyId])
+}
+
+/// Tier 156: per-company Bemerkungstext (notes) templates
+/// the operator can drop into the invoice-create form.
+///
+/// Mirrors the ReminderTemplate pattern (per-company, free-
+/// text, soft-default via isDefault). The first GET seeds
+/// five German defaults if the company has no templates yet
+/// — the same convention the Mahnung-Vorlagen editor uses.
+///
+/// Why a separate model and not a JSON column on Company:
+///   1. The list is editable through the UI; the operator
+///      can add, rename, delete, and re-order entries.
+///      That's a list of rows, not a single JSON blob.
+///   2. Each row has its own audit trail (createdAt /
+///      updatedAt) so the dashboard can show "letzte
+///      Änderung" without parsing JSON.
+///   3. Future-proof: if we ever ship per-customer
+///      templates (e.g. a B2B customer wants their
+///      Bestellnummer on every invoice), the FK is already
+///      in the right shape.
+model NoteTemplate {
+  id         String   @id @default(uuid())
+  companyId  String
+  company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  label      String   // short button label, e.g. "Skonto 2%"
+  text       String   @db.Text
+  sortOrder  Int      @default(0)
+  isDefault  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([companyId, sortOrder])
 }
 
 /// Mahnung audit trail (Tier 37).

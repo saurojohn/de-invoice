@@ -1048,6 +1048,33 @@ export default function SettingsPage() {
               redeploy. */}
           <DunningConfigCard />
 
+          {/* Tier 156: Bemerkungsvorlagen — per-company
+              snippets the operator can drop into the
+              invoice notes field. Same page, separate
+              card so the dunning-related "fees +
+              Werktage" stays self-contained. */}
+          <Card>
+            <CardHeader>
+              <CardTitle>
+                {t("noteTemplates.cardTitle") || "Bemerkungsvorlagen"}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                {t("noteTemplates.cardSubtitle") ||
+                  "Gespeicherte Textbausteine, die auf der Rechnungs-Erstellung mit einem Klick in das Bemerkungs-Feld eingefügt werden."}
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => router.push("/dashboard/settings/note-templates")}
+                data-testid="settings-note-templates-link"
+              >
+                {t("noteTemplates.openEditor") || "Vorlagen bearbeiten"} →
+              </Button>
+            </CardContent>
+          </Card>
+
           {/* Invoice Settings Card */}
           <Card>
             <CardHeader>

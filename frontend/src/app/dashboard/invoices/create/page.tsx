@@ -97,6 +97,16 @@ function CreateInvoicePageInner() {
   // can refresh to re-pull), which matches the read-only
   // metadata nature of the dropdown.
   const [costCenters, setCostCenters] = useState<string[]>([])
+  // Tier 156: Bemerkungstext templates. Loaded once
+  // on mount; rendered as a dropdown next to the notes
+  // input. Selecting one appends the rendered text to
+  // form.notes.
+  const [noteTemplates, setNoteTemplates] = useState<Array<{
+    id: string
+    label: string
+    text: string
+    isDefault?: boolean
+  }>>([])
   const [customerSearch, setCustomerSearch] = useState("")
   const [productSearch, setProductSearch] = useState("")
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false)
@@ -346,11 +356,19 @@ function CreateInvoicePageInner() {
       apiGet<{ costCenters: string[] }>(
         `/api/v1/invoices/cost-centers?companyId=${companyId}`,
       ).catch(() => ({ costCenters: [] })),
-    ]).then(([c, p, inv, cc]) => {
+      // Tier 156: Bemerkungstext templates (notes
+      // shortcuts). Soft-fail — a 404 (very old backend)
+      // or 500 just leaves the dropdown empty so the
+      // form still works without templates.
+      apiGet<Array<{ id: string; label: string; text: string }>>(
+        `/api/v1/note-templates?companyId=${companyId}`,
+      ).catch(() => [] as any),
+    ]).then(([c, p, inv, cc, nt]) => {
       setCustomers(Array.isArray(c) ? c : (c.data || []))
       setProducts(Array.isArray(p) ? p : (p.data || []))
       setInvoices(Array.isArray(inv) ? inv : (inv.data || []))
       setCostCenters(Array.isArray(cc?.costCenters) ? cc!.costCenters : [])
+      setNoteTemplates(Array.isArray(nt) ? nt : [])
     }).catch((err) => {
       console.error('Invoice create dropdowns fetch failed:', err)
     })
@@ -2037,11 +2055,92 @@ function CreateInvoicePageInner() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">{t("invoice.notes")}</label>
+                  <div className="flex items-end gap-2 mb-1">
+                    <label className="block text-sm font-medium flex-1">{t("invoice.notes")}</label>
+                    {/* Tier 156: pick a saved Bemerkungstext
+                        and append it to the notes field.
+                        The selected template's text is
+                        rendered with placeholders first
+                        ({{customerName}}, {{total}},
+                        {{dueDate}}, {{invoiceNumber}},
+                        {{companyName}}) so the operator
+                        sees the final wording before
+                        saving. Unknown placeholders stay
+                        literal so the operator notices
+                        when the context is missing. */}
+                    {noteTemplates.length > 0 && (
+                      <select
+                        data-testid="invoice-notes-template-select"
+                        value=""
+                        onChange={(e) => {
+                          const id = e.target.value
+                          if (!id) return
+                          const tpl = noteTemplates.find((t) => t.id === id)
+                          if (!tpl) return
+                          // Substitute known placeholders
+                          // with the current form state.
+                          // The customer name + total +
+                          // dueDate are the most useful;
+                          // the operator can edit the
+                          // resulting text in the field
+                          // before saving.
+                          const customer = customers.find(
+                            (c) => c.id === form.customerId,
+                          )
+                          const total = calculateTotal()
+                          const totalStr = total
+                            ? new Intl.NumberFormat("de-DE", {
+                                style: "currency",
+                                currency: form.currency || "EUR",
+                              }).format(total)
+                            : "{{total}}"
+                          const dueDateStr = form.dueDate
+                            ? new Date(form.dueDate).toLocaleDateString("de-DE")
+                            : "{{dueDate}}"
+                          const rendered = tpl.text
+                            .replace(/\{\{customerName\}\}/g, customer?.name || "{{customerName}}")
+                            .replace(/\{\{total\}\}/g, totalStr)
+                            .replace(/\{\{dueDate\}\}/g, dueDateStr)
+                            .replace(/\{\{invoiceNumber\}\}/g, "{{invoiceNumber}}")
+                            .replace(/\{\{companyName\}\}/g, "{{companyName}}")
+                          // Append with a newline separator
+                          // (so the operator can keep
+                          // multiple snippets stacked).
+                          const next = form.notes
+                            ? `${form.notes}\n${rendered}`
+                            : rendered
+                          setForm({ ...form, notes: next })
+                          // Reset the select so picking the
+                          // same template twice in a row
+                          // still fires onChange.
+                          e.target.value = ""
+                        }}
+                        className="text-xs border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 max-w-[220px]"
+                      >
+                        <option value="">
+                          {t("invoiceNotes.insertTemplate") || "+ Vorlage einfügen"}
+                        </option>
+                        {noteTemplates.map((tpl) => (
+                          <option key={tpl.id} value={tpl.id}>
+                            {tpl.label}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    <a
+                      href="/dashboard/settings/note-templates"
+                      data-testid="invoice-notes-manage-link"
+                      className="text-xs text-blue-600 dark:text-blue-400 hover:underline whitespace-nowrap"
+                      title={t("invoiceNotes.manageTitle") || "Vorlagen verwalten"}
+                    >
+                      ⚙ {t("invoiceNotes.manage") || "Verwalten"}
+                    </a>
+                  </div>
                   <Input
                     value={form.notes}
                     onChange={(e) => setForm({ ...form, notes: e.target.value })}
                     placeholder={t("common2.additionalNotes")}
+                    data-testid="invoice-notes-input"
                   />
                 </div>
               </div>

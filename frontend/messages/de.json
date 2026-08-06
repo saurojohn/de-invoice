@@ -3269,5 +3269,25 @@
     "daysOverdue": "Tage überfällig",
     "backToOverview": "Zurück zur Übersicht",
     "invoiceNotFound": "Diese Rechnung gehört nicht zu Ihrem Konto."
+  },
+  "invoiceNotes": {
+    "insertTemplate": "+ Vorlage einfügen",
+    "manage": "Verwalten",
+    "manageTitle": "Vorlagen verwalten"
+  },
+  "noteTemplates": {
+    "title": "Bemerkungsvorlagen",
+    "subtitle": "Gespeicherte Textbausteine für das Bemerkungs-Feld auf der Rechnungs-Erstellung. Klicken Sie in der Rechnungs-Ansicht auf das Dropdown, um einen Baustein in das Bemerkungs-Feld einzufügen.",
+    "resetDefaults": "Standard wiederherstellen",
+    "new": "Neue Vorlage",
+    "labelLabel": "Button-Beschriftung",
+    "sortOrderLabel": "Reihenfolge",
+    "textLabel": "Text",
+    "placeholders": "Platzhalter:",
+    "empty": "Noch keine Vorlagen. Klicken Sie auf „Neue Vorlage\", um eine anzulegen.",
+    "badgeDefault": "Standard",
+    "cardTitle": "Bemerkungsvorlagen",
+    "cardSubtitle": "Gespeicherte Textbausteine, die auf der Rechnungs-Erstellung mit einem Klick in das Bemerkungs-Feld eingefügt werden.",
+    "openEditor": "Vorlagen bearbeiten"
   }
 }

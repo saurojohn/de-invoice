@@ -3269,5 +3269,25 @@
     "daysOverdue": "天逾期",
     "backToOverview": "返回概览",
     "invoiceNotFound": "此发票不属于您的账户。"
+  },
+  "invoiceNotes": {
+    "insertTemplate": "+ 插入模板",
+    "manage": "管理",
+    "manageTitle": "管理模板"
+  },
+  "noteTemplates": {
+    "title": "备注模板",
+    "subtitle": "用于发票创建页备注字段的已保存文本片段。在发票视图中点击下拉菜单即可将片段插入备注字段。",
+    "resetDefaults": "恢复默认",
+    "new": "新建模板",
+    "labelLabel": "按钮名称",
+    "sortOrderLabel": "排序",
+    "textLabel": "文本",
+    "placeholders": "占位符:",
+    "empty": "暂无模板。点击\"新建模板\"以添加。",
+    "badgeDefault": "默认",
+    "cardTitle": "备注模板",
+    "cardSubtitle": "已保存的文本片段,可在创建发票时一键插入备注字段。",
+    "openEditor": "编辑模板"
   }
 }

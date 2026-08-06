@@ -3269,5 +3269,25 @@
     "daysOverdue": "days overdue",
     "backToOverview": "Back to overview",
     "invoiceNotFound": "This invoice is not associated with your account."
+  },
+  "invoiceNotes": {
+    "insertTemplate": "+ Insert template",
+    "manage": "Manage",
+    "manageTitle": "Manage templates"
+  },
+  "noteTemplates": {
+    "title": "Note templates",
+    "subtitle": "Saved text snippets for the notes field on invoice creation. Use the dropdown in the invoice view to drop a snippet into the notes field.",
+    "resetDefaults": "Restore defaults",
+    "new": "New template",
+    "labelLabel": "Button label",
+    "sortOrderLabel": "Order",
+    "textLabel": "Text",
+    "placeholders": "Placeholders:",
+    "empty": "No templates yet. Click „New template\" to add one.",
+    "badgeDefault": "Default",
+    "cardTitle": "Note templates",
+    "cardSubtitle": "Saved text snippets that can be dropped into the notes field on invoice creation with one click.",
+    "openEditor": "Edit templates"
   }
 }

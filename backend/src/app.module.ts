@@ -30,6 +30,7 @@ import { StorageModule } from './modules/storage/storage.module';
 import { ExchangeRateModule } from './modules/exchange-rate/exchange-rate.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
 import { ReminderModule } from './modules/reminder/reminder.module';
+import { NoteTemplateModule } from './modules/note-template/note-template.module';
 import { MailModule } from './modules/mail/mail.module';
 import { UsersModule } from './modules/users/users.module';
 import { RecurringModule } from './modules/recurring/recurring.module';
@@ -109,6 +110,7 @@ import { AssetsModule } from './modules/assets/assets.module';
     StorageModule,
     InventoryModule,
     ReminderModule,
+    NoteTemplateModule,
     ExchangeRateModule,
     UsersModule,
     RecurringModule,
