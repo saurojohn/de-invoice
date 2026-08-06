@@ -85,7 +85,15 @@ function CreateInvoicePageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const editId = searchParams.get("id") || null
+  // Tier 160: clone-as-draft. When set, the create
+  // page prefills from the source invoice (via
+  // GET /invoices/:id) but treats the result as a
+  // NEW draft (issueDate=today, no invoice number,
+  // status=draft). The user reviews + edits before
+  // saving.
+  const cloneFromId = searchParams.get("cloneFrom") || null
   const isEdit = !!editId
+  const isClone = !!cloneFromId
   const { t, locale, getDateLocale } = useI18n()
   const [customers, setCustomers] = useState<Customer[]>([])
   const [products, setProducts] = useState<Product[]>([])
@@ -267,6 +275,64 @@ function CreateInvoicePageInner() {
       return
     }
 
+    // Tier 160: extract the prefill logic into a
+    // shared helper so edit + clone both use it
+    // with the same defaults. The only difference
+    // is the "new-invoice" overrides (issueDate,
+    // no invoice number) that clone needs.
+    const prefillFromInvoice = (inv: any, opts: { isClone: boolean }) => {
+      setInvoiceType(inv.type || 'INV')
+      setTemplateType(inv.templateType || 'standard')
+      if (inv.customer?.name) {
+        setCustomerSearch(inv.customer.name)
+      } else {
+        setCustomerSearch(inv.customerId || '')
+      }
+      setForm({
+        customerId: inv.customerId || '',
+        referenceInvoiceId: inv.referenceInvoiceId || '',
+        // For clone, use today as issueDate; for
+        // edit, keep the source's issueDate.
+        issueDate: opts.isClone
+          ? new Date().toISOString().split("T")[0]
+          : (inv.issueDate
+              ? String(inv.issueDate).slice(0, 10)
+              : new Date().toISOString().split("T")[0]),
+        // For clone, clear the dueDate so the user
+        // picks a new one (the source's dueDate is
+        // probably in the past now).
+        dueDate: opts.isClone
+          ? ""
+          : (inv.dueDate ? String(inv.dueDate).slice(0, 10) : ""),
+        deliveryDate: inv.deliveryDate
+          ? String(inv.deliveryDate).slice(0, 10)
+          : new Date().toISOString().split("T")[0],
+        notes: inv.notes || '',
+        discountPercent: Number(inv.discountPercent || 0),
+        discountAmount: Number(inv.discountAmount || 0),
+        skontoPercent: Number(inv.skontoPercent || 0),
+        skontoDays: Number(inv.skontoDays || 0),
+        paymentMethod: inv.paymentMethod || 'bank_transfer',
+        paymentTerms: inv.paymentTerms ?? 0,
+        language: inv.language || getDateLocale(),
+        costCenter: inv.costCenter || '',
+        costObject: inv.costObject || '',
+        reverseCharge: Boolean(inv.reverseCharge),
+        euTransaction: Boolean(inv.euTransaction),
+        currency: inv.currency || 'EUR',
+        // Items: prefill either way. The user can
+        // edit the qty / price before saving.
+        items: (inv.items || []).map((it: any) => ({
+          description: it.description || '',
+          productNumber: it.productNumber || '',
+          quantity: Number(it.quantity || 1),
+          unit: it.unit || t("common2.unit"),
+          unitPrice: Number(it.unitPrice || 0),
+          vatRate: Number(it.vatRate ?? 0.19),
+        })),
+      })
+    }
+
     // If we're in edit mode, prefill the form from the existing
     // invoice BEFORE the dropdown fetch effect. Without this the
     // page would render a blank create form and then suddenly
@@ -276,72 +342,31 @@ function CreateInvoicePageInner() {
       apiGet<any>(`/api/v1/invoices/${editId}?companyId=${companyId}`)
         .then((inv) => {
           if (!inv || !inv.id) return
-          setInvoiceType(inv.type || 'INV')
-          setTemplateType(inv.templateType || 'standard')
-          // The customer "select" is actually a custom search
-          // input (value=customerSearch) with a click-list below.
-          // The hidden form.customerId is the real field, but
-          // the input's `required` HTML5 validation looks at the
-          // input's *visible* value. Without setting customerSearch
-          // here, the input shows the placeholder ("Kunde wählen"
-          // / "选择客户") and submit gets blocked with "Please
-          // fill out this field." — even though customerId IS set.
-          // Use the customer name from the API response so the
-          // visible text matches the hidden id.
-          if (inv.customer?.name) {
-            setCustomerSearch(inv.customer.name)
-          } else {
-            // Fallback: show the id so the user at least sees
-            // something is selected.
-            setCustomerSearch(inv.customerId || '')
-          }
-          setForm({
-            customerId: inv.customerId || '',
-            referenceInvoiceId: inv.referenceInvoiceId || '',
-            issueDate: inv.issueDate ? String(inv.issueDate).slice(0, 10) : new Date().toISOString().split("T")[0],
-            dueDate: inv.dueDate ? String(inv.dueDate).slice(0, 10) : "",
-            // Default the Liefertermin to today when the stored
-            // invoice has no value, so editing an old invoice
-            // doesn't suddenly hide the row.
-            deliveryDate: inv.deliveryDate ? String(inv.deliveryDate).slice(0, 10) : new Date().toISOString().split("T")[0],
-            notes: inv.notes || '',
-            discountPercent: Number(inv.discountPercent || 0),
-            discountAmount: Number(inv.discountAmount || 0),
-            // Tier 52: prefill Skonto fields from the
-            // existing invoice (both null when no
-            // Skonto was set).
-            skontoPercent: Number(inv.skontoPercent || 0),
-            skontoDays: Number(inv.skontoDays || 0),
-            paymentMethod: inv.paymentMethod || 'bank_transfer',
-            paymentTerms: inv.paymentTerms ?? 0,
-            language: inv.language || getDateLocale(),
-            // Tier 39: prefilled cost center stamps on edit-mode.
-            costCenter: inv.costCenter || '',
-            costObject: inv.costObject || '',
-            // Tier 27: hydrate the USt-Behandlung
-            // flags from the loaded invoice. The
-            // radio group's value is derived
-            // (see below) from these two booleans.
-            reverseCharge: Boolean(inv.reverseCharge),
-            euTransaction: Boolean(inv.euTransaction),
-            // Tier 118: prefill the currency on edit.
-            // Falls back to EUR for legacy rows that
-            // don't have a currency set.
-            currency: inv.currency || 'EUR',
-            items: (inv.items || []).map((it: any) => ({
-              description: it.description || '',
-              productNumber: it.productNumber || '',
-              quantity: Number(it.quantity || 1),
-              unit: it.unit || t("common2.unit"),
-              unitPrice: Number(it.unitPrice || 0),
-              vatRate: Number(it.vatRate ?? 0.19),
-            })),
-          })
+          prefillFromInvoice(inv, { isClone: false })
         })
         .catch((err) => {
           // 403 = not same day (or wrong permissions). Show the
           // error inline rather than silently redirecting.
           const msg = err instanceof ApiError ? err.message : 'Rechnung konnte nicht geladen werden.'
+          setLoadError(msg)
+        })
+    }
+
+    // Tier 160: clone-as-draft. Same fetch as edit,
+    // but with the new-invoice overrides
+    // (issueDate=today, no dueDate, no invoice
+    // number, items pre-filled). The form is
+    // treated as a CREATE, not an EDIT — the
+    // submit handler checks `isEdit` (not
+    // `isClone`) so the POST endpoint is used.
+    if (cloneFromId) {
+      apiGet<any>(`/api/v1/invoices/${cloneFromId}?companyId=${companyId}`)
+        .then((inv) => {
+          if (!inv || !inv.id) return
+          prefillFromInvoice(inv, { isClone: true })
+        })
+        .catch((err) => {
+          const msg = err instanceof ApiError ? err.message : 'Quell-Rechnung konnte nicht geladen werden.'
           setLoadError(msg)
         })
     }
@@ -1043,7 +1068,11 @@ function CreateInvoicePageInner() {
       <header className="bg-white dark:bg-gray-800 border-b shadow-sm">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <h1 className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-            {isEdit ? (t("invoice.edit") || "Rechnung bearbeiten") : t("invoice.create")}
+            {isEdit
+              ? (t("invoice.edit") || "Rechnung bearbeiten")
+              : isClone
+                ? "🔁 " + (t("invoice.cloneTitle") || "Als neuen Entwurf kopieren")
+                : t("invoice.create")}
           </h1>
           <div className="flex items-center gap-2">
             <LanguageSwitcher />

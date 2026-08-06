@@ -1184,7 +1184,8 @@
     "statusDraft": "Draft",
     "statusOverdue": "Overdue",
     "statusPaid": "Paid",
-    "statusSent": "Sent"
+    "statusSent": "Sent",
+    "cloneTitle": "Duplicate as new draft"
   },
   "invoiceTemplates": {
     "title": "Invoice templates",
@@ -3314,5 +3315,9 @@
     "cardTitle": "Note templates",
     "cardSubtitle": "Saved text snippets that can be dropped into the notes field on invoice creation with one click.",
     "openEditor": "Edit templates"
+  },
+  "invoiceDetail": {
+    "cloneBtn": "🔁 Duplicate as draft",
+    "cloneTitle": "Duplicate this invoice as a new draft"
   }
 }

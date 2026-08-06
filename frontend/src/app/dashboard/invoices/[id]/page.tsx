@@ -1220,6 +1220,25 @@ export default function InvoiceDetailPage() {
                 </Button>
               </>
             )}
+            {/* Tier 160: clone-as-new-draft. Visible on
+                EVERY invoice (not just today) — the
+                whole point is to re-issue a past
+                invoice as a new draft with today's
+                date. The create page reads the
+                ?cloneFrom=<id> param + prefills the
+                form with the source's items /
+                customer / discounts, but with
+                issueDate=today + status=draft +
+                new invoice number. */}
+            <Button
+              variant="outline"
+              onClick={() => router.push(`/dashboard/invoices/create?cloneFrom=${invoice.id}`)}
+              data-testid="invoice-clone"
+              className="text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700 hover:bg-emerald-50"
+              title="Diese Rechnung als neuen Entwurf duplizieren"
+            >
+              🔁 Als Entwurf kopieren
+            </Button>
             {!isToday && invoice && (
               <span
                 className="text-xs text-gray-500 dark:text-gray-400"

@@ -1184,7 +1184,8 @@
     "statusDraft": "草稿",
     "statusOverdue": "已逾期",
     "statusPaid": "已支付",
-    "statusSent": "已发送"
+    "statusSent": "已发送",
+    "cloneTitle": "复制为新草稿"
   },
   "invoiceTemplates": {
     "title": "发票模板",
@@ -3314,5 +3315,9 @@
     "cardTitle": "备注模板",
     "cardSubtitle": "已保存的文本片段,可在创建发票时一键插入备注字段。",
     "openEditor": "编辑模板"
+  },
+  "invoiceDetail": {
+    "cloneBtn": "🔁 复制为草稿",
+    "cloneTitle": "将此发票复制为新草稿"
   }
 }

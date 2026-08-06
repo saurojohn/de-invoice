@@ -1184,7 +1184,8 @@
     "statusDraft": "Entwurf",
     "statusOverdue": "Überfällig",
     "statusPaid": "Bezahlt",
-    "statusSent": "Versendet"
+    "statusSent": "Versendet",
+    "cloneTitle": "Als neuen Entwurf kopieren"
   },
   "invoiceTemplates": {
     "title": "Rechnungsvorlagen",
@@ -3314,5 +3315,9 @@
     "cardTitle": "Bemerkungsvorlagen",
     "cardSubtitle": "Gespeicherte Textbausteine, die auf der Rechnungs-Erstellung mit einem Klick in das Bemerkungs-Feld eingefügt werden.",
     "openEditor": "Vorlagen bearbeiten"
+  },
+  "invoiceDetail": {
+    "cloneBtn": "🔁 Als Entwurf kopieren",
+    "cloneTitle": "Diese Rechnung als neuen Entwurf duplizieren"
   }
 }
