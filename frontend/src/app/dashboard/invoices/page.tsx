@@ -57,6 +57,32 @@ export default function InvoicesPage() {
     }>
   } | null>(null)
   const [bulkSendError, setBulkSendError] = useState<string | null>(null)
+  // Tier 157: bulk Mahnung send. Separate state from
+  // the email-send above because the UX is different
+  // — the user picks a Mahnung level (1./2./3.) before
+  // sending, and the result modal shows a "skipped"
+  // bucket (already-sent-today) in addition to sent /
+  // failed.
+  const [bulkMahnungLevel, setBulkMahnungLevel] = useState<
+    "first" | "second" | "final" | null
+  >(null)
+  const [bulkMahnungSending, setBulkMahnungSending] = useState(false)
+  const [bulkMahnungProgress, setBulkMahnungProgress] = useState<{
+    total: number
+    succeeded: number
+    failed: number
+    skipped: number
+    results: Array<{
+      invoiceId: string
+      invoiceNumber?: string
+      customerName?: string | null
+      ok: boolean
+      status: "sent" | "skipped" | "failed"
+      recipient?: string
+      error?: string
+    }>
+  } | null>(null)
+  const [bulkMahnungError, setBulkMahnungError] = useState<string | null>(null)
   // Visible error when the list fetch fails. Empty string = no error.
   // The user must see this — silent console.error was making it look
   // like the page was empty when in fact the API was throttled / down.
@@ -462,6 +488,61 @@ export default function InvoicesPage() {
   // any active type/status filter) — the server picks all matching
   // invoices across all pages, not just the current view. The response
   // is a single CSV file with a UTF-8 BOM for Excel.
+
+  /**
+   * Tier 157: bulk Mahnung send. Wraps
+   *   POST /api/v1/reminders/bulk-send
+   * The user picks the level (1./2./3.) first, then
+   * we POST. Backend iterates per invoice and returns
+   *   { total, succeeded, failed, skipped, results: [...] }
+   * The result modal shows 3 buckets: sent / skipped
+   * (already-sent-today) / failed.
+   */
+  const bulkSendMahnung = async () => {
+    if (selected.size === 0) return
+    if (!bulkMahnungLevel) return
+    const companyId = localStorage.getItem("companyId")
+    if (!companyId) return
+    if (selected.size > 100) {
+      alert(
+        t("invoices.bulkMahnungTooMany") ||
+          "Maximal 100 Mahnungen pro Anfrage",
+      )
+      return
+    }
+    setBulkMahnungSending(true)
+    setBulkMahnungError(null)
+    setBulkMahnungProgress(null)
+    try {
+      const data = await apiPost<{
+        total: number
+        succeeded: number
+        failed: number
+        skipped: number
+        results: Array<{
+          invoiceId: string
+          invoiceNumber?: string
+          customerName?: string | null
+          ok: boolean
+          status: "sent" | "skipped" | "failed"
+          recipient?: string
+          error?: string
+        }>
+      }>(`/api/v1/reminders/bulk-send?companyId=${companyId}`, {
+        companyId,
+        invoiceIds: Array.from(selected),
+        level: bulkMahnungLevel,
+      })
+      setBulkMahnungProgress(data)
+    } catch (err) {
+      const msg =
+        err instanceof ApiError ? err.message : "Mahnung-Versand fehlgeschlagen"
+      setBulkMahnungError(msg)
+    } finally {
+      setBulkMahnungSending(false)
+    }
+  }
+
   const exportCsv = async () => {
     const companyId = localStorage.getItem("companyId")
     if (!companyId) return
@@ -654,6 +735,22 @@ export default function InvoicesPage() {
                       "{count}",
                       String(selected.size),
                     )}
+              </Button>
+              {/* Tier 157: bulk Mahnung send. Opens a
+                  level-picker modal (1./2./3.) before
+                  firing POST /reminders/bulk-send. */}
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setBulkMahnungLevel("first")
+                  setBulkMahnungError(null)
+                  setBulkMahnungProgress(null)
+                }}
+                disabled={bulkMahnungSending || bulkDownloading || bulkSending}
+                data-testid="bulk-mahnung-button"
+              >
+                📨 {t("invoices.bulkMahnung") || `Mahnung senden (${selected.size})`}
               </Button>
               <Button
                 size="sm"
@@ -1117,6 +1214,213 @@ export default function InvoicesPage() {
                 >
                   {t("common.close") || "Schließen"}
                 </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tier 157: bulk Mahnung modal.
+       * Three states share the same modal box:
+       *   1. Level picker (bulkMahnungLevel set, no
+       *      progress yet) — user picks 1./2./3. and
+       *      hits Senden.
+       *   2. In-flight (bulkMahnungSending=true) — spinner.
+       *   3. Results (bulkMahnungProgress set) — 3 buckets
+       *      (sent / skipped / failed) with per-row
+       *      details + a "Fehlende erneut senden" button
+       *      that retries the failed rows at the same
+       *      level.
+       * Dismiss = clear all bulk-Mahnung state.
+       */}
+      {(bulkMahnungLevel || bulkMahnungSending || bulkMahnungProgress || bulkMahnungError) && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+          data-testid="bulk-mahnung-modal"
+        >
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col">
+            <div className="px-6 py-4 border-b flex items-center justify-between">
+              <h3 className="font-semibold text-lg">
+                {t("invoices.bulkMahnungTitle") || "Mahnungen versenden"}
+              </h3>
+              {!bulkMahnungSending && (
+                <button
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                  onClick={() => {
+                    setBulkMahnungLevel(null)
+                    setBulkMahnungProgress(null)
+                    setBulkMahnungError(null)
+                  }}
+                  aria-label="Schließen"
+                  data-testid="bulk-mahnung-close"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+            <div className="px-6 py-4 overflow-y-auto flex-1">
+              {/* Level picker — shown when no in-flight
+                  request and no results yet. */}
+              {bulkMahnungLevel && !bulkMahnungSending && !bulkMahnungProgress && !bulkMahnungError && (
+                <div data-testid="bulk-mahnung-level-picker">
+                  <p className="text-sm mb-3 text-gray-700 dark:text-gray-200">
+                    {t("invoices.bulkMahnungBody") ||
+                      `${selected.size} Rechnungen ausgewählt. Welche Mahnung-Stufe soll an alle versendet werden?`}
+                  </p>
+                  <div className="space-y-2">
+                    {(
+                      [
+                        { value: "first", label: t("invoices.mahnungLevelFirst") || "1. Zahlungserinnerung" },
+                        { value: "second", label: t("invoices.mahnungLevelSecond") || "2. Mahnung" },
+                        { value: "final", label: t("invoices.mahnungLevelFinal") || "Letzte Mahnung" },
+                      ] as const
+                    ).map((opt) => (
+                      <label
+                        key={opt.value}
+                        className={
+                          "flex items-center gap-2 p-2 border rounded cursor-pointer " +
+                          (bulkMahnungLevel === opt.value
+                            ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
+                            : "border-gray-200 dark:border-gray-700")
+                        }
+                      >
+                        <input
+                          type="radio"
+                          name="bulk-mahnung-level"
+                          value={opt.value}
+                          checked={bulkMahnungLevel === opt.value}
+                          onChange={() => setBulkMahnungLevel(opt.value)}
+                          data-testid={`bulk-mahnung-level-${opt.value}`}
+                        />
+                        <span className="text-sm">{opt.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <div className="flex gap-2 justify-end mt-4">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setBulkMahnungLevel(null)
+                      }}
+                      data-testid="bulk-mahnung-cancel"
+                    >
+                      {t("common.cancel") || "Abbrechen"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={bulkSendMahnung}
+                      data-testid="bulk-mahnung-confirm"
+                    >
+                      📨 {t("invoices.bulkMahnungSend") || "Senden"}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* In-flight spinner. */}
+              {bulkMahnungSending && (
+                <div
+                  className="flex items-center gap-3 text-sm"
+                  data-testid="bulk-mahnung-in-progress"
+                >
+                  <div className="animate-spin h-5 w-5 border-2 border-blue-500 border-t-transparent rounded-full" />
+                  <span>
+                    {t("invoices.bulkMahnungSending") ||
+                      "Sende Mahnungen… bitte warten."}
+                  </span>
+                </div>
+              )}
+
+              {/* Top-level error (e.g. 500). */}
+              {bulkMahnungError && (
+                <div
+                  className="p-3 bg-red-50 border border-red-200 text-red-800 rounded text-sm"
+                  data-testid="bulk-mahnung-error"
+                >
+                  {bulkMahnungError}
+                </div>
+              )}
+
+              {/* Results — 3 buckets + per-row list. */}
+              {bulkMahnungProgress && (
+                <div data-testid="bulk-mahnung-results">
+                  <div className="flex gap-4 mb-4 text-sm flex-wrap">
+                    <div>
+                      <div className="text-gray-500">
+                        {t("invoices.bulkTotal") || "Gesamt"}
+                      </div>
+                      <div
+                        className="text-2xl font-semibold"
+                        data-testid="bulk-mahnung-total"
+                      >
+                        {bulkMahnungProgress.total}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-gray-500">
+                        {t("invoices.bulkMahnungSent") || "Versendet"}
+                      </div>
+                      <div
+                        className="text-2xl font-semibold text-emerald-600"
+                        data-testid="bulk-mahnung-succeeded"
+                      >
+                        {bulkMahnungProgress.succeeded}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-gray-500">
+                        {t("invoices.bulkMahnungSkipped") || "Übersprungen"}
+                      </div>
+                      <div
+                        className="text-2xl font-semibold text-amber-600"
+                        data-testid="bulk-mahnung-skipped"
+                      >
+                        {bulkMahnungProgress.skipped}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-gray-500">
+                        {t("invoices.bulkFailed") || "Fehlgeschlagen"}
+                      </div>
+                      <div
+                        className="text-2xl font-semibold text-red-600"
+                        data-testid="bulk-mahnung-failed"
+                      >
+                        {bulkMahnungProgress.failed}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="space-y-1 max-h-64 overflow-y-auto">
+                    {bulkMahnungProgress.results.map((r) => (
+                      <div
+                        key={r.invoiceId}
+                        className={
+                          "p-2 rounded text-xs border " +
+                          (r.status === "sent"
+                            ? "border-emerald-200 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-800 dark:text-emerald-200"
+                            : r.status === "skipped"
+                              ? "border-amber-200 bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200"
+                              : "border-red-200 bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-200")
+                        }
+                        data-testid={`bulk-mahnung-row-${r.invoiceId}`}
+                      >
+                        <span className="font-mono mr-2">
+                          {r.invoiceNumber ?? r.invoiceId.slice(0, 8)}
+                        </span>
+                        {r.status === "sent" && r.recipient && (
+                          <span>→ {r.recipient}</span>
+                        )}
+                        {r.status === "skipped" && (
+                          <span>{r.error || "Bereits heute versendet"}</span>
+                        )}
+                        {r.status === "failed" && (
+                          <span>✗ {r.error || "Unbekannter Fehler"}</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
               )}
             </div>
           </div>

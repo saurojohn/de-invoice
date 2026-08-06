@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Put, Body, Param, Query, BadRequestException, NotFoundException, Req, Res } from '@nestjs/common';
 import { ReminderService } from './reminder.service';
 import { AutoReminderService } from './auto-reminder.scheduler';
+import { BulkReminderService } from './bulk-reminder.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Auth, Require } from '../../auth/roles.decorator';
 import { Request } from 'express';
@@ -30,6 +31,7 @@ export class ReminderController {
   constructor(
     private readonly reminderService: ReminderService,
     private readonly autoReminder: AutoReminderService,
+    private readonly bulkReminder: BulkReminderService,
     private readonly prisma: PrismaService,
   ) {}
 
@@ -258,6 +260,50 @@ export class ReminderController {
       mahnungId,
       message: 'Erinnerung wurde erfolgreich gesendet',
     }
+  }
+
+  /**
+   * Tier 157: bulk Mahnung send.
+   *
+   * Body: { companyId, invoiceIds: string[], level: 'first'|'second'|'final', createdById? }
+   * → { total, succeeded, failed, skipped, results: [...] }
+   *
+   * Best-effort: each invoice is wrapped in its own
+   * try/catch, so a single bad row doesn't poison the
+   * batch. The frontend reads `results` to show a
+   * per-row success/failure list.
+   *
+   * Idempotency matches the auto-reminder: a Mahnung
+   * for the same (invoiceId, level) on the same day
+   * is silently skipped (so the operator can hit
+   * "Senden" twice without spamming the customer).
+   */
+  @Post('bulk-send')
+  @Require('invoice.send')
+  async bulkSend(
+    @Body()
+    body: {
+      companyId: string
+      invoiceIds: string[]
+      level: 'first' | 'second' | 'final'
+      createdById?: string
+    },
+  ) {
+    if (!body?.companyId) {
+      throw new BadRequestException('companyId is required')
+    }
+    if (!body?.level || !['first', 'second', 'final'].includes(body.level)) {
+      throw new BadRequestException('level must be first, second, or final')
+    }
+    if (!Array.isArray(body.invoiceIds) || body.invoiceIds.length === 0) {
+      throw new BadRequestException('invoiceIds must be a non-empty array')
+    }
+    return this.bulkReminder.sendBulk(
+      body.companyId,
+      body.invoiceIds,
+      body.level,
+      body.createdById,
+    )
   }
 
   /**

@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common'
 import { ReminderController } from './reminder.controller'
 import { ReminderService } from './reminder.service'
 import { AutoReminderService } from './auto-reminder.scheduler'
+import { BulkReminderService } from './bulk-reminder.service'
 import { MahnungspauseService } from './mahnungspause.service'
 import { MahnungspauseController } from './mahnungspause.controller'
 import { PrismaModule } from '../../prisma/prisma.module'
@@ -16,6 +17,7 @@ import { AdminModule } from '../admin/admin.module'
   providers: [
     ReminderService,
     AutoReminderService,
+    BulkReminderService,
     MahnungspauseService,
   ],
   imports: [PrismaModule, MailModule, SystemModule, AdminModule],
@@ -27,6 +29,7 @@ import { AdminModule } from '../admin/admin.module'
   exports: [
     ReminderService,
     AutoReminderService,
+    BulkReminderService,
     MahnungspauseService,
   ],
 })

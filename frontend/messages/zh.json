@@ -2121,7 +2121,18 @@
     "portalLinkNew": "付款链接已创建:",
     "portalLinkValidUntil": "有效期至",
     "portalLinkCopied": "✓ 已复制",
-    "portalLinkCopy": "复制"
+    "portalLinkCopy": "复制",
+    "bulkMahnung": "发送催款 ({count})",
+    "bulkMahnungTitle": "发送催款",
+    "bulkMahnungBody": "已选择 {count} 张发票。要将哪个级别的催款发送给所有客户?",
+    "bulkMahnungSend": "发送",
+    "bulkMahnungSending": "正在发送催款… 请稍候。",
+    "bulkMahnungSent": "已发送",
+    "bulkMahnungSkipped": "已跳过",
+    "bulkMahnungTooMany": "每次请求最多 100 封催款",
+    "mahnungLevelFirst": "1. 友好提醒",
+    "mahnungLevelSecond": "2. 正式催款",
+    "mahnungLevelFinal": "最后催款"
   },
   "mahnung": {
     "title": "催收历史",

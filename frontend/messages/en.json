@@ -2121,7 +2121,18 @@
     "portalLinkNew": "Payment link created:",
     "portalLinkValidUntil": "valid until",
     "portalLinkCopied": "✓ Copied",
-    "portalLinkCopy": "Copy"
+    "portalLinkCopy": "Copy",
+    "bulkMahnung": "Send reminder ({count})",
+    "bulkMahnungTitle": "Send reminders",
+    "bulkMahnungBody": "{count} invoices selected. Which reminder level should be sent to all?",
+    "bulkMahnungSend": "Send",
+    "bulkMahnungSending": "Sending reminders… please wait.",
+    "bulkMahnungSent": "Sent",
+    "bulkMahnungSkipped": "Skipped",
+    "bulkMahnungTooMany": "Maximum 100 reminders per request",
+    "mahnungLevelFirst": "1. Friendly reminder",
+    "mahnungLevelSecond": "2. Reminder",
+    "mahnungLevelFinal": "Final reminder"
   },
   "mahnung": {
     "title": "Dunning history",

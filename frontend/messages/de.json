@@ -2121,7 +2121,18 @@
     "portalLinkNew": "Zahlungslink erstellt:",
     "portalLinkValidUntil": "gültig bis",
     "portalLinkCopied": "✓ Kopiert",
-    "portalLinkCopy": "Kopieren"
+    "portalLinkCopy": "Kopieren",
+    "bulkMahnung": "Mahnung senden ({count})",
+    "bulkMahnungTitle": "Mahnungen versenden",
+    "bulkMahnungBody": "{count} Rechnungen ausgewählt. Welche Mahnung-Stufe soll an alle versendet werden?",
+    "bulkMahnungSend": "Senden",
+    "bulkMahnungSending": "Sende Mahnungen… bitte warten.",
+    "bulkMahnungSent": "Versendet",
+    "bulkMahnungSkipped": "Übersprungen",
+    "bulkMahnungTooMany": "Maximal 100 Mahnungen pro Anfrage",
+    "mahnungLevelFirst": "1. Zahlungserinnerung",
+    "mahnungLevelSecond": "2. Mahnung",
+    "mahnungLevelFinal": "Letzte Mahnung"
   },
   "mahnung": {
     "title": "Mahnhistorie",
