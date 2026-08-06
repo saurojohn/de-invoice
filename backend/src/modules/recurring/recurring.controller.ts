@@ -60,6 +60,37 @@ export class RecurringController {
     return this.svc.create(companyId, createdById, this.normalizeDates(input));
   }
 
+  /**
+   * Tier 158: clone an existing template.
+   * Body: { name?, customerId?, startDate?, createdById? }
+   * Returns the new RecurringInvoice (with items).
+   *
+   * The frontend pre-fills the form with the source
+   * template's data + default overrides (name = source
+   * + " (Kopie)", startDate = today). The user can
+   * edit before submit; the modal calls this endpoint
+   * on save.
+   */
+  @Post(':id/clone')
+  @Require('invoice.create')
+  async clone(
+    @Query('companyId') companyId: string,
+    @Param('id') id: string,
+    @Body() body: {
+      name?: string
+      customerId?: string
+      startDate?: string
+      createdById?: string
+    },
+  ) {
+    if (!companyId) throw new BadRequestException('companyId is required');
+    const overrides: any = {}
+    if (body.name !== undefined) overrides.name = body.name
+    if (body.customerId !== undefined) overrides.customerId = body.customerId
+    if (body.startDate) overrides.startDate = new Date(body.startDate + 'T00:00:00.000Z')
+    return this.svc.clone(companyId, id, overrides, body.createdById)
+  }
+
   @Put(':id')
   @Require('invoice.update')
   async update(

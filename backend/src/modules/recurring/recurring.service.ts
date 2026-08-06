@@ -258,6 +258,150 @@ export class RecurringService {
     }).then((r) => ({ ...r, status: deriveRecurringStatus(r) }))
   }
 
+  /**
+   * Tier 158: clone an existing RecurringInvoice as a
+   * new template. The Berater's question: "I have a
+   * maintenance subscription for Customer A. Now
+   * Customer B wants the same — let me clone the
+   * template instead of typing it in from scratch."
+   *
+   * Copies:
+   *   - All line items (description, qty, price, vat,
+   *     product number, position)
+   *   - interval, intervalCount, dayOfMonth
+   *   - currency, language, notes, invoiceStatus,
+   *     sendEmail
+   *
+   * Overrides (from the request body, all optional
+   * except name):
+   *   - name        — defaults to "<original> (Kopie)"
+   *   - customerId  — defaults to the original's customer
+   *   - startDate   — defaults to today (the operator
+   *                   almost always wants the new
+   *                   subscription to start now, not
+   *                   inherit the old start date)
+   *   - endDate     — defaults to NULL (a new
+   *                   subscription rarely has the
+   *                   same end date as the old one)
+   *   - isActive    — defaults to true (clone is ready
+   *                   to run from day 1)
+   *   - pausedUntil — defaults to NULL (no pause)
+   *
+   * NOT copied (each clone starts with a clean slate):
+   *   - lastRunAt, nextRunAt, runs, invoices — the
+   *     new template has no history yet
+   *   - createdById — stamps the current operator as
+   *     the author
+   */
+  async clone(
+    companyId: string,
+    sourceId: string,
+    overrides: {
+      name?: string
+      customerId?: string
+      startDate?: Date
+    },
+    createdById?: string,
+  ) {
+    const source = await this.prisma.recurringInvoice.findFirst({
+      where: { id: sourceId, companyId },
+      include: { items: { orderBy: { position: 'asc' } } },
+    })
+    if (!source) {
+      throw new BadRequestException('Source RecurringInvoice not found')
+    }
+    if (!source.items?.length) {
+      throw new BadRequestException(
+        'Source RecurringInvoice has no line items to clone',
+      )
+    }
+
+    const newName = (overrides.name ?? `${source.name} (Kopie)`).trim()
+    if (!newName) {
+      throw new BadRequestException('name is required')
+    }
+    const newCustomerId = overrides.customerId ?? source.customerId
+    // Verify the new customer belongs to this company
+    // (defense in depth — the frontend shouldn't ever
+    // let a cross-tenant id through, but the service
+    // is the trust boundary).
+    const newCustomer = await this.prisma.customer.findFirst({
+      where: { id: newCustomerId, companyId },
+    })
+    if (!newCustomer) {
+      throw new BadRequestException('Customer not found in this company')
+    }
+    // New startDate defaults to today; the operator
+    // almost always wants the new subscription to
+    // start now. They can edit before saving.
+    const newStartDate = overrides.startDate ?? new Date()
+
+    // Compute the first nextRunAt for the new
+    // template. The helper takes the input shape
+    // (not the DB row), so we project to that.
+    const projectedInput: RecurringInput = {
+      customerId: newCustomerId,
+      name: newName,
+      interval: source.interval as any,
+      intervalCount: source.intervalCount,
+      dayOfMonth: source.dayOfMonth,
+      startDate: newStartDate,
+      endDate: null,
+      currency: source.currency,
+      language: source.language,
+      notes: source.notes,
+      invoiceStatus: source.invoiceStatus as any,
+      items: source.items.map((it) => ({
+        description: it.description,
+        productNumber: it.productNumber,
+        quantity: Number(it.quantity),
+        unit: it.unit,
+        unitPrice: Number(it.unitPrice),
+        vatRate: Number(it.vatRate),
+      })),
+    }
+    const nextRunAt = this.computeFirstNextRun(projectedInput)
+
+    return this.prisma.recurringInvoice
+      .create({
+        data: {
+          companyId,
+          customerId: newCustomerId,
+          name: newName,
+          interval: source.interval,
+          intervalCount: source.intervalCount,
+          dayOfMonth: source.dayOfMonth,
+          startDate: newStartDate,
+          endDate: null,
+          nextRunAt,
+          currency: source.currency,
+          language: source.language,
+          notes: source.notes,
+          invoiceStatus: source.invoiceStatus,
+          isActive: true,
+          pausedUntil: null,
+          sendEmail: source.sendEmail,
+          createdById,
+          items: {
+            create: source.items.map((it, i) => ({
+              description: it.description,
+              productNumber: it.productNumber,
+              quantity: it.quantity,
+              unit: it.unit,
+              unitPrice: it.unitPrice,
+              vatRate: it.vatRate,
+              position: i,
+            })),
+          },
+        },
+        include: {
+          items: { orderBy: { position: 'asc' } },
+          customer: { select: { id: true, name: true } },
+        },
+      })
+      .then((r) => ({ ...r, status: deriveRecurringStatus(r) }))
+  }
+
   async update(companyId: string, id: string, patch: Partial<RecurringInput> & { isActive?: boolean }) {
     const existing = await this.prisma.recurringInvoice.findFirst({ where: { id, companyId } })
     if (!existing) throw new BadRequestException('Recurring invoice not found')

@@ -1452,7 +1452,14 @@
     "interval_yearly": "每年",
     "interval_weekly": "每周",
     "status_draft": "草稿",
-    "status_sent": "已发送"
+    "status_sent": "已发送",
+    "cloneBtn": "复制",
+    "cloneTitle": "复制模板",
+    "cloneBody": "创建一个具有相同项目、周期和税率的新模板。可以调整名称、客户和开始日期。",
+    "cloneSubmit": "📋 复制",
+    "cloneNameRequired": "名称为必填项",
+    "cloneStartRequired": "开始日期为必填项",
+    "cloneError": "复制失败"
   },
   "reminder": {
     "title": "付款提醒",

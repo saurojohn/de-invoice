@@ -4,10 +4,11 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
-import { apiGet, apiPost, apiPut, apiDelete } from "@/lib/api"
+import { apiGet, apiPost, apiPut, apiDelete, ApiError } from "@/lib/api"
 
 type Interval = "monthly" | "quarterly" | "yearly" | "weekly"
 
@@ -128,6 +129,16 @@ export default function RecurringInvoicesPage() {
     error?: string
   }>({ open: false, loading: false })
   const [editing, setEditing] = useState<RecurringTemplate | null>(null)
+  // Tier 158: clone modal state. The clone form only
+  // needs name + customerId + startDate (the rest is
+  // copied from the source), so we keep it separate
+  // from the full edit form.
+  const [cloneSource, setCloneSource] = useState<RecurringTemplate | null>(null)
+  const [cloneName, setCloneName] = useState("")
+  const [cloneCustomerId, setCloneCustomerId] = useState("")
+  const [cloneStartDate, setCloneStartDate] = useState("")
+  const [cloning, setCloning] = useState(false)
+  const [cloneError, setCloneError] = useState<string | null>(null)
   const [expanded, setExpanded] = useState<string | null>(null)
   const [preview, setPreview] = useState<{ subject: string; body: string } | null>(null)
   const [saving, setSaving] = useState(false)
@@ -287,6 +298,77 @@ export default function RecurringInvoicesPage() {
   const closeModal = () => {
     setShowModal(false)
     setEditing(null)
+  }
+
+  /**
+   * Tier 158: open the clone modal pre-filled with
+   * the source template's data. The form only has
+   * three editable fields (name, customer, startDate);
+   * the rest (items, interval, prices) is copied
+   * server-side and the user can edit on the new
+   * template's edit page after creation.
+   */
+  const openClone = (tpl: RecurringTemplate) => {
+    setCloneSource(tpl)
+    setCloneName(`${tpl.name} (Kopie)`)
+    setCloneCustomerId(tpl.customerId)
+    // startDate defaults to today (the operator
+    // almost always wants the new subscription to
+    // start now, not inherit the old start date).
+    setCloneStartDate(new Date().toISOString().split("T")[0])
+    setCloneError(null)
+  }
+
+  const closeClone = () => {
+    setCloneSource(null)
+    setCloneError(null)
+  }
+
+  /**
+   * Tier 158: submit the clone. POSTs to
+   * /recurring-invoices/:id/clone with the overrides,
+   * then refreshes the list. The new template shows
+   * up at the top (sorted by createdAt DESC) so the
+   * operator can click into it to verify.
+   */
+  const submitClone = async () => {
+    if (!cloneSource) return
+    if (!cloneName.trim()) {
+      setCloneError(t("recurring.cloneNameRequired") || "Name ist erforderlich")
+      return
+    }
+    if (!cloneStartDate) {
+      setCloneError(t("recurring.cloneStartRequired") || "Startdatum ist erforderlich")
+      return
+    }
+    setCloning(true)
+    setCloneError(null)
+    try {
+      await apiPost(
+        `/api/v1/recurring-invoices/${cloneSource.id}/clone?companyId=${companyId}`,
+        {
+          name: cloneName.trim(),
+          customerId: cloneCustomerId || cloneSource.customerId,
+          startDate: cloneStartDate,
+        },
+      )
+      // Refresh the list so the new template shows
+      // up. The list endpoint sorts by createdAt DESC
+      // so the new clone appears at the top.
+      const list = await apiGet<RecurringTemplate[]>(
+        `/api/v1/recurring-invoices?companyId=${companyId}`,
+      )
+      setTemplates(list)
+      closeClone()
+    } catch (err) {
+      setCloneError(
+        err instanceof ApiError
+          ? err.message
+          : (t("recurring.cloneError") || "Klonen fehlgeschlagen"),
+      )
+    } finally {
+      setCloning(false)
+    }
   }
 
   // Tier 136: fetch the email preview for the
@@ -718,6 +800,22 @@ export default function RecurringInvoicesPage() {
                       </Button>
                       <Button size="sm" variant="outline" onClick={() => openEdit(tpl)} data-testid="recurring-edit">
                         {t("common.edit") || "Bearbeiten"}
+                      </Button>
+                      {/* Tier 158: clone as a new template.
+                          Opens a small modal pre-filled with
+                          the source's data (name + " (Kopie)",
+                          startDate = today). The new template
+                          is created on save and the user stays
+                          on the list — they can click into it
+                          from there. */}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => openClone(tpl)}
+                        data-testid="recurring-clone"
+                        title={t("recurring.cloneTitle") || "Als neue Vorlage duplizieren"}
+                      >
+                        📋 {t("recurring.cloneBtn") || "Kopieren"}
                       </Button>
                       <Button
                         size="sm"
@@ -1513,6 +1611,100 @@ export default function RecurringInvoicesPage() {
               </Button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Tier 158: clone modal.
+       * Smaller than the full edit modal — only 3
+       * fields (name, customer, startDate). The rest
+       * of the template (items, interval, prices) is
+       * copied server-side and editable on the new
+       * template's edit page after creation. */}
+      {cloneSource && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+          data-testid="recurring-clone-modal"
+        >
+          <Card className="w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <CardHeader>
+              <CardTitle>
+                📋 {t("recurring.cloneTitle") || "Vorlage duplizieren"}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {t("recurring.cloneBody") ||
+                  "Erstellt eine neue Vorlage mit den gleichen Positionen, Intervall und Steuersätzen. Name, Kunde und Startdatum können angepasst werden."}
+              </p>
+              {cloneError && (
+                <div
+                  className="p-2 rounded bg-red-50 border border-red-200 text-red-800 text-xs"
+                  data-testid="recurring-clone-error"
+                >
+                  {cloneError}
+                </div>
+              )}
+              <div>
+                <label className="block text-xs font-medium mb-1">
+                  {t("recurring.nameLabel") || "Vorlagen-Name"}
+                </label>
+                <Input
+                  value={cloneName}
+                  onChange={(e) => setCloneName(e.target.value)}
+                  data-testid="recurring-clone-name"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1">
+                  {t("recurring.customerLabel") || "Kunde"}
+                </label>
+                <select
+                  value={cloneCustomerId}
+                  onChange={(e) => setCloneCustomerId(e.target.value)}
+                  data-testid="recurring-clone-customer"
+                  className="w-full px-3 py-2 border rounded bg-white dark:bg-gray-800 dark:border-gray-600 text-sm"
+                >
+                  {customers.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.customerNumber ? `${c.customerNumber} — ${c.name}` : c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1">
+                  {t("recurring.startDateLabel") || "Startdatum"}
+                </label>
+                <Input
+                  type="date"
+                  value={cloneStartDate}
+                  onChange={(e) => setCloneStartDate(e.target.value)}
+                  data-testid="recurring-clone-start"
+                />
+              </div>
+              <div className="flex gap-2 justify-end pt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={closeClone}
+                  disabled={cloning}
+                  data-testid="recurring-clone-cancel"
+                >
+                  {t("common.cancel") || "Abbrechen"}
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={submitClone}
+                  disabled={cloning || !cloneName.trim() || !cloneStartDate}
+                  data-testid="recurring-clone-submit"
+                >
+                  {cloning
+                    ? (t("common.creating") || "Erstelle…")
+                    : (t("recurring.cloneSubmit") || "📋 Duplizieren")}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       )}
     </div>

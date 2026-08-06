@@ -1452,7 +1452,14 @@
     "interval_yearly": "Jährlich",
     "interval_weekly": "Wöchentlich",
     "status_draft": "Entwurf",
-    "status_sent": "Versendet"
+    "status_sent": "Versendet",
+    "cloneBtn": "Kopieren",
+    "cloneTitle": "Vorlage duplizieren",
+    "cloneBody": "Erstellt eine neue Vorlage mit den gleichen Positionen, Intervall und Steuersätzen. Name, Kunde und Startdatum können angepasst werden.",
+    "cloneSubmit": "📋 Duplizieren",
+    "cloneNameRequired": "Name ist erforderlich",
+    "cloneStartRequired": "Startdatum ist erforderlich",
+    "cloneError": "Klonen fehlgeschlagen"
   },
   "reminder": {
     "title": "Zahlungserinnerungen",

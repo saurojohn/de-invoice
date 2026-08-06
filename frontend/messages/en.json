@@ -1452,7 +1452,14 @@
     "interval_yearly": "Yearly",
     "interval_weekly": "Weekly",
     "status_draft": "Draft",
-    "status_sent": "Sent"
+    "status_sent": "Sent",
+    "cloneBtn": "Copy",
+    "cloneTitle": "Duplicate template",
+    "cloneBody": "Creates a new template with the same line items, interval and tax rates. Name, customer and start date can be adjusted.",
+    "cloneSubmit": "📋 Duplicate",
+    "cloneNameRequired": "Name is required",
+    "cloneStartRequired": "Start date is required",
+    "cloneError": "Clone failed"
   },
   "reminder": {
     "title": "Payment Reminders",
