@@ -1294,6 +1294,36 @@ async getSalesReport(
     await this.bwa.renderPdf(companyId, year, month, res)
   }
 
+  // ─── Tier 163: Quarterly BWA ────────────────────
+  // Berater's most common view: this quarter vs
+  // the same quarter last year. Returns the
+  // current-quarter BWA (YTD = quarter sum) +
+  // the prior-year same-quarter BWA in a single
+  // payload so the frontend can render the diff
+  // side-by-side. The YTD field of the existing
+  // compute(year, endMonth) is the Q-Summe, so
+  // no new aggregation needed.
+  // ────────────────────────────────────────────────
+  @Get('bwa-quarterly')
+  @Require('reports.read')
+  async getBwaQuarterly(
+    @Query('companyId') companyId: string,
+    @Query('year') yearRaw?: string,
+    @Query('quarter') quarterRaw?: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const now = new Date()
+    const year = yearRaw ? Number(yearRaw) : now.getFullYear()
+    if (!Number.isFinite(year) || year < 2000 || year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+    const q = (quarterRaw || '').toUpperCase()
+    if (!['Q1', 'Q2', 'Q3', 'Q4'].includes(q)) {
+      throw new BadRequestException('quarter muss Q1, Q2, Q3 oder Q4 sein')
+    }
+    return this.bwa.computeQuarter(companyId, year, q as 'Q1' | 'Q2' | 'Q3' | 'Q4')
+  }
+
   /**
    * OSS CSV export. German semicolon format
    * (matches what DATEV / BZSt-OSS portal expect).

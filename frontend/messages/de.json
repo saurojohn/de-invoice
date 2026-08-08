@@ -2802,7 +2802,10 @@
     "bucketSonstige": "Sonstige betriebliche Aufwendungen",
     "bucketZins": "Zinsaufwendungen",
     "generatedAt": "Erstellt",
-    "previewHint": "VORSCHAU — basiert auf den in de-invoice v1 verfügbaren Daten. Positionen, die das System nicht erfasst (Bestandsveränderungen, aktivierte Eigenleistungen, Zinserträge, Beteiligungserträge, Steuern), sind nicht ausgewiesen. Der Steuerberater ergänzt die fehlenden Positionen aus dem SKR03 / der BWA-Quelldaten."
+    "previewHint": "VORSCHAU — basiert auf den in de-invoice v1 verfügbaren Daten. Positionen, die das System nicht erfasst (Bestandsveränderungen, aktivierte Eigenleistungen, Zinserträge, Beteiligungserträge, Steuern), sind nicht ausgewiesen. Der Steuerberater ergänzt die fehlenden Positionen aus dem SKR03 / der BWA-Quelldaten.",
+    "qtitle": "BWA Quartalsvergleich (Q vs. Vorjahres-Q)",
+    "qsubtitle": "Berater-Standardvergleich: aktuelles Quartal vs. gleiches Quartal des Vorjahres. Die YTD-Spalte pro Quartalsende (Mär/Jun/Sep/Dez) entspricht der Q-Summe.",
+    "quarter": "Quartal"
   },
   "ebilanz": {
     "title": "E-Bilanz VORSCHAU (XBRL)",

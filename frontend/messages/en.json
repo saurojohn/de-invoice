@@ -2802,7 +2802,10 @@
     "bucketSonstige": "Other operating expenses",
     "bucketZins": "Interest expenses",
     "generatedAt": "Generated",
-    "previewHint": "PREVIEW — based on the data in de-invoice v1. Positions the system does not track (inventory changes, capitalised own services, interest income, investment income, taxes) are not stated. Your tax advisor completes the missing positions from the SKR03 / BWA source data."
+    "previewHint": "PREVIEW — based on the data in de-invoice v1. Positions the system does not track (inventory changes, capitalised own services, interest income, investment income, taxes) are not stated. Your tax advisor completes the missing positions from the SKR03 / BWA source data.",
+    "qtitle": "BWA quarterly comparison (Q vs prior-year Q)",
+    "qsubtitle": "Berater default view: current quarter vs the same quarter last year. The YTD at quarter end (Mar/Jun/Sep/Dec) equals the Q total.",
+    "quarter": "Quarter"
   },
   "ebilanz": {
     "title": "E-Bilanz VORSCHAU (XBRL)",

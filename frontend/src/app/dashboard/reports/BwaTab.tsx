@@ -57,6 +57,24 @@ const MONTHS_DE = [
   'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember',
 ]
 
+const QUARTERS = [
+  { value: 'Q1', label: 'Q1 (Jan–Mär)' },
+  { value: 'Q2', label: 'Q2 (Apr–Jun)' },
+  { value: 'Q3', label: 'Q3 (Jul–Sep)' },
+  { value: 'Q4', label: 'Q4 (Okt–Dez)' },
+]
+
+/** Tier 163: Quarterly BWA response. */
+interface BwaQuarterlyResult {
+  current: BwaResult
+  prior: BwaResult
+  quarter: 'Q1' | 'Q2' | 'Q3' | 'Q4'
+  year: number
+  vorjahr: number
+  endMonth: number
+  quarterMonths: [number, number, number]
+}
+
 /**
  * Tier 86: BWA (Betriebswirtschaftliche
  * Auswertung) tab on /dashboard/reports.
@@ -80,6 +98,21 @@ export function BwaTab() {
   const [data, setData] = useState<BwaResult | null>(null)
   const [loading, setLoading] = useState(false)
 
+  // Tier 163: quarterly BWA state + loader
+  // (separate from the monthly state above so
+  // the two can be loaded independently — the
+  // monthly card and the quarterly card have
+  // different selectors).
+  const currentMonth = now.getMonth() + 1
+  const currentQuarter =
+    currentMonth <= 3 ? 'Q1' :
+    currentMonth <= 6 ? 'Q2' :
+    currentMonth <= 9 ? 'Q3' : 'Q4'
+  const [qYear, setQYear] = useState<number>(now.getFullYear())
+  const [quarter, setQuarter] = useState<'Q1' | 'Q2' | 'Q3' | 'Q4'>(currentQuarter as any)
+  const [qData, setQData] = useState<BwaQuarterlyResult | null>(null)
+  const [qLoading, setQLoading] = useState(false)
+
   const load = useCallback(async () => {
     setLoading(true)
     try {
@@ -102,6 +135,32 @@ export function BwaTab() {
   useEffect(() => {
     load()
   }, [load])
+
+  // Tier 163: quarterly BWA loader
+  const loadQuarterly = useCallback(async () => {
+    setQLoading(true)
+    try {
+      const companyId =
+        typeof window !== "undefined" ? localStorage.getItem("companyId") : null
+      const params = new URLSearchParams()
+      if (companyId) params.set("companyId", companyId)
+      params.set("year", String(qYear))
+      params.set("quarter", quarter)
+      const result = await apiGet<BwaQuarterlyResult>(
+        `/api/v1/reports/bwa-quarterly?${params}`,
+      )
+      setQData(result)
+    } catch (e: any) {
+      const msg = e instanceof ApiError ? e.message : tRef.current("common.loadError")
+      toastRef.current.error(msg)
+    } finally {
+      setQLoading(false)
+    }
+  }, [qYear, quarter])
+
+  useEffect(() => {
+    loadQuarterly()
+  }, [loadQuarterly])
 
   const [pdfUrl, setPdfUrl] = useState<string>("#")
   useEffect(() => {
@@ -352,6 +411,205 @@ export function BwaTab() {
 
               <div className="mt-2 text-xs text-gray-500" data-testid="bwa-counts">
                 {tRef.current("bwa.generatedAt")}: {new Date(data.generatedAt).toLocaleString("de-DE")} · Rechnungen: <b>{data.counts.invoices}</b> · Ausgaben: <b>{data.counts.expenses}</b> · Anlagen: <b>{data.counts.assets}</b>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Tier 163: Quarterly BWA — Berater's
+          most common view. This Q vs same Q
+          last year. The YTD field of the BWA
+          at quarter end (3, 6, 9, 12) is the
+          Q-Summe by definition, so we just
+          compare the ytd fields of two BWAs. */}
+      <Card data-testid="bwa-quarterly-card">
+        <CardHeader>
+          <CardTitle>📅 {tRef.current("bwa.qtitle")}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
+            {tRef.current("bwa.qsubtitle")}
+          </p>
+          <div className="flex flex-wrap items-end gap-3 mb-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                {tRef.current("bwa.year")}
+              </label>
+              <input
+                type="number"
+                min={2000}
+                max={2100}
+                value={qYear}
+                onChange={(e) => setQYear(Number(e.target.value) || now.getFullYear())}
+                className="border rounded px-3 py-2 w-32 dark:bg-gray-800 dark:border-gray-700"
+                data-testid="bwa-qyear"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                {tRef.current("bwa.quarter")}
+              </label>
+              <select
+                value={quarter}
+                onChange={(e) => setQuarter(e.target.value as any)}
+                className="border rounded px-3 py-2 w-40 dark:bg-gray-800 dark:border-gray-700"
+                data-testid="bwa-quarter"
+              >
+                {QUARTERS.map((q) => (
+                  <option key={q.value} value={q.value}>
+                    {q.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <Button onClick={loadQuarterly} disabled={qLoading} data-testid="bwa-qrecompute">
+              {qLoading ? "..." : tRef.current("bwa.recompute")}
+            </Button>
+          </div>
+
+          {qData && (
+            <>
+              <div className="text-sm text-gray-600 dark:text-gray-300 mb-2">
+                <b>{qData.current.company.legalName || qData.current.company.name}</b> —{" "}
+                {qData.quarter} {qData.year} ({monthName(qData.quarterMonths[0])}–{monthName(qData.quarterMonths[2])}) vs. {qData.quarter} {qData.vorjahr}
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm" data-testid="bwa-qtable">
+                  <thead>
+                    <tr className="text-xs text-gray-500 border-b">
+                      <th className="text-left py-1 w-12">{tRef.current("bwa.bucket")}</th>
+                      <th className="text-left py-1">{tRef.current("bwa.label")}</th>
+                      <th className="text-right py-1 w-28">
+                        {qData.quarter} {qData.year}
+                      </th>
+                      <th className="text-right py-1 w-28">
+                        {qData.quarter} {qData.vorjahr}
+                      </th>
+                      <th className="text-right py-1 w-28">
+                        Δ absolut
+                      </th>
+                      <th className="text-right py-1 w-20">
+                        {tRef.current("bwa.change")}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {qData.current.lines.map((cur) => {
+                      const prior = qData.prior.lines.find((p) => p.bucket === cur.bucket)
+                      const qVal = cur.ytd
+                      const priorVal = prior?.ytd ?? 0
+                      const diff = qVal - priorVal
+                      // For revenue lines (1000, 1300): up = good (green)
+                      // For cost lines (2000-5100): up = bad (red)
+                      // For betriebsergebnis (we'll handle in totals): up = good
+                      const isCost = !["1000", "1300"].includes(cur.bucket)
+                      const pct =
+                        priorVal === 0
+                          ? 0
+                          : (diff / Math.abs(priorVal)) * 100
+                      return (
+                        <tr
+                          key={cur.bucket}
+                          className="border-b"
+                          data-testid={`bwa-qrow-${cur.bucket}`}
+                        >
+                          <td className="py-1 font-mono">{cur.bucket}</td>
+                          <td className="py-1 text-xs">{bucketLabel(cur)}</td>
+                          <td
+                            className="py-1 text-right font-mono"
+                            data-testid={`bwa-qrow-${cur.bucket}-cur`}
+                          >
+                            {fmt(qVal)}
+                          </td>
+                          <td className="py-1 text-right font-mono text-gray-500">
+                            {fmt(priorVal)}
+                          </td>
+                          <td
+                            className={`py-1 text-right font-mono text-xs ${
+                              diff === 0
+                                ? "text-gray-500"
+                                : isCost
+                                ? diff > 0
+                                  ? "text-red-600 dark:text-red-400"
+                                  : "text-emerald-600 dark:text-emerald-400"
+                                : diff > 0
+                                ? "text-emerald-600 dark:text-emerald-400"
+                                : "text-red-600 dark:text-red-400"
+                            }`}
+                          >
+                            {diff > 0 ? "+" : ""}
+                            {fmt(diff)}
+                          </td>
+                          <td
+                            className={`py-1 text-right font-mono text-xs ${
+                              pct === 0
+                                ? "text-gray-500"
+                                : isCost
+                                ? pct > 0
+                                  ? "text-red-600 dark:text-red-400"
+                                  : "text-emerald-600 dark:text-emerald-400"
+                                : pct > 0
+                                ? "text-emerald-600 dark:text-emerald-400"
+                                : "text-red-600 dark:text-red-400"
+                            }`}
+                            data-testid={`bwa-qrow-${cur.bucket}-pct`}
+                          >
+                            {fmtPct(pct)}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t-2 border-gray-300 bg-gray-50 dark:bg-gray-800">
+                      <td className="py-1"></td>
+                      <td className="py-1 text-xs font-bold">
+                        {tRef.current("bwa.betriebsergebnis")}
+                      </td>
+                      <td
+                        className="py-1 text-right font-mono font-bold"
+                        data-testid="bwa-qbetriebsergebnis-cur"
+                      >
+                        {fmt(qData.current.totals.betriebsergebnisYtd)}
+                      </td>
+                      <td className="py-1 text-right font-mono font-bold text-gray-500">
+                        {fmt(qData.prior.totals.betriebsergebnisYtd)}
+                      </td>
+                      <td
+                        className={`py-1 text-right font-mono font-bold text-xs ${
+                          qData.current.totals.betriebsergebnisYtd >=
+                          qData.prior.totals.betriebsergebnisYtd
+                            ? "text-emerald-600 dark:text-emerald-400"
+                            : "text-red-600 dark:text-red-400"
+                        }`}
+                      >
+                        {fmt(
+                          qData.current.totals.betriebsergebnisYtd -
+                            qData.prior.totals.betriebsergebnisYtd,
+                        )}
+                      </td>
+                      <td
+                        className={`py-1 text-right font-mono text-xs ${
+                          qData.current.totals.betriebsergebnisYtd >=
+                          qData.prior.totals.betriebsergebnisYtd
+                            ? "text-emerald-600 dark:text-emerald-400"
+                            : "text-red-600 dark:text-red-400"
+                        }`}
+                        data-testid="bwa-qbetriebsergebnis-pct"
+                      >
+                        {fmtPct(
+                          qData.prior.totals.betriebsergebnisYtd === 0
+                            ? 0
+                            : ((qData.current.totals.betriebsergebnisYtd -
+                                qData.prior.totals.betriebsergebnisYtd) /
+                                Math.abs(qData.prior.totals.betriebsergebnisYtd)) *
+                                100,
+                        )}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
               </div>
             </>
           )}

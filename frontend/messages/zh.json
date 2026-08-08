@@ -2802,7 +2802,10 @@
     "bucketSonstige": "其他经营性支出",
     "bucketZins": "利息支出",
     "generatedAt": "生成时间",
-    "previewHint": "预览 — 基于 de-invoice v1 中的数据。系统未追踪的科目（存货变动、自有服务资本化、利息收入、投资收入、税款）未列示。税务师从 SKR03 / BWA 源数据补全缺失的科目。"
+    "previewHint": "预览 — 基于 de-invoice v1 中的数据。系统未追踪的科目（存货变动、自有服务资本化、利息收入、投资收入、税款）未列示。税务师从 SKR03 / BWA 源数据补全缺失的科目。",
+    "qtitle": "BWA 季度对比 (本季 vs 去年同期)",
+    "qsubtitle": "Berater 默认视图: 本季度 vs 去年同期。季度末 (3/6/9/12 月) 的 YTD 即为该季度合计。",
+    "quarter": "季度"
   },
   "ebilanz": {
     "title": "E-Bilanz 预览 (XBRL)",

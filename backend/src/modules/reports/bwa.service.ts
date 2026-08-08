@@ -188,6 +188,66 @@ export class BwaService {
     private assets: AssetsService,
   ) {}
 
+  /**
+   * Tier 163: Quarterly BWA aggregation.
+   *
+   * Returns the BWA for a calendar quarter (Q1..Q4)
+   * for the given year, PLUS the same quarter for
+   * the prior year. The Berater's most common
+   * comparison is "this Q vs same Q last year" —
+   * seasonality makes Q-vs-Q the apples-to-apples
+   * comparison that month-vs-month distorts.
+   *
+   * Implementation: reuses the existing
+   * `compute(year, endMonth)` method. The YTD
+   * field of a BWA at quarter end (3, 6, 9, 12) is
+   * by definition the Q-Summe. So:
+   *   - current Q = compute(year, endMonth).ytd
+   *   - prior  Q = compute(year-1, endMonth).ytd
+   * Two BWA calls, no new aggregation logic. The
+   * frontend renders the diff.
+   *
+   * Shape: { current: BwaResult, prior: BwaResult,
+   *   quarter: 'Q1'|'Q2'|'Q3'|'Q4', year, endMonth,
+   *   vorjahr, quarterMonths: [m1, m2, m3] }
+   */
+  async computeQuarter(
+    companyId: string,
+    year: number,
+    quarter: 'Q1' | 'Q2' | 'Q3' | 'Q4',
+  ): Promise<{
+    current: BwaResult
+    prior: BwaResult
+    quarter: 'Q1' | 'Q2' | 'Q3' | 'Q4'
+    year: number
+    vorjahr: number
+    endMonth: number
+    quarterMonths: [number, number, number]
+  }> {
+    const endMonthByQuarter: Record<string, number> = {
+      Q1: 3,
+      Q2: 6,
+      Q3: 9,
+      Q4: 12,
+    }
+    const endMonth = endMonthByQuarter[quarter]
+    if (!endMonth) {
+      throw new Error(`Ungültiges Quartal: ${quarter}`)
+    }
+    const startMonth = endMonth - 2
+    const current = await this.compute(companyId, year, endMonth)
+    const prior = await this.compute(companyId, year - 1, endMonth)
+    return {
+      current,
+      prior,
+      quarter,
+      year,
+      vorjahr: year - 1,
+      endMonth,
+      quarterMonths: [startMonth, startMonth + 1, endMonth],
+    }
+  }
+
   async compute(companyId: string, year: number, month: number): Promise<BwaResult> {
     const company = await this.prisma.company.findUnique({ where: { id: companyId } })
     if (!company) throw new Error('Company nicht gefunden')
