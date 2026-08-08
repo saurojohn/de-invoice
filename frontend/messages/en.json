@@ -811,7 +811,9 @@
     "ustvaColNet7": "Tax base 7%",
     "ustvaColVat": "VAT",
     "ustvaColZahllast": "Payable",
-    "ustvaHistoryEmpty": "No VAT data for this period"
+    "ustvaHistoryEmpty": "No VAT data for this period",
+    "ustvaTrendTitle": "VAT prepayment — 12-month trend",
+    "ustvaTrendSubtitle": "Payable = VAT − input tax (positive = payment, negative = refund)"
   },
   "email": {
     "title": "Email Center",

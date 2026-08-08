@@ -811,7 +811,9 @@
     "ustvaColNet7": "Bemessungsgrundlage 7%",
     "ustvaColVat": "Steuer (USt)",
     "ustvaColZahllast": "Zahllast",
-    "ustvaHistoryEmpty": "Keine UStVA-Daten für diesen Zeitraum"
+    "ustvaHistoryEmpty": "Keine UStVA-Daten für diesen Zeitraum",
+    "ustvaTrendTitle": "USt-Vorauszahlung 12-Monats-Verlauf",
+    "ustvaTrendSubtitle": "Zahllast = USt − Vorsteuer (positiv = Vorauszahlung, negativ = Erstattung)"
   },
   "email": {
     "title": "E-Mail Center",

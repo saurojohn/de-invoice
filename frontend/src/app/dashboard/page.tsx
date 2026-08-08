@@ -9,6 +9,7 @@ import LanguageSwitcher from "@/components/LanguageSwitcher"
 import MandantSwitcher from "@/components/MandantSwitcher"
 import { ReadOnlyToggle, ReadOnlyBanner } from "@/components/ReadOnlyBanner"
 import { RevenueChart } from "@/components/RevenueChart"
+import { UstvaZahllastChart } from "@/components/UstvaZahllastChart"
 import { ThemeToggle } from "@/components/ThemeToggle"
 import { useI18n } from "@/components/useI18n"
 import { apiGet } from "@/lib/api"
@@ -180,8 +181,13 @@ export default function DashboardPage() {
       }>>(`/api/v1/customers/credit-utilization?companyId=${companyId}`)
         .catch(() => [] as any),
       // Tier 161: USt-Voranmeldung history for the
-      // dashboard Monatsvergleich widget. Soft-fail
-      // — the widget hides itself on empty/error.
+      // dashboard Monatsvergleich widget. We fetch
+      // 12 months (not 6) so the Tier 162 12-month
+      // trend chart can use the same payload. The
+      // 6-row table shows the top 6; the 12-bar
+      // chart shows all 12. One fetch, two
+      // consumers. Soft-fail — the widget hides
+      // itself on empty/error.
       apiGet<Array<{
         year: number
         month: number
@@ -193,7 +199,7 @@ export default function DashboardPage() {
         zahllast: number
         invoiceCount: number
         expenseCount: number
-      }>>(`/api/v1/ustva/history?companyId=${companyId}&months=6`)
+      }>>(`/api/v1/ustva/history?companyId=${companyId}&months=12`)
         .catch(() => [] as any),
     ])
       .then(([invoiceList, salesReport, dashboardKpis, recurring, creditRows, ustvaRows]) => {
@@ -550,7 +556,10 @@ export default function DashboardPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {ustvaHistory.map((row) => {
+                    {/* Show only the most recent 6 months
+                        in the table (the chart below
+                        shows all 12 for the trend view). */}
+                    {ustvaHistory.slice(0, 6).map((row) => {
                       // Render the period as "Aug 2026"
                       // in the operator's locale. The
                       // YearMonth from the backend is
@@ -627,6 +636,43 @@ export default function DashboardPage() {
                   </tbody>
                 </table>
               </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Tier 162: UStVorauszahlung 12-Monats-Verlauf
+            (diverging bar chart). Shows the same data
+            as the 6-row table above, but for the full
+            trailing 12 months. The chart layout makes
+            it easy to spot months where the Zahllast
+            was negative (Erstattung from the FA) vs
+            positive (Vorauszahlung). YTD sum is shown
+            in the legend. The data is ASC (oldest
+            left, newest right) so the trend reads
+            naturally. Hidden when no data (same
+            conditional as the 6-row table). */}
+        {ustvaHistory.length > 0 && (
+          <Card className="mb-8" data-testid="dashboard-ustva-trend">
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between flex-wrap gap-2">
+                <span>
+                  {t("dashboard.ustvaTrendTitle") ||
+                    "USt-Vorauszahlung 12-Monats-Verlauf"}
+                </span>
+                <span className="text-xs text-gray-500">
+                  {t("dashboard.ustvaTrendSubtitle") ||
+                    "Zahllast = USt − Vorsteuer (positiv = Vorauszahlung, negativ = Erstattung)"}
+                </span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <UstvaZahllastChart
+                data={ustvaHistory.map((r) => ({
+                  periodLabel: r.periodLabel,
+                  zahllast: r.zahllast,
+                }))}
+                height={220}
+              />
             </CardContent>
           </Card>
         )}

@@ -811,7 +811,9 @@
     "ustvaColNet7": "计税基础 7%",
     "ustvaColVat": "销项税",
     "ustvaColZahllast": "应缴税额",
-    "ustvaHistoryEmpty": "该期间无增值税数据"
+    "ustvaHistoryEmpty": "该期间无增值税数据",
+    "ustvaTrendTitle": "近 12 个月增值税预缴走势",
+    "ustvaTrendSubtitle": "应缴 = 销项 − 进项 (正数 = 需预缴, 负数 = 退税)"
   },
   "email": {
     "title": "邮件中心",

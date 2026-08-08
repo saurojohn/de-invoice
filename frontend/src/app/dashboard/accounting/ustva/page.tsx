@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
-import { apiFetch } from "@/lib/api"
+import { apiFetch, apiGet } from "@/lib/api"
 
 interface UstvaData {
   companyId: string
@@ -158,17 +158,19 @@ export default function UstvaPage() {
     try {
       const q = buildQuery({ year, period })
 
-      const [computeRes, filingsRes, expensesRes, customersRes] = await Promise.all([
-        fetch(`http://localhost:3001/api/v1/ustva/compute?companyId=${companyId}&${q}`),
-        fetch(`http://localhost:3001/api/v1/ustva/filings?companyId=${companyId}`),
-        fetch(`http://localhost:3001/api/v1/ustva/expenses?companyId=${companyId}&${q}`),
-        fetch(`http://localhost:3001/api/v1/customers?companyId=${companyId}`),
-      ])
+      // Tier 162 follow-up: use apiGet instead of
+      // raw fetch. The raw fetch was sending no
+      // auth headers, so the backend returned 401
+      // and the page tried to render
+      // data.vorsteuer.total on `{message: ...}`,
+      // which crashed the entire page via the
+      // error boundary. apiGet injects x-user-id
+      // + x-company-id from localStorage.
       const [compute, filingList, expList, custList] = await Promise.all([
-        computeRes.json(),
-        filingsRes.json(),
-        expensesRes.json(),
-        customersRes.json(),
+        apiGet<any>(`/api/v1/ustva/compute?companyId=${companyId}&${q}`).catch(() => null),
+        apiGet<any[]>(`/api/v1/ustva/filings?companyId=${companyId}`).catch(() => []),
+        apiGet<any[]>(`/api/v1/ustva/expenses?companyId=${companyId}&${q}`).catch(() => []),
+        apiGet<any[]>(`/api/v1/customers?companyId=${companyId}`).catch(() => []),
       ])
       setData(compute)
       setFilings(Array.isArray(filingList) ? filingList : [])
@@ -430,7 +432,7 @@ export default function UstvaPage() {
           </CardContent>
         </Card>
 
-        {loading || !data ? (
+        {loading || !data || !data.vorsteuer ? (
           <div className="text-center py-12 text-gray-500 dark:text-gray-400">…</div>
         ) : (
           <>
