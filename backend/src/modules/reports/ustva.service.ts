@@ -300,6 +300,96 @@ export class UstvaService {
     return `USt ${(rate * 100).toFixed(0)}%`;
   }
 
+  /**
+   * Tier 161: Monatsvergleich USt-Voranmeldung.
+   *
+   * Returns the last `months` months of UStVA aggregates
+   * (one row per calendar month) for the dashboard widget.
+   * Each row contains the 19% / 7% taxable amounts, the
+   * output VAT for each rate, and the Zahllast (= umsatzsteuer
+   * − vorsteuerSum, i.e. the differenzbetrag).
+   *
+   * Sorted by (year DESC, month DESC) so the most recent
+   * month is first — the dashboard renders the table
+   * top-down and the operator wants to see "the current
+   * month" at the top.
+   *
+   * Implementation: serial loop calling compute() per
+   * month. The compute() call is already rate-limited
+   * (60/min on the GET endpoint). For 6 months the
+   * total latency is ~6× a single compute (~1-2 s) which
+   * is fine for a dashboard widget. If we ever need to
+   * speed this up we can build a single query that
+   * groups by month directly, but the abstraction of
+   * "same logic as a single-month compute" is worth the
+   * latency for now.
+   */
+  async computeHistory(companyId: string, months: number = 6): Promise<Array<{
+    year: number
+    month: number
+    periodLabel: string
+    taxableAmount19: number
+    taxableAmount7: number
+    vat19: number
+    vat7: number
+    zahllast: number
+    invoiceCount: number
+    expenseCount: number
+  }>> {
+    if (months < 1 || months > 24) throw new BadRequestException('months 1-24')
+
+    const now = new Date()
+    const rows: Array<{
+      year: number
+      month: number
+      periodLabel: string
+      taxableAmount19: number
+      taxableAmount7: number
+      vat19: number
+      vat7: number
+      zahllast: number
+      invoiceCount: number
+      expenseCount: number
+    }> = []
+
+    for (let i = 0; i < months; i++) {
+      // Walk backwards from the current month.
+      // Use Date math instead of mutating `now` to avoid
+      // rolling the anchor forward on each iteration
+      // (e.g. on Feb 28 / 30 / 31 edge cases).
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      const y = d.getFullYear()
+      const m = d.getMonth() + 1
+
+      const data = await this.compute(companyId, y, undefined, m)
+
+      const rate19 = data.salesByRate.find((r) => Math.abs(r.rate - 0.19) < 1e-6)
+      const rate7 = data.salesByRate.find((r) => Math.abs(r.rate - 0.07) < 1e-6)
+
+      rows.push({
+        year: y,
+        month: m,
+        periodLabel: data.periodLabel,
+        taxableAmount19: rate19?.net ?? 0,
+        taxableAmount7: rate7?.net ?? 0,
+        vat19: rate19?.vat ?? 0,
+        vat7: rate7?.vat ?? 0,
+        zahllast: data.differenzbetrag,
+        invoiceCount: data.counts.invoices,
+        expenseCount: data.counts.expenses,
+      })
+    }
+
+    // Already DESC from the loop, but be defensive
+    // against caller assumptions — sort by (year DESC,
+    // month DESC) so future refactors that change the
+    // loop direction don't break the response shape.
+    return rows.sort((a, b) => {
+      if (a.year !== b.year) return b.year - a.year
+      return b.month - a.month
+    })
+  }
+
   async saveFiling(companyId: string, data: UstvaData & { taxNumber?: string; notes?: string; status?: 'draft' | 'submitted' }) {
     const quarter = data.quarter ?? null;
     const month = data.month ?? null;

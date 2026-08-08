@@ -114,6 +114,25 @@ export default function DashboardPage() {
     utilization: number
     status: 'ok' | 'warning' | 'over'
   }>>([])
+  // Tier 161: USt-Voranmeldung history for the
+  // Monatsvergleich widget. The backend serializes
+  // 6 compute() calls — at 1-2s each, the full
+  // response is 1-2s. Soft-fail (return []) so a
+  // transient backend issue doesn't take the
+  // dashboard down. The widget hides itself on
+  // empty.
+  const [ustvaHistory, setUstvaHistory] = useState<Array<{
+    year: number
+    month: number
+    periodLabel: string
+    taxableAmount19: number
+    taxableAmount7: number
+    vat19: number
+    vat7: number
+    zahllast: number
+    invoiceCount: number
+    expenseCount: number
+  }>>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -160,8 +179,24 @@ export default function DashboardPage() {
         status: 'ok' | 'warning' | 'over'
       }>>(`/api/v1/customers/credit-utilization?companyId=${companyId}`)
         .catch(() => [] as any),
+      // Tier 161: USt-Voranmeldung history for the
+      // dashboard Monatsvergleich widget. Soft-fail
+      // — the widget hides itself on empty/error.
+      apiGet<Array<{
+        year: number
+        month: number
+        periodLabel: string
+        taxableAmount19: number
+        taxableAmount7: number
+        vat19: number
+        vat7: number
+        zahllast: number
+        invoiceCount: number
+        expenseCount: number
+      }>>(`/api/v1/ustva/history?companyId=${companyId}&months=6`)
+        .catch(() => [] as any),
     ])
-      .then(([invoiceList, salesReport, dashboardKpis, recurring, creditRows]) => {
+      .then(([invoiceList, salesReport, dashboardKpis, recurring, creditRows, ustvaRows]) => {
         const invoices = invoiceList?.data || []
         const pending = invoices
           .filter((inv: any) => inv.status === "sent" || inv.status === "draft" || inv.status === "overdue")
@@ -184,6 +219,7 @@ export default function DashboardPage() {
         setKpis(dashboardKpis || null)
         setRecentInvoices(invoices.slice(0, 8) as RecentInvoice[])
         setCreditUtilization(creditRows || [])
+        setUstvaHistory(ustvaRows || [])
         setLoading(false)
       })
       .catch((err) => {
@@ -460,6 +496,137 @@ export default function DashboardPage() {
                   {t("dashboard.creditMore") || "weitere — siehe Kundenliste"}
                 </p>
               )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Tier 161: USt-Voranmeldung Monatsvergleich.
+            6-row table for the last 6 months: each row
+            shows the 19% / 7% taxable base, total VAT, and
+            the Zahllast (= umsatzsteuer − vorsteuer).
+            Click a row → open the UStVA detail page for
+            that month. Soft-hides when the backend
+            returned an empty list (e.g. endpoint down
+            or rate-limited). Sorted by month DESC so
+            the most recent month is at the top — the
+            operator wants to see "the current month"
+            first. */}
+        {ustvaHistory.length > 0 && (
+          <Card className="mb-8" data-testid="dashboard-ustva-history">
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between flex-wrap gap-2">
+                <span>
+                  {t("dashboard.ustvaHistoryTitle") ||
+                    "USt-Voranmeldung der letzten 6 Monate"}
+                </span>
+                <span className="text-xs text-gray-500">
+                  {t("dashboard.ustvaHistorySubtitle") ||
+                    "Monatsvergleich für die Vorauszahlung"}
+                </span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-gray-500 dark:text-gray-400 text-xs border-b">
+                      <th className="py-2 pr-2">
+                        {t("dashboard.ustvaColMonth") || "Monat"}
+                      </th>
+                      <th className="text-right py-2 pr-2">
+                        {t("dashboard.ustvaColNet19") ||
+                          "Bemessungsgrundlage 19%"}
+                      </th>
+                      <th className="text-right py-2 pr-2">
+                        {t("dashboard.ustvaColNet7") ||
+                          "Bemessungsgrundlage 7%"}
+                      </th>
+                      <th className="text-right py-2 pr-2">
+                        {t("dashboard.ustvaColVat") || "Steuer (USt)"}
+                      </th>
+                      <th className="text-right py-2">
+                        {t("dashboard.ustvaColZahllast") || "Zahllast"}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ustvaHistory.map((row) => {
+                      // Render the period as "Aug 2026"
+                      // in the operator's locale. The
+                      // YearMonth from the backend is
+                      // 1-based (1=Jan) but JS Date uses
+                      // 0-based, hence the -1.
+                      const monthDate = new Date(row.year, row.month - 1, 1)
+                      const monthLabel = monthDate.toLocaleDateString("de-DE", {
+                        month: "short",
+                        year: "numeric",
+                      })
+                      // Colour the Zahllast: positive
+                      // = "we owe the FA" (red, payable
+                      // Voranmeldung), negative = "the
+                      // FA owes us" (green, refund).
+                      const isRefund = row.zahllast < 0
+                      const isZero = row.zahllast === 0
+                      const zahllastClass = isZero
+                        ? "text-gray-500 dark:text-gray-400"
+                        : isRefund
+                          ? "text-emerald-600 dark:text-emerald-400"
+                          : "text-red-600 dark:text-red-400"
+                      return (
+                        <tr
+                          key={row.periodLabel}
+                          data-testid={`ustva-history-row-${row.periodLabel}`}
+                          data-zahllast={row.zahllast}
+                          onClick={() =>
+                            router.push(
+                              `/dashboard/accounting/ustva?year=${row.year}&month=${row.month}`
+                            )
+                          }
+                          className="border-b hover:bg-blue-50 dark:hover:bg-blue-900/20 cursor-pointer"
+                        >
+                          <td className="py-2 pr-2 font-medium">
+                            {monthLabel}
+                          </td>
+                          <td className="text-right py-2 pr-2 font-mono">
+                            {row.taxableAmount19.toLocaleString("de-DE", {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}{" "}
+                            €
+                          </td>
+                          <td className="text-right py-2 pr-2 font-mono">
+                            {row.taxableAmount7.toLocaleString("de-DE", {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}{" "}
+                            €
+                          </td>
+                          <td className="text-right py-2 pr-2 font-mono">
+                            {(row.vat19 + row.vat7).toLocaleString("de-DE", {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}{" "}
+                            €
+                          </td>
+                          <td
+                            className={
+                              "text-right py-2 font-mono font-bold " +
+                              zahllastClass
+                            }
+                            data-testid={`ustva-zahllast-${row.periodLabel}`}
+                          >
+                            {row.zahllast.toLocaleString("de-DE", {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}{" "}
+                            €
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </CardContent>
           </Card>
         )}

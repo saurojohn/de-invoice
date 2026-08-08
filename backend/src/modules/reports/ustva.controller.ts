@@ -39,6 +39,27 @@ export class UstvaController {
     return this.ustva.compute(companyId, year, quarter, month);
   }
 
+  // Tier 161: Monatsvergleich USt-Voranmeldung.
+  // Returns the last `months` months (default 6) of
+  // UStVA aggregates for the dashboard widget. The
+  // service serializes 6 compute() calls internally
+  // (~1-2 s for a real dataset). The same 60/min
+  // rate limit applies — the dashboard fetches this
+  // on mount, so a heavy user might burst 6 calls
+  // (1 widget load = 1 history call → 6 compute calls
+  // server-side, but only 1 request from the client).
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  @Get('history')
+  @Require('ustva.read')
+  async history(
+    @Query('companyId') companyId: string,
+    @Query('months') monthsStr?: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId is required');
+    const months = monthsStr ? parseInt(monthsStr, 10) : 6;
+    return this.ustva.computeHistory(companyId, months);
+  }
+
   // Save (draft or submit)
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @Post('filings')

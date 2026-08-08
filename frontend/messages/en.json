@@ -803,7 +803,15 @@
     "creditWarning": "warning",
     "creditBadgeOver": "Over",
     "creditBadgeWarning": "Warning",
-    "creditMore": "more — see customer list"
+    "creditMore": "more — see customer list",
+    "ustvaHistoryTitle": "VAT advance return — last 6 months",
+    "ustvaHistorySubtitle": "Monthly comparison for the prepayment",
+    "ustvaColMonth": "Month",
+    "ustvaColNet19": "Tax base 19%",
+    "ustvaColNet7": "Tax base 7%",
+    "ustvaColVat": "VAT",
+    "ustvaColZahllast": "Payable",
+    "ustvaHistoryEmpty": "No VAT data for this period"
   },
   "email": {
     "title": "Email Center",

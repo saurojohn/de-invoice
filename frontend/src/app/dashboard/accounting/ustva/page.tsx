@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useEffect, useRef, useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
@@ -71,6 +71,7 @@ type PeriodMode = "year" | "q1" | "q2" | "q3" | "q4" | "m1" | "m2" | "m3" | "m4"
 
 export default function UstvaPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { t } = useI18n()
   const currentYear = new Date().getFullYear()
 
@@ -102,6 +103,36 @@ export default function UstvaPage() {
     isIntraEU: false,
     isReverseCharge: false,
   })
+
+  // Tier 161: prefill year + period from the URL
+  // (deep-link from the dashboard Monatsvergleich
+  // widget — /dashboard/accounting/ustva?year=YYYY
+  // &month=MM). The ref guard ensures this only runs
+  // once on mount, even if useSearchParams triggers
+  // a re-render. After the initial prefill, the user
+  // drives the state via the dropdowns (their changes
+  // are NOT reflected back to the URL — we don't want
+  // a setState → URL update → re-render loop). The
+  // [router, year, period] effect below picks up the
+  // new state and fetches the data.
+  const urlPrefillApplied = useRef(false)
+  useEffect(() => {
+    if (urlPrefillApplied.current) return
+    const yStr = searchParams?.get("year")
+    const mStr = searchParams?.get("month")
+    if (yStr) {
+      const y = parseInt(yStr, 10)
+      if (Number.isInteger(y) && y >= 2010 && y <= 2100) setYear(y)
+    }
+    if (mStr) {
+      const m = parseInt(mStr, 10)
+      if (m >= 1 && m <= 12) {
+        setPeriod(`m${m}` as PeriodMode)
+      }
+    }
+    urlPrefillApplied.current = true
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
 
   useEffect(() => {
     const companyId = localStorage.getItem("companyId")

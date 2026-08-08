@@ -803,7 +803,15 @@
     "creditWarning": "预警",
     "creditBadgeOver": "已超额",
     "creditBadgeWarning": "预警",
-    "creditMore": "更多 — 详见客户列表"
+    "creditMore": "更多 — 详见客户列表",
+    "ustvaHistoryTitle": "近 6 个月增值税预申报",
+    "ustvaHistorySubtitle": "月度对比 — 用于预付款",
+    "ustvaColMonth": "月份",
+    "ustvaColNet19": "计税基础 19%",
+    "ustvaColNet7": "计税基础 7%",
+    "ustvaColVat": "销项税",
+    "ustvaColZahllast": "应缴税额",
+    "ustvaHistoryEmpty": "该期间无增值税数据"
   },
   "email": {
     "title": "邮件中心",

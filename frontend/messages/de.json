@@ -803,7 +803,15 @@
     "creditWarning": "Warnung",
     "creditBadgeOver": "Überschritten",
     "creditBadgeWarning": "Warnung",
-    "creditMore": "weitere — siehe Kundenliste"
+    "creditMore": "weitere — siehe Kundenliste",
+    "ustvaHistoryTitle": "USt-Voranmeldung der letzten 6 Monate",
+    "ustvaHistorySubtitle": "Monatsvergleich für die Vorauszahlung",
+    "ustvaColMonth": "Monat",
+    "ustvaColNet19": "Bemessungsgrundlage 19%",
+    "ustvaColNet7": "Bemessungsgrundlage 7%",
+    "ustvaColVat": "Steuer (USt)",
+    "ustvaColZahllast": "Zahllast",
+    "ustvaHistoryEmpty": "Keine UStVA-Daten für diesen Zeitraum"
   },
   "email": {
     "title": "E-Mail Center",
