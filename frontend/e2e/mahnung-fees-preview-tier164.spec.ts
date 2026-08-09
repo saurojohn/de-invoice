@@ -204,10 +204,9 @@ test.describe('Tier 164 — Mahngebühr live preview (§ 288 BGB)', () => {
     // Visible text must use de-DE currency
     // formatting: "119,00 €" or "1.234,56 €"
     // (NBSP or narrow no-break space may be
-    // used as the thousands separator — match
-    // digits/comma/€ flexibly).
+    // used as the thousands separator — strip
+    // them all then check the format).
     const openText = (await page.getByTestId('send-mahnung-fees-open').textContent()) || ''
-    expect(openText).toMatch(/\d.*€/)
     expect(openText.replace(/\s|\u00a0|\u202f/g, '')).toMatch(/[\d,.]+€/)
   })
 
@@ -228,8 +227,19 @@ test.describe('Tier 164 — Mahngebühr live preview (§ 288 BGB)', () => {
     // to populate — Mahngebühr should be 5.00 €
     // for first.
     const mahnRow = page.getByTestId('send-mahnung-fees-mahngebuehr')
+    const openRow = page.getByTestId('send-mahnung-fees-open')
+    const verzRow = page.getByTestId('send-mahnung-fees-verzugszins')
+    const totalRow = page.getByTestId('send-mahnung-fees-total')
     await expect(mahnRow).toBeVisible({ timeout: 30_000 })
     await expect(mahnRow).toHaveAttribute('data-value', '5.00', { timeout: 30_000 })
+    // Snapshot the values that should NOT change
+    // when the level flips (only the Mahngebühr
+    // is level-driven). If a future bug makes
+    // these level-dependent, this assertion
+    // catches it.
+    const openBefore = await openRow.getAttribute('data-value')
+    const verzBefore = await verzRow.getAttribute('data-value')
+    const totalBefore = await totalRow.getAttribute('data-value')
     // Switch the level dropdown to 'final' —
     // the <select> has testid 'send-mahnung-level'.
     const levelSelect = page.getByTestId('send-mahnung-level')
@@ -240,16 +250,20 @@ test.describe('Tier 164 — Mahngebühr live preview (§ 288 BGB)', () => {
     // not synchronous — wait for the data-value
     // to flip from '5.00' to '10.00'.
     await expect(mahnRow).toHaveAttribute('data-value', '10.00', { timeout: 15_000 })
-    // And the total should have grown by 5 €
-    // (openBalance + verzugszins stay constant
-    // when only the level changes — the level
-    // only affects the Mahngebühr).
-    const totalFinal = await page.getByTestId('send-mahnung-fees-total').getAttribute('data-value')
-    expect(totalFinal).toMatch(/^\d+\.\d{2}$/)
-    // Switch back to 'first' and confirm it
-    // goes back to 5.00.
+    // openBalance + Verzugszins must stay constant
+    // (the level only affects the Mahngebühr).
+    await expect(openRow).toHaveAttribute('data-value', openBefore!, { timeout: 5_000 })
+    await expect(verzRow).toHaveAttribute('data-value', verzBefore!, { timeout: 5_000 })
+    // Total = openBalance + mahngebuehr + verzugszins,
+    // so it should have grown by exactly 5 € (10 - 5).
+    const totalFinal = parseFloat((await totalRow.getAttribute('data-value'))!)
+    const totalBeforeNum = parseFloat(totalBefore!)
+    expect(Math.abs(totalFinal - totalBeforeNum - 5)).toBeLessThan(0.05)
+    // Switch back to 'first' and confirm
+    // Mahngebühr + total flip back.
     await levelSelect.selectOption('first')
     await expect(mahnRow).toHaveAttribute('data-value', '5.00', { timeout: 15_000 })
+    await expect(totalRow).toHaveAttribute('data-value', totalBefore!, { timeout: 5_000 })
   })
 
   test('mobile 375x667: Mahnung modal fees block does not overflow', async ({ page }) => {
@@ -268,7 +282,11 @@ test.describe('Tier 164 — Mahngebühr live preview (§ 288 BGB)', () => {
     await expect(modal).toBeVisible({ timeout: 30_000 })
     const feesBlock = page.getByTestId('send-mahnung-fees')
     await expect(feesBlock).toBeVisible({ timeout: 30_000 })
-    await page.waitForTimeout(1500)
+    // No waitForTimeout — expect(visible) above
+    // already retried until the row mounted. The
+    // body.scrollWidth is sampled synchronously
+    // from the DOM, no animation/transition is
+    // expected on layout.
     const bodySw = await page.evaluate(() => document.body.scrollWidth)
     expect(bodySw).toBeLessThanOrEqual(376)
   })
