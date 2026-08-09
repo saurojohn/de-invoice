@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MahnungspauseService } from './mahnungspause.service';
 
@@ -781,15 +781,23 @@ Mit freundlichen Grüßen,
    * changes (most companies stick with the BGB defaults) and the JSON
    * keeps the schema clean.
    *
-   * Default values per §288 BGB:
+   * Default values per §288 BGB (Tier 164 update):
    *   - verzugszinsPct: 9.0 % per annum over Basiszinssatz for B2B
-   *   - mahngebuehr first:  0.00 € (a friendly Zahlungserinnerung)
-   *   - mahngebuehr second: 2.50 €
-   *   - mahngebuehr final:  5.00 €
+   *   - mahngebuehr first:  5.00 €  (1. Mahnung / Zahlungserinnerung — friendly but billable)
+   *   - mahngebuehr second: 5.00 €  (2. Mahnung)
+   *   - mahngebuehr final:  10.00 € (3. Mahnung / Mahnbescheid — the heavier one)
    *
    * The Verzugszins is computed as:
    *   principal × (pct / 100) × (days / 365)
    * rounded to two decimals on the Mahnung row and the PDF.
+   *
+   * Tier 164 history: the previous defaults (0/2.50/5.00) were
+   * the pre-2023 § 288 BGB values. The post-2023 reform
+   * (BGBl. I 2022 Nr. 51) lets the creditor charge a Mahngebühr
+   * for the FIRST Mahnung too, and most Berater charge
+   * 5-10 € per level. We default to 5/5/10 as a sensible
+   * middle ground; companies with their own scale
+   * override via `mahnungConfig` in bankInfo.
    */
   async getFeeConfig(companyId: string) {
     const company = await this.prisma.company.findUnique({
@@ -800,9 +808,13 @@ Mit freundlichen Grüßen,
     return {
       verzugszinsPct: typeof cfg.verzugszinsPct === 'number' ? cfg.verzugszinsPct : 9.0,
       mahngebuehr: {
-        first: typeof cfg.mahngebuehr?.first === 'number' ? cfg.mahngebuehr.first : 0,
-        second: typeof cfg.mahngebuehr?.second === 'number' ? cfg.mahngebuehr.second : 2.5,
-        final: typeof cfg.mahngebuehr?.final === 'number' ? cfg.mahngebuehr.final : 5.0,
+        // Tier 164: defaults changed from 0/2.50/5.00
+        // to 5.00/5.00/10.00 per the post-2023 § 288
+        // BGB practice. A company can still override
+        // by setting bankInfo.mahnungConfig.mahngebuehr.
+        first: typeof cfg.mahngebuehr?.first === 'number' ? cfg.mahngebuehr.first : 5.0,
+        second: typeof cfg.mahngebuehr?.second === 'number' ? cfg.mahngebuehr.second : 5.0,
+        final: typeof cfg.mahngebuehr?.final === 'number' ? cfg.mahngebuehr.final : 10.0,
       },
       isDefault: !cfg || Object.keys(cfg).length === 0,
     };
@@ -900,6 +912,73 @@ Mit freundlichen Grüßen,
       verzugszinsPct: cfg.verzugszinsPct,
       totalDue,
     };
+  }
+
+  /**
+   * Tier 164: Live fee preview for the "Mahnung
+   * senden" modal. Returns the breakdown the UI
+   * shows before the user clicks "send" — no
+   * side effects, no DB writes. The frontend
+   * calls this on modal open and re-calls it
+   * when the user changes the level.
+   *
+   * Shape mirrors computeFees + a few extra
+   * fields the modal wants:
+   *   - invoiceId, invoiceNumber, openBalance
+   *   - dueDate, daysOverdue (so the modal
+   *     can show "30 Tage überfällig")
+   *   - level, principalGross (= openBalance)
+   *   - mahngebuehr, verzugszins, verzugszinsPct
+   *   - totalDue (= principal + fees)
+   *
+   * Idempotent: read-only. The actual Mahnung
+   * row is created when the user clicks "send".
+   */
+  async previewFeesForInvoice(
+    companyId: string,
+    invoiceId: string,
+    level: 'first' | 'second' | 'final',
+  ) {
+    const invoice = await this.prisma.invoice.findFirst({
+      where: { id: invoiceId, companyId },
+      select: {
+        id: true,
+        invoiceNumber: true,
+        total: true,
+        dueDate: true,
+        status: true,
+      },
+    });
+    if (!invoice) {
+      throw new BadRequestException('Rechnung nicht gefunden');
+    }
+    const principalGross = Number(invoice.total);
+    const daysOverdue = this.computeDaysOverdue(invoice.dueDate);
+    const fees = await this.computeFees(companyId, principalGross, daysOverdue, level);
+    return {
+      invoiceId: invoice.id,
+      invoiceNumber: invoice.invoiceNumber,
+      openBalance: principalGross,
+      dueDate: invoice.dueDate,
+      daysOverdue,
+      level,
+      ...fees,
+    };
+  }
+
+  /**
+   * Compute days overdue for an invoice. Negative or
+   * zero = not yet due (the UI shows "noch nicht fällig").
+   * Tier 164 helper used by the preview endpoint.
+   */
+  private computeDaysOverdue(dueDate: Date | null): number {
+    if (!dueDate) return 0;
+    const due = new Date(dueDate);
+    const now = new Date();
+    // Floor to whole calendar days (date-only, no TZ drift).
+    const dueMs = Date.UTC(due.getFullYear(), due.getMonth(), due.getDate());
+    const nowMs = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+    return Math.max(0, Math.floor((nowMs - dueMs) / (1000 * 60 * 60 * 24)));
   }
 
   /**

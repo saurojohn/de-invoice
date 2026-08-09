@@ -474,6 +474,31 @@ export class ReminderController {
     return this.reminderService.getFeeConfig(companyId);
   }
 
+  // ─── Tier 164: Live fee preview for the
+  // "Mahnung senden" modal. No side effects —
+  // just computes what the actual fees would be
+  // if the user clicked send NOW. The frontend
+  // calls this on modal open and re-calls when
+  // the user changes the level. ───────────────
+  @Get('mahnungen/fees-preview')
+  @Require('invoice.read')
+  async previewFees(
+    @Query('companyId') companyId: string,
+    @Query('invoiceId') invoiceId: string,
+    @Query('level') level: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    if (!invoiceId) throw new BadRequestException('invoiceId ist erforderlich')
+    if (!['first', 'second', 'final'].includes(level)) {
+      throw new BadRequestException('level muss first, second oder final sein')
+    }
+    return this.reminderService.previewFeesForInvoice(
+      companyId,
+      invoiceId,
+      level as 'first' | 'second' | 'final',
+    )
+  }
+
   /**
    * Update the company's fee config. Persists into the
    * bankInfo JSON column (see ReminderService.setFeeConfig

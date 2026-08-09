@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useRouter, useParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -712,6 +712,12 @@ export default function InvoiceDetailPage() {
   // escalation chain (first → second → final)
   // is preserved.
   type MahnungLevel = 'first' | 'second' | 'final'
+  // AbortController for in-flight Mahnung
+  // preview fetches. Reset on modal close (so
+  // a late response can't setState on a
+  // closed modal) and on every new fetch. See
+  // openSendMahnungModal + handleMahnungLevelChange.
+  const mahnungFetchAbortRef = useRef<AbortController | null>(null)
   const [showSendMahnungModal, setShowSendMahnungModal] =
     useState(false)
   const [mahnungLevel, setMahnungLevel] = useState<MahnungLevel>('first')
@@ -730,6 +736,44 @@ export default function InvoiceDetailPage() {
     null,
   )
   const [mahnungSendOk, setMahnungSendOk] = useState(false)
+  // Tier 164: live fee preview (Mahngebühr +
+  // Verzugszins) for the currently-selected
+  // level. Loaded in parallel with the
+  // email-data preview so the modal can show
+  // "Invoice total 119 € + Mahngebühr 5 € +
+  // Verzugszins 0.23 € = Total 124.23 €" before
+  // the user clicks "send". The shape is shared
+  // by all three fetchers (open / level-change /
+  // single refresh) — keep it as a top-level
+  // type so the props stay in sync.
+  type MahnungFees = {
+    invoiceId: string
+    invoiceNumber: string
+    openBalance: number
+    dueDate: string
+    daysOverdue: number
+    level: MahnungLevel
+    mahngebuehr: number
+    verzugszins: number
+    verzugszinsPct: number
+    totalDue: number
+  }
+  const [mahnungFees, setMahnungFees] = useState<MahnungFees | null>(null)
+  const [mahnungFeesLoading, setMahnungFeesLoading] = useState(false)
+  const [mahnungFeesError, setMahnungFeesError] = useState<string | null>(null)
+
+  // Tier 164: when the Mahnung modal closes
+  // (overlay click or Cancel button), abort
+  // any in-flight preview fetch so a late
+  // response can't setState on a closed modal
+  // (React warning + flash of stale data if
+  // the user reopens quickly).
+  useEffect(() => {
+    if (!showSendMahnungModal) {
+      mahnungFetchAbortRef.current?.abort()
+      mahnungFetchAbortRef.current = null
+    }
+  }, [showSendMahnungModal])
 
   // Tier 152: open the send-Mahnung modal. We
   // default the level to 'first' (the lowest
@@ -739,6 +783,10 @@ export default function InvoiceDetailPage() {
   // email-data for the default level so the
   // subject + body show up in the preview
   // block.
+  // Tier 164: also fetch the fee preview in
+  // parallel so the modal can show the live
+  // breakdown (Mahngebühr + Verzugszins) before
+  // the user clicks "send".
   const openSendMahnungModal = async () => {
     if (!invoice) return
     setMahnungLevel('first')
@@ -746,6 +794,8 @@ export default function InvoiceDetailPage() {
     setMahnungEmailError(null)
     setMahnungSendError(null)
     setMahnungSendOk(false)
+    setMahnungFees(null)
+    setMahnungFeesError(null)
     setShowSendMahnungModal(true)
     // Fetch the preview for the default level
     const companyId =
@@ -753,32 +803,85 @@ export default function InvoiceDetailPage() {
         ? localStorage.getItem("companyId")
         : null
     if (!companyId) return
+    // Cancel any in-flight request from a prior
+    // open / level-change.
+    mahnungFetchAbortRef.current?.abort()
+    const ac = new AbortController()
+    mahnungFetchAbortRef.current = ac
     setMahnungEmailLoading(true)
+    setMahnungFeesLoading(true)
     try {
-      const data = await apiGet<{
-        recipientEmail: string
-        recipientName: string
-        subject: string
-        body: string
-        level: MahnungLevel
-      }>(
-        `/api/v1/reminders/${invoice.id}/email-data?companyId=${companyId}&level=first`,
-      )
-      setMahnungEmailData(data)
-    } catch (err) {
-      const msg =
-        err instanceof ApiError
-          ? err.message
-          : "Vorschau konnte nicht geladen werden"
-      setMahnungEmailError(msg)
+      // Run both fetches in parallel — the
+      // email-data and the fee breakdown are
+      // independent. Promise.all keeps the modal
+      // open for ~one round-trip instead of two.
+      // Use allSettled so a failure on one side
+      // doesn't drop the other's result.
+      const results = await Promise.allSettled([
+        apiGet<{
+          recipientEmail: string
+          recipientName: string
+          subject: string
+          body: string
+          level: MahnungLevel
+        }>(
+          `/api/v1/reminders/${invoice.id}/email-data?companyId=${companyId}&level=first`,
+          { signal: ac.signal },
+        ),
+        apiGet<MahnungFees>(
+          `/api/v1/reminders/mahnungen/fees-preview?companyId=${companyId}&invoiceId=${invoice.id}&level=first`,
+          { signal: ac.signal },
+        ),
+      ])
+      // Bail out if this request was aborted by a
+      // newer level-change / modal-close.
+      if (ac.signal.aborted) return
+      const [emailRes, feesRes] = results
+      if (emailRes.status === 'fulfilled') {
+        setMahnungEmailData(emailRes.value)
+      } else {
+        const msg =
+          emailRes.reason instanceof ApiError
+            ? emailRes.reason.message
+            : "Vorschau konnte nicht geladen werden"
+        setMahnungEmailError(msg)
+      }
+      if (feesRes.status === 'fulfilled') {
+        setMahnungFees(feesRes.value)
+      } else {
+        const msg =
+          feesRes.reason instanceof ApiError
+            ? feesRes.reason.message
+            : "Gebühren-Vorschau fehlgeschlagen"
+        setMahnungFeesError(msg)
+      }
     } finally {
-      setMahnungEmailLoading(false)
+      // Only clear loading if we're still the
+      // most-recent request — otherwise a newer
+      // one owns the loading state.
+      if (mahnungFetchAbortRef.current === ac) {
+        setMahnungEmailLoading(false)
+        setMahnungFeesLoading(false)
+      }
     }
   }
+
+  // Tier 164: re-fetch the live fee preview
+  // when the user changes the level selector.
+  // Note: the actual fetch is inlined in
+  // handleMahnungLevelChange (below) so the
+  // email-data and fees share a single
+  // AbortController — a fast level-flip
+  // cancels both together and the modal
+  // never shows a stale mix of "old email +
+  // new fee" (or vice versa).
 
   // Re-fetch the email-data when the user
   // changes the level selector. Cheap (just a
   // template re-render) — no debounce needed.
+  // Tier 164: also re-fetch the live fee
+  // preview in parallel so the breakdown
+  // updates with the level change.
   const handleMahnungLevelChange = async (
     newLevel: MahnungLevel,
   ) => {
@@ -791,24 +894,64 @@ export default function InvoiceDetailPage() {
         ? localStorage.getItem("companyId")
         : null
     if (!companyId) return
+    // Cancel any in-flight request from the
+    // prior level / open so the older one can't
+    // overwrite our state when it resolves late.
+    mahnungFetchAbortRef.current?.abort()
+    const ac = new AbortController()
+    mahnungFetchAbortRef.current = ac
     setMahnungEmailLoading(true)
+    setMahnungFeesLoading(true)
     try {
-      const data = await apiGet<{
-        recipientEmail: string
-        recipientName: string
-        subject: string
-        body: string
-        level: MahnungLevel
-      }>(
-        `/api/v1/reminders/${invoice.id}/email-data?companyId=${companyId}&level=${newLevel}`,
-      )
-      setMahnungEmailData(data)
-    } catch (err) {
-      const msg =
-        err instanceof ApiError ? err.message : "Vorschau fehlgeschlagen"
-      setMahnungEmailError(msg)
+      // allSettled so a fees failure doesn't
+      // drop the email-data result, and vice
+      // versa. Each side manages its own
+      // setState — we only orchestrate the
+      // loading flag here.
+      const results = await Promise.allSettled([
+        apiGet<{
+          recipientEmail: string
+          recipientName: string
+          subject: string
+          body: string
+          level: MahnungLevel
+        }>(
+          `/api/v1/reminders/${invoice.id}/email-data?companyId=${companyId}&level=${newLevel}`,
+          { signal: ac.signal },
+        ),
+        // Tier 164: re-fetch the fee preview in
+        // parallel. The email-data and fees
+        // endpoints are independent.
+        apiGet<MahnungFees>(
+          `/api/v1/reminders/mahnungen/fees-preview?companyId=${companyId}&invoiceId=${invoice.id}&level=${newLevel}`,
+          { signal: ac.signal },
+        ),
+      ])
+      if (ac.signal.aborted) return
+      const [emailRes, feesRes] = results
+      if (emailRes.status === 'fulfilled') {
+        setMahnungEmailData(emailRes.value)
+      } else {
+        const msg =
+          emailRes.reason instanceof ApiError
+            ? emailRes.reason.message
+            : "Vorschau fehlgeschlagen"
+        setMahnungEmailError(msg)
+      }
+      if (feesRes.status === 'fulfilled') {
+        setMahnungFees(feesRes.value)
+      } else {
+        const msg =
+          feesRes.reason instanceof ApiError
+            ? feesRes.reason.message
+            : "Gebühren-Vorschau fehlgeschlagen"
+        setMahnungFeesError(msg)
+      }
     } finally {
-      setMahnungEmailLoading(false)
+      if (mahnungFetchAbortRef.current === ac) {
+        setMahnungEmailLoading(false)
+        setMahnungFeesLoading(false)
+      }
     }
   }
 
@@ -3105,6 +3248,106 @@ export default function InvoiceDetailPage() {
                   >
                     {mahnungEmailData.subject}
                   </p>
+                ) : (
+                  <p className="text-sm text-gray-400">—</p>
+                )}
+              </div>
+              {/* Tier 164: live fee breakdown. Shows
+                  the open balance, the Mahngebühr
+                  for the selected level, the
+                  Verzugszins (= balance ×
+                  verzugszinsPct/100 × days/365),
+                  and the resulting Total-Due. The
+                  number updates when the user
+                  changes the level dropdown.
+                  Hidden while loading + on error
+                  (the user can still send — the
+                  server will compute the fees
+                  independently). */}
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  {t("invoice.sendMahnungFees") ||
+                    "Gebühren-Aufstellung (§ 288 BGB)"}
+                </label>
+                {mahnungFeesLoading ? (
+                  <p className="text-sm text-gray-500">…</p>
+                ) : mahnungFeesError ? (
+                  <p
+                    className="text-sm text-amber-600"
+                    data-testid="send-mahnung-fees-error"
+                  >
+                    {t("invoice.sendMahnungFeesError") ||
+                      "Gebühren-Vorschau nicht verfügbar — die Beträge werden beim Senden automatisch berechnet."}
+                  </p>
+                ) : mahnungFees ? (
+                  <div
+                    className="text-sm border border-gray-200 dark:border-gray-600 rounded p-3 bg-gray-50 dark:bg-gray-900/40 space-y-1"
+                    data-testid="send-mahnung-fees"
+                  >
+                    <div className="flex justify-between">
+                      <span className="text-gray-600 dark:text-gray-300">
+                        {t("invoice.openBalance") || "Offener Rechnungsbetrag"}
+                      </span>
+                      <span
+                        className="font-mono"
+                        data-testid="send-mahnung-fees-open"
+                        data-value={mahnungFees.openBalance.toFixed(2)}
+                      >
+                        {mahnungFees.openBalance.toLocaleString("de-DE", {
+                          style: "currency",
+                          currency: "EUR",
+                        })}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600 dark:text-gray-300">
+                        + {t("invoice.mahngebuehr") || "Mahngebühr"} (
+                        {mahnungFees.daysOverdue}{" "}
+                        {t("invoice.daysOverdue") || "Tage überfällig"})
+                      </span>
+                      <span
+                        className="font-mono"
+                        data-testid="send-mahnung-fees-mahngebuehr"
+                        data-value={mahnungFees.mahngebuehr.toFixed(2)}
+                      >
+                        {mahnungFees.mahngebuehr.toLocaleString("de-DE", {
+                          style: "currency",
+                          currency: "EUR",
+                        })}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600 dark:text-gray-300">
+                        + {t("invoice.verzugszins") || "Verzugszins"} (
+                        {mahnungFees.verzugszinsPct}% p.a.)
+                      </span>
+                      <span
+                        className="font-mono"
+                        data-testid="send-mahnung-fees-verzugszins"
+                        data-value={mahnungFees.verzugszins.toFixed(2)}
+                      >
+                        {mahnungFees.verzugszins.toLocaleString("de-DE", {
+                          style: "currency",
+                          currency: "EUR",
+                        })}
+                      </span>
+                    </div>
+                    <div className="flex justify-between border-t border-gray-200 dark:border-gray-600 pt-1 mt-1">
+                      <span className="font-medium">
+                        = {t("invoice.totalDue") || "Forderung gesamt"}
+                      </span>
+                      <span
+                        className="font-mono font-bold text-red-700 dark:text-red-300"
+                        data-testid="send-mahnung-fees-total"
+                        data-value={mahnungFees.totalDue.toFixed(2)}
+                      >
+                        {mahnungFees.totalDue.toLocaleString("de-DE", {
+                          style: "currency",
+                          currency: "EUR",
+                        })}
+                      </span>
+                    </div>
+                  </div>
                 ) : (
                   <p className="text-sm text-gray-400">—</p>
                 )}

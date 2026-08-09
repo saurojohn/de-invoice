@@ -105,8 +105,8 @@ export async function apiFetch(path: string, opts: ApiFetchOptions = {}): Promis
  *  match the expected pattern". Caller code that does
  *  \`Array.isArray(data) ? data : (data?.data || [])\`
  *  still works because \`null\` is not an array. */
-export async function apiGet<T = any>(path: string): Promise<T> {
-  const res = await apiFetch(path, { method: "GET" })
+export async function apiGet<T = any>(path: string, opts?: { signal?: AbortSignal }): Promise<T> {
+  const res = await apiFetch(path, { method: "GET", ...(opts?.signal ? { signal: opts.signal } : {}) })
   const text = await res.text()
   if (!text) return null as unknown as T
   return JSON.parse(text)
