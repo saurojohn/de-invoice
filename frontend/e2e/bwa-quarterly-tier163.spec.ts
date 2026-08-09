@@ -129,13 +129,19 @@ test.describe('Tier 163 — BWA quarterly comparison', () => {
 
   test('frontend: BwaTab renders the quarterly card', async ({ page }) => {
     await contextWithAuth(page)
-    page.setDefaultTimeout(60_000)
-    await page.goto('/dashboard/reports', { timeout: 60_000 })
-    await expect(page.locator('h1').first()).toBeVisible({ timeout: 60_000 })
-    // Click the BWA tab (it's the default but
-    // we click anyway to be explicit in case
-    // future tests re-order tabs)
-    await page.getByRole('tab', { name: /BWA/i }).click().catch(() => {})
+    // /dashboard/reports cold compile is 60-80s
+    // in dev mode (the page has 7 tabs each
+    // importing its own module). Bump to 90s
+    // for the goto + the h1 wait.
+    page.setDefaultTimeout(90_000)
+    await page.goto('/dashboard/reports', { timeout: 90_000 })
+    await expect(page.locator('h1').first()).toBeVisible({ timeout: 90_000 })
+    // Click the BWA button. The reports page
+    // uses <button> (not role="tab") for its
+    // tab strip — earlier getByRole('tab')
+    // silently failed and the BwaTab never
+    // rendered.
+    await page.getByTestId('tab-bwa').click()
     const card = page.getByTestId('bwa-quarterly-card')
     await expect(card).toBeVisible({ timeout: 30_000 })
     // Header in DE
@@ -144,10 +150,10 @@ test.describe('Tier 163 — BWA quarterly comparison', () => {
 
   test('frontend: year + quarter selector are visible', async ({ page }) => {
     await contextWithAuth(page)
-    page.setDefaultTimeout(60_000)
-    await page.goto('/dashboard/reports', { timeout: 60_000 })
-    await expect(page.locator('h1').first()).toBeVisible({ timeout: 60_000 })
-    await page.getByRole('tab', { name: /BWA/i }).click().catch(() => {})
+    page.setDefaultTimeout(90_000)
+    await page.goto('/dashboard/reports', { timeout: 90_000 })
+    await expect(page.locator('h1').first()).toBeVisible({ timeout: 90_000 })
+    await page.getByTestId('tab-bwa').click()
     const yearInput = page.getByTestId('bwa-qyear')
     await expect(yearInput).toBeVisible({ timeout: 30_000 })
     const quarterSelect = page.getByTestId('bwa-quarter')
@@ -156,17 +162,17 @@ test.describe('Tier 163 — BWA quarterly comparison', () => {
 
   test('frontend: switching quarter triggers a new fetch + re-render', async ({ page }) => {
     await contextWithAuth(page)
-    page.setDefaultTimeout(60_000)
-    await page.goto('/dashboard/reports', { timeout: 60_000 })
-    await expect(page.locator('h1').first()).toBeVisible({ timeout: 60_000 })
-    await page.getByRole('tab', { name: /BWA/i }).click().catch(() => {})
+    page.setDefaultTimeout(90_000)
+    await page.goto('/dashboard/reports', { timeout: 90_000 })
+    await expect(page.locator('h1').first()).toBeVisible({ timeout: 90_000 })
+    await page.getByTestId('tab-bwa').click()
 
     // Wait for the initial quarterly BWA fetch
     // to complete (it auto-loads on mount with
     // the current quarter).
     const firstFetch = page.waitForResponse(
       (r) => r.url().includes('/bwa-quarterly'),
-      { timeout: 60_000 },
+      { timeout: 90_000 },
     )
     await firstFetch
 
@@ -185,16 +191,16 @@ test.describe('Tier 163 — BWA quarterly comparison', () => {
     // The table should now reflect Q2 (2026)
     // — the header includes the year+quarter
     const table = page.getByTestId('bwa-qtable')
-    await expect(table).toBeVisible({ timeout: 10_000 })
+    await expect(table).toBeVisible({ timeout: 30_000 })
   })
 
   test('mobile 375x667: quarterly card does not overflow', async ({ page }) => {
     await contextWithAuth(page)
-    page.setDefaultTimeout(60_000)
+    page.setDefaultTimeout(90_000)
     await page.setViewportSize({ width: 375, height: 667 })
-    await page.goto('/dashboard/reports', { timeout: 60_000 })
-    await expect(page.locator('h1').first()).toBeVisible({ timeout: 60_000 })
-    await page.getByRole('tab', { name: /BWA/i }).click().catch(() => {})
+    await page.goto('/dashboard/reports', { timeout: 90_000 })
+    await expect(page.locator('h1').first()).toBeVisible({ timeout: 90_000 })
+    await page.getByTestId('tab-bwa').click()
     const card = page.getByTestId('bwa-quarterly-card')
     await expect(card).toBeVisible({ timeout: 30_000 })
     await page.waitForTimeout(1500)
