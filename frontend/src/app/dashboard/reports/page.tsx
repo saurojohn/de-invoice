@@ -214,6 +214,16 @@ export default function ReportsPage() {
   }
 
   /**
+   * Tier 167: see DatevExportTab.exportBuchungsliste
+   * — the function lives in the DatevExportTab scope
+   * (alongside loadPreview) because the Buchungsliste
+   * button is part of the DATEV tab UI, not the
+   * main reports page. Keeping it in the same
+   * component as the button avoids prop-drilling the
+   * year / companyId down from main.
+   */
+
+  /**
    * Download the full DATEV-Beleg-Paket: the CSV
    * PLUS every Beleg-Bild PDF the Berater needs
    * for the import. The bundle comes as a single
@@ -902,6 +912,69 @@ function DatevExportTab({
     }
   }
 
+  /**
+   * Tier 167: Download the DATEV Buchungsliste —
+   * the per-Sachkonto summary that the Berater
+   * pastes into their own Kontenplan-Werkzeug
+   * for manual review. The download is a ZIP
+   * containing 4 CSVs (Buchungsliste /
+   * Buchungsstapel / USt-Verprobung /
+   * Kontenplan) + a manifest.json with
+   * per-file sha256.
+   *
+   * We read the year from the datev startDate
+   * input (yyyy-mm-dd → first 4 chars) so the
+   * button uses the same year as the rest of
+   * the DATEV tab.
+   */
+  const exportBuchungsliste = async () => {
+    if (!companyId) return
+    const btn = document.getElementById(
+      "datev-download-buchungsliste-btn",
+    ) as HTMLButtonElement | null
+    const originalLabel = btn?.textContent || ""
+    if (btn) {
+      btn.disabled = true
+      btn.textContent = "Wird vorbereitet…"
+    }
+    try {
+      const year =
+        startDate && startDate.length >= 4
+          ? parseInt(startDate.slice(0, 4), 10)
+          : new Date().getFullYear()
+      const res = await apiFetch(
+        `/api/v1/reports/datev-buchungsliste?companyId=${companyId}&year=${year}`,
+        { method: "GET" },
+      )
+      if (!res.ok) {
+        alert(`Buchungsliste: HTTP ${res.status}`)
+        return
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      // Filename from Content-Disposition
+      // header — fallback to a sensible name
+      // if the header is missing.
+      const cd = res.headers.get("content-disposition") || ""
+      const m = cd.match(/filename="([^"]+)"/)
+      a.download = m?.[1] || `DATEV-Buchungsliste-${year}.zip`
+      a.href = url
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+    } catch (e: any) {
+      console.error("DATEV Buchungsliste export failed:", e)
+      alert(e?.message || "Buchungsliste-Export fehlgeschlagen")
+    } finally {
+      if (btn) {
+        btn.disabled = false
+        btn.textContent = originalLabel
+      }
+    }
+  }
+
   const fmtMoney = (n: number) =>
     n.toLocaleString("de-DE", {
       minimumFractionDigits: 2,
@@ -972,6 +1045,28 @@ function DatevExportTab({
               title="Erzeugt einen ZIP-Ordner mit einer CSV pro Monat + Belegbilder pro Monat — für Buchungslauf pro Monat in DATEV."
             >
               📅 Per Monat aufteilen (ZIP)
+            </Button>
+            {/* Tier 167: DATEV Buchungsliste — per-
+                Sachkonto summary + USt-Verprobung.
+                For the Berater who wants a
+                human-readable "one row per account"
+                view (the standard Excel template
+                they paste into DATEV after manual
+                review). The Berater's Kontenplan
+                is the single-source-of-truth for
+                Sachkonto assignments; the
+                Buchungsliste tells them "what was
+                actually booked against each
+                account this year". The two views
+                are reconciled line by line at
+                Jahresabschluss. */}
+            <Button
+              variant="outline"
+              onClick={exportBuchungsliste}
+              data-testid="datev-download-buchungsliste-btn"
+              title="Erzeugt eine Buchungsliste (eine Zeile pro Sachkonto), den DATEV-Buchungsstapel, eine USt-Verprobung pro USt-Schlüssel und den SKR03-Kontenplan-Auszug — alles in einem ZIP."
+            >
+              📊 Buchungsliste (ZIP)
             </Button>
           </div>
         </CardContent>

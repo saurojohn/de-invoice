@@ -9,6 +9,13 @@ import { CashFlowService } from './cashflow.service';
 import { PnlService } from './pnl.service';
 import { OssService } from './oss.service';
 import { BwaService } from './bwa.service';
+// Tier 167: DATEV Buchungsliste — per-Sachkonto
+// summary + auto revenue-side Sachkonto mapping
+// (8120 Reverse Charge / 8125 igL). Same datev.*
+// service layer as the existing /datev-export
+// endpoint, so no new module deps needed.
+import { DatevBuchungslisteService } from './datev-buchungsliste.service';
+import { DatevBuchungslisteController } from './datev-buchungsliste.controller';
 import { StorageModule } from '../storage/storage.module';
 // Tier 86: BWA needs AssetsService for the
 // per-asset AfA → GKV 3100 line. Importing
@@ -21,8 +28,8 @@ import { AssetsModule } from '../assets/assets.module';
 
 @Module({
   imports: [StorageModule, AssetsModule],
-  controllers: [ReportsController, UstvaController],
-  providers: [ReportsService, UstvaService, UstjaService, AgingService, CashFlowService, PnlService, OssService, BwaService],
-  exports: [ReportsService, UstvaService, UstjaService, AgingService, CashFlowService, PnlService, OssService, BwaService],
+  controllers: [ReportsController, UstvaController, DatevBuchungslisteController],
+  providers: [ReportsService, UstvaService, UstjaService, AgingService, CashFlowService, PnlService, OssService, BwaService, DatevBuchungslisteService],
+  exports: [ReportsService, UstvaService, UstjaService, AgingService, CashFlowService, PnlService, OssService, BwaService, DatevBuchungslisteService],
 })
 export class ReportsModule {}
