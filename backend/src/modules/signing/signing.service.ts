@@ -7,6 +7,23 @@ import { PrismaService } from '../../prisma/prisma.service'
 import * as forge from 'node-forge'
 import signpdf from '@signpdf/signpdf'
 import { Signer } from '@signpdf/utils'
+// Tier 165: inject a PAdES signature
+// placeholder into the PDF BEFORE handing
+// it to signpdf.sign(). The signpdf v3 API
+// requires the placeholder to already be in
+// the document — `findByteRange()` throws
+// "No ByteRangeStrings found" if it isn't.
+//
+// We can't use @signpdf/placeholder-pdfkit
+// because it needs a live PDFKit PDFDocument
+// instance, but our invoice PDF is generated
+// upstream and arrives here as a Buffer.
+// plainAddPlaceholder works on raw buffers:
+// it reads the xref, appends new objects
+// (Sig dict, AcroForm, Widget), and rewrites
+// the trailer so the resulting buffer is a
+// valid PDF with a /ByteRange placeholder.
+import { plainAddPlaceholder } from '@signpdf/placeholder-plain'
 
 /**
  * Tier 72: PDF Sign + Verify (GoBD § 146 AO).
@@ -253,8 +270,29 @@ export class SigningService {
     if (!signing.cert || !signing.key) {
       throw new BadRequestException('Signierzert nicht verfügbar')
     }
+    // Tier 165: insert the /ByteRange +
+    // /Contents placeholder before signpdf
+    // touches the buffer. signatureLength=4096
+    // gives us ~2KB of signature space (HEX
+    // encoded in the PDF), which fits a
+    // typical RSA-2048 PKCS#7 detached
+    // signature (~1500-2000 bytes) with
+    // comfortable headroom. The widget rect
+    // is invisible ([0,0,0,0]) — the user
+    // sees the Adobe Reader signature badge
+    // in the panel, not a visible widget on
+    // the page.
+    const placeholderBuffer = plainAddPlaceholder({
+      pdfBuffer,
+      reason: 'Rechnung GoBD-konform signiert',
+      contactInfo: 'info@shleder.de',
+      name: 'SH Leder GmbH',
+      location: 'Stuttgart',
+      signatureLength: 4096,
+      widgetRect: [0, 0, 0, 0],
+    })
     const forgeSigner = new ForgeSigner(signing.cert, signing.key)
-    const signed = await signpdf.sign(pdfBuffer, forgeSigner)
+    const signed = await signpdf.sign(placeholderBuffer, forgeSigner)
     return signed
   }
 

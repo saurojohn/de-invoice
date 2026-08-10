@@ -27,6 +27,17 @@ import { Auth, Require } from '../../auth/roles.decorator';
 import { InvoiceTemplateService } from '../invoice-template/invoice-template.service';
 // Tier 129: see comment on the constructor.
 import { InvoiceEmailService } from './invoice-email.service';
+// Tier 165: embed a PAdES-style PDF signature
+// into every downloaded invoice. signing.service
+// was added in Tier 72; the cert/key live on
+// Company.settings.signing (auto-generated on
+// first call). The signing happens AFTER the
+// PDF is generated + saved, so any signing
+// failure still serves the unsigned PDF (and
+// the headers say X-PDF-Signed: false) — we
+// never want a signing outage to block an
+// invoice download.
+import { SigningService } from '../signing/signing.service';
 // Tier 140: reuses the existing AttachmentsService
 // for the invoice-level Belege proxy endpoints
 // (list + delete). The upload itself goes through
@@ -50,6 +61,9 @@ export class InvoiceController {
     private invoiceEmailService: InvoiceEmailService,
     // Tier 140: invoice-level attachment list/delete.
     private attachmentsService: AttachmentsService,
+    // Tier 165: PDF signing for GoBD § 146 AO
+    // "unveränderbare Speicherung" compliance.
+    private signingService: SigningService,
   ) {}
 
   /**
@@ -541,9 +555,44 @@ export class InvoiceController {
     @Param('id') id: string,
     @Query('companyId') companyId: string,
     @Query('format') formatParam: string | undefined,
+    // Tier 165: ?sign=false returns an unsigned
+    // PDF (useful for e2e tests that want to
+    // verify the raw generateInvoicePDF output
+    // without the signing overhead, and for
+    // the rare case where the recipient asks
+    // for a "plain" PDF). Default is sign=true
+    // because every invoice we ship should
+    // carry a signature (GoBD § 146 AO).
+    @Query('sign') signParam: string | undefined,
+    // Tier 165: ?meta=true returns JSON with
+    // just the signature metadata (signed,
+    // signerCN, fingerprint) instead of a PDF
+    // body. Used by the invoice-detail page to
+    // pre-fill the "Signatur-Status" card
+    // without downloading the full PDF.
+    @Query('meta') metaParam: string | undefined,
     @Res() res: Response,
   ) {
     try {
+      // Tier 165: ?meta=true short-circuits
+      // before PDF generation. We still
+      // resolve the company + cert so the
+      // response reflects "what WOULD happen
+      // on download" — but we don't actually
+      // sign a PDF. This is cheap (~50ms
+      // for a Prisma read + cert lookup)
+      // and avoids the browser having to
+      // fetch + abort the PDF body to read
+      // the X-PDF-* headers.
+      if (metaParam === 'true') {
+        const signing = await this.signingService.getCertInfo(companyId)
+        res.json({
+          signed: signParam !== 'false',
+          signerCN: signing.commonName,
+          fingerprint: signing.fingerprint,
+        })
+        return
+      }
       // XRechnung XML is a separate MIME type — short-circuit
       // before any PDF generation logic so the response
       // headers are correct. The legacy `/invoices/:id/xrechnung`
@@ -642,16 +691,81 @@ export class InvoiceController {
       // a glance whether it carries the XML. The `_einvoice`
       // suffix is the de-facto convention in the EU B2B
       // space (Lexware and SevDesk both use it).
-      const fname = format === 'zugferd'
+      let fname = format === 'zugferd'
         ? `${invoice.invoiceNumber}_einvoice.pdf`
         : `${invoice.invoiceNumber}.pdf`
 
-      res.set({
+      // Tier 165: optionally sign the PDF. The
+      // signed output is the same PDF + a PKCS#7
+      // signature appended in a new /ByteRange +
+      // /Contents dictionary; Adobe Reader shows
+      // the signature badge in the panel.
+      //
+      // We never let a signing failure block the
+      // download. If signPdf throws, the user
+      // still gets the unsigned PDF — the
+      // X-PDF-Signed header is set to "false"
+      // and the e2e tests check that the
+      // download succeeded.
+      let signedBuffer: Buffer = pdfBuffer
+      let signed = false
+      let signerCommonName: string | null = null
+      let signerFingerprint: string | null = null
+      const shouldSign = signParam !== 'false'
+      if (shouldSign) {
+        try {
+          signedBuffer = await this.signingService.signPdf(
+            companyId,
+            pdfBuffer,
+          )
+          // Refresh the cert info AFTER signing so
+          // the headers reflect the cert that was
+          // actually used (the cert may have been
+          // auto-generated on first call inside
+          // signPdf → getOrCreate).
+          const cert = await this.signingService.getCertInfo(
+            companyId,
+          )
+          signed = true
+          signerCommonName = cert.commonName
+          signerFingerprint = cert.fingerprint
+          // PAdES-style filename suffix so the
+          // recipient can see at-a-glance the
+          // PDF carries a signature. Adobe Reader
+          // also reads the /Contents dict and
+          // shows the badge independently.
+          fname = fname.replace(/\.pdf$/, '_signed.pdf')
+        } catch (signErr) {
+          // Log + continue. The user gets an
+          // unsigned PDF; the headers reflect
+          // that. Same fail-soft pattern we use
+          // for the storage save above.
+          console.error(
+            'PDF signing failed, returning unsigned:',
+            signErr,
+          )
+        }
+      }
+
+      // Tier 165: PAdES signature metadata
+      // headers. The browser can't read the
+      // PKCS#7 inside the PDF directly, so we
+      // surface the cert CN + fingerprint as
+      // response headers. The frontend reads
+      // these via HEAD and shows the "Signiert
+      // von X (FP: AA:BB:...)" card.
+      const headers: Record<string, string> = {
         'Content-Type': 'application/pdf',
         'Content-Disposition': `attachment; filename="${fname}"`,
-        'Content-Length': pdfBuffer.length,
-      });
-      res.end(pdfBuffer);
+        'Content-Length': String(signedBuffer.length),
+        'X-PDF-Signed': signed ? 'true' : 'false',
+      }
+      if (signed) {
+        headers['X-PDF-Signer-CN'] = signerCommonName || ''
+        headers['X-PDF-Fingerprint'] = signerFingerprint || ''
+      }
+      res.set(headers)
+      res.end(signedBuffer)
     } catch (error) {
       console.error('PDF generation error:', error);
       res.status(500).json({ error: 'PDF generation failed' });

@@ -2303,7 +2303,11 @@
     "signingCert": "签名证书",
     "regenerate": "重新生成证书",
     "regenerateConfirm": "确定吗？旧证书将失效。",
-    "signOnDownload": "下载时嵌入签名"
+    "signOnDownload": "下载时嵌入签名",
+    "checkSigned": "检查签名状态",
+    "willSign": "🔒 PDF 下载时将嵌入签名",
+    "willNotSign": "⚠ PDF 下载时将不签名（签名已禁用）",
+    "signedBy": "签名方"
   },
   "cashflow": {
     "title": "现金流预测",

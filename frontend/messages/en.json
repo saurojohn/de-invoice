@@ -2303,7 +2303,11 @@
     "signingCert": "Signing certificate",
     "regenerate": "Regenerate certificate",
     "regenerateConfirm": "Are you sure? The old certificate will be invalidated.",
-    "signOnDownload": "Embed signature on download"
+    "signOnDownload": "Embed signature on download",
+    "checkSigned": "Check signature status",
+    "willSign": "🔒 PDF will be signed on download (GoBD-compliant)",
+    "willNotSign": "⚠ PDF will NOT be signed (signature disabled)",
+    "signedBy": "Signed by"
   },
   "cashflow": {
     "title": "Cash flow forecast",

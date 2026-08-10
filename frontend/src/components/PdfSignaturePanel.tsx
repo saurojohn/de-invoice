@@ -53,17 +53,71 @@ interface PdfSignaturePanelProps {
   invoiceId: string
 }
 
+// Tier 165: read the signature metadata
+// (signed / signerCN / fingerprint) from
+// the ?meta=true JSON shortcut. The
+// controller responds with a small JSON
+// payload (~100 bytes) instead of the
+// full PDF + signature, which is the
+// right granularity for a UI status card.
+async function readPdfSignatureHeaders(
+  invoiceId: string,
+  companyId: string,
+  userId: string,
+): Promise<{
+  signed: boolean
+  signerCN: string | null
+  fingerprint: string | null
+}> {
+  const apiBase =
+    process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
+  try {
+    const res = await fetch(
+      `${apiBase}/api/v1/invoices/${invoiceId}/pdf?companyId=${companyId}&meta=true`,
+      {
+        method: "GET",
+        headers: {
+          "x-user-id": userId,
+          "x-company-id": companyId,
+        },
+      },
+    )
+    if (!res.ok) {
+      return { signed: false, signerCN: null, fingerprint: null }
+    }
+    const data = await res.json()
+    return {
+      signed: data.signed === true,
+      signerCN: data.signerCN ?? null,
+      fingerprint: data.fingerprint ?? null,
+    }
+  } catch {
+    return { signed: false, signerCN: null, fingerprint: null }
+  }
+}
+
 export default function PdfSignaturePanel({ invoiceId }: PdfSignaturePanelProps) {
   const { t } = useI18n()
   const toast = useToast()
   const [cert, setCert] = useState<CertInfo | null>(null)
   const [verify, setVerify] = useState<VerifyResult | null>(null)
+  // Tier 165: signed PDF status from the
+  // ?meta=true JSON shortcut endpoint
+  // (signed / signerCN / fingerprint).
+  const [signedPdf, setSignedPdf] = useState<{
+    signed: boolean
+    signerCN: string | null
+    fingerprint: string | null
+  } | null>(null)
   const [loading, setLoading] = useState<{
     cert: boolean
     verify: boolean
-  }>({ cert: false, verify: false })
+    signedPdf: boolean
+  }>({ cert: false, verify: false, signedPdf: false })
   const companyId =
     typeof window !== "undefined" ? localStorage.getItem("companyId") : null
+  const userId =
+    typeof window !== "undefined" ? localStorage.getItem("userId") || "" : ""
 
   const loadCert = async () => {
     if (!companyId) return
@@ -80,6 +134,27 @@ export default function PdfSignaturePanel({ invoiceId }: PdfSignaturePanelProps)
       toast.error(e?.message || t("common.loadError") || "Fehler")
     } finally {
       setLoading((l) => ({ ...l, cert: false }))
+    }
+  }
+
+  // Tier 165: fetch the signature metadata
+  // (signed / signerCN / fingerprint) from
+  // the ?meta=true JSON shortcut. This
+  // returns a ~100-byte JSON payload instead
+  // of the full PDF (~10KB) — the right
+  // granularity for a status card.
+  const loadSignedPdf = async () => {
+    if (!companyId) return
+    setLoading((l) => ({ ...l, signedPdf: true }))
+    try {
+      const data = await readPdfSignatureHeaders(
+        invoiceId,
+        companyId,
+        userId,
+      )
+      setSignedPdf(data)
+    } finally {
+      setLoading((l) => ({ ...l, signedPdf: false }))
     }
   }
 
@@ -154,7 +229,7 @@ export default function PdfSignaturePanel({ invoiceId }: PdfSignaturePanelProps)
       </CardHeader>
       <CardContent>
         <div className="space-y-3">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Button
               onClick={loadCert}
               disabled={loading.cert}
@@ -163,6 +238,17 @@ export default function PdfSignaturePanel({ invoiceId }: PdfSignaturePanelProps)
               data-testid="pdf-signature-load-cert"
             >
               {loading.cert ? "..." : t("signing.certInfo") || "Zertifikats-Informationen"}
+            </Button>
+            <Button
+              onClick={loadSignedPdf}
+              disabled={loading.signedPdf}
+              variant="outline"
+              size="sm"
+              data-testid="pdf-signature-check-signed"
+            >
+              {loading.signedPdf
+                ? "..."
+                : t("signing.checkSigned") || "Signatur-Status prüfen"}
             </Button>
             <Button
               onClick={verifyPdf}
@@ -216,6 +302,38 @@ export default function PdfSignaturePanel({ invoiceId }: PdfSignaturePanelProps)
               {verify.signedBy && (
                 <div className="text-xs mt-1 text-gray-600 dark:text-gray-400">
                   {verify.signedBy}
+                </div>
+              )}
+            </div>
+          )}
+          {/* Tier 165: signed-PDF status from the
+              X-PDF-Signed / X-PDF-Signer-CN /
+              X-PDF-Fingerprint response headers.
+              Shows "what the backend will sign
+              with on the next download" — the
+              headers are set at controller time,
+              so they're always accurate. */}
+          {signedPdf && (
+            <div
+              className={`text-sm p-3 rounded ${
+                signedPdf.signed
+                  ? "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300"
+                  : "bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"
+              }`}
+              data-testid="pdf-signature-signed-status"
+            >
+              {signedPdf.signed
+                ? `🔒 ${t("signing.willSign") || "PDF wird signiert heruntergeladen"}`
+                : `⚠ ${t("signing.willNotSign") || "PDF wird NICHT signiert (Signatur deaktiviert)"}`}
+              {signedPdf.signed && signedPdf.signerCN && (
+                <div className="text-xs mt-1 text-gray-600 dark:text-gray-400">
+                  {t("signing.signedBy") || "Signiert von"}:{" "}
+                  <span className="font-mono">{signedPdf.signerCN}</span>
+                </div>
+              )}
+              {signedPdf.signed && signedPdf.fingerprint && (
+                <div className="text-[10px] mt-1 font-mono text-gray-500 dark:text-gray-400 break-all">
+                  FP: {signedPdf.fingerprint}
                 </div>
               )}
             </div>

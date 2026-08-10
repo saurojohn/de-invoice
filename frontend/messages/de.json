@@ -2303,7 +2303,11 @@
     "signingCert": "Signatur-Zertifikat",
     "regenerate": "Zertifikat neu generieren",
     "regenerateConfirm": "Sind Sie sicher? Das alte Zertifikat wird ungültig.",
-    "signOnDownload": "Signatur beim Download einbetten"
+    "signOnDownload": "Signatur beim Download einbetten",
+    "checkSigned": "Signatur-Status prüfen",
+    "willSign": "🔒 PDF wird beim Download signiert (GoBD-konform)",
+    "willNotSign": "⚠ PDF wird NICHT signiert (Signatur deaktiviert)",
+    "signedBy": "Signiert von"
   },
   "cashflow": {
     "title": "Liquiditätsplanung",

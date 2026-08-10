@@ -25,6 +25,13 @@ import { ExchangeRateModule } from '../exchange-rate/exchange-rate.module';
 // Tier 140: reuses AttachmentsService for the
 // invoice-level Belege proxy endpoints.
 import { AttachmentsModule } from '../attachment/attachments.module';
+// Tier 165: the invoice PDF download embeds a
+// PAdES-style signature (signPdf + getCertInfo
+// from the Tier 72 service). The import has to
+// be declared here — Nest doesn't auto-discover
+// modules, the controller's constructor
+// parameter would fail to resolve otherwise.
+import { SigningModule } from '../signing/signing.module';
 
 @Module({
   controllers: [InvoiceController],
@@ -35,6 +42,8 @@ import { AttachmentsModule } from '../attachment/attachments.module';
     InvoiceTemplateModule,
     WebhookModule,
     AttachmentsModule,
+    // Tier 165: see comment above.
+    SigningModule,
     // Tier 37: PaymentService needs ReminderService so it can
     // auto-cancel open Mahnungen when the invoice flips to
     // 'paid'. Forward-only dep — ReminderModule doesn't import
