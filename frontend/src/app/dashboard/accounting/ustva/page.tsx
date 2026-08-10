@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { Suspense, useEffect, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
@@ -70,6 +70,34 @@ interface Supplier { id: string; name: string }
 type PeriodMode = "year" | "q1" | "q2" | "q3" | "q4" | "m1" | "m2" | "m3" | "m4" | "m5" | "m6" | "m7" | "m8" | "m9" | "m10" | "m11" | "m12"
 
 export default function UstvaPage() {
+  // Next.js 16 production build requires
+  // useSearchParams() to be wrapped in a
+  // Suspense boundary, otherwise the page
+  // bails out of static prerendering with
+  // "useSearchParams() should be wrapped
+  // in a suspense boundary". We split
+  // the page into an inner component
+  // (UstvaPageInner) that does the actual
+  // searchParams read + state, and a
+  // Suspense wrapper at the default export
+  // that catches the bailout gracefully
+  // (shows a loading fallback during
+  // SSR/prerender, then the real page
+  // hydrates on the client). The inner
+  // component is identical to the original
+  // UstvaPage body — only renamed.
+  return (
+    <Suspense
+      fallback={
+        <div className="p-6 text-sm text-gray-500">Lade USt-Voranmeldung…</div>
+      }
+    >
+      <UstvaPageInner />
+    </Suspense>
+  )
+}
+
+function UstvaPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { t } = useI18n()
