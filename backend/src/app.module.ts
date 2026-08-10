@@ -57,6 +57,7 @@ import { HealthModule } from './modules/health/health.module';
 import { WebhookModule } from './modules/webhook/webhook.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { SigningModule } from './modules/signing/signing.module';
+import { GobdExportModule } from './modules/gobd-export/gobd-export.module';
 import { BeraterModule } from './modules/berater/berater.module';
 // Tier 83: Anlagenverzeichnis + AfA. Owns the
 // Asset model (Sachanlagen) and the linear AfA
@@ -136,6 +137,12 @@ import { AssetsModule } from './modules/assets/assets.module';
     WebhookModule,
     AuditModule,
     SigningModule,
+    // Tier 166: GoBD § 147 AO archive export
+    // (manifest + SHA-256 + streaming archiver).
+    // Wired here so the route is available on
+    // /api/v1/gobd-export without forcing the
+    // caller to know about the module path.
+    GobdExportModule,
     ScheduleModule.forRoot(),
   ],
   providers: [

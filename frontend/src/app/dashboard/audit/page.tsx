@@ -566,6 +566,89 @@ export default function AuditPage() {
     }
   }
 
+  // Tier 166: GoBD archive download. The
+  // button reads the year from the year
+  // picker; we pass it as ?year=YYYY. The
+  // response is application/zip with a
+  // Content-Disposition filename and an
+  // X-GoBD-Stats header carrying the
+  // per-section counts. We read the stats
+  // header BEFORE the body is consumed, so
+  // the toast can show "12 invoices, 2
+  // Mahnungen, 70 emails, 92 audit rows,
+  // 55.8 KB" — useful feedback that the
+  // archive actually contains data.
+  const downloadGobdArchive = async () => {
+    const companyId =
+      typeof window !== "undefined"
+        ? localStorage.getItem("companyId")
+        : null
+    if (!companyId) {
+      toast.error(t("common.companyMissing") || "companyId fehlt")
+      return
+    }
+    const sel = document.querySelector(
+      '[data-testid="audit-gobd-year"]',
+    ) as HTMLSelectElement | null
+    const year = sel?.value || String(new Date().getFullYear())
+    const apiBase =
+      process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
+    try {
+      const res = await fetch(
+        `${apiBase}/api/v1/gobd-export?companyId=${companyId}&year=${year}`,
+        {
+          headers: {
+            "x-user-id":
+              localStorage.getItem("userId") || "",
+            "x-company-id": companyId,
+          },
+        },
+      )
+      if (!res.ok) {
+        toast.error(
+          `GoBD-Archiv: HTTP ${res.status}`,
+        )
+        return
+      }
+      // Pull the X-GoBD-Stats header so the
+      // user sees "what's inside" the
+      // archive without unzipping. The
+      // header is a JSON string; we
+      // JSON.parse it for the toast.
+      const statsHeader = res.headers.get("x-gobd-stats")
+      let statsText = ""
+      if (statsHeader) {
+        try {
+          const s = JSON.parse(statsHeader)
+          statsText = ` — ${s.invoices} Rechnungen, ${s.mahnungen} Mahnungen, ${s.emailSends} E-Mails, ${s.auditLogRows} Audit-Einträge`
+        } catch {
+          // statsHeader wasn't JSON — fall
+          // back to a generic message
+        }
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      // Filename comes from the
+      // Content-Disposition header; the
+      // backend sets it to
+      // GoBD-YYYY-CompanyName-YYYY-MM-DD.zip
+      const cd = res.headers.get("content-disposition") || ""
+      const m = cd.match(/filename="([^"]+)"/)
+      a.download = m?.[1] || `GoBD-${year}.zip`
+      a.href = url
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      toast.success(
+        `${t("audit.gobdExportOk") || "GoBD-Archiv heruntergeladen"}${statsText}`,
+      )
+    } catch (e: any) {
+      toast.error(e?.message || t("common.loadError"))
+    }
+  }
+
   const hasMore = skip + TAKE < total
 
   return (
@@ -618,6 +701,39 @@ export default function AuditPage() {
               data-testid="audit-export-csv"
             >
               📥 {t("audit.exportCsv") || "CSV exportieren"}
+            </Button>
+            {/* Tier 166: GoBD § 147 AO archive
+                export. Year picker defaults to
+                the current year; the button
+                triggers a fetch + browser
+                download of the ZIP. The
+                X-GoBD-Stats header is read via
+                fetch + the size is shown in a
+                toast so the user knows the
+                export succeeded without
+                unzipping. */}
+            <select
+              data-testid="audit-gobd-year"
+              defaultValue={new Date().getFullYear()}
+              className="px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800"
+              aria-label="GoBD-Archiv Jahr"
+            >
+              {Array.from({ length: 11 }, (_, i) => {
+                const y = new Date().getFullYear() - i
+                return (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                )
+              })}
+            </select>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={downloadGobdArchive}
+              data-testid="audit-export-gobd"
+            >
+              🗄 {t("audit.exportGobd") || "GoBD-Archiv"}
             </Button>
             <Button
               variant="outline"

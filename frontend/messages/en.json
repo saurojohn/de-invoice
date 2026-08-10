@@ -2233,6 +2233,8 @@
   "audit": {
     "title": "Audit Trail",
     "exportCsv": "Export CSV",
+    "exportGobd": "GoBD archive",
+    "gobdExportOk": "GoBD archive downloaded",
     "totalActions": "Total changes",
     "newestChange": "Newest change",
     "searchLabel": "Full-text search",
