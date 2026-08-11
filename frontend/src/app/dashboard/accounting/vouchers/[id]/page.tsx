@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
+import { useToast } from "@/components/useToast"
 import { apiGet, apiPost } from "@/lib/api"
 import { ReceiptsPanel } from "@/components/ReceiptsPanel"
 
@@ -117,6 +118,7 @@ export default function VoucherDetailPage() {
   const router = useRouter()
   const params = useParams<{ id: string }>()
   const { t, getDateLocale } = useI18n()
+  const toast = useToast()
   const dl = getDateLocale()
 
   const [voucher, setVoucher] = useState<Voucher | null>(null)
@@ -255,7 +257,7 @@ export default function VoucherDetailPage() {
                         const err = await res
                           .json()
                           .catch(() => ({ message: res.statusText }))
-                        alert(
+                        toast.error(
                           (err.message || "Fehler") +
                             "\n\n" +
                             (t("accounting.reverseHint") || ""),
@@ -269,7 +271,7 @@ export default function VoucherDetailPage() {
                         `/dashboard/accounting/vouchers/${data.id}`,
                       )
                     } catch (e: any) {
-                      alert("Fehler: " + (e?.message || String(e)))
+                      toast.error("Fehler: " + (e?.message || String(e)))
                     }
                   }}
                    className="bg-red-600 text-white hover:bg-red-700"

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
+import { useToast } from "@/components/useToast"
 
 interface OverdueInvoice {
   id: string
@@ -38,6 +39,7 @@ interface ReminderStats {
 export default function RemindersPage() {
   const router = useRouter()
   const { t, locale, getDateLocale } = useI18n()
+  const toast = useToast()
   const [overdueInvoices, setOverdueInvoices] = useState<OverdueInvoice[]>([])
   const [stats, setStats] = useState<ReminderStats | null>(null)
   const [loading, setLoading] = useState(true)
@@ -123,7 +125,7 @@ export default function RemindersPage() {
       const email = emailData.recipientEmail || invoice.customer.contact?.email || ''
 
       if (!email) {
-        alert(t("reminder.noEmailForCustomer"))
+        toast.error(t("reminder.noEmailForCustomer"))
         return
       }
 
@@ -152,7 +154,7 @@ export default function RemindersPage() {
       setOverdueInvoices(updatedInvoices)
     } catch (err) {
       console.error("Fehler beim Senden der Erinnerung:", err)
-      alert(t("reminder.sendError"))
+      toast.error(t("reminder.sendError"))
     }
   }
 

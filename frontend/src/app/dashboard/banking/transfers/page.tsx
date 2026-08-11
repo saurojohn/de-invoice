@@ -28,6 +28,7 @@
 
 import { useEffect, useState } from "react"
 import { useI18n } from "@/components/useI18n"
+import { useToast } from "@/components/useToast"
 import { apiGet, apiPost } from "@/lib/api"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -61,6 +62,7 @@ interface FinTsTransfer {
 
 export default function TransfersPage() {
   const { t } = useI18n()
+  const toast = useToast()
   const [companyId, setCompanyId] = useState<string>("")
 
   const [connections, setConnections] = useState<FinTsConnection[]>([])
@@ -148,7 +150,7 @@ export default function TransfersPage() {
   const handleStart = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!companyId || !connectionId) {
-      alert(t("banking.transferNoConnection"))
+      toast.error(t("banking.transferNoConnection"))
       return
     }
     setSubmitting(true)
@@ -177,18 +179,18 @@ export default function TransfersPage() {
         setTanChallenge(result.tanChallenge || "")
         setPendingTransferId(result.transferId)
         setTanModalOpen(true)
-        alert(t("banking.transferTanRequired"))
+        toast.error(t("banking.transferTanRequired"))
       } else if (result.status === "ok") {
-        alert(t("banking.transferOk"))
+        toast.error(t("banking.transferOk"))
         resetForm()
         await loadTransfers(companyId)
       } else if (result.status === "failed") {
-        alert(
+        toast.error(
           result.errorMessage || t("banking.transferFailed"),
         )
       }
     } catch (e: any) {
-      alert(e?.message || t("banking.transferFailed"))
+      toast.error(e?.message || t("banking.transferFailed"))
     } finally {
       setSubmitting(false)
     }
@@ -205,19 +207,19 @@ export default function TransfersPage() {
         tan: tanInput,
       })
       if (result.status === "ok") {
-        alert(t("banking.transferOk"))
+        toast.error(t("banking.transferOk"))
         setTanModalOpen(false)
         setTanInput("")
         setPendingTransferId("")
         resetForm()
         await loadTransfers(companyId)
       } else {
-        alert(
+        toast.error(
           result.errorMessage || t("banking.transferTanFailed"),
         )
       }
     } catch (e: any) {
-      alert(e?.message || t("banking.transferTanFailed"))
+      toast.error(e?.message || t("banking.transferTanFailed"))
     }
   }
 

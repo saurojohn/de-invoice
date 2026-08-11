@@ -12,6 +12,7 @@ import { ExportCSVButton } from "@/components/ExportCSVButton"
 import { VatCheckPanel } from "@/components/VatCheckPanel"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
+import { useToast } from "@/components/useToast"
 import { apiGet, apiPost, apiPut, apiDelete, ApiError } from "@/lib/api"
 
 interface Customer {
@@ -47,6 +48,7 @@ interface Customer {
 export default function CustomersPage() {
   const router = useRouter()
   const { t, getDateLocale } = useI18n()
+  const toast = useToast()
   // Read once on mount. The parent (auth wrapper) has
   // already redirected to /login if there's no company
   // here, so we treat the empty string as a no-op.
@@ -380,9 +382,9 @@ export default function CustomersPage() {
       setCustomers((prev) => prev.filter((c) => c.id !== customer.id))
     } catch (err) {
       if (err instanceof ApiError) {
-        alert(err.message)
+        toast.error(err.message)
       } else {
-        alert(`Netzwerkfehler: ${err}`)
+        toast.error(`Netzwerkfehler: ${err}`)
       }
     }
 
@@ -569,7 +571,7 @@ export default function CustomersPage() {
       const text = await importFile.text()
       const rows = parseCsv(text)
       if (rows.length === 0) {
-        alert("CSV enthält keine Datenzeilen (oder Spaltenüberschriften fehlen).")
+        toast.warn("CSV enthält keine Datenzeilen (oder Spaltenüberschriften fehlen).")
         setImporting(false)
         return
       }
@@ -584,7 +586,7 @@ export default function CustomersPage() {
       setTotalPages(d2.totalPages || 1)
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : `Import-Fehler: ${err}`
-      alert(msg)
+      toast.error(msg)
     } finally {
       setImporting(false)
     }

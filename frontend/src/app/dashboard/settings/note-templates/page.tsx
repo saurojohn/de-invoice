@@ -38,6 +38,7 @@ import { Input } from "@/components/ui/input"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { ThemeToggle } from "@/components/ThemeToggle"
 import { useI18n } from "@/components/useI18n"
+import { useToast } from "@/components/useToast"
 import { apiGet, apiPost, apiPatch, apiDelete, ApiError } from "@/lib/api"
 
 interface NoteTemplate {
@@ -62,6 +63,7 @@ const PLACEHOLDER_TOKENS: { key: string; label: string }[] = [
 export default function NoteTemplatesSettingsPage() {
   const router = useRouter()
   const { t } = useI18n()
+  const toast = useToast()
   const companyId =
     typeof window !== "undefined"
       ? localStorage.getItem("companyId") || ""

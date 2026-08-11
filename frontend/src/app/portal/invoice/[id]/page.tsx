@@ -27,6 +27,7 @@ import { Suspense, useEffect, useState } from "react"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { apiGet, apiPost, ApiError } from "@/lib/api"
 import { useI18n } from "@/components/useI18n"
+import { useToast } from "@/components/useToast"
 
 interface PortalInvoiceDetail {
   id: string
@@ -102,6 +103,7 @@ function PortalInvoiceDetailInner() {
   const searchParams = useSearchParams()
   const params = useParams<{ id: string }>()
   const { t } = useI18n()
+  const toast = useToast()
   const token = searchParams.get("token") || ""
   const invoiceId = params?.id || ""
   const [inv, setInv] = useState<PortalInvoiceDetail | null>(null)
@@ -156,7 +158,7 @@ function PortalInvoiceDetailInner() {
       )
       setInv(d)
     } catch (err) {
-      alert(err instanceof ApiError ? err.message : String(err))
+      toast.error(err instanceof ApiError ? err.message : String(err))
     } finally {
       setBusy(false)
     }

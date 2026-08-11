@@ -536,10 +536,10 @@ export default function SettingsPage() {
           defaultPaymentDays: fresh.defaultPaymentDays ?? 30,
         })
       }
-      alert(t("settings.saved"))
+      toast.error(t("settings.saved"))
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : t("settings.saveError")
-      alert(msg)
+      toast.error(msg)
     } finally {
       setSaving(false)
     }
@@ -690,7 +690,7 @@ export default function SettingsPage() {
       }
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : "Löschen fehlgeschlagen"
-      alert(msg)
+      toast.error(msg)
     }
   }
 

@@ -23,6 +23,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { ThemeToggle } from "@/components/ThemeToggle"
 import { useI18n } from "@/components/useI18n"
+import { useToast } from "@/components/useToast"
 import { apiGet, apiPost } from "@/lib/api"
 
 interface MahnungRow {
@@ -92,6 +93,7 @@ function levelBadgeColor(level: string) {
 export default function MahnhistoriePage() {
   const router = useRouter()
   const { t } = useI18n()
+  const toast = useToast()
   const [rows, setRows] = useState<MahnungRow[]>([])
   const [filter, setFilter] = useState<Filter>("open")
   const [loading, setLoading] = useState(true)
@@ -121,7 +123,7 @@ export default function MahnhistoriePage() {
 
   async function handleCancel(row: MahnungRow) {
     if (!cancelReason.trim()) {
-      alert(t("mahnung.cancelReason") + " (erforderlich)")
+      toast.warn(t("mahnung.cancelReason") + " (erforderlich)")
       return
     }
     const companyId = localStorage.getItem("companyId")
@@ -143,7 +145,7 @@ export default function MahnhistoriePage() {
       setCancelling(null)
       setCancelReason("")
     } catch (err: any) {
-      alert(err?.message || "Stornierung fehlgeschlagen")
+      toast.error(err?.message || "Stornierung fehlgeschlagen")
       setCancelling(null)
     }
   }

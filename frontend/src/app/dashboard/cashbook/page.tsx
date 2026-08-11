@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
+import { useToast } from "@/components/useToast"
 import { apiGet, apiPost, apiPut, apiDelete } from "@/lib/api"
 
 type EntryType = "einnahme" | "ausgabe" | "umbuchung" | "eroeffnung"
@@ -89,6 +90,7 @@ const todayISO = () => new Date().toISOString().split("T")[0]
 export default function CashbookPage() {
   const router = useRouter()
   const { t, getDateLocale } = useI18n()
+  const toast = useToast()
   const dl = getDateLocale()
 
   const [entries, setEntries] = useState<CashEntry[]>([])
@@ -190,12 +192,12 @@ export default function CashbookPage() {
     const companyId = localStorage.getItem("companyId")!
     const userId = localStorage.getItem("userId") || undefined
     if (!formDescription.trim()) {
-      alert(t("cashbook.errDescriptionRequired"))
+      toast.warn(t("cashbook.errDescriptionRequired"))
       return
     }
     const amount = parseFloat(formAmount)
     if (!amount || amount <= 0) {
-      alert(t("cashbook.errAmountPositive"))
+      toast.warn(t("cashbook.errAmountPositive"))
       return
     }
     setSaving(true)
@@ -220,7 +222,7 @@ export default function CashbookPage() {
       setEditing(null)
       await reload()
     } catch (e: any) {
-      alert(e?.message || "Fehler")
+      toast.error(e?.message || "Fehler")
     } finally {
       setSaving(false)
     }
@@ -229,7 +231,7 @@ export default function CashbookPage() {
   const remove = async (e: CashEntry) => {
     const companyId = localStorage.getItem("companyId")!
     if (e.dayClosed) {
-      alert(t("cashbook.errClosedDay"))
+      toast.warn(t("cashbook.errClosedDay"))
       return
     }
     if (!confirm(t("cashbook.confirmDelete"))) return
@@ -237,13 +239,13 @@ export default function CashbookPage() {
       await apiDelete(`/api/v1/cashbook/entries/${e.id}?companyId=${companyId}`)
       await reload()
     } catch (err: any) {
-      alert(err?.message || "Fehler")
+      toast.error(err?.message || "Fehler")
     }
   }
 
   const doStorno = async () => {
     if (!stornoId || !stornoReason.trim()) {
-      alert(t("cashbook.reverseReason"))
+      toast.warn(t("cashbook.reverseReason"))
       return
     }
     const companyId = localStorage.getItem("companyId")!
@@ -257,7 +259,7 @@ export default function CashbookPage() {
       setStornoReason("")
       await reload()
     } catch (err: any) {
-      alert(err?.message || "Fehler")
+      toast.error(err?.message || "Fehler")
     }
   }
 
@@ -285,7 +287,7 @@ export default function CashbookPage() {
     if (!zPreview || isNaN(physical)) return
     const diff = physical - zPreview.ende
     if (Math.abs(diff) > 0.001 && !zNote.trim()) {
-      alert(t("cashbook.zberichtNoteRequired"))
+      toast.warn(t("cashbook.zberichtNoteRequired"))
       return
     }
     setZSaving(true)
@@ -299,7 +301,7 @@ export default function CashbookPage() {
       setShowZ(false)
       await reload()
     } catch (err: any) {
-      alert(err?.message || "Fehler")
+      toast.error(err?.message || "Fehler")
     } finally {
       setZSaving(false)
     }
@@ -310,10 +312,10 @@ export default function CashbookPage() {
     const companyId = localStorage.getItem("companyId")!
     try {
       await apiPost(`/api/v1/cashbook/reopen-day?companyId=${companyId}`, { date })
-      alert(t("cashbook.reopenDone"))
+      toast.success(t("cashbook.reopenDone"))
       await reload()
     } catch (err: any) {
-      alert(err?.message || "Fehler")
+      toast.error(err?.message || "Fehler")
     }
   }
 

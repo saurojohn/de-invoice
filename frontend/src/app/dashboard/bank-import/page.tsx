@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
+import { useToast } from "@/components/useToast"
 import { apiGet, apiPost, apiDelete, apiFetch } from "@/lib/api"
 
 interface BankStatement {
@@ -121,6 +122,7 @@ const fmtDate = (s: string | null | undefined, locale = "de-DE") =>
 export default function BankImportPage() {
   const router = useRouter()
   const { t, getDateLocale } = useI18n()
+  const toast = useToast()
   const dl = getDateLocale()
 
   const [statements, setStatements] = useState<BankStatement[]>([])
@@ -206,7 +208,7 @@ export default function BankImportPage() {
         setCandidates(res.candidates || [])
       }
     } catch (err: any) {
-      alert(err?.message || "Bestätigen fehlgeschlagen")
+      toast.error(err?.message || "Bestätigen fehlgeschlagen")
     } finally {
       setBusyRecon(null)
     }
@@ -223,7 +225,7 @@ export default function BankImportPage() {
       )
       await loadReconciliations(openId)
     } catch (err: any) {
-      alert(err?.message || "Ablehnen fehlgeschlagen")
+      toast.error(err?.message || "Ablehnen fehlgeschlagen")
     } finally {
       setBusyRecon(null)
     }
@@ -263,7 +265,7 @@ export default function BankImportPage() {
         setCandidates(res.candidates || [])
       }
     } catch (err: any) {
-      alert(err?.message || "Rückgängig fehlgeschlagen")
+      toast.error(err?.message || "Rückgängig fehlgeschlagen")
     } finally {
       setBusyRecon(null)
     }
@@ -294,7 +296,7 @@ export default function BankImportPage() {
       setSelectedTxn(null)
       setCandidates([])
     } catch (err: any) {
-      alert(err?.message || "Buchen fehlgeschlagen")
+      toast.error(err?.message || "Buchen fehlgeschlagen")
     } finally {
       setBusyRecon(null)
     }
@@ -462,7 +464,7 @@ export default function BankImportPage() {
       }
       await reload()
     } catch (err: any) {
-      alert(err?.message || "Fehler beim Löschen")
+      toast.error(err?.message || "Fehler beim Löschen")
     }
   }
 
@@ -501,7 +503,7 @@ export default function BankImportPage() {
         setTransactions(detail.transactions || [])
       }
     } catch (err: any) {
-      alert(err?.message || "Fehler")
+      toast.error(err?.message || "Fehler")
     }
   }
 

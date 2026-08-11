@@ -7,6 +7,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { apiFetch, apiGet } from "@/lib/api"
 import { useI18n } from "@/components/useI18n"
+import { useToast } from "@/components/useToast"
 import { PnlTab } from "./PnlTab"
 import { OssTab } from "./OssTab"
 import { BwaTab } from "./BwaTab"
@@ -69,6 +70,7 @@ interface CustomerReport {
 
 export default function ReportsPage() {
   const router = useRouter()
+  const toast = useToast()
   const [activeTab, setActiveTab] = useState<TabType>("sales")
   const [loading, setLoading] = useState(true)
 
@@ -209,7 +211,7 @@ export default function ReportsPage() {
       URL.revokeObjectURL(url)
     } catch (e: any) {
       console.error("DATEV export failed:", e)
-      alert(e?.message || "DATEV-Export fehlgeschlagen")
+      toast.error(e?.message || "DATEV-Export fehlgeschlagen")
     }
   }
 
@@ -266,7 +268,7 @@ export default function ReportsPage() {
       URL.revokeObjectURL(url)
     } catch (e: any) {
       console.error("DATEV bundle export failed:", e)
-      alert(e?.message || "DATEV-Paket-Export fehlgeschlagen")
+      toast.error(e?.message || "DATEV-Paket-Export fehlgeschlagen")
     } finally {
       if (btn) {
         btn.disabled = false
@@ -890,6 +892,7 @@ function DatevExportTab({
   endDate: string
 }) {
   const { t } = useI18n()
+  const toast = useToast()
   const [preview, setPreview] = useState<any | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -947,7 +950,7 @@ function DatevExportTab({
         { method: "GET" },
       )
       if (!res.ok) {
-        alert(`Buchungsliste: HTTP ${res.status}`)
+        toast.error(`Buchungsliste: HTTP ${res.status}`)
         return
       }
       const blob = await res.blob()
@@ -966,7 +969,7 @@ function DatevExportTab({
       URL.revokeObjectURL(url)
     } catch (e: any) {
       console.error("DATEV Buchungsliste export failed:", e)
-      alert(e?.message || "Buchungsliste-Export fehlgeschlagen")
+      toast.error(e?.message || "Buchungsliste-Export fehlgeschlagen")
     } finally {
       if (btn) {
         btn.disabled = false

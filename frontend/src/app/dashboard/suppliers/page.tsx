@@ -7,6 +7,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { VatCheckPanel } from "@/components/VatCheckPanel"
 import { useI18n } from "@/components/useI18n"
+import { useToast } from "@/components/useToast"
 import { apiGet, apiPost, apiPut, apiDelete, ApiError } from "@/lib/api"
 
 interface Supplier {
@@ -33,6 +34,7 @@ const emptyForm = {
 export default function SuppliersPage() {
   const router = useRouter()
   const { t } = useI18n()
+  const toast = useToast()
 
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [loading, setLoading] = useState(true)
@@ -153,7 +155,7 @@ export default function SuppliersPage() {
       await apiDelete(`/api/v1/suppliers/${s.id}?companyId=${companyId}`)
       await reload()
     } catch (e: any) {
-      alert(e?.message || "Löschen fehlgeschlagen")
+      toast.error(e?.message || "Löschen fehlgeschlagen")
     }
   }
 

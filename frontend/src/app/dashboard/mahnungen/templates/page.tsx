@@ -37,6 +37,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { ThemeToggle } from "@/components/ThemeToggle"
 import { useI18n } from "@/components/useI18n"
+import { useToast } from "@/components/useToast"
 import { apiGet, apiPost, apiPut, ApiError } from "@/lib/api"
 
 type Level = "first" | "second" | "final"
@@ -71,6 +72,7 @@ const LEVELS: Level[] = ["first", "second", "final"]
 export default function MahnungTemplatesPage() {
   const router = useRouter()
   const { t } = useI18n()
+  const toast = useToast()
   const [activeLevel, setActiveLevel] = useState<Level>("first")
   // Per-level cache so switching tabs doesn't
   // re-fetch (and so unsaved edits are preserved

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
+import { useToast } from "@/components/useToast"
 import { apiFetch, apiGet } from "@/lib/api"
 
 interface UstvaData {
@@ -101,6 +102,7 @@ function UstvaPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { t } = useI18n()
+  const toast = useToast()
   const currentYear = new Date().getFullYear()
 
   const [year, setYear] = useState(currentYear)
@@ -236,7 +238,7 @@ function UstvaPageInner() {
     const companyId = localStorage.getItem("companyId")
     if (!companyId) return
     if (!exForm.description || !exForm.invoiceDate || !exForm.netAmount) {
-      alert("Bitte Datum, Beschreibung und Nettobetrag angeben.")
+      toast.warn("Bitte Datum, Beschreibung und Nettobetrag angeben.")
       return
     }
     setSaving(true)
@@ -273,7 +275,7 @@ function UstvaPageInner() {
       await loadAll(companyId)
     } catch (err) {
       console.error("Add expense failed:", err)
-      alert("Fehler beim Speichern der Eingangsrechnung")
+      toast.error("Fehler beim Speichern der Eingangsrechnung")
     } finally {
       setSaving(false)
     }
@@ -316,7 +318,7 @@ function UstvaPageInner() {
       await loadAll(companyId)
     } catch (err) {
       console.error("Save filing failed:", err)
-      alert("Fehler beim Speichern der UStVA")
+      toast.error("Fehler beim Speichern der UStVA")
     } finally {
       setSaving(false)
     }

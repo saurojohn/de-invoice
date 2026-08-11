@@ -20,6 +20,7 @@ import { Suspense, useEffect, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { apiGet, apiPost, apiPatch, ApiError } from "@/lib/api"
 import { useI18n } from "@/components/useI18n"
+import { useToast } from "@/components/useToast"
 
 interface PortalCustomer {
   id: string
@@ -107,6 +108,7 @@ function PortalPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { t, locale } = useI18n()
+  const toast = useToast()
   const token = searchParams.get("token") || ""
 
   // Tier 155 fix: the `t` function from useI18n is a
@@ -217,7 +219,7 @@ function PortalPageInner() {
       const d = await apiGet<PortalData>(`/api/v1/customer-portal/invoices?token=${encodeURIComponent(token)}`)
       setData(d)
     } catch (err) {
-      alert(err instanceof ApiError ? err.message : String(err))
+      toast.error(err instanceof ApiError ? err.message : String(err))
     } finally {
       setBusyInvoiceId(null)
     }

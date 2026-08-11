@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
+import { useToast } from "@/components/useToast"
 import { apiGet, apiPost, apiPut, apiDelete, ApiError } from "@/lib/api"
 
 type Interval = "monthly" | "quarterly" | "yearly" | "weekly"
@@ -95,6 +96,7 @@ const fmtMoney = (n: number) =>
 export default function RecurringInvoicesPage() {
   const router = useRouter()
   const { t, getDateLocale } = useI18n()
+  const toast = useToast()
   // Read companyId once at component mount so the
   // Tier 147 generated-invoices button (and any
   // other inline event handlers) can use it
@@ -430,11 +432,11 @@ export default function RecurringInvoicesPage() {
 
   const save = async () => {
     if (!name.trim() || !customerId) {
-      alert(t("recurring.alerts_required") || "Name + Kunde sind erforderlich")
+      toast.warn(t("recurring.alerts_required") || "Name + Kunde sind erforderlich")
       return
     }
     if (items.length === 0 || items.some((it) => !it.description.trim())) {
-      alert(t("recurring.alerts_emptyItem") || "Alle Positionen brauchen eine Beschreibung")
+      toast.warn(t("recurring.alerts_emptyItem") || "Alle Positionen brauchen eine Beschreibung")
       return
     }
     const companyId = localStorage.getItem("companyId")!
@@ -467,7 +469,7 @@ export default function RecurringInvoicesPage() {
       setTemplates(list || [])
       closeModal()
     } catch (e: any) {
-      alert(e?.message || "Fehler beim Speichern")
+      toast.error(e?.message || "Fehler beim Speichern")
     } finally {
       setSaving(false)
     }
@@ -480,7 +482,7 @@ export default function RecurringInvoicesPage() {
       const list = await apiGet<RecurringTemplate[]>(`/api/v1/recurring-invoices?companyId=${companyId}`)
       setTemplates(list || [])
     } catch (e: any) {
-      alert(e?.message || "Fehler")
+      toast.error(e?.message || "Fehler")
     }
   }
 
@@ -537,7 +539,7 @@ export default function RecurringInvoicesPage() {
       setTemplates(list || [])
       closePauseModal()
     } catch (e: any) {
-      alert(e?.message || "Fehler")
+      toast.error(e?.message || "Fehler")
     } finally {
       setPauseSaving(false)
     }
@@ -560,7 +562,7 @@ export default function RecurringInvoicesPage() {
       )
       setTemplates(list || [])
     } catch (e: any) {
-      alert(e?.message || "Fehler")
+      toast.error(e?.message || "Fehler")
     }
   }
 
@@ -572,7 +574,7 @@ export default function RecurringInvoicesPage() {
       const list = await apiGet<RecurringTemplate[]>(`/api/v1/recurring-invoices?companyId=${companyId}`)
       setTemplates(list || [])
     } catch (e: any) {
-      alert(e?.message || "Fehler")
+      toast.error(e?.message || "Fehler")
     }
   }
 

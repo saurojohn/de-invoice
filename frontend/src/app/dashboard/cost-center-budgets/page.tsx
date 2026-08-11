@@ -22,6 +22,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { ThemeToggle } from "@/components/ThemeToggle"
 import { useI18n } from "@/components/useI18n"
+import { useToast } from "@/components/useToast"
 import { apiGet, apiPost, apiDelete } from "@/lib/api"
 
 interface Budget {
@@ -201,6 +202,7 @@ function BudgetRow({
 
 export default function CostCenterBudgetsPage() {
   const { t } = useI18n()
+  const toast = useToast()
   const [year, setYear] = useState<number>(new Date().getFullYear())
   const [budgets, setBudgets] = useState<Budget[]>([])
   const [loading, setLoading] = useState(true)

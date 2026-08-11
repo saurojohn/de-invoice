@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
+import { useToast } from "@/components/useToast"
 
 interface User {
   id: string
@@ -28,6 +29,7 @@ interface Invitation {
 export default function UsersPage() {
   const router = useRouter()
   const { t } = useI18n()
+  const toast = useToast()
 
   const [users, setUsers] = useState<User[]>([])
   const [invitations, setInvitations] = useState<Invitation[]>([])
@@ -210,7 +212,7 @@ export default function UsersPage() {
     )
     const data = await res.json().catch(() => ({}))
     if (!res.ok) {
-      alert(data.message || "Fehler beim Ändern der Rolle")
+      toast.error(data.message || "Fehler beim Ändern der Rolle")
       return
     }
     setActionMsg("✓ Rolle aktualisiert")
@@ -236,7 +238,7 @@ export default function UsersPage() {
     )
     const data = await res.json().catch(() => ({}))
     if (!res.ok) {
-      alert(data.message || "Fehler beim Ändern des Status")
+      toast.error(data.message || "Fehler beim Ändern des Status")
       return
     }
     setActionMsg(status === "inactive" ? "✓ Benutzer deaktiviert" : "✓ Benutzer aktiviert")

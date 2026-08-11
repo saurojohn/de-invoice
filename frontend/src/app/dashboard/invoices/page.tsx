@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
+import { useToast } from "@/components/useToast"
 import { apiGet, apiPost, ApiError } from "@/lib/api"
 
 type InvoiceType = 'INV' | 'CN' | 'PI' | 'RCV'
@@ -23,6 +24,7 @@ interface Invoice {
 export default function InvoicesPage() {
   const router = useRouter()
   const { t, locale, getDateLocale } = useI18n()
+  const toast = useToast()
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [loading, setLoading] = useState(true)
   const [typeFilter, setTypeFilter] = useState<string>('')
@@ -258,7 +260,7 @@ export default function InvoicesPage() {
       const response = await apiFetch(`/api/v1/invoices/${id}/pdf?companyId=${companyId}`, { throwOnError: false })
       if (!response.ok) {
         const data = await response.json().catch(() => ({}))
-        alert(data.message || `Download fehlgeschlagen (HTTP ${response.status})`)
+        toast.error(data.message || `Download fehlgeschlagen (HTTP ${response.status})`)
         return
       }
       const blob = await response.blob()
@@ -272,7 +274,7 @@ export default function InvoicesPage() {
       document.body.removeChild(a)
     } catch (err) {
       console.error("Download fehlgeschlagen:", err)
-      alert("Download fehlgeschlagen")
+      toast.error("Download fehlgeschlagen")
     }
   }
 
@@ -300,7 +302,7 @@ export default function InvoicesPage() {
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
         const msg = Array.isArray(data.message) ? data.message.join(", ") : (data.message || `HTTP ${res.status}`)
-        alert(`Bulk-Download fehlgeschlagen: ${msg}`)
+        toast.error(`Bulk-Download fehlgeschlagen: ${msg}`)
         return
       }
       const blob = await res.blob()
@@ -315,7 +317,7 @@ export default function InvoicesPage() {
       document.body.removeChild(a)
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : "Netzwerkfehler"
-      alert(`Bulk-Download fehlgeschlagen: ${msg}`)
+      toast.error(`Bulk-Download fehlgeschlagen: ${msg}`)
     } finally {
       setBulkDownloading(false)
     }
@@ -346,7 +348,7 @@ export default function InvoicesPage() {
     const companyId = localStorage.getItem("companyId")
     if (!companyId) return
     if (selected.size > 100) {
-      alert(
+      toast.warn(
         t("invoices.bulkSendTooMany") ||
           "Maximal 100 Rechnungen pro Anfrage",
       )
@@ -402,7 +404,7 @@ export default function InvoicesPage() {
    */
   const bulkSendByFilter = async () => {
     if (!dateFrom && !dateTo) {
-      alert("Bitte zuerst einen Zeitraum (Von / Bis) wählen.")
+      toast.warn("Bitte zuerst einen Zeitraum (Von / Bis) wählen.")
       return
     }
     const companyId = localStorage.getItem("companyId")
@@ -433,7 +435,7 @@ export default function InvoicesPage() {
       previewCount = total
     }
     if (previewCount === 0) {
-      alert(
+      toast.warn(
         t("invoices.bulkSendRangeEmpty") ||
           "Keine Rechnungen im Zeitraum gefunden.",
       )
@@ -504,7 +506,7 @@ export default function InvoicesPage() {
     const companyId = localStorage.getItem("companyId")
     if (!companyId) return
     if (selected.size > 100) {
-      alert(
+      toast.warn(
         t("invoices.bulkMahnungTooMany") ||
           "Maximal 100 Mahnungen pro Anfrage",
       )
@@ -547,7 +549,7 @@ export default function InvoicesPage() {
     const companyId = localStorage.getItem("companyId")
     if (!companyId) return
     if (!dateFrom && !dateTo) {
-      alert("Bitte zuerst einen Zeitraum (Von / Bis) wählen.")
+      toast.warn("Bitte zuerst einen Zeitraum (Von / Bis) wählen.")
       return
     }
     const params = new URLSearchParams({ companyId })
@@ -561,7 +563,7 @@ export default function InvoicesPage() {
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
         const msg = Array.isArray(data.message) ? data.message.join(", ") : (data.message || `HTTP ${res.status}`)
-        alert(`CSV-Export fehlgeschlagen: ${msg}`)
+        toast.error(`CSV-Export fehlgeschlagen: ${msg}`)
         return
       }
       const blob = await res.blob()
@@ -579,7 +581,7 @@ export default function InvoicesPage() {
       document.body.removeChild(a)
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : "Netzwerkfehler"
-      alert(`CSV-Export fehlgeschlagen: ${msg}`)
+      toast.error(`CSV-Export fehlgeschlagen: ${msg}`)
     }
   }
 
@@ -589,7 +591,7 @@ export default function InvoicesPage() {
     const companyId = localStorage.getItem("companyId")
     if (!companyId) return
     if (!dateFrom && !dateTo) {
-      alert("Bitte zuerst einen Zeitraum (Von / Bis) wählen.")
+      toast.warn("Bitte zuerst einen Zeitraum (Von / Bis) wählen.")
       return
     }
     setBulkDownloading(true)
@@ -609,7 +611,7 @@ export default function InvoicesPage() {
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
         const msg = Array.isArray(data.message) ? data.message.join(", ") : (data.message || `HTTP ${res.status}`)
-        alert(`ZIP-Export fehlgeschlagen: ${msg}`)
+        toast.error(`ZIP-Export fehlgeschlagen: ${msg}`)
         return
       }
       const blob = await res.blob()
@@ -624,7 +626,7 @@ export default function InvoicesPage() {
       document.body.removeChild(a)
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : "Netzwerkfehler"
-      alert(`ZIP-Export fehlgeschlagen: ${msg}`)
+      toast.error(`ZIP-Export fehlgeschlagen: ${msg}`)
     } finally {
       setBulkDownloading(false)
     }

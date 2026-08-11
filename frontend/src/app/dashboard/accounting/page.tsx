@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
+import { useToast } from "@/components/useToast"
 import { apiGet, apiPost, apiFetch } from "@/lib/api"
 import { EuerSection } from "./EuerSection"
 import { AnlageSSection } from "./AnlageSSection"
@@ -162,6 +163,7 @@ function getCompanyId(): string {
 export default function AccountingPage() {
   const router = useRouter()
   const { t, locale, getDateLocale } = useI18n()
+  const toast = useToast()
   const [vouchers, setVouchers] = useState<VoucherSummary[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -854,7 +856,7 @@ export default function AccountingPage() {
                           const err = await res
                             .json()
                             .catch(() => ({ message: res.statusText }))
-                          alert(err.message || "Vorlage fehlgeschlagen")
+                          toast.error(err.message || "Vorlage fehlgeschlagen")
                           return
                         }
                         const data = await res.json()
@@ -897,7 +899,7 @@ export default function AccountingPage() {
                           setCreateError(null)
                         }
                       } catch (e: any) {
-                        alert("Fehler: " + (e?.message || String(e)))
+                        toast.error("Fehler: " + (e?.message || String(e)))
                       }
                     }}
                     disabled={

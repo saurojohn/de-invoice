@@ -9,6 +9,7 @@ import { ExportCSVButton } from "@/components/ExportCSVButton"
 import { Switch } from "@/components/ui/switch"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
+import { useToast } from "@/components/useToast"
 import { apiGet, apiPost, apiPut, apiDelete, ApiError } from "@/lib/api"
 
 interface Product {
@@ -30,6 +31,7 @@ interface Product {
 export default function ProductsPage() {
   const router = useRouter()
   const { t } = useI18n()
+  const toast = useToast()
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
@@ -212,16 +214,16 @@ export default function ProductsPage() {
       // returns active=true), so just refetch. Show a hint if the
       // backend soft-archived it because of historical references.
       if (result?.soft) {
-        alert(
+        toast.error(
           `Produkt wird in ${result.usedInInvoices} Rechnung(en) verwendet und wurde archiviert (nicht endgültig gelöscht).`
         )
       }
       await reload()
     } catch (err) {
       if (err instanceof ApiError) {
-        alert(err.message)
+        toast.error(err.message)
       } else {
-        alert(`Netzwerkfehler: ${err}`)
+        toast.error(`Netzwerkfehler: ${err}`)
       }
     }
   }

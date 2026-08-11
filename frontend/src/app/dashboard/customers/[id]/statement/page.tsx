@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { ErrorBanner } from "@/components/ui/error-banner"
 import { useI18n } from "@/components/useI18n"
+import { useToast } from "@/components/useToast"
 import { apiGet, apiPost, apiFetch, ApiError } from "@/lib/api"
 
 interface StatementLine {
@@ -85,6 +86,7 @@ export default function CustomerStatementPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
   const { t } = useI18n()
+  const toast = useToast()
 
   const [companyId, setCompanyId] = useState<string | null>(null)
   const [customerName, setCustomerName] = useState<string>("")
@@ -151,7 +153,7 @@ export default function CustomerStatementPage() {
       )
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        alert(data.message || `Download fehlgeschlagen (HTTP ${res.status})`)
+        toast.error(data.message || `Download fehlgeschlagen (HTTP ${res.status})`)
         return
       }
       const blob = await res.blob()
@@ -166,7 +168,7 @@ export default function CustomerStatementPage() {
       document.body.removeChild(a)
     } catch (err) {
       console.error("Download fehlgeschlagen:", err)
-      alert("Download fehlgeschlagen")
+      toast.error("Download fehlgeschlagen")
     } finally {
       setDownloading(false)
     }

@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Switch } from "@/components/ui/switch"
 import { useI18n } from "@/components/useI18n"
+import { useToast } from "@/components/useToast"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { apiGet, apiPost, apiPut, apiFetch, ApiError } from "@/lib/api"
 
@@ -95,6 +96,7 @@ function CreateInvoicePageInner() {
   const isEdit = !!editId
   const isClone = !!cloneFromId
   const { t, locale, getDateLocale } = useI18n()
+  const toast = useToast()
   const [customers, setCustomers] = useState<Customer[]>([])
   const [products, setProducts] = useState<Product[]>([])
   const [invoices, setInvoices] = useState<Invoice[]>([])
@@ -602,7 +604,7 @@ function CreateInvoicePageInner() {
   const createCustomerFromName = async () => {
     if (!newCustomerModal) return
     if (!newCustomerModal.name.trim()) {
-      alert(t("invoice.newCustomerName"))
+      toast.warn(t("invoice.newCustomerName"))
       return
     }
     setNewCustomerModal({ ...newCustomerModal, loading: true })
@@ -639,7 +641,7 @@ function CreateInvoicePageInner() {
       setNewCustomerModal(null)
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : `Netzwerkfehler: ${err}`
-      alert(msg)
+      toast.error(msg)
       setNewCustomerModal({ ...newCustomerModal, loading: false })
     }
   }
@@ -727,7 +729,7 @@ function CreateInvoicePageInner() {
     if (!newProductModal) return
     const { name, index } = newProductModal
     if (!name.trim()) {
-      alert(t("invoice.newProductName"))
+      toast.warn(t("invoice.newProductName"))
       return
     }
     setNewProductModal({ ...newProductModal, loading: true })
@@ -772,7 +774,7 @@ function CreateInvoicePageInner() {
       setNewProductModal(null)
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : `Netzwerkfehler: ${err}`
-      alert(msg)
+      toast.error(msg)
       setNewProductModal({ ...newProductModal, loading: false })
     }
   }
@@ -932,11 +934,11 @@ function CreateInvoicePageInner() {
     // reference). For all other types, customer is required.
     if (invoiceType === 'CN') {
       if (!form.referenceInvoiceId) {
-        alert(t("common2.referenceInvoice") + " " + t("common.required"))
+        toast.warn(t("common2.referenceInvoice") + " " + t("common.required"))
         return
       }
     } else if (!form.customerId) {
-      alert(t("common2.selectCustomer"))
+      toast.warn(t("common2.selectCustomer"))
       return
     }
 
@@ -1004,7 +1006,7 @@ function CreateInvoicePageInner() {
           const msg = response.status === 401 || response.status === 403
             ? "Sitzung abgelaufen — bitte neu anmelden"
             : `PDF konnte nicht geladen werden (HTTP ${response.status})`
-          alert(msg)
+          toast.error(msg)
           // Fall through to the navigation below
         } else {
           const blob = await response.blob()
@@ -1057,7 +1059,7 @@ function CreateInvoicePageInner() {
       }
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : `Netzwerkfehler: ${err}`
-      alert(msg)
+      toast.error(msg)
     } finally {
       setLoading(false)
     }

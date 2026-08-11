@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { useI18n } from "@/components/useI18n"
+import { useToast } from "@/components/useToast"
 import { apiGet, apiPost, apiPut, apiDelete, apiFetch, ApiError } from "@/lib/api"
 import { substitute } from "@/lib/substitute"
 import PdfSignaturePanel from "@/components/PdfSignaturePanel"
@@ -70,6 +71,7 @@ export default function InvoiceDetailPage() {
   const router = useRouter()
   const params = useParams()
   const { t, getDateLocale } = useI18n()
+  const toast = useToast()
   const [invoice, setInvoice] = useState<Invoice | null>(null)
   const [payments, setPayments] = useState<Payment[]>([])
   // Tier 51: the (optional) Ratenplan attached to
@@ -278,7 +280,7 @@ export default function InvoiceDetailPage() {
   const submitPayment = async () => {
     if (!invoice) return
     if (!payForm.amount || !payForm.paymentDate || !payForm.paymentMethod) {
-      alert("Betrag, Datum und Zahlungsweg sind erforderlich")
+      toast.warn("Betrag, Datum und Zahlungsweg sind erforderlich")
       return
     }
     setPaySaving(true)
@@ -302,7 +304,7 @@ export default function InvoiceDetailPage() {
       setPayForm({ amount: '', paymentDate: new Date().toISOString().split("T")[0], paymentMethod: "bank_transfer", reference: '', notes: '' })
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : `Netzwerkfehler: ${err}`
-      alert(msg)
+      toast.error(msg)
     } finally {
       setPaySaving(false)
     }
@@ -323,7 +325,7 @@ export default function InvoiceDetailPage() {
       setPayments(Array.isArray(pmts) ? pmts : [])
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : `Netzwerkfehler: ${err}`
-      alert(msg)
+      toast.error(msg)
     }
   }
 
@@ -374,7 +376,7 @@ export default function InvoiceDetailPage() {
       setInternalNotes(internalNotes.filter((n) => n.id !== noteId))
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : String(err)
-      alert(msg)
+      toast.error(msg)
     } finally {
       setDeletingNoteId(null)
     }
@@ -457,7 +459,7 @@ export default function InvoiceDetailPage() {
       )
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : String(err)
-      alert(msg)
+      toast.error(msg)
     } finally {
       setDeletingAttachmentId(null)
     }
@@ -1177,7 +1179,7 @@ export default function InvoiceDetailPage() {
       const response = await apiFetch(`/api/v1/invoices/${invoice.id}/xrechnung?companyId=${companyId}`, { throwOnError: false })
       if (!response.ok) {
         const data = await response.json().catch(() => ({}))
-        alert(data.message || `XRechnung Download fehlgeschlagen (HTTP ${response.status})`)
+        toast.error(data.message || `XRechnung Download fehlgeschlagen (HTTP ${response.status})`)
         return
       }
       const blob = await response.blob()
@@ -1191,7 +1193,7 @@ export default function InvoiceDetailPage() {
       document.body.removeChild(a)
     } catch (err) {
       console.error("XRechnung Download fehlgeschlagen:", err)
-      alert("XRechnung Download fehlgeschlagen")
+      toast.error("XRechnung Download fehlgeschlagen")
     }
   }
 
@@ -1204,7 +1206,7 @@ export default function InvoiceDetailPage() {
       const response = await apiFetch(`/api/v1/invoices/${invoice.id}/zugferd?companyId=${companyId}`, { throwOnError: false })
       if (!response.ok) {
         const data = await response.json().catch(() => ({}))
-        alert(data.message || `ZUGFeRD Download fehlgeschlagen (HTTP ${response.status})`)
+        toast.error(data.message || `ZUGFeRD Download fehlgeschlagen (HTTP ${response.status})`)
         return
       }
       const blob = await response.blob()
@@ -1218,7 +1220,7 @@ export default function InvoiceDetailPage() {
       document.body.removeChild(a)
     } catch (err) {
       console.error("ZUGFeRD Download fehlgeschlagen:", err)
-      alert("ZUGFeRD Download fehlgeschlagen")
+      toast.error("ZUGFeRD Download fehlgeschlagen")
     }
   }
 
@@ -1232,7 +1234,7 @@ export default function InvoiceDetailPage() {
       setInvoice({ ...invoice, status: newStatus })
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : `Netzwerkfehler: ${err}`
-      alert(msg)
+      toast.error(msg)
     } finally {
       setStatusChanging(false)
     }
@@ -1252,7 +1254,7 @@ export default function InvoiceDetailPage() {
       router.push("/dashboard/invoices")
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : `Netzwerkfehler: ${err}`
-      alert(msg)
+      toast.error(msg)
     } finally {
       setDeleting(false)
     }
@@ -2073,7 +2075,7 @@ export default function InvoiceDetailPage() {
                                         [inst.id]: "",
                                       })
                                     } catch (e: any) {
-                                      alert(
+                                      toast.error(
                                         e?.message || "Fehler beim Speichern",
                                       )
                                     }
@@ -2115,7 +2117,7 @@ export default function InvoiceDetailPage() {
                           )
                           setInstallmentPlan(updated)
                         } catch (e: any) {
-                          alert(
+                          toast.error(
                             e?.message || "Fehler beim Stornieren",
                           )
                         }

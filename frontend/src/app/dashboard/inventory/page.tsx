@@ -36,6 +36,7 @@ import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { useI18n } from "@/components/useI18n"
+import { useToast } from "@/components/useToast"
 import { apiGet, apiPost, apiPut, ApiError } from "@/lib/api"
 
 interface ProductStock {
@@ -63,6 +64,7 @@ interface StockHistory {
 export default function InventoryPage() {
   const router = useRouter()
   const { t, getDateLocale } = useI18n()
+  const toast = useToast()
   const [products, setProducts] = useState<ProductStock[]>([])
   const [lowStockProducts, setLowStockProducts] = useState<ProductStock[]>([])
   const [loading, setLoading] = useState(true)
@@ -242,7 +244,7 @@ export default function InventoryPage() {
       setAdjustForm({ quantity: "", changeType: "adjustment", notes: "" })
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : `Netzwerkfehler: ${err}`
-      alert(msg)
+      toast.error(msg)
     }
   }
 
@@ -298,7 +300,7 @@ export default function InventoryPage() {
     if (!selectedProduct) return
     const qty = parseFloat(purchaseForm.quantity)
     if (!qty || qty <= 0) {
-      alert(t("inventory.purchaseQuantity"))
+      toast.warn(t("inventory.purchaseQuantity"))
       return
     }
     setPurchaseLoading(true)
@@ -336,17 +338,16 @@ export default function InventoryPage() {
       setShowPurchaseModal(false)
       setPurchaseForm({ quantity: "", supplier: "", orderNumber: "", notes: "" })
 
-      // Friendly success toast via the same alert path
-      // the adjust modal uses. Could be replaced with a
-      // proper toast component later.
-      alert(
+      // Tier 171: success toast (replaces the old
+      // alert() that interrupted the workflow).
+      toast.success(
         t("inventory.purchaseSuccess")
           .replace("{qty}", qty.toString())
           .replace("{unit}", selectedProduct.unit || "")
       )
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : `Netzwerkfehler: ${err}`
-      alert(msg)
+      toast.error(msg)
     } finally {
       setPurchaseLoading(false)
     }
@@ -408,7 +409,7 @@ export default function InventoryPage() {
       setShowNewProductDropdown(false)
       setNewProductForm({ name: "", sku: "", unit: "", initialStock: "", lowStockThreshold: "" })
       if (initialStock > 0) {
-        alert(
+        toast.success(
           t("inventory.purchaseSuccess")
             .replace("{qty}", initialStock.toString())
             .replace("{unit}", p.unit || "")
@@ -416,7 +417,7 @@ export default function InventoryPage() {
       }
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : `Netzwerkfehler: ${err}`
-      alert(msg)
+      toast.error(msg)
     } finally {
       setNewProductLoading(false)
     }
@@ -424,7 +425,7 @@ export default function InventoryPage() {
 
   const createProductInline = async () => {
     if (!newProductForm.name.trim()) {
-      alert(t("customer.name") + " *")
+      toast.warn(t("customer.name") + " *")
       return
     }
     const initialStock = parseFloat(newProductForm.initialStock) || 0
@@ -471,14 +472,14 @@ export default function InventoryPage() {
       setShowNewProductModal(false)
       setNewProductForm({ name: "", sku: "", unit: "", initialStock: "", lowStockThreshold: "" })
 
-      alert(
+      toast.success(
         t("inventory.newProductSuccess")
           .replace("{qty}", initialStock.toString())
           .replace("{unit}", created.unit || "")
       )
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : `Netzwerkfehler: ${err}`
-      alert(msg)
+      toast.error(msg)
     } finally {
       setNewProductLoading(false)
     }
