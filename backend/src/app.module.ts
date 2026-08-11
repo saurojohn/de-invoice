@@ -73,28 +73,40 @@ import { AssetsModule } from './modules/assets/assets.module';
       isGlobal: true,
       envFilePath: '.env',
     }),
-    ThrottlerModule.forRoot([
-      {
-        // Default: 600 requests / 60s per IP. Auth routes get tighter
-        // limits via local @Throttle() decorators on the auth controller
-        // — DO NOT add a second named bucket here, because the throttler
-        // evaluates ALL configured buckets on every request, which would
-        // also cap logged-in users at 5 req/min (effectively unusable).
-        //
-        // 600/60s = 10 req/s sustained. Plenty for a single user
-        // (≤30 req/min in heavy use). Behind a corporate proxy
-        // shared by 50 employees, this is roughly 0.2 req/s per user
-        // — comfortable. Was 100/60s (too tight for the 2FA e2e
-        // suite which generates 20+ requests in 60s), then 300/60s
-        // (still tight for run-all + a real user), now 600/60s.
-        // If you need to tune this for a specific deployment,
-        // consider per-user limits via a custom throttler storage
-        // (Redis) rather than a higher number here.
-        name: 'default',
-        ttl: 60_000,
-        limit: 600,
-      },
-    ]),
+    // Tier 172: load-test bypass. Set THROTTLE_DISABLED=1
+    // in the environment to skip the global throttler
+    // entirely — used by the k6 load test to measure real
+    // backend capacity without the per-IP rate limit
+    // masking the actual p95. NEVER set this in production.
+    // The k6 script (perf-test/de-invoice-load-test.js)
+    // sets the env var and the operator must restart the
+    // backend with the normal config afterwards.
+    ...(process.env.THROTTLE_DISABLED === '1'
+      ? []
+      : [
+          ThrottlerModule.forRoot([
+            {
+              // Default: 600 requests / 60s per IP. Auth routes get tighter
+              // limits via local @Throttle() decorators on the auth controller
+              // — DO NOT add a second named bucket here, because the throttler
+              // evaluates ALL configured buckets on every request, which would
+              // also cap logged-in users at 5 req/min (effectively unusable).
+              //
+              // 600/60s = 10 req/s sustained. Plenty for a single user
+              // (≤30 req/min in heavy use). Behind a corporate proxy
+              // shared by 50 employees, this is roughly 0.2 req/s per user
+              // — comfortable. Was 100/60s (too tight for the 2FA e2e
+              // suite which generates 20+ requests in 60s), then 300/60s
+              // (still tight for run-all + a real user), now 600/60s.
+              // If you need to tune this for a specific deployment,
+              // consider per-user limits via a custom throttler storage
+              // (Redis) rather than a higher number here.
+              name: 'default',
+              ttl: 60_000,
+              limit: 600,
+            },
+          ]),
+        ]),
     PrismaModule,
     MailModule,
     AuthModule,
@@ -146,7 +158,13 @@ import { AssetsModule } from './modules/assets/assets.module';
     ScheduleModule.forRoot(),
   ],
   providers: [
-    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    // Tier 172: guard also conditional on the env var.
+    // When THROTTLE_DISABLED=1, no ThrottlerModule is
+    // registered above, so wiring the guard here would
+    // cause a DI resolution error at startup.
+    ...(process.env.THROTTLE_DISABLED === '1'
+      ? []
+      : [{ provide: APP_GUARD, useClass: ThrottlerGuard }]),
   ],
 })
 export class AppModule {}

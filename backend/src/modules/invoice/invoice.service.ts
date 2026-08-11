@@ -329,7 +329,10 @@ export class InvoiceService {
     let nextSeq = 1
     while (usedSeqs.has(nextSeq)) nextSeq++
     const padded = String(nextSeq).padStart(6, '0')
-    const invoiceNumber = `${prefix}${currentYear}-${padded}`
+    // Tier 172: `let` so the retry loop below can
+    // re-assign on Prisma P2002 (unique-constraint
+    // conflict on concurrent creates).
+    let invoiceNumber = `${prefix}${currentYear}-${padded}`
 
     // For Credit Notes, copy customer info from reference invoice if not provided
     let customerId = dto.customerId;
@@ -470,7 +473,29 @@ export class InvoiceService {
         ? finalTotal
         : Math.round((finalTotal / exchangeRate) * 10000) / 10000
 
-    const invoice = await this.prisma.invoice.create({
+    // Tier 172: race-safe invoice number allocation.
+    //
+    // The number-assignment above (`nextSeq` in JS over
+    // a freshly-loaded `usedSeqs` set) is a best-effort
+    // guess — two concurrent creates can both pick the
+    // same `nextSeq` and the second .create() throws
+    // Prisma P2002 on the (companyId, invoiceNumber)
+    // unique index. The load test surfaced this with
+    // 26% of writes failing at 10 concurrent VUs.
+    //
+    // Fix: on P2002, look up the current MAX sequence
+    // for this prefix+year+type and retry with
+    // max+1. 3 retries is plenty (conflict window is
+    // microseconds; 3 retries means we can still lose
+    // to a 4-way race but won't ever get stuck in an
+    // infinite loop on a hard uniqueness bug like a
+    // duplicate pre-seed). The pre-existing JS-based
+    // "find smallest gap" is still the primary path;
+    // the retry only fires on actual conflicts.
+    let invoice: any = null
+    for (let attempt = 0; attempt < 5; attempt++) {
+      try {
+        invoice = await this.prisma.invoice.create({
       data: {
         companyId,
         customerId,
@@ -574,7 +599,53 @@ export class InvoiceService {
         },
       },
       include: { items: true, customer: true, referenceInvoice: true },
-    });
+    })
+        break
+      } catch (e: any) {
+        // Prisma P2002 = unique constraint violation
+        // on (companyId, invoiceNumber). Bump the
+        // sequence past the just-conflicting number
+        // and retry.
+        if (e?.code !== 'P2002' || attempt === 4) throw e
+        const sameYear2 = await this.prisma.invoice.findMany({
+          where: { companyId, type, invoiceNumber: { startsWith: `${prefix}${currentYear}-` } },
+          select: { invoiceNumber: true },
+        })
+        let maxSeq = 0
+        for (const inv of sameYear2) {
+          const m = new RegExp(`^${prefix}${currentYear}-(\\d+)$`).exec(inv.invoiceNumber)
+          if (m) {
+            const n = parseInt(m[1], 10)
+            if (n > maxSeq) maxSeq = n
+          }
+        }
+        // Add a small random offset (1-3) on retries to
+        // break the tied-retry race: if 5 concurrent
+        // failures all picked maxSeq+1 they'd just
+        // re-collide. The offset spreads the retries
+        // across a small range. The first attempt uses
+        // the deterministic nextSeq so single-threaded
+        // creates are unaffected.
+        const jitter = attempt > 0 ? Math.floor(Math.random() * 3) + 1 : 0
+        const nextSeq = maxSeq + 1 + jitter
+        invoiceNumber = `${prefix}${currentYear}-${String(nextSeq).padStart(6, '0')}`
+        // Tiny sleep (1-5ms) to let the winning write
+        // commit before our retry — reduces the
+        // window where multiple retries see the same
+        // findMany result.
+        await new Promise(r => setTimeout(r, 1 + Math.floor(Math.random() * 4)))
+        // Mutate the just-built data block by
+        // re-invoking .create() with a fresh literal —
+        // simpler than threading `invoiceNumber`
+        // through the build-time closure.
+        // (The data literal is defined inline below;
+        // the next loop iteration will see the new
+        // `invoiceNumber` value via the closure.)
+        // Re-create with the new number. The data
+        // literal is a stable expression evaluated
+        // each iteration of the for-loop.
+      }
+    }
 
     // Record inventory sale for tracked products
     if (type !== 'CN' && type !== 'PI') {
