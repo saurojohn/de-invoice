@@ -43,6 +43,23 @@ export class AuthService {
       },
     });
 
+    // Tier 66 multi-tenancy: the header-auth
+    // guard's many-to-many grant check requires
+    // a UserCompany row. Without this, the new
+    // admin can't access their own company
+    // (Kein Zugriff auf diese Firma). The role
+    // mirrors the global User.role (admin)
+    // because the new user is the founder of
+    // the company — they get the highest
+    // per-company grant automatically.
+    await this.prisma.userCompany.create({
+      data: {
+        userId: user.id,
+        companyId: company.id,
+        role: 'admin',
+      },
+    });
+
     // SECURITY: never return passwordHash / passwordResetToken to the client.
     return {
       company: {

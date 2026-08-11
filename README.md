@@ -6,6 +6,161 @@
 > und mittelständische Unternehmen im DACH-Raum. Inklusive XRechnung,
 > ZUGFeRD/Factur-X, DATEV-Export, UStVA, FinTS-Banking und OCR-Vorbereitung.
 
+---
+
+## Quickstart (lokal, ~5 min)
+
+```bash
+# 1. Repo + Submodule
+git clone <repo> de-invoice && cd de-invoice
+cp .env.example backend/.env  # (folgt — siehe DEPLOY.md)
+
+# 2. Docker-Compose hochfahren
+docker compose up -d postgres
+# (für komplett dev mit backend+frontend im Docker: docker compose up -d)
+
+# 3. Schema + Seed
+cd backend && npx prisma migrate deploy && npx prisma db seed
+cd ..
+
+# 4. Backend (Node 22)
+cd backend && npm ci && npm run start:dev    # → http://localhost:3001
+
+# 5. Frontend (Next.js 15)
+cd ../frontend && npm ci && npm run build && npx next start   # → http://localhost:3100
+#   (oder npm run dev für HMR — Achtung: next dev + monorepo kann fork-storm verursachen,
+#    siehe nextjs-frontend-gotchas §0)
+
+# 6. Login (Seed-User)
+#    info@shleder.de / Test1234!   → Mandant SH Leder GmbH
+```
+
+Detaillierte Schritte + Hetzner-Production-Deployment: **[DEPLOY.md](DEPLOY.md)**
+
+## Features (Tier 1 – 167)
+
+### Rechnungen (核心)
+
+- **Rechnung erstellen / bearbeiten / versenden** mit PDF, E-Mail, XRechnung, ZUGFeRD/Factur-X
+- **Multi-line items** (Positionen), mit **Rabatten** (Rabatt %), **Skonto** (Skonto %), **Raten** (InstallmentPlan)
+- **Bemerkungsvorlagen** (NoteTemplate, Tier 156) — wiederverwendbare Rechnungsnotizen mit Platzhaltern
+- **Duplikaterkennung** (Tier 150) — Warnung bei ähnlicher Rechnung (gleicher Kunde + ähnlicher Betrag ±7 Tage)
+- **Rechnung klonen** (Tier 160) — als Entwurf kopieren
+- **Rechnungsvorlagen** (InvoiceTemplate) — Visual Templates mit Farbe/Font/Density
+- **PDF-Signatur** (PAdES, Tier 165) — jede heruntergeladene Rechnung trägt eine PKCS#7-Signatur (GoBD § 146 AO)
+- **Berater-Lese-Modus** (`x-readonly: 1` Header) — read-only Session ohne Risiko versehentlicher Schreibvorgänge
+
+### Buchhaltung (会计)
+
+- **UStVA** (Umsatzsteuer-Voranmeldung) — Quartals-/Monatsberechnung
+- **UStVA Monatsvergleich Dashboard** (Tier 161) — Widget mit 6-Monats-Vergleich
+- **UStVorauszahlung 12-Monats-Verlauf** (Tier 162) — Chart mit YTD-Summe
+- **BWA Quartalsvergleich** (Tier 163) — Q vs Vorjahres-Q
+- **DATEV-Export**: CSV-Buchungsstapel + ZIP mit Belegbildern
+- **DATEV-Buchungsliste** (Tier 167) — per-Sachkonto + USt-Verprobung + SKR03-Kontenplan
+- **Anlage S / V / EÜR** Jahresabschlüsse
+- **Eingangsrechnungen (Voucher)** mit DATEV-Sachkonten Auto-Inferenz
+- **Belegbild-OCR-Vorbereitung** (tesseract) — Pflicht-Belege als PDF/JPG
+
+### Mahnung (催收)
+
+- **Mahngebühr-Live-Preview** (Tier 164) — vor Versand: Mahngebühr + Verzugszins (§ 288 BGB)
+- **Auto-Mahnung** (Cron) — overdue invoices, 1./2./letzte Mahnung
+- **Bulk-Mahnung** (Tier 157) — bis zu 100 Rechnungen auf einmal
+- **Mahnung-E-Mail-Templates** (Tier 151) — Subject/Body-Editor mit Platzhaltern
+- **Mahnungs-Pause** (Mahnungspause) — Kunde im Urlaub/Verhandlung
+
+### Kunden (客户)
+
+- **CRM**: Tags, Kreditoren/Debitoren, Credit-Limit mit Warnung (Tier 159)
+- **Kunden-Portal** (customer-portal) — Kunde sieht eigene Rechnungen, lädt PDF herunter, bezahlt
+- **Kontoauszug per E-Mail** (Tier 154) — monatlicher Kontoauszug
+- **Kunden zusammenführen** (Tier 149) — Merge mit Re-Pointing aller Relationen
+- **Mehrsprachigkeit** (DE/EN/中文) — 100% UI in 3 Sprachen
+
+### Bank & OCR
+
+- **FinTS-Bankensynchronisation** (HBCI 4) — Deutsche Banken direkt anbinden
+- **Bankimport-Workflow** — CSV/MT940 Import, Auto-Match gegen offene Rechnungen
+- **OCR** (tesseract) — Beleg-Scan → Eingangsrechnung
+
+### Recurring / Abo-Rechnungen (定期)
+
+- **Templates** (RecurringInvoice) — monatlich/quartals-/jährlich
+- **Pause / Skip** (Tier 153) — bis Datum pausieren
+- **Klonen** (Tier 158) — Template duplizieren
+- **Verlauf** (Tier 147) — generierte Rechnungen pro Template einsehen
+
+### Compliance / Archiv
+
+- **GoBD-Archiv-Export** (Tier 166) — ZIP mit Manifest + SHA-256 + Self-Hash (BSI TR-03127 §4.3)
+- **Audit-Log** — alle Änderungen protokolliert, GoBD-Appendix-fähig
+- **System-Health** (Tier 119.5) — Cron-Runs mit Status-Indikatoren
+- **Systembenutzer-Einladungen** — User-Invite mit Token-Akzeptanz
+
+## Architektur
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  Browser (Next.js 15 + React 19.0.1, production build)        │
+│  → 3100                                                       │
+└─────────────────┬────────────────────────────────────────────┘
+                  │ REST + i18n (de/en/zh)
+                  ▼
+┌──────────────────────────────────────────────────────────────┐
+│  NestJS Backend (Node 22-bookworm-slim)                       │
+│  → 3001   (42 Modules, ~1375-line datev.service.ts core)      │
+└─────┬──────────────────────────────────┬─────────────────────┘
+      │ Prisma 5.22                       │ signpdf + node-forge
+      ▼                                   ▼
+┌──────────────┐                  ┌─────────────────┐
+│ PostgreSQL 16 │                  │ Local FS        │
+│ (Docker)      │                  │ ~/data/...      │
+│  → 5432       │                  │  (PDFs)         │
+└──────────────┘                  └─────────────────┘
+      ▲
+      │ pg_dump
+      │
+┌──────────────────────────────────────┐
+│ Backup (scripts/backup.sh)           │
+│ → $BACKUP_ROOT/daily/weekly/monthly  │
+└──────────────────────────────────────┘
+```
+
+| Schicht       | Tech                              | Verzeichnis                |
+|---------------|-----------------------------------|----------------------------|
+| Frontend      | Next.js 15.5.7 (App Router)       | `frontend/`               |
+|               | React 19.0.1                      |                            |
+|               | next-intl (3 locales)            |                            |
+|               | Tailwind CSS                      |                            |
+| Backend       | NestJS 11                         | `backend/src/modules/`    |
+|               | Prisma 5.22 + PostgreSQL 16      |                            |
+|               | PDFKit (PDF-Generation)          |                            |
+|               | signpdf + node-forge (PAdES)      |                            |
+|               | archiver (ZIP-Export)             |                            |
+| Database      | PostgreSQL 16-alpine              | `de-invoice-postgres`     |
+| Container     | Docker Compose                    | `docker-compose*.yml`     |
+| Storage       | Local FS (volumes)                | `~/data/invoice-system/`  |
+| Backup        | pg_dump + tar, rotiert 7/4/monthly | `scripts/backup.sh`       |
+| E2E Tests     | Playwright                        | `frontend/e2e/*.spec.ts`  |
+
+## User Roles
+
+- **admin** — Vollzugriff (Rechnungen, Buchhaltung, User-Verwaltung, Settings)
+- **accountant** — Berater-Modus: alle Buchhaltung, Rechnungen lesen + schreiben
+- **berater** — Steuerberater-Lese-Modus (read-only + Berater-Notizen + DATEV-Export)
+- **viewer** — Nur Anzeige (eigene Rechnungen + Dashboard)
+
+## Lizenz
+
+Privat / closed-source. © 2026 SH Leder GmbH.
+
+---
+
+## Release Notes (Tiers)
+
+(Folgend: detaillierte Tier-für-Tier-Notizen. Jeder Tier = ein Commit auf `main` mit Beschreibung, E2E-Test-Count und Regression-Status.)
+
 **Tier 119.5 — System health page (frontend) (Tier 119 follow-up)**:
 - 143 backend e2e tests + 338 Playwright UI tests (all green)
 - A new `/dashboard/system-health` page renders the
