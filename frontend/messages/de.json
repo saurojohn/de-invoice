@@ -3345,5 +3345,86 @@
   "invoiceDetail": {
     "cloneBtn": "🔁 Als Entwurf kopieren",
     "cloneTitle": "Diese Rechnung als neuen Entwurf duplizieren"
+  },
+  "legal": {
+    "impressum": {
+      "title": "Impressum",
+      "heading": "Impressum",
+      "intro": "Angaben gemäß § 5 TMG (Telemediengesetz)",
+      "company": "Anbieter",
+      "companyName": "de-invoice",
+      "companyForm": "Webanwendung / Software-Service",
+      "address": "Anschrift",
+      "contact": "Kontakt",
+      "phone": "Telefon",
+      "email": "E-Mail",
+      "vatId": "Umsatzsteuer-ID",
+      "vatIdValue": "wird auf Anfrage mitgeteilt",
+      "responsible": "Verantwortlich für den Inhalt nach § 18 Abs. 2 MStV",
+      "responsibleName": "Geschäftsführung",
+      "dispute": "Streitschlichtung",
+      "disputeText": "Die Europäische Kommission stellt eine Plattform zur Online-Streitbeilegung (OS) bereit: https://ec.europa.eu/consumers/odr/. Wir sind nicht bereit oder verpflichtet, an Streitbeilegungsverfahren vor einer Verbraucherschlichtungsstelle teilzunehmen.",
+      "liability": "Haftung für Inhalte",
+      "liabilityText": "Als Diensteanbieter sind wir gemäß § 7 Abs. 1 TMG für eigene Inhalte auf diesen Seiten nach den allgemeinen Gesetzen verantwortlich. Nach §§ 8 bis 10 TMG sind wir jedoch nicht verpflichtet, übermittelte oder gespeicherte fremde Informationen zu überwachen oder nach Umständen zu forschen, die auf eine rechtswidrige Tätigkeit hinweisen. Verpflichtungen zur Entfernung oder Sperrung der Nutzung von Informationen nach den allgemeinen Gesetzen bleiben hiervon unberührt. Eine diesbezügliche Haftung ist jedoch erst ab dem Zeitpunkt der Kenntnis einer konkreten Rechtsverletzung möglich. Bei Bekanntwerden von entsprechenden Rechtsverletzungen werden wir diese Inhalte umgehend entfernen.",
+      "links": "Haftung für Links",
+      "linksText": "Unser Angebot enthält Links zu externen Websites Dritter, auf deren Inhalte wir keinen Einfluss haben. Deshalb können wir für diese fremden Inhalte auch keine Gewähr übernehmen. Für die Inhalte der verlinkten Seiten ist stets der jeweilige Anbieter oder Betreiber der Seiten verantwortlich. Die verlinkten Seiten wurden zum Zeitpunkt der Verlinkung auf mögliche Rechtsverstöße überprüft. Rechtswidrige Inhalte waren zum Zeitpunkt der Verlinkung nicht erkennbar. Eine permanente inhaltliche Kontrolle der verlinkten Seiten ist jedoch ohne konkrete Anhaltspunkte einer Rechtsverletzung nicht zumutbar. Bei Bekanntwerden von Rechtsverletzungen werden wir derartige Links umgehend entfernen.",
+      "copyright": "Urheberrecht",
+      "copyrightText": "Die durch die Seitenbetreiber erstellten Inhalte und Werke auf diesen Seiten unterliegen dem deutschen Urheberrecht. Die Vervielfältigung, Bearbeitung, Verbreitung und jede Art der Verwertung außerhalb der Grenzen des Urheberrechtes bedürfen der schriftlichen Zustimmung des jeweiligen Autors bzw. Erstellers. Downloads und Kopien dieser Seite sind nur für den privaten, nicht kommerziellen Gebrauch gestattet."
+    },
+    "datenschutz": {
+      "title": "Datenschutzerklärung",
+      "heading": "Datenschutzerklärung",
+      "intro": "Diese Datenschutzerklärung informiert Sie gemäß Art. 13 DSGVO über die Verarbeitung personenbezogener Daten beim Besuch und der Nutzung unserer Webanwendung.",
+      "controller": "Verantwortlicher",
+      "controllerText": "Verantwortlich für die Datenverarbeitung auf dieser Webanwendung ist der im Impressum genannte Anbieter.",
+      "seeImpressum": "Siehe unsere ",
+      "seeImpressumLink": "Impressumsangaben",
+      "seeImpressumEnd": ".",
+      "dataTypes": "Erhobene Daten",
+      "dataTypesText": "Beim Besuch dieser Webanwendung werden automatisch folgende Daten verarbeitet:",
+      "dataTypesList": "IP-Adresse (anonymisiert), Datum und Uhrzeit des Zugriffs, aufgerufene URL, übertragene Datenmenge, HTTP-Statuscode, User-Agent. Bei registrierten Nutzern: E-Mail-Adresse, Name, Rechnungsdaten, Zahlungsdaten gemäß Ihrer Eingabe.",
+      "purpose": "Zweck der Verarbeitung",
+      "purposeText": "Die Verarbeitung erfolgt zur Bereitstellung der Webanwendung (Art. 6 Abs. 1 lit. b DSGVO — Vertragserfüllung), zur Erfüllung gesetzlicher Aufbewahrungspflichten (Art. 6 Abs. 1 lit. c DSGVO — rechtliche Verpflichtung, insbesondere § 147 AO für Buchhaltungsbelege) sowie zur Sicherheit des Betriebs (Art. 6 Abs. 1 lit. f DSGVO — berechtigtes Interesse).",
+      "retention": "Speicherdauer",
+      "retentionText": "Rechnungen, Buchungsbelege und Handelskorrespondenz werden gemäß § 147 AO zehn Jahre aufbewahrt. Sonstige Nutzungsdaten werden nach 30 Tagen gelöscht, sofern keine gesetzlichen Aufbewahrungspflichten entgegenstehen.",
+      "rights": "Ihre Rechte",
+      "rightsText": "Sie haben das Recht auf Auskunft (Art. 15 DSGVO), Berichtigung (Art. 16), Löschung (Art. 17), Einschränkung der Verarbeitung (Art. 18), Datenübertragbarkeit (Art. 20) sowie Widerspruch gegen die Verarbeitung (Art. 21). Eine erteilte Einwilligung können Sie jederzeit mit Wirkung für die Zukunft widerrufen (Art. 7 Abs. 3 DSGVO). Beschwerden richten Sie bitte an die zuständige Datenschutzaufsichtsbehörde.",
+      "transfer": "Datenübertragung",
+      "transferText": "Eine Übermittlung Ihrer Daten in Drittländer findet nicht statt. Sofern Drittanbieter (z. B. Hosting, Zahlungsdienstleister) eingesetzt werden, erfolgt dies nur auf Grundlage der Standardvertragsklauseln der EU-Kommission.",
+      "hosting": "Hosting & Server-Standort",
+      "hostingText": "Diese Anwendung wird auf Servern innerhalb der Europäischen Union betrieben. Der konkrete Standort und der Rechenzentrumsdienstleister sind im Rahmen der technischen und organisatorischen Maßnahmen (TOM) dokumentiert.",
+      "cookies": "Cookies & lokale Speicherung",
+      "cookiesText": "Diese Anwendung verwendet technisch notwendige Cookies sowie — nur nach Ihrer ausdrücklichen Einwilligung — Analyse- und Marketing-Cookies. Sie können Ihre Einwilligung jederzeit über die Cookie-Einstellungen am Ende der Seite widerrufen oder anpassen.",
+      "openCookieSettings": "Cookie-Einstellungen öffnen",
+      "changes": "Änderungen dieser Erklärung",
+      "changesText": "Wir behalten uns vor, diese Datenschutzerklärung anzupassen, damit sie stets den aktuellen rechtlichen Anforderungen entspricht. Für Ihren erneuten Besuch gilt dann die neue Datenschutzerklärung."
+    },
+    "footer": {
+      "rights": "Alle Rechte vorbehalten",
+      "impressum": "Impressum",
+      "datenschutz": "Datenschutz",
+      "cookieSettings": "Cookie-Einstellungen"
+    },
+    "cookieBanner": {
+      "title": "Cookie-Einstellungen",
+      "intro": "Wir verwenden Cookies und ähnliche Technologien, um den Betrieb dieser Webanwendung sicherzustellen und — mit Ihrer Einwilligung — die Nutzung zu analysieren. Sie können selbst entscheiden, welche Kategorien Sie zulassen möchten.",
+      "acceptAll": "Alle akzeptieren",
+      "rejectAll": "Nur notwendige",
+      "saveSelection": "Auswahl speichern",
+      "necessary": {
+        "label": "Notwendig",
+        "description": "Diese Cookies sind für den Betrieb der Anwendung technisch erforderlich (Authentifizierung, Sicherheit, Lastverteilung). Sie können nicht deaktiviert werden."
+      },
+      "analytics": {
+        "label": "Analyse",
+        "description": "Helfen uns zu verstehen, wie Besucher die Anwendung nutzen, damit wir die Benutzererfahrung verbessern können. Nur mit Ihrer Einwilligung."
+      },
+      "marketing": {
+        "label": "Marketing",
+        "description": "Werden verwendet, um Besuchern relevante Inhalte und Anzeigen anzuzeigen. Nur mit Ihrer Einwilligung."
+      },
+      "policyNote": "Details finden Sie in unserer ",
+      "policyLink": "Datenschutzerklärung"
+    }
   }
 }

@@ -3345,5 +3345,86 @@
   "invoiceDetail": {
     "cloneBtn": "🔁 复制为草稿",
     "cloneTitle": "将此发票复制为新草稿"
+  },
+  "legal": {
+    "impressum": {
+      "title": "法律声明",
+      "heading": "法律声明 (Impressum)",
+      "intro": "根据德国《电信媒体法》(§ 5 TMG) 的信息",
+      "company": "提供方",
+      "companyName": "de-invoice",
+      "companyForm": "网络应用 / 软件服务",
+      "address": "地址",
+      "contact": "联系方式",
+      "phone": "电话",
+      "email": "电子邮箱",
+      "vatId": "增值税识别号 (USt-ID)",
+      "vatIdValue": "按需提供",
+      "responsible": "根据《媒体州际协议》(§ 18 Abs. 2 MStV) 负责内容的人员",
+      "responsibleName": "管理层",
+      "dispute": "争议解决",
+      "disputeText": "欧盟委员会提供在线争议解决 (OS) 平台: https://ec.europa.eu/consumers/odr/。我们既无意愿也无义务参与消费者仲裁机构的争议解决程序。",
+      "liability": "内容责任",
+      "liabilityText": "作为服务提供者,我们根据《电信媒体法》§ 7 (1) 及一般法律,对我们页面上的自有内容负责。但根据 §§ 8-10 TMG,我们没有义务监控传输或存储的第三方信息,也没有义务调查表明非法活动的情况。根据一般法律删除或阻止使用信息的义务不受影响。在这一方面的责任,只有在知晓具体违法行为时才有可能。一旦发现相应的违法行为,我们将立即删除相关内容。",
+      "links": "链接责任",
+      "linksText": "我们的网站包含指向外部第三方网站的链接,其内容超出我们的控制范围。因此,我们对此类外部内容不承担任何责任。任何链接页面的内容始终由各自的提供者或运营者负责。链接页面在链接时已检查是否存在可能的违法情况。在链接时无法识别违法内容。但是,在没有具体违法证据的情况下,对链接页面内容进行永久性监控是不合理的。一旦发现违法情况,我们将立即删除此类链接。",
+      "copyright": "版权",
+      "copyrightText": "由网站运营者创建的这些页面上的内容和作品受德国版权法保护。超出版权法范围的复制、编辑、传播及任何形式的商业化使用,均需事先获得作者或创作者的书面同意。下载和复制这些页面仅允许用于私人、非商业用途。"
+    },
+    "datenschutz": {
+      "title": "隐私政策",
+      "heading": "隐私政策 (Datenschutzerklärung)",
+      "intro": "根据《通用数据保护条例》(DSGVO) 第 13 条,本隐私政策向您介绍在访问和使用我们的网络应用时个人数据的处理情况。",
+      "controller": "数据控制者",
+      "controllerText": "此网络应用上数据处理的责任方是法律声明中指定的提供方。",
+      "seeImpressum": "请参阅我们的",
+      "seeImpressumLink": "法律声明",
+      "seeImpressumEnd": "。",
+      "dataTypes": "收集的数据",
+      "dataTypesText": "访问此网络应用时,以下数据会被自动处理:",
+      "dataTypesList": "IP 地址(匿名化)、访问日期和时间、访问的 URL、传输的数据量、HTTP 状态码、用户代理 (User-Agent)。注册用户:电子邮箱、姓名、发票数据、付款数据(根据您输入的内容)。",
+      "purpose": "处理目的",
+      "purposeText": "处理数据用于:(a) 提供网络应用服务 (DSGVO 第 6 条第 1 款 b 项 — 合同履行);(b) 履行法定的保留义务 (DSGVO 第 6 条第 1 款 c 项 — 法律义务,特别是德国《税法》§ 147 AO 对会计凭证的要求);(c) 确保运营安全 (DSGVO 第 6 条第 1 款 f 项 — 合法利益)。",
+      "retention": "保留期限",
+      "retentionText": "发票、会计凭证和商业通信根据《税法》§ 147 AO 保留十年。其他使用数据将在 30 天后删除,前提是没有法定保留义务阻止。",
+      "rights": "您的权利",
+      "rightsText": "您有权获得信息 (DSGVO 第 15 条)、更正 (第 16 条)、删除 (第 17 条)、限制处理 (第 18 条)、数据可携性 (第 20 条) 以及反对处理 (第 21 条)。您可以随时撤回您已给出的同意,撤回将在未来生效 (DSGVO 第 7 条第 3 款)。请向主管的数据保护监管机构提出投诉。",
+      "transfer": "数据传输",
+      "transferText": "您的数据不会传输到第三国。如果使用第三方提供商(如托管、支付服务提供商),则仅根据欧盟委员会的标准合同条款 (SCC) 进行。",
+      "hosting": "托管与服务器位置",
+      "hostingText": "此应用在欧盟境内的服务器上运行。具体位置和数据中心服务提供商在技术和组织措施 (TOM) 框架内记录。",
+      "cookies": "Cookie 与本地存储",
+      "cookiesText": "此应用使用技术上必需的 cookie,以及 — 仅在您明确同意后 — 分析和营销 cookie。您可以随时通过页面底部的 Cookie 设置撤回或调整您的同意。",
+      "openCookieSettings": "打开 Cookie 设置",
+      "changes": "本声明的变更",
+      "changesText": "我们保留调整本隐私政策的权利,以使其始终符合当前的法定要求。新的隐私政策将适用于您的下次访问。"
+    },
+    "footer": {
+      "rights": "保留所有权利",
+      "impressum": "法律声明",
+      "datenschutz": "隐私政策",
+      "cookieSettings": "Cookie 设置"
+    },
+    "cookieBanner": {
+      "title": "Cookie 设置",
+      "intro": "我们使用 Cookie 和类似技术来确保此网络应用的运行,并在您同意的情况下分析使用情况。您可以自行决定允许哪些类别。",
+      "acceptAll": "全部接受",
+      "rejectAll": "仅必要",
+      "saveSelection": "保存选择",
+      "necessary": {
+        "label": "必要",
+        "description": "这些 Cookie 是应用运行所必需的(身份验证、安全、负载均衡)。无法禁用。"
+      },
+      "analytics": {
+        "label": "分析",
+        "description": "帮助我们了解访问者如何使用该应用,以便我们改进用户体验。仅在您同意后启用。"
+      },
+      "marketing": {
+        "label": "营销",
+        "description": "用于向访问者展示相关内容。仅在您同意后启用。"
+      },
+      "policyNote": "详细信息请参见我们的",
+      "policyLink": "隐私政策"
+    }
   }
 }

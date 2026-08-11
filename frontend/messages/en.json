@@ -3345,5 +3345,86 @@
   "invoiceDetail": {
     "cloneBtn": "🔁 Duplicate as draft",
     "cloneTitle": "Duplicate this invoice as a new draft"
+  },
+  "legal": {
+    "impressum": {
+      "title": "Legal Notice",
+      "heading": "Legal Notice",
+      "intro": "Information pursuant to § 5 TMG (German Telemedia Act)",
+      "company": "Provider",
+      "companyName": "de-invoice",
+      "companyForm": "Web application / software service",
+      "address": "Address",
+      "contact": "Contact",
+      "phone": "Phone",
+      "email": "Email",
+      "vatId": "VAT ID",
+      "vatIdValue": "provided on request",
+      "responsible": "Responsible for content pursuant to § 18 para. 2 MStV",
+      "responsibleName": "Management",
+      "dispute": "Dispute Resolution",
+      "disputeText": "The European Commission provides an online dispute resolution platform: https://ec.europa.eu/consumers/odr/. We are neither willing nor obliged to take part in dispute settlement procedures before a consumer arbitration board.",
+      "liability": "Liability for Content",
+      "liabilityText": "As a service provider, we are responsible for our own content on these pages in accordance with § 7 para. 1 TMG and general law. However, according to §§ 8 to 10 TMG, we are not obliged to monitor transmitted or stored third-party information or to investigate circumstances that indicate illegal activity. Obligations to remove or block the use of information in accordance with general laws remain unaffected. Liability in this respect is, however, only possible from the time of knowledge of a specific legal violation. Upon becoming aware of corresponding legal violations, we will remove such content immediately.",
+      "links": "Liability for Links",
+      "linksText": "Our website contains links to external third-party websites whose content is beyond our control. Therefore, we cannot accept any liability for such external content. The respective provider or operator is always responsible for the content of any linked pages. The linked pages were checked for possible legal violations at the time of linking. Illegal content was not recognisable at the time of linking. However, permanent monitoring of the content of linked pages is not reasonable without concrete evidence of a legal violation. Upon becoming aware of legal violations, we will remove such links immediately.",
+      "copyright": "Copyright",
+      "copyrightText": "The content and works on these pages created by the site operators are subject to German copyright law. Duplication, processing, distribution and any form of commercialisation of such material beyond the scope of the copyright law shall require the prior written consent of the author or originator. Downloads and copies of these pages are only permitted for private, non-commercial use."
+    },
+    "datenschutz": {
+      "title": "Privacy Policy",
+      "heading": "Privacy Policy",
+      "intro": "This privacy policy informs you in accordance with Art. 13 GDPR about the processing of personal data when visiting and using our web application.",
+      "controller": "Controller",
+      "controllerText": "The controller responsible for data processing on this web application is the provider named in the Legal Notice.",
+      "seeImpressum": "See our ",
+      "seeImpressumLink": "legal notice details",
+      "seeImpressumEnd": ".",
+      "dataTypes": "Data Collected",
+      "dataTypesText": "When visiting this web application, the following data is automatically processed:",
+      "dataTypesList": "IP address (anonymised), date and time of access, URL accessed, data volume transferred, HTTP status code, user agent. For registered users: email address, name, invoice data, payment data as entered by you.",
+      "purpose": "Purpose of Processing",
+      "purposeText": "Processing is carried out to provide the web application (Art. 6 para. 1 lit. b GDPR — performance of contract), to fulfil legal retention obligations (Art. 6 para. 1 lit. c GDPR — legal obligation, in particular § 147 AO for accounting records) and to ensure operational security (Art. 6 para. 1 lit. f GDPR — legitimate interest).",
+      "retention": "Retention Period",
+      "retentionText": "Invoices, accounting records and business correspondence are retained for ten years in accordance with § 147 AO. Other usage data will be deleted after 30 days, provided no legal retention obligations prevent this.",
+      "rights": "Your Rights",
+      "rightsText": "You have the right to information (Art. 15 GDPR), rectification (Art. 16), erasure (Art. 17), restriction of processing (Art. 18), data portability (Art. 20) and objection to processing (Art. 21). You may withdraw any consent given at any time with effect for the future (Art. 7 para. 3 GDPR). Please direct complaints to the competent data protection supervisory authority.",
+      "transfer": "Data Transfer",
+      "transferText": "Your data is not transferred to third countries. Where third-party providers (e.g. hosting, payment service providers) are used, this is only done on the basis of the EU Commission's standard contractual clauses.",
+      "hosting": "Hosting & Server Location",
+      "hostingText": "This application is operated on servers within the European Union. The specific location and the data centre service provider are documented within the framework of technical and organisational measures (TOM).",
+      "cookies": "Cookies & Local Storage",
+      "cookiesText": "This application uses technically necessary cookies and — only with your explicit consent — analytics and marketing cookies. You can withdraw or adjust your consent at any time via the cookie settings at the bottom of the page.",
+      "openCookieSettings": "Open cookie settings",
+      "changes": "Changes to this Statement",
+      "changesText": "We reserve the right to adapt this privacy policy so that it always complies with current legal requirements. The new privacy policy will then apply to your next visit."
+    },
+    "footer": {
+      "rights": "All rights reserved",
+      "impressum": "Legal Notice",
+      "datenschutz": "Privacy Policy",
+      "cookieSettings": "Cookie Settings"
+    },
+    "cookieBanner": {
+      "title": "Cookie Settings",
+      "intro": "We use cookies and similar technologies to ensure the operation of this web application and — with your consent — to analyse usage. You can decide which categories you wish to allow.",
+      "acceptAll": "Accept all",
+      "rejectAll": "Only necessary",
+      "saveSelection": "Save selection",
+      "necessary": {
+        "label": "Necessary",
+        "description": "These cookies are technically required for the operation of the application (authentication, security, load balancing). They cannot be disabled."
+      },
+      "analytics": {
+        "label": "Analytics",
+        "description": "Help us understand how visitors use the application so we can improve the user experience. Only with your consent."
+      },
+      "marketing": {
+        "label": "Marketing",
+        "description": "Used to display relevant content and ads to visitors. Only with your consent."
+      },
+      "policyNote": "For details, see our ",
+      "policyLink": "Privacy Policy"
+    }
   }
 }
