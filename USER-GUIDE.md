@@ -27,6 +27,39 @@ welche Erwartung trifft zu, welche Beweise liegen vor.
 
 ---
 
+## Authentifizierung — Header-basiertes Schema
+
+Alle API-Aufrufe (außer `/auth/login`, `/auth/register`, `/impressum`,
+`/datenschutz`, den Cookie-/DSGVO-Endpoints und `GET /health`) benötigen
+zwei Header:
+
+```
+x-user-id:    <UUID>     # User, der die Anfrage stellt
+x-company-id: <UUID>     # Mandant, auf den sich die Anfrage bezieht
+```
+
+Beide Header werden vom Frontend nach erfolgreichem Login in
+`localStorage` abgelegt und bei jedem API-Call mitgesendet. Der
+`HeaderAuthGuard` validiert bei jedem Request:
+
+1. **User existiert** und ist `status=active` (sonst 401)
+2. **UserCompany-Grant existiert** für die Kombination
+   (`x-user-id`, `x-company-id`) — sonst 401
+   "Kein Zugriff auf diese Firma"
+3. **Per-Company-Rolle** wird aus `UserCompany.role` gelesen
+   und an `req.user.role` angehängt (überschreibt das globale
+   `User.role`)
+
+**Read-Only-Modus**: zusätzlich `x-readonly: 1` setzen — der
+Mutation-Interceptor im Service-Layer antwortet dann mit 403
+statt die Änderung durchzuführen. Berater nutzen das für
+sicheres Review eines Mandanten ohne Schreib-Risiko.
+
+> **Session-Introspektion**: für Frontend-Init (Mandant-Switcher,
+> Rollen-Anzeige) siehe `GET /api/v1/auth/me` weiter unten.
+
+---
+
 ## Pfad 1 — Rechnung erstellen (Kern-Workflow)
 
 **Rolle**: Inhaber / Accountant
@@ -96,6 +129,15 @@ welche Erwartung trifft zu, welche Beweise liegen vor.
 **Rolle**: Inhaber / Accountant
 **Ziel**: Vor dem Versand die Kosten sehen, dann bestätigen.
 
+> **API-Parameter (für direkten Aufruf / API-Tests)**:
+> - `GET /api/v1/reminders/mahnungen/fees-preview?invoiceId={uuid}&level=first|second|final`
+>   → liefert `{mahngebuehr, verzugszins, offenerBetrag, gesamtforderung}`.
+>   **Achtung**: der Parameter heißt `invoiceId` (NICHT `principal+daysOverdue`
+>   wie ältere Skizzen / Phase-3-Walkthrough-Skripte es versucht haben).
+> - `GET /api/v1/reminders/mahnungen/fees-config` → liefert die konfigurierten
+>   Gebühren (`mahngebuehr: {first, second, final}` und `verzugszinsPct`).
+>   Default: `5 / 5 / 10 EUR` und `9%` (post-2023 § 288 BGB).
+
 ### Schritte
 
 1. **Rechnungen** → Überfällige Rechnung auswählen (Status `overdue` oder älter)
@@ -136,12 +178,25 @@ welche Erwartung trifft zu, welche Beweise liegen vor.
 3. **`Vorschau`** → KPI-Karten + Tabelle nach DATEV-Bucket
 4. Optional: **`📥 Als PDF`** → DATEV-konformes PDF (für Kanzlei)
 
+> **API-Parameter (für direkten Aufruf)**:
+> - `GET /api/v1/reports/bwa?year=2026` — Jahres-BWA
+> - `GET /api/v1/reports/bwa-quarterly?year=2026&quarter=Q3` — Quartals-BWA
+>   **Achtung**: das Quartal-Format ist **`Q1` / `Q2` / `Q3` / `Q4`** (Großbuchstabe
+>   `Q` gefolgt von 1-4, kein Integer). Andere Schreibweisen (`q3`, `3`, `III`)
+>   werden mit 400 abgewiesen.
+> - `GET /api/v1/reports/bwa.pdf?year=2026` — BWA-Jahres-PDF
+
 ### 4.2 — USt-Voranmeldung
 
 1. **UStVA** (Sidebar oder Berichtscenter)
 2. Jahr + Monat
 3. Tabelle: Bemessungsgrundlage 19% / 7% / 0% / §13b / igL + USt + Zahllast
-4. **`📥 UStVA-PDF`** (für ELSTER-Versand oder Archiv)
+4. **ELSTER-Versand / Archiv**: aktuell wird statt eines UStVA-PDFs die
+   **ELSTER-XML** über `GET /api/v1/ustva/filings/:id/elster-xml` ausgeliefert.
+   Ein dedizierter `GET /api/v1/ustva/ustva.pdf`-Endpoint ist in der
+   Roadmap (siehe Tier 177 in `PHASE3-WALKTHROUGH-FINDINGS.md`).
+   Für Berater-Archivierung die ELSTER-XML-Datei direkt im `ustva-filings`
+   Tab herunterladen.
 
 ### 4.3 — DATEV-Export
 
@@ -220,11 +275,99 @@ welche Erwartung trifft zu, welche Beweise liegen vor.
 - **Variante 2** (selten): Mandant gewährt explizit via `UserCompany`-Grant
 - **Lese-Modus**: Header `x-readonly: 1` aktivieren — Berater kann nur lesen, nicht schreiben
 
+### Session-Introspektion (`GET /api/v1/auth/me`)
+
+- Endpoint `GET /api/v1/auth/me` (HeaderAuthGuard-geschützt) liefert den
+  Live-Server-Stand der Session:
+  ```json
+  {
+    "id": "<userId>",
+    "email": "...",
+    "companyId": "<activeCompanyId>",
+    "role": "admin",   // ← per-company role (UserCompany.role), NICHT global User.role
+    "status": "active",
+    "companies": [     // ← alle Mandanten, auf die der User Zugriff hat
+      { "id": "...", "name": "SH Leder GmbH", "legalName": null, "role": "admin" }
+    ]
+  }
+  ```
+- **Empfohlene Nutzung im Frontend**: bei jedem Page-Load aufrufen, um
+  1. die Session zu re-validieren (kein Vertrauen in stale `localStorage`),
+  2. den Mandant-Switcher mit der vollständigen Liste der granted
+     Mandanten zu befüllen,
+  3. die per-Company-Rolle anzuzeigen (kann vom globalen `User.role`
+     abweichen, z.B. wenn ein Berater global "admin" ist, aber auf
+     einem Mandant nur "berater").
+- **Sicherheit**: `passwordHash` / `passwordResetToken` /
+  `passwordResetExpires` werden nie in der Response zurückgegeben
+  (nicht im Prisma-`select`).
+
 ### Sicherheits-Garantien
 
 - **Tenant-Isolation**: Mandant A kann nie Mandant B einsehen (404 / 401)
 - **Audit-Trail**: Jede Aktion mit User + IP + Timestamp
 - **Read-Only-Modus**: Optional pro Request aktivierbar
+
+---
+
+## API-Endpoint-Übersicht (für API-Tests / Berater-Integration)
+
+Alle Endpoints verlangen `x-user-id` + `x-company-id` Header
+(siehe "Authentifizierung" oben) sofern nicht anders vermerkt.
+
+### Auth
+- `POST /api/v1/auth/login` — Login (Body: `email`, `password`) — **public**
+- `POST /api/v1/auth/register` — Registrierung (Body: `email`, `password`, `name`) — **public**
+- `GET /api/v1/auth/me` — Session-Introspektion (User + granted Companies)
+
+### Rechnungen (Kern)
+- `POST /api/v1/invoices?companyId=...` — Rechnung erstellen
+- `GET /api/v1/invoices?companyId=...&status=&page=&pageSize=&search=` — Liste
+- `GET /api/v1/invoices/:id?companyId=...` — Detail
+- `PATCH /api/v1/invoices/:id?companyId=...` — Update (draft only)
+- `DELETE /api/v1/invoices/:id?companyId=...` — Hard-Delete (nur am Ausstellungstag)
+- `GET /api/v1/invoices/:id/pdf?companyId=...` — PDF
+- `GET /api/v1/invoices/:id/xrechnung?companyId=...` — XRechnung (UBL XML)
+- `GET /api/v1/invoices/:id/zugferd?companyId=...` — ZUGFeRD (PDF+XML)
+- `POST /api/v1/invoices/:id/send-email?companyId=...` — E-Mail-Versand
+- `POST /api/v1/invoices/:id/credit-note?companyId=...` — Gutschrift (CN)
+- `GET /api/v1/invoices/:id/internal-notes?companyId=...` — Berater-Notizen
+- `GET /api/v1/invoices/:id/payments?companyId=...` — Zahlungen
+- `GET /api/v1/invoices/duplicate-check?companyId=...&customerId=...&amount=...&from=...&to=...` — Duplikate
+
+### Belege (Eingangsrechnungen)
+- `POST /api/v1/expenses?companyId=...` — Beleg erfassen
+  (Body: `description`, `invoiceDate`, `amount`, `vatAmount`, `accountNumber`, `supplier`, …)
+- `GET /api/v1/expenses?companyId=...&pageSize=...` — Liste
+- `GET /api/v1/accounting/accounts?companyId=...` — SKR03-Kontenplan
+
+### Mahnungen
+- `GET /api/v1/reminders/mahnungen?companyId=...` — Mahnungs-Liste
+- `GET /api/v1/reminders/mahnungen/fees-preview?invoiceId=...&level=first|second|final` — Live-Preview
+- `GET /api/v1/reminders/mahnungen/fees-config?companyId=...` — Konfigurierte Gebühren
+- `GET /api/v1/reminders/templates/{first|second|final}/preview?companyId=...&invoiceId=...` — Template-Vorschau
+- `POST /api/v1/reminders/send?companyId=...` — Mahnung(en) versenden
+- `GET /api/v1/reminders/stats?companyId=...` — Overdue-Counter
+- `GET /api/v1/reminders/auto-settings?companyId=...` — Auto-Run-Konfiguration
+
+### Berater-Export
+- `GET /api/v1/reports/bwa?companyId=...&year=...` — BWA Jahres
+- `GET /api/v1/reports/bwa-quarterly?companyId=...&year=...&quarter=Q1|Q2|Q3|Q4` — BWA Quartal
+- `GET /api/v1/reports/bwa.pdf?companyId=...&year=...` — BWA-Jahres-PDF
+- `GET /api/v1/reports/dashboard?companyId=...` — Dashboard-KPIs
+- `GET /api/v1/reports/datev-export?companyId=...&year=...&month=...` — DATEV-CSV
+- `GET /api/v1/reports/datev-export-bundle?companyId=...&year=...` — DATEV-CSV-Bundle (ZIP, alle Monate)
+- `GET /api/v1/reports/datev-preview?companyId=...&year=...&month=...` — DATEV-CSV-Preview (JSON)
+- `GET /api/v1/ustva/compute?companyId=...&year=...&month=...` — UStVA-Berechnung
+- `GET /api/v1/ustva/filings/:id/elster-xml` — ELSTER-XML
+- `GET /api/v1/ustva/history?companyId=...` — UStVA-Historie (vergangene Einreichungen)
+- `GET /api/v1/accounting/euer?companyId=...&year=...` — EÜR
+- `GET /api/v1/accounting/anlage-s?companyId=...&year=...` — Anlage S
+- `GET /api/v1/accounting/bilanz?companyId=...&year=...` — Bilanz
+- `GET /api/v1/accounting/anlage-so-v2?companyId=...&year=...` — Anlage SO (v2)
+
+### GoBD
+- `GET /api/v1/gobd-export?companyId=...&year=...` — Vollständiges Archiv (ZIP)
 
 ---
 
