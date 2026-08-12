@@ -807,30 +807,38 @@ export class RecurringService {
         vatAmount: Math.round(v.vat * 100) / 100,
       }))
 
-      // Find the next invoice number for this company+type+year.
-      // Recurring invoices use the same INV-YYYY-NNNNN
-      // sequence as manually-created ones so the Steuerberater
-      // sees a continuous numbering. We pick max+1 (no
-      // gap-filling for recurring — it's a stable sequence).
+      // Tier 174: invoice number allocated by the same
+      // Postgres SEQUENCE as the manual INV create path.
+      // The old findMany+max+1 was racy under concurrent
+      // recurring runs (e.g. a yearly template running at
+      // midnight Dec 31 → Jan 1 collisions). We call
+      // nextval() on the (type=INV, year) sequence so
+      // recurring invoices and manual invoices share a
+      // single monotonic counter — Steuerberater sees one
+      // continuous INV-2026-NNNNN stream.
+      //
+      // Implemented inline (not delegated to
+      // InvoiceService) because the recurring scheduler
+      // runs inside its own Prisma transaction (`tx`)
+      // and importing InvoiceService would create a
+      // cross-module dependency. The two implementations
+      // must stay in sync — see the matching helper in
+      // invoice.service.ts nextInvoiceNumber().
       const currentYear = periodStart.getFullYear()
-      const prefix = tpl.interval === 'yearly' ? 'INV-' : 'INV-' // future: per-year prefix
-      const sameYear = await tx.invoice.findMany({
-        where: {
-          companyId,
-          type: 'INV',
-          invoiceNumber: { startsWith: `${prefix}${currentYear}-` },
-        },
-        select: { invoiceNumber: true },
-      })
-      let maxSeq = 0
-      for (const r of sameYear) {
-        const m = r.invoiceNumber.match(new RegExp(`^${prefix}\\d{4}-(\\d+)$`))
-        if (m) {
-          const n = parseInt(m[1], 10)
-          if (n > maxSeq) maxSeq = n
-        }
-      }
-      const invoiceNumber = `${prefix}${currentYear}-${String(maxSeq + 1).padStart(6, '0')}`
+      // Tier 174: lowercase unquoted sequence name to dodge
+      // Prisma 5.22's query-engine identifier cache (see
+      // invoice.service.ts.nextInvoiceNumber for the full
+      // story). Mixed-case quoted names trigger 42P01 in
+      // long-lived Prisma clients.
+      const seqName = `invoice_seq_inv_${currentYear}`
+      await tx.$executeRawUnsafe(
+        `CREATE SEQUENCE IF NOT EXISTS ${seqName} START 1 INCREMENT 1`
+      )
+      const seqRows = await tx.$queryRawUnsafe<Array<{ nextval: bigint }>>(
+        `SELECT nextval('${seqName}') AS nextval`
+      )
+      const seq = Number(seqRows[0].nextval)
+      const invoiceNumber = `INV-${currentYear}-${String(seq).padStart(6, '0')}`
 
       // Create the invoice. issueDate = today; dueDate = issueDate + 30d
       // by default (the user can edit per-invoice later).
@@ -843,9 +851,9 @@ export class RecurringService {
           companyId,
           customerId: tpl.customerId,
           invoiceNumber,
-          sequencePrefix: prefix,
+          sequencePrefix: 'INV',
           sequenceYear: currentYear,
-          sequenceNumber: maxSeq + 1,
+          sequenceNumber: seq,
           type: 'INV',
           status: tpl.invoiceStatus || 'draft',
           issueDate,

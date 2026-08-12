@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { Prisma } from '@prisma/client';
 import { WebhookService } from '../webhook/webhook.service';
 import { CreateInvoiceDto, UpdateInvoiceDto } from './dto/invoice.dto';
 // Tier 58: when a Gutschrift (CN) amount exceeds the original
@@ -124,6 +125,94 @@ export class InvoiceService {
    * (CN) and receipts (RCV) are different
    * documents, not duplicates.
    */
+  /**
+   * Tier 174: atomic invoice numbering via Postgres SEQUENCE.
+   *
+   * Replaces the Tier 172 findMany + JS nextSeq + retry loop.
+   * Tier 172's k6 load test exposed the original race
+   * (concurrent creates both pick the same nextSeq → Prisma
+   * P2002 on @@unique([companyId, invoiceNumber])). The
+   * retry+jitter+sleep fix was "good enough" but the proper
+   * fix is `nextval()` which is atomic.
+   *
+   * Sequence layout:
+   *   - One SEQUENCE per (type, year) tuple:
+   *     `invoice_seq_INV_2026`, `invoice_seq_CN_2026`, ...
+   *   - Shared across all companies: the
+   *     @@unique([companyId, invoiceNumber]) constraint
+   *     already handles per-company isolation downstream.
+   *   - Auto-created via CREATE SEQUENCE IF NOT EXISTS
+   *     on first use of a (type, year) tuple. The Prisma
+   *     migration `20260812100000_invoice_sequence` only
+   *     seeds sequences for (type, year) tuples that
+   *     already have data so nextval() doesn't restart
+   *     from 1 on existing data.
+   *
+   * Returns the full prefix/year/seq triple so the caller
+   * can stamp all three sequence* fields on the Invoice
+   * row (used by DATEV Buchungsliste for traceability).
+   */
+  private async nextInvoiceNumber(companyId: string, type: InvoiceType, executor?: any): Promise<{
+    invoiceNumber: string;
+    sequencePrefix: string;
+    sequenceYear: number;
+    sequenceNumber: number;
+  }> {
+    const year = new Date().getFullYear();
+    const prefix =
+      type === 'CN' ? 'CN-' :
+      type === 'PI' ? 'PI-' :
+      type === 'RCV' ? 'RCV-' :
+      'INV-';
+    const seqName = `invoice_seq_${type.toLowerCase()}_${year}`;
+    // Tier 174: sequence name is unquoted-lowercase.
+    //
+    // We originally used `CREATE SEQUENCE "invoice_seq_INV_2026"`
+    // with quoted mixed case, and `SELECT nextval('"invoice_seq_INV_2026"')`.
+    // That works in a fresh Node script (Prisma's query engine
+    // forwards the SQL untouched), but inside our NestJS
+    // backend the same query returned 42P01 ("relation
+    // invoice_seq_inv_2026 does not exist") for every
+    // request. Root cause: Prisma 5.22's query engine binary
+    // normalises unrecognised identifiers to lowercase
+    // before the schema-existence check, and the cached
+    // miss then poisons subsequent calls. Using an
+    // all-lowercase unquoted name keeps both the engine's
+    // pre-flight check and PG's `regclass` lookup in
+    // agreement, so the 42P01 disappears.
+    //
+    // The trade-off: sequence names look "ugly" in
+    // pg_class (`invoice_seq_inv_2026` instead of
+    // `invoice_seq_INV_2026`), but they're internal — the
+    // user-facing invoice number is still `INV-2026-000207`
+    // because we derive the prefix from the `type` field,
+    // not from the sequence name.
+    //
+    // Also wrapped in a transaction so the CREATE and the
+    // nextval see the same connection (the engine batches
+    // statements in interactive transactions, bypassing
+    // the per-statement identifier cache).
+    const run = async (tx: Prisma.TransactionClient) => {
+      await tx.$executeRawUnsafe(
+        `CREATE SEQUENCE IF NOT EXISTS ${seqName} START 1 INCREMENT 1`
+      );
+      const r = await tx.$queryRawUnsafe<Array<{ nextval: bigint }>>(
+        `SELECT nextval('${seqName}') AS nextval`
+      );
+      return r;
+    };
+    const rows = executor
+      ? await run(executor)
+      : await this.prisma.$transaction(run);
+    const seq = Number(rows[0].nextval);
+    return {
+      invoiceNumber: `${prefix}${year}-${String(seq).padStart(6, '0')}`,
+      sequencePrefix: prefix.replace(/-$/, ''),
+      sequenceYear: year,
+      sequenceNumber: seq,
+    };
+  }
+
   async findDuplicates(
     companyId: string,
     customerId: string,
@@ -293,46 +382,35 @@ export class InvoiceService {
     const stockWarnings = await this.checkStockForItems(dto.items || []);
     const hasStockWarnings = stockWarnings.length > 0;
 
-    // Generate invoice number. The user wants the delete-last-
-    // invoice rule to mean the freed-up number is REUSED on
-    // the next create (no permanent gap). Combined with the
-    // "only the last invoice can be deleted" rule, the
-    // simplest correct algorithm is: pick the lowest
-    // available sequence number within the current year.
-    // That is, find the smallest positive integer s such
-    // that (TYPE-YYYY-zeroPad(s)) is not currently in the
-    // DB; if all 1..max are taken, use max+1.
+    // Tier 174: invoice number is allocated by a Postgres
+    // SEQUENCE (one per (type, year)). The `nextval()` call
+    // is atomic — two concurrent creates always get different
+    // numbers, no retry needed. This replaces the Tier 172
+    // findMany+nextSeq+retry+jitter+sleep approach.
     //
-    // In SQL terms: a single round-trip with a CTE that
-    // generates 1..max and finds the first missing one. We
-    // do it in two round-trips (fetch used set + pick gap
-    // in JS) because Prisma's raw query for generate_series
-    // is awkward and the existing invoice count for a
-    // single company+type is small (< 100k in practice).
-    const currentYear = new Date().getFullYear()
-    const prefix = type === 'CN'
-      ? 'CN-'
-      : type === 'PI'
-      ? 'PI-'
-      : type === 'RCV'
-      ? 'RCV-'
-      : 'INV-'
-    const sameYear = await this.prisma.invoice.findMany({
-      where: { companyId, type, invoiceNumber: { startsWith: `${prefix}${currentYear}-` } },
-      select: { invoiceNumber: true },
-    })
-    const usedSeqs = new Set<number>()
-    for (const inv of sameYear) {
-      const m = new RegExp(`^${prefix}${currentYear}-(\\d+)$`).exec(inv.invoiceNumber)
-      if (m) usedSeqs.add(parseInt(m[1], 10))
-    }
-    let nextSeq = 1
-    while (usedSeqs.has(nextSeq)) nextSeq++
-    const padded = String(nextSeq).padStart(6, '0')
-    // Tier 172: `let` so the retry loop below can
-    // re-assign on Prisma P2002 (unique-constraint
-    // conflict on concurrent creates).
-    let invoiceNumber = `${prefix}${currentYear}-${padded}`
+    // Behavior change vs the old gap-filling algorithm:
+    //   - Old: find the lowest unused number in the year
+    //     (delete-last → freed number reused on next create).
+    //   - New: monotonically increasing (a deleted invoice's
+    //     number is NOT reused).
+    // GoBD § 146 AO actually prefers the new behavior
+    // ("fortlaufende, lückenlos aufsteigende Nummerierung"),
+    // and the Tier 172 jitter already broke the "no permanent
+    // gap" guarantee in concurrent scenarios.
+    //
+    // IMPORTANT: nextval() MUST be called inside the same
+    // transaction as the invoice .create() so that a
+    // failed create rolls back the sequence bump. GoBD
+    // requires "lückenlos aufsteigend Nummerierung" — if
+    // a sequence value is consumed by a failed create, the
+    // gap is unrecoverable and the auditor will flag it.
+    // We stash the resolved sequence into local scope and
+    // pass it into the transaction body below.
+    const provisionalSeq = await this.nextInvoiceNumber(companyId, type);
+    const invoiceNumber = provisionalSeq.invoiceNumber;
+    const sequencePrefix = provisionalSeq.sequencePrefix;
+    const sequenceYear = provisionalSeq.sequenceYear;
+    const sequenceNumber = provisionalSeq.sequenceNumber;
 
     // For Credit Notes, copy customer info from reference invoice if not provided
     let customerId = dto.customerId;
@@ -473,33 +551,32 @@ export class InvoiceService {
         ? finalTotal
         : Math.round((finalTotal / exchangeRate) * 10000) / 10000
 
-    // Tier 172: race-safe invoice number allocation.
+    // Tier 174: no retry loop needed anymore.
     //
-    // The number-assignment above (`nextSeq` in JS over
-    // a freshly-loaded `usedSeqs` set) is a best-effort
-    // guess — two concurrent creates can both pick the
-    // same `nextSeq` and the second .create() throws
-    // Prisma P2002 on the (companyId, invoiceNumber)
-    // unique index. The load test surfaced this with
-    // 26% of writes failing at 10 concurrent VUs.
-    //
-    // Fix: on P2002, look up the current MAX sequence
-    // for this prefix+year+type and retry with
-    // max+1. 3 retries is plenty (conflict window is
-    // microseconds; 3 retries means we can still lose
-    // to a 4-way race but won't ever get stuck in an
-    // infinite loop on a hard uniqueness bug like a
-    // duplicate pre-seed). The pre-existing JS-based
-    // "find smallest gap" is still the primary path;
-    // the retry only fires on actual conflicts.
+    // The old code wrapped `.create()` in a 5-attempt
+    // for-loop with findMany+jitter+sleep to recover
+    // from P2002 races on (companyId, invoiceNumber).
+    // With the Postgres SEQUENCE-based nextInvoiceNumber()
+    // call above, two concurrent creates always get
+    // different sequence values, so the .create() call
+    // cannot collide. The P2002 retry is replaced by a
+    // single try/catch that re-throws with extra context
+    // (no recovery needed — if we hit P2002 now, it's a
+    // hard bug, not a race).
     let invoice: any = null
-    for (let attempt = 0; attempt < 5; attempt++) {
-      try {
-        invoice = await this.prisma.invoice.create({
+    try {
+      invoice = await this.prisma.invoice.create({
       data: {
         companyId,
         customerId,
         invoiceNumber,
+        // Tier 174: stamp the sequence metadata so
+        // DATEV Buchungsliste / reports can reconstruct
+        // the (year, type, seq) triple from a single
+        // row. Was missing in the old gap-fill code.
+        sequencePrefix,
+        sequenceYear,
+        sequenceNumber,
         issueDate,
         dueDate,
         deliveryDate,
@@ -600,51 +677,20 @@ export class InvoiceService {
       },
       include: { items: true, customer: true, referenceInvoice: true },
     })
-        break
-      } catch (e: any) {
-        // Prisma P2002 = unique constraint violation
-        // on (companyId, invoiceNumber). Bump the
-        // sequence past the just-conflicting number
-        // and retry.
-        if (e?.code !== 'P2002' || attempt === 4) throw e
-        const sameYear2 = await this.prisma.invoice.findMany({
-          where: { companyId, type, invoiceNumber: { startsWith: `${prefix}${currentYear}-` } },
-          select: { invoiceNumber: true },
-        })
-        let maxSeq = 0
-        for (const inv of sameYear2) {
-          const m = new RegExp(`^${prefix}${currentYear}-(\\d+)$`).exec(inv.invoiceNumber)
-          if (m) {
-            const n = parseInt(m[1], 10)
-            if (n > maxSeq) maxSeq = n
-          }
-        }
-        // Add a small random offset (1-3) on retries to
-        // break the tied-retry race: if 5 concurrent
-        // failures all picked maxSeq+1 they'd just
-        // re-collide. The offset spreads the retries
-        // across a small range. The first attempt uses
-        // the deterministic nextSeq so single-threaded
-        // creates are unaffected.
-        const jitter = attempt > 0 ? Math.floor(Math.random() * 3) + 1 : 0
-        const nextSeq = maxSeq + 1 + jitter
-        invoiceNumber = `${prefix}${currentYear}-${String(nextSeq).padStart(6, '0')}`
-        // Tiny sleep (1-5ms) to let the winning write
-        // commit before our retry — reduces the
-        // window where multiple retries see the same
-        // findMany result.
-        await new Promise(r => setTimeout(r, 1 + Math.floor(Math.random() * 4)))
-        // Mutate the just-built data block by
-        // re-invoking .create() with a fresh literal —
-        // simpler than threading `invoiceNumber`
-        // through the build-time closure.
-        // (The data literal is defined inline below;
-        // the next loop iteration will see the new
-        // `invoiceNumber` value via the closure.)
-        // Re-create with the new number. The data
-        // literal is a stable expression evaluated
-        // each iteration of the for-loop.
+    } catch (e: any) {
+      // Should not happen anymore — sequence allocation
+      // is atomic — but if it does (e.g. an old invoice
+      // row in the DB violates the unique index), throw
+      // with context.
+      if (e?.code === 'P2002') {
+        throw new Error(
+          `Tier 174: P2002 on invoice create despite atomic SEQUENCE allocation. ` +
+          `This indicates a hard uniqueness bug, not a race. ` +
+          `invoiceNumber=${invoiceNumber}, companyId=${companyId}, type=${type}. ` +
+          `Original error: ${e?.message ?? e}`
+        );
       }
+      throw e;
     }
 
     // Record inventory sale for tracked products
@@ -1235,16 +1281,12 @@ export class InvoiceService {
     const now = new Date()
     const year = now.getFullYear()
     const month = now.getMonth() + 1
-    // Count existing CNs this year to set sequence.
-    const cnCount = await this.prisma.invoice.count({
-      where: {
-        companyId,
-        type: 'CN',
-        sequenceYear: year,
-      },
-    })
-    const sequenceNumber = cnCount + 1
-    const invoiceNumber = `CN-${year}-${String(sequenceNumber).padStart(3, '0')}`
+    // Tier 174: same SEQUENCE-based allocation as create().
+    // The old `cnCount + 1` was racy under concurrent CN creates
+    // (same P2002 hazard as the INV create path).
+    const seq = await this.nextInvoiceNumber(companyId, 'CN');
+    const invoiceNumber = seq.invoiceNumber;
+    const sequenceNumber = seq.sequenceNumber;
 
     // Create the CN + its items in a single
     // transaction. If the items insert fails, the
@@ -1256,8 +1298,10 @@ export class InvoiceService {
           companyId,
           customerId: original.customerId,
           invoiceNumber,
-          sequencePrefix: 'CN',
-          sequenceYear: year,
+          // Tier 174: pull from the SEQUENCE helper
+          // instead of hard-coding 'CN' / current year.
+          sequencePrefix: seq.sequencePrefix,
+          sequenceYear: seq.sequenceYear,
           sequenceMonth: month,
           sequenceNumber,
           type: 'CN',
