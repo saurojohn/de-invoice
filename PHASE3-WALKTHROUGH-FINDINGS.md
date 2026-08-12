@@ -36,7 +36,7 @@ terms 字段。如果没 default, 用户每次都得手填。
 
 **Recommendation**: schema 补两列, migration seed (Tier 176 candidate)
 
-### 🟠 Issue 2: `auth/me` endpoint 不存在
+### ✅ Issue 2: `auth/me` endpoint 不存在 → **resolved in Tier 175**
 
 P6.me 404。USER-GUIDE 多处讲 "Mandant-Inhaber 登录后
 看到自己的 Mandant"。前端肯定有自己的方式拿当前 user
@@ -45,13 +45,22 @@ info (从 localStorage?), 但 backend 没 `/me` endpoint —
 cookie/header 中的 `x-company-id` 而不能 cross-check 用户是否
 真的有权 access 那个 company。
 
-**Security concern (low/medium)**: header `x-company-id` 客户端
-可控。普通 user 改 cookie 可以 claim 是别的 company. 当前
-`HeaderAuthGuard` 应该 verify `user.companyIds.includes(claimedCompanyId)`,
-但我没看到 guard 验证。
+**Tier 175 update**: 读
+`backend/src/auth/header-auth.guard.ts:58-70` 之后发现
+HeaderAuthGuard **已经 verify UserCompany membership** —
+没有 UserCompany 行的 x-company-id 直接 401 "Kein Zugriff
+auf diese Firma"。So the security risk is narrow: 客户端
+只能 pick 一个 user 已经有 UserCompany 行的 company. 真正的
+risk 来自 stale localStorage, 不是 header tampering.
 
-**Recommendation**: 加 `GET /api/v1/auth/me` 返回 user + companyIds +
-role, 顺便加 HeaderAuthGuard 验证公司 membership
+**Tier 175 implementation**: 加了 `GET /api/v1/auth/me` endpoint,
+返回 user + role (per-company, Tier 66 semantics) + companies[]
+list (all granted Mandanten). 前端在 page load 时调它来:
+1. Re-validate session (don't trust stale localStorage)
+2. Populate Mandant switcher with the full grant list
+3. Show per-company role
+
+5/5 e2e tests green (3.0s). See commit `705e1e6`.
 
 ### 🟡 Issue 3: DATEV CSV 编码 `windows-1252` 不是 UTF-8
 
@@ -169,7 +178,7 @@ accountNumber。前端拿不到原始 account number display。
 
 | Tier | 描述 | 估计 | 影响 |
 |---|---|---|---|
-| **Tier 175** | 加 `auth/me` endpoint + HeaderAuthGuard 验证 company membership | ~1.5h | 🟠 security |
+| ~~**Tier 175**~~ | ~~加 `auth/me` endpoint + HeaderAuthGuard 验证 company membership~~ | ~~1.5h~~ | ~~🟠 security~~ **DONE 2026-08-12 (commit 705e1e6)** |
 | **Tier 176** | companies 表加 `defaultPaymentTerms` + `defaultVatMode` 列 + migration + frontend pre-fill | ~1.5h | 🟡 UX |
 | **Tier 177** | 加 `GET /api/v1/ustva/ustva.pdf?year=&month=` (USER-GUIDE 承诺了 UStVA-PDF 路径) | ~1h | 🟡 USER-GUIDE vs 实际 gap |
 | **Tier 178** | expenses list 加 `total` 字段 (跟 invoices/customers 一致) | ~30min | 🟡 consistency |
@@ -182,9 +191,11 @@ accountNumber。前端拿不到原始 account number display。
 
 **Backend API 层面 5 条路径全跑通**. 没发现功能性 bug (P2002
 race 已经在 Tier 174 修了). 主要 findings 是:
-1. **Auth/me endpoint 缺失 + 可能的 security gap** (high priority)
+1. **Auth/me endpoint 缺失** — resolved in **Tier 175** (commit
+   `705e1e6`). HeaderAuthGuard 已经有 UserCompany check (Tier 66),
+   so 真正的 risk 是 stale localStorage 而非 header tampering.
 2. **几处 USER-GUIDE vs 实际 endpoint 文档/字段不一致** (medium)
 3. **UX 改进 (default settings, response field completeness)** (low)
 
-建议优先做 Tier 175 (auth/me + guard verification), 因为
-那是 security 风险。
+建议下一档: Tier 176 (companies defaultPaymentTerms/VatMode)
+或 Tier 177 (UStVA-PDF endpoint).
