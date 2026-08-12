@@ -1,8 +1,9 @@
-import { Controller, Post, Body, HttpCode, HttpStatus, BadRequestException, Logger, Req } from '@nestjs/common';
+import { Controller, Post, Body, Get, HttpCode, HttpStatus, BadRequestException, Logger, Req, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { LoginDto, RegisterDto } from './dto/auth.dto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { HeaderAuthGuard } from '../../auth/header-auth.guard';
 import { MailService } from '../mail/mail.service';
 import * as bcrypt from 'bcrypt';
 
@@ -172,6 +173,112 @@ export class AuthController {
       preferences: user.preferences,
       createdAt: user.createdAt,
       lastLogin: user.lastLogin,
+    };
+  }
+
+  /**
+   * Tier 175: GET /api/v1/auth/me
+   *
+   * Phase 3 Berater-Walkthrough finding: there was no
+   * endpoint to ask the server "who am I + which companies
+   * am I allowed to access?". The frontend kept
+   * `x-user-id` + `x-company-id` in localStorage from a
+   * prior login and used them blindly, so the client could
+   * theoretically swap `x-company-id` to a company the
+   * user had been granted in a previous session.
+   *
+   * The HeaderAuthGuard already verifies
+   * `UserCompany` membership (line 58-70 in
+   * header-auth.guard.ts) — a user without a row for
+   * the claimed `x-company-id` gets 401. So the
+   * attack surface is narrow: the client could only
+   * pick a company the user already has a UserCompany
+   * row for. Still, this endpoint is the canonical
+   * "what does the server think I am" check the
+   * frontend should call on every page load to:
+   *   1. Re-validate the session (don't trust stale
+   *      localStorage if the user was deactivated).
+   *   2. Populate the Mandant switcher with the
+   *      full list of granted companies.
+   *   3. Show the user their global role vs
+   *      per-company role (Berater may be 'admin'
+   *      globally but 'berater' on a Mandant).
+   *
+   * Returns the same shape as /auth/login plus a
+   * `companies` array of granted Mandanten.
+   */
+  @Get('me')
+  @UseGuards(HeaderAuthGuard)
+  async me(@Req() req: any) {
+    // HeaderAuthGuard has already verified the user is
+    // active AND that the x-company-id is in their granted
+    // companies. We just re-read the live state from the
+    // DB so the client gets a fresh snapshot.
+    const userId = req.user.id;
+    const companyId = req.user.companyId;
+
+    const [user, grants] = await Promise.all([
+      this.prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          email: true,
+          companyId: true,
+          role: true,
+          status: true,
+          profile: true,
+          preferences: true,
+          createdAt: true,
+          lastLogin: true,
+        },
+      }),
+      // UserCompany grant list — used to populate the
+      // Mandant switcher in the UI. We return the
+      // companyId + role for each grant so the
+      // switcher can show "SH Leder GmbH (admin)"
+      // vs "Müller GmbH (berater)".
+      this.prisma.userCompany.findMany({
+        where: { userId },
+        select: {
+          role: true,
+          company: {
+            select: {
+              id: true,
+              name: true,
+              legalName: true,
+            },
+          },
+        },
+        orderBy: { company: { name: 'asc' } },
+      }),
+    ]);
+
+    if (!user) {
+      // HeaderAuthGuard should have caught this. Defensive.
+      throw new BadRequestException('User nicht gefunden');
+    }
+
+    // Find the per-company role for the *currently active*
+    // company (HeaderAuthGuard already verified membership
+    // — this is for display only).
+    const activeGrant = grants.find((g) => g.company.id === companyId);
+
+    return {
+      ...user,
+      // Override the global User.role with the
+      // per-company role so the UI can branch on it
+      // (e.g. a global "admin" Berater is "berater"
+      // on each Mandant). This is the same value
+      // HeaderAuthGuard already attached to req.user.role.
+      role: activeGrant?.role ?? user.role,
+      // Per-company grants. Empty array for users with
+      // a single Mandant (the common case).
+      companies: grants.map((g) => ({
+        id: g.company.id,
+        name: g.company.name,
+        legalName: g.company.legalName,
+        role: g.role,
+      })),
     };
   }
 
