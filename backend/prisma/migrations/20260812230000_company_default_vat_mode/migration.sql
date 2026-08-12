@@ -1,0 +1,38 @@
+-- Migration: Tier 176 — Company.defaultVatMode
+--
+-- Why this migration:
+--   Phase 3 Berater-Walkthrough found that the
+--   company-settings page had no way to set a default
+--   USt-Behandlung. Every invoice required the user to
+--   pick the radio button manually, even though 95% of
+--   invoices are standard §12 UStG and the user has to
+--   click "Standard" every time.
+--
+--   The matching `defaultPaymentDays` already existed
+--   (default 30) and was the original source of "Zahlbar
+--   binnen 30 Tagen ohne Abzug" on the PDF. The new
+--   `defaultVatMode` parallels it for VAT treatment.
+--
+-- What this migration does:
+--   1. ALTER TABLE "Company" ADD COLUMN "defaultVatMode" TEXT
+--      (nullable; NULL = "ask every time", the old behaviour).
+--   2. For existing companies with no defaultVatMode set,
+--      leave it NULL. The user can opt in via the
+--      settings page without a forced default migration.
+--
+-- Why nullable (not a default of "standard"):
+--   - Some Mandanten issue only §13b reverse-charge
+--     invoices (B2B-only). Auto-selecting "standard"
+--     for them would silently mis-classify.
+--   - Some Mandanten are §19 UStG Kleinunternehmer and
+--     need a different radio state entirely. NULL
+--     keeps the form neutral until the user picks
+--     explicitly.
+--
+-- Allowed values (validated application-side, not
+-- enforced in DB so the schema can evolve):
+--   "standard"     — §12 UStG Inlandsumsatz
+--   "reverseCharge" — §13b UStG
+--   "igL"          — §1a UStG Innergemeinschaftliche Lieferung
+--   "kleinunternehmer" — §19 UStG (keine USt)
+ALTER TABLE "Company" ADD COLUMN "defaultVatMode" TEXT;

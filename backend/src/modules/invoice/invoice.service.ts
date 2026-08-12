@@ -498,7 +498,42 @@ export class InvoiceService {
 
     // Parse dates safely
     const issueDate = dto.issueDate ? new Date(dto.issueDate) : new Date();
-    const dueDate = dto.dueDate ? new Date(dto.dueDate) : null;
+
+    // Tier 176: pre-fill dueDate from Company.defaultPaymentDays
+    // if the caller didn't provide one. The user can still
+    // override per-invoice, but the common case (Mandant
+    // issues standard 30-day invoices) needs zero clicks.
+    //
+    // We resolve the company defaults in a single query
+    // with `select` so we don't drag the whole Company
+    // row across the wire. NULL defaultPaymentDays falls
+    // back to no dueDate (current behaviour for backwards
+    // compatibility).
+    let dueDate = dto.dueDate ? new Date(dto.dueDate) : null;
+    if (!dueDate) {
+      const co = await this.prisma.company.findUnique({
+        where: { id: companyId },
+        select: { defaultPaymentDays: true, defaultVatMode: true },
+      });
+      if (co?.defaultPaymentDays && co.defaultPaymentDays > 0) {
+        dueDate = new Date(issueDate.getTime() + co.defaultPaymentDays * 86400_000);
+      }
+      // Tier 176: stash the company's defaultVatMode so
+      // the USt-Behandlung branch below can apply it.
+      // Kept as a local (not a `let` outside this block)
+      // so the rest of the function doesn't depend on
+      // the company lookup having succeeded.
+      var companyDefaultVatMode: string | null | undefined = co?.defaultVatMode;
+    } else {
+      // Even when dueDate was supplied, look up
+      // defaultVatMode so the USt-Behandlung pre-fill
+      // still works. Cheap query, ~1ms.
+      const co2 = await this.prisma.company.findUnique({
+        where: { id: companyId },
+        select: { defaultVatMode: true },
+      });
+      var companyDefaultVatMode: string | null | undefined = co2?.defaultVatMode;
+    }
     const deliveryDate = dto.deliveryDate ? new Date(dto.deliveryDate) : null;
 
     // ──────────────────────────────────────────────────────
@@ -629,8 +664,31 @@ export class InvoiceService {
         // UStVA Kennzahl 41/46, and the PDF footnote
         // text. See the DTO comment for the full
         // semantics.
-        reverseCharge: dto.reverseCharge ?? false,
-        euTransaction: dto.euTransaction ?? false,
+        reverseCharge:
+          // See Tier 176 block above on euTransaction
+          // for the companyDefaultVatMode mapping.
+          dto.reverseCharge
+          ?? (companyDefaultVatMode === 'reverseCharge'),
+        euTransaction:
+          // Tier 176: pre-fill from Company.defaultVatMode
+          // if the caller didn't pick. The UI still lets
+          // the user override per-invoice, but the
+          // common case (Mandant issues only standard /
+          // §13b / igL) is now zero clicks.
+          //
+          // Mapping:
+          //   "standard"          → both false
+          //   "reverseCharge"     → reverseCharge: true
+          //   "igL"               → euTransaction: true
+          //   "kleinunternehmer"  → both false (no USt,
+          //                          PDF footer carries the
+          //                          §19 disclaimer)
+          //
+          // If the caller explicitly passed a value, we
+          // respect it. The `?? false` is the Tier 27
+          // default for the no-prefill case.
+          dto.euTransaction
+          ?? (companyDefaultVatMode === 'igL'),
         // Tier 39: DATEV Kostenstelle 1 + Kostenträger
         // stamps. Optional — the column is already on
         // Invoice. Trims whitespace so a stray space at

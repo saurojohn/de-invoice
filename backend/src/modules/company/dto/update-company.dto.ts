@@ -3,6 +3,7 @@ import {
   IsOptional,
   IsEmail,
   IsInt,
+  IsIn,
   Min,
   Max,
   ValidateNested,
@@ -184,4 +185,16 @@ export class UpdateCompanyDto {
   @Max(365)
   @IsOptional()
   defaultPaymentDays?: number;
+
+  // Tier 176: default VAT treatment. Used to pre-fill the
+  // invoice create form's USt-Behandlung radio. NULL = "ask
+  // every time" (the conservative default — never silently
+  // mis-classify an invoice as §12 standard when the
+  // Mandant issues only §13b reverse-charge). See
+  // migration 20260812230000_company_default_vat_mode for
+  // the allowed values and the rationale for nullable.
+  @IsString()
+  @IsIn(['standard', 'reverseCharge', 'igL', 'kleinunternehmer'])
+  @IsOptional()
+  defaultVatMode?: string;
 }

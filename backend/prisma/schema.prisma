@@ -44,7 +44,16 @@ model Company {
   settings          Json?
   logoPath          String?
   invoicePrefix     String?
+  // Tier 176: default payment terms in days (already existed).
+  // Pre-fills the invoice create form's `dueDate` field
+  // (= issueDate + defaultPaymentDays) and is the source
+  // of truth for "Zahlbar binnen X Tagen" on the PDF.
   defaultPaymentDays Int     @default(30)
+  // Tier 176: default VAT treatment. NULL = "ask every time"
+  // (the old behaviour). Set to "standard" / "reverseCharge"
+  // / "igL" to auto-pick that radio button on invoice create
+  // and pre-stamp the USt-Behandlung on the PDF.
+  defaultVatMode    String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
