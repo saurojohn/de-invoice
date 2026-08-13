@@ -896,6 +896,19 @@ function DatevExportTab({
   const [preview, setPreview] = useState<any | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Tier 185: month-scoped bundle download. The
+  // year defaults to the year in the startDate
+  // prop (which the parent owns); the month
+  // defaults to the current month. Independent
+  // of the parent's startDate/endDate range —
+  // the Berater can pick a single month even
+  // if the date-range is set to a year.
+  const now = new Date()
+  const initialYear = startDate && startDate.length >= 4
+    ? parseInt(startDate.slice(0, 4), 10)
+    : now.getFullYear()
+  const [monthYear, setMonthYear] = useState<number>(initialYear)
+  const [monthMonth, setMonthMonth] = useState<number>(now.getMonth() + 1)
   const companyId =
     typeof window !== "undefined" ? localStorage.getItem("companyId") : null
 
@@ -1049,6 +1062,80 @@ function DatevExportTab({
             >
               📅 Per Monat aufteilen (ZIP)
             </Button>
+            {/* Tier 185: month-scoped bundle. The
+                year + month pickers sit next to this
+                button, and clicking it calls the
+                Tier 184 backend endpoint
+                (?year=YYYY&month=N). The
+                "EXTF_Buchungsstapel_YYYY-MM_L<n>.zip"
+                filename encodes the period so the
+                Berater's archive folder sorts cleanly. */}
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                data-testid="datev-bundle-month-year"
+                value={monthYear}
+                onChange={(e) => setMonthYear(parseInt(e.target.value, 10))}
+                className="px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800"
+                aria-label="DATEV-Buchungsstapel Jahr"
+              >
+                {Array.from({ length: 11 }, (_, i) => {
+                  const y = now.getFullYear() - i
+                  return (
+                    <option key={y} value={y}>
+                      {y}
+                    </option>
+                  )
+                })}
+              </select>
+              <select
+                data-testid="datev-bundle-month-month"
+                value={monthMonth}
+                onChange={(e) => setMonthMonth(parseInt(e.target.value, 10))}
+                className="px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800"
+                aria-label="DATEV-Buchungsstapel Monat"
+              >
+                {[
+                  "01 — Januar",
+                  "02 — Februar",
+                  "03 — März",
+                  "04 — April",
+                  "05 — Mai",
+                  "06 — Juni",
+                  "07 — Juli",
+                  "08 — August",
+                  "09 — September",
+                  "10 — Oktober",
+                  "11 — November",
+                  "12 — Dezember",
+                ].map((label, i) => (
+                  <option key={i + 1} value={i + 1}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  if (!companyId) return
+                  if (
+                    !Number.isInteger(monthMonth) ||
+                    monthMonth < 1 ||
+                    monthMonth > 12
+                  ) {
+                    toast.error("Ungültiger Monat (1-12)")
+                    return
+                  }
+                  window.open(
+                    `/api/v1/reports/datev-export-bundle?companyId=${companyId}&year=${monthYear}&month=${monthMonth}`,
+                    "_blank",
+                  )
+                }}
+                data-testid="datev-bundle-month-btn"
+                title="Erzeugt einen DATEV-Buchungsstapel für den gewählten Monat (CSV + Belegbilder als ZIP)."
+              >
+                📅 Monats-Archiv (ZIP)
+              </Button>
+            </div>
             {/* Tier 167: DATEV Buchungsliste — per-
                 Sachkonto summary + USt-Verprobung.
                 For the Berater who wants a
