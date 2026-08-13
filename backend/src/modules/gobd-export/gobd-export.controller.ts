@@ -15,7 +15,15 @@ import { Auth, Require } from '../../auth/roles.decorator'
  *
  * Endpoint:
  *
- *   GET /api/v1/gobd-export?companyId=...&year=YYYY
+ *   GET /api/v1/gobd-export?companyId=...&year=YYYY[&month=M]
+ *
+ * Tier 181 adds the optional `month` query param.
+ * When set, the archive is scoped to that single
+ * month (e.g. `&month=7` → 2026-07-01..2026-07-31 UTC).
+ * The filename becomes
+ *   `GoBD-2026-07-CompanyName-YYYY-MM-DD.zip`
+ * so the Berater's archive folder sorts naturally
+ * alongside the per-month UStVA-PDF (Tier 177).
  *
  * Requires `audit.read` (admin / accountant /
  * berater). The same role that can see the
@@ -26,6 +34,7 @@ import { Auth, Require } from '../../auth/roles.decorator'
  *   - application/zip
  *   - Content-Disposition: attachment;
  *     filename="GoBD-YYYY-CompanyName-YYYY-MM-DD.zip"
+ *     (or "GoBD-YYYY-MM-…zip" when month is set)
  *   - X-GoBD-Stats: JSON header with the per-section
  *     counts so the UI can show "✓ 234 invoices,
  *     7 Mahnungen, 1523 audit rows" without
@@ -33,6 +42,7 @@ import { Auth, Require } from '../../auth/roles.decorator'
  *
  * Failure modes:
  *   - 400 if year is missing or out of range
+ *   - 400 if month is set but out of range (1-12)
  *   - 400 if companyId is missing
  *   - 500 if the Prisma queries fail (e.g.
  *     DB down); the underlying service throws
@@ -58,6 +68,7 @@ export class GobdExportController {
   async export(
     @Query('companyId') companyId: string,
     @Query('year') yearParam: string | undefined,
+    @Query('month') monthParam: string | undefined,
     @Res() res: Response,
   ) {
     if (!companyId) {
@@ -72,9 +83,22 @@ export class GobdExportController {
         `Ungültiges Jahr: ${yearParam} (2000-2100)`,
       )
     }
+    // Tier 181: optional month. month=0 / month=13
+    // → 400 with a German explanation. Empty string
+    // is treated as "no month" (some HTTP clients
+    // emit `&month=` for absent values).
+    let month: number | undefined
+    if (monthParam !== undefined && monthParam !== '') {
+      month = parseInt(monthParam, 10)
+      if (!Number.isInteger(month) || month < 1 || month > 12) {
+        throw new BadRequestException(
+          `Ungültiger Monat: ${monthParam} (1-12)`,
+        )
+      }
+    }
 
     const t0 = Date.now()
-    const result = await this.svc.buildArchive({ companyId, year })
+    const result = await this.svc.buildArchive({ companyId, year, month })
     const ms = Date.now() - t0
     this.logger.log(
       `Built GoBD export for ${companyId} year=${year} in ${ms}ms: ` +

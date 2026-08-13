@@ -96,6 +96,13 @@ import * as crypto from 'crypto'
 export interface GobdExportOptions {
   companyId: string
   year: number
+  // Tier 181: optional month (1-12). When set, the
+  // archive is scoped to that month only — Berater
+  // gets a single "GoBD-Month" pack alongside the
+  // UStVA-PDF for the same period. When omitted,
+  // the archive is the full year (legacy behaviour
+  // from Tier 166).
+  month?: number
 }
 
 export interface GobdFileEntry {
@@ -170,8 +177,33 @@ export class GobdExportService {
         `Ungültiges Jahr: ${opts.year} (2000-2100)`,
       )
     }
-    const yearStart = new Date(Date.UTC(year, 0, 1, 0, 0, 0, 0))
-    const yearEnd = new Date(Date.UTC(year + 1, 0, 1, 0, 0, 0, 0))
+    // Tier 181: optional month-scoped archive. When
+    // `month` is set, the archive covers exactly that
+    // month (start..end of month, UTC). When omitted,
+    // the archive covers the full year (legacy path).
+    // month validates 1-12; an invalid month falls
+    // back to the year (defensive — the controller
+    // already validated, but a future internal caller
+    // might not).
+    let periodStart: Date
+    let periodEnd: Date
+    let periodLabel: string
+    if (opts.month !== undefined && opts.month !== null) {
+      if (!Number.isInteger(opts.month) || opts.month < 1 || opts.month > 12) {
+        throw new BadRequestException(
+          `Ungültiger Monat: ${opts.month} (1-12)`,
+        )
+      }
+      periodStart = new Date(Date.UTC(year, opts.month - 1, 1, 0, 0, 0, 0))
+      periodEnd = new Date(Date.UTC(year, opts.month, 1, 0, 0, 0, 0))
+      periodLabel = `${year}-${String(opts.month).padStart(2, '0')}`
+    } else {
+      periodStart = new Date(Date.UTC(year, 0, 1, 0, 0, 0, 0))
+      periodEnd = new Date(Date.UTC(year + 1, 0, 1, 0, 0, 0, 0))
+      periodLabel = `${year}`
+    }
+    const yearStart = periodStart
+    const yearEnd = periodEnd
 
     const company = await this.prisma.company.findUnique({
       where: { id: opts.companyId },
@@ -491,10 +523,19 @@ export class GobdExportService {
     // 4. Audit log CSV. We use the same
     //    serialiser as the existing
     //    /audit-logs/export.csv endpoint —
-    //    just with the year filter applied.
+    //    just with the period filter applied.
+    //    Tier 181: filename embeds the period
+    //    so a month-scoped archive's audit log
+    //    is "audit-logs-2026-07.csv" (not
+    //    misleadingly named "audit-logs-2026.csv"
+    //    when it actually only covers July).
     const csv = buildAuditCsv(auditLogs)
+    const auditLogName =
+      opts.month !== undefined && opts.month !== null
+        ? `audit-logs/audit-logs-${periodLabel}.csv`
+        : `audit-logs/audit-logs-${year}.csv`
     await appendFile(
-      `audit-logs/audit-logs-${year}.csv`,
+      auditLogName,
       Buffer.from('\ufeff' + csv, 'utf-8'),
       'text/csv; charset=utf-8',
       { isSigned: false },
@@ -611,9 +652,20 @@ export class GobdExportService {
         taxId: company.taxId,
         vatId: company.vatId,
       },
+      // Tier 166 had `year/yearStart/yearEnd`. Tier
+      // 181 introduces `periodLabel/periodStart/periodEnd`
+      // — the same value, but with a clearer name when
+      // a month is set. We keep the legacy `year*` keys
+      // set to the same year (and full-year bounds) for
+      // back-compat with any Prüfer tooling that read
+      // the old manifest schema.
       year,
-      yearStart: yearStart.toISOString(),
-      yearEnd: yearEnd.toISOString(),
+      yearStart: new Date(Date.UTC(year, 0, 1)).toISOString(),
+      yearEnd: new Date(Date.UTC(year + 1, 0, 1)).toISOString(),
+      periodLabel,
+      periodStart: periodStart.toISOString(),
+      periodEnd: periodEnd.toISOString(),
+      scope: opts.month !== undefined && opts.month !== null ? 'month' : 'year',
       // Sort files by path so the manifest is
       // stable across runs (same input →
       // same sha256).
@@ -661,7 +713,16 @@ export class GobdExportService {
 
     const stamp = new Date().toISOString().slice(0, 10)
     const safeCompanyName = company.name.replace(/[^\w.-]/g, '_')
-    const filename = `GoBD-${year}-${safeCompanyName}-${stamp}.zip`
+    // Tier 181: when month is set, embed the period
+    // in the filename so the Berater's archive folder
+    // sorts cleanly ("GoBD-2026-01-…", "GoBD-2026-02-…").
+    // The year-only path keeps the original
+    // "GoBD-YYYY-Company-…zip" shape so existing
+    // scripts/dashboards keep working.
+    const filename =
+      opts.month !== undefined && opts.month !== null
+        ? `GoBD-${periodLabel}-${safeCompanyName}-${stamp}.zip`
+        : `GoBD-${year}-${safeCompanyName}-${stamp}.zip`
 
     return {
       zipBuffer,
