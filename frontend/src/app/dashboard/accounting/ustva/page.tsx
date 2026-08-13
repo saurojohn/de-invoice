@@ -389,6 +389,56 @@ function UstvaPageInner() {
     window.URL.revokeObjectURL(url)
   }
 
+  // Tier 182: UStVA-PDF download (Berater-readable A4).
+  // The endpoint is /api/v1/ustva/ustva.pdf?year=&month=&companyId=
+  // and `month` is REQUIRED (Zahllast is per-month). For
+  // the PDF to be available, the user must have selected
+  // a single month (m1..m12). Year / quarter selections
+  // disable the button (the PDF doesn't exist for them —
+  // the Finanzamt wants monthly, and a year would be 12
+  // separate PDFs anyway).
+  const downloadUstvaPdf = async () => {
+    const companyId = localStorage.getItem("companyId")
+    if (!companyId) return
+    if (!period.startsWith("m")) {
+      setDownloadError(
+        "UStVA-PDF ist pro Monat verfügbar. Bitte einen einzelnen Monat wählen.",
+      )
+      return
+    }
+    const month = parseInt(period.slice(1), 10)
+    if (!Number.isInteger(month) || month < 1 || month > 12) {
+      setDownloadError(`Ungültiger Monat: ${month}`)
+      return
+    }
+    try {
+      const res = await apiFetch(
+        `/api/v1/ustva/ustva.pdf?companyId=${encodeURIComponent(companyId)}&year=${year}&month=${month}`,
+        { method: "GET" },
+      )
+      if (!res.ok) {
+        setDownloadError(
+          `UStVA-PDF konnte nicht geladen werden (HTTP ${res.status})`,
+        )
+        return
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `UStVA-${year}-${String(month).padStart(2, "0")}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+    } catch (e: any) {
+      setDownloadError(
+        e?.message || "UStVA-PDF konnte nicht heruntergeladen werden",
+      )
+    }
+  }
+  const isMonthSelected = period.startsWith("m")
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
       <div className="max-w-7xl mx-auto">
@@ -451,8 +501,26 @@ function UstvaPageInner() {
                 </select>
               </div>
               <div className="md:col-span-2 flex items-end gap-2 justify-end">
-                <Button variant="outline" onClick={downloadCsv} disabled={!data}>
+                <Button
+                  variant="outline"
+                  onClick={downloadCsv}
+                  disabled={!data}
+                  data-testid="ustva-export-csv"
+                >
                   {t("ustva.exportCsv")}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={downloadUstvaPdf}
+                  disabled={!data || !isMonthSelected}
+                  title={
+                    isMonthSelected
+                      ? t("ustva.downloadPdf") || "UStVA-PDF herunterladen"
+                      : "UStVA-PDF ist pro Monat verfügbar"
+                  }
+                  data-testid="ustva-export-pdf"
+                >
+                  {t("ustva.downloadPdf") || "UStVA-PDF herunterladen"}
                 </Button>
               </div>
             </div>
