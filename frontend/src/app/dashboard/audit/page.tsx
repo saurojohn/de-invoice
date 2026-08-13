@@ -649,6 +649,87 @@ export default function AuditPage() {
     }
   }
 
+  // Tier 183: month-scoped GoBD archive
+  // download. Same pattern as the year
+  // button (Tier 166), but with an extra
+  // `&month=N` query param that the
+  // backend (Tier 181) accepts. The
+  // Berater picks a year + month and gets
+  // back a single-month archive.
+  const downloadGobdMonth = async () => {
+    const companyId =
+      typeof window !== "undefined"
+        ? localStorage.getItem("companyId")
+        : null
+    if (!companyId) {
+      toast.error(t("common.companyMissing") || "companyId fehlt")
+      return
+    }
+    const yearSel = document.querySelector(
+      '[data-testid="audit-gobd-year"]',
+    ) as HTMLSelectElement | null
+    const monthSel = document.querySelector(
+      '[data-testid="audit-gobd-month"]',
+    ) as HTMLSelectElement | null
+    const year = yearSel?.value || String(new Date().getFullYear())
+    const month = parseInt(monthSel?.value || "1", 10)
+    if (!Number.isInteger(month) || month < 1 || month > 12) {
+      toast.error(
+        t("audit.invalidMonth") || "Ungültiger Monat (1-12)",
+      )
+      return
+    }
+    const apiBase =
+      process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
+    try {
+      const res = await fetch(
+        `${apiBase}/api/v1/gobd-export?companyId=${companyId}&year=${year}&month=${month}`,
+        {
+          headers: {
+            "x-user-id":
+              localStorage.getItem("userId") || "",
+            "x-company-id": companyId,
+          },
+        },
+      )
+      if (!res.ok) {
+        const errText = await res.text().catch(() => "")
+        toast.error(
+          `GoBD-Monats-Archiv: HTTP ${res.status} — ${errText.slice(0, 200)}`,
+        )
+        return
+      }
+      const statsHeader = res.headers.get("x-gobd-stats")
+      let statsText = ""
+      if (statsHeader) {
+        try {
+          const s = JSON.parse(statsHeader)
+          statsText = ` — ${s.invoices} Rechnungen, ${s.mahnungen} Mahnungen, ${s.emailSends} E-Mails, ${s.auditLogRows} Audit-Einträge`
+        } catch {
+          // statsHeader wasn't JSON
+        }
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      const cd = res.headers.get("content-disposition") || ""
+      const m = cd.match(/filename="([^"]+)"/)
+      a.download =
+        m?.[1] ||
+        `GoBD-${year}-${String(month).padStart(2, "0")}.zip`
+      a.href = url
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      toast.success(
+        `${t("audit.gobdMonthExportOk") || "GoBD-Monats-Archiv heruntergeladen"}${statsText}`,
+      )
+    } catch (e: any) {
+      toast.error(e?.message || t("common.loadError"))
+    }
+  }
+
   const hasMore = skip + TAKE < total
 
   return (
@@ -734,6 +815,44 @@ export default function AuditPage() {
               data-testid="audit-export-gobd"
             >
               🗄 {t("audit.exportGobd") || "GoBD-Archiv"}
+            </Button>
+            {/* Tier 183: month-scoped GoBD archive
+                download. The month picker sits next
+                to the year picker, and the "Monats-Archiv"
+                button triggers a single-month pack
+                via ?year=&month= (Tier 181 backend). */}
+            <select
+              data-testid="audit-gobd-month"
+              defaultValue={new Date().getMonth() + 1}
+              className="px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800"
+              aria-label={t("audit.gobdMonthPickerLabel") || "Monat"}
+            >
+              {[
+                "01 — Januar",
+                "02 — Februar",
+                "03 — März",
+                "04 — April",
+                "05 — Mai",
+                "06 — Juni",
+                "07 — Juli",
+                "08 — August",
+                "09 — September",
+                "10 — Oktober",
+                "11 — November",
+                "12 — Dezember",
+              ].map((label, i) => (
+                <option key={i + 1} value={i + 1}>
+                  {label}
+                </option>
+              ))}
+            </select>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={downloadGobdMonth}
+              data-testid="audit-export-gobd-month"
+            >
+              🗓 {t("audit.exportGobdMonth") || "GoBD-Monats-Archiv"}
             </Button>
             <Button
               variant="outline"
