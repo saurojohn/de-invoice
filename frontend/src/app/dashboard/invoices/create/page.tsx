@@ -401,6 +401,75 @@ function CreateInvoicePageInner() {
     })
   }, [router])
 
+  // Tier 176 (frontend): pre-fill the USt-Behandlung radio
+  // and the dueDate from Company.defaultVatMode +
+  // Company.defaultPaymentDays. Backend pre-fills the same
+  // fields on save (see invoice.service.ts.create) but
+  // showing the pre-selected radio on the form is better UX
+  // than opening with "Standard" and having the user
+  // re-pick. Skip in edit mode — the invoice already has
+  // its own reverseCharge / euTransaction / dueDate.
+  //
+  // Only runs once on mount (no deps). If the company
+  // default changes while the form is open, the user can
+  // re-pick via the radio — we don't refetch.
+  useEffect(() => {
+    if (isEdit) return
+    const companyId = typeof window !== "undefined"
+      ? localStorage.getItem("companyId")
+      : null
+    if (!companyId) return
+    fetch(`http://localhost:3001/api/v1/companies/${companyId}`, {
+      headers: { "x-user-id": localStorage.getItem("userId") || "" },
+    })
+      .then((r) => r.ok ? r.json() : null)
+      .then((co) => {
+        if (!co) return
+        setForm((prev) => {
+          // Don't clobber user-typed values if the form
+          // is already populated (e.g. clone mode where
+          // prefillFromInvoice ran first).
+          if (prev.dueDate) return prev
+          if (co.defaultPaymentDays && co.defaultPaymentDays > 0) {
+            const issue = prev.issueDate
+              ? new Date(prev.issueDate)
+              : new Date()
+            const due = new Date(issue.getTime() + co.defaultPaymentDays * 86400_000)
+            // Skip pre-fill in clone mode: prefillFromInvoice
+            // already sets dueDate to the cloned source's.
+            if (!prev.dueDate) {
+              return { ...prev, dueDate: due.toISOString().split("T")[0] }
+            }
+          }
+          return prev
+        })
+        // The radio group is derived from reverseCharge /
+        // euTransaction. Pre-select the radio if the company
+        // has a defaultVatMode that's not 'standard' (standard
+        // is the default with both booleans false, no
+        // setForm needed).
+        if (co.defaultVatMode === "reverseCharge") {
+          setForm((prev) => ({ ...prev, reverseCharge: true, euTransaction: false }))
+        } else if (co.defaultVatMode === "igL") {
+          setForm((prev) => ({ ...prev, reverseCharge: false, euTransaction: true }))
+        } else if (co.defaultVatMode === "kleinunternehmer") {
+          // Kleinunternehmer = no USt. Backend already
+          // recognises this. Frontend keeps the standard
+          // radio (both false) — the §19 disclaimer is
+          // added on the PDF via the company setting.
+          // No radio change needed.
+        }
+        // 'standard' or null → both booleans stay false,
+        // radio opens unselected. This is the existing
+        // behaviour and matches the current default.
+      })
+      .catch(() => {
+        // Soft-fail. The form is fully usable without
+        // the pre-fill; the user can pick the radio
+        // manually.
+      })
+  }, [isEdit])
+
   // Tier 150: watch the form for a likely-duplicate
   // combination (same customer + similar amount + nearby
   // issueDate) and surface a warning banner. Debounced

@@ -75,6 +75,14 @@ interface CompanySettings {
   logoPath: string
   invoicePrefix: string
   defaultPaymentDays: number
+  // Tier 176 (frontend): default VAT treatment. Maps to
+  // the same `defaultVatMode` column added in the
+  // migration `20260812230000_company_default_vat_mode`.
+  // null = "ask every time" (the radio is unselected
+  // on invoice create, the user picks per invoice).
+  // Allowed values: "standard" | "reverseCharge" |
+  // "igL" | "kleinunternehmer".
+  defaultVatMode: "standard" | "reverseCharge" | "igL" | "kleinunternehmer" | null
 }
 
 export default function SettingsPage() {
@@ -206,6 +214,7 @@ export default function SettingsPage() {
     logoPath: "",
     invoicePrefix: "INV",
     defaultPaymentDays: 30,
+    defaultVatMode: null,
   })
 
   const [storageForm, setStorageForm] = useState<StorageSettings>({
@@ -293,6 +302,12 @@ export default function SettingsPage() {
               // was ignored on the next page load.
               invoicePrefix: data.invoicePrefix ?? "INV",
               defaultPaymentDays: data.defaultPaymentDays ?? 30,
+              // Tier 176: the company may have a default
+              // VAT treatment. We preserve `null` for
+              // "ask every time" — the invoice create
+              // form will show the radio group without
+              // a pre-selected option.
+              defaultVatMode: data.defaultVatMode ?? null,
             })
 
             if (data.logoPath) {
@@ -534,6 +549,11 @@ export default function SettingsPage() {
           logoPath: fresh.logoPath ?? "",
           invoicePrefix: fresh.invoicePrefix ?? "INV",
           defaultPaymentDays: fresh.defaultPaymentDays ?? 30,
+          // Tier 176: keep the user's default VAT
+          // selection. `null` means "no default, ask
+          // every time" — the radio is unselected on
+          // invoice create.
+          defaultVatMode: fresh.defaultVatMode ?? null,
         })
       }
       toast.error(t("settings.saved"))
@@ -1110,6 +1130,43 @@ export default function SettingsPage() {
                     <option value={60}>{t("paymentTerm.days60")}</option>
                     <option value={90}>{t("paymentTerm.days90")}</option>
                   </select>
+                </div>
+                <div>
+                  {/* Tier 176: default VAT treatment. The empty
+                      option represents `null` (= "ask every
+                      time") which is the conservative default
+                      for Mandanten with no dominant pattern.
+                      The backend pre-fills the invoice's
+                      reverseCharge / euTransaction from
+                      this when the user doesn't override
+                      per-invoice. The four §-references are
+                      in the option labels so the user
+                      knows what they're picking. */}
+                  <label className="block text-sm font-medium mb-1">
+                    {t("settings.defaultVatMode")}
+                  </label>
+                  <select
+                    className="w-full h-10 border rounded-md px-3"
+                    value={form.defaultVatMode ?? ""}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        defaultVatMode: e.target.value
+                          ? (e.target.value as "standard" | "reverseCharge" | "igL" | "kleinunternehmer")
+                          : null,
+                      })
+                    }
+                    data-testid="settings-default-vat-mode"
+                  >
+                    <option value="">{t("settings.defaultVatModeNone")}</option>
+                    <option value="standard">{t("settings.defaultVatModeStandard")}</option>
+                    <option value="reverseCharge">{t("settings.defaultVatModeReverseCharge")}</option>
+                    <option value="igL">{t("settings.defaultVatModeIgL")}</option>
+                    <option value="kleinunternehmer">{t("settings.defaultVatModeKleinunternehmer")}</option>
+                  </select>
+                  <p className="text-xs text-gray-600 mt-1">
+                    {t("settings.defaultVatModeHelp")}
+                  </p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">
@@ -1739,7 +1796,12 @@ export default function SettingsPage() {
 
           {/* Submit */}
           <div className="flex gap-4">
-            <Button type="submit" className="flex-1" disabled={saving}>
+            <Button
+              type="submit"
+              className="flex-1"
+              disabled={saving}
+              data-testid="settings-save"
+            >
               {saving
                 ? t("common.saving")
                 : t("common.save")}
