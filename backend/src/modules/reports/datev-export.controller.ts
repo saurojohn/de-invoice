@@ -216,18 +216,56 @@ export class DatevExportController {
     @Query('companyId') companyId: string,
     @Query('startDate') startDateStr: string,
     @Query('endDate') endDateStr: string,
+    @Query('year') yearParam: string | undefined,
+    @Query('month') monthParam: string | undefined,
     @Res() res: Response,
   ) {
     if (!companyId) throw new BadRequestException('companyId is required');
     const company = await this.prisma.company.findUnique({ where: { id: companyId } });
     if (!company) throw new BadRequestException('Company not found');
 
-    const startDate = startDateStr
-      ? new Date(startDateStr)
-      : new Date(new Date().getFullYear(), 0, 1);
-    const endDate = endDateStr
-      ? new Date(endDateStr)
-      : new Date();
+    // Tier 184: month-scoped DATEV bundle.
+    // When ?month=N (1-12) is set, the bundle is
+    // scoped to that single month (the date range
+    // is the calendar month, and the filename
+    // encodes the period). Mirrors Tier 181's
+    // GoBD-export month-scoped pattern. When
+    // absent, the legacy startDate/endDate range
+    // applies (defaults to the current calendar
+    // year if both are missing).
+    let startDate: Date
+    let endDate: Date
+    let periodLabel: string | null = null
+    if (monthParam !== undefined && monthParam !== '') {
+      const m = parseInt(monthParam, 10)
+      if (!Number.isInteger(m) || m < 1 || m > 12) {
+        throw new BadRequestException(
+          `Ungültiger Monat: ${monthParam} (1-12)`,
+        )
+      }
+      const y = yearParam
+        ? parseInt(yearParam, 10)
+        : new Date().getFullYear()
+      if (!Number.isInteger(y) || y < 2000 || y > 2100) {
+        throw new BadRequestException(
+          `Ungültiges Jahr: ${yearParam || 'default'} (2000-2100)`,
+        )
+      }
+      // Month boundaries — start inclusive, end
+      // inclusive. We push the end to 23:59:59.999
+      // so that any buchung on the last day of
+      // the month is included.
+      startDate = new Date(y, m - 1, 1, 0, 0, 0, 0)
+      endDate = new Date(y, m, 0, 23, 59, 59, 999)
+      periodLabel = `${y}-${String(m).padStart(2, '0')}`
+    } else {
+      startDate = startDateStr
+        ? new Date(startDateStr)
+        : new Date(new Date().getFullYear(), 0, 1)
+      endDate = endDateStr
+        ? new Date(endDateStr)
+        : new Date()
+    }
 
     // Generate the same CSV the standalone /datev-export
     // endpoint returns. Identical inputs → identical bytes.
@@ -260,7 +298,13 @@ export class DatevExportController {
     }))
 
     const laufNr = (company as any).settings?.datev?.laufNr?.[startDate.getFullYear()] || 1;
-    const zipFilename = `EXTF_Buchungsstapel_${startDate.toISOString().split('T')[0]}_L${String(laufNr).padStart(3, '0')}.zip`;
+    // Tier 184: month-scoped filename embeds the
+    // period so a Berater's archive folder sorts
+    // cleanly. Legacy range exports keep the
+    // EXTF_Buchungsstapel_YYYY-MM-DD format.
+    const zipFilename = periodLabel
+      ? `EXTF_Buchungsstapel_${periodLabel}_L${String(laufNr).padStart(3, '0')}.zip`
+      : `EXTF_Buchungsstapel_${startDate.toISOString().split('T')[0]}_L${String(laufNr).padStart(3, '0')}.zip`;
 
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', `attachment; filename="${zipFilename}"`);
@@ -329,11 +373,21 @@ export class DatevExportController {
         generatedAt: new Date().toISOString(),
         company: company.name,
         companyId: company.id,
+        // startDate / endDate stay as raw Date.toISOString()
+        // for back-compat with the Tier 167 MANIFEST
+        // format. Tier 184 adds periodLabel/periodStart/
+        // periodEnd + scope so a Prüfer verifying a
+        // month-scoped bundle can identify the period
+        // without re-computing the date arithmetic.
         startDate: startDate.toISOString(),
         endDate: endDate.toISOString(),
         buchungsLauf: laufNr,
         belegbilderIncluded: includedCount,
         belegbilderMissing: missingCount,
+        periodLabel,
+        periodStart: periodLabel ? startDate.toISOString() : undefined,
+        periodEnd: periodLabel ? endDate.toISOString() : undefined,
+        scope: periodLabel ? 'month' : 'range',
       }, null, 2),
       { name: 'MANIFEST.json' },
     )
