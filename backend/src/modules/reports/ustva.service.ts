@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
+import type { Response } from 'express';
 
 /**
  * UStVA — Umsatzsteuervoranmeldung
@@ -276,6 +277,182 @@ export class UstvaService {
         expenses: expenseCount,
       },
     };
+  }
+
+  /**
+   * Tier 177: render the UStVA as a PDF (A4 portrait).
+   *
+   * Phase 3 Berater-Walkthrough found that USER-GUIDE
+   * Pfad 4.2 promised a "UStVA-PDF" download but no
+   * such endpoint existed — the only UStVA export
+   * was the ELSTER-XML via /ustva/filings/:id/elster-xml.
+   * This tier closes that gap.
+   *
+   * The PDF is a single-page Berater-readable summary,
+   * not a substitute for the ELSTER submission XML
+   * (which is what the Finanzamt actually receives).
+   * Layout matches the BWA PDF style (header + table
+   * + summary) so the Berater has a consistent
+   * look-and-feel across reports.
+   */
+  async renderPdf(
+    companyId: string,
+    year: number,
+    month: number,
+    res: Response,
+  ): Promise<void> {
+    const data = await this.compute(companyId, year, undefined, month)
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { name: true, legalName: true, taxId: true, vatId: true },
+    })
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="UStVA-${year}-${String(month).padStart(2, '0')}.pdf"`,
+    )
+
+    const PDFDocument = (await import('pdfkit')).default
+    const doc = new PDFDocument({ size: 'A4', layout: 'portrait', margin: 50 })
+    doc.pipe(res)
+
+    // Header
+    doc
+      .fontSize(16)
+      .font('Helvetica-Bold')
+      .text('Umsatzsteuer-Voranmeldung', { align: 'left' })
+    doc
+      .fontSize(9)
+      .font('Helvetica')
+      .text(
+        `${company?.legalName || company?.name || 'Unternehmen'}  |  ${data.periodLabel}  |  Steuernummer: ${company?.taxId || '—'}`,
+      )
+    doc.moveDown(0.5)
+
+    // Section 1: Bemessungsgrundlagen (sales by VAT rate)
+    doc.fontSize(11).font('Helvetica-Bold').text('1. Bemessungsgrundlagen')
+    doc.moveDown(0.2)
+    doc.fontSize(9).font('Helvetica-Bold')
+    const headerY = doc.y
+    doc.text('USt-Satz', 50, headerY, { width: 100 })
+    doc.text('Bezeichnung', 150, headerY, { width: 200 })
+    doc.text('Netto', 380, headerY, { width: 90, align: 'right' })
+    doc.text('USt', 480, headerY, { width: 90, align: 'right' })
+    doc.moveDown(0.3)
+    doc.moveTo(50, doc.y).lineTo(570, doc.y).stroke()
+
+    doc.font('Helvetica')
+    if (data.salesByRate.length === 0) {
+      doc.text('Keine Umsätze im Zeitraum.', 50, doc.y + 4, { width: 500 })
+      doc.moveDown(0.6)
+    } else {
+      for (const s of data.salesByRate) {
+        const y = doc.y
+        doc.text(`${(s.rate * 100).toFixed(0)}%`, 50, y, { width: 100 })
+        doc.text(s.label, 150, y, { width: 220 })
+        doc.text(this.fmtEur(s.net), 380, y, { width: 90, align: 'right' })
+        doc.text(this.fmtEur(s.vat), 480, y, { width: 90, align: 'right' })
+        doc.moveDown(0.3)
+      }
+    }
+
+    // Section 2: Sonderfälle
+    doc.moveDown(0.4)
+    doc.fontSize(11).font('Helvetica-Bold').text('2. Sonderfälle')
+    doc.moveDown(0.2)
+    doc.fontSize(9).font('Helvetica')
+    const sY = doc.y
+    doc.text('igL (§1a UStG)', 50, sY, { width: 250 })
+    doc.text(this.fmtEur(data.igL), 380, sY, { width: 90, align: 'right' })
+    doc.text('—', 480, sY, { width: 90, align: 'right' })
+    doc.moveDown(0.3)
+    const sY2 = doc.y
+    doc.text('Ausfuhr (§4 Nr. 1a UStG)', 50, sY2, { width: 250 })
+    doc.text(this.fmtEur(data.export), 380, sY2, { width: 90, align: 'right' })
+    doc.text('—', 480, sY2, { width: 90, align: 'right' })
+    doc.moveDown(0.3)
+    const sY3 = doc.y
+    doc.text('Sonstige steuerfreie Umsätze', 50, sY3, { width: 250 })
+    doc.text(this.fmtEur(data.otherExempt), 380, sY3, { width: 90, align: 'right' })
+    doc.text('—', 480, sY3, { width: 90, align: 'right' })
+    doc.moveDown(0.3)
+    const sY4 = doc.y
+    doc.text('Reverse-Charge (§13b UStG) — BMG', 50, sY4, { width: 250 })
+    doc.text(this.fmtEur(data.reverseCharge), 380, sY4, { width: 90, align: 'right' })
+    doc.text('—', 480, sY4, { width: 90, align: 'right' })
+
+    // Section 3: Vorsteuer (input tax deduction)
+    doc.moveDown(0.5)
+    doc.fontSize(11).font('Helvetica-Bold').text('3. Abziehbare Vorsteuer')
+    doc.moveDown(0.2)
+    doc.fontSize(9).font('Helvetica')
+    const vY = doc.y
+    doc.text('aus 19% Eingangsleistungen', 50, vY, { width: 350 })
+    doc.text(this.fmtEur(data.vorsteuer.from19), 480, vY, { width: 90, align: 'right' })
+    doc.moveDown(0.3)
+    const vY2 = doc.y
+    doc.text('aus 7% Eingangsleistungen', 50, vY2, { width: 350 })
+    doc.text(this.fmtEur(data.vorsteuer.from7), 480, vY2, { width: 90, align: 'right' })
+    doc.moveDown(0.3)
+    const vY3 = doc.y
+    doc.text('aus igL (§1a Abs. 4 UStG)', 50, vY3, { width: 350 })
+    doc.text(this.fmtEur(data.vorsteuer.fromIgE), 480, vY3, { width: 90, align: 'right' })
+    doc.moveDown(0.3)
+    const vY4 = doc.y
+    doc.text('aus Reverse-Charge (§13b UStG)', 50, vY4, { width: 350 })
+    doc.text(this.fmtEur(data.vorsteuer.fromReverseCharge), 480, vY4, { width: 90, align: 'right' })
+    doc.moveDown(0.3)
+    doc.moveTo(50, doc.y).lineTo(570, doc.y).stroke()
+    doc.moveDown(0.2)
+    const vTotalY = doc.y
+    doc.font('Helvetica-Bold').text('Summe Vorsteuer', 50, vTotalY, { width: 350 })
+    doc.text(this.fmtEur(data.vorsteuer.total), 480, vTotalY, { width: 90, align: 'right' })
+
+    // Section 4: Zahllast
+    doc.moveDown(0.6)
+    doc.moveTo(50, doc.y).lineTo(570, doc.y).stroke()
+    doc.moveDown(0.3)
+    doc.fontSize(12).font('Helvetica-Bold')
+    const zY = doc.y
+    doc.text('Umsatzsteuer (Zeile 1 + Sonderfälle):', 50, zY, { width: 350 })
+    doc.text(this.fmtEur(data.umsatzsteuer), 380, zY, { width: 90, align: 'right' })
+    doc.moveDown(0.4)
+    const zY2 = doc.y
+    doc.text('abzüglich Vorsteuer:', 50, zY2, { width: 350 })
+    doc.text(this.fmtEur(-data.vorsteuerSum), 380, zY2, { width: 90, align: 'right' })
+    doc.moveDown(0.4)
+    doc.moveTo(50, doc.y).lineTo(570, doc.y).stroke()
+    doc.moveDown(0.3)
+    doc.fontSize(14)
+    const zY3 = doc.y
+    doc.text('Zahllast / Erstattungsüberschuss:', 50, zY3, { width: 350 })
+    const differenzSign = data.differenzbetrag >= 0 ? '+' : '−'
+    doc.text(
+      `${differenzSign} ${this.fmtEur(Math.abs(data.differenzbetrag))}`,
+      380,
+      zY3,
+      { width: 90, align: 'right' },
+    )
+
+    // Footer: count + GoBD note
+    doc.moveDown(1.5)
+    doc.font('Helvetica').fontSize(8)
+    doc.text(
+      `Basiert auf ${data.counts.invoices} Rechnungen + ${data.counts.expenses} Belegen.`,
+    )
+    doc.text(
+      'GoBD § 146 Abs. 1 AO: Dieser Ausdruck ist ein internes Berater-Dokument und ersetzt nicht die ELSTER-Übermittlung.',
+    )
+
+    doc.end()
+  }
+
+  private fmtEur(n: number): string {
+    return new Intl.NumberFormat('de-DE', {
+      style: 'currency',
+      currency: 'EUR',
+      minimumFractionDigits: 2,
+    }).format(n)
   }
 
   private isEUCountry(country: string): boolean {

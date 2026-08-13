@@ -39,6 +39,45 @@ export class UstvaController {
     return this.ustva.compute(companyId, year, quarter, month);
   }
 
+  // Tier 177: UStVA-PDF. Phase 3 Berater-Walkthrough
+  // found that USER-GUIDE Pfad 4.2 promised a
+  // "UStVA-PDF" download but no such endpoint
+  // existed. This is the Berater-readable summary
+  // (A4 portrait, single page), not the ELSTER
+  // submission XML — the Finanzamt still needs the
+  // XML via /ustva/filings/:id/elster-xml.
+  //
+  // Required: month is mandatory for the PDF
+  // because the Zahllast (Zahlung / Erstattung) is
+  // per-month, not per-year. A user who wants
+  // "UStVA für Q3" should fetch the 3 monthly PDFs.
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  @Get('ustva.pdf')
+  @Header('Content-Type', 'application/pdf')
+  @Require('ustva.read')
+  async getUstvaPdf(
+    @Res() res: Response,
+    @Query('companyId') companyId: string,
+    @Query('year') yearRaw?: string,
+    @Query('month') monthRaw?: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const now = new Date()
+    const year = yearRaw ? Number(yearRaw) : now.getFullYear()
+    if (!Number.isFinite(year) || year < 2000 || year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+    // month is required — see comment above
+    if (!monthRaw) {
+      throw new BadRequestException('month ist erforderlich (UStVA-PDF ist pro Monat)')
+    }
+    const month = Number(monthRaw)
+    if (!Number.isInteger(month) || month < 1 || month > 12) {
+      throw new BadRequestException('month muss zwischen 1 und 12 liegen')
+    }
+    await this.ustva.renderPdf(companyId, year, month, res)
+  }
+
   // Tier 161: Monatsvergleich USt-Voranmeldung.
   // Returns the last `months` months (default 6) of
   // UStVA aggregates for the dashboard widget. The
