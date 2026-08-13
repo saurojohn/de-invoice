@@ -150,7 +150,23 @@ export default function ExpensesPage() {
     // paymentState yet — it filters client-side below.
     try {
       const data = await apiGet(`/api/v1/expenses?${params.toString()}`)
-      setItems(Array.isArray(data) ? data : [])
+      // Tier 178: backend now returns {data, total} to
+      // match /invoices, /customers, /products. Fall
+      // back to the array shape (Tier 178-back-compat)
+      // if a stale backend hasn't been restarted.
+      if (Array.isArray(data)) {
+        setItems(data)
+        // No total in the old shape — keep our local
+        // count (was `items.length`).
+      } else if (data && Array.isArray(data.data)) {
+        setItems(data.data)
+        // If a total field is present, surface it via
+        // the parent's count line. (The parent doesn't
+        // currently render a count; this is for a future
+        // tier that adds one.)
+      } else {
+        setItems([])
+      }
     } catch (e) {
       console.error("expenses load failed", e)
       setItems([])

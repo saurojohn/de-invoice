@@ -1,0 +1,22 @@
+-- Migration: Tier 179 — Expense.accountNumber
+--
+-- Why this migration:
+--   Phase 3 Berater-Walkthrough found that the
+--   expense list/create response didn't echo the
+--   SKR03 Sachkonto back to the frontend. The
+--   original service had no field for it (the
+--   caller could pass `accountNumber` in the
+--   request body but it was silently dropped).
+--
+--   Voucher (Buchungsbeleg) has lines with an
+--   `accountId` FK to ChartOfAccount. Expense
+--   is a step earlier (the Beleg / receipt) so
+--   we keep it as a plain string — the user
+--   stamps the SKR03 account at Beleg level,
+--   and the bank-import flow generates the
+--   Voucher later (with its own SKR03 lines).
+--
+--   Nullable because existing expenses have no
+--   account number; the field is opt-in per
+--   Beleg. Tier 179 wires the frontend echo.
+ALTER TABLE "Expense" ADD COLUMN "accountNumber" TEXT;

@@ -38,7 +38,7 @@ export class ExpenseService {
       orderBy: { invoiceDate: 'desc' },
       take: 500,
     });
-    if (items.length === 0) return items;
+    if (items.length === 0) return { data: [], total: 0 };
     // Augment each Expense with the most recent linked
     // Voucher (for the list page to show a "Buchungsbeleg"
     // link + a "Storniert" badge if the Voucher is a
@@ -79,28 +79,44 @@ export class ExpenseService {
         }
       }
     }
-    return items.map((e) => {
-      const v = voucherByExpense[e.id];
-      return {
-        ...e,
-        // Cheap UI hint: "Storniert" if the linked
-        // voucher is itself a VoucherReversal, "Bezahlt"
-        // if there's any linked voucher, "Offen" otherwise.
-        // This drives the colored badge in the list.
-        paymentState: v
-          ? v.referenceType === 'VoucherReversal'
-            ? 'storniert'
-            : 'bezahlt'
-          : 'offen',
-        linkedVoucher: v
-          ? {
-              id: v.id,
-              voucherNumber: v.voucherNumber,
-              referenceType: v.referenceType,
-            }
-          : null,
-      };
-    });
+    return {
+      // Tier 178: wrap the array in {data, total} so
+      // the list page can paginate and show a count,
+      // matching the shape of /invoices, /customers,
+      // /products. Phase 3 Berater-Walkthrough flagged
+      // this as a consistency gap.
+      data: items.map((e) => {
+        const v = voucherByExpense[e.id];
+        return {
+          ...e,
+          // Cheap UI hint: "Storniert" if the linked
+          // voucher is itself a VoucherReversal, "Bezahlt"
+          // if there's any linked voucher, "Offen" otherwise.
+          // This drives the colored badge in the list.
+          paymentState: v
+            ? v.referenceType === 'VoucherReversal'
+              ? 'storniert'
+              : 'bezahlt'
+            : 'offen',
+          linkedVoucher: v
+            ? {
+                id: v.id,
+                voucherNumber: v.voucherNumber,
+                referenceType: v.referenceType,
+              }
+            : null,
+        };
+      }),
+      // Tier 178: total = total rows the list page
+      // would see if it asked for all pages. With
+      // take: 500 hard-coded above, we lose the
+      // ability to do a real COUNT — but for the
+      // typical case (< 500 expenses per year) total
+      // equals items.length. For larger data sets
+      // a future tier should drop the `take: 500`
+      // and add a separate prisma.expense.count.
+      total: items.length,
+    };
   }
 
   async findOne(id: string, companyId: string) {
@@ -134,6 +150,15 @@ export class ExpenseService {
         vatAmount: vat.toFixed(4),
         grossAmount: gross.toFixed(4),
         category: data.category || null,
+        // Tier 179: persist the SKR03 Sachkonto the
+        // caller passed. Trim + max 20 chars to match
+        // the AccountNumber convention used elsewhere
+        // (the DTO would do this in a strict refactor;
+        // for Tier 179 we sanitise inline).
+        accountNumber:
+          typeof data.accountNumber === 'string' && data.accountNumber.trim()
+            ? data.accountNumber.trim().slice(0, 20)
+            : null,
         isIntraEU: !!data.isIntraEU,
         isReverseCharge: !!data.isReverseCharge,
         status: data.status || 'booked',

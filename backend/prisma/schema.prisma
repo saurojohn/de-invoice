@@ -458,6 +458,17 @@ model Expense {
   vatAmount       Decimal  @db.Decimal(12,4)
   grossAmount     Decimal  @db.Decimal(12,4)
   category        String?  // e.g. "Material", "Miete", "Bürobedarf"
+  // Tier 179: SKR03 Sachkonto for this expense (e.g.
+  // "4400" = Wareneingang, "6300" = Miete). The
+  // Voucher model has lines with an accountId FK to
+  // ChartOfAccount; Expense keeps it as a plain
+  // string so the user can stamp the SKR03 account
+  // at the Beleg level (before a Voucher is generated
+  // by the bank-import flow). Echoed back in the
+  // create + list response so the frontend can
+  // display the raw account number in the Beleg
+  // table.
+  accountNumber    String?
   isIntraEU       Boolean  @default(false)      // igE — reverse charge
   isReverseCharge Boolean  @default(false)      // §13b UStG
   status          String   @default("booked")  // booked|deductible|blocked
