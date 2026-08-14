@@ -67,14 +67,24 @@ export class SalesReportController {
   @Require('reports.read')
   async getCustomerReport(
     @Query('companyId') companyId: string,
-    @Query('startDate') startDate: string,
-    @Query('endDate') endDate: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
   ) {
+    // Tier 189: same default-year pattern as
+    // /sales above — startDate/endDate fall back
+    // to the current calendar year. Without the
+    // default, missing query params produced
+    // `new Date(undefined)` → Invalid Date → 500
+    // from the Prisma query below.
+    const start = startDate
+      ? new Date(startDate)
+      : new Date(new Date().getFullYear(), 0, 1)
+    const end = endDate ? new Date(endDate) : new Date()
     return this.reportsService.getCustomerReport({
       companyId,
-      startDate: new Date(startDate),
-      endDate: new Date(endDate),
-    });
+      startDate: start,
+      endDate: end,
+    })
   }
 
   /**
