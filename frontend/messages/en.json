@@ -1935,6 +1935,10 @@
     "saveDraft": "Save as draft",
     "submit": "Submit to tax office",
     "downloadPdf": "Download UStVA PDF",
+    "downloadPdfMonthRequired": "UStVA PDF is available per month. Please select a single month.",
+    "downloadPdfLoadError": "UStVA PDF could not be loaded (HTTP {status})",
+    "downloadPdfError": "UStVA PDF could not be downloaded",
+    "downloadPdfMonthRequiredShort": "UStVA PDF is per-month",
     "taxableSales": "Taxable sales (lines 20–23)",
     "taxExempt": "Tax-exempt sales (lines 26–29)",
     "igL": "Intra-EU supplies (igL)",
@@ -2245,6 +2249,7 @@
     "gobdMonthPickerLabel": "Month",
     "gobdExportOk": "GoBD archive downloaded",
     "gobdMonthExportOk": "GoBD month archive downloaded",
+    "gobdMonthError": "GoBD month archive: HTTP {status} — {detail}",
     "totalActions": "Total changes",
     "newestChange": "Newest change",
     "searchLabel": "Full-text search",
@@ -2843,6 +2848,13 @@
     "source": "Source",
     "status": "Status",
     "mappingTable": "Mapping table (BMF → de-invoice)"
+  },
+  "datevExport": {
+    "bundleMonthButton": "Month archive (ZIP)",
+    "invalidMonth": "Invalid month (1-12)",
+    "bundleMonthTooltip": "Generates a DATEV Buchungsstapel for the selected month (CSV + receipts as ZIP).",
+    "yearLabel": "Year",
+    "monthLabel": "Month"
   },
   "featureFlags": {
     "title": "Feature flags",

@@ -1935,6 +1935,10 @@
     "saveDraft": "保存草稿",
     "submit": "提交税务局",
     "downloadPdf": "下载 UStVA PDF",
+    "downloadPdfMonthRequired": "UStVA PDF 按月提供。请选择单个月份。",
+    "downloadPdfLoadError": "UStVA PDF 加载失败 (HTTP {status})",
+    "downloadPdfError": "UStVA PDF 下载失败",
+    "downloadPdfMonthRequiredShort": "UStVA PDF 按月提供",
     "taxableSales": "应税销售 (第 20–23 行)",
     "taxExempt": "免税销售 (第 26–29 行)",
     "igL": "欧盟内供应 (igL)",
@@ -2245,6 +2249,7 @@
     "gobdMonthPickerLabel": "月份",
     "gobdExportOk": "GoBD 归档已下载",
     "gobdMonthExportOk": "GoBD 月度归档已下载",
+    "gobdMonthError": "GoBD 月度归档: HTTP {status} — {detail}",
     "totalActions": "总变更数",
     "newestChange": "最近变更",
     "searchLabel": "全文搜索",
@@ -2843,6 +2848,13 @@
     "source": "来源",
     "status": "状态",
     "mappingTable": "映射表 (BMF → de-invoice)"
+  },
+  "datevExport": {
+    "bundleMonthButton": "月度归档 (ZIP)",
+    "invalidMonth": "月份无效 (1-12)",
+    "bundleMonthTooltip": "为选定月份生成 DATEV 记账栈 (CSV + 凭证作为 ZIP)。",
+    "yearLabel": "年",
+    "monthLabel": "月"
   },
   "featureFlags": {
     "title": "功能开关",

@@ -401,9 +401,7 @@ function UstvaPageInner() {
     const companyId = localStorage.getItem("companyId")
     if (!companyId) return
     if (!period.startsWith("m")) {
-      setDownloadError(
-        "UStVA-PDF ist pro Monat verfügbar. Bitte einen einzelnen Monat wählen.",
-      )
+      setDownloadError(t("ustva.downloadPdfMonthRequired"))
       return
     }
     const month = parseInt(period.slice(1), 10)
@@ -418,7 +416,7 @@ function UstvaPageInner() {
       )
       if (!res.ok) {
         setDownloadError(
-          `UStVA-PDF konnte nicht geladen werden (HTTP ${res.status})`,
+          t("ustva.downloadPdfLoadError", { status: res.status }),
         )
         return
       }
@@ -432,9 +430,7 @@ function UstvaPageInner() {
       a.remove()
       URL.revokeObjectURL(url)
     } catch (e: any) {
-      setDownloadError(
-        e?.message || "UStVA-PDF konnte nicht heruntergeladen werden",
-      )
+      setDownloadError(e?.message || t("ustva.downloadPdfError"))
     }
   }
   const isMonthSelected = period.startsWith("m")
@@ -515,12 +511,12 @@ function UstvaPageInner() {
                   disabled={!data || !isMonthSelected}
                   title={
                     isMonthSelected
-                      ? t("ustva.downloadPdf") || "UStVA-PDF herunterladen"
-                      : "UStVA-PDF ist pro Monat verfügbar"
+                      ? t("ustva.downloadPdf")
+                      : t("ustva.downloadPdfMonthRequiredShort")
                   }
                   data-testid="ustva-export-pdf"
                 >
-                  {t("ustva.downloadPdf") || "UStVA-PDF herunterladen"}
+                  {t("ustva.downloadPdf")}
                 </Button>
               </div>
             </div>

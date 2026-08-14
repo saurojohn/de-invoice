@@ -1122,7 +1122,7 @@ function DatevExportTab({
                     monthMonth < 1 ||
                     monthMonth > 12
                   ) {
-                    toast.error("Ungültiger Monat (1-12)")
+                    toast.error(t("datevExport.invalidMonth"))
                     return
                   }
                   window.open(
@@ -1131,9 +1131,9 @@ function DatevExportTab({
                   )
                 }}
                 data-testid="datev-bundle-month-btn"
-                title="Erzeugt einen DATEV-Buchungsstapel für den gewählten Monat (CSV + Belegbilder als ZIP)."
+                title={t("datevExport.bundleMonthTooltip")}
               >
-                📅 Monats-Archiv (ZIP)
+                📅 {t("datevExport.bundleMonthButton")}
               </Button>
             </div>
             {/* Tier 167: DATEV Buchungsliste — per-

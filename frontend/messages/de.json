@@ -1935,6 +1935,10 @@
     "saveDraft": "Als Entwurf speichern",
     "submit": "An Finanzamt übermitteln",
     "downloadPdf": "UStVA-PDF herunterladen",
+    "downloadPdfMonthRequired": "UStVA-PDF ist pro Monat verfügbar. Bitte einen einzelnen Monat wählen.",
+    "downloadPdfLoadError": "UStVA-PDF konnte nicht geladen werden (HTTP {status})",
+    "downloadPdfError": "UStVA-PDF konnte nicht heruntergeladen werden",
+    "downloadPdfMonthRequiredShort": "UStVA-PDF ist pro Monat verfügbar",
     "taxableSales": "Steuerpflichtige Umsätze (Zeile 20–23)",
     "taxExempt": "Steuerfreie Umsätze (Zeile 26–29)",
     "igL": "Innergemeinschaftliche Lieferungen (igL)",
@@ -2245,6 +2249,7 @@
     "gobdMonthPickerLabel": "Monat",
     "gobdExportOk": "GoBD-Archiv heruntergeladen",
     "gobdMonthExportOk": "GoBD-Monats-Archiv heruntergeladen",
+    "gobdMonthError": "GoBD-Monats-Archiv: HTTP {status} — {detail}",
     "totalActions": "Änderungen gesamt",
     "newestChange": "Letzte Änderung",
     "searchLabel": "Volltext-Suche",
@@ -2843,6 +2848,13 @@
     "source": "Quelle",
     "status": "Status",
     "mappingTable": "Mapping-Tabelle (BMF → de-invoice)"
+  },
+  "datevExport": {
+    "bundleMonthButton": "Monats-Archiv (ZIP)",
+    "invalidMonth": "Ungültiger Monat (1-12)",
+    "bundleMonthTooltip": "Erzeugt einen DATEV-Buchungsstapel für den gewählten Monat (CSV + Belegbilder als ZIP).",
+    "yearLabel": "Jahr",
+    "monthLabel": "Monat"
   },
   "featureFlags": {
     "title": "Funktions-Flags",

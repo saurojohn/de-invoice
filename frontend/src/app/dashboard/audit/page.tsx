@@ -695,7 +695,10 @@ export default function AuditPage() {
       if (!res.ok) {
         const errText = await res.text().catch(() => "")
         toast.error(
-          `GoBD-Monats-Archiv: HTTP ${res.status} — ${errText.slice(0, 200)}`,
+          t("audit.gobdMonthError", {
+            status: res.status,
+            detail: errText.slice(0, 200),
+          }),
         )
         return
       }
@@ -722,9 +725,7 @@ export default function AuditPage() {
       a.click()
       document.body.removeChild(a)
       URL.revokeObjectURL(url)
-      toast.success(
-        `${t("audit.gobdMonthExportOk") || "GoBD-Monats-Archiv heruntergeladen"}${statsText}`,
-      )
+      toast.success(`${t("audit.gobdMonthExportOk")}${statsText}`)
     } catch (e: any) {
       toast.error(e?.message || t("common.loadError"))
     }
@@ -852,7 +853,7 @@ export default function AuditPage() {
               onClick={downloadGobdMonth}
               data-testid="audit-export-gobd-month"
             >
-              🗓 {t("audit.exportGobdMonth") || "GoBD-Monats-Archiv"}
+              🗓 {t("audit.exportGobdMonth")}
             </Button>
             <Button
               variant="outline"
