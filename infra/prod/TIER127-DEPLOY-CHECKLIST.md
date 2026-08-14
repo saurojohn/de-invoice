@@ -18,6 +18,11 @@
 - [x] Caddyfile.staging variant for `staging.shleder.de`
 - [x] deploy-prep.sh + HETZNER-DEPLOY.sh (executable)
 - [x] RUNBOOK.md + SECURITY.md + DR-TEST.md
+- [x] Tier 190: HETZNER-DEPLOY.sh `--check` pre-flight
+      mode + domain-consistency audit (catches
+      drift between Caddyfile, .env.prod.generated,
+      and the deploy checklist before the operator
+      books a VPS)
 
 ## Steps for you (user) to do
 

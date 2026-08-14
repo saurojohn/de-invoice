@@ -41,8 +41,8 @@ curl -s http://localhost:3001/api/v1/health/deep | jq
 ### From anywhere (HTTPS through Caddy)
 
 ```bash
-curl -s https://rechnung.shleder.de/api/v1/health | jq
-curl -s https://rechnung.shleder.de/api/v1/health/deep | jq
+curl -s https://invoice.shleder.de/api/v1/health | jq
+curl -s https://invoice.shleder.de/api/v1/health/deep | jq
 ```
 
 The `health/deep` endpoint hits the DB and the storage
@@ -53,7 +53,7 @@ which dependency is broken.
 ### Wire it into an external monitor
 
 Configure **Healthchecks.io** (recommended, free tier) or
-**UptimeRobot** to ping `https://rechnung.shleder.de/api/v1/health`
+**UptimeRobot** to ping `https://invoice.shleder.de/api/v1/health`
 every 5 minutes. Alert via email / Slack / SMS when it
 fails twice in a row (avoid alerting on a single blip).
 
@@ -100,7 +100,7 @@ Logs in Loki have a 30-day retention by default.
 ### Deploy a new version
 
 ```bash
-ssh deploy@rechnung.shleder.de
+ssh deploy@invoice.shleder.de
 cd /opt/de-invoice
 git pull                                    # pull latest
 docker compose -f infra/prod/docker-compose.yml build backend frontend
@@ -118,7 +118,7 @@ docker compose -f infra/prod/docker-compose.yml exec backend \
 Then verify:
 
 ```bash
-curl -s https://rechnung.shleder.de/api/v1/health | jq
+curl -s https://invoice.shleder.de/api/v1/health | jq
 ```
 
 ### Roll back
@@ -283,7 +283,7 @@ gunzip -c /var/lib/docker/volumes/deinvoicenet_backups/_data/de_invoice-2026-07-
 docker compose up -d backend frontend
 
 # 5. Verify.
-curl -s https://rechnung.shleder.de/api/v1/health/deep | jq
+curl -s https://invoice.shleder.de/api/v1/health/deep | jq
 ```
 
 If the backup is encrypted (you set
@@ -336,7 +336,7 @@ Grafana + exporters):
 
 ```bash
 # From your workstation:
-ssh -L 3001:localhost:3001 deploy@rechnung.shleder.de
+ssh -L 3001:localhost:3001 deploy@invoice.shleder.de
 # Then open http://localhost:3001 in your browser.
 ```
 
@@ -410,10 +410,10 @@ Alertmanager routing tree.
 
 ```bash
 # 1. Is the VPS reachable?
-ping rechnung.shleder.de
+ping invoice.shleder.de
 
 # 2. Is Caddy up?
-ssh deploy@rechnung.shleder.de
+ssh deploy@invoice.shleder.de
 docker compose -f /opt/de-invoice/infra/prod/docker-compose.yml ps caddy
 docker compose -f /opt/de-invoice/infra/prod/docker-compose.yml logs --tail=50 caddy
 
@@ -445,7 +445,7 @@ Common causes:
 
 ```bash
 # Check the backend is reachable.
-curl -s https://rechnung.shleder.de/api/v1/auth/login -X POST \
+curl -s https://invoice.shleder.de/api/v1/auth/login -X POST \
   -H "Content-Type: application/json" \
   -d '{"email":"test@shleder.de","password":"wrong"}'
 # Expect 401 with { "error": "Invalid credentials" }

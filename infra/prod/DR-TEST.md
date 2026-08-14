@@ -42,10 +42,10 @@ that's documented in `HETZNER-DEPLOY.md` and the
    `de_invoice-YYYY-MM-DD-HHMMSS.sql.gz`.
 2. **Note the current production state**:
    ```bash
-   ssh deploy@rechnung.shleder.de
+   ssh deploy@invoice.shleder.de
    # Production state at the start of the test.
    docker compose -f /opt/de-invoice/infra/prod/docker-compose.yml ps
-   curl -s https://rechnung.shleder.de/api/v1/health | jq
+   curl -s https://invoice.shleder.de/api/v1/health | jq
    ```
 3. **Spin up a fresh Hetzner CX21** (€4.85 — destroy after
    the test). Name it `de-invoice-dr-test`.
@@ -60,11 +60,11 @@ differences:
   production.
 - **Step 2**: don't change DNS. Use a temporary
   `/etc/hosts` entry on your workstation:
-  `echo "<test VPS IP> dr.rechnung.shleder.de" | sudo tee -a /etc/hosts`.
+  `echo "<test VPS IP> dr.invoice.shleder.de" | sudo tee -a /etc/hosts`.
   This makes the test fully isolated from production.
 - **Step 4**: skip the "seed first company" step — the
   backup has the real company. But set `.env` to point at
-  the test domain (`FRONTEND_URL=https://dr.rechnung.shleder.de`).
+  the test domain (`FRONTEND_URL=https://dr.invoice.shleder.de`).
 - **Step 5-6**: same as production. Prisma db push will
   build the schema; then the restore (step 7 below)
   overwrites the empty tables with the production data.
@@ -96,7 +96,7 @@ differences:
 
 - **Step 8**: bring up the stack on the test VPS.
   Caddy will issue a separate Let's Encrypt cert for
-  `dr.rechnung.shleder.de` (you'll need a DNS A record
+  `dr.invoice.shleder.de` (you'll need a DNS A record
   pointing at the test VPS, OR use the Let's Encrypt
   staging ACME endpoint by switching to `Caddyfile.staging`).
 
@@ -106,7 +106,7 @@ Run all 13 checks from `infra/prod/smoke-test.sh` against
 the DR VPS:
 
 ```bash
-DOMAIN=dr.rechnung.shleder.de VPS_IP=<test VPS IP> \
+DOMAIN=dr.invoice.shleder.de VPS_IP=<test VPS IP> \
   bash infra/prod/smoke-test.sh
 ```
 
@@ -254,7 +254,7 @@ Things that look fine in the runbook but break in practice:
 - **DNS cache on the test workstation** — the `/etc/hosts`
   entry is ignored if your browser has cached the
   production IP. Restart the browser, or use `curl --resolve
-  dr.rechnung.shleder.de:443:<test IP>`.
+  dr.invoice.shleder.de:443:<test IP>`.
 - **Caddy rate-limit blocked the test** — if you hammer
   the test domain with smoke tests, Caddy's `rate_limit`
   on `/api/v1/auth/*` will trigger. The test should still

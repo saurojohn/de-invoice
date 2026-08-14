@@ -35,7 +35,7 @@
     acme_ca https://acme-v02.api.letsencrypt.org/directory
 }
 
-rechnung.shleder.de, www.rechnung.shleder.de {
+invoice.shleder.de, www.invoice.shleder.de {
 
     # ── Observability endpoints ───────────────────────────
     # Mirrors the /metrics, /api/v1/health, /api/v1/health/deep

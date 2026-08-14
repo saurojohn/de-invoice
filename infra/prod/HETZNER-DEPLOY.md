@@ -80,8 +80,8 @@ reached the site over IPv6.
 Verify before continuing:
 
 ```bash
-dig +short rechnung.shleder.de A
-dig +short rechnung.shleder.de AAAA
+dig +short invoice.shleder.de A
+dig +short invoice.shleder.de AAAA
 # Both should return values within a minute or two.
 # Propagation can take up to 30 min depending on the registrar.
 ```
@@ -169,7 +169,7 @@ POSTGRES_USER=de_invoice
 POSTGRES_DB=de_invoice
 
 # Public URL (no trailing slash).
-FRONTEND_URL=https://rechnung.shleder.de
+FRONTEND_URL=https://invoice.shleder.de
 
 # JWT signing key. Rotating this logs all users out.
 JWT_SECRET=<openssl rand -hex 64>
@@ -306,28 +306,28 @@ From your workstation:
 
 ```bash
 # 1. DNS resolves.
-dig +short rechnung.shleder.de A
+dig +short invoice.shleder.de A
 # Expect: <public IPv4>
 
 # 2. HTTPS returns 200.
-curl -sI https://rechnung.shleder.de | head -3
+curl -sI https://invoice.shleder.de | head -3
 # Expect: HTTP/2 200, then server, content-type headers
 
 # 3. Cert is valid + LE-issued.
-echo | openssl s_client -servername rechnung.shleder.de \
-  -connect rechnung.shleder.de:443 2>/dev/null \
+echo | openssl s_client -servername invoice.shleder.de \
+  -connect invoice.shleder.de:443 2>/dev/null \
   | openssl x509 -noout -subject -dates -issuer
 # Expect:
-#   subject=CN = rechnung.shleder.de
+#   subject=CN = invoice.shleder.de
 #   issuer=C = US, O = Let's Encrypt, CN = R10
 #   notBefore=..., notAfter=...  (90 days from now)
 
 # 4. HSTS header is set.
-curl -sI https://rechnung.shleder.de | grep -i strict-transport
+curl -sI https://invoice.shleder.de | grep -i strict-transport
 # Expect: strict-transport-security: max-age=31536000; includeSubDomains; preload
 
 # 5. Backend health.
-curl -s https://rechnung.shleder.de/api/v1/health | jq
+curl -s https://invoice.shleder.de/api/v1/health | jq
 # Expect: { "status": "ok", ... }
 ```
 
@@ -423,7 +423,7 @@ Run the post-deploy smoke test from your workstation:
 
 ```bash
 cd /opt/de-invoice
-DOMAIN=rechnung.shleder.de VPS_IP=<public IPv4> \
+DOMAIN=invoice.shleder.de VPS_IP=<public IPv4> \
   bash infra/prod/smoke-test.sh
 ```
 

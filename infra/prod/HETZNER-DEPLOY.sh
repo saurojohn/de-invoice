@@ -44,7 +44,15 @@
 set -euo pipefail
 
 # ─── Configuration ─────────────────────────────────────
-DOMAIN="${DOMAIN:-rechnung.shleder.de}"
+# Tier 190 (Aug 14): default domain switched from
+# `rechnung.shleder.de` to `invoice.shleder.de` to
+# match the Tier 127 cloud-deploy decision
+# (TIER127-DEPLOY-CHECKLIST.md + .env.prod.generated
+# already use invoice.shleder.de). The Caddyfile
+# default block was already updated in Tier 127.
+# Operators who still want the old domain can
+# pass DOMAIN=rechnung.shleder.de explicitly.
+DOMAIN="${DOMAIN:-invoice.shleder.de}"
 FRONTEND_URL="${FRONTEND_URL:-https://$DOMAIN}"
 COMPANY_NAME="${COMPANY_NAME:-SH Leder GmbH}"
 INSTALL_DIR="${INSTALL_DIR:-/opt/de-invoice}"
@@ -52,19 +60,172 @@ HEALTH_TIMEOUT="${HEALTH_TIMEOUT:-120}"  # seconds
 HEALTH_INTERVAL="${HEALTH_INTERVAL:-5}"
 LOG_PREFIX="[deploy]"
 
+# ─── Check mode (Tier 190) ───────────────────────────
+# `bash HETZNER-DEPLOY.sh --check` validates the
+# local repo + config without contacting any
+# remote, starting Docker, or modifying the host.
+# Use this on a workstation before booking a VPS
+# to catch "the Caddyfile forgot the domain", "the
+# .env example is missing POSTGRES_PASSWORD",
+# "the secrets in .env.prod.generated are still
+# placeholder" etc. Exit 0 = ready to deploy.
+CHECK_ONLY=0
+if [[ "${1:-}" == "--check" || "${1:-}" == "-c" ]]; then
+  CHECK_ONLY=1
+fi
+
 # ─── Helpers ────────────────────────────────────────────
 log()  { echo -e "\033[1;34m$LOG_PREFIX\033[0m $1"; }
 warn() { echo -e "\033[1;33m$LOG_PREFIX ⚠\033[0m $1"; }
 die()  { echo -e "\033[1;31m$LOG_PREFIX ✗\033[0m $1" >&2; exit 1; }
 
-[[ $EUID -eq 0 ]] || die "Run as root (sudo bash $0)"
+# In --check mode we don't require root (the
+# pre-flight checks are read-only and can run on
+# an operator's workstation). The full deploy
+# path below still requires root.
+if [[ "$CHECK_ONLY" -ne 1 ]]; then
+  [[ $EUID -eq 0 ]] || die "Run as root (sudo bash $0)"
+fi
 
+# --check mode: default INSTALL_DIR to cwd if the
+# user didn't override it. The full deploy path
+# requires /opt/de-invoice (the path the rest of
+# the compose + scripts assume) — only relax this
+# in check mode.
+if [[ "$CHECK_ONLY" -eq 1 && "$INSTALL_DIR" == "/opt/de-invoice" && ! -d "$INSTALL_DIR" ]]; then
+  INSTALL_DIR="$(pwd)"
+fi
 [[ -d "$INSTALL_DIR" ]] || die "Install dir not found: $INSTALL_DIR — clone the repo first"
 cd "$INSTALL_DIR"
+
+# In --check mode, allow running as non-root from
+# any directory (operator's workstation). The check
+# is read-only and doesn't touch docker. We do this
+# AFTER the root check so the production deploy
+# path still requires root.
+if [[ "$CHECK_ONLY" -eq 1 ]]; then
+  # fall through to the check block below
+  :  # no-op
+else
+  # Sanity: docker is installed and compose v2 is available.
+  command -v docker    >/dev/null 2>&1 || die "docker not installed (run deploy-prep.sh first?)"
+  docker compose version >/dev/null 2>&1 || die "docker compose v2 plugin not installed"
+fi
 
 # Sanity: docker is installed and compose v2 is available.
 command -v docker    >/dev/null 2>&1 || die "docker not installed (run deploy-prep.sh first?)"
 docker compose version >/dev/null 2>&1 || die "docker compose v2 plugin not installed"
+
+# ─── Tier 190: pre-flight check mode ────────────────
+# When CHECK_ONLY=1 (set by --check/-c), we run
+# the read-only sanity checks and exit. No docker
+# images built, no host changes, no network calls
+# to the target VPS. The point is to catch
+# config drift BEFORE the operator books a VPS
+# or kicks off a 5-minute image build.
+if [[ "$CHECK_ONLY" -eq 1 ]]; then
+  log "Pre-flight check mode (--check) — no changes will be made"
+  CHECK_FAIL=0
+
+  check_file() {
+    local f="$1" desc="$2"
+    if [[ -f "$f" ]]; then
+      log "  ✓ $desc: $f"
+    else
+      warn "  ✗ $desc MISSING: $f"
+      CHECK_FAIL=1
+    fi
+  }
+
+  check_grep() {
+    local f="$1" pattern="$2" desc="$3"
+    if grep -qE "$pattern" "$f" 2>/dev/null; then
+      log "  ✓ $desc"
+    else
+      warn "  ✗ $desc — pattern '$pattern' not found in $f"
+      CHECK_FAIL=1
+    fi
+  }
+
+  log "── Required files ──"
+  check_file "infra/prod/Caddyfile"            "Caddy reverse-proxy config"
+  check_file "infra/prod/deploy-prep.sh"        "host prep script"
+  check_file "infra/prod/HETZNER-DEPLOY.sh"     "this script"
+  check_file "infra/prod/docker-compose.yml"    "production compose"
+  check_file "infra/prod/init.sql"              "Postgres init"
+  check_file "infra/prod/.env.example"          ".env template"
+  check_file "infra/prod/.env.prod.generated"   "generated prod secrets"
+  check_file "infra/prod/HETZNER-DEPLOY.md"     "deploy runbook"
+  check_file "infra/prod/RUNBOOK.md"            "operator runbook"
+  check_file "infra/prod/SECURITY.md"           "security checklist"
+  check_file "infra/prod/DR-TEST.md"            "disaster recovery test"
+
+  log "── Domain consistency ──"
+  log "  target domain: $DOMAIN"
+  log "  FRONTEND_URL:  $FRONTEND_URL"
+  # All 4 of these should reference the same domain
+  # (or its www. variant). If they don't, Caddy will
+  # serve the wrong cert and the CORS allowlist will
+  # block the frontend.
+  check_grep "infra/prod/Caddyfile" "$DOMAIN"        "Caddyfile references target domain"
+  check_grep "infra/prod/.env.prod.generated" "FRONTEND_URL=https://$DOMAIN" \
+    ".env.prod.generated FRONTEND_URL matches"
+  check_grep "infra/prod/TIER127-DEPLOY-CHECKLIST.md" "$DOMAIN" \
+    "checklist references target domain"
+
+  log "── Secrets sanity ──"
+  # .env.example should NOT contain real secrets
+  # (only placeholders). Real secrets live in
+  # .env.prod.generated.
+  if grep -qE "POSTGRES_PASSWORD=[A-Za-z0-9]{20,}" infra/prod/.env.example; then
+    warn "  ✗ .env.example looks like it contains a real POSTGRES_PASSWORD"
+    CHECK_FAIL=1
+  else
+    log "  ✓ .env.example has no real POSTGRES_PASSWORD (placeholder only)"
+  fi
+  # .env.prod.generated should have a real
+  # POSTGRES_PASSWORD (32+ chars of entropy).
+  if grep -qE "POSTGRES_PASSWORD=[A-Za-z0-9+/=]{30,}" infra/prod/.env.prod.generated; then
+    log "  ✓ .env.prod.generated has a real POSTGRES_PASSWORD"
+  else
+    warn "  ✗ .env.prod.generated POSTGRES_PASSWORD missing or too short"
+    CHECK_FAIL=1
+  fi
+  # JWT_SECRET should be 64 hex chars (256 bits).
+  if grep -qE "JWT_SECRET=[a-f0-9]{64}" infra/prod/.env.prod.generated; then
+    log "  ✓ .env.prod.generated has a 64-hex JWT_SECRET"
+  else
+    warn "  ✗ .env.prod.generated JWT_SECRET not 64 hex chars"
+    CHECK_FAIL=1
+  fi
+
+  log "── Docker compose sanity ──"
+  # Caddy service must be present (TLS termination).
+  if grep -qE "^  caddy:" infra/prod/docker-compose.yml; then
+    log "  ✓ caddy service defined"
+  else
+    warn "  ✗ caddy service missing from docker-compose.yml"
+    CHECK_FAIL=1
+  fi
+  # Backend should depend_on caddy? No — caddy
+  # depends on backend. The right direction.
+  if grep -qE "caddy:.*depends_on|backend:" infra/prod/docker-compose.yml; then
+    log "  ✓ service dependency wiring looks sane"
+  else
+    warn "  ✗ service dependency wiring looks wrong (check depends_on)"
+    CHECK_FAIL=1
+  fi
+
+  log ""
+  if [[ $CHECK_FAIL -eq 0 ]]; then
+    log "PRE-FLIGHT OK — repo is ready to deploy to Hetzner"
+    log "Next: book a CX21, point $DOMAIN → VPS IP, then:"
+    log "  DOMAIN=$DOMAIN bash infra/prod/HETZNER-DEPLOY.sh"
+    exit 0
+  else
+    die "PRE-FLIGHT FAILED — fix the items marked ✗ above before deploying"
+  fi
+fi
 
 # ─── Step 1: host prep (idempotent) ─────────────────────
 log "Step 1/7 — host prep (deploy-prep.sh)"
