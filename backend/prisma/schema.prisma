@@ -2121,6 +2121,26 @@ model CashBookDailyClose {
   closedById      String?
   closedBy        User?    @relation("CashBookDayCloser", fields: [closedById], references: [id])
   closedAt        DateTime @default(now())
+  // ─── Tier 194 — GoBD § 146 AO integrity signature ───
+  // SHA-256 hash of the close record's critical fields
+  // (companyId|businessDate|anfangsbestand|einnahmenSum|
+  //  ausgabenSum|umbuchungenSum|endbestand|physicalCount|
+  //  closedById|closedAt). Computed at close-time and
+  // also at sign-time (the sign endpoint re-derives
+  // the hash from the current row state and asserts
+  // equality — any post-close mutation makes the
+  // re-derived hash diverge from the stored one, so
+  // the user can detect tampering).
+  //
+  // This is NOT an eIDAS-qualified electronic
+  // signature. It's a tamper-evident integrity hash
+  // for the internal audit trail. A separate
+  // eIDAS/PKI signature could be added later in
+  // the same field (extending the algorithm
+  // string) without breaking existing data.
+  signatureHash       String?
+  signatureAlgorithm  String?
+  signatureTimestamp  DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

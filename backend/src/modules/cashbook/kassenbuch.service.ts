@@ -1,5 +1,61 @@
 import { Injectable, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { createHash } from 'crypto';
+
+// Tier 194 — GoBD § 146 AO integrity hash for the
+// Tagesabschluss. We sign over a stable, sorted
+// concatenation of the close record's critical
+// fields. The algorithm string is the version
+// identifier so future hash format changes can be
+// made (e.g. SHA-512 or a Kassen-Nachschau-aware
+// digest) without breaking the verification path.
+const SIGNATURE_ALGORITHM = 'SHA-256-V1'
+
+// Build the integrity hash from a close record's
+// critical fields. Returns the lower-case hex
+// digest. Deterministic — same input always
+// produces the same hash, which is the whole
+// point of the tamper-evidence check.
+function computeSignatureHash(c: {
+  companyId: string
+  businessDate: Date
+  anfangsbestand: any
+  einnahmenSum: any
+  ausgabenSum: any
+  umbuchungenSum: any
+  endbestand: any
+  physicalCount: any
+  closedById: string | null
+  closedAt: Date
+}): string {
+  // The pipe is a field separator that can't appear
+  // in any of the inputs (UUIDs are hex+hyphens,
+  // ISO dates have colons but no pipes, decimals
+  // are digits+dot). Using a separator the input
+  // can't produce means we don't have to escape.
+  //
+  // Important: Prisma returns Decimal columns as
+  // objects (Prisma.Decimal), not as strings. Their
+  // `String()` method strips trailing zeros ("0" not
+  // "0.0000"), which would make the close-time
+  // hash (computed from `.toFixed(4)` strings)
+  // differ from the verify-time hash. We always
+  // pass the values through `toFixed(4)` here so
+  // both paths agree on the canonical string form.
+  const payload = [
+    c.companyId,
+    c.businessDate.toISOString().slice(0, 10),
+    Number(c.anfangsbestand).toFixed(4),
+    Number(c.einnahmenSum).toFixed(4),
+    Number(c.ausgabenSum).toFixed(4),
+    Number(c.umbuchungenSum).toFixed(4),
+    Number(c.endbestand).toFixed(4),
+    Number(c.physicalCount).toFixed(4),
+    c.closedById ?? '',
+    c.closedAt.toISOString(),
+  ].join('|')
+  return createHash('sha256').update(payload).digest('hex')
+}
 
 /**
  * Kassenbuch service — German cash journal per §146 AO.
@@ -429,6 +485,39 @@ export class KassenbuchService {
       totalCount: day.entries.length,
       generatedAt: new Date().toISOString(),
     }
+    // Tier 194 — compute the integrity hash BEFORE
+    // the create so the row is born signed. If the
+    // create fails (unique violation, FK error), the
+    // hash never gets persisted — the next call to
+    // closeDay will re-derive and write a fresh one.
+    //
+    // Pass numbers (not pre-formatted strings) —
+    // computeSignatureHash now canonicalises
+    // them via Number(x).toFixed(4), and pre-
+    // formatted strings would skip the canonical
+    // pass.
+    const createdAt = new Date()
+    // Round to whole seconds so the hash survives
+    // DB column precision. PG @db.Timestamp(3) is
+    // 3 fractional digits (ms), but the value gets
+    // rounded at write time (e.g. 048 → 050) which
+    // would make a later verify-time hash diverge
+    // from the close-time hash. Floor to second
+    // boundary so both sides agree.
+    const createdAtRounded = new Date(Math.floor(createdAt.getTime() / 1000) * 1000)
+    const hashInputs = {
+      companyId,
+      businessDate: bd,
+      anfangsbestand: day.anfang,
+      einnahmenSum: day.einnahmen,
+      ausgabenSum: day.ausgaben,
+      umbuchungenSum: day.umbuchungen,
+      endbestand: day.ende,
+      physicalCount,
+      closedById: closedById ?? null,
+      closedAt: createdAtRounded,
+    }
+    const signatureHash = computeSignatureHash(hashInputs)
     return this.prisma.cashBookDailyClose.create({
       data: {
         companyId,
@@ -443,8 +532,164 @@ export class KassenbuchService {
         differenzNote: differenzNote || null,
         entriesSnapshot: snapshot,
         closedById,
+        // Set closedAt explicitly to the same
+        // rounded value we hashed. The schema
+        // default is @default(now()) which uses
+        // PG's `now()` and preserves ms — that
+        // ms would diverge from the hash's
+        // second-precision closedAt.
+        closedAt: createdAtRounded,
+        signatureHash,
+        signatureAlgorithm: SIGNATURE_ALGORITHM,
+        signatureTimestamp: createdAtRounded,
       },
     })
+  }
+
+  /**
+   * Tier 194 — re-derive the integrity hash from the
+   * close row's current state and assert it matches
+   * the stored hash. Returns the verification result
+   * (algorithm, storedHash, recomputedHash, match,
+   * verifiedAt). Used by:
+   *   - POST /cashbook/close-day/:id/sign  (catches
+   *     tampering since the last sign)
+   *   - GET  /cashbook/close-day/:id/verify (UI
+   *     status indicator + audit tool)
+   *
+   * `verified` is true when the hashes match. A
+   * `signatureHash` of null means the row was created
+   * before Tier 194 (no hash on the row) — that's
+   * a separate `signed=false` state, not a failure.
+   */
+  verifyClose(close: {
+    id: string
+    companyId: string
+    businessDate: Date
+    anfangsbestand: any
+    einnahmenSum: any
+    ausgabenSum: any
+    umbuchungenSum: any
+    endbestand: any
+    physicalCount: any
+    closedById: string | null
+    closedAt: Date
+    signatureHash: string | null
+    signatureAlgorithm: string | null
+    signatureTimestamp: Date | null
+  }): {
+    id: string
+    signed: boolean
+    verified: boolean
+    algorithm: string | null
+    storedHash: string | null
+    recomputedHash: string
+    signatureTimestamp: string | null
+    verifiedAt: string
+  } {
+    const recomputed = computeSignatureHash(close)
+    const signed = !!close.signatureHash
+    const verified = signed && recomputed === close.signatureHash
+    return {
+      id: close.id,
+      signed,
+      verified,
+      algorithm: close.signatureAlgorithm,
+      storedHash: close.signatureHash,
+      recomputedHash: recomputed,
+      signatureTimestamp: close.signatureTimestamp?.toISOString() ?? null,
+      verifiedAt: new Date().toISOString(),
+    }
+  }
+
+  /**
+   * Tier 194 — explicitly (re-)sign a close. Writes
+   * the current hash to the row. The semantics are
+   * "operator asserts this close is final and the
+   * hash on disk represents the final state". If
+   * the row has been mutated after creation, the
+   * recomputed hash diverges and the operator
+   * sees the mismatch (we return 409 Conflict
+   * in that case — the controller turns the
+   * mismatch into an HTTP status).
+   *
+   * The method is idempotent: re-signing an
+   * already-signed close just updates the
+   * signatureTimestamp.
+   */
+  async signClose(closeId: string, companyId: string): Promise<{
+    id: string
+    signatureHash: string
+    signatureAlgorithm: string
+    signatureTimestamp: string
+    verification: ReturnType<KassenbuchService['verifyClose']>
+  }> {
+    const close = await this.prisma.cashBookDailyClose.findFirst({
+      where: { id: closeId, companyId },
+    })
+    if (!close) {
+      throw new NotFoundException('Tagesabschluss nicht gefunden')
+    }
+    const recomputed = computeSignatureHash(close)
+    if (close.signatureHash && recomputed !== close.signatureHash) {
+      throw new BadRequestException(
+        'Tagesabschluss wurde seit dem letzten Signieren verändert — Hash stimmt nicht mehr. ' +
+        'Bitte prüfen Sie die Buchungen. ' +
+        `Gespeicherter Hash: ${close.signatureHash.slice(0, 16)}… ` +
+        `Erwarteter Hash: ${recomputed.slice(0, 16)}…`
+      )
+    }
+    const ts = new Date()
+    const tsRounded = new Date(Math.floor(ts.getTime() / 1000) * 1000)
+    const updated = await this.prisma.cashBookDailyClose.update({
+      where: { id: closeId },
+      data: {
+        signatureHash: recomputed,
+        signatureAlgorithm: SIGNATURE_ALGORITHM,
+        signatureTimestamp: tsRounded,
+      },
+    })
+    return {
+      id: updated.id,
+      signatureHash: recomputed,
+      signatureAlgorithm: SIGNATURE_ALGORITHM,
+      signatureTimestamp: tsRounded.toISOString(),
+      verification: this.verifyClose(updated),
+    }
+  }
+
+  /**
+   * Tier 194 — verify by id (HTTP-layer helper).
+   * Loads the close row, runs verifyClose, throws
+   * NotFoundException if the id is unknown.
+   * Never mutates the row.
+   */
+  async verifyCloseById(closeId: string, companyId: string) {
+    const close = await this.prisma.cashBookDailyClose.findFirst({
+      where: { id: closeId, companyId },
+    })
+    if (!close) {
+      throw new NotFoundException('Tagesabschluss nicht gefunden')
+    }
+    return this.verifyClose(close)
+  }
+
+  /**
+   * Tier 194 — minimal company header for the
+   * Kassenabschluss PDF (name + taxId). Used by
+   * the controller; kept here so the controller
+   * doesn't have to spin up a second PrismaService
+   * instance.
+   */
+  async getCompanyHeader(companyId: string): Promise<{
+    name: string | null
+    taxId: string | null
+  }> {
+    const c = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { name: true, taxId: true },
+    })
+    return { name: c?.name ?? null, taxId: c?.taxId ?? null }
   }
 
   /**

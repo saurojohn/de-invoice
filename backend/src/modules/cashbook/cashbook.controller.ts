@@ -241,4 +241,248 @@ export class CashBookController {
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.end(Buffer.from(csv, 'utf-8'));
   }
+
+  // ========== Tier 194 — integrity signature ==========
+
+  /**
+   * (Re-)sign a Tagesabschluss. Re-derives the
+   * integrity hash from the close row's current
+   * state and writes it back. If the row has
+   * been mutated after creation, the recomputed
+   * hash diverges from the stored one and the
+   * service throws a BadRequest — the operator
+   * sees the mismatch and investigates.
+   */
+  @Post('close-day/:id/sign')
+  @Require('accounting.update')
+  async signClose(
+    @Param('id') id: string,
+    @Query('companyId') companyId: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId is required');
+    if (!id) throw new BadRequestException('id is required');
+    return this.svc.signClose(id, companyId);
+  }
+
+  /**
+   * Verify a Tagesabschluss's stored hash matches
+   * a re-derivation of the row state. Returns
+   * {signed, verified, algorithm, storedHash,
+   * recomputedHash, signatureTimestamp, verifiedAt}.
+   * Never mutates the row.
+   */
+  @Get('close-day/:id/verify')
+  @Require('accounting.read')
+  async verifyClose(
+    @Param('id') id: string,
+    @Query('companyId') companyId: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId is required');
+    if (!id) throw new BadRequestException('id is required');
+    // The verify path needs the raw close row, not
+    // the listCloses() shape. We add a service
+    // helper rather than spinning up a fresh
+    // PrismaClient here — the controller is a
+    // request handler, not a data layer.
+    return this.svc.verifyCloseById(id, companyId)
+  }
+
+  /**
+   * Tier 194 — Kassenabschluss PDF (A4 portrait,
+   * single page, German). Includes:
+   *   - day summary (Anfangsbestand, Einnahmen,
+   *     Ausgaben, Umbuchungen, Endbestand,
+   *     Physical Count, Differenz)
+   *   - all entry rows for the day
+   *   - signature hash + algorithm
+   *   - QR code with the hash (for Prüfer to
+   *     scan-and-verify against the system)
+   *   - signature timestamp + user who closed
+   *
+   * The PDF is plain text (no PKCS#7 signature
+   * embedded) — the integrity check is done
+   * out-of-band via the hash on the row. A future
+   * tier could add eIDAS signing on top.
+   */
+  @Get('kassenabschluss.pdf')
+  @Require('accounting.read')
+  async kassenabschlussPdf(
+    @Query('companyId') companyId: string,
+    @Query('date') dateStr: string,
+    @Res() res: Response,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId is required')
+    if (!dateStr) throw new BadRequestException('date is required')
+    const close = await this.svc.listCloses(companyId, {
+      from: new Date(dateStr),
+      to: new Date(dateStr),
+    })
+    if (close.length === 0) {
+      throw new BadRequestException('Kein Tagesabschluss für dieses Datum gefunden')
+    }
+    const c = close[0]
+    const verification = this.svc.verifyClose(c)
+    const PDFDocument = (await import('pdfkit')).default
+    const QRCode = (await import('qrcode')).default
+    const company = await this.svc.getCompanyHeader(companyId)
+    const doc = new PDFDocument({ size: 'A4', margin: 50 })
+    res.setHeader('Content-Type', 'application/pdf')
+    const dateSlug = dateStr.slice(0, 10)
+    res.setHeader(
+      'Content-Disposition',
+      `inline; filename="Kassenabschluss-${dateSlug}.pdf"`,
+    )
+    doc.pipe(res)
+    doc.fontSize(18).text('Kassenabschluss (Z-Bericht)', { align: 'center' })
+    doc.moveDown(0.3)
+    doc
+      .fontSize(10)
+      .fillColor('#666')
+      .text(`Tag: ${dateSlug}`, { align: 'center' })
+    if (company?.name) {
+      doc.text(company.name, { align: 'center' })
+    }
+    if (company?.taxId) {
+      doc.text(`Steuernummer: ${company.taxId}`, { align: 'center' })
+    }
+    doc.moveDown(0.8)
+    doc.fillColor('#000')
+    const fmtEUR = (n: any) =>
+      Number(n).toLocaleString('de-DE', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })
+    const row = (label: string, value: string) => {
+      doc.fontSize(11).text(label, { continued: true })
+      doc.fontSize(11).text(value, { align: 'right' })
+    }
+    row('Anfangsbestand:', `${fmtEUR(c.anfangsbestand)} EUR`)
+    row('Σ Einnahmen:', `+ ${fmtEUR(c.einnahmenSum)} EUR`)
+    row('Σ Ausgaben:', `− ${fmtEUR(c.ausgabenSum)} EUR`)
+    row('Σ Umbuchungen:', `${fmtEUR(c.umbuchungenSum)} EUR`)
+    doc.moveDown(0.2)
+    doc
+      .moveTo(50, doc.y)
+      .lineTo(545, doc.y)
+      .strokeColor('#888')
+      .stroke()
+    doc.moveDown(0.2)
+    doc.fontSize(12).text('Endbestand (rechnerisch):', { continued: true })
+    doc.fontSize(12).text(`${fmtEUR(c.endbestand)} EUR`, { align: 'right' })
+    row('Kassensturz (gezählt):', `${fmtEUR(c.physicalCount)} EUR`)
+    const diff = Number(c.differenz)
+    doc.fontSize(11).text('Differenz:', { continued: true })
+    doc
+      .fontSize(11)
+      .fillColor(Math.abs(diff) > 0.001 ? '#b91c1c' : '#15803d')
+      .text(
+        `${diff > 0 ? '+' : ''}${fmtEUR(c.differenz)} EUR`,
+        { align: 'right' },
+      )
+    doc.fillColor('#000')
+    if (c.differenzNote) {
+      doc.moveDown(0.3)
+      doc.fontSize(9).fillColor('#444').text(`Differenzbegründung: ${c.differenzNote}`)
+      doc.fillColor('#000')
+    }
+    doc.moveDown(0.6)
+    doc.fontSize(13).text('Buchungen des Tages', { underline: true })
+    doc.moveDown(0.3)
+    const entries: any[] = (c.entriesSnapshot as any)?.entries ?? []
+    if (entries.length === 0) {
+      doc.fontSize(10).fillColor('#888').text('(keine Buchungen)')
+      doc.fillColor('#000')
+    } else {
+      doc.fontSize(9)
+      const colX = { type: 110, desc: 175, amount: 460 }
+      doc.font('Helvetica-Bold')
+      doc.text('Typ', colX.type, doc.y, { continued: true })
+      doc.text('Beschreibung', colX.desc, doc.y, { continued: true })
+      doc.text('Betrag', colX.amount, doc.y, { align: 'right' })
+      doc.font('Helvetica')
+      doc.moveDown(0.2)
+      for (const e of entries) {
+        const startY = doc.y
+        const typeLabel =
+          {
+            einnahme: 'Einnahme',
+            ausgabe: 'Ausgabe',
+            umbuchung: 'Umbuchung',
+            eroeffnung: 'Eröffnung',
+          }[e.type as string] || e.type
+        doc.text(typeLabel, colX.type, startY, { width: 60 })
+        doc.text(String(e.description ?? ''), colX.desc, startY, { width: 280 })
+        const sign = e.type === 'ausgabe' ? '−' : e.type === 'eroeffnung' ? '' : '+'
+        doc.text(
+          `${sign} ${fmtEUR(e.amount)} EUR`,
+          colX.amount,
+          startY,
+          { align: 'right', width: 80 },
+        )
+        doc.moveDown(0.4)
+      }
+    }
+    doc.moveDown(0.6)
+    doc.fontSize(13).text('Integritäts-Signatur (Tier 194)', { underline: true })
+    doc.moveDown(0.3)
+    doc.fontSize(9)
+    if (verification.signed) {
+      doc.text(`Algorithmus: ${verification.algorithm ?? '—'}`)
+      doc.text(`Hash: ${verification.storedHash ?? '—'}`)
+      doc.text(
+        `Signiert am: ${
+          verification.signatureTimestamp
+            ? new Date(verification.signatureTimestamp).toLocaleString('de-DE')
+            : '—'
+        }`,
+      )
+      doc.text(
+        `Verifiziert: ${
+          verification.verified
+            ? 'OK — Hash stimmt mit dem gespeicherten Wert überein.'
+            : 'FEHLGESCHLAGEN — Buchungen wurden seit dem letzten Signieren verändert!'
+        }`,
+      )
+    } else {
+      doc
+        .fillColor('#b45309')
+        .text('Dieser Tagesabschluss wurde noch nicht elektronisch signiert.')
+      doc.fillColor('#000')
+    }
+    doc.moveDown(0.5)
+    if (verification.signed && verification.storedHash) {
+      try {
+        const qrPayload = JSON.stringify({
+          v: 1,
+          alg: verification.algorithm,
+          hash: verification.storedHash,
+          companyId,
+          businessDate: dateSlug,
+        })
+        const qrDataUrl = await QRCode.toDataURL(qrPayload, { margin: 1, width: 140 })
+        const qrBuf = Buffer.from(
+          qrDataUrl.replace(/^data:image\/png;base64,/, ''),
+          'base64',
+        )
+        doc.image(qrBuf, 50, doc.y, { width: 90 })
+        doc
+          .fontSize(8)
+          .fillColor('#666')
+          .text('QR-Code für mobile Verifizierung', 150, doc.y + 25)
+      } catch {
+        // QR generation failure is non-fatal —
+        // the text block above already carries
+        // the hash.
+      }
+    }
+    doc.moveDown(2)
+    doc
+      .fontSize(8)
+      .fillColor('#666')
+      .text(
+        'Dieser Beleg dient als Tagesabschluss gemäß § 146 AO. Die elektronische Signatur ist eine Integritäts-Signatur (keine eIDAS-qualifizierte Signatur).',
+        { align: 'center' },
+      )
+    doc.end()
+  }
 }

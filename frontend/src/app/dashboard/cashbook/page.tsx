@@ -121,6 +121,11 @@ export default function CashbookPage() {
   const [zNote, setZNote] = useState("")
   const [zPreview, setZPreview] = useState<DayBalance | null>(null)
   const [zSaving, setZSaving] = useState(false)
+  // Tier 194 — set after a successful close, used to
+  // enable the sign + PDF buttons in the Z-Bericht
+  // modal. Null while the close hasn't happened yet
+  // (or while the modal is in a fresh state).
+  const [zLastCloseId, setZLastCloseId] = useState<string | null>(null)
 
   // Storno state
   const [stornoId, setStornoId] = useState<string | null>(null)
@@ -298,6 +303,15 @@ export default function CashbookPage() {
         closedById: userId,
         differenzNote: zNote.trim() || undefined,
       })
+      // Tier 194 — fetch the just-created close so
+      // we have its id for the sign + PDF buttons.
+      // The endpoint doesn't return the id in the
+      // create response, so we list closes for the
+      // day and pick the (only) one.
+      const closes = await apiGet<DayClose[]>(`/api/v1/cashbook/closes?companyId=${companyId}&from=${zDate}&to=${zDate}`)
+      if (closes && closes.length > 0) {
+        setZLastCloseId(closes[0].id)
+      }
       setShowZ(false)
       await reload()
     } catch (err: any) {
@@ -317,6 +331,40 @@ export default function CashbookPage() {
     } catch (err: any) {
       toast.error(err?.message || "Fehler")
     }
+  }
+
+  // Tier 194 — explicitly sign a closed day. The
+  // closeDay flow already writes a hash, but the
+  // user can (re-)sign any time to assert the
+  // current state. Returns the verification
+  // result so the caller can surface a status
+  // message. Re-throws on hash mismatch (a real
+  // tampering signal).
+  const signClose = async (closeId: string) => {
+    const companyId = localStorage.getItem("companyId")!
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3001"}/api/v1/cashbook/close-day/${closeId}/sign?companyId=${companyId}`,
+      {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "x-user-id": localStorage.getItem("userId") || "",
+          "x-company-id": companyId,
+        },
+      },
+    )
+    if (!res.ok) {
+      const body = await res.text()
+      throw new Error(`Sign-Fehler: ${res.status} ${body}`)
+    }
+    const body = await res.json()
+    if (!body.verification?.verified) {
+      throw new Error(
+        "Hash stimmt nicht — Buchungen wurden seit dem letzten Signieren verändert!",
+      )
+    }
+    await reload()
+    return body
   }
 
   const exportCsv = () => {
@@ -852,6 +900,57 @@ export default function CashbookPage() {
                     {t("common.cancel")}
                   </Button>
                 </div>
+
+                {/* Tier 194 — Integritäts-Signatur
+                    and Kassenabschluss PDF buttons.
+                    Only available after the close
+                    row exists (after saveZ succeeds).
+                    The button group sits in a
+                    separate row so the modal
+                    footer stays compact. */}
+                {zLastCloseId && (
+                  <div className="flex gap-2 pt-3 mt-3 border-t border-dashed">
+                    <Button
+                      variant="outline"
+                      onClick={async () => {
+                        setZSaving(true)
+                        try {
+                          await signClose(zLastCloseId)
+                          toast.success(t("cashbook.zberichtSigned") || "Tagesabschluss signiert")
+                        } catch (err: any) {
+                          toast.error(err?.message || "Sign-Fehler")
+                        } finally {
+                          setZSaving(false)
+                        }
+                      }}
+                      disabled={zSaving}
+                      data-testid="zbericht-sign-button"
+                    >
+                      {t("cashbook.zberichtSign") || "Elektronisch signieren"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={async () => {
+                        const companyId = localStorage.getItem("companyId")!
+                        // Anchor trick — same pattern
+                        // the UStVA PDF button uses
+                        // (Tier 182). CORS does not
+                        // expose Content-Disposition
+                        // to JS, so we set a sane
+                        // filename locally.
+                        const a = document.createElement("a")
+                        a.href = `/api/v1/cashbook/kassenabschluss.pdf?companyId=${companyId}&date=${zDate}`
+                        a.download = `Kassenabschluss-${zDate.slice(0, 10)}.pdf`
+                        document.body.appendChild(a)
+                        a.click()
+                        a.remove()
+                      }}
+                      data-testid="zbericht-pdf-button"
+                    >
+                      {t("cashbook.zberichtPdf") || "Kassenabschluss PDF"}
+                    </Button>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
