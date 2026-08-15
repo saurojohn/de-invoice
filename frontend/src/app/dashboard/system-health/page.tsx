@@ -170,6 +170,9 @@ export default function SystemHealthPage() {
                     <th className="text-left py-2 pr-3">{t("systemHealth.nextRun")}</th>
                     <th className="text-left py-2 pr-3">{t("systemHealth.lastSummary")}</th>
                     <th className="text-left py-2 pr-3">{t("systemHealth.lastError")}</th>
+                    <th className="text-left py-2 pr-3">
+                      {t("systemHealth.actions") || "Aktion"}
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -284,6 +287,43 @@ function CronRow({ row, now, t, getDateLocale, locale }: {
         ) : (
           <span className="text-gray-400">{t("systemHealth.noError")}</span>
         )}
+      </td>
+      <td className="py-2 pr-3 text-xs">
+        {/*
+          Tier 195 — per-row "Run now" button. Fires
+          POST /admin/cron-health/:name/run and
+          triggers a load() so the new lastRunAt
+          shows up. We stop event propagation so
+          the row click (drill into history) doesn't
+          also fire.
+        */}
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={async (e) => {
+            e.stopPropagation()
+            try {
+              await apiPost(
+                `/api/v1/admin/cron-health/${encodeURIComponent(row.name)}/run`,
+                {},
+              )
+              // Re-load after a short delay so the
+              // cron's record() wrapper has a chance
+              // to write the new lastRunAt row.
+              setTimeout(() => {
+                window.location.reload()
+              }, 1500)
+            } catch (err: any) {
+              alert(
+                (t("systemHealth.runFailed") || "Run fehlgeschlagen: ") +
+                  (err?.message || String(err)),
+              )
+            }
+          }}
+          data-testid={`cron-run-${row.name}`}
+        >
+          {t("systemHealth.runNow") || "Jetzt ausführen"}
+        </Button>
       </td>
     </tr>
   )

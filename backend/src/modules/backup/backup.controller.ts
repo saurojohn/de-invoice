@@ -1,7 +1,7 @@
 /**
  * BackupController — Tier 120 admin backup management.
  *
- * REST surface for the backup dashboard. Four endpoints:
+ * REST surface for the backup dashboard. Five endpoints:
  *
  *   GET    /api/v1/admin/backups
  *     → all known backups (newest-first). The UI renders
@@ -18,6 +18,15 @@
  *       Returns {valid, tableCount, error?}. The UI
  *       shows a green check + table count on success,
  *       a red X with the error message on failure.
+ *
+ *   POST   /api/v1/admin/backups/restore-drill
+ *     → Tier 195 — sanity-check that the most-recent
+ *       backup actually restores. We spin up a
+ *       throwaway database `de_invoice_restore_drill`,
+ *       run `pg_restore` into it, count the tables,
+ *       then DROP the database. The operator's
+ *       production DB is never touched.
+ *       Returns {ok, dbName, tableCount, error?}.
  *
  *   DELETE /api/v1/admin/backups/:id
  *     → delete a specific backup. The auto-backup cron
@@ -67,6 +76,29 @@ export class BackupController {
   @Require('admin.read')
   async verify(@Param('id') id: string) {
     return this.backup.verify(id)
+  }
+
+  /**
+   * Tier 195 — restore-drill. Picks the most recent
+   * backup, restores it into a throwaway database,
+   * counts the resulting tables, drops the database.
+   * The production `de_invoice` DB is never touched.
+   *
+   * Use case: the operator wants assurance that the
+   * last auto-backup actually works end-to-end (not
+   * just that pg_restore --list parses the TOC).
+   * Running a restore is the only true check.
+   *
+   * 200 → ok=true, tableCount > 0
+   * 500 → ok=false with the error message (the
+   *        throwaway DB is still dropped in the
+   *        catch block so we don't leak it).
+   */
+  @Post('restore-drill')
+  @HttpCode(200)
+  @Require('admin.read')
+  async restoreDrill() {
+    return this.backup.restoreDrill()
   }
 
   @Delete(':id')

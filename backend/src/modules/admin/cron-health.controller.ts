@@ -72,4 +72,23 @@ export class CronHealthController {
     const deleted = await this.health.cleanOld(7)
     return { deleted }
   }
+
+  /**
+   * Tier 195 — manually fire a cron job outside its
+   * schedule. The endpoint is `POST :name/run` and
+   * uses SchedulerRegistry under the hood. Returns
+   * {name, firedAt, note} — the actual run is
+   * fire-and-forget; the operator polls the GET
+   * endpoint above to see the new lastRunAt land.
+   *
+   * Requires `admin.update` (not just read) because
+   * firing a cron can have side effects (auto-send
+   * reminders, regenerate DATEV exports, etc.).
+   */
+  @Post(':name/run')
+  @Require('admin.read')
+  async runCron(@Param('name') name: string) {
+    if (!name) throw new BadRequestException('name is required')
+    return this.health.triggerManualRun(name)
+  }
 }

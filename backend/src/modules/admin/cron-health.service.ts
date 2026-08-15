@@ -27,7 +27,8 @@
  * to the UI so the admin sees "next run in 3h 12m"
  * even if a cron has never fired (e.g. fresh DB).
  */
-import { Injectable, Logger } from '@nestjs/common'
+import { Injectable, Logger, BadRequestException } from '@nestjs/common'
+import { SchedulerRegistry } from '@nestjs/schedule'
 import { PrismaService } from '../../prisma/prisma.service'
 
 export type CronStatus = 'success' | 'failed' | 'skipped'
@@ -63,7 +64,10 @@ export interface CronHealthRow {
 export class CronHealthService {
   private readonly logger = new Logger(CronHealthService.name)
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private schedulerRegistry: SchedulerRegistry,
+  ) {}
 
   /**
    * Curated registry. Add a row here whenever a new
@@ -383,6 +387,84 @@ export class CronHealthService {
         avgDurationMs,
         p95DurationMs,
       },
+    }
+  }
+
+  /**
+   * Tier 195 — manually fire a registered cron job
+   * outside its schedule. We use the SchedulerRegistry
+   * to look up the cron by its registered name and
+   * call `fireOnTick()`. The actual cron body still
+   * runs the same way as a scheduled tick, including
+   * the `record(...)` wrapper that updates the
+   * CronHealth row. So the user sees a fresh
+   * `lastRunAt` + `status` immediately after the
+   * trigger.
+   *
+   * Why not just call the body method directly?
+   * The scheduler body is private to its module —
+   * invoking it here would require injecting every
+   * scheduler service. SchedulerRegistry is the
+   * canonical NestJS escape hatch and is the
+   * documented way to fire a cron on demand.
+   *
+   * Tier 195 also has a safety guard: we refuse to
+   * fire the `daily-auto-backup` cron via this
+   * path. The backup is destructive (creates
+   * ~50MB of dumps) and the operator should use
+   * the dedicated POST /backup/run endpoint
+   * which has its own confirm + audit log. The
+   * fireOnTick path doesn't have a confirm step
+   * so we block it explicitly.
+   */
+  async triggerManualRun(name: string): Promise<{
+    name: string
+    firedAt: string
+    note: string
+  }> {
+    // Safety: refuse the destructive backup cron
+    if (name === 'daily-auto-backup') {
+      throw new BadRequestException(
+        'daily-auto-backup cannot be triggered manually — use POST /api/v1/backup/run instead',
+      )
+    }
+    // Validate the name against the registry of
+    // expected crons. This catches typos (e.g.
+    // 'webhook-retry' instead of 'webhook-retry-worker')
+    // and rejects unknown names with 400 instead of
+    // letting fireOnTick throw a generic scheduler
+    // error.
+    const known = CronHealthService.EXPECTED.map((c) => c.name)
+    if (!known.includes(name)) {
+      throw new BadRequestException(
+        `unknown cron: ${name}. Known: ${known.join(', ')}`,
+      )
+    }
+    let cronJob
+    try {
+      cronJob = this.schedulerRegistry.getCronJob(name)
+    } catch (e) {
+      // The scheduler registry raises NotFoundException
+      // when the name isn't registered with @Cron.
+      // Convert to BadRequest so the API surface is
+      // consistent.
+      throw new BadRequestException(
+        `cron job not registered with @Cron: ${name}`,
+      )
+    }
+    // fireOnTick is fire-and-forget on the scheduler's
+    // own promise. The cron body runs asynchronously
+    // and the operator polls the GET endpoint to see
+    // the new lastRunAt land. We don't await the
+    // body — that would tie up the HTTP request to
+    // the cron's duration (which can be minutes for
+    // the recurring-invoices run).
+    void cronJob.fireOnTick()
+    this.logger.log(`manually fired cron ${name}`)
+    return {
+      name,
+      firedAt: new Date().toISOString(),
+      note: 'fire-and-forget — poll GET /api/v1/admin/cron-health to see the new lastRunAt',
     }
   }
 }
