@@ -193,6 +193,44 @@ export class MetricsController implements OnApplicationBootstrap {
       `de_invoice_build_info{version="${VERSION}",node="${process.version}"} 1`,
     )
 
+    // Tier 193 — business-level gauges. Pulled at scrape
+    // time via parallel index-only counts. Each is a
+    // single SELECT COUNT(*) — fast even with 100k
+    // rows. We don't aggregate by type/status here
+    // (Prometheus labels would explode the cardinality
+    // if every invoice status became a label); just
+    // total counts.
+    try {
+      const [companies, users, invoices, customers] = await Promise.all([
+        this.prisma.company.count(),
+        this.prisma.user.count(),
+        this.prisma.invoice.count(),
+        this.prisma.customer.count(),
+      ])
+      push('# HELP de_invoice_business_companies Total companies in DB')
+      push('# TYPE de_invoice_business_companies gauge')
+      push(`de_invoice_business_companies ${companies}`)
+
+      push('# HELP de_invoice_business_users Total users in DB')
+      push('# TYPE de_invoice_business_users gauge')
+      push(`de_invoice_business_users ${users}`)
+
+      push('# HELP de_invoice_business_invoices Total invoices in DB (all types/statuses)')
+      push('# TYPE de_invoice_business_invoices gauge')
+      push(`de_invoice_business_invoices ${invoices}`)
+
+      push('# HELP de_invoice_business_customers Total customers in DB')
+      push('# TYPE de_invoice_business_customers gauge')
+      push(`de_invoice_business_customers ${customers}`)
+    } catch (e: any) {
+      // If the business count fails, don't fail the
+      // whole scrape — the operator still wants uptime
+      // + process metrics.
+      push(
+        `# de_invoice_business_count_error: ${(e?.message ?? String(e)).replace(/\n/g, ' ')}`,
+      )
+    }
+
     push('# HELP de_invoice_errors_total HTTP responses with status >= 500 since process start')
     push('# TYPE de_invoice_errors_total counter')
     push(`de_invoice_errors_total ${this.errorCount}`)

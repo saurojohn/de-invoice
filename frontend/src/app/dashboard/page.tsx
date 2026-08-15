@@ -86,6 +86,23 @@ interface RecentInvoice {
   customer?: { name: string; customerNumber?: string | null } | null
 }
 
+// Tier 193: System Health widget. Mirrors the
+// backend's GET /api/v1/health/summary response.
+// The dashboard polls this every 30s so the Berater
+// sees at-a-glance whether the backend is healthy
+// (status badge) + how big the data is
+// (companies/users/invoices/customers).
+interface SystemHealth {
+  status: "ok" | "degraded" | "down"
+  version: string
+  uptimeSec: number
+  dbOk: boolean
+  storageOk: boolean
+  memory: { rssMB: number; heapMB: number }
+  business: { companies: number; users: number; invoices: number; customers: number }
+  timestamp: string
+}
+
 const fmtMoney = (n: number) =>
   n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
@@ -135,6 +152,9 @@ export default function DashboardPage() {
     expenseCount: number
   }>>([])
   const [loading, setLoading] = useState(true)
+  // Tier 193: System Health summary from /api/v1/health/summary
+  const [systemHealth, setSystemHealth] = useState<SystemHealth | null>(null)
+  const [systemHealthError, setSystemHealthError] = useState(false)
 
   useEffect(() => {
     const companyId = localStorage.getItem("companyId")
@@ -201,8 +221,22 @@ export default function DashboardPage() {
         expenseCount: number
       }>>(`/api/v1/ustva/history?companyId=${companyId}&months=12`)
         .catch(() => [] as any),
+      // Tier 193: System Health widget. The
+      // /health/summary endpoint is intentionally
+      // cheap (no auth, no company filter — it's a
+      // global health probe), so we fetch it in
+      // parallel with the rest. Soft-fail so a
+      // 500 here doesn't take the whole dashboard
+      // down. The widget shows a "load error"
+      // state in that case.
+      apiGet<SystemHealth>(`/api/v1/health/summary`)
+        .catch((err) => {
+          console.warn("System health summary failed:", err)
+          setSystemHealthError(true)
+          return null
+        }),
     ])
-      .then(([invoiceList, salesReport, dashboardKpis, recurring, creditRows, ustvaRows]) => {
+      .then(([invoiceList, salesReport, dashboardKpis, recurring, creditRows, ustvaRows, sysHealth]) => {
         const invoices = invoiceList?.data || []
         const pending = invoices
           .filter((inv: any) => inv.status === "sent" || inv.status === "draft" || inv.status === "overdue")
@@ -226,6 +260,10 @@ export default function DashboardPage() {
         setRecentInvoices(invoices.slice(0, 8) as RecentInvoice[])
         setCreditUtilization(creditRows || [])
         setUstvaHistory(ustvaRows || [])
+        if (sysHealth) {
+          setSystemHealth(sysHealth)
+          setSystemHealthError(false)
+        }
         setLoading(false)
       })
       .catch((err) => {
@@ -382,6 +420,152 @@ export default function DashboardPage() {
             )
           })}
         </div>
+
+        {/* Tier 193 — System Health widget. Mirrors the
+            backend's /api/v1/health/summary. Shows the
+            Berater at a glance:
+            - status badge (ok / degraded / down)
+            - uptime (d/h/m)
+            - DB + storage health
+            - RSS / heap memory
+            - business counts (companies / users /
+              invoices / customers)
+            The widget is intentionally compact — it
+            lives BELOW the KPIs so the revenue/expense
+            tiles stay at the top of the user's
+            attention. Polled by the same useEffect as
+            the rest of the dashboard; no separate
+            polling loop (avoid hitting Throttler). */}
+        <Card className="mb-8" data-testid="dashboard-system-health">
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between flex-wrap gap-2">
+              <span>{t("dashboard.systemHealthTitle") || "Systemstatus"}</span>
+              <span
+                className={
+                  "text-xs px-2 py-1 rounded-full font-semibold " +
+                  (systemHealth?.status === "ok"
+                    ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                    : systemHealth?.status === "degraded"
+                    ? "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200"
+                    : systemHealthError || systemHealth?.status === "down"
+                    ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+                    : "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300")
+                }
+                data-testid="system-health-status"
+              >
+                {systemHealth?.status === "ok"
+                  ? t("dashboard.systemHealthStatusOk") || "Alles OK"
+                  : systemHealth?.status === "degraded"
+                  ? t("dashboard.systemHealthStatusDegraded") || "Eingeschränkt"
+                  : systemHealthError || systemHealth?.status === "down"
+                  ? t("dashboard.systemHealthStatusDown") || "Nicht verfügbar"
+                  : "—"}
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {systemHealthError && !systemHealth ? (
+              <div className="text-sm text-red-600 dark:text-red-400" data-testid="system-health-error">
+                {t("dashboard.systemHealthLoadError") || "Systemstatus konnte nicht geladen werden"}
+              </div>
+            ) : !systemHealth ? (
+              <div className="text-sm text-gray-500">…</div>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {/* Uptime */}
+                <div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 uppercase">
+                    {t("dashboard.systemHealthUptime") || "Laufzeit"}
+                  </div>
+                  <div className="text-lg font-semibold mt-1" data-testid="system-health-uptime">
+                    {(() => {
+                      const s = systemHealth.uptimeSec
+                      const d = Math.floor(s / 86400)
+                      const h = Math.floor((s % 86400) / 3600)
+                      const m = Math.floor((s % 3600) / 60)
+                      return t("dashboard.systemHealthUptimeValue", { days: d, hours: h, minutes: m })
+                    })()}
+                  </div>
+                </div>
+                {/* DB */}
+                <div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 uppercase">
+                    {t("dashboard.systemHealthDb") || "Datenbank"}
+                  </div>
+                  <div
+                    className={
+                      "text-lg font-semibold mt-1 " +
+                      (systemHealth.dbOk
+                        ? "text-green-600 dark:text-green-400"
+                        : "text-red-600 dark:text-red-400")
+                    }
+                    data-testid="system-health-db"
+                  >
+                    {systemHealth.dbOk ? "✓" : "✗"}
+                  </div>
+                </div>
+                {/* Storage */}
+                <div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 uppercase">
+                    {t("dashboard.systemHealthStorage") || "Speicher"}
+                  </div>
+                  <div
+                    className={
+                      "text-lg font-semibold mt-1 " +
+                      (systemHealth.storageOk
+                        ? "text-green-600 dark:text-green-400"
+                        : "text-red-600 dark:text-red-400")
+                    }
+                    data-testid="system-health-storage"
+                  >
+                    {systemHealth.storageOk ? "✓" : "✗"}
+                  </div>
+                </div>
+                {/* Memory */}
+                <div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 uppercase">
+                    {t("dashboard.systemHealthMemory") || "Speicherverbrauch"}
+                  </div>
+                  <div className="text-lg font-semibold mt-1" data-testid="system-health-memory">
+                    {systemHealth.memory.rssMB} / {systemHealth.memory.heapMB} MB
+                  </div>
+                </div>
+                {/* Business counts (full row) */}
+                <div className="col-span-2 md:col-span-4">
+                  <div className="text-xs text-gray-500 dark:text-gray-400 uppercase mb-1">
+                    {t("dashboard.systemHealthBusiness") || "Datenbestand"}
+                  </div>
+                  <div className="grid grid-cols-4 gap-2 text-sm">
+                    <div data-testid="system-health-companies">
+                      <span className="font-semibold">{systemHealth.business.companies}</span>{" "}
+                      <span className="text-gray-500 dark:text-gray-400">
+                        {t("dashboard.systemHealthCompanies") || "Firmen"}
+                      </span>
+                    </div>
+                    <div data-testid="system-health-users">
+                      <span className="font-semibold">{systemHealth.business.users}</span>{" "}
+                      <span className="text-gray-500 dark:text-gray-400">
+                        {t("dashboard.systemHealthUsers") || "Benutzer"}
+                      </span>
+                    </div>
+                    <div data-testid="system-health-invoices">
+                      <span className="font-semibold">{systemHealth.business.invoices}</span>{" "}
+                      <span className="text-gray-500 dark:text-gray-400">
+                        {t("dashboard.systemHealthInvoices") || "Rechnungen"}
+                      </span>
+                    </div>
+                    <div data-testid="system-health-customers">
+                      <span className="font-semibold">{systemHealth.business.customers}</span>{" "}
+                      <span className="text-gray-500 dark:text-gray-400">
+                        {t("dashboard.systemHealthCustomers") || "Kunden"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Revenue trend (last 12 months) — uses the
             new dashboard endpoint's byMonth (revenue

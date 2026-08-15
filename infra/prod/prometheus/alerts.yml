@@ -50,6 +50,41 @@ groups:
           summary: "de-invoice 5xx rate > 5%"
           description: "More than 5% of backend responses have been 5xx for the last 5 minutes. Check the backend logs."
 
+      # Tier 193 — DB connectivity alert. The backend
+      # exposes de_invoice_db_connected as a gauge
+      # (1 = healthy, 0 = SELECT 1 failed). Alert if
+      # it stays at 0 for 1 minute — much faster
+      # detection than the DeInvoiceDown /health
+      # probe (which only fires if the process is
+      # fully down). 1 min is short enough to catch
+      # a real DB outage, long enough to absorb
+      # brief blips during a connection pool reset.
+      - alert: DeInvoiceDbDown
+        expr: de_invoice_db_connected == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "de-invoice DB unreachable"
+          description: "The backend's SELECT 1 health probe has been failing for 1 minute. PostgreSQL is either down or the connection pool is exhausted. Check 'docker logs de-invoice-postgres' and backend PG pool stats."
+
+      # Tier 193 — Storage not writable. Same idea
+      # as DeInvoiceDbDown but for the file storage
+      # path (where PDFs / ZUGFeRD / signed invoices
+      # get written). Fires if the storage dir
+      # becomes unwritable for 5 minutes — long
+      # enough to absorb backup restarts, short
+      # enough to catch a full disk before users
+      # notice missing PDFs.
+      - alert: DeInvoiceStorageDown
+        expr: de_invoice_storage_writable == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "de-invoice storage dir not writable"
+          description: "The backend's storage dir has been unwritable for 5 minutes. Check disk space ('df -h') and permissions on the storage volume."
+
       - alert: DeInvoiceSlowResponses
         expr: |
           histogram_quantile(0.95,

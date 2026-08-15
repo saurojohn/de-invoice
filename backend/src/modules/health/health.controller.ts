@@ -127,4 +127,93 @@ export class HealthController {
       checks,
     }
   }
+
+  /**
+   * Tier 193 — dashboard-friendly health summary.
+   *
+   * Returns a small JSON shape (no /metrics text parsing
+   * on the frontend) that the dashboard widget can render
+   * directly:
+   *   - status:        'ok' | 'degraded' | 'down'
+   *   - uptime:        seconds (integer)
+   *   - dbOk:          boolean
+   *   - storageOk:     boolean
+   *   - memory:        { rssMB, heapMB } — process memory
+   *   - business:      { companies, users, invoices, customers }
+   *                    (live DB counts at scrape time)
+   *   - timestamp:     ISO 8601
+   *
+   * Same auth as /health (no auth — public for ops
+   * monitoring). The /metrics endpoint stays text-only
+   * for Prometheus; this is the JSON sibling.
+   */
+  @Get('summary')
+  async summary() {
+    let dbOk = false
+    let companies = 0
+    let users = 0
+    let invoices = 0
+    let customers = 0
+    try {
+      const start = Date.now()
+      await this.prisma.$queryRaw`SELECT 1`
+      dbOk = true
+      // Pull counts in parallel. Each is a fast
+      // index-only scan. The dashboard widget polls
+      // every 30s, so we don't want a 5-table join.
+      const [c, u, i, cu] = await Promise.all([
+        this.prisma.company.count(),
+        this.prisma.user.count(),
+        this.prisma.invoice.count(),
+        this.prisma.customer.count(),
+      ])
+      companies = c
+      users = u
+      invoices = i
+      customers = cu
+      // Reference start to keep the linter quiet
+      // about the unused variable; the timing
+      // itself isn't useful here.
+      void start
+    } catch {
+      dbOk = false
+    }
+
+    let storageOk = false
+    try {
+      const dir = process.env.STORAGE_PATH
+        || path.join(os.homedir(), 'data', 'invoice-system')
+      fs.mkdirSync(dir, { recursive: true })
+      const probe = path.join(dir, `.summary-probe-${process.pid}`)
+      fs.writeFileSync(probe, 'ok')
+      fs.unlinkSync(probe)
+      storageOk = true
+    } catch {
+      storageOk = false
+    }
+
+    const mem = process.memoryUsage()
+    const uptimeSec = Math.floor((Date.now() - STARTED_AT.getTime()) / 1000)
+    const status: 'ok' | 'degraded' | 'down' =
+      !dbOk ? 'down' : !storageOk ? 'degraded' : 'ok'
+
+    return {
+      status,
+      version: VERSION,
+      uptimeSec,
+      dbOk,
+      storageOk,
+      memory: {
+        rssMB: Math.round(mem.rss / 1024 / 1024),
+        heapMB: Math.round(mem.heapUsed / 1024 / 1024),
+      },
+      business: {
+        companies,
+        users,
+        invoices,
+        customers,
+      },
+      timestamp: new Date().toISOString(),
+    }
+  }
 }
