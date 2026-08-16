@@ -1867,7 +1867,18 @@
     "testFired": "Test notification sent — see console",
     "testResultSlack": "Slack",
     "testResultEmail": "Email",
-    "testResultConsole": "Console"
+    "testResultConsole": "Console",
+    "timeline": {
+      "title": "Error timeline",
+      "lastDays": "last {n} days",
+      "sourceAll": "All",
+      "sourceBackend": "Backend only",
+      "sourceFrontend": "Frontend only",
+      "legendOpen": "Open",
+      "legendResolved": "Resolved",
+      "legendMuted": "Muted",
+      "empty": "No errors in the last 30 days. ✓"
+    }
   },
   "template": {
     "label": "Invoice Template",

@@ -23,6 +23,7 @@ import {
   UseGuards,
 } from "@nestjs/common"
 import { Request } from "express"
+import { Prisma } from "@prisma/client"
 import { ErrorTrackingService } from "./error-tracking.service"
 import { PrismaService } from "../../prisma/prisma.service"
 import { HeaderAuthGuard } from "../../auth/header-auth.guard"
@@ -107,6 +108,169 @@ export class SystemController {
       }),
     ])
     return { items, total, openCount }
+  }
+
+  /**
+   * Tier 200 — system-error timeline.
+   *
+   * Returns a per-day count of error
+   * events for the last N days (default
+   * 30). The frontend renders this as a
+   * stacked bar chart (open / resolved /
+   * muted) so the operator can spot
+   * "errors are spiking this week" at a
+   * glance.
+   *
+   * Bucketing is by `firstSeenAt` day in
+   * the server's timezone (PG
+   * `date_trunc('day', ...)`). Each
+   * bucket shows the count by CURRENT
+   * status — we don't keep a history
+   * table, so a row that's been resolved
+   * counts as "resolved" in its creation
+   * day (not "open"). For the "is
+   * anything spiking" use case that's
+   * the right semantics: the operator
+   * wants to see "how many open errors
+   * are piling up this week", not "what
+   * was open on Monday that's now
+   * resolved".
+   *
+   * Why a separate endpoint, not just
+   * richer `listErrors`?
+   *   - Timeline fetches N days in one
+   *     query; list fetches 200 rows
+   *     (different shape).
+   *   - Adding `groupBy`/raw SQL to
+   *     listErrors would make that
+   *     controller method slow when
+   *     `take=200` AND we don't need the
+   *     rows.
+   *
+   * Query:
+   *   - days: 1..90 (default 30, capped
+   *     at 90 to keep the query small)
+   *   - source: 'backend' | 'frontend' |
+   *     omitted for all
+   *   - companyId: required (admin path)
+   */
+  @Get("errors/timeline")
+  @UseGuards(HeaderAuthGuard, RolesGuard)
+  @Require("users.read")
+  async errorTimeline(
+    @Query("days") daysStr?: string,
+    @Query("source") source?: string,
+    @Query("companyId") companyId?: string,
+  ) {
+    const days = Math.min(
+      Math.max(parseInt(daysStr || "30", 10) || 30, 1),
+      90,
+    )
+    // Use PG's date_trunc to bucket
+    // by day in the server timezone.
+    // The result is one row per
+    // (day, status) — we then pivot
+    // in JS to one row per day with
+    // counts for each status.
+    const cutoff = new Date(
+      Date.now() - days * 24 * 60 * 60 * 1000,
+    )
+    const where: any = { firstSeenAt: { gte: cutoff } }
+    if (source) where.source = source
+    if (companyId) where.companyId = companyId
+    // Per-day via $queryRaw for
+    // date_trunc (Prisma groupBy doesn't
+    // support date functions). The
+    // source/companyId filters are
+    // appended via Prisma.sql join so
+    // the parameter binding stays safe
+    // (no string concat — would be
+    // SQL-injection risk).
+    const conditions: any[] = [Prisma.sql`"firstSeenAt" >= ${cutoff}`]
+    if (source) {
+      conditions.push(Prisma.sql`source = ${source}`)
+    }
+    if (companyId) {
+      conditions.push(Prisma.sql`"companyId" = ${companyId}`)
+    }
+    const whereClause = Prisma.sql`WHERE ${Prisma.join(conditions, " AND ")}`
+    const buckets: Array<{
+      date: string
+      total: number
+      open: number
+      resolved: number
+      muted: number
+    }> = []
+    const raw = await this.prisma.$queryRaw<
+      Array<{ day: Date; status: string; cnt: bigint }>
+    >`
+      SELECT
+        date_trunc('day', "firstSeenAt") as day,
+        status,
+        COUNT(*) as cnt
+      FROM "ErrorEvent"
+      ${whereClause}
+      GROUP BY day, status
+      ORDER BY day ASC
+    `
+    // Pivot into per-day buckets.
+    const dayMap = new Map<
+      string,
+      { total: number; open: number; resolved: number; muted: number }
+    >()
+    for (const row of raw) {
+      const dayKey = new Date(row.day).toISOString().slice(0, 10)
+      const cur = dayMap.get(dayKey) || {
+        total: 0,
+        open: 0,
+        resolved: 0,
+        muted: 0,
+      }
+      const cnt = Number(row.cnt)
+      cur.total += cnt
+      if (row.status === "open") cur.open += cnt
+      else if (row.status === "resolved") cur.resolved += cnt
+      else if (row.status === "muted") cur.muted += cnt
+      dayMap.set(dayKey, cur)
+    }
+    // Emit one bucket per day in the
+    // window (even days with 0 events,
+    // so the bar chart x-axis is
+    // continuous). Loop from today
+    // backwards N days.
+    const today = new Date()
+    today.setUTCHours(0, 0, 0, 0)
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date(today.getTime() - i * 24 * 60 * 60 * 1000)
+      const key = d.toISOString().slice(0, 10)
+      const cur = dayMap.get(key) || {
+        total: 0,
+        open: 0,
+        resolved: 0,
+        muted: 0,
+      }
+      buckets.push({ date: key, ...cur })
+    }
+    // Status-aggregated totals for
+    // the header chips ("X open / Y
+    // resolved / Z muted in the last
+    // N days").
+    const totals = {
+      open: 0,
+      resolved: 0,
+      muted: 0,
+    }
+    for (const b of buckets) {
+      totals.open += b.open
+      totals.resolved += b.resolved
+      totals.muted += b.muted
+    }
+    return {
+      days,
+      source: source || "all",
+      buckets,
+      totals,
+    }
   }
 
   @Post("errors/:id/resolve")

@@ -1867,7 +1867,18 @@
     "testFired": "测试通知已发送 — 请查看控制台",
     "testResultSlack": "Slack",
     "testResultEmail": "邮件",
-    "testResultConsole": "控制台"
+    "testResultConsole": "控制台",
+    "timeline": {
+      "title": "错误时间线",
+      "lastDays": "最近 {n} 天",
+      "sourceAll": "全部",
+      "sourceBackend": "仅后端",
+      "sourceFrontend": "仅前端",
+      "legendOpen": "未解决",
+      "legendResolved": "已解决",
+      "legendMuted": "已忽略",
+      "empty": "最近 30 天内无错误。✓"
+    }
   },
   "template": {
     "label": "发票模板",

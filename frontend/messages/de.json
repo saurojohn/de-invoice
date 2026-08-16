@@ -1867,7 +1867,18 @@
     "testFired": "Test-Benachrichtigung gesendet — siehe Konsole",
     "testResultSlack": "Slack",
     "testResultEmail": "E-Mail",
-    "testResultConsole": "Konsole"
+    "testResultConsole": "Konsole",
+    "timeline": {
+      "title": "Fehler-Zeitverlauf",
+      "lastDays": "letzte {n} Tage",
+      "sourceAll": "Alle",
+      "sourceBackend": "Nur Backend",
+      "sourceFrontend": "Nur Frontend",
+      "legendOpen": "Offen",
+      "legendResolved": "Behoben",
+      "legendMuted": "Stumm",
+      "empty": "Keine Fehler in den letzten 30 Tagen. ✓"
+    }
   },
   "template": {
     "label": "Rechnungsvorlage",
