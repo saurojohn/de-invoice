@@ -1472,6 +1472,28 @@ model AuditLog {
   ipAddress   String?
   userAgent   String?
   createdAt   DateTime @default(now())
+  // Tier 196 — tamper-evident hash chain.
+  // `hash` is the SHA-256 of a canonical string of
+  // the row's content plus `previousHash`. The
+  // first row in a chain has previousHash = ''.
+  // The algorithm identifier leaves room for a
+  // future format migration without breaking the
+  // verify path. We use `algorithm: SHA-256-V1`
+  // matching the CashBook Tier 194 convention
+  // so the verify tool is the same shape.
+  //
+  // Any post-hoc mutation of a row (oldData / newData
+  // / action / entityId) makes the recomputed hash
+  // diverge from the stored one. Any row deletion
+  // breaks the chain at the deletion point. Any
+  // row insertion in the middle of the chain
+  // breaks the subsequent rows' previousHash
+  // pointers. The verify endpoint walks the
+  // chain in createdAt order and surfaces the
+  // first mismatch.
+  hash          String?
+  previousHash  String?
+  hashAlgorithm String?
 
   @@index([companyId, createdAt])
   @@index([entityType, entityId])

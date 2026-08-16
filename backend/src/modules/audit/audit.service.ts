@@ -4,6 +4,70 @@ import {
 } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import { Prisma } from '@prisma/client'
+import { createHash } from 'crypto'
+
+/**
+ * Tier 196 — hash function for the audit log
+ * chain. Kept in sync with the same function
+ * in prisma/audit-log.extension.ts. If you
+ * change one, change both (and bump the
+ * algorithm string).
+ *
+ * The hash input is a pipe-separated canonical
+ * string of (action, entityType, entityId, userId,
+ * companyId, oldData, newData, previousHash,
+ * createdAt). JSON values are stringified with
+ * stable key order so the write path and the
+ * verify path produce the same input.
+ */
+function computeAuditHash(c: {
+  action: string
+  entityType: string | null
+  entityId: string | null
+  userId: string | null
+  companyId: string | null
+  oldData: any
+  newData: any
+  previousHash: string
+  createdAt: Date
+}): string {
+  const stableStringify = (v: any): string => {
+    if (v == null) return ''
+    // Date handling: see the matching block in
+    // prisma/audit-log.extension.ts. Prisma
+    // returns Date objects from findUnique /
+    // update; PG jsonb roundtrip gives ISO
+    // strings. We need to canonicalise the
+    // Date to the ISO string here so the
+    // write-path hash and the verify-path
+    // hash agree.
+    if (v instanceof Date) return JSON.stringify(v.toISOString())
+    if (typeof v !== 'object') return JSON.stringify(v)
+    if (Array.isArray(v)) {
+      return '[' + v.map(stableStringify).join(',') + ']'
+    }
+    const keys = Object.keys(v).sort()
+    return (
+      '{' +
+      keys
+        .map((k) => JSON.stringify(k) + ':' + stableStringify(v[k]))
+        .join(',') +
+      '}'
+    )
+  }
+  const payload = [
+    c.action,
+    c.entityType ?? '',
+    c.entityId ?? '',
+    c.userId ?? '',
+    c.companyId ?? '',
+    stableStringify(c.oldData),
+    stableStringify(c.newData),
+    c.previousHash,
+    c.createdAt.toISOString(),
+  ].join('|')
+  return createHash('sha256').update(payload).digest('hex')
+}
 
 /**
  * Tier 67: Audit-Trail read API.
@@ -524,6 +588,175 @@ export class AuditService {
       )
     }
     return lines.join('\n')
+  }
+
+  // ========== Tier 196 — hash-chain verify ==========
+
+  /**
+   * Walk every audit row in the company's chain
+   * (ordered by createdAt then id) and check:
+   *   1. each row's stored hash matches a re-derivation
+   *      of the same canonical input
+   *   2. each row's previousHash matches the previous
+   *      row's stored hash
+   *
+   * Returns the first broken link (or ok=true if
+   * the entire chain is intact). Algorithm: we
+   * sort by createdAt + id in JS rather than
+   * paginate in SQL because (a) the typical
+   * chain length is a few thousand rows, easy
+   * to hold in memory, and (b) we want the
+   * exact same ordering logic as the write path
+   * in audit-log.extension.ts so the two
+   * directions agree.
+   */
+  async verifyChain(companyId: string): Promise<{
+    ok: boolean
+    totalRows: number
+    verifiedRows: number
+    brokenAt: {
+      id: string
+      createdAt: string
+      reason: 'hash_mismatch' | 'previous_hash_mismatch' | 'missing_hash'
+      expectedHash: string | null
+      actualHash: string | null
+    } | null
+    algorithm: string
+    verifiedAt: string
+  }> {
+    const rows = await this.prisma.auditLog.findMany({
+      where: { companyId },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    })
+    let expectedPreviousHash = ''
+    for (const r of rows) {
+      if (!r.hash) {
+        // Pre-Tier 196 rows have null hash. We
+        // accept them as "signed=false" entries
+        // that don't break the chain for post-
+        // Tier 196 rows. The chain is broken
+        // here only if a post-Tier 196 row
+        // (which we detect by the algorithm
+        // string) is missing its hash.
+        if (r.hashAlgorithm) {
+          return {
+            ok: false,
+            totalRows: rows.length,
+            verifiedRows: 0,
+            brokenAt: {
+              id: r.id,
+              createdAt: r.createdAt.toISOString(),
+              reason: 'missing_hash',
+              expectedHash: null,
+              actualHash: null,
+            },
+            algorithm: r.hashAlgorithm,
+            verifiedAt: new Date().toISOString(),
+          }
+        }
+        continue
+      }
+      const recomputed = computeAuditHash({
+        action: r.action,
+        entityType: r.entityType,
+        entityId: r.entityId,
+        userId: r.userId,
+        companyId: r.companyId,
+        oldData: r.oldData,
+        newData: r.newData,
+        previousHash: r.previousHash ?? '',
+        createdAt: r.createdAt,
+      })
+      if (recomputed !== r.hash) {
+        return {
+          ok: false,
+          totalRows: rows.length,
+          verifiedRows: 0,
+          brokenAt: {
+            id: r.id,
+            createdAt: r.createdAt.toISOString(),
+            reason: 'hash_mismatch',
+            expectedHash: r.hash,
+            actualHash: recomputed,
+          },
+          algorithm: r.hashAlgorithm || 'UNKNOWN',
+          verifiedAt: new Date().toISOString(),
+        }
+      }
+      if ((r.previousHash ?? '') !== expectedPreviousHash) {
+        return {
+          ok: false,
+          totalRows: rows.length,
+          verifiedRows: 0,
+          brokenAt: {
+            id: r.id,
+            createdAt: r.createdAt.toISOString(),
+            reason: 'previous_hash_mismatch',
+            expectedHash: expectedPreviousHash,
+            actualHash: r.previousHash ?? '',
+          },
+          algorithm: r.hashAlgorithm || 'UNKNOWN',
+          verifiedAt: new Date().toISOString(),
+        }
+      }
+      expectedPreviousHash = r.hash
+    }
+    return {
+      ok: true,
+      totalRows: rows.length,
+      verifiedRows: rows.length,
+      brokenAt: null,
+      algorithm: 'SHA-256-V1',
+      verifiedAt: new Date().toISOString(),
+    }
+  }
+
+  /**
+   * Verify a single audit row. Loads the row and
+   * calls the same hash function the write path
+   * used. Always returns 200; the caller inspects
+   * the `verified` boolean to render a badge.
+   */
+  async verifyOne(
+    companyId: string,
+    id: string,
+  ): Promise<{
+    id: string
+    signed: boolean
+    verified: boolean
+    algorithm: string | null
+    storedHash: string | null
+    recomputedHash: string
+    verifiedAt: string
+  }> {
+    const r = await this.prisma.auditLog.findFirst({
+      where: { id, companyId },
+    })
+    if (!r) {
+      throw new BadRequestException('Audit-Eintrag nicht gefunden')
+    }
+    const recomputed = computeAuditHash({
+      action: r.action,
+      entityType: r.entityType,
+      entityId: r.entityId,
+      userId: r.userId,
+      companyId: r.companyId,
+      oldData: r.oldData,
+      newData: r.newData,
+      previousHash: r.previousHash ?? '',
+      createdAt: r.createdAt,
+    })
+    const signed = !!r.hash
+    const verified = signed && recomputed === r.hash
+    return {
+      id: r.id,
+      signed,
+      verified,
+      algorithm: r.hashAlgorithm,
+      storedHash: r.hash,
+      recomputedHash: recomputed,
+      verifiedAt: new Date().toISOString(),
+    }
   }
 }
 

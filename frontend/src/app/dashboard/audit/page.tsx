@@ -68,6 +68,33 @@ interface AuditDetail {
   createdAt: string
 }
 
+// Tier 196 — chain integrity verification result.
+interface ChainVerify {
+  ok: boolean
+  totalRows: number
+  verifiedRows: number
+  brokenAt: {
+    id: string
+    createdAt: string
+    reason: string
+    expectedHash: string | null
+    actualHash: string | null
+  } | null
+  algorithm: string
+  verifiedAt: string
+}
+
+// Tier 196 — single-row verification result.
+interface OneVerify {
+  id: string
+  signed: boolean
+  verified: boolean
+  algorithm: string | null
+  storedHash: string | null
+  recomputedHash: string
+  verifiedAt: string
+}
+
 interface StatsResponse {
   totalActions: number
   byAction: { action: string; count: number }[]
@@ -319,6 +346,10 @@ export default function AuditPage() {
   // Detail modal
   const [detail, setDetail] = useState<AuditDetail | null>(null)
   const [loadingDetail, setLoadingDetail] = useState(false)
+  // Tier 196 — chain integrity verification
+  const [chainVerify, setChainVerify] = useState<ChainVerify | null>(null)
+  const [verifyingChain, setVerifyingChain] = useState(false)
+  const [oneVerify, setOneVerify] = useState<OneVerify | null>(null)
 
   const companyId =
     typeof window !== "undefined" ? localStorage.getItem("companyId") : null
@@ -414,6 +445,39 @@ export default function AuditPage() {
   }
 
   const closeDetail = () => setDetail(null)
+
+  // Tier 196 — verify the entire audit chain
+  // for this company. Sets chainVerify state so
+  // the banner at the top of the page renders
+  // a green badge (ok=true) or a red alert
+  // with the broken row's id and reason.
+  const verifyChain = async () => {
+    setVerifyingChain(true)
+    try {
+      const r = await apiGet<ChainVerify>(
+        `/api/v1/audit-logs/verify?companyId=${companyId}`,
+      )
+      setChainVerify(r)
+    } catch (e: any) {
+      toast.error(e?.message || "Verify-Fehler")
+    } finally {
+      setVerifyingChain(false)
+    }
+  }
+
+  // Tier 196 — verify a single row when the
+  // detail modal is open. The button in the
+  // modal header calls this.
+  const verifyOne = async (id: string) => {
+    try {
+      const r = await apiGet<OneVerify>(
+        `/api/v1/audit-logs/${id}/verify?companyId=${companyId}`,
+      )
+      setOneVerify(r)
+    } catch (e: any) {
+      toast.error(e?.message || "Verify-Fehler")
+    }
+  }
 
   const entityTypeOptions = useMemo(() => {
     // Build from the stats response so the dropdown
@@ -865,6 +929,50 @@ export default function AuditPage() {
           </div>
         </div>
 
+        {/* Tier 196 — chain integrity banner. Sits
+            between the header and the stats cards
+            so it's the first thing the Berater sees.
+            Renders a green "OK" pill when the
+            chain is intact, a red "BROKEN" pill
+            with the broken row's id and reason
+            otherwise, and a "?" placeholder
+            before the first verify. */}
+        <div
+          className="mb-4 flex items-center gap-2 flex-wrap"
+          data-testid="audit-chain-status"
+        >
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={verifyChain}
+            disabled={verifyingChain}
+            data-testid="audit-verify-chain"
+          >
+            {verifyingChain
+              ? "…"
+              : t("audit.verifyChain") || "Audit-Kette verifizieren"}
+          </Button>
+          {chainVerify && (
+            <span
+              className={
+                "text-xs px-2 py-1 rounded-full font-semibold " +
+                (chainVerify.ok
+                  ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                  : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200")
+              }
+              data-testid="audit-chain-badge"
+            >
+              {chainVerify.ok
+                ? (t("audit.chainOk") || "Kette intakt") +
+                  ` (${chainVerify.verifiedRows}/${chainVerify.totalRows})`
+                : (t("audit.chainBroken") || "Kette unterbrochen") +
+                  (chainVerify.brokenAt
+                    ? ` @ ${chainVerify.brokenAt.id.slice(0, 8)} (${chainVerify.brokenAt.reason})`
+                    : "")}
+            </span>
+          )}
+        </div>
+
         {/* Stats cards */}
         {stats && (
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
@@ -1298,7 +1406,7 @@ export default function AuditPage() {
             className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between gap-2 flex-wrap">
               <div>
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
                   {t("audit.detailTitle") || "Änderung im Detail"}
@@ -1310,14 +1418,45 @@ export default function AuditPage() {
                   </p>
                 )}
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={closeDetail}
-                data-testid="audit-detail-close"
-              >
-                ✕
-              </Button>
+              <div className="flex items-center gap-2">
+                {detail && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => verifyOne(detail.id)}
+                    data-testid="audit-verify-one"
+                  >
+                    {t("audit.verifyOne") || "Verifizieren"}
+                  </Button>
+                )}
+                {oneVerify && oneVerify.id === detail?.id && (
+                  <span
+                    className={
+                      "text-xs px-2 py-1 rounded-full font-semibold " +
+                      (oneVerify.verified
+                        ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                        : oneVerify.signed
+                        ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+                        : "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300")
+                    }
+                    data-testid="audit-verify-one-badge"
+                  >
+                    {oneVerify.verified
+                      ? t("audit.verified") || "Verifiziert"
+                      : oneVerify.signed
+                      ? t("audit.tamperDetected") || "Manipulation erkannt"
+                      : t("audit.notSigned") || "Nicht signiert"}
+                  </span>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={closeDetail}
+                  data-testid="audit-detail-close"
+                >
+                  ✕
+                </Button>
+              </div>
             </div>
             <div className="p-6">
               {loadingDetail || !detail ? (

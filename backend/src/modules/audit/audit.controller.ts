@@ -146,6 +146,66 @@ export class AuditController {
     res.send('\ufeff' + csv)
   }
 
+  /**
+   * Tier 196 — walk the entire audit-log hash
+   * chain for a company and report the first
+   * broken link. Returns:
+   *   {
+   *     ok:        boolean,
+   *     totalRows: number,
+   *     verifiedRows: number,
+   *     brokenAt: { id, createdAt, expectedHash,
+   *                 actualHash, reason } | null,
+   *     algorithm: string,
+   *     verifiedAt: string,
+   *   }
+   *
+   * 200 always. The caller inspects `ok` + `brokenAt`
+   * to decide whether to render a green badge or
+   * a red alert. The endpoint is read-only and
+   * safe to call from the dashboard widget —
+   * it scans at most a few thousand rows and
+   * the loop is in-memory.
+   *
+   * `ok=true` means every row in the chain
+   * re-derives to the same hash AND every
+   * row's previousHash matches the previous
+   * row's hash. `ok=false` with `brokenAt`
+   * non-null means the chain is broken at that
+   * row.
+   */
+  @Get('verify')
+  @Require('audit.read')
+  async verifyChain(@Query('companyId') companyId: string) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    return this.svc.verifyChain(companyId)
+  }
+
+  /**
+   * Tier 196 — verify a single audit row. Re-derives
+   * the hash from the row's current state and asserts
+   * equality with the stored hash. Returns
+   *   {
+   *     id, signed, verified, algorithm,
+   *     storedHash, recomputedHash, verifiedAt
+   *   }
+   *
+   * 200 with verified=false (rather than 4xx) when
+   * the row's stored hash doesn't match — the
+   * caller (audit detail modal) renders a red
+   * "tamper detected" badge.
+   */
+  @Get(':id/verify')
+  @Require('audit.read')
+  async verifyOne(
+    @Query('companyId') companyId: string,
+    @Param('id') id: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    if (!id) throw new BadRequestException('id ist erforderlich')
+    return this.svc.verifyOne(companyId, id)
+  }
+
   @Get(':id')
   @Require('audit.read')
   async getOne(
