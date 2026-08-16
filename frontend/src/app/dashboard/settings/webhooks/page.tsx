@@ -78,6 +78,13 @@ interface Webhook {
   description: string | null
   createdAt: string
   updatedAt: string
+  // Tier 199 — most recent successful
+  // delivery + most recent delivery of
+  // any status, used to render the
+  // "last successful" badge in the
+  // webhooks list.
+  lastSuccessAt: string | null
+  lastDeliveryAt: string | null
 }
 
 interface WebhookDelivery {
@@ -164,6 +171,83 @@ function statusBadgeClass(status: string): string {
       return "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200"
     default:
       return "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200"
+  }
+}
+
+// Tier 199 — render the "last
+// successful delivery" badge for a
+// webhook. The badge color reflects
+// delivery health:
+//   - green: success within 1h or 24h
+//   - amber: success within 7d
+//   - red:   no success ever, OR
+//            success > 7d ago
+//
+// Returns { label, className }. The
+// label is i18n-keyed ("X Minuten"
+// / "X Stunden" / "X Tagen") so we
+// need to know the locale. We pass
+// the i18n formatter in (rather than
+// reading useI18n here) because this
+// is a pure function used both in JSX
+// and tests.
+//
+// Note: we use Math.floor on the
+// minute/hour counts — "1 minute" is
+// more natural than "1.4 minutes".
+function relativeTime(
+  iso: string,
+  nowMs: number = Date.now(),
+): { amount: number; unit: "minute" | "hour" | "day" } {
+  const thenMs = new Date(iso).getTime()
+  const diffSec = Math.max(0, Math.floor((nowMs - thenMs) / 1000))
+  if (diffSec < 60 * 60) {
+    return { amount: Math.max(1, Math.floor(diffSec / 60)), unit: "minute" }
+  }
+  if (diffSec < 60 * 60 * 24) {
+    return { amount: Math.floor(diffSec / 3600), unit: "hour" }
+  }
+  return { amount: Math.floor(diffSec / 86400), unit: "day" }
+}
+
+function lastSuccessBadge(
+  wh: Webhook,
+  t: (key: string, vars?: Record<string, string>) => string,
+): { label: string; className: string } {
+  if (!wh.lastSuccessAt) {
+    // Two sub-cases:
+    //  1. webhook never fired
+    //  2. webhook fired but never got 2xx
+    if (!wh.lastDeliveryAt) {
+      return {
+        label: t("webhooks.lastSuccess.neverFired"),
+        className:
+          "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200",
+      }
+    }
+    return {
+      label: t("webhooks.lastSuccess.never"),
+      className: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200",
+    }
+  }
+  const { amount, unit } = relativeTime(wh.lastSuccessAt)
+  if (unit === "minute" || unit === "hour") {
+    return {
+      label: `✓ ${t(`webhooks.lastSuccess.${unit}`, { n: String(amount) })}`,
+      className:
+        "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200",
+    }
+  }
+  if (unit === "day" && amount <= 7) {
+    return {
+      label: t("webhooks.lastSuccess.day", { n: String(amount) }),
+      className:
+        "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200",
+    }
+  }
+  return {
+    label: t("webhooks.lastSuccess.day", { n: String(amount) }),
+    className: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200",
   }
 }
 
@@ -600,6 +684,9 @@ export default function WebhooksPage() {
                       <th className="py-2 px-2 font-medium">
                         {t("webhooks.statusLabel")}
                       </th>
+                      <th className="py-2 px-2 font-medium">
+                        {t("webhooks.lastSuccess.label")}
+                      </th>
                       <th className="py-2 px-2 font-medium text-right">
                         {t("webhooks.actionsLabel")}
                       </th>
@@ -608,6 +695,7 @@ export default function WebhooksPage() {
                   <tbody>
                     {webhooks.map((wh) => {
                       const evts = parseEvents(wh.events)
+                      const badge = lastSuccessBadge(wh, t)
                       return (
                         <tr
                           key={wh.id}
@@ -637,6 +725,32 @@ export default function WebhooksPage() {
                             >
                               {t(`webhooks.status.${wh.status}`)}
                             </span>
+                          </td>
+                          <td className="py-3 px-2">
+                            {/* Tier 199 — last
+                                successful delivery
+                                badge. Green if
+                                recent, amber if
+                                within 7d, red if
+                                older or never. */}
+                            <span
+                              className={`inline-block text-xs px-2 py-1 rounded ${badge.className}`}
+                              data-testid="webhook-last-success"
+                              title={
+                                wh.lastSuccessAt
+                                  ? `lastSuccessAt=${wh.lastSuccessAt}`
+                                  : "no successful delivery yet"
+                              }
+                            >
+                              {badge.label}
+                            </span>
+                            {wh.lastDeliveryAt &&
+                              wh.lastSuccessAt !== wh.lastDeliveryAt && (
+                                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                  {t("webhooks.lastSuccess.lastAttempt")}:{" "}
+                                  {formatDate(wh.lastDeliveryAt)}
+                                </div>
+                              )}
                           </td>
                           <td className="py-3 px-2 text-right">
                             <div className="flex gap-1 justify-end flex-wrap">

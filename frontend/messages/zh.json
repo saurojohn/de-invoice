@@ -2190,7 +2190,16 @@
     },
     "backToSettings": "返回设置",
     "statusLabel": "状态",
-    "actionsLabel": "操作"
+    "actionsLabel": "操作",
+    "lastSuccess": {
+      "label": "最近成功投递",
+      "never": "从未成功",
+      "neverFired": "从未触发",
+      "minute": "{n} 分钟前",
+      "hour": "{n} 小时前",
+      "day": "{n} 天前",
+      "lastAttempt": "最近尝试"
+    }
   },
   "invoices": {
     "bulkSend": "📧 发送 {count} 张",

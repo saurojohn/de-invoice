@@ -131,21 +131,83 @@ export class WebhookService {
    * Secrets are NOT returned (caller
    * already has them from create time).
    */
+  /**
+   * Tier 199 — list webhooks for a
+   * company, enriched with the most
+   * recent successful delivery AND the
+   * most recent delivery (any status)
+   * per webhook. The UI uses these two
+   * timestamps to render a "last
+   * successful" badge in the webhooks
+   * list (Tier 199).
+   *
+   * Implementation: 2 prisma.groupBy
+   * queries (one for status='success',
+   * one for any status) instead of N+1.
+   * For a company with 10 webhooks,
+   * that's 2 queries vs 20. The
+   * groupBy is per companyId (not
+   * global) so it can't leak across
+   * tenants.
+   *
+   * Returns: array of webhooks, each
+   * with two extra fields:
+   *   - lastSuccessAt: Date | null
+   *     (null = no successful delivery
+   *     ever — webhook is new, or
+   *     every attempt has failed)
+   *   - lastDeliveryAt: Date | null
+   *     (null = no delivery attempts
+   *     ever — webhook was created but
+   *     never fired an event)
+   */
   async list(companyId: string) {
-    return this.prisma.webhook.findMany({
-      where: { companyId, status: { not: 'disabled' } },
-      orderBy: { createdAt: 'desc' },
-      select: {
-        id: true,
-        name: true,
-        url: true,
-        events: true,
-        status: true,
-        description: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    })
+    const [webhooks, successByWebhook, lastByWebhook] = await Promise.all([
+      this.prisma.webhook.findMany({
+        where: { companyId, status: { not: 'disabled' } },
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          name: true,
+          url: true,
+          events: true,
+          status: true,
+          description: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      }),
+      // Most recent SUCCESS per webhook.
+      // Returns one row per webhookId
+      // that has at least one success
+      // delivery. Webhooks with no
+      // success yet are absent from the
+      // result (and get lastSuccessAt
+      // = null below).
+      this.prisma.webhookDelivery.groupBy({
+        by: ['webhookId'],
+        where: { companyId, status: 'success' },
+        _max: { attemptedAt: true },
+      }),
+      // Most recent DELIVERY (any
+      // status) per webhook. Same shape.
+      this.prisma.webhookDelivery.groupBy({
+        by: ['webhookId'],
+        where: { companyId },
+        _max: { attemptedAt: true },
+      }),
+    ])
+    const successMap = new Map(
+      successByWebhook.map((r) => [r.webhookId, r._max.attemptedAt]),
+    )
+    const lastMap = new Map(
+      lastByWebhook.map((r) => [r.webhookId, r._max.attemptedAt]),
+    )
+    return webhooks.map((wh) => ({
+      ...wh,
+      lastSuccessAt: successMap.get(wh.id) ?? null,
+      lastDeliveryAt: lastMap.get(wh.id) ?? null,
+    }))
   }
 
   /**

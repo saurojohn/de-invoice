@@ -2190,7 +2190,16 @@
     },
     "backToSettings": "Back to settings",
     "statusLabel": "Status",
-    "actionsLabel": "Actions"
+    "actionsLabel": "Actions",
+    "lastSuccess": {
+      "label": "Last successful delivery",
+      "never": "Never successful",
+      "neverFired": "Never fired",
+      "minute": "{n} min ago",
+      "hour": "{n} hr ago",
+      "day": "{n} day(s) ago",
+      "lastAttempt": "Last attempt"
+    }
   },
   "invoices": {
     "bulkSend": "📧 Send {count}",
