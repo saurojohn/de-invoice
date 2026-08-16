@@ -1853,7 +1853,21 @@
     "page": "Seite",
     "method": "Methode",
     "showStack": "Stack anzeigen",
-    "hideStack": "Stack verbergen"
+    "hideStack": "Stack verbergen",
+    "resolveAll": "Alle als behoben markieren",
+    "resolveAllConfirm": "{n} offene Fehler als behoben markieren?",
+    "resolvedAll": "{n} Fehler als behoben markiert",
+    "muteAll": "Alle stummschalten",
+    "mutedAll": "{n} Fehler stummgeschaltet",
+    "notifChannels": "Benachrichtigungskanäle:",
+    "notifOff": "nicht konfiguriert",
+    "notifRecipients": "Empfänger",
+    "notifAntiSpam": "Anti-Spam: {n} Min. pro Fingerabdruck",
+    "testNotifications": "Test-Benachrichtigung senden",
+    "testFired": "Test-Benachrichtigung gesendet — siehe Konsole",
+    "testResultSlack": "Slack",
+    "testResultEmail": "E-Mail",
+    "testResultConsole": "Konsole"
   },
   "template": {
     "label": "Rechnungsvorlage",

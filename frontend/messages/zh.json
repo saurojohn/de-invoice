@@ -1853,7 +1853,21 @@
     "page": "页面",
     "method": "方法",
     "showStack": "显示堆栈",
-    "hideStack": "隐藏堆栈"
+    "hideStack": "隐藏堆栈",
+    "resolveAll": "全部标记为已解决",
+    "resolveAllConfirm": "将 {n} 个未解决错误标记为已解决？",
+    "resolvedAll": "已标记 {n} 个错误为已解决",
+    "muteAll": "全部忽略",
+    "mutedAll": "已忽略 {n} 个错误",
+    "notifChannels": "通知渠道：",
+    "notifOff": "未配置",
+    "notifRecipients": "位收件人",
+    "notifAntiSpam": "防刷屏：每个指纹 {n} 分钟",
+    "testNotifications": "发送测试通知",
+    "testFired": "测试通知已发送 — 请查看控制台",
+    "testResultSlack": "Slack",
+    "testResultEmail": "邮件",
+    "testResultConsole": "控制台"
   },
   "template": {
     "label": "发票模板",

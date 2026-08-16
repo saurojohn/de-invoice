@@ -29,6 +29,8 @@ import { HeaderAuthGuard } from "../../auth/header-auth.guard"
 import { SoftAuthGuard } from "../../auth/soft-auth.guard"
 import { RolesGuard } from "../../auth/roles.guard"
 import { Require } from "../../auth/roles.decorator"
+import { NotificationService } from "./notification.service"
+import { ConfigService } from "@nestjs/config"
 
 @Controller("system")
 // No class-level guard — POST /errors is public (SoftAuthGuard),
@@ -37,6 +39,8 @@ export class SystemController {
   constructor(
     private readonly tracker: ErrorTrackingService,
     private readonly prisma: PrismaService,
+    private readonly notify: NotificationService,
+    private readonly config: ConfigService,
   ) {}
 
   /**
@@ -128,5 +132,122 @@ export class SystemController {
   async prune() {
     const result = await this.tracker.prune(30)
     return { ok: true, ...result }
+  }
+
+  // ─── Tier 197 — bulk operations ──────────────
+
+  /**
+   * Bulk-resolve every open error. Used by the
+   * "Resolve all open" button on the system-errors
+   * page after the operator has triaged. We don't
+   * filter by fingerprint — this is the "clear
+   * the inbox" gesture.
+   */
+  @Post("errors/resolve-all")
+  @UseGuards(HeaderAuthGuard, RolesGuard)
+  @Require("users.read")
+  async resolveAll() {
+    const result = await this.prisma.errorEvent.updateMany({
+      where: { status: "open" },
+      data: {
+        status: "resolved",
+        resolvedAt: new Date(),
+      },
+    })
+    return { ok: true, count: result.count }
+  }
+
+  /**
+   * Bulk-mute every open error. Use when the
+   * operator knows the errors are noise (e.g. a
+   * known third-party API outage) and doesn't want
+   * the next operator's inbox to be full.
+   */
+  @Post("errors/mute-all")
+  @UseGuards(HeaderAuthGuard, RolesGuard)
+  @Require("users.read")
+  async muteAll() {
+    const result = await this.prisma.errorEvent.updateMany({
+      where: { status: "open" },
+      data: { status: "muted" },
+    })
+    return { ok: true, count: result.count }
+  }
+
+  /**
+   * Tier 197 — read the current notification
+   * channel configuration. Returns whether
+   * Slack / email are configured, without
+   * exposing the webhook URL or SMTP password
+   * (we surface only the host + a boolean).
+   */
+  @Get("notifications/config")
+  @UseGuards(HeaderAuthGuard, RolesGuard)
+  @Require("users.read")
+  notificationsConfig() {
+    const slackUrl = this.config.get<string>("SLACK_WEBHOOK_URL")
+    const emailList = this.config.get<string>("NOTIFY_EMAIL")
+    const smtpHost = this.config.get<string>("SMTP_HOST")
+    return {
+      slack: {
+        configured: !!slackUrl,
+        // Don't echo the URL — it contains a secret
+        // token. The operator can edit the .env
+        // directly to verify the value.
+        host: slackUrl ? new URL(slackUrl).host : null,
+      },
+      email: {
+        configured: !!emailList,
+        recipients: emailList
+          ? emailList.split(",").map((s) => s.trim()).filter(Boolean)
+          : [],
+        smtpHost: smtpHost || null,
+      },
+      antiSpamMinutes: 5,
+    }
+  }
+
+  /**
+   * Tier 197 — fire a test notification through
+   * the same code path as a real error event,
+   * so the operator can verify Slack / email
+   * wiring without waiting for a real error.
+   * Returns the per-channel result (sent /
+   * skipped / failed).
+   */
+  @Post("notifications/test")
+  @UseGuards(HeaderAuthGuard, RolesGuard)
+  @Require("users.read")
+  async testNotification() {
+    // Construct a synthetic event so the
+    // push pipeline runs the same code path
+    // as a real capture. We don't persist
+    // this to the DB — the test is a
+    // notification-only smoke test.
+    const now = new Date()
+    return this.notify.pushErrorNotification({
+      id: "test-notification",
+      source: "backend",
+      kind: "manual",
+      message:
+        "[Tier 197 test] This is a synthetic notification fired from /api/v1/system/notifications/test. " +
+        "If you see this in Slack / email, the wiring works.",
+      stack: null,
+      context: { test: true },
+      fingerprint: "tier197-test-" + now.getTime(),
+      url: null,
+      method: "POST",
+      statusCode: null,
+      userId: null,
+      companyId: null,
+      occurrences: 1,
+      firstSeenAt: now,
+      lastSeenAt: now,
+      status: "open",
+      resolvedBy: null,
+      resolvedAt: null,
+      mutedAt: null,
+      createdAt: now,
+    } as any)
   }
 }

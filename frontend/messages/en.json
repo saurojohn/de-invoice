@@ -1853,7 +1853,21 @@
     "page": "Page",
     "method": "Method",
     "showStack": "Show stack",
-    "hideStack": "Hide stack"
+    "hideStack": "Hide stack",
+    "resolveAll": "Resolve all open",
+    "resolveAllConfirm": "Mark {n} open errors as resolved?",
+    "resolvedAll": "{n} errors marked resolved",
+    "muteAll": "Mute all open",
+    "mutedAll": "{n} errors muted",
+    "notifChannels": "Notification channels:",
+    "notifOff": "not configured",
+    "notifRecipients": "recipients",
+    "notifAntiSpam": "Anti-spam: {n} min per fingerprint",
+    "testNotifications": "Send test notification",
+    "testFired": "Test notification sent — see console",
+    "testResultSlack": "Slack",
+    "testResultEmail": "Email",
+    "testResultConsole": "Console"
   },
   "template": {
     "label": "Invoice Template",

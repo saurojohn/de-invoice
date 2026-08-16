@@ -25,6 +25,7 @@
 import { Injectable, Logger } from "@nestjs/common"
 import { PrismaService } from "../../prisma/prisma.service"
 import { createHash } from "crypto"
+import { NotificationService } from "./notification.service"
 
 export type ErrorSource = "backend" | "frontend"
 export type ErrorKind = "unhandled" | "boundary" | "manual" | "api"
@@ -54,7 +55,10 @@ const STACK_MAX_BYTES = 4096
 export class ErrorTrackingService {
   private readonly logger = new Logger(ErrorTrackingService.name)
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notify: NotificationService,
+  ) {}
 
   /**
    * Capture an error event. Returns the resulting
@@ -95,7 +99,7 @@ export class ErrorTrackingService {
       })
     }
     try {
-      return await this.prisma.errorEvent.create({
+      const created = await this.prisma.errorEvent.create({
         data: {
           source: input.source,
           kind: input.kind ?? "unhandled",
@@ -110,6 +114,15 @@ export class ErrorTrackingService {
           companyId: input.companyId ?? null,
         },
       })
+      // Tier 197 — push a notification for the
+      // newly-created open event. The push is
+      // fire-and-forget; we don't await it
+      // because the user-facing request that
+      // triggered the capture shouldn't block
+      // on Slack latency. The NotificationService
+      // already catches its own errors.
+      void this.notify.pushErrorNotification(created)
+      return created
     } catch (err: any) {
       // Capture failures must never break the request
       // that triggered them. Log and swallow.

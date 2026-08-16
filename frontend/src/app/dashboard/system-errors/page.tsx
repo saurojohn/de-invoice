@@ -32,6 +32,16 @@ interface ErrorEvent {
 type StatusFilter = "open" | "resolved" | "muted" | "all"
 type SourceFilter = "all" | "backend" | "frontend"
 
+interface NotificationConfig {
+  slack: { configured: boolean; host: string | null }
+  email: {
+    configured: boolean
+    recipients: string[]
+    smtpHost: string | null
+  }
+  antiSpamMinutes: number
+}
+
 export default function SystemErrorsPage() {
   const router = useRouter()
   const { t, getDateLocale, locale } = useI18n()
@@ -43,6 +53,10 @@ export default function SystemErrorsPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("open")
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all")
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  // Tier 197 — notification config + last test result.
+  const [notifConfig, setNotifConfig] = useState<NotificationConfig | null>(null)
+  const [lastTestResult, setLastTestResult] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -74,6 +88,13 @@ export default function SystemErrorsPage() {
       return
     }
     load()
+    // Tier 197 — load notification config in
+    // parallel so the operator can see which
+    // push channels are wired before triggering
+    // a test.
+    apiGet<NotificationConfig>("/api/v1/system/notifications/config")
+      .then(setNotifConfig)
+      .catch(() => setNotifConfig(null))
   }, [load, router])
 
   const resolve = async (id: string) => {
@@ -107,6 +128,76 @@ export default function SystemErrorsPage() {
     }
   }
 
+  // Tier 197 — bulk operations. Both endpoints
+  // return {ok, count} so we can surface a precise
+  // "X events updated" toast. We use a confirm()
+  // guard for resolveAll (irreversible from the
+  // operator's POV) but not for muteAll (reversible
+  // by un-muting one at a time later if needed).
+  const resolveAll = async () => {
+    if (openCount === 0) return
+    if (
+      !confirm(
+        t("systemErrors.resolveAllConfirm", { n: String(openCount) }),
+      )
+    )
+      return
+    setBusy(true)
+    try {
+      const res = await apiPost<{ ok: boolean; count: number }>(
+        "/api/v1/system/errors/resolve-all",
+      )
+      toast.success(t("systemErrors.resolvedAll", { n: String(res.count) }))
+      load()
+    } catch (e: any) {
+      toast.error(e.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const muteAll = async () => {
+    if (openCount === 0) return
+    setBusy(true)
+    try {
+      const res = await apiPost<{ ok: boolean; count: number }>(
+        "/api/v1/system/errors/mute-all",
+      )
+      toast.success(t("systemErrors.mutedAll", { n: String(res.count) }))
+      load()
+    } catch (e: any) {
+      toast.error(e.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  // Tier 197 — fire a synthetic notification through
+  // the same push pipeline. Surfaces the per-channel
+  // result so the operator can see "Slack: sent,
+  // Email: skipped, Console: sent" without having
+  // to dig through /tmp/backend.log.
+  const testNotification = async () => {
+    setBusy(true)
+    try {
+      const res = await apiPost<{
+        slack: string
+        email: string
+        console: string
+      }>("/api/v1/system/notifications/test")
+      setLastTestResult(
+        `${t("systemErrors.testResultSlack")}: ${res.slack} · ${t(
+          "systemErrors.testResultEmail",
+        )}: ${res.email} · ${t("systemErrors.testResultConsole")}: ${res.console}`,
+      )
+      toast.success(t("systemErrors.testFired"))
+    } catch (e: any) {
+      toast.error(e.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const fmt = (iso: string) => {
     try {
       return new Date(iso).toLocaleString(getDateLocale())
@@ -137,6 +228,75 @@ export default function SystemErrorsPage() {
             <LanguageSwitcher />
           </div>
         </div>
+
+        {/* Tier 197 — notification channel status. Surfaces
+            whether Slack / email are wired without exposing
+            the webhook URL or SMTP password. Helps the
+            operator understand why they didn't get a ping
+            for a real error. */}
+        {notifConfig && (
+          <Card>
+            <CardContent className="pt-4">
+              <div className="flex items-center justify-between flex-wrap gap-3">
+                <div className="flex items-center gap-3 text-sm flex-wrap">
+                  <span className="font-semibold text-gray-700 dark:text-gray-300">
+                    {t("systemErrors.notifChannels")}
+                  </span>
+                  <span
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs ${
+                      notifConfig.slack.configured
+                        ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200"
+                        : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
+                    }`}
+                    data-testid="notif-slack"
+                  >
+                    Slack:{" "}
+                    {notifConfig.slack.configured
+                      ? notifConfig.slack.host
+                      : t("systemErrors.notifOff")}
+                  </span>
+                  <span
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs ${
+                      notifConfig.email.configured
+                        ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200"
+                        : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
+                    }`}
+                    data-testid="notif-email"
+                  >
+                    Email:{" "}
+                    {notifConfig.email.configured
+                      ? `${notifConfig.email.recipients.length} ${t("systemErrors.notifRecipients")}`
+                      : t("systemErrors.notifOff")}
+                  </span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    {t("systemErrors.notifAntiSpam", {
+                      n: String(notifConfig.antiSpamMinutes),
+                    })}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={testNotification}
+                    disabled={busy}
+                    data-testid="notif-test"
+                  >
+                    {t("systemErrors.testNotifications")}
+                  </Button>
+                </div>
+              </div>
+              {lastTestResult && (
+                <p
+                  className="mt-2 text-xs text-gray-600 dark:text-gray-400 font-mono"
+                  data-testid="notif-test-result"
+                >
+                  {lastTestResult}
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader>
@@ -182,6 +342,29 @@ export default function SystemErrorsPage() {
                   disabled={total === 0}
                 >
                   {t("systemErrors.prune")}
+                </Button>
+                {/* Tier 197 — bulk operations. Resolve-all
+                    is destructive (closes the inbox), so we
+                    use the default blue style. Mute-all is
+                    reversible (an operator can re-open
+                    one at a time), so we use the lighter
+                    ghost variant. */}
+                <Button
+                  size="sm"
+                  onClick={resolveAll}
+                  disabled={busy || openCount === 0}
+                  data-testid="resolve-all"
+                >
+                  {t("systemErrors.resolveAll")}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={muteAll}
+                  disabled={busy || openCount === 0}
+                  data-testid="mute-all"
+                >
+                  {t("systemErrors.muteAll")}
                 </Button>
               </div>
             </CardTitle>
