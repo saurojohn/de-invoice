@@ -2088,7 +2088,9 @@
       "resume": "Resume",
       "delete": "Delete",
       "replay": "Replay",
-      "replaying": "Replaying…"
+      "replaying": "Replaying…",
+      "refresh": "Refresh",
+      "working": "Working…"
     },
     "deleteConfirm": "Really delete this webhook? Delivery history will be kept for audit purposes.",
     "testSent": "Test event sent. Check the receiver and the delivery history.",
@@ -2113,6 +2115,17 @@
       "replayConfirm": "Replay this delivery to the receiver? A new entry will be added to the delivery log.",
       "replaySent": "Replay started.",
       "replayFailed": "Failed to start replay."
+    },
+    "deadLetter": {
+      "title": "Dead-Letter Queue",
+      "subtitle": "Webhook deliveries that gave up after 3 retries. \"Requeue\" resets the entry so the cron worker retries it.",
+      "empty": "No dead-letter entries. ✓",
+      "webhook": "Webhook",
+      "lastError": "Last error",
+      "requeue": "Requeue",
+      "requeueTitle": "Return this delivery to the retry cron",
+      "requeueSuccess": "Delivery will be retried on the next cron tick.",
+      "requeueFailed": "Failed to requeue the delivery."
     },
     "eventsList": {
       "invoiceCreated": {

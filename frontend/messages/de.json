@@ -2088,7 +2088,9 @@
       "resume": "Fortsetzen",
       "delete": "Löschen",
       "replay": "Erneut senden",
-      "replaying": "Wird gesendet…"
+      "replaying": "Wird gesendet…",
+      "refresh": "Aktualisieren",
+      "working": "Wird verarbeitet…"
     },
     "deleteConfirm": "Diesen Webhook wirklich löschen? Die Zustell-Historie bleibt für die Audit-Zwecke erhalten.",
     "testSent": "Test-Ereignis gesendet. Prüfen Sie die Empfänger-Seite und die Zustell-Historie.",
@@ -2113,6 +2115,17 @@
       "replayConfirm": "Diese Zustellung erneut an den Empfänger senden? Es wird ein neuer Eintrag im Zustell-Log erstellt.",
       "replaySent": "Erneute Zustellung wurde gestartet.",
       "replayFailed": "Erneute Zustellung konnte nicht gestartet werden."
+    },
+    "deadLetter": {
+      "title": "Dead-Letter-Queue",
+      "subtitle": "Webhook-Zustellungen, die nach 3 Versuchen aufgegeben wurden. „Erneut versuchen\" setzt den Eintrag auf den Retry-Cron zurück.",
+      "empty": "Keine aufgegebenen Zustellungen. ✓",
+      "webhook": "Webhook",
+      "lastError": "Letzter Fehler",
+      "requeue": "Erneut versuchen",
+      "requeueTitle": "Diese Zustellung an den Retry-Cron zurückgeben",
+      "requeueSuccess": "Zustellung wird im nächsten Cron-Tick erneut versucht.",
+      "requeueFailed": "Erneut-Versuchen konnte nicht ausgeführt werden."
     },
     "eventsList": {
       "invoiceCreated": {

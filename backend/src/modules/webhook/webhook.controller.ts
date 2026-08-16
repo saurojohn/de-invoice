@@ -212,4 +212,90 @@ export class WebhookController {
       },
     }
   }
+
+  /**
+   * Tier 198 — list all dead-letter
+   * (exhausted) deliveries for the
+   * company. Used by the dashboard's
+   * "Dead-Letter Queue" section to
+   * surface failed-and-gave-up rows
+   * the operator can requeue.
+   *
+   * URL: GET /webhooks/deliveries/dead-letter
+   *
+   * Query:
+   *   - companyId (required)
+   *   - limit (optional, default 100, max 200)
+   *
+   * Returns an array of WebhookDelivery
+   * rows with status='exhausted' + the
+   * webhook name/url joined in (so the
+   * UI can show "this delivery failed
+   * on the 'Acme CRM' integration"
+   * without a second round-trip).
+   */
+  @Get('deliveries/dead-letter')
+  @Require('company.update')
+  async listDeadLetter(
+    @Query('companyId') companyId: string,
+    @Query('limit') limitStr?: string,
+  ) {
+    const limit = Math.min(parseInt(limitStr || '100', 10) || 100, 200)
+    return this.webhooks.listDeadLetter(companyId, limit)
+  }
+
+  /**
+   * Tier 198 — manually re-queue an
+   * exhausted delivery.
+   *
+   * URL: POST /webhooks/deliveries/:id/requeue
+   *
+   * Operator scenario: the receiver
+   * was down for hours, the retry
+   * budget is exhausted on 47 events,
+   * and the operator now knows the
+   * receiver is back up. Instead of
+   * clicking 47 "Replay" buttons
+   * (which would create 47 new
+   * delivery rows), they open the
+   * Dead-Letter Queue and click
+   * "Requeue" once per row. Each
+   * click resets the existing row
+   * back to status='failed' with
+   * nextRetryAt=now(), so the cron
+   * worker picks it up on the next
+   * tick and retries through the
+   * standard 1min/5min/30min
+   * backoff schedule.
+   *
+   * RBAC: same as replay (admin only,
+   * `company.update`).
+   *
+   * 400 if the row is not in
+   * status='exhausted' (replay
+   * already covers the
+   * failed/pending edge case), or if
+   * the underlying webhook is paused
+   * or deleted.
+   */
+  @Post('deliveries/:id/requeue')
+  @Require('company.update')
+  @HttpCode(200)
+  async requeue(
+    @Param('id') id: string,
+    @Query('companyId') companyId: string,
+  ) {
+    const row = await this.webhooks.requeueDelivery(id, companyId)
+    return {
+      ok: true,
+      delivery: {
+        id: row.id,
+        eventType: row.eventType,
+        eventId: row.eventId,
+        status: row.status,
+        retryCount: row.retryCount,
+        nextRetryAt: row.nextRetryAt,
+      },
+    }
+  }
 }

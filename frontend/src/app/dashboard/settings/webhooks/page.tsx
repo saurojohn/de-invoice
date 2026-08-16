@@ -94,6 +94,14 @@ interface WebhookDelivery {
   nextRetryAt: string | null
 }
 
+// Tier 198 — dead-letter row includes the
+// joined-in webhook name/url so the page
+// can render "Acme CRM failed" without a
+// second round-trip per row.
+interface DeadLetterDelivery extends WebhookDelivery {
+  webhook: { name: string; url: string }
+}
+
 // All event types the backend can emit.
 // Keep this list in sync with
 // WebhookEventType in
@@ -198,12 +206,24 @@ export default function WebhooksPage() {
   // while the POST is in flight.
   const [replayingId, setReplayingId] = useState<string | null>(null)
 
+  // Tier 198 — Dead-Letter Queue (cross-webhook
+  // view of every exhausted delivery for the
+  // company). Pulled alongside the main webhooks
+  // list on mount and after any requeue action.
+  const [deadLetter, setDeadLetter] = useState<DeadLetterDelivery[]>([])
+  const [deadLetterLoading, setDeadLetterLoading] = useState(false)
+  // Per-row in-flight state for the requeue
+  // button on the dead-letter section AND
+  // on the per-webhook drawer exhausted row.
+  const [requeuingId, setRequeuingId] = useState<string | null>(null)
+
   // ---- Effects ----
   useEffect(() => {
     const cid = localStorage.getItem("companyId")
     if (cid) {
       setCompanyId(cid)
       fetchWebhooks(cid)
+      fetchDeadLetter(cid)
     } else {
       setLoading(false)
     }
@@ -240,6 +260,24 @@ export default function WebhooksPage() {
     },
     [],
   )
+
+  // Tier 198 — fetch the cross-webhook
+  // dead-letter list (status='exhausted'
+  // rows). Reused after a requeue action
+  // so the UI reflects the new state.
+  const fetchDeadLetter = useCallback(async (cid: string) => {
+    setDeadLetterLoading(true)
+    try {
+      const data = await apiGet<DeadLetterDelivery[]>(
+        `/api/v1/webhooks/deliveries/dead-letter?companyId=${cid}&limit=100`,
+      )
+      setDeadLetter(Array.isArray(data) ? data : [])
+    } catch {
+      setDeadLetter([])
+    } finally {
+      setDeadLetterLoading(false)
+    }
+  }, [])
 
   // ---- Actions ----
   const handleCreate = async (e: React.FormEvent) => {
@@ -396,6 +434,49 @@ export default function WebhooksPage() {
   const openDeliveries = async (wh: Webhook) => {
     setDrawerWebhook(wh)
     await fetchDeliveries(companyId, wh.id)
+  }
+
+  // Tier 198 — reset an exhausted
+  // delivery back to status='failed'
+  // with nextRetryAt=now() so the cron
+  // worker picks it up on the next tick.
+  //
+  // vs. handleReplay: replay creates a
+  // NEW delivery row (preserves the
+  // original failure as audit history).
+  // Requeue modifies the SAME row in place
+  // — useful when the operator knows the
+  // receiver is back and just wants the
+  // dead-letter off the queue. No confirm
+  // dialog because requeue is reversible
+  // (cron can fail it again, restoring
+  // exhausted).
+  const handleRequeue = async (deliveryId: string) => {
+    setRequeuingId(deliveryId)
+    try {
+      await apiPost(
+        `/api/v1/webhooks/deliveries/${deliveryId}/requeue?companyId=${companyId}`,
+      )
+      toast.success(t("webhooks.deadLetter.requeueSuccess"))
+      // Refresh both lists — the dead-letter
+      // row is now status='failed' so it
+      // leaves the dead-letter view, and if
+      // the drawer is open for the same
+      // webhook, that view should also drop
+      // the row.
+      await fetchDeadLetter(companyId)
+      if (drawerWebhook) {
+        await fetchDeliveries(companyId, drawerWebhook.id)
+      }
+    } catch (err) {
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : t("webhooks.deadLetter.requeueFailed"),
+      )
+    } finally {
+      setRequeuingId(null)
+    }
   }
 
   const closeDeliveries = () => {
@@ -596,6 +677,119 @@ export default function WebhooksPage() {
                         </tr>
                       )
                     })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Tier 198 — Dead-Letter Queue.
+            Cross-webhook view of every
+            status='exhausted' delivery for
+            the company. Useful when the
+            receiver was down for hours and
+            47+ events stacked up across
+            multiple webhooks — instead of
+            opening each drawer's
+            "Deliveries" tab, the operator
+            sees everything in one place and
+            can requeue per row. Requeue
+            resets the same row to
+            status='failed' so the cron
+            worker picks it up on the next
+            tick — no new audit row, no
+            retryCount bump. */}
+        <Card data-testid="dead-letter-card">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle>
+                {t("webhooks.deadLetter.title")} ({deadLetter.length})
+              </CardTitle>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                {t("webhooks.deadLetter.subtitle")}
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => fetchDeadLetter(companyId)}
+              disabled={deadLetterLoading}
+              data-testid="dead-letter-refresh"
+            >
+              {t("webhooks.actions.refresh")}
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {deadLetterLoading && deadLetter.length === 0 ? (
+              <SkeletonTable rows={3} cols={4} />
+            ) : deadLetter.length === 0 ? (
+              <EmptyState
+                title={t("webhooks.deadLetter.empty")}
+                variant="inbox"
+                fullWidth
+              />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left border-b border-gray-200 dark:border-gray-700">
+                      <th className="py-2 px-2 font-medium">
+                        {t("webhooks.deadLetter.webhook")}
+                      </th>
+                      <th className="py-2 px-2 font-medium">
+                        {t("webhooks.deliveries.eventType")}
+                      </th>
+                      <th className="py-2 px-2 font-medium">
+                        {t("webhooks.deadLetter.lastError")}
+                      </th>
+                      <th className="py-2 px-2 font-medium">
+                        {t("webhooks.deliveries.attemptedAt")}
+                      </th>
+                      <th className="py-2 px-2 font-medium text-right">
+                        {t("webhooks.actionsLabel")}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {deadLetter.map((d) => (
+                      <tr
+                        key={d.id}
+                        className="border-b border-gray-100 dark:border-gray-800"
+                        data-testid="dead-letter-row"
+                      >
+                        <td className="py-2 px-2 max-w-xs">
+                          <div className="font-medium truncate">
+                            {d.webhook.name}
+                          </div>
+                          <code className="text-xs text-gray-500 dark:text-gray-400 break-all">
+                            {d.webhook.url}
+                          </code>
+                        </td>
+                        <td className="py-2 px-2">
+                          <code className="text-xs">{d.eventType}</code>
+                        </td>
+                        <td className="py-2 px-2 text-xs text-red-700 dark:text-red-300 max-w-md truncate">
+                          {d.errorMessage || `HTTP ${d.statusCode ?? "—"}`}
+                        </td>
+                        <td className="py-2 px-2 text-xs">
+                          {formatDate(d.attemptedAt)}
+                        </td>
+                        <td className="py-2 px-2 text-right">
+                          <button
+                            onClick={() => handleRequeue(d.id)}
+                            disabled={requeuingId === d.id}
+                            className="text-xs px-2 py-1 border border-blue-600 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-50 disabled:opacity-50"
+                            data-testid="dead-letter-requeue"
+                            title={t("webhooks.deadLetter.requeue")}
+                          >
+                            {requeuingId === d.id
+                              ? t("webhooks.actions.working")
+                              : t("webhooks.deadLetter.requeue")}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
@@ -887,17 +1081,38 @@ export default function WebhooksPage() {
                               : t("webhooks.deliveries.noRetry")}
                           </td>
                           <td className="py-2 px-1 text-right">
-                            <button
-                              onClick={() => handleReplay(d.id, d.webhookId)}
-                              disabled={replayingId === d.id}
-                              className="text-xs px-2 py-1 border border-blue-500 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-50 disabled:opacity-50"
-                              data-testid="delivery-replay"
-                              title={t("webhooks.deliveries.replay")}
-                            >
-                              {replayingId === d.id
-                                ? t("webhooks.actions.replaying")
-                                : t("webhooks.deliveries.replay")}
-                            </button>
+                            <div className="flex gap-1 justify-end">
+                              {/* Tier 198 — only show
+                                  requeue on exhausted
+                                  rows. Failed rows are
+                                  already in the natural
+                                  retry cycle; pending
+                                  rows are fresh. */}
+                              {d.status === "exhausted" && (
+                                <button
+                                  onClick={() => handleRequeue(d.id)}
+                                  disabled={requeuingId === d.id}
+                                  className="text-xs px-2 py-1 border border-emerald-500 text-emerald-700 dark:text-emerald-300 rounded hover:bg-emerald-50 disabled:opacity-50"
+                                  data-testid="delivery-requeue"
+                                  title={t("webhooks.deadLetter.requeue")}
+                                >
+                                  {requeuingId === d.id
+                                    ? t("webhooks.actions.working")
+                                    : t("webhooks.deadLetter.requeue")}
+                                </button>
+                              )}
+                              <button
+                                onClick={() => handleReplay(d.id, d.webhookId)}
+                                disabled={replayingId === d.id}
+                                className="text-xs px-2 py-1 border border-blue-500 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-50 disabled:opacity-50"
+                                data-testid="delivery-replay"
+                                title={t("webhooks.deliveries.replay")}
+                              >
+                                {replayingId === d.id
+                                  ? t("webhooks.actions.replaying")
+                                  : t("webhooks.deliveries.replay")}
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}

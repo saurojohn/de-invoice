@@ -2088,7 +2088,9 @@
       "resume": "继续",
       "delete": "删除",
       "replay": "重发",
-      "replaying": "正在重发…"
+      "replaying": "正在重发…",
+      "refresh": "刷新",
+      "working": "处理中…"
     },
     "deleteConfirm": "确定要删除此 Webhook 吗?投递历史将保留用于审计。",
     "testSent": "已发送测试事件。请检查接收端和投递历史。",
@@ -2113,6 +2115,17 @@
       "replayConfirm": "确定要向接收端重发此次投递吗?将在投递日志中添加新条目。",
       "replaySent": "已开始重发。",
       "replayFailed": "无法开始重发。"
+    },
+    "deadLetter": {
+      "title": "死信队列",
+      "subtitle": "3 次重试后仍失败的 Webhook 投递。点击 \"重新入队\" 可将条目重置回 Cron 重试队列。",
+      "empty": "没有死信条目。✓",
+      "webhook": "Webhook",
+      "lastError": "最近错误",
+      "requeue": "重新入队",
+      "requeueTitle": "将此投递重新放回重试 Cron",
+      "requeueSuccess": "投递将在下一轮 Cron 中重试。",
+      "requeueFailed": "重新入队失败。"
     },
     "eventsList": {
       "invoiceCreated": {

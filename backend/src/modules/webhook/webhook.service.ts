@@ -544,6 +544,139 @@ export class WebhookService {
     return replay
   }
 
+  /**
+   * Tier 198 — manually re-queue an
+   * exhausted delivery.
+   *
+   * Use case: the receiver was down
+   * for hours, every retry attempt hit
+   * `exhausted`, the operator now knows
+   * the receiver is back up, and they
+   * want the existing row to be picked
+   * up by the retry cron again WITHOUT
+   * creating a brand-new delivery row.
+   *
+   * vs. `replayDelivery()`:
+   *   - replay = create a fresh row
+   *     (audit-clean: original stays
+   *     as-is, replay shows up as a
+   *     distinct attempt the operator
+   *     can scroll to).
+   *   - requeue = reset the SAME row
+   *     back to "failed, due now",
+   *     which the cron worker will
+   *     re-attempt with the next tick.
+   *
+   * Why both? Different operator
+   * intent. Replay = "I want a fresh
+   * attempt, side-by-side with the
+   * failures". Requeue = "I just want
+   * the dead-letter to disappear
+   * from the queue — the receiver is
+   * up, retry it". For 1-3 failed
+   * events, replay is more readable.
+   * For 47 dead-letters after an
+   * outage, requeue is faster than
+   * clicking 47 replay buttons.
+   *
+   * Behavior:
+   *   1. Load the row. Reject if not
+   *      found or not in the caller's
+   *      company.
+   *   2. Reject if status !== 'exhausted'
+   *      — requeue only makes sense for
+   *      the dead-letter status. For
+   *      failed rows, the natural cron
+   *      retry is already in flight; for
+   *      pending, the row is fresh.
+   *   3. Reject if the webhook is
+   *      paused / disabled / deleted.
+   *   4. Reset retryCount=0, status='failed',
+   *      nextRetryAt=now() (so the cron
+   *      picks it up on the next tick).
+   *      We clear statusCode / errorMessage
+   *      so the row's last-known-state
+   *      reflects the prior exhaustion
+   *      only via the audit history.
+   *
+   * Returns the reset row.
+   */
+  async requeueDelivery(deliveryId: string, companyId: string) {
+    const row = await this.prisma.webhookDelivery.findUnique({
+      where: { id: deliveryId },
+      include: { webhook: true },
+    })
+    if (!row) {
+      throw new NotFoundException(
+        `Delivery ${deliveryId} not found`,
+      )
+    }
+    if (row.companyId !== companyId) {
+      throw new NotFoundException(
+        `Delivery ${deliveryId} not found`,
+      )
+    }
+    if (row.status !== 'exhausted') {
+      throw new BadRequestException(
+        `Delivery ${deliveryId} is ${row.status}, not exhausted — only dead-letter rows can be requeued`,
+      )
+    }
+    if (!row.webhook || row.webhook.status !== 'active') {
+      throw new BadRequestException(
+        `Webhook ${row.webhookId} is not active — re-enable it before requeuing the dead-letter`,
+      )
+    }
+    return this.prisma.webhookDelivery.update({
+      where: { id: deliveryId },
+      data: {
+        status: 'failed',
+        retryCount: 0,
+        nextRetryAt: new Date(),
+        // Clear the stale error — the
+        // next attempt will write its
+        // own statusCode / errorMessage.
+        errorMessage: null,
+        statusCode: null,
+      },
+    })
+  }
+
+  /**
+   * Tier 198 — list all dead-letter
+   * (exhausted) deliveries for the
+   * caller's company. Used by the
+   * dashboard's "Dead-Letter Queue"
+   * section.
+   *
+   * Returns up to `limit` rows ordered
+   * by attemptedAt desc (most-recent
+   * first — same convention as the
+   * per-webhook deliveries list).
+   */
+  async listDeadLetter(companyId: string, limit = 100) {
+    return this.prisma.webhookDelivery.findMany({
+      where: { companyId, status: 'exhausted' },
+      orderBy: { attemptedAt: 'desc' },
+      take: Math.min(limit, 200),
+      select: {
+        id: true,
+        webhookId: true,
+        eventType: true,
+        eventId: true,
+        status: true,
+        statusCode: true,
+        durationMs: true,
+        retryCount: true,
+        errorMessage: true,
+        attemptedAt: true,
+        nextRetryAt: true,
+        webhook: {
+          select: { name: true, url: true },
+        },
+      },
+    })
+  }
+
   async deliver(
     deliveryId: string,
     url: string,
