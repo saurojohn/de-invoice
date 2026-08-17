@@ -2125,7 +2125,9 @@
       "replayTitle": "重发 Webhook 投递",
       "replayConfirm": "确定要向接收端重发此次投递吗?将在投递日志中添加新条目。",
       "replaySent": "已开始重发。",
-      "replayFailed": "无法开始重发。"
+      "replayFailed": "无法开始重发。",
+      "filterByEventType": "按事件类型筛选",
+      "allEventTypes": "所有事件类型"
     },
     "deadLetter": {
       "title": "死信队列",

@@ -2125,7 +2125,9 @@
       "replayTitle": "Webhook erneut senden",
       "replayConfirm": "Diese Zustellung erneut an den Empfänger senden? Es wird ein neuer Eintrag im Zustell-Log erstellt.",
       "replaySent": "Erneute Zustellung wurde gestartet.",
-      "replayFailed": "Erneute Zustellung konnte nicht gestartet werden."
+      "replayFailed": "Erneute Zustellung konnte nicht gestartet werden.",
+      "filterByEventType": "Ereignistyp filtern",
+      "allEventTypes": "Alle Ereignistypen"
     },
     "deadLetter": {
       "title": "Dead-Letter-Queue",

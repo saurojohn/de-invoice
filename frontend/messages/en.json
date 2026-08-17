@@ -2125,7 +2125,9 @@
       "replayTitle": "Replay webhook delivery",
       "replayConfirm": "Replay this delivery to the receiver? A new entry will be added to the delivery log.",
       "replaySent": "Replay started.",
-      "replayFailed": "Failed to start replay."
+      "replayFailed": "Failed to start replay.",
+      "filterByEventType": "Filter by event type",
+      "allEventTypes": "All event types"
     },
     "deadLetter": {
       "title": "Dead-Letter Queue",

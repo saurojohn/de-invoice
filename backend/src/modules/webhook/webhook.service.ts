@@ -710,14 +710,25 @@ export class WebhookService {
    * dashboard's "Dead-Letter Queue"
    * section.
    *
+   * Tier 201 — added optional
+   * `eventType` filter so the operator
+   * can scope the cross-webhook view
+   * to a single event type
+   * (e.g. "show me all `payment.received`
+   * dead-letters, not `invoice.created`").
+   * When omitted, all event types are
+   * returned.
+   *
    * Returns up to `limit` rows ordered
    * by attemptedAt desc (most-recent
    * first — same convention as the
    * per-webhook deliveries list).
    */
-  async listDeadLetter(companyId: string, limit = 100) {
+  async listDeadLetter(companyId: string, limit = 100, eventType?: string) {
+    const where: any = { companyId, status: 'exhausted' }
+    if (eventType) where.eventType = eventType
     return this.prisma.webhookDelivery.findMany({
-      where: { companyId, status: 'exhausted' },
+      where,
       orderBy: { attemptedAt: 'desc' },
       take: Math.min(limit, 200),
       select: {

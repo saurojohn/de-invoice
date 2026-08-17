@@ -98,16 +98,31 @@ export class WebhookController {
   // webhook — for debugging "why
   // didn't my integration receive
   // invoice.created yesterday?".
+  //
+  // Tier 201 — added optional
+  // `eventType` query param so the
+  // operator can scope the drawer to
+  // a single event type
+  // (e.g. only `payment.received`
+  // failures, not `invoice.created`
+  // ones). When omitted, all event
+  // types are returned. Comma-
+  // separated values are NOT
+  // supported — use a single value
+  // (or open the drawer twice).
   @Get(':id/deliveries')
   @Require('company.update')
   async listDeliveries(
     @Param('id') id: string,
     @Query('companyId') companyId: string,
     @Query('limit') limitStr?: string,
+    @Query('eventType') eventType?: string,
   ) {
     const limit = Math.min(parseInt(limitStr || '50', 10) || 50, 200)
+    const where: any = { webhookId: id, companyId }
+    if (eventType) where.eventType = eventType
     return this.prisma.webhookDelivery.findMany({
-      where: { webhookId: id, companyId },
+      where,
       orderBy: { attemptedAt: 'desc' },
       take: limit,
       select: {
@@ -239,9 +254,10 @@ export class WebhookController {
   async listDeadLetter(
     @Query('companyId') companyId: string,
     @Query('limit') limitStr?: string,
+    @Query('eventType') eventType?: string,
   ) {
     const limit = Math.min(parseInt(limitStr || '100', 10) || 100, 200)
-    return this.webhooks.listDeadLetter(companyId, limit)
+    return this.webhooks.listDeadLetter(companyId, limit, eventType)
   }
 
   /**

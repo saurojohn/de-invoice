@@ -290,6 +290,16 @@ export default function WebhooksPage() {
   // while the POST is in flight.
   const [replayingId, setReplayingId] = useState<string | null>(null)
 
+  // Tier 201 — drawer event-type
+  // filter. Empty string = "all
+  // event types". When non-empty, the
+  // deliveries list is restricted to
+  // rows with the matching eventType.
+  // Per-webhook drawer state — resets
+  // when opening a different drawer
+  // (see openDeliveries).
+  const [eventTypeFilter, setEventTypeFilter] = useState<string>("")
+
   // Tier 198 — Dead-Letter Queue (cross-webhook
   // view of every exhausted delivery for the
   // company). Pulled alongside the main webhooks
@@ -300,6 +310,12 @@ export default function WebhooksPage() {
   // button on the dead-letter section AND
   // on the per-webhook drawer exhausted row.
   const [requeuingId, setRequeuingId] = useState<string | null>(null)
+  // Tier 201 — dead-letter event-type
+  // filter. Empty string = all event
+  // types. The available event types
+  // are derived from the union of all
+  // webhooks' subscribed events.
+  const [deadLetterEventType, setDeadLetterEventType] = useState<string>("")
 
   // ---- Effects ----
   useEffect(() => {
@@ -329,11 +345,13 @@ export default function WebhooksPage() {
   }, [t])
 
   const fetchDeliveries = useCallback(
-    async (cid: string, whId: string) => {
+    async (cid: string, whId: string, eventType?: string) => {
       setDrawerLoading(true)
       try {
+        const params = new URLSearchParams({ companyId: cid, limit: "50" })
+        if (eventType) params.set("eventType", eventType)
         const data = await apiGet<WebhookDelivery[]>(
-          `/api/v1/webhooks/${whId}/deliveries?companyId=${cid}&limit=50`,
+          `/api/v1/webhooks/${whId}/deliveries?${params.toString()}`,
         )
         setDeliveries(Array.isArray(data) ? data : [])
       } catch {
@@ -349,19 +367,26 @@ export default function WebhooksPage() {
   // dead-letter list (status='exhausted'
   // rows). Reused after a requeue action
   // so the UI reflects the new state.
-  const fetchDeadLetter = useCallback(async (cid: string) => {
-    setDeadLetterLoading(true)
-    try {
-      const data = await apiGet<DeadLetterDelivery[]>(
-        `/api/v1/webhooks/deliveries/dead-letter?companyId=${cid}&limit=100`,
-      )
-      setDeadLetter(Array.isArray(data) ? data : [])
-    } catch {
-      setDeadLetter([])
-    } finally {
-      setDeadLetterLoading(false)
-    }
-  }, [])
+  // Tier 198 dead-letter fetch, with
+  // Tier 201 event-type filter.
+  const fetchDeadLetter = useCallback(
+    async (cid: string, eventType?: string) => {
+      setDeadLetterLoading(true)
+      try {
+        const params = new URLSearchParams({ companyId: cid, limit: "100" })
+        if (eventType) params.set("eventType", eventType)
+        const data = await apiGet<DeadLetterDelivery[]>(
+          `/api/v1/webhooks/deliveries/dead-letter?${params.toString()}`,
+        )
+        setDeadLetter(Array.isArray(data) ? data : [])
+      } catch {
+        setDeadLetter([])
+      } finally {
+        setDeadLetterLoading(false)
+      }
+    },
+    [],
+  )
 
   // ---- Actions ----
   const handleCreate = async (e: React.FormEvent) => {
@@ -453,9 +478,12 @@ export default function WebhooksPage() {
       // delivery count.
       await fetchWebhooks(companyId)
       // If the drawer is open for this
-      // webhook, refresh it too.
+      // webhook, refresh it too —
+      // preserve the current event-type
+      // filter so the operator's view
+      // doesn't jump back to "all".
       if (drawerWebhook?.id === wh.id) {
-        await fetchDeliveries(companyId, wh.id)
+        await fetchDeliveries(companyId, wh.id, eventTypeFilter || undefined)
       }
     } catch (err) {
       toast.error(
@@ -503,7 +531,10 @@ export default function WebhooksPage() {
       toast.success(t("webhooks.deliveries.replaySent"))
       // Refresh the deliveries drawer
       // so the new replay row appears.
-      await fetchDeliveries(companyId, webhookId)
+      // Preserve the current event-type
+      // filter so the operator's view
+      // stays consistent.
+      await fetchDeliveries(companyId, webhookId, eventTypeFilter || undefined)
     } catch (err) {
       toast.error(
         err instanceof Error
@@ -517,6 +548,12 @@ export default function WebhooksPage() {
 
   const openDeliveries = async (wh: Webhook) => {
     setDrawerWebhook(wh)
+    // Reset the event-type filter
+    // when opening a new drawer's
+    // scope (operator expectation:
+    // "All events by default" — they
+    // can narrow with the dropdown).
+    setEventTypeFilter("")
     await fetchDeliveries(companyId, wh.id)
   }
 
@@ -548,9 +585,9 @@ export default function WebhooksPage() {
       // the drawer is open for the same
       // webhook, that view should also drop
       // the row.
-      await fetchDeadLetter(companyId)
+      await fetchDeadLetter(companyId, deadLetterEventType || undefined)
       if (drawerWebhook) {
-        await fetchDeliveries(companyId, drawerWebhook.id)
+        await fetchDeliveries(companyId, drawerWebhook.id, eventTypeFilter || undefined)
       }
     } catch (err) {
       toast.error(
@@ -824,15 +861,60 @@ export default function WebhooksPage() {
                 {t("webhooks.deadLetter.subtitle")}
               </p>
             </div>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => fetchDeadLetter(companyId)}
-              disabled={deadLetterLoading}
-              data-testid="dead-letter-refresh"
-            >
-              {t("webhooks.actions.refresh")}
-            </Button>
+            <div className="flex items-center gap-2">
+              {/* Tier 201 — dead-letter
+                  event-type filter. Shows
+                  the union of all
+                  subscribed event types
+                  across the company's
+                  webhooks so the operator
+                  can scope to one. */}
+              <select
+                value={deadLetterEventType}
+                onChange={(e) => {
+                  const v = e.target.value
+                  setDeadLetterEventType(v)
+                  fetchDeadLetter(companyId, v || undefined)
+                }}
+                data-testid="dead-letter-event-type-filter"
+                className="border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+              >
+                <option value="">
+                  {t("webhooks.deliveries.allEventTypes")}
+                </option>
+                {(() => {
+                  // Union of all webhooks'
+                  // subscribed event types.
+                  // Duplicates removed. Used
+                  // to populate the
+                  // dropdown — we don't
+                  // want the operator to see
+                  // "filter by event type no
+                  // webhook is subscribed to"
+                  // and get an empty list.
+                  const set = new Set<string>()
+                  for (const wh of webhooks) {
+                    for (const evt of parseEvents(wh.events)) {
+                      set.add(evt)
+                    }
+                  }
+                  return Array.from(set).sort().map((evt) => (
+                    <option key={evt} value={evt}>
+                      {evt}
+                    </option>
+                  ))
+                })()}
+              </select>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => fetchDeadLetter(companyId, deadLetterEventType || undefined)}
+                disabled={deadLetterLoading}
+                data-testid="dead-letter-refresh"
+              >
+                {t("webhooks.actions.refresh")}
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             {deadLetterLoading && deadLetter.length === 0 ? (
@@ -1124,6 +1206,45 @@ export default function WebhooksPage() {
                 >
                   ✕
                 </button>
+              </div>
+
+              {/* Tier 201 — event-type filter
+                  dropdown. The list of
+                  available types is derived
+                  from the webhook's
+                  subscribed events
+                  (drawerWebhook.events) so
+                  the operator doesn't see
+                  "filter by event type my
+                  webhook doesn't subscribe
+                  to". "All event types"
+                  clears the filter. */}
+              <div className="flex items-center gap-2 text-sm">
+                <label className="text-gray-600 dark:text-gray-400">
+                  {t("webhooks.deliveries.filterByEventType")}:
+                </label>
+                <select
+                  value={eventTypeFilter}
+                  onChange={(e) => {
+                    const v = e.target.value
+                    setEventTypeFilter(v)
+                    fetchDeliveries(companyId, drawerWebhook.id, v || undefined)
+                  }}
+                  data-testid="delivery-event-type-filter"
+                  className="border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                >
+                  <option value="">
+                    {t("webhooks.deliveries.allEventTypes")}
+                  </option>
+                  {(() => {
+                    const evts = parseEvents(drawerWebhook.events)
+                    return evts.map((evt) => (
+                      <option key={evt} value={evt}>
+                        {evt}
+                      </option>
+                    ))
+                  })()}
+                </select>
               </div>
 
               {drawerLoading ? (
