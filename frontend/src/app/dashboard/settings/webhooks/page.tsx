@@ -1245,6 +1245,29 @@ export default function WebhooksPage() {
                     ))
                   })()}
                 </select>
+                {/* Tier 203 — CSV export. The
+                    download URL is computed
+                    lazily on click (so the
+                    event-type filter is
+                    included) — we don't hold
+                    a long-lived blob URL. */}
+                <a
+                  href={`/api/v1/webhooks/deliveries.csv?companyId=${companyId}&days=90${
+                    eventTypeFilter ? `&eventType=${encodeURIComponent(eventTypeFilter)}` : ""
+                  }`}
+                  // Open in a new tab so the
+                  // drawer stays open. The
+                  // browser triggers the
+                  // download via the
+                  // Content-Disposition
+                  // header.
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  data-testid="delivery-export-csv"
+                  className="ml-auto text-xs px-3 py-1 border border-emerald-600 text-emerald-700 dark:text-emerald-300 rounded hover:bg-emerald-50"
+                >
+                  {t("webhooks.deliveries.exportCsv")}
+                </a>
               </div>
 
               {drawerLoading ? (

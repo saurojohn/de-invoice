@@ -7,12 +7,14 @@ import {
   Param,
   Body,
   Query,
+  Res,
   UseGuards,
   NotFoundException,
   BadRequestException,
   HttpCode,
   Req,
 } from '@nestjs/common'
+import { Response } from 'express'
 import { Request } from 'express'
 import { HeaderAuthGuard } from '../../auth/header-auth.guard'
 import { RolesGuard } from '../../auth/roles.guard'
@@ -253,6 +255,85 @@ export class WebhookController {
    * on the 'Acme CRM' integration"
    * without a second round-trip).
    */
+  /**
+   * Tier 203 — webhook deliveries CSV
+   * export. Operator pulls the last
+   * N days of delivery rows into
+   * Excel for the Berater.
+   *
+   * URL: GET /webhooks/deliveries.csv
+   *
+   * Query:
+   *   - companyId (required)
+   *   - days (optional, default 90,
+   *     capped at 365)
+   *   - eventType (optional, narrows
+   *     to one event type — same
+   *     filter as the deliveries
+   *     drawer)
+   *   - status (optional: success /
+   *     failed / exhausted /
+   *     pending)
+   *
+   * Returns a UTF-8 CSV with a BOM
+   * (so Excel correctly detects
+   * UTF-8) and a `Content-Disposition:
+   * attachment` header (so the
+   * browser saves the file
+   * directly). Columns are stable
+   * + machine-readable.
+   *
+   * Why a separate endpoint (not
+   * just "?format=csv" on
+   * /deliveries): the CSV payload
+   * can be up to 10k rows. Building
+   * it in memory is fine, but the
+   * route is registered separately
+   * so the JSON endpoint stays
+   * fast (no CSV stringification
+   * cost on the JSON path).
+   *
+   * RBAC: same as
+   * /deliveries/dead-letter —
+   * `company.update` (admin only).
+   */
+  @Get('deliveries.csv')
+  @Require('company.update')
+  async exportDeliveriesCsv(
+    @Res() res: Response,
+    @Query('companyId') companyId: string,
+    @Query('days') daysStr?: string,
+    @Query('eventType') eventType?: string,
+    @Query('status') status?: string,
+  ) {
+    if (!companyId) {
+      throw new BadRequestException('companyId ist erforderlich')
+    }
+    const days = Math.min(
+      Math.max(parseInt(daysStr || '90', 10) || 90, 1),
+      365,
+    )
+    const csv = await this.webhooks.exportDeliveriesCsv(
+      companyId,
+      days,
+      eventType,
+      status,
+    )
+    const stamp = new Date().toISOString().slice(0, 10)
+    // BOM so Excel correctly
+    // detects UTF-8 (German umlauts
+    // in eventType / errorMessage
+    // would otherwise render as
+    // mojibake). Same pattern as
+    // the Tier 67 audit export.
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8')
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="webhook-deliveries-${stamp}.csv"`,
+    )
+    res.send('\ufeff' + csv)
+  }
+
   @Get('deliveries/dead-letter')
   @Require('company.update')
   async listDeadLetter(

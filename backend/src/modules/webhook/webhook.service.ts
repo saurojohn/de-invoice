@@ -882,6 +882,152 @@ export class WebhookService {
       clearTimeout(timer)
     }
   }
+
+  /**
+   * Tier 203 — webhook deliveries CSV
+   * export. Operator pulls the last N
+   * days of delivery rows into Excel
+   * for the Berater.
+   *
+   * The columns are stable and
+   * machine-readable so a future
+   * "import into Excel" workflow
+   * can rely on the header order:
+   *   id, webhookId, webhookName,
+   *   eventType, eventId, status,
+   *   statusCode, durationMs,
+   *   retryCount, errorMessage,
+   *   attemptedAt, nextRetryAt
+   *
+   * The webhookName is joined in (a
+   * second small query) so the
+   * Berater can read the export
+   * without cross-referencing the
+   * webhooks list — same shape as
+   * the dead-letter list endpoint
+   * (Tier 198).
+   *
+   * We cap the row count at 10,000
+   * to keep the export reasonable
+   * for the operator's "last 90
+   * days" use case. If you have
+   * > 10k deliveries in 90 days
+   * for one company, you're
+   * probably doing something
+   * pathological — the export
+   * returns the first 10k and the
+   * CSV includes a trailing
+   * `# truncated: ...` comment.
+   *
+   * @param days 1..365 (capped at
+   *   365 to keep the query small;
+   *   default 90).
+   * @param eventType optional event
+   *   type filter (matches the
+   *   delivery drawer filter).
+   * @param status optional status
+   *   filter (success/failed/exhausted/pending).
+   */
+  async exportDeliveriesCsv(
+    companyId: string,
+    days = 90,
+    eventType?: string,
+    status?: string,
+  ): Promise<string> {
+    const daysClamped = Math.min(Math.max(days, 1), 365)
+    const cutoff = new Date(
+      Date.now() - daysClamped * 24 * 60 * 60 * 1000,
+    )
+    const where: any = { companyId, attemptedAt: { gte: cutoff } }
+    if (eventType) where.eventType = eventType
+    if (status) where.status = status
+    const [rows, webhooks] = await Promise.all([
+      this.prisma.webhookDelivery.findMany({
+        where,
+        orderBy: { attemptedAt: 'desc' },
+        take: 10_000,
+        select: {
+          id: true,
+          webhookId: true,
+          eventType: true,
+          eventId: true,
+          status: true,
+          statusCode: true,
+          durationMs: true,
+          retryCount: true,
+          errorMessage: true,
+          attemptedAt: true,
+          nextRetryAt: true,
+        },
+      }),
+      this.prisma.webhook.findMany({
+        where: { companyId },
+        select: { id: true, name: true },
+      }),
+    ])
+    const nameById = new Map(webhooks.map((w) => [w.id, w.name]))
+    // RFC 4180 CSV escaping. Wrap any
+    // field that contains a comma,
+    // quote, or newline in double
+    // quotes and double-up any
+    // embedded quotes.
+    const esc = (v: any): string => {
+      if (v === null || v === undefined) return ''
+      const s = String(v)
+      if (/[",\n\r]/.test(s)) {
+        return '"' + s.replace(/"/g, '""') + '"'
+      }
+      return s
+    }
+    const header = [
+      'id',
+      'webhookId',
+      'webhookName',
+      'eventType',
+      'eventId',
+      'status',
+      'statusCode',
+      'durationMs',
+      'retryCount',
+      'errorMessage',
+      'attemptedAt',
+      'nextRetryAt',
+    ]
+    const lines: string[] = [header.map(esc).join(',')]
+    for (const r of rows) {
+      lines.push(
+        [
+          r.id,
+          r.webhookId,
+          nameById.get(r.webhookId) || '',
+          r.eventType,
+          r.eventId,
+          r.status,
+          r.statusCode ?? '',
+          r.durationMs ?? '',
+          r.retryCount,
+          r.errorMessage ?? '',
+          r.attemptedAt.toISOString(),
+          r.nextRetryAt ? r.nextRetryAt.toISOString() : '',
+        ]
+          .map(esc)
+          .join(','),
+      )
+    }
+    if (rows.length === 10_000) {
+      // Truncation marker so the
+      // operator knows they hit the
+      // cap. Use a `# ` prefix so
+      // Excel treats it as a comment
+      // (Excel skips rows starting
+      // with `#` when importing as
+      // delimited CSV).
+      lines.push(
+        `# truncated: hit 10,000-row cap. Narrow the days/eventType/status filter to export more.`,
+      )
+    }
+    return lines.join('\n') + '\n'
+  }
 }
 
 /**

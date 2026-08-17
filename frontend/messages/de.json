@@ -2129,7 +2129,8 @@
       "replaySent": "Erneute Zustellung wurde gestartet.",
       "replayFailed": "Erneute Zustellung konnte nicht gestartet werden.",
       "filterByEventType": "Ereignistyp filtern",
-      "allEventTypes": "Alle Ereignistypen"
+      "allEventTypes": "Alle Ereignistypen",
+      "exportCsv": "CSV exportieren (90 Tage)"
     },
     "deadLetter": {
       "title": "Dead-Letter-Queue",

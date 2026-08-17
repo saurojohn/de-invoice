@@ -2129,7 +2129,8 @@
       "replaySent": "已开始重发。",
       "replayFailed": "无法开始重发。",
       "filterByEventType": "按事件类型筛选",
-      "allEventTypes": "所有事件类型"
+      "allEventTypes": "所有事件类型",
+      "exportCsv": "导出 CSV (90 天)"
     },
     "deadLetter": {
       "title": "死信队列",

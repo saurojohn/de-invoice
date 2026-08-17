@@ -2129,7 +2129,8 @@
       "replaySent": "Replay started.",
       "replayFailed": "Failed to start replay.",
       "filterByEventType": "Filter by event type",
-      "allEventTypes": "All event types"
+      "allEventTypes": "All event types",
+      "exportCsv": "Export CSV (90 days)"
     },
     "deadLetter": {
       "title": "Dead-Letter Queue",
