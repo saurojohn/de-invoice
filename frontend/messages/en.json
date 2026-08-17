@@ -818,6 +818,8 @@
     "costCenterNet": "Net total",
     "cardAuditTitle": "Audit Trail (GoBD)",
     "cardAuditDesc": "View all changes to master data and vouchers, and export as CSV.",
+    "cardActivityTitle": "Activity Log",
+    "cardActivityDesc": "Who did what: Resolve-All, Requeue, Cron runs, Test notifications.",
     "creditLimitTitle": "Credit-limit utilization",
     "creditOver": "over limit",
     "creditWarning": "warning",
@@ -2362,6 +2364,24 @@
     "viewTimeline": "Timeline",
     "entry_one": "entry",
     "entry_other": "entries"
+  },
+  "activity": {
+    "title": "Activity Log",
+    "subtitle": "All admin operator actions: Resolve-All, Mute-All, Test Notification, Manual Cron, Webhook Requeue",
+    "auditLink": "Full Audit Trail →",
+    "entries": "entries",
+    "empty": "No operator actions recorded yet.",
+    "chainOk": "Chain intact",
+    "chainBroken": "Chain broken",
+    "verifying": "Verifying…",
+    "verifyChain": "Verify chain",
+    "filterLabel": "Action type",
+    "filterAll": "All",
+    "colAction": "Action",
+    "colActor": "Actor",
+    "colTarget": "Target",
+    "colWhen": "When",
+    "colMeta": "Details"
   },
   "globalSearch": {
     "shortcut": "Search (⌘K)",

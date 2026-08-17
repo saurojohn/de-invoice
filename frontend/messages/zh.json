@@ -818,6 +818,8 @@
     "costCenterNet": "净额合计",
     "cardAuditTitle": "审计日志 (GoBD)",
     "cardAuditDesc": "查看所有主数据和凭证的变更，并导出为 CSV。",
+    "cardActivityTitle": "操作日志",
+    "cardActivityDesc": "谁在什么时候做了什么：批量解决、重新入队、Cron 运行、测试通知。",
     "creditLimitTitle": "信用额度使用情况",
     "creditOver": "已超额",
     "creditWarning": "预警",
@@ -2362,6 +2364,24 @@
     "viewTimeline": "时间线",
     "entry_one": "条",
     "entry_other": "条"
+  },
+  "activity": {
+    "title": "操作日志",
+    "subtitle": "所有管理员操作：批量解决、批量忽略、测试通知、手动 Cron、Webhook 重新入队",
+    "auditLink": "查看完整审计日志 →",
+    "entries": "条",
+    "empty": "暂无操作记录。",
+    "chainOk": "链完整",
+    "chainBroken": "链断裂",
+    "verifying": "校验中…",
+    "verifyChain": "校验链",
+    "filterLabel": "操作类型",
+    "filterAll": "全部",
+    "colAction": "操作",
+    "colActor": "操作人",
+    "colTarget": "目标",
+    "colWhen": "时间",
+    "colMeta": "详情"
   },
   "globalSearch": {
     "shortcut": "搜索 (⌘K)",

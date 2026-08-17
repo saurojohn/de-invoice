@@ -18,8 +18,14 @@ import { Module } from '@nestjs/common'
 import { CronHealthService } from './cron-health.service'
 import { CronHealthController } from './cron-health.controller'
 import { CronHealthScheduler } from './cron-health.scheduler'
+// Tier 202 — AdminModule needs the
+// AuditService so CronHealthController
+// can record `cron.run_manually`
+// activity events.
+import { AuditModule } from '../audit/audit.module'
 
 @Module({
+  imports: [AuditModule],
   controllers: [CronHealthController],
   providers: [CronHealthService, CronHealthScheduler],
   exports: [CronHealthService],

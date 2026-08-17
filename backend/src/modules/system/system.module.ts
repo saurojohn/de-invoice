@@ -6,10 +6,11 @@ import { NotificationService } from "./notification.service"
 import { SystemController } from "./system.controller"
 import { SystemHealthController } from "./system-health.controller"
 import { GlobalExceptionFilter } from "./system.filter"
+import { AuditModule } from "../audit/audit.module"
 
 @Global()
 @Module({
-  imports: [PrismaModule, ConfigModule],
+  imports: [PrismaModule, ConfigModule, AuditModule],
   controllers: [SystemController, SystemHealthController],
   providers: [
     ErrorTrackingService,

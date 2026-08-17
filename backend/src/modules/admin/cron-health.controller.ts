@@ -23,14 +23,19 @@
  * Berater/Mandant overview page; we don't expose a
  * per-user health endpoint.
  */
-import { Controller, Get, Param, Post, Query, BadRequestException } from '@nestjs/common'
+import { Controller, Get, Param, Post, Query, BadRequestException, Req } from '@nestjs/common'
+import { Request } from 'express'
 import { Auth, Require } from '../../auth/roles.decorator'
 import { CronHealthService, CronStatus } from './cron-health.service'
+import { AuditService } from '../audit/audit.service'
 
 @Auth()
 @Controller('admin/cron-health')
 export class CronHealthController {
-  constructor(private readonly health: CronHealthService) {}
+  constructor(
+    private readonly health: CronHealthService,
+    private readonly audit: AuditService,
+  ) {}
 
   @Get()
   @Require('admin.read')
@@ -87,8 +92,23 @@ export class CronHealthController {
    */
   @Post(':name/run')
   @Require('admin.read')
-  async runCron(@Param('name') name: string) {
+  async runCron(@Param('name') name: string, @Req() req: Request) {
     if (!name) throw new BadRequestException('name is required')
-    return this.health.triggerManualRun(name)
+    const result = await this.health.triggerManualRun(name)
+    // Tier 202 — log the manual
+    // cron run. Cross-company
+    // (admin scoped) — companyId
+    // left null so the chain
+    // pointer walks the global
+    // admin chain.
+    await this.audit.writeActivity({
+      companyId: null,
+      userId: (req as any).user?.id || null,
+      action: 'cron.run_manually',
+      entityType: 'Cron',
+      entityId: name,
+      metadata: { name },
+    })
+    return result
   }
 }

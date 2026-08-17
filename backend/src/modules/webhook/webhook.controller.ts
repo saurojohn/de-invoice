@@ -11,13 +11,16 @@ import {
   NotFoundException,
   BadRequestException,
   HttpCode,
+  Req,
 } from '@nestjs/common'
+import { Request } from 'express'
 import { HeaderAuthGuard } from '../../auth/header-auth.guard'
 import { RolesGuard } from '../../auth/roles.guard'
 import { Require } from '../../auth/roles.decorator'
 import { CurrentUser } from '../../auth/roles.decorator'
 import { WebhookService, WebhookEvent } from './webhook.service'
 import { PrismaService } from '../../prisma/prisma.service'
+import { AuditService } from '../audit/audit.service'
 
 @Controller('webhooks')
 @UseGuards(HeaderAuthGuard, RolesGuard)
@@ -25,6 +28,7 @@ export class WebhookController {
   constructor(
     private readonly webhooks: WebhookService,
     private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
   ) {}
 
   // List all webhooks for the company.
@@ -300,8 +304,26 @@ export class WebhookController {
   async requeue(
     @Param('id') id: string,
     @Query('companyId') companyId: string,
+    @Req() req: Request,
   ) {
     const row = await this.webhooks.requeueDelivery(id, companyId)
+    // Tier 202 — log the operator
+    // action. entityId is the
+    // delivery id so the Berater
+    // can scope to "all requeue
+    // events for delivery X".
+    await this.audit.writeActivity({
+      companyId,
+      userId: (req as any).user?.id || null,
+      action: 'webhook.requeue',
+      entityType: 'WebhookDelivery',
+      entityId: id,
+      metadata: {
+        webhookId: row.webhookId,
+        eventType: row.eventType,
+        eventId: row.eventId,
+      },
+    })
     return {
       ok: true,
       delivery: {

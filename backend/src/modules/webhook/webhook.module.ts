@@ -8,11 +8,15 @@ import { PrismaModule } from '../../prisma/prisma.module'
 // dashboard can see "webhook-retry-worker last
 // ran N seconds ago, last error: …".
 import { AdminModule } from '../admin/admin.module'
+// Tier 202: WebhookController writes
+// `webhook.requeue` activity events to
+// the AuditLog via AuditService.
+import { AuditModule } from '../audit/audit.module'
 
 @Module({
   controllers: [WebhookController],
   providers: [WebhookService, WebhookRetryWorker],
-  imports: [PrismaModule, AdminModule],
+  imports: [PrismaModule, AdminModule, AuditModule],
   // Export the service so other modules
   // (Invoice, Payment, Voucher) can call
   // webhooks.emit() to fire events.

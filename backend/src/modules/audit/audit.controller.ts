@@ -174,6 +174,73 @@ export class AuditController {
    * non-null means the chain is broken at that
    * row.
    */
+  /**
+   * Tier 202 — list activity-log rows
+   * (operator actions like
+   * `error.resolve_all`,
+   * `webhook.requeue`,
+   * `cron.run_manually`, etc).
+   *
+   * Implemented as a thin filter on
+   * top of the existing audit list:
+   * `actionPrefixes=["error.", "webhook.", "cron.", "notification."]`
+   * restricts the result to the
+   * activity subset without a new
+   * endpoint. The Berater page hits
+   * this with `take=200` and the
+   * standard filters (actor, action
+   * range).
+   *
+   * Cross-company actions (cron
+   * manual runs, recorded with
+   * `companyId=null`) are ALSO
+   * included — admins need to see
+   * them in the activity feed even
+   * if their companyId doesn't match.
+   * We OR the companyId filter with
+   * `companyId IS NULL` at the
+   * service level via
+   * `includeNullCompanyId: true`
+   * (see list()).
+   *
+   * The 4 prefixes match the
+   * `writeActivity` action-naming
+   * convention. New admin actions
+   * should pick a prefix that aligns
+   * with the entity they mutate
+   * (e.g. `backup.run_manual` would
+   * be a new prefix).
+   */
+  @Get('activity')
+  @Require('audit.read')
+  async listActivity(
+    @Query('companyId') companyId: string,
+    @Query('userId') userId?: string,
+    @Query('actionPrefix') actionPrefix?: string,
+    @Query('take') take?: string,
+    @Query('skip') skip?: string,
+  ) {
+    if (!companyId) {
+      throw new BadRequestException('companyId ist erforderlich')
+    }
+    // Default to the full union of
+    // activity prefixes. The
+    // Berater page can narrow with
+    // a single `actionPrefix`
+    // (e.g. `error.`).
+    const prefixes = actionPrefix
+      ? [actionPrefix]
+      : ['error.', 'webhook.', 'cron.', 'notification.']
+    return this.svc.list({
+      companyId,
+      includeNullCompanyId: true, // see Tier 202 note
+      userIds: userId ? [userId] : undefined,
+      actionPrefixes: prefixes,
+      take: Math.min(parseInt(take || '100', 10) || 100, 500),
+      skip: parseInt(skip || '0', 10) || 0,
+    })
+  }
+
   @Get('verify')
   @Require('audit.read')
   async verifyChain(@Query('companyId') companyId: string) {

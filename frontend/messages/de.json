@@ -818,6 +818,8 @@
     "costCenterNet": "Netto-Summe",
     "cardAuditTitle": "Audit-Trail (GoBD)",
     "cardAuditDesc": "Alle Änderungen an Stammdaten und Belegen einsehen und als CSV exportieren.",
+    "cardActivityTitle": "Aktivitäts-Log",
+    "cardActivityDesc": "Wer hat was gemacht: Resolve-All, Requeue, Cron-Läufe, Test-Benachrichtigungen.",
     "creditLimitTitle": "Kreditlimit-Auslastung",
     "creditOver": "überschritten",
     "creditWarning": "Warnung",
@@ -2362,6 +2364,24 @@
     "viewTimeline": "Zeitstrahl",
     "entry_one": "Eintrag",
     "entry_other": "Einträge"
+  },
+  "activity": {
+    "title": "Aktivitäts-Log",
+    "subtitle": "Alle Admin-Operator-Aktionen: Resolve-All, Mute-All, Test-Benachrichtigung, Cron manuell, Webhook Requeue",
+    "auditLink": "Vollständiger Audit-Trail →",
+    "entries": "Einträge",
+    "empty": "Noch keine Operator-Aktionen erfasst.",
+    "chainOk": "Kette intakt",
+    "chainBroken": "Kette unterbrochen",
+    "verifying": "Prüfe…",
+    "verifyChain": "Kette verifizieren",
+    "filterLabel": "Aktion-Typ",
+    "filterAll": "Alle",
+    "colAction": "Aktion",
+    "colActor": "Akteur",
+    "colTarget": "Ziel",
+    "colWhen": "Zeitpunkt",
+    "colMeta": "Details"
   },
   "globalSearch": {
     "shortcut": "Suche (⌘K)",

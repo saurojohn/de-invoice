@@ -26,6 +26,7 @@ import { Request } from "express"
 import { Prisma } from "@prisma/client"
 import { ErrorTrackingService } from "./error-tracking.service"
 import { PrismaService } from "../../prisma/prisma.service"
+import { AuditService } from "../audit/audit.service"
 import { HeaderAuthGuard } from "../../auth/header-auth.guard"
 import { SoftAuthGuard } from "../../auth/soft-auth.guard"
 import { RolesGuard } from "../../auth/roles.guard"
@@ -42,6 +43,7 @@ export class SystemController {
     private readonly prisma: PrismaService,
     private readonly notify: NotificationService,
     private readonly config: ConfigService,
+    private readonly audit: AuditService,
   ) {}
 
   /**
@@ -310,13 +312,25 @@ export class SystemController {
   @Post("errors/resolve-all")
   @UseGuards(HeaderAuthGuard, RolesGuard)
   @Require("users.read")
-  async resolveAll() {
+  async resolveAll(@Req() req: Request) {
+    const userId = (req as any).user?.id || null
     const result = await this.prisma.errorEvent.updateMany({
       where: { status: "open" },
       data: {
         status: "resolved",
         resolvedAt: new Date(),
       },
+    })
+    // Tier 202 — log the operator
+    // action in the activity log
+    // (hash-chained with the rest
+    // of the audit trail).
+    await this.audit.writeActivity({
+      companyId: (req as any).user?.companyId || null,
+      userId,
+      action: "error.resolve_all",
+      entityType: "ErrorEvent",
+      metadata: { count: result.count },
     })
     return { ok: true, count: result.count }
   }
@@ -330,10 +344,20 @@ export class SystemController {
   @Post("errors/mute-all")
   @UseGuards(HeaderAuthGuard, RolesGuard)
   @Require("users.read")
-  async muteAll() {
+  async muteAll(@Req() req: Request) {
+    const userId = (req as any).user?.id || null
     const result = await this.prisma.errorEvent.updateMany({
       where: { status: "open" },
       data: { status: "muted" },
+    })
+    // Tier 202 — log the operator
+    // action.
+    await this.audit.writeActivity({
+      companyId: (req as any).user?.companyId || null,
+      userId,
+      action: "error.mute_all",
+      entityType: "ErrorEvent",
+      metadata: { count: result.count },
     })
     return { ok: true, count: result.count }
   }
@@ -382,12 +406,22 @@ export class SystemController {
   @Post("notifications/test")
   @UseGuards(HeaderAuthGuard, RolesGuard)
   @Require("users.read")
-  async testNotification() {
+  async testNotification(@Req() req: Request) {
     // Construct a synthetic event so the
     // push pipeline runs the same code path
     // as a real capture. We don't persist
     // this to the DB — the test is a
     // notification-only smoke test.
+    const userId = (req as any).user?.id || null
+    const companyId = (req as any).user?.companyId || null
+    // Tier 202 — log the action.
+    await this.audit.writeActivity({
+      companyId,
+      userId,
+      action: "notification.test",
+      entityType: "Notification",
+      metadata: { source: "system/notifications/test" },
+    })
     const now = new Date()
     return this.notify.pushErrorNotification({
       id: "test-notification",

@@ -105,6 +105,15 @@ export interface AuditLogFilters {
   actions?: string[] // Tier 122: multi-select exact actions (CREATE/UPDATE/DELETE/...)
   actionPrefix?: string // e.g. "invoice." matches invoice.updated, invoice.created, …
   actionPrefixes?: string[] // Tier 122: multiple action prefixes
+  // Tier 202 — when set, rows with
+  // companyId=null are included in
+  // addition to rows matching
+  // `companyId`. Used by the
+  // activity-log endpoint so
+  // cross-company admin actions
+  // (e.g. cron.run_manually) show
+  // up in the Berater's feed.
+  includeNullCompanyId?: boolean
   q?: string // Tier 143: free-text search across action, entityId, user.email, newData, oldData
   dateFrom?: Date
   dateTo?: Date
@@ -119,6 +128,123 @@ export class AuditService {
   constructor(private prisma: PrismaService) {}
 
   /**
+   * Tier 202 — write an activity-log row.
+   *
+   * Used by admin controllers to record
+   * operator actions (requeue,
+   * resolve-all, mute-all, cron-run,
+   * test-notification, etc) in the
+   * same tamper-evident hash chain as
+   * business events (Tier 196).
+   *
+   * The action name follows the
+   * `<entity>.<verb>` convention, e.g.
+   * `error.resolve_all`,
+   * `webhook.requeue`,
+   * `cron.run_manually`. The
+   * `entityType` + `entityId` are set
+   * for cross-entity queries (e.g.
+   * "all requeue events for webhook
+   * X"). `metadata` is a free-form
+   * JSON blob with the per-action
+   * context (e.g. count, ids, notes)
+   * — stored in the existing `newData`
+   * column (no schema migration
+   * needed).
+   *
+   * Implementation: inlines the same
+   * hash-chain write logic as
+   * `audit-log.extension.ts`'s
+   * private `writeAudit` (read previous
+   * row, compute hash, write row). We
+   * duplicate rather than re-export
+   * because the extension's helper is
+   * internal. Both paths use the same
+   * `computeAuditHash` + `stableStringify`
+   * shape — the per-write audit log
+   * and the activity log share one
+   * chain. The `verifyChain` walk
+   * treats them uniformly.
+   *
+   * Failure mode: never throws. The
+   * operator's primary action MUST NOT
+   * fail because the audit log write
+   * failed. Errors are logged to
+   * console only.
+   */
+  async writeActivity(input: {
+    companyId: string | null
+    userId: string | null
+    action: string
+    entityType: string
+    entityId?: string | null
+    metadata?: Record<string, any>
+  }): Promise<void> {
+    try {
+      // Read the previous row's hash
+      // to chain this one to it. Same
+      // ordering as the extension
+      // helper (createdAt desc, id
+      // desc). For a fresh company
+      // the first row's previousHash
+      // is ''.
+      const prev = await this.prisma.auditLog.findFirst({
+        where: { companyId: input.companyId || null },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        select: { hash: true },
+      })
+      const previousHash = prev?.hash ?? ''
+      // Round createdAt to the
+      // second boundary (Tier 194/196
+      // pattern) so the hash input
+      // matches what verify path
+      // recomputes after PG round-
+      // trips the value.
+      const createdAtRounded = new Date(
+        Math.floor(Date.now() / 1000) * 1000,
+      )
+      const hash = computeAuditHash({
+        action: input.action,
+        entityType: input.entityType,
+        entityId: input.entityId ?? null,
+        userId: input.userId,
+        companyId: input.companyId,
+        oldData: null,
+        newData: input.metadata || null,
+        previousHash,
+        createdAt: createdAtRounded,
+      })
+      await this.prisma.auditLog.create({
+        data: {
+          companyId: input.companyId,
+          userId: input.userId,
+          action: input.action,
+          entityType: input.entityType,
+          entityId: input.entityId || null,
+          oldData: undefined,
+          newData: input.metadata || undefined,
+          createdAt: createdAtRounded,
+          hash,
+          previousHash,
+          hashAlgorithm: 'SHA-256-V1',
+        },
+      })
+    } catch (err) {
+      // Don't fail the operator's
+      // action because the audit
+      // log write failed. Just log
+      // to backend console — same
+      // pattern as the private
+      // writeAudit helper.
+      // eslint-disable-next-line no-console
+      console.error(
+        '[audit/activity] failed to write activity row:',
+        (err as Error).message,
+      )
+    }
+  }
+
+  /**
    * Build the Prisma `where` from the filter DTO.
    * Helper, kept private-ish so list() and stats()
    * and exportCsv() share one source of truth.
@@ -130,9 +256,15 @@ export class AuditService {
    * caller can pass `[]` without breaking the query.
    */
   private buildWhere(f: AuditLogFilters): Prisma.AuditLogWhereInput {
-    const where: Prisma.AuditLogWhereInput = {
-      companyId: f.companyId,
-    }
+    // Tier 202 — for cross-company
+    // activity events (companyId=null),
+    // OR with the given companyId so
+    // the operator sees their own
+    // + the global admin actions.
+    const companyFilter: Prisma.AuditLogWhereInput = f.includeNullCompanyId
+      ? { OR: [{ companyId: f.companyId }, { companyId: null }] }
+      : { companyId: f.companyId }
+    const where: Prisma.AuditLogWhereInput = { ...companyFilter }
     // Entity type: single takes precedence; otherwise
     // the multi-select array. If both are set, we honour
     // the array (caller's intent is "filter by these").
@@ -231,6 +363,18 @@ export class AuditService {
           userId: true,
           ipAddress: true,
           createdAt: true,
+          // Tier 202 — include newData
+          // so the activity page can
+          // render the per-action
+          // metadata blob (e.g.
+          // {count: 5} for resolve_all,
+          // {webhookId, eventType} for
+          // webhook.requeue). oldData
+          // is null for activity rows
+          // (we use a "snapshot" not
+          // a diff), so we don't
+          // bother selecting it.
+          newData: true,
           // user email for the "who" column
           user: { select: { email: true } },
         },
@@ -247,6 +391,11 @@ export class AuditService {
         userEmail: r.user?.email ?? null,
         ipAddress: r.ipAddress,
         createdAt: r.createdAt,
+        // Tier 202 — include newData
+        // so the activity page can
+        // surface the per-action
+        // metadata.
+        newData: r.newData ?? null,
       })),
       total,
       take,

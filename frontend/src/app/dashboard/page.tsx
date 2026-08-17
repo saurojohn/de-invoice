@@ -1071,6 +1071,14 @@ export default function DashboardPage() {
               <p className="text-gray-600 dark:text-gray-300">{t("dashboard.cardAuditDesc")}</p>
             </CardContent>
           </Card>
+          <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/activity")} data-testid="dashboard-card-activity">
+            <CardHeader>
+              <CardTitle className="text-rose-600 dark:text-rose-400">{t("dashboard.cardActivityTitle")}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-gray-600 dark:text-gray-300">{t("dashboard.cardActivityDesc")}</p>
+            </CardContent>
+          </Card>
           <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/security")}>
             <CardHeader>
               <CardTitle className="text-blue-600 dark:text-blue-400">{t("dashboard.cardSecurityTitle")}</CardTitle>
