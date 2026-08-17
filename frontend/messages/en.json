@@ -491,6 +491,7 @@
     "errorWithDetail": "Error: {detail}",
     "noData": "No data",
     "notFound": "Not found",
+    "refresh": "Refresh",
     "networkError": "Network error",
     "pageNotFound": {
       "title": "Page not found",
@@ -1883,6 +1884,15 @@
     "thresholdInvalidCount": "Count must be between 1 and 1000",
     "thresholdInvalidWindow": "Window must be between 1 and 1440 minutes (1 min to 24 h)",
     "thresholdLastNote": "Last note: {note}",
+    "topRateTitle": "Top fingerprints by rate",
+    "topRateSubtitle": "{n} active in the last {m} minutes",
+    "topRateEmpty": "No errors in this window.",
+    "topRateColFingerprint": "Fingerprint",
+    "topRateColCount": "Occurrences",
+    "topRateColStatus": "Status",
+    "topRateColMessage": "Last message",
+    "topRateExceeded": "over threshold",
+    "topRateOk": "ok",
     "timeline": {
       "title": "Error timeline",
       "lastDays": "last {n} days",

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { SkeletonTable } from "@/components/ui/skeleton"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
@@ -241,6 +242,32 @@ export default function SystemErrorsPage() {
     note: string
   }>({ count: "", window: "", note: "" })
   const [thresholdSaving, setThresholdSaving] = useState(false)
+  // Tier 206 — top-N fingerprints by
+  // rate over the configured window.
+  // Same shape as the backend's
+  // `topRateFingerprints` response.
+  interface TopRateRow {
+    fingerprint: string
+    fingerprintShort: string
+    count: number
+    threshold: number
+    exceeded: boolean
+    message: string | null
+    source: string | null
+    kind: string | null
+    status: string | null
+    lastSeenAt: string | null
+    occurrences: number
+  }
+  interface TopRateResponse {
+    windowMinutes: number
+    threshold: number
+    limit: number
+    source: string
+    rows: TopRateRow[]
+  }
+  const [topRate, setTopRate] = useState<TopRateResponse | null>(null)
+  const [topRateLoading, setTopRateLoading] = useState(false)
   // Tier 200 — 30-day timeline. We keep
   // a separate state for the timeline
   // (and a separate fetch) because the
@@ -329,7 +356,29 @@ export default function SystemErrorsPage() {
       .catch(() => setNotifConfig(null))
     // Tier 200 — load the 30-day timeline.
     fetchTimeline(cid, timelineSource)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [load, router, fetchTimeline, timelineSource])
+
+  // Tier 206 — load the top-N
+  // fingerprints by rate. We use a
+  // SEPARATE useEffect (not piggy-
+  // backing on the main one above)
+  // because `load` / `fetchTimeline`
+  // re-allocate on every filter
+  // change, which would re-fire
+  // `fetchTopRate()` and keep the
+  // refresh button in its loading
+  // state forever. The []-deps
+  // mount-only pattern is the same
+  // one we use for the threshold
+  // load (Tier 205). The user can
+  // re-fetch manually via the
+  // refresh button or via the
+  // saveThreshold handler.
+  useEffect(() => {
+    fetchTopRate()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Tier 205 — load rate threshold ONCE on
   // mount. We use a separate useEffect (not
@@ -508,12 +557,47 @@ export default function SystemErrorsPage() {
       )
       setThreshold(res)
       toast.success(t("systemErrors.thresholdSaved"))
+      // Tier 206 — re-fetch the top-rate
+      // table so the operator sees the
+      // effect of the new threshold
+      // immediately (rows flip from
+      // exceeded → ok or vice versa).
+      fetchTopRate()
     } catch (e: any) {
       toast.error(e.message || t("systemErrors.thresholdSaveFailed"))
     } finally {
       setThresholdSaving(false)
     }
   }
+
+  // Tier 206 — fetch the top-N fingerprints
+  // by rate. Called on mount + on Refresh
+  // click + after the threshold save
+  // (above). Default limit=10 keeps the
+  // table small; the operator can re-query
+  // with a higher limit via the URL if
+  // needed (out of scope for the UI for
+  // Tier 206 — a limit selector can be
+  // added later if the operator asks for
+  // it).
+  const fetchTopRate = useCallback(async () => {
+    setTopRateLoading(true)
+    try {
+      const res = await apiGet<TopRateResponse>(
+        "/api/v1/system/errors/top-rate?limit=10",
+      )
+      setTopRate(res)
+    } catch (e: any) {
+      // Don't toast on every refresh
+      // — the table just shows the
+      // stale data until next
+      // refresh.
+      // eslint-disable-next-line no-console
+      console.warn("[tier206/top-rate] fetch failed:", e?.message)
+    } finally {
+      setTopRateLoading(false)
+    }
+  }, [])
 
   const fmt = (iso: string) => {
     try {
@@ -719,6 +803,114 @@ export default function SystemErrorsPage() {
             </CardContent>
           </Card>
         )}
+
+        {/* Tier 206 — top-N fingerprints by
+            rate over the configured window.
+            The Tier 205 threshold is the
+            "noisy enough to push" line;
+            this card shows which fingerprints
+            are approaching or crossing it.
+            Operator can decide to (a) raise
+            the threshold, (b) mute the
+            fingerprint, or (c) fix the root
+            cause. We refresh on the same
+            cadence as the timeline. */}
+        <Card>
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+              <div className="text-sm">
+                <span className="font-semibold text-gray-700 dark:text-gray-300">
+                  {t("systemErrors.topRateTitle")}
+                </span>
+                <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
+                  {topRate ? t("systemErrors.topRateSubtitle", {
+                    n: String(topRate.rows.length),
+                    m: String(topRate.windowMinutes),
+                  }) : ""}
+                </span>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={fetchTopRate}
+                disabled={topRateLoading}
+                data-testid="top-rate-refresh"
+              >
+                {t("common.refresh")}
+              </Button>
+            </div>
+            {topRateLoading && !topRate ? (
+              <SkeletonTable rows={3} cols={4} />
+            ) : topRate && topRate.rows.length === 0 ? (
+              <p
+                className="text-sm text-gray-500 dark:text-gray-400 py-4 text-center"
+                data-testid="top-rate-empty"
+              >
+                {t("systemErrors.topRateEmpty")}
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left border-b border-gray-200 dark:border-gray-700">
+                      <th className="py-2 px-2 font-medium">
+                        {t("systemErrors.topRateColFingerprint")}
+                      </th>
+                      <th className="py-2 px-2 font-medium text-right">
+                        {t("systemErrors.topRateColCount")}
+                      </th>
+                      <th className="py-2 px-2 font-medium text-center">
+                        {t("systemErrors.topRateColStatus")}
+                      </th>
+                      <th className="py-2 px-2 font-medium">
+                        {t("systemErrors.topRateColMessage")}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {topRate?.rows.map((r) => (
+                      <tr
+                        key={r.fingerprint}
+                        className="border-b border-gray-100 dark:border-gray-800"
+                        data-testid="top-rate-row"
+                      >
+                        <td className="py-2 px-2 font-mono text-xs">
+                          {r.fingerprintShort}
+                        </td>
+                        <td
+                          className="py-2 px-2 text-right font-mono"
+                          data-testid="top-rate-count"
+                        >
+                          {r.count}
+                        </td>
+                        <td className="py-2 px-2 text-center">
+                          {r.exceeded ? (
+                            <span
+                              className="inline-block text-xs px-2 py-0.5 rounded bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200"
+                              data-testid="top-rate-exceeded"
+                            >
+                              {t("systemErrors.topRateExceeded")}
+                            </span>
+                          ) : (
+                            <span
+                              className="inline-block text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
+                              data-testid="top-rate-ok"
+                            >
+                              {t("systemErrors.topRateOk")}
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-2 px-2 text-xs text-gray-600 dark:text-gray-400 truncate max-w-md">
+                          {r.message ?? "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Tier 200 — 30-day error
             timeline. Stacked bar chart

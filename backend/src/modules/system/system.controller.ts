@@ -277,6 +277,168 @@ export class SystemController {
     }
   }
 
+  /**
+   * Tier 206 — top-N fingerprints by
+   * occurrence rate over the configured
+   * window. The "rate" is the number of
+   * distinct ErrorEvent rows for a
+   * fingerprint where `lastSeenAt >= now -
+   * windowMinutes`. The fingerprint index
+   * (see ErrorEvent schema) makes this
+   * query O(matches) not O(table).
+   *
+   * The response includes the
+   * NotificationConfig threshold so the
+   * UI can mark rows as "over threshold"
+   * (= would trigger a push) or "below
+   * threshold" (= would be suppressed
+   * by the rate gate). This is the
+   * missing piece from Tier 205: the
+   * threshold is configurable, but the
+   * operator had no way to see WHICH
+   * fingerprints are approaching or
+   * crossing the line.
+   *
+   * Query: `prisma.errorEvent.groupBy({
+   * by: ['fingerprint'], where:
+   * { lastSeenAt: { gte: cutoff } },
+   * _count: { _all: true } })` — one
+   * query, returns up to `limit` rows
+   * sorted by count desc. We also need
+   * the latest message for the
+   * fingerprint so the UI can show
+   * "what's actually firing" — we do a
+   * 2nd query for the latest 50 events
+   * in the window, then group in JS.
+   *
+   * Filters:
+   *   - windowMinutes: 1..1440 (default
+   *     = NotificationConfig window if
+   *     available, else 60)
+   *   - limit: 1..50 (default 10)
+   *   - source: 'backend' | 'frontend'
+   *     (optional)
+   *
+   * Same RBAC as the rest of the admin
+   * surface (`users.read`).
+   */
+  @Get("errors/top-rate")
+  @UseGuards(HeaderAuthGuard, RolesGuard)
+  @Require("users.read")
+  async topRateFingerprints(
+    @Query("windowMinutes") windowMinutesStr?: string,
+    @Query("limit") limitStr?: string,
+    @Query("source") source?: string,
+  ) {
+    // Default the window to the
+    // configured threshold window
+    // (if available) so the UI shows
+    // the same rate that the
+    // NotificationService would
+    // evaluate. If the threshold
+    // table is empty, fall back to
+    // 60 minutes.
+    const threshold = await this.notify.getThreshold()
+    const windowMinutes = Math.min(
+      Math.max(
+        parseInt(windowMinutesStr || String(threshold.windowMinutes), 10) ||
+          threshold.windowMinutes,
+        1,
+      ),
+      1440,
+    )
+    const limit = Math.min(
+      Math.max(parseInt(limitStr || "10", 10) || 10, 1),
+      50,
+    )
+    const cutoff = new Date(
+      Date.now() - windowMinutes * 60 * 1000,
+    )
+    // Count rows per fingerprint in
+    // the window. The fingerprint
+    // index makes this O(matches).
+    // We sort by count desc + take
+    // `limit` to keep the response
+    // small.
+    const where: any = { lastSeenAt: { gte: cutoff } }
+    if (source) where.source = source
+    const grouped = await this.prisma.errorEvent.groupBy({
+      by: ["fingerprint"],
+      where,
+      _count: { _all: true },
+      orderBy: { _count: { fingerprint: "desc" } },
+      take: limit,
+    })
+    // Fetch the latest event per
+    // fingerprint so the UI can
+    // show "what's actually firing".
+    // 2nd query (top `limit`
+    // fingerprints × 1 row each =
+    // limit rows max).
+    const fingerprints = grouped.map((g) => g.fingerprint)
+    const latestRows = fingerprints.length
+      ? await this.prisma.errorEvent.findMany({
+          where: { fingerprint: { in: fingerprints } },
+          orderBy: { lastSeenAt: "desc" },
+          take: limit * 2, // extra headroom in case of same-fingerprint multiples
+          select: {
+            fingerprint: true,
+            message: true,
+            source: true,
+            kind: true,
+            lastSeenAt: true,
+            occurrences: true,
+            status: true,
+          },
+        })
+      : []
+    // For each fingerprint, pick
+    // the row with the latest
+    // lastSeenAt. The rows we got
+    // are already ordered by
+    // lastSeenAt desc, so the
+    // first row per fingerprint
+    // wins.
+    const latestByFp = new Map<string, any>()
+    for (const row of latestRows) {
+      if (!latestByFp.has(row.fingerprint)) {
+        latestByFp.set(row.fingerprint, row)
+      }
+    }
+    const rows = grouped.map((g) => {
+      const latest = latestByFp.get(g.fingerprint)
+      const count = g._count._all
+      return {
+        fingerprint: g.fingerprint,
+        // short hash prefix for
+        // the UI (full hash is
+        // 64 chars of hex)
+        fingerprintShort: g.fingerprint.slice(0, 12),
+        count,
+        // Tier 205 — the same
+        // threshold the gate
+        // uses. Mark `exceeded`
+        // so the UI can render
+        // a red badge.
+        threshold: threshold.count,
+        exceeded: count >= threshold.count,
+        message: latest?.message ?? null,
+        source: latest?.source ?? null,
+        kind: latest?.kind ?? null,
+        status: latest?.status ?? null,
+        lastSeenAt: latest?.lastSeenAt ?? null,
+        occurrences: latest?.occurrences ?? count,
+      }
+    })
+    return {
+      windowMinutes,
+      threshold: threshold.count,
+      limit,
+      source: source || "all",
+      rows,
+    }
+  }
+
   @Post("errors/:id/resolve")
   @UseGuards(HeaderAuthGuard, RolesGuard)
   @Require("users.read")
