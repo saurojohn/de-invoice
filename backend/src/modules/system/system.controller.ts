@@ -12,11 +12,13 @@
  *   POST   /api/v1/system/errors/prune        delete old (>30d) + resolved
  */
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
   Param,
   Post,
+  Put,
   Query,
   Req,
   SetMetadata,
@@ -423,7 +425,15 @@ export class SystemController {
       metadata: { source: "system/notifications/test" },
     })
     const now = new Date()
-    return this.notify.pushErrorNotification({
+    // Tier 205 — `force: true` bypasses the
+    // rate-threshold gate so the operator can
+    // test the wiring without having to spam
+    // 5 errors first. The test message is
+    // clearly marked [Tier 197 test] in the
+    // payload, so Slack recipients know it's
+    // a manual smoke test.
+    return this.notify.pushErrorNotification(
+      {
       id: "test-notification",
       source: "backend",
       kind: "manual",
@@ -446,6 +456,160 @@ export class SystemController {
       resolvedAt: null,
       mutedAt: null,
       createdAt: now,
-    } as any)
+    } as any,
+      { force: true },
+    )
+  }
+
+  /**
+   * Tier 205 — read the current rate
+   * threshold. Returns the singleton
+   * `NotificationConfig` row, or sensible
+   * defaults if the table is empty (fresh
+   * deploy, pre-seed).
+   *
+   * The threshold is read by the
+   * `NotificationService` hot path so
+   * it can be cached for 60s. This
+   * endpoint is admin-only — exposing
+   * the threshold to a tenant would
+   * let them DoS the operator's Slack
+   * by setting a low rate + spamming
+   * errors.
+   */
+  @Get("notifications/threshold")
+  @UseGuards(HeaderAuthGuard, RolesGuard)
+  @Require("users.read")
+  async getNotificationThreshold() {
+    const t = await this.notify.getThreshold()
+    return {
+      rateThresholdCount: t.count,
+      rateThresholdWindowMinutes: t.windowMinutes,
+    }
+  }
+
+  /**
+   * Tier 205 — update the rate threshold.
+   * The push channels (Slack/email) only
+   * fire when a fingerprint crosses
+   * `rateThresholdCount` occurrences within
+   * `rateThresholdWindowMinutes` minutes.
+   * Default 5/60 (= "5 in an hour") so a
+   * one-off doesn't wake anyone up at 3am,
+   * but a real flood does.
+   *
+   * Validation:
+   *   - count: 1..1000 (1 = "always notify",
+   *     1000 = effectively never)
+   *   - windowMinutes: 1..1440 (1 min .. 24h)
+   *
+   * The change is written to the DB (so it
+   * survives a restart), the in-memory cache
+   * is refreshed (so the next push check
+   * uses the new value), and an activity log
+   * row is written (so the Berater can audit
+   * who lowered the threshold and why).
+   */
+  @Put("notifications/threshold")
+  @UseGuards(HeaderAuthGuard, RolesGuard)
+  @Require("users.read")
+  async setNotificationThreshold(
+    @Req() req: Request,
+    @Body()
+    body: {
+      rateThresholdCount?: number
+      rateThresholdWindowMinutes?: number
+      note?: string
+    },
+  ) {
+    if (
+      body.rateThresholdCount === undefined &&
+      body.rateThresholdWindowMinutes === undefined
+    ) {
+      throw new BadRequestException(
+        "rateThresholdCount oder rateThresholdWindowMinutes ist erforderlich",
+      )
+    }
+    if (
+      body.rateThresholdCount !== undefined &&
+      (body.rateThresholdCount < 1 || body.rateThresholdCount > 1000)
+    ) {
+      throw new BadRequestException(
+        "rateThresholdCount muss zwischen 1 und 1000 liegen",
+      )
+    }
+    if (
+      body.rateThresholdWindowMinutes !== undefined &&
+      (body.rateThresholdWindowMinutes < 1 ||
+        body.rateThresholdWindowMinutes > 1440)
+    ) {
+      throw new BadRequestException(
+        "rateThresholdWindowMinutes muss zwischen 1 und 1440 liegen (1 min .. 24h)",
+      )
+    }
+    // Upsert the singleton row. The schema
+    // doesn't have a unique constraint on
+    // anything (it's a true singleton by
+    // convention), so we read the existing
+    // row, update it, or create one if
+    // missing.
+    const existing = await this.prisma.notificationConfig.findFirst({
+      orderBy: { updatedAt: "desc" },
+    })
+    const data: Prisma.NotificationConfigUpdateInput = {
+      ...(body.rateThresholdCount !== undefined
+        ? { rateThresholdCount: body.rateThresholdCount }
+        : {}),
+      ...(body.rateThresholdWindowMinutes !== undefined
+        ? { rateThresholdWindowMinutes: body.rateThresholdWindowMinutes }
+        : {}),
+      ...(body.note !== undefined ? { note: body.note } : {}),
+    }
+    let row
+    if (existing) {
+      row = await this.prisma.notificationConfig.update({
+        where: { id: existing.id },
+        data,
+      })
+    } else {
+      row = await this.prisma.notificationConfig.create({
+        data: {
+          rateThresholdCount: body.rateThresholdCount ?? 5,
+          rateThresholdWindowMinutes: body.rateThresholdWindowMinutes ?? 60,
+          note: body.note ?? null,
+        },
+      })
+    }
+    // Refresh the in-memory cache so the
+    // next push check uses the new value
+    // without waiting for the 60s TTL.
+    this.notify.setThreshold({
+      count: row.rateThresholdCount,
+      windowMinutes: row.rateThresholdWindowMinutes,
+    })
+    // Tier 202 — log the action. The
+    // metadata blob carries the old + new
+    // values so the Berater can see what
+    // changed and when.
+    const userId = (req as any).user?.id || null
+    const companyId = (req as any).user?.companyId || null
+    await this.audit.writeActivity({
+      companyId,
+      userId,
+      action: "notification.threshold_set",
+      entityType: "NotificationConfig",
+      entityId: row.id,
+      metadata: {
+        rateThresholdCount: row.rateThresholdCount,
+        rateThresholdWindowMinutes: row.rateThresholdWindowMinutes,
+        note: row.note,
+      },
+    })
+    return {
+      rateThresholdCount: row.rateThresholdCount,
+      rateThresholdWindowMinutes: row.rateThresholdWindowMinutes,
+      note: row.note,
+      updatedAt: row.updatedAt,
+    }
   }
 }

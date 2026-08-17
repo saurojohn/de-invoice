@@ -43,6 +43,18 @@ import { ConfigService } from "@nestjs/config"
 import { ErrorEvent } from "@prisma/client"
 import { PrismaService } from "../../prisma/prisma.service"
 
+/**
+ * Tier 205 — return shape for the
+ * `getThreshold()` reader. The service
+ * keeps a cached copy in memory (refreshed
+ * every 60s) so the hot-path push check
+ * doesn't hit the DB on every error.
+ */
+export interface NotificationThreshold {
+  count: number
+  windowMinutes: number
+}
+
 interface PushResult {
   slack: "sent" | "skipped" | "failed"
   email: "sent" | "skipped" | "failed"
@@ -61,11 +73,123 @@ export class NotificationService {
   // left a residual) still get through.
   private readonly recentPushes = new Map<string, number>()
   private static readonly ANTI_SPAM_MS = 5 * 60 * 1000
+  // Tier 205 — rate-threshold cache. Refreshed
+  // every 60s by the hot-path check below; the
+  // controller mutates the cache directly on
+  // PUT so the new threshold takes effect
+  // without waiting for the next refresh.
+  private thresholdCache: NotificationThreshold = {
+    count: 5,
+    windowMinutes: 60,
+  }
+  private thresholdLoadedAt = 0
+  private static readonly THRESHOLD_TTL_MS = 60 * 1000
 
   constructor(
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
   ) {}
+
+  /**
+   * Tier 205 — read the current rate threshold
+   * from the DB (cached for 60s). The hot-path
+   * push check uses this to decide whether the
+   * fingerprint has crossed the "noisy enough to
+   * notify" line. The first call after process
+   * start hits the DB; subsequent calls return
+   * the cached value until the TTL expires.
+   *
+   * Returns the singleton row from
+   * NotificationConfig, or a sensible default
+   * if the table is empty (the very first push
+   * after a fresh deploy seeds the row lazily on
+   * the first PUT, not here).
+   */
+  async getThreshold(): Promise<NotificationThreshold> {
+    const now = Date.now()
+    if (now - this.thresholdLoadedAt < NotificationService.THRESHOLD_TTL_MS) {
+      return this.thresholdCache
+    }
+    try {
+      // `findFirst` because the table is a
+      // singleton (no companyId, no unique
+      // constraint). Cheap with one row max.
+      const row = await this.prisma.notificationConfig.findFirst({
+        orderBy: { updatedAt: "desc" },
+        select: {
+          rateThresholdCount: true,
+          rateThresholdWindowMinutes: true,
+        },
+      })
+      if (row) {
+        this.thresholdCache = {
+          count: row.rateThresholdCount,
+          windowMinutes: row.rateThresholdWindowMinutes,
+        }
+      }
+      this.thresholdLoadedAt = now
+    } catch (e: any) {
+      // If the table doesn't exist yet
+      // (fresh deploy, pre-migration) the
+      // push check still works — we just
+      // use the in-memory defaults. Log
+      // the error so the operator knows
+      // their config isn't taking effect.
+      this.logger.warn(
+        `[tier205/threshold] failed to load: ${e?.message || String(e)} — using defaults`,
+      )
+    }
+    return this.thresholdCache
+  }
+
+  /**
+   * Tier 205 — set the rate threshold and
+   * refresh the cache immediately so the
+   * next push check uses the new value
+   * without waiting for the TTL.
+   */
+  setThreshold(t: NotificationThreshold): void {
+    this.thresholdCache = { ...t }
+    this.thresholdLoadedAt = Date.now()
+  }
+
+  /**
+   * Tier 205 — check the fingerprint's rate
+   * over the configured window. Returns the
+   * count (so the caller can log it) and a
+   * boolean indicating whether the rate has
+   * crossed the threshold. This is the gate
+   * that determines whether the push fires
+   * AT ALL — anti-spam is a separate throttle
+   * (the same fingerprint can't fire twice
+   * in 5 min). Rate threshold and anti-spam
+   * serve different purposes: rate threshold
+   * = "is this noisy enough to wake someone
+   * up?", anti-spam = "we just sent one 30
+   * seconds ago, don't double-tap".
+   */
+  private async isRateExceeded(
+    fingerprint: string,
+    threshold: NotificationThreshold,
+  ): Promise<{ count: number; exceeded: boolean }> {
+    const cutoff = new Date(
+      Date.now() - threshold.windowMinutes * 60 * 1000,
+    )
+    // Count rows for this fingerprint in
+    // the window. The fingerprint is indexed
+    // (see ErrorEvent schema) so the query is
+    // O(matches) not O(table).
+    const count = await this.prisma.errorEvent.count({
+      where: {
+        fingerprint,
+        lastSeenAt: { gte: cutoff },
+      },
+    })
+    return {
+      count,
+      exceeded: count >= threshold.count,
+    }
+  }
 
   /**
    * Push a notification for a new open error event.
@@ -81,8 +205,17 @@ export class NotificationService {
    *   - a deep link back to the dashboard
    *     (/dashboard/system-errors?fingerprint=...)
    *     so the on-call can click straight through.
+   *
+   * @param event the error event (real or synthetic)
+   * @param opts.force skip the rate-threshold gate
+   *   (used by the manual test-notification endpoint
+   *   so the operator can verify the wiring without
+   *   having to spam 5 errors first)
    */
-  async pushErrorNotification(event: ErrorEvent): Promise<PushResult> {
+  async pushErrorNotification(
+    event: ErrorEvent,
+    opts: { force?: boolean } = {},
+  ): Promise<PushResult> {
     const result: PushResult = {
       slack: "skipped",
       email: "skipped",
@@ -97,6 +230,26 @@ export class NotificationService {
       `(${event.occurrences}x) ${event.message.slice(0, 200)} ` +
       `— /dashboard/system-errors?fingerprint=${event.fingerprint}`,
     )
+    // Tier 205 — rate-threshold gate. We check
+    // the fingerprint's occurrences over the
+    // configured window BEFORE the anti-spam
+    // check so the operator can see in the
+    // console log when a notification is being
+    // suppressed by the rate gate (vs anti-
+    // spam). If below threshold, we return
+    // early — the push channels (Slack/email)
+    // don't fire. `opts.force` (test endpoint)
+    // bypasses the gate.
+    if (!opts.force) {
+      const threshold = await this.getThreshold()
+      const rate = await this.isRateExceeded(event.fingerprint, threshold)
+      if (!rate.exceeded) {
+        this.logger.debug(
+          `[tier205/rate] suppressed (rate ${rate.count}/${threshold.count} in ${threshold.windowMinutes}m) for fingerprint ${event.fingerprint.slice(0, 12)}…`,
+        )
+        return result
+      }
+    }
     if (this.isSpam(event.fingerprint)) {
       this.logger.debug(
         `[tier197/notify] suppressed (anti-spam) for fingerprint ${event.fingerprint.slice(0, 12)}…`,

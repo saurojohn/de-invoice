@@ -3143,3 +3143,34 @@ model CronHealth {
 
   @@index([name, startedAt])
 }
+
+// Tier 205 — system-wide notification
+// rate-threshold config. The push channel
+// only fires when an error fingerprint
+// exceeds `rateThresholdCount` occurrences
+// within `rateThresholdWindowMinutes` minutes.
+// Singleton (no companyId): the threshold is
+// a global property of the deploy, not a
+// per-tenant setting. If we ever need
+// per-tenant thresholds, add a companyId
+// + unique index and route lookups by
+// event.companyId.
+model NotificationConfig {
+  id                        String   @id @default(uuid())
+  /// Minimum number of occurrences of a
+  /// fingerprint within the window before
+  /// the notification fires. Default 5
+  /// (= 1 burst + 4 follow-ups, so a true
+  /// one-off doesn't wake anyone up at 3am).
+  rateThresholdCount        Int      @default(5)
+  /// Sliding window in minutes for the
+  /// count above. Default 60 (1 hour).
+  /// At max config (1440) the threshold
+  /// means "in the last 24 hours".
+  rateThresholdWindowMinutes Int     @default(60)
+  updatedAt                 DateTime @updatedAt
+  /// Free-text operator note for the audit
+  /// trail (e.g. "lowered from 5 to 3 after
+  /// the false alarm on Aug 12").
+  note                      String?
+}

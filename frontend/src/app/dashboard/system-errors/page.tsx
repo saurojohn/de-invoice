@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
-import { apiGet, apiPost } from "@/lib/api"
+import { apiGet, apiPost, apiPut } from "@/lib/api"
 
 interface ErrorEvent {
   id: string
@@ -40,6 +40,19 @@ interface NotificationConfig {
     smtpHost: string | null
   }
   antiSpamMinutes: number
+}
+
+// Tier 205 — rate-threshold shape for the
+// push channels. A fingerprint must be
+// seen `rateThresholdCount` times within
+// `rateThresholdWindowMinutes` minutes
+// before the push fires. Default 5/60
+// (= "5 in an hour, then ping on-call").
+interface NotificationThreshold {
+  rateThresholdCount: number
+  rateThresholdWindowMinutes: number
+  note?: string | null
+  updatedAt?: string
 }
 
 // Tier 200 — per-day timeline bucket
@@ -215,6 +228,19 @@ export default function SystemErrorsPage() {
   const [notifConfig, setNotifConfig] = useState<NotificationConfig | null>(null)
   const [lastTestResult, setLastTestResult] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  // Tier 205 — rate-threshold editor. The
+  // form has 2 inputs (count + window) +
+  // an optional note. We keep the working
+  // copy in state so the operator can
+  // adjust without committing until they
+  // click "Speichern".
+  const [threshold, setThreshold] = useState<NotificationThreshold | null>(null)
+  const [thresholdDraft, setThresholdDraft] = useState<{
+    count: string
+    window: string
+    note: string
+  }>({ count: "", window: "", note: "" })
+  const [thresholdSaving, setThresholdSaving] = useState(false)
   // Tier 200 — 30-day timeline. We keep
   // a separate state for the timeline
   // (and a separate fetch) because the
@@ -296,13 +322,55 @@ export default function SystemErrorsPage() {
     // Tier 197 — load notification config in
     // parallel so the operator can see which
     // push channels are wired before triggering
-    // a test.
+    // a test. We fire-and-forget — the channel
+    // card renders when the response lands.
     apiGet<NotificationConfig>("/api/v1/system/notifications/config")
       .then(setNotifConfig)
       .catch(() => setNotifConfig(null))
     // Tier 200 — load the 30-day timeline.
     fetchTimeline(cid, timelineSource)
   }, [load, router, fetchTimeline, timelineSource])
+
+  // Tier 205 — load rate threshold ONCE on
+  // mount. We use a separate useEffect (not
+  // piggybacking on the one above) so the
+  // threshold draft isn't reset every time
+  // the timeline filter changes. Same
+  // pattern as the activity page (Tier 202
+  // fix) — `load` + `fetchTimeline` are
+  // useCallbacks that get re-allocated on
+  // every render, so depending on them in
+  // the same effect would re-run the
+  // threshold fetch on every render and
+  // clobber the operator's in-flight draft.
+  useEffect(() => {
+    apiGet<NotificationThreshold>("/api/v1/system/notifications/threshold")
+      .then((t) => {
+        setThreshold(t)
+        setThresholdDraft({
+          count: String(t.rateThresholdCount),
+          window: String(t.rateThresholdWindowMinutes),
+          note: t.note ?? "",
+        })
+      })
+      .catch(() => {
+        // Show defaults so the form
+        // is still usable. The PUT
+        // will create the singleton
+        // row on first save.
+        const fallback = {
+          rateThresholdCount: 5,
+          rateThresholdWindowMinutes: 60,
+        }
+        setThreshold(fallback)
+        setThresholdDraft({
+          count: "5",
+          window: "60",
+          note: "",
+        })
+      })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const resolve = async (id: string) => {
     try {
@@ -410,6 +478,43 @@ export default function SystemErrorsPage() {
     }
   }
 
+  // Tier 205 — save the rate-threshold form.
+  // The inputs are plain text (not <input
+  // type=number>) so we can validate the
+  // parsed value before sending + show the
+  // 400 message from the backend. We don't
+  // apply the new value to the working state
+  // until the PUT succeeds (toast on success).
+  const saveThreshold = async () => {
+    const count = parseInt(thresholdDraft.count, 10)
+    const window = parseInt(thresholdDraft.window, 10)
+    if (!Number.isFinite(count) || count < 1 || count > 1000) {
+      toast.error(t("systemErrors.thresholdInvalidCount"))
+      return
+    }
+    if (!Number.isFinite(window) || window < 1 || window > 1440) {
+      toast.error(t("systemErrors.thresholdInvalidWindow"))
+      return
+    }
+    setThresholdSaving(true)
+    try {
+      const res = await apiPut<NotificationThreshold>(
+        "/api/v1/system/notifications/threshold",
+        {
+          rateThresholdCount: count,
+          rateThresholdWindowMinutes: window,
+          note: thresholdDraft.note || undefined,
+        },
+      )
+      setThreshold(res)
+      toast.success(t("systemErrors.thresholdSaved"))
+    } catch (e: any) {
+      toast.error(e.message || t("systemErrors.thresholdSaveFailed"))
+    } finally {
+      setThresholdSaving(false)
+    }
+  }
+
   const fmt = (iso: string) => {
     try {
       return new Date(iso).toLocaleString(getDateLocale())
@@ -504,6 +609,111 @@ export default function SystemErrorsPage() {
                   data-testid="notif-test-result"
                 >
                   {lastTestResult}
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Tier 205 — rate-threshold config. The
+            push channels (Slack / email) only fire
+            when an error fingerprint is seen
+            `rateThresholdCount` times within
+            `rateThresholdWindowMinutes` minutes.
+            Default 5/60. Lower it for noisy
+            envs, raise it to suppress one-off
+            alerts. Anti-spam window (5 min) is
+            separate — that's the per-fingerprint
+            throttle AFTER the rate gate lets
+            something through. */}
+        {threshold && (
+          <Card>
+            <CardContent className="pt-4">
+              <div className="flex items-center justify-between flex-wrap gap-3 mb-3">
+                <div className="text-sm">
+                  <span className="font-semibold text-gray-700 dark:text-gray-300">
+                    {t("systemErrors.thresholdTitle")}
+                  </span>
+                  <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
+                    {t("systemErrors.thresholdCurrent", {
+                      n: String(threshold.rateThresholdCount),
+                      m: String(threshold.rateThresholdWindowMinutes),
+                    })}
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-end gap-3 flex-wrap text-sm">
+                <div>
+                  <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
+                    {t("systemErrors.thresholdCount")}
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={thresholdDraft.count}
+                    onChange={(e) =>
+                      setThresholdDraft((d) => ({ ...d, count: e.target.value }))
+                    }
+                    disabled={thresholdSaving}
+                    data-testid="threshold-count"
+                    className="w-20 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
+                    {t("systemErrors.thresholdWindow")}
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={thresholdDraft.window}
+                    onChange={(e) =>
+                      setThresholdDraft((d) => ({ ...d, window: e.target.value }))
+                    }
+                    disabled={thresholdSaving}
+                    data-testid="threshold-window"
+                    className="w-20 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                  />
+                </div>
+                <div className="flex-1 min-w-[200px]">
+                  <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
+                    {t("systemErrors.thresholdNote")}
+                  </label>
+                  <input
+                    type="text"
+                    value={thresholdDraft.note}
+                    onChange={(e) =>
+                      setThresholdDraft((d) => ({ ...d, note: e.target.value }))
+                    }
+                    disabled={thresholdSaving}
+                    data-testid="threshold-note"
+                    placeholder={t("systemErrors.thresholdNotePlaceholder")}
+                    className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                  />
+                </div>
+                <Button
+                  size="sm"
+                  onClick={saveThreshold}
+                  disabled={
+                    thresholdSaving ||
+                    (thresholdDraft.count === String(threshold.rateThresholdCount) &&
+                      thresholdDraft.window ===
+                        String(threshold.rateThresholdWindowMinutes) &&
+                      thresholdDraft.note === (threshold.note ?? ""))
+                  }
+                  data-testid="threshold-save"
+                >
+                  {thresholdSaving
+                    ? t("systemErrors.thresholdSaving")
+                    : t("systemErrors.thresholdSave")}
+                </Button>
+              </div>
+              {threshold.note && (
+                <p
+                  className="mt-2 text-xs text-gray-500 dark:text-gray-400 italic"
+                  data-testid="threshold-current-note"
+                >
+                  {t("systemErrors.thresholdLastNote", { note: threshold.note })}
                 </p>
               )}
             </CardContent>
