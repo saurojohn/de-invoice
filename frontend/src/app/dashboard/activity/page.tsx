@@ -277,6 +277,34 @@ export default function ActivityPage() {
                   ? t("activity.verifying")
                   : t("activity.verifyChain")}
               </Button>
+              {/* Tier 204 — CSV export for the
+                  Berater's monthly compliance
+                  review. The href preserves the
+                  current `actionFilter` so the
+                  downloaded file matches what the
+                  operator was looking at on screen.
+                  `target="_blank"` + the server's
+                  `Content-Disposition: attachment`
+                  header means the browser saves the
+                  file directly without leaving the
+                  page. We don't hold a long-lived
+                  blob URL — the file is streamed
+                  live from the backend. */}
+              {companyId && (
+                <a
+                  href={`/api/v1/audit-logs/activity.csv?companyId=${companyId}&days=90${
+                    actionFilter !== "all"
+                      ? `&actionPrefix=${encodeURIComponent(actionFilter)}`
+                      : ""
+                  }`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  data-testid="activity-export-csv"
+                  className="text-xs px-3 py-1 border border-emerald-600 text-emerald-700 dark:text-emerald-300 rounded hover:bg-emerald-50 dark:hover:bg-emerald-900/30"
+                >
+                  {t("activity.exportCsv")}
+                </a>
+              )}
             </div>
           </CardHeader>
           <CardContent>

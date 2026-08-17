@@ -2382,7 +2382,8 @@
     "colActor": "Actor",
     "colTarget": "Target",
     "colWhen": "When",
-    "colMeta": "Details"
+    "colMeta": "Details",
+    "exportCsv": "Export CSV (90 days)"
   },
   "globalSearch": {
     "shortcut": "Search (⌘K)",

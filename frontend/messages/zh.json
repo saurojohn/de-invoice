@@ -2382,7 +2382,8 @@
     "colActor": "操作人",
     "colTarget": "目标",
     "colWhen": "时间",
-    "colMeta": "详情"
+    "colMeta": "详情",
+    "exportCsv": "导出 CSV (90 天)"
   },
   "globalSearch": {
     "shortcut": "搜索 (⌘K)",

@@ -241,6 +241,84 @@ export class AuditController {
     })
   }
 
+  /**
+   * Tier 204 — activity-log CSV export.
+   * Same filters as the listActivity
+   * endpoint (Tier 202) but returns
+   * a CSV body the Berater can
+   * download and open in Excel.
+   *
+   * URL: GET /audit-logs/activity.csv
+   *
+   * Query:
+   *   - companyId (required)
+   *   - days (optional, default 90,
+   *     capped at 365)
+   *   - actionPrefix (optional
+   *     single-prefix filter, e.g.
+   *     "error.")
+   *   - userId (optional actor
+   *     filter)
+   *
+   * Returns RFC 4180-compliant CSV
+   * with a UTF-8 BOM (so Excel
+   * correctly detects UTF-8) and
+   * a `Content-Disposition:
+   * attachment` header. The
+   * delimiter is `;` to match the
+   * existing audit export (Excel
+   * DE default).
+   *
+   * Why a separate endpoint (not
+   * just "?format=csv" on
+   * /activity): same rationale as
+   * Tier 203 (deliveries.csv) —
+   * the CSV payload can be up to
+   * 10k rows; the route is
+   * registered separately so the
+   * JSON endpoint stays fast.
+   *
+   * RBAC: same as /activity —
+   * `audit.read` (Berater
+   * permission).
+   */
+  @Get('activity.csv')
+  @Require('audit.read')
+  async exportActivityCsv(
+    @Res() res: Response,
+    @Query('companyId') companyId: string,
+    @Query('days') daysStr?: string,
+    @Query('actionPrefix') actionPrefix?: string,
+    @Query('userId') userId?: string,
+  ) {
+    if (!companyId) {
+      throw new BadRequestException('companyId ist erforderlich')
+    }
+    const days = Math.min(
+      Math.max(parseInt(daysStr || '90', 10) || 90, 1),
+      365,
+    )
+    const csv = await this.svc.exportActivityCsv(
+      companyId,
+      days,
+      actionPrefix,
+      userId,
+    )
+    const stamp = new Date().toISOString().slice(0, 10)
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8')
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="activity-log-${stamp}.csv"`,
+    )
+    // BOM so Excel correctly
+    // detects UTF-8. Same pattern
+    // as the audit export
+    // (Tier 67) and the webhook
+    // deliveries export
+    // (Tier 203).
+    res.send('\ufeff' + csv)
+  }
+
   @Get('verify')
   @Require('audit.read')
   async verifyChain(@Query('companyId') companyId: string) {

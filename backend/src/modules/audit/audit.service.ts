@@ -654,6 +654,236 @@ export class AuditService {
    * double-quotes; embedded newlines / quotes are
    * escaped per RFC 4180.
    */
+  /**
+   * Tier 204 — activity-log CSV export.
+   * Same shape as `exportCsv()` but
+   * hard-codes the action prefix to
+   * the 4 activity namespaces
+   * (`error.`, `webhook.`, `cron.`,
+   * `notification.`) and includes
+   * cross-company rows
+   * (`companyId=null`) by default.
+   * Operator pulls the last N days
+   * of operator actions into Excel
+   * for the Berater's monthly
+   * compliance review.
+   *
+   * Columns are stable +
+   * machine-readable (German
+   * labels to match the existing
+   * audit export):
+   *   Zeitstempel, Aktion, Entitaet,
+   *   Entity-ID, Benutzer, IP,
+   *   Metadata
+   *
+   * The Berater's Excel workflow:
+   *   1. open the file
+   *   2. sort by `Benutzer` to see
+   *      what each operator did
+   *   3. filter by `Aktion` to
+   *      drill into one action type
+   *   4. pivot on `Entitaet` to see
+   *      the impact of each action
+   *
+   * @param companyId the caller's
+   *   company — used in the OR
+   *   filter so cross-company
+   *   admin rows (companyId=null)
+   *   are included.
+   * @param days 1..365 (default 90,
+   *   capped at 365).
+   * @param actionPrefix optional
+   *   single-prefix filter (e.g.
+   *   "error."). When omitted, all
+   *   4 activity prefixes are
+   *   included.
+   * @param userId optional actor
+   *   filter.
+   */
+  async exportActivityCsv(
+    companyId: string,
+    days = 90,
+    actionPrefix?: string,
+    userId?: string,
+  ): Promise<string> {
+    const daysClamped = Math.min(Math.max(days, 1), 365)
+    const cutoff = new Date(
+      Date.now() - daysClamped * 24 * 60 * 60 * 1000,
+    )
+    const prefixes = actionPrefix
+      ? [actionPrefix]
+      : ['error.', 'webhook.', 'cron.', 'notification.']
+    // OR with companyId=null so
+    // cross-company admin
+    // actions (cron.run_manually
+    // is admin-scoped) show up in
+    // the Berater's feed.
+    const where: any = {
+      createdAt: { gte: cutoff },
+      action: { startsWith: prefixes[0] },
+      OR: [{ companyId }, { companyId: null }],
+    }
+    if (prefixes.length > 1) {
+      // Multiple prefixes — use
+      // `action: { in: [...] }` with
+      // a startsWith filter. We
+      // can't use Prisma's
+      // `startsWith` with multiple
+      // values, so we OR them in
+      // raw. Simpler approach:
+      // fetch each prefix and
+      // concat. For 4 prefixes
+      // and a 365-day cap, this
+      // is at most 4 queries.
+      const allRows: any[] = []
+      for (const p of prefixes) {
+        const rows = await this.prisma.auditLog.findMany({
+          where: {
+            createdAt: { gte: cutoff },
+            action: { startsWith: p },
+            OR: [{ companyId }, { companyId: null }],
+            ...(userId ? { userId } : {}),
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 10_000,
+          select: {
+            // Tier 204 — `id` MUST be
+            // in the select for the
+            // dedupe step below. The
+            // multi-prefix branch
+            // fetches each prefix in
+            // its own query, then
+            // concats — the dedupe
+            // `seen: Set<string>` is
+            // keyed on `r.id`. Without
+            // `id` in the select, all
+            // rows have undefined id
+            // and the dedupe collapses
+            // everything to 1 row.
+            id: true,
+            createdAt: true,
+            action: true,
+            entityType: true,
+            entityId: true,
+            userId: true,
+            user: { select: { email: true } },
+            ipAddress: true,
+            newData: true,
+          },
+        })
+        allRows.push(...rows)
+      }
+      // Dedupe (a row could in
+      // theory match multiple
+      // prefixes — won't happen
+      // for the 4 activity
+      // namespaces, but defensive).
+      const seen = new Set<string>()
+      const deduped = allRows.filter((r) => {
+        if (seen.has(r.id)) return false
+        seen.add(r.id)
+        return true
+      })
+      // Sort merged by createdAt desc.
+      deduped.sort(
+        (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
+      )
+      return this.buildActivityCsv(deduped)
+    }
+    // Single prefix path (one
+    // query — simpler).
+    const rows = await this.prisma.auditLog.findMany({
+      where: {
+        ...where,
+        ...(userId ? { userId } : {}),
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 10_000,
+      select: {
+        // Tier 204 — `id` is in
+        // the select even for the
+        // single-prefix path for
+        // consistency (the
+        // buildActivityCsv doesn't
+        // need it but the
+        // future-proofing is cheap
+        // and aligns the two
+        // branches).
+        id: true,
+        createdAt: true,
+        action: true,
+        entityType: true,
+        entityId: true,
+        userId: true,
+        user: { select: { email: true } },
+        ipAddress: true,
+        newData: true,
+      },
+    })
+    return this.buildActivityCsv(rows)
+  }
+
+  /**
+   * Build the CSV body for the
+   * activity-log export. Shared
+   * between the single-prefix and
+   * multi-prefix code paths above
+   * so the column shape stays
+   * consistent.
+   */
+  private buildActivityCsv(rows: any[]): string {
+    const esc = (v: any): string => {
+      if (v === null || v === undefined) return ''
+      const s = String(v)
+      if (/[",\n\r;]/.test(s)) {
+        return '"' + s.replace(/"/g, '""') + '"'
+      }
+      return s
+    }
+    // Note: the German labels
+    // match the existing audit
+    // export. We use `;` as the
+    // delimiter (Excel DE default
+    // for CSV — the German locale
+    // uses semicolons in CSV
+    // files). Same pattern as
+    // `exportCsv()`.
+    const header = [
+      'Zeitstempel',
+      'Aktion',
+      'Entitaet',
+      'Entity-ID',
+      'Benutzer',
+      'IP',
+      'Metadata',
+    ]
+    const lines: string[] = [header.map(esc).join(';')]
+    for (const r of rows) {
+      lines.push(
+        [
+          r.createdAt.toISOString(),
+          r.action,
+          r.entityType ?? '',
+          r.entityId ?? '',
+          r.user?.email ?? r.userId ?? '',
+          r.ipAddress ?? '',
+          r.newData ? JSON.stringify(r.newData) : '',
+        ]
+          .map(esc)
+          .join(';'),
+      )
+    }
+    if (rows.length === 10_000) {
+      // Truncation marker — same
+      // `#` prefix convention as
+      // the webhook CSV (Tier 203).
+      lines.push(
+        '# truncated: hit 10,000-row cap. Narrow the days / actionPrefix / userId filter to export more.',
+      )
+    }
+    return lines.join('\n') + '\n'
+  }
+
   async exportCsv(f: AuditLogFilters): Promise<string> {
     // Tier 143: when q is set, route to the text-search
     // path so the jsonb fields are searched correctly.
