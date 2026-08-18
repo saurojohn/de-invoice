@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Query, BadRequestException } from '@nestjs/common';
 import { SupplierService } from './supplier.service';
+import { CreateSupplierDto, UpdateSupplierDto } from './dto/supplier.dto';
 import { Auth, Require } from '../../auth/roles.decorator';
 
 @Auth()
@@ -26,7 +27,10 @@ export class SupplierController {
 
   @Post()
   @Require('customer.create')
-  async create(@Query('companyId') companyId: string, @Body() data: any) {
+  async create(
+    @Query('companyId') companyId: string,
+    @Body() data: CreateSupplierDto,
+  ) {
     this.assertCompanyId(companyId);
     return this.supplierService.create(companyId, data);
   }
@@ -36,7 +40,7 @@ export class SupplierController {
   async update(
     @Param('id') id: string,
     @Query('companyId') companyId: string,
-    @Body() data: any,
+    @Body() data: UpdateSupplierDto,
   ) {
     this.assertCompanyId(companyId);
     return this.supplierService.update(id, companyId, data);

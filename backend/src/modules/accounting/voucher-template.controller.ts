@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Put, Delete, Param, Query, Body, BadRequestException } from '@nestjs/common';
 import { VoucherTemplateService } from './voucher-template.service';
+import { CreateVoucherTemplateDto, UpdateVoucherTemplateDto } from './dto/voucher-template.dto';
 import { Auth, Require } from '../../auth/roles.decorator';
 
 @Auth()
@@ -31,7 +32,10 @@ export class VoucherTemplateController {
 
   @Post()
   @Require('invoice.create')
-  async create(@Query('companyId') companyId: string, @Body() body: any) {
+  async create(
+    @Query('companyId') companyId: string,
+    @Body() body: CreateVoucherTemplateDto,
+  ) {
     if (!companyId) throw new BadRequestException('companyId ist erforderlich');
     return this.svc.create(companyId, body);
   }
@@ -41,7 +45,7 @@ export class VoucherTemplateController {
   async update(
     @Param('id') id: string,
     @Query('companyId') companyId: string,
-    @Body() body: any,
+    @Body() body: UpdateVoucherTemplateDto,
   ) {
     if (!companyId) throw new BadRequestException('companyId ist erforderlich');
     return this.svc.update(id, companyId, body);
