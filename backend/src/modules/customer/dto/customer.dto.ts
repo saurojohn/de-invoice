@@ -101,3 +101,48 @@ export class CreateCustomerDto {
   @IsOptional()
   tags?: string[];
 }
+
+/**
+ * PUT /customers/:id
+ * Update an existing customer. Same fields as
+ * CreateCustomerDto but every one is optional —
+ * the service treats undefined as "leave unchanged"
+ * for the PATCH-style update.
+ */
+export class UpdateCustomerDto {
+  @IsString() @IsOptional() @MinLength(1) @MaxLength(200)
+  name?: string
+
+  @IsString() @IsOptional() @MaxLength(20)
+  customerNumber?: string
+
+  @IsString() @IsIn(['business', 'individual']) @IsOptional()
+  type?: string
+
+  @IsString() @IsOptional() @MaxLength(20)
+  vatId?: string
+
+  @IsBoolean() @IsOptional()
+  taxExempt?: boolean
+
+  @IsObject()
+  @ValidateNested()
+  @Type(() => CustomerAddressDto)
+  @IsOptional()
+  address?: CustomerAddressDto
+
+  @IsObject()
+  @ValidateNested()
+  @Type(() => CustomerContactDto)
+  @IsOptional()
+  contact?: CustomerContactDto
+
+  @IsInt() @Min(0) @Max(365) @IsOptional()
+  paymentTerms?: number
+
+  @IsArray() @IsString({ each: true }) @IsOptional()
+  tags?: string[]
+
+  @IsObject() @IsOptional()
+  metadata?: Record<string, unknown>
+}

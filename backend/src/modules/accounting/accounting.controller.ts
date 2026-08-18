@@ -2,6 +2,7 @@ import { Controller, Get, Post, Put, Param, Query, Body, Res, Header, Req, BadRe
 import { Response } from 'express';
 import { AccountService } from './account.service';
 import { CreateAccountDto, UpdateAccountDto } from './dto/account.dto';
+import { CreateVoucherDto } from './dto/voucher.dto';
 import { VoucherService } from './voucher.service';
 import { generateVoucherPDF } from '../../accounting/voucher-pdf.service';
 import { EuerService } from './euer.service';
@@ -246,7 +247,7 @@ export class AccountingController {
 
   @Post('vouchers')
   async createVoucher(
-    @Body() body: any,
+    @Body() body: CreateVoucherDto,
     @Req() req: any,
   ) {
     // Pick up the user id from the auth context.

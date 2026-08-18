@@ -7,6 +7,7 @@ import {
   Min,
   Max,
   MinLength,
+  MaxLength,
 } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 
@@ -79,5 +80,89 @@ export class CreateProductDto {
 
   @IsBoolean()
   @IsOptional()
+  active?: boolean;
+}
+
+/**
+ * Tier 212 — request DTO for ProductController.update.
+ *
+ * Replaces `@Body() data: any` with a class-validator
+ * decorated DTO so the global ValidationPipe can
+ * reject unknown fields and coerce types before the
+ * service layer runs. Every field is optional —
+ * the service treats undefined as "leave unchanged".
+ */
+export class UpdateProductDto {
+  @IsString() @IsOptional() @MaxLength(50)
+  sku?: string;
+
+  @IsString() @IsOptional() @MinLength(1) @MaxLength(200)
+  name?: string;
+
+  @IsString() @IsOptional() @MaxLength(2000)
+  description?: string;
+
+  @IsString() @IsOptional() @IsIn(['good', 'service'])
+  type?: string;
+
+  @IsString() @IsOptional() @MaxLength(20)
+  unit?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 4 })
+  @Min(0)
+  basePrice?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  purchasePrice?: number;
+
+  /**
+   * VAT rate as a fraction (0.19 = 19%). DECIMAL(5,4)
+   * so max is 9.9999.
+   */
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(9.9999)
+  vatRate?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  stockQuantity?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  lowStockThreshold?: number;
+
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (typeof value === 'string') {
+      return value === 'true' || value === '1'
+    }
+    return value
+  })
+  @IsBoolean()
+  trackInventory?: boolean;
+
+  @IsString() @IsOptional()
+  categoryId?: string;
+
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (typeof value === 'string') {
+      return value === 'true' || value === '1'
+    }
+    return value
+  })
+  @IsBoolean()
   active?: boolean;
 }

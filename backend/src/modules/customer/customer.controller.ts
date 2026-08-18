@@ -5,7 +5,7 @@ import { CustomerStatementService } from './customer-statement.service';
 import { CustomerStatementBatchService } from './customer-statement-batch.service';
 import { CustomerStatementEmailService } from './customer-statement-email.service';
 import { CreditBalanceService } from './credit-balance.service';
-import { CreateCustomerDto } from './dto/customer.dto';
+import { CreateCustomerDto, UpdateCustomerDto } from './dto/customer.dto';
 import { Auth, Require } from '../../auth/roles.decorator';
 
 @Auth()
@@ -594,7 +594,11 @@ export class CustomerController {
 
   @Put(':id')
   @Require('customer.update')
-  async update(@Param('id') id: string, @Query('companyId') companyId: string, @Body() data: any) {
+  async update(
+    @Param('id') id: string,
+    @Query('companyId') companyId: string,
+    @Body() data: UpdateCustomerDto,
+  ) {
     this.assertCompanyId(companyId)
     return this.customerService.update(id, companyId, data);
   }

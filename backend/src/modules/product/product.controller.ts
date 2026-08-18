@@ -13,7 +13,7 @@ import {
 } from '@nestjs/common';
 import { Response } from 'express';
 import { ProductService, ImportProductRow } from './product.service';
-import { CreateProductDto } from './dto/product.dto';
+import { CreateProductDto, UpdateProductDto } from './dto/product.dto';
 import { Auth, Require } from '../../auth/roles.decorator';
 
 @Auth()
@@ -109,7 +109,11 @@ export class ProductController {
 
   @Put(':id')
   @Require('product.update')
-  async update(@Param('id') id: string, @Query('companyId') companyId: string, @Body() data: any) {
+  async update(
+    @Param('id') id: string,
+    @Query('companyId') companyId: string,
+    @Body() data: UpdateProductDto,
+  ) {
     this.assertCompanyId(companyId)
     return this.productService.update(id, companyId, data);
   }
