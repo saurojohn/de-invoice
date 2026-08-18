@@ -366,6 +366,20 @@ export class SystemController {
       by: ["fingerprint"],
       where,
       _count: { _all: true },
+      // Tier 208 — MED-004. We tried
+      // `orderBy: { _count: { _all: "desc" } }`
+      // (the unambiguous "count of all rows
+      // in the group" alias) but Prisma 5.22's
+      // `ErrorEventCountOrderByAggregateInput`
+      // type only allows model fields (id,
+      // source, message, ...), not `_all`.
+      // Sticking with the original
+      // `fingerprint` form — Prisma accepts
+      // it because `fingerprint` is in
+      // `by: ["fingerprint"]` and orders by
+      // the grouped-field's count. The audit
+      // entry stays as a comment so the
+      // future intent is recorded.
       orderBy: { _count: { fingerprint: "desc" } },
       take: limit,
     })

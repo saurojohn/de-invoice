@@ -130,6 +130,25 @@ const AUDITED_MODELS = new Set<string>([
   // that the Finanzamt may want to see.
   'VatValidationResult',
   'FinTsTransfer',
+  // Tier 208 — MED-005. Per-row audit
+  // on ErrorEvent.resolve / mute.
+  // Pre-fix only the activity log
+  // recorded the bulk operator
+  // action, but a Steuerpruefer
+  // asking "which operator resolved
+  // error X?" had no per-row trail
+  // for individually-resolved
+  // errors. Now the audit log
+  // captures the per-row resolve /
+  // mute. The activity log still
+  // records bulk actions
+  // (error.resolve_all,
+  // error.mute_all) with the
+  // metadata.count. Both layers
+  // together: per-row for
+  // individual actions, summary
+  // for bulk.
+  'ErrorEvent',
 ])
 
 // Strip fields that shouldn't go in

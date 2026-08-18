@@ -137,6 +137,14 @@ model Company {
   // page lists these in a queue.
   beraterNotes BeraterNote[]
 
+  // Tier 208: signing key + cert. One row per
+  // company (unique on companyId). Holds the
+  // PEM-encoded private key + cert for GoBD
+  // PDF sigil. Split out of `settings` JSONB
+  // so a DB-level leak of one company doesn't
+  // expose the key of every other company.
+  signingKey CompanySigningKey?
+
   // Tier 83: Anlagenverzeichnis (Sachanlagen).
   // Each Asset is a fixed asset the company
   // owns — Grundstücke, Gebäude, Maschinen,
@@ -3173,4 +3181,62 @@ model NotificationConfig {
   /// trail (e.g. "lowered from 5 to 3 after
   /// the false alarm on Aug 12").
   note                      String?
+}
+
+// Tier 208 — separate table for the company
+// signing key + cert. Pre-fix the key + cert
+// lived in `Company.settings` JSONB, which meant
+// any DB read leak (backup, replica, SQL
+// injection, support query) exposed the signing
+// key for ALL companies. The dedicated table
+// lets the service narrow the SELECT to the
+// (companyId, key id) tuple and the Prisma
+// client permissions (via app-level guards)
+// can gate access independently of the broader
+// company row.
+//
+// The cert is included for cache + fingerprint
+// recompute (the service recomputes the SHA-256
+// on read to detect tampering — a corrupted or
+// modified row would fail the recompute). The
+// `createdAt` + `rotatedAt` columns let the
+// audit chain in `AuditLog` (Tier 196) link
+// cert rotations to a precise timestamp.
+//
+// The `keyPem` field IS the private key in
+// PEM format. Read access is gated by the
+// SigningService.requireCompanyRole() helper
+// (called from the controller before any read).
+// Direct `prisma.companySigningKey.findMany`
+// in app code is forbidden by the linter
+// convention — see signing.service.ts:14-26.
+model CompanySigningKey {
+  id          String   @id @default(uuid())
+  companyId   String   @unique
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  /// PEM-encoded self-signed cert.
+  /// `BEGIN CERTIFICATE` ... `END CERTIFICATE`.
+  certPem     String
+  /// PEM-encoded RSA private key.
+  /// `BEGIN RSA PRIVATE KEY` ... `END RSA PRIVATE KEY`.
+  keyPem      String
+  /// SHA-256 of the DER cert, formatted as
+  /// `XX:XX:...`. The UI displays this in
+  /// cert-info + on every signed PDF footer.
+  fingerprint String
+  /// Common Name from the cert subject (e.g.
+  /// "SH Leder GmbH").
+  commonName  String
+  /// ISO 8601 timestamp when this cert was
+  /// generated. We never use it as a
+  /// "validUntil" assertion — the cert's
+  /// own `notAfter` field is the source of
+  /// truth (recomputed on read).
+  createdAt   DateTime @default(now())
+  /// ISO 8601 timestamp of the last
+  /// `regenerate` call. The service writes
+  /// this on every rotation; the audit
+  /// log also gets a `signing.regenerate`
+  /// activity row (Tier 207).
+  rotatedAt   DateTime @default(now())
 }

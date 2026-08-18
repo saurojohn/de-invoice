@@ -152,6 +152,35 @@ export class AuditService {
    * column (no schema migration
    * needed).
    *
+   * Tier 208 — MED-006. `entityId` is
+   * OPTIONAL by design. The rule:
+   *   - Single-row actions (e.g.
+   *     `webhook.requeue`,
+   *     `notification.test`,
+   *     `signing.regenerate`) set
+   *     `entityId` to the affected
+   *     row's id.
+   *   - Bulk actions (e.g.
+   *     `error.resolve_all`,
+   *     `error.mute_all`) DO NOT set
+   *     `entityId` because they affect
+   *     an unknown number of rows.
+   *     The scope lives in
+   *     `metadata.count` + the matching
+   *     /system/errors query (which
+   *     returns the per-row outcome).
+   *   - Cross-company admin actions
+   *     (e.g. `cron.run_manually`) set
+   *     `entityId` to the cron name
+   *     (e.g. `"webhook-retry-worker"`)
+   *     and `companyId: null`.
+   *
+   * The verifyChain walk in
+   * `verifyChain` (below) treats
+   * activity rows and per-write audit
+   * rows uniformly — `entityId = null`
+   * does NOT break the chain.
+   *
    * Implementation: inlines the same
    * hash-chain write logic as
    * `audit-log.extension.ts`'s

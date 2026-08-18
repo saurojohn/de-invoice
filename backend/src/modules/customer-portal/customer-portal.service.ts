@@ -65,6 +65,17 @@ import {
 } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
+// Tier 208 — MED-003. Use Prisma.Decimal
+// for the payment amount so we don't
+// lose precision on amounts > 2^53
+// cents (or fractional-cents currencies).
+// JS `Number` is float64; the
+// `Payment.amount` column is a `Decimal`,
+// and `Number(decimal)` can round off
+// the last digit. Passing the Decimal
+// straight through to Prisma is
+// lossless.
+import { Prisma } from '@prisma/client';
 import { generateInvoicePDF } from '../../invoices/invoice-pdf.service';
 import { MailService } from '../mail/mail.service';
 
@@ -477,12 +488,25 @@ export class CustomerPortalService {
       // Idempotent — already paid
       return { ok: true, alreadyPaid: true, invoiceId }
     }
-    const paymentAmount = amount ?? Number(invoice.total)
+    // Tier 208 — MED-003: pass the Decimal
+    // straight through to Prisma. Pre-fix
+    // was `Number(invoice.total)` which
+    // is float64 and can lose precision
+    // for amounts > 2^53 cents (EUR 90
+    // trillion) or fractional-cents
+    // currencies. The `amount?: number`
+    // param (if present) is the override
+    // the customer typed — we still
+    //    need to convert THAT to Decimal
+    // because the DB column expects it.
+    const paymentAmount = amount !== undefined
+      ? new Prisma.Decimal(amount)
+      : (invoice.total as Prisma.Decimal)
     await this.prisma.$transaction([
       this.prisma.payment.create({
         data: {
           invoiceId: invoice.id,
-          amount: paymentAmount as any,
+          amount: paymentAmount,
           currency: invoice.currency,
           paymentMethod: 'bank-transfer',
           paymentDate: new Date(),
@@ -611,9 +635,23 @@ export class CustomerPortalService {
     })
 
     this.logger.log(
+      // Tier 208 — MED-002 from the code audit.
+      // Pre-fix this log line included the
+      // customer's email + city, which is
+      // PII. For a B2B portal the impact is
+      // mild but in a shared-log environment
+      // (k8s, CloudWatch, Datadog) every
+      // customer-portal profile update would
+      // dump a PII row. Fix: log only the
+      // customer id + which fields were
+      // changed. The actual email + city
+      // values are still in the DB (and
+      // visible to the customer who owns
+      // them), we just don't echo them to
+      // the log stream.
       `portal profile updated for customer=${updated.id} ` +
-      `contact.email=${mergedContact.email ?? '(none)'} ` +
-      `address.city=${mergedAddress.city ?? '(none)'}`,
+      `contactEmailChanged=${patch.contact?.email !== undefined} ` +
+      `addressCityChanged=${patch.address?.city !== undefined}`,
     )
 
     return {

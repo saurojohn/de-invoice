@@ -65,6 +65,19 @@ import { plainAddPlaceholder } from '@signpdf/placeholder-plain'
  *     status + the cert subject + signing
  *     time + signature validity.
  *
+ * Tier 208 — the cert + private key now live
+ * in a dedicated `CompanySigningKey` table
+ * (one row per company, unique on companyId).
+ * Pre-fix the pair was in `Company.settings`
+ * JSONB, which meant a DB read leak (backup,
+ * replica, support query, SQL injection)
+ * exposed the signing key for EVERY company
+ * at once. The dedicated table lets the
+ * service narrow the SELECT to the exact
+ * (companyId, key id) tuple, and lets the
+ * Prisma client permission model gate access
+ * independently of the broad `Company` row.
+ *
  * Why a self-signed cert is acceptable as
  * v1: the goal is to prove the PDF hasn't
  * been modified after creation. Even a
@@ -128,16 +141,30 @@ export class SigningService {
    * first PDF that needs signing, and the
    * signing is invisible to the user
    * (the PDF just has a sigil).
+   *
+   * Tier 208 — reads from the dedicated
+   * `CompanySigningKey` table instead of
+   * `Company.settings` JSONB. The select
+   * includes `companyId` in the where so a
+   * cross-tenant read would return zero rows
+   * (the table is `@@unique` on companyId).
    */
   async getOrCreate(companyId: string): Promise<CompanySigningSettings> {
-    const company = await this.prisma.company.findUnique({
-      where: { id: companyId },
-      select: { settings: true },
+    const existing = await this.prisma.companySigningKey.findUnique({
+      where: { companyId },
     })
-    const settings = (company?.settings as any) || {}
-    const existing = (settings.signing || {}) as CompanySigningSettings
-    if (existing.cert && existing.key && existing.fingerprint) {
-      return existing
+    if (existing?.certPem && existing?.keyPem && existing?.fingerprint) {
+      return {
+        cert: existing.certPem,
+        key: existing.keyPem,
+        fingerprint: existing.fingerprint,
+        commonName: existing.commonName,
+        generatedAt: existing.rotatedAt.toISOString(),
+        // Read notAfter off the cert itself
+        // (recomputed on every read) so the
+        // UI never displays a stale validUntil.
+        validUntil: this.readNotAfterFromCertPem(existing.certPem),
+      }
     }
     return this.regenerate(companyId)
   }
@@ -148,6 +175,13 @@ export class SigningService {
    * expired) or when the previous one was
    * lost. The new cert immediately applies
    * to subsequent PDF signing.
+   *
+   * Tier 208 — writes to the dedicated
+   * `CompanySigningKey` table (upsert on
+   * companyId). Pre-fix the cert + key were
+   * stored in `Company.settings` JSONB which
+   * meant a DB read leak exposed the signing
+   * key for EVERY company at once.
    */
   async regenerate(companyId: string): Promise<CompanySigningSettings> {
     const company = await this.prisma.company.findUnique({
@@ -160,39 +194,58 @@ export class SigningService {
     const { cert, key, fingerprint, commonName, validUntil } =
       this.generateSelfSignedCert(company.name)
     const generatedAt = new Date().toISOString()
-    const signing: CompanySigningSettings = {
-      cert,
-      key,
-      fingerprint,
-      commonName,
-      generatedAt,
-      validUntil,
-    }
-    // Persist. We store the key alongside the
-    // cert in Company.settings — the alternative
-    // is a separate `CompanySigningKey` table, but
-    // that adds a round-trip per PDF for a piece
-    // of data that almost never changes. The
-    // company row is already tenant-isolated, so
-    // cross-tenant leak risk is the same as for
-    // any other setting. (For QES you'd want
-    // HSM-backed key storage — out of scope.)
-    const companyRow = await this.prisma.company.findUnique({
-      where: { id: companyId },
-      select: { settings: true },
-    })
-    const merged = {
-      ...((companyRow?.settings as any) || {}),
-      signing,
-    }
-    await this.prisma.company.update({
-      where: { id: companyId },
-      data: { settings: merged as any },
+    // Upsert the singleton row. The schema
+    // enforces `@@unique` on companyId so
+    // `update` would fail on a fresh deploy —
+    // we use upsert for the two cases.
+    const row = await this.prisma.companySigningKey.upsert({
+      where: { companyId },
+      create: {
+        companyId,
+        certPem: cert,
+        keyPem: key,
+        fingerprint,
+        commonName,
+        rotatedAt: new Date(),
+      },
+      update: {
+        certPem: cert,
+        keyPem: key,
+        fingerprint,
+        commonName,
+        rotatedAt: new Date(),
+      },
     })
     this.logger.log(
       `generated signing cert for company ${companyId} (CN=${commonName}, fp=${fingerprint})`,
     )
-    return signing
+    return {
+      cert,
+      key,
+      fingerprint,
+      commonName,
+      generatedAt: row.rotatedAt.toISOString(),
+      validUntil,
+    }
+  }
+
+  /**
+   * Parse the cert's `notAfter` field out of
+   * the PEM. We never persist the timestamp
+   * in the row (cert validity is intrinsic
+   * to the cert — persisting it would let a
+   * tampered cert appear valid if the
+   * timestamp was out of sync). Re-parsing
+   * on every read is cheap (one forge parse
+   * per UI render, not per PDF sign).
+   */
+  private readNotAfterFromCertPem(certPem: string): string {
+    try {
+      const cert = forge.pki.certificateFromPem(certPem)
+      return cert.validity.notAfter.toISOString()
+    } catch {
+      return ''
+    }
   }
 
   /**
