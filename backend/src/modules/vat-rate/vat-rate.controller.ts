@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Body, Query } from '@nestjs/common';
 import { VatRateService } from './vat-rate.service';
+import { CreateVatRateDto } from './dto/vat-rate.dto';
 
 @Controller('vat-rates')
 export class VatRateController {
@@ -16,7 +17,7 @@ export class VatRateController {
   }
 
   @Post()
-  async create(@Body() data: any) {
+  async create(@Body() data: CreateVatRateDto) {
     return this.vatRateService.create(data);
   }
 }

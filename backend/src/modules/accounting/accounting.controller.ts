@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Put, Param, Query, Body, Res, Header, Req, BadRequestException, UseGuards } from '@nestjs/common';
 import { Response } from 'express';
 import { AccountService } from './account.service';
+import { CreateAccountDto, UpdateAccountDto } from './dto/account.dto';
 import { VoucherService } from './voucher.service';
 import { generateVoucherPDF } from '../../accounting/voucher-pdf.service';
 import { EuerService } from './euer.service';
@@ -119,8 +120,14 @@ export class AccountingController {
   }
 
   @Post('accounts')
-  async createAccount(@Body() body: any) {
-    return this.accountService.create(body);
+  async createAccount(
+    @Query('companyId') companyId: string,
+    @Body() body: CreateAccountDto,
+  ) {
+    if (!companyId) {
+      return { error: 'companyId ist erforderlich' }
+    }
+    return this.accountService.create(companyId, body);
   }
 
   @Get('accounts/seed')

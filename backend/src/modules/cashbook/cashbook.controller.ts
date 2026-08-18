@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Query, BadRequestException, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { KassenbuchService, CashBookEntryType } from './kassenbuch.service';
+import { UpdateCashBookEntryDto } from './dto/cashbook.dto';
 import { Auth, Require } from '../../auth/roles.decorator';
 
 @Auth()
@@ -76,7 +77,7 @@ export class CashBookController {
   async update(
     @Query('companyId') companyId: string,
     @Param('id') id: string,
-    @Body() body: any,
+    @Body() body: UpdateCashBookEntryDto,
   ) {
     if (!companyId) throw new BadRequestException('companyId is required');
     return this.svc.updateEntry(companyId, id, body);

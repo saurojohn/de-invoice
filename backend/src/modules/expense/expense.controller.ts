@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Body, Param, Query, BadRequestException, Header } from '@nestjs/common';
 import { ExpenseService, ImportExpenseRow } from './expense.service';
+import { CreateExpenseDto } from './dto/expense.dto';
 import { Auth, Require } from '../../auth/roles.decorator';
 
 @Auth()
@@ -28,7 +29,10 @@ export class ExpenseController {
 
   @Post()
   @Require('invoice.create')
-  async create(@Query('companyId') companyId: string, @Body() data: any) {
+  async create(
+    @Query('companyId') companyId: string,
+    @Body() data: CreateExpenseDto,
+  ) {
     this.assertCompanyId(companyId);
     return this.expenseService.create(companyId, data);
   }

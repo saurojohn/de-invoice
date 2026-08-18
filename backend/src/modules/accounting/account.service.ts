@@ -1,32 +1,14 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-
-interface CreateAccountDto {
-  companyId: string;
-  accountNumber: string;
-  name: string;
-  type: string;
-  category?: string;
-  parentId?: string;
-  isVatAccount?: boolean;
-}
-
-interface UpdateAccountDto {
-  name?: string;
-  type?: string;
-  category?: string;
-  parentId?: string;
-  isVatAccount?: boolean;
-  active?: boolean;
-}
+import { CreateAccountDto, UpdateAccountDto } from './dto/account.dto';
 
 @Injectable()
 export class AccountService {
   constructor(private prisma: PrismaService) {}
 
-  async create(dto: CreateAccountDto) {
+  async create(companyId: string, dto: CreateAccountDto) {
     return this.prisma.account.create({
-      data: dto,
+      data: { ...dto, companyId },
     });
   }
 
