@@ -171,4 +171,4 @@ docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
    DELETE FROM \"Customer\" WHERE name = 'AUTOMAHN Customer';" >/dev/null 2>&1
 
 echo
-echo "ALL PASSED"
+summary

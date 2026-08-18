@@ -236,4 +236,4 @@ S5=$(curl -sS -o /dev/null -w "%{http_code}" \
 assert_eq "cross-tenant → 401" "$S5" "401"
 
 echo
-echo "ALL PASSED"
+summary

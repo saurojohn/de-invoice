@@ -39,10 +39,6 @@ login
 cleanup_cashbook
 
 echo "=== Test: Tier 12 Buchungsjournal PDF ==="
-
-USER_ID="8c6a9669-0069-4137-a842-a66fd1d178d6"
-COMPANY_ID="ad257ec3-d319-479b-b870-3fe76e8f3111"
-
 # ----- Setup: insert 2 test Vouchers + 1 Storno + their lines + accounts -----
 # Use the test accounts from e2e 07 (already present in DB).
 # We seed 2 fresh Vouchers so we know

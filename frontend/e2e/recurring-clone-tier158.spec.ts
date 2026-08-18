@@ -35,9 +35,36 @@
  */
 import { test, expect, request as playwrightRequest } from '@playwright/test'
 import { execSync } from 'child_process'
+import { readFileSync } from 'fs'
 
-const COMPANY_ID = 'ad257ec3-d319-479b-b870-3fe76e8f3111'
-const USER_ID = '8c6a9669-0069-4137-a842-a66fd1d178d6'
+const AUTH_CACHE = '/tmp/cashbook-e2e-auth.env'
+
+// Tier 207 — read auth IDs from the
+// backend-e2e auth cache (the same
+// source every other Tier-1xx spec
+// uses) instead of hardcoding the
+// SH Leder seed UUIDs. Hardcoding
+// breaks silently on any DB reseed
+// because the cached IDs change but
+// this spec keeps using the old
+// values.
+function readCachedTokens(): { userId: string; companyId: string } {
+  const env = readFileSync(AUTH_CACHE, "utf-8")
+  const map: Record<string, string> = {}
+  for (const line of env.split("\n")) {
+    const m = line.match(/^([A-Z_][A-Z0-9_]*)=(.*)$/)
+    if (m) map[m[1]] = m[2]
+  }
+  if (!map.USER_ID || !map.COMPANY_ID) {
+    throw new Error(
+      `Auth cache ${AUTH_CACHE} missing — run backend e2e first`,
+    )
+  }
+  return { userId: map.USER_ID, companyId: map.COMPANY_ID }
+}
+const tokens = readCachedTokens()
+const COMPANY_ID = tokens.companyId
+const USER_ID = tokens.userId
 const API = 'http://localhost:3001'
 
 const ADMIN_HEADERS = {
@@ -180,8 +207,11 @@ test.describe('Tier 158 — Recurring clone', () => {
   test('frontend: 📋 Kopieren button on each card', async ({ page }) => {
     await contextWithAuth(page)
     await page.goto('/dashboard/recurring-invoices')
-    await page.waitForTimeout(2000)
-    // The source card has the button
+    // The source card has the button.
+    // toBeVisible auto-retries up to its
+    // timeout so we don't need a fixed
+    // waitForTimeout(2000) (Tier 207 anti-
+    // pattern).
     const sourceCard = page.locator(`[data-recurring-name="${SOURCE_NAME}"]`)
     await expect(sourceCard).toBeVisible({ timeout: 10_000 })
     const btn = sourceCard.getByTestId('recurring-clone')
@@ -205,8 +235,28 @@ test.describe('Tier 158 — Recurring clone', () => {
     // Change the name
     const customName = `BWA Test Kunde (clone ${Date.now()})`
     await nameInput.fill(customName)
-    // Submit
+    // Submit. Tier 207 — register the response
+    // listener BEFORE the click (React's onClick
+    // dispatches synchronously, so a post-click
+    // listener misses the request). This was the
+    // gap from the Tier 207 audit: the modal
+    // closes on the React success callback, so a
+    // 500 response that the frontend swallowed
+    // would still close the modal and the new
+    // card assertion would race a stale render.
+    // The endpoint is POST /api/v1/recurring-invoices/:id/clone?companyId=...
+    // so the URL contains "/clone?" (with a query
+    // string), NOT "/clone" at the end.
+    const submitResp = page.waitForResponse(
+      (r) =>
+        r.url().includes("/recurring-invoices/") &&
+        r.url().includes("/clone") &&
+        r.request().method() === "POST",
+      { timeout: 10_000 },
+    )
     await page.getByTestId('recurring-clone-submit').click()
+    const submitRes = await submitResp
+    expect(submitRes.status(), "POST /clone should be 201").toBe(201)
     // Modal closes
     await expect(page.getByTestId('recurring-clone-modal')).toBeHidden({
       timeout: 5_000,

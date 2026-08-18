@@ -315,4 +315,4 @@ fi
 echo "  PASS: cron timezone is Europe/Berlin"
 
 echo
-echo "ALL PASSED"
+summary

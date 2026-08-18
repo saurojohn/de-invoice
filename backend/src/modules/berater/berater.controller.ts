@@ -14,6 +14,7 @@ import {
 } from '@nestjs/common'
 import { FileInterceptor } from '@nestjs/platform-express'
 import { Response } from 'express'
+import * as path from 'path'
 import { Auth, Require, CurrentUser } from '../../auth/roles.decorator'
 import { BeraterService } from './berater.service'
 import { PrismaService } from '../../prisma/prisma.service'
@@ -211,13 +212,38 @@ export class BeraterController {
       throw new NotFoundException('Kein Anhang vorhanden')
     }
     const att = note.attachment
-    // The Attachments service already validates
-    // the storage path; we just join with the
-    // storage root and stream.
+    // Tier 207 — HIGH-002 from the code audit.
+    // The previous version used string concat
+    // (`${storageRoot}/${att.storagePath}`) and a
+    // private-field any-cast on
+    // `(this.storage as any).config?.localPath`.
+    // If `config.localPath` is unset, the root
+    // defaulted to '' and any relative path worked.
+    // If `att.storagePath` ever contained `..`
+    // (e.g. a tampered DB row or a future
+    // migration), the controller would happily
+    // stream `/etc/passwd`. Fix: use `path.join`
+    // + `path.resolve`, then guard that the
+    // resolved path is INSIDE the storage root.
     const storageRoot = (this.storage as any).config?.localPath || ''
-    const path = `${storageRoot}/${att.storagePath}`
+    if (!storageRoot) {
+      throw new NotFoundException('Storage root not configured')
+    }
+    const resolvedRoot = path.resolve(storageRoot)
+    const resolvedFile = path.resolve(path.join(resolvedRoot, att.storagePath))
+    if (
+      resolvedFile !== resolvedRoot &&
+      !resolvedFile.startsWith(resolvedRoot + path.sep)
+    ) {
+      // Path traversal attempt — refuse to
+      // serve anything outside the storage
+      // root. Same 404 as "file not on disk"
+      // so an attacker can't probe for the
+      // existence of `/etc/passwd`.
+      throw new NotFoundException('File on disk not found')
+    }
     const fs = require('fs') as typeof import('fs')
-    if (!fs.existsSync(path)) {
+    if (!fs.existsSync(resolvedFile)) {
       throw new NotFoundException('File on disk not found')
     }
     const disposition = download === '1' ? 'attachment' : 'inline'
@@ -226,7 +252,7 @@ export class BeraterController {
       'Content-Disposition',
       `${disposition}; filename="${att.originalName}"`,
     )
-    fs.createReadStream(path).pipe(res)
+    fs.createReadStream(resolvedFile).pipe(res)
   }
 
   @Post(':id/acknowledge')

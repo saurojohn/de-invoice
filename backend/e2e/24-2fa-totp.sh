@@ -261,4 +261,4 @@ docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
   "UPDATE \"User\" SET \"twoFactorEnabled\"=false, \"twoFactorSecret\"=null, \"twoFactorConfirmedAt\"=null, \"recoveryCodes\"=null WHERE id='$ADMIN_ID';" >/dev/null 2>&1
 
 echo
-echo "ALL PASSED"
+summary

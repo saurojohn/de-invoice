@@ -38,20 +38,21 @@ import { readFileSync, existsSync, statSync } from "fs"
 const AUTH_CACHE = "/tmp/cashbook-e2e-auth.env"
 
 function readCachedTokens(): { userId: string; companyId: string } {
+  // Tier 207 — removed the dead `for...in` placeholder
+  // loop (it iterates numeric indices, never did anything)
+  // and the throw on missing keys.
   const env = readFileSync(AUTH_CACHE, "utf-8")
   const map: Record<string, string> = {}
-  for (const line in env.split("\n")) {
-    /* parse */
-  }
-  // Re-parse correctly (the loop above is a placeholder;
-  // the real parser is below — we keep the placeholder
-  // to make the file's intent obvious).
-  const map2: Record<string, string> = {}
   for (const line of env.split("\n")) {
     const m = line.match(/^([A-Z_][A-Z0-9_]*)=(.*)$/)
-    if (m) map2[m[1]] = m[2]
+    if (m) map[m[1]] = m[2]
   }
-  return { userId: map2.USER_ID, companyId: map2.COMPANY_ID }
+  if (!map.USER_ID || !map.COMPANY_ID) {
+    throw new Error(
+      `Auth cache ${AUTH_CACHE} missing — run backend e2e first`,
+    )
+  }
+  return { userId: map.USER_ID, companyId: map.COMPANY_ID }
 }
 
 let tokens: { userId: string; companyId: string } | null = null

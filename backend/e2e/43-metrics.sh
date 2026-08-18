@@ -32,9 +32,6 @@ assert() {
 # directly (no login round-trip needed). Login is also tested
 # explicitly (we make a real /auth/login call below so the request
 # counter has a row for that route).
-USER_ID="8c6a9669-0069-4137-a842-a66fd1d178d6"
-COMPANY_ID="ad257ec3-d319-479b-b870-3fe76e8f3111"
-
 # Generate some traffic so http_requests_total populates.
 # We use a /auth/login call so we can verify that route also
 # gets recorded.

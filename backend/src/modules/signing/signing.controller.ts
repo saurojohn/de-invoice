@@ -4,10 +4,14 @@ import {
   Post,
   Query,
   Body,
+  Req,
   BadRequestException,
 } from '@nestjs/common'
+import { Request } from 'express'
 import { SigningService } from './signing.service'
 import { Auth } from '../../auth/roles.decorator'
+import { Require } from '../../auth/roles.decorator'
+import { AuditService } from '../audit/audit.service'
 import { PrismaService } from '../../prisma/prisma.service'
 
 /**
@@ -46,6 +50,24 @@ import { PrismaService } from '../../prisma/prisma.service'
  * "verify the just-downloaded invoice" flow
  * with a single round-trip: download PDF,
  * POST it back to /verify.
+ *
+ * Tier 207 — RBAC fix. The controller used to
+ * have `@Auth()` but no `@Require` on any
+ * route, so a VIEWER role (with `UserCompany`
+ * access) could:
+ *   - call `POST /signing/regenerate` and
+ *     destroy the company signing key, and
+ *   - call `POST /signing/sign` and sign
+ *     arbitrary PDF bytes with the company key.
+ * HeaderAuthGuard does check `UserCompany`
+ * (so cross-tenant is blocked) but inside-
+ * tenant RBAC was completely absent. All four
+ * routes now require `company.update`, which
+ * is the standard "this mutates the company
+ * configuration" permission. The Berater
+ * (audit.read) can read cert info via the
+ * `GET /companies/:id/audit` style admin
+ * endpoints, not via this controller.
  */
 @Auth()
 @Controller('signing')
@@ -53,21 +75,43 @@ export class SigningController {
   constructor(
     private readonly signing: SigningService,
     private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
   ) {}
 
   @Get('cert-info')
+  @Require('company.update')
   async certInfo(@Query('companyId') companyId: string) {
     if (!companyId) throw new BadRequestException('companyId ist erforderlich')
     return this.signing.getCertInfo(companyId)
   }
 
   @Post('regenerate')
-  async regenerate(@Query('companyId') companyId: string) {
+  @Require('company.update')
+  async regenerate(
+    @Req() req: Request,
+    @Query('companyId') companyId: string,
+  ) {
     if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    // Tier 207 — write a writeActivity
+    // audit row for the destructive
+    // cert-rotation event. Pre-fix this
+    // regenerated silently with no
+    // audit trail (the signing key is
+    // a GoBD-relevant artifact).
+    const userId = (req as any).user?.id || null
+    await this.audit.writeActivity({
+      companyId,
+      userId,
+      action: 'signing.regenerate',
+      entityType: 'SigningKey',
+      entityId: companyId,
+      metadata: { source: 'manual_api_call' },
+    })
     return this.signing.regenerate(companyId)
   }
 
   @Post('sign')
+  @Require('company.update')
   async sign(
     @Body() body: { companyId?: string; pdf?: string },
   ) {
@@ -89,6 +133,7 @@ export class SigningController {
   }
 
   @Post('verify')
+  @Require('company.update')
   async verify(@Body() body: { pdf?: string }) {
     if (!body?.pdf) {
       throw new BadRequestException('pdf (base64) ist erforderlich')

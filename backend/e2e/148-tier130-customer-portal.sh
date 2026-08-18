@@ -17,9 +17,6 @@
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/_lib.sh"
-
-USER_ID="8c6a9669-0069-4137-a842-a66fd1d178d6"
-COMPANY_ID="ad257ec3-d319-479b-b870-3fe76e8f3111"
 CUSTOMER_ID="b3f7b274-7696-44b8-9345-8bfd460b3e47"
 EMAIL="tier130-customer@example.com"
 
@@ -40,7 +37,7 @@ assert_eq "true" "$(echo "$RESP" | jq -r '.sent')" "request-session returns sent
 # Extract the token from the backend log
 sleep 1
 TOKEN=$(tail -100 /tmp/backend.log | grep "portal session created" | tail -1 | sed -n 's/.*token=\([0-9a-f]\{64\}\).*/\1/p')
-[ -n "$TOKEN" ] || die "no session token found in backend log"
+[ -n "$TOKEN" ] || fail "no session token found in backend log"; exit 1
 echo "  token = ${TOKEN:0:16}..."
 
 echo ""
@@ -49,7 +46,7 @@ RESP=$(curl -sS "http://localhost:3001/api/v1/customer-portal/invoices?token=$TO
 CUST_ID=$(echo "$RESP" | jq -r '.customer.id')
 INVOICE_COUNT=$(echo "$RESP" | jq -r '.invoices | length')
 assert_eq "$CUSTOMER_ID" "$CUST_ID" "returned customer.id matches"
-[ "$INVOICE_COUNT" -ge "1" ] || die "expected >=1 invoice, got $INVOICE_COUNT"
+[ "$INVOICE_COUNT" -ge "1" ] || fail "expected >=1 invoice, got $INVOICE_COUNT"; exit 1
 echo "  $INVOICE_COUNT invoice(s) returned"
 
 echo ""
@@ -81,7 +78,7 @@ HTTP_CODE=$(curl -sS -o /tmp/portal.pdf -w "%{http_code}" \
   "http://localhost:3001/api/v1/customer-portal/invoice/$INVOICE_ID/pdf?token=$TOKEN")
 assert_eq "200" "$HTTP_CODE" "PDF download returns 200"
 PDF_SIZE=$(stat -f%z /tmp/portal.pdf 2>/dev/null || stat -c%s /tmp/portal.pdf)
-[ "$PDF_SIZE" -gt 1000 ] || die "PDF too small ($PDF_SIZE bytes)"
+[ "$PDF_SIZE" -gt 1000 ] || fail "PDF too small ($PDF_SIZE bytes)"; exit 1
 # Check the PDF magic bytes
 MAGIC=$(head -c 4 /tmp/portal.pdf)
 assert_eq "%PDF" "$MAGIC" "PDF starts with %PDF magic"

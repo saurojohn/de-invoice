@@ -89,9 +89,16 @@ export class CronHealthController {
    * Requires `admin.update` (not just read) because
    * firing a cron can have side effects (auto-send
    * reminders, regenerate DATEV exports, etc.).
+   * Tier 207 — the permission was previously
+   * missing from `PERMISSIONS` and the decorator
+   * fell back to `admin.read`, which let any
+   * ACCOUNTANT fire crons. Both issues are now
+   * fixed: `'admin.update': ROLES.ADMIN` lives in
+   * `users.service.ts:131` and the decorator
+   * here is `@Require('admin.update')`.
    */
   @Post(':name/run')
-  @Require('admin.read')
+  @Require('admin.update')
   async runCron(@Param('name') name: string, @Req() req: Request) {
     if (!name) throw new BadRequestException('name is required')
     const result = await this.health.triggerManualRun(name)

@@ -190,4 +190,4 @@ pass "cleanup done"
 rm -f /tmp/t13-cap.json
 
 echo
-echo "ALL PASSED"
+summary

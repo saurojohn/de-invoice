@@ -298,12 +298,38 @@ export class CustomerPortalService {
     })
 
     // Compute daysOverdue + summary
+    // Tier 207 — HIGH-003 from the code audit.
+    // The previous version used a raw millisecond
+    // division (Math.floor((today - dueDate) / 86_400_000)).
+    // That's DST-unaware: on the EU DST transition
+    // days (last Sunday of March / October), the
+    // wall-clock day is 23h or 25h, so a 1-day-old
+    // invoice on a 25h day returns 0, and a 22h-old
+    // invoice on a 23h day returns 1. The customer
+    // sees the wrong overdue count on the portal.
+    // Fix: compute in UTC calendar days so DST
+    // never affects the count.
     const today = new Date()
+    const todayUtc = Date.UTC(
+      today.getUTCFullYear(),
+      today.getUTCMonth(),
+      today.getUTCDate(),
+    )
     const invoices: PortalInvoiceRow[] = rawInvoices.map((inv) => {
-      const daysOverdue =
-        inv.dueDate && inv.dueDate < today && inv.status !== 'paid' && inv.status !== 'cancelled'
-          ? Math.floor((today.getTime() - inv.dueDate.getTime()) / 86_400_000)
-          : 0
+      let daysOverdue = 0
+      if (
+        inv.dueDate &&
+        inv.dueDate < today &&
+        inv.status !== 'paid' &&
+        inv.status !== 'cancelled'
+      ) {
+        const dueUtc = Date.UTC(
+          inv.dueDate.getUTCFullYear(),
+          inv.dueDate.getUTCMonth(),
+          inv.dueDate.getUTCDate(),
+        )
+        daysOverdue = Math.floor((todayUtc - dueUtc) / 86_400_000)
+      }
       return {
         id: inv.id,
         invoiceNumber: inv.invoiceNumber,

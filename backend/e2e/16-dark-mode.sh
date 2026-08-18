@@ -144,4 +144,4 @@ else
 fi
 
 echo
-echo "ALL PASSED"
+summary

@@ -131,4 +131,4 @@ if [ -n "$ORIG_LOGO" ]; then
 fi
 
 echo
-echo "ALL PASSED"
+summary

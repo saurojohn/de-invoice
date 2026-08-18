@@ -126,6 +126,17 @@ const PERMISSIONS: Record<string, Role> = {
   // ACCOUNTANT so the Berater + the Mandant can both
   // see "why didn't the webhook-retry run?".
   'admin.read': ROLES.ACCOUNTANT,
+  // Tier 207: manual cron trigger (the
+  // "run this cron now" button on the
+  // health dashboard). Firing a cron
+  // can have side effects (auto-send
+  // reminders, regenerate DATEV exports,
+  // re-queue webhook deliveries), so the
+  // operator who clicks it should be
+  // strictly higher-privileged than the
+  // one who just reads the schedule.
+  // ADMIN-only.
+  'admin.update': ROLES.ADMIN,
 };
 
 @Injectable()

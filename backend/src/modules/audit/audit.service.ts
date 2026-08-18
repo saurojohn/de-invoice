@@ -520,8 +520,21 @@ export class AuditService {
         ...params,
       ),
       this.prisma.$queryRawUnsafe<Array<any>>(
+        // Tier 207 — include newData + oldData
+        // in the SELECT. The text-search path
+        // is taken whenever `?q=` is set, and
+        // both the UI list view (for the metadata
+        // badge per row) and the exportCsv
+        // GoBD-grade path need the JSON payload
+        // columns. Without these, the text-search
+        // path silently degraded both surfaces
+        // (the original list() Prisma path
+        // includes them, so the bug was
+        // invisible until a user actually
+        // searched for something).
         `SELECT al.id, al.action, al."entityType", al."entityId",
                 al."userId", al."ipAddress", al."createdAt",
+                al."newData", al."oldData",
                 u.email as "userEmail"
          FROM "AuditLog" al
          LEFT JOIN "User" u ON u.id = al."userId"
@@ -541,6 +554,8 @@ export class AuditService {
         userEmail: r.userEmail,
         ipAddress: r.ipAddress,
         createdAt: r.createdAt,
+        newData: r.newData ?? null,
+        oldData: r.oldData ?? null,
       })),
       total: Number(countRows[0]?.count ?? 0),
       take,
@@ -903,17 +918,21 @@ export class AuditService {
     }>
     if (f.q && f.q.trim().length > 0) {
       const page = await this.listWithTextSearch(f, 10_000, 0)
-      // listWithTextSearch already returns userEmail
-      // flat — fold it into a user-shaped stub so the
-      // CSV row builder below is unchanged.
+      // listWithTextSearch now returns newData +
+      // oldData (Tier 207 — the text-search SELECT
+      // was missing these, which silently degraded
+      // the GoBD-grade CSV export for any audit-log
+      // search). userEmail comes back flat, so we
+      // fold it into a user-shaped stub for the
+      // CSV row builder below.
       rawRows = page.rows.map((r) => ({
         action: r.action,
         entityType: r.entityType,
         entityId: r.entityId,
         userId: r.userId,
         ipAddress: r.ipAddress,
-        oldData: null, // list() doesn't return oldData/newData (payload)
-        newData: null,
+        oldData: r.oldData ?? null,
+        newData: r.newData ?? null,
         createdAt: r.createdAt,
         user: { email: r.userEmail },
       }))

@@ -23,10 +23,6 @@ source "$SCRIPT_DIR/_lib.sh"
 
 login
 cleanup_cashbook
-
-USER_ID="8c6a9669-0069-4137-a842-a66fd1d178d6"
-COMPANY_ID="ad257ec3-d319-479b-b870-3fe76e8f3111"
-
 # Clean up any prior Tier 38 fixture rows (customer / expenses /
 # invoices) so the dashboard-v2 numbers are predictable.
 # Invoices are matched by customerId (we create a Tier38-only

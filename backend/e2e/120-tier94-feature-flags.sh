@@ -219,4 +219,4 @@ print('yes' if (old_ok and new_ok and user_ok) else 'no')
 assert_eq "latest entry has userId + oldData + newData" "$HAS_OLD" "yes"
 
 echo
-echo "ALL PASSED"
+summary

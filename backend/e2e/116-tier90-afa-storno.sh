@@ -205,4 +205,4 @@ assert_eq "audit oldData.mode = monthly" "$AUDIT_MODE" "monthly"
 assert_eq "audit oldData.stornoedTotal = 1200" "$AUDIT_TOTAL" "1200"
 
 echo
-echo "ALL PASSED"
+summary

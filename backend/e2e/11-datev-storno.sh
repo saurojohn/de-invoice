@@ -153,4 +153,4 @@ docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
 mavis-trash /tmp/datev-vnd-dt.csv /tmp/datev-may-only.csv 2>/dev/null
 
 echo
-echo "ALL PASSED"
+summary

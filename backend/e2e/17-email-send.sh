@@ -194,4 +194,4 @@ if [[ -n "$CUSTOMER_ID" ]]; then
 fi
 
 echo
-echo "ALL PASSED"
+summary

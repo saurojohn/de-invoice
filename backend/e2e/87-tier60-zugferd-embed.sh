@@ -28,10 +28,6 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/_lib.sh"
 
 login
-
-USER_ID="8c6a9669-0069-4137-a842-a66fd1d178d6"
-COMPANY_ID="ad257ec3-d319-479b-b870-3fe76e8f3111"
-
 # ───── 0. Wipe prior tier-60 fixtures ─────
 docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
 DELETE FROM "Payment"          WHERE "invoiceId" IN (

@@ -117,4 +117,4 @@ HTTP=$(curl -sS -o /dev/null -w "%{http_code}" \
 assert_eq "missing companyId rejected" "$HTTP" "400"
 
 echo
-echo "ALL PASSED"
+summary

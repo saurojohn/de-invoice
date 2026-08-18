@@ -230,8 +230,25 @@ export class CustomerPortalController {
     // requestSession always returns { sent: true } —
     // we need the actual URL to give the admin. Re-read
     // the latest session row.
+    // Tier 207 — HIGH-001 from the code audit.
+    // The previous version filtered only by
+    // `email` (no `companyId` / `customerId`).
+    // If the same email is used by a customer in
+    // two different companies (e.g. a freelancer
+    // who is a customer of two Mandanten), the
+    // returned URL pointed to whichever company
+    // generated the most recent session — NOT the
+    // one the admin clicked from. The admin would
+    // email the wrong-company login URL to the
+    // customer. Fix: filter by `customerId` and
+    // `companyId` so the freshest session for THIS
+    // specific (customer, company) pair is returned.
     const latest = await this.prisma.customerPortalSession.findFirst({
-      where: { email: email.toLowerCase() },
+      where: {
+        email: email.toLowerCase(),
+        customerId: customer.id,
+        companyId: body.companyId,
+      },
       orderBy: { createdAt: 'desc' },
     })
     const url = latest

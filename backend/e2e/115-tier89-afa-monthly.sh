@@ -257,4 +257,4 @@ STATUS_NOCO=$(curl -sS -o /dev/null -w "%{http_code}" -X POST \
 assert_eq "missing companyId → 400" "$STATUS_NOCO" "400"
 
 echo
-echo "ALL PASSED"
+summary

@@ -32,9 +32,32 @@
  */
 import { test, expect, request as playwrightRequest } from '@playwright/test'
 import { execSync } from 'child_process'
+import { readFileSync } from 'fs'
 
-const USER_ID = '8c6a9669-0069-4137-a842-a66fd1d178d6'
-const COMPANY_ID = 'ad257ec3-d319-479b-b870-3fe76e8f3111'
+const AUTH_CACHE = '/tmp/cashbook-e2e-auth.env'
+
+// Tier 207 — read auth IDs from the
+// backend-e2e auth cache (the same
+// source every other Tier-1xx spec
+// uses) instead of hardcoding the
+// SH Leder seed UUIDs.
+function readCachedTokens(): { userId: string; companyId: string } {
+  const env = readFileSync(AUTH_CACHE, "utf-8")
+  const map: Record<string, string> = {}
+  for (const line of env.split("\n")) {
+    const m = line.match(/^([A-Z_][A-Z0-9_]*)=(.*)$/)
+    if (m) map[m[1]] = m[2]
+  }
+  if (!map.USER_ID || !map.COMPANY_ID) {
+    throw new Error(
+      `Auth cache ${AUTH_CACHE} missing — run backend e2e first`,
+    )
+  }
+  return { userId: map.USER_ID, companyId: map.COMPANY_ID }
+}
+const tokens = readCachedTokens()
+const USER_ID = tokens.userId
+const COMPANY_ID = tokens.companyId
 const BWA_CUSTOMER_ID = 'b3f7b274-7696-44b8-9345-8bfd460b3e47'
 const API_BASE = 'http://localhost:3001'
 
@@ -189,10 +212,10 @@ test.describe('Tier 160 — Invoice clone as draft', () => {
     // Customer is pre-populated.
     const customerInput = page.locator('input[placeholder*="Kunde"], input[placeholder*="选择"], input[placeholder*="ustomer"]').first()
     await expect(customerInput).toBeVisible({ timeout: 10_000 })
-    // Wait for the network: the customer dropdown
-    // shows the source's customer name.
-    await page.waitForTimeout(2500)
     // Notes field is pre-filled with the source's notes
+    // (toHaveValue auto-retries up to its timeout, so
+    // we don't need a fixed waitForTimeout here — that
+    // was a Tier 207 anti-pattern).
     const notesInput = page.getByTestId('invoice-notes-input')
     await expect(notesInput).toHaveValue(SOURCE_NOTES, { timeout: 5_000 })
     // Items are pre-filled (we check via the quantity
@@ -206,10 +229,9 @@ test.describe('Tier 160 — Invoice clone as draft', () => {
     await contextWithAuth(page)
     await page.goto(`/dashboard/invoices/create?cloneFrom=${SOURCE_ID}`)
     await expect(page.locator('h1').first()).toBeVisible({ timeout: 30_000 })
-    // Wait for the prefill to settle
-    await page.waitForTimeout(2500)
     // The issueDate input should be today's date
-    // (YYYY-MM-DD)
+    // (YYYY-MM-DD). toHaveValue auto-retries so
+    // we don't need a fixed waitForTimeout.
     const today = new Date().toISOString().split("T")[0]
     const issueInput = page.locator('input[type="date"]').first()
     await expect(issueInput).toHaveValue(today, { timeout: 5_000 })
@@ -219,7 +241,8 @@ test.describe('Tier 160 — Invoice clone as draft', () => {
     await contextWithAuth(page)
     await page.goto(`/dashboard/invoices/create?cloneFrom=${SOURCE_ID}`)
     await expect(page.locator('h1').first()).toBeVisible({ timeout: 30_000 })
-    await page.waitForTimeout(2500)
+    // (No fixed waitForTimeout — toHaveValue on the
+    //  next line auto-retries the prefill assertion.)
     // The create page has issueDate + deliveryDate
     // as <input type="date">. dueDate is not a
     // direct input — it's derived from issueDate +
@@ -240,9 +263,19 @@ test.describe('Tier 160 — Invoice clone as draft', () => {
     await page.goto(`/dashboard/invoices/${SOURCE_ID}`)
     await expect(page.locator('h1').first()).toBeVisible({ timeout: 30_000 })
     await expect(page.getByTestId('invoice-clone')).toBeVisible({ timeout: 10_000 })
-    await page.waitForTimeout(1500)
-    const bodySw = await page.evaluate(() => document.body.scrollWidth)
-    expect(bodySw).toBeLessThanOrEqual(376)
+    // Wait for the layout to settle after the
+    // viewport switch + the action button row
+    // render. The next `evaluate(() =>
+    // document.body.scrollWidth)` reads the
+    // post-layout state, so we need a frame to
+    // let flexbox settle. `toHaveValue` style
+    // auto-retry doesn't apply here (we're
+    // measuring a derived DOM property), so we
+    // use a polling loop with a 2s cap.
+    await expect.poll(async () => {
+      const sw = await page.evaluate(() => document.body.scrollWidth)
+      return sw <= 376
+    }, { timeout: 2_000, intervals: [50, 100, 200] }).toBe(true)
   })
 })
 

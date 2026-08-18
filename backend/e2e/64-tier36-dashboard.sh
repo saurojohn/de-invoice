@@ -21,10 +21,6 @@ source "$SCRIPT_DIR/_lib.sh"
 
 login
 cleanup_cashbook
-
-USER_ID="8c6a9669-0069-4137-a842-a66fd1d178d6"
-COMPANY_ID="ad257ec3-d319-479b-b870-3fe76e8f3111"
-
 # ---- 1. Missing companyId → 400 ----
 echo
 echo "=== 1. GET /reports/dashboard-v2 (missing companyId) → 400 ==="
@@ -137,4 +133,4 @@ if [[ $FAILS -gt 0 ]]; then
   exit 1
 fi
 echo
-echo "ALL PASSED"
+summary

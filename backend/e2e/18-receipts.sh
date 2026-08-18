@@ -232,4 +232,4 @@ rm -f "$TEMP_PDF" "$TEMP_TXT" "$DOWNLOAD"
 pass "cleanup done"
 
 echo
-echo "ALL PASSED"
+summary

@@ -276,4 +276,4 @@ STATUS_NOCO2=$(curl -sS -o /dev/null -w "%{http_code}" \
 assert_eq "missing companyId → 400" "$STATUS_NOCO2" "400"
 
 echo
-echo "ALL PASSED"
+summary

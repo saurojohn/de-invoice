@@ -161,4 +161,4 @@ assert_eq "no BankStatement created by preview" "$POST_COUNT" "$PRE_COUNT"
 mavis-trash /tmp/preview-ok.mt940 /tmp/preview-bad.mt940 /tmp/preview-empty.mt940 /tmp/preview-garbage.mt940 /tmp/preview-resp.json /tmp/preview-t1.json /tmp/preview-bad.json /tmp/preview-empty.json /tmp/preview-garbage.json 2>/dev/null
 
 echo
-echo "ALL PASSED"
+summary

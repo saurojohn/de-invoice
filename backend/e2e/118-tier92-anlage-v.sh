@@ -280,4 +280,4 @@ STATUS_XT=$(curl -sS -o /dev/null -w "%{http_code}" \
 assert_eq "cross-tenant → 401" "$STATUS_XT" "401"
 
 echo
-echo "ALL PASSED"
+summary

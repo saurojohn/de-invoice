@@ -328,4 +328,4 @@ fi
 pass "cleanup done"
 
 echo
-echo "ALL PASSED"
+summary
