@@ -2,6 +2,8 @@ import { Controller, Get, Post, Put, Delete, Body, Query, Param, BadRequestExcep
 import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { UstvaService } from './ustva.service';
+import { SaveUstvaFilingDto } from './dto/ustva.dto';
+import { CreateUstvaExpenseDto } from './dto/ustva-expense.dto';
 import { UstjaService } from './ustja.service';
 import {
   generateUstvaElsterXml,
@@ -105,7 +107,7 @@ export class UstvaController {
   @Require('ustva.submit')
   async saveFiling(
     @Query('companyId') companyId: string,
-    @Body() body: any,
+    @Body() body: SaveUstvaFilingDto,
   ) {
     if (!companyId) throw new BadRequestException('companyId is required');
     return this.ustva.saveFiling(companyId, body);
@@ -147,27 +149,32 @@ export class UstvaController {
 
   @Post('expenses')
   @Require('accounting.create')
-  async createExpense(@Query('companyId') companyId: string, @Body() body: any) {
+  async createExpense(
+    @Query('companyId') companyId: string,
+    @Body() body: CreateUstvaExpenseDto,
+  ) {
     if (!companyId) throw new BadRequestException('companyId is required');
-    if (!body.description || !body.invoiceDate || body.netAmount === undefined) {
-      throw new BadRequestException('description, invoiceDate, netAmount are required');
-    }
-    if (body.vatAmount === undefined) {
-      // Auto-compute VAT if not given
-      body.vatAmount = Number((body.netAmount * (body.vatRate || 0.19)).toFixed(2));
-    }
-    if (body.grossAmount === undefined) {
-      body.grossAmount = Number(body.netAmount) + Number(body.vatAmount);
-    }
+    // Tier 213: ValidationPipe now enforces required fields
+    // (description, invoiceDate, netAmount) — the inline
+    // `if (!body.description)` check moved into the DTO.
+    // Auto-compute VAT / gross if not provided.
+    const net = Number(body.netAmount ?? 0)
+    const vatRate = Number(body.vatRate ?? 0.19)
+    const vatAmount = body.vatAmount !== undefined
+      ? Number(body.vatAmount)
+      : Number((net * vatRate).toFixed(2))
+    const grossAmount = body.grossAmount !== undefined
+      ? Number(body.grossAmount)
+      : Number(net) + Number(vatAmount)
     return this.ustva.createExpense(companyId, {
       supplierId: body.supplierId,
       invoiceNumber: body.invoiceNumber,
       description: body.description,
       invoiceDate: new Date(body.invoiceDate),
-      netAmount: Number(body.netAmount),
-      vatRate: Number(body.vatRate ?? 0.19),
-      vatAmount: Number(body.vatAmount),
-      grossAmount: Number(body.grossAmount),
+      netAmount: net,
+      vatRate,
+      vatAmount,
+      grossAmount,
       category: body.category,
       isIntraEU: body.isIntraEU ?? false,
       isReverseCharge: body.isReverseCharge ?? false,
