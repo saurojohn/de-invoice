@@ -1,4 +1,5 @@
 import { Controller, Get, Post, Put, Body, Param, Query, BadRequestException, NotFoundException, Req, Res } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { ReminderService } from './reminder.service';
 import { AutoReminderService } from './auto-reminder.scheduler';
 import { BulkReminderService } from './bulk-reminder.service';
@@ -280,6 +281,12 @@ export class ReminderController {
    */
   @Post('bulk-send')
   @Require('invoice.send')
+  // Bulk reminder: fan out to potentially hundreds of
+  // customer emails. Tight local limit (overrides the
+  // global 600/60s): 5 per 5 min per IP. The "Bulk-
+  // Mahnung senden" button is human-driven, 5 per
+  // 5 min is plenty even if the user mashes it.
+  @Throttle({ default: { limit: 5, ttl: 300_000 } })
   async bulkSend(
     @Body()
     body: {
@@ -315,6 +322,14 @@ export class ReminderController {
    */
   @Post('auto-run')
   @Require('users.read')
+  // Manual fire of the auto-reminder cron (same body as
+  // the daily scheduled run). Tight local limit
+  // (overrides the global 600/60s): 5 per 5 min per IP.
+  // The cron itself is hourly; the manual button is for
+  // "I want to re-run the dunning pass now", which is
+  // rare. 5/5min covers operator use + the e2e suite
+  // which fires it a few times across company setups.
+  @Throttle({ default: { limit: 5, ttl: 300_000 } })
   async runAutoReminder(@Query('companyId') companyId: string) {
     if (!companyId) {
       throw new BadRequestException('companyId ist erforderlich');

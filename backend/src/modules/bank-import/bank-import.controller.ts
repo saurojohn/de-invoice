@@ -1,4 +1,5 @@
 import { Controller, Get, Post, Delete, Body, Param, Query, UseInterceptors, UploadedFile, BadRequestException, Req } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { BankImportService } from './bank-import.service';
 import { Auth, Require } from '../../auth/roles.decorator';
@@ -20,6 +21,12 @@ export class BankImportController {
    *  in the candidate matches. */
   @Post('import')
   @Require('invoice.create')
+  // File upload + parse: 5MB CAMT/MT940 → many DB rows.
+  // Tight local limit (overrides the global 600/60s):
+  // 20 per minute per IP. Operator uploads a few files
+  // per month; 20/min is plenty for the human + the e2e
+  // suite (which imports several fixtures per pass).
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @UseInterceptors(FileInterceptor('file', {
     limits: { fileSize: 5 * 1024 * 1024 }, // 5MB cap — CAMT files for a year of statements fit easily
   }))

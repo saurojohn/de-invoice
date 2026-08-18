@@ -1,4 +1,5 @@
 import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, Res, Header, BadRequestException, HttpCode, Req, NotFoundException } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { Response } from 'express';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const archiverLib: any = require('archiver');
@@ -230,6 +231,13 @@ export class InvoiceController {
   //      matching invoices. Used for date-range exports.
   @Post('bulk-download')
   @Require('invoice.read')
+  // Bulk PDF download: server reads N invoices +
+  // streams a ZIP. Heavy (memory + CPU). Tight local
+  // limit (overrides the global 600/60s): 10 per
+  // minute per IP. The "Alle ausgewählten als ZIP
+  // herunterladen" button is human-driven; 10/min is
+  // plenty for a single user.
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   async bulkDownload(
     @Body() body: {
       invoiceIds?: string[];
@@ -1194,6 +1202,13 @@ export class InvoiceController {
    */
   @Post('bulk-send-by-filter')
   @Require('invoice.send')
+  // Bulk send-by-filter: server picks invoices by
+  // date/status + sends email to each. Can fan out
+  // to hundreds of emails. Tight local limit
+  // (overrides the global 600/60s): 5 per 5 min
+  // per IP. The button is human-driven; 5 per 5 min
+  // is plenty.
+  @Throttle({ default: { limit: 5, ttl: 300_000 } })
   async bulkSendByFilter(
     @Query('companyId') companyId: string,
     @Body() body: {
@@ -1263,6 +1278,12 @@ export class InvoiceController {
 
   @Post('bulk-send-email')
   @Require('invoice.send')
+  // Bulk send-email (explicit invoiceIds[]): can fan
+  // out to hundreds of emails. Tight local limit
+  // (overrides the global 600/60s): 5 per 5 min per
+  // IP. The button is human-driven; 5 per 5 min is
+  // plenty.
+  @Throttle({ default: { limit: 5, ttl: 300_000 } })
   async bulkSendEmails(
     @Query('companyId') companyId: string,
     @Body() body: {

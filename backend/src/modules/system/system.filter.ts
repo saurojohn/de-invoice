@@ -14,6 +14,17 @@
  * (console) AND persists to ErrorEvent (DB). Console
  * output is for development; DB is for production
  * inspection via the dashboard.
+ *
+ * Security:
+ *   - The HTTP response body NEVER includes the raw
+ *     Prisma/driver error message. Only a small whitelist
+ *     of generic messages is exposed ("Resource already
+ *     exists", "Service temporarily unavailable", ...).
+ *     The full message + stack is still captured to
+ *     ErrorEvent for operator diagnosis.
+ *   - 4xx is expected (validation, not found, etc.) and
+ *     would flood the dashboard — only 5xx + unknown
+ *     exceptions are persisted.
  */
 import {
   ArgumentsHost,
@@ -45,10 +56,16 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const status = isHttp
       ? (exception as HttpException).getStatus()
       : HttpStatus.INTERNAL_SERVER_ERROR
-    const message = isHttp
+
+    // The message we expose to the client (sanitized for 5xx).
+    const publicMessage = isHttp
       ? this.messageFromHttp(exception as HttpException)
-      : (exception as Error)?.message ?? String(exception)
-    const stack = (exception as Error)?.stack ?? null
+      : this.sanitizeUnknownMessage(exception)
+
+    // The message we persist for the operator (full, raw).
+    const persistMessage =
+      (exception as Error)?.message ?? String(exception)
+    const persistStack = (exception as Error)?.stack ?? null
 
     // Only persist 5xx and unknown errors — 4xx is
     // expected (validation, not found, etc.) and
@@ -58,8 +75,8 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         await this.tracker.capture({
           source: "backend",
           kind: "unhandled",
-          message: `[${req.method} ${req.originalUrl}] ${message}`,
-          stack,
+          message: `[${req.method} ${req.originalUrl}] ${persistMessage}`,
+          stack: persistStack,
           url: req.originalUrl,
           method: req.method,
           statusCode: status,
@@ -81,26 +98,73 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
     if (isHttp) {
       this.logger.warn(
-        `[${req.method} ${req.originalUrl}] ${status} ${message}`,
+        `[${req.method} ${req.originalUrl}] ${status} ${publicMessage}`,
       )
     } else {
+      // Server-side log keeps the full message for debugging.
       this.logger.error(
-        `[${req.method} ${req.originalUrl}] ${status} ${message}`,
-        stack ?? "",
+        `[${req.method} ${req.originalUrl}] ${status} ${persistMessage}`,
+        persistStack ?? "",
       )
     }
 
     // Preserve the original response shape: NestJS's
     // default is `{ statusCode, message, error }` for
     // HttpException and `{ statusCode, message: "Internal
-    // server error" }` for everything else. Replicate that.
+    // server error" }` for everything else. Replicate that
+    // — but with the SANITIZED message for 5xx so we don't
+    // leak Prisma's P2002 / SQL fragments / connection
+    // strings to the client.
     const responseBody = isHttp
       ? (exception as HttpException).getResponse()
       : {
           statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
-          message: "Internal server error",
+          message: publicMessage,
         }
     res.status(status).json(responseBody)
+  }
+
+  /**
+   * Whitelist Prisma error codes that have a generic,
+   * safe public message. For any other unhandled error
+   * (raw PrismaClientKnownRequestError, ECONNREFUSED,
+   * SQL fragment, etc.) we return a generic "Internal
+   * server error" so the client never sees the internal
+   * details. The full original message is still persisted
+   * to ErrorEvent for operator diagnosis.
+   */
+  private sanitizeUnknownMessage(exception: unknown): string {
+    if (!exception || typeof exception !== "object") {
+      return "Internal server error"
+    }
+    const e = exception as any
+    // PrismaClientKnownRequestError has a `code` field
+    // like P2002 (unique constraint), P2003 (FK),
+    // P2025 (not found). Map the most common ones to
+    // safe messages; the rest stay generic.
+    if (typeof e.code === "string" && e.code.startsWith("P")) {
+      switch (e.code) {
+        case "P2002":
+          return "Resource already exists"
+        case "P2003":
+          return "Related resource not found"
+        case "P2025":
+          return "Resource not found"
+        default:
+          return "Internal server error"
+      }
+    }
+    // Database connection / timeout errors come from
+    // the driver without a `code`. Don't leak driver
+    // string.
+    if (
+      e.code === "ECONNREFUSED" ||
+      e.code === "ETIMEDOUT" ||
+      e.code === "ENOTFOUND"
+    ) {
+      return "Service temporarily unavailable"
+    }
+    return "Internal server error"
   }
 
   private messageFromHttp(ex: HttpException): string {
@@ -115,9 +179,10 @@ export class GlobalExceptionFilter implements ExceptionFilter {
   }
 
   /**
-   * Strip obvious secrets from request body before
-   * logging. Don't want a password hash or password-
-   * reset token showing up in the dashboard.
+   * Strip obvious secrets + PII from request body before
+   * logging. Don't want a password hash, password-reset
+   * token, customer email, or IBAN showing up in the
+   * dashboard.
    */
   private safeBody(body: any): any {
     if (!body || typeof body !== "object") return body
@@ -131,6 +196,21 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         k.includes("hash")
       ) {
         cloned[key] = "[redacted]"
+        continue
+      }
+      // PII keys (case-insensitive substring match).
+      // The actual values live in the DB and are visible
+      // to the customer who owns them; just don't echo to
+      // the log stream (k8s, CloudWatch, Datadog).
+      if (
+        k === "email" ||
+        k.endsWith("email") ||
+        k === "iban" ||
+        k.endsWith("iban") ||
+        k.includes("phone")
+      ) {
+        cloned[key] = "[redacted]"
+        continue
       }
     }
     return cloned

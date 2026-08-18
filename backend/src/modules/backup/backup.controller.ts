@@ -38,6 +38,7 @@
  * to Berater + Mandant in users.service.ts.
  */
 import { Controller, Delete, Get, HttpCode, Param, Post, Res } from '@nestjs/common'
+import { Throttle } from '@nestjs/throttler'
 import type { Response } from 'express'
 import { Auth, Require } from '../../auth/roles.decorator'
 import { BackupService } from './backup.service'
@@ -67,6 +68,13 @@ export class BackupController {
   @Post('run')
   @HttpCode(200)
   @Require('admin.read')
+  // A full backup can take 30s-5min and is disk-heavy.
+  // Tight local limit (overrides the global 600/60s):
+  // 5 per hour per IP. Operators manually run this only
+  // on incident; the daily-auto-backup cron handles the
+  // routine case. The e2e suite runs a backup once per
+  // pass, so 5/hr covers ~5 passes.
+  @Throttle({ default: { limit: 5, ttl: 3_600_000 } })
   async run() {
     return this.backup.runBackup()
   }
@@ -74,6 +82,12 @@ export class BackupController {
   @Post(':id/verify')
   @HttpCode(200)
   @Require('admin.read')
+  // pg_restore --list against the backup file — heavy
+  // (reads the whole dump). 20 per minute is plenty for
+  // a human operator clicking through the dashboard
+  // and for the e2e suite (which verifies each backup
+  // in the list during restore-drill setup).
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   async verify(@Param('id') id: string) {
     return this.backup.verify(id)
   }
@@ -97,6 +111,12 @@ export class BackupController {
   @Post('restore-drill')
   @HttpCode(200)
   @Require('admin.read')
+  // Spins up a throwaway DB and runs pg_restore — a
+  // minute-scale, disk-heavy operation. 5 per 5 min
+  // per IP. Operators use this ad-hoc + the e2e suite
+  // exercises it; 5 per 5 min covers a few operator
+  // spot-checks plus several test passes.
+  @Throttle({ default: { limit: 5, ttl: 300_000 } })
   async restoreDrill() {
     return this.backup.restoreDrill()
   }

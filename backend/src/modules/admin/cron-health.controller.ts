@@ -24,6 +24,7 @@
  * per-user health endpoint.
  */
 import { Controller, Get, Param, Post, Query, BadRequestException, Req } from '@nestjs/common'
+import { Throttle } from '@nestjs/throttler'
 import { Request } from 'express'
 import { Auth, Require } from '../../auth/roles.decorator'
 import { CronHealthService, CronStatus } from './cron-health.service'
@@ -99,6 +100,15 @@ export class CronHealthController {
    */
   @Post(':name/run')
   @Require('admin.update')
+  // Tight local limit (overrides the global 600/60s): firing
+  // a cron is a heavy, side-effectful operation (auto-send
+  // reminders, regenerate DATEV, recurring invoice runs, ...).
+  // Cap to 10 fires per minute per IP so a misbehaving
+  // dashboard / script can't trigger dozens of crons in a
+  // burst. The scheduler is single-threaded per name so
+  // 10/min is plenty for a human operator and the e2e
+  // suite (which fires each cron once per test pass).
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   async runCron(@Param('name') name: string, @Req() req: Request) {
     if (!name) throw new BadRequestException('name is required')
     const result = await this.health.triggerManualRun(name)

@@ -9,6 +9,7 @@ import {
   Body,
 } from '@nestjs/common'
 import { FileInterceptor } from '@nestjs/platform-express'
+import { Throttle } from '@nestjs/throttler'
 import { OcrService, OCR_FIXTURE, extractFieldsFromText } from './ocr.service'
 import { PrismaService } from '../../prisma/prisma.service'
 
@@ -62,6 +63,13 @@ export class OcrController {
    * huge uploads.
    */
   @Post('scan')
+  // OCR scan — heavy (tesseract / AI call, seconds of CPU).
+  // Tight local limit (overrides the global 600/60s):
+  // 20 per minute per IP. The "Aus Scan hochladen" button
+  // is human-driven; 20/min is plenty even for the
+  // accountant who batches a stack of receipts, and the
+  // e2e suite which runs scan several times.
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @UseInterceptors(
     FileInterceptor('file', {
       limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB

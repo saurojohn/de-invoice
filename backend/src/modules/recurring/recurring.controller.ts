@@ -1,4 +1,5 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Query, BadRequestException } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { RecurringService, RecurringInput } from './recurring.service';
 import { Auth, Require } from '../../auth/roles.decorator';
 
@@ -137,6 +138,13 @@ export class RecurringController {
    */
   @Post(':id/run')
   @Require('invoice.create')
+  // Manually firing a recurring-invoice period creates a
+  // real invoice + (optionally) sends an email. Tight
+  // local limit (overrides the global 600/60s): 10 per
+  // minute per IP. The "Jetzt generieren" button is
+  // human-driven and 10/min is plenty even if the user
+  // mashes it.
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   async runOne(
     @Query('companyId') companyId: string,
     @Param('id') id: string,
