@@ -9,7 +9,13 @@ import { PaymentService } from './payment.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { MailService } from '../mail/mail.service';
-import { generateInvoicePDF, InvoiceRenderConfig } from '../../invoices/invoice-pdf.service';
+import { generateInvoicePDF, InvoiceRenderConfig, buildEpcQrPayload } from '../../invoices/invoice-pdf.service';
+// Tier 225: standalone GiroCode PNG download. The
+// `qrcode` lib is already a backend dep (used by
+// invoice-pdf.service.ts since Tier 224 to embed
+// the QR in the PDF footer), so we reuse the same
+// package for the standalone endpoint.
+import QRCode from 'qrcode';
 import { generateXRechnung, transformToXRechnungData, validateXRechnung } from '../../invoices/xrechnung.service';
 import {
   validateXRechnungWithKoSIT,
@@ -556,6 +562,90 @@ export class InvoiceController {
   //   ?format=xrechnung — alias for the XRechnung XML endpoint
   //                       (see :id/xrechnung). Returns the raw
   //                       XML, not a PDF.
+  //
+  // Tier 225: standalone GiroCode (EPC QR) PNG
+  // download. Sibling to :id/pdf but returns ONLY the
+  // QR code as a 566×566 PNG (2cm at 72dpi × 4x
+  // oversample, scannable from any monitor / printed
+  // envelope). The QR encodes the same EPC069-12 v2
+  // payload the PDF footer embeds, so a customer who
+  // can't print the invoice can still pay via the
+  // German banking apps by downloading this single
+  // image.
+  //
+  // Route must come BEFORE :id/pdf to avoid `:id`
+  // greedy-matching "abc-girocode.png" as the id.
+  // (PDFKit's regex routing also has the same problem
+  // — we put the more specific path first by
+  // convention.)
+  @Get(':id/girocode.png')
+  @Header('Content-Type', 'image/png')
+  @Header(
+    'Content-Disposition',
+    'attachment; filename="girocode.png"', // overridden below with the actual invoice number
+  )
+  @Require('invoice.read')
+  async downloadGirocodePng(
+    @Param('id') id: string,
+    @Query('companyId') companyId: string,
+    @Res() res: Response,
+  ) {
+    try {
+      if (!companyId) {
+        return res.status(400).json({ message: 'companyId ist erforderlich' })
+      }
+      const invoice = await this.invoiceService.findOne(id, companyId)
+      const company = await this.prisma.company.findUnique({ where: { id: companyId } })
+      if (!invoice) {
+        return res.status(404).json({ message: 'Rechnung nicht gefunden' })
+      }
+      if (!company) {
+        return res.status(404).json({ message: 'Unternehmen nicht gefunden' })
+      }
+      // Reuse the same GiroCode payload builder the
+      // PDF embeds — single source of truth. Falls
+      // through to 404 when the company has no IBAN
+      // (no scannable code to give the customer).
+      const qrPayload = buildEpcQrPayload(company as any, invoice as any)
+      if (!qrPayload) {
+        return res.status(404).json({
+          message: 'Keine IBAN hinterlegt — GiroCode nicht verfügbar',
+        })
+      }
+      // 566px = 2cm at 72dpi × 4x oversample.
+      // PDFKit's :id/pdf uses 360 (4x of 90pt), but
+      // the standalone download is meant to be
+      // viewed / printed at higher res, so we go
+      // bigger — 566px is a common QR size for
+      // "scan from monitor" workflows and stays
+      // well under 5KB.
+      const png = await QRCode.toBuffer(qrPayload, {
+        errorCorrectionLevel: 'M',
+        type: 'png',
+        margin: 2,
+        width: 566,
+      })
+      // Override the static @Header with a
+      // per-invoice filename so the browser saves
+      // "INV-2026-006285_GiroCode.png" rather
+      // than the generic "girocode.png". The
+      // @Header decorator sets the header on
+      // route match; res.setHeader here wins.
+      const safeNum = String(invoice.invoiceNumber || 'invoice').replace(/[^A-Za-z0-9._-]/g, '_')
+      res.setHeader('Content-Disposition', `attachment; filename="${safeNum}_GiroCode.png"`)
+      res.setHeader('Content-Length', String(png.length))
+      res.send(png)
+    } catch (err: any) {
+      // Cross-tenant invoice id returns 404 (security
+      // through obscurity — same convention as the
+      // other invoice endpoints).
+      if (err?.status === 404 || err?.code === 'P2025') {
+        return res.status(404).json({ message: 'Rechnung nicht gefunden' })
+      }
+      throw err
+    }
+  }
+
   @Get(':id/pdf')
   @Header('Content-Type', 'application/pdf')
   @Require('invoice.read')

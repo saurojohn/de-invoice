@@ -1043,7 +1043,7 @@ function formatVatRate(rate: number): string {
 // RefType: "RF" + ISO 11649 creditor reference OR empty.
 // We don't use ISO 11649 RF refs (the invoice number
 // isn't one), so the line is left empty per spec.
-function buildEpcQrPayload(
+export function buildEpcQrPayload(
   company: CompanyInfo,
   invoice: Invoice,
 ): string | null {

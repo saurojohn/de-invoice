@@ -1224,6 +1224,57 @@ export default function InvoiceDetailPage() {
     }
   }
 
+  // Tier 225: standalone GiroCode (EPC QR) PNG
+  // download. Useful for the customer who wants
+  // to pay via banking app but doesn't want to
+  // print the full PDF — they just open the
+  // downloaded PNG on their phone and scan from
+  // the monitor, or print only the QR. 404 when
+  // the company has no IBAN (no scannable code
+  // to give them).
+  const downloadGiroCode = async () => {
+    const companyId = localStorage.getItem("companyId")
+    if (!companyId || !invoice) return
+    try {
+      const { apiFetch } = await import("@/lib/api")
+      const response = await apiFetch(
+        `/api/v1/invoices/${invoice.id}/girocode.png?companyId=${companyId}`,
+        { throwOnError: false },
+      )
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
+        if (response.status === 404) {
+          // Most common 404: company has no IBAN
+          // configured. Surface a helpful German
+          // message pointing the operator at the
+          // settings page rather than a generic
+          // "Download fehlgeschlagen".
+          toast.error(
+            data.message ||
+              "GiroCode nicht verfügbar — bitte IBAN in den Firmeneinstellungen hinterlegen",
+          )
+        } else {
+          toast.error(
+            data.message || `GiroCode Download fehlgeschlagen (HTTP ${response.status})`,
+          )
+        }
+        return
+      }
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `${invoice.invoiceNumber}_GiroCode.png`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+    } catch (err) {
+      console.error("GiroCode Download fehlgeschlagen:", err)
+      toast.error("GiroCode Download fehlgeschlagen")
+    }
+  }
+
   const changeStatus = async (newStatus: string) => {
     if (!invoice || invoice.status === newStatus) return
     if (!confirm(`Status auf "${getStatusLabel(newStatus)}" setzen?`)) return
@@ -1335,6 +1386,21 @@ export default function InvoiceDetailPage() {
               data-testid="invoice-download-zugferd"
             >
               ZUGFeRD herunterladen
+            </Button>
+            {/* Tier 225: standalone GiroCode (EPC QR)
+                download. Customer can scan from phone
+                without printing the full invoice. The
+                backend returns 404 when the company has
+                no IBAN — we surface that in a German
+                toast pointing the operator at the
+                company settings. */}
+            <Button
+              variant="outline"
+              onClick={downloadGiroCode}
+              data-testid="invoice-download-girocode"
+              title="GiroCode (EPC QR-Code) als PNG herunterladen — mit der Banking-App scannen"
+            >
+              GiroCode herunterladen
             </Button>
             <Button
               onClick={downloadPDF}
