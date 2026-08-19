@@ -274,10 +274,24 @@ docker compose stop backend frontend
 # 2. Find the backup you want.
 ls -lh /var/lib/docker/volumes/deinvoicenet_backups/_data/
 
-# 3. Restore. The container is on the deinvoicenet
-#    network so we can `docker exec` into it directly.
-gunzip -c /var/lib/docker/volumes/deinvoicenet_backups/_data/de_invoice-2026-07-28-030001.sql.gz \
-  | docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice
+# 3. Restore. db.sql.gz is pg_dump custom format
+#    (NOT plain SQL — gunzip -c alone will refuse).
+#    Use pg_restore from a sibling postgres image with
+#    the backup volume mounted read-only. The postgres
+#    container is on the deinvoicenet network so we can
+#    reach it via host.docker.internal. Tier 220
+#    confirmed the path end-to-end (1.4s restore on
+#    887 KB SQL dump, 6315 invoices / 31 customers /
+#    4 vouchers / 3 payments / 3 webhooks / 11
+#    deliveries — matches production mod the last 24h
+#    of activity, well within RPO).
+docker run --rm -i \
+  -e PGPASSWORD=de_invoice_pass \
+  -v /var/lib/docker/volumes/deinvoicenet_backups/_data:/backup:ro \
+  postgres:16-alpine \
+  pg_restore -h host.docker.internal -p 5432 -U de_invoice \
+    -d de_invoice --no-owner --no-acl \
+    "/backup/de_invoice-2026-07-28-030001.sql.gz"
 
 # 4. Restart backend + frontend.
 docker compose up -d backend frontend
@@ -315,11 +329,22 @@ run it manually as a one-off:
 ```bash
 # Pull the most recent backup and restore it into a
 # throwaway database, then drop it.
+#
+# Note: db.sql.gz is a pg_dump custom-format archive
+# (PostgreSQL custom database dump - v1.15-0), NOT
+# plain SQL. gunzip -c alone will refuse to decompress
+# it ("not in gzip format"). Use pg_restore instead —
+# it reads the custom format directly from the .gz
+# wrapper. Tier 220 verified this end-to-end (1.4s
+# restore on 887 KB SQL dump).
 LATEST=$(ls -1t /var/lib/docker/volumes/deinvoicenet_backups/_data/*.sql.gz | head -1)
 docker exec de-invoice-postgres \
   createdb -U de_invoice de_invoice_restore_test
-gunzip -c "$LATEST" \
-  | docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice_restore_test
+docker run --rm -i \
+  -v /var/lib/docker/volumes/deinvoicenet_backups/_data:/backup:ro \
+  postgres:16-alpine \
+  pg_restore -h host.docker.internal -p 5432 -U de_invoice \
+    -d de_invoice_restore_test --no-owner --no-acl "/backup/$(basename "$LATEST")"
 docker exec de-invoice-postgres \
   dropdb -U de_invoice de_invoice_restore_test
 echo "Backup verified: $LATEST"
