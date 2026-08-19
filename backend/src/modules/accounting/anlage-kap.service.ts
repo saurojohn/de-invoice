@@ -1,4 +1,5 @@
 import { Injectable, BadRequestException } from '@nestjs/common'
+import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
 import { Response } from 'express'
 import PDFDocument from 'pdfkit'
@@ -307,7 +308,10 @@ export class AnlageKAPService {
     for (const line of EINNAHMEN_LINES) {
       const txs = transactionsByKz[line.kz]
       const amount = round2(
-        txs.reduce((s, tx) => s + Number(tx.amount), 0),
+        txs.reduce(
+          (s, tx) => s.plus(tx.amount ?? new Prisma.Decimal(0)),
+          new Prisma.Decimal(0),
+        ).toNumber(),
       )
       const isPlaceholder = !line.matcher || txs.length === 0
       einnahmen.push({

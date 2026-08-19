@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common'
+import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
 import { AssetsService } from '../assets/assets.service'
 import { Response } from 'express'
@@ -530,7 +531,10 @@ export class BwaService {
     )
     const sonstigeErloeseYtd = credits
       .filter((c) => Number(c.amount) > 0)
-      .reduce((s, c) => s + Number(c.amount), 0)
+      .reduce(
+        (s, c) => s.plus(c.amount ?? new Prisma.Decimal(0)),
+        new Prisma.Decimal(0),
+      ).toNumber()
     // No prior-year credit data; we use 0
     // (a real BWA would have it from the prior
     // year).

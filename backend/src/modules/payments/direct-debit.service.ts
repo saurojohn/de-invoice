@@ -1,4 +1,5 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common'
+import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
 
 /**
@@ -355,9 +356,9 @@ export class DirectDebitService {
 
     // Build the pain.008 XML.
     const totalAmount = invMandatePairs.reduce(
-      (s, p) => s + Number(p.inv.total),
-      0,
-    )
+      (s, p) => s.plus(p.inv.total),
+      new Prisma.Decimal(0),
+    ).toNumber()
     const xml = this.buildPain008Xml({
       companyId,
       messageId: `DD-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,

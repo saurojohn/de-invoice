@@ -1,4 +1,5 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common'
+import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
 
 /**
@@ -198,9 +199,9 @@ export class PaymentsService {
 
     // Persist the batch + mark expenses as paid.
     const totalAmount = expenses.reduce(
-      (s, e) => s + Number(e.grossAmount),
-      0,
-    )
+      (s, e) => s.plus(e.grossAmount ?? new Prisma.Decimal(0)),
+      new Prisma.Decimal(0),
+    ).toNumber()
     const batch = await this.prisma.sepaBatch.create({
       data: {
         companyId,

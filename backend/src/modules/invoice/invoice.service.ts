@@ -1433,9 +1433,9 @@ export class InvoiceService {
       // the right number) — only the synthetic
       // payment is capped.
       const originalPaid = original.payments.reduce(
-        (s, p) => s + Number(p.amount),
-        0,
-      )
+        (s, p) => s.plus(p.amount ?? new Prisma.Decimal(0)),
+        new Prisma.Decimal(0),
+      ).toNumber()
       const originalRemaining = Math.max(
         0,
         Number(original.total) - originalPaid,
@@ -1473,9 +1473,9 @@ export class InvoiceService {
     })
     if (updatedOriginal) {
       const paid = updatedOriginal.payments.reduce(
-        (s, p) => s + Number(p.amount),
-        0,
-      )
+        (s, p) => s.plus(p.amount ?? new Prisma.Decimal(0)),
+        new Prisma.Decimal(0),
+      ).toNumber()
       if (
         paid >= Number(updatedOriginal.total) &&
         updatedOriginal.status !== 'paid'

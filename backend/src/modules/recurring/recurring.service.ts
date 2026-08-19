@@ -1,4 +1,5 @@
 import { Injectable, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 // Tier 129: send the generated invoice to the customer
 // after a successful template run. The service throws
@@ -787,7 +788,12 @@ export class RecurringService {
       )
 
       // Compute totals from the snapshot items.
-      const subtotal = items.reduce((s, it) => s + Number(it.unitPrice) * Number(it.quantity), 0)
+      const subtotal = items.reduce(
+        (s, it) => s.plus(
+          new Prisma.Decimal(it.unitPrice ?? 0).times(it.quantity ?? 0),
+        ),
+        new Prisma.Decimal(0),
+      ).toNumber()
       // VAT breakdown per rate.
       const vatByRate = new Map<number, { rate: number; net: number; vat: number }>()
       for (const it of items) {
@@ -1117,8 +1123,20 @@ export class RecurringService {
 
     const periodStart = new Date(tpl.nextRunAt)
     const periodEnd = this.advanceTo(periodStart, tpl.interval as RecurringInterval, tpl.intervalCount, tpl.dayOfMonth)
-    const subtotal = tpl.items.reduce((s, it) => s + Number(it.unitPrice) * Number(it.quantity), 0)
-    const totalVat = tpl.items.reduce((s, it) => s + Number(it.unitPrice) * Number(it.quantity) * Number(it.vatRate), 0)
+    const subtotal = tpl.items.reduce(
+      (s, it) => s.plus(
+        new Prisma.Decimal(it.unitPrice ?? 0).times(it.quantity ?? 0),
+      ),
+      new Prisma.Decimal(0),
+    ).toNumber()
+    const totalVat = tpl.items.reduce(
+      (s, it) => s.plus(
+        new Prisma.Decimal(it.unitPrice ?? 0)
+          .times(it.quantity ?? 0)
+          .times(it.vatRate ?? 0),
+      ),
+      new Prisma.Decimal(0),
+    ).toNumber()
     const total = subtotal + totalVat
 
     return {

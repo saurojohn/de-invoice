@@ -32,6 +32,7 @@
 //   opening_balance + sum(lines.delta) === closing_balance
 
 import { Injectable, NotFoundException } from '@nestjs/common'
+import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
 
 export interface StatementLine {
@@ -417,9 +418,11 @@ export class CustomerStatementService {
         )
         if (openInst.length === 0) continue
         const openAmount = openInst.reduce(
-          (s, i) => s + Number(i.amount) - Number(i.paidAmount),
-          0,
-        )
+          (s, i) => s
+            .plus(i.amount ?? new Prisma.Decimal(0))
+            .minus(i.paidAmount ?? new Prisma.Decimal(0)),
+          new Prisma.Decimal(0),
+        ).toNumber()
         // Count how many are overdue.
         const today = new Date()
         today.setHours(0, 0, 0, 0)
