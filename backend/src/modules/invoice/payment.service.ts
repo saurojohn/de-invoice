@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { WebhookService } from '../webhook/webhook.service';
 import { ReminderService } from '../reminder/reminder.service';
@@ -101,7 +102,10 @@ export class PaymentService {
       where: { invoiceId },
       select: { amount: true },
     });
-    const totalPaid = payments.reduce((s, p) => s + Number(p.amount), 0);
+    const totalPaid = payments.reduce(
+      (s, p) => s.plus(p.amount ?? new Prisma.Decimal(0)),
+      new Prisma.Decimal(0),
+    ).toNumber();
     const invoiceTotal = Number(invoice.total);
 
     // Tier 58: detect overpayment. The customer paid more
@@ -254,7 +258,10 @@ export class PaymentService {
         where: { invoiceId: payment.invoiceId },
         select: { amount: true },
       });
-      const totalPaid = remaining.reduce((s, p) => s + Number(p.amount), 0);
+      const totalPaid = remaining.reduce(
+        (s, p) => s.plus(p.amount ?? new Prisma.Decimal(0)),
+        new Prisma.Decimal(0),
+      ).toNumber();
       if (totalPaid < Number(payment.invoice.total) - 0.01) {
         await this.prisma.invoice.update({
           where: { id: payment.invoiceId },

@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException, ConflictException, Logger } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { VatValidationService } from '../vat-validation/vat-validation.service';
 import { WebhookService } from '../webhook/webhook.service';
@@ -314,7 +315,10 @@ export class CustomerService {
     let overdueCount = 0
     for (const inv of openInvoices) {
       const total = Number(inv.total)
-      const paid = inv.payments.reduce((s, p) => s + Number(p.amount), 0)
+      const paid = inv.payments.reduce(
+        (s, p) => s.plus(p.amount ?? new Prisma.Decimal(0)),
+        new Prisma.Decimal(0),
+      ).toNumber()
       const open = Math.max(0, total - paid)
       openBalance += open
       // Skonto-aware: skip invoices in their Skonto
@@ -665,9 +669,9 @@ export class CustomerService {
     for (const inv of openInvoices) {
       const total = Number(inv.total)
       const alreadyPaid = inv.payments.reduce(
-        (s, p) => s + Number(p.amount),
-        0,
-      )
+        (s, p) => s.plus(p.amount ?? new Prisma.Decimal(0)),
+        new Prisma.Decimal(0),
+      ).toNumber()
       const outstanding = Math.max(total - alreadyPaid, 0)
       totalOutstanding += outstanding
       if (outstanding <= 0) continue

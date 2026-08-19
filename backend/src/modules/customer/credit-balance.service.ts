@@ -3,6 +3,7 @@ import {
   BadRequestException,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { VoucherService } from '../accounting/voucher.service';
 
@@ -443,7 +444,10 @@ export class CreditBalanceService {
       where: { invoiceId },
       select: { amount: true },
     });
-    const paid = payments.reduce((s, p) => s + Number(p.amount), 0);
+    const paid = payments.reduce(
+      (s, p) => s.plus(p.amount ?? new Prisma.Decimal(0)),
+      new Prisma.Decimal(0),
+    ).toNumber();
     const open = Math.max(0, Number(invoice.total) - paid);
     if (open < 0.005) {
       throw new BadRequestException('Rechnung ist bereits vollständig bezahlt');

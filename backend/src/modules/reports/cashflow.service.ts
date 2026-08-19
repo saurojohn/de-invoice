@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 
 /**
@@ -206,7 +207,10 @@ export class CashFlowService {
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       const idx = indexByMonth.get(key);
       if (idx === undefined) continue;
-      const paid = inv.payments.reduce((s, p) => s + Number(p.amount), 0);
+      const paid = inv.payments.reduce(
+        (s, p) => s.plus(p.amount ?? new Prisma.Decimal(0)),
+        new Prisma.Decimal(0),
+      ).toNumber();
       const open = Math.max(0, Number(inv.total) - paid);
       cells[idx].incoming += open;
     }

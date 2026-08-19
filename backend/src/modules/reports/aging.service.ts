@@ -38,6 +38,7 @@
  */
 
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 
 export type AgingBucket = 'current' | '1-30' | '31-60' | '61-90' | '90+';
@@ -114,7 +115,10 @@ export class AgingService {
 
     for (const inv of invoices) {
       const total = Number(inv.total)
-      const paid = inv.payments.reduce((s, p) => s + Number(p.amount), 0)
+      const paid = inv.payments.reduce(
+        (s, p) => s.plus(p.amount ?? new Prisma.Decimal(0)),
+        new Prisma.Decimal(0),
+      ).toNumber()
       const open = Math.max(0, Math.round((total - paid) * 100) / 100)
       if (open <= 0) continue
 

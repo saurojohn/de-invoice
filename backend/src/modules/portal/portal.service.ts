@@ -27,6 +27,7 @@
 //   - The invoice header + totals + line items
 
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common'
+import { Prisma } from '@prisma/client'
 import { randomBytes } from 'crypto'
 import { PrismaService } from '../../prisma/prisma.service'
 
@@ -279,7 +280,10 @@ export class PortalService {
       where: { invoiceId: link.invoiceId },
       select: { amount: true },
     })
-    const totalPaid = payments.reduce((s, p) => s + Number(p.amount), 0)
+    const totalPaid = payments.reduce(
+      (s, p) => s.plus(p.amount ?? new Prisma.Decimal(0)),
+      new Prisma.Decimal(0),
+    ).toNumber()
     const invoiceTotal = Number(link.invoice.total)
     if (link.invoice.type === 'INV' && totalPaid >= invoiceTotal - 0.01) {
       await this.prisma.invoice.update({
