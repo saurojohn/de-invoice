@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common'
+import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
 import { AssetsService } from '../assets/assets.service'
 import { Response } from 'express'
@@ -233,9 +234,9 @@ export class GuVService {
       select: { grossAmount: true },
     })
     const bookedAfASum = bookedAfa.reduce(
-      (s, e) => s + Number(e.grossAmount),
-      0,
-    )
+      (s, e) => s.plus(e.grossAmount ?? new Prisma.Decimal(0)),
+      new Prisma.Decimal(0),
+    ).toNumber()
     const useBookedAfA = bookedAfASum !== 0
 
     // Bucket the expenses using Anlage S / EÜR
@@ -266,21 +267,21 @@ export class GuVService {
     )
 
     const materialaufwand = materialExpenses.reduce(
-      (s, e) => s + Number(e.grossAmount),
-      0,
-    )
+      (s, e) => s.plus(e.grossAmount ?? new Prisma.Decimal(0)),
+      new Prisma.Decimal(0),
+    ).toNumber()
     const personalaufwand = personalExpenses.reduce(
-      (s, e) => s + Number(e.grossAmount),
-      0,
-    )
+      (s, e) => s.plus(e.grossAmount ?? new Prisma.Decimal(0)),
+      new Prisma.Decimal(0),
+    ).toNumber()
     const sonstigeAufwendungen = sonstigeExpenses.reduce(
-      (s, e) => s + Number(e.grossAmount),
-      0,
-    )
+      (s, e) => s.plus(e.grossAmount ?? new Prisma.Decimal(0)),
+      new Prisma.Decimal(0),
+    ).toNumber()
     const zinsaufwendungen = zinsExpenses.reduce(
-      (s, e) => s + Number(e.grossAmount),
-      0,
-    )
+      (s, e) => s.plus(e.grossAmount ?? new Prisma.Decimal(0)),
+      new Prisma.Decimal(0),
+    ).toNumber()
 
     // ===== SONSTIGE BETRIEBLICHE ERTRÄGE =====
     // CustomerCreditTransaction with type

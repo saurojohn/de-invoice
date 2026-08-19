@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common'
+import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
 import { Response } from 'express'
 import PDFDocument from 'pdfkit'
@@ -242,9 +243,9 @@ export class AnlageVService {
       select: { netAmount: true, relatedAssetId: true },
     })
     const bookedAfaSum = bookedAfa.reduce(
-      (s, e) => s + Number(e.netAmount),
-      0,
-    )
+      (s, e) => s.plus(e.netAmount ?? new Prisma.Decimal(0)),
+      new Prisma.Decimal(0),
+    ).toNumber()
 
     // Building assets for the AfA-source fallback.
     // When no booking exists, we use the in-memory

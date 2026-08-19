@@ -3,6 +3,7 @@ import {
   BadRequestException,
   Logger,
 } from "@nestjs/common"
+import { Prisma } from "@prisma/client"
 import { Response } from "express"
 import { create } from "xmlbuilder2"
 import { PrismaService } from "../../prisma/prisma.service"
@@ -191,16 +192,19 @@ export class EBilanzService {
       // already aggregate these into Bilanz
       // totals, but for the Anhang / eBilanz
       // summary we re-compute.
-      "assets.totalAK": assetList.reduce((s, a) => s + Number(a.anschaffungsKosten), 0),
+      "assets.totalAK": assetList.reduce(
+        (s, a) => s.plus(a.anschaffungsKosten),
+        new Prisma.Decimal(0),
+      ).toNumber(),
       "assets.totalBuchwert": assetList.reduce((s, a) => {
         // Same computeAfA summary at year-end
         const summary = this.assets.computeAfA(a, new Date(year, 11, 31, 23, 59, 59, 999))
-        return s + summary.buchwert
-      }, 0),
+        return s.plus(summary.buchwert)
+      }, new Prisma.Decimal(0)).toNumber(),
       "assets.totalAfA": assetList.reduce((s, a) => {
         const summary = this.assets.computeAfA(a, new Date(year, 11, 31, 23, 59, 59, 999))
-        return s + summary.annualAfA
-      }, 0),
+        return s.plus(summary.annualAfA)
+      }, new Prisma.Decimal(0)).toNumber(),
       // Anhang — narrative only
       "anhang.narrative": null,
       // General info — placeholders

@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common'
+import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
 import { Response } from 'express'
 import PDFDocument from 'pdfkit'
@@ -238,9 +239,9 @@ export class AnlageSService {
       select: { netAmount: true },
     })
     const bookedAfaSum = bookedAfa.reduce(
-      (s, e) => s + Number(e.netAmount),
-      0,
-    )
+      (s, e) => s.plus(e.netAmount ?? new Prisma.Decimal(0)),
+      new Prisma.Decimal(0),
+    ).toNumber()
 
     // Bucket revenues by Kennziffer. The
     // matchers are evaluated in order; the first

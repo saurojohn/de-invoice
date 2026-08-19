@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common'
+import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
 import { AssetsService, DEFAULT_BILANZ_KONTO } from '../assets/assets.service'
 import { Response } from 'express'
@@ -184,9 +185,9 @@ export class BilanzService {
       select: { total: true },
     })
     const forderungenLUL = openInvoices.reduce(
-      (s, inv) => s + Number(inv.total),
-      0,
-    )
+      (s, inv) => s.plus(inv.total),
+      new Prisma.Decimal(0),
+    ).toNumber()
 
     // 1600/1700 Liquide Mittel: cash book
     // balance at snapshot. The cash book is
@@ -228,9 +229,9 @@ export class BilanzService {
       select: { grossAmount: true },
     })
     const verbLUL = openExpenses.reduce(
-      (s, exp) => s + Number(exp.grossAmount),
-      0,
-    )
+      (s, exp) => s.plus(exp.grossAmount ?? new Prisma.Decimal(0)),
+      new Prisma.Decimal(0),
+    ).toNumber()
 
     // 4500 Sonstige Verb. (Kundenguthaben): the
     // CustomerCreditTransaction ledger (tier 58)

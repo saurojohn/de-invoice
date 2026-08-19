@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AccountService } from './account.service';
 import { WebhookService } from '../webhook/webhook.service';
@@ -174,8 +175,17 @@ export class VoucherService {
           status: created.status,
           referenceType: created.referenceType,
           lineCount: created.lines.length,
-          totalDebit: created.lines.reduce((s, l) => s + Number(l.debit), 0),
-          totalCredit: created.lines.reduce((s, l) => s + Number(l.credit), 0),
+          // Tier 214: sum via Prisma.Decimal so we don't lose precision
+          // on 4+ decimal-place amounts. The .toNumber() at the end
+          // rounds to float64 once, after the full sum.
+          totalDebit: created.lines.reduce(
+            (s, l) => s.plus(l.debit),
+            new Prisma.Decimal(0),
+          ).toNumber(),
+          totalCredit: created.lines.reduce(
+            (s, l) => s.plus(l.credit),
+            new Prisma.Decimal(0),
+          ).toNumber(),
         },
       })
       .catch((err) => console.error('webhook emit(voucher.created) failed:', err))
