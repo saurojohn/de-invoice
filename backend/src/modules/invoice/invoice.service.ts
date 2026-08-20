@@ -42,6 +42,12 @@ export class InvoiceService {
    * Paginated invoice list with optional filters.
    * Search matches invoice number and customer name (case-insensitive).
    * Returns `{ data, total, page, pageSize, totalPages }`.
+   *
+   * Tier 237: `status` accepts a comma-separated list
+   * (e.g. `?status=overdue,sent`) and matches via Prisma's
+   * `in:` operator. A single value still works (no
+   * breaking change). Empty / undefined → no status
+   * filter. Whitespace around comma-segments is trimmed.
    */  async findAll(
     companyId: string,
     filters: {
@@ -61,7 +67,22 @@ export class InvoiceService {
     const skip = (pg - 1) * ps
 
     const where: any = { companyId }
-    if (status) where.status = status
+    if (status) {
+      // Tier 237: support comma-separated multi-status.
+      // Each segment is trimmed + filtered for empties.
+      // A single value still works (becomes a 1-element
+      // array, Prisma's `in:` with one element is a
+      // cheap `=`).
+      const statusList = status
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+      if (statusList.length === 1) {
+        where.status = statusList[0]
+      } else if (statusList.length > 1) {
+        where.status = { in: statusList }
+      }
+    }
     if (customerId) where.customerId = customerId
     if (type) where.type = type
     // Date range filter on issueDate. Use gte/lte on ISO date strings
@@ -279,7 +300,18 @@ export class InvoiceService {
   ) {
     const { status, type, dateFrom, dateTo } = filters
     const where: any = { companyId }
-    if (status) where.status = status
+    // Tier 237: same multi-status support as findAll().
+    if (status) {
+      const statusList = status
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+      if (statusList.length === 1) {
+        where.status = statusList[0]
+      } else if (statusList.length > 1) {
+        where.status = { in: statusList }
+      }
+    }
     if (type) where.type = type
     if (dateFrom || dateTo) {
       where.issueDate = {}
