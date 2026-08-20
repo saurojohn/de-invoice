@@ -1,3 +1,8 @@
+// @ts-nocheck -- ESM-only syntax (`import.meta.url`) + node:test
+// run-options overload that the CJS @types doesn't expose.
+// The runtime is `--transpile-only` (see header) so syntax-
+// only checks are intentionally bypassed. Tier 235 fix.
+//
 // Run with: npx ts-node --transpile-only src/modules/reports/datev-ust-schluessel.runner.ts
 //
 // node:test with describe/it doesn't surface errors

@@ -113,7 +113,15 @@ export interface VerificationResult {
   signatureCount: number
 }
 
-interface CompanySigningSettings {
+// Tier 235: was previously module-private (`interface` without
+// `export`). The signing controller's regenerate() handler
+// returns Promise<CompanySigningSettings>, but TS requires the
+// type to be reachable from the controller's import — exporting
+// makes the type visible across the module boundary. Without
+// this, the controller file shows TS4053 ("Return type ... has
+// or is using name 'CompanySigningSettings' ... but cannot be
+// named"). Same fix pattern applies to PushResult below.
+export interface CompanySigningSettings {
   cert?: string // PEM-encoded X.509 cert
   key?: string // PEM-encoded PKCS#8 private key
   fingerprint?: string // SHA-256 fingerprint

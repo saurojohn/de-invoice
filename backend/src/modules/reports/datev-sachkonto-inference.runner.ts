@@ -1,3 +1,10 @@
+// @ts-nocheck -- ESM-only syntax (`import.meta.url`) + node:test
+// run-options overload that the CJS @types doesn't expose.
+// The runtime is `--transpile-only` (see header) so syntax-
+// only checks are intentionally bypassed. Tier 235: this
+// file was already failing tsc; rather than tsc-exclude it,
+// we accept the nocheck and document why.
+//
 // Run with: npx ts-node --transpile-only src/modules/reports/datev-sachkonto-inference.runner.ts
 //
 // The .test.ts file uses node:test + describe/it.

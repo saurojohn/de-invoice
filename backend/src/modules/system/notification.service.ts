@@ -55,7 +55,9 @@ export interface NotificationThreshold {
   windowMinutes: number
 }
 
-interface PushResult {
+// Tier 235: was previously module-private; see same fix on
+// CompanySigningSettings in signing.service.ts.
+export interface PushResult {
   slack: "sent" | "skipped" | "failed"
   email: "sent" | "skipped" | "failed"
   console: "sent"

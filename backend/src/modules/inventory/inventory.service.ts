@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
 export type StockChangeType = 'sale' | 'purchase' | 'adjustment' | 'return' | 'initial';
@@ -37,7 +37,13 @@ export class InventoryService {
     });
 
     if (!product) {
-      throw new Error('Product not found');
+      // Tier 235 fix: use NestJS NotFoundException (404) instead
+      // of plain `new Error`. Plain Error surfaces as 500 via
+      // the global exception filter, which is wrong for a
+      // "row not found" condition. The 158-tier228-inventory
+      // e2e test previously documented this as "tolerated";
+      // with this fix the test now asserts 404 specifically.
+      throw new NotFoundException('Product not found');
     }
 
     const previousQty = parseFloat(product.stockQuantity.toString());

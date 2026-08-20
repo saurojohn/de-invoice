@@ -8,6 +8,7 @@ import {
   Query,
   Param,
   BadRequestException,
+  ForbiddenException,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -108,7 +109,14 @@ export class UsersController {
     if (!target) {
       // The user has no UserCompany row for this
       // companyId — refuse.
-      throw new BadRequestException('Kein Zugriff auf diese Firma')
+      // Tier 235 fix: use ForbiddenException (403) instead of
+      // BadRequestException (400). The 4xx status was correct
+      // but 403 is the semantically right code for an
+      // authorisation failure (caller authenticated but not
+      // permitted). The e2e test (161-tier231-users-crud.sh)
+      // previously asserted 4xx-with-German-message; with this
+      // fix it now asserts 403 specifically.
+      throw new ForbiddenException('Kein Zugriff auf diese Firma')
     }
     return target
   }

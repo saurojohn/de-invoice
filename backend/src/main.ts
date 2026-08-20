@@ -9,14 +9,18 @@ import { ErrorTrackingService } from './modules/system/error-tracking.service';
 import { MetricsController } from './modules/health/metrics.controller';
 import { setRequestContext, clearRequestContext } from './prisma/prisma.service';
 import helmet from 'helmet';
-import type { Multer } from 'multer';
+import type * as Multer from 'multer';
 
-// Re-export Multer.File type used by controllers (Multer is a namespace in @types/multer)
+// Re-export Multer.File type used by controllers (Multer is a namespace in @types/multer).
+// Tier 235 fix: @types/multer already declares `Express.Multer.File` in
+// its global augmentation. Our local declaration collides with
+// that one (the .d.ts says `File: { fieldname, originalname, ... }`
+// while `@types/multer` says `File: File`). We use `import('multer').File`
+// as a re-export alias below instead of redeclaring the namespace
+// member, which is what was actually causing the TS2717.
 declare global {
   namespace Express {
-    interface Multer {
-      File: Multer.File;
-    }
+    type File = Multer.File;
   }
 }
 
