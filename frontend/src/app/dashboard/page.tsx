@@ -18,6 +18,12 @@ interface DashboardStats {
   totalInvoices: number
   pendingAmount: number
   overdueAmount: number
+  // Tier 236: count of overdue invoices (not just
+  // amount). Powers the dashboard's Overdue Counter
+  // tile — the most-actionable KPI for the Berater.
+  // Derived from the same /invoices fetch that powers
+  // overdueAmount; no extra API call.
+  overdueCount: number
   paidAmount: number
 }
 
@@ -252,6 +258,13 @@ export default function DashboardPage() {
           totalInvoices: invoiceList?.total ?? invoices.length,
           pendingAmount: pending,
           overdueAmount: overdue,
+          // Tier 236: count of overdue invoices. Cheap
+          // O(N) over the already-fetched list — no
+          // second API call. Powers the new Overdue
+          // Counter KPI tile on the dashboard.
+          overdueCount: invoices.filter(
+            (inv: any) => inv.status === "overdue",
+          ).length,
           paidAmount: paid,
         })
         setRecurringStats(recurring)
@@ -307,8 +320,11 @@ export default function DashboardPage() {
             the dashboard endpoint's `changes` field
             (thisMonth vs lastMonth). Each tile also
             surfaces the previous-month value in
-            muted text so the user has a reference. */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            muted text so the user has a reference.
+            Tier 236: 5-column grid (was 4) to add the
+            Overdue Counter tile — the most-actionable
+            KPI for the Berater. */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
           {/* YTD Revenue */}
           <Card>
             <CardContent className="pt-6">
@@ -368,6 +384,64 @@ export default function DashboardPage() {
               <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 Unbezahlte Rechnungen
               </div>
+            </CardContent>
+          </Card>
+          {/* Tier 236: Overdue Counter — the most-
+              actionable KPI for the Berater. Shows
+              both the count and the total amount of
+              overdue invoices. The number is derived
+              from the same /invoices fetch that powers
+              `stats.overdueAmount`, so no extra API
+              call. Tile turns red when count > 0 (cash
+              flow is at risk), green when zero (clean
+              AR). Linked to /dashboard/invoices?status=
+              overdue so the operator can jump straight
+              to the list. */}
+          <Card data-testid="dashboard-kpi-overdue">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div className="text-xs text-gray-500 dark:text-gray-400 uppercase">
+                  {t("dashboard.kpiOverdueTitle") || "Überfällige Rechnungen"}
+                </div>
+                {(stats?.overdueCount ?? 0) > 0 ? (
+                  <span
+                    data-testid="dashboard-kpi-overdue-badge"
+                    className="text-xs font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+                  >
+                    !
+                  </span>
+                ) : (
+                  <span
+                    data-testid="dashboard-kpi-overdue-ok"
+                    className="text-xs font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                  >
+                    ✓
+                  </span>
+                )}
+              </div>
+              <div
+                className={
+                  "text-2xl font-bold mt-1 " +
+                  ((stats?.overdueCount ?? 0) > 0
+                    ? "text-red-600 dark:text-red-400"
+                    : "text-green-600 dark:text-green-400")
+                }
+                data-testid="dashboard-kpi-overdue-count"
+              >
+                {stats?.overdueCount ?? 0}
+              </div>
+              <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                {fmtMoney(stats?.overdueAmount || 0)} € offen
+              </div>
+              {(stats?.overdueCount ?? 0) > 0 && (
+                <a
+                  href="/dashboard/invoices?status=overdue"
+                  className="text-xs text-blue-600 dark:text-blue-400 hover:underline mt-2 inline-block"
+                  data-testid="dashboard-kpi-overdue-link"
+                >
+                  Jetzt Mahnung starten →
+                </a>
+              )}
             </CardContent>
           </Card>
         </div>

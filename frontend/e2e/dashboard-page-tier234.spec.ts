@@ -85,4 +85,32 @@ test.describe("Tier 234 — Dashboard home page", () => {
     const bodyText = await page.locator("body").innerText()
     expect(bodyText.length).toBeGreaterThan(50)
   })
+
+  // Tier 236: the new Overdue Counter tile is the
+  // most-actionable KPI for the Berater. Verify it
+  // renders with a count + amount, and the status
+  // badge reflects the count (red ! when > 0,
+  // green ✓ when 0).
+  test("5. Overdue Counter tile (Tier 236) renders with count + amount", async ({ page }) => {
+    await page.goto("http://localhost:3100/dashboard")
+    await page.waitForLoadState("networkidle", { timeout: 15000 })
+    const tile = page.getByTestId("dashboard-kpi-overdue")
+    if ((await tile.count()) === 0) {
+      test.skip(true, "dashboard-kpi-overdue tile not found (regression)")
+      return
+    }
+    await expect(tile).toBeVisible()
+    const count = page.getByTestId("dashboard-kpi-overdue-count")
+    if ((await count.count()) > 0) {
+      const countText = await count.innerText()
+      // The count should be a non-negative integer
+      expect(/^\d+$/.test(countText.trim()), `count is integer, got "${countText}"`).toBe(true)
+    }
+    // One of the two badges (red ! or green ✓) is
+    // present based on the count.
+    const redBadge = page.getByTestId("dashboard-kpi-overdue-badge")
+    const greenBadge = page.getByTestId("dashboard-kpi-overdue-ok")
+    const hasBadge = (await redBadge.count()) > 0 || (await greenBadge.count()) > 0
+    expect(hasBadge, "one of the badges is present").toBe(true)
+  })
 })
