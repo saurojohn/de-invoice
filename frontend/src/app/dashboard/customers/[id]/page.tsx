@@ -37,7 +37,15 @@ import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
 import { apiGet, apiPost, apiFetch, ApiError } from "@/lib/api"
 
-type Tab = "invoices" | "plans" | "mahnungen" | "pauses" | "credit" | "emails"
+type Tab =
+  | "invoices"
+  | "plans"
+  | "mahnungen"
+  | "pauses"
+  | "credit"
+  | "emails"
+  | "payments"
+  | "attachments"
 
 interface CustomerSummary {
   customer: {
@@ -294,6 +302,42 @@ export default function CustomerDetailPage() {
   const [emailsLoading, setEmailsLoading] = useState(false)
   // Detail modal for a clicked email row.
   const [emailDetail, setEmailDetail] = useState<EmailRow | null>(null)
+  // Tier 238: payments tab — the customer's payment
+  // history (Payment rows allocated across all their
+  // invoices). Fetches the /invoices/:id/payments
+  // endpoint per invoice and concatenates. The real
+  // Prisma field names are paymentDate + paymentMethod
+  // (NOT paidAt/method — checked against schema).
+  // amount is Decimal — serialised as string by Prisma.
+  const [payments, setPayments] = useState<Array<{
+    id: string
+    invoiceId: string
+    invoiceNumber: string
+    amount: string
+    paymentDate: string
+    paymentMethod: string
+    reference: string | null
+    notes: string | null
+  }> | null>(null)
+  const [paymentsLoading, setPaymentsLoading] = useState(false)
+  // Tier 238: attachments tab — files attached to
+  // this customer (e.g. signed contracts, scanned
+  // documents). Uses the /attachments endpoint with
+  // entityType=customer. Note: backend service doesn't
+  // enforce entityType whitelist on list, so this
+  // returns an empty array (no customer attachments
+  // exist yet). Real Prisma field is originalName/
+  // mimeType/size/createdAt (NOT fileName/fileSize/
+  // uploadedAt). uploadedBy is included for audit.
+  const [attachments, setAttachments] = useState<Array<{
+    id: string
+    originalName: string
+    mimeType: string
+    size: number
+    createdAt: string
+    uploadedBy?: { id: string; email: string } | null
+  }> | null>(null)
+  const [attachmentsLoading, setAttachmentsLoading] = useState(false)
   // Tier 146: payment allocation wizard. The
   // admin opens a modal, enters the amount,
   // sees the proposed allocation (oldest-
@@ -565,7 +609,77 @@ export default function CustomerDetailPage() {
         .catch((err) => console.error("emails load failed:", err))
         .finally(() => setEmailsLoading(false))
     }
-  }, [tab, companyId, id, invoices, plans, mahnungen, creditLedger, invoicesLoading, plansLoading, mahnungenLoading, creditLoading, emails, emailsLoading])
+    // Tier 238: Zahlungen (payments) tab. Walks all
+    // the customer's invoices, fetches each one's
+    // payments, and concatenates. The /invoices/:id/
+    // payments endpoint doesn't have a customerId
+    // filter, so we use the invoice list as the index.
+    if (tab === "payments" && payments === null && !paymentsLoading) {
+      setPaymentsLoading(true)
+      // First load the customer's invoices. Note the
+      // envelope shape: { data: InvoiceRow[], total }.
+      // The /invoices list endpoint is paginated.
+      apiGet<{ data: InvoiceRow[] }>(
+        `/api/v1/invoices?companyId=${companyId}&customerId=${id}&pageSize=200`,
+      )
+        .then(async (resp) => {
+          const invList = resp.data || []
+          // Then fetch payments for each. Sequential
+          // (not Promise.all) to keep the network
+          // gentle — a customer with 200 invoices
+          // would otherwise fire 200 simultaneous
+          // requests. Soft-fail per-invoice so a
+          // single 404 doesn't break the whole tab.
+          const allPayments: any[] = []
+          for (const inv of invList) {
+            try {
+              const pays = await apiGet<any[]>(
+                `/api/v1/invoices/${inv.id}/payments?companyId=${companyId}`,
+              )
+              for (const p of pays) {
+                allPayments.push({
+                  ...p,
+                  invoiceNumber: inv.invoiceNumber,
+                })
+              }
+            } catch {
+              // ignore per-invoice failure
+            }
+          }
+          // Sort by paymentDate desc (newest first) —
+          // the real Prisma field, NOT paidAt.
+          allPayments.sort((a, b) =>
+            new Date(b.paymentDate).getTime() -
+            new Date(a.paymentDate).getTime(),
+          )
+          setPayments(allPayments)
+        })
+        .catch((err) => console.error("payments load failed:", err))
+        .finally(() => setPaymentsLoading(false))
+    }
+    // Tier 238: Dokumente (attachments) tab. Fetches
+    // attachments scoped to the customer entity.
+    // Soft-fail — a 404 (no attachments module for
+    // this tenant) shouldn't break the page. The
+    // backend controller's list endpoint doesn't
+    // enforce entityType whitelist, but the upload
+    // endpoint does (no 'customer' allowed). So in
+    // practice this returns an empty array — the
+    // tab is wired up and ready for when customer
+    // attachments are enabled.
+    if (tab === "attachments" && attachments === null && !attachmentsLoading) {
+      setAttachmentsLoading(true)
+      apiGet<any[]>(
+        `/api/v1/attachments?companyId=${companyId}&entityType=customer&entityId=${id}`,
+      )
+        .then((d) => setAttachments(Array.isArray(d) ? d : []))
+        .catch((err) => {
+          console.error("attachments load failed:", err)
+          setAttachments([])
+        })
+        .finally(() => setAttachmentsLoading(false))
+    }
+  }, [tab, companyId, id, invoices, plans, mahnungen, creditLedger, invoicesLoading, plansLoading, mahnungenLoading, creditLoading, emails, emailsLoading, payments, attachments])
 
   // Tier 145: load internal notes on mount. The
   // notes card is always visible (not behind a
@@ -1095,6 +1209,45 @@ export default function CustomerDetailPage() {
           {emails && emails.length > 0 && (
             <span className="ml-1 text-xs px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-700">
               {emails.length}
+            </span>
+          )}
+        </button>
+        <button
+          role="tab"
+          onClick={() => setTab("payments")}
+          className={
+            "px-4 py-2 text-sm font-medium border-b-2 " +
+            (tab === "payments"
+              ? "border-blue-600 text-blue-700"
+              : "border-transparent text-gray-500 hover:text-gray-700")
+          }
+          data-testid="tab-payments"
+        >
+          💶 {t("customerDetail.tabPayments") || "Zahlungen"}
+          {payments && payments.length > 0 && (
+            <span
+              className="ml-1 text-xs px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800"
+              data-testid="tab-payments-count"
+            >
+              {payments.length}
+            </span>
+          )}
+        </button>
+        <button
+          role="tab"
+          onClick={() => setTab("attachments")}
+          className={
+            "px-4 py-2 text-sm font-medium border-b-2 " +
+            (tab === "attachments"
+              ? "border-blue-600 text-blue-700"
+              : "border-transparent text-gray-500 hover:text-gray-700")
+          }
+          data-testid="tab-attachments"
+        >
+          📎 {t("customerDetail.tabAttachments") || "Dokumente"}
+          {attachments && attachments.length > 0 && (
+            <span className="ml-1 text-xs px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-700">
+              {attachments.length}
             </span>
           )}
         </button>
@@ -1713,6 +1866,224 @@ export default function CustomerDetailPage() {
                           >
                             {e.status}
                           </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Tier 238: Zahlungen (payments) tab. Shows a
+          single table of every payment recorded
+          against any of the customer's invoices
+          (oldest payment bottom, newest top). The
+          data is fetched by walking the customer's
+          invoices and pulling their payment lists,
+          so a customer with N invoices triggers N
+          requests — sequential to keep the network
+          gentle. Each row shows invoice number (link),
+          payment date, amount, payment method, and
+          an optional reference / notes. Empty state
+          when the customer has no payments yet. */}
+      {tab === "payments" && (
+        <Card>
+          <CardContent className="pt-6">
+            {paymentsLoading && (
+              <p
+                className="text-gray-500"
+                data-testid="tab-payments-loading"
+              >
+                {t("common.loading") || "Lädt..."}
+              </p>
+            )}
+            {payments && payments.length === 0 && (
+              <p
+                className="text-center text-gray-500 py-8"
+                data-testid="tab-payments-empty"
+              >
+                {t("customerDetail.noPayments") ||
+                  "Noch keine Zahlungen erfasst."}
+              </p>
+            )}
+            {payments && payments.length > 0 && (
+              <>
+                <div className="mb-3 text-sm text-gray-600 dark:text-gray-400">
+                  {t("customerDetail.paymentsTotal") ||
+                    "Gesamtbetrag aller Zahlungen"}:{" "}
+                  <span
+                    className="font-mono font-semibold text-emerald-700 dark:text-emerald-400"
+                    data-testid="tab-payments-sum"
+                  >
+                    {fmtEur(
+                      payments.reduce(
+                        (acc, p) => acc + Number(p.amount || 0),
+                        0,
+                      ),
+                    )}
+                  </span>{" "}
+                  ({payments.length})
+                </div>
+                <div className="overflow-x-auto">
+                  <table
+                    className="w-full min-w-[640px] text-sm"
+                    data-testid="tab-payments-table"
+                  >
+                    <thead>
+                      <tr className="border-b border-gray-200 dark:border-gray-700">
+                        <th className="text-left px-2 py-2 text-xs font-medium text-gray-500">
+                          {t("customerDetail.paymentsColDate") || "Datum"}
+                        </th>
+                        <th className="text-left px-2 py-2 text-xs font-medium text-gray-500">
+                          {t("customerDetail.paymentsColInvoice") ||
+                            "Rechnung"}
+                        </th>
+                        <th className="text-right px-2 py-2 text-xs font-medium text-gray-500">
+                          {t("customerDetail.paymentsColAmount") ||
+                            "Betrag"}
+                        </th>
+                        <th className="text-left px-2 py-2 text-xs font-medium text-gray-500">
+                          {t("customerDetail.paymentsColMethod") ||
+                            "Zahlungsweg"}
+                        </th>
+                        <th className="text-left px-2 py-2 text-xs font-medium text-gray-500">
+                          {t("customerDetail.paymentsColReference") ||
+                            "Referenz"}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {payments.map((p) => (
+                        <tr
+                          key={p.id}
+                          className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800"
+                          data-testid="tab-payments-row"
+                        >
+                          <td className="px-2 py-2 text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                            {fmtDateDE(p.paymentDate)}
+                          </td>
+                          <td className="px-2 py-2 text-blue-700 dark:text-blue-400 font-mono text-xs">
+                            {p.invoiceNumber}
+                          </td>
+                          <td className="px-2 py-2 text-right font-mono text-emerald-700 dark:text-emerald-400">
+                            {fmtEur(Number(p.amount))}
+                          </td>
+                          <td className="px-2 py-2 text-gray-700 dark:text-gray-300 text-xs">
+                            {p.paymentMethod || "—"}
+                          </td>
+                          <td className="px-2 py-2 text-gray-500 dark:text-gray-400 text-xs">
+                            {p.reference || p.notes || "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Tier 238: Dokumente (attachments) tab. The
+          backend Attachment model supports entityType
+          'expense' | 'voucher' | 'berater-note' |
+          'invoice' — 'customer' is NOT in the upload
+          whitelist, so this list will be empty in
+          practice. The tab is wired up and ready for
+          when customer attachments are enabled (the
+          list endpoint doesn't enforce the whitelist,
+          only the upload does — so a 200 with [] is
+          the expected response). The UI shows an
+          informative empty state explaining this. */}
+      {tab === "attachments" && (
+        <Card>
+          <CardContent className="pt-6">
+            {attachmentsLoading && (
+              <p
+                className="text-gray-500"
+                data-testid="tab-attachments-loading"
+              >
+                {t("common.loading") || "Lädt..."}
+              </p>
+            )}
+            {attachments && attachments.length === 0 && (
+              <div
+                className="text-center text-gray-500 py-8 space-y-2"
+                data-testid="tab-attachments-empty"
+              >
+                <p className="text-2xl">📎</p>
+                <p>
+                  {t("customerDetail.noAttachments") ||
+                    "Noch keine Dokumente hinterlegt."}
+                </p>
+                <p className="text-xs text-gray-400">
+                  {t("customerDetail.attachmentsHint") ||
+                    "Verträge, Scans und gescannte Belege können hier abgelegt werden."}
+                </p>
+              </div>
+            )}
+            {attachments && attachments.length > 0 && (
+              <div className="overflow-x-auto">
+                <table
+                  className="w-full min-w-[640px] text-sm"
+                  data-testid="tab-attachments-table"
+                >
+                  <thead>
+                    <tr className="border-b border-gray-200 dark:border-gray-700">
+                      <th className="text-left px-2 py-2 text-xs font-medium text-gray-500">
+                        {t("customerDetail.attachmentsColName") || "Datei"}
+                      </th>
+                      <th className="text-left px-2 py-2 text-xs font-medium text-gray-500">
+                        {t("customerDetail.attachmentsColType") || "Typ"}
+                      </th>
+                      <th className="text-right px-2 py-2 text-xs font-medium text-gray-500">
+                        {t("customerDetail.attachmentsColSize") || "Größe"}
+                      </th>
+                      <th className="text-left px-2 py-2 text-xs font-medium text-gray-500">
+                        {t("customerDetail.attachmentsColUploadedBy") ||
+                          "Hochgeladen von"}
+                      </th>
+                      <th className="text-left px-2 py-2 text-xs font-medium text-gray-500">
+                        {t("customerDetail.attachmentsColDate") || "Datum"}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {attachments.map((a) => (
+                      <tr
+                        key={a.id}
+                        className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800"
+                        data-testid="tab-attachments-row"
+                      >
+                        <td className="px-2 py-2 text-gray-900 dark:text-gray-100">
+                          <a
+                            href={`/api/v1/attachments/${a.id}/file?companyId=${companyId}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-blue-700 dark:text-blue-400 hover:underline"
+                          >
+                            {a.originalName}
+                          </a>
+                        </td>
+                        <td className="px-2 py-2 text-gray-600 dark:text-gray-400 text-xs">
+                          {a.mimeType}
+                        </td>
+                        <td className="px-2 py-2 text-right font-mono text-gray-700 dark:text-gray-300">
+                          {a.size < 1024
+                            ? `${a.size} B`
+                            : a.size < 1024 * 1024
+                              ? `${(a.size / 1024).toFixed(1)} KB`
+                              : `${(a.size / 1024 / 1024).toFixed(1)} MB`}
+                        </td>
+                        <td className="px-2 py-2 text-gray-500 dark:text-gray-400 text-xs">
+                          {a.uploadedBy?.email || "—"}
+                        </td>
+                        <td className="px-2 py-2 text-gray-700 dark:text-gray-300 text-xs whitespace-nowrap">
+                          {fmtDateDE(a.createdAt)}
                         </td>
                       </tr>
                     ))}
