@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import { Suspense, useEffect, useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
@@ -21,14 +21,72 @@ interface Invoice {
   issueDate: string
 }
 
-export default function InvoicesPage() {
+function InvoicesPageInner() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { t, locale, getDateLocale } = useI18n()
   const toast = useToast()
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [loading, setLoading] = useState(true)
   const [typeFilter, setTypeFilter] = useState<string>('')
-  const [statusFilter, setStatusFilter] = useState<string>('')
+  // Tier 239: status is now a multi-select array. The
+  // backend (Tier 237) supports ?status=overdue,sent via
+  // Prisma `in:`. Empty array = no status filter.
+  // Hydration safety: searchParams is read inside useEffect
+  // (NOT useState lazy init) because the lazy init runs
+  // during SSR where searchParams is empty, and the URL
+  // value only arrives after the client takes over. Without
+  // this, the dashboard's "Jetzt Mahnung starten" link
+  // would land on the page with the chip un-checked, then
+  // snap to checked on hydration — a visible flicker.
+  const [statusFilters, setStatusFilters] = useState<string[]>([])
+  // Tier 239: synchronise the status filters with the URL
+  // (?status=a,b,c) so the chip state is shareable / can
+  // survive a page reload. Also reads the URL on mount so
+  // the dashboard "Überfällig" tile's deep link works.
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const raw = searchParams.get("status")
+    if (!raw) {
+      if (statusFilters.length > 0) setStatusFilters([])
+      return
+    }
+    const parsed = raw
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s) => ["draft", "sent", "paid", "overdue", "cancelled"].includes(s))
+    // Only setState if the parsed list differs from the
+    // current one (avoids unnecessary re-renders and
+    // breaks the loop where the same URL keeps being
+    // applied on every render).
+    if (parsed.length !== statusFilters.length || parsed.some((s, i) => s !== statusFilters[i])) {
+      setStatusFilters(parsed)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
+
+  // Tier 239: write the active status filter back to the
+  // URL so a chip-click is reflected in the address bar
+  // (shareable + survives a reload). Uses replace() to
+  // avoid filling the history stack with one entry per
+  // chip click. Skips the write when the URL already
+  // matches — prevents a render loop with the read effect
+  // above.
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const current = new URLSearchParams(window.location.search).get("status") || ""
+    const desired = statusFilters.join(",")
+    if (current === desired) return
+    const url = new URL(window.location.href)
+    if (statusFilters.length > 0) {
+      url.searchParams.set("status", desired)
+    } else {
+      url.searchParams.delete("status")
+    }
+    // replaceState doesn't trigger a re-render, so the
+    // read effect above doesn't fire — no loop.
+    window.history.replaceState(null, "", url.toString())
+  }, [statusFilters])
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
   const [dateFrom, setDateFrom] = useState('')
@@ -103,7 +161,10 @@ export default function InvoicesPage() {
       pageSize: String(pageSize),
     })
     if (typeFilter) params.append('type', typeFilter)
-    if (statusFilter) params.append('status', statusFilter)
+    // Tier 239: comma-separated multi-status — the backend
+    // (Tier 237) splits on ',' and uses Prisma `in:`. Empty
+    // array means "no status filter".
+    if (statusFilters.length > 0) params.append('status', statusFilters.join(','))
     if (search.trim()) params.append('search', search.trim())
     if (dateFrom) params.append('dateFrom', dateFrom)
     if (dateTo) params.append('dateTo', dateTo)
@@ -137,7 +198,7 @@ export default function InvoicesPage() {
       })
       .finally(() => setLoading(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [router, typeFilter, statusFilter, page, search, dateFrom, dateTo])
+  }, [router, typeFilter, statusFilters, page, search, dateFrom, dateTo])
 
   // Tier 32: refetch helper used by the bulk-send
   // modal's "Schließen" button to refresh the table
@@ -153,7 +214,9 @@ export default function InvoicesPage() {
       pageSize: String(pageSize),
     })
     if (typeFilter) params.append("type", typeFilter)
-    if (statusFilter) params.append("status", statusFilter)
+    // Tier 239: multi-status — same comma-separated
+    // format as the main useEffect.
+    if (statusFilters.length > 0) params.append("status", statusFilters.join(","))
     if (search.trim()) params.append("search", search.trim())
     if (dateFrom) params.append("dateFrom", dateFrom)
     if (dateTo) params.append("dateTo", dateTo)
@@ -187,13 +250,13 @@ export default function InvoicesPage() {
     return true
   })
 
-  const hasActiveFilter = !!search || !!dateFrom || !!dateTo || !!statusFilter || !!typeFilter
+  const hasActiveFilter = !!search || !!dateFrom || !!dateTo || statusFilters.length > 0 || !!typeFilter
   const clearFilters = () => {
     setSearch('')
     setSearchInput('')
     setDateFrom('')
     setDateTo('')
-    setStatusFilter('')
+    setStatusFilters([])
     setTypeFilter('')
   }
 
@@ -219,6 +282,34 @@ export default function InvoicesPage() {
       cancelled: t("invoice.cancelled"),
     }
     return labels[status] || status
+  }
+
+  // Tier 239: per-status count for the chip badges. Counts
+  // the in-memory list (so the badge reflects the current
+  // page, not the entire backend dataset — the user is
+  // looking at the same page, the chips should match). The
+  // badges serve as a quick "is this filter empty?" hint
+  // rather than a global distribution chart.
+  const statusCounts: Record<string, number> = {
+    draft: 0,
+    sent: 0,
+    paid: 0,
+    overdue: 0,
+    cancelled: 0,
+  }
+  for (const inv of invoices) {
+    if (inv.status in statusCounts) statusCounts[inv.status]++
+  }
+
+  // Tier 239: toggle a status in/out of the active filter
+  // set. Adding an already-selected status removes it; this
+  // matches the operator's mental model of "click again to
+  // uncheck". The empty set means "no status filter" (the
+  // server treats it as a no-op).
+  const toggleStatus = (s: string) => {
+    setStatusFilters((prev) =>
+      prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s],
+    )
   }
 
   const getStatusColor = (status: string) => {
@@ -423,7 +514,10 @@ export default function InvoicesPage() {
           dateFrom: dateFrom || undefined,
           dateTo: dateTo || undefined,
           type: typeFilter || undefined,
-          status: statusFilter || undefined,
+          // Tier 239: comma-separated multi-status, same
+          // shape the URL filter uses. Backend parses on ','
+          // and dispatches to Prisma `in:` for length>1.
+          status: statusFilters.length > 0 ? statusFilters.join(",") : undefined,
           dryRun: true,
         },
       )
@@ -457,7 +551,7 @@ export default function InvoicesPage() {
           dateFrom: dateFrom || undefined,
           dateTo: dateTo || undefined,
           type: typeFilter || undefined,
-          status: statusFilter || undefined,
+          status: statusFilters.length > 0 ? statusFilters.join(",") : undefined,
         },
       )
       setBulkSendProgress(data)
@@ -556,7 +650,7 @@ export default function InvoicesPage() {
     if (dateFrom) params.append('dateFrom', dateFrom)
     if (dateTo) params.append('dateTo', dateTo)
     if (typeFilter) params.append('type', typeFilter)
-    if (statusFilter) params.append('status', statusFilter)
+    if (statusFilters.length > 0) params.append('status', statusFilters.join(','))
     try {
       const { apiFetch, ApiError } = await import("@/lib/api")
       const res = await apiFetch(`/api/v1/invoices/export/csv?${params}`, { throwOnError: false })
@@ -603,7 +697,7 @@ export default function InvoicesPage() {
           dateFrom: dateFrom || undefined,
           dateTo: dateTo || undefined,
           type: typeFilter || undefined,
-          status: statusFilter || undefined,
+          status: statusFilters.length > 0 ? statusFilters.join(",") : undefined,
           format,
         },
         throwOnError: false,
@@ -800,18 +894,81 @@ export default function InvoicesPage() {
             className="px-3 py-2 border border-gray dark:border-gray-700-300 dark:border-gray-600 rounded-md text-sm"
             data-testid="invoice-search-input"
           />
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-3 py-2 border border-gray dark:border-gray-700-300 dark:border-gray-600 rounded-md text-sm"
+          {/* Tier 239: status chip multi-select. 5 togglable
+              chips (draft / sent / paid / overdue / cancelled)
+              that show the per-status count of the current
+              page as a small badge. Click to toggle in/out
+              of the active filter set; the URL ?status= is
+              updated by a side-effect useEffect so deep
+              links from the Dashboard "Überfällig" tile
+              still work. Each chip carries its color both
+              in the inactive border and the active fill —
+              the colors match the row's status badge so
+              the operator can scan the table by color. */}
+          <div
+            className="col-span-1 md:col-span-3 flex flex-wrap items-center gap-1.5"
+            data-testid="status-chip-group"
+            role="group"
+            aria-label="Status-Filter"
           >
-            <option value="">{t("common2.allStatuses") || "Alle Status"}</option>
-            <option value="draft">{t("invoice.draft")}</option>
-            <option value="sent">{t("invoice.sent")}</option>
-            <option value="paid">{t("invoice.paid")}</option>
-            <option value="overdue">{t("invoice.overdue")}</option>
-            <option value="cancelled">{t("invoice.cancelled")}</option>
-          </select>
+            <span className="text-xs text-gray-500 dark:text-gray-400 mr-1">
+              {t("common2.status") || "Status"}:
+            </span>
+            {(["draft", "sent", "paid", "overdue", "cancelled"] as const).map((s) => {
+              const active = statusFilters.includes(s)
+              const baseColor = {
+                draft: "border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300",
+                sent: "border-blue-300 text-blue-700",
+                paid: "border-emerald-300 text-emerald-700",
+                overdue: "border-red-300 text-red-700",
+                cancelled: "border-gray-300 text-gray-500",
+              }[s]
+              const activeColor = {
+                draft: "bg-gray-700 text-white border-gray-700",
+                sent: "bg-blue-600 text-white border-blue-600",
+                paid: "bg-emerald-600 text-white border-emerald-600",
+                overdue: "bg-red-600 text-white border-red-600",
+                cancelled: "bg-gray-500 text-white border-gray-500",
+              }[s]
+              return (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => toggleStatus(s)}
+                  className={
+                    "inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-medium transition-colors " +
+                    (active ? activeColor : baseColor)
+                  }
+                  data-testid={`status-chip-${s}`}
+                  data-active={active ? "true" : "false"}
+                  aria-pressed={active}
+                >
+                  <span>{getStatusLabel(s)}</span>
+                  <span
+                    className={
+                      "text-[10px] px-1 rounded-full min-w-[1.25rem] text-center " +
+                      (active
+                        ? "bg-white/20"
+                        : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300")
+                    }
+                    data-testid={`status-chip-${s}-count`}
+                  >
+                    {statusCounts[s]}
+                  </span>
+                </button>
+              )
+            })}
+            {statusFilters.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setStatusFilters([])}
+                className="text-xs text-gray-500 dark:text-gray-400 hover:text-red-600 underline ml-1"
+                data-testid="status-chip-clear"
+              >
+                {t("common.clear") || "Zurücksetzen"}
+              </button>
+            )}
+          </div>
           <input
             type="date"
             value={dateFrom}
@@ -1429,5 +1586,22 @@ export default function InvoicesPage() {
         </div>
       )}
     </main>
+  )
+}
+// Tier 239: Suspense boundary wrapper for the page.
+// `useSearchParams()` in Next.js 15 must be inside a
+// <Suspense> boundary or the static-export step bails
+// with a build error ("useSearchParams() should be
+// wrapped in a suspense boundary"). The inner component
+// holds all the state/effects; the outer one is just
+// a Suspense shell that lets the page render before
+// searchParams is ready (the empty-state fallback is
+// only visible for the first SSR pass before hydration
+// — once useSearchParams hydrates, the real UI swaps in).
+export default function InvoicesPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-gray-500">Lädt…</div>}>
+      <InvoicesPageInner />
+    </Suspense>
   )
 }
