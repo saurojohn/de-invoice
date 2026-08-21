@@ -278,6 +278,13 @@ export default function CustomerDetailPage() {
   // switch back without re-fetching.
   const [invoices, setInvoices] = useState<InvoiceRow[] | null>(null)
   const [invoicesLoading, setInvoicesLoading] = useState(false)
+  // Tier 243: status filter chip for the invoices tab.
+  // The tab is per-customer (already a narrowed list),
+  // so we apply the filter client-side rather than
+  // re-fetching with a new `?status=` each click. The
+  // chips show per-status counts of the in-memory list.
+  // Empty array = no filter (show all).
+  const [invoiceStatusFilters, setInvoiceStatusFilters] = useState<string[]>([])
   const [plans, setPlans] = useState<InstallmentPlanRow[] | null>(null)
   const [plansLoading, setPlansLoading] = useState(false)
   const [mahnungen, setMahnungen] = useState<MahnungRow[] | null>(null)
@@ -1275,54 +1282,154 @@ export default function CustomerDetailPage() {
                 {t("invoice.noInvoices") || "Keine Rechnungen"}
               </p>
             )}
-            {invoices && invoices.length > 0 && (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[640px] text-sm" data-testid="tab-invoices-table">
-                  <thead className="border-b-2">
-                    <tr className="text-left text-gray-500">
-                      <th className="py-2 font-medium">{t("invoice.number") || "Nr."}</th>
-                      <th className="py-2 font-medium">{t("invoice.date") || "Datum"}</th>
-                      <th className="py-2 font-medium">{t("invoice.dueDate") || "Fällig"}</th>
-                      <th className="py-2 font-medium">{t("customerDetail.type") || "Art"}</th>
-                      <th className="py-2 font-medium text-right">{t("invoice.total") || "Betrag"}</th>
-                      <th className="py-2 font-medium">{t("customerDetail.status") || "Status"}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {invoices.map((inv) => (
-                      <tr
-                        key={inv.id}
-                        className="border-b hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
-                        onClick={() => router.push(`/dashboard/invoices/${inv.id}`)}
-                        data-testid="tab-invoices-row"
-                      >
-                        <td className="py-2 font-mono">{inv.invoiceNumber}</td>
-                        <td className="py-2">{fmtDateDE(inv.issueDate)}</td>
-                        <td className="py-2">{fmtDateDE(inv.dueDate)}</td>
-                        <td className="py-2 text-gray-600">{getTypeLabel(inv.type, t)}</td>
-                        <td className="py-2 text-right font-mono">{fmtEur(inv.total)}</td>
-                        <td className="py-2">
+            {invoices && invoices.length > 0 && (() => {
+              // Tier 243: client-side status filter. The
+              // list is already narrowed to this customer
+              // (typically 1-200 rows), so we apply the
+              // chip filter in memory rather than re-
+              // fetching. Per-status counts come from the
+              // SAME list (counted once per render).
+              const counts: Record<string, number> = {
+                draft: 0, sent: 0, paid: 0, overdue: 0, cancelled: 0,
+              }
+              for (const inv of invoices) {
+                if (inv.status in counts) counts[inv.status]++
+              }
+              const visible = invoiceStatusFilters.length === 0
+                ? invoices
+                : invoices.filter((inv) => invoiceStatusFilters.includes(inv.status))
+              return (
+                <>
+                  {/* Chip group — same UX as Tier 239
+                      invoice list, but client-side and
+                      scoped to this customer. */}
+                  <div
+                    className="flex flex-wrap items-center gap-1.5 mb-3"
+                    data-testid="customer-invoices-chip-group"
+                    role="group"
+                    aria-label={t("customerDetail.invoicesFilter") || "Status-Filter"}
+                  >
+                    <span className="text-xs text-gray-500 dark:text-gray-400 mr-1">
+                      {t("common2.status") || "Status"}:
+                    </span>
+                    {(["draft", "sent", "paid", "overdue", "cancelled"] as const).map((s) => {
+                      const active = invoiceStatusFilters.includes(s)
+                      const baseColor = {
+                        draft: "border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300",
+                        sent: "border-blue-300 text-blue-700",
+                        paid: "border-emerald-300 text-emerald-700",
+                        overdue: "border-red-300 text-red-700",
+                        cancelled: "border-gray-300 text-gray-500",
+                      }[s]
+                      const activeColor = {
+                        draft: "bg-gray-700 text-white border-gray-700",
+                        sent: "bg-blue-600 text-white border-blue-600",
+                        paid: "bg-emerald-600 text-white border-emerald-600",
+                        overdue: "bg-red-600 text-white border-red-600",
+                        cancelled: "bg-gray-500 text-white border-gray-500",
+                      }[s]
+                      return (
+                        <button
+                          key={s}
+                          type="button"
+                          onClick={() =>
+                            setInvoiceStatusFilters((prev) =>
+                              prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]
+                            )
+                          }
+                          className={
+                            "inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-medium transition-colors " +
+                            (active ? activeColor : baseColor)
+                          }
+                          data-testid={`customer-invoices-chip-${s}`}
+                          data-active={active ? "true" : "false"}
+                          aria-pressed={active}
+                        >
+                          <span>{getStatusLabel(s, t)}</span>
                           <span
                             className={
-                              "text-[10px] px-2 py-0.5 rounded font-medium " +
-                              (inv.status === "paid"
-                                ? "bg-emerald-100 text-emerald-800"
-                                : inv.status === "overdue"
-                                  ? "bg-red-100 text-red-800"
-                                  : inv.status === "sent"
-                                    ? "bg-blue-100 text-blue-800"
-                                    : "bg-gray-100 text-gray-700")
+                              "text-[10px] px-1 rounded-full min-w-[1.25rem] text-center " +
+                              (active
+                                ? "bg-white/20"
+                                : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300")
                             }
+                            data-testid={`customer-invoices-chip-${s}-count`}
                           >
-                            {getStatusLabel(inv.status, t)}
+                            {counts[s]}
                           </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+                        </button>
+                      )
+                    })}
+                    {invoiceStatusFilters.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setInvoiceStatusFilters([])}
+                        className="text-xs text-gray-500 dark:text-gray-400 hover:text-red-600 underline ml-1"
+                        data-testid="customer-invoices-chip-clear"
+                      >
+                        {t("common.clear") || "Zurücksetzen"}
+                      </button>
+                    )}
+                  </div>
+                  {visible.length === 0 ? (
+                    <p
+                      className="text-center text-gray-500 py-8"
+                      data-testid="tab-invoices-filtered-empty"
+                    >
+                      {t("customerDetail.noInvoicesForFilter") ||
+                        "Keine Rechnungen passen zum Filter."}
+                    </p>
+                  ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[640px] text-sm" data-testid="tab-invoices-table">
+                      <thead className="border-b-2">
+                        <tr className="text-left text-gray-500">
+                          <th className="py-2 font-medium">{t("invoice.number") || "Nr."}</th>
+                          <th className="py-2 font-medium">{t("invoice.date") || "Datum"}</th>
+                          <th className="py-2 font-medium">{t("invoice.dueDate") || "Fällig"}</th>
+                          <th className="py-2 font-medium">{t("customerDetail.type") || "Art"}</th>
+                          <th className="py-2 font-medium text-right">{t("invoice.total") || "Betrag"}</th>
+                          <th className="py-2 font-medium">{t("customerDetail.status") || "Status"}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {visible.map((inv) => (
+                          <tr
+                            key={inv.id}
+                            className="border-b hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
+                            onClick={() => router.push(`/dashboard/invoices/${inv.id}`)}
+                            data-testid="tab-invoices-row"
+                          >
+                            <td className="py-2 font-mono">{inv.invoiceNumber}</td>
+                            <td className="py-2">{fmtDateDE(inv.issueDate)}</td>
+                            <td className="py-2">{fmtDateDE(inv.dueDate)}</td>
+                            <td className="py-2 text-gray-600">{getTypeLabel(inv.type, t)}</td>
+                            <td className="py-2 text-right font-mono">{fmtEur(inv.total)}</td>
+                            <td className="py-2">
+                              <span
+                                className={
+                                  "text-[10px] px-2 py-0.5 rounded font-medium " +
+                                  (inv.status === "paid"
+                                    ? "bg-emerald-100 text-emerald-800"
+                                    : inv.status === "overdue"
+                                      ? "bg-red-100 text-red-800"
+                                      : inv.status === "sent"
+                                        ? "bg-blue-100 text-blue-800"
+                                        : "bg-gray-100 text-gray-700")
+                                }
+                              >
+                                {getStatusLabel(inv.status, t)}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  )}
+                </>
+              )
+            })()}
           </CardContent>
         </Card>
       )}
