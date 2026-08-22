@@ -31,6 +31,7 @@ import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { API_BASE } from "@/lib/api"
 import { apiGet } from "@/lib/api"
 
 interface CertInfo {
@@ -113,7 +114,8 @@ export default function PdfSignaturePanel({ invoiceId }: PdfSignaturePanelProps)
     cert: boolean
     verify: boolean
     signedPdf: boolean
-  }>({ cert: false, verify: false, signedPdf: false })
+    berater: boolean
+  }>({ cert: false, verify: false, signedPdf: false, berater: false })
   const companyId =
     typeof window !== "undefined" ? localStorage.getItem("companyId") : null
   const userId =
@@ -220,6 +222,76 @@ export default function PdfSignaturePanel({ invoiceId }: PdfSignaturePanelProps)
     }
   }
 
+  // Tier 246: Berater personal stamp on the PDF.
+  // Downloads the company-signed PDF, POSTs it back
+  // to /signing/user-sign with the current user's
+  // cert, then saves the resulting 2-signature
+  // chain as "INV-XXXX_signed_berater.pdf". The
+  // user cert is auto-generated on first call
+  // (mirrors the company cert's getOrCreate pattern).
+  const stampBerater = async () => {
+    setLoading((l) => ({ ...l, berater: true }))
+    try {
+      // 1. Get the user's id from localStorage.
+      const userId = localStorage.getItem("userId")
+      if (!userId) {
+        toast.error(t("signing.beraterNoUser") || "Benutzer-ID nicht gefunden")
+        return
+      }
+      // 2. Download the (already company-signed) PDF.
+      const companyId = localStorage.getItem("companyId") || ""
+      const dl = await fetch(
+        `${API_BASE}/api/v1/invoices/${invoiceId}/pdf?companyId=${companyId}&sign=true`,
+        {
+          headers: {
+            "x-user-id": localStorage.getItem("userId") || "",
+            "x-company-id": companyId,
+          },
+        },
+      )
+      if (!dl.ok) {
+        toast.error(`PDF-Download fehlgeschlagen: ${dl.status}`)
+        return
+      }
+      const pdfBuf = await dl.arrayBuffer()
+      const pdfB64 = btoa(
+        String.fromCharCode(...new Uint8Array(pdfBuf)),
+      )
+      // 3. POST to /signing/user-sign.
+      const apiRes = await fetch(`${API_BASE}/api/v1/signing/user-sign`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-id": localStorage.getItem("userId") || "",
+          "x-company-id": companyId,
+        },
+        body: JSON.stringify({ userId, pdf: pdfB64 }),
+      })
+      if (!apiRes.ok) {
+        const err = await apiRes.text()
+        toast.error(`Berater-Signatur fehlgeschlagen: ${err}`)
+        return
+      }
+      const data = await apiRes.json()
+      // 4. Save the 2-signature chain as a separate file.
+      const bytes = Uint8Array.from(atob(data.signedPdf), (c) => c.charCodeAt(0))
+      const blob = new Blob([bytes], { type: "application/pdf" })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `INV-${invoiceId.slice(0, 8)}_signed_berater.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
+      toast.success(
+        t("signing.beraterStamped") || "Berater-Signatur angewendet (2-Signaturen-PDF heruntergeladen)",
+      )
+    } catch (e: any) {
+      toast.error(`Berater-Signatur: ${e?.message || "unbekannter Fehler"}`)
+    } finally {
+      setLoading((l) => ({ ...l, berater: false }))
+    }
+  }
+
   return (
     <Card data-testid="pdf-signature-panel">
       <CardHeader>
@@ -258,6 +330,21 @@ export default function PdfSignaturePanel({ invoiceId }: PdfSignaturePanelProps)
               data-testid="pdf-signature-verify"
             >
               {loading.verify ? "..." : t("signing.verify") || "Signatur prüfen"}
+            </Button>
+            {/* Tier 246: Berater personal stamp. Adds a
+                second signature in the chain (user cert
+                on top of the company cert). Adobe Reader
+                shows both signatures in the panel. */}
+            <Button
+              onClick={stampBerater}
+              disabled={loading.berater}
+              variant="default"
+              size="sm"
+              data-testid="pdf-signature-berater-stamp"
+            >
+              {loading.berater
+                ? "..."
+                : t("signing.beraterStamp") || "Berater-Signatur anwenden"}
             </Button>
           </div>
           {cert && (

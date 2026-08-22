@@ -212,6 +212,10 @@ model User {
   twoFactorConfirmedAt   DateTime?
   recoveryCodes          Json?
 
+  // Tier 246: per-User signing key (Berater
+  // personal cert). One row per user.
+  userSigningKey UserSigningKey? @relation("UserSigningKeyOwner")
+
    createdInvoices  Invoice[] @relation("CreatedBy")
    createdVouchers  Voucher[] @relation("CreatedBy")
    auditLogs        AuditLog[]
@@ -3239,4 +3243,32 @@ model CompanySigningKey {
   /// log also gets a `signing.regenerate`
   /// activity row (Tier 207).
   rotatedAt   DateTime @default(now())
+}
+
+/// Tier 246: per-User signing key (Berater
+/// personal cert). One row per user, unique
+/// on userId. Same shape as CompanySigningKey
+/// but the CN is the User's display name
+/// (e.g. "M. Sauter") so the PDF reader shows
+/// the natural person, not the company. The
+/// signing chain in the PDF includes BOTH
+/// the company cert AND the user cert when
+/// the user signs — Adobe Reader renders the
+/// full chain and the user cert is the leaf.
+///
+/// Cascades on User delete (same defense as
+/// CompanySigningKey → Company). DB-leak risk
+/// is contained to the single user row.
+model UserSigningKey {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  user        User     @relation("UserSigningKeyOwner", fields: [userId], references: [id], onDelete: Cascade)
+  certPem     String
+  keyPem      String
+  fingerprint String
+  commonName  String
+  createdAt   DateTime @default(now())
+  rotatedAt   DateTime @default(now())
+
+  @@index([userId])
 }

@@ -141,4 +141,60 @@ export class SigningController {
     const pdf = Buffer.from(body.pdf, 'base64')
     return this.signing.verifyPdf(pdf)
   }
+
+  // ─── Tier 246: per-User signing (Berater personal cert) ───
+  //
+  // The company cert (above) auto-signs every PDF.
+  // The user cert is the opt-in Berater stamp that
+  // adds a second signature in the chain (Adobe
+  // Reader renders both). All endpoints require the
+  // same `company.update` permission — the Berater
+  // signs their own PDFs; the admin can also force
+  // a rotation via `user-regenerate`.
+
+  @Get('user-cert-info')
+  @Require('company.update')
+  async userCertInfo(@Query('userId') userId: string) {
+    if (!userId) throw new BadRequestException('userId ist erforderlich')
+    return this.signing.getUserCertInfo(userId)
+  }
+
+  @Post('user-regenerate')
+  @Require('company.update')
+  async userRegenerate(
+    @Req() req: Request,
+    @Query('userId') userId: string,
+  ) {
+    if (!userId) throw new BadRequestException('userId ist erforderlich')
+    const actorId = (req as any).user?.id || null
+    await this.audit.writeActivity({
+      companyId: (req as any).user?.companyId || null,
+      userId: actorId,
+      action: 'signing.user_regenerate',
+      entityType: 'UserSigningKey',
+      entityId: userId,
+      metadata: { targetUserId: userId },
+    })
+    return this.signing.regenerateUser(userId)
+  }
+
+  @Post('user-sign')
+  @Require('company.update')
+  async userSign(@Body() body: { userId?: string; pdf?: string }) {
+    if (!body?.userId) {
+      throw new BadRequestException('userId ist erforderlich')
+    }
+    if (!body?.pdf) {
+      throw new BadRequestException('pdf (base64) ist erforderlich')
+    }
+    const pdf = Buffer.from(body.pdf, 'base64')
+    const signed = await this.signing.signPdfAsUser(body.userId, pdf)
+    const cert = await this.signing.getUserCertInfo(body.userId)
+    return {
+      signedPdf: signed.toString('base64'),
+      fingerprint: cert.fingerprint,
+      commonName: cert.commonName,
+      validUntil: cert.validUntil,
+    }
+  }
 }

@@ -630,6 +630,166 @@ export class SigningService {
       generatedAt: signing.generatedAt || null,
     }
   }
+
+  // ============================================================
+  // Tier 246: per-User signing key (Berater personal cert)
+  // ============================================================
+  //
+  // The company cert (above) auto-signs every PDF the
+  // company produces. The User cert is the OPT-IN
+  // "Berater-Stempel" on top: when the user clicks
+  // "Berater-Signatur anwenden" on the invoice detail
+  // page, the backend signs the already-signed PDF
+  // with the user's personal cert, producing a
+  // chain of 2 signatures (Adobe Reader renders
+  // both in the signature panel).
+  //
+  // Why a separate cert (not reuse the company cert)?
+  //   - GoBD § 146 AO requires the cert to identify
+  //     the natural person who signed (or authorised
+  //     the sign). The user cert's CN is the user's
+  //     display name, so the PDF carries the
+  //     "M. Sauter" stamp, not just "SH Leder GmbH".
+  //   - Multiple users in the same company (e.g. an
+  //     admin + a Berater) can each have their own
+  //     personal cert, without regenerating the
+  //     company cert.
+  //   - Real QES upgrade: the user cert would be
+  //     swapped to a Trust Service Provider cert
+  //     (DATEV/Authada) with the same `getOrCreateUser`
+  //     interface. The company cert stays self-
+  //     signed; only the user cert gets the upgrade.
+
+  /**
+   * Get the per-user cert (create on first read).
+   * Mirrors the company-level `getOrCreate` pattern
+   * — the cert is auto-generated on first call so
+   * the user doesn't have to click "generate cert"
+   * before signing. The CN is the user's display
+   * name so the PDF reader shows "M. Sauter" as
+   * the signer, not the company name.
+   */
+  async getOrCreateUser(userId: string): Promise<{
+    cert: string
+    key: string
+    fingerprint: string
+    commonName: string
+    validUntil: string
+    generatedAt: string
+  }> {
+    const existing = await this.prisma.userSigningKey.findUnique({
+      where: { userId },
+    })
+    if (existing?.certPem && existing?.keyPem && existing?.fingerprint) {
+      return {
+        cert: existing.certPem,
+        key: existing.keyPem,
+        fingerprint: existing.fingerprint,
+        commonName: existing.commonName,
+        generatedAt: existing.rotatedAt.toISOString(),
+        validUntil: this.readNotAfterFromCertPem(existing.certPem),
+      }
+    }
+    return this.regenerateUser(userId)
+  }
+
+  /**
+   * Force a fresh user cert. Used when the
+   * user wants to rotate (cert expired or
+   * compromised) or before uploading a QES
+   * cert from a Trust Service Provider.
+   */
+  async regenerateUser(userId: string): Promise<{
+    cert: string
+    key: string
+    fingerprint: string
+    commonName: string
+    validUntil: string
+    generatedAt: string
+  }> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true, profile: true },
+    })
+    if (!user) {
+      throw new BadRequestException('Benutzer nicht gefunden')
+    }
+    // The CN is the user's display name. Fall
+    // back to email local-part if the profile
+    // has no name (newly created users haven't
+    // set their profile yet).
+    const profile = (user.profile as any) || {}
+    const displayName = profile.name || profile.displayName || user.email.split('@')[0]
+    const { cert, key, fingerprint, commonName, validUntil } =
+      this.generateSelfSignedCert(displayName)
+    const generatedAt = new Date().toISOString()
+    await this.prisma.userSigningKey.upsert({
+      where: { userId },
+      create: {
+        userId,
+        certPem: cert,
+        keyPem: key,
+        fingerprint,
+        commonName,
+        rotatedAt: new Date(generatedAt),
+      },
+      update: {
+        certPem: cert,
+        keyPem: key,
+        fingerprint,
+        commonName,
+        rotatedAt: new Date(generatedAt),
+      },
+    })
+    return { cert, key, fingerprint, commonName, validUntil, generatedAt }
+  }
+
+  /**
+   * Sign a PDF with the user's cert. The PDF is
+   * expected to ALREADY be signed with the company
+   * cert (the typical flow) — this method adds a
+   * second PKCS#7 signature in the chain. Adobe
+   * Reader renders both signatures; the user cert
+   * is the "leaf" of the chain.
+   */
+  async signPdfAsUser(userId: string, pdfBuffer: Buffer): Promise<Buffer> {
+    const signing = await this.getOrCreateUser(userId)
+    if (!signing.cert || !signing.key) {
+      throw new BadRequestException('Signierzert nicht verfügbar')
+    }
+    const placeholderBuffer = plainAddPlaceholder({
+      pdfBuffer,
+      reason: 'Berater-Signatur',
+      contactInfo: signing.commonName,
+      name: signing.commonName,
+      location: 'Stuttgart',
+      signatureLength: 4096,
+      widgetRect: [0, 0, 0, 0],
+    })
+    const forgeSigner = new ForgeSigner(signing.cert, signing.key)
+    const signed = await signpdf.sign(placeholderBuffer, forgeSigner)
+    return signed
+  }
+
+  /**
+   * User-cert info for the UI. Same shape as
+   * `getCertInfo` (company) so the frontend can
+   * share the cert-card component between the two.
+   */
+  async getUserCertInfo(userId: string): Promise<{
+    commonName: string | null
+    fingerprint: string | null
+    validUntil: string | null
+    generatedAt: string | null
+  }> {
+    const signing = await this.getOrCreateUser(userId)
+    return {
+      commonName: signing.commonName || null,
+      fingerprint: signing.fingerprint || null,
+      validUntil: signing.validUntil || null,
+      generatedAt: signing.generatedAt || null,
+    }
+  }
 }
 
 /**
