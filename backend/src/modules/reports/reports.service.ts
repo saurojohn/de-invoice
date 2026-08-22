@@ -308,8 +308,15 @@ export class ReportsService {
 
     for (const inv of invoices) {
       const existing = customerMap.get(inv.customerId);
+      // Tier 245: Decimal累加 — paid amount summed as Decimal
+      // to preserve 4-decimal precision on payment amounts.
+      // totalAmount stays as a one-shot Number() cast (no累加
+      // in this loop, just the per-invoice total read).
       const totalAmount = Number(inv.total);
-      const paidAmount = inv.payments.reduce((sum, p) => sum + Number(p.amount), 0);
+      const paidAmount = inv.payments.reduce(
+        (sum, p) => sum.plus(new Prisma.Decimal(p.amount ?? 0)),
+        new Prisma.Decimal(0),
+      ).toNumber();
 
       if (existing) {
         existing.totalInvoices += 1;

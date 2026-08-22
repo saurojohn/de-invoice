@@ -419,15 +419,20 @@ export class BwaService {
     // booked for the year, we fall back to the
     // in-memory computed value (annualAfA/12
     // per month) — same v1 proration logic.
+    // Tier 245: Decimal累加 — s.plus(Math.abs(...)) preserves
+    // 4-decimal precision on AfA amounts.
     const totalBookedAfA = bookedAfaRows.reduce(
-      (s, e) => s + Math.abs(Number(e.grossAmount)),
-      0,
-    )
+      (s, e) => s.plus(new Prisma.Decimal(e.grossAmount ?? 0).abs()),
+      new Prisma.Decimal(0),
+    ).toNumber()
     const useBookedAfA = totalBookedAfA !== 0
     const monthAfA = useBookedAfA
       ? bookedAfaRows
           .filter((e) => e.invoiceDate >= monthStart && e.invoiceDate <= monthEnd)
-          .reduce((s, e) => s + Math.abs(Number(e.grossAmount)), 0)
+          .reduce(
+            (s, e) => s.plus(new Prisma.Decimal(e.grossAmount ?? 0).abs()),
+            new Prisma.Decimal(0),
+          ).toNumber()
       : assetList.reduce(
           (s, a) => s + (this.assets.computeAfA(a, monthEnd).annualAfA / 12),
           0,
@@ -435,7 +440,10 @@ export class BwaService {
     const ytdAfA = useBookedAfA
       ? bookedAfaRows
           .filter((e) => e.invoiceDate >= yearStart && e.invoiceDate <= monthEnd)
-          .reduce((s, e) => s + Math.abs(Number(e.grossAmount)), 0)
+          .reduce(
+            (s, e) => s.plus(new Prisma.Decimal(e.grossAmount ?? 0).abs()),
+            new Prisma.Decimal(0),
+          ).toNumber()
       : assetList.reduce(
           (s, a) => s + (this.assets.computeAfA(a, monthEnd).annualAfA * (month / 12)),
           0,
@@ -512,7 +520,11 @@ export class BwaService {
 
     const vorjahresYtdAfA = vorjahresBookedAfa
       .filter((e) => e.invoiceDate >= vorjahresYtdStart && e.invoiceDate <= vorjahresYtdEnd)
-      .reduce((s, e) => s + Math.abs(Number(e.grossAmount)), 0)
+      // Tier 245: Decimal累加 (siehe oben)
+      .reduce(
+        (s, e) => s.plus(new Prisma.Decimal(e.grossAmount ?? 0).abs()),
+        new Prisma.Decimal(0),
+      ).toNumber()
 
     // Sonstige betriebliche Erträge (1300) —
     // positive customer credits in the year.

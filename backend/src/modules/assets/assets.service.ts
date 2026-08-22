@@ -4,6 +4,7 @@ import {
   NotFoundException,
   Logger,
 } from '@nestjs/common'
+import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
 
 /**
@@ -726,8 +727,14 @@ export class AssetsService {
     }
 
     const ids = existing.map((e) => e.id)
+    // Tier 245: Decimal累加 — `s.plus(d.abs())` instead of
+    // `s + Math.abs(Number(decimal))` to avoid float64 precision
+    // loss on 4+ decimal-place amounts.
     const stornoedTotal = round2(
-      existing.reduce((s, e) => s + Math.abs(Number(e.grossAmount)), 0),
+      existing.reduce(
+        (s, e) => s.plus(new Prisma.Decimal(e.grossAmount ?? 0).abs()),
+        new Prisma.Decimal(0),
+      ).toNumber(),
     )
     // Detect which mode the user had booked
     // for the audit log.

@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, Res, Header, BadRequestException, HttpCode, Req, NotFoundException } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { Response } from 'express';
+import { Prisma } from '@prisma/client';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const archiverLib: any = require('archiver');
 const archiver = (format: string, opts?: any) => archiverLib.create(format, opts);
@@ -493,10 +494,12 @@ export class InvoiceController {
         'Aktualisiert am',
       ]
       const lines = rows.map((inv: any) => {
+        // Tier 245: Decimal累加 — preserve 4-decimal
+        // precision on payment amount sums (CSV export).
         const paid = (inv.payments || []).reduce(
-          (s: number, p: any) => s + Number(p.amount || 0),
-          0,
-        )
+          (s: any, p: any) => s.plus(new Prisma.Decimal(p.amount ?? 0)),
+          new Prisma.Decimal(0),
+        ).toNumber()
         const total = Number(inv.total || 0)
         return [
           inv.invoiceNumber,

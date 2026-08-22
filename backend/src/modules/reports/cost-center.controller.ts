@@ -39,6 +39,7 @@ import {
 } from '@nestjs/common';
 
 import { Auth, Require } from '../../auth/roles.decorator';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 
 @Auth()
@@ -201,7 +202,11 @@ export class CostCenterController {
       const m = d.getMonth()
       if (m < 0 || m > 11) continue
       const row = getRow(labelFor(inv.costCenter))
-      row.monthly[m] += Number(inv.total)
+      // Tier 245: Decimal累加 — preserve 4-decimal precision
+      // on per-month cost-center totals.
+      row.monthly[m] = new Prisma.Decimal(row.monthly[m])
+        .plus(new Prisma.Decimal(inv.total ?? 0))
+        .toNumber()
     }
     for (const exp of expMonth) {
       const d = exp.invoiceDate
@@ -209,7 +214,10 @@ export class CostCenterController {
       const m = d.getMonth()
       if (m < 0 || m > 11) continue
       const row = getRow(labelFor(exp.costCenter))
-      row.monthly[m] -= Number(exp.grossAmount)
+      // Tier 245: Decimal累加 (subtraction)
+      row.monthly[m] = new Prisma.Decimal(row.monthly[m])
+        .minus(new Prisma.Decimal(exp.grossAmount ?? 0))
+        .toNumber()
     }
 
     // Compute net + sort. Net = revenue − expense. We
@@ -368,14 +376,24 @@ export class CostCenterController {
     }
     for (const inv of invRows) {
       const r = getRow(labelFor(inv.costCenter))
-      r.revenue += Number(inv.total)
-      r.ust += Number(inv.totalVat)
+      // Tier 245: Decimal累加 (revenue / ust sums)
+      r.revenue = new Prisma.Decimal(r.revenue)
+        .plus(new Prisma.Decimal(inv.total ?? 0))
+        .toNumber()
+      r.ust = new Prisma.Decimal(r.ust)
+        .plus(new Prisma.Decimal(inv.totalVat ?? 0))
+        .toNumber()
       r.invoiceCount += 1
     }
     for (const exp of expRows) {
       const r = getRow(labelFor(exp.costCenter))
-      r.expense += Number(exp.grossAmount)
-      r.vorsteuer += Number(exp.vatAmount)
+      // Tier 245: Decimal累加 (expense / vorsteuer sums)
+      r.expense = new Prisma.Decimal(r.expense)
+        .plus(new Prisma.Decimal(exp.grossAmount ?? 0))
+        .toNumber()
+      r.vorsteuer = new Prisma.Decimal(r.vorsteuer)
+        .plus(new Prisma.Decimal(exp.vatAmount ?? 0))
+        .toNumber()
       r.expenseCount += 1
     }
 
@@ -967,13 +985,18 @@ export class CostCenterController {
       const d = inv.issueDate
       const m = d.getMonth()
       const r = getRow(labelFor(inv.costCenter), inv.costCenter)
-      r.actual[m] += Number(inv.total)
+      // Tier 245: Decimal累加 (per-month actual)
+      r.actual[m] = new Prisma.Decimal(r.actual[m])
+        .plus(new Prisma.Decimal(inv.total ?? 0))
+        .toNumber()
     }
     for (const exp of expMonth) {
       const d = exp.invoiceDate
       const m = d.getMonth()
       const r = getRow(labelFor(exp.costCenter), exp.costCenter)
-      r.actual[m] -= Number(exp.grossAmount)
+      r.actual[m] = new Prisma.Decimal(r.actual[m])
+        .minus(new Prisma.Decimal(exp.grossAmount ?? 0))
+        .toNumber()
     }
 
     // Build the response rows with delta + pct.
