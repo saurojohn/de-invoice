@@ -42,14 +42,14 @@ login
 # company cert — /user-sign adds a second signature.
 INVOICE_ID="04a16886-2811-4390-87c6-16f2ebe1cf72"
 COMPANY_SIGNED_PDF=$(curl -sS \
-  "http://localhost:3001/api/v1/invoices/$INVOICE_ID/pdf?companyId=$COMPANY_ID&sign=true" \
+  "$API/api/v1/invoices/$INVOICE_ID/pdf?companyId=$COMPANY_ID&sign=true" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" | base64 -w 0)
 COMPANY_SIGNED_PDF_LEN=$(echo -n "$COMPANY_SIGNED_PDF" | wc -c)
 [ -n "$COMPANY_SIGNED_PDF" ] && pass "downloaded company-signed PDF (b64 len = $COMPANY_SIGNED_PDF_LEN)" || fail "no PDF returned"
 
 # ---- 1. GET /user-cert-info auto-creates cert on first call ----
 curl -sS -o /tmp/tier246-certinfo.json -w "%{http_code}" \
-  "http://localhost:3001/api/v1/signing/user-cert-info?userId=$USER_ID" \
+  "$API/api/v1/signing/user-cert-info?userId=$USER_ID" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" > /tmp/tier246-certinfo.code
 HTTP=$(cat /tmp/tier246-certinfo.code)
 [ "$HTTP" = "200" ] && pass "GET /user-cert-info → 200" || fail "expected 200, got $HTTP"
@@ -62,7 +62,7 @@ VALID_UNTIL=$(json_field "$(cat /tmp/tier246-certinfo.json)" validUntil)
 
 # ---- 2. GET again — same fingerprint (cached, not rotated) ----
 curl -sS -o /tmp/tier246-certinfo2.json \
-  "http://localhost:3001/api/v1/signing/user-cert-info?userId=$USER_ID" \
+  "$API/api/v1/signing/user-cert-info?userId=$USER_ID" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID"
 FINGERPRINT_2=$(json_field "$(cat /tmp/tier246-certinfo2.json)" fingerprint)
 [ "$FINGERPRINT_1" = "$FINGERPRINT_2" ] && pass "second GET returns same fingerprint (cached, not rotated)" || \
@@ -70,13 +70,13 @@ FINGERPRINT_2=$(json_field "$(cat /tmp/tier246-certinfo2.json)" fingerprint)
 
 # ---- 3. GET /user-cert-info?userId=undefined → 400 ----
 HTTP=$(curl -sS -o /dev/null -w "%{http_code}" \
-  "http://localhost:3001/api/v1/signing/user-cert-info" \
+  "$API/api/v1/signing/user-cert-info" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID")
 [ "$HTTP" = "400" ] && pass "GET /user-cert-info without userId → 400" || fail "expected 400, got $HTTP"
 
 # ---- 4. POST /user-regenerate rotates the cert ----
 curl -sS -o /tmp/tier246-regen.json -w "%{http_code}" -X POST \
-  "http://localhost:3001/api/v1/signing/user-regenerate?userId=$USER_ID" \
+  "$API/api/v1/signing/user-regenerate?userId=$USER_ID" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" > /tmp/tier246-regen.code
 HTTP=$(cat /tmp/tier246-regen.code)
 [ "$HTTP" = "201" ] && pass "POST /user-regenerate → 201 (NestJS POST convention)" || fail "expected 201, got $HTTP"
@@ -92,7 +92,7 @@ ACTIVITY_COUNT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoic
 
 # ---- 6. POST /user-sign adds the user cert to a PDF ----
 curl -sS -o /tmp/tier246-usersign.json -w "%{http_code}" -X POST \
-  "http://localhost:3001/api/v1/signing/user-sign" \
+  "$API/api/v1/signing/user-sign" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
   -H "Content-Type: application/json" \
   -d "{\"userId\":\"$USER_ID\",\"pdf\":\"$COMPANY_SIGNED_PDF\"}" > /tmp/tier246-usersign.code
@@ -110,7 +110,7 @@ SIGNED_FP=$(json_field "$(cat /tmp/tier246-usersign.json)" fingerprint)
 
 # ---- 7. POST /user-sign without userId → 400 ----
 HTTP=$(curl -sS -o /dev/null -w "%{http_code}" -X POST \
-  "http://localhost:3001/api/v1/signing/user-sign" \
+  "$API/api/v1/signing/user-sign" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
   -H "Content-Type: application/json" \
   -d "{\"pdf\":\"$COMPANY_SIGNED_PDF\"}")
@@ -118,7 +118,7 @@ HTTP=$(curl -sS -o /dev/null -w "%{http_code}" -X POST \
 
 # ---- 8. POST /user-sign without pdf → 400 ----
 HTTP=$(curl -sS -o /dev/null -w "%{http_code}" -X POST \
-  "http://localhost:3001/api/v1/signing/user-sign" \
+  "$API/api/v1/signing/user-sign" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
   -H "Content-Type: application/json" \
   -d "{\"userId\":\"$USER_ID\"}")
@@ -133,7 +133,7 @@ HTTP=$(curl -sS -o /dev/null -w "%{http_code}" -X POST \
 # the HeaderAuthGuard's own e2e. For Tier 246 we just
 # verify that an unknown userId returns 400.)
 HTTP=$(curl -sS -o /dev/null -w "%{http_code}" \
-  "http://localhost:3001/api/v1/signing/user-cert-info?userId=00000000-0000-0000-0000-000000000000" \
+  "$API/api/v1/signing/user-cert-info?userId=00000000-0000-0000-0000-000000000000" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID")
 [ "$HTTP" = "400" ] || [ "$HTTP" = "404" ] && pass "GET with non-existent userId → $HTTP (graceful)" || \
   fail "expected 400 or 404, got $HTTP"

@@ -6,3 +6,5 @@
 .env.prod.generated
 .env.local
 .env.*.local
+.env.dryrun
+.env.staging
