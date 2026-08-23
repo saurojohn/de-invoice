@@ -62,6 +62,14 @@ export default defineConfig({
     // the happy path meaningfully.
     actionTimeout: 15_000,
     navigationTimeout: 30_000,
+    // Tier 249: pre-populated localStorage with
+    // the cookie-consent entry so the cookie
+    // banner overlay doesn't render and intercept
+    // pointer events. Without this, ~30% of clicks
+    // time out with "intercepts pointer events"
+    // on the cookie banner. The file is written
+    // by global-setup.
+    storageState: "./playwright-storage.json",
     // Don't load images by default — the
     // dashboard uses inline SVGs.
     // setOffline to true would skip

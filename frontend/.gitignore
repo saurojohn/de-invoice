@@ -12,6 +12,13 @@
 
 # testing
 /coverage
+# Playwright generated artifacts (Tier 249)
+/playwright-storage.json
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.last-run.json
+/playwright/.cache
 
 # next.js
 /.next/
