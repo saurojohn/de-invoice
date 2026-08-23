@@ -22,6 +22,10 @@ interface CreateVoucherDto {
   // unfinished in-progress vouchers.
   status?: 'draft' | 'posted';
   createdById?: string;
+  // Tier 253: optional caller-supplied
+  // voucherNumber. Honored by create() when
+  // present; otherwise auto-generated.
+  voucherNumber?: string;
   lines: {
     accountId: string;
     description?: string;
@@ -56,8 +60,13 @@ export class VoucherService {
       throw new BadRequestException('Soll und Haben müssen ausgeglichen sein');
     }
 
-    // Generate voucher number
-    const voucherNumber = await this.generateVoucherNumber(dto.companyId, dto.date);
+    // Tier 253: if the caller supplied a
+    // voucherNumber (e.g. the e2e tests need
+    // a known prefix for cleanup), honor it.
+    // Otherwise auto-generate a default.
+    const voucherNumber =
+      dto.voucherNumber ||
+      (await this.generateVoucherNumber(dto.companyId, dto.date));
 
     const created = await this.prisma.voucher.create({
       data: {

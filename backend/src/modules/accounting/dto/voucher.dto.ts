@@ -101,6 +101,21 @@ export class CreateVoucherDto {
   @IsString() @IsOptional() @MaxLength(50)
   createdById?: string
 
+  // Tier 253: optional voucher number.
+  // The service auto-generates a default
+  // voucherNumber if not provided, but the e2e
+  // tests (Tier 49, 50, 51) need to set their
+  // own prefix-matched numbers so cleanup
+  // queries (`WHERE voucherNumber LIKE 'Tier<N>%'`)
+  // can be scoped. Without this, the
+  // class-validator whitelist rejects the
+  // request with "property voucherNumber
+  // should not exist" (3 of the 23 e2e
+  // failures caught in Tier 252 final
+  // validation).
+  @IsString() @IsOptional() @MinLength(1) @MaxLength(50)
+  voucherNumber?: string
+
   @IsArray()
   @ArrayMinSize(2, { message: "Voucher muss mindestens 2 Positionen haben" })
   @ValidateNested({ each: true })

@@ -97,12 +97,17 @@ assert_eq "switched to second" "$(jsf id "$TMP4")" "$SECOND_COMPANY_ID"
 assert_eq "role=accountant" "$(jsf role "$TMP4")" "accountant"
 rm -f "$TMP4"
 
-# ───── 5. Switch to a non-granted company → 400 ─────
+# ───── 5. Switch to a non-granted company → 403 ─────
 echo
-note "=== 5. switch to non-granted company → 400 ==="
+note "=== 5. switch to non-granted company → 403 ==="
 BODY="{\"companyId\":\"00000000-0000-0000-0000-000000000000\"}"
 api_post "/api/v1/users/me/switch-company" "$BODY"
-assert_eq "non-granted 400" "$STATUS" "400"
+# Tier 235 changed the response from 400 to
+# 403 (ForbiddenException) — the test was
+# outdated and asserted the old 400. 403 is
+# the semantically right code for an
+# authenticated-but-unauthorised caller.
+assert_eq "non-granted 403" "$STATUS" "403"
 
 # ───── 6. Cross-tenant: request with x-company-id = second company (no grant) → 401 ─────
 echo

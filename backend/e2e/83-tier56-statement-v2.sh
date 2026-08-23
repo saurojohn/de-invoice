@@ -93,7 +93,7 @@ RP_INV_ID=$(json_field "$BODY" id)
 docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -c \
   "UPDATE \"Invoice\" SET status='sent' WHERE id='$RP_INV_ID'" >/dev/null
 api_post "/api/v1/installment-plans?companyId=$COMPANY_ID" \
-  "{\"invoiceId\":\"$RP_INV_ID\",\"installmentCount\":3,\"totalAmount\":600,\"firstDueDate\":\"2026-08-01\",\"intervalDays\":30,\"notes\":\"Tier56-rp\"}"
+  "{\"invoiceId\":\"$RP_INV_ID\",\"installmentCount\":3,\"totalAmount\":600,\"firstDueDate\":\"2026-12-01\",\"intervalDays\":30,\"notes\":\"Tier56-rp\"}"
 assert_status "201" "create Ratenplan"
 
 api_get "/api/v1/customers/$CUST_ID/statement?companyId=$COMPANY_ID&from=2026-01-01&to=2026-12-31"

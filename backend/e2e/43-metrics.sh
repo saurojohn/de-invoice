@@ -16,6 +16,15 @@ set -uo pipefail
 HOST="${HOST:-http://localhost:3001}"
 PASS=0
 FAIL=0
+# Tier 253: source _lib.sh + call login() to
+# populate USER_ID + COMPANY_ID. The previous
+# version used unbound variables under
+# `set -u`, which caused the test to fail
+# immediately on line 41 with "COMPANY_ID:
+# unbound variable". 43/43 was a pre-existing
+# bug not related to the seed.
+source "$(dirname "$0")/_lib.sh"
+login
 
 assert() {
   local label="$1" expected="$2" actual="$3"
