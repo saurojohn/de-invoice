@@ -120,7 +120,16 @@ psql_test -c "
   SET \"taxId\"='$TAX_ID',
       address='{\"street\":\"Musterstraße 1\",\"city\":\"Stuttgart\",\"postalCode\":\"70173\",\"country\":\"Deutschland\"}'::jsonb,
       \"legalName\"='$COMPANY_NAME',
-      \"invoicePrefix\"='INV-'
+      \"invoicePrefix\"='INV-',
+      -- NULL out bankInfo so the Tier 164
+      -- fees-config test sees the post-2023
+      -- default (5/5/10) instead of any
+      -- pre-seeded mahnungConfig override.
+      -- A previous test run may have set
+      -- bankInfo.mahnungConfig to the old
+      -- pre-2023 values (0/2.5/5), which the
+      -- test then asserts against as 'wrong'.
+      \"bankInfo\"=NULL
   WHERE id='$COMPANY_ID';
 " >/dev/null
 ok "company seeded"
