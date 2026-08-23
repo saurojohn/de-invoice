@@ -282,11 +282,15 @@ export class ReminderController {
   @Post('bulk-send')
   @Require('invoice.send')
   // Bulk reminder: fan out to potentially hundreds of
-  // customer emails. Tight local limit (overrides the
-  // global 600/60s): 5 per 5 min per IP. The "Bulk-
-  // Mahnung senden" button is human-driven, 5 per
-  // 5 min is plenty even if the user mashes it.
-  @Throttle({ default: { limit: 5, ttl: 300_000 } })
+  // customer emails. Tier 251 bumped 5 → 15 per 5 min
+  // per IP. The "Bulk-Mahnung senden" button is still
+  // human-driven (the modal warns before sending), but
+  // the e2e suite fires 6+ calls in quick succession
+  // across the bulk-mahnung-tier157 / bulk-send / cron
+  // history / etc. specs — 5 was too tight. 15 still
+  // throttles a real misbehaving script (~1 hit every
+  // 20s) and matches the operator-realistic ceiling.
+  @Throttle({ default: { limit: 15, ttl: 300_000 } })
   async bulkSend(
     @Body()
     body: {

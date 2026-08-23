@@ -159,12 +159,17 @@ ok "company seeded"
 note "seeding test fixtures (BWA Test Kunde + invoices) ..."
 psql_test <<SQL
 -- Main customer: BWA Test Kunde GmbH
+-- creditLimit = NULL because the credit-limit-warning
+-- spec's "empty list when no customers have a limit"
+-- assertion needs to run with no other customers
+-- holding a limit (the test's setupFixtures creates
+-- the 4 customers it cares about).
 INSERT INTO "Customer" (id, "companyId", type, name, address, contact, "paymentTerms", tags, "createdAt", "updatedAt", "creditLimit")
 VALUES ('b3f7b274-7696-44b8-9345-8bfd460b3e47', '$COMPANY_ID', 'business', 'BWA Test Kunde GmbH',
   '{"street":"Hauptstr 1","city":"Berlin","postalCode":"10115","country":"DE"}'::jsonb,
   '{"email":"bwa@example.com","name":"BWA Test"}'::jsonb, 30, ARRAY['BWA','Hardware']::text[],
-  NOW(), NOW(), 10000)
-ON CONFLICT (id) DO NOTHING;
+  NOW(), NOW(), NULL)
+ON CONFLICT (id) DO UPDATE SET "creditLimit" = NULL, "updatedAt" = NOW();
 
 -- BWA Test Kunde duplicate (for merge spec)
 INSERT INTO "Customer" (id, "companyId", type, name, address, contact, "paymentTerms", tags, "createdAt", "updatedAt")
@@ -172,33 +177,52 @@ VALUES ('11111111-2222-3333-4444-555555555555', '$COMPANY_ID', 'business', 'BWA 
   '{"street":"Hauptstr 1","city":"Berlin","postalCode":"10115","country":"DE"}'::jsonb,
   '{"email":"duplicate@example.com"}'::jsonb, 30, ARRAY['Hardware','Late-payer']::text[],
   NOW(), NOW())
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, "updatedAt" = NOW();
 
 -- Test customers (credit-limit / mahnung / etc.)
+-- All customers get creditLimit=NULL so the credit-limit-warning
+-- spec's "empty list when no customers have a limit" assertion
+-- can run after the spec's own cleanupFixtures() wipes the
+-- 4 specific test customers (CUST_OK/WARNING/OVER/NO_LIMIT).
+-- Without NULL defaults here, my 8 extra customers would
+-- leak into the empty-list assertion and fail it.
+-- ON CONFLICT DO UPDATE: critical — without this, re-running
+-- the seed on a DB that already has these rows with
+-- creditLimit=5000 leaves the old (wrong) value. The
+-- spec's empty-list assertion then fails.
 INSERT INTO "Customer" (id, "companyId", type, name, address, contact, "paymentTerms", tags, "createdAt", "updatedAt", "creditLimit")
 VALUES
-  ('11111111-cccc-dddd-eeee-000000000001', '$COMPANY_ID', 'business', 'OK Kunde', '{"street":"S1","city":"B","postalCode":"1","country":"DE"}'::jsonb, '{"email":"ok@example.com"}'::jsonb, 30, '{}'::text[], NOW(), NOW(), 5000),
-  ('11111111-cccc-dddd-eeee-000000000002', '$COMPANY_ID', 'business', 'Warning Kunde', '{"street":"S1","city":"B","postalCode":"1","country":"DE"}'::jsonb, '{"email":"warn@example.com"}'::jsonb, 30, '{}'::text[], NOW(), NOW(), 1000),
-  ('11111111-cccc-dddd-eeee-000000000003', '$COMPANY_ID', 'business', 'Over Kunde', '{"street":"S1","city":"B","postalCode":"1","country":"DE"}'::jsonb, '{"email":"over@example.com"}'::jsonb, 30, '{}'::text[], NOW(), NOW(), 500),
+  ('11111111-cccc-dddd-eeee-000000000001', '$COMPANY_ID', 'business', 'OK Kunde', '{"street":"S1","city":"B","postalCode":"1","country":"DE"}'::jsonb, '{"email":"ok@example.com"}'::jsonb, 30, '{}'::text[], NOW(), NOW(), NULL),
+  ('11111111-cccc-dddd-eeee-000000000002', '$COMPANY_ID', 'business', 'Warning Kunde', '{"street":"S1","city":"B","postalCode":"1","country":"DE"}'::jsonb, '{"email":"warn@example.com"}'::jsonb, 30, '{}'::text[], NOW(), NOW(), NULL),
+  ('11111111-cccc-dddd-eeee-000000000003', '$COMPANY_ID', 'business', 'Over Kunde', '{"street":"S1","city":"B","postalCode":"1","country":"DE"}'::jsonb, '{"email":"over@example.com"}'::jsonb, 30, '{}'::text[], NOW(), NOW(), NULL),
   ('11111111-cccc-dddd-eeee-000000000004', '$COMPANY_ID', 'business', 'NoLimit Kunde', '{"street":"S1","city":"B","postalCode":"1","country":"DE"}'::jsonb, '{"email":"nolimit@example.com"}'::jsonb, 30, '{}'::text[], NOW(), NOW(), NULL),
-  ('22222222-bbbb-cccc-dddd-000000000001', '$COMPANY_ID', 'business', 'Bulk OK Kunde', '{"street":"S1","city":"B","postalCode":"1","country":"DE"}'::jsonb, '{"email":"bulkok@example.com"}'::jsonb, 30, '{}'::text[], NOW(), NOW(), 5000),
-  ('22222222-bbbb-cccc-dddd-000000000002', '$COMPANY_ID', 'business', 'Bulk NoEmail Kunde', '{"street":"S1","city":"B","postalCode":"1","country":"DE"}'::jsonb, '{"email":""}'::jsonb, 30, '{}'::text[], NOW(), NOW(), 5000),
-  ('11111111-cccc-dddd-eeee-111111161007', '$COMPANY_ID', 'business', 'Cust 7', '{"street":"S1","city":"B","postalCode":"1","country":"DE"}'::jsonb, '{"email":"c7@example.com"}'::jsonb, 30, '{}'::text[], NOW(), NOW(), 1000),
-  ('11111111-cccc-dddd-eeee-111111161019', '$COMPANY_ID', 'business', 'Cust 19', '{"street":"S1","city":"B","postalCode":"1","country":"DE"}'::jsonb, '{"email":"c19@example.com"}'::jsonb, 30, '{}'::text[], NOW(), NOW(), 1000)
-ON CONFLICT (id) DO NOTHING;
+  ('22222222-bbbb-cccc-dddd-000000000001', '$COMPANY_ID', 'business', 'Bulk OK Kunde', '{"street":"S1","city":"B","postalCode":"1","country":"DE"}'::jsonb, '{"email":"bulkok@example.com"}'::jsonb, 30, '{}'::text[], NOW(), NOW(), NULL),
+  ('22222222-bbbb-cccc-dddd-000000000002', '$COMPANY_ID', 'business', 'Bulk NoEmail Kunde', '{"street":"S1","city":"B","postalCode":"1","country":"DE"}'::jsonb, '{"email":""}'::jsonb, 30, '{}'::text[], NOW(), NOW(), NULL),
+  ('11111111-cccc-dddd-eeee-111111161007', '$COMPANY_ID', 'business', 'Cust 7', '{"street":"S1","city":"B","postalCode":"1","country":"DE"}'::jsonb, '{"email":"c7@example.com"}'::jsonb, 30, '{}'::text[], NOW(), NOW(), NULL),
+  ('11111111-cccc-dddd-eeee-111111161019', '$COMPANY_ID', 'business', 'Cust 19', '{"street":"S1","city":"B","postalCode":"1","country":"DE"}'::jsonb, '{"email":"c19@example.com"}'::jsonb, 30, '{}'::text[], NOW(), NOW(), NULL)
+ON CONFLICT (id) DO UPDATE SET "creditLimit" = NULL, "updatedAt" = NOW();
 
--- Test invoice (paid, used by XRechnung / PDF signature / etc.)
+-- Test invoice (overdue, used by XRechnung / PDF signature /
+-- Mahnung modal / etc.). Status 'sent' + dueDate in the past
+-- triggers the manual-Mahnung button on the invoice detail
+-- page (see src/app/dashboard/invoices/[id]/page.tsx ~1757
+-- — "status === 'sent' || 'overdue' && dueDate < now").
+-- Tier 164's fees-preview spec navigates to this invoice
+-- and clicks "Mahnung senden" to open the modal.
 INSERT INTO "Invoice" (id, "companyId", "customerId", "invoiceNumber", "issueDate", "dueDate", subtotal, "totalVat", total, status, "createdAt", "updatedAt")
-VALUES ('11deeb35-7147-4bdc-86d9-a302b4f80f3e', '$COMPANY_ID', 'b3f7b274-7696-44b8-9345-8bfd460b3e47', 'INV-TEST-001', '2026-06-01', '2026-07-01', 100.00, 19.00, 119.00, 'paid', NOW() - INTERVAL '30 days', NOW())
-ON CONFLICT (id) DO NOTHING;
+VALUES ('11deeb35-7147-4bdc-86d9-a302b4f80f3e', '$COMPANY_ID', 'b3f7b274-7696-44b8-9345-8bfd460b3e47', 'INV-TEST-001', '2026-06-01', NOW() - INTERVAL '30 days', 100.00, 19.00, 119.00, 'sent', NOW() - INTERVAL '60 days', NOW() - INTERVAL '30 days')
+ON CONFLICT (id) DO UPDATE SET status = 'sent', "dueDate" = NOW() - INTERVAL '30 days', "updatedAt" = NOW();
 
 -- Test invoices for bulk-send / mahnung specs
+-- ON CONFLICT DO UPDATE: keeps status='sent' so the bulk-mahnung
+-- spec's idempotency check sees the right state. If a previous
+-- run marked the invoice 'paid', DO NOTHING would leave it.
 INSERT INTO "Invoice" (id, "companyId", "customerId", "invoiceNumber", "issueDate", "dueDate", subtotal, "totalVat", total, status, "createdAt", "updatedAt")
 VALUES
   ('11111111-aaaa-bbbb-cccc-000000000001', '$COMPANY_ID', '22222222-bbbb-cccc-dddd-000000000001', 'INV-BULK-001', '2026-06-01', '2026-07-01', 100.00, 19.00, 119.00, 'sent', NOW() - INTERVAL '20 days', NOW()),
   ('11111111-aaaa-bbbb-cccc-000000000002', '$COMPANY_ID', '22222222-bbbb-cccc-dddd-000000000001', 'INV-BULK-002', '2026-06-15', '2026-07-15', 200.00, 38.00, 238.00, 'sent', NOW() - INTERVAL '15 days', NOW()),
   ('11111111-aaaa-bbbb-cccc-000000000003', '$COMPANY_ID', '22222222-bbbb-cccc-dddd-000000000002', 'INV-BULK-003', '2026-06-01', '2026-07-01', 100.00, 19.00, 119.00, 'sent', NOW() - INTERVAL '20 days', NOW())
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (id) DO UPDATE SET status = 'sent', "dueDate" = EXCLUDED."dueDate", "updatedAt" = NOW();
 
 -- An unknown (never-existing) invoice for 404 tests
 -- (the spec asserts 400 / 404 on this id)
