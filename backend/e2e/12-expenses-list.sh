@@ -148,7 +148,7 @@ api_get "/api/v1/expenses?companyId=$COMPANY_ID&search=EXP-T6"
 PY=$(python3 -c "
 import json, sys
 d = json.loads(sys.argv[1])
-hits = [e for e in d if e.get('invoiceNumber', '').startswith('EXP-T6-')]
+hits = [e for e in d.get('data', []) if e.get('invoiceNumber', '').startswith('EXP-T6-')]
 result = {}
 for h in hits:
     result[h['invoiceNumber']] = {
@@ -182,7 +182,7 @@ api_get "/api/v1/expenses?companyId=$COMPANY_ID&supplierId=$SUP_ID&search=EXP-T6
 SUP_HITS=$(python3 -c "
 import json, sys
 d = json.loads(sys.argv[1])
-print(sum(1 for e in d if e.get('invoiceNumber', '').startswith('EXP-T6-')))
+print(sum(1 for e in d.get('data', []) if e.get('invoiceNumber', '').startswith('EXP-T6-')))
 " "$BODY")
 assert_eq "supplierId filter returns 3 EXP-T6" "$SUP_HITS" "3"
 

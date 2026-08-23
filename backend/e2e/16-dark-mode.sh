@@ -35,10 +35,10 @@ echo "=== Test: dark mode toggle wiring ==="
 # to verify SSR is up. We don't assert specific
 # content here — just that the page returns 200.
 HTTP=$(curl -sS -o /dev/null -w "%{http_code}" \
-  "http://localhost:3000/dashboard" \
+  "http://localhost:3100/dashboard" \
   -H "Cookie: $(grep -v '^#' /tmp/cookies.txt 2>/dev/null | grep connect.sid | awk '{print $6"="$7}' | tr '\n' ';')")
 # Just check the dev server is alive
-HTTP=$(curl -sS -o /dev/null -w "%{http_code}" "http://localhost:3000/dashboard")
+HTTP=$(curl -sS -o /dev/null -w "%{http_code}" "http://localhost:3100/dashboard")
 assert_eq "dashboard HTML HTTP" "$HTTP" "200"
 
 # Verify the pre-hydration script is INLINE in the
@@ -46,7 +46,7 @@ assert_eq "dashboard HTML HTTP" "$HTTP" "200"
 # light on first load before the useTheme hook
 # runs. The script reads localStorage and sets
 # the .dark class on <html> before React mounts.
-PAGE_HTML=$(curl -sS "http://localhost:3000/dashboard")
+PAGE_HTML=$(curl -sS "http://localhost:3100/dashboard")
 HAS_PREHYDRATION=$(echo "$PAGE_HTML" | grep -c "de-invoice.theme")
 if [[ "$HAS_PREHYDRATION" -gt 0 ]]; then
   echo "✓ pre-hydration script is inlined in SSR HTML"
@@ -64,7 +64,7 @@ CSS_URL=$(echo "$PAGE_HTML" | grep -oE '/_next/static/chunks/[^"]+\.css' | head 
 if [[ -z "$CSS_URL" ]]; then
   fail "could not find compiled CSS URL in page HTML"
 fi
-CSS=$(curl -sS "http://localhost:3000${CSS_URL}")
+CSS=$(curl -sS "http://localhost:3100${CSS_URL}")
 HAS_DARK_VARIANT=$(echo "$CSS" | grep -cE ':where\(\.dark' || echo 0)
 if [[ "$HAS_DARK_VARIANT" -gt 20 ]]; then
   echo "✓ Tailwind v4 .dark variant compiled (${HAS_DARK_VARIANT} selectors)"
@@ -116,7 +116,7 @@ fi
 # appears in the served JS chunk as a literal).
 # Find the useTheme chunk and grep it.
 USE_THEME_CHUNK=$(for f in $(echo "$PAGE_HTML" | grep -oE '/_next/static/chunks/[^"]+\.js' | sort -u); do
-  if curl -sS "http://localhost:3000${f}" 2>/dev/null | grep -q 'de-invoice\.theme'; then
+  if curl -sS "http://localhost:3100${f}" 2>/dev/null | grep -q 'de-invoice\.theme'; then
     echo "$f"
     break
   fi
@@ -124,7 +124,7 @@ done)
 if [[ -z "$USE_THEME_CHUNK" ]]; then
   fail "useTheme chunk not found in served JS"
 fi
-USE_THEME_JS=$(curl -sS "http://localhost:3000${USE_THEME_CHUNK}")
+USE_THEME_JS=$(curl -sS "http://localhost:3100${USE_THEME_CHUNK}")
 for needle in '"system"' 'prefers-color-scheme' 'de-invoice.theme' 'matchMedia'; do
   if echo "$USE_THEME_JS" | grep -q "$needle"; then
     echo "  ✓ useTheme chunk contains '$needle'"
