@@ -199,6 +199,26 @@ ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, "updatedAt" = NOW();
 -- the seed on a DB that already has these rows with
 -- creditLimit=5000 leaves the old (wrong) value. The
 -- spec's empty-list assertion then fails.
+-- Müller GmbH K-00001 (Tier 28 search spec needs this
+-- to assert the "muller" unaccented search hits the
+-- Müller row). ON CONFLICT DO UPDATE so re-runs of
+-- the seed restore the name + customerNumber.
+-- Note: customerNumber 'K-00001' is taken by the
+-- Tier 44 test customer (pre-existing), so we use
+-- 'K-MULLER' to avoid a unique constraint collision.
+INSERT INTO "Customer" (id, "companyId", type, name, "customerNumber", address, contact, "paymentTerms", tags, "createdAt", "updatedAt", "creditLimit")
+VALUES ('b9799545-956b-40db-8fcd-769b2d429aa9', '$COMPANY_ID', 'business', 'Müller GmbH', 'K-MULLER', '{"street":"Hauptstr 1","city":"Berlin","postalCode":"10115","country":"DE"}'::jsonb, '{"email":"mueller@example.com"}'::jsonb, 30, '{}'::text[], NOW(), NOW(), NULL)
+ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, "customerNumber" = EXCLUDED."customerNumber", "updatedAt" = NOW();
+
+-- ANS Prüfungs GmbH (Tier 95 global search needs this
+-- for the "no hits for ANS" negative case to have a
+-- baseline; the test asserts the search returns 0 hits
+-- when the seed is clean, so we add a baseline row
+-- that gets cleaned by the test's beforeAll).
+INSERT INTO "Customer" (id, "companyId", type, name, "customerNumber", address, contact, "paymentTerms", tags, "createdAt", "updatedAt", "creditLimit")
+VALUES ('c0c0c0c0-0000-0000-0000-000000000001', '$COMPANY_ID', 'business', 'ANS Prüfungs GmbH', 'ANS-001', '{"street":"S1","city":"B","postalCode":"1","country":"DE"}'::jsonb, '{"email":"ans@example.com"}'::jsonb, 30, '{}'::text[], NOW(), NOW(), NULL)
+ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, "customerNumber" = EXCLUDED."customerNumber", "updatedAt" = NOW();
+
 INSERT INTO "Customer" (id, "companyId", type, name, address, contact, "paymentTerms", tags, "createdAt", "updatedAt", "creditLimit")
 VALUES
   ('11111111-cccc-dddd-eeee-000000000001', '$COMPANY_ID', 'business', 'OK Kunde', '{"street":"S1","city":"B","postalCode":"1","country":"DE"}'::jsonb, '{"email":"ok@example.com"}'::jsonb, 30, '{}'::text[], NOW(), NOW(), NULL),
