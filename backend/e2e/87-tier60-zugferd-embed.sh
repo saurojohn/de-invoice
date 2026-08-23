@@ -108,8 +108,11 @@ else
 fi
 
 # Content-Disposition filename must end in _einvoice.pdf
+# (or _einvoice_signed.pdf since Tier 165 — the
+# controller now adds the _signed suffix when
+# the PDF is signed).
 DEFAULT_CD=$(grep -i "^content-disposition:" "$DEFAULT_HEADERS" | tr -d '\r')
-if echo "$DEFAULT_CD" | grep -q "${INV_NUM}_einvoice.pdf"; then
+if echo "$DEFAULT_CD" | grep -qE "${INV_NUM}_einvoice(_signed)?\.pdf"; then
   pass "default filename ends in _einvoice.pdf"
 else
   fail "default filename does not end in _einvoice.pdf: $DEFAULT_CD"
@@ -146,7 +149,10 @@ assert_eq "plain PDF has no factur-x" "$PLAIN_FACTUR" "0"
 
 # Content-Disposition should be `<num>.pdf` (no _einvoice suffix)
 PLAIN_CD=$(grep -i "^content-disposition:" "$PLAIN_HEADERS" | tr -d '\r')
-if echo "$PLAIN_CD" | grep -qE "${INV_NUM}\.pdf\"$|filename=\"${INV_NUM}\.pdf\""; then
+# Accept both the bare `<num>.pdf` and the
+# Tier 165 `<num>_signed.pdf` (the controller
+# adds _signed when the PDF is signed).
+if echo "$PLAIN_CD" | grep -qE "filename=\"${INV_NUM}(_signed)?\.pdf\""; then
   pass "plain PDF filename is <num>.pdf (no _einvoice suffix)"
 else
   fail "plain PDF filename has unexpected suffix: $PLAIN_CD"

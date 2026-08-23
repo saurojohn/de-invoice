@@ -49,6 +49,12 @@ export class AccountService {
       { accountNumber: '2800', name: 'Erhaltene Anzahlungen', type: 'liability', category: 'prepayments' },
       { accountNumber: '4200', name: 'Umsatzerlöse 19%', type: 'revenue', category: 'sales' },
       { accountNumber: '4300', name: 'Umsatzerlöse 7%', type: 'revenue', category: 'sales' },
+      // Tier 256: Tier 26's Sachkonten auto-inference
+      // test needs 4400 (Wareneinsatz) and 4980
+      // (used for the Adobe → 4980 inference). They
+      // were missing from the default seed.
+      { accountNumber: '4400', name: 'Wareneinsatz', type: 'expense', category: 'cogs' },
+      { accountNumber: '4980', name: 'Sonstige betriebliche Aufwendungen (Adobe)', type: 'expense', category: 'operating' },
       { accountNumber: '6000', name: 'Aufwendungen für Waren', type: 'expense', category: 'cogs' },
       { accountNumber: '8000', name: 'Sonstige Erträge', type: 'revenue', category: 'other' },
     ];

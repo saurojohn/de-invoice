@@ -27,7 +27,11 @@ interface CreateVoucherDto {
   // present; otherwise auto-generated.
   voucherNumber?: string;
   lines: {
-    accountId: string;
+    // Tier 256: accountId is optional here too
+    // so the Sachkonten auto-inference (Tier 26)
+    // can pass null + a description and have the
+    // service infer the SKR03 account.
+    accountId?: string | null;
     description?: string;
     debit?: number;
     credit?: number;

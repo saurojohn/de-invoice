@@ -33,8 +33,18 @@ import { Type } from "class-transformer"
  * One voucher line (Soll/Haben position).
  */
 export class CreateVoucherLineDto {
-  @IsString()
-  accountId!: string
+  // Tier 256: accountId is optional at the
+  // HTTP layer so the Tier 26 Sachkonten
+  // auto-inference spec can POST a line with
+  // accountId=null + a description (e.g.
+  // "Adobe Creative Cloud monthly") and have
+  // the service infer the SKR03 account from
+  // the description text. The previous
+  // IsString-non-null assertion caused the
+  // voucher POST to 400 with "lines.1.accountId
+  // must be a string".
+  @IsString() @IsOptional()
+  accountId?: string | null
 
   @IsString() @IsOptional() @MaxLength(500)
   description?: string

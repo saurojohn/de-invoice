@@ -134,6 +134,16 @@ psql_test -c "
 " >/dev/null
 ok "company seeded"
 
+# 4b. Tier 256: trigger the default-account seed
+#     so 4400 (Wareneinsatz) + 4980 (Adobe)
+#     exist for the Tier 26 Sachkonten
+#     auto-inference spec. The endpoint is
+#     idempotent (skips existing accounts).
+note "seeding default SKR03 accounts (4400, 4980) ..."
+curl -sS "$API/api/v1/accounting/accounts/seed?companyId=$COMPANY_ID" \
+  -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" >/dev/null
+ok "default accounts seeded"
+
 # 5. Tier 250: seed the stable test fixtures
 #    that 30+ Playwright specs depend on. Each
 #    spec hardcodes the UUIDs in its beforeAll
@@ -257,6 +267,16 @@ ON CONFLICT (id) DO UPDATE SET status = 'sent', "dueDate" = EXCLUDED."dueDate", 
 -- (the spec asserts 400 / 404 on this id)
 SQL
 ok "test fixtures seeded (3 customers + 4 invoices)"
+
+# 5b. Tier 256: seed a Product (Tier 32
+#     bulk-mail test assumes at least one
+#     product exists).
+psql_test <<SQL
+INSERT INTO "Product" (id, "companyId", sku, name, "basePrice", "createdAt", "updatedAt")
+VALUES ('99999999-0000-0000-0000-000000000001', '$COMPANY_ID', 'TEST-SKU-001', 'Test Product', 19.00, NOW(), NOW())
+ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, "updatedAt" = NOW();
+SQL
+ok "test product seeded"
 
 # 6. Write the auth cache file that the e2e
 #    tests + Playwright spec rely on.
