@@ -53,8 +53,8 @@ import * as fs from 'fs'
 import * as os from 'os'
 import { execSync } from 'child_process'
 
-const COMPANY_ID = 'ad257ec3-d319-479b-b870-3fe76e8f3111'
-const USER_ID = '8c6a9669-0069-4137-a842-a66fd1d178d6'
+const COMPANY_ID = getTestEnv().companyId
+const USER_ID = getTestEnv().userId
 const API = 'http://localhost:3001'
 
 const ADMIN_HEADERS = {
@@ -124,6 +124,7 @@ function listZipEntries(zipPath: string): string[] {
 // Local require so we don't have to add
 // `path` to the import list at the top.
 import * as path from 'path'
+import { getTestEnv } from './fixtures/test-env'
 
 test.describe('Tier 167 — DATEV Buchungsliste', () => {
   test('backend: response is application/zip with filename pattern', async () => {

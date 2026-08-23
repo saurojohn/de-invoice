@@ -18,10 +18,10 @@
  * so this is a safe assumption.
  */
 import { test, expect } from '@playwright/test'
+import { getTestEnv } from './fixtures/test-env'
 
-const USER_ID = '8c6a9669-0069-4137-a842-a66fd1d178d6'
-const COMPANY_ID = 'ad257ec3-d319-479b-b870-3fe76e8f3111'
-
+const USER_ID = getTestEnv().userId
+const COMPANY_ID = getTestEnv().companyId
 test.describe('Tier 122 — Audit log timeline + URL state', () => {
   test.beforeEach(async ({ context, page }) => {
     // The Next.js middleware reads cookies, not

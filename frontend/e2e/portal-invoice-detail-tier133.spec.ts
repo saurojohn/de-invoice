@@ -17,6 +17,7 @@
  * and at least one invoice.
  */
 import { test, expect, request as playwrightRequest } from '@playwright/test'
+import { getTestEnv } from './fixtures/test-env'
 
 const TEST_EMAIL = 'tier133-customer@example.com'
 const API = 'http://localhost:3001'

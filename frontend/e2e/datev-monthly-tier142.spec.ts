@@ -36,9 +36,10 @@
 import { test, expect } from '@playwright/test'
 import { execSync } from 'child_process'
 import { writeFileSync } from 'fs'
+import { getTestEnv } from './fixtures/test-env'
 
-const USER_ID = '8c6a9669-0069-4137-a842-a66fd1d178d6'
-const COMPANY_ID = 'ad257ec3-d319-479b-b870-3fe76e8f3111'
+const USER_ID = getTestEnv().userId
+const COMPANY_ID = getTestEnv().companyId
 const API_BASE = 'http://localhost:3001'
 
 test.describe('Tier 142 — DATEV monthly split', () => {

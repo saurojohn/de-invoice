@@ -22,9 +22,10 @@
  * that.
  */
 import { test, expect, request as playwrightRequest } from '@playwright/test'
+import { getTestEnv } from './fixtures/test-env'
 
-const USER_ID = '8c6a9669-0069-4137-a842-a66fd1d178d6'
-const COMPANY_ID = 'ad257ec3-d319-479b-b870-3fe76e8f3111'
+const USER_ID = getTestEnv().userId
+const COMPANY_ID = getTestEnv().companyId
 const API = 'http://localhost:3001'
 // Two real invoices from the dev DB (BWA Test Kunde, sent).
 const INVOICE_IDS = [

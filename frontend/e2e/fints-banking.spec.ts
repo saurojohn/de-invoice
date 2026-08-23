@@ -46,10 +46,10 @@
 
 import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
+import { getTestEnv } from './fixtures/test-env'
 
 const AUTH_CACHE = "/tmp/cashbook-e2e-auth.env"
-const COMPANY_ID = "ad257ec3-d319-479b-b870-3fe76e8f3111"
-
+const COMPANY_ID = getTestEnv().companyId
 function readCachedTokens(): { userId: string; companyId: string } {
   const env = readFileSync(AUTH_CACHE, "utf-8")
   const map: Record<string, string> = {}

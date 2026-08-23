@@ -25,10 +25,10 @@
  * has real data so the pages render.
  */
 import { test, expect } from '@playwright/test'
+import { getTestEnv } from './fixtures/test-env'
 
-const USER_ID = '8c6a9669-0069-4137-a842-a66fd1d178d6'
-const COMPANY_ID = 'ad257ec3-d319-479b-b870-3fe76e8f3111'
-
+const USER_ID = getTestEnv().userId
+const COMPANY_ID = getTestEnv().companyId
 /**
  * Assert no horizontal overflow on the current page.
  * Tier 121 must not break this on mobile viewports.

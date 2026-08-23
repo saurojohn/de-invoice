@@ -51,8 +51,11 @@ COMPANY_NAME="${COMPANY_NAME:-SH Leder GmbH}"
 TAX_ID="${TAX_ID:-123/456/78901}"
 
 # Helper: run a SQL command against the test postgres.
+# Uses `docker exec -i` so that stdin (heredoc or pipe)
+# is forwarded to psql. Without `-i`, psql's stdin
+# is closed and silent — the SQL is read as empty.
 psql_test() {
-  docker exec "$PG_CONTAINER" psql -U "$PG_USER" -d "$PG_DB" "$@"
+  docker exec -i "$PG_CONTAINER" psql -U "$PG_USER" -d "$PG_DB" "$@"
 }
 
 note() { echo "▶ $*"; }
@@ -122,10 +125,93 @@ psql_test -c "
 " >/dev/null
 ok "company seeded"
 
-# 5. Write the auth cache file that the e2e
+# 5. Tier 250: seed the stable test fixtures
+#    that 30+ Playwright specs depend on. Each
+#    spec hardcodes the UUIDs in its beforeAll
+#    and assumes the row exists in the dev/ci DB.
+#    The seed creates them idempotently (ON
+#    CONFLICT DO NOTHING) with the real
+#    companyId (not the dryrun one).
+#
+#    Why: 30+ specs had FK violations on fresh DB
+#    because the companyId was hardcoded to a
+#    dryrun-only UUID. Tier 250 swapped the
+#    companyId to read from the auth cache, but
+#    the customer/invoice UUIDs are still
+#    hardcoded. Seeding them here with the real
+#    companyId makes the specs pass against
+#    any DB.
+#
+#    Stable IDs (don't change without updating
+#    the specs):
+#      b3f7b274-...  = BWA Test Kunde (the main
+#                      customer most specs hit)
+#      11deeb35-...  = Test invoice (paid, for
+#                      XRechnung / PDF specs)
+#      11111111-2222-... = BWA Test Kunde duplicate
+#                           (merge spec only)
+#      11111111-aaaa-... = Test invoice OK 1
+#      11111111-aaaa-...-02 = Test invoice OK 2
+#      11111111-bbbb-... = Test customer OK
+#      11111111-bbbb-...-02 = Test customer no-email
+#      11111111-cccc-... = Various test customers
+#                           (credit-limit, overdue)
+note "seeding test fixtures (BWA Test Kunde + invoices) ..."
+psql_test <<SQL
+-- Main customer: BWA Test Kunde GmbH
+INSERT INTO "Customer" (id, "companyId", type, name, address, contact, "paymentTerms", tags, "createdAt", "updatedAt", "creditLimit")
+VALUES ('b3f7b274-7696-44b8-9345-8bfd460b3e47', '$COMPANY_ID', 'business', 'BWA Test Kunde GmbH',
+  '{"street":"Hauptstr 1","city":"Berlin","postalCode":"10115","country":"DE"}'::jsonb,
+  '{"email":"bwa@example.com","name":"BWA Test"}'::jsonb, 30, ARRAY['BWA','Hardware']::text[],
+  NOW(), NOW(), 10000)
+ON CONFLICT (id) DO NOTHING;
+
+-- BWA Test Kunde duplicate (for merge spec)
+INSERT INTO "Customer" (id, "companyId", type, name, address, contact, "paymentTerms", tags, "createdAt", "updatedAt")
+VALUES ('11111111-2222-3333-4444-555555555555', '$COMPANY_ID', 'business', 'BWA Test Kunde GmbH (duplicate)',
+  '{"street":"Hauptstr 1","city":"Berlin","postalCode":"10115","country":"DE"}'::jsonb,
+  '{"email":"duplicate@example.com"}'::jsonb, 30, ARRAY['Hardware','Late-payer']::text[],
+  NOW(), NOW())
+ON CONFLICT (id) DO NOTHING;
+
+-- Test customers (credit-limit / mahnung / etc.)
+INSERT INTO "Customer" (id, "companyId", type, name, address, contact, "paymentTerms", tags, "createdAt", "updatedAt", "creditLimit")
+VALUES
+  ('11111111-cccc-dddd-eeee-000000000001', '$COMPANY_ID', 'business', 'OK Kunde', '{"street":"S1","city":"B","postalCode":"1","country":"DE"}'::jsonb, '{"email":"ok@example.com"}'::jsonb, 30, '{}'::text[], NOW(), NOW(), 5000),
+  ('11111111-cccc-dddd-eeee-000000000002', '$COMPANY_ID', 'business', 'Warning Kunde', '{"street":"S1","city":"B","postalCode":"1","country":"DE"}'::jsonb, '{"email":"warn@example.com"}'::jsonb, 30, '{}'::text[], NOW(), NOW(), 1000),
+  ('11111111-cccc-dddd-eeee-000000000003', '$COMPANY_ID', 'business', 'Over Kunde', '{"street":"S1","city":"B","postalCode":"1","country":"DE"}'::jsonb, '{"email":"over@example.com"}'::jsonb, 30, '{}'::text[], NOW(), NOW(), 500),
+  ('11111111-cccc-dddd-eeee-000000000004', '$COMPANY_ID', 'business', 'NoLimit Kunde', '{"street":"S1","city":"B","postalCode":"1","country":"DE"}'::jsonb, '{"email":"nolimit@example.com"}'::jsonb, 30, '{}'::text[], NOW(), NOW(), NULL),
+  ('22222222-bbbb-cccc-dddd-000000000001', '$COMPANY_ID', 'business', 'Bulk OK Kunde', '{"street":"S1","city":"B","postalCode":"1","country":"DE"}'::jsonb, '{"email":"bulkok@example.com"}'::jsonb, 30, '{}'::text[], NOW(), NOW(), 5000),
+  ('22222222-bbbb-cccc-dddd-000000000002', '$COMPANY_ID', 'business', 'Bulk NoEmail Kunde', '{"street":"S1","city":"B","postalCode":"1","country":"DE"}'::jsonb, '{"email":""}'::jsonb, 30, '{}'::text[], NOW(), NOW(), 5000),
+  ('11111111-cccc-dddd-eeee-111111161007', '$COMPANY_ID', 'business', 'Cust 7', '{"street":"S1","city":"B","postalCode":"1","country":"DE"}'::jsonb, '{"email":"c7@example.com"}'::jsonb, 30, '{}'::text[], NOW(), NOW(), 1000),
+  ('11111111-cccc-dddd-eeee-111111161019', '$COMPANY_ID', 'business', 'Cust 19', '{"street":"S1","city":"B","postalCode":"1","country":"DE"}'::jsonb, '{"email":"c19@example.com"}'::jsonb, 30, '{}'::text[], NOW(), NOW(), 1000)
+ON CONFLICT (id) DO NOTHING;
+
+-- Test invoice (paid, used by XRechnung / PDF signature / etc.)
+INSERT INTO "Invoice" (id, "companyId", "customerId", "invoiceNumber", "issueDate", "dueDate", subtotal, "totalVat", total, status, "createdAt", "updatedAt")
+VALUES ('11deeb35-7147-4bdc-86d9-a302b4f80f3e', '$COMPANY_ID', 'b3f7b274-7696-44b8-9345-8bfd460b3e47', 'INV-TEST-001', '2026-06-01', '2026-07-01', 100.00, 19.00, 119.00, 'paid', NOW() - INTERVAL '30 days', NOW())
+ON CONFLICT (id) DO NOTHING;
+
+-- Test invoices for bulk-send / mahnung specs
+INSERT INTO "Invoice" (id, "companyId", "customerId", "invoiceNumber", "issueDate", "dueDate", subtotal, "totalVat", total, status, "createdAt", "updatedAt")
+VALUES
+  ('11111111-aaaa-bbbb-cccc-000000000001', '$COMPANY_ID', '22222222-bbbb-cccc-dddd-000000000001', 'INV-BULK-001', '2026-06-01', '2026-07-01', 100.00, 19.00, 119.00, 'sent', NOW() - INTERVAL '20 days', NOW()),
+  ('11111111-aaaa-bbbb-cccc-000000000002', '$COMPANY_ID', '22222222-bbbb-cccc-dddd-000000000001', 'INV-BULK-002', '2026-06-15', '2026-07-15', 200.00, 38.00, 238.00, 'sent', NOW() - INTERVAL '15 days', NOW()),
+  ('11111111-aaaa-bbbb-cccc-000000000003', '$COMPANY_ID', '22222222-bbbb-cccc-dddd-000000000002', 'INV-BULK-003', '2026-06-01', '2026-07-01', 100.00, 19.00, 119.00, 'sent', NOW() - INTERVAL '20 days', NOW())
+ON CONFLICT (id) DO NOTHING;
+
+-- An unknown (never-existing) invoice for 404 tests
+-- (the spec asserts 400 / 404 on this id)
+SQL
+ok "test fixtures seeded (3 customers + 4 invoices)"
+
+# 6. Write the auth cache file that the e2e
 #    tests + Playwright spec rely on.
 #    /tmp/cashbook-e2e-auth.env is the file
 #    _lib.sh login() reads on subsequent calls.
+#    Step 5 wrote it once; we overwrite with the
+#    real IDs after the fixtures are seeded so
+#    the cache is the source of truth.
 mkdir -p /tmp
 cat > /tmp/cashbook-e2e-auth.env <<EOF
 USER_ID=$USER_ID
