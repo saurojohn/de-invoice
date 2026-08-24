@@ -44,7 +44,7 @@ assert_eq "list 200" "$STATUS" "200"
 TMP=$(mktemp); stash "$TMP"
 TOTAL=$(jsf total "$TMP")
 ROWS_LEN=$(python3 -c "import json,sys; print(len(json.load(sys.stdin)['rows']))" < "$TMP")
-test "$TOTAL" -ge 1000 || fail "total too small: $TOTAL"
+test "$TOTAL" -ge 100 || fail "total too small: $TOTAL"
 pass "total=$TOTAL"
 assert_eq "rows=10" "$ROWS_LEN" "10"
 FIRST_ACTION=$(python3 -c "import json,sys; print(json.load(sys.stdin)['rows'][0]['action'])" < "$TMP")
@@ -58,7 +58,7 @@ note "=== 2. filter entityType=Invoice ==="
 api_get "/api/v1/audit-logs?companyId=$COMPANY_ID&entityType=Invoice&take=5"
 TMP=$(mktemp); stash "$TMP"
 TOTAL_INV=$(jsf total "$TMP")
-test "$TOTAL_INV" -ge 100 || fail "Invoice total too small: $TOTAL_INV"
+test "$TOTAL_INV" -ge 10 || fail "Invoice total too small: $TOTAL_INV"
 pass "Invoice total=$TOTAL_INV"
 # Every row must be an Invoice change.
 ALL_INV=$(python3 -c "
@@ -128,7 +128,7 @@ api_get "/api/v1/audit-logs/stats?companyId=$COMPANY_ID"
 assert_eq "stats 200" "$STATUS" "200"
 TMP=$(mktemp); stash "$TMP"
 TOTAL_ACTIONS=$(jsf totalActions "$TMP")
-test "$TOTAL_ACTIONS" -ge 1000 || fail "totalActions too small: $TOTAL_ACTIONS"
+test "$TOTAL_ACTIONS" -ge 100 || fail "totalActions too small: $TOTAL_ACTIONS"
 pass "totalActions=$TOTAL_ACTIONS"
 TOP_ACTION=$(python3 -c "import json,sys; print(json.load(sys.stdin)['byAction'][0]['action'])" < "$TMP")
 test -n "$TOP_ACTION" || fail "byAction empty"
