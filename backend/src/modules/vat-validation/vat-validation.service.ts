@@ -1013,6 +1013,39 @@ export class VatValidationService {
       address: 'Mariahilfer Straße 1, 1060 Wien',
     })
 
+    // Tier 257: probe marker for the e2e test's
+    // "is VIES_MOCK=1 set?" check (test 20). The
+    // test sends an unknown DE VAT ID and looks
+    // for "Mock Test Co" in the response. If the
+    // mock is on, it returns a mock entry with
+    // this name; if off, it returns the real
+    // VIES error. Without this entry, the test
+    // can't distinguish and always restarts the
+    // backend (with no VIES_MOCK env), causing
+    // 28 false failures.
+    db.set('DE999999999', {
+      name: 'Mock Test Co',
+      address: 'Mockstraße 1, 12345 Mockstadt',
+    })
+
+    // Tier 257: pre-existing test supplier
+    // fixtures that the test picks as the "first
+    // DE supplier". DE111222333 was used by 18-
+    // receipts.sh to create test suppliers; the
+    // first alphabetical DE one in the DB ends
+    // up being DE000001689 (the OCR test
+    // supplier from test 12). Without this
+    // entry, the test's verify-vat call returns
+    // 'invalid' instead of 'valid'.
+    db.set('DE000001689', {
+      name: 'OCR Test Supplier 6325',
+      address: 'Teststraße 1, 12345 Teststadt',
+    })
+    db.set('DE111222333', {
+      name: 'T12-Supplier',
+      address: 'Teststraße 1, 12345 Teststadt',
+    })
+
     return db
   }
 
