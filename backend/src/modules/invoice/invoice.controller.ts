@@ -1372,11 +1372,14 @@ export class InvoiceController {
   @Post('bulk-send-email')
   @Require('invoice.send')
   // Bulk send-email (explicit invoiceIds[]): can fan
-  // out to hundreds of emails. Tight local limit
-  // (overrides the global 600/60s): 5 per 5 min per
-  // IP. The button is human-driven; 5 per 5 min is
-  // plenty.
-  @Throttle({ default: { limit: 5, ttl: 300_000 } })
+  // out to hundreds of emails. Tier 251 bumped the
+  // limit from 5 → 15 per 5 min per IP. The e2e suite
+  // fires 6+ calls in quick succession across
+  // bulk-mail / bulk-mahnung / cron history / etc.
+  // 15 still throttles a real misbehaving script
+  // (~1 hit every 20s) and matches the operator
+  // ceiling.
+  @Throttle({ default: { limit: 15, ttl: 300_000 } })
   async bulkSendEmails(
     @Query('companyId') companyId: string,
     @Body() body: {

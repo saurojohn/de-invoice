@@ -525,7 +525,11 @@
     "reset": "Zurücksetzen",
     "retry": "Erneut versuchen",
     "all": "Alle",
-    "previous": "Zurück"
+    "previous": "Zurück",
+    "clear": "Zurücksetzen",
+    "companyMissing": "Bitte zuerst eine Firma auswählen",
+    "creating": "Wird erstellt...",
+    "uploading": "Wird hochgeladen..."
   },
   "common2": {
     "newInvoice": "Neue Rechnung",
@@ -561,7 +565,15 @@
     "additionalNotes": "Zusätzliche Hinweise...",
     "creating": "Erstelle Rechnung...",
     "productUnit": "Stück",
-    "exportCsv": "CSV"
+    "exportCsv": "CSV",
+    "cancel": "Abbrechen",
+    "delete": "Löschen",
+    "edit": "Bearbeiten",
+    "loading": "Lädt...",
+    "save": "Speichern",
+    "saved": "Gespeichert",
+    "settings": "Einstellungen",
+    "status": "Status"
   },
   "customerDetail": {
     "openBalance": "Offener Saldo",
@@ -646,7 +658,25 @@
     "status": "Status",
     "type": "Art",
     "invoice": "Rechnung",
-    "creditLimit": "Kreditlimit"
+    "creditLimit": "Kreditlimit",
+    "attachmentsColDate": "Datum",
+    "attachmentsColName": "Name",
+    "attachmentsColSize": "Größe",
+    "attachmentsColType": "Typ",
+    "attachmentsColUploadedBy": "Hochgeladen von",
+    "attachmentsHint": "Belege und Rechnungen zum Kunden",
+    "invoicesFilter": "Rechnungen filtern",
+    "noAttachments": "Keine Anhänge vorhanden",
+    "noInvoicesForFilter": "Keine Rechnungen für diesen Filter",
+    "noPayments": "Keine Zahlungen vorhanden",
+    "paymentsColAmount": "Betrag",
+    "paymentsColDate": "Datum",
+    "paymentsColInvoice": "Rechnung",
+    "paymentsColMethod": "Methode",
+    "paymentsColReference": "Referenz",
+    "paymentsTotal": "Summe",
+    "tabAttachments": "Anhänge",
+    "tabPayments": "Zahlungen"
   },
   "customer": {
     "title": "Kundenverwaltung",
@@ -718,7 +748,8 @@
     "portalLinkModalDesc": "Der Link wurde per E-Mail an den Kunden gesendet (NO-SMTP in Dev: nur Log). Du kannst ihn hier auch manuell kopieren:",
     "portalLinkExpires": "Gültig bis",
     "portalLinkCopy": "Link kopieren",
-    "portalLinkCopied": "Kopiert!"
+    "portalLinkCopied": "Kopiert!",
+    "colStatus": "Status"
   },
   "dashboard": {
     "title": "Dashboard",
@@ -836,7 +867,8 @@
     "ustvaColZahllast": "Zahllast",
     "ustvaHistoryEmpty": "Keine UStVA-Daten für diesen Zeitraum",
     "ustvaTrendTitle": "USt-Vorauszahlung 12-Monats-Verlauf",
-    "ustvaTrendSubtitle": "Zahllast = USt − Vorsteuer (positiv = Vorauszahlung, negativ = Erstattung)"
+    "ustvaTrendSubtitle": "Zahllast = USt − Vorsteuer (positiv = Vorauszahlung, negativ = Erstattung)",
+    "kpiOverdueTitle": "Überfällige Rechnungen"
   },
   "email": {
     "title": "E-Mail Center",
@@ -1507,7 +1539,10 @@
     "cloneSubmit": "📋 Duplizieren",
     "cloneNameRequired": "Name ist erforderlich",
     "cloneStartRequired": "Startdatum ist erforderlich",
-    "cloneError": "Klonen fehlgeschlagen"
+    "cloneError": "Klonen fehlgeschlagen",
+    "customerLabel": "Kunde",
+    "nameLabel": "Name",
+    "startDateLabel": "Startdatum"
   },
   "reminder": {
     "title": "Zahlungserinnerungen",
@@ -2387,7 +2422,8 @@
     "viewTable": "Tabelle",
     "viewTimeline": "Zeitstrahl",
     "entry_one": "Eintrag",
-    "entry_other": "Einträge"
+    "entry_other": "Einträge",
+    "invalidMonth": "Ungültiger Monat (1-12)"
   },
   "activity": {
     "title": "Aktivitäts-Log",
@@ -2448,7 +2484,10 @@
     "checkSigned": "Signatur-Status prüfen",
     "willSign": "🔒 PDF wird beim Download signiert (GoBD-konform)",
     "willNotSign": "⚠ PDF wird NICHT signiert (Signatur deaktiviert)",
-    "signedBy": "Signiert von"
+    "signedBy": "Signiert von",
+    "beraterNoUser": "Kein Berater ausgewählt",
+    "beraterStamp": "Berater-Stempel aufbringen",
+    "beraterStamped": "Berater-Stempel aufgebracht"
   },
   "cashflow": {
     "title": "Liquiditätsplanung",

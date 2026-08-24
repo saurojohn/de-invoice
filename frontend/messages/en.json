@@ -525,7 +525,11 @@
     "reset": "Reset",
     "retry": "Retry",
     "all": "All",
-    "previous": "Previous"
+    "previous": "Previous",
+    "clear": "Reset",
+    "companyMissing": "Please select a company first",
+    "creating": "Creating...",
+    "uploading": "Uploading..."
   },
   "common2": {
     "newInvoice": "New Invoice",
@@ -561,7 +565,15 @@
     "additionalNotes": "Additional notes...",
     "creating": "Creating invoice...",
     "productUnit": "Piece",
-    "exportCsv": "CSV"
+    "exportCsv": "CSV",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "loading": "Loading...",
+    "save": "Save",
+    "saved": "Saved",
+    "settings": "Settings",
+    "status": "Status"
   },
   "customerDetail": {
     "openBalance": "Open balance",
@@ -646,7 +658,25 @@
     "status": "Status",
     "type": "Type",
     "invoice": "Invoice",
-    "creditLimit": "Credit limit"
+    "creditLimit": "Credit limit",
+    "attachmentsColDate": "Date",
+    "attachmentsColName": "Name",
+    "attachmentsColSize": "Size",
+    "attachmentsColType": "Type",
+    "attachmentsColUploadedBy": "Uploaded by",
+    "attachmentsHint": "Receipts and invoices for this customer",
+    "invoicesFilter": "Filter invoices",
+    "noAttachments": "No attachments",
+    "noInvoicesForFilter": "No invoices for this filter",
+    "noPayments": "No payments",
+    "paymentsColAmount": "Amount",
+    "paymentsColDate": "Date",
+    "paymentsColInvoice": "Invoice",
+    "paymentsColMethod": "Method",
+    "paymentsColReference": "Reference",
+    "paymentsTotal": "Total",
+    "tabAttachments": "Attachments",
+    "tabPayments": "Payments"
   },
   "customer": {
     "title": "Customer Management",
@@ -718,7 +748,8 @@
     "portalLinkModalDesc": "The link was emailed to the customer (NO-SMTP in dev: log only). You can also copy it manually here:",
     "portalLinkExpires": "Valid until",
     "portalLinkCopy": "Copy link",
-    "portalLinkCopied": "Copied!"
+    "portalLinkCopied": "Copied!",
+    "colStatus": "Status"
   },
   "dashboard": {
     "title": "Dashboard",
@@ -836,7 +867,8 @@
     "ustvaColZahllast": "Payable",
     "ustvaHistoryEmpty": "No VAT data for this period",
     "ustvaTrendTitle": "VAT prepayment — 12-month trend",
-    "ustvaTrendSubtitle": "Payable = VAT − input tax (positive = payment, negative = refund)"
+    "ustvaTrendSubtitle": "Payable = VAT − input tax (positive = payment, negative = refund)",
+    "kpiOverdueTitle": "Overdue invoices"
   },
   "email": {
     "title": "Email Center",
@@ -1507,7 +1539,10 @@
     "cloneSubmit": "📋 Duplicate",
     "cloneNameRequired": "Name is required",
     "cloneStartRequired": "Start date is required",
-    "cloneError": "Clone failed"
+    "cloneError": "Clone failed",
+    "customerLabel": "Customer",
+    "nameLabel": "Name",
+    "startDateLabel": "Start date"
   },
   "reminder": {
     "title": "Payment Reminders",
@@ -2387,7 +2422,8 @@
     "viewTable": "Table",
     "viewTimeline": "Timeline",
     "entry_one": "entry",
-    "entry_other": "entries"
+    "entry_other": "entries",
+    "invalidMonth": "Invalid month (1-12)"
   },
   "activity": {
     "title": "Activity Log",
@@ -2448,7 +2484,10 @@
     "checkSigned": "Check signature status",
     "willSign": "🔒 PDF will be signed on download (GoBD-compliant)",
     "willNotSign": "⚠ PDF will NOT be signed (signature disabled)",
-    "signedBy": "Signed by"
+    "signedBy": "Signed by",
+    "beraterNoUser": "No Berater selected",
+    "beraterStamp": "Apply Berater stamp",
+    "beraterStamped": "Berater stamp applied"
   },
   "cashflow": {
     "title": "Cash flow forecast",

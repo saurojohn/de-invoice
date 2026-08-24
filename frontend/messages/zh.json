@@ -525,7 +525,11 @@
     "reset": "重置",
     "retry": "重试",
     "all": "全部",
-    "previous": "上一步"
+    "previous": "上一步",
+    "clear": "重置",
+    "companyMissing": "请先选择公司",
+    "creating": "正在创建...",
+    "uploading": "正在上传..."
   },
   "common2": {
     "newInvoice": "新建发票",
@@ -561,7 +565,15 @@
     "additionalNotes": "附加说明...",
     "creating": "创建中...",
     "productUnit": "件",
-    "exportCsv": "CSV"
+    "exportCsv": "CSV",
+    "cancel": "取消",
+    "delete": "删除",
+    "edit": "编辑",
+    "loading": "加载中...",
+    "save": "保存",
+    "saved": "已保存",
+    "settings": "设置",
+    "status": "状态"
   },
   "customerDetail": {
     "openBalance": "未付余额",
@@ -646,7 +658,25 @@
     "status": "状态",
     "type": "类型",
     "invoice": "发票",
-    "creditLimit": "信用额度"
+    "creditLimit": "信用额度",
+    "attachmentsColDate": "日期",
+    "attachmentsColName": "名称",
+    "attachmentsColSize": "大小",
+    "attachmentsColType": "类型",
+    "attachmentsColUploadedBy": "上传者",
+    "attachmentsHint": "客户的收据和发票",
+    "invoicesFilter": "筛选发票",
+    "noAttachments": "无附件",
+    "noInvoicesForFilter": "此筛选无发票",
+    "noPayments": "无付款",
+    "paymentsColAmount": "金额",
+    "paymentsColDate": "日期",
+    "paymentsColInvoice": "发票",
+    "paymentsColMethod": "方式",
+    "paymentsColReference": "参考",
+    "paymentsTotal": "合计",
+    "tabAttachments": "附件",
+    "tabPayments": "付款"
   },
   "customer": {
     "title": "客户管理",
@@ -718,7 +748,8 @@
     "portalLinkModalDesc": "链接已通过电子邮件发送给客户（开发模式下NO-SMTP：仅记录日志）。您也可以在此处手动复制：",
     "portalLinkExpires": "有效期至",
     "portalLinkCopy": "复制链接",
-    "portalLinkCopied": "已复制！"
+    "portalLinkCopied": "已复制！",
+    "colStatus": "状态"
   },
   "dashboard": {
     "title": "仪表盘",
@@ -836,7 +867,8 @@
     "ustvaColZahllast": "应缴税额",
     "ustvaHistoryEmpty": "该期间无增值税数据",
     "ustvaTrendTitle": "近 12 个月增值税预缴走势",
-    "ustvaTrendSubtitle": "应缴 = 销项 − 进项 (正数 = 需预缴, 负数 = 退税)"
+    "ustvaTrendSubtitle": "应缴 = 销项 − 进项 (正数 = 需预缴, 负数 = 退税)",
+    "kpiOverdueTitle": "逾期发票"
   },
   "email": {
     "title": "邮件中心",
@@ -1507,7 +1539,10 @@
     "cloneSubmit": "📋 复制",
     "cloneNameRequired": "名称为必填项",
     "cloneStartRequired": "开始日期为必填项",
-    "cloneError": "复制失败"
+    "cloneError": "复制失败",
+    "customerLabel": "客户",
+    "nameLabel": "名称",
+    "startDateLabel": "开始日期"
   },
   "reminder": {
     "title": "付款提醒",
@@ -2387,7 +2422,8 @@
     "viewTable": "表格",
     "viewTimeline": "时间线",
     "entry_one": "条",
-    "entry_other": "条"
+    "entry_other": "条",
+    "invalidMonth": "无效月份 (1-12)"
   },
   "activity": {
     "title": "操作日志",
@@ -2448,7 +2484,10 @@
     "checkSigned": "检查签名状态",
     "willSign": "🔒 PDF 下载时将嵌入签名",
     "willNotSign": "⚠ PDF 下载时将不签名（签名已禁用）",
-    "signedBy": "签名方"
+    "signedBy": "签名方",
+    "beraterNoUser": "未选择顾问",
+    "beraterStamp": "添加顾问印章",
+    "beraterStamped": "顾问印章已添加"
   },
   "cashflow": {
     "title": "现金流预测",
