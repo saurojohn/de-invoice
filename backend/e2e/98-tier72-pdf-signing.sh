@@ -52,21 +52,12 @@ echo
 note "=== 0. generating placeholder PDF (via node) ==="
 PDF_B64=$(cd "$SCRIPT_DIR/.." && node -e "
 const PDFDocument = require('pdfkit');
-const { pdfkitAddPlaceholder } = require('@signpdf/placeholder-pdfkit');
 const doc = new PDFDocument();
 const chunks = [];
 doc.on('data', c => chunks.push(c));
 doc.on('end', () => {
   const buf = Buffer.concat(chunks);
   process.stdout.write(buf.toString('base64'));
-});
-pdfkitAddPlaceholder({
-  pdf: doc,
-  pdfBuffer: Buffer.alloc(0),
-  reason: 'e2e test',
-  contactInfo: 'e2e@example.com',
-  name: 'e2e test',
-  location: 'Berlin',
 });
 doc.text('Hello e2e');
 doc.end();
