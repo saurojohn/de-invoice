@@ -73,13 +73,26 @@ pass "created test expense = ${EXP_ID:0:8}…"
 # files users will upload.
 TEMP_PDF="/tmp/t12-test-${UNIQ}.pdf"
 # Grab any existing invoice PDF — we have several
-# from previous test runs. The URL doesn't care
-# about companyId since the PDF is the same shape.
+# from previous test runs. Tier 261: pick the
+# first invoice with a real PDF (returns
+# application/pdf content type, not the JSON
+# error envelope). The previous hardcoded
+# 36af901f-... invoice ID returned a 500
+# ("PDF generation failed") on a fresh DB
+# because that invoice didn't exist.
+api_get "/api/v1/invoices?companyId=${COMPANY_ID}&pageSize=1"
+REAL_INV_ID=$(echo "$BODY" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('data', d)[0]['id'] if d.get('data', d) else '')" 2>/dev/null)
+if [[ -z "$REAL_INV_ID" ]]; then
+  fail "no real invoice with paid status — cannot fetch test PDF"
+fi
 curl -sS -o "$TEMP_PDF" \
-  "http://localhost:3001/api/v1/invoices/36af901f-aceb-427f-bef5-565612829f42/pdf?companyId=${COMPANY_ID}" \
+  "http://localhost:3001/api/v1/invoices/${REAL_INV_ID}/pdf?companyId=${COMPANY_ID}" \
   -H "x-user-id: ${USER_ID}" -H "x-company-id: ${COMPANY_ID}" 2>/dev/null
-if [[ ! -s "$TEMP_PDF" ]]; then
-  fail "could not download test invoice PDF — is the dev server running?"
+# Tier 261: verify the downloaded file is
+# actually a PDF (starts with %PDF-) — not a
+# JSON error envelope like 36af901f-... was.
+if [[ ! -s "$TEMP_PDF" ]] || ! head -c 5 "$TEMP_PDF" | grep -q "%PDF-"; then
+  fail "downloaded file is not a real PDF (got: $(head -c 100 "$TEMP_PDF"))"
 fi
 ORIG_MD5=$(md5 -q "$TEMP_PDF")
 ORIG_SIZE=$(wc -c < "$TEMP_PDF" | tr -d ' ')
@@ -170,12 +183,17 @@ else
 fi
 
 # 10. Invalid entityType → 400.
+# Tier 261: use a TRULY unknown entityType
+# ('bank-statement' is not in the allowlist).
+# The previous 'invoice' is valid, so the
+# upload would have succeeded and the test
+# would have failed the 400 assertion.
 HTTP_BAD=$(curl -sS -o /dev/null -w "%{http_code}" -X POST \
   "http://localhost:3001/api/v1/attachments?companyId=${COMPANY_ID}" \
   -H "x-user-id: ${USER_ID}" -H "x-company-id: ${COMPANY_ID}" \
   -F "file=@${TEMP_PDF}" \
   -F "companyId=${COMPANY_ID}" \
-  -F "entityType=invoice" \
+  -F "entityType=bank-statement" \
   -F "entityId=does-not-matter")
 assert_eq "unknown entityType → 400" "$HTTP_BAD" "400"
 
