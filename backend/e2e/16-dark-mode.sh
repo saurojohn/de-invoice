@@ -34,11 +34,19 @@ echo "=== Test: dark mode toggle wiring ==="
 # The dev server must be running. Hit the dashboard
 # to verify SSR is up. We don't assert specific
 # content here — just that the page returns 200.
+# Tier 262: pass the auth cookies that
+# `src/middleware.ts` checks. The previous
+# code tried to read /tmp/cookies.txt
+# (express-style connect.sid) but Next.js
+# uses the x-user-id + x-company-id cookies
+# that ci-seed.sh writes to
+# /tmp/cashbook-e2e-auth.env. The
+# middleware redirects to /login (307) if
+# either cookie is missing.
+AUTH_COOKIE="x-user-id=${USER_ID}; x-company-id=${COMPANY_ID}"
 HTTP=$(curl -sS -o /dev/null -w "%{http_code}" \
   "http://localhost:3100/dashboard" \
-  -H "Cookie: $(grep -v '^#' /tmp/cookies.txt 2>/dev/null | grep connect.sid | awk '{print $6"="$7}' | tr '\n' ';')")
-# Just check the dev server is alive
-HTTP=$(curl -sS -o /dev/null -w "%{http_code}" "http://localhost:3100/dashboard")
+  -H "Cookie: ${AUTH_COOKIE}")
 assert_eq "dashboard HTML HTTP" "$HTTP" "200"
 
 # Verify the pre-hydration script is INLINE in the
@@ -46,7 +54,7 @@ assert_eq "dashboard HTML HTTP" "$HTTP" "200"
 # light on first load before the useTheme hook
 # runs. The script reads localStorage and sets
 # the .dark class on <html> before React mounts.
-PAGE_HTML=$(curl -sS "http://localhost:3100/dashboard")
+PAGE_HTML=$(curl -sS -H "Cookie: ${AUTH_COOKIE}" "http://localhost:3100/dashboard")
 HAS_PREHYDRATION=$(echo "$PAGE_HTML" | grep -c "de-invoice.theme")
 if [[ "$HAS_PREHYDRATION" -gt 0 ]]; then
   echo "✓ pre-hydration script is inlined in SSR HTML"
@@ -60,7 +68,7 @@ fi
 # /_next/static/chunks/[root-of-the-server]__xxx.css),
 # NOT inlined in the HTML. Pull that file and count
 # .dark\: selectors.
-CSS_URL=$(echo "$PAGE_HTML" | grep -oE '/_next/static/chunks/[^"]+\.css' | head -1)
+CSS_URL=$(echo "$PAGE_HTML" | grep -oE '/_next/static/[^"]+\.css' | head -1)
 if [[ -z "$CSS_URL" ]]; then
   fail "could not find compiled CSS URL in page HTML"
 fi
@@ -125,8 +133,14 @@ if [[ -z "$USE_THEME_CHUNK" ]]; then
   fail "useTheme chunk not found in served JS"
 fi
 USE_THEME_JS=$(curl -sS "http://localhost:3100${USE_THEME_CHUNK}")
-for needle in '"system"' 'prefers-color-scheme' 'de-invoice.theme' 'matchMedia'; do
-  if echo "$USE_THEME_JS" | grep -q "$needle"; then
+# Tier 262: under `set -o pipefail`, piping a
+# 1.2MB string through `echo | grep -q` can
+# return non-zero due to SIGPIPE handling
+# even when grep found the needle. Use grep
+# -c (count) on a here-string instead — no
+# pipe, no SIGPIPE race.
+for needle in 'system' 'prefers-color-scheme' 'de-invoice.theme' 'matchMedia'; do
+  if [[ "$(grep -c "$needle" <<<"$USE_THEME_JS")" -gt 0 ]]; then
     echo "  ✓ useTheme chunk contains '$needle'"
   else
     fail "useTheme chunk missing '$needle'"
