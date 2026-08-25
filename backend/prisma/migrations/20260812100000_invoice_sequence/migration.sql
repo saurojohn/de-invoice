@@ -54,7 +54,7 @@
 -- (type=INV, year=2026): the only tuple in production at the
 -- time of this migration. New tuples are auto-created by
 -- the service.
-CREATE SEQUENCE IF NOT EXISTS "invoice_seq_INV_2026" START 1 INCREMENT 1;
+CREATE SEQUENCE IF NOT EXISTS invoice_seq_INV_2026 START 1 INCREMENT 1;
 
 -- Seed: next nextval() should return MAX(existing seq)+1.
 --
@@ -81,16 +81,27 @@ CREATE SEQUENCE IF NOT EXISTS "invoice_seq_INV_2026" START 1 INCREMENT 1;
 -- them) — CAST fails cleanly and we fall through to 0.
 --
 -- setval(seq, n, true) → next nextval returns n+1.
+-- Tier 263: wrap the COALESCE in GREATEST(..., 1)
+-- because setval rejects 0 (sequences start at 1
+-- by default). On a fresh DB with no INV-2026-* rows
+-- the MAX subquery returns NULL → COALESCE returns
+-- 0 → setval errors with 'value 0 is out of bounds'.
+-- GREATEST(0, 1) = 1 → setval(1) is the lowest legal
+-- value, and next nextval returns 2 (the new
+-- create() will then format to 'INV-2026-000002').
 SELECT setval(
   'invoice_seq_inv_2026',
-  COALESCE(
-    (
-      SELECT MAX(CAST(SUBSTRING("invoiceNumber" FROM 'INV-2026-([0-9]+)$') AS INTEGER))
-      FROM "Invoice"
-      WHERE "invoiceNumber" ~ '^INV-2026-[0-9]+$'
-        AND type = 'INV'
+  GREATEST(
+    COALESCE(
+      (
+        SELECT MAX(CAST(SUBSTRING("invoiceNumber" FROM 'INV-2026-([0-9]+)$') AS INTEGER))
+        FROM "Invoice"
+        WHERE "invoiceNumber" ~ '^INV-2026-[0-9]+$'
+          AND type = 'INV'
+      ),
+      0
     ),
-    0
+    1
   )::bigint,
   true
 );

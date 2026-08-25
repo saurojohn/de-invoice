@@ -23,7 +23,6 @@
 CREATE TABLE "UserSigningKey" (
   id           TEXT PRIMARY KEY,
   "userId"     TEXT NOT NULL UNIQUE,
-  "user"       "User"   @relation("UserSigningKeyOwner", fields: ["userId"], references: [id], onDelete: Cascade),
   "certPem"    TEXT NOT NULL,
   "keyPem"     TEXT NOT NULL,
   "fingerprint" TEXT NOT NULL,
