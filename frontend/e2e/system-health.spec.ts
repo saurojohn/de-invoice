@@ -22,10 +22,19 @@ import { getTestEnv } from './fixtures/test-env'
 const USER_ID = getTestEnv().userId
 const COMPANY_ID = getTestEnv().companyId
 test.describe('Tier 119 — System health page', () => {
-  test.beforeEach(async ({ page }) => {
-    // Pre-seed both required headers via the test's
-    // localStorage. The login flow is exercised by
-    // the other admin-page specs.
+  test.beforeEach(async ({ page, context }) => {
+    // Set both the cookies (so the Next.js middleware
+    // doesn't redirect to /login) AND the localStorage
+    // items (so the page's AuthContext picks them up).
+    // The previous version set only localStorage, which
+    // is enough for the AuthCookieSync component to
+    // write cookies — but the middleware runs BEFORE
+    // AuthCookieSync, so the first request redirected
+    // to /login and the table never rendered.
+    await context.addCookies([
+      { name: 'x-user-id', value: USER_ID, domain: 'localhost', path: '/', sameSite: 'Lax' },
+      { name: 'x-company-id', value: COMPANY_ID, domain: 'localhost', path: '/', sameSite: 'Lax' },
+    ])
     await page.addInitScript(({ userId, companyId }) => {
       localStorage.setItem('userId', userId)
       localStorage.setItem('companyId', companyId)
@@ -48,9 +57,14 @@ test.describe('Tier 119 — System health page', () => {
 
     await page.goto('/dashboard/system-health')
     await expect(page.getByTestId('system-health-table')).toBeVisible()
-    // The table should have 7 rows (one per registered cron)
+    // The table should have at least 7 rows (one per
+    // registered cron). The exact count grows as new
+    // crons are added (8 in mid-2026 after the
+    // hash-chain + audit-rollup additions), so we
+    // assert >= 7 rather than a fixed number.
     const rows = page.locator('[data-testid^="cron-row-"]')
-    await expect(rows).toHaveCount(7)
+    const count = await rows.count()
+    expect(count).toBeGreaterThanOrEqual(7)
   })
 
   test('refresh button re-fetches the endpoint', async ({ page }) => {

@@ -82,21 +82,30 @@ test.beforeAll(() => {
   // dependencies (Prisma) relative to its own
   // location, but `require('@prisma/client')`
   // inside the script uses cwd's node_modules.
-  // We copy the helper into the backend dir
-  // so the cwd's node_modules resolution works
-  // without the script needing to chdir.
-  const tmpPath = "/Users/shledergmbh/Projects/de-invoice/backend/.tier196-rehash-all.cjs";
-  require("fs").copyFileSync(
-    "/tmp/tier196-rehash-all.js",
-    tmpPath,
-  )
+  // The rehash helper lives in backend/scripts/ as a
+  // TypeScript file; we invoke it via npx ts-node so
+  // the spec doesn't have to maintain a separate JS
+  // copy in /tmp. (The previous design copied a .js
+  // file from /tmp into the backend dir — that file
+  // never existed in CI, so the test failed with
+  // ENOENT on the first run.)
   try {
-    execFileSync("node", [tmpPath], {
-      encoding: "utf-8",
-      stdio: "pipe",
-    })
-  } finally {
-    require("fs").unlinkSync(tmpPath)
+    execFileSync(
+      "npx",
+      ["ts-node", "scripts/audit-rehash.ts"],
+      {
+        encoding: "utf-8",
+        stdio: "pipe",
+        cwd: "/Users/shledergmbh/Projects/de-invoice/backend",
+      },
+    )
+  } catch (e: any) {
+    // Re-raise with stderr attached so the test failure
+    // message points to the rehash error rather than
+    // the subsequent chain-verify call.
+    throw new Error(
+      `audit-rehash failed: ${(e.stderr || e.stdout || e.message || "").toString().slice(0, 500)}`,
+    )
   }
 })
 
