@@ -282,6 +282,41 @@ INSERT INTO "Invoice" (id, "companyId", "customerId", "invoiceNumber", "sequence
 VALUES ('aabbccdd-1337-1337-1337-000000000010', '$COMPANY_ID', 'aabbccdd-1337-1337-1337-000000000001', 'PORTAL-001', 'PORTAL-', 2026, 1, 'INV', 'sent', '2026-06-01', NOW() + INTERVAL '30 days', 100.00, 19.00, 119.00, 'EUR', 'de-DE', NOW(), NOW())
 ON CONFLICT (id) DO UPDATE SET status = 'sent', "updatedAt" = NOW();
 
+-- A zero-amount voucher line for the datev-preview
+-- "issues" spec (datev-preview.spec.ts). The DATEV
+-- preview endpoint flags `Betrag <= 0` warnings; the
+-- spec asserts the issues card is visible when any
+-- issue is present. The seeded voucher is 'booked'
+-- in the test date range so the preview picks it up.
+-- (Avoid non-ASCII chars in the comments — bash sees
+-- `≤` as a command and prints "command not found".)
+INSERT INTO "Voucher" (id, "companyId", "voucherNumber", date, description, status, "createdAt")
+VALUES ('aabbccdd-1850-1850-1850-000000000001', '$COMPANY_ID', 'V-185-001', '2026-04-15', 'Tier 185 zero-amount Beleg', 'posted', NOW())
+ON CONFLICT (id) DO UPDATE SET status = 'posted';
+
+-- A Voucher whose line has konto = 8400 (Erlöse)
+-- but no VAT-Schlüssel. The datev-preview endpoint
+-- flags this as
+--   "Erlöskonto 8400 ohne USt-Schlüssel in Buchung V-185-001"
+-- The spec asserts the issues card renders when any
+-- issue is present. The voucher is 'posted' (matches
+-- the buildBuchungenFromDb filter) and the line has
+-- the standard 2-line structure so each line has a
+-- valid Gegenkonto.
+-- Use the existing 1200 (Bank) account; create a
+-- dedicated 8400 (revenue) account with a Tier-185
+-- specific ID so the VoucherLine FK doesn't collide
+-- with seed data that already has a 1200 row.
+INSERT INTO "Account" (id, "companyId", "accountNumber", name, type, "createdAt")
+VALUES ('aabbccdd-1850-1850-1850-acc0008400', '$COMPANY_ID', '8400', 'Erlöse 19% (test)', 'revenue', NOW())
+ON CONFLICT ("companyId", "accountNumber") DO UPDATE SET name = 'Erlöse 19% (test)';
+
+INSERT INTO "VoucherLine" (id, "voucherId", "accountId", description, debit, credit, "vatRate", "vatAmount", "sortOrder", "costCenter", "costObject")
+VALUES
+  ('aabbccdd-1850-1850-1850-000000000010', 'aabbccdd-1850-1850-1850-000000000001', '92b7d7a0-ec11-42a9-840f-14ddb4b90c68', 'Tier 185 Erloese ohne USt', 0, 119, NULL, NULL, 0, NULL, NULL),
+  ('aabbccdd-1850-1850-1850-000000000011', 'aabbccdd-1850-1850-1850-000000000001', 'aabbccdd-1850-1850-1850-acc0008400', 'Tier 185 Erloese ohne USt', 119, 0, NULL, NULL, 1, NULL, NULL)
+ON CONFLICT (id) DO UPDATE SET debit = EXCLUDED.debit, credit = EXCLUDED.credit, "accountId" = EXCLUDED."accountId", "vatRate" = NULL;
+
 -- An unknown (never-existing) invoice for 404 tests
 -- (the spec asserts 400 / 404 on this id)
 SQL
