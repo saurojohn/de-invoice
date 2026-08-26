@@ -263,6 +263,25 @@ VALUES
   ('11111111-aaaa-bbbb-cccc-000000000003', '$COMPANY_ID', '22222222-bbbb-cccc-dddd-000000000002', 'INV-BULK-003', '2026-06-01', '2026-07-01', 100.00, 19.00, 119.00, 'sent', NOW() - INTERVAL '20 days', NOW())
 ON CONFLICT (id) DO UPDATE SET status = 'sent', "dueDate" = EXCLUDED."dueDate", "updatedAt" = NOW();
 
+-- Portal-test customer (Tier 133 / Tier 30):
+-- the /customer-portal/request-session endpoint
+-- resolves the customer by contact email and then
+-- returns their invoices. The frontend Playwright
+-- spec uses 'tier133-customer@example.com' (or a
+-- per-run unique variant) — we seed a matching
+-- customer + an invoice for them so the portal page
+-- has data to render.
+INSERT INTO "Customer" (id, "companyId", type, name, address, contact, "paymentTerms", tags, "createdAt", "updatedAt", "creditLimit")
+VALUES ('aabbccdd-1337-1337-1337-000000000001', '$COMPANY_ID', 'business', 'Tier 133 Portal Testkunde',
+  '{"street":"Portalstr 1","city":"Berlin","postalCode":"10117","country":"DE"}'::jsonb,
+  '{"email":"tier133-customer@example.com","name":"Tier 133 Test"}'::jsonb, 30, ARRAY['Portal']::text[],
+  NOW(), NOW(), NULL)
+ON CONFLICT (id) DO UPDATE SET "contact" = '{"email":"tier133-customer@example.com","name":"Tier 133 Test"}'::jsonb, "updatedAt" = NOW();
+
+INSERT INTO "Invoice" (id, "companyId", "customerId", "invoiceNumber", "sequencePrefix", "sequenceYear", "sequenceNumber", type, status, "issueDate", "dueDate", subtotal, "totalVat", total, currency, language, "createdAt", "updatedAt")
+VALUES ('aabbccdd-1337-1337-1337-000000000010', '$COMPANY_ID', 'aabbccdd-1337-1337-1337-000000000001', 'PORTAL-001', 'PORTAL-', 2026, 1, 'INV', 'sent', '2026-06-01', NOW() + INTERVAL '30 days', 100.00, 19.00, 119.00, 'EUR', 'de-DE', NOW(), NOW())
+ON CONFLICT (id) DO UPDATE SET status = 'sent', "updatedAt" = NOW();
+
 -- An unknown (never-existing) invoice for 404 tests
 -- (the spec asserts 400 / 404 on this id)
 SQL
