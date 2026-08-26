@@ -79,30 +79,57 @@ test.describe('Tier 152 — Manual Mahnung send', () => {
     // complained but stdio: 'ignore' hid it).
     // The fix: hand psql the SQL on stdin.
     const sql = [
-      `INSERT INTO \\"Invoice\\" (id, \\"companyId\\", \\"customerId\\", \\"invoiceNumber\\", \\"sequencePrefix\\", \\"sequenceYear\\", \\"sequenceNumber\\", type, status, \\"issueDate\\", \\"dueDate\\", subtotal, \\"totalVat\\", total, currency, language, \\"createdAt\\", \\"updatedAt\\")`,
+      `INSERT INTO "Invoice" (id, "companyId", "customerId", "invoiceNumber", "sequencePrefix", "sequenceYear", "sequenceNumber", type, status, "issueDate", "dueDate", subtotal, "totalVat", total, currency, language, "createdAt", "updatedAt")`,
       `VALUES`,
       `  ('${OVERDUE_INVOICE_ID}', '${COMPANY_ID}', '${BWA_CUSTOMER_ID}', 'TIER152-OVERDUE', 'TIER152-', 2026, 1, 'INV', 'sent', '2026-06-01', '2026-07-01', 200, 38, 238, 'EUR', 'de-DE', NOW(), NOW()),`,
       `  ('${FUTURE_INVOICE_ID}', '${COMPANY_ID}', '${BWA_CUSTOMER_ID}', 'TIER152-FUTURE', 'TIER152-', 2026, 2, 'INV', 'sent', '2026-08-01', '2026-12-01', 100, 19, 119, 'EUR', 'de-DE', NOW(), NOW())`,
       `ON CONFLICT (id) DO NOTHING;`,
     ].join('\n')
-    execSync(
-      `docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice`,
-      { input: sql, stdio: ['pipe', 'pipe', 'pipe'] },
-    )
+    // Write the SQL to a temp file and pipe it through
+    // dockerised psql. The previous attempts both had
+    // escape issues: `docker exec -i ... psql` + { input }
+    // silently produced no output (Node 22's execSync
+    // stdin), and `-c "..."` had its quotes eaten by the
+    // bash + docker + psql layering. The temp-file
+    // approach keeps the SQL exactly as authored, with
+    // no escape layer above the file content.
+    const tmpFile = `/tmp/tier152-seed-${process.pid}.sql`
+    require('fs').writeFileSync(tmpFile, sql)
+    try {
+      execSync(
+        `cat "${tmpFile}" | docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -v ON_ERROR_STOP=1`,
+        { stdio: ['pipe', 'pipe', 'pipe'] },
+      )
+    } catch (e: any) {
+      console.log('[tier152] beforeAll INSERT failed:', e.stderr?.toString() || e.message)
+      throw e
+    } finally {
+      try { require('fs').unlinkSync(tmpFile) } catch {}
+    }
   })
   test.afterAll(() => {
-    execSync(
-      `docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "DELETE FROM \\"Mahnung\\" WHERE \\"invoiceId\\" IN ('${OVERDUE_INVOICE_ID}','${FUTURE_INVOICE_ID}')"`,
-      { stdio: 'pipe' },
-    )
-    execSync(
-      `docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "DELETE FROM \\"EmailSend\\" WHERE \\"invoiceId\\" IN ('${OVERDUE_INVOICE_ID}','${FUTURE_INVOICE_ID}')"`,
-      { stdio: 'pipe' },
-    )
-    execSync(
-      `docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "DELETE FROM \\"Invoice\\" WHERE id IN ('${OVERDUE_INVOICE_ID}','${FUTURE_INVOICE_ID}')"`,
-      { stdio: 'pipe' },
-    )
+    // The previous `-c "..."` form was getting its
+    // double-quotes eaten by the shell escape layer
+    // (Node 22 + bash + docker exec triple wrap), so
+    // the DELETE silently failed and the fixture
+    // rows leaked across spec runs. Write the SQL
+    // to a temp file and pipe it through, which
+    // keeps the quotes intact.
+    const cleanupSql = [
+      `DELETE FROM "Mahnung" WHERE "invoiceId" IN ('${OVERDUE_INVOICE_ID}','${FUTURE_INVOICE_ID}');`,
+      `DELETE FROM "EmailSend" WHERE "invoiceId" IN ('${OVERDUE_INVOICE_ID}','${FUTURE_INVOICE_ID}');`,
+      `DELETE FROM "Invoice" WHERE id IN ('${OVERDUE_INVOICE_ID}','${FUTURE_INVOICE_ID}');`,
+    ].join('\n')
+    const tmpFile = `/tmp/tier152-cleanup-${process.pid}.sql`
+    require('fs').writeFileSync(tmpFile, cleanupSql)
+    try {
+      execSync(
+        `cat "${tmpFile}" | docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -v ON_ERROR_STOP=1`,
+        { stdio: 'pipe' },
+      )
+    } finally {
+      try { require('fs').unlinkSync(tmpFile) } catch {}
+    }
   })
 
   test.beforeEach(async ({ context, page }) => {

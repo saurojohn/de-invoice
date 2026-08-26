@@ -62,8 +62,11 @@ test.describe('Tier 136 — Recurring email preview', () => {
   test('renders the Email-Vorschau button inside the form', async ({ page }) => {
     await page.goto('/dashboard/recurring-invoices')
     await expect(page.locator('h1').first()).toBeVisible({ timeout: 30_000 })
-    // Click "Bearbeiten" on the test template row
-    await page.getByTestId(`recurring-edit`).click()
+    // Click "Bearbeiten" on the test template row.
+    // Use first() because other recurring fixtures from
+    // previous spec runs may still be in the DB (shared
+    // dev DB) — strict mode would reject the multi-match.
+    await page.getByTestId(`recurring-edit`).first().click()
     await expect(page.getByTestId('recurring-form-save')).toBeVisible({ timeout: 10_000 })
     const previewBtn = page.getByTestId('recurring-form-preview-email')
     await expect(previewBtn).toBeVisible()
@@ -72,8 +75,16 @@ test.describe('Tier 136 — Recurring email preview', () => {
   test('clicking the button shows subject + recipient + body', async ({ page }) => {
     await page.goto('/dashboard/recurring-invoices')
     await expect(page.locator('h1').first()).toBeVisible({ timeout: 30_000 })
-    await page.getByTestId(`recurring-edit`).click()
+    await page.getByTestId(`recurring-edit`).first().click()
     await expect(page.getByTestId('recurring-form-save')).toBeVisible({ timeout: 10_000 })
+    // The email preview button is only present on SAVED
+    // templates (not on the New-Template form). The test
+    // created tier136-tpl-001 in beforeAll but if the DB
+    // is cold / migration just ran the row may not be
+    // there yet. The beforeAll fires the INSERT before
+    // the first test, so by here the row should exist;
+    // the assertion below times out (10s) if the form
+    // is the "new" variant without the preview button.
     await page.getByTestId('recurring-form-preview-email').click()
     const modal = page.getByTestId('recurring-email-preview-modal')
     await expect(modal).toBeVisible({ timeout: 10_000 })
@@ -94,8 +105,16 @@ test.describe('Tier 136 — Recurring email preview', () => {
   test('close button dismisses the modal', async ({ page }) => {
     await page.goto('/dashboard/recurring-invoices')
     await expect(page.locator('h1').first()).toBeVisible({ timeout: 30_000 })
-    await page.getByTestId(`recurring-edit`).click()
+    await page.getByTestId(`recurring-edit`).first().click()
     await expect(page.getByTestId('recurring-form-save')).toBeVisible({ timeout: 10_000 })
+    // The email preview button is only present on SAVED
+    // templates (not on the New-Template form). The test
+    // created tier136-tpl-001 in beforeAll but if the DB
+    // is cold / migration just ran the row may not be
+    // there yet. The beforeAll fires the INSERT before
+    // the first test, so by here the row should exist;
+    // the assertion below times out (10s) if the form
+    // is the "new" variant without the preview button.
     await page.getByTestId('recurring-form-preview-email').click()
     await expect(page.getByTestId('recurring-email-preview-data')).toBeVisible({ timeout: 10_000 })
     await page.getByTestId('recurring-email-preview-close').click()
@@ -106,7 +125,7 @@ test.describe('Tier 136 — Recurring email preview', () => {
     await page.setViewportSize({ width: 375, height: 667 })
     await page.goto('/dashboard/recurring-invoices')
     await expect(page.locator('h1').first()).toBeVisible({ timeout: 30_000 })
-    await page.getByTestId(`recurring-edit`).click()
+    await page.getByTestId(`recurring-edit`).first().click()
     await expect(page.getByTestId('recurring-form-save')).toBeVisible({ timeout: 10_000 })
     const previewBtn = page.getByTestId('recurring-form-preview-email')
     await expect(previewBtn).toBeVisible({ timeout: 10_000 })
