@@ -77,6 +77,12 @@ test.describe("Recurring invoices (Tier 30)", () => {
     await page.goto("/dashboard/recurring-invoices", {
       waitUntil: "domcontentloaded",
     })
+    // Same hydration wait as Tiers 185 / 183 / 49.
+    await page.waitForFunction(
+      () => document.readyState === 'complete',
+      { timeout: 30_000 },
+    )
+    await page.waitForTimeout(500)
 
     // Wait for the "Neue Vorlage" button to be
     // visible (the page mounts only client-side).
@@ -92,9 +98,18 @@ test.describe("Recurring invoices (Tier 30)", () => {
     const emptyState = page.getByText(/Noch keine|Empty|Keine/i)
     const card = page.locator('[data-testid="recurring-card"]').first()
     // Whichever shows up — both are valid outcomes.
+    // We use try/catch because waitFor times out
+    // if the element never appears, which is the
+    // success case for the cards branch.
     const hasCards = (await card.count()) > 0
     if (!hasCards) {
       await expect(emptyState.first()).toBeVisible({ timeout: 5_000 })
+    } else {
+      // Cards path: the page is populated, which
+      // is also a valid outcome (shared dev DB +
+      // other spec runs leave templates behind).
+      // We assert the cards render as expected.
+      await expect(card).toBeVisible()
     }
   })
 
@@ -106,6 +121,12 @@ test.describe("Recurring invoices (Tier 30)", () => {
     await page.goto("/dashboard/recurring-invoices", {
       waitUntil: "domcontentloaded",
     })
+    // Same hydration wait as test 1.
+    await page.waitForFunction(
+      () => document.readyState === 'complete',
+      { timeout: 30_000 },
+    )
+    await page.waitForTimeout(500)
 
     const newButton = page.locator(
       '[data-testid="recurring-new-button"]',

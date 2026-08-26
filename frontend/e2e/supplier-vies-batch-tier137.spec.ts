@@ -75,6 +75,12 @@ test.describe('Tier 137 — VIES batch check (suppliers)', () => {
   test('start button runs the batch and shows the summary', async ({ page }) => {
     await page.goto('/dashboard/suppliers')
     await expect(page.locator('h1').first()).toBeVisible({ timeout: 30_000 })
+    // Same hydration wait as Tiers 185 / 183 / 49.
+    await page.waitForFunction(
+      () => document.readyState === 'complete',
+      { timeout: 30_000 },
+    )
+    await page.waitForTimeout(500)
     await page.getByTestId('supplier-vies-batch-button').click()
     await expect(page.getByTestId('supplier-vies-batch-modal')).toBeVisible({ timeout: 10_000 })
     await page.getByTestId('supplier-vies-batch-start').click()
