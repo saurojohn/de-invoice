@@ -294,6 +294,25 @@ INSERT INTO "Voucher" (id, "companyId", "voucherNumber", date, description, stat
 VALUES ('aabbccdd-1850-1850-1850-000000000001', '$COMPANY_ID', 'V-185-001', '2026-04-15', 'Tier 185 zero-amount Beleg', 'posted', NOW())
 ON CONFLICT (id) DO UPDATE SET status = 'posted';
 
+-- Tier 49 cost-center suggestion fixture:
+-- The cost-center-suggest-prefix spec types "VER"
+-- into the cc input and expects the datalist to
+-- render >= 1 option (BK-HIST-001 has VERTRIEB
+-- stamps on Sachkonto 4960). Seed a Voucher +
+-- VoucherLine with costCenter='VERTRIEB' on 4960.
+-- (We use a non-tier-prefixed name per the Tier 39
+-- fixture-survival lesson — 'BK-HIST-001' is a
+-- stable, dev-DB-cleanup-safe identifier.)
+INSERT INTO "Voucher" (id, "companyId", "voucherNumber", date, description, status, "createdAt")
+VALUES ('BK-HIST-001', '$COMPANY_ID', 'BK-HIST-001', '2026-01-15', 'Tier 49 VERTRIEB fixture', 'posted', NOW())
+ON CONFLICT (id) DO UPDATE SET status = 'posted';
+
+INSERT INTO "VoucherLine" (id, "voucherId", "accountId", description, debit, credit, "vatRate", "vatAmount", "sortOrder", "costCenter", "costObject")
+VALUES
+  ('BK-HIST-001-L1', 'BK-HIST-001', 'd8833d31-5d04-479b-a5c8-40e1200c092b', 'Tier 49 VERTRIEB line 1', 0, 100, NULL, NULL, 0, 'VERTRIEB', NULL),
+  ('BK-HIST-001-L2', 'BK-HIST-001', 'd8833d31-5d04-479b-a5c8-40e1200c092b', 'Tier 49 VERTRIEB line 2', 100, 0, NULL, NULL, 1, 'VERTRIEB', NULL)
+ON CONFLICT (id) DO UPDATE SET debit = EXCLUDED.debit, credit = EXCLUDED.credit, "accountId" = EXCLUDED."accountId", "costCenter" = 'VERTRIEB';
+
 -- A Voucher whose line has konto = 8400 (Erlöse)
 -- but no VAT-Schlüssel. The datev-preview endpoint
 -- flags this as

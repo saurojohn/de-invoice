@@ -113,6 +113,14 @@ test.describe("Tier 183 — frontend GoBD month packager button", () => {
       timeout: 90_000,
       waitUntil: "domcontentloaded",
     })
+    // Same hydration wait as Tier 185: the cold-compile
+    // of /dashboard/audit takes 10-15s, and a click
+    // before React hydrates silently does nothing.
+    await page.waitForFunction(
+      () => document.readyState === 'complete',
+      { timeout: 30_000 },
+    )
+    await page.waitForTimeout(500)
     // Set month to 7 (Juli). The month <select>
     // uses numeric value 1-12.
     const monthSel = page.getByTestId("audit-gobd-month")

@@ -76,6 +76,12 @@ test("typing in cc input fires prefix-filtered list call", async ({
     await expect(page).toHaveURL(/\/dashboard\/accounting$/, {
       timeout: 15_000,
     })
+    // Same hydration wait as Tiers 185 / 183.
+    await page.waitForFunction(
+      () => document.readyState === 'complete',
+      { timeout: 30_000 },
+    )
+    await page.waitForTimeout(500)
 
     // Open the create modal via the dedicated testid.
     await page.locator('[data-testid="accounting-new-voucher"]').click()
@@ -177,6 +183,12 @@ test("typing in cc input fires prefix-filtered list call", async ({
     await page.goto("/dashboard/accounting", {
       waitUntil: "domcontentloaded",
     })
+    // Same hydration wait as test 1.
+    await page.waitForFunction(
+      () => document.readyState === 'complete',
+      { timeout: 30_000 },
+    )
+    await page.waitForTimeout(500)
 
     await page.locator('[data-testid="accounting-new-voucher"]').click()
     await expect(
