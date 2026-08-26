@@ -27,10 +27,23 @@ import { getTestEnv } from './fixtures/test-env'
 const USER_ID = getTestEnv().userId
 const COMPANY_ID = getTestEnv().companyId
 const API = 'http://localhost:3001'
-// Two real invoices from the dev DB (BWA Test Kunde, sent).
+// Three real invoices from the dev DB. The
+// hardcoded UUIDs match the rows seeded by
+// ci-seed.sh + dynamic sequence runs (the
+// invoice numbers are stable across runs
+// because the sequence is shared + the row
+// upserts preserve the same id).
+//
+// If a future migration changes the seed
+// invoice IDs, run `psql ... -c "SELECT id,
+// \"invoiceNumber\" FROM \"Invoice\" WHERE
+// \"invoiceNumber\" IN ('INV-TEST-001',
+// 'INV-2026-000203', 'INV-2026-000205');"`
+// to find the current ids.
 const INVOICE_IDS = [
-  '11deeb35-7147-4bdc-86d9-a302b4f80f3e',
-  '8a36f84d-721e-462b-92ad-6431c331afa7',
+  '11deeb35-7147-4bdc-86d9-a302b4f80f3e', // INV-TEST-001
+  '2ae06f86-4310-4fa1-b7b7-53ffa90d0a2c', // INV-2026-000203
+  '5cd98db2-4b9b-4b6f-a65d-19d5958521f7', // INV-2026-000205
 ]
 
 test.describe('Tier 139 — Bulk ZIP enriched manifest', () => {

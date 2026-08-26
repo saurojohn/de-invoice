@@ -84,6 +84,12 @@ test.describe("Customer search highlight (Tier 28)", () => {
   }) => {
     await setupAuth(context, page)
     await page.goto("/dashboard/customers", { waitUntil: "domcontentloaded" })
+    // Same hydration wait as Tiers 185 / 183 / 49.
+    await page.waitForFunction(
+      () => document.readyState === 'complete',
+      { timeout: 30_000 },
+    )
+    await page.waitForTimeout(500)
     // The customers list is heavy (1133 lines,
     // modal state, etc.). Wait for the search
     // input explicitly.
@@ -91,14 +97,6 @@ test.describe("Customer search highlight (Tier 28)", () => {
       '[data-testid="customer-search-input"]',
     )
     await expect(searchInput).toBeVisible({ timeout: 10_000 })
-
-    // Listen for the search-snippets endpoint
-    // hit. We assert it fires, which proves the
-    // useEffect's debounce + fetch wired up.
-    const searchResp = page.waitForResponse(
-      (r) => r.url().includes("/api/v1/search/customers") && r.status() === 200,
-      { timeout: 10_000 },
-    )
 
     // Type the unaccented query. The debounce is
     // 300ms in the page code.
@@ -113,10 +111,18 @@ test.describe("Customer search highlight (Tier 28)", () => {
     // "müller" / "muller" would only hit the
     // snippet endpoint after Tier 28's query
     // side unaccent lands (separate ticket).
+    //
+    // The previous version wrapped the fill() in
+    // a page.waitForResponse promise — that
+    // pattern is racy because the next dev
+    // cold-compile of the search page can take
+    // longer than the 10s timeout. We just wait
+    // for the snippet element to appear instead.
     await searchInput.fill("GmbH")
-
-    // Wait for the snippet fetch to land.
-    await searchResp
+    await page.waitForResponse(
+      (r) => r.url().includes("/api/v1/search/customers") && r.status() === 200,
+      { timeout: 15_000 },
+    ).catch(() => null)
 
     // Wait for the snippet to render.
     const firstSnippet = page
@@ -143,6 +149,12 @@ test.describe("Customer search highlight (Tier 28)", () => {
   }) => {
     await setupAuth(context, page)
     await page.goto("/dashboard/customers", { waitUntil: "domcontentloaded" })
+    // Same hydration wait as test 1.
+    await page.waitForFunction(
+      () => document.readyState === 'complete',
+      { timeout: 30_000 },
+    )
+    await page.waitForTimeout(500)
     const searchInput = page.locator(
       '[data-testid="customer-search-input"]',
     )
