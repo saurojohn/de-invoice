@@ -81,7 +81,29 @@ test.describe("Tier 185 — frontend DATEV month bundle button", () => {
     // toggle has data-testid="tab-datev".
     const datevTab = page.getByTestId("tab-datev")
     await expect(datevTab).toBeVisible({ timeout: 30_000 })
+    // Make sure the React onClick handler is attached
+    // (hydration complete) before clicking. Hydrating
+    // /dashboard/reports on a cold compile takes 10-15s
+    // and a click before hydration lands silently does
+    // nothing — the page would stay on the sales tab.
+    await page.waitForFunction(
+      () => {
+        // The DATEV-Export tab button's class list
+        // includes the active styling when activeTab
+        // changes. Before hydration, clicking doesn't
+        // set the state. We detect hydration by
+        // checking that the page has finished loading
+        // its first network roundtrip.
+        return document.readyState === 'complete'
+      },
+      { timeout: 30_000 },
+    )
+    await page.waitForTimeout(500)
     await datevTab.click()
+    // The DatevExportTab component is mounted on
+    // activeTab === "datev"; its first render
+    // includes the datev-bundle-month-btn.
+    await page.waitForSelector('[data-testid="datev-bundle-month-btn"]', { timeout: 30_000, state: 'visible' })
     const btn = page.getByTestId("datev-bundle-month-btn")
     await expect(btn).toBeVisible({ timeout: 30_000 })
     // i18n: button is hardcoded German
@@ -97,6 +119,15 @@ test.describe("Tier 185 — frontend DATEV month bundle button", () => {
     })
     const datevTab = page.getByTestId("tab-datev")
     await expect(datevTab).toBeVisible({ timeout: 30_000 })
+    // Same hydration wait as test 1 — the React
+    // onClick handler isn't attached until React
+    // hydrates the page, and the cold compile
+    // of /dashboard/reports can take 10-15s.
+    await page.waitForFunction(
+      () => document.readyState === 'complete',
+      { timeout: 30_000 },
+    )
+    await page.waitForTimeout(500)
     await datevTab.click()
     const yearSel = page.getByTestId("datev-bundle-month-year")
     const monthSel = page.getByTestId("datev-bundle-month-month")
@@ -127,6 +158,11 @@ test.describe("Tier 185 — frontend DATEV month bundle button", () => {
     })
     const datevTab = page.getByTestId("tab-datev")
     await expect(datevTab).toBeVisible({ timeout: 30_000 })
+    await page.waitForFunction(
+      () => document.readyState === 'complete',
+      { timeout: 30_000 },
+    )
+    await page.waitForTimeout(500)
     await datevTab.click()
     // Set year + month
     const yearSel = page.getByTestId("datev-bundle-month-year")
