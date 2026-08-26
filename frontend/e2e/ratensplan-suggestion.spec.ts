@@ -247,6 +247,12 @@ test.describe("Tier 65 — Auto-Ratenplan banner", () => {
     await page.goto(`/dashboard/invoices/${TEST_HIGH_INV_ID}`, {
       waitUntil: "domcontentloaded",
     })
+    // Same hydration wait as Tiers 185 / 183 / 49.
+    await page.waitForFunction(
+      () => document.readyState === 'complete',
+      { timeout: 30_000 },
+    )
+    await page.waitForTimeout(500)
     // Wait for the page + the suggestion fetch.
     // The banner has data-testid="ratensplan-suggest-banner".
     const banner = page.locator('[data-testid="ratensplan-suggest-banner"]')
@@ -267,6 +273,12 @@ test.describe("Tier 65 — Auto-Ratenplan banner", () => {
     await page.goto(`/dashboard/invoices/${TEST_HIGH_INV_ID}`, {
       waitUntil: "domcontentloaded",
     })
+    // Same hydration wait as test 1.
+    await page.waitForFunction(
+      () => document.readyState === 'complete',
+      { timeout: 30_000 },
+    )
+    await page.waitForTimeout(500)
     await expect(
       page.locator('[data-testid="ratensplan-suggest-button"]'),
     ).toBeVisible({ timeout: 15_000 })

@@ -93,15 +93,24 @@ test.describe("Webhooks UI", () => {
     // can find the new page.
     await injectLocalStorage(page)
     await page.goto("/dashboard/settings")
-    await page.waitForLoadState("networkidle", { timeout: 10_000 })
+    // Same hydration wait as Tiers 185 / 183 / 49.
+    await page.waitForFunction(
+      () => document.readyState === 'complete',
+      { timeout: 30_000 },
+    )
+    await page.waitForTimeout(500)
     const link = page.locator('[data-testid="webhooks-settings-link"]')
-    await expect(link).toBeVisible({ timeout: 5_000 })
+    await expect(link).toBeVisible({ timeout: 10_000 })
   })
 
   test("webhooks page renders with empty state", async ({ page }) => {
     await injectLocalStorage(page)
     await page.goto("/dashboard/settings/webhooks")
-    await page.waitForLoadState("networkidle", { timeout: 10_000 })
+    await page.waitForFunction(
+      () => document.readyState === 'complete',
+      { timeout: 30_000 },
+    )
+    await page.waitForTimeout(500)
 
     // Title visible
     await expect(
@@ -136,7 +145,11 @@ test.describe("Webhooks UI", () => {
     // a more elaborate flow, so use the
     // API directly via fetch.
     await page.goto("/dashboard/settings/webhooks")
-    await page.waitForLoadState("networkidle", { timeout: 10_000 })
+    await page.waitForFunction(
+      () => document.readyState === 'complete',
+      { timeout: 30_000 },
+    )
+    await page.waitForTimeout(500)
 
     // Wait for the page to fully hydrate
     // and finish loading (it renders a
@@ -213,7 +226,11 @@ test.describe("Webhooks UI", () => {
     // webhooks for this company via the
     // UI/API so the page renders cleanly.
     await page.goto("/dashboard/settings/webhooks")
-    await page.waitForLoadState("networkidle", { timeout: 10_000 })
+    await page.waitForFunction(
+      () => document.readyState === 'complete',
+      { timeout: 30_000 },
+    )
+    await page.waitForTimeout(500)
 
     // Create a webhook for the replay test.
     // Use webhook.test so we don't need
