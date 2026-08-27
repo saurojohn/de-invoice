@@ -69,11 +69,16 @@ test.describe('Tier 136 — Recurring email preview', () => {
   test('renders the Email-Vorschau button inside the form', async ({ page }) => {
     await page.goto('/dashboard/recurring-invoices')
     await expect(page.locator('h1').first()).toBeVisible({ timeout: 30_000 })
-    // Click "Bearbeiten" on the test template row.
-    // Use first() because other recurring fixtures from
-    // previous spec runs may still be in the DB (shared
-    // dev DB) — strict mode would reject the multi-match.
-    await page.getByTestId(`recurring-edit`).first().click()
+    // Click "Bearbeiten" on the tier136 card specifically.
+    // Don't use .first() — the shared dev DB has other
+    // recurring templates (e.g. tier158 clone source,
+    // smoke fixtures) and the first card may not be
+    // tier136. The page renders each card with
+    // data-recurring-name={tpl.name}, so we filter by that.
+    await page
+      .locator('[data-testid="recurring-card"][data-recurring-name="Tier 136 Wartungsvertrag"]')
+      .locator('[data-testid="recurring-edit"]')
+      .click()
     await expect(page.getByTestId('recurring-form-save')).toBeVisible({ timeout: 10_000 })
     const previewBtn = page.getByTestId('recurring-form-preview-email')
     await expect(previewBtn).toBeVisible()
@@ -82,7 +87,12 @@ test.describe('Tier 136 — Recurring email preview', () => {
   test('clicking the button shows subject + recipient + body', async ({ page }) => {
     await page.goto('/dashboard/recurring-invoices')
     await expect(page.locator('h1').first()).toBeVisible({ timeout: 30_000 })
-    await page.getByTestId(`recurring-edit`).first().click()
+    // Click "Bearbeiten" on the tier136 card specifically
+    // (not the first card in the table — see test 1).
+    await page
+      .locator('[data-testid="recurring-card"][data-recurring-name="Tier 136 Wartungsvertrag"]')
+      .locator('[data-testid="recurring-edit"]')
+      .click()
     await expect(page.getByTestId('recurring-form-save')).toBeVisible({ timeout: 10_000 })
     // The email preview button is only present on SAVED
     // templates (not on the New-Template form). The test
@@ -119,7 +129,12 @@ test.describe('Tier 136 — Recurring email preview', () => {
   test('close button dismisses the modal', async ({ page }) => {
     await page.goto('/dashboard/recurring-invoices')
     await expect(page.locator('h1').first()).toBeVisible({ timeout: 30_000 })
-    await page.getByTestId(`recurring-edit`).first().click()
+    // Click "Bearbeiten" on the tier136 card specifically
+    // (not the first card — see test 1).
+    await page
+      .locator('[data-testid="recurring-card"][data-recurring-name="Tier 136 Wartungsvertrag"]')
+      .locator('[data-testid="recurring-edit"]')
+      .click()
     await expect(page.getByTestId('recurring-form-save')).toBeVisible({ timeout: 10_000 })
     // The email preview button is only present on SAVED
     // templates (not on the New-Template form). The test
@@ -139,7 +154,12 @@ test.describe('Tier 136 — Recurring email preview', () => {
     await page.setViewportSize({ width: 375, height: 667 })
     await page.goto('/dashboard/recurring-invoices')
     await expect(page.locator('h1').first()).toBeVisible({ timeout: 30_000 })
-    await page.getByTestId(`recurring-edit`).first().click()
+    // Click "Bearbeiten" on the tier136 card specifically
+    // (not the first card — see test 1).
+    await page
+      .locator('[data-testid="recurring-card"][data-recurring-name="Tier 136 Wartungsvertrag"]')
+      .locator('[data-testid="recurring-edit"]')
+      .click()
     await expect(page.getByTestId('recurring-form-save')).toBeVisible({ timeout: 10_000 })
     const previewBtn = page.getByTestId('recurring-form-preview-email')
     await expect(previewBtn).toBeVisible({ timeout: 10_000 })
