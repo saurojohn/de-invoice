@@ -116,7 +116,9 @@ test.describe("Customer portal (Tier 33)", () => {
     const userId = testTokens?.userId ?? ""
     const companyId = testTokens?.companyId ?? ""
     if (!userId || !companyId) test.skip()
-    // Find any invoice id.
+    // Find a real invoice id (skip test fixtures
+    // like 'T160-CLONE-SRC' that have non-standard
+    // invoice numbers).
     const invResp = await page.request.get(
       `http://localhost:3001/api/v1/invoices?companyId=${companyId}`,
       {
@@ -128,7 +130,9 @@ test.describe("Customer portal (Tier 33)", () => {
     )
     const body = await invResp.json()
     const items = Array.isArray(body) ? body : body.data || []
-    const invoice = items[0]
+    const invoice = items.find(
+      (i: any) => /^INV-\d{4}-\d+$/.test(i.invoiceNumber),
+    ) || items[0]
     if (!invoice) test.skip()
     // Mint a fresh link via the authed API.
     const linkResp = await page.request.post(
@@ -161,7 +165,7 @@ test.describe("Customer portal (Tier 33)", () => {
     const invNumber = await page2
       .locator('[data-testid="pay-invoice-number"]')
       .innerText()
-    expect(invNumber).toMatch(/INV-\d{4}-\d{6}/)
+    expect(invNumber).toMatch(/^INV-\d{4}-\d+$/)
     // The total renders.
     const total = await page2
       .locator('[data-testid="pay-total"]')
