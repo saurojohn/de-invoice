@@ -61,7 +61,12 @@ async function contextWithAuth(page: any) {
   )
 }
 
-const INVOICE_ID = "04a16886-2811-4390-87c6-16f2ebe1cf72" // Tier 50 fixture
+// Use a real invoice from the dev DB. We use the
+// ci-seed's INV-TEST-001 (id=11deeb35-...) because
+// it's present in every run. The Tier 50 fixture
+// (04a16886-...) was hardcoded but the dev DB no
+// longer has it.
+const INVOICE_ID = "11deeb35-7147-4bdc-86d9-a302b4f80f3e"
 
 test.describe("Tier 246 — Berater personal stamp on invoice PDF", () => {
   test.beforeEach(async ({ page }) => {
@@ -70,7 +75,11 @@ test.describe("Tier 246 — Berater personal stamp on invoice PDF", () => {
 
   test("1. Berater-Stempel button is visible on the signature panel", async ({ page }) => {
     await page.goto(`http://localhost:3100/dashboard/invoices/${INVOICE_ID}`)
-    await page.waitForLoadState("networkidle", { timeout: 15000 })
+    await page.waitForFunction(
+      () => document.readyState === 'complete',
+      { timeout: 30000 },
+    )
+    await page.waitForTimeout(500)
     const btn = page.getByTestId("pdf-signature-berater-stamp")
     if ((await btn.count()) === 0) {
       test.skip(true, "Berater-stamp button not present (page may still be loading)")
@@ -80,7 +89,11 @@ test.describe("Tier 246 — Berater personal stamp on invoice PDF", () => {
 
   test("2. button text says 'Berater-Signatur anwenden' (de-DE)", async ({ page }) => {
     await page.goto(`http://localhost:3100/dashboard/invoices/${INVOICE_ID}`)
-    await page.waitForLoadState("networkidle", { timeout: 15000 })
+    await page.waitForFunction(
+      () => document.readyState === 'complete',
+      { timeout: 30000 },
+    )
+    await page.waitForTimeout(500)
     const btn = page.getByTestId("pdf-signature-berater-stamp")
     if ((await btn.count()) === 0) {
       test.skip(true, "button not present")
@@ -91,7 +104,11 @@ test.describe("Tier 246 — Berater personal stamp on invoice PDF", () => {
 
   test("3. clicking the button triggers a download of a file with '_berater' suffix", async ({ page }) => {
     await page.goto(`http://localhost:3100/dashboard/invoices/${INVOICE_ID}`)
-    await page.waitForLoadState("networkidle", { timeout: 15000 })
+    await page.waitForFunction(
+      () => document.readyState === 'complete',
+      { timeout: 30000 },
+    )
+    await page.waitForTimeout(500)
     const btn = page.getByTestId("pdf-signature-berater-stamp")
     if ((await btn.count()) === 0) {
       test.skip(true, "button not present")

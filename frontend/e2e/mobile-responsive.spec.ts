@@ -92,8 +92,16 @@ test.describe("Mobile responsive audit (iPhone 12 viewport)", () => {
         // after the redirect.
         return
       }
-      // Wait for the page to settle
-      await page.waitForLoadState("networkidle", { timeout: 15_000 })
+      // Wait for the page to settle. Don't use
+      // waitForLoadState('networkidle') on dev —
+      // HMR keeps the network busy, so the page
+      // never goes "network idle". Use the standard
+      // hydration wait instead.
+      await page.waitForFunction(
+        () => document.readyState === 'complete',
+        { timeout: 15_000 },
+      )
+      await page.waitForTimeout(500)
       // Check that the page itself doesn't
       // scroll horizontally. We check
       // `window.scrollX` (which respects the
