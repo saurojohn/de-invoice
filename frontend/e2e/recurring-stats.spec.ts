@@ -264,6 +264,12 @@ test.describe("Tier 63 — Recurring-invoice dashboard widget", () => {
   }) => {
     await setupAuth(context, page)
     await page.goto("/dashboard", { waitUntil: "domcontentloaded" })
+    // Same hydration wait as Tiers 185 / 49 / 183.
+    await page.waitForFunction(
+      () => document.readyState === 'complete',
+      { timeout: 30_000 },
+    )
+    await page.waitForTimeout(500)
     const card = page.locator('[data-testid="dashboard-card-recurring"]')
     await expect(card).toBeVisible({ timeout: 15_000 })
     // The Card has an onClick handler on the outer
