@@ -113,6 +113,15 @@ test.describe('Tier 170 — Impressum + Datenschutz + CookieBanner', () => {
   test('4. cookie banner shows on first visit, persists after accept', async ({
     page,
   }) => {
+    // Clear any pre-existing cookie consent so this
+    // is genuinely a "first visit". The Tier 249
+    // global-setup writes a cookie-consent entry to
+    // storageState so subsequent tests don't see
+    // the banner — but this test specifically
+    // verifies the banner's first-visit UX.
+    await page.addInitScript(() => {
+      try { localStorage.removeItem('cookie-consent') } catch {}
+    })
     await page.goto('/login')
     // First visit — banner must appear.
     const banner = page.getByTestId('cookie-banner')
@@ -147,6 +156,12 @@ test.describe('Tier 170 — Impressum + Datenschutz + CookieBanner', () => {
   test('5. cookie banner withdrawal — "Nur notwendige" works', async ({
     page,
   }) => {
+    // Clear cookie-consent so this is a "first
+    // visit" (the Tier 249 global-setup writes one
+    // by default; see test 4 for the same fix).
+    await page.addInitScript(() => {
+      try { localStorage.removeItem('cookie-consent') } catch {}
+    })
     await page.goto('/login')
     const banner = page.getByTestId('cookie-banner')
     await expect(banner).toBeVisible()

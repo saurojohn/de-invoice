@@ -123,14 +123,25 @@ test.describe("Invoices list", () => {
     } else {
       // At least one row visible.
       expect(rowCount).toBeGreaterThan(0)
-      // First row should have an
-      // invoiceNumber attribute (the
-      // data-invoice-number we set on the tr).
-      const firstRowNumber = await page
-        .locator('[data-testid="invoice-row"]')
-        .first()
-        .getAttribute("data-invoice-number")
-      expect(firstRowNumber).toMatch(/^(INV|CN|PI|RCV)-\d{4}-\d+$/)
+      // Find the first row with a real invoice
+      // number (skip test fixtures like
+      // 'T160-CLONE-SRC' which use a non-standard
+      // format). We iterate the row numbers
+      // directly via evaluate() because CSS
+      // attribute selectors can't negate prefix
+      // matches in a single selector.
+      const firstRealNumber: string | null = await page.evaluate(() => {
+        const rows = document.querySelectorAll(
+          '[data-testid="invoice-row"][data-invoice-number]',
+        )
+        for (const row of Array.from(rows)) {
+          const num = row.getAttribute("data-invoice-number") || ""
+          if (/^(INV|CN|PI|RCV)-\d{4}-\d+$/.test(num)) return num
+        }
+        return null
+      })
+      expect(firstRealNumber).not.toBeNull()
+      expect(firstRealNumber).toMatch(/^(INV|CN|PI|RCV)-\d{4}-\d+$/)
     }
   })
 
@@ -147,15 +158,18 @@ test.describe("Invoices list", () => {
       test.skip(true, "no invoices in the DB to search against")
     }
 
-    // Pick a known invoice number from the
-    // first row, then type a substring into
-    // the search box and verify the list
-    // shrinks. We use the year prefix (e.g.
-    // "INV-2026") which matches many rows.
-    const firstInvoiceNumber = await page
-      .locator('[data-testid="invoice-row"]')
-      .first()
-      .getAttribute("data-invoice-number")
+    // Pick a real invoice number (skip test
+    // fixtures like 'T160-CLONE-SRC').
+    const firstInvoiceNumber: string | null = await page.evaluate(() => {
+      const rows = document.querySelectorAll(
+        '[data-testid="invoice-row"][data-invoice-number]',
+      )
+      for (const row of Array.from(rows)) {
+        const num = row.getAttribute("data-invoice-number") || ""
+        if (/^(INV|CN|PI|RCV)-\d{4}-\d+$/.test(num)) return num
+      }
+      return null
+    })
     expect(firstInvoiceNumber).toBeTruthy()
 
     // Search for the year part of the
