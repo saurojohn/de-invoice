@@ -54,6 +54,11 @@ test.describe('Tier 123 — Dunning config card', () => {
         data: { level1Days: 1, level2Days: 7, level3Days: 14, level1Fee: 0, level2Fee: 5, level3Fee: 10 },
       },
     )
+    if (!reset.ok()) {
+      throw new Error(
+        `beforeEach reset failed: ${reset.status()} ${await reset.text()}`,
+      )
+    }
     expect(reset.ok()).toBeTruthy()
   })
 
@@ -112,11 +117,14 @@ test.describe('Tier 123 — Dunning config card', () => {
   // here; the 3+4 backend assertions + the 1
   // working read test give us full coverage.
 
-  test('save persists new values via the API (no UI interaction)', async ({ request }) => {
+  test('save persists new values via the API (no UI interaction)', async ({ request, context }) => {
     // The same beforeEach resets the config. This
-    // test uses the request fixture (which carries
-    // the test context's cookies by default) to
-    // PUT a custom value, then re-GET to verify.
+    // test uses the bare `request` fixture and
+    // passes the auth as explicit headers (the
+    // backend's auth check is on the `x-user-id`
+    // and `x-company-id` HEADERS, not cookies —
+    // context.request would auto-send the cookies
+    // but the backend wouldn't read them).
     const put = await request.put(
       'http://localhost:3001/api/v1/reminders/dunning-config?companyId=' + COMPANY_ID,
       {
@@ -128,15 +136,36 @@ test.describe('Tier 123 — Dunning config card', () => {
         data: { level1Days: 1, level2Days: 7, level3Days: 14, level1Fee: 0, level2Fee: 7.5, level3Fee: 10 },
       },
     )
+    if (!put.ok()) {
+      // Surface the actual status + body so the
+      // failure message points to the real cause.
+      throw new Error(
+        `PUT dunning-config failed: ${put.status()} ${await put.text()}`,
+      )
+    }
     expect(put.ok()).toBeTruthy()
-    const get = await request.get(
-      'http://localhost:3001/api/v1/reminders/dunning-config?companyId=' + COMPANY_ID,
-      {
-        headers: { 'x-user-id': USER_ID, 'x-company-id': COMPANY_ID },
-      },
-    )
-    expect(get.ok()).toBeTruthy()
-    const data = await get.json()
+    // The GET may briefly return the cached prior
+    // value before the PUT is committed on the
+    // backend (read-after-write across nodes, or
+    // an in-memory cache). Retry the GET a few
+    // times before giving up.
+    let data: any = null
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const get = await request.get(
+        'http://localhost:3001/api/v1/reminders/dunning-config?companyId=' + COMPANY_ID,
+        {
+          headers: { 'x-user-id': USER_ID, 'x-company-id': COMPANY_ID },
+        },
+      )
+      if (!get.ok()) {
+        throw new Error(
+          `GET dunning-config failed: ${get.status()} ${await get.text()}`,
+        )
+      }
+      data = await get.json()
+      if (data.level2Fee === 7.5) break
+      await new Promise((r) => setTimeout(r, 200))
+    }
     expect(data.level2Fee).toBe(7.5)
   })
 })
