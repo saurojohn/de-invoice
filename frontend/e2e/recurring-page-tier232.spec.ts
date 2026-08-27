@@ -83,24 +83,35 @@ test.describe("Tier 232 — Recurring invoices list page", () => {
 
   test("4. existing recurring cards (if any) show status + name", async ({ page }) => {
     await page.goto("http://localhost:3100/dashboard/recurring-invoices")
-    await page.waitForLoadState("networkidle", { timeout: 15000 })
+    // Same hydration wait as Tiers 185 / 49 / 183 / 152.
+    await page.waitForFunction(
+      () => document.readyState === 'complete',
+      { timeout: 30_000 },
+    )
+    await page.waitForTimeout(500)
     const cards = page.getByTestId("recurring-card")
     const count = await cards.count()
     if (count === 0) {
       test.skip(true, "no recurring cards in seed (skipping)")
       return
     }
-    // First card should have data-recurring-name attribute
-    const firstName = await cards.first().getAttribute("data-recurring-name")
-    [firstName].forEach((n) => {
-      expect(n, "first card has data-recurring-name").toBeTruthy()
-    })
+    // First card should have data-recurring-name attribute.
+    const firstName = await cards
+      .first()
+      .getAttribute("data-recurring-name")
+    expect(firstName, "first card has data-recurring-name").toBeTruthy()
   })
 
   test("5. mobile 375x667: page renders without crash", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 667 })
     await page.goto("http://localhost:3100/dashboard/recurring-invoices")
-    await page.waitForLoadState("networkidle", { timeout: 15000 })
+    // Same hydration wait + replace the broken
+    // waitForLoadState('networkidle').
+    await page.waitForFunction(
+      () => document.readyState === 'complete',
+      { timeout: 30_000 },
+    )
+    await page.waitForTimeout(500)
     const bodyText = await page.locator("body").innerText()
     expect(bodyText.length).toBeGreaterThan(50)
   })

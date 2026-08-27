@@ -62,7 +62,19 @@ test.describe('Tier 147 — Recurring generated invoices', () => {
   test('clicking the button opens the modal with the summary + table', async ({ page }) => {
     await page.goto('/dashboard/recurring-invoices')
     await expect(page.locator('h1').first()).toBeVisible({ timeout: 30_000 })
-    await page.getByTestId('recurring-generated-invoices').first().click()
+    // Same hydration wait as Tier 185 / 49 / 183.
+    await page.waitForFunction(
+      () => document.readyState === 'complete',
+      { timeout: 30_000 },
+    )
+    await page.waitForTimeout(500)
+    // Click the button on the tier136 card specifically
+    // (not the first card in the table — see
+    // list-pages Tier 279 for the same pattern).
+    await page
+      .locator('[data-testid="recurring-card"][data-recurring-name="Tier 136 Wartungsvertrag"]')
+      .locator('[data-testid="recurring-generated-invoices"]')
+      .click()
     const modal = page.getByTestId('recurring-generated-modal')
     await expect(modal).toBeVisible({ timeout: 10_000 })
     // The summary tiles appear (count + total + byStatus)
