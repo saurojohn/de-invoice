@@ -102,14 +102,19 @@ test.beforeAll(async ({ request }) => {
     const body = await res.json()
     // The customers endpoint returns
     // { data, total, page, pageSize, totalPages }
-    // (no "customers" wrapper). Pull the first
-    // item from the data array. The first
-    // customer is the most likely to have stable
-    // test fixtures (every prior tier seeded at
-    // least one).
+    // (no "customers" wrapper). Pick a customer
+    // that has invoices — the first one in the
+    // list may be a fixture (e.g. ANS Prüfungs
+    // without invoices) that returns no statement
+    // rows. Prefer BWA Test Kunde (b3f7b274-...)
+    // which has 38+ outstanding invoices per the
+    // Tier 272 investigation.
     const customers = body?.data || body?.customers || body
     if (Array.isArray(customers) && customers.length > 0) {
-      CUSTOMER_WITH_INVOICES = customers[0].id
+      const bwa = customers.find(
+        (c: any) => c.id === 'b3f7b274-7696-44b8-9345-8bfd460b3e47',
+      )
+      CUSTOMER_WITH_INVOICES = bwa?.id || customers[0].id
     }
   }
 })
@@ -174,14 +179,21 @@ test.describe("Customer statement UI", () => {
       page.locator('[data-testid="statement-from-input"]'),
     ).toBeVisible({ timeout: 10000 })
 
-    // Set a wide date range that covers all the customer's invoices.
-    // Müller K-00001 was created 2026-05-24 with invoices through 2026-06-13.
+    // Set a wide date range that covers all of 2026
+    // (BWA Test Kunde's invoices span 2026-04 to
+    // 2026-09; the default page range is
+    // 2026-07-01 to 2026-07-31 which has zero lines
+    // in this shared dev DB).
     await page
       .locator('[data-testid="statement-from-input"]')
       .fill("2026-01-01")
     await page
       .locator('[data-testid="statement-to-input"]')
       .fill("2026-12-31")
+    // Tab away to commit the date values to the
+    // React state (the inputs are controlled).
+    await page.keyboard.press("Tab")
+    await page.waitForTimeout(200)
 
     await page.locator('[data-testid="statement-generate-button"]').click()
 
