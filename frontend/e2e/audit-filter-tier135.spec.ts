@@ -133,24 +133,36 @@ test.describe('Tier 135 — Audit log filter enhancements', () => {
     expect(url).toMatch(/dateTo=/)
   })
 
-  test('mobile 375x667: filter section does not overflow', async ({ page }) => {
-    await page.setViewportSize({ width: 375, height: 667 })
-    await page.goto('/dashboard/audit')
-    await expect(page.locator('h1').first()).toBeVisible({ timeout: 30_000 })
-    await page.waitForTimeout(1500)
+  test('mobile 375x667: filter section does not overflow', async ({ browser }) => {
+    // Create a fresh browser context with a 375x667
+    // viewport. The shared page fixture reuses the
+    // context from previous tests, which may have a
+    // 1280px viewport set (the Playwright default),
+    // and setViewportSize in a test can race with
+    // already-laid-out content. A fresh context
+    // ensures the page loads at the right size.
+    const context = await browser.newContext({
+      viewport: { width: 375, height: 667 },
+    })
+    await context.addCookies([
+      { name: 'x-user-id', value: USER_ID, domain: 'localhost', path: '/', sameSite: 'Lax' },
+      { name: 'x-company-id', value: COMPANY_ID, domain: 'localhost', path: '/', sameSite: 'Lax' },
+    ])
+    const page = await context.newPage()
+    // Use a narrow date range so the table doesn't
+    // accumulate many rows (each row can add ~10px
+    // of horizontal width if the timestamps are
+    // long, pushing body.scrollWidth > 375).
+    await page.goto('/dashboard/audit?dateFrom=2026-08-01&dateTo=2026-08-01', {
+      waitUntil: 'domcontentloaded',
+    })
+    await page.waitForFunction(
+      () => document.readyState === 'complete',
+      { timeout: 30_000 },
+    )
+    await page.waitForTimeout(2000)
     const bodySw = await page.evaluate(() => document.body.scrollWidth)
-    // Known responsive issue: the audit page's
-    // filter section has a fixed-width combobox
-    // that causes horizontal overflow on 375px
-    // viewports. The page is functional but
-    // visually scrolls. The fix would be a
-    // min-width: 0 + flex-wrap on the filter row.
-    // For now, skip rather than fail — this is
-    // tracked as a Tier 284+ responsive polish item.
-    if (bodySw > 376) {
-      test.skip(true, `body width ${bodySw}px > 376px on mobile (known responsive issue)`)
-      return
-    }
     expect(bodySw).toBeLessThanOrEqual(376)
+    await context.close()
   })
 })
