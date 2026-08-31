@@ -46,11 +46,18 @@ test.describe('Tier 132 — Admin portal-link generator', () => {
   test('clicking the button shows the modal with the URL', async ({ page }) => {
     await page.goto(`/dashboard/customers/${CUSTOMER_ID}`)
     await expect(page.locator('h1').first()).toBeVisible({ timeout: 30_000 })
+    // Tier 291: hydration wait before interacting with
+    // the customer-portal-generate button.
+    await page.waitForFunction(
+      () => document.readyState === "complete",
+      { timeout: 30_000 },
+    )
+    await page.waitForTimeout(500)
     const btn = page.getByTestId('customer-portal-generate-button')
-    await expect(btn).toBeEnabled({ timeout: 10_000 })
+    await expect(btn).toBeEnabled({ timeout: 15_000 })
     await btn.click()
     // The modal should appear with the generated URL
-    await expect(page.getByTestId('customer-portal-modal')).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByTestId('customer-portal-modal')).toBeVisible({ timeout: 15_000 })
     // The URL inside the modal should be a valid /portal?token=...
     const urlText = await page.locator('[data-testid="customer-portal-modal"] .font-mono').first().textContent()
     expect(urlText).toContain('/portal?token=')

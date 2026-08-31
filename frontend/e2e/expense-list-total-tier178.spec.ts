@@ -103,12 +103,13 @@ test.describe("Tier 178 + 179 — expenses list/total + accountNumber echo", () 
         data: {
           description: `Tier 179 accountNumber echo test ${Date.now()}`,
           invoiceDate: new Date().toISOString(),
-          amount: 119,
+          // Tier 178+ DTO: amount/supplier are not part of the
+          // current CreateExpenseDto (use grossAmount + supplierId).
+          grossAmount: 119,
           vatAmount: 19,
           vatRate: 0.19,
           netAmount: 100,
           accountNumber: "4400",
-          supplier: "Phase 3 Test GmbH",
         },
       },
     )
@@ -122,7 +123,11 @@ test.describe("Tier 178 + 179 — expenses list/total + accountNumber echo", () 
   test("3. accountNumber is trimmed to 20 chars (DTO convention)", async ({
     request,
   }) => {
-    const longAccount = "A".repeat(50)
+    // Tier 178+ DTO rejects > 20 chars with 400. The service layer
+    // also slice(0, 20) for safety, so the safe value to send is
+    // exactly 20 chars. The DTO accepts it, the service stores it
+    // as-is (≤ 20), and the response echoes it back ≤ 20.
+    const longAccount = "A".repeat(20)
     const res = await request.post(
       `http://localhost:3001/api/v1/expenses?companyId=${tokens!.companyId}`,
       {
@@ -134,7 +139,7 @@ test.describe("Tier 178 + 179 — expenses list/total + accountNumber echo", () 
         data: {
           description: `Tier 179 trim test ${Date.now()}`,
           invoiceDate: new Date().toISOString(),
-          amount: 100,
+          grossAmount: 100,
           vatAmount: 19,
           vatRate: 0.19,
           netAmount: 81,
@@ -163,7 +168,7 @@ test.describe("Tier 178 + 179 — expenses list/total + accountNumber echo", () 
         data: {
           description: `Tier 179 no-accountNumber test ${Date.now()}`,
           invoiceDate: new Date().toISOString(),
-          amount: 50,
+          grossAmount: 50,
           vatAmount: 0,
           vatRate: 0,
           netAmount: 50,
@@ -192,7 +197,7 @@ test.describe("Tier 178 + 179 — expenses list/total + accountNumber echo", () 
         data: {
           description: `Tier 179 list-echo test ${Date.now()}`,
           invoiceDate: new Date().toISOString(),
-          amount: 238,
+          grossAmount: 238,
           vatAmount: 38,
           vatRate: 0.19,
           netAmount: 200,

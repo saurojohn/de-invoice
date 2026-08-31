@@ -45,21 +45,57 @@
 import { test, expect, request as playwrightRequest } from '@playwright/test'
 import { getTestEnv } from './fixtures/test-env'
 
-const COMPANY_A = 'ad257ec3-d319-479b-b870-3fe76e8f3111'
-const USER_A = '8c6a9669-0069-4137-a842-a66fd1d178d6'
+// Tenant A: SH Leder GmbH (the canonical ci-seed tenant). Read
+// the live UUIDs from the auth cache because re-seeding can rotate
+// the user/company UUIDs (e.g. when the test DB is reset).
+const tokens = getTestEnv()
+const COMPANY_A = tokens.companyId
+// Login Tenant A admin to get their actual user UUID. The user
+// id from the auth cache IS the admin's id (single-tenant test
+// user), so we can use it directly — but to be safe we re-login.
 const API = 'http://localhost:3001'
 
-const ADMIN_HEADERS_A = {
-  'x-user-id': USER_A,
-  'x-company-id': COMPANY_A,
+async function loginTenantA(): Promise<{ userId: string; companyId: string }> {
+  const ctx = await playwrightRequest.newContext()
+  const r = await ctx.post(`${API}/api/v1/auth/login`, {
+    data: { email: 'info@shleder.de', password: 'Test1234!' },
+  })
+  // Backend's /auth/login returns 200 OK on success (not 201 —
+  // a session login isn't a resource creation).
+  expect(
+    r.status(),
+    `SH Leder admin login must succeed: ${r.status()} ${await r.text()}`,
+  ).toBe(200)
+  const body = await r.json()
+  await ctx.dispose()
+  return { userId: body.id, companyId: body.companyId }
 }
 
 const RUN_ID = `gtm-${Date.now()}-${Math.floor(Math.random() * 1e6)}`
 const EMAIL = `acceptance-${RUN_ID}@example.com`
 const COMPANY_NAME = `Acceptance ${RUN_ID}`
 
+// Tier 291: register a fresh tenant ONCE in beforeAll and share
+// the user/company UUIDs across all tests. The original spec
+// re-logged-in at the start of every test, which trips the
+// /auth/login 5/60s throttler after the first call — every test
+// then sees a throttled "ThrottlerException: Too Many Requests"
+// JSON instead of a user record, and the subsequent API calls
+// 401 because the headers reference `undefined` user id / company
+// id. By registering once in beforeAll and sharing the response
+// data, only the /auth/register call (5/60s) is made during the
+// spec — every subsequent test reuses the same user record.
+let NEW_USER_ID: string
+let NEW_COMPANY_ID: string
+let registerStatus: number
+let registerBodyEmail: string
+let registerBodyRole: string
+let registerBodyCompanyName: string
+let registerBodyUserCompanyId: string
+let registerBodyCompanyId: string
+
 test.describe('GTM acceptance — multi-tenant isolation', () => {
-  test('register creates company + admin user with UserCompany grant', async () => {
+  test.beforeAll(async () => {
     const ctx = await playwrightRequest.newContext()
     const res = await ctx.post(`${API}/api/v1/auth/register`, {
       data: {
@@ -68,38 +104,41 @@ test.describe('GTM acceptance — multi-tenant isolation', () => {
         companyName: COMPANY_NAME,
       },
     })
-    expect(res.status()).toBe(201)
+    registerStatus = res.status()
     const body = await res.json()
-    expect(body.user.email).toBe(EMAIL)
-    expect(body.user.role).toBe('admin')
-    expect(body.company.name).toBe(COMPANY_NAME)
-    // The grant row is the load-bearing
-    // assertion — without it, the next
-    // test (list invoices) would 401.
-    expect(body.user.companyId).toBe(body.company.id)
+    NEW_USER_ID = body.user.id
+    NEW_COMPANY_ID = body.user.companyId
+    registerBodyEmail = body.user.email
+    registerBodyRole = body.user.role
+    registerBodyCompanyName = body.company.name
+    registerBodyUserCompanyId = body.user.companyId
+    registerBodyCompanyId = body.company.id
     await ctx.dispose()
   })
 
+  test('register creates company + admin user with UserCompany grant', () => {
+    expect(registerStatus).toBe(201)
+    expect(registerBodyEmail).toBe(EMAIL)
+    expect(registerBodyRole).toBe('admin')
+    expect(registerBodyCompanyName).toBe(COMPANY_NAME)
+    // The grant row is the load-bearing
+    // assertion — without it, the next
+    // test (list invoices) would 401.
+    expect(registerBodyUserCompanyId).toBe(registerBodyCompanyId)
+  })
+
   test('new admin can list their own company invoices (UserCompany grant auto-created)', async () => {
-    // Look up the freshly created user via
-    // the login response — we don't have
-    // their id from the register call
-    // above (each test runs in its own
-    // scope; in this spec, the same
-    // run-id is shared).
+    // Tier 291: use the user/company UUIDs from the module-level
+    // register call (avoids hitting the /auth/login 5/60s throttler
+    // on every test). The grant is the load-bearing assertion —
+    // without it, this test would 401.
     const ctx = await playwrightRequest.newContext()
-    const login = await ctx.post(`${API}/api/v1/auth/login`, {
-      data: { email: EMAIL, password: 'Test1234!' },
-    })
-    const user = await login.json()
-    const newUserId = user.id
-    const newCompanyId = user.companyId
     const res = await ctx.get(
-      `${API}/api/v1/invoices?companyId=${newCompanyId}`,
+      `${API}/api/v1/invoices?companyId=${NEW_COMPANY_ID}`,
       {
         headers: {
-          'x-user-id': newUserId,
-          'x-company-id': newCompanyId,
+          'x-user-id': NEW_USER_ID,
+          'x-company-id': NEW_COMPANY_ID,
         },
       },
     )
@@ -114,21 +153,17 @@ test.describe('GTM acceptance — multi-tenant isolation', () => {
 
   test('new admin CANNOT list another company invoices (cross-tenant blocked)', async () => {
     const ctx = await playwrightRequest.newContext()
-    const login = await ctx.post(`${API}/api/v1/auth/login`, {
-      data: { email: EMAIL, password: 'Test1234!' },
-    })
-    const user = await login.json()
     // Attempt to access SH Leder's
     // invoices using the new admin's
     // credentials. The header-auth guard
-    // looks up UserCompany by (newUserId,
+    // looks up UserCompany by (NEW_USER_ID,
     // SH_Leder_id) — no row exists →
     // 401.
     const res = await ctx.get(
       `${API}/api/v1/invoices?companyId=${COMPANY_A}`,
       {
         headers: {
-          'x-user-id': user.id,
+          'x-user-id': NEW_USER_ID,
           'x-company-id': COMPANY_A,
         },
       },
@@ -139,16 +174,12 @@ test.describe('GTM acceptance — multi-tenant isolation', () => {
 
   test('new admin can create a customer in their own company', async () => {
     const ctx = await playwrightRequest.newContext()
-    const login = await ctx.post(`${API}/api/v1/auth/login`, {
-      data: { email: EMAIL, password: 'Test1234!' },
-    })
-    const user = await login.json()
     const res = await ctx.post(
-      `${API}/api/v1/customers?companyId=${user.companyId}`,
+      `${API}/api/v1/customers?companyId=${NEW_COMPANY_ID}`,
       {
         headers: {
-          'x-user-id': user.id,
-          'x-company-id': user.companyId,
+          'x-user-id': NEW_USER_ID,
+          'x-company-id': NEW_COMPANY_ID,
           'Content-Type': 'application/json',
         },
         data: {
@@ -164,7 +195,7 @@ test.describe('GTM acceptance — multi-tenant isolation', () => {
     )
     expect(res.status()).toBe(201)
     const body = await res.json()
-    expect(body.companyId).toBe(user.companyId)
+    expect(body.companyId).toBe(NEW_COMPANY_ID)
     await ctx.dispose()
   })
 
@@ -179,17 +210,14 @@ test.describe('GTM acceptance — multi-tenant isolation', () => {
     // existence" behaviour.
     const ctx = await playwrightRequest.newContext()
     // Find the customer via the original
-    // creator's session.
-    const login = await ctx.post(`${API}/api/v1/auth/login`, {
-      data: { email: EMAIL, password: 'Test1234!' },
-    })
-    const user = await login.json()
+    // creator's session (using module-level
+    // user/company UUIDs, see Tier 291).
     const listRes = await ctx.get(
-      `${API}/api/v1/customers?companyId=${user.companyId}`,
+      `${API}/api/v1/customers?companyId=${NEW_COMPANY_ID}`,
       {
         headers: {
-          'x-user-id': user.id,
-          'x-company-id': user.companyId,
+          'x-user-id': NEW_USER_ID,
+          'x-company-id': NEW_COMPANY_ID,
         },
       },
     )
@@ -200,10 +228,14 @@ test.describe('GTM acceptance — multi-tenant isolation', () => {
     )
     expect(cust).toBeDefined()
     // SH Leder's admin tries to read it.
+    const tenantA = await loginTenantA()
     const res = await ctx.get(
-      `${API}/api/v1/customers/${cust.id}?companyId=${COMPANY_A}`,
+      `${API}/api/v1/customers/${cust.id}?companyId=${tenantA.companyId}`,
       {
-        headers: ADMIN_HEADERS_A,
+        headers: {
+          'x-user-id': tenantA.userId,
+          'x-company-id': tenantA.companyId,
+        },
       },
     )
     expect(res.status()).toBe(404)

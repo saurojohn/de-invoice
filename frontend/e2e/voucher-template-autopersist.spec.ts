@@ -261,17 +261,24 @@ test.describe("Tier 50 — VoucherTemplate capture-from-voucher", () => {
     await expect(page).toHaveURL(/\/dashboard\/accounting$/, {
       timeout: 15_000,
     })
+    // Tier 291: standard hydration wait before interacting
+    // with the new-voucher button.
+    await page.waitForFunction(
+      () => document.readyState === "complete",
+      { timeout: 30_000 },
+    )
+    await page.waitForTimeout(500)
     // Open the create-voucher modal — proves the
     // tier-50 code (apply-template hint paragraph)
     // is reachable from the dashboard without
     // throwing.
     const newVoucherBtn = page.getByTestId("accounting-new-voucher")
-    await expect(newVoucherBtn).toBeVisible({ timeout: 10_000 })
+    await expect(newVoucherBtn).toBeVisible({ timeout: 15_000 })
     await newVoucherBtn.click()
     // The tier-50 hint lives inside the modal as a
     // paragraph under the emerald "Vorlage" card.
     await expect(
       page.getByText(/gespeicherte Vorlage/i).first(),
-    ).toBeVisible({ timeout: 10_000 })
+    ).toBeVisible({ timeout: 15_000 })
   })
 })

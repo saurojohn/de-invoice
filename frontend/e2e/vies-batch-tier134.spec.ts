@@ -61,8 +61,14 @@ test.describe('Tier 134 — VIES batch check', () => {
   test('start button runs the batch and shows the summary', async ({ page }) => {
     await page.goto('/dashboard/customers')
     await expect(page.locator('h1').first()).toBeVisible({ timeout: 30_000 })
+    // Tier 291: hydration wait.
+    await page.waitForFunction(
+      () => document.readyState === "complete",
+      { timeout: 30_000 },
+    )
+    await page.waitForTimeout(500)
     await page.getByTestId('customer-vies-batch-button').click()
-    await expect(page.getByTestId('vies-batch-modal')).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByTestId('vies-batch-modal')).toBeVisible({ timeout: 15_000 })
     await page.getByTestId('vies-batch-start').click()
     // Wait for the done state — backend has 1
     // throttle-free run, then 60s wait for the
@@ -74,9 +80,11 @@ test.describe('Tier 134 — VIES batch check', () => {
     const invalid = page.getByTestId('vies-batch-invalid-count')
     await expect(valid).toBeVisible()
     await expect(invalid).toBeVisible()
-    // At least 1 row in the results table
+    // At least 1 row in the results table — bumped
+    // 5s → 15s to absorb VIES rate-limit retry
+    // (Tier 134/137 known issue).
     const rows = page.locator('[data-testid^="vies-batch-row-"]')
-    await expect(rows.first()).toBeVisible({ timeout: 5_000 })
+    await expect(rows.first()).toBeVisible({ timeout: 15_000 })
   })
 
   test('mobile 375x667: no horizontal overflow', async ({ page }) => {

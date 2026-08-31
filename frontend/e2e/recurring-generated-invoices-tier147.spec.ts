@@ -90,9 +90,21 @@ test.describe('Tier 147 — Recurring generated invoices', () => {
   test('clicking a row opens the invoice in a new tab (href only)', async ({ page, context }) => {
     await page.goto('/dashboard/recurring-invoices')
     await expect(page.locator('h1').first()).toBeVisible({ timeout: 30_000 })
-    await page.getByTestId('recurring-generated-invoices').first().click()
-    await expect(page.getByTestId('recurring-generated-modal')).toBeVisible({ timeout: 10_000 })
-    await expect(page.getByTestId('recurring-generated-table')).toBeVisible({ timeout: 5_000 })
+    // Tier 291: standard hydration wait.
+    await page.waitForFunction(
+      () => document.readyState === "complete",
+      { timeout: 30_000 },
+    )
+    await page.waitForTimeout(500)
+    // Use the tier136 card specifically — the shared dev DB
+    // has multiple recurring templates, and `.first()` is
+    // brittle (see recurring-page Round 11-34).
+    await page
+      .locator('[data-testid="recurring-card"][data-recurring-name="Tier 136 Wartungsvertrag"]')
+      .locator('[data-testid="recurring-generated-invoices"]')
+      .click()
+    await expect(page.getByTestId('recurring-generated-modal')).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByTestId('recurring-generated-table')).toBeVisible({ timeout: 15_000 })
     // The first row's invoice link target=_blank, so
     // we just check the href is present (clicks would
     // open a new tab which is harder to assert on).

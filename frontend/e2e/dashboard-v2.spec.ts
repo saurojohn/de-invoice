@@ -115,11 +115,23 @@ test.describe("Dashboard v2 (Tier 36)", () => {
     await page.goto("/dashboard/v2", {
       waitUntil: "domcontentloaded",
     })
+    // Tier 291: standard hydration wait before interacting on
+    // a cold-compiled Next.js dev page. The "← v1" button is in
+    // a client component that hydrates after the page reaches
+    // `complete`; without this wait, the click can fire before
+    // React has attached the onClick handler.
+    await page.waitForFunction(
+      () => document.readyState === "complete",
+      { timeout: 30_000 },
+    )
+    await page.waitForTimeout(500)
     await expect(
       page.locator('[data-testid="dashboard-v2-title"]'),
     ).toBeVisible({ timeout: 15_000 })
     // The "← v1" button in the header.
     await page.locator("text=← v1").click()
-    await page.waitForURL(/\/dashboard$/, { timeout: 10_000 })
+    // Bumped to 30s — Next.js dev compiles /dashboard on first
+    // navigation in this run, and 10s was right on the edge.
+    await page.waitForURL(/\/dashboard$/, { timeout: 30_000 })
   })
 })

@@ -262,8 +262,15 @@ test.describe("Tier 203 — GET /webhooks/deliveries.csv", () => {
   })
 
   test("5. status query param narrows the result", async ({ request }) => {
+    // Tier 291: days=1 instead of days=7. The shared dev DB
+    // accumulates >10K webhook deliveries in 7 days (fired
+    // by other tests), and the CSV endpoint returns a
+    // `# truncated: hit 10,000-row cap` comment instead of
+    // actual data rows when the unfiltered count would
+    // exceed the cap. days=1 keeps the result set small
+    // enough to fit under the cap.
     const res = await request.get(
-      `http://localhost:3001/api/v1/webhooks/deliveries.csv?companyId=${tokens!.companyId}&days=7&status=success`,
+      `http://localhost:3001/api/v1/webhooks/deliveries.csv?companyId=${tokens!.companyId}&days=1&status=success`,
       { headers: headers() },
     )
     const body = await res.text()
