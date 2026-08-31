@@ -279,32 +279,27 @@ test.describe("Customer statement UI", () => {
     ).toBeVisible({ timeout: 5000 })
   })
 
-  test.skip("order toggle re-sorts lines (DESC default, ASC opt-in)", async ({ page }) => {
+  test("order toggle re-sorts lines (DESC default, ASC opt-in)", async ({ page }) => {
     await injectLocalStorage(page)
+    // Tier 293: pin the date range via URL search params
+    // (the page now reads ?from=YYYY-MM-DD&to=YYYY-MM-DD
+    // in a post-mount useEffect). This sidesteps the
+    // React 18 + <input type="date"> + Playwright fill()
+    // interaction bug where programmatic .value assignment
+    // is swallowed by React's input value tracker.
     await page.goto(
-      `/dashboard/customers/${CUSTOMER_WITH_INVOICES}/statement`,
+      `/dashboard/customers/${CUSTOMER_WITH_INVOICES}/statement?from=2026-01-01&to=2026-12-31`,
       { waitUntil: "domcontentloaded" },
     )
+    // Wait for the URL-effect to populate the inputs
+    // (Next.js App Router pre-renders with default state
+    // and the useEffect runs after hydration).
     await expect(
       page.locator('[data-testid="statement-from-input"]'),
-    ).toBeVisible({ timeout: 30_000 })
-
-    // Tier 70: same date range as the working
-    // test above (the prior 2020-2030 range
-    // sometimes returned an empty period for
-    // customers whose invoices all fall in a
-    // single calendar year). 2026 covers every
-    // SH Leder fixture date.
-    await page
-      .locator('[data-testid="statement-from-input"]')
-      .fill("2026-01-01")
-    await page
-      .locator('[data-testid="statement-to-input"]')
-      .fill("2026-12-31")
-    // Tab away to commit the date values to the
-    // React state (the inputs are controlled).
-    await page.keyboard.press("Tab")
-    await page.waitForTimeout(200)
+    ).toHaveValue("2026-01-01", { timeout: 15_000 })
+    await expect(
+      page.locator('[data-testid="statement-to-input"]'),
+    ).toHaveValue("2026-12-31", { timeout: 15_000 })
 
     // Generate + wait for lines (DESC default).
     // The wait-for-loading-state pattern (same as

@@ -91,8 +91,35 @@ export default function CustomerStatementPage() {
   const [companyId, setCompanyId] = useState<string | null>(null)
   const [customerName, setCustomerName] = useState<string>("")
   const initial = defaultRange()
-  const [from, setFrom] = useState(initial.from)
-  const [to, setTo] = useState(initial.to)
+  // Tier 293: read from/to from URL search params first
+  // (so test/automation can pin the date range via
+  // ?from=2026-01-01&to=2026-12-31 and a real user can
+  // bookmark/share a specific range). Falls back to
+  // defaultRange() (last calendar month) when absent.
+  // Use window.location.search directly to avoid the
+  // useSearchParams + Suspense boundary dance in App
+  // Router (the page would otherwise need to be wrapped
+  // in <Suspense> for build to succeed).
+  const [from, setFrom] = useState<string>(initial.from)
+  const [to, setTo] = useState<string>(initial.to)
+  // Tier 293: read ?from=YYYY-MM-DD&to=YYYY-MM-DD from URL
+  // search params after mount. We do this in a useEffect
+  // (not in the useState initializer) because Next.js 13+
+  // App Router server-renders the page first with the
+  // default state, then hydrates on the client — by the
+  // time the useState initializer runs in the client, the
+  // server state is already serialized into the HTML and
+  // the client initializer is short-circuited to match it.
+  // An effect after mount runs reliably on the client and
+  // can read window.location.search safely.
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const sp = new URLSearchParams(window.location.search)
+    const f = sp.get("from")
+    const t = sp.get("to")
+    if (f && /^\d{4}-\d{2}-\d{2}$/.test(f)) setFrom(f)
+    if (t && /^\d{4}-\d{2}-\d{2}$/.test(t)) setTo(t)
+  }, [])
   // Display order. Default DESC = newest first (customer's
   // natural reading order — see latest activity at the top).
   // ASC is the accountant's chronological paper-trail view.
