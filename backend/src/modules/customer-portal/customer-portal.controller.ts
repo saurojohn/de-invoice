@@ -226,7 +226,20 @@ export class CustomerPortalController {
       throw new BadRequestException('Kunde hat keine E-Mail-Adresse hinterlegt')
     }
     const origin = this.originFromRequest(req)
-    const result = await this.svc.requestSession(email, origin, req.ip as string)
+    const result = await this.svc.requestSession(
+      email,
+      origin,
+      req.ip as string,
+      // Tier 291: pass customerId so the service's
+      // findFirst scopes to the right (customer, email)
+      // pair when the same email is shared across
+      // multiple companies. Without this, the wrong
+      // company's customer row could win the lookup and
+      // the resulting session would be invisible to the
+      // controller's (customerId, companyId)-scoped
+      // re-read, producing url=null.
+      customer.id,
+    )
     // requestSession always returns { sent: true } —
     // we need the actual URL to give the admin. Re-read
     // the latest session row.

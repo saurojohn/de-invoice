@@ -154,6 +154,7 @@ export class CustomerPortalService {
     email: string,
     origin?: string,
     ip?: string,
+    customerId?: string,
   ): Promise<{ sent: true }> {
     const normalized = email.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
@@ -176,14 +177,34 @@ export class CustomerPortalService {
       );
     }
 
-    // Find the customer by email
-    const customer = await this.prisma.customer.findFirst({
-      where: {
-        // Postgres JSONB extract: contact->>'email'
-        contact: { path: ['email'], equals: normalized },
-      },
-      include: { company: { select: { name: true } } },
-    });
+    // Find the customer by email. Tier 291: when the same
+    // email is shared across multiple companies (e.g. a
+    // freelancer who is a customer of two Mandanten), the
+    // prior findFirst returned whichever customer Postgres
+    // picked first (no orderBy) — which could be the wrong
+    // customer's company. The session was then inserted with
+    // the wrong companyId, and the admin-create-session
+    // controller's findFirst({customerId, companyId}) returned
+    // null, producing a url=null response that left the
+    // frontend modal permanently closed.
+    //
+    // The caller (controller.adminCreateSession) knows the
+    // exact customerId. We accept it as an optional param
+    // and use it to scope the lookup when present.
+    const customer = await (customerId
+      ? this.prisma.customer.findFirst({
+          where: {
+            id: customerId,
+            contact: { path: ['email'], equals: normalized },
+          },
+          include: { company: { select: { name: true } } },
+        })
+      : this.prisma.customer.findFirst({
+          where: {
+            contact: { path: ['email'], equals: normalized },
+          },
+          include: { company: { select: { name: true } } },
+        }));
     if (!customer) {
       // Don't leak whether the email exists. Just
       // log + no-op.
