@@ -153,7 +153,14 @@ test.describe("Tier 47 — Cost-Center Trend chart", () => {
     // Hover the first data point.
     const firstDot = page.locator('[data-testid="cc-trend-dot"]').first()
     await expect(firstDot).toBeVisible({ timeout: 10_000 })
-    await firstDot.hover()
+    // The chart has many overlapping transparent r=8 hit-area
+    // circles (one per cost center × month). When two cost centers
+    // have nearly-identical values in the same month, their
+    // hit-areas stack on top of each other and intercept each
+    // other's pointer events. `force: true` bypasses the
+    // actionability check so the hover reaches the underlying
+    // circle regardless of which one is on top.
+    await firstDot.hover({ force: true })
 
     // Tooltip should appear with EUR amount (the
     // format includes € symbol regardless of locale).
