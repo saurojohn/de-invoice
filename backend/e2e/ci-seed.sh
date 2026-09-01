@@ -183,12 +183,12 @@ psql_test <<SQL
 -- assertion needs to run with no other customers
 -- holding a limit (the test's setupFixtures creates
 -- the 4 customers it cares about).
-INSERT INTO "Customer" (id, "companyId", type, name, address, contact, "paymentTerms", tags, "createdAt", "updatedAt", "creditLimit")
+INSERT INTO "Customer" (id, "companyId", type, name, address, contact, "paymentTerms", tags, "createdAt", "updatedAt", "creditLimit", "vatId")
 VALUES ('b3f7b274-7696-44b8-9345-8bfd460b3e47', '$COMPANY_ID', 'business', 'BWA Test Kunde GmbH',
   '{"street":"Hauptstr 1","city":"Berlin","postalCode":"10115","country":"DE"}'::jsonb,
   '{"email":"bwa@example.com","name":"BWA Test"}'::jsonb, 30, ARRAY['VIP','B2B','Hardware']::text[],
-  NOW(), NOW(), NULL)
-ON CONFLICT (id) DO UPDATE SET "creditLimit" = NULL, tags = ARRAY['VIP','B2B','Hardware']::text[], name = 'BWA Test Kunde GmbH', "updatedAt" = NOW();
+  NOW(), NOW(), NULL, 'DE123456789')
+ON CONFLICT (id) DO UPDATE SET "creditLimit" = NULL, tags = ARRAY['VIP','B2B','Hardware']::text[], name = 'BWA Test Kunde GmbH', "updatedAt" = NOW(), "vatId" = 'DE123456789';
 
 -- BWA Test Kunde duplicate (for merge spec)
 INSERT INTO "Customer" (id, "companyId", type, name, address, contact, "paymentTerms", tags, "createdAt", "updatedAt")
