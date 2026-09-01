@@ -191,20 +191,14 @@ export class CustomerPortalService {
     // The caller (controller.adminCreateSession) knows the
     // exact customerId. We accept it as an optional param
     // and use it to scope the lookup when present.
-    const customer = await (customerId
-      ? this.prisma.customer.findFirst({
-          where: {
-            id: customerId,
-            contact: { path: ['email'], equals: normalized },
-          },
-          include: { company: { select: { name: true } } },
-        })
-      : this.prisma.customer.findFirst({
-          where: {
-            contact: { path: ['email'], equals: normalized },
-          },
-          include: { company: { select: { name: true } } },
-        }));
+    const where: { id?: string; contact: { path: string[]; equals: string } } = {
+      contact: { path: ['email'], equals: normalized },
+    }
+    if (customerId) where.id = customerId
+    const customer = await this.prisma.customer.findFirst({
+      where,
+      include: { company: { select: { name: true } } },
+    })
     if (!customer) {
       // Don't leak whether the email exists. Just
       // log + no-op.
