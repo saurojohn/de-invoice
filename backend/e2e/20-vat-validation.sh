@@ -297,14 +297,14 @@ MSG=$(json_field "$(cat /tmp/r.json)" message)
 echo "$MSG" | grep -q "USt-ID" && pass "400 message mentions USt-ID" || fail "400 message wrong: $MSG"
 
 # 15. Supplier-verify + supplier-history — same shape
-# as the customer variant. Find a supplier with DE VAT.
-api_get "/api/v1/suppliers?companyId=${COMPANY_ID}&search=DE&take=20"
-SUPP_ID=$(python3 -c "
-import json,sys
-d=json.loads(sys.stdin.read())
-data = d.get('data', d) if isinstance(d, dict) else d
-de = [s for s in data if (s.get('vatId') or '').upper().startswith('DE')]
-print(de[0]['id'] if de else '')" <<< "$BODY")
+# as the customer variant. The mock VIES register only
+# recognises DE111111110 as "valid" (vat-validation.service.ts
+# line 941); arbitrary other DE numbers (e.g. DE111222333
+# that other tier scripts seed) return invalid. Create a
+# fresh supplier with the mock-valid USt-ID for this test.
+api_post "/api/v1/suppliers?companyId=${COMPANY_ID}" \
+  "{\"name\":\"VIES Mock Supplier ${UNIQ}\",\"type\":\"business\",\"vatId\":\"DE111111110\"}"
+SUPP_ID=$(json_field "$BODY" id)
 if [[ -n "$SUPP_ID" ]]; then
   api_post "/api/v1/suppliers/${SUPP_ID}/verify-vat?companyId=${COMPANY_ID}" '{}'
   assert_eq "supplier verify-vat status" "$(json_field "$BODY" status)" "valid"

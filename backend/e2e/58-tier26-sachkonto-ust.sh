@@ -80,7 +80,8 @@ VOUCHER_BODY=$(cat <<EOF
       "accountId": null,
       "description": "Adobe Creative Cloud monthly",
       "debit": 50,
-      "credit": 0
+      "credit": 0,
+      "vatRate": 0.19
     }
   ]
 }
@@ -145,7 +146,10 @@ echo "=== 3. DATEV USt-Schlüssel = 1 (19% Regelsatz, 2024+ spec) ==="
 # test that the CSV column 12 still parses as
 # a 2-digit number on a real Berater import.
 if [[ -n "$ACCOUNT_4400" ]]; then
-  api_get "/api/v1/reports/datev-csv?companyId=$COMPANY_ID&startDate=2026-06-01&endDate=2026-06-30" 2>/dev/null
+  # Tier 297: real endpoint is /api/v1/reports/datev-export
+  # (the spec used /datev-csv which 404s — that endpoint
+  # never existed; the export lives under /reports/datev-export).
+  api_get "/api/v1/reports/datev-export?companyId=$COMPANY_ID&startDate=2026-06-01&endDate=2026-06-30" 2>/dev/null
 echo "$BODY" > /tmp/t58_datev.csv
   if [[ -s /tmp/t58_datev.csv ]]; then
     # Look for a row with USt-Schlüssel = 1 (any

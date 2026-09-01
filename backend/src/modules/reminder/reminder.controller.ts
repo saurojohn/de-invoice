@@ -333,6 +333,14 @@ export class ReminderController {
   // "I want to re-run the dunning pass now", which is
   // rare. 5/5min covers operator use + the e2e suite
   // which fires it a few times across company setups.
+  // Note for e2e run-all: the test suite calls this
+  // endpoint ~10 times within a few seconds. The suite
+  // tolerates 429s by falling through to the next test
+  // (the run-all assertions are env-resilient via the
+  // `disabled` short-circuit — when the first auto-run
+  // 429s, the `autoReminderEnabled=true` toggle in the
+  // test does NOT count against the rate limit because
+  // it goes through /auto-settings, not /auto-run).
   @Throttle({ default: { limit: 5, ttl: 300_000 } })
   async runAutoReminder(@Query('companyId') companyId: string) {
     if (!companyId) {

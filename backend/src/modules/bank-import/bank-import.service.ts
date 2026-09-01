@@ -265,7 +265,14 @@ export class BankImportService {
         customer: { select: { name: true, customerNumber: true } },
       },
       orderBy: { issueDate: 'desc' },
-      take: 200, // upper bound for the candidate pool
+      // Tier 297: bumped 200 → 2000. The previous cap
+      // silently excluded any invoice older than the 200
+      // most-recent ones — Tier 8 spec creates its test
+      // invoice at issueDate=2026-06-02 which falls below
+      // the 200-row ceiling in the shared dev DB (225+
+      // invoices). This is also a real-world footgun for
+      // customers with high invoice volume.
+      take: 2000,
     });
 
     const candidates: Array<{

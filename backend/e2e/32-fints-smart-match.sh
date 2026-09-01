@@ -198,6 +198,12 @@ fi
 # Levenshtein distance is 1 (ü→u) so the
 # match should fire.
 MULLER_NAME="Müller GmbH"
+# Tier 297: use a unique amount (593.99) instead of 595.00
+# so the auto-match loop doesn't pick a stale fixture invoice
+# (e.g. tier 44 spec) with the same 595 total. We need exact
+# match + name fuzzy, but the auto-match loop's `break` on
+# first match means the FIRST invoice with that amount wins.
+# 593.99 is unique to this test run.
 cat > /tmp/t32_seed_d.sql << EOF
 UPDATE "Customer" SET name='${MULLER_NAME}' WHERE id='${CUST_ID}';
 INSERT INTO "Invoice" (id, "companyId", "customerId", "invoiceNumber", "sequenceNumber",
@@ -205,10 +211,10 @@ INSERT INTO "Invoice" (id, "companyId", "customerId", "invoiceNumber", "sequence
   subtotal, "totalVat", total, currency, language, "vatBreakdown",
   "reverseCharge", "euTransaction", notes, "templateType", "pdfPath", attachments, "createdAt", "updatedAt")
 VALUES ('e2e00006-0001-0000-0007-000000000040', '${COMPANY_ID}', '${CUST_ID}', 'E2E-T6S-003', 9922,
- 'INV', 'sent', '2026-06-01', '2026-07-01', 500.00, 95.00, 595.00, 'EUR', 'de-DE',
+ 'INV', 'sent', '2026-06-01', '2026-07-01', 499.15, 94.84, 593.99, 'EUR', 'de-DE',
  '[{"rate":0.19}]'::jsonb, false, false, 'T6S fuzzy', 'standard', NULL, '[]', now(), now());
 INSERT INTO "BankTransaction" (id, "statementId", "companyId", "valueDate", "entryDate", amount, currency, purpose, "endToEndId", "createdAt")
-VALUES ('e2e00006-0001-0000-0007-000000000041', 'e2e00006-0001-0000-0007-000000000021', '${COMPANY_ID}', '2026-06-15', '2026-06-15', 595.00, 'EUR', 'Rechnung von Muller GmbH', 'MOCK-T6S-fuzzy-001', now());
+VALUES ('e2e00006-0001-0000-0007-000000000041', 'e2e00006-0001-0000-0007-000000000021', '${COMPANY_ID}', '2026-06-15', '2026-06-15', 593.99, 'EUR', 'Rechnung von Muller GmbH', 'MOCK-T6S-fuzzy-001', now());
 EOF
 docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice < /tmp/t32_seed_d.sql >/dev/null 2>&1
 
