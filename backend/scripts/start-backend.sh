@@ -47,4 +47,18 @@ export VIES_MOCK="${VIES_MOCK:-}"
 # — and the absence of a default in this script is a small
 # forcing function to think twice before disabling it.
 
+# Tier 300: also honor THROTTLE_DISABLED=1 for dev work.
+# The NestJS throttler (600 req / 60s by default) is tuned
+# for production. In dev, HMR + React strict mode + the
+# user opening multiple tabs accumulates 600+ requests in
+# under a minute, which trips the 429 on legitimate
+# navigation. Same precedence rule as
+# AUTH_RATE_LIMIT_DISABLED — never set this in production.
+# Use:
+#   THROTTLE_DISABLED=1 bash scripts/start-backend.sh
+# Verify with:
+#   curl -i http://localhost:3001/api/v1/health | head -3
+# (no X-RateLimit-Limit / -Remaining headers when disabled).
+export THROTTLE_DISABLED="${THROTTLE_DISABLED:-}"
+
 exec npx ts-node src/main.ts

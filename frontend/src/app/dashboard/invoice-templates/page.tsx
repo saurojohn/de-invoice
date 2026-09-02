@@ -76,26 +76,48 @@ export default function InvoiceTemplatesPage() {
   const [editing, setEditing] = useState<InvoiceTemplate | null>(null)
   const [showNew, setShowNew] = useState(false)
 
-  const fetchTemplates = useCallback(async (cid: string) => {
-    setLoading(true)
-    try {
-      const data = await apiGet<InvoiceTemplate[]>(
-        `/api/v1/invoice-templates?companyId=${cid}`,
-      )
-      setTemplates(data)
-    } catch (err: any) {
-      toast.error(err?.message || t("invoiceTemplates.loadError"))
-    } finally {
-      setLoading(false)
-    }
-  }, [t, toast])
+  const fetchTemplates = useCallback(
+    async (cid: string, signal?: AbortSignal) => {
+      setLoading(true)
+      try {
+        const data = await apiGet<InvoiceTemplate[]>(
+          `/api/v1/invoice-templates?companyId=${cid}`,
+          signal ? { signal } : undefined,
+        )
+        if (signal?.aborted) return
+        setTemplates(data ?? [])
+      } catch (err: any) {
+        // AbortError is the expected outcome of a
+        // superseded request — silent, not a toast.
+        if (err?.name === "AbortError" || signal?.aborted) return
+        toast.error(err?.message || t("invoiceTemplates.loadError"))
+      } finally {
+        if (!signal?.aborted) setLoading(false)
+      }
+    },
+    [t, toast],
+  )
 
   useEffect(() => {
     const cid = localStorage.getItem("companyId") || ""
-    if (cid) {
-      setCompanyId(cid)
-      fetchTemplates(cid)
-    }
+    if (!cid) return
+    setCompanyId(cid)
+    // Tier 300: AbortController cancels any
+    // in-flight request when the effect re-runs
+    // (e.g. after HMR or a parent re-render that
+    // changes the fetchTemplates reference).
+    // Without this, multiple stale requests race
+    // to setState and the throttler can 429 the
+    // newest legitimate call.
+    const ctrl = new AbortController()
+    fetchTemplates(cid, ctrl.signal)
+    return () => ctrl.abort()
+    // Tier 300: depend on the *function reference*
+    // but the function's own deps are stable across
+    // renders (`t` and `toast` come from module-level
+    // contexts in this codebase). When the function
+    // ref does change we still want to re-fetch, so
+    // we keep it in the dep list.
   }, [fetchTemplates])
 
   const handleSave = async (tpl: Partial<InvoiceTemplate>, isNew: boolean) => {

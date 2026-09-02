@@ -92,6 +92,40 @@ export async function apiFetch(path: string, opts: ApiFetchOptions = {}): Promis
     const msg = Array.isArray(data.message)
       ? data.message.join(", ")
       : data.message || `HTTP ${res.status}`
+    // Tier 300: auto-logout on 401. A 401 means our
+    // userId/companyId headers are stale or invalid
+    // (e.g. PG was rebuilt, fixture-survival rule
+    // changed, or a different user logged in on a
+    // sibling tab). Without this, every page would
+    // show a "Vorlagen konnten nicht geladen werden"
+    // toast on first load and the user has to
+    // manually log out + in. Throw the error AFTER
+    // the cleanup so the original ApiError still
+    // surfaces to the caller's catch (the toast
+    // may be redundant, but logout is the real fix).
+    if (res.status === 401 && typeof window !== "undefined") {
+      try {
+        localStorage.removeItem("userId")
+        localStorage.removeItem("companyId")
+        localStorage.removeItem("userEmail")
+        document.cookie = "x-user-id=; path=/; max-age=0"
+        document.cookie = "x-company-id=; path=/; max-age=0"
+        // Use replace() so the user can hit back
+        // to return to where they were. The
+        // dashboard route is what triggered the
+        // 401; we redirect to /login so the
+        // middleware sees no auth cookie and
+        // re-renders the login form.
+        const from = window.location.pathname + window.location.search
+        if (window.location.pathname !== "/login") {
+          window.location.replace(
+            `/login?from=${encodeURIComponent(from)}&reason=session_expired`,
+          )
+        }
+      } catch {
+        // ignore — the throw below still surfaces
+      }
+    }
     throw new ApiError(res.status, data, msg)
   }
   return res
