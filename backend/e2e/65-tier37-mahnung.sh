@@ -43,11 +43,16 @@ cleanup_cashbook
 # first, otherwise the customer DELETE blocks with
 # "foreign key constraint violated" and the test
 # re-runs leak the t37@example.com row forever.
+# Tier 298 fix: Mahnung and EmailSend don't have a
+# customerId column. The customer FK lives on
+# Invoice (Mahnung→Invoice, EmailSend→Invoice). Use
+# the same invoice-subselect the rest of the cleanup
+# already uses.
 docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL
 DELETE FROM "Mahnung" WHERE "companyId" = '$COMPANY_ID'
-  AND "customerId" IN (SELECT id FROM "Customer" WHERE "name" LIKE 'Tier37%');
+  AND "invoiceId" IN (SELECT id FROM "Invoice" WHERE "companyId" = '$COMPANY_ID' AND "customerId" IN (SELECT id FROM "Customer" WHERE "name" LIKE 'Tier37%'));
 DELETE FROM "EmailSend" WHERE "companyId" = '$COMPANY_ID'
-  AND "customerId" IN (SELECT id FROM "Customer" WHERE "name" LIKE 'Tier37%');
+  AND "invoiceId" IN (SELECT id FROM "Invoice" WHERE "companyId" = '$COMPANY_ID' AND "customerId" IN (SELECT id FROM "Customer" WHERE "name" LIKE 'Tier37%'));
 DELETE FROM "SepaDirectDebitCollection" WHERE "companyId" = '$COMPANY_ID'
   AND "mandateId" IN (SELECT id FROM "SepaDirectDebitMandate" WHERE "debitorName" LIKE 'Tier37%');
 DELETE FROM "SepaDirectDebitBatch" WHERE "companyId" = '$COMPANY_ID'
@@ -72,6 +77,20 @@ DELETE FROM "Invoice" WHERE "companyId" = '$COMPANY_ID'
   AND "customerId" IN (SELECT id FROM "Customer" WHERE "name" LIKE 'Tier37%');
 DELETE FROM "Customer" WHERE "companyId" = '$COMPANY_ID' AND "name" LIKE 'Tier37%';
 SQL
+
+# Tier 298 fix: explicitly reset the company-wide
+# Mahnung fees-config to the BGB defaults before
+# running the assertions. A prior failed run may
+# have PUT an override (verzugszinsPct=12.5,
+# first=1, etc.) and the PUT at the end of test 2
+# runs AFTER the default-value checks in test 1.
+# Without this reset, the default test gets
+# whatever stale values the previous run left.
+curl -sS -X PUT \
+  -H "Content-Type: application/json" \
+  -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
+  -d '{"verzugszinsPct":9,"mahngebuehr":{"first":0,"second":2.5,"final":5}}' \
+  "$API/api/v1/reminders/mahnungen/fees-config?companyId=$COMPANY_ID" > /dev/null
 
 # ───── Seed: customer + invoice (overdue, status=sent) ─────
 # We use direct curl with -o so the BODY lands in /tmp/t37_*.json

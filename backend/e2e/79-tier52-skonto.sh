@@ -103,7 +103,28 @@ note "=== 2. Edit skontoPercent (same-day edit window) ==="
 # The GoBD same-day edit window requires issueDate =
 # today. Create a fresh invoice with today's date so
 # we can PUT it.
-TODAY=$(date -u +%Y-%m-%dT00:00:00.000Z)
+# Tier 298 fix: use the server's "today" not the
+# host's. The NestJS service uses the host's
+# local timezone (Europe/Berlin) for the
+# isToday() check via Date.getDate() — the
+# server echoes UTC but compares in local time.
+# The naïve `ts.date()` (UTC) would be off by
+# 1 day near midnight in CEST. Convert the
+# health.timestamp (UTC) → Europe/Berlin wall
+# clock first, THEN take .date().
+SERVER_TODAY=$(curl -sS "$API/api/v1/health" | python3 -c "
+import json, sys, datetime
+d = json.loads(sys.stdin.read())
+ts = d['timestamp']
+utc = datetime.datetime.fromisoformat(ts.replace('Z', '+00:00'))
+# Backend runs in Europe/Berlin (CEST = UTC+2 in
+# summer). The isToday() check uses Date.getDate()
+# which is in server local time. Convert UTC →
+# Berlin wall clock first, THEN take .date().
+shifted = utc + datetime.timedelta(hours=2)
+print(shifted.date().isoformat() + 'T00:00:00.000Z')
+")
+TODAY="$SERVER_TODAY"
 api_post "/api/v1/invoices?companyId=$COMPANY_ID" \
   "{\"customerId\":\"$CUST_ID\",\"issueDate\":\"$TODAY\",\"dueDate\":\"2026-08-01T00:00:00.000Z\",\"skontoPercent\":2,\"skontoDays\":14,\"items\":[{\"description\":\"Edit test\",\"quantity\":1,\"unitPrice\":100,\"vatRate\":0.19}]}"
 assert_status "201" "create edit-test invoice"

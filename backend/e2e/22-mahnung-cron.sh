@@ -164,7 +164,16 @@ docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
 RUN3=$(curl -sS -X POST "$API/api/v1/reminders/auto-run?companyId=$COMPANY_ID" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID")
 RUN3_SENT=$(json_field "$RUN3" sent)
-[ "$RUN3_SENT" = "0" ] && echo "✓ same-day invoice not reminded = $RUN3_SENT" || { echo "✗ same-day invoice was reminded = $RUN3_SENT"; exit 1; }
+# Tier 298 fix: RUN3_SENT is the *total* number of
+# reminders sent across ALL overdue invoices (not
+# just the one this spec created). Other tier
+# residue may also be picked up here. The right
+# check is whether the same-day invoice
+# (AUTOMAHN-002) was specifically emailed —
+# RUN3_SENT alone is not a reliable signal.
+SAME_DAY_EMAILS=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT count(*) FROM \"EmailSend\" WHERE \"invoiceId\"='inv-automahn-today'::text AND \"templateType\" IN ('reminder_first','reminder_second','reminder_final');" 2>&1 | tr -d ' ')
+[ "$SAME_DAY_EMAILS" = "0" ] && echo "✓ same-day invoice not reminded (RUN3_SENT=$RUN3_SENT includes other overdue residue)" || { echo "✗ same-day invoice was reminded ($SAME_DAY_EMAILS emails)"; exit 1; }
 
 # Test 11: level escalation — add a prior reminder, run again
 # Now AUTOMAHN-001 has reminderCount=1, so next auto-run should
