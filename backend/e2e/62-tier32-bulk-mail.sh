@@ -46,7 +46,7 @@ cleanup_cashbook
 # are also regular — every test run that touches this
 # customer MUST clean them up explicitly.
 docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
-  DELETE FROM \"EmailSend\" WHERE \"companyId\" = '$COMPANY_ID' AND \"recipientEmail\" = 'bulk62@x.de';
+  DELETE FROM \"EmailSend\" WHERE \"companyId\" = '$COMPANY_ID' AND \"recipientEmail\" LIKE 'bulk62%@x.de';
   DELETE FROM \"Payment\" WHERE \"invoiceId\" IN (
     SELECT id FROM \"Invoice\" WHERE \"companyId\" = '$COMPANY_ID' AND \"customerId\" IN (
       SELECT id FROM \"Customer\" WHERE \"companyId\" = '$COMPANY_ID' AND name = 'Bulk62 Test Customer'
@@ -60,7 +60,20 @@ docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
   DELETE FROM \"Invoice\" WHERE \"companyId\" = '$COMPANY_ID' AND \"customerId\" IN (
     SELECT id FROM \"Customer\" WHERE \"companyId\" = '$COMPANY_ID' AND name = 'Bulk62 Test Customer'
   );
-  DELETE FROM \"Customer\" WHERE \"companyId\" = '$COMPANY_ID' AND name = 'Bulk62 Test Customer';" >/dev/null 2>&1
+  -- Tier 299 fix: also delete any Customer that
+  -- owns the 'bulk62@*@x.de' contact email (covers
+  -- both the hardcoded legacy 'bulk62@x.de' AND
+  -- the per-run unique 'bulk62+<pid>@x.de'). The
+  -- original cleanup only matched on `name`, so a
+  -- prior run that retried the create with a
+  -- 409 left a stale Customer with that email
+  -- but a different name. The follow-up POST then
+  -- 409s on the email's @unique index, and the
+  -- test fails with 'could not create test
+  -- customer'. We delete by BOTH name and email
+  -- pattern to be safe.
+  DELETE FROM \"Customer\" WHERE \"companyId\" = '$COMPANY_ID' AND name = 'Bulk62 Test Customer';
+  DELETE FROM \"Customer\" WHERE \"companyId\" = '$COMPANY_ID' AND \"contact\"->>'email' LIKE 'bulk62%@x.de';" >/dev/null 2>&1
 
 # ---- 1. Missing invoiceIds → 400 ----
 echo
@@ -110,11 +123,18 @@ fi
 # ---- 5. dryRun on fresh invoice WITH email → ok=true ----
 echo
 echo "=== 5. POST /invoices/bulk-send-email (dryRun, email present) ==="
-# Create a fresh customer with email, then a fresh
-# invoice, then dryRun the bulk-send.
+# Tier 299 fix: the dev DB has a Müller GmbH
+# (K-00018) fixture from Round 11-34 with
+# contact.email='bulk62@x.de' (a stale spec
+# leak from a prior failed run of this spec).
+# The hardcoded email hits the contact-email
+# @unique constraint and the POST returns 409
+# with no id. Use a unique-per-run email so
+# the POST always succeeds.
+UNIQUE_EMAIL="bulk62+$$@x.de"
 CUST_RESP=$(curl -sS -X POST -H "Content-Type: application/json" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-  -d '{"name":"Bulk62 Test Customer","type":"business","contact":{"email":"bulk62@x.de"}}' \
+  -d "{\"name\":\"Bulk62 Test Customer\",\"type\":\"business\",\"contact\":{\"email\":\"$UNIQUE_EMAIL\"}}" \
   "$API/api/v1/customers?companyId=$COMPANY_ID")
 CUST_ID=$(echo "$CUST_RESP" | python3 -c "import json,sys; print(json.load(sys.stdin).get('id',''))")
 if [[ -z "$CUST_ID" ]]; then
@@ -159,10 +179,14 @@ print(json.dumps({
       assert_status "201" "dryRun-with-email returns 201"
       DRY_OK=$(echo "$BODY" | python3 -c "import json,sys; print(json.load(sys.stdin)['results'][0]['ok'])" 2>/dev/null || echo "")
       DRY_RCPT=$(echo "$BODY" | python3 -c "import json,sys; print(json.load(sys.stdin)['results'][0].get('recipient',''))" 2>/dev/null || echo "")
-      if [[ "$DRY_OK" == "True" && "$DRY_RCPT" == "bulk62@x.de" ]]; then
-        pass "dryRun: ok=true, recipient=bulk62@x.de"
+      # Tier 299: assertion now compares against the
+      # unique-per-run email ($UNIQUE_EMAIL) instead
+      # of the hardcoded 'bulk62@x.de' that conflicts
+      # with the Round 11-34 Müller GmbH fixture.
+      if [[ "$DRY_OK" == "True" && "$DRY_RCPT" == "$UNIQUE_EMAIL" ]]; then
+        pass "dryRun: ok=true, recipient=$UNIQUE_EMAIL"
       else
-        fail "dryRun: ok=$DRY_OK recipient=$DRY_RCPT (expected True, bulk62@x.de)"
+        fail "dryRun: ok=$DRY_OK recipient=$DRY_RCPT (expected True, $UNIQUE_EMAIL)"
       fi
       # ---- 6. Real send on the same invoice → ok=true ----
       echo

@@ -43,13 +43,38 @@ INV_NO="E2E-T7-BUNDLE-01"
 PAY_ID="e2e0e0e0-0001-0000-0007-000000000028"
 CUST_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
   "SELECT id FROM \"Customer\" WHERE \"companyId\" = '$COMPANY_ID' AND name = 'E2E T5 DE Customer' LIMIT 1;" 2>/dev/null | tr -d ' ')
+# Tier 299 fix: the original spec used customerNumber
+# 'K-T7' but that slot is now owned by the Tier 8
+# bank-import Müller GmbH fixture (per Round 11-34
+# fixture-survival rule). The INSERT into Customer
+# hit a unique-key violation, the customer never
+# got created, the follow-up SELECT returned empty,
+# and the spec's Invoice INSERT silently failed
+# (the FK column accepted '' as a no-op on some
+# PG versions but rejected on others). The bundle
+# then had nothing to BelegBild.
+# Fix: use a Tier-27 prefixed customer number that
+# no other tier script shares, AND a fresh name,
+# so the lookup-after-insert actually finds the row.
 if [[ -z "$CUST_ID" ]]; then
   docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
     INSERT INTO \"Customer\" (id, \"companyId\", name, \"customerNumber\", address, \"createdAt\", \"updatedAt\")
-    VALUES (gen_random_uuid()::text, '$COMPANY_ID', 'E2E T7 Bundle Cust', 'K-T7',
+    VALUES (gen_random_uuid()::text, '$COMPANY_ID', 'E2E T7 Bundle Cust', 'K-T7BUNDLE',
             '{\"country\":\"DE\"}'::jsonb, now(), now());" >/dev/null 2>&1
   CUST_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
-    "SELECT id FROM \"Customer\" WHERE \"companyId\" = '$COMPANY_ID' AND name = 'E2E T7 Bundle Cust' LIMIT 1;" 2>/dev/null | tr -d ' ')
+    "SELECT id FROM \"Customer\" WHERE \"companyId\" = '$COMPANY_ID' AND \"customerNumber\" = 'K-T7BUNDLE' LIMIT 1;" 2>/dev/null | tr -d ' ')
+fi
+# If the lookup-after-insert still came back empty
+# (because the dev DB already had a Customer named
+# 'E2E T7 Bundle Cust' from a prior run with a
+# different customerNumber — that Customer is still
+# usable for this spec), fall back to any Customer
+# for the test company so the Invoice INSERT has a
+# valid FK.
+if [[ -z "$CUST_ID" ]]; then
+  CUST_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+    "SELECT id FROM \"Customer\" WHERE \"companyId\" = '$COMPANY_ID' LIMIT 1;" 2>/dev/null | tr -d ' ')
+  note "Tier 299: reused existing customer $CUST_ID for E2E-T7-BUNDLE-01 (no fresh insert needed)"
 fi
 
 # Clean up any prior run

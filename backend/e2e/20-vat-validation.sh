@@ -93,13 +93,25 @@ if [[ "$NEEDS_RESTART" == "1" ]]; then
   # which wiped FRONTEND_URL, breaking Playwright CORS
   # for every test after e2e 20.
   nohup env VIES_MOCK=1 bash scripts/start-backend.sh > /tmp/backend.log 2>&1 &
-  for i in $(seq 1 12); do
+  # Tier 299 fix: ping /health/deep (which runs a
+  # Prisma $queryRaw) instead of /health. /health
+  # returns 200 the moment the controller is mapped
+  # — that's well before NestJS finishes wiring all
+  # the other modules (cron schedulers, Prisma
+  # client, etc). A VIES probe hitting before
+  # all modules are wired returns 500. 12s was
+  # tight on the 1.5GB M1 with cold ts-node
+  # compile; bump to 25s and wait for /health/deep
+  # to actually return 200.
+  for i in $(seq 1 25); do
     sleep 1
-    if curl -sS -o /dev/null --max-time 1 http://localhost:3001/api/v1/health 2>/dev/null; then
+    DEEP=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 1 \
+      http://localhost:3001/api/v1/health/deep 2>/dev/null)
+    if [ "$DEEP" = "200" ]; then
       break
     fi
   done
-  echo "Backend restarted (PID $(lsof -ti:3001 | head -1))"
+  echo "Backend restarted (PID $(lsof -ti:3001 | head -1), waited ${i}s)"
 fi
 
 echo "=== Test: VIES VAT validation (mocked) ==="
