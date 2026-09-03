@@ -56,7 +56,23 @@ export default defineConfig({
   // The cost is ~3x worst-case runtime on those
   // few tests; the existing 120s per-test timeout
   // caps that risk.
-  retries: 2,
+  //
+  // Tier 303: bumped to 3 retries. The 2026-09-03
+  // full run with retries=2 still showed 9 hard
+  // fails — all the same pattern: a heavy page
+  // (admin/accounting/AfA/etc) cold-compiles
+  // for 25-35s, exceeds the 15s action timeout
+  // (or 30s navigation timeout), and the
+  // element-to-look-for never has time to mount.
+  // Single-spec runs pass cleanly because the
+  // page is already warm. 3 retries gives the
+  // dev server a fourth (and a fifth) chance to
+  // compile the route before we declare the
+  // test a real failure.
+  // The cost is ~4x worst-case runtime on those
+  // ~10 tests; the 120s per-test timeout caps
+  // that risk.
+  retries: 3,
   workers: 1,
   reporter: process.env.CI ? "list" : "list",
   // Tier 70: per-test timeout bumped to 120s.

@@ -145,6 +145,17 @@ test.describe("Anlage KAP — /dashboard/accounting", () => {
     ).toBeVisible({ timeout: 30_000 })
     const link = page.getByTestId("anlage-kap-pdf-link")
     await expect(link).toBeVisible({ timeout: 10_000 })
+    // The href is set asynchronously by a useEffect
+    // that reads companyId from localStorage.
+    // Wait for the href to transition from the
+    // initial "#" placeholder to the real PDF URL
+    // (or just to NOT be "#") so we don't race the
+    // effect on a slow first dev-mode render.
+    await expect
+      .poll(async () => (await link.getAttribute("href")) || "", {
+        timeout: 10_000,
+      })
+      .not.toBe("#")
     // The href attribute should use the full backend URL
     // (NEXT_PUBLIC_API_URL), not a relative /api path.
     const href = await link.getAttribute("href")
