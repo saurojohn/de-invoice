@@ -125,23 +125,78 @@ test.describe('Tier 143 — Audit full-text search', () => {
   })
 
   test('backend: q returns deterministic jsonb matches', async () => {
-    const url = `${API_BASE}/api/v1/audit-logs?companyId=${COMPANY_ID}&q=INV-2026-000203&take=5`
+    // Tier 301: spec was querying for a hardcoded
+    // invoice number (INV-2026-000203) that may not
+    // exist on a fresh dev DB or after a prior test
+    // run cleaned up. That made the assertion
+    // data.total > 0 fail spuriously. Fix: create
+    // a unique invoice + audit trail in this test,
+    // then query the unique value.
+    const stamp = Date.now()
+    const uniqueInvoiceNumber = `T143-${stamp}`
+
+    // Pick any customer — we use a customer that
+    // already exists; if no customer, skip rather
+    // than introduce a setup dependency.
+    const customersRes = await fetch(
+      `${API_BASE}/api/v1/customers?companyId=${COMPANY_ID}&take=1`,
+      { headers: { 'x-user-id': USER_ID, 'x-company-id': COMPANY_ID } },
+    )
+    const customersData = await customersRes.json()
+    const items = Array.isArray(customersData)
+      ? customersData
+      : customersData?.items || customersData?.data || []
+    if (items.length === 0) {
+      test.skip(true, 'no customer to create invoice against')
+      return
+    }
+    const customerId = items[0].id
+
+    // Create a unique invoice
+    const invRes = await fetch(
+      `${API_BASE}/api/v1/invoices?companyId=${COMPANY_ID}`,
+      {
+        method: 'POST',
+        headers: {
+          'x-user-id': USER_ID,
+          'x-company-id': COMPANY_ID,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          customerId,
+          invoiceNumber: uniqueInvoiceNumber,
+          issueDate: new Date().toISOString().slice(0, 10),
+          dueDate: new Date(Date.now() + 14 * 86400_000).toISOString().slice(0, 10),
+          items: [
+            { description: 'T143 audit-search test', quantity: 1, unitPrice: 100, vatRate: 0.19 },
+          ],
+        }),
+      },
+    )
+    expect(invRes.status).toBe(201)
+    const inv = await invRes.json()
+
+    // Now query the audit log for the unique invoice
+    // number we just created. The "invoice.created"
+    // audit event fires synchronously on POST so the
+    // log row exists by the time we query.
+    const url = `${API_BASE}/api/v1/audit-logs?companyId=${COMPANY_ID}&q=${uniqueInvoiceNumber}&take=5`
     const res = await fetch(url, {
       headers: { 'x-user-id': USER_ID, 'x-company-id': COMPANY_ID },
     })
     expect(res.status).toBe(200)
     const data = await res.json()
-    // Sanity: at least one row matches the fixture
+    // Sanity: at least one row matches our fresh invoice
     expect(data.total).toBeGreaterThan(0)
-    // Every returned row should reference the
-    // queried invoice number somewhere — either
-    // in the action (invoice.updated) or in
-    // the newData (which we don't return in
-    // the list endpoint, but the entityId should
-    // be the invoice's UUID).
+    // Every returned row should be an Invoice change
     for (const r of data.rows) {
       expect(r.entityType).toBe('Invoice')
     }
+    // Clean up the test invoice (cascade clears
+    // invoiceItems + audit log via service hook
+    // would be ideal, but the test is a Tier 301
+    // ad-hoc fix; the audit row will age out).
+    void inv
   })
 
   test('mobile 375x667: search input does not overflow', async ({ page }) => {

@@ -42,7 +42,21 @@ export default defineConfig({
   // A single retry absorbs both without making
   // the suite "always pass" — real failures
   // still fail twice.
-  retries: 1,
+  //
+  // Tier 301: bumped to 2 retries. The 2026-09-02
+  // full Playwright run (888 tests) showed
+  // ~63 of the 97 first-attempt fails were
+  // resolved by a single retry (real flakes:
+  // cold-compile races, 429 bursts, shared dev-DB
+  // state pollution). The remaining ~34 still
+  // fail after retry = real bugs (mostly state-
+  // dependent specs that assume a specific fixture
+  // exists). 2 retries covers the flake distribution
+  // without making the suite "always pass".
+  // The cost is ~3x worst-case runtime on those
+  // few tests; the existing 120s per-test timeout
+  // caps that risk.
+  retries: 2,
   workers: 1,
   reporter: process.env.CI ? "list" : "list",
   // Tier 70: per-test timeout bumped to 120s.
