@@ -72,7 +72,7 @@ export default defineConfig({
   // The cost is ~4x worst-case runtime on those
   // ~10 tests; the 120s per-test timeout caps
   // that risk.
-  retries: 3,
+  retries: 2,
   workers: 1,
   reporter: process.env.CI ? "list" : "list",
   // Tier 70: per-test timeout bumped to 120s.
