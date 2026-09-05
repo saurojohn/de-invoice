@@ -264,6 +264,21 @@ test.describe("OCR scan upload (Tier 29)", () => {
     await page.goto("/dashboard/expenses", {
       waitUntil: "domcontentloaded",
     })
+    // Tier 305: hydration wait. Without this
+    // the React tree may not have mounted the
+    // onChange handler on the hidden file input
+    // yet, and the subsequent setInputFiles +
+    // dispatchEvent('change') fires the DOM
+    // event but React's onChange callback is
+    // still null. The first OCR test in this
+    // file (line 88) has this wait — this one
+    // (the tesseract fixture upload) was missing
+    // it.
+    await page.waitForFunction(
+      () => document.readyState === "complete",
+      { timeout: 60_000 },
+    )
+    await page.waitForTimeout(500)
 
     const fileInput = page.locator(
       '[data-testid="expense-ocr-file-input"]',
@@ -287,17 +302,61 @@ test.describe("OCR scan upload (Tier 29)", () => {
       "fixtures",
       "german-receipt.png",
     )
+    // Tier 305: load the fixture as a buffer
+    // and use the same `{name, mimeType, buffer}`
+    // shape as the other OCR specs in this file
+    // (line 120 onwards). The plain path-string
+    // form of setInputFiles was leaving React's
+    // onChange un-fired for this spec — possibly
+    // a file-size threshold or path-resolution
+    // quirk on the larger (47KB) PNG. The
+    // in-memory buffer form is the documented
+    // pattern that the other 4 OCR tests use.
+    const receiptBytes = readFileSync(receiptPath)
 
+    // Tier 305: register waitForResponse BEFORE
+    // setInputFiles, not after. The mock OCR
+    // backend responds in ~40ms (so the POST
+    // already returns before the Playwright
+    // promise even attaches if we register
+    // after) and the tesseract path is similar
+    // — 25-30s cold start that may overlap with
+    // the React onChange event handler. The
+    // generic Tier 305 rule (nextjs-frontend-
+    // gotchas.md §9) applies: waitForResponse
+    // must precede the action that triggers
+    // the request.
     const scanResp = page.waitForResponse(
       (r) => r.url().includes("/api/v1/ocr/scan") && r.status() === 201,
       // Tier 305: tesseract cold-start + image
-      // rasterization on a 2MB PNG easily takes
-      // 60-90s in dev mode. The 30s default
-      // tight-loops the retry pattern into a
-      // 90s+ dead end per attempt.
-      { timeout: 120_000 },
+      // rasterization on a 2MB PNG can take
+      // 60-90s in dev mode, and the test setTimeout
+      // 180s gives us the per-test budget for
+      // this. The waitForResponse timeout here
+      // is set to 170s — 10s less than the
+      // test budget — to give the OCR round-trip
+      // time to fail-fast in the inner call
+      // instead of waiting for the outer test
+      // timeout to fire.
+      { timeout: 170_000 },
     )
-    await fileInput.setInputFiles(receiptPath)
+    // Tier 305: hidden <input type="file"> +
+    // Playwright setInputFiles can leave React's
+    // synthetic onChange un-fired (the change event
+    // reaches the DOM but React's onChange handler
+    // is bound to the wrapped input). We dispatch
+    // a synthetic change event after setInputFiles
+    // to make sure the React onChange handler runs
+    // and the OCR scan POST fires. This is a known
+    // React+Playwright interaction; setting the
+    // event-target's value to the file list
+    // explicitly is the documented workaround.
+    await fileInput.setInputFiles({
+      name: "german-receipt.png",
+      mimeType: "image/png",
+      buffer: receiptBytes,
+    })
+    await fileInput.dispatchEvent("change")
     await scanResp
 
     // The preview modal renders with the
