@@ -125,11 +125,18 @@ test.describe("Tier 48 — Cost-Center Budgets", () => {
     await page.goto("/dashboard/cost-center-report", {
       waitUntil: "domcontentloaded",
     })
+    // Tier 305: the cost-center-report page cold-compiles
+    // for 30+ s on first dev-mode hit, which easily
+    // blows the 15s waitForResponse default. Bump the
+    // wait timeout to 60s to give the report endpoints
+    // time to respond after the React tree mounts.
     await page.waitForResponse((r) =>
       r.url().includes("/api/v1/reports/cost-center-yearly"),
+      { timeout: 60_000 },
     )
     await page.waitForResponse((r) =>
       r.url().includes("/api/v1/reports/cost-center-budget-vs-actual"),
+      { timeout: 60_000 },
     )
 
     // No budgets → Δ column hidden.
@@ -170,11 +177,18 @@ test.describe("Tier 48 — Cost-Center Budgets", () => {
     await page.goto("/dashboard/cost-center-report", {
       waitUntil: "domcontentloaded",
     })
+    // Tier 305: the cost-center-report page cold-compiles
+    // for 30+ s on first dev-mode hit, which easily
+    // blows the 15s waitForResponse default. Bump the
+    // wait timeout to 60s to give the report endpoints
+    // time to respond after the React tree mounts.
     await page.waitForResponse((r) =>
       r.url().includes("/api/v1/reports/cost-center-yearly"),
+      { timeout: 60_000 },
     )
     await page.waitForResponse((r) =>
       r.url().includes("/api/v1/reports/cost-center-budget-vs-actual"),
+      { timeout: 60_000 },
     )
 
     // Δ column rendered. We don't insist on a specific

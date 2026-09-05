@@ -79,10 +79,10 @@ test.describe('Tier 147 — Recurring generated invoices', () => {
     await expect(modal).toBeVisible({ timeout: 10_000 })
     // The summary tiles appear (count + total + byStatus)
     const summary = page.getByTestId('recurring-generated-summary')
-    await expect(summary).toBeVisible({ timeout: 5_000 })
+    await expect(summary).toBeVisible({ timeout: 30_000 })
     // The table renders with the Tier 136 fixture row
     const table = page.getByTestId('recurring-generated-table')
-    await expect(table).toBeVisible({ timeout: 5_000 })
+    await expect(table).toBeVisible({ timeout: 30_000 })
     const rows = await page.locator('[data-testid="recurring-generated-row"]').count()
     expect(rows).toBeGreaterThan(0)
   })
@@ -103,8 +103,8 @@ test.describe('Tier 147 — Recurring generated invoices', () => {
       .locator('[data-testid="recurring-card"][data-recurring-name="Tier 136 Wartungsvertrag"]')
       .locator('[data-testid="recurring-generated-invoices"]')
       .click()
-    await expect(page.getByTestId('recurring-generated-modal')).toBeVisible({ timeout: 15_000 })
-    await expect(page.getByTestId('recurring-generated-table')).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByTestId('recurring-generated-modal')).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByTestId('recurring-generated-table')).toBeVisible({ timeout: 30_000 })
     // The first row's invoice link target=_blank, so
     // we just check the href is present (clicks would
     // open a new tab which is harder to assert on).
