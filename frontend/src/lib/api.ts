@@ -117,7 +117,14 @@ export async function apiFetch(path: string, opts: ApiFetchOptions = {}): Promis
         // middleware sees no auth cookie and
         // re-renders the login form.
         const from = window.location.pathname + window.location.search
-        if (window.location.pathname !== "/login") {
+        // Tier 304: exclude /portal — it uses token-based
+        // auth (not the userId/companyId headers), so a
+        // 401 there means "bad/expired token", not
+        // "stale session". Redirecting to /login would
+        // steal the customer away from the portal page
+        // (where the portal-error UI is rendered).
+        const isPortal = window.location.pathname.startsWith("/portal")
+        if (!isPortal && window.location.pathname !== "/login") {
           window.location.replace(
             `/login?from=${encodeURIComponent(from)}&reason=session_expired`,
           )
