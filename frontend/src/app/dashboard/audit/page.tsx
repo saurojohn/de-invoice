@@ -804,7 +804,7 @@ export default function AuditPage() {
           <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
             {t("audit.title") || "Audit-Trail"}
           </h1>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             {/* Tier 122: view toggle. URL state keeps the
                 chosen view across refresh + share-link. */}
             <div
