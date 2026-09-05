@@ -357,5 +357,102 @@ This file:
 After you have a working VPS, you can re-deploy
 unattended for every `git push` by adding a GitHub
 Action that runs the deploy script via SSH. See
+
+---
+
+## Tier 304-307 production hardening (2026-09-05)
+
+The Hetzner deploy is now safe to run because
+several production bugs surfaced during the
+2026-09-01 / 2026-09-05 Playwright hardening arc
+were fixed. All are committed to `main` (commits
+`eaa906c` → `efdea38` → `af05cd6` → `3b22412` →
+`868ec11` → `f58714c` → `3519d11` → `85e8e96`).
+
+**Production bugs fixed:**
+
+1. **Portal 401 auto-logout hijack** (Tier 300
+   introduced, Tier 304 fixed). The api.ts
+   `redirect-on-401` only excluded `/login`, not
+   `/portal`. /portal uses **token-based** auth
+   (not the userId/companyId headers), so a 401
+   there means "bad/expired token", not "stale
+   session". The redirect stole the customer
+   away from the portal-error UI. Fix: also
+   exclude `/portal*`. Customer-facing path
+   restored.
+
+2. **Invoice schema drift fixup migration**
+   (Tier 304 followup). Tier 118 (2026-07-30,
+   commit `a38c67e`) added 4 cross-currency
+   columns (`exchangeRate`, `eurSubtotal`,
+   `eurTotalVat`, `eurTotal`) to schema.prisma
+   but never wrote the ALTER TABLE migration.
+   Dev DB had the columns from a manual ALTER
+   (backfilling 228 EUR rows with rate=1 and
+   EUR=original), but `prisma migrate deploy`
+   from a clean DB would NOT get them. Fix:
+   `20260905000001_invoice_eur_aggregation`
+   migration with `IF NOT EXISTS` + EUR
+   backfill. **Required for Hetzner prod
+   bootstrap** — would have crashed on first
+   EÜR/UStVA/BWA run with missing columns.
+
+3. **Audit log create wrap** (Tier 304 followup).
+   The `createAuditLogExtension` only wrapped
+   `update / updateMany / delete / deleteMany`
+   — NOT `create`. For Invoice + RecurringInvoice,
+   the Tier-174 `invoice.service.ts` no longer
+   puts `invoiceNumber` on the returned object
+   (DB default + read back by separate SELECT),
+   so even if create WERE wrapped, the default
+   `sanitize(result)` would lose it. Fix:
+   explicitly wrap create + manually surface
+   `invoiceNumber` + `customerId` for Invoice +
+   RecurringInvoice. Audit fulltext search
+   (`q=INV-2026-000450`) now works.
+
+4. **Audit page mobile layout overflow** (Tier
+   307). The /dashboard/audit top bar (view
+   toggle + CSV export + 5 year select + GoBD
+   buttons + Zurück) was 747px wide on a 375px
+   mobile viewport. The container div lacked
+   `flex-wrap`. Fix: add `flex-wrap` to the
+   button row container.
+
+**Operational fixes (runbook updates):**
+
+5. **Backend dev restart** (Tier 304 lesson).
+   The Tier 300 export of `THROTTLE_DISABLED` in
+   `scripts/start-backend.sh` is correct, but a
+   long-running dev backend needs an explicit
+   restart whenever the wrapper script's exported
+   env vars change. CI runners are short-lived
+   so this never bit them; long-running devs are
+   the silent casualty. For Hetzner prod, the
+   `start-backend.sh` wrapper is invoked fresh
+   on every deploy — no carryover risk.
+
+**Verification status (Tier 304-307):**
+
+- Backend e2e run-all: **99/99** ✅
+- Playwright baseline: 881/0/23 (Tier 304 full
+  run) + Tier 307 mobile layout fix verified
+  in partial run (146/888 0 hard fail, 8
+  retries = matches Tier 304 baseline).
+- 8/8 spec files re-tested in isolation: 41
+  pass / 3 fail / 3 flaky (3 cold-compile
+  fail = dev-mode limitations, not present
+  in production builds).
+
+**Remaining dev-mode-only issues (not deploy
+blockers):** OCR scan upload, cost-center
+report, and a few admin/AfA pages have dev
+mode cold-compile that takes 30-60s on first
+hit. Production builds (`next build` + `next
+start`) don't have this issue — pages are
+pre-compiled. The spec-level timeout bumps
+(30s/60s/120s) buy headroom for dev mode
+flakiness; Hetzner prod will not see these.
 [`infra/prod/README.md` §6](infra/prod/README.md) for
 that pattern.
