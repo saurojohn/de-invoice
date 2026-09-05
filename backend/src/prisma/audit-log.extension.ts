@@ -253,6 +253,36 @@ export function createAuditLogExtension() {
     name: 'auditLog',
     query: {
       $allModels: {
+        async create({ model, operation, args, query }: any) {
+          if (!AUDITED_MODELS.has(model)) return query(args)
+          const result = await query(args)
+          // Tier 304: ensure the newData blob
+          // includes the most-audited fields
+          // (invoiceNumber for Invoice, etc).
+          // The default `sanitize(result)` would
+          // include every column — but a Tier 174
+          // refactor of invoice.service.ts no
+          // longer puts invoiceNumber on the
+          // returned object (it's resolved by the
+          // DB default and read back by a separate
+          // SELECT). The audit trail then loses
+          // the human-readable ID. We explicitly
+          // surface invoiceNumber for the
+          // Invoice + RecurringInvoice models.
+          const data = sanitize(result)
+          if (model === 'Invoice' || model === 'RecurringInvoice') {
+            data.invoiceNumber = (result as any).invoiceNumber
+            data.customerId = (result as any).customerId
+          }
+          await writeAudit(_auditLogClient, {
+            action: actionOf('create', model),
+            entityType: model,
+            entityId: extractId(args, result),
+            oldData: null,
+            newData: data,
+          })
+          return result
+        },
         async update({ model, operation, args, query }: any) {
           if (!AUDITED_MODELS.has(model)) return query(args)
           const before = await getPreImage(_auditLogClient, model, args)
