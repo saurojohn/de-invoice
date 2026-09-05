@@ -72,14 +72,21 @@ test.describe("Tier 48 — Cost-Center Budgets", () => {
     await page.goto("/dashboard/cost-center-budgets", {
       waitUntil: "domcontentloaded",
     })
+    // Tier 304: standard hydration wait. /dashboard/cost-center-*
+    // pages cold-compile for 30+ s on first dev-mode hit.
+    await page.waitForFunction(
+      () => document.readyState === "complete",
+      { timeout: 60_000 },
+    )
+    await page.waitForTimeout(500)
     await expect(page).toHaveURL(/\/dashboard\/cost-center-budgets$/, {
       timeout: 15_000,
     })
 
     await expect(
       page.locator('[data-testid="budget-year-select"]'),
-    ).toBeVisible({ timeout: 10_000 })
-    await expect(page.locator('[data-testid="budget-add"]')).toBeVisible()
+    ).toBeVisible({ timeout: 30_000 })
+    await expect(page.locator('[data-testid="budget-add"]')).toBeVisible({ timeout: 30_000 })
   })
 
   test("yearly report: budget column hidden when no budgets", async ({
@@ -179,7 +186,7 @@ test.describe("Tier 48 — Cost-Center Budgets", () => {
     // (which it always does once any budget exists).
     await expect(
       page.locator('[data-testid="cc-totals-budget-delta"]'),
-    ).toBeVisible({ timeout: 10_000 })
+    ).toBeVisible({ timeout: 30_000 })
 
     // Cleanup.
     const list = await page.request.get(

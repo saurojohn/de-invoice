@@ -86,12 +86,23 @@ test.describe("OCR scan upload (Tier 29)", () => {
     })
     await setupAuth(context, page)
     await page.goto("/dashboard/expenses", { waitUntil: "domcontentloaded" })
+    // Tier 304: standard hydration wait. /dashboard/expenses
+    // is a heavy page (lots of modals + the OCR upload
+    // component) that cold-compiles for 30+ s on the
+    // first hit in a dev-mode run. Without this the
+    // OCR-button locator hits the 10s default toBeVisible
+    // timeout before the React tree finishes mounting.
+    await page.waitForFunction(
+      () => document.readyState === "complete",
+      { timeout: 60_000 },
+    )
+    await page.waitForTimeout(500)
 
     // The scan button must be visible.
     const scanButton = page.locator(
       '[data-testid="expense-ocr-upload-button"]',
     )
-    await expect(scanButton).toBeVisible({ timeout: 10_000 })
+    await expect(scanButton).toBeVisible({ timeout: 30_000 })
 
     // Wait for the hidden file input to be ready,
     // then upload a fake PNG. We use setInputFiles
@@ -117,7 +128,7 @@ test.describe("OCR scan upload (Tier 29)", () => {
     // shows the loading state briefly then
     // switches to preview.
     const preview = page.locator('[data-testid="ocr-preview"]')
-    await expect(preview).toBeVisible({ timeout: 10_000 })
+    await expect(preview).toBeVisible({ timeout: 30_000 })
 
     // The supplier field is pre-populated from
     // the OCR fixture ("Musterfirma GmbH").
@@ -159,6 +170,17 @@ test.describe("OCR scan upload (Tier 29)", () => {
     })
     await setupAuth(context, page)
     await page.goto("/dashboard/expenses", { waitUntil: "domcontentloaded" })
+    // Tier 304: standard hydration wait. /dashboard/expenses
+    // is a heavy page (lots of modals + the OCR upload
+    // component) that cold-compiles for 30+ s on the
+    // first hit in a dev-mode run. Without this the
+    // OCR-button locator hits the 10s default toBeVisible
+    // timeout before the React tree finishes mounting.
+    await page.waitForFunction(
+      () => document.readyState === "complete",
+      { timeout: 60_000 },
+    )
+    await page.waitForTimeout(500)
 
     const fileInput = page.locator(
       '[data-testid="expense-ocr-file-input"]',
@@ -176,7 +198,7 @@ test.describe("OCR scan upload (Tier 29)", () => {
     const confirmButton = page.locator(
       '[data-testid="ocr-confirm-button"]',
     )
-    await expect(confirmButton).toBeVisible({ timeout: 10_000 })
+    await expect(confirmButton).toBeVisible({ timeout: 30_000 })
 
     // Set up the response waiter BEFORE clicking.
     // We wait for the expense POST to settle (any
