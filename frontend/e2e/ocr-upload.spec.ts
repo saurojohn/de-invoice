@@ -244,6 +244,15 @@ test.describe("OCR scan upload (Tier 29)", () => {
     page,
     context,
   }) => {
+    // Tier 305: real tesseract OCR cold-start is
+    // 25-30s + image rasterization 15-20s + text
+    // extraction 10-15s = 50-65s, but the dev
+    // backend's per-test timeout (120s default)
+    // is *also* the waitForResponse budget, and
+    // the two compete. Override the per-test
+    // timeout to give the OCR round-trip enough
+    // headroom (3× cold-path).
+    test.setTimeout(180_000)
     // Tier 31 — only meaningful when the backend
     // is running with OCR_ENGINE=tesseract. The
     // mock would also satisfy these assertions
