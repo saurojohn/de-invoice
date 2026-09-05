@@ -92,18 +92,33 @@ if [[ "$NEEDS_RESTART" == "1" ]]; then
   #   nohup env VIES_MOCK=1 npx ts-node src/main.ts ...
   # which wiped FRONTEND_URL, breaking Playwright CORS
   # for every test after e2e 20.
-  nohup env VIES_MOCK=1 bash scripts/start-backend.sh > /tmp/backend.log 2>&1 &
+  # Tier 309: also pass THROTTLE_DISABLED=1 through
+  # to the restarted backend. The dev backend is
+  # usually started with THROTTLE_DISABLED=1 (see
+  # start-backend.sh Tier 300 export), and dropping
+  # it on a mid-test restart would re-enable the
+  # 600/60s throttler and 429 the rest of the e2e
+  # suite (which is the original root cause of the
+  # Tier 303 followup's 9 hard fails).
+  nohup env VIES_MOCK=1 THROTTLE_DISABLED=1 bash scripts/start-backend.sh > /tmp/backend.log 2>&1 &
   # Tier 299 fix: ping /health/deep (which runs a
   # Prisma $queryRaw) instead of /health. /health
   # returns 200 the moment the controller is mapped
   # — that's well before NestJS finishes wiring all
   # the other modules (cron schedulers, Prisma
   # client, etc). A VIES probe hitting before
-  # all modules are wired returns 500. 12s was
-  # tight on the 1.5GB M1 with cold ts-node
-  # compile; bump to 25s and wait for /health/deep
-  # to actually return 200.
-  for i in $(seq 1 25); do
+  # all modules are wired returns 500.
+  #
+  # Tier 309: bump wait from 25s → 50s. The 2026-09-05
+  # run-all surfaced 6 cascading fails (20-25) where
+  # the restart happened but the wait timed out
+  # before NestJS fully wired all modules (the
+  # throttler re-init + VIES_MOCK=1 module re-init
+  # + all controllers re-initializing on cold compile
+  # took 35-40s in this environment). Single-spec
+  # re-runs of 20-25 isolated all pass — confirming
+  # the fails were a startup-race, not real bugs.
+  for i in $(seq 1 50); do
     sleep 1
     DEEP=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 1 \
       http://localhost:3001/api/v1/health/deep 2>/dev/null)
@@ -111,6 +126,9 @@ if [[ "$NEEDS_RESTART" == "1" ]]; then
       break
     fi
   done
+  if [ "$DEEP" != "200" ]; then
+    echo "WARN: backend not ready after 50s (last status: $DEEP), continuing"
+  fi
   echo "Backend restarted (PID $(lsof -ti:3001 | head -1), waited ${i}s)"
 fi
 
