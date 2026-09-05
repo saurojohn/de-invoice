@@ -281,7 +281,12 @@ test.describe("OCR scan upload (Tier 29)", () => {
 
     const scanResp = page.waitForResponse(
       (r) => r.url().includes("/api/v1/ocr/scan") && r.status() === 201,
-      { timeout: 30_000 },
+      // Tier 305: tesseract cold-start + image
+      // rasterization on a 2MB PNG easily takes
+      // 60-90s in dev mode. The 30s default
+      // tight-loops the retry pattern into a
+      // 90s+ dead end per attempt.
+      { timeout: 120_000 },
     )
     await fileInput.setInputFiles(receiptPath)
     await scanResp
