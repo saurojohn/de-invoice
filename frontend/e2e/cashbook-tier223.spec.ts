@@ -91,13 +91,13 @@ test.describe("Tier 223 — Cashbook page happy path", () => {
       pass: void 0  // (Playwright doesn't have a no-op pass)
       await expect(zberichtSign).toBeVisible()
       await expect(zberichtPdf).toBeVisible()
-      test.info("Z-Bericht sign + pdf buttons visible — cashbook page rendered correctly")
+      console.log("Z-Bericht sign + pdf buttons visible — cashbook page rendered correctly")
     } else {
       // Fallback: verify the page is non-empty and has a
       // heading or some recognizable content.
       const bodyText = await page.locator("body").innerText()
       expect(bodyText.length, "page has content").toBeGreaterThan(100)
-      test.info("Z-Bericht buttons not present, but page rendered with content (length=" + bodyText.length + ")")
+      console.log("Z-Bericht buttons not present, but page rendered with content (length=" + bodyText.length + ")")
     }
   })
 

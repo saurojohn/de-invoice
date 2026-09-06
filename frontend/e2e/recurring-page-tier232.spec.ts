@@ -68,7 +68,7 @@ test.describe("Tier 232 — Recurring invoices list page", () => {
     const newBtn = page.getByTestId("recurring-new-button")
     if ((await newBtn.count()) > 0) {
       await expect(newBtn).toBeVisible()
-      test.info("New template button visible")
+      console.log("New template button visible")
     } else {
       test.skip(true, "recurring-new-button testid not found")
     }

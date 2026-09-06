@@ -218,7 +218,7 @@ test.describe("Tier 223 — Invoice create happy path", () => {
     // issue, not a regression. The mobile team is working on
     // a tabbed layout in Tier-N+1. We just log the value here
     // so the trend is visible, not fail on it.
-    test.info(`create page mobile horizontal overflow: ${overflow}px`)
+    console.log(`create page mobile horizontal overflow: ${overflow}px`)
     expect(overflow, "page loaded without crashing").toBeGreaterThanOrEqual(0)
   })
 })
