@@ -427,9 +427,19 @@ DOMAIN=invoice.shleder.de VPS_IP=<public IPv4> \
   bash infra/prod/smoke-test.sh
 ```
 
-All 13 checks should pass. The script exits 0 on success, 1 on
-any failure. If something fails, see the troubleshooting
-section in `RUNBOOK.md`.
+All **17 checks** should pass (13 original + 4
+Tier 304-307 production-bug-fix verifications,
+see "After the deploy: run smoke-test.sh" in
+RUNBOOK.md for what each Tier 304-307 check
+catches). The script exits 0 on success, 1 on
+any failure. If something fails, see the
+troubleshooting section in `RUNBOOK.md`.
+
+If a Tier 304-307 check fails, the deploy image
+predates the hardening arc — `git pull` to
+make sure you have the latest commit, rebuild
++ redeploy, or `rollback.sh` to the previous
+image.
 
 ---
 
