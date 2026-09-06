@@ -1,12 +1,15 @@
 # DEPLOY-READY-SUMMARY.md — 2026-09-06
 
-> **Status: ready to deploy.** The Tier 304-310
-> hardening arc (12 commits, `36fc31b..3000248`)
+> **Status: ready to deploy.** The Tier 304-312
+> hardening arc (14 commits, `36fc31b..b157de2`)
 > is complete. All 4 production bugs surfaced
 > during the Playwright run have been fixed, the
 > dev DB is documented as recoverable via
 > `scripts/fix-dev-pg.sh`, and the Hetzner deploy
-> walkthrough is up to date.
+> walkthrough is up to date. The Tier 312
+> segment checkpoints (per-20-spec sleep + 
+> /health/deep ping) prevent the next run-all
+> from crashing the dev PG.
 
 ## What's ready
 
@@ -78,7 +81,7 @@ case the new deploy breaks health checks.
    expect 881/0/23 (Tier 304 baseline) + 1
    more pass from the Tier 307 mobile fix.
 
-## 12-commits summary
+## 14-commits summary
 
 | Commit | Tier | What |
 |---|---|---|
@@ -94,6 +97,8 @@ case the new deploy breaks health checks.
 | `ca27de7` | 309 | 20-vat restart race 25s→50s + carry THROTTLE_DISABLED |
 | `9c7f0ff` | 309 followup | PLAYWRIGHT-TIER304-309-FINAL session summary |
 | `3000248` | 310 | fix-dev-pg.sh recovery script |
+| `4feb551` | 310 final | DEPLOY-READY-SUMMARY one-shot read |
+| `b157de2` | 312 | run-all segment checkpoints (prevent PG crash on long sessions) |
 
 ## Production bugs fixed (worth highlighting in deploy notes)
 
