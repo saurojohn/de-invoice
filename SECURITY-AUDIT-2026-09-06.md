@@ -1,10 +1,10 @@
 # SECURITY-AUDIT-2026-09-06.md
 
 > **Snapshot**: full security + code-quality audit
-> of the de-invoice repo on commit `84b8086`
-> (28 commits in the Tier 304-319 hardening arc).
+> of the de-invoice repo on commit `3d68b03`
+> (29 commits in the Tier 304-320 hardening arc).
 > Operator should re-run this audit after any
-> future Tier ≥ 320 that touches the auth,
+> future Tier ≥ 321 that touches the auth,
 > search, or raw-SQL code paths.
 
 ## Summary
@@ -55,6 +55,14 @@
    took raw DB text and wrapped with `<mark>` without
    escaping `<`/`>`/`&` first. Fix: HTML-escape the source
    text before wrapping.
+7. **Tier 321**: Recurring path SQL guard analysis —
+   `recurring.service.ts:854,857` (CREATE/SELECT on
+   `invoice_seq_inv_${year}`) does NOT need a type
+   regex guard like `nextInvoiceNumber()`, because the
+   `inv` segment is a hard-coded literal, not user input.
+   Only `year` is interpolated, and it's already guarded
+   by Tier 318's `[1000, 9999]` check (line 848). Documented
+   here so the next audit doesn't re-derive the analysis.
 
 ## Code quality bugs fixed
 
@@ -65,7 +73,7 @@
   named plain function being called inside an onMouseDown
   callback. Fix: rename to `selectExistingProduct`.
 
-## SQL-injection guards (Tier 318)
+## SQL-injection guards (Tier 318 + Tier 321)
 
 The `nextInvoiceNumber()` / recurring generate path uses
 `$queryRawUnsafe` with a template-interpolated SEQUENCE name
@@ -75,6 +83,26 @@ like `invoice_seq_inv_2026`. Two guards added:
 
 Both throw `BadRequestException` BEFORE the raw SQL is
 constructed.
+
+### Per-call-site map (Tier 321)
+
+Every `$queryRawUnsafe` / `$executeRawUnsafe` call site
+in `backend/src/` was reviewed on 2026-09-06:
+
+| File:line | Interpolated? | Input source | Guard |
+|-----------|---------------|--------------|-------|
+| `invoice.service.ts:238,241` | `${seqName}` (year + type) | `type` (enum) + `year` (Date.getFullYear) | Tier 318 regex + year range |
+| `recurring.service.ts:696` | none (static SQL) | `templateId, companyId` via `$1, $2` placeholders | Prisma tagged template (auto-parameterized) |
+| `recurring.service.ts:854,857` | `${seqName}` (year only, type=`inv` literal) | `year = periodStart.getFullYear()` from DB row | Tier 318 year range (type literal, no input) |
+| `recurring.service.ts:854,857` (periodStart) | n/a | `tpl.nextRunAt` from DB | DB row, scoped to companyId via the FOR UPDATE at line 696 |
+| `audit.service.ts:544,551` | `${whereClause}` (Prisma `?` placeholders) + `${take} ${skip}` (numbers) | user query + filter fragments | `parseFilters()` parseInt + range check on take/skip; fragments use `$${qIdx}` placeholders |
+| `portal.service.ts:164` | none (tagged template) | `${ip}` | Prisma tagged template (auto-parameterized) |
+| `health/*.controller.ts` | none (static `SELECT 1`) | n/a | Static |
+| `admin/cron-health.service.ts:203` | n/a (comment) | n/a | Comment-only reference |
+| `system/system.controller.ts:208` | static SQL | user query via `$${n}` placeholders | Prisma tagged template |
+
+**Conclusion**: every interpolated-raw-SQL site is
+guarded. No new findings.
 
 ## Known limitations (not deploy blockers)
 
@@ -111,9 +139,9 @@ constructed.
 
 ## Deployment
 
-All 28 commits pushed to `main` (`36fc31b..84b8086`). Hetzner
-deploy is 100% ready, blocked only on user-provided VPS
-IP + SSH key. After deploy:
+All 29 commits pushed to `main` (`36fc31b..3d68b03`).
+Hetzner deploy is 100% ready, blocked only on user-provided
+VPS IP + SSH key. After deploy:
 - `bash infra/prod/HETZNER-DEPLOY.sh --check` (pre-flight)
 - `bash infra/prod/HETZNER-DEPLOY.sh` (full deploy)
 - `DOMAIN=... VPS_IP=... bash infra/prod/smoke-test.sh`
@@ -145,11 +173,17 @@ grep -rn "dangerouslySetInnerHTML\|innerHTML" frontend/src
 # SQL injection surface
 grep -rn '\$queryRawUnsafe\|executeRawUnsafe' backend/src --include="*.ts"
 
+# 401 handling — must exclude /login AND /portal
+grep -B 1 -A 5 "status === 401" frontend/src/lib/api.ts
+
 # File upload size limits
 grep -B 1 -A 2 "limits: {" backend/src
 
 # Throttle coverage
 grep -B 1 -A 1 "@Throttle" backend/src/modules/auth/
+
+# Audit pagination coercion (take/skip must be parseInt'd)
+grep -n "parseInt\|f.skip\|f.take" backend/src/modules/audit/
 ```
 
 If any check returns new content that wasn't in the
