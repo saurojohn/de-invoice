@@ -1,7 +1,7 @@
 # DEPLOY-READY-SUMMARY.md — 2026-09-06
 
 > **Status: ready to deploy.** The Tier 304-312
-> hardening arc (14 commits, `36fc31b..b157de2`)
+> hardening arc (17 commits, `36fc31b..e9db8a6`)
 > is complete. All 4 production bugs surfaced
 > during the Playwright run have been fixed, the
 > dev DB is documented as recoverable via
@@ -10,6 +10,23 @@
 > segment checkpoints (per-20-spec sleep + 
 > /health/deep ping) prevent the next run-all
 > from crashing the dev PG.
+
+## Deploy in 3 commands
+
+```bash
+# 1. Provide the Hetzner VPS IP + SSH key.
+# 2. Pre-flight:
+cd /Users/shledergmbh/Projects/de-invoice/infra/prod
+./HETZNER-DEPLOY.sh --check
+# 3. Deploy:
+./HETZNER-DEPLOY.sh
+```
+
+The walkthrough has a rollback path
+(`deploy.sh --rollback` + `--rollback-db`) in
+case the new deploy breaks health checks.
+Post-deploy verification commands are in the
+"Post-deploy verification" section below.
 
 ## What's ready
 
@@ -65,9 +82,8 @@
 4. `./HETZNER-DEPLOY.sh` — executes the 10-step
    walkthrough from `DEPLOY-WALKTHROUGH.md`.
 
-The walkthrough has a rollback path
-(`deploy.sh --rollback` + `--rollback-db`) in
-case the new deploy breaks health checks.
+(See "Deploy in 3 commands" at the top for the
+TL;DR.)
 
 ## If you need to re-verify locally first
 
