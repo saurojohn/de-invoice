@@ -554,7 +554,26 @@ function extractMatchedTerms(tsvectorText: string): string[] {
  */
 function markTermsInText(text: string, terms: string[]): string {
   if (!text) return ''
+  // Tier 317: HTML-escape the source text BEFORE
+  // wrapping with <mark> tags. The output of this
+  // function is rendered with React's
+  // dangerouslySetInnerHTML on the frontend
+  // (GlobalSearch.tsx, customers/page.tsx). If a
+  // user-typed entity name contains HTML like
+  // `<script>alert(1)</script>`, the original
+  // code would render it as live HTML. The escape
+  // preserves the visible text and only injects
+  // the safe `<mark>` wrappers around matched
+  // terms. The matched `m` substring comes from
+  // the regex match of the (also-escaped) term
+  // against the (now-escaped) text, so it can
+  // never reintroduce unescaped HTML.
   let out = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
   for (const term of terms) {
     if (term.length < 2) continue // skip single-char noise
     // Escape regex special chars in the term.
