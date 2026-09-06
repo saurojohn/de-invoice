@@ -115,6 +115,37 @@ docker compose -f infra/prod/docker-compose.yml exec backend \
   npx prisma migrate deploy
 ```
 
+### After the deploy: run smoke-test.sh
+
+The Tier 304-307 hardening arc (2026-09-05) added
+4 production-bug-fix verifications to the
+existing smoke-test.sh. After every deploy, the
+operator should run:
+
+```bash
+DOMAIN=rechnung.shleder.de VPS_IP=<VPS_IP> \
+  bash infra/prod/smoke-test.sh
+```
+
+This now runs **17 checks total** (13 original
++ 4 Tier 304-307 verifications):
+
+- 14. Portal 401 auto-logout hijack fix (Tier 304)
+- 15. Invoice schema drift fix (Tier 304 followup)
+- 16. Audit log create wrap (Tier 304 followup)
+- 17. Audit page mobile layout (Tier 307)
+
+If any check fails, the deploy image is from
+before the fixes — `git pull` again (the new
+commits should be there), rebuild, redeploy,
+or `deploy.sh --rollback` to the previous image.
+Full details in `DEPLOY-READY-SUMMARY.md`.
+
+```bash
+docker compose -f infra/prod/docker-compose.yml exec backend \
+  npx prisma migrate deploy
+```
+
 Then verify:
 
 ```bash
