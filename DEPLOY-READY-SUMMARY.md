@@ -135,3 +135,57 @@ The user reply "我描述错误 + 给你 F12 console
 F12 console data is needed to debug anything
 else, please provide it. If not, this can
 stay open until something actually breaks.
+
+## Post-deploy verification (run after Hetzner deploy lands)
+
+After `cd infra/prod && ./HETZNER-DEPLOY.sh`
+finishes successfully, the operator should
+verify the 4 production-bug fixes actually
+landed on the new image. Each check is a
+single curl + a one-line grep:
+
+```bash
+# Get the deployed backend URL.
+VPS_IP="<the IP you provided>"
+
+# 1. Portal 401 hijack fix — the redirect logic
+#    must now exclude /portal. A bad token on
+#    /portal?token=invalid should NOT 302 to
+#    /login; it should stay on the portal page
+#    and show the portal-error UI.
+curl -sI "http://$VPS_IP/api/v1/portal/invalid-token" \
+  | head -1
+# Expect: HTTP/1.1 400 (or 401), NOT 302 to /login.
+
+# 2. Schema drift fix — exchangeRate column must
+#    exist on the prod Invoice table. If
+#    prisma migrate deploy ran, this returns 1.
+curl -s "http://$VPS_IP/api/v1/invoices?companyId=<your-company-id>&take=1" \
+  -H "x-user-id: <user>" -H "x-company-id: <company>" \
+  | python3 -c "import sys,json;d=json.load(sys.stdin)['data'];print('exchangeRate:',d[0].get('exchangeRate','MISSING'))"
+# Expect: exchangeRate: 1 (or a real FX rate). NOT MISSING.
+
+# 3. Audit log create wrap — POST a new invoice
+#    and verify the AuditLog row has invoiceNumber
+#    in newData.
+INVOICE_ID=$(curl -s -X POST "http://$VPS_IP/api/v1/invoices?companyId=<your-company-id>" \
+  -H "x-user-id: <user>" -H "x-company-id: <company>" \
+  -H "Content-Type: application/json" \
+  -d '{"customerId":"<a-customer-id>","type":"INV","currency":"EUR","language":"de-DE","issueDate":"2026-09-06","dueDate":"2026-10-06","items":[{"description":"verify","quantity":1,"unitPrice":1,"vatRate":0.19}]}' \
+  | python3 -c "import sys,json;print(json.load(sys.stdin)['id'])")
+sleep 2
+docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+  "SELECT \"newData\"->>'invoiceNumber' FROM \"AuditLog\" WHERE \"entityId\"='$INVOICE_ID' AND action='invoice.created';"
+# Expect: INV-2026-XXXXX. NOT empty.
+
+# 4. Audit page mobile layout — visit the
+#    /dashboard/audit page at 375px width and
+#    check body.scrollWidth <= 376.
+#    (Browser test, not curl-able — run a
+#    Playwright spot-check or just open it
+#    in DevTools and resize.)
+```
+
+If any check fails, the deploy image is from
+before these fixes — roll back with
+`deploy.sh --rollback` and investigate.
