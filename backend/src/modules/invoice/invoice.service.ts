@@ -180,6 +180,27 @@ export class InvoiceService {
     sequenceNumber: number;
   }> {
     const year = new Date().getFullYear();
+    // Tier 318: validate year is a safe integer (1000-9999)
+    // before interpolating into the raw SQL sequence name.
+    // `new Date().getFullYear()` always returns 0-9999, but
+    // this guard prevents the seqName from becoming an
+    // SQL-injection vector if a future refactor lets user
+    // input flow into the year (e.g. a manual override
+    // field or a corrupted system clock).
+    if (!Number.isInteger(year) || year < 1000 || year > 9999) {
+      throw new BadRequestException(
+        `Invalid year for invoice number: ${year}`,
+      )
+    }
+    // Tier 318: also validate type is a known enum value.
+    // `type` is typed as InvoiceType at the TS level but
+    // the raw SQL below concatenates it; ensure it only
+    // contains [a-zA-Z0-9_].
+    if (!/^[A-Z]{2,5}$/.test(type)) {
+      throw new BadRequestException(
+        `Invalid invoice type: ${type}`,
+      )
+    }
     const prefix =
       type === 'CN' ? 'CN-' :
       type === 'PI' ? 'PI-' :

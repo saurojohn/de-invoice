@@ -836,6 +836,20 @@ export class RecurringService {
       // invoice.service.ts.nextInvoiceNumber for the full
       // story). Mixed-case quoted names trigger 42P01 in
       // long-lived Prisma clients.
+      // Tier 318: validate the year is a safe integer
+      // (1000-9999) BEFORE interpolating into the raw
+      // SQL sequence name. currentYear = getFullYear()
+      // is normally 0-9999, but a corrupted DB row with
+      // an extreme periodStart could produce anything.
+      // This guard prevents the seqName from becoming
+      // an SQL-injection vector if a future refactor
+      // accidentally lets user input flow into the
+      // sequence name template.
+      if (!Number.isInteger(currentYear) || currentYear < 1000 || currentYear > 9999) {
+        throw new BadRequestException(
+          `Invalid period year for recurring invoice: ${currentYear}`,
+        )
+      }
       const seqName = `invoice_seq_inv_${currentYear}`
       await tx.$executeRawUnsafe(
         `CREATE SEQUENCE IF NOT EXISTS ${seqName} START 1 INCREMENT 1`
