@@ -128,14 +128,6 @@ case the new deploy breaks health checks.
 This prevents the cascading 6-fail pattern
 observed in the 2026-09-05 run-all.
 
-## Open question (not blocking)
-
-The user reply "我描述错误 + 给你 F12 console
-截图" (Tier 197) is still pending. If the
-F12 console data is needed to debug anything
-else, please provide it. If not, this can
-stay open until something actually breaks.
-
 ## Post-deploy verification (run after Hetzner deploy lands)
 
 After `cd infra/prod && ./HETZNER-DEPLOY.sh`
