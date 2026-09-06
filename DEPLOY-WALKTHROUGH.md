@@ -146,7 +146,11 @@ If `health/deep` returns 200, the deploy is functionally
 complete. If it returns 503, the response body tells you
 which subsystem failed.
 
-See: [`infra/prod/RUNBOOK.md` §1](infra/prod/RUNBOOK.md)
+The full 17-check smoke-test (13 original + 4 Tier 304-307
+production-bug-fix verifications) is in `infra/prod/
+smoke-test.sh` and can be run from your workstation after
+the deploy. See [`infra/prod/RUNBOOK.md` §1](infra/prod/RUNBOOK.md)
+for the post-deploy section + rollback path.
 for the full health-check catalog.
 
 ---

@@ -149,8 +149,11 @@ observed in the 2026-09-05 run-all.
 After `cd infra/prod && ./HETZNER-DEPLOY.sh`
 finishes successfully, the operator should
 verify the 4 production-bug fixes actually
-landed on the new image. Each check is a
-single curl + a one-line grep:
+landed on the new image. The recommended way
+is to run the existing `infra/prod/smoke-test.sh`
+which has 17 checks (13 original + 4 Tier 304-307
+verifications). Alternatively, the 4 individual
+curl + grep checks are below:
 
 ```bash
 # Get the deployed backend URL.
