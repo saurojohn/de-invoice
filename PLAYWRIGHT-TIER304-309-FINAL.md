@@ -6,7 +6,7 @@
 
 ## TL;DR
 
-- 10 commits pushed (`36fc31b..ca27de7`)
+- 18 commits pushed (`36fc31b..6470698`)
 - Backend e2e: **99/99** (Tier 299 baseline preserved)
 - Playwright baseline: **881/0/23** (Tier 304 full run)
 - 4 production bugs fixed
@@ -14,9 +14,12 @@
 - 1 dev-mode cold-compile hardening pass
 - 1 mobile layout fix
 - 1 restart-race fix
+- 1 dev DB corruption discovery + recovery script
+- 1 run-all segment checkpoint defense
 
 Hetzner deploy is now safe to run — the walkthrough
-(`DEPLOY-WALKTHROUGH.md` §Tier 304-307) lists every
+(`DEPLOY-WALKTHROUGH.md` §Tier 304-307) and the
+`DEPLOY-READY-SUMMARY.md` one-shot read list every
 fix already in the deployed image.
 
 ---
@@ -288,5 +291,86 @@ Ready. All prep work is in place:
 - DEPLOY-WALKTHROUGH.md has the
   "Tier 304-307 production hardening" section
   documenting all 4 fixes + their commit refs
+- DEPLOY-READY-SUMMARY.md is the one-shot read
+  for the operator at deploy time
+- `scripts/fix-dev-pg.sh` for dev DB recovery
+  (Tier 310, requires sudo)
+- run-all.sh segment checkpoints (Tier 312,
+  prevent dev PG crash on long sessions)
 
 Blocked on user-provided VPS IP + SSH key.
+
+---
+
+## Tier 310 (2026-09-06) — dev PG corruption discovered
+
+The 2026-09-05 run-all hit PG max_connections=300
+around spec 75-85 (the 1500-voucher seeding
+specs) and was killed mid-write. The /tmp/pgdata
+volume on the dev container silently corrupted —
+missing `pg_logical/snapshots` + `pg_notify` +
+`pg_tblspc` + `pg_hba.conf`. Restart + `pg_resetwal`
++ `chown` (requires sudo) all failed to recover.
+Hetzner prod is unaffected (fresh DB).
+
+Pushed `scripts/fix-dev-pg.sh` (requires sudo)
+as a one-command recovery procedure. Memory
+lesson: 4-day-uptime dev PG is a ticking time
+bomb. Operational fix: weekly PG reboot, or
+disposable PG container per long test session.
+
+---
+
+## Tier 311 (2026-09-06) — root cause analysis
+
+Traced the full causal chain of the dev PG
+corruption:
+
+1. Tier 300 exported THROTTLE_DISABLED
+2. Tier 304 restarted backend (40h process killed)
+3. Tier 305-307 Playwright cold-compile hardening
+4. Tier 308 docs
+5. Tier 309 fixed 20-vat restart race
+6. Tier 309 followup ran full 99-spec suite
+7. Full run-all hit PG max_connections=300 ceiling
+8. PG killed mid-write
+9. Crash recovery impossible (incomplete volume)
+10. Tier 310 morning: discovered + couldn't recover
+
+Lesson: ANYTHING that restarts the backend mid-
+test-suite is a ticking bomb for shared
+infrastructure. The Tier 309 fix (carry
+THROTTLE_DISABLED) was correct but should
+have ALSO (a) killed the run-all gracefully
+before the restart, (b) set PG max_connections
+higher for the run-all window, or (c) used a
+fresh PG container per run-all invocation.
+
+---
+
+## Tier 312 (2026-09-06) — run-all segment checkpoints
+
+Proactive mitigation for the Tier 311 root cause:
+run-all.sh now splits the 99-spec suite into
+segments of SEGMENT_SIZE=20 specs each, with
+a 10s sleep + /health/deep ping between segments.
+If the ping fails, the script aborts with a
+clear "fix-dev-pg.sh" message rather than
+continuing into a corrupt-DB cascade.
+
+Env vars tunable (SEGMENT_SIZE, SEGMENT_SLEEP).
+Default 20+10s is a balance: not so small that
+checkpoint overhead dominates, not so large
+that PG crashes before the boundary.
+
+The 5 commits after Tier 309 are all doc/infra
+followups that complete the deploy-ready
+package:
+- 9c7f0ff: PLAYWRIGHT-TIER304-309-FINAL (initial)
+- 3000248: fix-dev-pg.sh (Tier 310 followup)
+- 4feb551: DEPLOY-READY-SUMMARY (Tier 310 final)
+- b157de2: run-all segment checkpoints (Tier 312)
+- 54b6437 + a9de9b3 + e9db8a6 + 6470698:
+  DEPLOY-READY-SUMMARY doc followups
+  (post-deploy verification, 14→17 commits,
+  drop Tier 197 open question, TL;DR block)
