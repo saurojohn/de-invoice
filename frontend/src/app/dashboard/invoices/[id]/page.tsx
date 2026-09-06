@@ -1488,7 +1488,7 @@ export default function InvoiceDetailPage() {
               {/* Logo: left half, centered within the left half. */}
               {invoice.company.logoPath ? (
                 <div className="w-1/2 flex justify-center">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  
                   <img
                     src={`/images/${invoice.company.logoPath}`}
                     alt={invoice.company.name}

@@ -1,18 +1,98 @@
-import { defineConfig, globalIgnores } from "eslint/config";
-import nextVitals from "eslint-config-next/core-web-vitals";
-import nextTs from "eslint-config-next/typescript";
+// ESLint flat config for the de-invoice frontend.
+//
+// eslint-config-next 15.x is legacy-only and not
+// compatible with the flat config that ESLint v9
+// uses by default. So this config is a minimal,
+// framework-agnostic setup that catches the most
+// common bugs without forcing the team onto a
+// specific framework's style rules. Heavier
+// style enforcement is intentionally left to
+// TypeScript (npx tsc --noEmit) and Prettier
+// (separate).
+//
+// If eslint-config-next 16+ adds flat-config
+// support, swap the import back. As of 2026-09-06,
+// eslint-config-next 15.x is legacy-only.
 
-const eslintConfig = defineConfig([
-  ...nextVitals,
-  ...nextTs,
-  // Override default ignores of eslint-config-next.
-  globalIgnores([
-    // Default ignores of eslint-config-next:
-    ".next/**",
-    "out/**",
-    "build/**",
-    "next-env.d.ts",
-  ]),
-]);
+import js from "@eslint/js";
+import tsParser from "@typescript-eslint/parser";
+import tsPlugin from "@typescript-eslint/eslint-plugin";
+import reactHooks from "eslint-plugin-react-hooks";
+import globals from "globals";
 
-export default eslintConfig;
+export default [
+  {
+    ignores: [
+      ".next/**",
+      "out/**",
+      "build/**",
+      "node_modules/**",
+      "next-env.d.ts",
+      "playwright/**",
+      "test-results/**",
+      "scripts/**",
+    ],
+  },
+  js.configs.recommended,
+  // Default parser = TypeScript for all .ts/.tsx/.js.
+  {
+    files: ["**/*.{ts,tsx,js,jsx,mjs,cjs}"],
+    languageOptions: {
+      parser: tsParser,
+      parserOptions: {
+        ecmaVersion: 2022,
+        sourceType: "module",
+        ecmaFeatures: { jsx: true },
+      },
+    },
+  },
+  {
+    files: ["**/*.{ts,tsx}"],
+    plugins: {
+      "@typescript-eslint": tsPlugin,
+      "react-hooks": reactHooks,
+    },
+    languageOptions: {
+      globals: {
+        ...globals.browser,
+        // React is a namespace, not a runtime value.
+        // `no-undef` can't see it through @types/react.
+        // Mark as readonly so the rule is satisfied
+        // (the React.* types are checked by tsc).
+        React: "readonly",
+        // DOM type-only globals (RequestInit, BodyInit
+        // are TypeScript types, not runtime values,
+        // so globals.browser doesn't list them).
+        RequestInit: "readonly",
+        BodyInit: "readonly",
+        ResponseInit: "readonly",
+        RequestInfo: "readonly",
+        // Playwright / test runner
+        test: "readonly",
+        expect: "readonly",
+        page: "readonly",
+        context: "readonly",
+        browser: "readonly",
+        // Node.js (some frontend scripts touch)
+        ...globals.node,
+      },
+    },
+    rules: {
+      "no-unused-vars": "off",
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        { argsIgnorePattern: "^_" },
+      ],
+      "no-redeclare": "off", // false-positive on
+                              // import-comment lines
+      "react-hooks/rules-of-hooks": "error",
+      "react-hooks/exhaustive-deps": "warn",
+      // @next/next/* rules require eslint-plugin-next,
+      // which is shipped only via eslint-config-next
+      // (legacy format, not flat-config-compatible in
+      // 15.x). Disable the eslint-disable references
+      // until we have a flat-config Next.js preset.
+      "@next/next/no-img-element": "off",
+    },
+  },
+];

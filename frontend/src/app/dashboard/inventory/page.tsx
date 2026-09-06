@@ -382,7 +382,7 @@ export default function InventoryPage() {
   // refresh the lists and select the product — the
   // modal effectively becomes a 'go to this product'
   // shortcut.
-  const useExistingProductInline = async (p: ProductStock) => {
+  const selectExistingProduct = async (p: ProductStock) => {
     setNewProductLoading(true)
     try {
       const companyId = localStorage.getItem("companyId")!
@@ -1022,7 +1022,7 @@ export default function InventoryPage() {
                                 className="px-3 py-2 hover:bg-blue-50 cursor-pointer"
                                 onMouseDown={(e) => {
                                   e.preventDefault()
-                                  useExistingProductInline(p)
+                                  selectExistingProduct(p)
                                 }}
                               >
                                 <div className="font-medium text-sm">{p.name}</div>
