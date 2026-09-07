@@ -225,20 +225,33 @@ sudo docker compose -f infra/prod/docker-compose.yml exec postgres \
 # Expect: /var/run/postgresql:5432 - accepting connections
 ```
 
-Apply the Prisma schema. **Use `prisma migrate deploy`**
-(not `prisma db push`) — Tier 28's search migration
-adds STORED generated columns (`Customer.search_tsv`,
-`Product.search_tsv`, `Invoice.search_tsv`) that
-Prisma's schema language can't model, so
-`db push` silently skips them and the search
-service crashes with `column c.search_tsv does
-not exist` (PG 42703). `migrate deploy` runs
-the full migration history including the raw
-SQL one. See CI fix in Tier 329.
+Apply the Prisma schema. **Hybrid: `db push` + raw-SQL
+search migration** (Tier 330, replacing Tier 329's
+`migrate deploy`). The repo's baseline migration
+(20240101000000_baseline) is incomplete —
+schema.prisma declares 69 models but the baseline
+only creates 38 tables. The other ~30 were
+historically created by `db push` (which reads
+schema.prisma directly). So:
+- `migrate deploy` is missing those ~30 tables
+  (and the search service crashes on first use).
+- `db push` is missing the STORED generated
+  search_tsv columns (Tier 28's raw-SQL migration
+  can't be modeled in schema.prisma).
+
+The right fix is to add a new migration that
+captures the schema-to-baseline diff — but
+that's 30+ tables of DDL, deferred to Tier 332+.
+For now, the hybrid works:
 
 ```bash
 sudo docker compose -f infra/prod/docker-compose.yml run --rm backend \
-  npx prisma migrate deploy
+  npx prisma db push --accept-data-loss --skip-generate
+
+sudo docker compose -f infra/prod/docker-compose.yml run --rm backend \
+  npx prisma db execute --stdin --schema prisma/schema.prisma <<'EOF'
+$(cat prisma/migrations/20260701000001_search_tsv/migration.sql)
+EOF
 
 sudo docker compose -f infra/prod/docker-compose.yml run --rm backend \
   npx prisma generate

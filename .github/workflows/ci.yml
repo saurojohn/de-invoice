@@ -177,30 +177,33 @@ jobs:
             exit 1
           fi
       - name: Apply prisma schema
-        # Tier 329: switched from `prisma db push` to
-        # `prisma migrate deploy` because some columns
-        # (e.g. `Customer.search_tsv`,
-        # `Product.search_tsv`, `Invoice.search_tsv`)
-        # are STORED generated columns added by a
-        # raw-SQL migration in
-        # prisma/migrations/20260701000001_search_tsv.
-        # The Prisma schema can't model STORED
-        # generated columns, so `db push` (which only
-        # reads schema.prisma) silently skips them —
-        # the search_tsv column never gets created,
-        # and the search service's
-        # `$queryRaw ... FROM "Customer" c WHERE
-        # c.search_tsv @@ ...` returns 'column
-        # c.search_tsv does not exist' (PG 42703).
-        # `migrate deploy` runs the full migration
-        # history including the raw-SQL one, so the
-        # column exists and the search service works.
+        # Tier 329/330: hybrid approach. The repo's
+        # baseline migration (20240101000000_baseline)
+        # is incomplete — schema.prisma declares 69
+        # models but the baseline only creates 38
+        # tables. The other ~30 were created over
+        # time by `db push` (which reads schema.prisma
+        # directly). So `migrate deploy` (which
+        # only runs migration files) is missing those
+        # tables, and `db push` is missing the
+        # STORED generated columns (search_tsv) that
+        # only a raw-SQL migration can create.
         #
-        # The Hetzner production deploy should also
-        # use `prisma migrate deploy` for the same
-        # reason — but that's a separate change to
-        # infra/prod/HETZNER-DEPLOY.md (Tier 330).
-        run: npx prisma migrate deploy
+        # Solution: `db push` first to bring the DB
+        # to schema parity, then run the search_tsv
+        # migration as a one-off raw SQL execution
+        # (the migration is idempotent — it uses
+        # `ADD COLUMN IF NOT EXISTS` for the search_tsv
+        # column and the existing GIN index is created
+        # with `IF NOT EXISTS`).
+        run: |
+          npx prisma db push --accept-data-loss --skip-generate
+          npx prisma db execute --stdin --schema prisma/schema.prisma <<'EOF'
+          -- Tier 329 inline: run the search_tsv migration
+          -- manually because db push doesn't apply raw
+          -- SQL migrations.
+          $(cat prisma/migrations/20260701000001_search_tsv/migration.sql)
+          EOF
         working-directory: backend
       - name: Build backend (typecheck)
         run: npx tsc --noEmit
@@ -341,7 +344,12 @@ jobs:
             fi
             sleep 1
           done
-      - run: npx prisma migrate deploy
+      - run: |
+          npx prisma db push --accept-data-loss --skip-generate
+          npx prisma db execute --stdin --schema prisma/schema.prisma <<'EOF'
+          -- Tier 329 inline: see e2e job for rationale.
+          $(cat prisma/migrations/20260701000001_search_tsv/migration.sql)
+          EOF
         working-directory: backend
       - name: Start backend
         env:
