@@ -248,10 +248,13 @@ For now, the hybrid works:
 sudo docker compose -f infra/prod/docker-compose.yml run --rm backend \
   npx prisma db push --accept-data-loss --skip-generate
 
+# Pipe the file directly (NOT a heredoc with
+# $(cat …) — heredocs with a quoted delimiter
+# disable command substitution, so the literal
+# `$` is sent to psql, which fails with 'syntax
+# error at or near "$"'. Tier 330 lesson.)
 sudo docker compose -f infra/prod/docker-compose.yml run --rm backend \
-  npx prisma db execute --stdin --schema prisma/schema.prisma <<'EOF'
-$(cat prisma/migrations/20260701000001_search_tsv/migration.sql)
-EOF
+  bash -c 'cat prisma/migrations/20260701000001_search_tsv/migration.sql | npx prisma db execute --stdin --schema prisma/schema.prisma'
 
 sudo docker compose -f infra/prod/docker-compose.yml run --rm backend \
   npx prisma generate

@@ -196,14 +196,17 @@ jobs:
         # `ADD COLUMN IF NOT EXISTS` for the search_tsv
         # column and the existing GIN index is created
         # with `IF NOT EXISTS`).
+        #
+        # We pipe the file into `db execute --stdin`
+        # instead of using a heredoc with $(cat …)
+        # because the latter kept the literal `$`
+        # in the stream (a heredoc with quoted
+        # delimiter disables shell interpolation
+        # of the $(cat …) command substitution,
+        # so PG saw `syntax error at or near "$"`).
         run: |
           npx prisma db push --accept-data-loss --skip-generate
-          npx prisma db execute --stdin --schema prisma/schema.prisma <<'EOF'
-          -- Tier 329 inline: run the search_tsv migration
-          -- manually because db push doesn't apply raw
-          -- SQL migrations.
-          $(cat prisma/migrations/20260701000001_search_tsv/migration.sql)
-          EOF
+          cat prisma/migrations/20260701000001_search_tsv/migration.sql | npx prisma db execute --stdin --schema prisma/schema.prisma
         working-directory: backend
       - name: Build backend (typecheck)
         run: npx tsc --noEmit
@@ -346,10 +349,7 @@ jobs:
           done
       - run: |
           npx prisma db push --accept-data-loss --skip-generate
-          npx prisma db execute --stdin --schema prisma/schema.prisma <<'EOF'
-          -- Tier 329 inline: see e2e job for rationale.
-          $(cat prisma/migrations/20260701000001_search_tsv/migration.sql)
-          EOF
+          cat prisma/migrations/20260701000001_search_tsv/migration.sql | npx prisma db execute --stdin --schema prisma/schema.prisma
         working-directory: backend
       - name: Start backend
         env:
