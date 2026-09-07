@@ -108,6 +108,16 @@ jobs:
       # VAT ID prefix) so the tests are
       # independent of the EU's uptime.
       VIES_MOCK: "1"
+      # Tier 332: fixture-only PIN encryption key.
+      # 32+ chars so any PIN-encryption code path
+      # (FinTS connection setup, PDF signature
+      # envelope) boots without complaining about
+      # an unset/short key. Labeled fixture-only
+      # so it never leaks to prod — real prod
+      # deployments MUST inject their own
+      # FINTS_PIN_ENC_KEY via secrets, never
+      # inherit this one.
+      FINTS_PIN_ENC_KEY: "ci-fixture-key-do-not-use-in-prod-00000000000000000000"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -205,8 +215,29 @@ jobs:
         # of the $(cat …) command substitution,
         # so PG saw `syntax error at or near "$"`).
         run: |
+          set -euo pipefail
           npx prisma db push --accept-data-loss --skip-generate
           cat prisma/migrations/20260701000001_search_tsv/migration.sql | npx prisma db execute --stdin --schema prisma/schema.prisma
+          # Tier 332: table-count post-condition. The
+          # schema declares 69 models. If `db push`
+          # somehow only created a subset (e.g. a
+          # transient PG error during a multi-table
+          # transaction) the e2e suite would fail in
+          # confusing ways 30+ tests later. Catch it
+          # here so the failure points to the actual
+          # root cause (schema apply) instead.
+          TABLES=$(npx prisma db execute --stdin --schema prisma/schema.prisma <<<'SELECT count(*) FROM information_schema.tables WHERE table_schema = '\''public'\'';')
+          echo "table count after db push: $TABLES"
+          # We expect at least 69 (the 69 models in
+          # schema.prisma). On Ubuntu runners the
+          # count printed by `db execute` is a
+          # single line with the integer — strip
+          # whitespace and compare numerically.
+          TABLE_COUNT=$(echo "$TABLES" | tr -dc '0-9' | head -c 4)
+          if [[ "${TABLE_COUNT:-0}" -lt 69 ]]; then
+            echo "FATAL: db push produced only $TABLE_COUNT tables (expected >= 69)" >&2
+            exit 1
+          fi
         working-directory: backend
       - name: Build backend (typecheck)
         run: npx tsc --noEmit
@@ -271,6 +302,25 @@ jobs:
         # to re-run.
         run: bash ci-seed.sh
         working-directory: backend/e2e
+      # Tier 332: several e2e specs (e.g. the
+      # voucher-PDF + datev-bundle specs) use
+      # `python3 -c 'import pypdf'` to decompress
+      # + decode PDF content streams for the
+      # pdf_contains helper. pypdf is NOT in the
+      # Ubuntu runner's default python (only the
+      # `python3-pip` + minimal stdlib are), so
+      # the import fails with ModuleNotFoundError
+      # and the spec exits 1. The previous flow
+      # also tried `sudo apt-get install python3-pypdf`
+      # which times out on cold caches.
+      # Fix: user-level pip install (no sudo, no
+      # apt). On Ubuntu 22.04 runners this
+      # drops pypdf into ~/.local/lib/python3.x
+      # and python3's site-packages path picks
+      # it up automatically.
+      - name: Install Python pdf deps
+        run: |
+          python3 -m pip install --quiet pypdf
       - name: Run e2e suite
         run: bash run-all.sh
         working-directory: backend/e2e
@@ -300,6 +350,9 @@ jobs:
       SMTP_HOST: ""
       STORAGE_PATH: /tmp/de-invoice-storage
       VIES_MOCK: "1"
+      # Tier 332: fixture-only PIN encryption key
+      # (see e2e job comment — same rationale).
+      FINTS_PIN_ENC_KEY: "ci-fixture-key-do-not-use-in-prod-00000000000000000000"
       # The frontend dev server runs on 3100 in
       # CI to match the local dev setup (port 3000
       # is reserved for the SH Leder Website dev

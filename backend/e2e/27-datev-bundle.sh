@@ -86,8 +86,21 @@ docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
 # real (fake) PDF on disk. The path mirrors what
 # the storage service would write:
 #   <localPath>/<year>/<month>/pdf/<companyId>/<ts>_<invNo>.pdf
+# Tier 332: use $STORAGE_PATH (set by the CI job
+# to /tmp/de-invoice-storage) instead of the
+# hardcoded /Users/shledergmbh/data/invoice-system
+# path. The hardcoded path is the dev's local
+# machine, which doesn't exist on the Ubuntu
+# runner — `mkdir -p` would happily create it
+# (root can write anywhere) but the subsequent
+# zip-bundle step reads the PDF back from the
+# same hardcoded path, and on a fresh runner
+# the path is in a different filesystem layer.
+# Fall back to a tmpdir under /tmp if the env
+# var is unset so the spec still works locally.
+STORAGE_BASE="${STORAGE_PATH:-/tmp/de-invoice-storage}"
 PDF_REL_PATH="2026/05/pdf/$COMPANY_ID/1780300000000_${INV_NO}.pdf"
-PDF_ABS_PATH="/Users/shledergmbh/data/invoice-system/$PDF_REL_PATH"
+PDF_ABS_PATH="$STORAGE_BASE/$PDF_REL_PATH"
 mkdir -p "$(dirname "$PDF_ABS_PATH")"
 # Minimal valid PDF (5 bytes header + tiny trailer
 # is enough for zip / file_exists checks; the bundle

@@ -21,6 +21,14 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/_lib.sh"
 
+# Tier 332: this spec needs the Next.js dev server on :3100,
+# which only the `playwright` CI job starts. In the e2e job
+# there's no frontend — skip rather than fail.
+if ! curl -sS -o /dev/null --max-time 1 -w '%{http_code}' http://localhost:3100/login 2>/dev/null | grep -qE '^(200|307|404)$'; then
+  echo "SKIP: 16-dark-mode.sh requires frontend dev server on :3100 (only available in playwright job)"
+  exit 0
+fi
+
 # We need a way to drive a real browser. Use the
 # project's playwright MCP. Tests that don't need
 # a browser run inline (the toggle's behavior is
