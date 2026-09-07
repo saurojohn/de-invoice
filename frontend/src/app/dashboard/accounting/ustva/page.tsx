@@ -161,7 +161,7 @@ function UstvaPageInner() {
       }
     }
     urlPrefillApplied.current = true
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [searchParams])
 
   useEffect(() => {
@@ -231,7 +231,7 @@ function UstvaPageInner() {
       vatAmount: f.vatAmount || (vat ? String(vat) : ""),
       grossAmount: f.grossAmount || (gross ? String(gross) : ""),
     }))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [exForm.netAmount, exForm.vatRate])
 
   const submitExpense = async () => {

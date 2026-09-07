@@ -142,7 +142,6 @@ export default function RecurringInvoicesPage() {
   const [cloning, setCloning] = useState(false)
   const [cloneError, setCloneError] = useState<string | null>(null)
   const [expanded, setExpanded] = useState<string | null>(null)
-  const [preview, setPreview] = useState<{ subject: string; body: string } | null>(null)
   const [saving, setSaving] = useState(false)
   // Tier 147: generated-invoices modal. The
   // admin clicks "📋 Verlauf" on a template row
@@ -472,17 +471,6 @@ export default function RecurringInvoicesPage() {
       toast.error(e?.message || "Fehler beim Speichern")
     } finally {
       setSaving(false)
-    }
-  }
-
-  const toggleActive = async (tpl: RecurringTemplate) => {
-    const companyId = localStorage.getItem("companyId")!
-    try {
-      await apiPut(`/api/v1/recurring-invoices/${tpl.id}?companyId=${companyId}`, { isActive: !tpl.isActive })
-      const list = await apiGet<RecurringTemplate[]>(`/api/v1/recurring-invoices?companyId=${companyId}`)
-      setTemplates(list || [])
-    } catch (e: any) {
-      toast.error(e?.message || "Fehler")
     }
   }
 

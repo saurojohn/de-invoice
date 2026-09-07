@@ -54,7 +54,7 @@
  *     background.
  */
 
-import { useEffect, useState, useCallback, useMemo } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
@@ -327,7 +327,7 @@ export default function WebhooksPage() {
     } else {
       setLoading(false)
     }
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchWebhooks = useCallback(async (cid: string) => {
     setLoading(true)

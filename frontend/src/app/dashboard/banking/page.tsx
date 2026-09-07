@@ -22,16 +22,7 @@ interface FinTSConnection {
   createdAt: string
 }
 
-interface FinTSSyncRun {
-  id: string
-  status: string
-  txCount: number
-  tanChallenge: string | null
-  errorCode: string | null
-  errorMessage: string | null
-  startedAt: string
-  finishedAt: string | null
-}
+// FinTSSyncRun interface removed (Tier 322) — was unused after a refactor
 
 interface BankTransaction {
   id: string

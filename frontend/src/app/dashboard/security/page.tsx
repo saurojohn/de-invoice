@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
-import { apiGet, apiPost, ApiError } from "@/lib/api"
+import { apiPost, ApiError } from "@/lib/api"
 
 interface TwoFactorStatus {
   enabled: boolean

@@ -55,7 +55,7 @@ function bucketColor(b: Bucket): string {
 
 export default function AgingReportPage() {
   const router = useRouter()
-  const { t, locale, getDateLocale } = useI18n()
+  const { t, getDateLocale } = useI18n()
   const [report, setReport] = useState<AgingReport | null>(null)
   const [loading, setLoading] = useState(true)
   const [sortBy, setSortBy] = useState<'totalOpen' | 'oldest' | 'name'>('totalOpen')

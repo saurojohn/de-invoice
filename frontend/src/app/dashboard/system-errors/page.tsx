@@ -339,7 +339,6 @@ export default function SystemErrorsPage() {
 
   useEffect(() => {
     const cid = localStorage.getItem("companyId")
-    const userId = localStorage.getItem("userId") || ""
     if (!cid) {
       router.push("/login")
       return
@@ -356,7 +355,7 @@ export default function SystemErrorsPage() {
       .catch(() => setNotifConfig(null))
     // Tier 200 — load the 30-day timeline.
     fetchTimeline(cid, timelineSource)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [load, router, fetchTimeline, timelineSource])
 
   // Tier 206 — load the top-N
@@ -418,7 +417,7 @@ export default function SystemErrorsPage() {
           note: "",
         })
       })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [])
 
   const resolve = async (id: string) => {
@@ -592,7 +591,7 @@ export default function SystemErrorsPage() {
       // — the table just shows the
       // stale data until next
       // refresh.
-      // eslint-disable-next-line no-console
+       
       console.warn("[tier206/top-rate] fetch failed:", e?.message)
     } finally {
       setTopRateLoading(false)

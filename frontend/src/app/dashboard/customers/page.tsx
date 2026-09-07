@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { SkeletonTable } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/ui/empty-state"
-import { ErrorBanner } from "@/components/ui/error-banner"
 import { ExportCSVButton } from "@/components/ExportCSVButton"
 import { VatCheckPanel } from "@/components/VatCheckPanel"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
@@ -47,7 +46,7 @@ interface Customer {
 
 export default function CustomersPage() {
   const router = useRouter()
-  const { t, getDateLocale } = useI18n()
+  const { t } = useI18n()
   const toast = useToast()
   // Read once on mount. The parent (auth wrapper) has
   // already redirected to /login if there's no company

@@ -163,7 +163,7 @@ export default function CashbookPage() {
     }
   }
 
-  useEffect(() => { reload() /* eslint-disable-next-line */ }, [])
+  useEffect(() => { reload()   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ========== Form handlers ==========
 

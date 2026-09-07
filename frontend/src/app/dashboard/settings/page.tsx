@@ -87,7 +87,7 @@ interface CompanySettings {
 
 export default function SettingsPage() {
   const router = useRouter()
-  const { t, locale, getDateLocale } = useI18n()
+  const { t, getDateLocale } = useI18n()
   const toast = useToast()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [companyId, setCompanyId] = useState<string | null>(null)
@@ -375,7 +375,7 @@ export default function SettingsPage() {
     // for this company. Fire-and-forget — its own
     // loader manages loading/error state.
     fetchRateSnapshot(storedCompanyId)
-  }, [router, fetchRateSnapshot])
+  }, [router, fetchRateSnapshot]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Re-load stats / health / file list. Used both on first mount
   // and after a successful save (so the new localPath shows up
@@ -505,7 +505,7 @@ export default function SettingsPage() {
 
     setSaving(true)
     try {
-      const { apiPut, ApiError } = await import("@/lib/api")
+      const { apiPut } = await import("@/lib/api")
       await apiPut(`/api/v1/companies/${companyId}`, form)
       // Refetch so the form reflects the canonical stored value —
       // without this, a user who just changed defaultPaymentDays from

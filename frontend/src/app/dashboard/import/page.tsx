@@ -26,7 +26,7 @@ import { Suspense } from "react"
  * losing the rest of the work.
  */
 
-import { useEffect, useRef, useState } from "react"
+import { useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
@@ -101,7 +101,7 @@ function BulkImportPageInner() {
   const [entity, setEntity] = useState<EntityType>(
     () => entityFromParam(searchParams.get("entity"))
   )
-  const [headers, setHeaders] = useState<string[]>([])
+  const [, setHeaders] = useState<string[]>([])
   const [rows, setRows] = useState<Record<string, string>[]>([])
   const [parseError, setParseError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)

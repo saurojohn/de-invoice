@@ -236,7 +236,7 @@ const TYPE_LABEL: Record<string, string> = {
 export default function CustomerDetailPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
-  const { t, locale, getDateLocale } = useI18n()
+  const { t } = useI18n()
 
   const [companyId, setCompanyId] = useState<string | null>(null)
   const [summary, setSummary] = useState<CustomerSummary | null>(null)
@@ -686,7 +686,7 @@ export default function CustomerDetailPage() {
         })
         .finally(() => setAttachmentsLoading(false))
     }
-  }, [tab, companyId, id, invoices, plans, mahnungen, creditLedger, invoicesLoading, plansLoading, mahnungenLoading, creditLoading, emails, emailsLoading, payments, attachments])
+  }, [tab, companyId, id, invoices, plans, mahnungen, creditLedger, invoicesLoading, plansLoading, mahnungenLoading, creditLoading, emails, emailsLoading, payments, attachments, attachmentsLoading, pauses, pausesLoading, paymentsLoading])
 
   // Tier 145: load internal notes on mount. The
   // notes card is always visible (not behind a
@@ -730,7 +730,7 @@ export default function CustomerDetailPage() {
     setAddingInternalNote(true)
     setInternalNoteError(null)
     try {
-      const { apiPost, ApiError } = await import("@/lib/api")
+      const { apiPost } = await import("@/lib/api")
       const created = await apiPost<any>(
         `/api/v1/customers/${id}/internal-notes?companyId=${companyId}`,
         { body: trimmed },
@@ -749,7 +749,7 @@ export default function CustomerDetailPage() {
     if (!companyId) return
     setDeletingInternalNoteId(noteId)
     try {
-      const { apiDelete, ApiError } = await import("@/lib/api")
+      const { apiDelete } = await import("@/lib/api")
       await apiDelete(
         `/api/v1/customers/${id}/internal-notes/${noteId}?companyId=${companyId}`,
       )
@@ -2407,7 +2407,7 @@ export default function CustomerDetailPage() {
                         setAllocateError(null)
                         setAllocatePreview(null)
                         try {
-                          const { apiGet, ApiError } = await import("@/lib/api")
+                          const { apiGet } = await import("@/lib/api")
                           const data = await apiGet<any>(
                             `/api/v1/customers/${id}/allocate-payment/preview?companyId=${companyId}&amount=${amount}`,
                           )
@@ -2530,7 +2530,7 @@ export default function CustomerDetailPage() {
                     setAllocateSubmitting(true)
                     setAllocateError(null)
                     try {
-                      const { apiPost, ApiError } = await import("@/lib/api")
+                      const { apiPost } = await import("@/lib/api")
                       const data = await apiPost<any>(
                         `/api/v1/customers/${id}/allocate-payment?companyId=${companyId}`,
                         {
@@ -2672,7 +2672,7 @@ export default function CustomerDetailPage() {
                               setMergePreview(null)
                               setMergeError(null)
                               try {
-                                const { apiPost, ApiError } = await import(
+                                const { apiPost } = await import(
                                   "@/lib/api"
                                 )
                                 const data = await apiPost<any>(
@@ -2790,7 +2790,7 @@ export default function CustomerDetailPage() {
                     setMergeSubmitting(true)
                     setMergeError(null)
                     try {
-                      const { apiPost, ApiError } = await import("@/lib/api")
+                      const { apiPost } = await import("@/lib/api")
                       const data = await apiPost<any>(
                         `/api/v1/customers/merge?companyId=${companyId}`,
                         { sourceId: mergeSourceId, targetId: id },

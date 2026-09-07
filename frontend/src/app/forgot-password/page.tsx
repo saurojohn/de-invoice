@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
@@ -9,7 +8,6 @@ import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 
 export default function ForgotPasswordPage() {
-  const router = useRouter()
   const { t } = useI18n()
   const toast = useToast()
   const [email, setEmail] = useState("")

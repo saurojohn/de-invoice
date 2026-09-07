@@ -27,7 +27,6 @@
  */
 
 import { useEffect, useRef, useState } from "react"
-import { Button } from "@/components/ui/button"
 import { useI18n } from "@/components/useI18n"
 import { apiDelete, apiGet } from "@/lib/api"
 

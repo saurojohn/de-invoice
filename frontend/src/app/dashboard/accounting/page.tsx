@@ -162,7 +162,7 @@ function getCompanyId(): string {
 
 export default function AccountingPage() {
   const router = useRouter()
-  const { t, locale, getDateLocale } = useI18n()
+  const { t, locale, getDateLocale } = useI18n()  // all used by fmt/format helpers below
   const toast = useToast()
   const [vouchers, setVouchers] = useState<VoucherSummary[]>([])
   const [total, setTotal] = useState(0)
@@ -1014,7 +1014,7 @@ export default function AccountingPage() {
                               costCenter: e.target.value,
                             })
                           }
-                          onBlur={async (e) => {
+                          onBlur={async () => {
                             // Only suggest when the user just
                             // chose the Sachkonto and the cc
                             // field is still empty.

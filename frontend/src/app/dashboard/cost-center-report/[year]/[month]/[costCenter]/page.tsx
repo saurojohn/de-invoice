@@ -14,7 +14,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-import { useParams, useRouter } from "next/navigation"
+import { useParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
@@ -69,7 +69,6 @@ const fmtDate = (iso: string): string => {
 
 export default function CostCenterTransactionsPage() {
   const { t } = useI18n()
-  const router = useRouter()
   const params = useParams<{
     year: string
     month: string

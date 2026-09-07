@@ -9,7 +9,10 @@ interface CashflowChartProps {
     isDry: boolean
   }>
   height?: number
-  currency?: string
+  // currency prop removed (Tier 322) — was reserved for
+  // future per-series axis labels. The chart currently
+  // plots pure net/cumulative values, so no axis label
+  // is needed.
 }
 
 /**
@@ -26,7 +29,7 @@ interface CashflowChartProps {
  * Cumulative line uses stroke-dasharray so it
  * reads as a "balance trend" not a value bar.
  */
-export function CashflowChart({ data, height = 220, currency = "EUR" }: CashflowChartProps) {
+export function CashflowChart({ data, height = 220 }: CashflowChartProps) {
   if (!data || data.length === 0) {
     return (
       <div className="flex items-center justify-center text-gray-400 text-sm" style={{ height }}>
@@ -44,8 +47,6 @@ export function CashflowChart({ data, height = 220, currency = "EUR" }: Cashflow
   const innerBarW = Math.max(8, Math.min(36, barWidth * 0.6))
   const zeroY = chartTop + (chartHeight / 2)
 
-  const fmt = (n: number) =>
-    new Intl.NumberFormat("de-DE", { style: "currency", currency, maximumFractionDigits: 0 }).format(n)
 
   return (
     <svg

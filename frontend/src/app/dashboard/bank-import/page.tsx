@@ -319,13 +319,12 @@ export default function BankImportPage() {
     }
   }
 
-  useEffect(() => { reload() /* eslint-disable-next-line */ }, [])
+  useEffect(() => { reload()   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
     const companyId = localStorage.getItem("companyId")
-    const userId = localStorage.getItem("userId")
     if (!companyId) {
       router.push("/login")
       return

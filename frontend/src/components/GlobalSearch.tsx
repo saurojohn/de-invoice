@@ -269,7 +269,7 @@ export default function GlobalSearch() {
                 <div className="px-4 pt-3 pb-1 text-xs font-semibold text-gray-500 uppercase">
                   {groupLabel(g.type, t)}
                 </div>
-                {g.hits.map((h, idx) => {
+                {g.hits.map((h, _idx) => {
                   // Compute the flat index for the
                   // keyboard nav highlight.
                   const flatIdx = flatHits.findIndex(

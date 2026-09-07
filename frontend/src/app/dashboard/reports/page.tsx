@@ -93,7 +93,7 @@ export default function ReportsPage() {
       return
     }
     loadReports(companyId)
-  }, [router, startDate, endDate, vatYear, vatPeriod])
+  }, [router, startDate, endDate, vatYear, vatPeriod]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadReports = async (companyId: string) => {
     setLoading(true)

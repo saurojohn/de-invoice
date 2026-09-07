@@ -54,7 +54,7 @@ interface Supplier {
 // every change).
 export default function ExpensesPage() {
   const router = useRouter()
-  const { t, locale, getDateLocale } = useI18n()
+  const { t, locale, getDateLocale } = useI18n()  // all used by format helpers below
   const [items, setItems] = useState<Expense[]>([])
   const [loading, setLoading] = useState(true)
   const [suppliers, setSuppliers] = useState<Supplier[]>([])

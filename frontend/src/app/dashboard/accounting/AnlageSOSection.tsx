@@ -233,7 +233,7 @@ export function AnlageSOSection() {
   useEffect(() => {
     load(year)
     loadV2(year)
-  }, [year, load])
+  }, [year, load]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Tier 113 v2: load the v2 compute() data. This
   // is the same shape as the v1 response + the
@@ -377,7 +377,7 @@ export function AnlageSOSection() {
     } finally {
       setCsvBusy(false)
     }
-  }, [csvText, csvReplace, year, load])
+  }, [csvText, csvReplace, year, load, loadV2])
 
   // Tier 113 v2: import all selected expenses (or
   // all, when no selection). The endpoint is
@@ -431,7 +431,7 @@ export function AnlageSOSection() {
         setExpenseBusy(false)
       }
     },
-    [year, load],
+    [year, load, loadV2],
   )
 
   useEffect(() => {
@@ -508,8 +508,6 @@ export function AnlageSOSection() {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(n || 0)
-
-  const fmtDateDE = (s: string) => s || "—"
 
   return (
     <Card data-testid="anlage-so-section">

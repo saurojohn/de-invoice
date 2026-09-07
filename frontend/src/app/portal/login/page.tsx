@@ -24,12 +24,11 @@
  * portal.checkEmail).
  */
 import { useState } from "react"
-import { useRouter } from "next/navigation"
+// useRouter removed (Tier 322) — portal login is the entry point, no internal nav
 import { apiPost, ApiError } from "@/lib/api"
 import { useI18n } from "@/components/useI18n"
 
 export default function PortalLoginPage() {
-  const router = useRouter()
   const { t } = useI18n()
   const [email, setEmail] = useState("")
   const [sending, setSending] = useState(false)

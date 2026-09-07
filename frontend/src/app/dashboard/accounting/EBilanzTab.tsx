@@ -180,7 +180,7 @@ export function EBilanzTab() {
     } finally {
       setLoading(false)
     }
-  }, [year, toast])
+  }, [year])
 
   useEffect(() => {
     load()

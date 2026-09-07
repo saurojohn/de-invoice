@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
@@ -24,7 +24,7 @@ interface Invoice {
 function InvoicesPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { t, locale, getDateLocale } = useI18n()
+  const { t } = useI18n()
   const toast = useToast()
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [loading, setLoading] = useState(true)
@@ -381,7 +381,7 @@ function InvoicesPageInner() {
     if (!companyId) return
     setBulkDownloading(true)
     try {
-      const { apiFetch, ApiError } = await import("@/lib/api")
+      const { apiFetch } = await import("@/lib/api")
       const res = await apiFetch(
         `/api/v1/invoices/bulk-download?companyId=${companyId}`,
         {
@@ -452,7 +452,7 @@ function InvoicesPageInner() {
       // apiPost (not raw apiFetch) so we get the parsed
       // JSON body — the modal reads `.total / .succeeded /
       // .failed` from this object.
-      const { apiPost, ApiError } = await import("@/lib/api")
+      const { apiPost } = await import("@/lib/api")
       const data = await apiPost<any>(
         `/api/v1/invoices/bulk-send-email?companyId=${companyId}`,
         {
@@ -544,7 +544,7 @@ function InvoicesPageInner() {
     setBulkSendError(null)
     setBulkSendProgress(null)
     try {
-      const { apiPost, ApiError } = await import("@/lib/api")
+      const { apiPost } = await import("@/lib/api")
       const data = await apiPost<any>(
         `/api/v1/invoices/bulk-send-by-filter?companyId=${companyId}`,
         {
@@ -652,7 +652,7 @@ function InvoicesPageInner() {
     if (typeFilter) params.append('type', typeFilter)
     if (statusFilters.length > 0) params.append('status', statusFilters.join(','))
     try {
-      const { apiFetch, ApiError } = await import("@/lib/api")
+      const { apiFetch } = await import("@/lib/api")
       const res = await apiFetch(`/api/v1/invoices/export/csv?${params}`, { throwOnError: false })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
@@ -690,7 +690,7 @@ function InvoicesPageInner() {
     }
     setBulkDownloading(true)
     try {
-      const { apiFetch, ApiError } = await import("@/lib/api")
+      const { apiFetch } = await import("@/lib/api")
       const res = await apiFetch(`/api/v1/invoices/bulk-download?companyId=${companyId}`, {
         method: "POST",
         body: {

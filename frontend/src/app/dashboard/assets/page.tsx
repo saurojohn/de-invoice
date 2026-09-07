@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
-import { apiGet, apiPost, apiPatch, ApiError } from "@/lib/api"
+import { apiGet, apiPost, ApiError } from "@/lib/api"
 
 interface Asset {
   id: string
@@ -229,7 +229,6 @@ export default function AssetsPage() {
   const totalAHK = summaries.reduce((s, x) => s + Number(x.asset.anschaffungsKosten), 0)
   const totalBuchwert = summaries.reduce((s, x) => s + x.buchwert, 0)
   const totalAnnualAfA = summaries.reduce((s, x) => s + x.annualAfA, 0)
-  const totalMonateAfA = summaries.reduce((s, x) => s + x.accumulatedAfA, 0)
 
   const save = async () => {
     const companyId = typeof window !== "undefined" ? localStorage.getItem("companyId") : null

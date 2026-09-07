@@ -33,7 +33,7 @@ interface Voucher {
 export default function VoucherDetailPage() {
   const router = useRouter()
   const params = useParams()
-  const { t, locale, getDateLocale } = useI18n()
+  const { t, getDateLocale } = useI18n()
   const [voucher, setVoucher] = useState<Voucher | null>(null)
   const [loading, setLoading] = useState(true)
 

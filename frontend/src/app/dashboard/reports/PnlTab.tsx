@@ -54,7 +54,7 @@ const MONTH_SHORT_DE = [
  * side-by-side with a % change badge.
  */
 export function PnlTab() {
-  const { t, locale } = useI18n()
+  const { t } = useI18n()
   const toast = useToast()
   // Tier 73: useToast/useI18n return fresh objects
   // every render — capture in refs so useCallback
@@ -153,7 +153,6 @@ export function PnlTab() {
                 <tbody>
                   {data.months.map((m, idx) => {
                     const monthLabel = MONTH_SHORT_DE[idx]
-                    const isYtdRow = false
                     return (
                       <tr
                         key={m.month}

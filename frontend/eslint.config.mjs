@@ -81,7 +81,15 @@ export default [
       "no-unused-vars": "off",
       "@typescript-eslint/no-unused-vars": [
         "warn",
-        { argsIgnorePattern: "^_" },
+        {
+          argsIgnorePattern: "^_",
+          // `caughtErrors: 'none'` keeps the v5-and-earlier
+          // default: catch (err) doesn't have to reference
+          // err. This avoids false-positives on the dozens
+          // of catch blocks that just call toast.error(...)
+          // with a static message. (Tier 322.)
+          caughtErrors: "none",
+        },
       ],
       "no-redeclare": "off", // false-positive on
                               // import-comment lines

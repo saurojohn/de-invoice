@@ -561,36 +561,6 @@ export default function AuditPage() {
     setSkip(0)
   }
 
-  const exportCsvUrl = useMemo(() => {
-    if (!companyId) return "#"
-    const params = new URLSearchParams()
-    params.set("companyId", companyId)
-    if (entityType) params.set("entityType", entityType)
-    if (actionPrefixes.length > 0) {
-      params.set("actionPrefixes", actionPrefixes.join(","))
-    } else if (actionPrefix) {
-      params.set("actionPrefix", actionPrefix)
-    }
-    if (userId) params.set("userId", userId)
-    if (qDebounced) params.set("q", qDebounced)
-    if (dateFrom) params.set("dateFrom", dateFrom)
-    if (dateTo) params.set("dateTo", dateTo + "T23:59:59.999Z")
-    const base =
-      process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
-    const userIdLocal =
-      typeof window !== "undefined"
-        ? localStorage.getItem("userId") || ""
-        : ""
-    // We return a URL the user can hit directly —
-    // the browser sends cookies for the
-    // authentication, but our backend uses
-    // x-user-id / x-company-id headers, not
-    // cookies. So we use a fetch-and-download
-    // helper instead of a plain href. The href
-    // is still useful as the "Copy link" target.
-    return `${base}/api/v1/audit-logs/export.csv?${params.toString()}`
-  }, [companyId, entityType, actionPrefix, actionPrefixes, userId, qDebounced, dateFrom, dateTo])
-
   const downloadCsv = async () => {
     if (!companyId) return
     try {

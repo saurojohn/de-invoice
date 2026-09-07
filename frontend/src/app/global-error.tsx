@@ -48,7 +48,7 @@ export default function GlobalError({
     // (src/lib/sentry.ts) hooks into
     // onerror / unhandledrejection and
     // captures this automatically.
-    // eslint-disable-next-line no-console
+     
     console.error("[500]", error)
   }, [error])
 

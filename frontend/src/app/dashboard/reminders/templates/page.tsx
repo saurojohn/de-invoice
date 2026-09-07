@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
@@ -74,7 +74,7 @@ export default function ReminderTemplatesPage() {
     setPreview(null)
   }
 
-  const loadPreview = async () => {
+  const loadPreview = useCallback(async () => {
     if (!editing) return
     const companyId = localStorage.getItem("companyId")
     if (!companyId) return
@@ -89,7 +89,7 @@ export default function ReminderTemplatesPage() {
     } finally {
       setPreviewLoading(false)
     }
-  }
+  }, [editing])
 
   const save = async () => {
     if (!editing) return
@@ -143,7 +143,7 @@ export default function ReminderTemplatesPage() {
     if (!editing) return
     const h = setTimeout(loadPreview, 500)
     return () => clearTimeout(h)
-  }, [editing, subject, body])
+  }, [editing, subject, body, loadPreview])
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">

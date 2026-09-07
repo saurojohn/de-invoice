@@ -57,7 +57,7 @@ export default function UsersPage() {
     }
     setCurrentUserId(userId)
     loadAll(companyId, userId)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [router])
 
   // If we got a 403 on the initial load, the user is not an admin
@@ -106,7 +106,7 @@ export default function UsersPage() {
         // This usually means localStorage points to a different company
         // than the one the user actually belongs to (e.g. stale session).
         // Treat as unauthorized and redirect.
-        // eslint-disable-next-line no-console
+         
         console.warn("[users] current user not in company user list — likely stale session")
         setCurrentUserRole("unknown")
       }

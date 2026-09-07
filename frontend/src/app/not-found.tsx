@@ -33,7 +33,7 @@ export default function NotFound() {
   // Log 404 to console for debugging —
   // some monitoring tools pick this up.
   useEffect(() => {
-    // eslint-disable-next-line no-console
+     
     console.warn("[404]", typeof window !== "undefined" ? window.location.pathname : "(SSR)")
   }, [])
 

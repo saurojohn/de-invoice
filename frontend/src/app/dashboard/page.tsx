@@ -157,7 +157,7 @@ export default function DashboardPage() {
     invoiceCount: number
     expenseCount: number
   }>>([])
-  const [loading, setLoading] = useState(true)
+  const [, setLoading] = useState(true)
   // Tier 193: System Health summary from /api/v1/health/summary
   const [systemHealth, setSystemHealth] = useState<SystemHealth | null>(null)
   const [systemHealthError, setSystemHealthError] = useState(false)

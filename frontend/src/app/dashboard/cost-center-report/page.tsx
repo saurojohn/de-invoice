@@ -123,7 +123,7 @@ interface BvaReport {
 }
 
 export default function CostCenterReportPage() {
-  const { t, locale } = useI18n()
+  const { t } = useI18n()
   const [year, setYear] = useState<number>(new Date().getFullYear())
   const [report, setReport] = useState<CostCenterReport | null>(null)
   const [bva, setBva] = useState<BvaReport | null>(null)
@@ -175,7 +175,7 @@ export default function CostCenterReportPage() {
     if (Array.isArray(arr) && arr.length === 12) return arr
     // Fallback if i18n missing the array — DE short names.
     return ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"]
-  }, [t, locale])
+  }, [t])
 
   const title = (t("costCenterReport.title") as string).replace(
     "{year}",

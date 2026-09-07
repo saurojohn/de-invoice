@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
@@ -41,7 +41,7 @@ interface CronHealthRow {
  *      backend)
  */
 export default function SystemHealthPage() {
-  const { t, getDateLocale, locale } = useI18n()
+  const { t, getDateLocale } = useI18n()
   const toast = useToast()
   const [rows, setRows] = useState<CronHealthRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -177,7 +177,7 @@ export default function SystemHealthPage() {
                 </thead>
                 <tbody>
                   {sorted.map((r) => (
-                    <CronRow key={r.name} row={r} now={now} t={t} getDateLocale={getDateLocale} locale={locale} />
+                    <CronRow key={r.name} row={r} now={now} t={t} getDateLocale={getDateLocale} />
                   ))}
                 </tbody>
               </table>
@@ -205,12 +205,11 @@ function HealthChip({ color, label, count }: { color: string; label: string; cou
   )
 }
 
-function CronRow({ row, now, t, getDateLocale, locale }: {
+function CronRow({ row, now, t, getDateLocale }: {
   row: CronHealthRow
   now: number
   t: (k: string, vars?: Record<string, any>) => string
   getDateLocale: () => string
-  locale: string
 }) {
   const dotClass = {
     green: "bg-green-500",

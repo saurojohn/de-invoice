@@ -42,16 +42,6 @@ type AusIncomeType =
   | "agriculture"
   | "other"
 
-interface AusEntry {
-  country: string
-  countryName: string
-  hasDba: boolean
-  incomeType: AusIncomeType
-  grossAmount: string
-  foreignTaxPaid: string
-  description: string
-}
-
 interface AnlageAUSLine {
   kennziffer: string
   label: string

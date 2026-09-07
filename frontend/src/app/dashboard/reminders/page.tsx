@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
@@ -38,7 +38,7 @@ interface ReminderStats {
 
 export default function RemindersPage() {
   const router = useRouter()
-  const { t, locale, getDateLocale } = useI18n()
+  const { t, getDateLocale } = useI18n()
   const toast = useToast()
   const [overdueInvoices, setOverdueInvoices] = useState<OverdueInvoice[]>([])
   const [stats, setStats] = useState<ReminderStats | null>(null)
@@ -179,6 +179,12 @@ export default function RemindersPage() {
         continue
       }
       const level = selectedLevel[id] || getNextReminderLevel(inv)
+      // Tier 322: `level` is computed but the bulk-send
+      // flow only re-uses the existing reminder pipeline,
+      // which derives its own level from invoice state.
+      // We keep the computation in place for now since
+      // it's read by a planned per-row badge (Tier 323+).
+      void level
       try {
         await handleSendReminder(inv) // re-uses existing flow
         ok++

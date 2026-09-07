@@ -160,7 +160,7 @@ export default function InventoryPage() {
 
     loadProducts(companyId)
     loadLowStock(companyId)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [router])
 
   // Load all products with trackInventory=true. We fetch

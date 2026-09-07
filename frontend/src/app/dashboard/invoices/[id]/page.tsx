@@ -70,7 +70,7 @@ interface Payment {
 export default function InvoiceDetailPage() {
   const router = useRouter()
   const params = useParams()
-  const { t, getDateLocale } = useI18n()
+  const { t } = useI18n()
   const toast = useToast()
   const [invoice, setInvoice] = useState<Invoice | null>(null)
   const [payments, setPayments] = useState<Payment[]>([])
@@ -605,7 +605,7 @@ export default function InvoiceDetailPage() {
     setPortalLinkError(null)
     setPortalLinkCopied(false)
     try {
-      const { apiFetch, ApiError } = await import("@/lib/api")
+      const { apiFetch } = await import("@/lib/api")
       const res = await apiFetch(
         `/api/v1/invoices/${invoice.id}/generate-payment-link?companyId=${companyId}`,
         {

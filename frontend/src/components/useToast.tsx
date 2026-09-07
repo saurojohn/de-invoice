@@ -140,7 +140,7 @@ export function useToast(): ToastApi {
     // crash on a missing provider, and the type stays
     // identical so call sites don't need to gate.
     if (typeof window !== "undefined") {
-      // eslint-disable-next-line no-console
+       
       console.warn(
         "useToast() called without <ToastProvider>. " +
           "Wrap your app in <ToastProvider> to see toasts.",

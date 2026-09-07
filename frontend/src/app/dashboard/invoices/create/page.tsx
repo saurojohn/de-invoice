@@ -95,7 +95,7 @@ function CreateInvoicePageInner() {
   const cloneFromId = searchParams.get("cloneFrom") || null
   const isEdit = !!editId
   const isClone = !!cloneFromId
-  const { t, locale, getDateLocale } = useI18n()
+  const { t, getDateLocale } = useI18n()
   const toast = useToast()
   const [customers, setCustomers] = useState<Customer[]>([])
   const [products, setProducts] = useState<Product[]>([])
@@ -399,7 +399,7 @@ function CreateInvoicePageInner() {
     }).catch((err) => {
       console.error('Invoice create dropdowns fetch failed:', err)
     })
-  }, [router])
+  }, [router, cloneFromId, editId, getDateLocale, t])
 
   // Tier 176 (frontend): pre-fill the USt-Behandlung radio
   // and the dueDate from Company.defaultVatMode +
@@ -901,16 +901,6 @@ function CreateInvoicePageInner() {
   // Append a new empty item to the END of the items list.
   // Kept for backward compatibility (no longer wired to a
   // button, but callers might still depend on the shape).
-  // The per-row "+" buttons now use addItemAt(index) which
-  // inserts a new row AFTER the clicked row, which is the
-  // more useful behavior for building up an invoice.
-  const addItem = () => {
-    setForm({
-      ...form,
-      items: [...form.items, { description: "", productNumber: "", quantity: 1, unit: t("common2.unit"), unitPrice: 0, vatRate: 0.19 }],
-    })
-  }
-
   // Insert a new empty item row directly AFTER the row at
   // \`index\`. The new row inherits the same defaults as
   // addItem() (description + productNumber empty, quantity

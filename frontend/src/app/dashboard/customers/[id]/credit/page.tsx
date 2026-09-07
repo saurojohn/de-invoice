@@ -53,12 +53,7 @@ function fmtEur(n: number, locale: string = "de-DE"): string {
   }).format(n)
 }
 
-function fmtDateDE(d: string): string {
-  const date = new Date(d)
-  const day = String(date.getUTCDate()).padStart(2, "0")
-  const month = String(date.getUTCMonth() + 1).padStart(2, "0")
-  return `${day}.${month}.${date.getUTCFullYear()}`
-}
+// fmtDateDE removed (Tier 322) — was unused; consumers use Intl.DateTimeFormat instead
 
 function fmtDateTimeDE(d: string): string {
   const date = new Date(d)

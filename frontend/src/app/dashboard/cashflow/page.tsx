@@ -43,7 +43,7 @@ interface CashflowResponse {
 
 export default function CashflowPage() {
   const router = useRouter()
-  const { t, locale, getDateLocale } = useI18n()
+  const { t } = useI18n()
   const toast = useToast()
   // Tier 73: useToast/useI18n return fresh objects
   // every render — capture in refs so useCallback deps
@@ -125,8 +125,6 @@ export default function CashflowPage() {
 
   const fmt = (n: number) =>
     new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(n)
-  const fmtPct = (n: number) =>
-    new Intl.NumberFormat("de-DE", { style: "percent", minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(n)
 
   return (
     <main className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 sm:p-6">

@@ -35,7 +35,7 @@ const STATUS_COLOR: Record<string, string> = {
 
 export default function EmailCenterPage() {
   const router = useRouter()
-  const { t, locale, getDateLocale } = useI18n()
+  const { t, getDateLocale } = useI18n()
   const [emails, setEmails] = useState<EmailRow[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)

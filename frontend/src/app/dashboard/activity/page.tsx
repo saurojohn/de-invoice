@@ -85,7 +85,7 @@ const ACTION_LABELS: Record<string, string> = {
   "webhook.requeue": "Webhook-Zustellung erneut versuchen",
 }
 
-function actionLabel(action: string, t: (k: string) => string): string {
+function actionLabel(action: string): string {
   if (ACTION_LABELS[action]) return ACTION_LABELS[action]
   // Fall back to a prettified version
   // of the raw action name.
@@ -373,7 +373,7 @@ export default function ActivityPage() {
                           <span
                             className={`inline-block text-xs px-2 py-0.5 rounded ${actionBadgeClass(r.action)}`}
                           >
-                            {actionLabel(r.action, t)}
+                            {actionLabel(r.action)}
                           </span>
                         </td>
                         <td className="py-2 px-2 text-xs">
