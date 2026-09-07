@@ -1,15 +1,18 @@
-# DEPLOY-READY-SUMMARY.md — 2026-09-06
+# DEPLOY-READY-SUMMARY.md — 2026-09-07
 
-> **Status: ready to deploy.** The Tier 304-312
-> hardening arc (17 commits, `36fc31b..e9db8a6`)
-> is complete. All 4 production bugs surfaced
-> during the Playwright run have been fixed, the
-> dev DB is documented as recoverable via
-> `scripts/fix-dev-pg.sh`, and the Hetzner deploy
-> walkthrough is up to date. The Tier 312
-> segment checkpoints (per-20-spec sleep + 
+> **Status: ready to deploy.** The Tier 304-322
+> hardening + security audit + lint-cleanup arc
+> (31 commits, `36fc31b..293852f`) is complete.
+> All 4 production bugs surfaced during the
+> Playwright run have been fixed, the dev DB
+> is documented as recoverable via
+> `scripts/fix-dev-pg.sh`, and the Hetzner
+> deploy walkthrough is up to date. The Tier 312
+> segment checkpoints (per-20-spec sleep +
 > /health/deep ping) prevent the next run-all
-> from crashing the dev PG.
+> from crashing the dev PG. **0 tsc errors,
+> 0 eslint errors, 0 eslint warnings** as of
+> commit `293852f` (Tier 322).
 
 ## Deploy in 3 commands
 
@@ -30,10 +33,12 @@ Post-deploy verification commands are in the
 
 ## What's ready
 
-- **Code:** 12 commits on `main`, all pushed to
-  GitHub. None of the fixes are speculative —
-  each was validated by isolated re-runs of
-  the affected spec files.
+- **Code:** 31 commits on `main`, all pushed to
+  GitHub (`36fc31b..293852f`). None of the
+  fixes are speculative — each was validated
+  by isolated re-runs of the affected spec
+  files, and a full security audit (Tier 320
+  + Tier 321) is documented.
 - **Schema:** new migration
   `20260905000001_invoice_eur_aggregation` is
   in the migration history and will run on the
@@ -42,8 +47,18 @@ Post-deploy verification commands are in the
 - **Docs:** `DEPLOY-WALKTHROUGH.md` has the
   Tier 304-307 hardening section. `PLAYWRIGHT-
   TIER304-309-FINAL.md` is the session summary.
+  `SECURITY-AUDIT-2026-09-06.md` is the
+  full security + code-quality audit (Tier 320
+  + Tier 321 recurring path addition).
 - **Recovery script:** `scripts/fix-dev-pg.sh`
   (Tier 310) for the dev PG corruption.
+- **Lint clean:** 0 tsc errors, 0 eslint
+  errors, 0 eslint warnings as of Tier 322.
+  The 107 unused-vars warnings were a mix of
+  false positives (dynamic-import ApiError,
+  catch (err) v6 default) and real dead code
+  (FinTSSyncRun interface, fmtDateDE helpers,
+  addItem/toggleActive state, etc.).
 
 ## What's NOT in scope (and not deploy blockers)
 
@@ -115,6 +130,18 @@ TL;DR.)
 | `3000248` | 310 | fix-dev-pg.sh recovery script |
 | `4feb551` | 310 final | DEPLOY-READY-SUMMARY one-shot read |
 | `b157de2` | 312 | run-all segment checkpoints (prevent PG crash on long sessions) |
+| `3131344` | 313 | frontend tsc pre-existing errors (test.info → console.log) |
+| `30ace33` | 313 followup | frontend/scripts/run-all.sh mirror pattern |
+| `2d81cfb` | 314 followup 1 | smoke-test.sh 4 new checks (Tier 304-307 verifications) |
+| `21030ad` | 314 followup 2 | RUNBOOK.md "After deploy" section |
+| `4642cef` | 314 followup 3 | HETZNER-DEPLOY.md §11 → 17 checks |
+| `916701c` | 315 | cross-link smoke-test.sh 17 checks in summary + walkthrough |
+| `01921eb` | 316 | ESLint config rewrite (flat config) + useExistingProductInline rename |
+| `2c84610` | 317 | XSS fix in search.service.ts markTermsInText (HTML-escape before <mark>) |
+| `84b8086` | 318 | SQL-injection guard in nextInvoiceNumber + recurring generate |
+| `3d68b03` | 320 | SECURITY-AUDIT-2026-09-06.md full audit doc |
+| `92b659b` | 321 | per-site raw-SQL map + recurring path analysis |
+| `293852f` | 322 | 107 ESLint warnings → 0 (54 files, +99/-188) |
 
 ## Production bugs fixed (worth highlighting in deploy notes)
 
@@ -132,6 +159,55 @@ TL;DR.)
    `newData`.
 4. **Audit page mobile layout** (Tier 307).
    Top bar now wraps on 375px viewports.
+
+## Security + lint hardening (Tier 316-322)
+
+Tier 316-322 added 6 production / quality
+fixes that don't affect runtime behavior but
+are non-negotiable for a clean deploy:
+
+5. **Tier 316 ESLint config rewrite**: the
+   prior config couldn't load
+   `eslint-config-next/core-web-vitals` (it's
+   legacy-only). Replaced with minimal flat
+   config (`@typescript-eslint/parser` +
+   `react-hooks`). Also renamed the
+   misleadingly-named `useExistingProductInline`
+   → `selectExistingProduct` (the eslint
+   react-hooks/rules-of-hooks rule correctly
+   flagged it — if it were ever refactored to
+   use a real hook, the onMouseDown call would
+   throw "Invalid hook call").
+6. **Tier 317 XSS fix**: `search.service.ts
+   markTermsInText()` was taking raw DB text
+   and wrapping matched terms with `<mark>`
+   without escaping `<`/`>`/`&` first. The
+   output was rendered via `dangerouslySetInnerHTML`
+   in `GlobalSearch.tsx` and `customers/page.tsx`,
+   making a user-typed `<script>alert(1)</script>`
+   execute live. Fix: HTML-escape source text
+   before wrapping.
+7. **Tier 318 SQL-injection guard**: validated
+   `year ∈ [1000, 9999]` and `type` matches
+   `/^[A-Z]{2,5}$/` BEFORE interpolating into
+   the raw SQL sequence name in
+   `nextInvoiceNumber()`. The recurring
+   path's `invoice_seq_inv_${year}` was also
+   audited in Tier 321 — type is a hard-coded
+   literal there, so no type guard needed
+   (just the year range).
+8. **Tier 320-321 security audit doc**:
+   `SECURITY-AUDIT-2026-09-06.md` covers the
+   full prod path (auth, search, raw SQL,
+   file upload, throttling, CORS, body size)
+   with a per-site raw-SQL map and a re-audit
+   procedure for any future Tier ≥ 322.
+9. **Tier 322 lint clean**: 107 unused-vars
+   warnings → 0 (54 files, +99/-188 net).
+   This is the deploy-time `npx eslint src/`
+   check going from "0 errors, 107 warnings"
+   to "0 errors, 0 warnings" — clean signal
+   for the next engineer's onboarding diff.
 
 ## Restart race fix (operational)
 
