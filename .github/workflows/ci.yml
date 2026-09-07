@@ -173,10 +173,22 @@ jobs:
             sleep 1
           done
           if [ "$H" != "200" ]; then
-            cat /tmp/backend.log
+            echo "=== backend startup log (last 200 lines) ==="
+            tail -200 /tmp/backend.log
+            echo "=== /health final status: $H ==="
             exit 1
           fi
         working-directory: backend
+      # Tier 325: always upload backend.log so we can
+      # diagnose startup failures even when the job is
+      # cancelled or fails in a later step.
+      - name: Upload backend log (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-log-e2e-always
+          path: /tmp/backend.log
+          retention-days: 7
       - name: Seed test data
         # ci-seed.sh registers the admin user
         # (info@shleder.de / Test1234!) and
@@ -271,10 +283,22 @@ jobs:
             sleep 1
           done
           if [ "$H" != "200" ]; then
-            cat /tmp/backend.log
+            echo "=== backend startup log (last 200 lines) ==="
+            tail -200 /tmp/backend.log
+            echo "=== /health final status: $H ==="
             exit 1
           fi
         working-directory: backend
+      # Tier 325: always upload backend.log so we can
+      # diagnose Playwright startup failures even when
+      # the job is cancelled or fails in a later step.
+      - name: Upload backend log (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-log-playwright-always
+          path: /tmp/backend.log
+          retention-days: 7
       - name: Seed test data
         run: bash ci-seed.sh
         working-directory: backend/e2e
