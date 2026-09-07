@@ -1,10 +1,10 @@
 # SECURITY-AUDIT-2026-09-06.md
 
 > **Snapshot**: full security + code-quality audit
-> of the de-invoice repo on commit `3d68b03`
-> (29 commits in the Tier 304-320 hardening arc).
+> of the de-invoice repo on commit `054a5a0`
+> (32 commits in the Tier 304-323 hardening arc).
 > Operator should re-run this audit after any
-> future Tier ≥ 321 that touches the auth,
+> future Tier ≥ 324 that touches the auth,
 > search, or raw-SQL code paths.
 
 ## Summary
@@ -13,7 +13,7 @@
 |----------|---------|-------|
 | TypeScript | ✅ 0 errors | backend + frontend src + e2e |
 | ESLint | ✅ 0 errors | 107 unused-vars warnings (cosmetic) |
-| Bash syntax | ✅ 0 errors | 5 deploy/run scripts |
+| Bash syntax | ✅ 0 errors | 184 deploy/run/e2e scripts (verified Tier 323) |
 | Hardcoded secrets | ✅ None | `.env*` gitignored, prod uses env vars |
 | XSS (stored) | ✅ Fixed (Tier 317) | search service HTML-escapes user text |
 | XSS (reflected) | ✅ None | No `{{ userInput }}` direct inject |
@@ -139,7 +139,7 @@ guarded. No new findings.
 
 ## Deployment
 
-All 29 commits pushed to `main` (`36fc31b..3d68b03`).
+All 32 commits pushed to `main` (`36fc31b..054a5a0`).
 Hetzner deploy is 100% ready, blocked only on user-provided
 VPS IP + SSH key. After deploy:
 - `bash infra/prod/HETZNER-DEPLOY.sh --check` (pre-flight)
