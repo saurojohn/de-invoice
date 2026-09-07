@@ -188,7 +188,23 @@ jobs:
       - name: Start backend
         run: |
           mkdir -p /tmp/de-invoice-storage
-          nohup npx ts-node src/main.ts > /tmp/backend.log 2>&1 &
+          # Tier 328: pass VIES_MOCK + THROTTLE_DISABLED
+          # explicitly via `env`. `nohup` sometimes
+          # drops job-level env vars when the child
+          # process is reparented (especially on
+          # GitHub Actions' Linux runner, where
+          # nohup forks into a new session group
+          # and the env can be reset). Without
+          # VIES_MOCK=1, the e2e spec 20
+          # (vat-validation) detects the missing
+          # mock and tries to restart the backend
+          # — but the restart itself used a
+          # hardcoded `/Users/shledergmbh/...` path
+          # (fixed in Tier 328 separately) and the
+          # 29 subsequent assertions failed with
+          # 'connection refused'.
+          nohup env VIES_MOCK=1 THROTTLE_DISABLED=1 \
+            npx ts-node src/main.ts > /tmp/backend.log 2>&1 &
           # 15s — slightly more than the 8s we
           # need locally because CI runners are
           # slower for cold-start Postgres + tsc.
@@ -305,9 +321,26 @@ jobs:
       - run: npx prisma db push --accept-data-loss --skip-generate
         working-directory: backend
       - name: Start backend
+        env:
+          # Tier 328: the Playwright job sets
+          # `PORT: 3100` for the frontend dev server
+          # (line 222). Job-level env is inherited by
+          # every step — including this one — so the
+          # backend would also read PORT=3100 and
+          # try to bind to 3100. That's the same
+          # port the frontend wants, so the frontend
+          # later fails with EADDRINUSE, and even
+          # worse, the health-check loop below
+          # (which polls :3001) returns connection
+          # refused because the backend is on :3100.
+          # Override PORT for THIS step only.
+          PORT: 3001
         run: |
           mkdir -p /tmp/de-invoice-storage
-          nohup npx ts-node src/main.ts > /tmp/backend.log 2>&1 &
+          # Tier 328: explicit env passthrough (see e2e
+          # job comment for the nohup-env rationale).
+          nohup env VIES_MOCK=1 THROTTLE_DISABLED=1 \
+            npx ts-node src/main.ts > /tmp/backend.log 2>&1 &
           for i in $(seq 1 30); do
             H=$(curl -sS -o /dev/null -w "%{http_code}" http://localhost:3001/api/v1/health 2>/dev/null || true)
             if [ "$H" = "200" ]; then

@@ -84,7 +84,21 @@ if [[ "$NEEDS_RESTART" == "1" ]]; then
   echo "Backend not running with VIES_MOCK=1, restarting..."
   lsof -ti:3001 | xargs -r kill -9 2>/dev/null
   sleep 1
-  cd /Users/shledergmbh/Projects/de-invoice/backend
+  # Tier 328: this was hardcoded to the dev
+  # machine path (/Users/shledergmbh/...). On
+  # CI's Linux runner that path doesn't exist,
+  # so `cd` silently fails (the script has
+  # `set -uo pipefail` not `set -e`), the
+  # subsequent `bash scripts/start-backend.sh`
+  # is a no-op (script not found in CWD), and
+  # the new backend never starts. All 29
+  # assertions then fail with curl connect
+  # refused. The fix: derive the backend dir
+  # from SCRIPT_DIR (this file lives in
+  # backend/e2e/, so the parent IS the backend
+  # root, regardless of where the checkout
+  # landed on the runner).
+  cd "${SCRIPT_DIR}/.."
   # Tier 13: use the canonical start-backend.sh wrapper
   # (preserves FRONTEND_URL and other env vars the running
   # backend was started with, instead of just VIES_MOCK=1).
