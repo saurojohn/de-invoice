@@ -114,9 +114,24 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: backend/package-lock.json
+          # Tier 326: cache both backend and frontend
+          # so the typecheck step below doesn't pay
+          # the cold-install tax on every run.
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
       - run: npm ci
         working-directory: backend
+      # Tier 326: the 'Build frontend (typecheck)' step
+      # below runs `npx tsc --noEmit` in working-directory
+      # frontend. Without an explicit `npm ci` for the
+      # frontend first, npx tsc can't find the tsc binary
+      # and the e2e job fails at the typecheck step
+      # (observed: 58-second failure with no real e2e
+      # issue). The Playwright job already does this
+      # (line 245-248 below). Mirrored here.
+      - run: npm ci
+        working-directory: frontend
       - run: npx prisma generate
         working-directory: backend
       # Tier 248: launch a sidecar postgres
@@ -242,6 +257,12 @@ jobs:
         with:
           node-version: 22
           cache: npm
+          # Tier 326: cache both lockfiles so the
+          # second `npm ci frontend` doesn't pay
+          # cold-install tax on every run.
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
       - run: npm ci
         working-directory: backend
       - run: npm ci
