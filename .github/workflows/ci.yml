@@ -163,6 +163,19 @@ jobs:
             fi
             sleep 1
           done
+          # Tier 327: explicit fail check. Without
+          # this, a 30-second wait that never sees
+          # 'healthy' silently passes, and the next
+          # step (`prisma db push`) fails with a
+          # confusing "connection refused" instead
+          # of the actual container-startup cause.
+          FINAL_STATUS=$(docker inspect --format='{{.State.Health.Status}}' de-invoice-postgres 2>/dev/null || echo "missing")
+          if [ "$FINAL_STATUS" != "healthy" ]; then
+            echo "FATAL: postgres container not healthy after 30s (status: $FINAL_STATUS)" >&2
+            docker inspect de-invoice-postgres 2>&1 | head -20 >&2 || true
+            docker logs de-invoice-postgres 2>&1 | head -20 >&2 || true
+            exit 1
+          fi
       - name: Apply prisma schema
         run: npx prisma db push --accept-data-loss --skip-generate
         working-directory: backend
