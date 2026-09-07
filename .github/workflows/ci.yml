@@ -177,7 +177,30 @@ jobs:
             exit 1
           fi
       - name: Apply prisma schema
-        run: npx prisma db push --accept-data-loss --skip-generate
+        # Tier 329: switched from `prisma db push` to
+        # `prisma migrate deploy` because some columns
+        # (e.g. `Customer.search_tsv`,
+        # `Product.search_tsv`, `Invoice.search_tsv`)
+        # are STORED generated columns added by a
+        # raw-SQL migration in
+        # prisma/migrations/20260701000001_search_tsv.
+        # The Prisma schema can't model STORED
+        # generated columns, so `db push` (which only
+        # reads schema.prisma) silently skips them —
+        # the search_tsv column never gets created,
+        # and the search service's
+        # `$queryRaw ... FROM "Customer" c WHERE
+        # c.search_tsv @@ ...` returns 'column
+        # c.search_tsv does not exist' (PG 42703).
+        # `migrate deploy` runs the full migration
+        # history including the raw-SQL one, so the
+        # column exists and the search service works.
+        #
+        # The Hetzner production deploy should also
+        # use `prisma migrate deploy` for the same
+        # reason — but that's a separate change to
+        # infra/prod/HETZNER-DEPLOY.md (Tier 330).
+        run: npx prisma migrate deploy
         working-directory: backend
       - name: Build backend (typecheck)
         run: npx tsc --noEmit
@@ -318,7 +341,7 @@ jobs:
             fi
             sleep 1
           done
-      - run: npx prisma db push --accept-data-loss --skip-generate
+      - run: npx prisma migrate deploy
         working-directory: backend
       - name: Start backend
         env:

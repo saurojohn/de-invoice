@@ -225,14 +225,20 @@ sudo docker compose -f infra/prod/docker-compose.yml exec postgres \
 # Expect: /var/run/postgresql:5432 - accepting connections
 ```
 
-Apply the Prisma schema. **`prisma db push` is fine for the
-first deploy on a brand-new DB** (no prior migrations to skip),
-but on a restore-from-backup, you'd use `prisma migrate deploy`
-instead. See the backup section.
+Apply the Prisma schema. **Use `prisma migrate deploy`**
+(not `prisma db push`) — Tier 28's search migration
+adds STORED generated columns (`Customer.search_tsv`,
+`Product.search_tsv`, `Invoice.search_tsv`) that
+Prisma's schema language can't model, so
+`db push` silently skips them and the search
+service crashes with `column c.search_tsv does
+not exist` (PG 42703). `migrate deploy` runs
+the full migration history including the raw
+SQL one. See CI fix in Tier 329.
 
 ```bash
 sudo docker compose -f infra/prod/docker-compose.yml run --rm backend \
-  npx prisma db push --accept-data-loss --skip-generate
+  npx prisma migrate deploy
 
 sudo docker compose -f infra/prod/docker-compose.yml run --rm backend \
   npx prisma generate
