@@ -34,8 +34,12 @@
 # Shell is the wrapper that counts pass/fail.
 
 set -uo pipefail
-FRONTEND_DIR="${FRONTEND_DIR:-/Users/shledergmbh/Projects/de-invoice/frontend}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# Tier 335: ${SCRIPT_DIR} not hardcoded dev-machine
+# path. The CI runner has no /Users/shledergmbh/...
+# so the previous default broke 46-i18n.sh
+# immediately on its first assertion.
+FRONTEND_DIR="${FRONTEND_DIR:-${SCRIPT_DIR}/../frontend}"
 PASS=0
 FAIL=0
 

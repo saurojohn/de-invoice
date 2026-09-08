@@ -96,7 +96,12 @@ fi
 # passwordHash comparisons will succeed.
 # (Hardcoding a hash from a different
 # bcrypt install is a Tier 5 lesson.)
-PWHASH=$(cd /Users/shledergmbh/Projects/de-invoice/backend && node -e "console.log(require('bcrypt').hashSync('Test1234!', 10))")
+# Tier 335: ${SCRIPT_DIR} not hardcoded
+# dev-machine path. CI runner has no
+# /Users/shledergmbh/... so the previous
+# cd failed silently and PWHASH stayed empty.
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PWHASH=$(cd "${SCRIPT_DIR}/../backend" && node -e "console.log(require('bcrypt').hashSync('Test1234!', 10))")
 # Escape $ in the hash for shell safety
 PWHASH_ESC=$(printf '%s' "$PWHASH" | sed "s/\\$/\\\\\\$/g")
 # Generate unique UUIDs so re-runs don't collide

@@ -30,7 +30,12 @@
 # fints.service.ts once one is available.
 
 set -uo pipefail
-BACKEND_DIR="${BACKEND_DIR:-/Users/shledergmbh/Projects/de-invoice/backend}"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# Tier 335: ${SCRIPT_DIR} not hardcoded dev-machine
+# path. Same fix as 46-i18n.sh — CI runner has no
+# /Users/shledergmbh/... so the previous default
+# crashed 48-fints-real.sh at startup.
+BACKEND_DIR="${BACKEND_DIR:-${SCRIPT_DIR}/../backend}"
 PASS=0
 FAIL=0
 
