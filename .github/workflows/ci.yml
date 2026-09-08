@@ -219,13 +219,17 @@ jobs:
           npx prisma db push --accept-data-loss --skip-generate
           cat prisma/migrations/20260701000001_search_tsv/migration.sql | npx prisma db execute --stdin --schema prisma/schema.prisma
           # Tier 333: table-count post-condition. The
-          # schema declares 69 models. If `db push`
+          # schema declares 62 models. If `db push`
           # somehow only created a subset (e.g. a
           # transient PG error during a multi-table
           # transaction) the e2e suite would fail in
           # confusing ways 30+ tests later. Catch it
           # here so the failure points to the actual
           # root cause (schema apply) instead.
+          #
+          # The threshold is 62 (= `grep -c '^model '
+          # backend/prisma/schema.prisma`). Earlier
+          # tiers used 69 which was a miscount.
           #
           # We use `docker exec ... psql` for the
           # count because (a) the e2e job doesn't
@@ -239,8 +243,8 @@ jobs:
           # single integer we want.
           TABLE_COUNT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public';")
           echo "table count after db push: $TABLE_COUNT"
-          if [[ "${TABLE_COUNT:-0}" -lt 69 ]]; then
-            echo "FATAL: db push produced only $TABLE_COUNT tables (expected >= 69)" >&2
+          if [[ "${TABLE_COUNT:-0}" -lt 62 ]]; then
+            echo "FATAL: db push produced only $TABLE_COUNT tables (expected >= 62)" >&2
             exit 1
           fi
         working-directory: backend
