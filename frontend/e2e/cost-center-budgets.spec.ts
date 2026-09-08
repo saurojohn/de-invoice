@@ -167,14 +167,24 @@ test.describe("Tier 48 — Cost-Center Budgets", () => {
     // blows the 15s waitForResponse default. Bump the
     // wait timeout to 60s to give the report endpoints
     // time to respond after the React tree mounts.
-    await page.waitForResponse((r) =>
-      r.url().includes("/api/v1/reports/cost-center-yearly"),
+    //
+    // Tier 4 run #308: the two endpoint responses fire
+    // concurrently from the page's Promise.all — waiting
+    // for them sequentially causes the second one to
+    // race with the first (the bva response may have
+    // already arrived by the time the second waitFor
+    // is set up, so the wait then hangs). Wait for both
+    // in a single .all() so Playwright can match either
+    // response to either predicate.
+    const yearlyPromise = page.waitForResponse(
+      (r) => r.url().includes("/api/v1/reports/cost-center-yearly"),
       { timeout: 60_000 },
     )
-    await page.waitForResponse((r) =>
-      r.url().includes("/api/v1/reports/cost-center-budget-vs-actual"),
+    const bvaPromise = page.waitForResponse(
+      (r) => r.url().includes("/api/v1/reports/cost-center-budget-vs-actual"),
       { timeout: 60_000 },
     )
+    await Promise.all([yearlyPromise, bvaPromise])
 
     // No budgets → Δ column hidden.
     await expect(

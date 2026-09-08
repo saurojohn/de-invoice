@@ -23,11 +23,39 @@
  * in the 2026-01-01..2026-12-31 range (Tier 133 fixture
  * INV-2026-000203..000206 are seeded by the global-setup).
  */
-import { test, expect } from '@playwright/test'
+import { test, expect, Page } from '@playwright/test'
 import { getTestEnv } from './fixtures/test-env'
 
 const USER_ID = getTestEnv().userId
 const COMPANY_ID = getTestEnv().companyId
+
+// Tier 141 run #308: Playwright's .fill() on
+// <input type="date"> doesn't reliably commit to
+// the React controlled-input state — the DOM value
+// is set but the onChange handler is swallowed by
+// React 18's input value tracker, so the green
+// date-range export bar never renders. The fix is
+// to use the native HTMLInputElement value setter
+// + dispatch synthetic 'input' + 'change' events,
+// which forces React to re-read the value and call
+// onChange with the new value.
+async function setDateInput(page: Page, index: number, value: string) {
+  await page.evaluate(
+    ({ idx, val }) => {
+      const input = document.querySelectorAll('input[type="date"]')[idx] as HTMLInputElement | null
+      if (!input) throw new Error(`date input #${idx} not found`)
+      const setter = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        'value',
+      )!.set!
+      setter!.call(input, val)
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+      input.dispatchEvent(new Event('change', { bubbles: true }))
+    },
+    { idx: index, val: value },
+  )
+}
+
 test.describe('Tier 141 — Bulk-send-by-filter', () => {
   test.beforeEach(async ({ context, page }) => {
     await context.addCookies([
@@ -54,11 +82,12 @@ test.describe('Tier 141 — Bulk-send-by-filter', () => {
   test('button renders in the date-range export bar when dateFrom is set', async ({ page }) => {
     await page.goto('/dashboard/invoices')
     await expect(page.locator('h1').first()).toBeVisible({ timeout: 30_000 })
-    // Fill the date-from input. The export bar appears whenever
-    // dateFrom OR dateTo is non-empty.
+    // Fill the date-from input via the native setter (see
+    // setDateInput helper at the top). The export bar appears
+    // whenever dateFrom OR dateTo is non-empty.
     const dateFromInput = page.locator('input[type="date"]').first()
     await expect(dateFromInput).toBeVisible({ timeout: 10_000 })
-    await dateFromInput.fill('2026-01-01')
+    await setDateInput(page, 0, '2026-01-01')
     // Now the green bar should be visible + our new button inside.
     const btn = page.getByTestId('bulk-send-range')
     await expect(btn).toBeVisible({ timeout: 5_000 })
@@ -79,7 +108,7 @@ test.describe('Tier 141 — Bulk-send-by-filter', () => {
     // fixtures don't have invoiceDate in the recent past,
     // which made the export bar show 0 hits and the
     // button render in a permanently disabled state.
-    await dateFromInput.fill('2026-01-01')
+    await setDateInput(page, 0, '2026-01-01')
     const btn = page.getByTestId('bulk-send-range')
     await expect(btn).toBeVisible({ timeout: 5_000 })
     // Auto-accept the "send N invoices?" confirm.
@@ -106,7 +135,7 @@ test.describe('Tier 141 — Bulk-send-by-filter', () => {
     await expect(page.locator('h1').first()).toBeVisible({ timeout: 30_000 })
     const dateFromInput = page.locator('input[type="date"]').first()
     await expect(dateFromInput).toBeVisible({ timeout: 10_000 })
-    await dateFromInput.fill('2026-01-01')
+    await setDateInput(page, 0, '2026-01-01')
     // Wait for the export bar to render + new button
     const btn = page.getByTestId('bulk-send-range')
     await expect(btn).toBeVisible({ timeout: 5_000 })

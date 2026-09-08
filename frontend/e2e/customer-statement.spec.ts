@@ -212,29 +212,28 @@ test.describe("Customer statement UI", () => {
 
   test("generate button fetches statement + renders lines", async ({ page }) => {
     await injectLocalStorage(page)
+    // Tier 213 run #308: same React-18 + <input type="date">
+    // + Playwright .fill() bug as Tier 293 (see the DESC/ASC
+    // test below). Pin the date range via URL search params
+    // — the page reads ?from=YYYY-MM-DD&to=YYYY-MM-DD in a
+    // post-mount useEffect, which sidesteps the controlled-
+    // input value-tracker problem entirely.
     await page.goto(
-      `/dashboard/customers/${CUSTOMER_WITH_INVOICES}/statement`,
+      `/dashboard/customers/${CUSTOMER_WITH_INVOICES}/statement?from=2026-01-01&to=2026-12-31`,
       { waitUntil: "domcontentloaded" },
     )
     await expect(
       page.locator('[data-testid="statement-from-input"]'),
     ).toBeVisible({ timeout: 10000 })
-
-    // Set a wide date range that covers all of 2026
-    // (BWA Test Kunde's invoices span 2026-04 to
-    // 2026-09; the default page range is
-    // 2026-07-01 to 2026-07-31 which has zero lines
-    // in this shared dev DB).
-    await page
-      .locator('[data-testid="statement-from-input"]')
-      .fill("2026-01-01")
-    await page
-      .locator('[data-testid="statement-to-input"]')
-      .fill("2026-12-31")
-    // Tab away to commit the date values to the
-    // React state (the inputs are controlled).
-    await page.keyboard.press("Tab")
-    await page.waitForTimeout(200)
+    // Wait for the URL-effect to populate the inputs
+    // (Next.js App Router pre-renders with default state
+    // and the useEffect runs after hydration).
+    await expect(
+      page.locator('[data-testid="statement-from-input"]'),
+    ).toHaveValue("2026-01-01", { timeout: 15_000 })
+    await expect(
+      page.locator('[data-testid="statement-to-input"]'),
+    ).toHaveValue("2026-12-31", { timeout: 15_000 })
 
     await page.locator('[data-testid="statement-generate-button"]').click()
 
@@ -456,7 +455,7 @@ test.describe("Customer statement UI", () => {
     await download.saveAs(tmpPath)
 
     // Use a Python helper via page.evaluate to read the ZIP
-    const zipInfo = await page.evaluate(async (path: string) => {
+    const zipInfo = await page.evaluate(async (_path: string) => {
       // Use fetch on a file:// URL — Playwright doesn't
       // expose filesystem directly. Instead, send the saved
       // file's bytes through a known endpoint — but easier:

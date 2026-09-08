@@ -64,6 +64,34 @@ async function setupAuth(context: any, page: any) {
   )
 }
 
+// Tier 39 run #308: Playwright's .fill() on these
+// controlled <input type="text"> elements leaves the
+// DOM value empty after the React tree re-renders
+// (the create page's Promise.all fetch effect calls
+// setCostCenters/setCustomers/... which triggers a
+// re-render that overwrites the user-typed value
+// with the stale form state). Use the native value
+// setter + dispatch synthetic events to force React
+// to track + apply the change.
+async function setTextInput(page: any, testId: string, value: string) {
+  await page.evaluate(
+    ({ tid, val }: { tid: string; val: string }) => {
+      const input = document.querySelector(
+        `[data-testid="${tid}"]`,
+      ) as HTMLInputElement | null
+      if (!input) throw new Error(`input ${tid} not found`)
+      const setter = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        'value',
+      )!.set!
+      setter!.call(input, val)
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+      input.dispatchEvent(new Event('change', { bubbles: true }))
+    },
+    { tid: testId, val: value },
+  )
+}
+
 test.describe("Tier 39 — Cost-Center form UI", () => {
   test("Create form shows cost-center + cost-object inputs", async ({
     page,
@@ -80,10 +108,18 @@ test.describe("Tier 39 — Cost-Center form UI", () => {
       page.locator('[data-testid="invoice-cost-object"]'),
     ).toBeVisible({ timeout: 5_000 })
 
-    // Fill them — values flow into form state. Real assert
-    // is the round-trip with the backend (e2e 67).
-    await page.locator('[data-testid="invoice-cost-center"]').fill("VERTRIEB")
-    await page.locator('[data-testid="invoice-cost-object"]').fill("PROJ-2026-Q3")
+    // Wait for the dropdowns fetch effect (Promise.all
+    // on /customers + /products + /invoices + /cost-centers
+    // + /note-templates) to complete. Otherwise the
+    // re-render from setCostCenters() can race with
+    // our .fill() and wipe the value back to ''.
+    await page.waitForTimeout(1000)
+
+    // Fill them via the native setter — values flow into
+    // form state. Real assert is the round-trip with the
+    // backend (e2e 67).
+    await setTextInput(page, "invoice-cost-center", "VERTRIEB")
+    await setTextInput(page, "invoice-cost-object", "PROJ-2026-Q3")
     await expect(
       page.locator('[data-testid="invoice-cost-center"]'),
     ).toHaveValue("VERTRIEB")
