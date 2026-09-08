@@ -18,7 +18,16 @@
  */
 import { test, expect, request as playwrightRequest } from '@playwright/test'
 
-const TEST_EMAIL = 'tier131-customer@example.com'
+// Tier 333: use the seed customer's real email.
+// Previously 'tier131-customer@example.com' which
+// doesn't exist in the CI DB — request-session
+// then short-circuits with `return { sent: true }`
+// without creating a session or emitting the
+// "portal session created" log line that
+// fetchLog() parses. BWA Test Kunde (id b3f7b274-...)
+// is seeded by ci-seed with contact.email =
+// "bwa@example.com".
+const TEST_EMAIL = 'bwa@example.com'
 const API = 'http://localhost:3001'
 
 // Create the test customer email in the DB before all
@@ -63,7 +72,7 @@ test.describe('Tier 131 — Customer portal frontend', () => {
     await expect(page.getByTestId('portal-back-to-login')).toBeVisible({ timeout: 10_000 })
   })
 
-  test('portal page with valid token shows customer + invoices', async ({ page, request }) => {
+  test('portal page with valid token shows customer + invoices', async ({ page, request: _request }) => {
     // First: request a session via the API to get a token
     // (the request API client is more reliable than the
     // browser for this — no hydration race).

@@ -218,7 +218,7 @@ jobs:
           set -euo pipefail
           npx prisma db push --accept-data-loss --skip-generate
           cat prisma/migrations/20260701000001_search_tsv/migration.sql | npx prisma db execute --stdin --schema prisma/schema.prisma
-          # Tier 332: table-count post-condition. The
+          # Tier 333: table-count post-condition. The
           # schema declares 69 models. If `db push`
           # somehow only created a subset (e.g. a
           # transient PG error during a multi-table
@@ -226,14 +226,19 @@ jobs:
           # confusing ways 30+ tests later. Catch it
           # here so the failure points to the actual
           # root cause (schema apply) instead.
-          TABLES=$(npx prisma db execute --stdin --schema prisma/schema.prisma <<<'SELECT count(*) FROM information_schema.tables WHERE table_schema = '\''public'\'';')
-          echo "table count after db push: $TABLES"
-          # We expect at least 69 (the 69 models in
-          # schema.prisma). On Ubuntu runners the
-          # count printed by `db execute` is a
-          # single line with the integer — strip
-          # whitespace and compare numerically.
-          TABLE_COUNT=$(echo "$TABLES" | tr -dc '0-9' | head -c 4)
+          #
+          # We use `docker exec ... psql` for the
+          # count because (a) the e2e job doesn't
+          # have the postgresql-client package
+          # installed on the runner image and (b)
+          # `prisma db execute --stdin` does not
+          # return result rows — it only echoes
+          # "Script executed successfully." and the
+          # shell would capture that string instead
+          # of the count. psql -tA -c returns the
+          # single integer we want.
+          TABLE_COUNT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public';")
+          echo "table count after db push: $TABLE_COUNT"
           if [[ "${TABLE_COUNT:-0}" -lt 69 ]]; then
             echo "FATAL: db push produced only $TABLE_COUNT tables (expected >= 69)" >&2
             exit 1

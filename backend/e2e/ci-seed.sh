@@ -351,6 +351,136 @@ ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, "updatedAt" = NOW();
 SQL
 ok "test product seeded"
 
+# 5c. Tier 144: seed 13+ EmailSend rows for
+#     BWA Test Kunde. The customer-email-history
+#     spec asserts rows.length > 0 and total > 0
+#     against the /api/v1/customers/:id/emails
+#     endpoint. Without these rows the spec fails
+#     with "rows=0" or "total=0" on a freshly
+#     bootstrapped CI DB. The dev DB has them from
+#     earlier tier flows (Tier 141/142), but the
+#     CI DB is rebuilt from schema.prisma every
+#     run, so we have to seed them here.
+#     Use stable non-tier-prefixed uuids so the
+#     Tier 39 LIKE 'Tier<N>%' cleanup pattern
+#     (if any future tier adds one) doesn't drop
+#     them by accident.
+psql_test <<SQL
+INSERT INTO "EmailSend" (id, "companyId", "invoiceId", "templateType", "recipientEmail", "recipientName", "subject", "bodyPreview", "status", "sentAt", "createdById", "createdAt")
+VALUES
+  ('11111111-aaaa-0000-0000-000000000001', '$COMPANY_ID', '11deeb35-7147-4bdc-86d9-a302b4f80f3e', 'invoice', 'bwa@example.com', 'BWA Test', 'Rechnung INV-2026-001', 'Sehr geehrte Damen und Herren, anbei erhalten Sie die Rechnung...', 'opened', NOW() - INTERVAL '40 days', '$USER_ID', NOW() - INTERVAL '40 days'),
+  ('11111111-aaaa-0000-0000-000000000002', '$COMPANY_ID', '11deeb35-7147-4bdc-86d9-a302b4f80f3e', 'invoice', 'bwa@example.com', 'BWA Test', 'Rechnung INV-2026-002', 'Sehr geehrte Damen und Herren, anbei erhalten Sie die Rechnung...', 'opened', NOW() - INTERVAL '30 days', '$USER_ID', NOW() - INTERVAL '30 days'),
+  ('11111111-aaaa-0000-0000-000000000003', '$COMPANY_ID', '11deeb35-7147-4bdc-86d9-a302b4f80f3e', 'mahnung', 'bwa@example.com', 'BWA Test', 'Mahnung INV-2026-001', 'Sehr geehrte Damen und Herren, wir möchten Sie höflich an die überfällige Rechnung erinnern...', 'opened', NOW() - INTERVAL '25 days', '$USER_ID', NOW() - INTERVAL '25 days'),
+  ('11111111-aaaa-0000-0000-000000000004', '$COMPANY_ID', '11deeb35-7147-4bdc-86d9-a302b4f80f3e', 'invoice', 'bwa@example.com', 'BWA Test', 'Rechnung INV-2026-003', 'Sehr geehrte Damen und Herren, anbei erhalten Sie die Rechnung...', 'opened', NOW() - INTERVAL '20 days', '$USER_ID', NOW() - INTERVAL '20 days'),
+  ('11111111-aaaa-0000-0000-000000000005', '$COMPANY_ID', '11deeb35-7147-4bdc-86d9-a302b4f80f3e', 'kontoauszug', 'bwa@example.com', 'BWA Test', 'Kontoauszug Q1', 'Sehr geehrte Damen und Herren, anbei erhalten Sie den Kontoauszug...', 'opened', NOW() - INTERVAL '15 days', '$USER_ID', NOW() - INTERVAL '15 days'),
+  ('11111111-aaaa-0000-0000-000000000006', '$COMPANY_ID', '11deeb35-7147-4bdc-86d9-a302b4f80f3e', 'invoice', 'bwa@example.com', 'BWA Test', 'Rechnung INV-2026-004', 'Sehr geehrte Damen und Herren, anbei erhalten Sie die Rechnung...', 'delivered', NOW() - INTERVAL '10 days', '$USER_ID', NOW() - INTERVAL '10 days'),
+  ('11111111-aaaa-0000-0000-000000000007', '$COMPANY_ID', '11deeb35-7147-4bdc-86d9-a302b4f80f3e', 'mahnung', 'bwa@example.com', 'BWA Test', '2. Mahnung INV-2026-001', 'Sehr geehrte Damen und Herren, dies ist die zweite Mahnung...', 'bounced', NOW() - INTERVAL '8 days', '$USER_ID', NOW() - INTERVAL '8 days'),
+  ('11111111-aaaa-0000-0000-000000000008', '$COMPANY_ID', '11deeb35-7147-4bdc-86d9-a302b4f80f3e', 'invoice', 'bwa@example.com', 'BWA Test', 'Rechnung INV-2026-005', 'Sehr geehrte Damen und Herren, anbei erhalten Sie die Rechnung...', 'opened', NOW() - INTERVAL '6 days', '$USER_ID', NOW() - INTERVAL '6 days'),
+  ('11111111-aaaa-0000-0000-000000000009', '$COMPANY_ID', '11deeb35-7147-4bdc-86d9-a302b4f80f3e', 'bulk_send', 'bwa@example.com', 'BWA Test', 'Sammelversand Batch-001', 'Sehr geehrte Damen und Herren, anbei erhalten Sie mehrere Dokumente...', 'opened', NOW() - INTERVAL '5 days', '$USER_ID', NOW() - INTERVAL '5 days'),
+  ('11111111-aaaa-0000-0000-000000000010', '$COMPANY_ID', '11deeb35-7147-4bdc-86d9-a302b4f80f3e', 'invoice', 'bwa@example.com', 'BWA Test', 'Rechnung INV-2026-006', 'Sehr geehrte Damen und Herren, anbei erhalten Sie die Rechnung...', 'opened', NOW() - INTERVAL '4 days', '$USER_ID', NOW() - INTERVAL '4 days'),
+  ('11111111-aaaa-0000-0000-000000000011', '$COMPANY_ID', '11deeb35-7147-4bdc-86d9-a302b4f80f3e', 'invoice', 'bwa@example.com', 'BWA Test', 'Rechnung INV-2026-007', 'Sehr geehrte Damen und Herren, anbei erhalten Sie die Rechnung...', 'opened', NOW() - INTERVAL '3 days', '$USER_ID', NOW() - INTERVAL '3 days'),
+  ('11111111-aaaa-0000-0000-000000000012', '$COMPANY_ID', '11deeb35-7147-4bdc-86d9-a302b4f80f3e', 'invoice', 'bwa@example.com', 'BWA Test', 'Rechnung INV-2026-008', 'Sehr geehrte Damen und Herren, anbei erhalten Sie die Rechnung...', 'delivered', NOW() - INTERVAL '2 days', '$USER_ID', NOW() - INTERVAL '2 days'),
+  ('11111111-aaaa-0000-0000-000000000013', '$COMPANY_ID', '11deeb35-7147-4bdc-86d9-a302b4f80f3e', 'invoice', 'bwa@example.com', 'BWA Test', 'Rechnung INV-2026-009', 'Sehr geehrte Damen und Herren, anbei erhalten Sie die Rechnung...', 'opened', NOW() - INTERVAL '1 day', '$USER_ID', NOW() - INTERVAL '1 day')
+ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, "sentAt" = EXCLUDED."sentAt";
+SQL
+ok "test email-send history seeded (13 rows for BWA Test Kunde)"
+
+# 5d. Tier 135: seed AuditLog rows under 3
+#     distinct action prefixes (invoice.,
+#     customer., payment.) so the audit-filter
+#     action chips render and the OR-semantics
+#     test can flip two chips. The dev DB has
+#     them from the e2e runs, but the CI DB is
+#     fresh every run, so the chip list would
+#     otherwise be empty (stats.byAction = []).
+#     We seed 5+5+3 rows so the chips have
+#     non-trivial counts and the OR test's
+#     total1 / total2 assertions have something
+#     to compare.
+psql_test <<SQL
+INSERT INTO "AuditLog" (id, "companyId", "userId", action, "entityType", "entityId", "createdAt")
+VALUES
+  ('22222222-bbbb-0000-0000-000000000001', '$COMPANY_ID', '$USER_ID', 'invoice.created', 'Invoice', '11deeb35-7147-4bdc-86d9-a302b4f80f3e', NOW() - INTERVAL '40 days'),
+  ('22222222-bbbb-0000-0000-000000000002', '$COMPANY_ID', '$USER_ID', 'invoice.updated', 'Invoice', '11deeb35-7147-4bdc-86d9-a302b4f80f3e', NOW() - INTERVAL '35 days'),
+  ('22222222-bbbb-0000-0000-000000000003', '$COMPANY_ID', '$USER_ID', 'invoice.sent', 'Invoice', '11deeb35-7147-4bdc-86d9-a302b4f80f3e', NOW() - INTERVAL '30 days'),
+  ('22222222-bbbb-0000-0000-000000000004', '$COMPANY_ID', '$USER_ID', 'invoice.paid', 'Invoice', '11deeb35-7147-4bdc-86d9-a302b4f80f3e', NOW() - INTERVAL '25 days'),
+  ('22222222-bbbb-0000-0000-000000000005', '$COMPANY_ID', '$USER_ID', 'invoice.created', 'Invoice', '11deeb35-7147-4bdc-86d9-a302b4f80f3e', NOW() - INTERVAL '20 days'),
+  ('22222222-bbbb-0000-0000-000000000006', '$COMPANY_ID', '$USER_ID', 'customer.created', 'Customer', 'b3f7b274-7696-44b8-9345-8bfd460b3e47', NOW() - INTERVAL '40 days'),
+  ('22222222-bbbb-0000-0000-000000000007', '$COMPANY_ID', '$USER_ID', 'customer.updated', 'Customer', 'b3f7b274-7696-44b8-9345-8bfd460b3e47', NOW() - INTERVAL '30 days'),
+  ('22222222-bbbb-0000-0000-000000000008', '$COMPANY_ID', '$USER_ID', 'customer.updated', 'Customer', 'b3f7b274-7696-44b8-9345-8bfd460b3e47', NOW() - INTERVAL '20 days'),
+  ('22222222-bbbb-0000-0000-000000000009', '$COMPANY_ID', '$USER_ID', 'customer.merged', 'Customer', 'b3f7b274-7696-44b8-9345-8bfd460b3e47', NOW() - INTERVAL '10 days'),
+  ('22222222-bbbb-0000-0000-000000000010', '$COMPANY_ID', '$USER_ID', 'customer.updated', 'Customer', 'b3f7b274-7696-44b8-9345-8bfd460b3e47', NOW() - INTERVAL '5 days'),
+  ('22222222-bbbb-0000-0000-000000000011', '$COMPANY_ID', '$USER_ID', 'payment.received', 'Payment', '33333333-0000-0000-0000-000000000001', NOW() - INTERVAL '15 days'),
+  ('22222222-bbbb-0000-0000-000000000012', '$COMPANY_ID', '$USER_ID', 'payment.received', 'Payment', '33333333-0000-0000-0000-000000000002', NOW() - INTERVAL '8 days'),
+  ('22222222-bbbb-0000-0000-000000000013', '$COMPANY_ID', '$USER_ID', 'payment.allocated', 'Payment', '33333333-0000-0000-0000-000000000003', NOW() - INTERVAL '3 days')
+ON CONFLICT (id) DO NOTHING;
+SQL
+ok "test audit-log seeded (5 invoice. + 5 customer. + 3 payment. rows)"
+
+# 5e. Tier 147: seed a RecurringInvoice
+#     template named "Tier 136 Wartungsvertrag"
+#     (the recurring-generated-invoices spec
+#     locates the card via
+#     `[data-recurring-name="Tier 136 Wartungsvertrag"]`
+#     and asserts that the generated-invoices
+#     modal shows >= 1 row). Without this
+#     template the spec fails with
+#     "card not found" before the modal can
+#     even open.
+psql_test <<SQL
+INSERT INTO "RecurringInvoice" (id, "companyId", "customerId", name, interval, "intervalCount", "dayOfMonth", "startDate", "nextRunAt", "lastRunAt", currency, language, "invoiceStatus", "isActive", "createdAt", "updatedAt")
+VALUES ('33333333-cccc-0000-0000-000000000001', '$COMPANY_ID', 'b3f7b274-7696-44b8-9345-8bfd460b3e47', 'Tier 136 Wartungsvertrag', 'monthly', 1, 1, NOW() - INTERVAL '6 months', NOW() - INTERVAL '1 day', NOW() - INTERVAL '1 month', 'EUR', 'de-DE', 'sent', true, NOW() - INTERVAL '6 months', NOW() - INTERVAL '1 day')
+ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, "isActive" = true, "updatedAt" = NOW();
+
+INSERT INTO "RecurringInvoiceItem" (id, "recurringInvoiceId", description, quantity, "unitPrice", "vatRate", "sortOrder")
+VALUES ('33333333-cccc-0000-0000-000000000010', '33333333-cccc-0000-0000-000000000001', 'Wartung Standard', 1, 119.00, 0.19, 0)
+ON CONFLICT (id) DO UPDATE SET "unitPrice" = EXCLUDED."unitPrice";
+
+-- Two generated invoice runs for the modal's
+-- table to render >= 1 row (the spec asserts
+-- rows.length > 0).
+INSERT INTO "Invoice" (id, "companyId", "customerId", "invoiceNumber", date, "dueDate", "totalNet", "totalVat", "totalGross", status, "createdAt", "updatedAt")
+VALUES
+  ('44444444-dddd-0000-0000-000000000001', '$COMPANY_ID', 'b3f7b274-7696-44b8-9345-8bfd460b3e47', 'INV-2026-100', NOW() - INTERVAL '1 month', NOW(), 119.00, 22.61, 141.61, 'sent', NOW() - INTERVAL '1 month', NOW() - INTERVAL '1 month'),
+  ('44444444-dddd-0000-0000-000000000002', '$COMPANY_ID', 'b3f7b274-7696-44b8-9345-8bfd460b3e47', 'INV-2026-101', NOW() - INTERVAL '2 month', NOW(), 119.00, 22.61, 141.61, 'paid', NOW() - INTERVAL '2 month', NOW() - INTERVAL '2 month')
+ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status;
+SQL
+ok "test recurring-invoice seeded (1 template + 2 generated invoices)"
+
+# 5f. Tier 146: seed 4 open invoices for
+#     BWA Test Kunde at €119 each. The
+#     customer-payment-allocation spec
+#     resets Payment rows in beforeEach but
+#     expects the 4 invoices to exist (it
+#     asserts "remaining" values are based
+#     on the invoice count). Without these
+#     invoices the spec fails on
+#     "no invoices for customer" before
+#     the modal can render.
+psql_test <<SQL
+INSERT INTO "Invoice" (id, "companyId", "customerId", "invoiceNumber", date, "dueDate", "totalNet", "totalVat", "totalGross", status, "createdAt", "updatedAt")
+VALUES
+  ('55555555-eeee-0000-0000-000000000001', '$COMPANY_ID', 'b3f7b274-7696-44b8-9345-8bfd460b3e47', 'INV-2026-203', NOW() - INTERVAL '10 days', NOW() + INTERVAL '20 days', 100.00, 19.00, 119.00, 'sent', NOW() - INTERVAL '10 days', NOW() - INTERVAL '10 days'),
+  ('55555555-eeee-0000-0000-000000000002', '$COMPANY_ID', 'b3f7b274-7696-44b8-9345-8bfd460b3e47', 'INV-2026-204', NOW() - INTERVAL '8 days', NOW() + INTERVAL '22 days', 100.00, 19.00, 119.00, 'sent', NOW() - INTERVAL '8 days', NOW() - INTERVAL '8 days'),
+  ('55555555-eeee-0000-0000-000000000003', '$COMPANY_ID', 'b3f7b274-7696-44b8-9345-8bfd460b3e47', 'INV-2026-205', NOW() - INTERVAL '6 days', NOW() + INTERVAL '24 days', 100.00, 19.00, 119.00, 'sent', NOW() - INTERVAL '6 days', NOW() - INTERVAL '6 days'),
+  ('55555555-eeee-0000-0000-000000000004', '$COMPANY_ID', 'b3f7b274-7696-44b8-9345-8bfd460b3e47', 'INV-2026-206', NOW() - INTERVAL '4 days', NOW() + INTERVAL '26 days', 100.00, 19.00, 119.00, 'sent', NOW() - INTERVAL '4 days', NOW() - INTERVAL '4 days')
+ON CONFLICT (id) DO UPDATE SET status = 'sent';
+SQL
+ok "test payment-allocation invoices seeded (4 open invoices for BWA Test Kunde)"
+
+# 5g. Tier 194: seed a closed CashBook entry
+#     so the cashbook-signature spec's
+#     "verify a closed close" assertion has
+#     a row to verify. The spec asserts
+#     exactly one close exists and that
+#     verify returns verified=true.
+psql_test <<SQL
+INSERT INTO "CashBookClose" (id, "companyId", "periodStart", "periodEnd", "closedBy", "closedAt", "totalIn", "totalOut", "hash", "previousHash", "hashAlgorithm")
+VALUES ('66666666-ffff-0000-0000-000000000001', '$COMPANY_ID', NOW() - INTERVAL '1 month', NOW() - INTERVAL '1 day', '$USER_ID', NOW() - INTERVAL '1 day', 1000.00, 500.00, 'placeholder', '', 'SHA-256-V1')
+ON CONFLICT (id) DO NOTHING;
+SQL
+ok "test cashbook-close seeded (1 closed period for Tier 194)"
+
 # 6. Write the auth cache file that the e2e
 #    tests + Playwright spec rely on.
 #    /tmp/cashbook-e2e-auth.env is the file

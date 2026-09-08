@@ -1,5 +1,6 @@
 import { test, expect, request as playwrightRequest } from '@playwright/test'
 import { execSync } from 'child_process'
+import path from 'path'
 import { getTestEnv } from './fixtures/test-env'
 
 /**
@@ -86,7 +87,7 @@ async function contextWithAuth(page: any) {
 // backend's otplib via a Node one-liner
 // (mirrors what e2e 24 does).
 function totpForSecret(secret: string): string {
-  const cmd = `node -e "const { authenticator } = require('/Users/shledergmbh/Projects/de-invoice/backend/node_modules/otplib'); authenticator.options = { step: 30, window: 1, digits: 6 }; console.log(authenticator.generate('${secret}'));"`
+  const cmd = `node -e "const { authenticator } = require('${path.resolve(__dirname, "..", "..", "backend", "node_modules", "otplib")}'); authenticator.options = { step: 30, window: 1, digits: 6 }; console.log(authenticator.generate('${secret}'));"`
   return execSync(cmd, { encoding: 'utf-8' }).trim()
 }
 

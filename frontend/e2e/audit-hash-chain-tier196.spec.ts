@@ -31,6 +31,7 @@
 import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
 import { execFileSync } from "child_process"
+import path from "path"
 
 const AUTH_CACHE = "/tmp/cashbook-e2e-auth.env"
 
@@ -96,7 +97,7 @@ test.beforeAll(() => {
       {
         encoding: "utf-8",
         stdio: "pipe",
-        cwd: "/Users/shledergmbh/Projects/de-invoice/backend",
+        cwd: path.resolve(__dirname, "..", "..", "backend"),
       },
     )
   } catch (e: any) {

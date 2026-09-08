@@ -359,7 +359,7 @@ export default function MahnungTemplatesPage() {
         </div>
 
         {/* Level tabs */}
-        <div className="flex gap-2 mb-4" data-testid="mahnung-templates-tabs">
+        <div className="flex flex-wrap gap-2 mb-4" data-testid="mahnung-templates-tabs">
           {LEVELS.map((lvl) => {
             const isActive = lvl === activeLevel
             const labelKey =
