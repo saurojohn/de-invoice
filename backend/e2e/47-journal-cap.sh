@@ -68,7 +68,20 @@ if [[ -z "${USER_ID:-}" ]]; then
 fi
 
 echo "=== Test 1: small range (should NOT be capped) ==="
-THIS_MONTH_START=$(date -v-1d +%Y-%m-01 2>/dev/null || date -d "first day of last month" +%Y-%m-%d)
+# Tier 336: GNU date on Ubuntu 24.04 does not
+# understand the "first day of last month"
+# relative phrase (it errored with
+# "date: invalid date 'first day of last month'").
+# Both `date -v-1d +%Y-%m-01` (macOS) and
+# `date -d "first day of last month"` (older
+# Linux) are now deprecated. Use the portable
+# `date -d "Y-01-01 -1 month" +%Y-%m-01` form
+# which both BSD and GNU date accept. We pick a
+# fixed "today" reference (1st of this month) so
+# the "last month start" is one calendar month
+# earlier.
+TODAY_REF=$(date +%Y-%m-01)
+THIS_MONTH_START=$(date -d "$TODAY_REF -1 month" +%Y-%m-%d 2>/dev/null || date -j -v-1m -f "%Y-%m-%d" "$TODAY_REF" +%Y-%m-%d 2>/dev/null)
 THIS_MONTH_END=$(date +%Y-%m-%d)
 SMALL_HDR=/tmp/t47_small.hdr
 SMALL_PDF=/tmp/t47_small.pdf

@@ -181,7 +181,7 @@ PDF_HTTP=$(curl -sS -o /tmp/voucher-list-001.pdf -w "%{http_code}" \
   "http://localhost:3001/api/v1/accounting/vouchers/$V1/pdf?companyId=$COMPANY_ID" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID")
 assert_eq "voucher PDF HTTP 200" "$PDF_HTTP" "200"
-PDF_SIZE=$(stat -f %z /tmp/voucher-list-001.pdf 2>/dev/null || wc -c < /tmp/voucher-list-001.pdf)
+PDF_SIZE=$(wc -c < /tmp/voucher-list-001.pdf)
 [ "$PDF_SIZE" -gt 2000 ] && echo "✓ voucher PDF size > 2KB = $PDF_SIZE" || { echo "✗ voucher PDF too small = $PDF_SIZE"; exit 1; }
 file_contains_helper_unsupported="0"  # placeholder to keep set -e happy
 # PDF content is FlateDecode-compressed with hex-encoded text,

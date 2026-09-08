@@ -100,7 +100,7 @@ if [[ -f /tmp/backend.log ]] && grep -q "trust proxy" /tmp/backend.log; then
   echo "  [INFO] trust proxy reference found in /tmp/backend.log"
   # Nest doesn't log trust proxy at startup, so this is informational
   PASS=$((PASS + 0))
-elif grep -rq "trust proxy.*loopback" "${SCRIPT_DIR}/../backend/src/"; then
+elif grep -rq "trust proxy.*loopback" "${SCRIPT_DIR}/../../backend/src/"; then
   echo "  [PASS] backend source code uses 'trust proxy: loopback'"
   PASS=$((PASS + 1))
 else

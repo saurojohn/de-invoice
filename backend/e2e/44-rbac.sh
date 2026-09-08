@@ -101,7 +101,7 @@ fi
 # /Users/shledergmbh/... so the previous
 # cd failed silently and PWHASH stayed empty.
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PWHASH=$(cd "${SCRIPT_DIR}/../backend" && node -e "console.log(require('bcrypt').hashSync('Test1234!', 10))")
+PWHASH=$(cd "${SCRIPT_DIR}/../../backend" && node -e "console.log(require('bcrypt').hashSync('Test1234!', 10))")
 # Escape $ in the hash for shell safety
 PWHASH_ESC=$(printf '%s' "$PWHASH" | sed "s/\\$/\\\\\\$/g")
 # Generate unique UUIDs so re-runs don't collide
