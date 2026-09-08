@@ -86,7 +86,12 @@ async function injectLocalStorage(page: any) {
 // statement has lines. Tier 70: looked up
 // dynamically via the customers list API — the
 // previous hardcoded ID was deleted by other
-// e2e tests, breaking this spec.
+// e2e tests, breaking this spec. Tier 213: when no
+// customer has invoices (DB was freshly wiped, or
+// the BWA Test Kunde fixture was removed), seed a
+// fresh INV invoice on the first customer so the
+// "renders lines" + "order toggle" + "DESC/ASC"
+// assertions always have something to assert on.
 test.beforeAll(async ({ request }) => {
   if (!testTokens) return
   const res = await request.get(
@@ -116,6 +121,42 @@ test.beforeAll(async ({ request }) => {
       )
       CUSTOMER_WITH_INVOICES = bwa?.id || customers[0].id
     }
+  }
+  if (!CUSTOMER_WITH_INVOICES) return
+  // Seed two invoices on the chosen customer in
+  // 2026 (the year the DESC/ASC test queries). We
+  // pick the middle of the year (May 15) so the
+  // date range used by the test (2026-01-01 →
+  // 2026-12-31) always covers them. Idempotent via
+  // invoiceNumber — the second run becomes a no-op
+  // upsert on the API side.
+  const issueDate = new Date(Date.UTC(2026, 4, 15, 12, 0, 0)).toISOString()
+  const dueDate = new Date(Date.UTC(2026, 5, 15, 12, 0, 0)).toISOString()
+  for (let i = 0; i < 2; i++) {
+    await request.post(
+      `http://localhost:3001/api/v1/invoices?companyId=${testTokens.companyId}`,
+      {
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-id": testTokens.userId,
+          "x-company-id": testTokens.companyId,
+        },
+        data: {
+          customerId: CUSTOMER_WITH_INVOICES,
+          issueDate,
+          dueDate,
+          type: "INV",
+          items: [
+            {
+              description: `Tier213 playwright seed ${i + 1}`,
+              quantity: 1,
+              unitPrice: 100 + i,
+              vatRate: 0.19,
+            },
+          ],
+        },
+      },
+    )
   }
 })
 

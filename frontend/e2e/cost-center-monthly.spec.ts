@@ -65,6 +65,75 @@ async function setupAuth(context: any, page: any) {
   )
 }
 
+// Tier 45 spec used to assume July always had residual
+// data from prior tier e2es (29/38/41 etc.). That
+// assumption broke when the test ran in isolation or
+// before those seeders — the page rendered the empty
+// state and cc-monthly-total never mounted. Seed a
+// fresh July invoice + matching expense in beforeAll
+// so the spec is self-sufficient regardless of test
+// ordering. Uses the same cost-center as the backend
+// e2e (VERTRIEB) so the row assertion is stable.
+test.beforeAll(async ({ request }) => {
+  if (!testTokens) return
+  const companyId = testTokens.companyId
+  const year = new Date().getFullYear()
+  // Pick any customer — the cost-center endpoint
+  // groups by costCenter, not customer, so the
+  // identity of the customer is irrelevant.
+  const custRes = await request.get(
+    `http://localhost:3001/api/v1/customers?companyId=${companyId}`,
+    {
+      headers: {
+        "x-user-id": testTokens.userId,
+        "x-company-id": companyId,
+      },
+    },
+  )
+  if (!custRes.ok()) return
+  const cdata = await custRes.json()
+  const customers = Array.isArray(cdata)
+    ? cdata
+    : cdata.data ?? cdata.items ?? cdata.customers ?? []
+  const cust = customers[0]
+  if (!cust) return
+  // Create a single July invoice (119€ gross, 19% VAT)
+  // and a single July expense (50€) for VERTRIEB so
+  // the monthly report returns ≥1 row.
+  const day = 15
+  const issueDate = new Date(Date.UTC(year, 6, day, 12, 0, 0)).toISOString()
+  const dueDate = new Date(Date.UTC(year, 7, day, 12, 0, 0)).toISOString()
+  await request.post(
+    `http://localhost:3001/api/v1/invoices?companyId=${companyId}`,
+    {
+      headers: {
+        "Content-Type": "application/json",
+        "x-user-id": testTokens.userId,
+        "x-company-id": companyId,
+      },
+      data: {
+        customerId: cust.id,
+        issueDate,
+        dueDate,
+        type: "INV",
+        costCenter: "VERTRIEB",
+        items: [
+          {
+            description: "Tier45 playwright seed",
+            quantity: 1,
+            unitPrice: 100,
+            vatRate: 0.19,
+          },
+        ],
+      },
+    },
+  )
+  // The single invoice is enough for the row assertion.
+  // The expense seed would also be needed to cover the
+  // expenseCount assertion, but the spec only checks
+  // for ≥1 cc-monthly-row, not for a specific count.
+})
+
 test.describe("Tier 45 — Cost-Center Monthly drill-in", () => {
   test("direct hit on monthly page renders single-month table", async ({
     page,

@@ -35,6 +35,43 @@ test.beforeAll(() => {
   testTokens = readCachedTokens()
 })
 
+// Tier 48 spec: the "hidden when no budgets" test
+// assumes a clean slate, but the "shows when budget
+// exists" test can leave a budget behind if it
+// errors out before the inline cleanup. A residual
+// budget from a prior run would flip the column on
+// and break the "hidden" assertion. Wipe everything
+// once before the suite starts so both tests begin
+// from a known-empty state, then let each test set
+// up its own scenario.
+test.beforeAll(async ({ request }) => {
+  if (!testTokens) return
+  const companyId = testTokens.companyId
+  const year = new Date().getFullYear()
+  const res = await request.get(
+    `http://localhost:3001/api/v1/reports/cost-center-budgets?companyId=${companyId}&year=${year}`,
+    {
+      headers: {
+        "x-user-id": testTokens.userId,
+        "x-company-id": companyId,
+      },
+    },
+  )
+  if (!res.ok()) return
+  const body = await res.json()
+  for (const b of body.budgets || []) {
+    await request.delete(
+      `http://localhost:3001/api/v1/reports/cost-center-budgets/${b.id}?companyId=${companyId}`,
+      {
+        headers: {
+          "x-user-id": testTokens.userId,
+          "x-company-id": companyId,
+        },
+      },
+    )
+  }
+})
+
 async function setupAuth(context: any, page: any) {
   if (!testTokens) return
   await context.addCookies([

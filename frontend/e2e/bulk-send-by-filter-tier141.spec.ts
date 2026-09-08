@@ -70,15 +70,16 @@ test.describe('Tier 141 — Bulk-send-by-filter', () => {
     await expect(page.locator('h1').first()).toBeVisible({ timeout: 30_000 })
     const dateFromInput = page.locator('input[type="date"]').first()
     await expect(dateFromInput).toBeVisible({ timeout: 10_000 })
-    // Use a narrow, deterministic date range: the dryRun
-    // endpoint caps at 100 invoices per request, so picking
-    // a wide range would always 400 and never reach the
-    // modal. We pick last-7-days as a stable window that
-    // always exists (the dev DB has steady fixture churn).
-    const today = new Date()
-    const sevenDaysAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000)
-    const yyyy = (d: Date) => d.toISOString().slice(0, 10)
-    await dateFromInput.fill(yyyy(sevenDaysAgo))
+    // Use 2026-01-01 as dateFrom to capture the seeded
+    // Tier 133 fixtures (INV-2026-000203..000206). The
+    // dryRun endpoint caps at 100 invoices per request,
+    // so a wide range would always 400. The dev DB has
+    // a small, stable 2026 fixture set — using a rolling
+    // "last 7 days" window was unreliable because those
+    // fixtures don't have invoiceDate in the recent past,
+    // which made the export bar show 0 hits and the
+    // button render in a permanently disabled state.
+    await dateFromInput.fill('2026-01-01')
     const btn = page.getByTestId('bulk-send-range')
     await expect(btn).toBeVisible({ timeout: 5_000 })
     // Auto-accept the "send N invoices?" confirm.
