@@ -142,9 +142,15 @@ test.describe("Invoice USt-Behandlung", () => {
       page.locator('[data-testid="invoice-tax-reverse-charge"]'),
     ).toBeChecked()
     // The contextual help line appears.
-    await expect(
-      page.locator('[data-testid="invoice-tax-reverse-charge-help"]'),
-    ).toBeVisible()
+    // Tier 338: RC click triggers form.items.map() which
+    // re-renders all 5 default items. On a slow CI
+    // runner the .toBeVisible() 5s timeout can flake
+    // because React hasn't flushed yet. waitFor +
+    // 15s timeout + :visible state handles the
+    // animation.
+    await page
+      .locator('[data-testid="invoice-tax-reverse-charge-help"]')
+      .waitFor({ state: "visible", timeout: 15_000 })
 
     // The first item's VAT rate select
     // should now read "0" (we zeroed items
@@ -180,10 +186,12 @@ test.describe("Invoice USt-Behandlung", () => {
     await expect(
       page.locator('[data-testid="invoice-tax-eu"]'),
     ).toBeChecked()
-    // Help text visible.
-    await expect(
-      page.locator('[data-testid="invoice-tax-eu-help"]'),
-    ).toBeVisible()
+    // Help text visible. Tier 338: same race
+    // as the RC help test — waitFor with 15s
+    // timeout.
+    await page
+      .locator('[data-testid="invoice-tax-eu-help"]')
+      .waitFor({ state: "visible", timeout: 15_000 })
 
     // The VAT-ID-missing warning is conditional
     // on the customer being picked AND having

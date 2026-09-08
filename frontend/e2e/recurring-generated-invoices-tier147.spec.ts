@@ -107,10 +107,21 @@ test.describe('Tier 147 — Recurring generated invoices', () => {
         ('44444444-dddd-0000-0000-000000000002', '${COMPANY_ID}', '${CUSTOMER_ID}', 'INV-2026-101', '${TEMPLATE_ID}', 'INV', NOW() - INTERVAL '2 month', NOW(), 119.00, 22.61, 141.61, 'paid', NOW() - INTERVAL '2 month', NOW() - INTERVAL '2 month')
       ON CONFLICT (id) DO UPDATE SET "recurringInvoiceId" = EXCLUDED."recurringInvoiceId", status = EXCLUDED.status;
     `
-    execSync(
-      `docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "${sql.replace(/"/g, '\\"')}"`,
-      { stdio: 'ignore' },
-    )
+    // Tier 338: capture stderr from psql so a
+    // failure surfaces the SQL error in the
+    // test report rather than the cryptic
+    // "Command failed" we saw in run #310.
+    // The previous `{ stdio: 'ignore' }` ate
+    // both stdout and stderr.
+    try {
+      execSync(
+        `docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "${sql.replace(/"/g, '\\"')}"`,
+        { stdio: ['ignore', 'pipe', 'pipe'] },
+      )
+    } catch (e: any) {
+      const stderr = e.stderr?.toString() || e.stdout?.toString() || e.message
+      throw new Error(`recurring-generated beforeAll psql failed: ${stderr.slice(0, 800)}`)
+    }
   })
   test.beforeEach(async ({ context, page }) => {
     await context.addCookies([
