@@ -32,6 +32,7 @@
  * generated invoice (INV-2026-000206).
  */
 import { test, expect } from '@playwright/test'
+import { execSync } from 'child_process'
 import { getTestEnv } from './fixtures/test-env'
 
 const USER_ID = getTestEnv().userId
@@ -40,6 +41,22 @@ const TEMPLATE_ID = 'tier136-tpl-001'
 const API_BASE = 'http://localhost:3001'
 
 test.describe('Tier 147 — Recurring generated invoices', () => {
+  test.beforeAll(() => {
+    // Tier 335: the recurring-email-preview-tier136
+    // spec creates a `tier136-tpl-001` row with
+    // the same name 'Tier 136 Wartungsvertrag' as
+    // the ci-seed 5e row (id 33333333-cccc-...).
+    // When both are present, the page renders two
+    // cards and our
+    // `[data-recurring-name='Tier 136 Wartungsvertrag']`
+    // locator hits Playwright's strict-mode violation.
+    // We delete the tier136-tpl-001 dup here so only
+    // the ci-seed row remains. Idempotent.
+    execSync(
+      `docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "DELETE FROM \\"RecurringInvoiceItem\\" WHERE \\"recurringInvoiceId\\"='tier136-tpl-001'; DELETE FROM \\"RecurringInvoice\\" WHERE id='tier136-tpl-001';"`,
+      { stdio: 'ignore' },
+    )
+  })
   test.beforeEach(async ({ context, page }) => {
     await context.addCookies([
       { name: 'x-user-id', value: USER_ID, domain: 'localhost', path: '/', sameSite: 'Lax' },

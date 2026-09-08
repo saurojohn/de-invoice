@@ -34,7 +34,23 @@ test.describe('Tier 136 — Recurring email preview', () => {
   test.beforeAll(() => {
     // Make sure the test fixture template exists.
     // Idempotent — ON CONFLICT keeps the existing row.
+    //
+    // Tier 335: ci-seed.sh 5e also seeds a
+    // 'Tier 136 Wartungsvertrag' template (id
+    // 33333333-cccc-0000-0000-000000000001) for
+    // the recurring-generated-invoices spec. With
+    // both rows present, Playwright's
+    // `[data-recurring-name='Tier 136 Wartungsvertrag']`
+    // locator triggers a strict-mode violation
+    // (multiple matches). We delete the ci-seed
+    // dup here so the page only renders THIS
+    // spec's template. Idempotent — re-runs are
+    // safe (DELETE WHERE id <> 'tier136-tpl-001'
+    // is a no-op once the dup is gone).
     const sql = `
+      DELETE FROM "RecurringInvoiceItem" WHERE "recurringInvoiceId" IN
+        (SELECT id FROM "RecurringInvoice" WHERE name = 'Tier 136 Wartungsvertrag' AND id <> '${TPL_ID}');
+      DELETE FROM "RecurringInvoice" WHERE name = 'Tier 136 Wartungsvertrag' AND id <> '${TPL_ID}';
       INSERT INTO "RecurringInvoice" (id, "companyId", "customerId", name, interval, "intervalCount", "dayOfMonth", "startDate", "nextRunAt", "isActive", language, currency, "invoiceStatus", "sendEmail", "createdAt", "updatedAt")
       VALUES ('${TPL_ID}', '${COMPANY_ID}', '${CUSTOMER_ID}', 'Tier 136 Wartungsvertrag', 'monthly', 1, 1, NOW(), NOW(), true, 'de-DE', 'EUR', 'sent', true, NOW(), NOW())
       ON CONFLICT (id) DO UPDATE SET language = 'de-DE', "sendEmail" = true;
