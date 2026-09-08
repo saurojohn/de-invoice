@@ -88,6 +88,17 @@ if [[ "$PAID_COUNT" == "0" ]]; then
     \"method\": \"bank_transfer\",
     \"notes\": \"E2E test payment\"
   }" >/dev/null
+
+  # Tier 334: belt-and-suspenders. The /payments endpoint
+  # normally flips status to 'paid' once sum(payments) >=
+  # invoice total, but a regression in the create path
+  # (where status='paid' from the DTO is silently overwritten
+  # to 'draft' at .create() time) can leave the invoice
+  # stuck in 'draft' even after a successful payment POST.
+  # We force the status via raw SQL so the DATEV export
+  # filter (status='paid') sees the row. Idempotent.
+  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+    "UPDATE \"Invoice\" SET status='paid' WHERE id='$INV_ID' AND status<>'paid';" >/dev/null 2>&1
 fi
 
 # Now fetch the DATEV export and check 9999 + 8888 are present

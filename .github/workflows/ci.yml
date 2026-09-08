@@ -108,6 +108,14 @@ jobs:
       # VAT ID prefix) so the tests are
       # independent of the EU's uptime.
       VIES_MOCK: "1"
+      # Tier 334: same fixture pattern for ECB
+      # exchange rates. CI runners don't have
+      # outbound access to data-api.ecb.europa.eu,
+      # so the real fetchEcbRates() hangs/fails and
+      # 30-exchange-rates.sh's POST /refresh step
+      # returns HTTP 500. With this env the service
+      # returns a known-good snapshot.
+      EXCHANGE_RATES_MOCK: "1"
       # Tier 332: fixture-only PIN encryption key.
       # 32+ chars so any PIN-encryption code path
       # (FinTS connection setup, PDF signature
@@ -272,7 +280,7 @@ jobs:
           # (fixed in Tier 328 separately) and the
           # 29 subsequent assertions failed with
           # 'connection refused'.
-          nohup env VIES_MOCK=1 THROTTLE_DISABLED=1 \
+          nohup env VIES_MOCK=1 EXCHANGE_RATES_MOCK=1 THROTTLE_DISABLED=1 \
             npx ts-node src/main.ts > /tmp/backend.log 2>&1 &
           # 15s — slightly more than the 8s we
           # need locally because CI runners are
@@ -432,7 +440,7 @@ jobs:
           mkdir -p /tmp/de-invoice-storage
           # Tier 328: explicit env passthrough (see e2e
           # job comment for the nohup-env rationale).
-          nohup env VIES_MOCK=1 THROTTLE_DISABLED=1 \
+          nohup env VIES_MOCK=1 EXCHANGE_RATES_MOCK=1 THROTTLE_DISABLED=1 \
             npx ts-node src/main.ts > /tmp/backend.log 2>&1 &
           for i in $(seq 1 30); do
             H=$(curl -sS -o /dev/null -w "%{http_code}" http://localhost:3001/api/v1/health 2>/dev/null || true)

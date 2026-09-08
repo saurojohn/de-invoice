@@ -121,6 +121,22 @@ export class ExchangeRateService {
    * surface).
    */
   async fetchEcbRates(): Promise<ExchangeRateSnapshot> {
+    // Tier 334: CI runners have no outbound network
+    // access to data-api.ecb.europa.eu, so the real
+    // fetch hangs/fails and the e2e 30-exchange-rates
+    // spec's `POST /exchange-rates/refresh` step fails
+    // with HTTP 500. We honor an EXCHANGE_RATES_MOCK=1
+    // env var that returns a known-good snapshot. The
+    // same pattern is used by the VIES mock
+    // (VIES_MOCK=1 → returns fixture VAT validation).
+    if (process.env.EXCHANGE_RATES_MOCK === '1') {
+      return {
+        date: '2026-06-19',
+        base: 'EUR',
+        rates: { CHF: '0.9248', USD: '1.0850', GBP: '0.8520' },
+        fetchedAt: new Date().toISOString(),
+      }
+    }
     const res = await fetch(ECB_URL, {
       // 10s — ECB responds in <1s normally; we
       // cap at 10s so a hung connection doesn't
