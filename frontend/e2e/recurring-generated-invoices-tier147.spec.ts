@@ -107,20 +107,28 @@ test.describe('Tier 147 — Recurring generated invoices', () => {
         ('44444444-dddd-0000-0000-000000000002', '${COMPANY_ID}', '${CUSTOMER_ID}', 'INV-2026-101', '${TEMPLATE_ID}', 'INV', NOW() - INTERVAL '2 month', NOW(), 119.00, 22.61, 141.61, 'paid', NOW() - INTERVAL '2 month', NOW() - INTERVAL '2 month')
       ON CONFLICT (id) DO UPDATE SET "recurringInvoiceId" = EXCLUDED."recurringInvoiceId", status = EXCLUDED.status;
     `
-    // Tier 338: capture stderr from psql so a
-    // failure surfaces the SQL error in the
-    // test report rather than the cryptic
-    // "Command failed" we saw in run #310.
-    // The previous `{ stdio: 'ignore' }` ate
-    // both stdout and stderr.
+    // Tier 338d: previous try/catch with stdio:pipe
+    // caused Playwright to hang for >3h on the CI
+    // runner (likely the long SQL multi-statement
+    // filled the 1MB execSync stdio pipe buffer and
+    // the parent waited for the child to drain it
+    // while the child was blocked on write). Revert
+    // to the proven `{ stdio: 'ignore' }` pattern.
+    // The error message will be the same cryptic
+    // "Command failed" but the spec still fails
+    // loudly and the test runner doesn't hang.
     try {
       execSync(
         `docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "${sql.replace(/"/g, '\\"')}"`,
-        { stdio: ['ignore', 'pipe', 'pipe'] },
+        { stdio: 'ignore' },
       )
     } catch (e: any) {
-      const stderr = e.stderr?.toString() || e.stdout?.toString() || e.message
-      throw new Error(`recurring-generated beforeAll psql failed: ${stderr.slice(0, 800)}`)
+      // Re-raise with the captured error so the test
+      // report at least shows the docker exit code
+      // + signal (not the full SQL — too large to
+      // include in a single line).
+      const msg = (e.stderr || e.stdout || e.message || '').toString().slice(0, 200)
+      throw new Error(`recurring-generated beforeAll psql failed: ${msg || e.status || e.signal}`)
     }
   })
   test.beforeEach(async ({ context, page }) => {
