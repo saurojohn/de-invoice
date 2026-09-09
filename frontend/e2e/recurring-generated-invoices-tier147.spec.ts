@@ -97,7 +97,7 @@ test.describe('Tier 147 — Recurring generated invoices', () => {
       VALUES ('${TEMPLATE_ID}', '${COMPANY_ID}', '${CUSTOMER_ID}', 'Tier 136 Wartungsvertrag', 'monthly', 1, 1, NOW() - INTERVAL '6 months', NOW() - INTERVAL '1 day', NOW() - INTERVAL '1 month', 'EUR', 'de-DE', 'sent', true, NOW() - INTERVAL '6 months', NOW() - INTERVAL '1 day')
       ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, "isActive" = true, "updatedAt" = NOW();
 
-      INSERT INTO "RecurringInvoiceItem" (id, "recurringInvoiceId", description, quantity, "unitPrice", "vatRate", "sortOrder")
+      INSERT INTO "RecurringInvoiceItem" (id, "recurringInvoiceId", description, quantity, "unitPrice", "vatRate", "position")
       VALUES ('33333333-cccc-0000-0000-000000000010', '${TEMPLATE_ID}', 'Wartung Standard', 1, 119.00, 0.19, 0)
       ON CONFLICT (id) DO UPDATE SET "unitPrice" = EXCLUDED."unitPrice";
 
