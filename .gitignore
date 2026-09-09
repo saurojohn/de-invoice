@@ -55,3 +55,6 @@ test-results/
 
 # KoSIT Validator JDK (large binary, downloaded by setup-kosit.sh)
 infra/java/jdk-*/
+
+# Tier 339 audit: leftover Playwright failure-artifact directory
+tmp-pw-fail/

@@ -8,6 +8,20 @@
 
 ---
 
+## ⚠️ Neue Claude-Session / Neue Agent-Instanz
+
+**Lies zuerst [`HANDOFF.md`](./HANDOFF.md).** Diese Datei fasst den
+aktuellen Projektstand, die letzten Tier-N-Commits, die offenen
+Blocker (Hetzner VPS IP + SSH Key), die 10 wichtigsten Lessons, und
+was du beim Start sofort tun solltest.
+
+**Status (2026-09-09):** HEAD = `4a6b08a` (Tier 343). Letzte
+grüne CI: 884 Playwright-Tests bestanden, 0 fehlgeschlagen, 99/99
+Backend-e2e. Code-Seite ist 100 % deploy-ready. Einziger Blocker ist
+die fehlende Hetzner-VPS-IP und der SSH-Key vom User.
+
+---
+
 ## Quickstart (lokal, ~5 min)
 
 ```bash
