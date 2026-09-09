@@ -80,7 +80,17 @@ test.describe("Tier 232 — Mahnungen (Reminders) list page", () => {
 
   test("4. table or empty state is shown", async ({ page }) => {
     await page.goto("http://localhost:3100/dashboard/mahnungen")
-    await page.waitForLoadState("networkidle", { timeout: 15000 })
+    // Tier 341: the empty-state div is only rendered
+    // when (!loading && !error && rows.length === 0).
+    // On a cold-compiled Next.js dev server, the page
+    // mounts with loading=true and doesn't switch to
+    // false until the /reminders API roundtrip lands
+    // (200-500ms locally, 1-2s on cold CI). Wait for
+    // either the table or the empty state to actually
+    // appear in the DOM, with a 15s ceiling.
+    await expect(
+      page.locator('[data-testid="mahnhistorie-table"], [data-testid="mahnhistorie-empty"]').first(),
+    ).toBeVisible({ timeout: 15_000 })
     // Either the table or the empty state must be present.
     const table = page.getByTestId("mahnhistorie-table")
     const empty = page.getByTestId("mahnhistorie-empty")

@@ -117,6 +117,24 @@ test.describe('Tier 147 — Recurring generated invoices', () => {
     // is still up. After 5 failures (10s total), bail
     // out with the same error message format as before
     // so the test report is still actionable.
+    // Tier 341: before retrying psql, wait for the
+    // container to actually accept connections
+    // (docker exec can fail with "error during connect"
+    // for several seconds after the container is
+    // "healthy" because PG's postmaster is still
+    // initializing its socket pool). pg_isready -q
+    // returns 0 when the DB is actually accepting
+    // connections. Retry up to 30s with 1s backoff
+    // (30 attempts × 1s = 30s ceiling — matches the
+    // ci.yml 30s health-check loop).
+    try {
+      execSync(
+        'for i in $(seq 1 30); do docker exec de-invoice-postgres pg_isready -U de_invoice -d de_invoice -q && exit 0; sleep 1; done; exit 1',
+        { stdio: 'ignore' },
+      )
+    } catch (e: any) {
+      throw new Error(`recurring-generated beforeAll: pg_isready never returned 0 after 30s`)
+    }
     const runOnce = () =>
       execSync(
         `docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "${sql.replace(/"/g, '\\"')}"`,
@@ -124,7 +142,7 @@ test.describe('Tier 147 — Recurring generated invoices', () => {
       )
     let lastErr: any = null
     let succeeded = false
-    for (let attempt = 1; attempt <= 5; attempt++) {
+    for (let attempt = 1; attempt <= 8; attempt++) {
       try {
         runOnce()
         succeeded = true
@@ -141,7 +159,7 @@ test.describe('Tier 147 — Recurring generated invoices', () => {
     }
     if (!succeeded) {
       const msg = (lastErr?.stderr || lastErr?.stdout || lastErr?.message || '').toString().slice(0, 200)
-      throw new Error(`recurring-generated beforeAll psql failed after 5 attempts: ${msg || lastErr?.status || lastErr?.signal}`)
+      throw new Error(`recurring-generated beforeAll psql failed after 8 attempts (post-pg_isready): ${msg || lastErr?.status || lastErr?.signal}`)
     }
   })
   test.beforeEach(async ({ context, page }) => {

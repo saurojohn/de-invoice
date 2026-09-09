@@ -158,13 +158,21 @@ test.describe('Tier 141 — Bulk-send-by-filter', () => {
   })
 
   test('mobile 375x667: export bar (4 buttons) does not overflow', async ({ browser }) => {
-    // Tier 340: use a fresh context with the right viewport
-    // from the start (Tier 288 lesson). The shared `page`
-    // fixture retains the viewport from prior tests, and
-    // setViewportSize after page.goto is racy on shared
-    // fixtures.
+    // Tier 341: copy the auth cookies from the shared context
+    // so the new viewport-specific context has the same
+    // x-user-id + x-company-id auth. Without this, the
+    // Next.js middleware redirects /dashboard/invoices to
+    // /login (307) and the h1 assertion fails.
     const context = await browser.newContext({ viewport: { width: 375, height: 667 } })
+    await context.addCookies([
+      { name: 'x-user-id', value: USER_ID, domain: 'localhost', path: '/', sameSite: 'Lax' },
+      { name: 'x-company-id', value: COMPANY_ID, domain: 'localhost', path: '/', sameSite: 'Lax' },
+    ])
     const page = await context.newPage()
+    await page.addInitScript(({ userId, companyId }) => {
+      localStorage.setItem('userId', userId)
+      localStorage.setItem('companyId', companyId)
+    }, { userId: USER_ID, companyId: COMPANY_ID })
     await page.goto('/dashboard/invoices')
     await expect(page.locator('h1').first()).toBeVisible({ timeout: 30_000 })
     await page.waitForFunction(
