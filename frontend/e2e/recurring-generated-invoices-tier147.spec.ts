@@ -48,7 +48,7 @@
  *     which spec ran first.
  */
 import { test, expect } from '@playwright/test'
-import { execSync } from 'child_process'
+import { execSync, execFileSync } from 'child_process'
 import { getTestEnv } from './fixtures/test-env'
 
 const USER_ID = getTestEnv().userId
@@ -127,39 +127,72 @@ test.describe('Tier 147 — Recurring generated invoices', () => {
     // connections. Retry up to 30s with 1s backoff
     // (30 attempts × 1s = 30s ceiling — matches the
     // ci.yml 30s health-check loop).
-    try {
-      execSync(
-        'for i in $(seq 1 30); do docker exec de-invoice-postgres pg_isready -U de_invoice -d de_invoice -q && exit 0; sleep 1; done; exit 1',
-        { stdio: 'ignore' },
-      )
-    } catch (e: any) {
-      throw new Error(`recurring-generated beforeAll: pg_isready never returned 0 after 30s`)
+    // Tier 342: rewrite the psql invocation to
+    // (a) write the multi-statement SQL to a temp
+    //     file (avoids the -c escaping hell that the
+    //     Tier 337 sql.replace(/"/g, '\\"') path
+    //     used to deal with), and
+    // (b) capture stderr in the retry loop so the
+    //     failure message includes the actual psql
+    //     error (Tier 338d tried to capture stderr
+    //     but the { stdio: 'ignore' } option dropped
+    //     it; { stdio: ['ignore', 'pipe', 'pipe'] }
+    //     was the 1MB-buffer deadlock pitfall from
+    //     Tier 338d, so we use the ASYNC-friendly
+    //     `execFileSync` form which captures output
+    //     safely without the pipe-buffer deadlock).
+    // (c) drop the pg_isready wait — pg_isready
+    //     itself was passing; the failure was the
+    //     SQL itself (Tier 342: psql error from
+    //     missing FK on tier136-tpl-001 reference).
+    const fs = require('fs') as typeof import('fs')
+    const os = require('os') as typeof import('os')
+    const sqlPath = `${os.tmpdir()}/rec147-${process.pid}.sql`
+    fs.writeFileSync(sqlPath, sql, 'utf-8')
+    const runOnce = () => {
+      try {
+        execFileSync(
+          'docker',
+          ['exec', '-i', 'de-invoice-postgres', 'psql',
+           '-U', 'de_invoice',
+           '-d', 'de_invoice',
+           '-v', 'ON_ERROR_STOP=1',
+           '-f', '/dev/stdin'],
+          { input: sql, stdio: ['pipe', 'pipe', 'pipe'],
+            maxBuffer: 16 * 1024 * 1024 },
+        )
+        return { ok: true, stderr: '', stdout: '' }
+      } catch (e: any) {
+        return {
+          ok: false,
+          stderr: (e.stderr || Buffer.alloc(0)).toString().slice(0, 500),
+          stdout: (e.stdout || Buffer.alloc(0)).toString().slice(0, 500),
+          status: e.status,
+          signal: e.signal,
+        }
+      }
     }
-    const runOnce = () =>
-      execSync(
-        `docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "${sql.replace(/"/g, '\\"')}"`,
-        { stdio: 'ignore' },
-      )
     let lastErr: any = null
     let succeeded = false
     for (let attempt = 1; attempt <= 8; attempt++) {
-      try {
-        runOnce()
+      const r = runOnce()
+      if (r.ok) {
         succeeded = true
         break
-      } catch (e: any) {
-        lastErr = e
-        try {
-          execSync('docker inspect --format={{.State.Running}} de-invoice-postgres', { stdio: 'ignore' })
-        } catch {
-          break
-        }
-        execSync('sleep 2', { stdio: 'ignore' })
       }
+      lastErr = r
+      // Sanity-check the container is still up
+      try {
+        execSync('docker inspect --format={{.State.Running}} de-invoice-postgres', { stdio: 'ignore' })
+      } catch {
+        break // container is gone - bail out
+      }
+      execSync('sleep 2', { stdio: 'ignore' })
     }
+    try { fs.unlinkSync(sqlPath) } catch {}
     if (!succeeded) {
-      const msg = (lastErr?.stderr || lastErr?.stdout || lastErr?.message || '').toString().slice(0, 200)
-      throw new Error(`recurring-generated beforeAll psql failed after 8 attempts (post-pg_isready): ${msg || lastErr?.status || lastErr?.signal}`)
+      const detail = lastErr?.stderr || lastErr?.stdout || ''
+      throw new Error(`recurring-generated beforeAll psql failed after 8 attempts: ${detail || 'exit=' + lastErr?.status}`)
     }
   })
   test.beforeEach(async ({ context, page }) => {
