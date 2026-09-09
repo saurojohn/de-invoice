@@ -34,6 +34,8 @@
 #   9. POST /user-sign with a non-PDF base64 → graceful error
 #  10. Cross-tenant: GET /user-cert-info with a userId from
 #      a different company → 401 (HeaderAuthGuard blocks)
+set -uo pipefail
+
 source "$(dirname "$0")/_lib.sh"
 login
 

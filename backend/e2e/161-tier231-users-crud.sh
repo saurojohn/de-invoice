@@ -24,6 +24,8 @@
 #      (note: pre-existing English message in this controller)
 #  13. PATCH /users/:id/role with fake userId → 404 German
 #  14. Cleanup: restore the test user's role + status
+set -uo pipefail
+
 source "$(dirname "$0")/_lib.sh"
 login
 

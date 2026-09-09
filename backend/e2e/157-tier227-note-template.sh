@@ -37,6 +37,8 @@
 #  16. Cross-tenant: seed a template under test companyId,
 #      fetch it under a fake companyId → not in list
 #      (templates are company-scoped via listForCompany)
+set -uo pipefail
+
 source "$(dirname "$0")/_lib.sh"
 login
 

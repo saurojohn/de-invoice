@@ -60,7 +60,7 @@ jobs:
             dockerfile: ./frontend/Dockerfile
             image: frontend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Extract version from tag
         id: meta

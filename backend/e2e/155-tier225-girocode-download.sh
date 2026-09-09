@@ -17,6 +17,8 @@
 #   6. 404 when invoice doesn't exist (cross-tenant or fake id)
 #   7. 400 when companyId is missing
 #   8. PNG decodes to a square (width = height) — QR is square
+set -uo pipefail
+
 source "$(dirname "$0")/_lib.sh"
 login
 

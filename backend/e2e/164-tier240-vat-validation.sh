@@ -37,6 +37,8 @@
 #  13. POST /reverify-now requires users.read (admin)
 #  14. GET /audit.pdf returns 200 + application/pdf
 #  15. GET /audit.pdf without companyId → 400
+set -uo pipefail
+
 source "$(dirname "$0")/_lib.sh"
 login
 

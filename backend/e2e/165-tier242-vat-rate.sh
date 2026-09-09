@@ -42,6 +42,8 @@
 #      previous rate (NOT the expired one)
 #  12. Cleanup: delete seeded rates so reruns are
 #      idempotent
+set -uo pipefail
+
 source "$(dirname "$0")/_lib.sh"
 login
 

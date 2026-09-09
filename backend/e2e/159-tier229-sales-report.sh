@@ -14,6 +14,8 @@
 #   - top-level keys present
 #   - nested array items have the expected fields
 #   - date range filtering actually filters
+set -uo pipefail
+
 source "$(dirname "$0")/_lib.sh"
 login
 

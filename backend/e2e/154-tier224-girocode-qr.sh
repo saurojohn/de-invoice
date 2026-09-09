@@ -16,6 +16,8 @@
 # bank app prefills the SEPA Überweisung with IBAN, amount, and
 # reference. Saves the customer 30s of typing per invoice and
 # eliminates the typo class of late payments.
+set -uo pipefail
+
 source "$(dirname "$0")/_lib.sh"
 login
 

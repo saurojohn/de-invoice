@@ -57,9 +57,11 @@ The 3 LOW deferred items from Tier 339:
   audited model uses BigInt/Decimal so it's a latent issue, not active.
 - L2: `parseCsvLine` in ECB rates service is naive split-on-comma — ECB's
   CSV has no embedded commas today; failure mode is loud (throws), not silent.
-- L3: 15 e2e scripts (154-247) lack `set -euo pipefail` — pre-existing
-  pattern from Aug-2026 batches, not a CI blocker. Batch-fix is a single
-  follow-up tier if desired.
+- ~~L3: 15 e2e scripts (154-247) lack `set -euo pipefail`~~ — **CLOSED in
+  Tier 345. The finding was wrong on three counts:** it was 16 files not 15;
+  they inherited `set -uo pipefail` from `_lib.sh` so exposure was nil; and
+  the recommended `-e` would have **broken** the suite (see next bullet).
+  Tier 345 added a local `set -uo pipefail` to all 16 for consistency.
 
 ## 4. Critical docs to read (in order)
 
@@ -101,6 +103,17 @@ Operational scripts:
 - **`concurrency.cancel-in-progress: true`** is set — a new commit cancels
   the prior run on the same ref.
 - **No `timeout-minutes`** set on any job — relies on GitHub's default 360 min.
+- **All `actions/*` pinned to `@v7`** since Tier 345 (was `@v4`, which
+  declares `runs.using: node20` — GitHub deprecated that runtime and was
+  force-running them on Node 24). **Gotcha: `actions/upload-artifact@v5` is
+  still node20** — v6 is the first node24 release for that action, unlike
+  checkout/setup-node where v5 already moved. Verified non-applicable before
+  bumping: no `pull_request_target`/`workflow_run` (checkout v7 fork-PR
+  restriction), no `packageManager` field in either package.json and an
+  explicit `cache: npm` (setup-node v5/v6 auto-cache changes), and
+  `runs-on: ubuntu-latest` is GitHub-hosted so upload-artifact v6's
+  runner >= 2.327.1 requirement is met. `docker/*` actions in `release.yml`
+  were left alone — not flagged, third-party release cadence.
 - **5 `if:` clauses** — all artifact uploads (`if: always()` or
   `if: failure()`). No conditional test-skipping.
 - **No commented-out steps**, no TODO/FIXME in the workflow file.
@@ -131,6 +144,13 @@ Operational scripts:
   had a "ALL PASSED" bug that didn't propagate failure to exit code;
   Tier 207 fixed them with `summary` helper calls. **Future scripts
   must end with `summary`**, not `echo "ALL PASSED"`.
+- **NEVER add `-e` to an e2e spec.** `_lib.sh` is a failure-*counting*
+  harness: `fail()` increments `FAILS`, and the closing `summary` turns
+  `FAILS` into the exit code. `set -e` aborts at the first failing command,
+  so `summary` never runs, the remaining assertions never execute, and the
+  per-spec failure count is lost. Convention is `set -uo pipefail`
+  (149/172 specs). The 23 specs carrying `set -euo pipefail` are a
+  historical inconsistency — do not copy them.
 - CI smoke-test pattern for backend: `bash backend/e2e/run-all.sh`
   with `SEGMENT_SIZE=20 SEGMENT_SLEEP=10` (Tier 312 default).
   For frontend: `bash frontend/scripts/run-all.sh` with

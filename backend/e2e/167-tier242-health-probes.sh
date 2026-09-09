@@ -47,6 +47,8 @@
 #  14. No auth required (all 4 endpoints public)
 #  15. /api/v1/health/deep uptimeSec increases after
 #      2-second sleep (sanity: not cached / not stale)
+set -uo pipefail
+
 source "$(dirname "$0")/_lib.sh"
 login
 

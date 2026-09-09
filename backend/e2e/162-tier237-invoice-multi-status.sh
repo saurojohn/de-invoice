@@ -15,6 +15,8 @@
 #   5. ?status=overdue (single) still works (no breaking change)
 #   6. ?status=overdue,,sent (extra commas) is normalised
 #   7. ?status=  (whitespace) is treated as no filter
+set -uo pipefail
+
 source "$(dirname "$0")/_lib.sh"
 login
 

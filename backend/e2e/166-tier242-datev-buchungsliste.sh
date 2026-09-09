@@ -54,6 +54,8 @@
 #      the year path if the month has no data,
 #      otherwise same — just confirm ZIP builds)
 #  16. ZIP filename includes Buchungsliste_YYYY
+set -uo pipefail
+
 source "$(dirname "$0")/_lib.sh"
 login
 

@@ -39,6 +39,8 @@
 # /payments request per invoice) and tolerates per-invoice
 # failure. So even if some invoices have no payments endpoint
 # (impossible — all invoices have it), the tab still renders.
+set -uo pipefail
+
 source "$(dirname "$0")/_lib.sh"
 login
 

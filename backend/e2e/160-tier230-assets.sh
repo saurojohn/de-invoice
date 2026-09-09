@@ -26,6 +26,8 @@
 #  12. Cross-tenant: seed under test companyId, fetch with
 #      fake companyId → 404 (security through obscurity)
 #  13. Cleanup: delete the test asset
+set -uo pipefail
+
 source "$(dirname "$0")/_lib.sh"
 login
 

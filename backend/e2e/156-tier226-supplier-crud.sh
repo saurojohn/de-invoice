@@ -27,6 +27,8 @@
 #  15. Cross-tenant: seed a supplier under a fake companyId,
 #      GET it via the test companyId → 404 (security through obscurity)
 #  16. Cleanup: delete the test supplier
+set -uo pipefail
+
 source "$(dirname "$0")/_lib.sh"
 login
 

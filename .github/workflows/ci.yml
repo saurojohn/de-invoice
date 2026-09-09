@@ -55,8 +55,8 @@ jobs:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -76,8 +76,8 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -127,8 +127,8 @@ jobs:
       # inherit this one.
       FINTS_PIN_ENC_KEY: "ci-fixture-key-do-not-use-in-prod-00000000000000000000"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -305,7 +305,7 @@ jobs:
       # cancelled or fails in a later step.
       - name: Upload backend log (always)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: backend-log-e2e-always
           path: /tmp/backend.log
@@ -343,7 +343,7 @@ jobs:
         working-directory: backend/e2e
       - name: Upload backend log on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: backend-log
           path: /tmp/backend.log
@@ -380,8 +380,8 @@ jobs:
       # preflight requests.
       FRONTEND_URL: http://localhost:3100
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -462,7 +462,7 @@ jobs:
       # the job is cancelled or fails in a later step.
       - name: Upload backend log (always)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: backend-log-playwright-always
           path: /tmp/backend.log
@@ -504,14 +504,14 @@ jobs:
         working-directory: frontend
       - name: Upload Playwright report on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report
           path: frontend/test-results/
           retention-days: 7
       - name: Upload backend log on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: backend-log-playwright
           path: /tmp/backend.log

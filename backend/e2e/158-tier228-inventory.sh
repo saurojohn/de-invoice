@@ -22,6 +22,8 @@
 #      from our adjustments
 #  10. GET /inventory/low-stock?companyId=... returns array
 #  11. Cleanup: delete the test product
+set -uo pipefail
+
 source "$(dirname "$0")/_lib.sh"
 login
 
