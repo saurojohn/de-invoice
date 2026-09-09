@@ -135,7 +135,16 @@ test.describe("Invoice USt-Behandlung", () => {
     await expect(
       page.locator('[data-testid="invoice-tax-treatment"]'),
     ).toBeVisible({ timeout: 10_000 })
-
+    // Tier 340: hydration wait. The radio onChange
+    // handler also re-renders form.items[] which
+    // is a 5-item array. React 18 batches the
+    // state update but the flush can race with
+    // a fast click() on a cold-compiled page.
+    await page.waitForFunction(
+      () => document.readyState === 'complete',
+      { timeout: 30_000 },
+    )
+    await page.waitForTimeout(500)
     // Click RC.
     await page.locator('[data-testid="invoice-tax-reverse-charge"]').click()
     await expect(
@@ -180,7 +189,12 @@ test.describe("Invoice USt-Behandlung", () => {
     await expect(
       page.locator('[data-testid="invoice-tax-treatment"]'),
     ).toBeVisible({ timeout: 10_000 })
-
+    // Tier 340: hydration wait (see test 1).
+    await page.waitForFunction(
+      () => document.readyState === 'complete',
+      { timeout: 30_000 },
+    )
+    await page.waitForTimeout(500)
     // Click IgE.
     await page.locator('[data-testid="invoice-tax-eu"]').click()
     await expect(

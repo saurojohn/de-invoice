@@ -82,23 +82,48 @@ test.describe('Tier 141 — Bulk-send-by-filter', () => {
   test('button renders in the date-range export bar when dateFrom is set', async ({ page }) => {
     await page.goto('/dashboard/invoices')
     await expect(page.locator('h1').first()).toBeVisible({ timeout: 30_000 })
+    // Tier 340: hydration wait (Tier 185/183/49 pattern).
+    // Without this, the React onChange handler isn't
+    // attached when setDateInput fires its synthetic
+    // input/change events, so the controlled state
+    // never updates, the dateFrom stays '', and the
+    // export bar never renders.
+    await page.waitForFunction(
+      () => document.readyState === 'complete',
+      { timeout: 30_000 },
+    )
+    await page.waitForTimeout(500)
     // Fill the date-from input via the native setter (see
     // setDateInput helper at the top). The export bar appears
     // whenever dateFrom OR dateTo is non-empty.
     const dateFromInput = page.locator('input[type="date"]').first()
     await expect(dateFromInput).toBeVisible({ timeout: 10_000 })
     await setDateInput(page, 0, '2026-01-01')
+    // Wait for the React state to actually update. We
+    // poll the input's value attribute (which React
+    // syncs back after onChange commits) and then
+    // the export bar is rendered.
+    await expect(dateFromInput).toHaveValue('2026-01-01', { timeout: 5_000 })
     // Now the green bar should be visible + our new button inside.
     const btn = page.getByTestId('bulk-send-range')
-    await expect(btn).toBeVisible({ timeout: 5_000 })
+    // Tier 340: bump 5s -> 15s for cold-compile races.
+    await expect(btn).toBeVisible({ timeout: 15_000 })
     await expect(btn).toContainText(/E-Mails senden|Send emails|发送邮件/i)
   })
 
   test('clicking the button (confirm=accept) opens the modal in some terminal state', async ({ page }) => {
     await page.goto('/dashboard/invoices')
     await expect(page.locator('h1').first()).toBeVisible({ timeout: 30_000 })
+    // Tier 340: hydration wait (see test 1).
+    await page.waitForFunction(
+      () => document.readyState === 'complete',
+      { timeout: 30_000 },
+    )
+    await page.waitForTimeout(500)
     const dateFromInput = page.locator('input[type="date"]').first()
     await expect(dateFromInput).toBeVisible({ timeout: 10_000 })
+    await setDateInput(page, 0, '2026-01-01')
+    await expect(dateFromInput).toHaveValue('2026-01-01', { timeout: 5_000 })
     // Use 2026-01-01 as dateFrom to capture the seeded
     // Tier 133 fixtures (INV-2026-000203..000206). The
     // dryRun endpoint caps at 100 invoices per request,
@@ -109,8 +134,11 @@ test.describe('Tier 141 — Bulk-send-by-filter', () => {
     // which made the export bar show 0 hits and the
     // button render in a permanently disabled state.
     await setDateInput(page, 0, '2026-01-01')
+    // Tier 340: wait for React state to commit before
+    // expecting the conditional export bar.
+    await expect(dateFromInput).toHaveValue('2026-01-01', { timeout: 5_000 })
     const btn = page.getByTestId('bulk-send-range')
-    await expect(btn).toBeVisible({ timeout: 5_000 })
+    await expect(btn).toBeVisible({ timeout: 15_000 })
     // Auto-accept the "send N invoices?" confirm.
     page.on('dialog', (d) => d.accept().catch(() => {}))
     await btn.click()
@@ -129,18 +157,33 @@ test.describe('Tier 141 — Bulk-send-by-filter', () => {
     expect(bodyText.length).toBeGreaterThan(0)
   })
 
-  test('mobile 375x667: export bar (4 buttons) does not overflow', async ({ page }) => {
-    await page.setViewportSize({ width: 375, height: 667 })
+  test('mobile 375x667: export bar (4 buttons) does not overflow', async ({ browser }) => {
+    // Tier 340: use a fresh context with the right viewport
+    // from the start (Tier 288 lesson). The shared `page`
+    // fixture retains the viewport from prior tests, and
+    // setViewportSize after page.goto is racy on shared
+    // fixtures.
+    const context = await browser.newContext({ viewport: { width: 375, height: 667 } })
+    const page = await context.newPage()
     await page.goto('/dashboard/invoices')
     await expect(page.locator('h1').first()).toBeVisible({ timeout: 30_000 })
+    await page.waitForFunction(
+      () => document.readyState === 'complete',
+      { timeout: 30_000 },
+    )
+    await page.waitForTimeout(500)
     const dateFromInput = page.locator('input[type="date"]').first()
     await expect(dateFromInput).toBeVisible({ timeout: 10_000 })
     await setDateInput(page, 0, '2026-01-01')
+    // Tier 340: wait for React state to commit before
+    // expecting the conditional export bar.
+    await expect(dateFromInput).toHaveValue('2026-01-01', { timeout: 5_000 })
     // Wait for the export bar to render + new button
     const btn = page.getByTestId('bulk-send-range')
-    await expect(btn).toBeVisible({ timeout: 5_000 })
+    await expect(btn).toBeVisible({ timeout: 15_000 })
     await page.waitForTimeout(800)
     const bodySw = await page.evaluate(() => document.body.scrollWidth)
     expect(bodySw).toBeLessThanOrEqual(376)
+    await context.close()
   })
 })
