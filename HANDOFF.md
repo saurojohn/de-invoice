@@ -212,7 +212,36 @@ statements had been dead this whole way:
 | `Invoice` x2 | `date` / `totalNet` / `totalGross` | -> `issueDate` / `subtotal` / `total` |
 | `CashBookClose` | table does not exist (model is `CashBookDailyClose`, entirely different columns) | deleted — the row was referenced nowhere, and `cashbook-signature-tier194.spec.ts` closes its own days via the API |
 
+Turning on ON_ERROR_STOP immediately exposed a **fifth** dead statement that
+a column audit cannot catch — an FK violation: `VoucherLine.accountId`
+pointed at `d8833d31-...` and `92b7d7a0-...`, account ids that exist in no
+seed path. Default accounts are created through the API
+(`seedDefaultAccounts()` -> 1000/1200/1400/1600/1800/2000/2200/2800/4200/
+4300/4400/4980/6000/8000) with **backend-generated UUIDs**, so any
+hard-coded account id in this file is guaranteed wrong on a fresh DB. Fixed
+by creating 4960 (absent from the defaults) and referencing all three
+account ids by `(SELECT id FROM "Account" WHERE "companyId" = ... AND
+"accountNumber" = ...)`. Run the FK audit too, not just the column audit:
+collect every id created by an INSERT, then check each `*Id` value against
+that set (`AuditLog.entityId` is a plain String, not a relation — expect it
+as a false positive).
+
+And a sixth: **backticks inside an unquoted heredoc are command
+substitution.** These blocks are `<<SQL`, not `<<'SQL'`, because they must
+expand `$COMPANY_ID` — so two SQL *comments* were being executed on every
+seed run. One became a redirect from a file named `=`, the other tried to
+run a non-ASCII char as a command. The second was, verbatim, the comment
+warning about the first. `set -e` does not catch these: the failure happens
+inside command substitution during heredoc expansion. Never use backticks
+in a comment inside an unquoted heredoc.
+
 `psql_test` now passes `-v ON_ERROR_STOP=1`, so this class fails loudly.
+Verify seed changes locally before pushing: a throwaway `postgres:16`
+container + `prisma db push` + the backend started the way CI starts it
+(`VIES_MOCK=1 EXCHANGE_RATES_MOCK=1 THROTTLE_DISABLED=1 npx ts-node
+src/main.ts`), then `PG_CONTAINER=<name> bash backend/e2e/ci-seed.sh`
+twice — the second run proves idempotency. Expect exit 0 and **empty
+stderr**.
 **Before adding SQL to `ci-seed.sh`, run the column audit** (parse
 `schema.prisma` models, diff against every `INSERT INTO "X" (cols)`) — it is
 what surfaced all four, and lesson 10 only catches it if you actually run it.

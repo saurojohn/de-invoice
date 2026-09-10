@@ -293,12 +293,21 @@ ON CONFLICT (id) DO UPDATE SET status = 'sent', "updatedAt" = NOW();
 
 -- A zero-amount voucher line for the datev-preview
 -- "issues" spec (datev-preview.spec.ts). The DATEV
--- preview endpoint flags `Betrag <= 0` warnings; the
+-- preview endpoint flags a "Betrag <= 0" warning; the
 -- spec asserts the issues card is visible when any
 -- issue is present. The seeded voucher is 'booked'
 -- in the test date range so the preview picks it up.
--- (Avoid non-ASCII chars in the comments — bash sees
--- `≤` as a command and prints "command not found".)
+--
+-- Tier 347: this heredoc is <<SQL, NOT <<'SQL' -- it has
+-- to expand $COMPANY_ID -- so the shell ALSO expands
+-- backticks inside it as command substitution. Two SQL
+-- comments here used backticks and ran on every seed:
+-- one became a redirect from a file named "=" ("=: No
+-- such file or directory") and the other tried to run a
+-- non-ASCII character as a command. The irony is that
+-- the second one WAS the comment warning about the
+-- first. Never use backticks in a comment inside an
+-- unquoted heredoc; plain double quotes are safe.
 INSERT INTO "Voucher" (id, "companyId", "voucherNumber", date, description, status, "createdAt")
 VALUES ('aabbccdd-1850-1850-1850-000000000001', '$COMPANY_ID', 'V-185-001', '2026-04-15', 'Tier 185 zero-amount Beleg', 'posted', NOW())
 ON CONFLICT (id) DO UPDATE SET status = 'posted';
@@ -316,10 +325,23 @@ INSERT INTO "Voucher" (id, "companyId", "voucherNumber", date, description, stat
 VALUES ('BK-HIST-001', '$COMPANY_ID', 'BK-HIST-001', '2026-01-15', 'Tier 49 VERTRIEB fixture', 'posted', NOW())
 ON CONFLICT (id) DO UPDATE SET status = 'posted';
 
+-- Tier 347: 4960 is NOT in seedDefaultAccounts() (which creates 1000,
+-- 1200, 1400, 1600, 1800, 2000, 2200, 2800, 4200, 4300, 4400, 4980,
+-- 6000, 8000), so create it here. Reference it by a subquery on
+-- accountNumber rather than a literal id: the default accounts are
+-- created through the API with backend-generated UUIDs, so ANY
+-- hard-coded account id in this file is guaranteed wrong on a fresh DB.
+-- That is what broke the previous version — it pointed at
+-- 'd8833d31-...', an id that exists in no seed path, and the FK
+-- violation was swallowed because psql_test had no ON_ERROR_STOP.
+INSERT INTO "Account" (id, "companyId", "accountNumber", name, type, "createdAt")
+VALUES ('aabbccdd-0049-0049-0049-acc0004960', '$COMPANY_ID', '4960', 'Werbekosten (test)', 'expense', NOW())
+ON CONFLICT ("companyId", "accountNumber") DO NOTHING;
+
 INSERT INTO "VoucherLine" (id, "voucherId", "accountId", description, debit, credit, "vatRate", "vatAmount", "sortOrder", "costCenter", "costObject")
 VALUES
-  ('BK-HIST-001-L1', 'BK-HIST-001', 'd8833d31-5d04-479b-a5c8-40e1200c092b', 'Tier 49 VERTRIEB line 1', 0, 100, NULL, NULL, 0, 'VERTRIEB', NULL),
-  ('BK-HIST-001-L2', 'BK-HIST-001', 'd8833d31-5d04-479b-a5c8-40e1200c092b', 'Tier 49 VERTRIEB line 2', 100, 0, NULL, NULL, 1, 'VERTRIEB', NULL)
+  ('BK-HIST-001-L1', 'BK-HIST-001', (SELECT id FROM "Account" WHERE "companyId" = '$COMPANY_ID' AND "accountNumber" = '4960'), 'Tier 49 VERTRIEB line 1', 0, 100, NULL, NULL, 0, 'VERTRIEB', NULL),
+  ('BK-HIST-001-L2', 'BK-HIST-001', (SELECT id FROM "Account" WHERE "companyId" = '$COMPANY_ID' AND "accountNumber" = '4960'), 'Tier 49 VERTRIEB line 2', 100, 0, NULL, NULL, 1, 'VERTRIEB', NULL)
 ON CONFLICT (id) DO UPDATE SET debit = EXCLUDED.debit, credit = EXCLUDED.credit, "accountId" = EXCLUDED."accountId", "costCenter" = 'VERTRIEB';
 
 -- A Voucher whose line has konto = 8400 (Erlöse)
@@ -337,12 +359,12 @@ ON CONFLICT (id) DO UPDATE SET debit = EXCLUDED.debit, credit = EXCLUDED.credit,
 -- with seed data that already has a 1200 row.
 INSERT INTO "Account" (id, "companyId", "accountNumber", name, type, "createdAt")
 VALUES ('aabbccdd-1850-1850-1850-acc0008400', '$COMPANY_ID', '8400', 'Erlöse 19% (test)', 'revenue', NOW())
-ON CONFLICT ("companyId", "accountNumber") DO UPDATE SET name = 'Erlöse 19% (test)';
+ON CONFLICT ("companyId", "accountNumber") DO NOTHING;
 
 INSERT INTO "VoucherLine" (id, "voucherId", "accountId", description, debit, credit, "vatRate", "vatAmount", "sortOrder", "costCenter", "costObject")
 VALUES
-  ('aabbccdd-1850-1850-1850-000000000010', 'aabbccdd-1850-1850-1850-000000000001', '92b7d7a0-ec11-42a9-840f-14ddb4b90c68', 'Tier 185 Erloese ohne USt', 0, 119, NULL, NULL, 0, NULL, NULL),
-  ('aabbccdd-1850-1850-1850-000000000011', 'aabbccdd-1850-1850-1850-000000000001', 'aabbccdd-1850-1850-1850-acc0008400', 'Tier 185 Erloese ohne USt', 119, 0, NULL, NULL, 1, NULL, NULL)
+  ('aabbccdd-1850-1850-1850-000000000010', 'aabbccdd-1850-1850-1850-000000000001', (SELECT id FROM "Account" WHERE "companyId" = '$COMPANY_ID' AND "accountNumber" = '1200'), 'Tier 185 Erloese ohne USt', 0, 119, NULL, NULL, 0, NULL, NULL),
+  ('aabbccdd-1850-1850-1850-000000000011', 'aabbccdd-1850-1850-1850-000000000001', (SELECT id FROM "Account" WHERE "companyId" = '$COMPANY_ID' AND "accountNumber" = '8400'), 'Tier 185 Erloese ohne USt', 119, 0, NULL, NULL, 1, NULL, NULL)
 ON CONFLICT (id) DO UPDATE SET debit = EXCLUDED.debit, credit = EXCLUDED.credit, "accountId" = EXCLUDED."accountId", "vatRate" = NULL;
 
 -- An unknown (never-existing) invoice for 404 tests
