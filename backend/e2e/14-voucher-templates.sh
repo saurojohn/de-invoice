@@ -33,7 +33,7 @@ source "$SCRIPT_DIR/_lib.sh"
 login
 
 # Cleanup any prior test templates
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"VoucherTemplate\" WHERE \"companyId\" = '$COMPANY_ID';" >/dev/null 2>&1
 
 echo "=== Test: Voucher templates ==="
@@ -223,7 +223,7 @@ COUNT=$(echo "$BODY" | python3 -c "import json,sys; print(len(json.load(sys.stdi
 assert_eq "list after delete" "$COUNT" "0"
 
 # Cleanup
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"VoucherTemplate\" WHERE \"companyId\" = '$COMPANY_ID';" >/dev/null 2>&1
 
 echo

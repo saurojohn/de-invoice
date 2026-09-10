@@ -1,4 +1,3 @@
-import { Prisma } from '@prisma/client';
 
 /**
  * XRechnung Service — Tier 115/116

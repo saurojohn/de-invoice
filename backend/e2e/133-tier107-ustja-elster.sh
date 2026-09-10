@@ -170,16 +170,16 @@ assert_eq "no companyId → 400" "$STATUS_NCI" "400"
 # ===== 12. Missing taxId → 400 =====
 echo
 note "=== 12. Missing taxId in company profile → 400 ==="
-ORIG_TAXID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+ORIG_TAXID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT \"taxId\" FROM \"Company\" WHERE id='$COMPANY_ID';" 2>&1 | tr -d ' \n')
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "UPDATE \"Company\" SET \"taxId\"=NULL WHERE id='$COMPANY_ID';" >/dev/null
 STATUS_NOTAX=$(curl -sS -o /dev/null -w "%{http_code}" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
   "$API/api/v1/ustva/ustja/elster-xml?companyId=$COMPANY_ID&year=2026")
 assert_eq "no taxId → 400" "$STATUS_NOTAX" "400"
 # Restore taxId
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "UPDATE \"Company\" SET \"taxId\"='$ORIG_TAXID' WHERE id='$COMPANY_ID';" >/dev/null
 pass "restored taxId"
 

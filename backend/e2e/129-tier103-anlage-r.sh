@@ -52,7 +52,7 @@ echo
 note "=== 3. Without Rentenbezüge: einkuenfte == -102 (Pauschbetrag) ==="
 # Wipe any existing Rentenbezüge + Werbungs-
 # kosten for 2026
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   UPDATE \"Company\" SET settings = COALESCE(settings, '{}'::jsonb) || '{\"renten\": {\"2026\": {}}, \"rentenWerbungskosten\": {\"2026\": {}}}'::jsonb
   WHERE id = '$COMPANY_ID';" >/dev/null
 
@@ -209,7 +209,7 @@ note "=== 12. Berater packager EXCLUDES Anlage R when opt-out + no Renten ==="
 # has 0 Renten. The PDF should not be
 # included and the MANIFEST should not
 # mention Anlage R.
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   UPDATE \"Company\" SET settings = COALESCE(settings, '{}'::jsonb) || '{\"anlageR\": false, \"renten\": {}}'::jsonb
   WHERE id = '$COMPANY_ID';" >/dev/null
 
@@ -233,7 +233,7 @@ assert_eq "no Anlage R row in MANIFEST (opt-out)" "$MANIFEST_R_ROW" "0"
 rm -rf /tmp/berater-no-r-$TS "$ZIP_PATH"
 
 # Cleanup: remove the test Renten settings
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   UPDATE \"Company\" SET settings = settings - 'anlageR' - 'renten' - 'rentenWerbungskosten'
   WHERE id = '$COMPANY_ID';" >/dev/null
 

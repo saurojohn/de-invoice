@@ -1118,7 +1118,7 @@ export class AnlageSOV2Service {
       note?: string
     }>,
     totals: { vgTotal: number; wiederkehrendeBezuegeTotal: number; werbungskostenTotal: number; einkuenfte: number },
-    freigrenze: number,
+    _freigrenze: number,
   ): void {
     const tableTop = doc.y
     const colKz = 40

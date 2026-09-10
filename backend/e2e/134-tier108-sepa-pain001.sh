@@ -294,14 +294,14 @@ assert_eq "filename matches" "$FNAME" "SEPA_${BATCH_ID}.xml"
 # ===== 17. Expenses are now linked to the batch in the DB =====
 echo
 note "=== 17. Expenses linked to batch ==="
-LINKED=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+LINKED=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT COUNT(*) FROM \"Expense\" WHERE \"paidBySepaBatchId\" = '$BATCH_ID';")
 assert_eq "expenses linked to batch" "$LINKED" "3"
 
 # ===== 18. Expense paidAt set = executionDate =====
 echo
 note "=== 18. Expense paidAt set to executionDate ==="
-PAID_AT_OK=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+PAID_AT_OK=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT (COUNT(*) = 3)::text FROM \"Expense\" WHERE \"paidBySepaBatchId\" = '$BATCH_ID' AND \"paidAt\" = '$EXEC_DATE'::date;")
 assert_eq "paidAt = executionDate for all 3" "$PAID_AT_OK" "true"
 
@@ -340,7 +340,7 @@ test "$BIC_COUNT" -ge 3 && pass "BIC appears $BIC_COUNT times (≥ 3)" || fail "
 # ===== 24. Notes from the POST are persisted in SepaBatch =====
 echo
 note "=== 24. Notes persisted in SepaBatch ==="
-NOTES_PERSISTED=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+NOTES_PERSISTED=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT \"notes\" FROM \"SepaBatch\" WHERE id = '$BATCH_ID';")
 assert_eq "notes in SepaBatch" "$NOTES_PERSISTED" "$PREFIX-batch"
 

@@ -57,14 +57,14 @@ TEST_TAG="bwa-tier86-$TS"
 echo "=== Test: BWA (test tag: $TEST_TAG) ==="
 
 # Pre-cleanup: remove any orphan BWA-* fixtures
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "DELETE FROM \"InvoiceItem\" WHERE \"invoiceId\" IN (SELECT id FROM \"Invoice\" WHERE \"invoiceNumber\" LIKE 'BWA-%');" >/dev/null 2>&1
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "DELETE FROM \"Invoice\" WHERE \"invoiceNumber\" LIKE 'BWA-%';" >/dev/null 2>&1
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "DELETE FROM \"Expense\" WHERE \"invoiceNumber\" LIKE 'BWA-%';" >/dev/null 2>&1
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "DELETE FROM \"InvoiceItem\" WHERE \"invoiceId\" IN (SELECT id FROM \"Invoice\" WHERE \"invoiceNumber\" LIKE 'BWA-%');" >/dev/null 2>&1
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "DELETE FROM \"Invoice\" WHERE \"invoiceNumber\" LIKE 'BWA-%';" >/dev/null 2>&1
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "DELETE FROM \"Expense\" WHERE \"invoiceNumber\" LIKE 'BWA-%';" >/dev/null 2>&1
 
 cleanup() {
-  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "DELETE FROM \"InvoiceItem\" WHERE \"invoiceId\" IN (SELECT id FROM \"Invoice\" WHERE \"invoiceNumber\" LIKE 'BWA-${TS}-%');" >/dev/null 2>&1
-  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "DELETE FROM \"Invoice\" WHERE \"invoiceNumber\" LIKE 'BWA-${TS}-%';" >/dev/null 2>&1
-  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "DELETE FROM \"Expense\" WHERE \"invoiceNumber\" LIKE 'BWA-${TS}-%';" >/dev/null 2>&1
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "DELETE FROM \"InvoiceItem\" WHERE \"invoiceId\" IN (SELECT id FROM \"Invoice\" WHERE \"invoiceNumber\" LIKE 'BWA-${TS}-%');" >/dev/null 2>&1
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "DELETE FROM \"Invoice\" WHERE \"invoiceNumber\" LIKE 'BWA-${TS}-%';" >/dev/null 2>&1
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "DELETE FROM \"Expense\" WHERE \"invoiceNumber\" LIKE 'BWA-${TS}-%';" >/dev/null 2>&1
   echo "  cleanup: removed BWA-${TS}-* rows"
 }
 trap cleanup EXIT
@@ -78,7 +78,7 @@ VALUES
 EOF
 docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice < "$TMP_SQL"
 rm -f "$TMP_SQL"
-CUST_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+CUST_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT id FROM \"Customer\" WHERE \"companyId\"='$COMPANY_ID' AND \"customerNumber\"='BWA-${TS}-DE-1';" \
   2>&1 | tr -d ' ' | head -1)
 

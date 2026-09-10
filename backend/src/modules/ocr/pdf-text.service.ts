@@ -191,15 +191,15 @@ export class PdfTextService {
         Math.ceil(viewport.width),
         Math.ceil(viewport.height),
       )
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const ctx = (canvas as any).getContext('2d') as SKRSContext2D
       // Fill white background — pdfjs render is
       // transparent by default; tesseract needs a
       // light background for the model to find the
       // text reliably.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       ;(ctx as any).fillStyle = '#ffffff'
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       ;(ctx as any).fillRect(0, 0, canvas.width, canvas.height)
       await page.render({
         canvasContext: ctx,

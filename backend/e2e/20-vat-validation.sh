@@ -359,14 +359,14 @@ fi
 # 16. Cleanup — delete the test log rows AND the
 # test customers we created (the per-row endpoint
 # left FK-shaped log rows attached to them).
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"VatValidationLog\" WHERE \"entityId\" IN ('${REAL_CUST_ID}', '${NO_VAT_CUST}') OR \"entityId\" = '${ENTITY_ID}';" >/dev/null 2>&1
 if [[ -n "$REAL_CUST_ID" ]]; then
-  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
     "DELETE FROM \"Customer\" WHERE id = '${REAL_CUST_ID}';" >/dev/null 2>&1
 fi
 if [[ -n "$NO_VAT_CUST" ]]; then
-  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
     "DELETE FROM \"Customer\" WHERE id = '${NO_VAT_CUST}';" >/dev/null 2>&1
 fi
 pass "cleanup done"

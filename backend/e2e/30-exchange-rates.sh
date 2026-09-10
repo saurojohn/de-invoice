@@ -51,17 +51,17 @@ PAY_EUR_ID="e2e0e0e0-0001-0000-0007-000000000034"
 PAY_NOK_ID="e2e0e0e0-0001-0000-0007-000000000035"
 
 # Clean up any prior run
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   DELETE FROM \"Payment\" WHERE id IN ('$PAY_CHF_ID', '$PAY_EUR_ID', '$PAY_NOK_ID');
   DELETE FROM \"Invoice\" WHERE id IN ('$INV_CHF_ID', '$INV_EUR_ID', '$INV_NOK_ID');
   UPDATE \"Company\" SET settings = NULL WHERE id = '$COMPANY_ID';" >/dev/null 2>&1
 
 # Find a customer
-CUST_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
+CUST_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
   SELECT id FROM \"Customer\" WHERE \"companyId\" = '$COMPANY_ID' LIMIT 1;" 2>/dev/null | tr -d ' ')
 
 # Seed: 3 paid invoices in CHF, EUR, NOK
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   INSERT INTO \"Invoice\" (id, \"companyId\", \"customerId\", \"invoiceNumber\", \"sequenceNumber\",
     type, status, \"issueDate\", \"dueDate\",
     subtotal, \"totalVat\", total, currency, language, \"vatBreakdown\",
@@ -104,7 +104,7 @@ print(cols[16] if len(cols) > 16 else '')
 assert_eq "no snapshot: NOK rate defaults to 1,0000" "$NOK_RATE_NO_SNAP" "1,0000"
 
 # ===== 2) Set a snapshot, re-export =====
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   UPDATE \"Company\"
   SET settings = jsonb_build_object(
     'datev', jsonb_build_object(
@@ -235,7 +235,7 @@ else
 fi
 
 # Verify the snapshot was persisted
-PERSISTED=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
+PERSISTED=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
   SELECT settings::jsonb->'datev'->'exchangeRates'->>'date' FROM \"Company\" WHERE id = '$COMPANY_ID';" 2>/dev/null | tr -d ' ')
 if [[ "$PERSISTED" == "$NEW_DATE" ]]; then
   pass "refresh: snapshot persisted in DB"
@@ -244,7 +244,7 @@ else
 fi
 
 # ----- Cleanup -----
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   DELETE FROM \"Payment\" WHERE id IN ('$PAY_CHF_ID', '$PAY_EUR_ID', '$PAY_NOK_ID');
   DELETE FROM \"Invoice\" WHERE id IN ('$INV_CHF_ID', '$INV_EUR_ID', '$INV_NOK_ID');
   UPDATE \"Company\" SET settings = NULL WHERE id = '$COMPANY_ID';" >/dev/null 2>&1

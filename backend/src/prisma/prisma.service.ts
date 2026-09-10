@@ -1,5 +1,5 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
-import { PrismaClient, Prisma } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import { withAuditLog } from './audit-log.extension';
 
 // Tier 13: this is the "Request context" —
@@ -19,7 +19,7 @@ import { withAuditLog } from './audit-log.extension';
 // which is exactly the signal we want to
 // distinguish automated vs. user actions.
 declare global {
-  // eslint-disable-next-line no-var
+   
   var __deInvoiceRequestContext:
     | {
         userId: string | null
@@ -104,7 +104,7 @@ export class PrismaService
     for (const model of Object.keys(ext)) {
       // Skip internal $... methods
       if (model.startsWith('$')) continue
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       ;(this as any)[model] = ext[model]
     }
   }

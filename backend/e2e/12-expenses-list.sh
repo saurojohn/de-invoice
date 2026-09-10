@@ -21,7 +21,7 @@ source "$SCRIPT_DIR/_lib.sh"
 login
 
 # Cleanup any prior test data
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"VoucherLine\" WHERE \"voucherId\" IN (SELECT id FROM \"Voucher\" WHERE \"description\" LIKE '%[expense:%');
    DELETE FROM \"Voucher\" WHERE \"description\" LIKE '%[expense:%';
    DELETE FROM \"Expense\" WHERE \"invoiceNumber\" LIKE 'EXP-T6-%';" >/dev/null 2>&1
@@ -29,13 +29,13 @@ docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
 echo "=== Test: expenses list enrichment ==="
 
 # Account ids
-A4900=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+A4900=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT id FROM \"Account\" WHERE \"companyId\"='$COMPANY_ID' AND \"accountNumber\"='4900';" 2>/dev/null | grep -E '^[0-9a-f-]{36}$' | head -1)
-A1200=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+A1200=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT id FROM \"Account\" WHERE \"companyId\"='$COMPANY_ID' AND \"accountNumber\"='1200';" 2>/dev/null | grep -E '^[0-9a-f-]{36}$' | head -1)
-A1576=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+A1576=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT id FROM \"Account\" WHERE \"companyId\"='$COMPANY_ID' AND \"accountNumber\"='1576';" 2>/dev/null | grep -E '^[0-9a-f-]{36}$' | head -1)
-SUP_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+SUP_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT id FROM \"Supplier\" WHERE \"companyId\"='$COMPANY_ID' LIMIT 1;" 2>/dev/null | grep -E '^[0-9a-f-]{36}$' | head -1)
 
 # Create three test expenses in different states.
@@ -187,7 +187,7 @@ print(sum(1 for e in d.get('data', []) if e.get('invoiceNumber', '').startswith(
 assert_eq "supplierId filter returns 3 EXP-T6" "$SUP_HITS" "3"
 
 # Cleanup
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"VoucherLine\" WHERE \"voucherId\" IN (SELECT id FROM \"Voucher\" WHERE \"description\" LIKE '%[expense:%');
    DELETE FROM \"Voucher\" WHERE \"description\" LIKE '%[expense:%';
    DELETE FROM \"Expense\" WHERE \"invoiceNumber\" LIKE 'EXP-T6-%';" >/dev/null 2>&1

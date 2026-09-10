@@ -140,13 +140,13 @@ pass "created 3 invoices (EUR 1000, USD 1000, CHF 1000)"
 
 # ───── 2. EUR invoice: eurTotal mirrors total ─────
 note "=== 2. EUR invoice: eurTotal = total, exchangeRate = 1.0000 ==="
-EUR_INV=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+EUR_INV=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT id FROM \"Invoice\" WHERE \"invoiceNumber\"='${PREFIX}-EUR';" 2>&1 | tr -d ' ' | head -1)
-EUR_RATE=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+EUR_RATE=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT \"exchangeRate\"::text FROM \"Invoice\" WHERE id='$EUR_INV';" 2>&1 | tr -d ' ' | head -1)
-EUR_EUR_TOTAL=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+EUR_EUR_TOTAL=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT \"eurTotal\"::text FROM \"Invoice\" WHERE id='$EUR_INV';" 2>&1 | tr -d ' ' | head -1)
-EUR_TOTAL=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+EUR_TOTAL=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT total::text FROM \"Invoice\" WHERE id='$EUR_INV';" 2>&1 | tr -d ' ' | head -1)
 test "$EUR_RATE" = "1.000000" -o "$EUR_RATE" = "1.0000" && pass "EUR invoice: exchangeRate=1.0 (stored: $EUR_RATE)" \
   || fail "EUR invoice: exchangeRate=$EUR_RATE (expected 1.0*)"
@@ -155,13 +155,13 @@ test "$EUR_EUR_TOTAL" = "$EUR_TOTAL" && pass "EUR invoice: eurTotal=total ($EUR_
 
 # ───── 3. USD invoice: eurTotal = total / rate ─────
 note "=== 3. USD invoice: eurTotal = total / rate ==="
-USD_INV=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+USD_INV=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT id FROM \"Invoice\" WHERE \"invoiceNumber\"='${PREFIX}-USD';" 2>&1 | tr -d ' ' | head -1)
-USD_RATE=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+USD_RATE=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT \"exchangeRate\"::text FROM \"Invoice\" WHERE id='$USD_INV';" 2>&1 | tr -d ' ' | head -1)
-USD_EUR_TOTAL=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+USD_EUR_TOTAL=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT \"eurTotal\"::text FROM \"Invoice\" WHERE id='$USD_INV';" 2>&1 | tr -d ' ' | head -1)
-USD_TOTAL=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+USD_TOTAL=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT total::text FROM \"Invoice\" WHERE id='$USD_INV';" 2>&1 | tr -d ' ' | head -1)
 test "$USD_RATE" = "$USD_RATE" && [ -n "$USD_RATE" ] && pass "USD invoice: exchangeRate=$USD_RATE" \
   || fail "USD invoice: exchangeRate=$USD_RATE"
@@ -177,11 +177,11 @@ test "$USD_TOTAL" = "1190.0000" && pass "USD invoice: original total stays 1190.
 
 # ───── 4. CHF invoice: same pattern ─────
 note "=== 4. CHF invoice: eurTotal = total / CHF rate ==="
-CHF_INV=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+CHF_INV=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT id FROM \"Invoice\" WHERE \"invoiceNumber\"='${PREFIX}-CHF';" 2>&1 | tr -d ' ' | head -1)
-CHF_RATE=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+CHF_RATE=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT \"exchangeRate\"::text FROM \"Invoice\" WHERE id='$CHF_INV';" 2>&1 | tr -d ' ' | head -1)
-CHF_EUR_TOTAL=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+CHF_EUR_TOTAL=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT \"eurTotal\"::text FROM \"Invoice\" WHERE id='$CHF_INV';" 2>&1 | tr -d ' ' | head -1)
 EXPECTED_EUR=$(python3 -c "print(round(1190.0 / float('$CHF_RATE'), 4))")
 DIFF=$(python3 -c "print(abs(float('$CHF_EUR_TOTAL') - $EXPECTED_EUR))")
@@ -203,7 +203,7 @@ note "=== 5. EÜR aggregation: sums all invoices in EUR ==="
 # trap didn't fire). The PRE should reflect "all 2026
 # invoices except our 3 test ones + any GUV-test
 # residue from a prior run".
-PRE_4100=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+PRE_4100=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT COALESCE(SUM(COALESCE(\"eurSubtotal\", subtotal)),0)::text FROM \"Invoice\" WHERE \"companyId\"='$COMPANY_ID' AND status IN ('paid','sent','overdue') AND \"invoiceNumber\" NOT LIKE '${PREFIX}-%' AND \"invoiceNumber\" NOT LIKE 'GUV-%' AND EXTRACT(YEAR FROM \"issueDate\")=${YEAR};" 2>&1 | tr -d ' ' | head -1)
 
 EXPECTED_DELTA=$(python3 -c "

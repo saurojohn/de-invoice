@@ -184,7 +184,7 @@ echo "$DAILY_FOUND" | grep -q "0 4 \* \* \*" && pass "daily-auto-backup schedule
 note "=== 6. Cleanup ==="
 # Best-effort: delete any T120- prefixed CronHealth rows (none should exist
 # unless a cron tick fired during the test).
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"CronHealth\" WHERE name = 'daily-auto-backup';" >/dev/null 2>&1 || true
 pass "cleaned up test fixtures (any daily-auto-backup tick row)"
 

@@ -52,7 +52,7 @@ import {
   generateMahnungPDF,
   computeNeueFrist,
 } from "./mahnung-pdf.service"
-import { countWerktage, isWerktag } from "./werktage"
+import { countWerktage } from "./werktage"
 import { ErrorTrackingService } from "../system/error-tracking.service"
 
 const LEVELS: Array<"first" | "second" | "final"> = ["first", "second", "final"]

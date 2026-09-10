@@ -20,7 +20,7 @@ import { HeaderAuthGuard } from '../../auth/header-auth.guard'
 import { RolesGuard } from '../../auth/roles.guard'
 import { Require } from '../../auth/roles.decorator'
 import { CurrentUser } from '../../auth/roles.decorator'
-import { WebhookService, WebhookEvent } from './webhook.service'
+import { WebhookService } from './webhook.service'
 import { PrismaService } from '../../prisma/prisma.service'
 import { AuditService } from '../audit/audit.service'
 

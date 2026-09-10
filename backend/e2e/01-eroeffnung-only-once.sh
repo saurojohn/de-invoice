@@ -40,7 +40,7 @@ else
 fi
 
 # Verify only 1 row in DB
-COUNT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+COUNT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT count(*) FROM \"CashBookEntry\" WHERE \"companyId\" = '$COMPANY_ID' AND type = 'eroeffnung';" 2>/dev/null | tr -d ' ')
 assert_eq "eroeffnung rows in DB" "$COUNT" "1"
 

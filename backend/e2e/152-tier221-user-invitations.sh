@@ -55,7 +55,7 @@ else
 fi
 
 # Verify the invitation row exists in the DB
-DB_CHECK=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+DB_CHECK=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT email, role, \"acceptedAt\" FROM \"UserInvitation\" WHERE id='$INVITE_ID';" 2>/dev/null | head -1 | tr -d ' \n')
 note "DB row: $DB_CHECK"
 DB_EMAIL=$(echo "$DB_CHECK" | cut -d'|' -f1)
@@ -106,7 +106,7 @@ fi
 # a UserCompany pivot table — that's reserved for users with
 # access to multiple companies). Check immediately, before
 # cleanup at the end of the script deletes the row.
-USER_CHECK=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+USER_CHECK=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT email, \"companyId\", role, status FROM \"User\" WHERE id='$NEW_USER_ID';" 2>/dev/null | head -1 | tr -d ' \n')
 note "User row: $USER_CHECK"
 if [[ "$USER_CHECK" == *"$COMPANY_ID"* ]] && [[ "$USER_CHECK" == *"accountant"* ]]; then
@@ -131,7 +131,7 @@ api_post "/api/v1/users/invitations?companyId=$COMPANY_ID" "{
 }" >/dev/null
 EXPIRED_INV_ID=$(echo "$BODY" | python3 -c "import sys,json;print(json.load(sys.stdin).get('id',''))")
 # Force-expire + corrupt token hash
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "UPDATE \"UserInvitation\" SET \"expiresAt\"='2020-01-01 00:00:00', \"tokenHash\"='\$2b\$10\$invalidinvalidinvalidinvalidinvalidinvalidinvalidinvalidinvalidi' WHERE id='$EXPIRED_INV_ID';" >/dev/null 2>&1
 note "expired invitation seeded (id=$EXPIRED_INV_ID) — testing accept path requires the plaintext token which is in console.warn, not the DB"
 # Note: we don't have a clean way to test accept-on-expired
@@ -140,7 +140,7 @@ note "expired invitation seeded (id=$EXPIRED_INV_ID) — testing accept path req
 # (the controller's expiresAt check IS the test that
 # matters; we verify it via direct SQL: the row is
 # past expiresAt = expired).
-DB_EXPIRES=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+DB_EXPIRES=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT \"expiresAt\" FROM \"UserInvitation\" WHERE id='$EXPIRED_INV_ID';" 2>/dev/null | head -1 | tr -d ' \n')
 if [[ "$DB_EXPIRES" == "2020-01-01"* ]]; then
   pass "expired invitation row has past expiresAt (DB: $DB_EXPIRES)"
@@ -197,10 +197,10 @@ fi
 # ========== Cleanup ==========
 # Delete the accepted user (the User row, not UserCompany,
 # since de-invoice stores companyId on User directly)
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"User\" WHERE id='$NEW_USER_ID';" >/dev/null 2>&1
 # Delete the invitations (all of them for our test emails)
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"UserInvitation\" WHERE email LIKE 'tier221-%@example.com';" >/dev/null 2>&1
 pass "cleanup complete (invitations + accepted user)"
 

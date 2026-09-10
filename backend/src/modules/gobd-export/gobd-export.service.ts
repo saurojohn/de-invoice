@@ -16,7 +16,7 @@ import { SigningService } from '../signing/signing.service'
 // it's because someone added `import * as
 // archiver from 'archiver'` and assumed
 // top-level callable — archiver v8 is not.
-// eslint-disable-next-line @typescript-eslint/no-var-requires
+ 
 const archiverLib: any = require('archiver')
 import * as crypto from 'crypto'
 

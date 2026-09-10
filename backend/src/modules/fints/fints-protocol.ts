@@ -56,13 +56,6 @@ export interface Segment {
   body: Record<string, any>
 }
 
-/**
- * Pad a numeric value to a fixed width with
- * leading zeros, e.g. pad(7, 4) = '0007'.
- */
-function pad(n: number, width: number): string {
-  return String(n).padStart(width, '0')
-}
 
 /**
  * Escape a string for inclusion in a FinTS

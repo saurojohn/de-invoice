@@ -25,11 +25,11 @@ login
 INVOICE_ID="14906169-ea2a-4ea2-878c-45acc9052d0e"
 
 # Backup bankInfo, force known state with IBAN
-BANKINFO_BACKUP=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+BANKINFO_BACKUP=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT \"bankInfo\" FROM \"Company\" WHERE id='$COMPANY_ID';")
 note "BANKINFO_BACKUP=$BANKINFO_BACKUP"
 
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -q -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -q -c \
   "UPDATE \"Company\" SET \"bankInfo\" = '{\"bic\":\"COBADEFFXXX\",\"iban\":\"DE89370400440532013000\",\"bankName\":\"Commerzbank\"}'::jsonb WHERE id='$COMPANY_ID';" >/dev/null 2>&1
 
 # ---- 1. 200 + image/png + PNG magic bytes ----
@@ -64,7 +64,7 @@ SIZE=$(wc -c < /tmp/tier225-qr.png | tr -d ' ')
 [ "$SIZE" -gt 1024 ] && pass "PNG size = ${SIZE}B (> 1KB — real QR data)" || fail "PNG size = ${SIZE}B (too small)"
 
 # ---- 5. 404 when no IBAN ----
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -q -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -q -c \
   "UPDATE \"Company\" SET \"bankInfo\" = '{\"bic\":\"\",\"iban\":\"\",\"bankName\":\"\"}'::jsonb WHERE id='$COMPANY_ID';" >/dev/null 2>&1
 HTTP=$(curl -sS -o /tmp/tier225-noiban.json -w "%{http_code}" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
@@ -74,7 +74,7 @@ grep -q "Keine IBAN" /tmp/tier225-noiban.json && pass "No-IBAN error message in 
 
 # ---- 6. 404 on fake invoice id ----
 # Restore IBAN first so the failure mode is "not found", not "no IBAN"
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -q -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -q -c \
   "UPDATE \"Company\" SET \"bankInfo\" = '{\"bic\":\"COBADEFFXXX\",\"iban\":\"DE89370400440532013000\",\"bankName\":\"Commerzbank\"}'::jsonb WHERE id='$COMPANY_ID';" >/dev/null 2>&1
 HTTP=$(curl -sS -o /tmp/tier225-fake.json -w "%{http_code}" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
@@ -97,7 +97,7 @@ grep -q "companyId ist erforderlich" /tmp/tier225-nocomp.json && pass "Missing-c
 # ---- Cleanup ----
 if [ -n "$BANKINFO_BACKUP" ] && [ "$BANKINFO_BACKUP" != "" ]; then
   ESCAPED_BANKINFO=$(echo "$BANKINFO_BACKUP" | sed "s/'/''/g")
-  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -q -c \
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -q -c \
     "UPDATE \"Company\" SET \"bankInfo\" = '$ESCAPED_BANKINFO'::jsonb WHERE id='$COMPANY_ID';" >/dev/null 2>&1
   pass "Restored original bankInfo"
 fi

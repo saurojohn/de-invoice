@@ -42,12 +42,12 @@ TEST_TAG="storno-tier90-$TS"
 echo "=== Test: AfA-Storno (test tag: $TEST_TAG) ==="
 
 # Pre-cleanup
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "DELETE FROM \"Expense\" WHERE \"relatedAssetId\" IN (SELECT id FROM \"Asset\" WHERE bezeichnung LIKE 'T90-${TS}-%');" >/dev/null 2>&1
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "DELETE FROM \"Asset\" WHERE bezeichnung LIKE 'T90-${TS}-%';" >/dev/null 2>&1
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "DELETE FROM \"Expense\" WHERE \"relatedAssetId\" IN (SELECT id FROM \"Asset\" WHERE bezeichnung LIKE 'T90-${TS}-%');" >/dev/null 2>&1
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "DELETE FROM \"Asset\" WHERE bezeichnung LIKE 'T90-${TS}-%';" >/dev/null 2>&1
 
 cleanup() {
-  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "DELETE FROM \"Expense\" WHERE \"relatedAssetId\" IN (SELECT id FROM \"Asset\" WHERE bezeichnung LIKE 'T90-${TS}-%');" >/dev/null 2>&1
-  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "DELETE FROM \"Asset\" WHERE bezeichnung LIKE 'T90-${TS}-%';" >/dev/null 2>&1
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "DELETE FROM \"Expense\" WHERE \"relatedAssetId\" IN (SELECT id FROM \"Asset\" WHERE bezeichnung LIKE 'T90-${TS}-%');" >/dev/null 2>&1
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "DELETE FROM \"Asset\" WHERE bezeichnung LIKE 'T90-${TS}-%';" >/dev/null 2>&1
   echo "  cleanup: removed T90-${TS}-* rows"
 }
 trap cleanup EXIT
@@ -60,7 +60,7 @@ VALUES (gen_random_uuid()::text, '$COMPANY_ID', 'Maschine', 'T90-${TS}-Maschine'
 EOF
 docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice < "$TMP_SQL"
 rm -f "$TMP_SQL"
-ASSET_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+ASSET_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT id FROM \"Asset\" WHERE \"companyId\"='$COMPANY_ID' AND bezeichnung='T90-${TS}-Maschine';" \
   2>&1 | tr -d ' ' | head -1)
 echo "  created asset $ASSET_ID (annualAfA=1200)"
@@ -83,7 +83,7 @@ curl -sS -X POST \
   "$API/api/v1/assets/book-afa?companyId=$COMPANY_ID&year=2026" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" > /dev/null
 # Check the row exists
-BEFORE=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+BEFORE=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT COUNT(*) FROM \"Expense\" WHERE \"relatedAssetId\"='$ASSET_ID' AND \"category\"='AfA';" \
   2>&1 | tr -d ' ')
 assert_eq "AfA rows before storno" "$BEFORE" "1"
@@ -96,7 +96,7 @@ STORNO_TOTAL1=$(echo "$STORNO1" | python3 -c "import json,sys; print(json.load(s
 assert_eq "stornoedCount = 1" "$STORNO_COUNT1" "1"
 assert_eq "stornoedTotal = 1200" "$STORNO_TOTAL1" "1200"
 # Check the row is gone
-AFTER=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+AFTER=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT COUNT(*) FROM \"Expense\" WHERE \"relatedAssetId\"='$ASSET_ID' AND \"category\"='AfA';" \
   2>&1 | tr -d ' ')
 assert_eq "AfA rows after storno" "$AFTER" "0"
@@ -122,7 +122,7 @@ curl -sS -X POST \
   "$API/api/v1/assets/book-afa-monthly?companyId=$COMPANY_ID&year=2026" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" > /dev/null
 # Verify 12 rows
-BEFORE_M=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+BEFORE_M=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT COUNT(*) FROM \"Expense\" WHERE \"relatedAssetId\"='$ASSET_ID' AND \"category\"='AfA';" \
   2>&1 | tr -d ' ')
 assert_eq "monthly AfA rows before storno" "$BEFORE_M" "12"
@@ -134,7 +134,7 @@ STORNO_COUNT2=$(echo "$STORNO2" | python3 -c "import json,sys; print(json.load(s
 STORNO_TOTAL2=$(echo "$STORNO2" | python3 -c "import json,sys; print(json.load(sys.stdin)['stornoedTotal'])")
 assert_eq "stornoedCount = 12" "$STORNO_COUNT2" "12"
 assert_eq "stornoedTotal = 1200" "$STORNO_TOTAL2" "1200"
-AFTER_M=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+AFTER_M=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT COUNT(*) FROM \"Expense\" WHERE \"relatedAssetId\"='$ASSET_ID' AND \"category\"='AfA';" \
   2>&1 | tr -d ' ')
 assert_eq "monthly AfA rows after storno" "$AFTER_M" "0"
@@ -188,7 +188,7 @@ assert_eq "cross-tenant → 401" "$STATUS_XT" "401"
 # ===== 9. Audit log entry exists with the right data =====
 echo
 echo "=== 9. Audit log 'assets.afa.stornoed' entry ==="
-AUDIT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+AUDIT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT
     COALESCE(\"oldData\"->>'year', 'NULL') || '|' ||
     COALESCE(\"oldData\"->>'mode', 'NULL') || '|' ||

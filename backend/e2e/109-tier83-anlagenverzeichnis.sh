@@ -46,11 +46,11 @@ echo "=== Test: Anlagenverzeichnis + AfA (test tag: $TEST_TAG) ==="
 # `-i` — see the de-invoice-patterns memory
 # entry "docker exec psql heredoc silently
 # fails on macOS").
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "DELETE FROM \"Asset\" WHERE \"bezeichnung\" LIKE 'AVZ-%' OR \"notiz\" LIKE 'AVZ-%';" >/dev/null 2>&1
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "DELETE FROM \"Asset\" WHERE \"bezeichnung\" LIKE 'AVZ-%' OR \"notiz\" LIKE 'AVZ-%';" >/dev/null 2>&1
 
 cleanup() {
-  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "DELETE FROM \"Asset\" WHERE \"bezeichnung\" LIKE 'AVZ-${TS}-%' OR \"notiz\" LIKE 'AVZ-${TS}-%';" >/dev/null 2>&1
-  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "DELETE FROM \"Asset\" WHERE \"bezeichnung\" LIKE 'AVZ-%' OR \"notiz\" LIKE 'AVZ-%';" >/dev/null 2>&1
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "DELETE FROM \"Asset\" WHERE \"bezeichnung\" LIKE 'AVZ-${TS}-%' OR \"notiz\" LIKE 'AVZ-${TS}-%';" >/dev/null 2>&1
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "DELETE FROM \"Asset\" WHERE \"bezeichnung\" LIKE 'AVZ-%' OR \"notiz\" LIKE 'AVZ-%';" >/dev/null 2>&1
   echo "  cleanup: removed AVZ-${TS}-* (and any leaked AVZ-*) assets"
 }
 trap cleanup EXIT

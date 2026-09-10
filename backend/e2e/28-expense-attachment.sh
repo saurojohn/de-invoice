@@ -38,13 +38,13 @@ SUPP_ID="e2e0e0e0-0001-0000-0007-0000000000a2"
 EXP_NO="E2E-T7B-EXP-01"
 
 # Clean up any prior run (idempotent re-runs)
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   DELETE FROM \"Attachment\" WHERE \"entityType\" = 'expense' AND \"entityId\" = '$EXP_ID';
   DELETE FROM \"Expense\" WHERE id = '$EXP_ID';
   DELETE FROM \"Supplier\" WHERE id = '$SUPP_ID';" >/dev/null 2>&1
 
 # Create a Supplier (Expense needs one for the FK)
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   INSERT INTO \"Supplier\" (id, \"companyId\", name, address, \"createdAt\", \"updatedAt\")
   VALUES ('$SUPP_ID', '$COMPANY_ID', 'E2E T7B Supplier', '{\"country\":\"DE\"}'::jsonb, now(), now());
   INSERT INTO \"Expense\" (id, \"companyId\", \"supplierId\", \"invoiceNumber\", description, \"invoiceDate\",
@@ -86,7 +86,7 @@ note "uploaded attachment id=$ATT_ID path=$ATT_PATH mime=$ATT_MIME"
 rm -f "$TMPF"
 
 # Verify Attachment row exists
-ATT_COUNT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
+ATT_COUNT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
   SELECT count(*) FROM \"Attachment\" WHERE id = '$ATT_ID';
 " 2>/dev/null | tr -d ' ')
 assert_eq "Attachment row exists" "$ATT_COUNT" "1"
@@ -191,7 +191,7 @@ DEL_STATUS=$(curl -sS -X DELETE -o /dev/null -w "%{http_code}" \
 assert_eq "DELETE /attachment returns 200" "$DEL_STATUS" "200"
 
 # Verify the Attachment row is gone
-ROW_COUNT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
+ROW_COUNT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
   SELECT count(*) FROM \"Attachment\" WHERE id = '$ATT_ID';
 " 2>/dev/null | tr -d ' ')
 assert_eq "deleted Attachment row gone" "$ROW_COUNT" "0"
@@ -204,16 +204,16 @@ COUNT_PRESENT=$(unzip -l /tmp/bundle-att3.zip 2>/dev/null | grep -F -c "Belegbil
 assert_eq "bundle back to 1 attachment after delete" "$COUNT_PRESENT" "1"
 
 # ----- Cleanup -----
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   DELETE FROM \"Attachment\" WHERE \"entityType\" = 'expense' AND \"entityId\" = '$EXP_ID';
   DELETE FROM \"Expense\" WHERE id = '$EXP_ID';
   DELETE FROM \"Supplier\" WHERE id = '$SUPP_ID';" >/dev/null 2>&1
 # Also clean up the second attachment's file on disk
-ATT_PATH2=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+ATT_PATH2=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT \"storagePath\" FROM \"Attachment\" WHERE id = '$ATT_ID2';" 2>/dev/null | tr -d ' ')
 if [[ -n "$ATT_PATH2" ]]; then
   rm -f "/Users/shledergmbh/data/invoice-system/$ATT_PATH2"
-  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
     DELETE FROM \"Attachment\" WHERE id = '$ATT_ID2';" >/dev/null 2>&1
 fi
 note "Cleanup done"

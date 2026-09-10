@@ -155,7 +155,7 @@ note "=== 3. BWA: invoiceMonat (May 2026) in EUR ==="
 # Capture PRE (before the 2 test invoices) so we can
 # compute the delta cleanly. We use the same invoice
 # query the BWA does to compute the baseline.
-PRE_BWA=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+PRE_BWA=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT COALESCE(SUM(COALESCE(\"eurSubtotal\", \"subtotal\")),0)::text FROM \"Invoice\" WHERE \"companyId\"='$COMPANY_ID' AND status IN ('paid','sent','overdue') AND EXTRACT(YEAR FROM \"issueDate\")=${YEAR} AND EXTRACT(MONTH FROM \"issueDate\")=5 AND \"invoiceNumber\" NOT LIKE '${PREFIX}-%';" 2>&1 | tr -d ' ' | head -1)
 api_get "/api/v1/reports/bwa?year=$YEAR&month=5&companyId=$COMPANY_ID"
 BWA_UMSATZ=$(echo "$BODY" | python3 -c "
@@ -177,7 +177,7 @@ test "$(python3 -c "print(float('$USD_DELTA') >= float('$USD_EUR_SUB') * 0.9)")"
 
 # ───── 4. PnL: revenue (eurSubtotal) used, not subtotal ─────
 note "=== 4. PnL: revenue should be in EUR (not original) ==="
-PRE_PNL=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+PRE_PNL=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT COALESCE(SUM(COALESCE(\"eurSubtotal\", \"subtotal\")),0)::text FROM \"Invoice\" WHERE \"companyId\"='$COMPANY_ID' AND status IN ('paid','sent','overdue','draft') AND EXTRACT(YEAR FROM \"issueDate\")=${YEAR} AND EXTRACT(MONTH FROM \"issueDate\")=5 AND \"invoiceNumber\" NOT LIKE '${PREFIX}-%';" 2>&1 | tr -d ' ' | head -1)
 api_get "/api/v1/reports/pnl?year=$YEAR&companyId=$COMPANY_ID"
 PNL_MAY=$(echo "$BODY" | python3 -c "
@@ -196,7 +196,7 @@ test "$(python3 -c "print(float('$PNL_DELTA') >= float('$USD_EUR_SUB') * 0.9)")"
 
 # ───── 5. GuV: umsatzerloese aggregates in EUR ─────
 note "=== 5. GuV: umsatzerloese in EUR ==="
-PRE_GUV=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+PRE_GUV=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT COALESCE(SUM(COALESCE(\"eurSubtotal\", \"subtotal\")),0)::text FROM \"Invoice\" WHERE \"companyId\"='$COMPANY_ID' AND status IN ('paid','sent','overdue') AND EXTRACT(YEAR FROM \"issueDate\")=${YEAR} AND \"invoiceNumber\" NOT LIKE '${PREFIX}-%';" 2>&1 | tr -d ' ' | head -1)
 api_get "/api/v1/accounting/guv?year=$YEAR&companyId=$COMPANY_ID"
 GUV_UMS=$(echo "$BODY" | python3 -c "

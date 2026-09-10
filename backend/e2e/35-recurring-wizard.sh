@@ -14,12 +14,12 @@ login
 cleanup_cashbook
 
 echo "=== Test: Tier 8 Recurring invoice CRUD + preview + run ==="
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   DELETE FROM \"RecurringRun\" WHERE \"companyId\" = '$COMPANY_ID';
   DELETE FROM \"RecurringInvoice\" WHERE \"companyId\" = '$COMPANY_ID';
   DELETE FROM \"Invoice\" WHERE \"invoiceNumber\" LIKE 'E2E-REC-%';" >/dev/null 2>&1
 
-CUST_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
+CUST_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
   SELECT id FROM \"Customer\" WHERE \"companyId\" = '$COMPANY_ID' LIMIT 1;" 2>/dev/null | tr -d ' ')
 
 # ===== 1. Create template =====
@@ -66,7 +66,7 @@ else
 fi
 
 # ===== 7. Verify the generated invoice =====
-INV_NO=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
+INV_NO=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
   SELECT \"invoiceNumber\" FROM \"Invoice\" WHERE id = '$INVOICE_ID';" 2>/dev/null | tr -d ' ')
 if [[ -n "$INV_NO" ]]; then
   pass "7. generated invoice exists with number $INV_NO"
@@ -75,7 +75,7 @@ else
 fi
 
 # Verify it has the right line items
-LINE_COUNT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
+LINE_COUNT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
   SELECT count(*) FROM \"InvoiceItem\" WHERE \"invoiceId\" = '$INVOICE_ID';" 2>/dev/null | tr -d ' ')
 assert_eq "7b. invoice has 1 line item" "$LINE_COUNT" "1"
 
@@ -94,7 +94,7 @@ COUNT=$(echo "$BODY" | python3 -c "import json,sys; print(len(json.load(sys.stdi
 assert_eq "9b. list empty after delete" "$COUNT" "0"
 
 # ----- Cleanup -----
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   DELETE FROM \"RecurringRun\" WHERE \"companyId\" = '$COMPANY_ID';
   DELETE FROM \"RecurringInvoice\" WHERE \"companyId\" = '$COMPANY_ID';
   DELETE FROM \"InvoiceItem\" WHERE \"invoiceId\" = '$INVOICE_ID';

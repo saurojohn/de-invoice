@@ -133,13 +133,13 @@ assert_eq "replay nonexistent → 404" "$STATUS" "404"
 # to replay from the caller's company. Use a direct
 # Prisma insert via psql (we don't have a second
 # company / user / login context handy).
-OTHER_DELIVERY_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+OTHER_DELIVERY_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "INSERT INTO \"WebhookDelivery\" (id, \"webhookId\", \"companyId\", \"eventType\", \"eventId\", payload, status, \"retryCount\") VALUES ('tier218-other', '$WEBHOOK_ID', '00000000-0000-0000-0000-000000000001', 'webhook.test', 'other-event', '{}'::jsonb, 'success', 0) RETURNING id;" 2>/dev/null | tr -d ' \n')
 if [[ -n "$OTHER_DELIVERY_ID" ]]; then
   api_post "/api/v1/webhooks/deliveries/$OTHER_DELIVERY_ID/replay?companyId=$COMPANY_ID" ""
   assert_eq "cross-tenant replay → 404" "$STATUS" "404"
   # Cleanup
-  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
     "DELETE FROM \"WebhookDelivery\" WHERE id='$OTHER_DELIVERY_ID';" >/dev/null 2>&1
 else
   note "could not seed cross-tenant delivery (psql failed); skipping"
@@ -147,12 +147,12 @@ fi
 
 # ========== Test 5: Replay on inactive webhook → 400 ==========
 # Pause the webhook via Prisma directly
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "UPDATE \"Webhook\" SET status='paused' WHERE id='$WEBHOOK_ID';" >/dev/null 2>&1
 
 # Create a new delivery row (paused webhook can't fire
 # test, so seed one directly)
-SEED_DELIVERY_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+SEED_DELIVERY_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "INSERT INTO \"WebhookDelivery\" (id, \"webhookId\", \"companyId\", \"eventType\", \"eventId\", payload, status, \"retryCount\") VALUES ('tier218-paused', '$WEBHOOK_ID', '$COMPANY_ID', 'webhook.test', 'paused-event', '{}'::jsonb, 'success', 0) RETURNING id;" 2>/dev/null | head -1 | tr -d ' \n')
 if [[ -n "$SEED_DELIVERY_ID" ]]; then
   api_post "/api/v1/webhooks/deliveries/$SEED_DELIVERY_ID/replay?companyId=$COMPANY_ID" ""
@@ -164,10 +164,10 @@ if [[ -n "$SEED_DELIVERY_ID" ]]; then
     fail "expected 'not active' in: $REPLAY_MSG"
   fi
   # Restore webhook to active for the requeue test
-  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
     "UPDATE \"Webhook\" SET status='active' WHERE id='$WEBHOOK_ID';" >/dev/null 2>&1
   # Cleanup the seed delivery
-  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
     "DELETE FROM \"WebhookDelivery\" WHERE id='$SEED_DELIVERY_ID';" >/dev/null 2>&1
 fi
 
@@ -184,7 +184,7 @@ fi
 
 # ========== Test 7: Requeue happy path ==========
 # Set original to exhausted
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "UPDATE \"WebhookDelivery\" SET status='exhausted', \"retryCount\"=3, \"nextRetryAt\"='2099-12-31 23:59:59' WHERE id='$DELIVERY_ID';" >/dev/null 2>&1
 
 api_post "/api/v1/webhooks/deliveries/$DELIVERY_ID/requeue?companyId=$COMPANY_ID" ""
@@ -230,9 +230,9 @@ else:
 assert_eq "requeue activity log written" "$ACTIVITY_HIT" "found"
 
 # ========== Cleanup ==========
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"WebhookDelivery\" WHERE \"webhookId\"='$WEBHOOK_ID';" >/dev/null 2>&1
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"Webhook\" WHERE id='$WEBHOOK_ID';" >/dev/null 2>&1
 pass "cleanup complete (webhook + deliveries)"
 

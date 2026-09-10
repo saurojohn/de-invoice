@@ -76,17 +76,17 @@ fi
 # Section 1: Schema — the new encrypted PIN columns exist
 # ─────────────────────────────────────────────────────────────
 echo "=== 1. Schema: encrypted PIN columns ==="
-HAS_ENCRYPTED=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
+HAS_ENCRYPTED=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
   SELECT count(*) FROM information_schema.columns
   WHERE table_name='FinTSConnection' AND column_name='encryptedPin';" 2>/dev/null | tr -d ' ')
 assert_eq "encryptedPin column exists" "$HAS_ENCRYPTED" "1"
 
-HAS_IV=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
+HAS_IV=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
   SELECT count(*) FROM information_schema.columns
   WHERE table_name='FinTSConnection' AND column_name='pinIv';" 2>/dev/null | tr -d ' ')
 assert_eq "pinIv column exists" "$HAS_IV" "1"
 
-HAS_TAG=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
+HAS_TAG=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
   SELECT count(*) FROM information_schema.columns
   WHERE table_name='FinTSConnection' AND column_name='pinTag';" 2>/dev/null | tr -d ' ')
 assert_eq "pinTag column exists" "$HAS_TAG" "1"
@@ -127,7 +127,7 @@ assert_eq "Two encryptions have different IVs" "$IV_UNIQUE" "DIFF"
 login
 
 # Clean prior state for this company
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   DELETE FROM \"BankReconciliation\" WHERE \"companyId\" = '$COMPANY_ID';
   DELETE FROM \"BankTransaction\" WHERE \"companyId\" = '$COMPANY_ID';
   DELETE FROM \"BankStatement\" WHERE \"companyId\" = '$COMPANY_ID' AND format LIKE 'fints-%';
@@ -153,11 +153,11 @@ else
 fi
 
 # Verify the new columns are populated
-ENC_PIN=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
+ENC_PIN=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
   SELECT \"encryptedPin\" FROM \"FinTSConnection\" WHERE id='$CONN_ID';" 2>/dev/null | tr -d ' ')
-ENC_IV=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
+ENC_IV=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
   SELECT \"pinIv\" FROM \"FinTSConnection\" WHERE id='$CONN_ID';" 2>/dev/null | tr -d ' ')
-ENC_TAG=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
+ENC_TAG=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
   SELECT \"pinTag\" FROM \"FinTSConnection\" WHERE id='$CONN_ID';" 2>/dev/null | tr -d ' ')
 
 if [[ -n "$ENC_PIN" && "$ENC_PIN" != "null" ]]; then
@@ -206,7 +206,7 @@ fi
 # ─────────────────────────────────────────────────────────────
 echo
 echo "=== 7. Cleanup ==="
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   DELETE FROM \"FinTSSyncRun\" WHERE \"companyId\" = '$COMPANY_ID';
   DELETE FROM \"FinTSConnection\" WHERE \"companyId\" = '$COMPANY_ID';" >/dev/null 2>&1
 pass "7. Test fixtures cleaned up"

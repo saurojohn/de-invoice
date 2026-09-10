@@ -47,12 +47,12 @@ echo "=== Test: AfA-Buchung (test tag: $TEST_TAG) ==="
 
 # Pre-cleanup: any leftover AfA-tier87-* assets
 # from previous runs (orphan from crashed test).
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "DELETE FROM \"Expense\" WHERE \"relatedAssetId\" IN (SELECT id FROM \"Asset\" WHERE bezeichnung LIKE 'AfA-${TS}-%');" >/dev/null 2>&1
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "DELETE FROM \"Asset\" WHERE bezeichnung LIKE 'AfA-${TS}-%';" >/dev/null 2>&1
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "DELETE FROM \"Expense\" WHERE \"relatedAssetId\" IN (SELECT id FROM \"Asset\" WHERE bezeichnung LIKE 'AfA-${TS}-%');" >/dev/null 2>&1
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "DELETE FROM \"Asset\" WHERE bezeichnung LIKE 'AfA-${TS}-%';" >/dev/null 2>&1
 
 cleanup() {
-  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "DELETE FROM \"Expense\" WHERE \"relatedAssetId\" IN (SELECT id FROM \"Asset\" WHERE bezeichnung LIKE 'AfA-${TS}-%');" >/dev/null 2>&1
-  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "DELETE FROM \"Asset\" WHERE bezeichnung LIKE 'AfA-${TS}-%';" >/dev/null 2>&1
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "DELETE FROM \"Expense\" WHERE \"relatedAssetId\" IN (SELECT id FROM \"Asset\" WHERE bezeichnung LIKE 'AfA-${TS}-%');" >/dev/null 2>&1
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "DELETE FROM \"Asset\" WHERE bezeichnung LIKE 'AfA-${TS}-%';" >/dev/null 2>&1
   echo "  cleanup: removed AfA-${TS}-* rows"
 }
 trap cleanup EXIT
@@ -67,7 +67,7 @@ VALUES (gen_random_uuid()::text, '$COMPANY_ID', 'Maschine', 'AfA-${TS}-Maschine'
 EOF
 docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice < "$TMP_SQL"
 rm -f "$TMP_SQL"
-ASSET_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+ASSET_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT id FROM \"Asset\" WHERE \"companyId\"='$COMPANY_ID' AND bezeichnung='AfA-${TS}-Maschine';" \
   2>&1 | tr -d ' ' | head -1)
 echo "  created asset $ASSET_ID"
@@ -212,7 +212,7 @@ assert_eq "Anlage S afaBookings = 1" "$ANS_AFA_BOOKINGS" "1"
 # ===== 8. Booked AfA row has the right shape =====
 echo
 echo "=== 8. Booked AfA Expense row shape ==="
-ROW_SHAPE=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
+ROW_SHAPE=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
 SELECT category || '|' ||
        COALESCE(\"relatedAssetId\", 'NULL') || '|' ||
        COALESCE(\"afaYear\"::text, 'NULL') || '|' ||

@@ -204,7 +204,7 @@ const BETRIEBSAUSGABEN_LINES: Array<{ kz: string; label: string; matcher: (exp: 
   {
     kz: '2890',
     label: 'Sonstige Betriebsausgaben',
-    matcher: (exp) => true, // catch-all fallback
+    matcher: (_exp) => true, // catch-all fallback
   },
 ]
 

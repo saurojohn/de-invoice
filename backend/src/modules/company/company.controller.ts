@@ -1,9 +1,8 @@
-import { Controller, Get, Put, Patch, Post, Body, Param, UseInterceptors, UploadedFile, BadRequestException, Req, UseGuards, Header } from '@nestjs/common';
+import { Controller, Get, Put, Patch, Post, Body, Param, UseInterceptors, UploadedFile, BadRequestException, Req } from '@nestjs/common';
 import { CompanyService } from './company.service';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Auth, Require } from '../../auth/roles.decorator';
-import { HeaderAuthGuard } from '../../auth/header-auth.guard';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   SKR03_DEFAULTS,

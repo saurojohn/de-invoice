@@ -55,7 +55,7 @@ rm -f "$TMP"
 echo
 note "=== 3. Without Kinder: anzahlKinder == 0 + kindergeldTotal == 0 ==="
 # Wipe any existing Kinder for 2026
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   UPDATE \"Company\" SET settings = COALESCE(settings, '{}'::jsonb) || '{\"kinder\": {\"2026\": []}}'::jsonb
   WHERE id = '$COMPANY_ID';" >/dev/null
 
@@ -201,7 +201,7 @@ rm -rf /tmp/berater-kind-$TS "$ZIP_PATH"
 echo
 note "=== 11. Berater packager EXCLUDES Anlage Kind when opt-out + no Kinder ==="
 # Force opt-out + no Kinder for 2024
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   UPDATE \"Company\" SET settings = COALESCE(settings, '{}'::jsonb) || '{\"anlageKind\": false, \"kinder\": {}}'::jsonb
   WHERE id = '$COMPANY_ID';" >/dev/null
 
@@ -225,7 +225,7 @@ assert_eq "no Anlage Kind row in MANIFEST (opt-out)" "$MANIFEST_KIND_ROW" "0"
 rm -rf /tmp/berater-no-kind-$TS "$ZIP_PATH"
 
 # Cleanup: remove the test Kinder + anlageKind settings
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   UPDATE \"Company\" SET settings = settings - 'anlageKind' - 'kinder'
   WHERE id = '$COMPANY_ID';" >/dev/null
 

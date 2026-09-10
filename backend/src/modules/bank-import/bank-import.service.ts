@@ -461,7 +461,7 @@ export class BankImportService {
   async confirmMatch(
     companyId: string,
     reconciliationId: string,
-    userId: string | undefined,
+    _userId: string | undefined,
   ) {
     const recon = await this.prisma.bankReconciliation.findFirst({
       where: { id: reconciliationId, companyId },

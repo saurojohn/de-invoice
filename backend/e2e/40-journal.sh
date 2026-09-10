@@ -55,9 +55,9 @@ DELETE FROM "Voucher" WHERE "companyId" = '${COMPANY_ID}' AND "voucherNumber" LI
 EOF
 
 # Look up SKR03 test accounts
-ACC_1200=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
+ACC_1200=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
   SELECT id FROM \"Account\" WHERE \"companyId\" = '${COMPANY_ID}' AND \"accountNumber\" = '1200';" 2>/dev/null | tr -d ' ' | head -1)
-ACC_4900=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
+ACC_4900=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
   SELECT id FROM \"Account\" WHERE \"companyId\" = '${COMPANY_ID}' AND \"accountNumber\" = '4900';" 2>/dev/null | tr -d ' ' | head -1)
 
 cat > /tmp/t40_seed.sql << EOF

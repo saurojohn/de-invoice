@@ -32,7 +32,7 @@ cleanup_cashbook
 
 echo "=== Test: Tier 7 Custom invoice templates ==="
 # Clean prior state
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   DELETE FROM \"InvoiceTemplate\" WHERE \"companyId\" = '$COMPANY_ID';" >/dev/null 2>&1
 
 # ----- 1. Empty list -----
@@ -84,7 +84,7 @@ T2_DEF=$(echo "$BODY" | python3 -c "import json,sys; print(json.load(sys.stdin)[
 assert_eq "6b. T2 is now default" "$T2_DEF" "True"
 
 # Verify T1 is no longer default
-T1_STILL_DEF=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
+T1_STILL_DEF=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
   SELECT \"isDefault\"::text FROM \"InvoiceTemplate\" WHERE id = '$T1_ID';" 2>/dev/null | tr -d ' ')
 assert_eq "6c. T1 demoted from default" "$T1_STILL_DEF" "false"
 
@@ -132,7 +132,7 @@ COUNT=$(echo "$BODY" | python3 -c "import json,sys; print(len(json.load(sys.stdi
 assert_eq "12. list shows 1 after delete" "$COUNT" "1"
 
 # ----- Cleanup -----
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   DELETE FROM \"InvoiceTemplate\" WHERE \"companyId\" = '$COMPANY_ID';" >/dev/null 2>&1
 note "Cleanup done"
 

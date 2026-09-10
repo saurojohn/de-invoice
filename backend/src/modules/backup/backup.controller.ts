@@ -37,7 +37,7 @@
  * cron-health). Tier 119.5 added the role assignment
  * to Berater + Mandant in users.service.ts.
  */
-import { Controller, Delete, Get, HttpCode, Param, Post, Res } from '@nestjs/common'
+import { Controller, Delete, Get, HttpCode, Param, Post } from '@nestjs/common'
 import { Throttle } from '@nestjs/throttler'
 import type { Response } from 'express'
 import { Auth, Require } from '../../auth/roles.decorator'

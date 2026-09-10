@@ -40,7 +40,7 @@ SQL
 pass "wiped prior tier-63 fixtures"
 
 # Pick a real customer for the fixtures
-CUST_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
+CUST_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
   SELECT id FROM \"Customer\" WHERE \"companyId\" = '$COMPANY_ID' LIMIT 1;" 2>/dev/null | tr -d ' ' | head -1)
 [[ -n "$CUST_ID" ]] && pass "picked a real customer: $CUST_ID" || fail "no customer to use"
 
@@ -277,7 +277,7 @@ else
 fi
 
 # Verify the template got auto-disabled (isActive=false)
-ACTIVE=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
+ACTIVE=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
   SELECT CASE WHEN \"isActive\" THEN 'true' ELSE 'false' END FROM \"RecurringInvoice\" WHERE id = '$TPL3_ID';" 2>&1 | tr -d ' ')
 if [[ "$ACTIVE" == "false" ]]; then
   pass "template auto-disabled (isActive=false)"

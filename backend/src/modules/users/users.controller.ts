@@ -168,13 +168,13 @@ export class UsersController {
         });
       }
       if (process.env.NODE_ENV !== 'production') {
-        // eslint-disable-next-line no-console
+         
         console.warn(
           `[DEV-INVITE-LINK] company=${companyId} email=${inv.email} role=${inv.role} link=${link}`
         );
       }
     } catch (err) {
-      // eslint-disable-next-line no-console
+       
       console.error(`Failed to email invitation to ${inv.email}: ${(err as Error).message}`);
     }
 

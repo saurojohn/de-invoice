@@ -71,7 +71,7 @@ assert_eq "month einnahmen" "$MS_EIN" "300"
 assert_eq "month ausgaben" "$MS_AUS" "50"
 
 # Storno on 6/1 — endbestand recomputes correctly
-EID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+EID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT id FROM \"CashBookEntry\" WHERE \"companyId\" = '$COMPANY_ID' AND type = 'ausgabe' AND amount = 50 LIMIT 1;" 2>/dev/null | tr -d ' ')
 api_post "/api/v1/cashbook/entries/$EID/reverse?companyId=$COMPANY_ID" \
   "{\"reason\":\"Storno Test\",\"createdById\":\"$USER_ID\"}" >/dev/null

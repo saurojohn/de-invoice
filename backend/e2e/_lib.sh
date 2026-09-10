@@ -12,6 +12,10 @@ set -uo pipefail
 API="${API:-http://localhost:3001}"
 EMAIL="${TEST_EMAIL:-info@shleder.de}"
 PASSWORD="${TEST_PASSWORD:-Test1234!}"
+# Tier 355: honour PG_CONTAINER so the suite can run against a
+# throwaway database, matching ci-seed.sh and (since Tier 353) the
+# Playwright specs. Default unchanged.
+PG_CONTAINER="${PG_CONTAINER:-de-invoice-postgres}"
 
 # ---- Colour helpers (skip if NO_COLOR is set or not a tty) ----
 if [[ -t 1 ]] && [[ -z "${NO_COLOR:-}" ]]; then
@@ -68,9 +72,9 @@ EOF
 
 # ---- DB cleanup (delete all cashbook rows for the test company) ----
 cleanup_cashbook() {
-  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
     "DELETE FROM \"CashBookEntry\" WHERE \"companyId\" = '$COMPANY_ID';" >/dev/null 2>&1
-  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
     "DELETE FROM \"CashBookDailyClose\" WHERE \"companyId\" = '$COMPANY_ID';" >/dev/null 2>&1
 }
 

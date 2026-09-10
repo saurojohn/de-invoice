@@ -109,140 +109,151 @@ export class CustomerStatementBatchService {
     // (search for `new archiver.ZipArchive`).
     const archiver = await import('archiver')
 
-    const zipBuffer = await new Promise<Buffer>(async (resolve, reject) => {
-      const archive = new (archiver as any).ZipArchive({ zlib: { level: 6 } })
-      const chunks: Buffer[] = []
-      archive.on('data', (c: Buffer) => chunks.push(c))
-      archive.on('end', () => resolve(Buffer.concat(chunks)))
-      archive.on('error', reject)
+    // Tier 355: the executor used to be `async (resolve, reject) => {...}`,
+    // which eslint flags as no-async-promise-executor. The danger is that a
+    // throw from an await inside an async executor rejects an invisible
+    // promise, not this one -- so the outer `await` would hang forever
+    // instead of failing. Today every await in the body sits inside the
+    // per-customer try/catch, so nothing leaks yet; this makes that
+    // structural rather than accidental. The executor is now synchronous
+    // and the async work runs in an IIFE whose rejection is routed to
+    // reject().
+    const zipBuffer = await new Promise<Buffer>((resolve, reject) => {
+      void (async () => {
+        const archive = new (archiver as any).ZipArchive({ zlib: { level: 6 } })
+        const chunks: Buffer[] = []
+        archive.on('data', (c: Buffer) => chunks.push(c))
+        archive.on('end', () => resolve(Buffer.concat(chunks)))
+        archive.on('error', reject)
 
-      // We generate PDFs SERIALLY (not Promise.all) because:
-      // 1. Each PDF takes ~50ms; parallel only saves time if
-      //    we have CPU headroom (a 4-core VPS handles ~4 PDFs
-      //    in parallel before saturating)
-      // 2. Prisma's default pool size is 8 (set via the
-      //    connection_limit=8 in DATABASE_URL). 8 concurrent
-      //    transaction-heavy operations would saturate the
-      //    pool and queue subsequent requests
-      // 3. Serial is predictable — easier to debug if a
-      //    specific customer's data triggers an error
-      //
-      // If we ever need parallelism, wrap the per-customer
-      // work in `pMap(cust, ..., { concurrency: 4 })`.
-      const indexRows: string[] = [
-        [
-          'customerNumber',
-          'name',
-          'openingBalance',
-          'closingBalance',
-          'invoicesAmount',
-          'paymentsAmount',
-          'openAmount',
-          'pdfFilename',
-        ].join(';'),
-      ]
-      let totalOpenBalance = 0
-      let totalOverdueCount = 0
+        // We generate PDFs SERIALLY (not Promise.all) because:
+        // 1. Each PDF takes ~50ms; parallel only saves time if
+        //    we have CPU headroom (a 4-core VPS handles ~4 PDFs
+        //    in parallel before saturating)
+        // 2. Prisma's default pool size is 8 (set via the
+        //    connection_limit=8 in DATABASE_URL). 8 concurrent
+        //    transaction-heavy operations would saturate the
+        //    pool and queue subsequent requests
+        // 3. Serial is predictable — easier to debug if a
+        //    specific customer's data triggers an error
+        //
+        // If we ever need parallelism, wrap the per-customer
+        // work in `pMap(cust, ..., { concurrency: 4 })`.
+        const indexRows: string[] = [
+          [
+            'customerNumber',
+            'name',
+            'openingBalance',
+            'closingBalance',
+            'invoicesAmount',
+            'paymentsAmount',
+            'openAmount',
+            'pdfFilename',
+          ].join(';'),
+        ]
+        let totalOpenBalance = 0
+        let totalOverdueCount = 0
 
-      for (const cust of customers) {
-        try {
-          // Re-use the single-customer service. We import
-          // dynamically so this module doesn't have a hard
-          // dep on CustomerStatementService.
-          const { CustomerStatementService } = await import(
-            './customer-statement.service'
-          )
-          const svc = new CustomerStatementService(this.prisma)
-          const stmt: CustomerStatement = await svc.generate(
-            params.companyId,
-            cust.id,
-            params.from,
-            params.to,
-            params.order,
-          )
+        for (const cust of customers) {
+          try {
+            // Re-use the single-customer service. We import
+            // dynamically so this module doesn't have a hard
+            // dep on CustomerStatementService.
+            const { CustomerStatementService } = await import(
+              './customer-statement.service'
+            )
+            const svc = new CustomerStatementService(this.prisma)
+            const stmt: CustomerStatement = await svc.generate(
+              params.companyId,
+              cust.id,
+              params.from,
+              params.to,
+              params.order,
+            )
 
-          const pdf = await generateStatementPdf(stmt)
-          const fname = this.safeFilename(stmt)
-          archive.append(pdf, { name: fname })
+            const pdf = await generateStatementPdf(stmt)
+            const fname = this.safeFilename(stmt)
+            archive.append(pdf, { name: fname })
 
-          // Open-balance > 0 means the customer owes us money
-          // (with overdue = past the period.to date). For the
-          // batch summary we count any positive closing as
-          // "owed" — true overdue tracking needs the per-invoice
-          // dueDate which isn't in the statement timeline.
-          // For a "total receivables" view this is enough.
-          totalOpenBalance += stmt.totals.openAmount
-          if (stmt.totals.openAmount > 0) totalOverdueCount += 1
+            // Open-balance > 0 means the customer owes us money
+            // (with overdue = past the period.to date). For the
+            // batch summary we count any positive closing as
+            // "owed" — true overdue tracking needs the per-invoice
+            // dueDate which isn't in the statement timeline.
+            // For a "total receivables" view this is enough.
+            totalOpenBalance += stmt.totals.openAmount
+            if (stmt.totals.openAmount > 0) totalOverdueCount += 1
 
-          indexRows.push(
-            [
-              stmt.customer.customerNumber || '',
-              this.csvEscape(stmt.customer.name),
-              this.fmtEur(stmt.openingBalance),
-              this.fmtEur(stmt.closingBalance),
-              this.fmtEur(stmt.totals.invoicesAmount),
-              this.fmtEur(stmt.totals.paymentsAmount),
-              this.fmtEur(stmt.totals.openAmount),
-              fname,
-            ].join(';'),
-          )
-        } catch (e: any) {
-          // Don't let one bad customer fail the whole batch.
-          // Log to index.csv so the operator can investigate.
-          // The customer's PDF is skipped (no entry in ZIP
-          // except via the error row).
-          const errMsg = e?.message || String(e)
-          console.error(
-            `[customer-statement-batch] ${cust.customerNumber || cust.id} (${cust.name}) failed:`,
-            errMsg,
-          )
-          indexRows.push(
-            [
-              cust.customerNumber || '',
-              this.csvEscape(cust.name),
-              'ERROR',
-              'ERROR',
-              '',
-              '',
-              '',
-              `(error: ${this.csvEscape(errMsg)})`,
-            ].join(';'),
-          )
+            indexRows.push(
+              [
+                stmt.customer.customerNumber || '',
+                this.csvEscape(stmt.customer.name),
+                this.fmtEur(stmt.openingBalance),
+                this.fmtEur(stmt.closingBalance),
+                this.fmtEur(stmt.totals.invoicesAmount),
+                this.fmtEur(stmt.totals.paymentsAmount),
+                this.fmtEur(stmt.totals.openAmount),
+                fname,
+              ].join(';'),
+            )
+          } catch (e: any) {
+            // Don't let one bad customer fail the whole batch.
+            // Log to index.csv so the operator can investigate.
+            // The customer's PDF is skipped (no entry in ZIP
+            // except via the error row).
+            const errMsg = e?.message || String(e)
+            console.error(
+              `[customer-statement-batch] ${cust.customerNumber || cust.id} (${cust.name}) failed:`,
+              errMsg,
+            )
+            indexRows.push(
+              [
+                cust.customerNumber || '',
+                this.csvEscape(cust.name),
+                'ERROR',
+                'ERROR',
+                '',
+                '',
+                '',
+                `(error: ${this.csvEscape(errMsg)})`,
+              ].join(';'),
+            )
+          }
         }
-      }
 
-      // index.csv — semicolon-separated (matches DATEV
-      // convention + Excel-friendly on Windows where DE
-      // users typically open these).
-      archive.append(
-        Buffer.from(indexRows.join('\n'), 'utf-8'),
-        { name: 'index.csv' },
-      )
+        // index.csv — semicolon-separated (matches DATEV
+        // convention + Excel-friendly on Windows where DE
+        // users typically open these).
+        archive.append(
+          Buffer.from(indexRows.join('\n'), 'utf-8'),
+          { name: 'index.csv' },
+        )
 
-      // summary.txt — short human-readable generation metadata.
-      const summary = [
-        'de-invoice Batch Kontoauszug',
-        '============================',
-        '',
-        `Period:        ${params.from.toISOString().slice(0, 10)} – ${params.to.toISOString().slice(0, 10)}`,
-        `Customer count: ${customers.length}${overflow ? ' (TRUNCATED — over the ' + max + ' cap)' : ''}`,
-        `Total open balance: ${this.fmtEur(totalOpenBalance)}`,
-        `Customers with open balance: ${totalOverdueCount}`,
-        `Generated at:  ${new Date().toISOString()}`,
-        '',
-        'Structure:',
-        '  Kontoauszug_<CustomerNumber>_<Name>_<from>_<to>.pdf — one per customer',
-        '  index.csv — customer list + closing balances',
-        '  summary.txt — this file',
-        '',
-        'The Berater (Steuerberater) imports the EXTF bundle',
-        'via DATEV Rechnungswesen "Buchungsstapel einlesen".',
-      ].join('\n')
-      archive.append(Buffer.from(summary, 'utf-8'), {
-        name: 'summary.txt',
-      })
+        // summary.txt — short human-readable generation metadata.
+        const summary = [
+          'de-invoice Batch Kontoauszug',
+          '============================',
+          '',
+          `Period:        ${params.from.toISOString().slice(0, 10)} – ${params.to.toISOString().slice(0, 10)}`,
+          `Customer count: ${customers.length}${overflow ? ' (TRUNCATED — over the ' + max + ' cap)' : ''}`,
+          `Total open balance: ${this.fmtEur(totalOpenBalance)}`,
+          `Customers with open balance: ${totalOverdueCount}`,
+          `Generated at:  ${new Date().toISOString()}`,
+          '',
+          'Structure:',
+          '  Kontoauszug_<CustomerNumber>_<Name>_<from>_<to>.pdf — one per customer',
+          '  index.csv — customer list + closing balances',
+          '  summary.txt — this file',
+          '',
+          'The Berater (Steuerberater) imports the EXTF bundle',
+          'via DATEV Rechnungswesen "Buchungsstapel einlesen".',
+        ].join('\n')
+        archive.append(Buffer.from(summary, 'utf-8'), {
+          name: 'summary.txt',
+        })
 
-      archive.finalize()
+        archive.finalize()
+      })().catch(reject)
     })
 
     return {

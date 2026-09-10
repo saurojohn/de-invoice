@@ -41,7 +41,7 @@ cleanup_cashbook
 
 echo "=== Test: Tier 7.5 Custom template applied to real PDF ==="
 # ----- Clean prior state -----
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   DELETE FROM \"InvoiceTemplate\" WHERE \"companyId\" = '$COMPANY_ID';" >/dev/null 2>&1
 
 # ----- Seed a self-sufficient customer + invoice (Polish #10) -----
@@ -54,7 +54,7 @@ docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
 # so we wipe the mandate first to keep the seed idempotent
 # across re-runs.
 CUST_EMAIL="t34-$(date +%s)@example.com"
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   DELETE FROM \"SepaDirectDebitCollection\" WHERE \"companyId\" = '$COMPANY_ID';
   DELETE FROM \"SepaDirectDebitBatch\"     WHERE \"companyId\" = '$COMPANY_ID';
   DELETE FROM \"SepaDirectDebitMandate\"   WHERE \"companyId\" = '$COMPANY_ID';
@@ -194,7 +194,7 @@ assert_eq "6c. back to Helvetica (regular + bold)" "$HELV_FALLBACK" "2"
 assert_eq "6d. no Courier font after delete" "$COURIER_FALLBACK" "0"
 
 # ----- Cleanup -----
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   DELETE FROM \"InvoiceTemplate\" WHERE \"companyId\" = '$COMPANY_ID';" >/dev/null 2>&1
 note "Cleanup done"
 

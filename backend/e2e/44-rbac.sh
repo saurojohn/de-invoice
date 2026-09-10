@@ -62,6 +62,8 @@
 # only that they exist with the right role.
 
 set -uo pipefail
+# Tier 355: honour PG_CONTAINER (this script does not source _lib.sh).
+PG_CONTAINER="${PG_CONTAINER:-de-invoice-postgres}"
 HOST="${HOST:-http://localhost:3001}"
 PASS=0
 FAIL=0
@@ -113,7 +115,7 @@ ACCOUNTANT_EMAIL="rbac-acc-${RUN_ID}@example.com"
 
 # Cleanup any prior test users from previous
 # runs (idempotent).
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"User\" WHERE email IN ('$VIEWER_EMAIL', '$ACCOUNTANT_EMAIL');" >/dev/null 2>&1
 
 echo "=== Setup: insert viewer + accountant ==="
@@ -140,7 +142,7 @@ ON CONFLICT ("userId", "companyId") DO NOTHING;
 SQL
 
 # Verify the inserts
-DB_CHECK=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+DB_CHECK=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT role FROM \"User\" WHERE id IN ('$VIEWER_ID', '$ACCOUNTANT_ID') ORDER BY role;" 2>&1 | tr -d ' ' | tr '\n' ',' | head -1)
 assert_eq "viewer + accountant rows inserted" "accountant,viewer," "$DB_CHECK"
 
@@ -305,9 +307,9 @@ assert_eq "accountant GET /invoices → 200 (sanity)" "200" "$A_INVOICE"
 
 echo
 echo "=== Cleanup ==="
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"User\" WHERE id IN ('$VIEWER_ID', '$ACCOUNTANT_ID');" >/dev/null 2>&1
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"UserInvitation\" WHERE \"companyId\"='$COMPANY_ID' AND email LIKE 'rbac-%';" >/dev/null 2>&1
 
 echo

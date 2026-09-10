@@ -44,7 +44,7 @@
  * and patch any flags it raises.
  */
 
-import { PDFDocument, AFRelationship, PDFName, PDFArray, PDFDict, PDFStream, PDFRawStream, PDFRef } from 'pdf-lib';
+import { PDFDocument, AFRelationship, PDFName, PDFArray, PDFDict } from 'pdf-lib';
 import { randomUUID } from 'crypto';
 
 /**

@@ -40,12 +40,12 @@ TEST_TAG="afam-tier89-$TS"
 echo "=== Test: AfA monatlich (test tag: $TEST_TAG) ==="
 
 # Pre-cleanup: any leftover AfA from previous runs
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "DELETE FROM \"Expense\" WHERE \"relatedAssetId\" IN (SELECT id FROM \"Asset\" WHERE bezeichnung LIKE 'T89-${TS}-%');" >/dev/null 2>&1
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "DELETE FROM \"Asset\" WHERE bezeichnung LIKE 'T89-${TS}-%';" >/dev/null 2>&1
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "DELETE FROM \"Expense\" WHERE \"relatedAssetId\" IN (SELECT id FROM \"Asset\" WHERE bezeichnung LIKE 'T89-${TS}-%');" >/dev/null 2>&1
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "DELETE FROM \"Asset\" WHERE bezeichnung LIKE 'T89-${TS}-%';" >/dev/null 2>&1
 
 cleanup() {
-  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "DELETE FROM \"Expense\" WHERE \"relatedAssetId\" IN (SELECT id FROM \"Asset\" WHERE bezeichnung LIKE 'T89-${TS}-%');" >/dev/null 2>&1
-  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "DELETE FROM \"Asset\" WHERE bezeichnung LIKE 'T89-${TS}-%';" >/dev/null 2>&1
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "DELETE FROM \"Expense\" WHERE \"relatedAssetId\" IN (SELECT id FROM \"Asset\" WHERE bezeichnung LIKE 'T89-${TS}-%');" >/dev/null 2>&1
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "DELETE FROM \"Asset\" WHERE bezeichnung LIKE 'T89-${TS}-%';" >/dev/null 2>&1
   echo "  cleanup: removed T89-${TS}-* rows"
 }
 trap cleanup EXIT
@@ -61,7 +61,7 @@ VALUES (gen_random_uuid()::text, '$COMPANY_ID', 'Maschine', 'T89-${TS}-Maschine'
 EOF
 docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice < "$TMP_SQL"
 rm -f "$TMP_SQL"
-ASSET_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+ASSET_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT id FROM \"Asset\" WHERE \"companyId\"='$COMPANY_ID' AND bezeichnung='T89-${TS}-Maschine';" \
   2>&1 | tr -d ' ' | head -1)
 echo "  created asset $ASSET_ID (annualAfA=2400, monthlyAfA=200)"
@@ -82,7 +82,7 @@ assert_eq "total = 2400" "$TOTAL" "2400"
 # ===== 2. DB shape: each row has afaMonth set =====
 echo
 echo "=== 2. Booked AfA rows in DB (12 rows, afaMonth 1..12) ==="
-DB_SHAPE=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
+DB_SHAPE=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
 SELECT
   COUNT(*) || '|' ||
   COUNT(*) FILTER (WHERE \"afaMonth\" IS NOT NULL) || '|' ||
@@ -102,7 +102,7 @@ assert_eq "sum of grossAmount = -2400" "$SUM_GROSS" "-2400.0000"
 # ===== 3. Per-month check: 12 rows, one per month =====
 echo
 echo "=== 3. Per-month AfA rows (200 each) ==="
-PER_MONTH=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
+PER_MONTH=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
 SELECT
   \"afaMonth\" || '|' || \"grossAmount\"
 FROM \"Expense\"
@@ -201,7 +201,7 @@ assert_eq "2nd call skippedAlreadyCount = 12" "$SKIPPED2" "12"
 # ===== 9. Storno the monthly booking, then annual booking succeeds =====
 echo
 echo "=== 9. Storno monthly → annual booking succeeds ==="
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "DELETE FROM \"Expense\" WHERE \"relatedAssetId\" IN (SELECT id FROM \"Asset\" WHERE bezeichnung LIKE 'T89-${TS}-%');" >/dev/null 2>&1
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "DELETE FROM \"Expense\" WHERE \"relatedAssetId\" IN (SELECT id FROM \"Asset\" WHERE bezeichnung LIKE 'T89-${TS}-%');" >/dev/null 2>&1
 RESULT3=$(curl -sS -X POST \
   "$API/api/v1/assets/book-afa?companyId=$COMPANY_ID&year=2026" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID")

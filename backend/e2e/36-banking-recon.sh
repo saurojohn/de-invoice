@@ -46,7 +46,7 @@ EOF
 docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice < /tmp/t36_cleanup.sql >/dev/null 2>&1
 
 # Seed 3 reconciliations with different confidences
-CUST_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
+CUST_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
   SELECT id FROM \"Customer\" WHERE \"companyId\" = '$COMPANY_ID' LIMIT 1;" 2>/dev/null | tr -d ' ')
 
 # Need 3 invoices + 3 bank transactions + 3 reconciliations
@@ -109,7 +109,7 @@ api_post "/api/v1/bank-statements/reconciliations/e2e00009-0001-0000-0007-000000
 assert_status 201 "4. confirm high-confidence recon (201)"
 
 # Status should now be 'confirmed' in DB
-NEW_STATUS=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
+NEW_STATUS=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
   SELECT status FROM \"BankReconciliation\" WHERE id = 'e2e00009-0001-0000-0007-000000000030';" 2>/dev/null | tr -d ' ')
 assert_eq "4b. status flipped to confirmed" "$NEW_STATUS" "confirmed"
 
@@ -127,7 +127,7 @@ assert_eq "5b. status=suggested only = 2" "$COUNT" "2"
 # ===== 6. Reject recon 031 (confidence 80) =====
 api_post "/api/v1/bank-statements/reconciliations/e2e00009-0001-0000-0007-000000000031/reject?companyId=$COMPANY_ID" '{}'
 assert_status 201 "6. reject recon (201)"
-REJ_STATUS=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
+REJ_STATUS=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
   SELECT status FROM \"BankReconciliation\" WHERE id = 'e2e00009-0001-0000-0007-000000000031';" 2>/dev/null | tr -d ' ')
 assert_eq "6b. status flipped to rejected" "$REJ_STATUS" "rejected"
 

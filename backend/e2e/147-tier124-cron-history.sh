@@ -33,7 +33,7 @@ note "=== Test: Tier 124 — Cron history ($CRON_NAME) ==="
 
 # ───── 0. Wipe any prior rows for this test cron ─────
 note "=== 0. Cleanup ==="
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"CronHealth\" WHERE name='$CRON_NAME';" >/dev/null
 pass "wiped prior test rows for $CRON_NAME"
 
@@ -44,13 +44,13 @@ note "=== 1. Insert 4 fake rows ==="
 # inside a `<<SQL` heredoc piped to docker exec don't
 # always expand). The Tier 117 XRechnung test also
 # uses single-line INSERTs for the same reason.
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "INSERT INTO \"CronHealth\" (id, name, status, \"startedAt\", \"durationMs\", summary, \"errorMessage\") VALUES (gen_random_uuid()::text, '$CRON_NAME', 'success', now() - interval '1 minute', 100, 'run 1 ok', NULL);" >/dev/null
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "INSERT INTO \"CronHealth\" (id, name, status, \"startedAt\", \"durationMs\", summary, \"errorMessage\") VALUES (gen_random_uuid()::text, '$CRON_NAME', 'failed', now() - interval '2 minutes', 500, NULL, 'connection refused');" >/dev/null
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "INSERT INTO \"CronHealth\" (id, name, status, \"startedAt\", \"durationMs\", summary, \"errorMessage\") VALUES (gen_random_uuid()::text, '$CRON_NAME', 'success', now() - interval '3 minutes', 200, 'run 3 ok', NULL);" >/dev/null
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "INSERT INTO \"CronHealth\" (id, name, status, \"startedAt\", \"durationMs\", summary, \"errorMessage\") VALUES (gen_random_uuid()::text, '$CRON_NAME', 'skipped', now() - interval '4 minutes', 0, 'no work to do', NULL);" >/dev/null
 pass "inserted 4 rows (2 success / 1 failed / 1 skipped)"
 
@@ -122,7 +122,7 @@ test "$TOTAL" = "4" && pass "total still 4 (pagination doesn't change total)" \
 
 # ───── 8. Cleanup ─────
 note "=== 8. Cleanup ==="
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"CronHealth\" WHERE name='$CRON_NAME';" >/dev/null
 pass "cleaned up test rows"
 

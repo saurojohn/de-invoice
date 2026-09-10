@@ -1,4 +1,4 @@
-import { IsNumber, Min, Validate } from 'class-validator'
+import { IsNumber, Min } from 'class-validator'
 
 /**
  * Tier 123: DTO for PUT /api/v1/reminder/dunning-config.

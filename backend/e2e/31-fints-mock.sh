@@ -26,7 +26,7 @@ cleanup_cashbook
 
 echo "=== Test: Tier 6 FinTS (mock mode) ==="
 # ----- Clean prior state -----
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   DELETE FROM \"BankReconciliation\" WHERE \"companyId\" = '$COMPANY_ID';
   DELETE FROM \"BankTransaction\" WHERE \"companyId\" = '$COMPANY_ID' AND \"endToEndId\" LIKE 'MOCK-%';
   DELETE FROM \"BankStatement\" WHERE \"companyId\" = '$COMPANY_ID' AND format = 'fints-mock';
@@ -73,7 +73,7 @@ TX_COUNT=$(echo "$BODY" | python3 -c "import json,sys; print(json.load(sys.stdin
 assert_eq "4c. 3 transactions fetched" "$TX_COUNT" "3"
 
 # ----- 5. Verify transactions in DB -----
-DB_TX_COUNT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
+DB_TX_COUNT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
   SELECT count(*) FROM \"BankTransaction\" 
   WHERE \"companyId\" = '$COMPANY_ID' AND \"endToEndId\" LIKE 'MOCK-%';" 2>/dev/null | tr -d ' ')
 assert_eq "5. 3 mock transactions in DB" "$DB_TX_COUNT" "3"
@@ -93,7 +93,7 @@ TX_COUNT=$(echo "$BODY" | python3 -c "import json,sys; print(json.load(sys.stdin
 # txCount is the number of NEW transactions
 # inserted, which should be 0 (all duplicates).
 assert_eq "6c. No new transactions on re-sync" "$TX_COUNT" "0"
-DB_TX_COUNT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
+DB_TX_COUNT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
   SELECT count(*) FROM \"BankTransaction\" 
   WHERE \"companyId\" = '$COMPANY_ID' AND \"endToEndId\" LIKE 'MOCK-%';" 2>/dev/null | tr -d ' ')
 assert_eq "6d. Still 3 transactions in DB (idempotent)" "$DB_TX_COUNT" "3"
@@ -103,13 +103,13 @@ assert_eq "6d. Still 3 transactions in DB (idempotent)" "$DB_TX_COUNT" "3"
 # Müller GmbH transaction exactly (2380.00 EUR
 # and invoice number "E2E-T6-001" in the
 # purpose string).
-CUST_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
+CUST_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
   SELECT id FROM \"Customer\" WHERE \"companyId\" = '$COMPANY_ID' LIMIT 1;" 2>/dev/null | tr -d ' ')
 
 # Add the invoice's "001" in the customer
 # number to help IBAN-based matching on a
 # later test (not needed here, just data).
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   INSERT INTO \"Invoice\" (id, \"companyId\", \"customerId\", \"invoiceNumber\", \"sequenceNumber\",
     type, status, \"issueDate\", \"dueDate\",
     subtotal, \"totalVat\", total, currency, language, \"vatBreakdown\",
@@ -132,7 +132,7 @@ else
 fi
 
 # ----- 8. Verify BankReconciliation row -----
-RECON_COUNT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
+RECON_COUNT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
   SELECT count(*) FROM \"BankReconciliation\" 
   WHERE \"companyId\" = '$COMPANY_ID' AND status = 'suggested';" 2>/dev/null | tr -d ' ')
 if [[ "$RECON_COUNT" -ge 1 ]]; then
@@ -141,7 +141,7 @@ else
   fail "8. no BankReconciliation row"
 fi
 
-RECON_CONF=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
+RECON_CONF=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
   SELECT confidence FROM \"BankReconciliation\" 
   WHERE \"companyId\" = '$COMPANY_ID' 
   AND \"invoiceId\" = 'e2e00006-0001-0000-0000-000000000001' 
@@ -169,13 +169,13 @@ assert_eq "10b. List is empty after delete" "$COUNT" "0"
 # But BankTransaction + Reconciliation stay
 # (audit trail — GoBD §146 requires we
 # never lose the original parsed data).
-DB_TX_COUNT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
+DB_TX_COUNT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
   SELECT count(*) FROM \"BankTransaction\" 
   WHERE \"companyId\" = '$COMPANY_ID' AND \"endToEndId\" LIKE 'MOCK-%';" 2>/dev/null | tr -d ' ')
 assert_eq "10c. BankTransactions kept after FinTS delete (audit trail)" "$DB_TX_COUNT" "3"
 
 # ----- Cleanup -----
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   DELETE FROM \"BankReconciliation\" WHERE \"companyId\" = '$COMPANY_ID';
   DELETE FROM \"BankTransaction\" WHERE \"companyId\" = '$COMPANY_ID' AND \"endToEndId\" LIKE 'MOCK-%';
   DELETE FROM \"BankStatement\" WHERE \"companyId\" = '$COMPANY_ID' AND format = 'fints-mock';

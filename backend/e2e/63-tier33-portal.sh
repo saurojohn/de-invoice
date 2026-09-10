@@ -23,7 +23,7 @@ login
 cleanup_cashbook
 # Cleanup PaymentLink rows + their dependent
 # Payment rows for any previous run.
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   DELETE FROM \"PaymentLink\" WHERE \"invoiceId\" IN (
     SELECT id FROM \"Invoice\" WHERE \"companyId\" = '$COMPANY_ID'
   );
@@ -106,7 +106,7 @@ assert_eq "alreadyPaid=false (first time)" "$ALREADY" "False"
 if [[ -n "$PAYMENT_ID" ]]; then pass "Payment row created (id=$PAYMENT_ID)"; else fail "no Payment id"; fi
 
 # Verify a Payment row actually exists in DB.
-P_COUNT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
+P_COUNT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
   SELECT COUNT(*) FROM \"Payment\" WHERE \"invoiceId\" = '$INV_ID' AND \"paymentMethod\" = 'portal-mock';" 2>/dev/null | tr -d ' ')
 if [[ "$P_COUNT" == "1" ]]; then
   pass "Payment row persisted (count=1)"
@@ -133,13 +133,13 @@ echo
 echo "=== 8. POST /revoke-payment-links ==="
 # First reset the invoice to draft (markPaid above may
 # have bumped status='paid').
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   UPDATE \"Invoice\" SET status='draft' WHERE id = '$INV_ID';
 " >/dev/null 2>&1
 # Generate fresh link (idempotency returns the consumed one
 # because usedAt is set — rotate by creating a new token
 # via SQL bypass).
-NEW_TOKEN=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
+NEW_TOKEN=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
   INSERT INTO \"PaymentLink\"(id, \"invoiceId\", token, \"expiresAt\", \"createdAt\")
   VALUES (gen_random_uuid()::text, '$INV_ID', 'revokeme1234567890abcdef01234567', NOW() + interval '30 days', NOW())
   RETURNING token;" 2>/dev/null | tr -d ' \r\n')
@@ -159,7 +159,7 @@ else
 fi
 
 # ---- Cleanup ----
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   DELETE FROM \"Payment\" WHERE \"invoiceId\" = '$INV_ID' AND \"paymentMethod\" = 'portal-mock';
   DELETE FROM \"PaymentLink\" WHERE \"invoiceId\" = '$INV_ID';
   UPDATE \"Invoice\" SET status='draft' WHERE id = '$INV_ID';" >/dev/null 2>&1

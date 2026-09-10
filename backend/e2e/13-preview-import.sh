@@ -22,7 +22,7 @@ echo "=== Test: bank statement preview ==="
 
 # Snapshot existing BankStatement count so we can verify
 # nothing was created by the preview calls.
-PRE_COUNT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+PRE_COUNT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT count(*) FROM \"BankStatement\" WHERE \"companyId\" = '$COMPANY_ID';" 2>/dev/null | tr -d ' ')
 
 # Test 1: well-formed MT940 (passes balance check)
@@ -153,7 +153,7 @@ HTTP=$(curl -sS -o /tmp/preview-garbage.json -w "%{http_code}" \
 assert_eq "garbage file rejected" "$HTTP" "400"
 
 # Test 6: NO BankStatement was created (parse-only)
-POST_COUNT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+POST_COUNT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT count(*) FROM \"BankStatement\" WHERE \"companyId\" = '$COMPANY_ID';" 2>/dev/null | tr -d ' ')
 assert_eq "no BankStatement created by preview" "$POST_COUNT" "$PRE_COUNT"
 

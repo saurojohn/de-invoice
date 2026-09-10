@@ -82,18 +82,18 @@ rm -rf "$BACKUP_ROOT"
 mkdir -p "$BACKUP_ROOT"
 
 # ===== 1. Capture current row counts =====
-USER_COUNT_BEFORE=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+USER_COUNT_BEFORE=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT count(*) FROM \"User\";" 2>/dev/null | tr -d ' ')
-INVOICE_COUNT_BEFORE=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+INVOICE_COUNT_BEFORE=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT count(*) FROM \"Invoice\";" 2>/dev/null | tr -d ' ')
 note "Before: $USER_COUNT_BEFORE users, $INVOICE_COUNT_BEFORE invoices"
 
 # ===== 2. Insert a sentinel row =====
 SENTINEL_COMPANY_ID="t12-fire-drill-$$"
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   INSERT INTO \"Company\" (id, name, address, \"updatedAt\")
   VALUES ('$SENTINEL_COMPANY_ID', 'Fire Drill Sentinel', '{}'::jsonb, now());" >/dev/null 2>&1
-SENTINEL_EXISTS=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+SENTINEL_EXISTS=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT count(*) FROM \"Company\" WHERE id = '$SENTINEL_COMPANY_ID';" 2>/dev/null | tr -d ' ')
 [[ "$SENTINEL_EXISTS" -eq 1 ]] && pass "2. sentinel row inserted" || fail "2. sentinel insert FAILED"
 
@@ -111,17 +111,17 @@ DB_SIZE=$(du -h "$DB_FILE" 2>/dev/null | awk '{print $1}')
 [[ -n "$DB_SIZE" && "$DB_SIZE" != "0" ]] && pass "4c. db dump is $DB_SIZE" || fail "4c. db dump empty"
 
 # ===== 5. Delete the sentinel row =====
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"Company\" WHERE id = '$SENTINEL_COMPANY_ID';" >/dev/null 2>&1
-SENTINEL_DELETED=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+SENTINEL_DELETED=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT count(*) FROM \"Company\" WHERE id = '$SENTINEL_COMPANY_ID';" 2>/dev/null | tr -d ' ')
 [[ "$SENTINEL_DELETED" -eq 0 ]] && pass "5. sentinel row deleted from live DB" || fail "5. sentinel NOT deleted"
 
 # ===== 6. Restore the backup to a scratch DB =====
 SCRATCH_DB="t12_scratch_$$"
-docker exec de-invoice-postgres psql -U de_invoice -d postgres -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d postgres -c \
   "DROP DATABASE IF EXISTS $SCRATCH_DB;" >/dev/null 2>&1
-docker exec de-invoice-postgres psql -U de_invoice -d postgres -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d postgres -c \
   "CREATE DATABASE $SCRATCH_DB;" >/dev/null 2>&1
 docker exec -i de-invoice-postgres pg_restore -U de_invoice -d $SCRATCH_DB \
   --no-owner --no-privileges < "$DB_FILE" 2>&1 | tail -3
@@ -130,28 +130,28 @@ RESTORE_OK=$?
   || fail "6. pg_restore FAILED with exit $RESTORE_OK"
 
 # ===== 7. Verify scratch DB has the sentinel row =====
-SENTINEL_IN_SCRATCH=$(docker exec de-invoice-postgres psql -U de_invoice -d $SCRATCH_DB -tA -c \
+SENTINEL_IN_SCRATCH=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d $SCRATCH_DB -tA -c \
   "SELECT count(*) FROM \"Company\" WHERE id = '$SENTINEL_COMPANY_ID';" 2>/dev/null | tr -d ' ')
 [[ "$SENTINEL_IN_SCRATCH" -eq 1 ]] && pass "7. sentinel row IS in restored scratch DB" \
   || fail "7. sentinel NOT in scratch — backup was incomplete"
 
 # ===== 8. Verify the live DB does NOT have the sentinel =====
-SENTINEL_IN_LIVE=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+SENTINEL_IN_LIVE=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT count(*) FROM \"Company\" WHERE id = '$SENTINEL_COMPANY_ID';" 2>/dev/null | tr -d ' ')
 [[ "$SENTINEL_IN_LIVE" -eq 0 ]] && pass "8. live DB still has no sentinel (restore went to scratch, not live)" \
   || fail "8. sentinel still in live DB — restore may have touched the live DB!"
 
 # ===== 9. Verify scratch DB has the same row counts as live (pre-delete) =====
-SCRATCH_USERS=$(docker exec de-invoice-postgres psql -U de_invoice -d $SCRATCH_DB -tA -c \
+SCRATCH_USERS=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d $SCRATCH_DB -tA -c \
   "SELECT count(*) FROM \"User\";" 2>/dev/null | tr -d ' ')
-SCRATCH_INVOICES=$(docker exec de-invoice-postgres psql -U de_invoice -d $SCRATCH_DB -tA -c \
+SCRATCH_INVOICES=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d $SCRATCH_DB -tA -c \
   "SELECT count(*) FROM \"Invoice\";" 2>/dev/null | tr -d ' ')
 [[ "$SCRATCH_USERS" -eq "$USER_COUNT_BEFORE" && "$SCRATCH_INVOICES" -eq "$INVOICE_COUNT_BEFORE" ]] \
   && pass "9. scratch DB row counts match live: $SCRATCH_USERS users, $SCRATCH_INVOICES invoices" \
   || fail "9. row counts differ: live=$USER_COUNT_BEFORE/$INVOICE_COUNT_BEFORE scratch=$SCRATCH_USERS/$SCRATCH_INVOICES"
 
 # ===== 10. Drop the scratch DB =====
-docker exec de-invoice-postgres psql -U de_invoice -d postgres -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d postgres -c \
   "DROP DATABASE IF EXISTS $SCRATCH_DB;" >/dev/null 2>&1
 note "Scratch DB dropped"
 

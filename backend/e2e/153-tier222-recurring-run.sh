@@ -104,7 +104,7 @@ assert_eq "nonexistent template → 400" "$STATUS" "400"
 # Seed a fake recurring template that belongs to a different
 # company (no real cross-tenant access — direct SQL insert
 # into the DB).
-OTHER_TEMPLATE_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+OTHER_TEMPLATE_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "INSERT INTO \"RecurringInvoice\" (id, \"companyId\", name, \"customerId\", interval, \"startDate\", items, \"sendEmail\", \"createdById\") VALUES ('tier222-other', '00000000-0000-0000-0000-000000000001', 'cross-tenant', '$CUSTOMER_ID', 'monthly', '2026-08-19', '[{\"description\":\"x\",\"quantity\":1,\"unitPrice\":1,\"vatRate\":0.19}]'::jsonb, false, '$USER_ID') RETURNING id;" 2>/dev/null | head -1 | tr -d ' \n')
 if [[ -n "$OTHER_TEMPLATE_ID" ]]; then
   api_post "/api/v1/recurring-invoices/$OTHER_TEMPLATE_ID/run?companyId=$COMPANY_ID" ""
@@ -118,12 +118,12 @@ if [[ -n "$OTHER_TEMPLATE_ID" ]]; then
     fail "cross-tenant run returned 200 (security breach!): $STATUS"
   fi
   # Cleanup
-  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
     "DELETE FROM \"RecurringInvoice\" WHERE id='$OTHER_TEMPLATE_ID';" >/dev/null 2>&1
 fi
 
 # ========== Test 6: Run on paused template (status=paused) ==========
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "UPDATE \"RecurringInvoice\" SET status='paused' WHERE id='$TEMPLATE_ID';" >/dev/null 2>&1
 api_post "/api/v1/recurring-invoices/$TEMPLATE_ID/run?companyId=$COMPANY_ID" ""
 # Paused templates can still be manually triggered (the
@@ -137,20 +137,20 @@ else
   fail "paused template run returned 500 or unexpected: $STATUS"
 fi
 # Restore
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "UPDATE \"RecurringInvoice\" SET status='active' WHERE id='$TEMPLATE_ID';" >/dev/null 2>&1
 
 # ========== Cleanup ==========
 # Order: RecurringRun records (if any) → invoices → template → customer
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"RecurringRun\" WHERE \"templateId\"='$TEMPLATE_ID';" >/dev/null 2>&1
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"InvoiceItem\" WHERE \"invoiceId\" IN ('$INVOICE_ID_1', '$INVOICE_ID_2');" >/dev/null 2>&1
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"Invoice\" WHERE id IN ('$INVOICE_ID_1', '$INVOICE_ID_2');" >/dev/null 2>&1
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"RecurringInvoice\" WHERE id='$TEMPLATE_ID';" >/dev/null 2>&1
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"Customer\" WHERE id='$CUSTOMER_ID';" >/dev/null 2>&1
 pass "cleanup complete (invoices + template + customer)"
 

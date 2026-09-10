@@ -175,7 +175,7 @@ const EINNAHMEN_LINES: Array<{
   {
     kz: '7190',
     label: 'Sonstige Kapitalerträge (Crowdinvesting, Genussrechte, etc.)',
-    matcher: (tx) => {
+    matcher: (_tx) => {
       // Fallback for any positive bank transaction that
       // doesn't match the other matchers — typically
       // returns 0 because all positive Zinserträge

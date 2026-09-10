@@ -1,8 +1,8 @@
-import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, Res, Header, BadRequestException, HttpCode, Req, NotFoundException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, Res, Header, BadRequestException, HttpCode, Req, NotFoundException } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { Response } from 'express';
 import { Prisma } from '@prisma/client';
-// eslint-disable-next-line @typescript-eslint/no-var-requires
+ 
 const archiverLib: any = require('archiver');
 const archiver = (format: string, opts?: any) => archiverLib.create(format, opts);
 import { InvoiceService } from './invoice.service';

@@ -46,7 +46,7 @@ echo "=== Test: Anlage S (test tag: $TEST_TAG) ==="
 # only catches the current $TS; older runs
 # accumulate over time and break the
 # delta-snapshot assertion).
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null 2>&1
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null 2>&1
 DELETE FROM "InvoiceItem" WHERE "invoiceId" IN (SELECT id FROM "Invoice" WHERE "invoiceNumber" LIKE 'ANS-%');
 DELETE FROM "Invoice" WHERE "invoiceNumber" LIKE 'ANS-%';
 DELETE FROM "Expense" WHERE "invoiceNumber" LIKE 'ANS-%';
@@ -55,7 +55,7 @@ SQL
 
 # Cleanup hook
 cleanup() {
-  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null 2>&1
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null 2>&1
 DELETE FROM "InvoiceItem" WHERE "invoiceId" IN (SELECT id FROM "Invoice" WHERE "invoiceNumber" LIKE 'ANS-${TS}-%');
 DELETE FROM "Invoice" WHERE "invoiceNumber" LIKE 'ANS-${TS}-%';
 DELETE FROM "Expense" WHERE "invoiceNumber" LIKE 'ANS-${TS}-%';
@@ -73,7 +73,7 @@ VALUES
 EOF
 docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice < "$TMP_SQL"
 rm -f "$TMP_SQL"
-CUST_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+CUST_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT id FROM \"Customer\" WHERE \"companyId\"='$COMPANY_ID' AND \"customerNumber\"='ANS-${TS}-DE-1';" \
   2>&1 | tr -d ' ' | head -1)
 

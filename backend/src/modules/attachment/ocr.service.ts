@@ -89,7 +89,7 @@ export class OcrService {
       // We support both for portability — newer
       // installs use the class, older still have
       // the function.
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
+       
       const mod: any = require('pdf-parse')
       let text = ''
       let pages: number | undefined

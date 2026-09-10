@@ -12,7 +12,7 @@ source "$SCRIPT_DIR/_lib.sh"
 
 login
 # Cleanup any prior test data
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"BankReconciliation\" WHERE \"companyId\" = '$COMPANY_ID';
    DELETE FROM \"BankTransaction\" WHERE \"companyId\" = '$COMPANY_ID';
    DELETE FROM \"BankStatement\" WHERE \"companyId\" = '$COMPANY_ID';
@@ -83,14 +83,14 @@ assert_eq "transaction currency" "$TXN_CCY" "EUR"
 TXN_ID=$(echo "$BODY" | python3 -c "import json,sys;print(json.load(sys.stdin)['transactions'][0]['id'])")
 
 # Create a matching open invoice
-CUST_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+CUST_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT id FROM \"Customer\" WHERE \"companyId\" = '$COMPANY_ID' LIMIT 1;" 2>/dev/null | tr -d ' ')
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "INSERT INTO \"Invoice\" (id, \"companyId\", \"customerId\", \"invoiceNumber\", \"type\", \"status\", \"issueDate\", \"dueDate\", \"subtotal\", \"totalVat\", \"total\", \"currency\", \"language\", \"createdAt\", \"updatedAt\")
    VALUES (gen_random_uuid()::text, '$COMPANY_ID', '$CUST_ID', 'INV-2026-TEST-E2E', 'INV', 'sent', '2026-06-02', '2026-06-09', 168.07, 31.93, 200.00, 'EUR', 'de-DE', now(), now());" >/dev/null 2>&1
 
 # Verify the invoice exists
-INV_COUNT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+INV_COUNT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT count(*) FROM \"Invoice\" WHERE \"invoiceNumber\" = 'INV-2026-TEST-E2E';" 2>/dev/null | tr -d ' ')
 assert_eq "test invoice created" "$INV_COUNT" "1"
 
@@ -134,23 +134,23 @@ api_post "/api/v1/bank-statements/$SID/suggest?companyId=$COMPANY_ID" ""
 assert_status "201" "auto-suggest"
 
 # Verify a BankReconciliation row was created
-RECON_COUNT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+RECON_COUNT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT count(*) FROM \"BankReconciliation\" WHERE \"bankTransactionId\" = '$TXN_ID';" 2>/dev/null | tr -d ' ')
 assert_eq "reconciliation created" "$RECON_COUNT" "1"
 
 # Re-running suggest is idempotent (skips already-matched)
 api_post "/api/v1/bank-statements/$SID/suggest?companyId=$COMPANY_ID" ""
-RECON_COUNT_2=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+RECON_COUNT_2=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT count(*) FROM \"BankReconciliation\" WHERE \"bankTransactionId\" = '$TXN_ID';" 2>/dev/null | tr -d ' ')
 assert_eq "re-ran suggest is idempotent" "$RECON_COUNT_2" "1"
 
 # === Confirm flow: PaymentService.create() + invoice flips to 'paid' ===
 # Grab the suggested recon id
-RECON_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+RECON_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT id FROM \"BankReconciliation\" WHERE \"bankTransactionId\" = '$TXN_ID';" 2>/dev/null | tr -d ' ')
 
 # Check invoice status BEFORE confirm
-INV_BEFORE=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+INV_BEFORE=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT status FROM \"Invoice\" WHERE \"invoiceNumber\" = 'INV-2026-TEST-E2E';" 2>/dev/null | tr -d ' ')
 assert_eq "invoice status before confirm" "$INV_BEFORE" "sent"
 
@@ -165,19 +165,19 @@ else
 fi
 
 # Verify invoice flipped to 'paid' and Payment row exists
-INV_AFTER=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+INV_AFTER=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT status FROM \"Invoice\" WHERE \"invoiceNumber\" = 'INV-2026-TEST-E2E';" 2>/dev/null | tr -d ' ')
 assert_eq "invoice status after confirm" "$INV_AFTER" "paid"
 
-PAYMENT_AMT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+PAYMENT_AMT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT amount FROM \"Payment\" WHERE id = '$PAY_ID';" 2>/dev/null | tr -d ' ')
 assert_eq "payment amount" "$PAYMENT_AMT" "200.0000"
 
-PAY_METHOD=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+PAY_METHOD=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT \"paymentMethod\" FROM \"Payment\" WHERE id = '$PAY_ID';" 2>/dev/null | tr -d ' ')
 assert_eq "payment method" "$PAY_METHOD" "Überweisung"
 
-RECON_STATUS=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+RECON_STATUS=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT status FROM \"BankReconciliation\" WHERE id = '$RECON_ID';" 2>/dev/null | tr -d ' ')
 assert_eq "reconciliation status after confirm" "$RECON_STATUS" "confirmed"
 
@@ -187,7 +187,7 @@ assert_eq "reconciliation status after confirm" "$RECON_STATUS" "confirmed"
 #   Credit 1406 Forderung L+L     200.00
 # (VAT was already booked when the invoice was issued,
 # so no USt line is needed.)
-VCH_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+VCH_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT \"voucherId\" FROM \"BankReconciliation\" WHERE id = '$RECON_ID';" 2>/dev/null | tr -d ' ')
 if [[ -z "$VCH_ID" || "$VCH_ID" == "" ]]; then
   fail "no voucherId on reconciliation after confirm"
@@ -195,39 +195,39 @@ else
   pass "voucher linked: ${VCH_ID:0:8}..."
 fi
 
-VCH_NUMBER=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+VCH_NUMBER=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT \"voucherNumber\" FROM \"Voucher\" WHERE id = '$VCH_ID';" 2>/dev/null | tr -d ' ')
 assert_eq "voucher number pattern" "$(echo $VCH_NUMBER | grep -cE '^BK-[0-9]{4}-[0-9]+$')" "1"
 
-VCH_REFTYPE=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+VCH_REFTYPE=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT \"referenceType\" FROM \"Voucher\" WHERE id = '$VCH_ID';" 2>/dev/null | tr -d ' ')
 assert_eq "voucher referenceType" "$VCH_REFTYPE" "BankReconciliation"
 
-VCH_STATUS=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+VCH_STATUS=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT status FROM \"Voucher\" WHERE id = '$VCH_ID';" 2>/dev/null | tr -d ' ')
 assert_eq "voucher status" "$VCH_STATUS" "posted"
 
 # 2 voucher lines: Bank 1200 (debit) + Forderung 1406 (credit)
-LINE_COUNT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+LINE_COUNT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT count(*) FROM \"VoucherLine\" WHERE \"voucherId\" = '$VCH_ID';" 2>/dev/null | tr -d ' ')
 assert_eq "voucher line count" "$LINE_COUNT" "2"
 
 # Soll = Haben = 200.00
-SUM_DEBIT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+SUM_DEBIT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT SUM(debit) FROM \"VoucherLine\" WHERE \"voucherId\" = '$VCH_ID';" 2>/dev/null | tr -d ' ')
 assert_eq "voucher sum debit" "$SUM_DEBIT" "200.0000"
-SUM_CREDIT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+SUM_CREDIT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT SUM(credit) FROM \"VoucherLine\" WHERE \"voucherId\" = '$VCH_ID';" 2>/dev/null | tr -d ' ')
 assert_eq "voucher sum credit" "$SUM_CREDIT" "200.0000"
 
 # Specific accounts
-BANK_LINE=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+BANK_LINE=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT a.\"accountNumber\" || '|' || vl.debit
    FROM \"VoucherLine\" vl JOIN \"Account\" a ON a.id = vl.\"accountId\"
    WHERE vl.\"voucherId\" = '$VCH_ID' AND vl.debit > 0;" 2>/dev/null | tr -d ' ')
 assert_eq "voucher debit line is Bank 1200" "$BANK_LINE" "1200|200.0000"
 
-RECV_LINE=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+RECV_LINE=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT a.\"accountNumber\" || '|' || vl.credit
    FROM \"VoucherLine\" vl JOIN \"Account\" a ON a.id = vl.\"accountId\"
    WHERE vl.\"voucherId\" = '$VCH_ID' AND vl.credit > 0;" 2>/dev/null | tr -d ' ')
@@ -246,9 +246,9 @@ api_post "/api/v1/bank-statements/reconciliations/$RECON_ID/confirm?companyId=$C
 assert_status "400" "double-confirm returns 400"
 
 # === Reject flow: create a 2nd invoice + suggest + reject ===
-CUST_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+CUST_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT id FROM \"Customer\" WHERE \"companyId\" = '$COMPANY_ID' LIMIT 1;" 2>/dev/null | tr -d ' ')
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "INSERT INTO \"Invoice\" (id, \"companyId\", \"customerId\", \"invoiceNumber\", \"type\", \"status\", \"issueDate\", \"dueDate\", \"subtotal\", \"totalVat\", \"total\", \"currency\", \"language\", \"createdAt\", \"updatedAt\")
    VALUES (gen_random_uuid()::text, '$COMPANY_ID', '$CUST_ID', 'INV-2026-TEST-002', 'INV', 'sent', '2026-06-03', '2026-06-10', 168.07, 31.93, 200.00, 'EUR', 'de-DE', now(), now());" >/dev/null 2>&1
 
@@ -278,7 +278,7 @@ for t in d['transactions']:
 ")
 
 # Manual match for the 2nd statement (skips suggest UI)
-INV2_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+INV2_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT id FROM \"Invoice\" WHERE \"invoiceNumber\" = 'INV-2026-TEST-002';" 2>/dev/null | tr -d ' ')
 api_post "/api/v1/bank-statements/$SID2/transactions/$TXN_ID2/match?companyId=$COMPANY_ID" "{\"invoiceId\":\"$INV2_ID\"}"
 assert_status "201" "manual match creates payment"
@@ -287,13 +287,13 @@ if [[ -n "$MANUAL_PAY" && "$MANUAL_PAY" != "null" ]]; then
   pass "manual match paymentId: ${MANUAL_PAY:0:8}..."
 fi
 
-INV2_AFTER=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+INV2_AFTER=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT status FROM \"Invoice\" WHERE \"invoiceNumber\" = 'INV-2026-TEST-002';" 2>/dev/null | tr -d ' ')
 assert_eq "manual-match invoice status" "$INV2_AFTER" "paid"
 
 # Reject flow: upload a 3rd statement and reject its suggestion
 # We need a fresh, non-paid invoice that auto-suggest will match
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "INSERT INTO \"Invoice\" (id, \"companyId\", \"customerId\", \"invoiceNumber\", \"type\", \"status\", \"issueDate\", \"dueDate\", \"subtotal\", \"totalVat\", \"total\", \"currency\", \"language\", \"createdAt\", \"updatedAt\")
    VALUES (gen_random_uuid()::text, '$COMPANY_ID', '$CUST_ID', 'INV-2026-TEST-003', 'INV', 'sent', '2026-06-04', '2026-06-11', 168.07, 31.93, 200.00, 'EUR', 'de-DE', now(), now());" >/dev/null 2>&1
 cat > /tmp/e2e3.mt940 <<'EOF'
@@ -333,7 +333,7 @@ SID3=$(json_field "$UPLOAD3" id)
 # Generate suggestions with threshold=0
 api_post "/api/v1/bank-statements/$SID3/suggest?companyId=$COMPANY_ID" '{}'
 assert_status "201" "suggest for statement 3 (threshold=0)"
-RECON3_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+RECON3_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT id FROM \"BankReconciliation\" WHERE \"bankTransactionId\" IN (SELECT id FROM \"BankTransaction\" WHERE \"statementId\" = '$SID3') LIMIT 1;" 2>/dev/null | tr -d ' ')
 
 # Response carries generated/autoConfirmed/threshold
@@ -347,7 +347,7 @@ assert_eq "threshold=0: threshold echoed" "$TH3" "0"
 # Reject the suggested match
 api_post "/api/v1/bank-statements/reconciliations/$RECON3_ID/reject?companyId=$COMPANY_ID" ""
 assert_status "201" "reject candidate"
-RECON3_STATUS=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+RECON3_STATUS=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT status FROM \"BankReconciliation\" WHERE id = '$RECON3_ID';" 2>/dev/null | tr -d ' ')
 assert_eq "reconciliation status after reject" "$RECON3_STATUS" "rejected"
 
@@ -359,7 +359,7 @@ assert_status "400" "confirm-rejected returns 400"
 # Need a fresh invoice (the rejected one above has a
 # recon that the suggest call will skip). Create
 # INV-2026-TEST-AUTO and a fresh statement.
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "INSERT INTO \"Invoice\" (id, \"companyId\", \"customerId\", \"invoiceNumber\", \"type\", \"status\", \"issueDate\", \"dueDate\", \"subtotal\", \"totalVat\", \"total\", \"currency\", \"language\", \"createdAt\", \"updatedAt\")
    VALUES (gen_random_uuid()::text, '$COMPANY_ID', '$CUST_ID', 'INV-2026-TEST-AUTO', 'INV', 'sent', '2026-06-05', '2026-06-12', 84.03, 15.97, 100.00, 'EUR', 'de-DE', now(), now());" >/dev/null 2>&1
 
@@ -393,21 +393,21 @@ assert_eq "threshold=80: generated=1" "$GEN_AUTO" "1"
 assert_eq "threshold=80: autoConfirmed=1" "$AC_AUTO" "1"
 
 # Verify the invoice is now paid
-INV_AUTO_STATUS=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+INV_AUTO_STATUS=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT status FROM \"Invoice\" WHERE \"invoiceNumber\" = 'INV-2026-TEST-AUTO';" 2>/dev/null | tr -d ' ')
 assert_eq "auto-confirm flipped invoice to paid" "$INV_AUTO_STATUS" "paid"
 
 # Verify the recon is confirmed
-RECON_AUTO_STATUS=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+RECON_AUTO_STATUS=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT status FROM \"BankReconciliation\" WHERE \"bankTransactionId\" IN (SELECT id FROM \"BankTransaction\" WHERE \"statementId\" = '$SID_AUTO');" 2>/dev/null | tr -d ' ')
 assert_eq "auto-confirm flipped recon to confirmed" "$RECON_AUTO_STATUS" "confirmed"
 
 # Verify the Payment + Voucher were created
-PAY_AUTO=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+PAY_AUTO=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT count(*) FROM \"Payment\" p JOIN \"Invoice\" i ON i.id = p.\"invoiceId\" WHERE i.\"invoiceNumber\" = 'INV-2026-TEST-AUTO';" 2>/dev/null | tr -d ' ')
 assert_eq "auto-confirm wrote Payment" "$PAY_AUTO" "1"
 
-VCH_AUTO=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+VCH_AUTO=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT count(*) FROM \"Voucher\" WHERE \"referenceType\" = 'BankReconciliation' AND \"voucherNumber\" LIKE 'BK-%' AND \"companyId\" = '$COMPANY_ID';" 2>/dev/null | tr -d ' ')
 # We don't assert exact count (other tests wrote vouchers
 # too) — just check ≥1 exists.
@@ -431,19 +431,19 @@ assert_eq "re-run: autoConfirmed=0" "$AC_AUTO2" "0"
 # original Voucher stays in the books, the Storno
 # nets each account to zero, the Payment is
 # removed, and the invoice flips back to "sent".
-AUTO_RECON_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+AUTO_RECON_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT id FROM \"BankReconciliation\" WHERE \"bankTransactionId\" IN (SELECT id FROM \"BankTransaction\" WHERE \"statementId\" = '$SID_AUTO') LIMIT 1;" 2>/dev/null | tr -d ' ')
-AUTO_INV_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+AUTO_INV_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT \"invoiceId\" FROM \"BankReconciliation\" WHERE id = '$AUTO_RECON_ID';" 2>/dev/null | tr -d ' ')
-AUTO_VCH_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+AUTO_VCH_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT \"voucherId\" FROM \"BankReconciliation\" WHERE id = '$AUTO_RECON_ID';" 2>/dev/null | tr -d ' ')
 
 # State before reopen
-RECON_BEFORE=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+RECON_BEFORE=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT status FROM \"BankReconciliation\" WHERE id = '$AUTO_RECON_ID';" 2>/dev/null | tr -d ' ')
 assert_eq "recon status before reopen" "$RECON_BEFORE" "confirmed"
 
-INV_BEFORE_REOPEN=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+INV_BEFORE_REOPEN=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT status FROM \"Invoice\" WHERE id = '$AUTO_INV_ID';" 2>/dev/null | tr -d ' ')
 assert_eq "invoice status before reopen" "$INV_BEFORE_REOPEN" "paid"
 
@@ -456,45 +456,45 @@ if [[ -n "$STORNO_VCH_ID" && "$STORNO_VCH_ID" != "null" ]]; then
 fi
 
 # Verify
-RECON_AFTER=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+RECON_AFTER=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT status FROM \"BankReconciliation\" WHERE id = '$AUTO_RECON_ID';" 2>/dev/null | tr -d ' ')
 # Reopen flips back to 'suggested' so the user can
 # immediately re-confirm or pick a different candidate
 # — better UX than locking the row in 'reopened'.
 assert_eq "recon status after reopen" "$RECON_AFTER" "suggested"
 
-INV_AFTER_REOPEN=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+INV_AFTER_REOPEN=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT status FROM \"Invoice\" WHERE id = '$AUTO_INV_ID';" 2>/dev/null | tr -d ' ')
 assert_eq "invoice status after reopen" "$INV_AFTER_REOPEN" "sent"
 
-PAY_AFTER_REOPEN=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+PAY_AFTER_REOPEN=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT count(*) FROM \"Payment\" WHERE \"invoiceId\" = '$AUTO_INV_ID';" 2>/dev/null | tr -d ' ')
 assert_eq "payments removed after reopen" "$PAY_AFTER_REOPEN" "0"
 
 # Original Voucher still in books (GoBD immutability)
-ORIG_VCH_STILL=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+ORIG_VCH_STILL=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT count(*) FROM \"Voucher\" WHERE id = '$AUTO_VCH_ID';" 2>/dev/null | tr -d ' ')
 assert_eq "original voucher preserved" "$ORIG_VCH_STILL" "1"
 
 # voucherId on the recon still points at the original
 # Voucher (not overwritten by the Storno).
-ORIG_LINKED=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+ORIG_LINKED=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT \"voucherId\" = '$AUTO_VCH_ID'::text FROM \"BankReconciliation\" WHERE id = '$AUTO_RECON_ID';" 2>/dev/null | tr -d ' ')
 assert_eq "voucherId still points at original voucher" "$ORIG_LINKED" "t"
 
 # reversalVoucherId is set to the Storno
-STORN_LINKED=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+STORN_LINKED=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT \"reversalVoucherId\" = '$STORNO_VCH_ID'::text FROM \"BankReconciliation\" WHERE id = '$AUTO_RECON_ID';" 2>/dev/null | tr -d ' ')
 assert_eq "reversalVoucherId set to Storno" "$STORN_LINKED" "t"
 
 # Storno Voucher exists with correct referenceType
-STORNO_REFTYPE=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+STORNO_REFTYPE=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT \"referenceType\" FROM \"Voucher\" WHERE id = '$STORNO_VCH_ID';" 2>/dev/null | tr -d ' ')
 assert_eq "storno voucher referenceType" "$STORNO_REFTYPE" "BankReconciliationReversal"
 
 # Per-account net effect: original + storno should net
 # to zero on each account.
-NET_BANK=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+NET_BANK=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT COALESCE(SUM(vl.debit) - SUM(vl.credit), 0)
    FROM \"VoucherLine\" vl
    JOIN \"Voucher\" v ON v.id = vl.\"voucherId\"
@@ -502,7 +502,7 @@ NET_BANK=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA 
    WHERE v.\"companyId\" = '$COMPANY_ID' AND v.id IN ('$AUTO_VCH_ID', '$STORNO_VCH_ID') AND a.\"accountNumber\" = '1200';" 2>/dev/null | tr -d ' ')
 assert_eq "Bank 1200 nets to 0 after reopen" "$NET_BANK" "0.0000"
 
-NET_RECV=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+NET_RECV=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT COALESCE(SUM(vl.debit) - SUM(vl.credit), 0)
    FROM \"VoucherLine\" vl
    JOIN \"Voucher\" v ON v.id = vl.\"voucherId\"
@@ -524,27 +524,27 @@ if [[ -n "$RECONFIRM_VCH_ID" && "$RECONFIRM_VCH_ID" != "null" ]]; then
 fi
 
 # Status is now 'confirmed' again
-RECON_RECONFIRMED=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+RECON_RECONFIRMED=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT status FROM \"BankReconciliation\" WHERE id = '$AUTO_RECON_ID';" 2>/dev/null | tr -d ' ')
 assert_eq "recon status after re-confirm" "$RECON_RECONFIRMED" "confirmed"
 
 # voucherId now points at the NEW voucher (overwritten
 # from the reopen state), reversalVoucherId still set
-RECONFIRMED_LINKED=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+RECONFIRMED_LINKED=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT \"voucherId\" = '$RECONFIRM_VCH_ID'::text FROM \"BankReconciliation\" WHERE id = '$AUTO_RECON_ID';" 2>/dev/null | tr -d ' ')
 assert_eq "voucherId now points at re-confirm voucher" "$RECONFIRMED_LINKED" "t"
 
-STORN_PRESERVED=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+STORN_PRESERVED=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT \"reversalVoucherId\" = '$STORNO_VCH_ID'::text FROM \"BankReconciliation\" WHERE id = '$AUTO_RECON_ID';" 2>/dev/null | tr -d ' ')
 assert_eq "reversalVoucherId preserved across re-confirm" "$STORN_PRESERVED" "t"
 
 # Original voucher still untouched
-ORIG_STILL_THERE=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+ORIG_STILL_THERE=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT count(*) FROM \"Voucher\" WHERE id = '$AUTO_VCH_ID';" 2>/dev/null | tr -d ' ')
 assert_eq "original voucher still in books" "$ORIG_STILL_THERE" "1"
 
 # All 3 vouchers for this recon chain exist
-TOTAL_VCH=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+TOTAL_VCH=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT count(*) FROM \"Voucher\" WHERE id IN ('$AUTO_VCH_ID', '$STORNO_VCH_ID', '$RECONFIRM_VCH_ID');" 2>/dev/null | tr -d ' ')
 assert_eq "audit trail has all 3 vouchers" "$TOTAL_VCH" "3"
 
@@ -578,7 +578,7 @@ assert_status "400" "reopen-while-suggested returns 400"
 # (INV-2026-TEST-CAMT) so it doesn't conflict with
 # INV-2026-TEST-E2E which is already paid by this point
 # in the test sequence.
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "INSERT INTO \"Invoice\" (id, \"companyId\", \"customerId\", \"invoiceNumber\", \"type\", \"status\", \"issueDate\", \"dueDate\", \"subtotal\", \"totalVat\", \"total\", \"currency\", \"language\", \"createdAt\", \"updatedAt\")
    VALUES (gen_random_uuid()::text, '$COMPANY_ID', '$CUST_ID', 'INV-2026-TEST-CAMT', 'INV', 'sent', '2026-06-08', '2026-06-15', 168.07, 31.93, 200.00, 'EUR', 'de-DE', now(), now());" >/dev/null 2>&1
 
@@ -682,24 +682,24 @@ if [[ -n "$EXP_VCH_ID" && "$EXP_VCH_ID" != "null" ]]; then
 fi
 
 # Verify voucher shape
-EXP_REFTYPE=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+EXP_REFTYPE=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT \"referenceType\" FROM \"Voucher\" WHERE id = '$EXP_VCH_ID';" 2>/dev/null | tr -d ' ')
 assert_eq "expense voucher referenceType" "$EXP_REFTYPE" "BankTransaction"
 
-EXP_DEBIT_ACCT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+EXP_DEBIT_ACCT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT a.\"accountNumber\" || '|' || vl.debit
    FROM \"VoucherLine\" vl JOIN \"Account\" a ON a.id = vl.\"accountId\"
    WHERE vl.\"voucherId\" = '$EXP_VCH_ID' AND vl.debit > 0;" 2>/dev/null | tr -d ' ')
 assert_eq "expense debit line is 4900" "$EXP_DEBIT_ACCT" "4900|85.5000"
 
-EXP_CREDIT_ACCT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+EXP_CREDIT_ACCT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT a.\"accountNumber\" || '|' || vl.credit
    FROM \"VoucherLine\" vl JOIN \"Account\" a ON a.id = vl.\"accountId\"
    WHERE vl.\"voucherId\" = '$EXP_VCH_ID' AND vl.credit > 0;" 2>/dev/null | tr -d ' ')
 assert_eq "expense credit line is 1200" "$EXP_CREDIT_ACCT" "1200|85.5000"
 
 # Verify txn has voucherId linked
-EXP_LINK=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+EXP_LINK=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT \"voucherId\" IS NOT NULL FROM \"BankTransaction\" WHERE id = '$TXN_ID4';" 2>/dev/null | tr -d ' ')
 assert_eq "txn linked to voucher" "$EXP_LINK" "t"
 
@@ -761,7 +761,7 @@ for t in d['transactions']:
 api_post "/api/v1/bank-statements/$SID5/transactions/$TXN_ID5/book-expense?companyId=$COMPANY_ID" '{"expenseAccountNumber":"4960","description":"Büromaterial Q2"}'
 assert_status "201" "book expense with custom account 4960"
 EXP2_VCH_ID=$(json_field "$BODY" voucherId)
-EXP2_ACCT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+EXP2_ACCT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT a.\"accountNumber\" FROM \"VoucherLine\" vl JOIN \"Account\" a ON a.id = vl.\"accountId\" WHERE vl.\"voucherId\" = '$EXP2_VCH_ID' AND vl.debit > 0;" 2>/dev/null | tr -d ' ')
 assert_eq "custom expense account used" "$EXP2_ACCT" "4960"
 
@@ -773,12 +773,12 @@ assert_eq "custom expense account used" "$EXP2_ACCT" "4960"
 # The supplier + expense rows are linked so the
 # Berater can pivot from the Voucher to the vendor
 # bill and back.
-SUP_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+SUP_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "INSERT INTO \"Supplier\" (id, \"companyId\", name, \"vatId\", address, \"createdAt\", \"updatedAt\")
    VALUES (gen_random_uuid()::text, '$COMPANY_ID', 'Stadtwerke Test', 'DE999888777', '{\"city\":\"Dreieich\"}'::jsonb, now(), now())
    RETURNING id;" 2>/dev/null | grep -E '^[0-9a-f-]{36}$' | head -1)
 
-EXP_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+EXP_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "INSERT INTO \"Expense\" (id, \"companyId\", \"supplierId\", \"invoiceNumber\", description, \"invoiceDate\", \"netAmount\", \"vatRate\", \"vatAmount\", \"grossAmount\", status, \"createdAt\", \"updatedAt\")
    VALUES (gen_random_uuid()::text, '$COMPANY_ID', '$SUP_ID', 'SW-2026-04', 'Strom April', '2026-04-30', 72.31, 0.19, 13.74, 86.05, 'booked', now(), now())
    RETURNING id;" 2>/dev/null | grep -E '^[0-9a-f-]{36}$' | head -1)
@@ -818,50 +818,50 @@ assert_eq "vendor-bill net amount" "$VND_NET" "72.31"
 assert_eq "vendor-bill VAT amount" "$VND_VAT" "13.74"
 
 # Verify voucher has 3 lines: 4900 + 1576 + 1200
-VND_LINE_COUNT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+VND_LINE_COUNT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT count(*) FROM \"VoucherLine\" WHERE \"voucherId\" = '$VND_VCH_ID';" 2>/dev/null | tr -d ' ')
 assert_eq "vendor-bill voucher has 3 lines" "$VND_LINE_COUNT" "3"
 
-VND_DEBIT_ACCT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+VND_DEBIT_ACCT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT a.\"accountNumber\" || '|' || vl.debit
    FROM \"VoucherLine\" vl JOIN \"Account\" a ON a.id = vl.\"accountId\"
    WHERE vl.\"voucherId\" = '$VND_VCH_ID' AND a.\"accountNumber\" = '4900';" 2>/dev/null | tr -d ' ')
 assert_eq "vendor-bill debit 4900 = net" "$VND_DEBIT_ACCT" "4900|72.3100"
 
-VND_VORSTEUER=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+VND_VORSTEUER=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT a.\"accountNumber\" || '|' || vl.debit
    FROM \"VoucherLine\" vl JOIN \"Account\" a ON a.id = vl.\"accountId\"
    WHERE vl.\"voucherId\" = '$VND_VCH_ID' AND a.\"accountNumber\" = '1576';" 2>/dev/null | tr -d ' ')
 assert_eq "vendor-bill Vorsteuer 1576 = VAT" "$VND_VORSTEUER" "1576|13.7400"
 
-VND_CREDIT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+VND_CREDIT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT a.\"accountNumber\" || '|' || vl.credit
    FROM \"VoucherLine\" vl JOIN \"Account\" a ON a.id = vl.\"accountId\"
    WHERE vl.\"voucherId\" = '$VND_VCH_ID' AND vl.credit > 0;" 2>/dev/null | tr -d ' ')
 assert_eq "vendor-bill credit 1200 = gross" "$VND_CREDIT" "1200|86.0500"
 
 # Sum of Soll = Sum of Haben
-VND_SUM_D=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+VND_SUM_D=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT SUM(debit) FROM \"VoucherLine\" WHERE \"voucherId\" = '$VND_VCH_ID';" 2>/dev/null | tr -d ' ')
-VND_SUM_C=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+VND_SUM_C=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT SUM(credit) FROM \"VoucherLine\" WHERE \"voucherId\" = '$VND_VCH_ID';" 2>/dev/null | tr -d ' ')
 assert_eq "vendor-bill Soll" "$VND_SUM_D" "86.0500"
 assert_eq "vendor-bill Haben" "$VND_SUM_C" "86.0500"
 
 # Expense referenceType on the voucher
-VND_REFTYPE=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+VND_REFTYPE=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT \"referenceType\" FROM \"Voucher\" WHERE id = '$VND_VCH_ID';" 2>/dev/null | tr -d ' ')
 assert_eq "vendor-bill voucher referenceType" "$VND_REFTYPE" "Expense"
 
 # Cleanup the test supplier
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"VoucherLine\" WHERE \"voucherId\" = '$VND_VCH_ID';
    DELETE FROM \"Voucher\" WHERE id = '$VND_VCH_ID';
    DELETE FROM \"Expense\" WHERE id = '$EXP_ID';
    DELETE FROM \"Supplier\" WHERE id = '$SUP_ID';" >/dev/null 2>&1
 
 # Cleanup
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"BankReconciliation\" WHERE \"companyId\" = '$COMPANY_ID';
    DELETE FROM \"BankTransaction\" WHERE \"companyId\" = '$COMPANY_ID';
    DELETE FROM \"BankStatement\" WHERE \"companyId\" = '$COMPANY_ID';

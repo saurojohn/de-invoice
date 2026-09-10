@@ -243,7 +243,7 @@ HAS_BMF=$(python3 -c "import json,sys; d=json.load(sys.stdin); print('BMF' in d[
 assert_eq "disclaimer mentions BMF" "$HAS_BMF" "True"
 
 # Cleanup the test Vorauszahlungen + vorauszahlungen field
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   UPDATE \"Company\" SET settings = settings - 'gewstVorauszahlungen'
   WHERE id = '$COMPANY_ID';" >/dev/null
 rm -f "$TMP"

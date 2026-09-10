@@ -44,7 +44,7 @@ note "initial: $INITIAL_CONFIG"
 
 # Wipe the dunning key from Company.settings so we
 # can verify the GET fills in defaults.
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "UPDATE \"Company\" SET settings = settings - 'dunning' WHERE id='$COMPANY_ID';" >/dev/null 2>&1
 pass "wiped dunning key from Company.settings"
 
@@ -83,7 +83,7 @@ test "$GOT" = "2/10/21 0/7.5/15" && pass "GET after PUT returns saved config" \
   || fail "GET after PUT wrong: $GOT (expected 2/10/21 0/7.5/15)"
 
 # Verify the value is actually stored in Company.settings.dunning
-STORED=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+STORED=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT settings->'dunning'->>'level2Fee' FROM \"Company\" WHERE id='$COMPANY_ID';" 2>&1 | tr -d ' ')
 test "$STORED" = "7.5" && pass "Company.settings.dunning.level2Fee=7.5 (DB)" \
   || fail "stored value wrong: $STORED (expected 7.5)"
@@ -116,7 +116,7 @@ echo "$ERR" | grep -q "must not be less than 0" && pass "error message mentions 
 
 # ───── 5. Restore initial config ─────
 note "=== 5. Restore initial config ==="
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "UPDATE \"Company\" SET settings = settings || jsonb_build_object('dunning', ($INITIAL_CONFIG::jsonb)) WHERE id='$COMPANY_ID';" >/dev/null 2>&1
 pass "restored initial dunning config"
 

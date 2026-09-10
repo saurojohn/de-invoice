@@ -176,7 +176,7 @@ note "=== 11. Berater packager includes Anlage G (auto-include on invoices) ==="
 # for Kapitalgesellschaften, tier 102). For
 # this test we force opt-in via settings.anlageG
 # to verify the Anlage G inclusion logic.
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   UPDATE \"Company\" SET settings = COALESCE(settings, '{}'::jsonb) || '{\"anlageG\": true}'::jsonb
   WHERE id = '$COMPANY_ID';" >/dev/null
 
@@ -232,7 +232,7 @@ EXPECTED_BWA=$(printf "%02d" $((G_PDF_FOUND + 1)))
 rm -rf /tmp/berater-g-$TS "$ZIP_PATH"
 
 # Restore settings
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   UPDATE \"Company\" SET settings = settings - 'anlageG'
   WHERE id = '$COMPANY_ID';" >/dev/null
 
@@ -249,7 +249,7 @@ note "=== 12. Berater packager EXCLUDES Anlage G when opt-out + no invoices ==="
 # So the assertion holds for the 2024 packager
 # regardless of anlageG opt-in/out (Anlage G
 # never appears for a GmbH).
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   UPDATE \"Company\" SET settings = COALESCE(settings, '{}'::jsonb) || '{\"anlageG\": false}'::jsonb
   WHERE id = '$COMPANY_ID';" >/dev/null
 
@@ -278,7 +278,7 @@ assert_eq "no Anlage G row in MANIFEST (opt-out)" "$MANIFEST_G_ROW" "0"
 rm -rf /tmp/berater-no-g-$TS "$ZIP_PATH"
 
 # Restore settings
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   UPDATE \"Company\" SET settings = settings - 'anlageG'
   WHERE id = '$COMPANY_ID';" >/dev/null
 

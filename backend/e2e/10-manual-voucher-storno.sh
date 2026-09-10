@@ -22,16 +22,16 @@ source "$SCRIPT_DIR/_lib.sh"
 login
 
 # Wipe prior test data
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"VoucherLine\" WHERE \"voucherId\" IN (SELECT id FROM \"Voucher\" WHERE \"voucherNumber\" LIKE 'VND-MAN-%' OR \"voucherNumber\" LIKE 'VND-MAN-%-S%');
    DELETE FROM \"Voucher\" WHERE \"voucherNumber\" LIKE 'VND-MAN-%' OR \"voucherNumber\" LIKE 'VND-MAN-%-S%';" >/dev/null 2>&1
 
 echo "=== Test: manual voucher + GoBD Storno ==="
 
 # Look up account ids (4900 Aufwand + 1200 Bank, both seeded)
-A4900=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+A4900=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT id FROM \"Account\" WHERE \"companyId\"='$COMPANY_ID' AND \"accountNumber\"='4900';" 2>/dev/null | grep -E '^[0-9a-f-]{36}$' | head -1)
-A1200=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+A1200=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT id FROM \"Account\" WHERE \"companyId\"='$COMPANY_ID' AND \"accountNumber\"='1200';" 2>/dev/null | grep -E '^[0-9a-f-]{36}$' | head -1)
 
 # Test 1: create a manual voucher (balanced, 2 lines)
@@ -149,7 +149,7 @@ SEARCH_TOTAL=$(python3 -c "import json,sys; print(json.loads(sys.argv[1])['total
 [ "$SEARCH_TOTAL" -ge 1 ] && echo "✓ Storno visible in list (search=$STO_NUM, total=$SEARCH_TOTAL)" || { echo "✗ Storno not in list"; exit 1; }
 
 # Cleanup
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"VoucherLine\" WHERE \"voucherId\" IN (SELECT id FROM \"Voucher\" WHERE \"voucherNumber\" LIKE 'VND-MAN-%' OR \"voucherNumber\" LIKE 'VND-MAN-%-S%');
    DELETE FROM \"Voucher\" WHERE \"voucherNumber\" LIKE 'VND-MAN-%' OR \"voucherNumber\" LIKE 'VND-MAN-%-S%';" >/dev/null 2>&1
 

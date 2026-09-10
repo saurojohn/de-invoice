@@ -41,7 +41,7 @@ TEST_USER_ID="user-2fa-login-$(date +%s)-$$"
 echo "=== Test: 2FA login flow (test user: $TEST_EMAIL) ==="
 
 # Cleanup any prior test users (safety)
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"User\" WHERE email='$TEST_EMAIL';" >/dev/null 2>&1
 
 # Seed test user + UserCompany grant (Tier 66
@@ -69,7 +69,7 @@ rm -f "$TMP_SQL"
 
 # Helper: read the user's TOTP secret from the DB
 db_secret() {
-  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
     "SELECT COALESCE(\"twoFactorSecret\", '') FROM \"User\" WHERE id='$TEST_USER_ID';" \
     2>&1 | tr -d ' ' | head -1
 }
@@ -151,7 +151,7 @@ VERIFY_RC=$(curl -sS -X POST "$API/api/v1/auth/2fa/verify" \
   -d "{\"email\":\"$TEST_EMAIL\",\"recoveryCode\":\"$RECOVERY_CODE\"}")
 RC_ID=$(echo "$VERIFY_RC" | python3 -c "import json,sys; print(json.load(sys.stdin).get('id', 'MISSING'))")
 assert_eq "verify recovery code returns id" "$RC_ID" "$TEST_USER_ID"
-RC_LEFT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+RC_LEFT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT jsonb_array_length(\"recoveryCodes\") FROM \"User\" WHERE id='$TEST_USER_ID';" \
   2>&1 | tr -d ' ' | head -1)
 assert_eq "recovery code consumed (9 left)" "$RC_LEFT" "9"
@@ -179,7 +179,7 @@ assert_eq "no twoFactorRequired after disable" "$TWO_FA_AFTER" "false"
 # ───── cleanup ─────
 echo
 note "=== 6. cleanup ==="
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"User\" WHERE id='$TEST_USER_ID';" >/dev/null 2>&1
 pass "test user deleted"
 

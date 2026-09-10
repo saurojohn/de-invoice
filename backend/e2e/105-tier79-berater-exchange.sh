@@ -42,7 +42,7 @@ echo "=== Test: Berater Document Exchange (berater: $TEST_BERATER_EMAIL) ==="
 
 # Cleanup hook (run on exit)
 cleanup() {
-  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null 2>&1
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null 2>&1
 DELETE FROM "BeraterNote" WHERE "companyId" = '$COMPANY_ID' AND "createdById" = '$TEST_BERATER_ID';
 DELETE FROM "Attachment"  WHERE "companyId" = '$COMPANY_ID' AND "uploadedById" = '$TEST_BERATER_ID';
 DELETE FROM "UserCompany" WHERE "companyId" = '$COMPANY_ID' AND "userId" = '$TEST_BERATER_ID';
@@ -68,12 +68,12 @@ SQL
 # (any non-draft invoice works). Fall back to
 # seeding a fresh test invoice if the dev DB
 # has no paid invoices.
-INV_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+INV_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT id FROM \"Invoice\" WHERE \"companyId\"='$COMPANY_ID' AND status IN ('paid','sent','overdue') LIMIT 1;" \
   2>&1 | tr -d ' ' | head -1)
 if [[ -z "$INV_ID" ]]; then
   # Fall back: seed a minimal invoice via SQL.
-  CUST_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  CUST_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
     "SELECT id FROM \"Customer\" WHERE \"companyId\"='$COMPANY_ID' LIMIT 1;" \
     2>&1 | tr -d ' ' | head -1)
   INV_ID="inv-tier79-${TS}"

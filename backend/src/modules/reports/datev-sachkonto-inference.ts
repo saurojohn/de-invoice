@@ -49,7 +49,6 @@
  */
 
 import { PrismaClient } from '@prisma/client';
-import { PrismaService } from '../../prisma/prisma.service';
 
 /**
  * SKR03 default account for a given Buchungstext

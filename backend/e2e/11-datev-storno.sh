@@ -19,7 +19,7 @@ source "$SCRIPT_DIR/_lib.sh"
 login
 
 # Cleanup any prior test data
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"VoucherLine\" WHERE \"voucherId\" IN (SELECT id FROM \"Voucher\" WHERE \"voucherNumber\" LIKE 'VND-DT-%' OR \"voucherNumber\" LIKE 'VND-DT-%-S%');
    DELETE FROM \"Voucher\" WHERE \"voucherNumber\" LIKE 'VND-DT-%' OR \"voucherNumber\" LIKE 'VND-DT-%-S%';" >/dev/null 2>&1
 
@@ -36,9 +36,9 @@ note "baseline sum account 4900 = $NET_4900_BEFORE (before test)"
 
 echo "=== Test: Storno in DATEV export ==="
 
-A4900=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+A4900=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT id FROM \"Account\" WHERE \"companyId\"='$COMPANY_ID' AND \"accountNumber\"='4900';" 2>/dev/null | grep -E '^[0-9a-f-]{36}$' | head -1)
-A1200=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+A1200=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT id FROM \"Account\" WHERE \"companyId\"='$COMPANY_ID' AND \"accountNumber\"='1200';" 2>/dev/null | grep -E '^[0-9a-f-]{36}$' | head -1)
 
 # Create original in MAY (so the Storno in June is in a
@@ -147,7 +147,7 @@ else
 fi
 
 # Cleanup
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"VoucherLine\" WHERE \"voucherId\" IN (SELECT id FROM \"Voucher\" WHERE \"voucherNumber\" LIKE 'VND-DT-%' OR \"voucherNumber\" LIKE 'VND-DT-%-S%');
    DELETE FROM \"Voucher\" WHERE \"voucherNumber\" LIKE 'VND-DT-%' OR \"voucherNumber\" LIKE 'VND-DT-%-S%';" >/dev/null 2>&1
 mavis-trash /tmp/datev-vnd-dt.csv /tmp/datev-may-only.csv 2>/dev/null

@@ -344,7 +344,7 @@ export class DatevBuchungslisteService {
     // the same pattern. Don't use
     // `archiver.create` (v6/v7) — v8 is
     // `new archiverLib.ZipArchive({zlib:...})`.
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+     
     const archiverLib: any = require('archiver')
     const zip = new archiverLib.ZipArchive({ zlib: { level: 6 } })
     const chunks: Buffer[] = []
@@ -599,7 +599,7 @@ export class DatevBuchungslisteService {
 
   private renderKontenplanCsv(
     summaries: SachkontoSummary[],
-    accounts: DatevAccountMap & {
+    _accounts: DatevAccountMap & {
       revenueReverseCharge: string
       revenueIgE: string
       revenueExport: string

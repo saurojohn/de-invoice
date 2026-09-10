@@ -171,19 +171,19 @@ fi
 
 # 9. Cleanup — hard-delete test rows so the next
 # run starts clean.
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"Customer\" WHERE \"companyId\" = '${COMPANY_ID}' AND name LIKE 'T13-Cust-%-${UNIQ}';" >/dev/null 2>&1
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"Product\" WHERE \"companyId\" = '${COMPANY_ID}' AND name LIKE 'T13-Prod-%-${UNIQ}';" >/dev/null 2>&1
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"Product\" WHERE \"companyId\" = '${COMPANY_ID}' AND name LIKE 'T13-Bad-Price-${UNIQ}';" >/dev/null 2>&1
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"Expense\" WHERE \"companyId\" = '${COMPANY_ID}' AND description LIKE 'T13-Exp-%-${UNIQ}';" >/dev/null 2>&1
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"Expense\" WHERE \"companyId\" = '${COMPANY_ID}' AND description LIKE 'T13-Bad-Date-${UNIQ}';" >/dev/null 2>&1
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"Supplier\" WHERE \"companyId\" = '${COMPANY_ID}' AND name LIKE 'T13-Sup-Exp-${UNIQ}';" >/dev/null 2>&1
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"Supplier\" WHERE \"companyId\" = '${COMPANY_ID}' AND name LIKE 'T13-AutoSup-${UNIQ}';" >/dev/null 2>&1
 pass "cleanup done"
 

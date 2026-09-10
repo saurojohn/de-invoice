@@ -11,7 +11,7 @@
 // ALSO declares it (in its own scope) and
 // the two declarations must agree.
 declare global {
-  // eslint-disable-next-line no-var
+   
   var __deInvoiceRequestContext:
     | {
         userId: string | null
@@ -253,7 +253,7 @@ export function createAuditLogExtension() {
     name: 'auditLog',
     query: {
       $allModels: {
-        async create({ model, operation, args, query }: any) {
+        async create({ model, _operation, args, query }: any) {
           if (!AUDITED_MODELS.has(model)) return query(args)
           const result = await query(args)
           // Tier 304: ensure the newData blob
@@ -283,7 +283,7 @@ export function createAuditLogExtension() {
           })
           return result
         },
-        async update({ model, operation, args, query }: any) {
+        async update({ model, _operation, args, query }: any) {
           if (!AUDITED_MODELS.has(model)) return query(args)
           const before = await getPreImage(_auditLogClient, model, args)
           const result = await query(args)
@@ -296,7 +296,7 @@ export function createAuditLogExtension() {
           })
           return result
         },
-        async updateMany({ model, operation, args, query }: any) {
+        async updateMany({ model, _operation, args, query }: any) {
           if (!AUDITED_MODELS.has(model)) return query(args)
           const result = await query(args)
           await writeAudit(_auditLogClient, {
@@ -308,7 +308,7 @@ export function createAuditLogExtension() {
           })
           return result
         },
-        async delete({ model, operation, args, query }: any) {
+        async delete({ model, _operation, args, query }: any) {
           if (!AUDITED_MODELS.has(model)) return query(args)
           const before = await getPreImage(_auditLogClient, model, args)
           const result = await query(args)
@@ -321,7 +321,7 @@ export function createAuditLogExtension() {
           })
           return result
         },
-        async deleteMany({ model, operation, args, query }: any) {
+        async deleteMany({ model, _operation, args, query }: any) {
           if (!AUDITED_MODELS.has(model)) return query(args)
           const result = await query(args)
           await writeAudit(_auditLogClient, {
@@ -480,7 +480,7 @@ async function writeAudit(
     // Don't fail the user-facing request
     // if the audit log fails. Just log to
     // the backend console.
-    // eslint-disable-next-line no-console
+     
     console.error('[auditLog] failed to write audit row:', (err as Error).message)
   }
 }

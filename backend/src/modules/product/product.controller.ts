@@ -11,7 +11,6 @@ import {
   Res,
   Header,
 } from '@nestjs/common';
-import { Response } from 'express';
 import { ProductService, ImportProductRow } from './product.service';
 import { CreateProductDto, UpdateProductDto } from './dto/product.dto';
 import { Auth, Require } from '../../auth/roles.decorator';

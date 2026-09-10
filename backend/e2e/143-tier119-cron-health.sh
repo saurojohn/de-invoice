@@ -43,7 +43,7 @@ SQL
 pass "wiped all CronHealth rows"
 
 # Verify the table exists (schema push must have run)
-TABLE_EXISTS=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+TABLE_EXISTS=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'CronHealth';" 2>&1 | tr -d ' ' | head -1)
 test "$TABLE_EXISTS" = "1" && pass "CronHealth table exists" \
   || fail "CronHealth table missing — did prisma db push run?"
@@ -162,7 +162,7 @@ docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/
 INSERT INTO "CronHealth" (id, name, status, "startedAt")
 VALUES (gen_random_uuid()::text, 'old-cron-tick', 'success', now() - interval '10 days');
 SQL
-OLD_COUNT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+OLD_COUNT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT COUNT(*) FROM \"CronHealth\" WHERE name = 'old-cron-tick';" 2>&1 | tr -d ' ' | head -1)
 test "$OLD_COUNT" = "1" && pass "old row exists (10d ago)" \
   || fail "old row missing (count=$OLD_COUNT)"
@@ -174,7 +174,7 @@ CLEAN_RESP=$(curl -sS -X POST -H "x-user-id: $USER_ID" -H "x-company-id: $COMPAN
   "http://localhost:3001/api/v1/admin/cron-health/clean")
 note "clean response: $CLEAN_RESP"
 
-OLD_AFTER=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+OLD_AFTER=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT COUNT(*) FROM \"CronHealth\" WHERE name = 'old-cron-tick';" 2>&1 | tr -d ' ' | head -1)
 test "$OLD_AFTER" = "0" && pass "clean removed the 10d-old row" \
   || fail "clean did not remove (count=$OLD_AFTER)"

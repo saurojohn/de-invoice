@@ -17,7 +17,7 @@ source "$SCRIPT_DIR/_lib.sh"
 login
 
 # Cleanup any prior test vouchers (VND-* pattern from this test)
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"VoucherLine\" WHERE \"voucherId\" IN (SELECT id FROM \"Voucher\" WHERE \"voucherNumber\" LIKE 'VND-LIST-%');
    DELETE FROM \"Voucher\" WHERE \"voucherNumber\" LIKE 'VND-LIST-%';" >/dev/null 2>&1
 
@@ -49,7 +49,7 @@ L3="l3-${RUN_ID}"
 L4="l4-${RUN_ID}"
 L5="l5-${RUN_ID}"
 L6="l6-${RUN_ID}"
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "INSERT INTO \"Voucher\" (id, \"companyId\", \"voucherNumber\", date, description, \"referenceType\", status, \"createdAt\")
    VALUES
      ('$V1'::text, '$COMPANY_ID', 'VND-LIST-001', '$TODAY', 'Rechnungseingang Liste', 'Expense', 'booked', now()),
@@ -57,7 +57,7 @@ docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
      ('$V3'::text, '$COMPANY_ID', 'VND-LIST-003', '$TODAY', 'Manuelle Buchung', 'Manual', 'draft', now());" 2>/dev/null
 
 # Voucher 1: 3-line Expense voucher
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "INSERT INTO \"VoucherLine\" (id, \"voucherId\", \"accountId\", debit, credit, description)
    SELECT '$L1'::text, '$V1'::text, a.id, 100.0000, 0, 'Aufwand' FROM \"Account\" a WHERE \"companyId\"='$COMPANY_ID' AND \"accountNumber\"='4900'
    UNION ALL
@@ -66,14 +66,14 @@ docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
    SELECT '$L3'::text, '$V1'::text, a.id, 0, 119.0000, 'Bank' FROM \"Account\" a WHERE \"companyId\"='$COMPANY_ID' AND \"accountNumber\"='1200';" >/dev/null 2>&1
 
 # Voucher 2: 2-line BankReconciliation
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "INSERT INTO \"VoucherLine\" (id, \"voucherId\", \"accountId\", debit, credit, description)
    SELECT '$L4'::text, '$V2'::text, a.id, 50.0000, 0, 'Aufwand' FROM \"Account\" a WHERE \"companyId\"='$COMPANY_ID' AND \"accountNumber\"='4900'
    UNION ALL
    SELECT '$L5'::text, '$V2'::text, a.id, 0, 50.0000, 'Bank' FROM \"Account\" a WHERE \"companyId\"='$COMPANY_ID' AND \"accountNumber\"='1200';" >/dev/null 2>&1
 
 # Voucher 3: 1-line Manual (UNBALANCED — debit 30, credit 0)
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "INSERT INTO \"VoucherLine\" (id, \"voucherId\", \"accountId\", debit, credit, description)
    SELECT '$L6'::text, '$V3'::text, a.id, 30.0000, 0, 'Test' FROM \"Account\" a WHERE \"companyId\"='$COMPANY_ID' AND \"accountNumber\"='4900';" >/dev/null 2>&1
 
@@ -193,7 +193,7 @@ echo "✓ voucher PDF contains voucherNumber"
 # Cleanup — use the same RUN_ID-suffixed PKs we
 # inserted above so we don't try to delete the
 # literal 'v1' / 'l1' (which no longer exist).
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"VoucherLine\" WHERE \"voucherId\" IN (SELECT id FROM \"Voucher\" WHERE \"voucherNumber\" LIKE 'VND-LIST-%');
    DELETE FROM \"Voucher\" WHERE \"voucherNumber\" LIKE 'VND-LIST-%';
    DELETE FROM \"VoucherLine\" WHERE id IN ('$L1','$L2','$L3','$L4','$L5','$L6');" >/dev/null 2>&1

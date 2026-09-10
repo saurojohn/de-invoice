@@ -48,7 +48,7 @@ login
 # We need a customer with at least one Payment row in the DB.
 # Pull from the database directly so this test is deterministic
 # regardless of UI state.
-CUSTOMER_INFO=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
+CUSTOMER_INFO=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
   SELECT c.id, c.name
   FROM \"Customer\" c
   WHERE c.\"companyId\" = '$COMPANY_ID'
@@ -78,7 +78,7 @@ DATA_LEN=$(echo "$BODY" | python3 -c "import json,sys; d=json.loads(sys.stdin.re
 [ "$DATA_LEN" -le 200 ] && pass "data array length $DATA_LEN <= pageSize 200" || fail "data length exceeds pageSize"
 
 # Extract one invoice with payments to test the per-invoice walk
-INV_WITH_PAY=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
+INV_WITH_PAY=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
   SELECT i.id, i.\"invoiceNumber\"
   FROM \"Invoice\" i
   WHERE i.\"customerId\" = '$TEST_CUSTOMER_ID'

@@ -25,7 +25,7 @@ cleanup_cashbook
 echo "=== Test: Tier 5.5 DATEV-config roundtrip ==="
 
 # ----- Reset to clean state -----
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "UPDATE \"Company\" SET settings = NULL WHERE id = '$COMPANY_ID';" >/dev/null 2>&1
 
 # ===== Defaults roundtrip: GET returns the SKR03_DEFAULTS =====
@@ -222,7 +222,7 @@ else
 fi
 
 # ----- Cleanup -----
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "UPDATE \"Company\" SET settings = NULL WHERE id = '$COMPANY_ID';" >/dev/null 2>&1
 note "Cleanup done"
 

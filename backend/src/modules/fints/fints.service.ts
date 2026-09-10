@@ -470,7 +470,7 @@ export class FinTsService {
    */
   private async runMockSync(
     connectionId: string,
-    input: StartSyncInput,
+    _input: StartSyncInput,
   ): Promise<
     | { status: 'ok'; txCount: number }
     | { status: 'needs_tan'; tanChallenge: string }
@@ -713,7 +713,7 @@ export class FinTsService {
     conn: any,
     txs: Array<MockTransaction | import('./fints-real').FintsTransaction>,
     accountIban?: string | null,
-    accountBic?: string | null,
+    _accountBic?: string | null,
   ): Promise<number> {
     const isReal = conn.mockMode !== 1
     const format = isReal ? 'fints-real' : 'fints-mock'

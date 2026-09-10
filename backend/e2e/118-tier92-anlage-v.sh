@@ -46,28 +46,28 @@ echo "=== Test: Anlage V (Vermietung und Verpachtung) — test tag: $TEST_TAG ==
 
 # Pre-cleanup: remove any leftover rows from
 # a previous aborted run of this test.
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"Expense\" WHERE \"relatedAssetId\" IN (SELECT id FROM \"Asset\" WHERE bezeichnung LIKE 'T92-${TS}-%');" >/dev/null 2>&1
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"Expense\" WHERE notes LIKE 'T92-${TS}-%';" >/dev/null 2>&1
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"Asset\" WHERE bezeichnung LIKE 'T92-${TS}-%';" >/dev/null 2>&1
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"Invoice\" WHERE \"invoiceNumber\" LIKE 'T92-${TS}-%';" >/dev/null 2>&1
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"Customer\" WHERE name='T92-${TS}-Tenant GmbH';" >/dev/null 2>&1
 
 cleanup() {
   # Remove test-tagged Expense + Asset + Invoice + Customer rows.
-  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
     "DELETE FROM \"Expense\" WHERE \"relatedAssetId\" IN (SELECT id FROM \"Asset\" WHERE bezeichnung LIKE 'T92-${TS}-%');" >/dev/null 2>&1
-  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
     "DELETE FROM \"Expense\" WHERE notes LIKE 'T92-${TS}-%';" >/dev/null 2>&1
-  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
     "DELETE FROM \"Asset\" WHERE bezeichnung LIKE 'T92-${TS}-%';" >/dev/null 2>&1
-  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
     "DELETE FROM \"Invoice\" WHERE \"invoiceNumber\" LIKE 'T92-${TS}-%';" >/dev/null 2>&1
-  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
     "DELETE FROM \"Customer\" WHERE name='T92-${TS}-Tenant GmbH';" >/dev/null 2>&1
   echo "  cleanup: removed T92-${TS}-* rows"
 }
@@ -136,7 +136,7 @@ INSERT INTO "Customer" (id, "companyId", name, "customerNumber", address, "creat
 VALUES (gen_random_uuid()::text, '$COMPANY_ID', 'T92-${TS}-Tenant GmbH', 'T92-${TS}', '{}'::jsonb, now(), now());
 EOF
 docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice < "$TMP_SQL"
-TENANT_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+TENANT_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT id FROM \"Customer\" WHERE name='T92-${TS}-Tenant GmbH';" 2>&1 | tr -d ' ' | head -1)
 
 # Seed 2 paid invoices in 2028: 2000 + 1500
@@ -195,7 +195,7 @@ assert_eq "8600 computed AfA = -6000" "$E8600_RAW" "$EXPECTED_8600"
 # for the test year. The 8600 line should
 # now show the booked value (which is
 # -annualAfA = -6000) and afaSource = 'booked'.
-ASSET_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+ASSET_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT id FROM \"Asset\" WHERE bezeichnung='T92-${TS}-Gebaeude-1';" 2>&1 | tr -d ' ' | head -1)
 curl -sS -X POST \
   "$API/api/v1/assets/book-afa?companyId=$COMPANY_ID&year=$TEST_YEAR" \

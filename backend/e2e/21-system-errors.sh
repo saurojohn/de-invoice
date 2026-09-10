@@ -165,7 +165,7 @@ EMPTY_OK=$(json_field "$EMPTY" ok | tr 'A-Z' 'a-z')
 assert_eq "empty body ok" "$EMPTY_OK" "true"
 
 # Cleanup any test rows
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"ErrorEvent\" WHERE message LIKE 'SYS-TEST%';" >/dev/null 2>&1
 
 echo

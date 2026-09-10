@@ -41,7 +41,7 @@ SQL
 pass "wiped prior tier-65 fixtures"
 
 # Pick a real customer
-CUST_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
+CUST_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
   SELECT id FROM \"Customer\" WHERE \"companyId\" = '$COMPANY_ID' LIMIT 1;" 2>/dev/null | tr -d ' ' | head -1)
 [[ -n "$CUST_ID" ]] && pass "picked a real customer: $CUST_ID" || fail "no customer to use"
 
@@ -49,7 +49,7 @@ CUST_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -
 # Tier 96: data-dependent — the dev DB state has
 # drifted over time. Use skip_if-empty guard so
 # CI shows "skipped" rather than "failed".
-HIGH_INV=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
+HIGH_INV=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
   SELECT id FROM \"Invoice\" WHERE \"companyId\" = '$COMPANY_ID'
     AND type = 'INV' AND status = 'sent'
     AND total::numeric >= 500
@@ -59,7 +59,7 @@ skip_if "no high-amount (>= 500 EUR) sent invoice for the test customer (tier 65
 [[ -n "$HIGH_INV" ]] && pass "picked a high-amount invoice: $HIGH_INV"
 
 # Find a low-amount sent invoice (< 500 EUR) for the customer
-LOW_INV=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
+LOW_INV=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
   SELECT id FROM \"Invoice\" WHERE \"companyId\" = '$COMPANY_ID'
     AND type = 'INV' AND status = 'sent'
     AND total::numeric < 500
@@ -119,13 +119,13 @@ assert_eq "plan has 3 installments" "$INSTALLMENT_COUNT" "3"
 rm -f "$TMP3"
 
 # Verify the Mahnungspause was created
-PAUSE_ROWS=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
+PAUSE_ROWS=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
   SELECT count(*) FROM \"Mahnungspause\" WHERE \"companyId\" = '$COMPANY_ID'
   AND reason = 'Ratenplan aktiv' AND \"customerId\" = '$CUST_ID';" 2>&1 | tr -d ' ')
 assert_eq "auto-pause created" "$PAUSE_ROWS" "1"
 
 # Verify the pause is open-ended (pausedUntil IS NULL)
-PAUSE_ENDED=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
+PAUSE_ENDED=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
   SELECT CASE WHEN \"pausedUntil\" IS NULL THEN 'null' ELSE 'set' END
   FROM \"Mahnungspause\" WHERE \"companyId\" = '$COMPANY_ID'
   AND reason = 'Ratenplan aktiv' AND \"customerId\" = '$CUST_ID' LIMIT 1;" 2>&1 | tr -d ' ')

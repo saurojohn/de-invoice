@@ -285,7 +285,7 @@ export class ReminderService {
           // Use console.debug since ReminderService
           // doesn't inject Logger (matches the rest of
           // the file's debug logging).
-          // eslint-disable-next-line no-console
+           
           console.debug(
             `[SKIP-MAHNUNG] invoice ${inv.invoiceNumber}: Skonto window still open (expires ${skontoExpiry.toISOString().slice(0, 10)}), not sending Mahnung`,
           )

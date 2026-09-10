@@ -40,6 +40,8 @@
 #   9. <Vorgang> is present and non-empty
 
 set -uo pipefail
+# Tier 355: honour PG_CONTAINER (this script does not source _lib.sh).
+PG_CONTAINER="${PG_CONTAINER:-de-invoice-postgres}"
 HOST="${HOST:-http://localhost:3001}"
 COMPANY_ID="ad257ec3-d319-479b-b870-3fe76e8f3111"
 PASS=0
@@ -69,7 +71,7 @@ fi
 # We need an existing filing. Try to
 # find one; if none, the test creates
 # one by calling compute + saveFiling.
-FILING_ID=$(PGPASSWORD=de_invoice_pass docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+FILING_ID=$(PGPASSWORD=de_invoice_pass docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT id FROM \"UStvaFiling\" WHERE \"companyId\"='$COMPANY_ID' ORDER BY \"createdAt\" DESC LIMIT 1;" 2>/dev/null | tr -d ' ' | head -1)
 if [[ -z "$FILING_ID" ]]; then
   echo "No existing filing — creating one..."

@@ -30,8 +30,13 @@ if ! curl -sS -o /dev/null -w "%{http_code}" http://localhost:3001/api/v1/auth/l
   echo "FATAL: backend not reachable on localhost:3001" >&2
   exit 1
 fi
-if ! docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "SELECT 1" >/dev/null 2>&1; then
-  echo "FATAL: Postgres container 'de-invoice-postgres' not reachable" >&2
+# Tier 355: honour PG_CONTAINER, same as ci-seed.sh and (since Tier 353)
+# the Playwright specs. Tier 353 fixed the frontend side and missed this
+# one, so a throwaway local database still could not run the backend
+# suite. Default unchanged.
+PG_CONTAINER="${PG_CONTAINER:-de-invoice-postgres}"
+if ! docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "SELECT 1" >/dev/null 2>&1; then
+  echo "FATAL: Postgres container '$PG_CONTAINER' not reachable" >&2
   exit 1
 fi
 

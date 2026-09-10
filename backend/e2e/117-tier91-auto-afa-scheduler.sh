@@ -64,19 +64,19 @@ OPT_OUT_YEAR=2029
 
 # Pre-cleanup: remove any leftover rows from a
 # previous aborted run of this test.
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "DELETE FROM \"Expense\" WHERE \"relatedAssetId\" IN (SELECT id FROM \"Asset\" WHERE bezeichnung LIKE 'T91-${TS}-%');" >/dev/null 2>&1
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "DELETE FROM \"Asset\" WHERE bezeichnung LIKE 'T91-${TS}-%';" >/dev/null 2>&1
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "DELETE FROM \"Expense\" WHERE \"relatedAssetId\" IN (SELECT id FROM \"Asset\" WHERE bezeichnung LIKE 'T91-${TS}-%');" >/dev/null 2>&1
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "DELETE FROM \"Asset\" WHERE bezeichnung LIKE 'T91-${TS}-%';" >/dev/null 2>&1
 # Also clean any audit log entries from previous
 # aborted runs of this test (filtered by oldData
 # year=TEST_YEAR or OPT_OUT_YEAR + company=SH Leder
 # to be safe).
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "DELETE FROM \"AuditLog\" WHERE action='assets.afa.auto_booked' AND (\"oldData\"->>'year')::int IN ($TEST_YEAR, $OPT_OUT_YEAR);" >/dev/null 2>&1
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "DELETE FROM \"AuditLog\" WHERE action='assets.afa.auto_booked' AND (\"oldData\"->>'year')::int IN ($TEST_YEAR, $OPT_OUT_YEAR);" >/dev/null 2>&1
 
 # Backup the SH Leder settings JSON so we can
 # restore it after the opt-out test. The opt-out
 # test mutates settings.autoBookAfa; the cleanup
 # trap restores it.
-ORIGINAL_SETTINGS=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+ORIGINAL_SETTINGS=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT settings::text FROM \"Company\" WHERE id='$COMPANY_ID';" 2>&1 | tr -d ' ' | head -1)
 # Trim trailing newline
 ORIGINAL_SETTINGS=$(echo "$ORIGINAL_SETTINGS" | tr -d '\n')
@@ -86,20 +86,20 @@ cleanup() {
   # Restore the SH Leder settings JSON in case
   # the opt-out test left it mutated.
   if [ -n "$ORIGINAL_SETTINGS" ]; then
-    docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+    docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
       "UPDATE \"Company\" SET settings='$ORIGINAL_SETTINGS'::jsonb WHERE id='$COMPANY_ID';" >/dev/null 2>&1
   fi
   # Remove all test-tagged Expense rows (the 12
   # monthly AfA rows per asset).
-  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
     "DELETE FROM \"Expense\" WHERE \"relatedAssetId\" IN (SELECT id FROM \"Asset\" WHERE bezeichnung LIKE 'T91-${TS}-%');" >/dev/null 2>&1
   # Remove test-tagged Asset rows.
-  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
     "DELETE FROM \"Asset\" WHERE bezeichnung LIKE 'T91-${TS}-%';" >/dev/null 2>&1
   # Remove audit log entries for the test years
   # (only the auto_booked ones — leave other
   # audit entries alone).
-  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
     "DELETE FROM \"AuditLog\" WHERE action='assets.afa.auto_booked' AND (\"oldData\"->>'year')::int IN ($TEST_YEAR, $OPT_OUT_YEAR);" >/dev/null 2>&1
   echo "  cleanup: removed T91-${TS}-* assets + their AfA expenses + auto-booked audit log entries; restored settings"
 }
@@ -120,10 +120,10 @@ EOF
 docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice < "$TMP_SQL"
 rm -f "$TMP_SQL"
 
-ASSET1_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+ASSET1_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT id FROM \"Asset\" WHERE \"companyId\"='$COMPANY_ID' AND bezeichnung='T91-${TS}-Maschine-1';" \
   2>&1 | tr -d ' ' | head -1)
-ASSET2_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+ASSET2_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT id FROM \"Asset\" WHERE \"companyId\"='$COMPANY_ID' AND bezeichnung='T91-${TS}-Maschine-2';" \
   2>&1 | tr -d ' ' | head -1)
 echo "  created asset 1 $ASSET1_ID (year 2028, annualAfA=1200)"
@@ -148,22 +148,22 @@ echo "  companies in DB: $COMPANIES_COUNT"
 # ===== 2. force-trigger created 12 monthly rows for asset 1 =====
 echo
 echo "=== 2. force-trigger booked 12 monthly AfA rows for asset 1 ==="
-BOOKED_COUNT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+BOOKED_COUNT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT COUNT(*) FROM \"Expense\" WHERE \"relatedAssetId\"='$ASSET1_ID' AND \"category\"='AfA';" \
   2>&1 | tr -d ' ')
 assert_eq "AfA rows for asset 1" "$BOOKED_COUNT" "12"
 # Verify each row has afaMonth 1-12.
-MONTHS_PRESENT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+MONTHS_PRESENT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT COUNT(DISTINCT \"afaMonth\") FROM \"Expense\" WHERE \"relatedAssetId\"='$ASSET1_ID' AND \"category\"='AfA';" \
   2>&1 | tr -d ' ')
 assert_eq "distinct afaMonth values" "$MONTHS_PRESENT" "12"
 # Verify the sum = annualAfA = 1200.
-BOOKED_SUM=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+BOOKED_SUM=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT ROUND(SUM(ABS(\"grossAmount\"::numeric)), 2) FROM \"Expense\" WHERE \"relatedAssetId\"='$ASSET1_ID' AND \"category\"='AfA';" \
   2>&1 | tr -d ' ')
 assert_eq "AfA sum = annualAfA 1200" "$BOOKED_SUM" "1200.00"
 # Verify Dec absorbs the rounding remainder (for 100/12 the last month differs from the others).
-DEC_AMOUNT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+DEC_AMOUNT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT ROUND(ABS(\"grossAmount\"::numeric), 2) FROM \"Expense\" WHERE \"relatedAssetId\"='$ASSET1_ID' AND \"category\"='AfA' AND \"afaMonth\"=12;" \
   2>&1 | tr -d ' ')
 # 6000/60/12 = 100/12 = 8.33. So months 1-11 = 8.33, month 12 = 100 - 11*8.33 = 8.37.
@@ -195,7 +195,7 @@ SECOND_BOOKED=$(echo "$RESP2" | python3 -c "import json,sys; d=json.load(sys.std
 # The first call booked 12 rows for asset 1 + maybe
 # some for other companies' assets. The second call
 # should book 0 new rows for our test asset.
-SECOND_BOOKED_ASSET1=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+SECOND_BOOKED_ASSET1=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT COUNT(*) FROM \"Expense\" WHERE \"relatedAssetId\"='$ASSET1_ID' AND \"category\"='AfA';" \
   2>&1 | tr -d ' ')
 assert_eq "AfA rows for asset 1 after re-run (still 12)" "$SECOND_BOOKED_ASSET1" "12"
@@ -211,10 +211,10 @@ s = json.loads(sys.stdin.read())
 s['autoBookAfa'] = False
 print(json.dumps(s))
 ")
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "UPDATE \"Company\" SET settings='$UPDATED_SETTINGS'::jsonb WHERE id='$COMPANY_ID';" >/dev/null
 # Verify the settings were applied.
-SETTINGS_AFABOOK=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+SETTINGS_AFABOOK=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT settings->>'autoBookAfa' FROM \"Company\" WHERE id='$COMPANY_ID';" \
   2>&1 | tr -d ' ')
 assert_eq "settings.autoBookAfa = false" "$SETTINGS_AFABOOK" "false"
@@ -222,7 +222,7 @@ assert_eq "settings.autoBookAfa = false" "$SETTINGS_AFABOOK" "false"
 RESP3=$(curl -sS -X POST \
   "$API/api/v1/assets/_test/auto-booker-trigger?year=$OPT_OUT_YEAR" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID")
-BOOKED_ASSET2_AFTER_OPT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+BOOKED_ASSET2_AFTER_OPT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT COUNT(*) FROM \"Expense\" WHERE \"relatedAssetId\"='$ASSET2_ID' AND \"category\"='AfA';" \
   2>&1 | tr -d ' ')
 assert_eq "AfA rows for asset 2 after opt-out trigger (expected 0)" "$BOOKED_ASSET2_AFTER_OPT" "0"
@@ -241,12 +241,12 @@ if 'autoBookAfa' in s:
   del s['autoBookAfa']
 print(json.dumps(s))
 ")
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "UPDATE \"Company\" SET settings='$RESTORED_SETTINGS'::jsonb WHERE id='$COMPANY_ID';" >/dev/null
 RESP4=$(curl -sS -X POST \
   "$API/api/v1/assets/_test/auto-booker-trigger?year=$OPT_OUT_YEAR" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID")
-BOOKED_ASSET2_AFTER_RE=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+BOOKED_ASSET2_AFTER_RE=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT COUNT(*) FROM \"Expense\" WHERE \"relatedAssetId\"='$ASSET2_ID' AND \"category\"='AfA';" \
   2>&1 | tr -d ' ')
 assert_eq "AfA rows for asset 2 after re-enable (expected 12)" "$BOOKED_ASSET2_AFTER_RE" "12"
@@ -260,7 +260,7 @@ echo "=== 6. Audit log 'assets.afa.auto_booked' for test year ==="
 # force-trigger call) — we want the one with
 # bookedCount > 0 (the first call booked 12 rows,
 # the second call (idempotency test) booked 0).
-AUDIT_YEAR=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+AUDIT_YEAR=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT
     COALESCE(\"oldData\"->>'year', 'NULL') || '|' ||
     COALESCE(\"oldData\"->>'mode', 'NULL') || '|' ||

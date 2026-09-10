@@ -59,10 +59,10 @@ assert_eq "all summary keys present" "$HAS_KEYS" "true"
 echo
 note "=== 2. invoice/expense counts match the DB ==="
 # Get DB counts directly
-DB_INV=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+DB_INV=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT COUNT(*) FROM \"Invoice\" WHERE \"companyId\"='$COMPANY_ID' AND \"issueDate\">='2026-01-01' AND \"issueDate\"<='2026-12-31';" \
   2>&1 | tr -d ' ' | head -1)
-DB_EXP=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+DB_EXP=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT COUNT(*) FROM \"Expense\" WHERE \"companyId\"='$COMPANY_ID' AND \"invoiceDate\">='2026-01-01' AND \"invoiceDate\"<='2026-12-31';" \
   2>&1 | tr -d ' ' | head -1)
 API_INV=$(python3 -c "import json; print(json.load(open('$TMP'))['invoiceCount'])")

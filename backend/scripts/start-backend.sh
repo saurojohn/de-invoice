@@ -31,6 +31,14 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR/.."
 
+# Tier 355: DATABASE_URL was the one value this wrapper did NOT
+# re-export, even though its whole purpose is to preserve the env the
+# backend was started with. e2e spec 20 kills and restarts the backend
+# through this script mid-run; without this line the restart fell back to
+# the .env default and died with Prisma P1001 the moment the suite was
+# pointed at a throwaway database via PG_CONTAINER. Only set when the
+# caller already exported it, so the .env default still applies normally.
+if [ -n "${DATABASE_URL:-}" ]; then export DATABASE_URL; fi
 export PORT="${PORT:-3001}"
 # Default FRONTEND_URL allows both common dev ports:
 #   - 3000 (SH Leder Website / default Next.js dev)

@@ -78,7 +78,7 @@ DELETE FROM "InvoiceItem" WHERE "invoiceId" IN (
 DELETE FROM "Invoice" WHERE "invoiceNumber" LIKE 'T116-%';
 DELETE FROM "Customer" WHERE "customerNumber" LIKE 'T116-%' OR name LIKE 'T116-%';
 SQL
-ORIGINAL_ADDRESS=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+ORIGINAL_ADDRESS=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT address::text FROM \"Company\" WHERE id='$COMPANY_ID';" 2>&1 | tr -d '\n' | head -1)
 cleanup() {
   docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null 2>&1
@@ -117,7 +117,7 @@ pass "created 4 customers"
 # Helper to create invoice via SQL (the API auto-assigns invoiceNumber)
 create_invoice() {
   local inv_num="$1" cust_num="$2" skonto_pct="${3:-0}" skonto_days="${4:-0}"
-  local cust_id=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  local cust_id=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
     "SELECT id FROM \"Customer\" WHERE \"customerNumber\"='$cust_num';" 2>&1 | tr -d ' ' | head -1)
   docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
 INSERT INTO "Invoice" (id, "companyId", "invoiceNumber", type, status, "issueDate", "dueDate",

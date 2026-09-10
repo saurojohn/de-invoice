@@ -114,7 +114,7 @@ export async function generateZUGFeRD(
 function generateZUGFeRDXml(
   data: XRechnungData,
   version: string,
-  conformanceLevel: string
+  _conformanceLevel: string
 ): string {
   const invoiceDate = formatDate(data.issueDate);
   const dueDate = data.dueDate ? formatDate(data.dueDate) : null;
@@ -272,10 +272,6 @@ function formatDate(date: string | Date): string {
   return d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
-function formatXRechnungDate(date: string | Date): string {
-  const d = date instanceof Date ? date : new Date(date);
-  return d.toISOString().split('T')[0];
-}
 
 function formatDecimal(value: number): string {
   return value.toFixed(2);
@@ -285,20 +281,8 @@ function formatPercent(rate: number): string {
   return (rate * 100).toFixed(2);
 }
 
-function toFloat(val: string | number | any): number {
-  if (typeof val === 'number') return val;
-  return parseFloat(val?.toString() || '0') || 0;
-}
 
-function formatVatRate(rate: number): string {
-  if (rate === 0.19) return '19%';
-  if (rate === 0.07) return '7%';
-  return '0%';
-}
 
-function formatCurrency(val: number): string {
-  return '€\u00A0' + val.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
 
 function escapeXml(text: string): string {
   if (!text) return '';
@@ -310,31 +294,3 @@ function escapeXml(text: string): string {
     .replace(/'/g, '&apos;');
 }
 
-function resolveLogoPath(logoPath: string): string | null {
-  const fs = require('fs');
-  const path = require('path');
-
-  if (path.isAbsolute(logoPath)) {
-    return fs.existsSync(logoPath) ? logoPath : null;
-  }
-
-  // The logo upload endpoint stores just the bare filename
-  // (e.g. 'logo.png') in Company.logoPath, with the actual file
-  // living at frontend/public/images/<name>. Anchor the lookup
-  // to the project root via __dirname (this file lives at
-  // backend/src/invoices/, so go up 3 levels), NOT process.cwd()
-  // — see commit 88f03fe for the matching upload fix.
-  const projectRoot = path.resolve(__dirname, '..', '..', '..')
-  const candidateNames = [
-    path.join(projectRoot, 'frontend', 'public', 'images', path.basename(logoPath)),
-  ]
-  if (logoPath.startsWith('images/') || logoPath.startsWith('/images/')) {
-    candidateNames.push(
-      path.join(projectRoot, 'frontend', 'public', logoPath.replace(/^\//, '')),
-    )
-  }
-  for (const candidate of candidateNames) {
-    if (fs.existsSync(candidate)) return candidate
-  }
-  return fs.existsSync(logoPath) ? logoPath : null
-}

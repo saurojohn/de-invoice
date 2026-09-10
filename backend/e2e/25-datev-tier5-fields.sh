@@ -51,7 +51,7 @@ EXP_RC_ID="e2e0e0e0-0001-0000-0000-eeeeeeee00001"
 EXP_IGE_ID="e2e0e0e0-0001-0000-0000-eeeeeeee00002"
 
 # ----- Clean up any prior run -----
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   DELETE FROM \"Payment\" WHERE id IN ('$PAY_IGE_ID', '$PAY_RC_ID', '$PAY_CHF_ID');
   DELETE FROM \"Invoice\" WHERE id IN ('$INV_IGE_ID', '$INV_RC_ID', '$INV_CHF_ID');
   DELETE FROM \"Expense\" WHERE id IN ('$EXP_RC_ID', '$EXP_IGE_ID');
@@ -60,7 +60,7 @@ docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
 " >/dev/null 2>&1
 
 # ----- Seed customers (3 different countries) -----
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   INSERT INTO \"Customer\" (id, \"companyId\", name, \"customerNumber\", address, \"createdAt\", \"updatedAt\") VALUES
     ('$CUST_DE_ID', '$COMPANY_ID', 'E2E T5 DE Customer', 'K-T5-DE', '{\"street\":\"Test 1\",\"city\":\"Frankfurt\",\"postalCode\":\"60311\",\"country\":\"DE\"}'::jsonb, now(), now()),
     ('$CUST_AT_ID', '$COMPANY_ID', 'E2E T5 AT Customer', 'K-T5-AT', '{\"street\":\"Mariahilfer 1\",\"city\":\"Wien\",\"postalCode\":\"1060\",\"country\":\"AT\"}'::jsonb, now(), now()),
@@ -68,13 +68,13 @@ docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
 " >/dev/null 2>&1
 
 # ----- Seed UK supplier (§13b reverse-charge source) -----
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   INSERT INTO \"Supplier\" (id, \"companyId\", name, address, \"createdAt\", \"updatedAt\") VALUES
     ('$SUPP_GB_ID', '$COMPANY_ID', 'E2E T5 UK Supplier', '{\"street\":\"221B Baker St\",\"city\":\"London\",\"postalCode\":\"NW16XE\",\"country\":\"GB\"}'::jsonb, now(), now());
 " >/dev/null 2>&1
 
 # ----- Seed 3 paid invoices -----
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   INSERT INTO \"Invoice\" (id, \"companyId\", \"customerId\", \"invoiceNumber\", \"sequenceNumber\",
                           type, status, \"issueDate\", \"dueDate\",
                           subtotal, \"totalVat\", total, \"discountPercent\", \"discountAmount\",
@@ -102,7 +102,7 @@ docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
 " >/dev/null 2>&1
 
 # ----- Seed payments (so invoices are 'paid' and trigger revenue) -----
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   INSERT INTO \"Payment\" (id, \"invoiceId\", amount, currency, \"paymentDate\", \"paymentMethod\", notes, \"createdAt\") VALUES
     ('$PAY_IGE_ID', '$INV_IGE_ID', 1000.00, 'EUR', '2026-05-20', 'bank_transfer', 'E2E IgE', now()),
     ('$PAY_RC_ID', '$INV_RC_ID', 500.00, 'EUR', '2026-05-21', 'sepa', 'E2E RC', now()),
@@ -115,7 +115,7 @@ docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
 # Vorsteuer on account 1780. isIntraEU=false so it
 # takes the reverseCharge branch, not the IgE branch.
 # EXP_IGE: classic IgE (§1a UStG) — VAT 19% via account 1782.
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   INSERT INTO \"Expense\" (id, \"companyId\", \"supplierId\", \"invoiceNumber\", description, \"invoiceDate\",
                           \"netAmount\", \"vatRate\", \"vatAmount\", \"grossAmount\",
                           category, \"isIntraEU\", \"isReverseCharge\", status, notes,
@@ -135,7 +135,7 @@ docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
 # jsonb_set. Default values from a missing field should
 # still be 00000 / 00001, so 11111/22222 are unambiguous
 # in the assertion.
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   UPDATE \"Company\"
   SET settings = '{
     \"datev\": {
@@ -388,7 +388,7 @@ assert_eq "5e: CHF Erlöse paymentMethod = bank_transfer" \
   "$(csv_col 'Erlöse E2E-T5-CHF-01' 14)" "bank_transfer"
 
 # ----- Cleanup -----
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   DELETE FROM \"Payment\" WHERE id IN ('$PAY_IGE_ID', '$PAY_RC_ID', '$PAY_CHF_ID');
   DELETE FROM \"Invoice\" WHERE id IN ('$INV_IGE_ID', '$INV_RC_ID', '$INV_CHF_ID');
   DELETE FROM \"Expense\" WHERE id IN ('$EXP_RC_ID', '$EXP_IGE_ID');

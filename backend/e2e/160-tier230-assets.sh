@@ -139,7 +139,7 @@ echo "$BODY" | grep -q "companyId ist erforderlich" && pass "no-companyId error 
 
 # ---- Cleanup ----
 # Asset2 is still active; just delete via SQL since there's no DELETE endpoint
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -q -c "DELETE FROM \"Asset\" WHERE id IN ('$ASSET_ID', '$ASSET2_ID', '$CROSS_ID');" >/dev/null 2>&1
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -q -c "DELETE FROM \"Asset\" WHERE id IN ('$ASSET_ID', '$ASSET2_ID', '$CROSS_ID');" >/dev/null 2>&1
 pass "Cleaned up 3 test assets (SQL)"
 
 summary

@@ -128,7 +128,7 @@ CUR_RATE2=$(json_field "$BODY" rate)
 # DELETE endpoint (rates are managed by the
 # Steuerberater via the Admin panel, not deleted).
 for cc in DE; do
-  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
     "DELETE FROM \"VatRate\" WHERE \"countryCode\" = '$cc' AND \"rateType\" IN ('standard','reduced') AND \"name\" IN ('Regelsteuersatz','old 16%');" >/dev/null 2>&1
 done
 pass "cleanup: deleted seeded VatRate rows"

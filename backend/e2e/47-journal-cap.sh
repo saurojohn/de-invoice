@@ -41,6 +41,8 @@
 #      (count = min(totalFound, 1000))
 
 set -uo pipefail
+# Tier 355: honour PG_CONTAINER (this script does not source _lib.sh).
+PG_CONTAINER="${PG_CONTAINER:-de-invoice-postgres}"
 HOST="${HOST:-http://localhost:3001}"
 PASS=0
 FAIL=0
@@ -102,7 +104,7 @@ echo "=== Setup: insert 1500 vouchers spanning 3 years ==="
 # of dates so the Voucher count is high
 # but the PDF size stays manageable.
 # Cleanup any prior test data first.
-PGPASSWORD=de_invoice_pass docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+PGPASSWORD=de_invoice_pass docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"Voucher\" WHERE \"companyId\"='$COMPANY_ID' AND description LIKE 'e2e-47-%';" >/dev/null 2>&1
 
 # Use psql to generate 1500 voucher rows
@@ -153,7 +155,7 @@ END\$\$;
 SQL
 
 # Verify the inserts
-SEEDED_COUNT=$(PGPASSWORD=de_invoice_pass docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+SEEDED_COUNT=$(PGPASSWORD=de_invoice_pass docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT count(*) FROM \"Voucher\" WHERE \"companyId\"='$COMPANY_ID' AND description LIKE 'e2e-47-%';" 2>/dev/null | tr -d ' ')
 echo "Seeded $SEEDED_COUNT vouchers"
 
@@ -189,7 +191,7 @@ assert_eq "wide range PDF magic bytes" "%PDF" "$WIDE_MAGIC"
 
 echo
 echo "=== Cleanup ==="
-PGPASSWORD=de_invoice_pass docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+PGPASSWORD=de_invoice_pass docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"Voucher\" WHERE \"companyId\"='$COMPANY_ID' AND description LIKE 'e2e-47-%';" >/dev/null 2>&1
 rm -f "$SMALL_HDR" "$SMALL_PDF" "$WIDE_HDR" "$WIDE_PDF"
 

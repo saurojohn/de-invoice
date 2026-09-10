@@ -41,13 +41,13 @@ TEST_TAG="bwa-pkg-tier95-$TS"
 echo "=== Test: BWA in Berater packager (test tag: $TEST_TAG) ==="
 
 # Backup SH Leder settings
-ORIGINAL_SETTINGS=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+ORIGINAL_SETTINGS=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT settings::text FROM \"Company\" WHERE id='$COMPANY_ID';" 2>&1 | tr -d ' \n' | head -1)
 ORIGINAL_SETTINGS=$(echo "$ORIGINAL_SETTINGS" | tr -d '\n')
 
 cleanup() {
   if [ -n "$ORIGINAL_SETTINGS" ]; then
-    docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+    docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
       "UPDATE \"Company\" SET settings='$ORIGINAL_SETTINGS'::jsonb WHERE id='$COMPANY_ID';" >/dev/null 2>&1
   fi
   echo "  cleanup: restored SH Leder settings"
@@ -57,9 +57,9 @@ trap cleanup EXIT
 # Reset to the absolute default settings
 # (no anlageV key, no autoBookAfa key) so the
 # test is hermetic.
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "UPDATE \"Company\" SET settings=jsonb_set(settings, '{anlageV}', 'null') WHERE id='$COMPANY_ID';" >/dev/null
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "UPDATE \"Company\" SET settings=jsonb_set(settings, '{autoBookAfa}', 'null') WHERE id='$COMPANY_ID';" >/dev/null
 
 # ===== 1. /berater-packager contains BWA PDF =====
@@ -137,7 +137,7 @@ s = json.loads(sys.stdin.read())
 s['anlageV'] = True
 print(json.dumps(s))
 ")
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "UPDATE \"Company\" SET settings='$UPDATED_SETTINGS'::jsonb WHERE id='$COMPANY_ID';" >/dev/null
 curl -sS -o /tmp/bwa-pkg-2.zip \
   "$API/api/v1/accounting/berater-packager?companyId=$COMPANY_ID&year=2026" \
@@ -164,7 +164,7 @@ echo "  BWA in packager (without V): $BWA_NO_V"
 echo "  Anlage V present:            $HAS_ANLAGE_V ✓"
 
 # Reset to default (no Anlage V)
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "UPDATE \"Company\" SET settings=jsonb_set(settings, '{anlageV}', 'null') WHERE id='$COMPANY_ID';" >/dev/null
 
 # ===== 6. Packager 200 with no special params =====

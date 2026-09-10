@@ -330,7 +330,7 @@ export class CustomerController {
     @Param('noteId') noteId: string,
     @Query('companyId') companyId: string,
     @Headers('x-user-id') userId?: string,
-    @Headers('x-user-email') userEmail?: string,
+    @Headers('x-user-email') _userEmail?: string,
   ) {
     this.assertCompanyId(companyId)
     // We accept role in headers so the service

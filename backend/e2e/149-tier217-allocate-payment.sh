@@ -177,13 +177,13 @@ api_post "/api/v1/invoices/00000000-0000-0000-0000-000000000000/payments?company
 assert_eq "nonexistent invoice → 404" "$STATUS" "404"
 
 # ========== Cleanup ==========
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"Payment\" WHERE \"invoiceId\" IN (SELECT id FROM \"Invoice\" WHERE \"customerId\"='$CUSTOMER_ID');" >/dev/null 2>&1
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"CustomerCreditTransaction\" WHERE \"customerId\"='$CUSTOMER_ID';" >/dev/null 2>&1
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"Invoice\" WHERE \"customerId\"='$CUSTOMER_ID';" >/dev/null 2>&1
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"Customer\" WHERE id='$CUSTOMER_ID';" >/dev/null 2>&1
 pass "cleanup complete (customer + invoices + payments + credit)"
 

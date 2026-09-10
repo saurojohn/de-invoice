@@ -42,11 +42,11 @@ pass "customer created: $CUSTOMER_ID"
 cleanup() {
   local cid="$CUSTOMER_ID"
   if [[ -n "$cid" ]]; then
-    docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+    docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
       "DELETE FROM \"Payment\" WHERE \"invoiceId\" IN (SELECT id FROM \"Invoice\" WHERE \"customerId\"='$cid');" >/dev/null 2>&1 || true
-    docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+    docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
       "DELETE FROM \"Invoice\" WHERE \"customerId\"='$cid';" >/dev/null 2>&1 || true
-    docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+    docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
       "DELETE FROM \"Customer\" WHERE id='$cid';" >/dev/null 2>&1 || true
   fi
 }

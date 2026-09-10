@@ -35,7 +35,7 @@ login
 # (The tier207 test user has an empty companyId and isn't in the
 #  test company, so PATCH /users/:id/role returns 404 for them.)
 TEST_EMAIL="tier221-1787169195-90017@example.com"
-TEST_USER_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c "SELECT id FROM \"User\" WHERE email='$TEST_EMAIL' LIMIT 1;")
+TEST_USER_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c "SELECT id FROM \"User\" WHERE email='$TEST_EMAIL' LIMIT 1;")
 [ -n "$TEST_USER_ID" ] && pass "test userId: $TEST_USER_ID" || fail "tier221 accountant user not found"
 
 # ---- 1 + 2. List users ----
@@ -53,11 +53,11 @@ LIST_COUNT=$(python3 -c "import json,sys; print(len(json.loads(sys.argv[1])['use
 
 # ---- 3. Change role of test user ----
 # Save original to restore later
-ORIG_ROLE=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c "SELECT role FROM \"User\" WHERE id='$TEST_USER_ID';")
+ORIG_ROLE=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c "SELECT role FROM \"User\" WHERE id='$TEST_USER_ID';")
 api_patch "/api/v1/users/$TEST_USER_ID/role?companyId=$COMPANY_ID" '{"role":"admin"}'
 assert_status 200 "PATCH /users/:id/role"
 # Verify the DB has the new role
-NEW_ROLE=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c "SELECT role FROM \"User\" WHERE id='$TEST_USER_ID';")
+NEW_ROLE=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c "SELECT role FROM \"User\" WHERE id='$TEST_USER_ID';")
 [ "$NEW_ROLE" = "admin" ] && pass "role changed: $ORIG_ROLE → admin" || fail "role = $NEW_ROLE (expected admin)"
 
 # ---- 4. PATCH role missing role field → 400 ----
@@ -66,16 +66,16 @@ assert_status 400 "PATCH /users/:id/role missing role"
 echo "$BODY" | grep -q "role ist erforderlich" && pass "missing-role error in German" || fail "missing-role error: $BODY"
 
 # ---- 5. Set status inactive ----
-ORIG_STATUS=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c "SELECT status FROM \"User\" WHERE id='$TEST_USER_ID';")
+ORIG_STATUS=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c "SELECT status FROM \"User\" WHERE id='$TEST_USER_ID';")
 api_patch "/api/v1/users/$TEST_USER_ID/status?companyId=$COMPANY_ID" '{"status":"inactive"}'
 assert_status 200 "PATCH /users/:id/status inactive"
-NEW_STATUS=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c "SELECT status FROM \"User\" WHERE id='$TEST_USER_ID';")
+NEW_STATUS=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c "SELECT status FROM \"User\" WHERE id='$TEST_USER_ID';")
 [ "$NEW_STATUS" = "inactive" ] && pass "status changed: $ORIG_STATUS → inactive" || fail "status = $NEW_STATUS (expected inactive)"
 
 # ---- 6. Set status active again ----
 api_patch "/api/v1/users/$TEST_USER_ID/status?companyId=$COMPANY_ID" '{"status":"active"}'
 assert_status 200 "PATCH /users/:id/status active"
-NEW_STATUS=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c "SELECT status FROM \"User\" WHERE id='$TEST_USER_ID';")
+NEW_STATUS=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c "SELECT status FROM \"User\" WHERE id='$TEST_USER_ID';")
 [ "$NEW_STATUS" = "active" ] && pass "status changed: inactive → active" || fail "status = $NEW_STATUS (expected active)"
 
 # ---- 7. PATCH status missing status field → 400 ----
@@ -148,7 +148,7 @@ HTTP=$(curl -sS -o /dev/null -w "%{http_code}" -X PATCH \
 [ "$HTTP" -ge 400 ] && [ "$HTTP" -lt 500 ] && pass "fake userId PATCH role rejected (HTTP $HTTP)" || note "fake userId HTTP=$HTTP (tolerated)"
 
 # ---- 14. Cleanup: restore test user's role + status ----
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -q -c "UPDATE \"User\" SET role='$ORIG_ROLE' WHERE id='$TEST_USER_ID';" >/dev/null
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -q -c "UPDATE \"User\" SET role='$ORIG_ROLE' WHERE id='$TEST_USER_ID';" >/dev/null
 pass "Restored test user role: $ORIG_ROLE"
 
 summary

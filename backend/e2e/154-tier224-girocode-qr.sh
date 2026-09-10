@@ -27,12 +27,12 @@ INVOICE_ID="14906169-ea2a-4ea2-878c-45acc9052d0e"
 
 # Backup the company's bankInfo, then re-apply the Tier 224
 # test IBAN if missing.
-BANKINFO_BACKUP=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+BANKINFO_BACKUP=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT \"bankInfo\" FROM \"Company\" WHERE id='$COMPANY_ID';")
 note "BANKINFO_BACKUP=$BANKINFO_BACKUP"
 
 # Force a known-good state with all 3 fields populated.
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -q -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -q -c \
   "UPDATE \"Company\" SET \"bankInfo\" = '{\"bic\":\"COBADEFFXXX\",\"iban\":\"DE89370400440532013000\",\"bankName\":\"Commerzbank\"}'::jsonb WHERE id='$COMPANY_ID';" >/dev/null 2>&1
 
 # ---- 1. PDF with IBAN returns 200 + valid PDF ----
@@ -90,7 +90,7 @@ case "$IMG_INFO" in
 esac
 
 # ---- 4. Negative test: clear IBAN, regenerate PDF, no image ----
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -q -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -q -c \
   "UPDATE \"Company\" SET \"bankInfo\" = '{\"bic\":\"\",\"iban\":\"\",\"bankName\":\"\"}'::jsonb WHERE id='$COMPANY_ID';" >/dev/null 2>&1
 HTTP=$(curl -sS -o /tmp/tier224-noiban.pdf -w "%{http_code}" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
@@ -112,7 +112,7 @@ NOIBAN_IMG=$(cat /tmp/tier224-img2.txt)
 [ "$NOIBAN_IMG" = "0" ] && pass "PDF without IBAN has 0 RGB image XObjects (QR skipped)" || fail "PDF without IBAN has $NOIBAN_IMG RGB image XObjects (expected 0)"
 
 # ---- 5. Restore IBAN, PDF has image again ----
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -q -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -q -c \
   "UPDATE \"Company\" SET \"bankInfo\" = '{\"bic\":\"COBADEFFXXX\",\"iban\":\"DE89370400440532013000\",\"bankName\":\"Commerzbank\"}'::jsonb WHERE id='$COMPANY_ID';" >/dev/null 2>&1
 HTTP=$(curl -sS -o /tmp/tier224-restored.pdf -w "%{http_code}" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
@@ -160,7 +160,7 @@ console.log(errs.length === 0 ? 'PAYLOAD_OK' : 'PAYLOAD_BAD:' + errs.join(','));
 if [ -n "$BANKINFO_BACKUP" ] && [ "$BANKINFO_BACKUP" != "" ]; then
   # Escape single quotes for the SQL literal
   ESCAPED_BANKINFO=$(echo "$BANKINFO_BACKUP" | sed "s/'/''/g")
-  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -q -c \
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -q -c \
     "UPDATE \"Company\" SET \"bankInfo\" = '$ESCAPED_BANKINFO'::jsonb WHERE id='$COMPANY_ID';" >/dev/null 2>&1
   pass "Restored original bankInfo"
 else

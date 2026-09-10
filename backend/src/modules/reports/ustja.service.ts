@@ -152,10 +152,22 @@ export class UstjaService {
     // Reverse charge (Kz 36)
     let reverseCharge = 0
     // Vorsteuer (Kz 56-66)
-    let vorsteuer19 = 0
-    let vorsteuer7 = 0
-    let vorsteuerIgE = 0
-    let vorsteuerReverseCharge = 0
+    //
+    // Tier 355 — OPEN QUESTION, deliberately not resolved in code.
+    // These four are accumulated below but never read: only
+    // `vorsteuerTotal` reaches the output (Kz 66, and the zahllast
+    // calculation). The names and the "Kz 56-66" comment say someone
+    // meant them to land on their own Vordruck lines, so this may be a
+    // missing breakdown in the annual return rather than dead code.
+    // Whether the UStJA has to report input tax split by rate / igE /
+    // §13b, or only as a total, is a BMF-form question for the
+    // Steuerberater — not something to settle from the source. They are
+    // therefore kept and underscore-prefixed rather than deleted, so the
+    // intent survives until someone qualified decides.
+    let _vorsteuer19 = 0
+    let _vorsteuer7 = 0
+    let _vorsteuerIgE = 0
+    let _vorsteuerReverseCharge = 0
     // Differenzbetrag (Kz 81) per month
     let umsatzsteuerTotal = 0 // Kz 66
     let vorsteuerTotal = 0 // Kz 67
@@ -191,10 +203,10 @@ export class UstjaService {
       exportThird += m.export
       otherExempt += m.otherExempt
       reverseCharge += m.reverseCharge
-      vorsteuer19 += m.vorsteuer.from19
-      vorsteuer7 += m.vorsteuer.from7
-      vorsteuerIgE += m.vorsteuer.fromIgE
-      vorsteuerReverseCharge += m.vorsteuer.fromReverseCharge
+      _vorsteuer19 += m.vorsteuer.from19
+      _vorsteuer7 += m.vorsteuer.from7
+      _vorsteuerIgE += m.vorsteuer.fromIgE
+      _vorsteuerReverseCharge += m.vorsteuer.fromReverseCharge
       umsatzsteuerTotal += m.umsatzsteuer
       vorsteuerTotal += m.vorsteuerSum
 

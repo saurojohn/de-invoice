@@ -11,7 +11,7 @@ import {
   ValidateIf,
   MaxLength,
 } from 'class-validator';
-import { Type, Transform } from 'class-transformer';
+import { Type } from 'class-transformer';
 
 export class CompanyAddressDto {
   @IsString()

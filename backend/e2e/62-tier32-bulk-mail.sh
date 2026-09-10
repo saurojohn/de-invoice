@@ -45,7 +45,7 @@ cleanup_cashbook
 # is a regular FK (no CASCADE), Payment and PaymentLink
 # are also regular — every test run that touches this
 # customer MUST clean them up explicitly.
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   DELETE FROM \"EmailSend\" WHERE \"companyId\" = '$COMPANY_ID' AND \"recipientEmail\" LIKE 'bulk62%@x.de';
   DELETE FROM \"Payment\" WHERE \"invoiceId\" IN (
     SELECT id FROM \"Invoice\" WHERE \"companyId\" = '$COMPANY_ID' AND \"customerId\" IN (

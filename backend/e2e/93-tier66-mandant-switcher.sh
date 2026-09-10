@@ -48,7 +48,7 @@ jsf() { python3 -c "import json,sys; print(json.load(sys.stdin).get('$1', ''))" 
 # ───── 1. Backfill: test user has a UserCompany row for SH Leder ─────
 echo
 note "=== 1. migration backfilled UserCompany for SH Leder ==="
-ROW_COUNT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
+ROW_COUNT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
   SELECT count(*) FROM \"UserCompany\"
   WHERE \"userId\" = '$USER_ID' AND \"companyId\" = '$COMPANY_ID';" 2>&1 | tr -d ' ')
 assert_eq "backfilled row exists" "$ROW_COUNT" "1"

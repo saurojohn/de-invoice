@@ -48,7 +48,7 @@ RECV_ACC="e2e0e0e0-0001-0000-0007-0000000000b3"
 # test) and deleting them would break that test.
 # Our Voucher + its lines + the Attachment get
 # removed on each run.
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   DELETE FROM \"Attachment\" WHERE \"entityType\" = 'voucher' AND \"entityId\" = '$VCH_ID';
   DELETE FROM \"VoucherLine\" WHERE \"voucherId\" = '$VCH_ID';
   DELETE FROM \"Voucher\" WHERE id = '$VCH_ID';" >/dev/null 2>&1
@@ -61,7 +61,7 @@ docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
 # would not match the real row. So we INSERT with
 # a fixed id; if it already exists, do nothing.
 # Then we re-fetch the real id by accountNumber.
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   INSERT INTO \"Account\" (id, \"companyId\", \"accountNumber\", name, type, category, \"createdAt\")
   VALUES ('$BANK_ACC', '$COMPANY_ID', '1200', 'Bank', 'asset', 'liquidity', now())
   ON CONFLICT (\"companyId\", \"accountNumber\") DO NOTHING;
@@ -73,12 +73,12 @@ docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
 # Fetch the real account IDs (might differ from
 # the hard-coded ones if a previous run left a
 # row with a different id but the same number).
-BANK_ACC=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+BANK_ACC=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT id FROM \"Account\" WHERE \"companyId\" = '$COMPANY_ID' AND \"accountNumber\" = '1200' LIMIT 1;" 2>/dev/null | tr -d ' ')
-RECV_ACC=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+RECV_ACC=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT id FROM \"Account\" WHERE \"companyId\" = '$COMPANY_ID' AND \"accountNumber\" = '1406' LIMIT 1;" 2>/dev/null | tr -d ' ')
 
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   INSERT INTO \"Voucher\" (id, \"companyId\", \"voucherNumber\", date, description,
                           \"referenceType\", status, \"createdAt\")
   VALUES ('$VCH_ID', '$COMPANY_ID', '$VCH_NO', '2026-05-15',
@@ -96,7 +96,7 @@ docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
 # Sanity check the Voucher exists (the test fails
 # fast here if the seed didn't take — better than
 # getting a confusing 404 from the upload step).
-VCH_EXISTS=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
+VCH_EXISTS=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
   SELECT count(*) FROM \"Voucher\" WHERE id = '$VCH_ID';" 2>/dev/null | tr -d ' ')
 if [[ "$VCH_EXISTS" != "1" ]]; then
   echo "FATAL: Voucher seed did not persist" >&2
@@ -129,7 +129,7 @@ note "uploaded attachment id=$ATT_ID path=$ATT_PATH mime=$ATT_MIME"
 rm -f "$TMPF"
 
 # Verify Attachment row exists with entityType=voucher
-ROW_COUNT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
+ROW_COUNT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
   SELECT count(*) FROM \"Attachment\" WHERE id = '$ATT_ID' AND \"entityType\" = 'voucher';" 2>/dev/null | tr -d ' ')
 assert_eq "Attachment row with entityType=voucher exists" "$ROW_COUNT" "1"
 
@@ -202,7 +202,7 @@ DEL_STATUS=$(curl -sS -X DELETE -o /dev/null -w "%{http_code}" \
 assert_eq "DELETE /attachment (voucher) returns 200" "$DEL_STATUS" "200"
 
 # Verify the Attachment row is gone
-ROW_COUNT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
+ROW_COUNT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
   SELECT count(*) FROM \"Attachment\" WHERE id = '$ATT_ID';" 2>/dev/null | tr -d ' ')
 assert_eq "deleted Attachment row gone" "$ROW_COUNT" "0"
 
@@ -214,7 +214,7 @@ COUNT_PRESENT=$(unzip -l /tmp/bundle-vch2.zip 2>/dev/null | grep -F -c "Belegbil
 assert_eq "bundle no longer has voucher attachment" "$COUNT_PRESENT" "0"
 
 # ----- Cleanup -----
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   DELETE FROM \"Attachment\" WHERE \"entityType\" = 'voucher' AND \"entityId\" = '$VCH_ID';
   DELETE FROM \"VoucherLine\" WHERE \"voucherId\" = '$VCH_ID';
   DELETE FROM \"Voucher\" WHERE id = '$VCH_ID';

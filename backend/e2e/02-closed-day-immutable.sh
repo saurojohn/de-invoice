@@ -56,7 +56,7 @@ else
 fi
 
 # And the original row is still there
-COUNT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+COUNT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT count(*) FROM \"CashBookEntry\" WHERE id = '$EID';" 2>/dev/null | tr -d ' ')
 assert_eq "Original entry still in DB after rejected DELETE" "$COUNT" "1"
 
@@ -68,7 +68,7 @@ api_post "/api/v1/cashbook/entries/$EID/reverse?companyId=$COMPANY_ID" "{
 assert_status "201" "Storno on closed day allowed"
 
 # Close record was marked amended
-amended=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+amended=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT \"amendedAt\" IS NOT NULL FROM \"CashBookDailyClose\" WHERE \"companyId\" = '$COMPANY_ID' AND \"businessDate\" = '2026-06-01';" 2>/dev/null | tr -d ' ')
 assert_eq "Close record marked amended after Storno" "$amended" "t"
 

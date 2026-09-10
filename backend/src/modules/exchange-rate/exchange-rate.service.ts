@@ -94,11 +94,6 @@ export interface ExchangeRateSnapshot {
   rates: Record<string, string>
 }
 
-interface CsvRow {
-  CURRENCY: string
-  TIME_PERIOD: string
-  OBS_VALUE: string
-}
 
 @Injectable()
 export class ExchangeRateService {

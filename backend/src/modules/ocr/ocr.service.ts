@@ -191,7 +191,7 @@ function extractBic(text: string): string | null {
 
 /** "Rechnung Nr." / "RG-Nr" / "Rechnungsnummer" / "Nr." prefix. */
 function extractInvoiceNumber(text: string): string | null {
-  const m = text.match(/(?:Rechnung(?:s)?(?:nummer)?|RG|Rg)\.?\s*(?:Nr\.?|nr\.?|No\.?)?\s*[:\-]?\s*([A-Z0-9\-/]+)/i)
+  const m = text.match(/(?:Rechnung(?:s)?(?:nummer)?|RG|Rg)\.?\s*(?:Nr\.?|nr\.?|No\.?)?\s*[:-]?\s*([A-Z0-9\-/]+)/i)
   return m ? m[1] : null
 }
 
@@ -250,7 +250,7 @@ function extractVatRate(text: string): number | null {
 
 /** "USt 19%: 19,00 EUR" — VAT amount. */
 function extractVatAmount(text: string): number | null {
-  const m = text.match(/(?:USt|MwSt|VAT)\s+\d{1,2}\s*%\s*[:\-]?\s*([\d.]+,\d{2})\s*(?:EUR|€)?/i)
+  const m = text.match(/(?:USt|MwSt|VAT)\s+\d{1,2}\s*%\s*[:-]?\s*([\d.]+,\d{2})\s*(?:EUR|€)?/i)
   return m ? parseGermanAmount(m[1]) : null
 }
 

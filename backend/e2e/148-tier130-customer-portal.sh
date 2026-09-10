@@ -21,12 +21,12 @@ CUSTOMER_ID="b3f7b274-7696-44b8-9345-8bfd460b3e47"
 EMAIL="tier130-customer@example.com"
 
 echo "=== Setup: set customer email ==="
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tAc \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tAc \
   "UPDATE \"Customer\" SET contact = '{\"email\": \"$EMAIL\", \"phone\": \"+49 30 12345\"}'::jsonb WHERE id='$CUSTOMER_ID';" \
   >/dev/null
 
 # Clean up any existing sessions for this email
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tAc \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tAc \
   "DELETE FROM \"CustomerPortalSession\" WHERE email='$EMAIL';" \
   >/dev/null
 
@@ -61,10 +61,10 @@ echo ""
 echo "=== Step 4: cross-customer attack — try another invoice id ==="
 # Create a second customer briefly, give it an invoice, then try to access it
 OTHER_ID="00000000-0000-0000-0000-deadbeefcafe"
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tAc \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tAc \
   "INSERT INTO \"Customer\" (id, name, type, address, \"paymentTerms\", \"companyId\", \"createdAt\", \"updatedAt\") VALUES ('$OTHER_ID', 'Other Customer', 'business', '{\"country\": \"Deutschland\"}'::jsonb, 30, '$COMPANY_ID', NOW(), NOW()) ON CONFLICT DO NOTHING;" \
   >/dev/null
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tAc \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tAc \
   "INSERT INTO \"Invoice\" (id, \"invoiceNumber\", type, status, \"issueDate\", \"dueDate\", currency, subtotal, \"totalVat\", total, notes, \"customerId\", \"companyId\", \"createdAt\", \"updatedAt\") VALUES ('00000000-0000-0000-0000-deadbeefffff', 'INV-OTHER-001', 'INV', 'sent', '2026-07-15', '2026-08-15', 'EUR', 50, 9.5, 59.5, '', '$OTHER_ID', '$COMPANY_ID', NOW(), NOW()) ON CONFLICT DO NOTHING;" \
   >/dev/null
 
@@ -100,11 +100,11 @@ assert_eq "400" "$HTTP_CODE" "6th request in 5min returns 400 (rate-limited)"
 
 echo ""
 echo "=== Step 8: cleanup ==="
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tAc \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tAc \
   "DELETE FROM \"CustomerPortalSession\" WHERE email='$EMAIL';" >/dev/null
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tAc \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tAc \
   "DELETE FROM \"Invoice\" WHERE \"customerId\"='$OTHER_ID';" >/dev/null
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tAc \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tAc \
   "DELETE FROM \"Customer\" WHERE id='$OTHER_ID';" >/dev/null
 
 echo ""

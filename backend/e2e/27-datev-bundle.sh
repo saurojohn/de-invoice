@@ -41,7 +41,7 @@ COMPANY_ID_CID="ad257ec3-d319-479b-b870-3fe76e8f3111"
 INV_ID="e2e0e0e0-0001-0000-0007-000000000027"
 INV_NO="E2E-T7-BUNDLE-01"
 PAY_ID="e2e0e0e0-0001-0000-0007-000000000028"
-CUST_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+CUST_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT id FROM \"Customer\" WHERE \"companyId\" = '$COMPANY_ID' AND name = 'E2E T5 DE Customer' LIMIT 1;" 2>/dev/null | tr -d ' ')
 # Tier 299 fix: the original spec used customerNumber
 # 'K-T7' but that slot is now owned by the Tier 8
@@ -57,11 +57,11 @@ CUST_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -
 # no other tier script shares, AND a fresh name,
 # so the lookup-after-insert actually finds the row.
 if [[ -z "$CUST_ID" ]]; then
-  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
     INSERT INTO \"Customer\" (id, \"companyId\", name, \"customerNumber\", address, \"createdAt\", \"updatedAt\")
     VALUES (gen_random_uuid()::text, '$COMPANY_ID', 'E2E T7 Bundle Cust', 'K-T7BUNDLE',
             '{\"country\":\"DE\"}'::jsonb, now(), now());" >/dev/null 2>&1
-  CUST_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  CUST_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
     "SELECT id FROM \"Customer\" WHERE \"companyId\" = '$COMPANY_ID' AND \"customerNumber\" = 'K-T7BUNDLE' LIMIT 1;" 2>/dev/null | tr -d ' ')
 fi
 # If the lookup-after-insert still came back empty
@@ -72,13 +72,13 @@ fi
 # for the test company so the Invoice INSERT has a
 # valid FK.
 if [[ -z "$CUST_ID" ]]; then
-  CUST_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  CUST_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
     "SELECT id FROM \"Customer\" WHERE \"companyId\" = '$COMPANY_ID' LIMIT 1;" 2>/dev/null | tr -d ' ')
   note "Tier 299: reused existing customer $CUST_ID for E2E-T7-BUNDLE-01 (no fresh insert needed)"
 fi
 
 # Clean up any prior run
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   DELETE FROM \"Payment\" WHERE id = '$PAY_ID';
   DELETE FROM \"Invoice\" WHERE id = '$INV_ID';" >/dev/null 2>&1
 
@@ -107,7 +107,7 @@ mkdir -p "$(dirname "$PDF_ABS_PATH")"
 # doesn't parse the PDF — it just streams it).
 printf '%%PDF-1.4\n%%fake E2E PDF for %s\n%%%%EOF\n' "$INV_NO" > "$PDF_ABS_PATH"
 
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   INSERT INTO \"Invoice\" (id, \"companyId\", \"customerId\", \"invoiceNumber\", \"sequenceNumber\",
                           type, status, \"issueDate\", \"dueDate\",
                           subtotal, \"totalVat\", total, currency, language, \"vatBreakdown\",
@@ -311,7 +311,7 @@ mkdir -p "$(dirname "$PDF_ABS_PATH")"
 printf '%%PDF-1.4\n%%fake E2E PDF for %s\n%%%%EOF\n' "$INV_NO" > "$PDF_ABS_PATH"
 
 # ----- Cleanup -----
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   DELETE FROM \"Payment\" WHERE id = '$PAY_ID';
   DELETE FROM \"Invoice\" WHERE id = '$INV_ID';" >/dev/null 2>&1
 rm -f "$PDF_ABS_PATH"

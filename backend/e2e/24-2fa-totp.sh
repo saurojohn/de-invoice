@@ -42,7 +42,7 @@ TEST_USER_ID="user-2fa-test-$(date +%s)-$$"
 echo "=== Test: 2FA TOTP (test user: $TEST_EMAIL) ==="
 
 # Cleanup any prior test users (safety)
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"User\" WHERE email='$TEST_EMAIL';" >/dev/null 2>&1
 
 # Seed test user. We use the backend's bcrypt to generate
@@ -143,13 +143,13 @@ assert_eq "10 recovery codes" "$RC_COUNT" "10"
 RECOVERY_CODE=$(echo "$ENABLE" | python3 -c "import json,sys; print(json.load(sys.stdin)['recoveryCodes'][0])")
 
 # Test 6: DB state
-DB_ENABLED=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+DB_ENABLED=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT \"twoFactorEnabled\" FROM \"User\" WHERE id='$TEST_USER_ID';" 2>&1 | tr -d ' ' | head -1)
 assert_eq "DB twoFactorEnabled" "$DB_ENABLED" "t"
-DB_SECRET=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+DB_SECRET=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT COALESCE(\"twoFactorSecret\", '') FROM \"User\" WHERE id='$TEST_USER_ID';" 2>&1 | tr -d ' ' | head -1)
 assert_eq "DB twoFactorSecret matches" "$DB_SECRET" "$SECRET"
-DB_HASH_COUNT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+DB_HASH_COUNT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT jsonb_array_length(\"recoveryCodes\") FROM \"User\" WHERE id='$TEST_USER_ID';" 2>&1 | tr -d ' ' | head -1)
 assert_eq "DB 10 recovery code hashes" "$DB_HASH_COUNT" "10"
 
@@ -196,7 +196,7 @@ RECOVERY_VERIFY=$(curl -sS -X POST "$API/api/v1/auth/2fa/verify" \
   -d "{\"email\":\"$TEST_EMAIL\",\"recoveryCode\":\"$RECOVERY_CODE\"}")
 RV_ID=$(echo "$RECOVERY_VERIFY" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('id', 'MISSING'))")
 assert_eq "verify recovery code returns id" "$RV_ID" "$TEST_USER_ID"
-DB_AFTER=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+DB_AFTER=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT jsonb_array_length(\"recoveryCodes\") FROM \"User\" WHERE id='$TEST_USER_ID';" 2>&1 | tr -d ' ' | head -1)
 assert_eq "recovery code consumed (9 left)" "$DB_AFTER" "9"
 
@@ -250,14 +250,14 @@ assert_eq "2fa status enabled=false after disable" "$ENABLED_AFTER" "false"
 # after disable, no need to do it twice. Coverage unchanged.)
 
 # Cleanup: delete test user
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"User\" WHERE id='$TEST_USER_ID';" >/dev/null 2>&1
 
 # Also reset the dev admin's 2FA in case a previous test
 # run enabled it (otherwise next dev login needs a code)
-ADMIN_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+ADMIN_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT id FROM \"User\" WHERE email='info@shleder.de';" 2>&1 | tr -d ' ' | head -1)
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "UPDATE \"User\" SET \"twoFactorEnabled\"=false, \"twoFactorSecret\"=null, \"twoFactorConfirmedAt\"=null, \"recoveryCodes\"=null WHERE id='$ADMIN_ID';" >/dev/null 2>&1
 
 echo

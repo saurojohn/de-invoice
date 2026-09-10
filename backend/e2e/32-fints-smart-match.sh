@@ -52,7 +52,7 @@ cleanup_cashbook
 
 echo "=== Test: Tier 6.5 FinTS auto-sync + smart match ==="
 # ----- Clean prior state -----
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   DELETE FROM \"BankReconciliation\" WHERE \"companyId\" = '$COMPANY_ID';
   DELETE FROM \"BankTransaction\" WHERE \"companyId\" = '$COMPANY_ID' AND \"endToEndId\" LIKE 'MOCK-%';
   DELETE FROM \"BankStatement\" WHERE \"companyId\" = '$COMPANY_ID';
@@ -60,7 +60,7 @@ docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
   DELETE FROM \"FinTSConnection\" WHERE \"companyId\" = '$COMPANY_ID';
   DELETE FROM \"Invoice\" WHERE \"invoiceNumber\" LIKE 'E2E-T6S-%';" >/dev/null 2>&1
 
-CUST_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
+CUST_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
   SELECT id FROM \"Customer\" WHERE \"companyId\" = '$COMPANY_ID' LIMIT 1;" 2>/dev/null | tr -d ' ')
 
 if [[ -z "$CUST_ID" ]]; then
@@ -73,7 +73,7 @@ fi
 # (set status='active' + systemId).
 api_post "/api/v1/fints/connections" "{\"companyId\":\"$COMPANY_ID\",\"blz\":\"50050201\",\"userId\":\"e2e-test-user\",\"label\":\"E2E Auto\",\"pin\":\"12345\",\"mockMode\":true}"
 CONN_ID=$(echo "$BODY" | python3 -c "import json,sys; print(json.load(sys.stdin)['id'])")
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   UPDATE \"FinTSConnection\" SET status='active', \"systemId\"='MOCK-test-123' WHERE id='$CONN_ID';" >/dev/null 2>&1
 
 # Trigger auto-run
@@ -91,7 +91,7 @@ LAST_OK=$(echo "$BODY" | python3 -c "import json,sys; print(json.load(sys.stdin)
 assert_eq "A5. last-auto-run shows same ok count" "$LAST_OK" "1"
 
 # Verify 3 mock transactions landed in DB
-DB_TX=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
+DB_TX=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
   SELECT count(*) FROM \"BankTransaction\"
   WHERE \"companyId\" = '$COMPANY_ID' AND \"endToEndId\" LIKE 'MOCK-%';" 2>/dev/null | tr -d ' ')
 assert_eq "A6. 3 mock transactions in DB after auto-run" "$DB_TX" "3"
@@ -134,13 +134,13 @@ else
   fail "B2. expected ≥1 match, got $MATCHED"
 fi
 
-RECON_CONF=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
+RECON_CONF=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
   SELECT confidence FROM \"BankReconciliation\"
   WHERE \"invoiceId\" = 'e2e00006-0001-0000-0007-000000000020'
     AND \"bankTransactionId\" = 'e2e00006-0001-0000-0007-000000000022';" 2>/dev/null | tr -d ' ')
 assert_eq "B3. confidence for FX-diff match = 95" "$RECON_CONF" "95"
 
-RECON_REASON=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
+RECON_REASON=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
   SELECT \"matchReason\" FROM \"BankReconciliation\"
   WHERE \"invoiceId\" = 'e2e00006-0001-0000-0007-000000000020'
     AND \"bankTransactionId\" = 'e2e00006-0001-0000-0007-000000000022';" 2>/dev/null | tr -d ' ')
@@ -177,12 +177,12 @@ api_post "/api/v1/fints/auto-match" "{\"companyId\":\"$COMPANY_ID\"}"
 assert_status 201 "C1. auto-match (sum-to-invoice) returns 201"
 
 # Both transactions should now be matched to invoice 030
-RECON_COUNT_030=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
+RECON_COUNT_030=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
   SELECT count(*) FROM \"BankReconciliation\"
   WHERE \"invoiceId\" = 'e2e00006-0001-0000-0007-000000000030';" 2>/dev/null | tr -d ' ')
 assert_eq "C2. 2 recon rows for sum-to-invoice" "$RECON_COUNT_030" "2"
 
-RECON_REASON_030=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
+RECON_REASON_030=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
   SELECT \"matchReason\" FROM \"BankReconciliation\"
   WHERE \"invoiceId\" = 'e2e00006-0001-0000-0007-000000000030' LIMIT 1;" 2>/dev/null | tr -d ' ')
 if [[ "$RECON_REASON_030" == *"Summe"* ]]; then
@@ -221,7 +221,7 @@ docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice < /tmp/t32_s
 api_post "/api/v1/fints/auto-match" "{\"companyId\":\"$COMPANY_ID\"}"
 assert_status 201 "D1. auto-match (name fuzzy) returns 201"
 
-RECON_COUNT_040=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
+RECON_COUNT_040=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
   SELECT count(*) FROM \"BankReconciliation\"
   WHERE \"invoiceId\" = 'e2e00006-0001-0000-0007-000000000040';" 2>/dev/null | tr -d ' ')
 if [[ "$RECON_COUNT_040" -ge 1 ]]; then

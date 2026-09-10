@@ -58,7 +58,7 @@ echo "=== Test: G+V Vorschau (test tag: $TEST_TAG) ==="
 # only catches the current $TS; older runs
 # accumulate over time and break the
 # delta-snapshot assertion).
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null 2>&1
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null 2>&1
 DELETE FROM "InvoiceItem" WHERE "invoiceId" IN (SELECT id FROM "Invoice" WHERE "invoiceNumber" LIKE 'GUV-%');
 DELETE FROM "Invoice" WHERE "invoiceNumber" LIKE 'GUV-%';
 DELETE FROM "Expense" WHERE "invoiceNumber" LIKE 'GUV-%';
@@ -89,15 +89,15 @@ cleanup() {
   # The 5 separate docker invocations each have a
   # 10s timeout — they're fast and easier to debug
   # than a 5-statement pipe.
-  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
     "DELETE FROM \"InvoiceItem\" WHERE \"invoiceId\" IN (SELECT id FROM \"Invoice\" WHERE \"invoiceNumber\" LIKE 'GUV-%');" >/dev/null
-  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
     "DELETE FROM \"Invoice\" WHERE \"invoiceNumber\" LIKE 'GUV-%';" >/dev/null
-  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
     "DELETE FROM \"Expense\" WHERE \"invoiceNumber\" LIKE 'GUV-%';" >/dev/null
-  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
     "DELETE FROM \"CustomerCreditTransaction\" WHERE \"description\" LIKE 'GUV-%';" >/dev/null
-  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
     "DELETE FROM \"Customer\" WHERE \"customerNumber\" LIKE 'GUV-%';" >/dev/null
 }
 trap cleanup EXIT
@@ -111,7 +111,7 @@ VALUES
 EOF
 docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice < "$TMP_SQL"
 rm -f "$TMP_SQL"
-CUST_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+CUST_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT id FROM \"Customer\" WHERE \"companyId\"='$COMPANY_ID' AND \"customerNumber\"='GUV-${TS}-DE-1';" \
   2>&1 | tr -d ' ' | head -1)
 

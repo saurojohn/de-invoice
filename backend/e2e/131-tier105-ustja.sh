@@ -180,7 +180,7 @@ rm -rf /tmp/berater-ustja-e2e-$TS "$ZIP_PATH"
 # ===== 9. UStJA also present when ALL 7 optionals are opted out =====
 echo
 note "=== 9. UStJA still present when ALL 7 optional Anlage forms are disabled ==="
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   UPDATE \"Company\" SET settings = COALESCE(settings, '{}'::jsonb) || '{
     \"anlageV\": false, \"anlageKAP\": false, \"anlageG\": false,
     \"anlageN\": false, \"kst1\": false, \"anlageR\": false, \"anlageKind\": false
@@ -188,7 +188,7 @@ docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
   WHERE id = '$COMPANY_ID';" >/dev/null
 
 # Also clear any Rente / Kinder / Lohnsteuerbescheinigung data for 2024
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   UPDATE \"Company\" SET settings = settings - 'renten' - 'rentenWerbungskosten' - 'kinder' - 'lohnsteuerbescheinigungen'
   WHERE id = '$COMPANY_ID';" >/dev/null
 
@@ -234,7 +234,7 @@ ls /tmp/berater-minimal-$TS/ | sort
 rm -rf /tmp/berater-minimal-$TS "$ZIP_PATH"
 
 # Cleanup
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   UPDATE \"Company\" SET settings = settings - 'anlageV' - 'anlageKAP' - 'anlageG' - 'anlageN' - 'kst1' - 'anlageR' - 'anlageKind'
   WHERE id = '$COMPANY_ID';" >/dev/null
 

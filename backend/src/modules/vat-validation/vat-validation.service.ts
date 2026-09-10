@@ -70,7 +70,7 @@
  *   is HTTP 503 with a SOAP Fault — we map that
  *   to 'unreachable' and the user retries.
  */
-import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 // xml2js was used for the legacy SOAP response parser.
 // The EU decommissioned the SOAP endpoint in 2024;
 // we now use the REST endpoint and parse JSON
@@ -236,7 +236,7 @@ export class VatValidationService {
    */
   parseVatId(raw: string | null | undefined): ParsedVatId | null {
     if (!raw) return null
-    const cleaned = String(raw).trim().toUpperCase().replace(/[\s.\-]/g, '')
+    const cleaned = String(raw).trim().toUpperCase().replace(/[\s.-]/g, '')
     if (cleaned.length < 4) return null
     const countryCode = cleaned.slice(0, 2)
     const number = cleaned.slice(2)
@@ -1444,18 +1444,3 @@ export class VatValidationService {
   }
 }
 
-// XML escape — covers the 5 XML predefined
-// entities. The country code is always 2 ASCII
-// letters (so escaping is overkill) but the VAT
-// number is user-supplied and could in theory
-// contain anything (some non-EU formats use
-// slashes, hyphens, etc.). We escape both to
-// be safe.
-function esc(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;')
-}

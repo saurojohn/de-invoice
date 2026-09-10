@@ -50,11 +50,11 @@ echo "=== Test: EU OSS (test tag: $TEST_TAG) ==="
 
 # Cleanup hook (run on exit)
 cleanup() {
-  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
     "DELETE FROM \"InvoiceItem\" WHERE \"invoiceId\" IN (SELECT id FROM \"Invoice\" WHERE \"invoiceNumber\" LIKE 'OSS-${TS}-%');" >/dev/null 2>&1
-  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
     "DELETE FROM \"Invoice\" WHERE \"invoiceNumber\" LIKE 'OSS-${TS}-%';" >/dev/null 2>&1
-  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
     "DELETE FROM \"Customer\" WHERE \"customerNumber\" LIKE 'OSS-${TS}-%';" >/dev/null 2>&1
 }
 trap cleanup EXIT
@@ -124,7 +124,7 @@ rm -f "$TMP_SQL"
 
 # Now grab each customer's id (we need them for the invoices)
 get_cust_id() {
-  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
     "SELECT id FROM \"Customer\" WHERE \"companyId\"='$COMPANY_ID' AND \"customerNumber\"='$1';" \
     2>&1 | tr -d ' ' | head -1
 }

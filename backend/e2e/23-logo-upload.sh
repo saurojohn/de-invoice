@@ -29,7 +29,7 @@ login
 COMPANY_ID="$COMPANY_ID"
 USER_ID="$USER_ID"
 # Snapshot original logo so we can restore it at the end.
-ORIG_LOGO=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+ORIG_LOGO=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT COALESCE(\"logoPath\", '') FROM \"Company\" WHERE id='$COMPANY_ID';" 2>&1 | tr -d ' ' | head -1)
 echo "Original logoPath: '$ORIG_LOGO'"
 
@@ -55,7 +55,7 @@ assert_eq "upload filename pattern" "$PREFIX_OK" "true"
 [ -f "$LOGO_DIR/$FILENAME" ] && echo "✓ file on disk = $FILENAME" || { echo "✗ file not on disk"; exit 1; }
 
 # Test 3: DB logoPath matches
-DB_LOGO=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+DB_LOGO=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT \"logoPath\" FROM \"Company\" WHERE id='$COMPANY_ID';" 2>&1 | tr -d ' ' | head -1)
 assert_eq "DB logoPath" "$DB_LOGO" "$FILENAME"
 
@@ -106,7 +106,7 @@ assert_eq "remove-logo ok" "$REMOVE_OK" "true"
 # File should be gone
 [ -f "$LOGO_DIR/$FILENAME2" ] && { echo "✗ file not removed from disk"; exit 1; } || echo "✓ file removed from disk"
 # DB should be null
-DB_AFTER=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+DB_AFTER=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT COALESCE(\"logoPath\", '') FROM \"Company\" WHERE id='$COMPANY_ID';" 2>&1 | tr -d ' ' | head -1)
 [ -z "$DB_AFTER" ] && echo "✓ DB logoPath null after remove" || { echo "✗ DB still has logoPath: $DB_AFTER"; exit 1; }
 
@@ -125,7 +125,7 @@ echo "✓ path-traversal protection is in upload controller (startsWith check)"
 
 # Cleanup: restore original logoPath in DB
 if [ -n "$ORIG_LOGO" ]; then
-  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
     "UPDATE \"Company\" SET \"logoPath\"='$ORIG_LOGO' WHERE id='$COMPANY_ID';" >/dev/null 2>&1
   echo "restored original logoPath = $ORIG_LOGO"
 fi

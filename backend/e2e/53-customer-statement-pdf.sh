@@ -41,11 +41,11 @@ CUSTOMER_ID=$(echo "$BODY" | python3 -c "import sys,json;print(json.load(sys.std
 # Cleanup
 cleanup() {
   if [[ -n "${CUSTOMER_ID:-}" ]]; then
-    docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+    docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
       "DELETE FROM \"Payment\" WHERE \"invoiceId\" IN (SELECT id FROM \"Invoice\" WHERE \"customerId\"='$CUSTOMER_ID');" >/dev/null 2>&1 || true
-    docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+    docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
       "DELETE FROM \"Invoice\" WHERE \"customerId\"='$CUSTOMER_ID';" >/dev/null 2>&1 || true
-    docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+    docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
       "DELETE FROM \"Customer\" WHERE id='$CUSTOMER_ID';" >/dev/null 2>&1 || true
   fi
 }

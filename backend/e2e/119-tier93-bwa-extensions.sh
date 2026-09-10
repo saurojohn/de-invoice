@@ -56,11 +56,11 @@ TEST_MONTH=3
 echo "=== Test: BWA extensions (test tag: $TEST_TAG) ==="
 
 # Pre-cleanup
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"Expense\" WHERE notes LIKE 'T93-${TS}-%';" >/dev/null 2>&1
 
 cleanup() {
-  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
     "DELETE FROM \"Expense\" WHERE notes LIKE 'T93-${TS}-%';" >/dev/null 2>&1
   echo "  cleanup: removed T93-${TS}-* rows"
 }

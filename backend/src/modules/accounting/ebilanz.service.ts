@@ -577,7 +577,7 @@ export class EBilanzService {
     doc: any,
     sectionTitle: string,
     positions: Array<EBilanzMapping & { value: number | null }>,
-    section: EBilanzMapping["section"],
+    _section: EBilanzMapping["section"],
   ): void {
     doc
       .fontSize(14)

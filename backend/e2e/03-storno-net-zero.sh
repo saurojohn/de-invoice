@@ -71,7 +71,7 @@ api_post "/api/v1/cashbook/entries/$EID/reverse?companyId=$COMPANY_ID" "{
 # is technically allowed (because the original is not itself a
 # reversal). But if we try to storno the REVERSAL row, that fails.
 # Fetch the reversal row id:
-REVID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+REVID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT id FROM \"CashBookEntry\" WHERE \"reversesId\" = '$EID' LIMIT 1;" 2>/dev/null | tr -d ' ')
 api_post "/api/v1/cashbook/entries/$REVID/reverse?companyId=$COMPANY_ID" "{
   \"reason\":\"trying to reverse a storno\",

@@ -63,7 +63,7 @@ note "=== 3. Without LSB: einkuenfte == -1230 (Pauschbetrag) ==="
 # Wipe any existing Lohnsteuerbescheinigung
 # + Werbungskosten for 2026 (cleanup leftover
 # from manual tests)
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   UPDATE \"Company\" SET settings = COALESCE(settings, '{}'::jsonb) || '{\"lohnsteuerbescheinigungen\": {\"2026\": {}}, \"werbungskosten\": {\"2026\": {}}, \"sonderausgaben\": {\"2026\": {}}, \"aussergewoehnlicheBelastungen\": {\"2026\": {}}}'::jsonb
   WHERE id = '$COMPANY_ID';" >/dev/null
 
@@ -203,7 +203,7 @@ echo
 note "=== 11. Berater packager EXCLUDES Anlage N when opt-out + no LSB ==="
 # Clear LSB for 2024 (a year with no LSB
 # + no other income) + force anlageN=false
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   UPDATE \"Company\" SET settings = COALESCE(settings, '{}'::jsonb) || '{\"anlageN\": false, \"lohnsteuerbescheinigungen\": {}}'::jsonb
   WHERE id = '$COMPANY_ID';" >/dev/null
 
@@ -227,7 +227,7 @@ assert_eq "no Anlage N in MANIFEST (opt-out)" "$MANIFEST_N_ABSENT" "0"
 rm -rf /tmp/berater-no-n-$TS "$ZIP_PATH"
 
 # Cleanup: remove the test LSB settings
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   UPDATE \"Company\" SET settings = settings - 'anlageN' - 'lohnsteuerbescheinigungen'
   WHERE id = '$COMPANY_ID';" >/dev/null
 

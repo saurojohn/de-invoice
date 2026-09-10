@@ -5,7 +5,7 @@
 # Why this exists:
 #   - 127 of 169 e2e tests assume a postgres container
 #     named `de-invoice-postgres` reachable via
-#     `docker exec de-invoice-postgres psql ...`.
+#     `docker exec "$PG_CONTAINER" psql ...`.
 #   - GitHub Actions `services:` containers are isolated
 #     and not visible to `docker exec` on the runner —
 #     so the e2e job has to launch a sidecar postgres

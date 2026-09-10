@@ -37,9 +37,9 @@ assert_eq "config.revenue7 (untouched)" "$(json_field "$BODY" config.revenue7)" 
 assert_eq "overrides.bank" "$(json_field "$BODY" overrides.bank)" "9999"
 
 # Make sure at least one paid invoice exists so DATEV has rows
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "SELECT count(*) FROM \"Invoice\" WHERE \"companyId\" = '$COMPANY_ID' AND status = 'paid';" >/dev/null 2>&1
-PAID_COUNT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+PAID_COUNT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT count(*) FROM \"Invoice\" WHERE \"companyId\" = '$COMPANY_ID' AND status = 'paid';" 2>/dev/null | tr -d ' ')
 
 # If no paid invoices, create a quick one to test the export end-to-end
@@ -47,14 +47,14 @@ if [[ "$PAID_COUNT" == "0" ]]; then
   note "No paid invoices — creating a quick test invoice + payment"
 
   # Get any customer
-  CUST_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  CUST_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
     "SELECT id FROM \"Customer\" WHERE \"companyId\" = '$COMPANY_ID' LIMIT 1;" 2>/dev/null | tr -d ' ')
   if [[ -z "$CUST_ID" ]]; then
     note "No customer — creating a placeholder"
-    docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+    docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
       "INSERT INTO \"Customer\" (id, \"companyId\", name, \"customerNumber\", \"createdAt\", \"updatedAt\")
        VALUES (gen_random_uuid()::text, '$COMPANY_ID', 'E2E DATEV Test', 'K-E2E', now(), now());" >/dev/null 2>&1
-    CUST_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+    CUST_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
       "SELECT id FROM \"Customer\" WHERE \"companyId\" = '$COMPANY_ID' AND name = 'E2E DATEV Test' LIMIT 1;" 2>/dev/null | tr -d ' ')
   fi
 
@@ -75,9 +75,9 @@ if [[ "$PAID_COUNT" == "0" ]]; then
     }]
   }" >/dev/null
 
-  INV_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  INV_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
     "SELECT id FROM \"Invoice\" WHERE \"companyId\" = '$COMPANY_ID' AND type = 'INV' ORDER BY \"createdAt\" DESC LIMIT 1;" 2>/dev/null | tr -d ' ')
-  INV_NO=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  INV_NO=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
     "SELECT \"invoiceNumber\" FROM \"Invoice\" WHERE id = '$INV_ID';" 2>/dev/null | tr -d ' ')
   note "Created invoice $INV_NO"
 
@@ -97,7 +97,7 @@ if [[ "$PAID_COUNT" == "0" ]]; then
   # stuck in 'draft' even after a successful payment POST.
   # We force the status via raw SQL so the DATEV export
   # filter (status='paid') sees the row. Idempotent.
-  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
     "UPDATE \"Invoice\" SET status='paid' WHERE id='$INV_ID' AND status<>'paid';" >/dev/null 2>&1
 fi
 
@@ -173,7 +173,7 @@ fi
 # Reset the per-company DATEV config to defaults so the
 # Voucher accounting paths (1200 Bank, 1406 Forderung)
 # match the standard SKR03.
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "UPDATE \"Company\" SET settings = NULL WHERE id = '$COMPANY_ID';" >/dev/null 2>&1
 
 # Find the most recent paid invoice (the one the test
@@ -181,36 +181,36 @@ docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
 # Voucher (replicating what bank-import.confirmMatch
 # does, but direct SQL so we don't depend on the
 # bank-import module for this test).
-PAID_INV_NO=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+PAID_INV_NO=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT \"invoiceNumber\" FROM \"Invoice\" WHERE \"companyId\" = '$COMPANY_ID' AND status = 'paid' ORDER BY \"createdAt\" DESC LIMIT 1;" 2>/dev/null | tr -d ' ')
-PAID_INV_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+PAID_INV_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT id FROM \"Invoice\" WHERE \"invoiceNumber\" = '$PAID_INV_NO';" 2>/dev/null | tr -d ' ')
 
 # Create a posted Voucher for the cash side of this
 # invoice: 1200 Bank / 1406 Forderung.
-VCH_DATA=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+VCH_DATA=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "INSERT INTO \"Voucher\" (id, \"companyId\", \"voucherNumber\", date, description, \"referenceType\", status, \"createdAt\")
    VALUES (gen_random_uuid()::text, '$COMPANY_ID', 'BK-E2E-0001', '2026-06-01', 'Zahlungseingang $PAID_INV_NO', 'BankReconciliation', 'posted', now())
    RETURNING id;" 2>/dev/null | tr -d ' ')
 VCH_ID=$(echo "$VCH_DATA" | head -1)
 # Find or create the two Account rows
-BANK_ACC=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+BANK_ACC=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "INSERT INTO \"Account\" (id, \"companyId\", \"accountNumber\", name, type, category, \"createdAt\")
    VALUES (gen_random_uuid()::text, '$COMPANY_ID', '1200', 'Bank', 'asset', 'liquidity', now())
    ON CONFLICT (\"companyId\", \"accountNumber\") DO UPDATE SET name = EXCLUDED.name
    RETURNING id;" 2>/dev/null | tr -d ' ')
-RECV_ACC=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+RECV_ACC=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "INSERT INTO \"Account\" (id, \"companyId\", \"accountNumber\", name, type, category, \"createdAt\")
    VALUES (gen_random_uuid()::text, '$COMPANY_ID', '1406', 'Forderungen aus L+L', 'asset', 'receivables', now())
    ON CONFLICT (\"companyId\", \"accountNumber\") DO UPDATE SET name = EXCLUDED.name
    RETURNING id;" 2>/dev/null | tr -d ' ')
 # 2 lines: Bank debit 119, Forderung credit 119
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "INSERT INTO \"VoucherLine\" (id, \"voucherId\", \"accountId\", description, debit, credit, \"sortOrder\")
    VALUES (gen_random_uuid()::text, '$VCH_ID', '$BANK_ACC', 'Bank Kunde', 119.00, 0, 0),
           (gen_random_uuid()::text, '$VCH_ID', '$RECV_ACC', 'Forderung ausgeglichen', 0, 119.00, 1);" >/dev/null 2>&1
 # Link voucher back to invoice
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "UPDATE \"Invoice\" SET \"voucherRefId\" = '$VCH_ID' WHERE id = '$PAID_INV_ID';" >/dev/null 2>&1
 
 # Re-export DATEV
@@ -250,13 +250,13 @@ LINES_1200_1406=$(LC_ALL=C grep -c "^[A-Z]*;.*;.*;.*;.*;S;1200;1406" /tmp/datev-
 note "1200/1406 S lines in export: $LINES_1200_1406 (≥1 expected — from Voucher)"
 
 # Cleanup the test Voucher
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"VoucherLine\" WHERE \"voucherId\" = '$VCH_ID';
    UPDATE \"Invoice\" SET \"voucherRefId\" = NULL WHERE id = '$PAID_INV_ID';
    DELETE FROM \"Voucher\" WHERE id = '$VCH_ID';" >/dev/null 2>&1
 
 # Reset
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "UPDATE \"Company\" SET settings = NULL WHERE id = '$COMPANY_ID';" >/dev/null 2>&1
 note "Reset settings to null (back to defaults)"
 

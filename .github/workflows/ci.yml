@@ -81,6 +81,35 @@ jobs:
   # frontend only -- backend has no eslint config, no eslint
   # devDependency and no lint script. Adding one there is a
   # separate decision, not a silent side effect of this job.
+  # Tier 355: the backend had no eslint at all until now -- no config,
+  # no devDependency, no script -- so 245 files / ~82k lines had never
+  # been linted. Setup mirrors frontend/eslint.config.mjs.
+  #
+  # Note this uses --max-warnings 45, NOT 0 like the frontend job. That
+  # number is a ratchet, not a target: 45 write-only variables remain and
+  # each needs individual judgement rather than a bulk fix. Several are
+  # accounting intermediates (per-rate Vorsteuer accumulators, Kindergeld
+  # constants) where deleting the variable could erase evidence of a
+  # genuinely missing output line -- see the OPEN QUESTION comment in
+  # reports/ustja.service.ts. The ratchet blocks any NEW warning while
+  # that pass is pending; lower the number as they are resolved, and
+  # drop to 0 when they are.
+  backend-lint:
+    name: Backend lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npx eslint . --max-warnings 45
+
   frontend-lint:
     name: Frontend lint
     runs-on: ubuntu-latest

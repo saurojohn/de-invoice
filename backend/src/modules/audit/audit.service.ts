@@ -265,7 +265,7 @@ export class AuditService {
       // to backend console — same
       // pattern as the private
       // writeAudit helper.
-      // eslint-disable-next-line no-console
+       
       console.error(
         '[audit/activity] failed to write activity row:',
         (err as Error).message,

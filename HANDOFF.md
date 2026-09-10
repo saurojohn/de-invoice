@@ -330,6 +330,48 @@ seeding:
   **re-creates** `33333333-cccc-...-0001`. All three sort before
   `recurring-invoices`, so the ci-seed template is back and active by then.
 
+**Backend now has eslint, at a ratchet not zero** (Tier 355). It previously
+had none at all — no config, no devDependency, no script — so 245 files /
+~82k lines were unlinted. `backend/eslint.config.mjs` mirrors the frontend's
+minimal setup (no type-aware rules; tsc owns that dimension). Errors went
+31 -> 0; warnings 111 -> 45.
+
+The new `backend-lint` CI job runs `--max-warnings 45`, **not 0 like the
+frontend**. That number is a ratchet: it blocks new warnings while the
+remaining 45 wait for judgement. Lower it as they are resolved.
+
+Two config notes: `PDFKit` and `Express` must be declared as readonly
+globals (TypeScript namespace types; `no-undef` cannot see them, same as
+`React` on the frontend), and `no-empty` uses `allowEmptyCatch`.
+
+**Do not bulk-delete the remaining 45 write-only variables.** Several are
+accounting intermediates where the variable is the only evidence of an
+intended output. The clearest: `reports/ustja.service.ts` accumulates
+`_vorsteuer19` / `_vorsteuer7` / `_vorsteuerIgE` /
+`_vorsteuerReverseCharge` under a `// Vorsteuer (Kz 56-66)` comment — BMF
+Vordruck line numbers — yet only the *total* reaches the output. Whether
+the annual return must break input tax out by rate / igE / §13b is a
+question for the Steuerberater, not something to settle from source, so
+they are underscore-prefixed with an OPEN QUESTION comment rather than
+removed. `anlage-kind.service.ts`'s `KINDERGELD_PER_KIND_2024` /
+`FREIBETRAG_PER_KIND_2024` have the same smell and are unreviewed.
+
+**Backend e2e can now run against a throwaway DB too.** Tier 353 did the
+Playwright side and missed the backend: `run-all.sh` plus 570 call sites in
+96 specs hardcoded the container name. All now honour `PG_CONTAINER` (via
+`_lib.sh`, plus four specs that do not source it). `scripts/start-backend.sh`
+also re-exports `DATABASE_URL` now — e2e spec 20 restarts the backend
+mid-run through that wrapper, and without it the restart fell back to the
+`.env` default and died with Prisma P1001.
+
+**A local full-suite run is NOT comparable to CI.** On a throwaway DB the
+backend suite scores 65 passed / 34 failed where CI scores 99/99. That gap
+is environmental. **Always A/B against stashed changes on a fresh database
+before concluding anything from a local run** — during this tier an
+uncontrolled comparison (same DB, different accumulated state) made
+`20-vat-validation.sh` look like a regression it was not. Redone properly,
+with a fresh DB per side, the failure lists matched exactly.
+
 **Never `await` two `page.waitForResponse` calls in sequence** (Tier 354).
 When a page fires both requests from one `Promise.all`, the second waiter
 is only registered after the first has resolved — by which point the second

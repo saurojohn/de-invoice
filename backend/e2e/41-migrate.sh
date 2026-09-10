@@ -64,7 +64,7 @@ echo "=== Test: Tier 12 Prisma migrate validation ==="
 # the contract directly: the three tables the
 # search_tsv migration touches should each
 # have a `search_tsv` column.
-HAS_SEARCH_COL=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+HAS_SEARCH_COL=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT count(*) FROM information_schema.columns WHERE table_name IN ('Customer','Product','Invoice') AND column_name = 'search_tsv';" 2>/dev/null | tr -d ' ')
 [[ "$HAS_SEARCH_COL" -ge 3 ]] && pass "1a. search_tsv columns present (got $HAS_SEARCH_COL)" \
   || fail "1a. search_tsv columns missing (got $HAS_SEARCH_COL, expected >=3)"
@@ -107,7 +107,7 @@ grep -q 'CREATE UNIQUE INDEX.*"companyId", "customerNumber"' "$BASELINE_FILE" \
   || fail "4c. customer unique missing"
 
 # ===== 5. the LIVE DB still has data (baseline marked applied, not run) =====
-USER_COUNT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+USER_COUNT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT count(*) FROM \"User\";" 2>/dev/null | tr -d ' ')
 [[ "$USER_COUNT" -ge 1 ]] && pass "5. live DB has $USER_COUNT users (baseline didn't wipe data)" \
   || fail "5. live DB has 0 users — baseline was destructive!"
@@ -158,9 +158,9 @@ grep -q 'provider = "postgresql"' prisma/migration_lock.toml \
 # so we don't touch the dev DB.
 TEST_DB="de_invoice_migrate_test"
 # Drop + create
-docker exec de-invoice-postgres psql -U de_invoice -d postgres -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d postgres -c \
   "DROP DATABASE IF EXISTS $TEST_DB;" >/dev/null 2>&1
-docker exec de-invoice-postgres psql -U de_invoice -d postgres -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d postgres -c \
   "CREATE DATABASE $TEST_DB;" >/dev/null 2>&1
 # Apply the baseline
 DATABASE_URL="postgresql://de_invoice:de_invoice_pass@localhost:5432/$TEST_DB?schema=public" \
@@ -181,13 +181,13 @@ fi
 docker exec -i de-invoice-postgres psql -U de_invoice -d $TEST_DB \
   < prisma/init.sql > /tmp/t41_init.txt 2>&1
 # Verify the schema
-TABLE_COUNT=$(docker exec de-invoice-postgres psql -U de_invoice -d $TEST_DB -tA -c \
+TABLE_COUNT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d $TEST_DB -tA -c \
   "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public';" 2>/dev/null | tr -d ' ')
 [[ "$TABLE_COUNT" -ge 30 ]] && pass "11b. fresh DB has $TABLE_COUNT tables (expected ≥30)" \
   || fail "11b. fresh DB only has $TABLE_COUNT tables"
 
 # Verify the critical Tier 12 models exist
-docker exec de-invoice-postgres psql -U de_invoice -d $TEST_DB -tA -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d $TEST_DB -tA -c \
   "SELECT count(*) FROM information_schema.tables WHERE table_name IN ('FinTsTransfer', 'BankReconciliation', 'InvoiceTemplate', 'FinTSConnection', 'RecurringInvoice', 'UStvaFiling');" 2>/dev/null \
   | tr -d ' ' \
   | grep -q '^6$' && pass "11c. all 6 Tier-12-critical models present" \
@@ -206,21 +206,21 @@ docker exec de-invoice-postgres psql -U de_invoice -d $TEST_DB -tA -c \
 # (not stdin heredoc) because the
 # bash → docker exec pipe drops
 # multi-statement input silently.
-docker exec de-invoice-postgres psql -U de_invoice -d $TEST_DB -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d $TEST_DB -c \
   "INSERT INTO \"Company\" (id, name, address, \"updatedAt\") VALUES ('migrate-test-co', 'Migrate Test', '{}'::jsonb, now()) ON CONFLICT DO NOTHING;" 2>/dev/null
-docker exec de-invoice-postgres psql -U de_invoice -d $TEST_DB -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d $TEST_DB -c \
   "INSERT INTO \"Customer\" (id, \"companyId\", name, type, address, city_text, postal_code_text, \"updatedAt\") VALUES ('migrate-test-cu', 'migrate-test-co', 'X', 'business', '{}'::jsonb, 'München', '80331', now());" 2>/dev/null
 # Read back. The grep just looks for
 # 'München' anywhere in the output
 # (single-statement SELECT is enough).
-docker exec de-invoice-postgres psql -U de_invoice -d $TEST_DB -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d $TEST_DB -c \
   "SELECT city_text FROM \"Customer\" WHERE id = 'migrate-test-cu';" 2>/dev/null \
   | grep -q "München" && pass "11d. generated columns work after fresh migrate" \
   || fail "11d. generated columns broken after fresh migrate"
 
 # Clean up the test DB so the next
 # run starts from a known state.
-docker exec de-invoice-postgres psql -U de_invoice -d postgres -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d postgres -c \
   "DROP DATABASE IF EXISTS $TEST_DB;" >/dev/null 2>&1
 /Users/shledergmbh/.mavis/bin/mavis-trash -- /tmp/t41_deploy.txt /tmp/t41_init.txt
 

@@ -50,7 +50,7 @@ pass "wiped prior tier-64 fixtures"
 # and could be a different (already-paid)
 # customer, which silently made the section
 # 14 "invoices back in overdue" check fail.
-INV_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
+INV_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
   SELECT id FROM \"Invoice\" WHERE \"companyId\" = '$COMPANY_ID'
     AND status = 'sent'
     AND \"dueDate\" < NOW() LIMIT 1;" 2>/dev/null | tr -d ' ' | head -1)
@@ -66,7 +66,7 @@ skip_if "no overdue invoice in dev DB (test depends on a 'sent' invoice with due
 [[ -n "$INV_ID" ]] && pass "picked an overdue invoice: $INV_ID"
 
 # Now pick the customer of that invoice
-CUST_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
+CUST_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
   SELECT \"customerId\" FROM \"Invoice\" WHERE id = '$INV_ID';" 2>/dev/null | tr -d ' ' | head -1)
 [[ -n "$CUST_ID" ]] && pass "picked the invoice's customer: $CUST_ID" || fail "invoice has no customer"
 
@@ -160,7 +160,7 @@ if [[ "$BEFORE_COUNT" -ge 1 ]]; then
 else
   # The fixture might not be overdue today (depends on
   # issueDate / dueDate). Force-overdue via SQL.
-  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
     UPDATE \"Invoice\" SET \"dueDate\" = NOW() - INTERVAL '30 days' WHERE id = '$INV_ID';" >/dev/null
   pass "forced invoice dueDate to 30 days ago (fixture was up-to-date)"
 fi
@@ -232,7 +232,7 @@ note "=== 13. DELETE soft-cancels ==="
 api_delete "/api/v1/mahnungspausen/$PAUSE1_ID?companyId=$COMPANY_ID"
 assert_eq "delete 200" "$STATUS" "200"
 # Row is still in DB with cancelledAt set
-CANCELLED_AT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
+CANCELLED_AT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
   SELECT COALESCE(\"cancelledAt\"::text, 'null') FROM \"Mahnungspause\" WHERE id = '$PAUSE1_ID';" 2>&1 | tr -d ' ')
 if [[ "$CANCELLED_AT" == "null" ]]; then
   fail "row was hard-deleted (cancelledAt is null)"
@@ -261,7 +261,7 @@ note "=== 14. cancelled pauses no longer active ==="
 # tests the GoBD GoBD-relevant side-effect of
 # the cancellation, not the side effect of
 # downstream filters that have drifted.
-ACTIVE_PAUSES=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
+ACTIVE_PAUSES=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
   SELECT COUNT(*) FROM \"Mahnungspause\"
   WHERE \"companyId\" = '$COMPANY_ID'
     AND \"customerId\" = '$CUST_ID'
@@ -275,7 +275,7 @@ fi
 # Also assert the pause row is still in the
 # table (soft-cancel, not hard-delete) so the
 # GoBD audit trail is preserved.
-SOFT_COUNT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
+SOFT_COUNT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
   SELECT COUNT(*) FROM \"Mahnungspause\"
   WHERE id = '$PAUSE1_ID'
     AND \"cancelledAt\" IS NOT NULL;" 2>&1 | tr -d ' ')
@@ -284,7 +284,7 @@ assert_eq "pause row preserved with cancelledAt set" "$SOFT_COUNT" "1"
 # ───── 15. Cleanup ─────
 echo
 note "=== 15. cleanup ==="
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 DELETE FROM "Mahnungspause" WHERE "companyId" = '$COMPANY_ID';
 SQL
 pass "cleanup complete"

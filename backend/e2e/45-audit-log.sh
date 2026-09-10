@@ -41,6 +41,8 @@
 #      a new auditLog.create())
 
 set -uo pipefail
+# Tier 355: honour PG_CONTAINER (this script does not source _lib.sh).
+PG_CONTAINER="${PG_CONTAINER:-de-invoice-postgres}"
 HOST="${HOST:-http://localhost:3001}"
 PASS=0
 FAIL=0
@@ -68,13 +70,13 @@ TAG="e2e-45-$(date +%s)-$$"
 USER_ID_FOR_TEST="8c6a9669-0069-4137-a842-a66fd1d178d6"
 
 echo "=== Setup: get baseline audit row count ==="
-BASELINE=$(PGPASSWORD=de_invoice_pass docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+BASELINE=$(PGPASSWORD=de_invoice_pass docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT count(*) FROM \"AuditLog\" WHERE \"userId\"='$USER_ID';" 2>/dev/null | tr -d ' ')
 echo "Baseline audit rows: $BASELINE"
 
 # 1. Update an existing customer.
 # First, find one (we don't care which).
-CUST_ID=$(PGPASSWORD=de_invoice_pass docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+CUST_ID=$(PGPASSWORD=de_invoice_pass docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT id FROM \"Customer\" WHERE \"companyId\"='$COMPANY_ID' ORDER BY \"createdAt\" LIMIT 1;" 2>/dev/null | tr -d ' ' | head -1)
 if [[ -z "$CUST_ID" ]]; then
   echo "FATAL: no Customer row to update" >&2
@@ -125,12 +127,12 @@ echo "=== Test assertions ==="
 # We filter by the metadata we just set, not just by entityId,
 # because a previous test run may have left other customer.updated
 # rows for the same customer id.
-CUST_AUDIT=$(PGPASSWORD=de_invoice_pass docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+CUST_AUDIT=$(PGPASSWORD=de_invoice_pass docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT count(*) FROM \"AuditLog\" WHERE \"userId\"='$USER_ID' AND action='customer.updated' AND \"entityId\"='$CUST_ID' AND \"newData\"->>'metadata' LIKE '%$TAG%';" 2>/dev/null | tr -d ' ')
 assert "customer.updated row for this test exists" "1" "$CUST_AUDIT"
 
 # 2. Product delete → 1 audit row
-PROD_AUDIT=$(PGPASSWORD=de_invoice_pass docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+PROD_AUDIT=$(PGPASSWORD=de_invoice_pass docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT count(*) FROM \"AuditLog\" WHERE \"userId\"='$USER_ID' AND action='product.deleted' AND \"entityId\"='$PROD_ID';" 2>/dev/null | tr -d ' ')
 assert "product.deleted row exists" "1" "$PROD_AUDIT"
 
@@ -140,7 +142,7 @@ assert "product.deleted row exists" "1" "$PROD_AUDIT"
 # tests the updateMany audit path
 # (which records 'bulk:<where>' as
 # the entityId, not the per-row id).
-PGPASSWORD=de_invoice_pass docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+PGPASSWORD=de_invoice_pass docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "UPDATE \"Customer\" SET metadata = jsonb_build_object('e2e_45_bulk', '$TAG') WHERE \"companyId\"='$COMPANY_ID' AND id != '$CUST_ID' LIMIT 1;" 2>/dev/null
 # Now use Prisma to do the same via
 # updateMany so the extension fires
@@ -149,14 +151,14 @@ PGPASSWORD=de_invoice_pass docker exec de-invoice-postgres psql -U de_invoice -d
 # The cleanest way is to call the
 # service layer via an API call. We
 # update a different customer.
-OTHER_CUST=$(PGPASSWORD=de_invoice_pass docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+OTHER_CUST=$(PGPASSWORD=de_invoice_pass docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT id FROM \"Customer\" WHERE \"companyId\"='$COMPANY_ID' AND id != '$CUST_ID' ORDER BY \"createdAt\" LIMIT 1;" 2>/dev/null | tr -d ' ' | head -1)
 if [[ -n "$OTHER_CUST" ]]; then
   curl -sS -o /dev/null -X PUT "$HOST/api/v1/customers/$OTHER_CUST?companyId=$COMPANY_ID" \
     -H "Content-Type: application/json" \
     -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
     -d "{\"metadata\":{\"e2e_45_other\":\"$TAG\"}}"
-  OTHER_CUST_AUDIT=$(PGPASSWORD=de_invoice_pass docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  OTHER_CUST_AUDIT=$(PGPASSWORD=de_invoice_pass docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
     "SELECT count(*) FROM \"AuditLog\" WHERE \"userId\"='$USER_ID' AND action='customer.updated' AND \"entityId\"='$OTHER_CUST' AND \"newData\"->>'metadata' LIKE '%$TAG%';" 2>/dev/null | tr -d ' ')
   assert "another customer.updated row exists" "1" "$OTHER_CUST_AUDIT"
 else
@@ -164,17 +166,17 @@ else
 fi
 
 # 6. userId is populated from x-user-id header
-CUST_USER_ID=$(PGPASSWORD=de_invoice_pass docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+CUST_USER_ID=$(PGPASSWORD=de_invoice_pass docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT \"userId\" FROM \"AuditLog\" WHERE action='customer.updated' AND \"entityId\"='$CUST_ID' ORDER BY \"createdAt\" DESC LIMIT 1;" 2>/dev/null | tr -d ' ')
 assert "audit row has userId from x-user-id" "$USER_ID" "$CUST_USER_ID"
 
 # 6b. companyId is populated from x-company-id header
-CUST_COMPANY_ID=$(PGPASSWORD=de_invoice_pass docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+CUST_COMPANY_ID=$(PGPASSWORD=de_invoice_pass docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT \"companyId\" FROM \"AuditLog\" WHERE action='customer.updated' AND \"entityId\"='$CUST_ID' ORDER BY \"createdAt\" DESC LIMIT 1;" 2>/dev/null | tr -d ' ')
 assert "audit row has companyId from x-company-id" "$COMPANY_ID" "$CUST_COMPANY_ID"
 
 # 7. ipAddress is populated
-CUST_IP=$(PGPASSWORD=de_invoice_pass docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+CUST_IP=$(PGPASSWORD=de_invoice_pass docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT \"ipAddress\" FROM \"AuditLog\" WHERE action='customer.updated' AND \"entityId\"='$CUST_ID' ORDER BY \"createdAt\" DESC LIMIT 1;" 2>/dev/null | tr -d ' ')
 # Could be 127.0.0.1, ::1, or ::ffff:127.0.0.1 (IPv4-mapped IPv6)
 if [[ "$CUST_IP" == "127.0.0.1" || "$CUST_IP" == "::1" || "$CUST_IP" == "::ffff:127.0.0.1" ]]; then
@@ -186,41 +188,41 @@ else
 fi
 
 # 8. oldData + newData are present (JSON shape)
-OLD_DATA_PRESENT=$(PGPASSWORD=de_invoice_pass docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+OLD_DATA_PRESENT=$(PGPASSWORD=de_invoice_pass docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT (\"oldData\" IS NOT NULL)::int FROM \"AuditLog\" WHERE action='product.deleted' AND \"entityId\"='$PROD_ID';" 2>/dev/null | tr -d ' ')
 assert "product.deleted has oldData populated" "1" "$OLD_DATA_PRESENT"
 
-NEW_DATA_NULL=$(PGPASSWORD=de_invoice_pass docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+NEW_DATA_NULL=$(PGPASSWORD=de_invoice_pass docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT (\"newData\" IS NULL)::int FROM \"AuditLog\" WHERE action='product.deleted' AND \"entityId\"='$PROD_ID';" 2>/dev/null | tr -d ' ')
 assert "product.deleted has newData=null" "1" "$NEW_DATA_NULL"
 
 # 10. No infinite recursion: the audit row itself
 #     didn't trigger another audit row for the AuditLog
 #     model. (Verify: count of auditLog.* actions = 0.)
-AUDIT_REC=$(PGPASSWORD=de_invoice_pass docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+AUDIT_REC=$(PGPASSWORD=de_invoice_pass docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT count(*) FROM \"AuditLog\" WHERE action LIKE 'auditlog.%';" 2>/dev/null | tr -d ' ')
 assert "no infinite recursion (auditlog.* count = 0)" "0" "$AUDIT_REC"
 
 # Restore the customer's metadata to NULL so the
 # test doesn't leave artifacts.
-PGPASSWORD=de_invoice_pass docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+PGPASSWORD=de_invoice_pass docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "UPDATE \"Customer\" SET metadata = NULL WHERE id = '$CUST_ID';" >/dev/null 2>&1
 # Delete the test invoice (if create succeeded) so the
 # next run doesn't hit a unique-constraint on
 # (companyId, invoiceNumber).
 if [[ -n "${INV_ID:-}" ]]; then
-  PGPASSWORD=de_invoice_pass docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+  PGPASSWORD=de_invoice_pass docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
     "DELETE FROM \"Invoice\" WHERE id = '$INV_ID';" >/dev/null 2>&1
 fi
 # Sweep up any orphaned test invoices from previous
 # failed runs (where the test crashed before cleanup).
-PGPASSWORD=de_invoice_pass docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+PGPASSWORD=de_invoice_pass docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"Invoice\" WHERE notes LIKE '%e2e-45-%';" >/dev/null 2>&1
 # Also clean up the metadata we set on the
 # second customer (so subsequent test runs
 # don't accumulate metadata noise).
 if [[ -n "${OTHER_CUST:-}" ]]; then
-  PGPASSWORD=de_invoice_pass docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+  PGPASSWORD=de_invoice_pass docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
     "UPDATE \"Customer\" SET metadata = NULL WHERE id = '$OTHER_CUST';" >/dev/null 2>&1
 fi
 

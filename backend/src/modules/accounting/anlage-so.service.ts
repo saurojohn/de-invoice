@@ -502,7 +502,7 @@ export class AnlageSOService {
     doc: PDFKit.PDFDocument,
     lines: AnlageSOLine[],
     totals: AnlageSOResult['totals'],
-    freigrenze: number,
+    _freigrenze: number,
   ): void {
     const tableTop = doc.y
     const colKz = 40

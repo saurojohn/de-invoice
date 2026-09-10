@@ -105,7 +105,7 @@ STATUS=$(echo "$BODY" | python3 -c "import json,sys; print(json.load(sys.stdin)[
 assert_eq "4. 5-digit TAN → status=failed" "$STATUS" "failed"
 
 # Row in DB still needs_tan (failed-TAN doesn't flip the status)
-DB_STATUS=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
+DB_STATUS=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
   SELECT status FROM \"FinTsTransfer\" WHERE id = '$TRANSFER_ID_1';" 2>/dev/null | tr -d ' ')
 assert_eq "4b. DB status stays needs_tan after bad TAN" "$DB_STATUS" "needs_tan"
 
@@ -115,7 +115,7 @@ assert_status 201 "5. valid TAN submit (201)"
 STATUS=$(echo "$BODY" | python3 -c "import json,sys; print(json.load(sys.stdin)['status'])")
 assert_eq "5b. status=ok" "$STATUS" "ok"
 
-FINISHED=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "
+FINISHED=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
   SELECT (\"finishedAt\" IS NOT NULL)::text FROM \"FinTsTransfer\" WHERE id = '$TRANSFER_ID_1';" 2>/dev/null | tr -d ' ')
 assert_eq "5c. finishedAt is set in DB" "$FINISHED" "true"
 

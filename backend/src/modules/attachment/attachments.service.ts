@@ -34,7 +34,7 @@
  *     to have its own Attachment row even if the
  *     underlying bytes are identical).
  */
-import { Injectable, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService, SavedFile } from '../storage/storage.service';

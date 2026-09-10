@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Put, Param, Query, Body, Res, Header, Req, BadRequestException, UseGuards } from '@nestjs/common';
 import { Response } from 'express';
 import { AccountService } from './account.service';
-import { CreateAccountDto, UpdateAccountDto } from './dto/account.dto';
+import { CreateAccountDto } from './dto/account.dto';
 import { CreateVoucherDto } from './dto/voucher.dto';
 import { VoucherService } from './voucher.service';
 import { generateVoucherPDF } from '../../accounting/voucher-pdf.service';

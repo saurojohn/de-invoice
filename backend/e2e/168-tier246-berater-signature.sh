@@ -87,7 +87,7 @@ FINGERPRINT_3=$(json_field "$(cat /tmp/tier246-regen.json)" fingerprint)
   fail "fingerprint didn't change after regenerate: $FINGERPRINT_1"
 
 # ---- 5. Activity log was written ----
-ACTIVITY_COUNT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+ACTIVITY_COUNT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT COUNT(*) FROM \"AuditLog\" WHERE action = 'signing.user_regenerate' AND \"entityId\" = '$USER_ID';" 2>/dev/null)
 [ "$ACTIVITY_COUNT" -ge 1 ] && pass "signing.user_regenerate activity log written (count = $ACTIVITY_COUNT)" || \
   fail "no signing.user_regenerate activity log"
@@ -141,7 +141,7 @@ HTTP=$(curl -sS -o /dev/null -w "%{http_code}" \
   fail "expected 400 or 404, got $HTTP"
 
 # Cleanup: delete the seeded UserSigningKey row so reruns are idempotent
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"UserSigningKey\" WHERE \"userId\" = '$USER_ID';" >/dev/null 2>&1
 pass "cleanup: deleted seeded UserSigningKey row"
 

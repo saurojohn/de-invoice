@@ -163,7 +163,7 @@ note "=== 10. Berater packager conditional Anlage KAP ==="
 # the packager manifest.
 
 # Force opt-in for this test
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   UPDATE \"Company\" SET settings = COALESCE(settings, '{}'::jsonb) || '{\"anlageKAP\": true}'::jsonb
   WHERE id = '$COMPANY_ID';" >/dev/null
 
@@ -201,7 +201,7 @@ fi
 rm -rf /tmp/berater-kap-$TS "$ZIP_PATH"
 
 # Restore settings
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   UPDATE \"Company\" SET settings = settings - 'anlageKAP'
   WHERE id = '$COMPANY_ID';" >/dev/null
 

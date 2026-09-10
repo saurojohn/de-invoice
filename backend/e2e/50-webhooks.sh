@@ -94,7 +94,7 @@ TEST_NAME="50-webhooks"
 # Pre-clean: remove any prior test
 # webhooks from this company.
 cleanup_webhooks() {
-  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
     "DELETE FROM \"Webhook\" WHERE \"companyId\" = '$COMPANY_ID';" >/dev/null 2>&1
 }
 cleanup_webhooks
@@ -202,7 +202,7 @@ if [[ "$LIST_LEN" == "0" ]]; then pass "list empty after soft-delete"; else fail
 
 # 15. Direct DB check: WebhookDelivery table has the expected columns
 # (so we know the schema migration was applied correctly).
-SCHEMA_CHECK=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -c \
+SCHEMA_CHECK=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -c \
   "SELECT column_name FROM information_schema.columns
    WHERE table_schema='public' AND table_name='WebhookDelivery'
    ORDER BY ordinal_position;" 2>/dev/null | tr -s ' \n' ' ' | sed 's/ $//')
@@ -221,7 +221,7 @@ else
 fi
 
 # 16. Direct DB check: Webhook table has the right secret + index
-WH_SCHEMA=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -c \
+WH_SCHEMA=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -c \
   "SELECT column_name FROM information_schema.columns
    WHERE table_schema='public' AND table_name='Webhook'
    ORDER BY ordinal_position;" 2>/dev/null | tr -s ' \n' ' ' | sed 's/ $//')
@@ -235,7 +235,7 @@ done
 
 # 17. Cleanup: leave no test webhooks in the DB
 cleanup_webhooks
-WH_COUNT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -c \
+WH_COUNT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -c \
   "SELECT COUNT(*) FROM \"Webhook\" WHERE \"companyId\" = '$COMPANY_ID';" 2>/dev/null | tr -d ' \n')
 if [[ "$WH_COUNT" == "0" ]]; then
   pass "cleanup: 0 webhooks remain for test company"
@@ -320,7 +320,7 @@ sleep 2
 # 22. Verify a WebhookDelivery row was
 # created with eventType=invoice.created
 # and eventId=inv_<invoiceId>
-DELIVERY_COUNT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -c \
+DELIVERY_COUNT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -c \
   "SELECT COUNT(*) FROM \"WebhookDelivery\" WHERE \"webhookId\" = '$REAL_WH_ID' AND \"eventType\" = 'invoice.created';" 2>/dev/null | tr -d ' \n')
 if [[ "$DELIVERY_COUNT" -ge 1 ]]; then
   pass "invoice.created delivery row created (count=$DELIVERY_COUNT)"
@@ -329,7 +329,7 @@ else
 fi
 
 # 23. Verify eventId matches the invoice id
-EVENT_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -c \
+EVENT_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -c \
   "SELECT \"eventId\" FROM \"WebhookDelivery\" WHERE \"webhookId\" = '$REAL_WH_ID' AND \"eventType\" = 'invoice.created' LIMIT 1;" 2>/dev/null | tr -d ' \n')
 EXPECTED_EVENT_ID="inv_$INV_ID"
 if [[ "$EVENT_ID" == "$EXPECTED_EVENT_ID" ]]; then
@@ -353,7 +353,7 @@ fi
 sleep 2
 
 # 25. Verify a payment.received delivery row
-PAY_DELIVERY_COUNT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -c \
+PAY_DELIVERY_COUNT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -c \
   "SELECT COUNT(*) FROM \"WebhookDelivery\" WHERE \"webhookId\" = '$REAL_WH_ID' AND \"eventType\" = 'payment.received';" 2>/dev/null | tr -d ' \n')
 if [[ "$PAY_DELIVERY_COUNT" -ge 1 ]]; then
   pass "payment.received delivery row created (count=$PAY_DELIVERY_COUNT)"
@@ -362,7 +362,7 @@ else
 fi
 
 # 26. Verify eventId for payment is pay_<id>
-PAY_EVENT_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -c \
+PAY_EVENT_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -c \
   "SELECT \"eventId\" FROM \"WebhookDelivery\" WHERE \"webhookId\" = '$REAL_WH_ID' AND \"eventType\" = 'payment.received' LIMIT 1;" 2>/dev/null | tr -d ' \n')
 EXPECTED_PAY_EVENT_ID="pay_$PAY_ID"
 if [[ "$PAY_EVENT_ID" == "$EXPECTED_PAY_EVENT_ID" ]]; then
@@ -385,13 +385,13 @@ sleep 8
 # (Service Unavailable) under load —
 # we count that as "got a response",
 # which is what we care about.
-DELIVERY_STATUSES=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -c \
+DELIVERY_STATUSES=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -c \
   "SELECT status, \"statusCode\" FROM \"WebhookDelivery\" WHERE \"webhookId\" = '$REAL_WH_ID' AND \"eventType\" IN ('invoice.created', 'payment.received');" 2>/dev/null | tr -s ' \n' ' ' | sed 's/ $//')
 echo "  delivery states: $DELIVERY_STATUSES"
 
-GOT_RESPONSE_COUNT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -c \
+GOT_RESPONSE_COUNT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -c \
   "SELECT COUNT(*) FROM \"WebhookDelivery\" WHERE \"webhookId\" = '$REAL_WH_ID' AND status = 'success';" 2>/dev/null | tr -d ' \n')
-GOT_HTTP_COUNT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -c \
+GOT_HTTP_COUNT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -c \
   "SELECT COUNT(*) FROM \"WebhookDelivery\" WHERE \"webhookId\" = '$REAL_WH_ID' AND \"statusCode\" IS NOT NULL;" 2>/dev/null | tr -d ' \n')
 
 if [[ "$GOT_RESPONSE_COUNT" -ge 2 ]]; then
@@ -451,7 +451,7 @@ api_delete "/api/v1/webhooks/$REAL_WH_ID?companyId=$COMPANY_ID"
 assert_status 200 "DELETE real webhook (cleanup)"
 
 # 32. Delete the test customer
-docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"Customer\" WHERE id = '$CUST_ID';" >/dev/null 2>&1
 note "test customer cleaned up"
 
@@ -487,7 +487,7 @@ poll_for_delivery() {
   local waited=0
   local result="0"
   while [[ $waited -lt $MAX_WAIT ]]; do
-    result=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -c \
+    result=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -c \
       "SELECT COUNT(*) FROM \"WebhookDelivery\" WHERE \"webhookId\" = '$T143_WH_ID' AND $predicate;" 2>/dev/null | tr -d ' \n')
     if [[ "$result" -ge 1 ]]; then
       return 0
@@ -527,7 +527,7 @@ fi
 
 # 35. customer.created delivery row (poll)
 if poll_for_delivery "\"eventType\" = 'customer.created'" "customer.created"; then
-  CUST_CREATED_COUNT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -c \
+  CUST_CREATED_COUNT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -c \
     "SELECT COUNT(*) FROM \"WebhookDelivery\" WHERE \"webhookId\" = '$T143_WH_ID' AND \"eventType\" = 'customer.created';" 2>/dev/null | tr -d ' \n')
   pass "customer.created delivery row (count=$CUST_CREATED_COUNT)"
 else
@@ -535,7 +535,7 @@ else
 fi
 
 # 36. eventId matches the customer id
-CUST_EVT_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -c \
+CUST_EVT_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -c \
   "SELECT \"eventId\" FROM \"WebhookDelivery\" WHERE \"webhookId\" = '$T143_WH_ID' AND \"eventType\" = 'customer.created' LIMIT 1;" 2>/dev/null | tr -d ' \n')
 EXPECTED_CUST_EVT="cust_$T143_CUST_ID"
 if [[ "$CUST_EVT_ID" == "$EXPECTED_CUST_EVT" ]]; then
@@ -551,7 +551,7 @@ curl -s -X PUT "http://localhost:3001/api/v1/customers/$T143_CUST_ID?companyId=$
   -d '{"name":"e2e-14.3 Cust Updated"}' >/dev/null
 
 if poll_for_delivery "\"eventType\" = 'customer.updated'" "customer.updated"; then
-  CUST_UPDATED_COUNT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -c \
+  CUST_UPDATED_COUNT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -c \
     "SELECT COUNT(*) FROM \"WebhookDelivery\" WHERE \"webhookId\" = '$T143_WH_ID' AND \"eventType\" = 'customer.updated';" 2>/dev/null | tr -d ' \n')
   pass "customer.updated delivery row (count=$CUST_UPDATED_COUNT)"
 else
@@ -571,7 +571,7 @@ else
 fi
 
 if poll_for_delivery "\"eventType\" = 'company.updated' AND payload->'data'->>'kind' = 'supplier'" "supplier event"; then
-  SUP_COUNT=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -c \
+  SUP_COUNT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -c \
     "SELECT COUNT(*) FROM \"WebhookDelivery\" WHERE \"webhookId\" = '$T143_WH_ID' AND \"eventType\" = 'company.updated' AND payload->'data'->>'kind' = 'supplier';" 2>/dev/null | tr -d ' \n')
   pass "company.updated delivery row (kind=supplier, count=$SUP_COUNT)"
 else
@@ -581,7 +581,7 @@ fi
 # 39. Create a voucher → voucher.created + voucher.posted
 SEED_RESP=$(curl -s "http://localhost:3001/api/v1/accounting/accounts/seed?companyId=$COMPANY_ID" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID")
-ACCT_IDS=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -c \
+ACCT_IDS=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -c \
   "SELECT id FROM \"Account\" WHERE \"companyId\" = '$COMPANY_ID' AND active = true ORDER BY \"accountNumber\" LIMIT 2;" 2>/dev/null | tr -s ' \n' ' ' | sed 's/ $//')
 ACCT1=$(echo "$ACCT_IDS" | awk '{print $1}')
 ACCT2=$(echo "$ACCT_IDS" | awk '{print $2}')
@@ -608,7 +608,7 @@ else
   fi
 
   if poll_for_delivery "\"eventType\" = 'voucher.created'" "voucher.created"; then
-    VOU_CREATED=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -c \
+    VOU_CREATED=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -c \
       "SELECT COUNT(*) FROM \"WebhookDelivery\" WHERE \"webhookId\" = '$T143_WH_ID' AND \"eventType\" = 'voucher.created';" 2>/dev/null | tr -d ' \n')
     pass "voucher.created delivery row (count=$VOU_CREATED)"
   else
@@ -616,7 +616,7 @@ else
   fi
 
   if poll_for_delivery "\"eventType\" = 'voucher.posted'" "voucher.posted"; then
-    VOU_POSTED=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -c \
+    VOU_POSTED=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -c \
       "SELECT COUNT(*) FROM \"WebhookDelivery\" WHERE \"webhookId\" = '$T143_WH_ID' AND \"eventType\" = 'voucher.posted';" 2>/dev/null | tr -d ' \n')
     pass "voucher.posted delivery row (count=$VOU_POSTED)"
   else
@@ -637,11 +637,11 @@ else
     fi
 
     if poll_for_delivery "\"eventType\" = 'voucher.reversed'" "voucher.reversed"; then
-      VOU_REV=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -c \
+      VOU_REV=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -c \
         "SELECT COUNT(*) FROM \"WebhookDelivery\" WHERE \"webhookId\" = '$T143_WH_ID' AND \"eventType\" = 'voucher.reversed';" 2>/dev/null | tr -d ' \n')
       pass "voucher.reversed delivery row (count=$VOU_REV)"
 
-      VOU_REV_EVT_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -c \
+      VOU_REV_EVT_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -c \
         "SELECT \"eventId\" FROM \"WebhookDelivery\" WHERE \"webhookId\" = '$T143_WH_ID' AND \"eventType\" = 'voucher.reversed' LIMIT 1;" 2>/dev/null | tr -d ' \n')
       EXPECTED_REV_EVT="vou_${VOUCHER_ID}_reversed_by_${REV_ID}"
       if [[ "$VOU_REV_EVT_ID" == "$EXPECTED_REV_EVT" ]]; then
@@ -661,15 +661,15 @@ assert_status 200 "DELETE Tier 14.3 webhook (cleanup)"
 
 # 42. Delete the test supplier + customer + accounts-test voucher
 if [[ -n "$T143_SUP_ID" ]]; then
-  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
     "DELETE FROM \"Supplier\" WHERE id = '$T143_SUP_ID';" >/dev/null 2>&1
 fi
 if [[ -n "$T143_CUST_ID" ]]; then
-  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
     "DELETE FROM \"Customer\" WHERE id = '$T143_CUST_ID';" >/dev/null 2>&1
 fi
 if [[ -n "$VOUCHER_ID" ]]; then
-  docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
     "DELETE FROM \"Voucher\" WHERE id = '$VOUCHER_ID';" >/dev/null 2>&1
 fi
 note "Tier 14.3 test data cleaned up"
@@ -732,7 +732,7 @@ echo "  trigger: $T145_TRIGGER"
 sleep 12
 
 # 45. Get the original delivery id.
-T145_ORIG=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -c \
+T145_ORIG=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -c \
   "SELECT id FROM \"WebhookDelivery\" WHERE \"webhookId\" = '$T145_WH_ID' ORDER BY \"attemptedAt\" DESC LIMIT 1;" 2>/dev/null | tr -d ' \n')
 if [[ -n "$T145_ORIG" ]]; then
   pass "original delivery id captured: $T145_ORIG"
@@ -742,9 +742,9 @@ fi
 
 # 46. Capture the original retryCount
 # and eventId for later assertions.
-T145_ORIG_RETRY=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -c \
+T145_ORIG_RETRY=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -c \
   "SELECT \"retryCount\" FROM \"WebhookDelivery\" WHERE id = '$T145_ORIG';" 2>/dev/null | tr -d ' \n')
-T145_ORIG_EVENT_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -c \
+T145_ORIG_EVENT_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -c \
   "SELECT \"eventId\" FROM \"WebhookDelivery\" WHERE id = '$T145_ORIG';" 2>/dev/null | tr -d ' \n')
 echo "  original: retryCount=$T145_ORIG_RETRY, eventId=$T145_ORIG_EVENT_ID"
 
@@ -770,7 +770,7 @@ fi
 
 # 49. Original row's retryCount
 # should have incremented by 1.
-T145_ORIG_RETRY_NOW=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -c \
+T145_ORIG_RETRY_NOW=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -c \
   "SELECT \"retryCount\" FROM \"WebhookDelivery\" WHERE id = '$T145_ORIG';" 2>/dev/null | tr -d ' \n')
 if [[ "$T145_ORIG_RETRY_NOW" -gt "$T145_ORIG_RETRY" ]]; then
   pass "original retryCount incremented: $T145_ORIG_RETRY → $T145_ORIG_RETRY_NOW"
@@ -781,7 +781,7 @@ fi
 # 50. New row should have the SAME
 # eventId as the original (so
 # receivers can dedupe).
-T145_NEW_EVENT_ID=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -c \
+T145_NEW_EVENT_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -c \
   "SELECT \"eventId\" FROM \"WebhookDelivery\" WHERE id = '$T145_NEW_ID';" 2>/dev/null | tr -d ' \n')
 if [[ "$T145_NEW_EVENT_ID" == "$T145_ORIG_EVENT_ID" ]]; then
   pass "replay has same eventId: $T145_NEW_EVENT_ID"
@@ -790,7 +790,7 @@ else
 fi
 
 # 51. New row should have retryCount=0.
-T145_NEW_RETRY=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -c \
+T145_NEW_RETRY=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -c \
   "SELECT \"retryCount\" FROM \"WebhookDelivery\" WHERE id = '$T145_NEW_ID';" 2>/dev/null | tr -d ' \n')
 if [[ "$T145_NEW_RETRY" == "0" ]]; then
   pass "replay retryCount starts at 0"
@@ -801,9 +801,9 @@ fi
 # 52. Wait for both deliveries to
 # succeed (or at least be sent).
 sleep 15
-T145_SUCCESSES=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -c \
+T145_SUCCESSES=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -c \
   "SELECT COUNT(*) FROM \"WebhookDelivery\" WHERE \"webhookId\" = '$T145_WH_ID' AND status = 'success';" 2>/dev/null | tr -d ' \n')
-T145_ATTEMPTS=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -c \
+T145_ATTEMPTS=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -c \
   "SELECT COUNT(*) FROM \"WebhookDelivery\" WHERE \"webhookId\" = '$T145_WH_ID';" 2>/dev/null | tr -d ' \n')
 if [[ "$T145_SUCCESSES" -ge 2 ]]; then
   pass "both original + replay delivered successfully ($T145_SUCCESSES successes)"

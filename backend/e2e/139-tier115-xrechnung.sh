@@ -44,11 +44,11 @@ pass "wiped prior tier-115 fixtures"
 # Seed the SH Leder company address (the prod
 # address is incomplete for XRechnung: city is empty).
 # We save the original first to restore at the end.
-ORIGINAL_ADDRESS=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+ORIGINAL_ADDRESS=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT address::text FROM \"Company\" WHERE id='$COMPANY_ID';" 2>&1 | tr -d '\n' | head -1)
-ORIGINAL_BANK=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+ORIGINAL_BANK=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT \"bankInfo\"::text FROM \"Company\" WHERE id='$COMPANY_ID';" 2>&1 | tr -d '\n' | head -1)
-ORIGINAL_SETTINGS=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+ORIGINAL_SETTINGS=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT settings::text FROM \"Company\" WHERE id='$COMPANY_ID';" 2>&1 | tr -d '\n' | head -1)
 
 # Cleanup trap
@@ -115,7 +115,7 @@ pass "created 4 customers"
 # Helper to create an invoice via SQL
 create_invoice() {
   local inv_num="$1" cust_num="$2" skonto_pct="${3:-0}" skonto_days="${4:-0}"
-  local cust_id=$(docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c \
+  local cust_id=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
     "SELECT id FROM \"Customer\" WHERE \"customerNumber\"='$cust_num';" 2>&1 | tr -d ' ' | head -1)
   local inv_id="inv-${inv_num}"
   local net=1000
