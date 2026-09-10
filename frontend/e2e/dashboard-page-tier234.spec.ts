@@ -64,11 +64,7 @@ test.describe("Tier 234 — Dashboard home page", () => {
     await page.goto("http://localhost:3100/dashboard")
     await page.waitForLoadState("networkidle", { timeout: 15000 })
     const healthCard = page.getByTestId("dashboard-system-health")
-    if ((await healthCard.count()) > 0) {
-      await expect(healthCard).toBeVisible()
-    } else {
-      test.skip(true, "dashboard-system-health testid not found")
-    }
+    await expect(healthCard).toBeVisible({ timeout: 15000 })
   })
 
   test("3. page has substantive KPI / chart content", async ({ page }) => {
@@ -95,11 +91,7 @@ test.describe("Tier 234 — Dashboard home page", () => {
     await page.goto("http://localhost:3100/dashboard")
     await page.waitForLoadState("networkidle", { timeout: 15000 })
     const tile = page.getByTestId("dashboard-kpi-overdue")
-    if ((await tile.count()) === 0) {
-      test.skip(true, "dashboard-kpi-overdue tile not found (regression)")
-      return
-    }
-    await expect(tile).toBeVisible()
+    await expect(tile).toBeVisible({ timeout: 15000 })
     const count = page.getByTestId("dashboard-kpi-overdue-count")
     if ((await count.count()) > 0) {
       const countText = await count.innerText()

@@ -67,22 +67,14 @@ test.describe("Tier 234 — Expenses list page", () => {
     await page.goto("http://localhost:3100/dashboard/expenses")
     await page.waitForLoadState("networkidle", { timeout: 15000 })
     const search = page.getByTestId("expense-search-input")
-    if ((await search.count()) > 0) {
-      await expect(search).toBeVisible()
-    } else {
-      test.skip(true, "expense-search-input testid not found")
-    }
+    await expect(search).toBeVisible({ timeout: 15000 })
   })
 
   test("3. OCR upload button visible (scan-to-create path)", async ({ page }) => {
     await page.goto("http://localhost:3100/dashboard/expenses")
     await page.waitForLoadState("networkidle", { timeout: 15000 })
     const ocrBtn = page.getByTestId("expense-ocr-upload-button")
-    if ((await ocrBtn.count()) > 0) {
-      await expect(ocrBtn).toBeVisible()
-    } else {
-      test.skip(true, "expense-ocr-upload-button testid not found")
-    }
+    await expect(ocrBtn).toBeVisible({ timeout: 15000 })
   })
 
   test("4. mobile 375x667: page renders without crash", async ({ page }) => {

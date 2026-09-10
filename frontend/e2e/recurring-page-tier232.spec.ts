@@ -66,19 +66,11 @@ test.describe("Tier 232 — Recurring invoices list page", () => {
     await page.waitForLoadState("networkidle", { timeout: 15000 })
     // The "Neue Vorlage" button is the primary CTA
     const newBtn = page.getByTestId("recurring-new-button")
-    if ((await newBtn.count()) > 0) {
-      await expect(newBtn).toBeVisible()
-      console.log("New template button visible")
-    } else {
-      test.skip(true, "recurring-new-button testid not found")
-    }
+    await expect(newBtn).toBeVisible({ timeout: 15000 })
+    console.log("New template button visible")
     // Filter tabs
     const filter = page.getByTestId("recurring-filter")
-    if ((await filter.count()) > 0) {
-      await expect(filter).toBeVisible()
-    } else {
-      test.skip(true, "recurring-filter testid not found")
-    }
+    await expect(filter).toBeVisible({ timeout: 15000 })
   })
 
   test("4. existing recurring cards (if any) show status + name", async ({ page }) => {

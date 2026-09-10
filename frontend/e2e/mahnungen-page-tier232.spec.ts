@@ -65,17 +65,9 @@ test.describe("Tier 232 — Mahnungen (Reminders) list page", () => {
     await page.goto("http://localhost:3100/dashboard/mahnungen")
     await page.waitForLoadState("networkidle", { timeout: 15000 })
     const settingsBtn = page.getByTestId("mahnung-settings-button")
-    if ((await settingsBtn.count()) > 0) {
-      await expect(settingsBtn).toBeVisible()
-    } else {
-      test.skip(true, "mahnung-settings-button testid not found")
-    }
+    await expect(settingsBtn).toBeVisible({ timeout: 15000 })
     const filterTabs = page.getByTestId("mahnung-filter-tabs")
-    if ((await filterTabs.count()) > 0) {
-      await expect(filterTabs).toBeVisible()
-    } else {
-      test.skip(true, "mahnung-filter-tabs testid not found")
-    }
+    await expect(filterTabs).toBeVisible({ timeout: 15000 })
   })
 
   test("4. table or empty state is shown", async ({ page }) => {

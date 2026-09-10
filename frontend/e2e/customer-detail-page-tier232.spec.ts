@@ -113,11 +113,7 @@ test.describe("Tier 232 — Customer detail page", () => {
     await page.goto(`http://localhost:3100/dashboard/customers/${TEST_CUSTOMER_ID}`)
     await page.waitForLoadState("networkidle", { timeout: 15000 })
     const back = page.getByTestId("customer-detail-back")
-    if ((await back.count()) > 0) {
-      await expect(back).toBeVisible()
-    } else {
-      test.skip(true, "customer-detail-back testid not found (page may be loading)")
-    }
+    await expect(back).toBeVisible({ timeout: 15000 })
   })
 
   test("3. KPI strip (open balance) visible", async ({ page }) => {
@@ -125,11 +121,7 @@ test.describe("Tier 232 — Customer detail page", () => {
     await page.goto(`http://localhost:3100/dashboard/customers/${TEST_CUSTOMER_ID}`)
     await page.waitForLoadState("networkidle", { timeout: 15000 })
     const kpi = page.getByTestId("kpi-open-balance")
-    if ((await kpi.count()) > 0) {
-      await expect(kpi).toBeVisible()
-    } else {
-      test.skip(true, "kpi-open-balance testid not found (page may be loading)")
-    }
+    await expect(kpi).toBeVisible({ timeout: 15000 })
   })
 
   test("4-5. allocate payment + statement + VIES buttons visible", async ({ page }) => {
@@ -139,17 +131,15 @@ test.describe("Tier 232 — Customer detail page", () => {
     const allocate = page.getByTestId("customer-detail-allocate-payment")
     const statement = page.getByTestId("customer-detail-statement")
     const vies = page.getByTestId("vies-verify-button")
-    const anyFound =
-      (await allocate.count()) > 0 ||
-      (await statement.count()) > 0 ||
-      (await vies.count()) > 0
-    if (anyFound) {
-      if ((await allocate.count()) > 0) await expect(allocate).toBeVisible()
-      if ((await statement.count()) > 0) await expect(statement).toBeVisible()
-      if ((await vies.count()) > 0) await expect(vies).toBeVisible()
-    } else {
-      test.skip(true, "no action buttons found (page may be loading)")
-    }
+    // Tier 346: allocate + statement are unconditional buttons in the
+    // action row (page.tsx:931/937), so assert them directly — a
+    // web-first assertion retries until the page has hydrated, which is
+    // what the old `.count()` + skip was papering over. `vies` is the
+    // only genuinely conditional one: it renders behind
+    // `{customer.vatId && ...}` (page.tsx:844), so it stays optional.
+    await expect(allocate).toBeVisible({ timeout: 15000 })
+    await expect(statement).toBeVisible({ timeout: 15000 })
+    if ((await vies.count()) > 0) await expect(vies).toBeVisible()
   })
 
   test("6. mobile 375x667: page renders without crash", async ({ page }) => {

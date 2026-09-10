@@ -166,6 +166,50 @@ Operational scripts:
   `TODO (manuell)` string for BMF positions. This is **intentional** —
   those positions must be supplied by the tax advisor in real life.
 
+### Playwright silent-skip coverage hole (Tier 346 partial)
+
+The suite has **62 runtime `test.skip(true, ...)` calls across 29 spec
+files**. 35 of them fire on "element not found / not present / may be
+loading" — i.e. a hydration race or a real UI regression is converted into
+a **silent skip**, and CI still reports green. The skipped set is not
+stable run to run (Tier 344 skipped 28, Tier 345 skipped 29, with 3 in and
+2 out), so "884 passed" is not a fixed number.
+
+Root anti-pattern — `.count()` does NOT wait, unlike a web-first assertion:
+
+```ts
+await page.waitForLoadState("networkidle")   // does NOT imply hydrated
+const el = page.getByTestId("x")
+if ((await el.count()) > 0) { await expect(el).toBeVisible() }
+else { test.skip(true, "x testid not found") }   // silently green
+```
+
+Correct form (retries internally until the timeout):
+
+```ts
+await expect(page.getByTestId("x")).toBeVisible({ timeout: 15000 })
+```
+
+**Tier 346 converted 18 of the 35**, in the 8 page-smoke specs whose target
+testids were verified to render unconditionally in `frontend/src`.
+
+**Still open — 17 skips, blocked on a seed gap.** `customer-detail-tabs-tier238`
+and `customer-detail-invoices-chip-tier243` both hard-code the customer UUID
+`f84ebd20-4513-48e4-b331-87ba19477ae3`, described in their comments as
+"created by Tier 50 e2e, has 1 invoice + 1 payment". **That UUID exists in no
+seed script** — `grep -r f84ebd20` matches only those two spec files. It was
+presumably a row in a developer's local dev DB. In CI the customer never
+exists, so the pages render nothing, every dependent assertion misses, and
+~10 tests have been silently skipping since Tier 243 — permanent zero
+coverage. Converting their skips to assertions without first seeding the
+fixture just turns CI red, so Tier 346 deliberately left both files alone.
+
+**Fix for a follow-up tier:** add that customer + 1 invoice + 1 payment to
+`backend/e2e/ci-seed.sh` with the same fixed UUID. Direct SQL there sidesteps
+the Tier 174 P2002 invoice-sequence race that the specs' own comments cite as
+the reason they took the hard-coded shortcut in the first place. Grep
+`schema.prisma` for the real column names first (lesson 10).
+
 ### Operational issues (consider for next tier)
 - **`tmp-pw-fail/`** untracked — delete or `.gitignore`.
 - **No `timeout-minutes`** on CI jobs (relies on GitHub default 360 min).

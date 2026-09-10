@@ -65,21 +65,14 @@ test.describe("Tier 233 — Products list page", () => {
     await page.goto("http://localhost:3100/dashboard/products")
     await page.waitForLoadState("networkidle", { timeout: 15000 })
     const search = page.getByTestId("product-search-input")
-    if ((await search.count()) > 0) {
-      await expect(search).toBeVisible()
-    } else {
-      test.skip(true, "product-search-input testid not found")
-    }
+    await expect(search).toBeVisible({ timeout: 15000 })
   })
 
   test("3-4. search filters the product list", async ({ page }) => {
     await page.goto("http://localhost:3100/dashboard/products")
     await page.waitForLoadState("networkidle", { timeout: 15000 })
     const search = page.getByTestId("product-search-input")
-    if ((await search.count()) === 0) {
-      test.skip(true, "product-search-input testid not found")
-      return
-    }
+    await expect(search).toBeVisible({ timeout: 15000 })
     // Count initial rows
     const initialRows = await page.getByTestId("product-row").count()
     if (initialRows === 0) {

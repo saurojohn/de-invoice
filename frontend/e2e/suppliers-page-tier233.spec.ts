@@ -66,11 +66,7 @@ test.describe("Tier 233 — Suppliers list page", () => {
     await page.goto("http://localhost:3100/dashboard/suppliers")
     await page.waitForLoadState("networkidle", { timeout: 15000 })
     const search = page.getByTestId("supplier-search-input")
-    if ((await search.count()) > 0) {
-      await expect(search).toBeVisible()
-    } else {
-      test.skip(true, "supplier-search-input testid not found")
-    }
+    await expect(search).toBeVisible({ timeout: 15000 })
   })
 
   test("3. supplier table renders (rows or empty state)", async ({ page }) => {
@@ -85,11 +81,7 @@ test.describe("Tier 233 — Suppliers list page", () => {
     await page.goto("http://localhost:3100/dashboard/suppliers")
     await page.waitForLoadState("networkidle", { timeout: 15000 })
     const viesBtn = page.getByTestId("supplier-vies-batch-button")
-    if ((await viesBtn.count()) > 0) {
-      await expect(viesBtn).toBeVisible()
-    } else {
-      test.skip(true, "supplier-vies-batch-button testid not found")
-    }
+    await expect(viesBtn).toBeVisible({ timeout: 15000 })
   })
 
   test("5. mobile 375x667: page renders without crash", async ({ page }) => {

@@ -67,11 +67,7 @@ test.describe("Tier 233 — Settings / note-templates page", () => {
     await page.goto("http://localhost:3100/dashboard/settings/note-templates")
     await page.waitForLoadState("networkidle", { timeout: 15000 })
     const back = page.getByTestId("note-templates-back")
-    if ((await back.count()) > 0) {
-      await expect(back).toBeVisible()
-    } else {
-      test.skip(true, "note-templates-back testid not found")
-    }
+    await expect(back).toBeVisible({ timeout: 15000 })
   })
 
   test("3. list OR new-toggle present (page is interactive)", async ({ page }) => {
@@ -88,11 +84,7 @@ test.describe("Tier 233 — Settings / note-templates page", () => {
     await page.goto("http://localhost:3100/dashboard/settings/note-templates")
     await page.waitForLoadState("networkidle", { timeout: 15000 })
     const reset = page.getByTestId("note-templates-reset-defaults")
-    if ((await reset.count()) > 0) {
-      await expect(reset).toBeVisible()
-    } else {
-      test.skip(true, "note-templates-reset-defaults testid not found")
-    }
+    await expect(reset).toBeVisible({ timeout: 15000 })
   })
 
   test("5. mobile 375x667: page renders without crash", async ({ page }) => {
