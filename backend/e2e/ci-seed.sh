@@ -543,6 +543,57 @@ ON CONFLICT (id) DO UPDATE SET "paymentMethod" = 'bank_transfer', reference = 'e
 SQL
 ok "Tier 50 fixture customer seeded (f84ebd20 + 1 paid invoice + 1 payment)"
 
+# 5h. Tier 351: suppliers + an installment plan (Ratenplan).
+#     ci-seed.sh seeded ZERO Supplier rows and ZERO
+#     InstallmentPlan rows, so four Playwright tests had been
+#     skipping on "no suppliers in the DB to search against" /
+#     "no 3-Raten plan in DB yet" / "no plan with open Rate" /
+#     "no installment plans in DB" for as long as they have
+#     existed.
+#
+#     The plan must satisfy, exactly:
+#       installment-plan.spec.ts:196 - a plan whose installments
+#                                      array has length 3
+#       installment-plan.spec.ts:235 - a plan with >= 1 installment
+#                                      in status 'open' or 'partial'
+#       installment-plan.spec.ts:299 - any plan at all
+#     One 3-Rate plan with all three open covers all three.
+#
+#     "Tier 168a pay button marks a Rate as paid" MUTATES a Rate,
+#     so the ON CONFLICT clauses below reset status/paidAmount/
+#     paidAt -- otherwise a second seed against the same DB would
+#     leave every Rate paid and the :235 lookup would find nothing.
+#
+#     InstallmentPlan."invoiceId" is @unique (one plan per
+#     invoice), so this uses its own dedicated invoice rather than
+#     reusing one another spec might want plan-free.
+#     "updatedAt" is Prisma-application-level (@updatedAt), not a
+#     DB default, so raw SQL must supply it.
+psql_test <<SQL
+INSERT INTO "Supplier" (id, "companyId", name, "vatId", address, contact, "paymentTerms", "createdAt", "updatedAt")
+VALUES
+  ('5a99911e-0000-0000-0000-000000000001', '$COMPANY_ID', 'Bürobedarf Nord GmbH', 'DE811234567', '{"street":"Lieferantenweg 1","city":"Hamburg","postalCode":"20095","country":"DE"}'::jsonb, '{"email":"kontakt@buerobedarf-nord.example"}'::jsonb, 30, NOW(), NOW()),
+  ('5a99911e-0000-0000-0000-000000000002', '$COMPANY_ID', 'Druckerei Sued AG', 'DE811234568', '{"street":"Druckstr 7","city":"Muenchen","postalCode":"80331","country":"DE"}'::jsonb, '{"email":"info@druckerei-sued.example"}'::jsonb, 14, NOW(), NOW())
+ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, "updatedAt" = NOW();
+
+-- Dedicated invoice for the Ratenplan (invoiceId is @unique).
+INSERT INTO "Invoice" (id, "companyId", "customerId", "invoiceNumber", "issueDate", "dueDate", subtotal, "totalVat", total, status, "createdAt", "updatedAt")
+VALUES ('9a7e11a5-0000-0000-0000-000000000001', '$COMPANY_ID', 'b3f7b274-7696-44b8-9345-8bfd460b3e47', 'INV-RATEN-001', NOW() - INTERVAL '20 days', NOW() + INTERVAL '10 days', 1000.00, 190.00, 1190.00, 'sent', NOW() - INTERVAL '20 days', NOW())
+ON CONFLICT (id) DO UPDATE SET status = 'sent', "updatedAt" = NOW();
+
+INSERT INTO "InstallmentPlan" (id, "companyId", "customerId", "invoiceId", "totalAmount", "installmentCount", "intervalDays", "firstDueDate", status, notes, "createdAt", "updatedAt")
+VALUES ('9a7e11a5-0000-0000-0000-000000000010', '$COMPANY_ID', 'b3f7b274-7696-44b8-9345-8bfd460b3e47', '9a7e11a5-0000-0000-0000-000000000001', 1190.00, 3, 30, (NOW() + INTERVAL '10 days')::date, 'active', 'Tier 351 seed fixture', NOW(), NOW())
+ON CONFLICT (id) DO UPDATE SET status = 'active', "updatedAt" = NOW();
+
+INSERT INTO "Installment" (id, "planId", "sequenceNumber", "dueDate", amount, "paidAmount", "paidAt", status, "createdAt", "updatedAt")
+VALUES
+  ('9a7e11a5-0000-0000-0000-000000000011', '9a7e11a5-0000-0000-0000-000000000010', 1, (NOW() + INTERVAL '10 days')::date, 396.67, 0, NULL, 'open', NOW(), NOW()),
+  ('9a7e11a5-0000-0000-0000-000000000012', '9a7e11a5-0000-0000-0000-000000000010', 2, (NOW() + INTERVAL '40 days')::date, 396.67, 0, NULL, 'open', NOW(), NOW()),
+  ('9a7e11a5-0000-0000-0000-000000000013', '9a7e11a5-0000-0000-0000-000000000010', 3, (NOW() + INTERVAL '70 days')::date, 396.66, 0, NULL, 'open', NOW(), NOW())
+ON CONFLICT (id) DO UPDATE SET status = 'open', "paidAmount" = 0, "paidAt" = NULL, "updatedAt" = NOW();
+SQL
+ok "Tier 351 fixtures seeded (2 suppliers + 1 Ratenplan with 3 open Raten)"
+
 # 5g. Tier 194 cashbook close: REMOVED in Tier 347.
 #     This block inserted into a table named
 #     "CashBookClose", which does not exist —

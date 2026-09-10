@@ -256,28 +256,26 @@ test.describe("Tier 65 — Auto-Ratenplan banner", () => {
     // Wait for the page + the suggestion fetch.
     // The banner has data-testid="ratensplan-suggest-banner".
     const banner = page.locator('[data-testid="ratensplan-suggest-banner"]')
-    // The page may or may not have an existing
-    // installment plan from a previous test run
-    // (the dev DB is shared). The banner only
-    // shows when the page hasn't yet been
-    // installment-planned AND the suggestion
-    // is eligible. If a plan exists, this test
-    // becomes a no-op.
-    const planCard = page.locator('[data-testid="installment-plan-card"]')
-    const hasPlan = (await planCard.count()) > 0
-    if (!hasPlan) {
-      await expect(banner).toBeVisible({ timeout: 15_000 })
-      // The button is inside the banner.
-      const button = page.locator('[data-testid="ratensplan-suggest-button"]')
-      await expect(button).toBeVisible()
-      await expect(button).toContainText(/Ratenplan erstellen|Installment plan/i)
-    } else {
-      // Pre-existing plan from a previous run;
-      // skip the banner check (the plan card is
-      // itself proof the suggestion was
-      // actionable in the past).
-      test.skip(true, "invoice already has an installment plan from a prior run")
-    }
+    // Tier 351: this used to branch on
+    // `page.locator('[data-testid="installment-plan-card"]').count() > 0`
+    // and test.skip() with "invoice already has an installment plan from
+    // a prior run". That check could never be false: the card is the
+    // UNCONDITIONAL container (invoices/[id]/page.tsx:1970) whose own
+    // comment says it "shows the schedule when a Ratenplan is attached;
+    // otherwise offers a one-click button". So `hasPlan` was always true
+    // and both tests in this describe skipped on every run, since Tier 65.
+    //
+    // There is also no shared state to guard against: beforeAll POSTs a
+    // fresh EUR 1500 invoice for this run and flips it to 'sent', so it
+    // cannot carry a plan. The banner must simply be there.
+    //
+    // The real has-a-plan signal, if one is ever needed, is
+    // `installment-row` (page.tsx:2060); the no-plan signal is
+    // `installment-plan-create-button` (:1987).
+    await expect(banner).toBeVisible({ timeout: 15_000 })
+    const button = page.locator('[data-testid="ratensplan-suggest-button"]')
+    await expect(button).toBeVisible()
+    await expect(button).toContainText(/Ratenplan erstellen|Installment plan/i)
   })
 
   test("clicking the button opens the pre-filled modal", async ({
@@ -296,13 +294,9 @@ test.describe("Tier 65 — Auto-Ratenplan banner", () => {
       { timeout: 30_000 },
     )
     await page.waitForTimeout(500)
-    // Same skip-if-pre-existing-plan guard as test 1.
-    const planCard = page.locator('[data-testid="installment-plan-card"]')
-    const hasPlan = (await planCard.count()) > 0
-    if (hasPlan) {
-      test.skip(true, "invoice already has an installment plan")
-      return
-    }
+    // Tier 351: the same always-true guard as test 1 was here -- see the
+    // long note there. Removed; the beforeAll invoice is fresh and
+    // cannot carry a plan.
     await expect(
       page.locator('[data-testid="ratensplan-suggest-button"]'),
     ).toBeVisible({ timeout: 15_000 })

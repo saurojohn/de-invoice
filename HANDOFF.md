@@ -222,6 +222,44 @@ were races, not missing data, so each needed its own fix:
   to match its two siblings. **Do not rename those two** — the other two
   specs depend on the current names.
 
+**Tier 351: skips 11 -> 5, and another wrong in-code diagnosis.**
+
+`ratensplan-suggestion`'s two tests branched on
+`page.locator('[data-testid="installment-plan-card"]').count() > 0` and
+skipped with "invoice already has an installment plan from a prior run".
+That could never be false: the card is the **unconditional container**
+(`invoices/[id]/page.tsx:1970`) whose own comment says it "shows the
+schedule when a Ratenplan is attached; otherwise offers a one-click
+button". So both tests had skipped on every run since Tier 65. There was no
+shared state to guard either — the `beforeAll` POSTs a fresh EUR 1500
+invoice per run. Guards removed, assertions kept. **The real signals are
+`installment-row` (`:2060`) for has-a-plan and
+`installment-plan-create-button` (`:1987`) for no-plan** — never the card.
+
+`ci-seed.sh` also seeded **zero Suppliers and zero InstallmentPlans**, so
+four more tests skipped on "no suppliers in the DB to search against" /
+"no 3-Raten plan in DB yet" / "no plan with open Rate" / "no installment
+plans in DB". Section 5h now seeds 2 suppliers and one 3-Rate plan, all
+three Raten `open`. Two details that matter there:
+- `InstallmentPlan.invoiceId` is `@unique`, so the plan gets its own
+  dedicated invoice (`INV-RATEN-001`) rather than sharing one another spec
+  may need plan-free.
+- the Tier 168a test **pays** a Rate, so the `ON CONFLICT` clauses reset
+  `status`/`paidAmount`/`paidAt`; without that a re-seed against the same
+  DB leaves every Rate paid and the open-Rate lookup finds nothing.
+
+**The 5 remaining skips are deliberate, not gaps** — do not "fix" them by
+seeding:
+- `vies-batch-tier134:61` is a static `test.skip('...')` declaration, with
+  a documented reason: VIES rate-limits back-to-back supplier+customer
+  batch runs. Re-enabling needs a 60s gap or a fresh backend per batch.
+- `recurring-email-tier129:52` and `recurring-generated-invoices-tier147:284`
+  are unconditional skips that delegate coverage elsewhere (a manual Tier
+  129 run; the backend response-shape test).
+- `recurring-invoices.spec.ts:191` skips when no `recurring-run-now` button
+  renders. Not yet diagnosed — ci-seed does seed a template
+  (`33333333-cccc-...`), so this one is worth a look rather than a seed.
+
 **The webhook dead-letter "cron race" was never a cron race** (Tier 350).
 Four skips and one persistent flake in `webhook-dead-letter-tier198` were
 blamed, in three separate in-file comments, on the retry cron or on "requeue
