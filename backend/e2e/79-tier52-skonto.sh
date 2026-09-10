@@ -117,12 +117,22 @@ import json, sys, datetime
 d = json.loads(sys.stdin.read())
 ts = d['timestamp']
 utc = datetime.datetime.fromisoformat(ts.replace('Z', '+00:00'))
-# Backend runs in Europe/Berlin (CEST = UTC+2 in
-# summer). The isToday() check uses Date.getDate()
-# which is in server local time. Convert UTC →
-# Berlin wall clock first, THEN take .date().
-shifted = utc + datetime.timedelta(hours=2)
-print(shifted.date().isoformat() + 'T00:00:00.000Z')
+# Tier 356: this block used to add a hardcoded +2h, on the
+# assumption below that 'Backend runs in Europe/Berlin'. That is
+# false on a GitHub runner, where the backend runs in UTC. The
+# backend's isToday() (invoice.service.ts) uses new Date(), i.e.
+# the LOCAL timezone of the machine it runs on -- so the +2 pushed
+# the computed 'today' one day ahead whenever CI ran between 22:00
+# and 24:00 UTC, and the same-day edit came back 403. A two-hour
+# window per day: run 34534907273 ran this spec at 22:02 UTC and
+# hit it; the four runs before it, 19:07-21:13, did not.
+#
+# astimezone() with no argument converts to THIS machine's local
+# timezone -- the same machine the backend runs on -- so the two
+# agree in CI (UTC) and locally (Berlin), and it follows DST
+# instead of assuming summer.
+local = utc.astimezone()
+print(local.date().isoformat() + 'T00:00:00.000Z')
 ")
 TODAY="$SERVER_TODAY"
 api_post "/api/v1/invoices?companyId=$COMPANY_ID" \

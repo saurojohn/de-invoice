@@ -371,6 +371,25 @@ check is `allowedExtensions`, and the two lists had drifted (`.tif/.tiff`
 existed only in the extension list). The dead MIME list was removed in Tier
 356; the extension check is unchanged.
 
+**A CI failure is not automatically your regression — check the clock.**
+Tier 356's push went red on `79-tier52-skonto.sh` with
+`403 Rechnung kann nur am Ausstellungstag bearbeitet werden`, right after a
+tier that touched 30+ backend files. It was not the regression it looked
+like. The spec derived "today" by adding a **hardcoded
+`timedelta(hours=2)`** to the server's UTC timestamp, under an in-code
+comment asserting "Backend runs in Europe/Berlin (CEST = UTC+2)". On a
+GitHub runner the backend runs in **UTC**, and `isToday()`
+(`invoice.service.ts`) uses `new Date()` — the machine's local zone. So the
++2 pushed the computed date a day ahead **only when CI ran between 22:00
+and 24:00 UTC**. The failing run executed that spec at 22:02; the four
+green runs before it ran at 19:07-21:13. A two-hour window per day.
+
+Fixed with `utc.astimezone()` (no argument), which converts to the local
+zone of the machine running the script — the same machine as the backend —
+so the two agree in CI and locally, and it follows DST instead of assuming
+summer. **Grep for `timedelta(hours=` before trusting any date-sensitive
+spec**; this was the only remaining one.
+
 **Deleting by variable NAME picks the wrong occurrence.** This bit twice —
 Tier 349 (`created` in assets-afa.spec.ts) and again in Tier 356
 (`where`, `stamp`, `year`). A name-based search finds the *first*
