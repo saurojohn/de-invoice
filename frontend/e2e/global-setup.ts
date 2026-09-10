@@ -29,7 +29,6 @@
  * happens mid-suite anyway.
  */
 
-import { request } from "@playwright/test"
 import { writeFileSync, mkdirSync } from "fs"
 import { join } from "path"
 

@@ -42,7 +42,6 @@
  * suites aren't affected.
  */
 import { test, expect, request as playwrightRequest } from '@playwright/test'
-import { execSync } from 'child_process'
 import { getTestEnv } from './fixtures/test-env'
 
 const USER_ID = getTestEnv().userId

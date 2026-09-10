@@ -33,7 +33,7 @@
  */
 
 import { test, expect } from "@playwright/test"
-import { readFileSync, existsSync, statSync } from "fs"
+import { readFileSync } from "fs"
 
 const AUTH_CACHE = "/tmp/cashbook-e2e-auth.env"
 

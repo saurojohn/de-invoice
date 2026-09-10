@@ -23,12 +23,11 @@
  * under at least two distinct action prefixes
  * (e.g. "invoice." and "customer.").
  */
-import { test, expect, request as playwrightRequest } from '@playwright/test'
+import { test, expect } from '@playwright/test'
 import { getTestEnv } from './fixtures/test-env'
 
 const USER_ID = getTestEnv().userId
 const COMPANY_ID = getTestEnv().companyId
-const API = 'http://localhost:3001'
 
 test.describe('Tier 135 — Audit log filter enhancements', () => {
   test.beforeEach(async ({ context, page }) => {

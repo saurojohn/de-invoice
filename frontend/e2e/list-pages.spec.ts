@@ -244,11 +244,6 @@ test.describe("Products list", () => {
       // Empty state. The page renders an
       // "addFirst" button when there are no
       // products at all.
-      const emptyState = await page
-        .locator("text=/Keine Produkte|Produkt hinzufügen|addFirst/i")
-        .first()
-        .isVisible()
-        .catch(() => false)
       // Either the empty state shows, or
       // there's a different no-results UI.
       // We don't fail on this — just verify

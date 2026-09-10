@@ -147,7 +147,7 @@ test.describe('Tier 145 — Customer internal notes', () => {
     await expect(noteRow).toBeHidden({ timeout: 5_000 })
   })
 
-  test('the note is NOT visible via the customer portal', async ({ page }) => {
+  test('the note is NOT visible via the customer portal', async () => {
     // GoBD § 146 Abs. 4 AO compliance check.
     // The customer portal shows invoices + mark-paid,
     // it must NOT show internal Berater-Notizen.

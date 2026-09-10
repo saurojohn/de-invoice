@@ -16,7 +16,6 @@ import { getTestEnv } from './fixtures/test-env'
 
 const USER_ID = getTestEnv().userId
 const COMPANY_ID = getTestEnv().companyId
-const CUSTOMER_ID = 'b3f7b274-7696-44b8-9345-8bfd460b3e47'
 
 test.describe('Tier 129 — Recurring invoice auto-email', () => {
   test.beforeEach(async ({ context, page }) => {
@@ -43,7 +42,7 @@ test.describe('Tier 129 — Recurring invoice auto-email', () => {
     await expect(checkbox).toBeChecked()
   })
 
-  test('unchecking the checkbox persists sendEmail=false on save', async ({ page }) => {
+  test('unchecking the checkbox persists sendEmail=false on save', async () => {
     // This test creates a fresh template, unchecks the
     // email option, and saves it. The backend should
     // store sendEmail=false. We then re-fetch and

@@ -53,7 +53,13 @@ Post-deploy verification commands are in the
 - **Recovery script:** `scripts/fix-dev-pg.sh`
   (Tier 310) for the dev PG corruption.
 - **Lint clean:** 0 tsc errors, 0 eslint
-  errors, 0 eslint warnings as of Tier 322.
+  errors, 0 eslint warnings. This was true at
+  Tier 322, then rotted to 38 errors + 42
+  warnings by Tier 348 because **CI ran no lint
+  job**. Tier 349 cleaned it back to zero and
+  added the `frontend-lint` job with
+  `--max-warnings 0`, so the claim is now
+  enforced rather than asserted.
   The 107 unused-vars warnings were a mix of
   false positives (dynamic-import ApiError,
   catch (err) v6 default) and real dead code

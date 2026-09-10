@@ -231,7 +231,7 @@ test("Tier 89: 'AfA monatlich buchen' button visible when bookable asset exists"
   // the previous annual test (which
   // booked year 2026). The year picker
   // also defaults to the current year.
-  const created = await createTestAsset(page)
+  await createTestAsset(page)
   await page.goto("/dashboard/assets")
   await expect(page.getByTestId("assets-year")).toBeVisible({ timeout: 30_000 })
   // Switch the year picker to 2027 (where

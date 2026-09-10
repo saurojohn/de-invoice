@@ -42,7 +42,6 @@
 
 import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
-import { execFileSync } from "child_process"
 
 const AUTH_CACHE = "/tmp/cashbook-e2e-auth.env"
 
@@ -214,7 +213,6 @@ test.describe("Tier 199 — frontend last-success badge", () => {
   // can verify the "never fired"
   // case.
   const neverFiredTag = "tier199-never-" + Date.now()
-  let neverFiredWhId = ""
   test.beforeAll(async ({ request }: { request: any }) => {
     const res = await request.post(
       `http://localhost:3001/api/v1/webhooks?companyId=${tokens!.companyId}`,
@@ -232,7 +230,6 @@ test.describe("Tier 199 — frontend last-success badge", () => {
       },
     )
     expect(res.status()).toBe(201)
-    neverFiredWhId = (await res.json()).id
     // Don't fire it — lastDeliveryAt must remain null.
   })
 

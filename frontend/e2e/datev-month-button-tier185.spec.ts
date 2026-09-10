@@ -188,7 +188,7 @@ test.describe("Tier 185 — frontend DATEV month bundle button", () => {
     expect(url, `expected month=7, got: ${url}`).toMatch(/month=7/)
   })
 
-  test("4. error path: month=13 → 400 with German error", async ({ page, request }) => {
+  test("4. error path: month=13 → 400 with German error", async ({ request }) => {
     // Direct API call — the page's month <select>
     // only offers 1-12, so we test the backend's
     // German 400 message directly.

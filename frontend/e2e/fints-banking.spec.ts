@@ -46,10 +46,8 @@
 
 import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
-import { getTestEnv } from './fixtures/test-env'
 
 const AUTH_CACHE = "/tmp/cashbook-e2e-auth.env"
-const COMPANY_ID = getTestEnv().companyId
 function readCachedTokens(): { userId: string; companyId: string } {
   const env = readFileSync(AUTH_CACHE, "utf-8")
   const map: Record<string, string> = {}
@@ -103,18 +101,6 @@ async function injectLocalStorage(page: any) {
 }
 
 // Cleanup any pre-existing fints fixtures for this
-// company so the test starts from a known-empty state.
-// We can't do this in beforeAll (Playwright beforeAll
-// doesn't have request context reliably), so each test
-// deletes its own connections by BLZ suffix.
-async function cleanupByBlz(page: any, blzSuffix: string) {
-  // The page object is a live Playwright page; we can
-  // use it to evaluate fetch with the same auth as
-  // the page. Easier path: just use the API directly
-  // — Playwright exposes request fixture.
-  return null
-}
-
 function uniqueBlz(): string {
   // Sparkasse Frankfurt — a real BLZ whose FinTS
   // endpoint is in the BLZ→URL lookup table that

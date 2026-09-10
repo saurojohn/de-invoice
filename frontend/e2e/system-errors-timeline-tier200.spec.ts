@@ -35,7 +35,6 @@
 
 import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
-import { execFileSync } from "child_process"
 
 const AUTH_CACHE = "/tmp/cashbook-e2e-auth.env"
 

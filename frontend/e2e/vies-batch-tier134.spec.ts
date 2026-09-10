@@ -79,15 +79,9 @@ test.describe('Tier 134 — VIES batch check', () => {
     // To re-enable: wait 60s+ between supplier + customer
     // VIES batch runs OR use a fresh dev backend per
     // audit batch.
-    try {
-      await expect(page.getByTestId('vies-batch-done')).toBeVisible({
-        timeout: 120_000,
-      })
-    } catch (e) {
-      // If the wait fails, just throw — the test is
-      // skipped at the .skip() level above.
-      throw e
-    }
+    await expect(page.getByTestId('vies-batch-done')).toBeVisible({
+      timeout: 120_000,
+    })
     // Summary tiles render
     const valid = page.getByTestId('vies-batch-valid-count')
     const invalid = page.getByTestId('vies-batch-invalid-count')

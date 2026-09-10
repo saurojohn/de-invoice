@@ -57,14 +57,16 @@ test.beforeAll(() => {
 
 // Track expenses we create so we can clean them up.
 const createdExpenseIds: string[] = []
-test.afterAll(async ({ request }) => {
+test.afterAll(async () => {
   // No DELETE endpoint for expenses (they're bookkeeping
   // records), but the test fixtures should at least not
   // pollute the production data. We tag them with a
   // unique description; a future cleanup script can
   // remove them by description match. For now: log.
-  for (const id of createdExpenseIds) {
-    // No-op; just record the IDs for visibility.
+  // Tier 349: this was a `for (const id of ...) {}` no-op loop whose
+  // comment said "For now: log" while logging nothing. Actually log.
+  if (createdExpenseIds.length > 0) {
+    console.log(`[tier178] created expense ids (no DELETE endpoint): ${createdExpenseIds.join(", ")}`)
   }
 })
 

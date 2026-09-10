@@ -133,9 +133,6 @@ test.describe("GoBD-Archiv — /dashboard/accounting", () => {
     await expect(page.getByTestId("gobd-archive-section")).toBeVisible({
       timeout: 30_000,
     })
-    // Read the current invoice count for 2025 (the
-    // default year).
-    const before = await page.getByTestId("gobd-invoice-count").textContent()
     // Set year to 2026
     await page.getByTestId("gobd-year").fill("2026")
     await page.getByTestId("gobd-recompute").click()

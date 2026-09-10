@@ -84,10 +84,10 @@ function setupFixtures() {
   const sql = `
     DELETE FROM "RecurringInvoiceItem" WHERE "recurringInvoiceId" IN (
       SELECT id FROM "RecurringInvoice" WHERE "companyId" = '${COMPANY_ID}'
-        AND (\"name\" LIKE 'BWA Test Kunde (clone%)' OR id = '${SOURCE_ID}')
+        AND ("name" LIKE 'BWA Test Kunde (clone%)' OR id = '${SOURCE_ID}')
     );
     DELETE FROM "RecurringInvoice" WHERE "companyId" = '${COMPANY_ID}'
-      AND (\"name\" LIKE 'BWA Test Kunde (clone%)' OR id = '${SOURCE_ID}');
+      AND ("name" LIKE 'BWA Test Kunde (clone%)' OR id = '${SOURCE_ID}');
 
     INSERT INTO "RecurringInvoice" (id, "companyId", "customerId", name, interval, "intervalCount", "dayOfMonth", "startDate", "nextRunAt", currency, language, notes, "invoiceStatus", "isActive", "sendEmail", "createdAt", "updatedAt")
     VALUES (
@@ -118,7 +118,7 @@ function cleanupClones() {
   // still click its 📋 button. Wipe the clones.
   const sql = `
     DELETE FROM "RecurringInvoice" WHERE "companyId" = '${COMPANY_ID}'
-      AND \"name\" LIKE 'BWA Test Kunde (clone%)'
+      AND "name" LIKE 'BWA Test Kunde (clone%)'
       AND id <> '${SOURCE_ID}';
   `
   const path = '/tmp/tier158-cleanup.sql'

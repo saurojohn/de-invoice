@@ -89,8 +89,30 @@ export default [
           // of catch blocks that just call toast.error(...)
           // with a static message. (Tier 322.)
           caughtErrors: "none",
+          // Tier 349: `const { selfHash, ...rest } = manifest`
+          // is the standard omit-a-key idiom -- selfHash is
+          // destructured precisely so it is NOT in `rest`, and
+          // is unused by design. gobd-export-tier166 and
+          // datev-buchungsliste-tier167 both do it when
+          // rebuilding a BSI TR-03127 preimage.
+          ignoreRestSiblings: true,
+          // A leading underscore marks a binding kept for
+          // shape/documentation but deliberately unread --
+          // same convention argsIgnorePattern already applies
+          // to parameters.
+          varsIgnorePattern: "^_",
         },
       ],
+      // Tier 349: allow `catch {}`. All 29 empty blocks in
+      // the suite are catch blocks, and every one is a
+      // deliberate best-effort idiom -- either
+      // `try { data = await res.json() } catch {}` (the
+      // response may not be JSON; leaving data null IS the
+      // handling) or
+      // `try { unlinkSync(tmp) } catch {}` in a finally
+      // (temp-file cleanup must not mask the real assertion
+      // failure). Empty non-catch blocks stay an error.
+      "no-empty": ["error", { allowEmptyCatch: true }],
       "no-redeclare": "off", // false-positive on
                               // import-comment lines
       "react-hooks/rules-of-hooks": "error",

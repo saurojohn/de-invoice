@@ -21,10 +21,8 @@
  */
 import { test, expect, request as playwrightRequest } from '@playwright/test'
 import { execSync } from 'child_process'
-import { getTestEnv } from './fixtures/test-env'
 
 const CUSTOMER_ID = 'b3f7b274-7696-44b8-9345-8bfd460b3e47'
-const COMPANY_ID = getTestEnv().companyId
 const API = 'http://localhost:3001'
 
 // The portal request-session endpoint is rate-limited

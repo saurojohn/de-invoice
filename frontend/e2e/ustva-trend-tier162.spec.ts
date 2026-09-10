@@ -151,7 +151,7 @@ test.describe('Tier 162 — UStVorauszahlung 12-Monats-Verlauf', () => {
     expect(ytdText).not.toBeNull()
     // The label is "€123.456,78" in de-DE format.
     // Strip everything except digits, comma, dot, minus.
-    const cleaned = ytdText!.replace(/[^\d,.\-]/g, '').replace(/\./g, '').replace(',', '.')
+    const cleaned = ytdText!.replace(/[^\d,.-]/g, '').replace(/\./g, '').replace(',', '.')
     const ytd = Number(cleaned)
     expect(Math.abs(computedSum - ytd)).toBeLessThanOrEqual(1)  // within 1 EUR (chart renders whole euros; raw data has 2dp)
   })
@@ -199,7 +199,6 @@ test.describe('Tier 162 — UStVorauszahlung 12-Monats-Verlauf', () => {
       const hAttr = await bar.getAttribute('height')
       expect(yAttr).not.toBeNull()
       expect(hAttr).not.toBeNull()
-      const y = parseFloat(yAttr!)
       const h = parseFloat(hAttr!)
       // If the bar has height, the rendered fill
       // is the right colour. If h is 0 (zero

@@ -306,7 +306,7 @@ test.describe('Tier 161 — UStVA history (Monatsvergleich)', () => {
   })
 
   test('backend: months outside 1-24 returns 400', async () => {
-    const { status, data } = await fetchHistory(0)
+    const { status } = await fetchHistory(0)
     expect(status).toBe(400)
     const { status: s2 } = await fetchHistory(25)
     expect(s2).toBe(400)

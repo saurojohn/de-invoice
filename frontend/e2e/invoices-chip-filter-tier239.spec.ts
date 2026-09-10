@@ -24,7 +24,7 @@
  * The chip's `data-active="true"` attribute is the most
  * reliable selector — no need to inspect color or text.
  */
-import { test, expect, request as playwrightRequest } from '@playwright/test'
+import { test, expect } from '@playwright/test'
 import { readFileSync } from 'fs'
 
 const AUTH_CACHE = '/tmp/cashbook-e2e-auth.env'

@@ -242,7 +242,7 @@ test.describe('Tier 147 — Recurring generated invoices', () => {
     expect(rows).toBeGreaterThan(0)
   })
 
-  test('clicking a row opens the invoice in a new tab (href only)', async ({ page, context }) => {
+  test('clicking a row opens the invoice in a new tab (href only)', async ({ page }) => {
     await page.goto('/dashboard/recurring-invoices')
     await expect(page.locator('h1').first()).toBeVisible({ timeout: 30_000 })
     // Tier 291: standard hydration wait.
@@ -269,7 +269,7 @@ test.describe('Tier 147 — Recurring generated invoices', () => {
     expect(href).toMatch(/^\/dashboard\/invoices\//)
   })
 
-  test('the empty state shows when the template has no generations', async ({ page }) => {
+  test('the empty state shows when the template has no generations', async () => {
     // We need a second template with no generations.
     // Use the global-setup fixture 'tier136-tpl-001'
     // for the positive path; for the empty state we

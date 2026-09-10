@@ -22,7 +22,7 @@
  */
 import { test, expect } from '@playwright/test'
 import { execSync } from 'child_process'
-import { readFileSync, writeFileSync, unlinkSync } from 'fs'
+import { writeFileSync, unlinkSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { getTestEnv } from './fixtures/test-env'

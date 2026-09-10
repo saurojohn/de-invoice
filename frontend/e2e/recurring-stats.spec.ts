@@ -140,7 +140,7 @@ test.beforeAll(async ({ request }) => {
     // skip the dueThisWeek assertion in the test
     // body (the active count still verifies the
     // widget mounted + fetched).
-    // eslint-disable-next-line no-console
+     
     console.warn("docker exec failed; dueThisWeek test may skip:", e?.message)
   }
 })

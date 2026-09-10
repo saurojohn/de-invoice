@@ -201,7 +201,6 @@ async function setupAuth(context: any, page: any) {
 async function selectCustomerAndWaitForHint(
   page: any,
   customerName: string,
-  expectedSuggested: string,
 ) {
   // Register the response waiter BEFORE the
   // page navigation. The create form fetches
@@ -267,7 +266,7 @@ test.describe("Tier 62 — USt-Behandlung auto-Erkennung on invoice create", () 
   }) => {
     await setupAuth(context, page)
     const f = fixtures.find((x) => x.name.endsWith("DE-B2B"))!
-    await selectCustomerAndWaitForHint(page, f.name, "standard")
+    await selectCustomerAndWaitForHint(page, f.name)
 
     // USt-ID badge present (the customer has a DE VAT ID).
     await expect(
@@ -292,7 +291,7 @@ test.describe("Tier 62 — USt-Behandlung auto-Erkennung on invoice create", () 
   }) => {
     await setupAuth(context, page)
     const f = fixtures.find((x) => x.name.endsWith("DE-B2C"))!
-    await selectCustomerAndWaitForHint(page, f.name, "standard")
+    await selectCustomerAndWaitForHint(page, f.name)
 
     // No VAT-ID badge (customer has no VAT ID).
     await expect(
@@ -317,7 +316,7 @@ test.describe("Tier 62 — USt-Behandlung auto-Erkennung on invoice create", () 
   }) => {
     await setupAuth(context, page)
     const f = fixtures.find((x) => x.name.endsWith("FR-B2B"))!
-    await selectCustomerAndWaitForHint(page, f.name, "euTransaction")
+    await selectCustomerAndWaitForHint(page, f.name)
 
     // Both badges present.
     await expect(

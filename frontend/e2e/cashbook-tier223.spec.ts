@@ -88,7 +88,6 @@ test.describe("Tier 223 — Cashbook page happy path", () => {
     if ((await zberichtSign.count()) > 0 && (await zberichtPdf.count()) > 0) {
       // Both buttons are present, the cashbook page rendered
       // the Z-Bericht panel.
-      pass: void 0  // (Playwright doesn't have a no-op pass)
       await expect(zberichtSign).toBeVisible()
       await expect(zberichtPdf).toBeVisible()
       console.log("Z-Bericht sign + pdf buttons visible — cashbook page rendered correctly")

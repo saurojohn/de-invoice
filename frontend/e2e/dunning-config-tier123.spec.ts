@@ -117,7 +117,7 @@ test.describe('Tier 123 — Dunning config card', () => {
   // here; the 3+4 backend assertions + the 1
   // working read test give us full coverage.
 
-  test('save persists new values via the API (no UI interaction)', async ({ request, context }) => {
+  test('save persists new values via the API (no UI interaction)', async ({ request }) => {
     // The same beforeEach resets the config. This
     // test uses the bare `request` fixture and
     // passes the auth as explicit headers (the

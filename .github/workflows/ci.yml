@@ -69,6 +69,34 @@ jobs:
         env:
           DATABASE_URL: postgresql://de_invoice:de_invoice_pass@localhost:5432/de_invoice?schema=public
 
+  # Tier 349: there was no lint job. The 4 jobs were
+  # backend-typecheck / frontend-typecheck / e2e / playwright,
+  # so eslint never ran in CI and the "0 errors, 0 warnings"
+  # bar recorded in DEPLOY-READY-SUMMARY.md (true at Tier 322)
+  # silently rotted to 38 errors + 42 warnings by Tier 348.
+  # `npx eslint` exits non-zero on errors only, so
+  # --max-warnings 0 is what actually holds the bar: without
+  # it warnings accumulate again exactly the same way.
+  #
+  # frontend only -- backend has no eslint config, no eslint
+  # devDependency and no lint script. Adding one there is a
+  # separate decision, not a silent side effect of this job.
+  frontend-lint:
+    name: Frontend lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npx eslint . --max-warnings 0
+
   frontend-typecheck:
     name: Frontend typecheck
     runs-on: ubuntu-latest

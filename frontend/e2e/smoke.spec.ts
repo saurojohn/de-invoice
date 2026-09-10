@@ -1,4 +1,4 @@
-import { test, expect, Page, Browser } from "@playwright/test"
+import { test, expect, Page } from "@playwright/test"
 import { readFileSync } from "fs"
 
 // Tier 12 + 13: end-to-end UI tests via Playwright.

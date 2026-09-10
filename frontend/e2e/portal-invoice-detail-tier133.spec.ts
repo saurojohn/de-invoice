@@ -114,7 +114,7 @@ test.describe('Tier 133 — Portal invoice detail', () => {
   }
 
   test('clicking an invoice number opens the detail page', async ({ page }) => {
-    const { token, invoiceId } = await getTokenForCustomer()
+    const { token } = await getTokenForCustomer()
     await page.goto(`/portal?token=${token}`)
     await expect(page.getByTestId('portal-customer-name')).toBeVisible({ timeout: 10_000 })
     // The first invoice link should point at the detail page

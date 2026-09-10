@@ -222,12 +222,35 @@ were races, not missing data, so each needed its own fix:
   to match its two siblings. **Do not rename those two** — the other two
   specs depend on the current names.
 
-**Lint debt in `frontend/e2e/`: 38 errors + 42 warnings.** `src/` is clean
-and so is every file Tier 346-348 touched, but the suite at large is not,
-and the "0 eslint errors / 0 warnings" line in `DEPLOY-READY-SUMMARY.md` is
-stale — true at Tier 322, drifted since, because **CI runs no lint job**.
-Mostly `no-empty` (empty catch blocks), plus `no-useless-catch` and
-`no-unused-labels`. A lint job plus one cleanup tier would close it.
+**Lint: 0 errors, 0 warnings, and now enforced.** Tier 349 cleared the
+38 errors + 42 warnings that had accumulated in `frontend/e2e/` and added a
+**`frontend-lint` CI job** running `npx eslint . --max-warnings 0`. The
+`--max-warnings 0` is the part that matters: `eslint` exits non-zero on
+errors only, so without it warnings drift back exactly as before.
+
+Three config decisions in `frontend/eslint.config.mjs`, each for a genuine
+idiom rather than to silence a real finding:
+- `no-empty: ["error", { allowEmptyCatch: true }]` — all 29 empty blocks
+  were catch blocks, every one deliberate: `try { data = await res.json() }
+  catch {}` (a non-JSON body means `data` stays null — that IS the handling)
+  and `try { unlinkSync(tmp) } catch {}` in a `finally` (cleanup must not
+  mask the real assertion failure). Empty **non**-catch blocks stay errors.
+- `ignoreRestSiblings: true` — `const { selfHash, ...rest } = manifest` is
+  the omit-a-key idiom; `selfHash` is destructured precisely so it is not in
+  `rest`.
+- `varsIgnorePattern: "^_"` — matches the `argsIgnorePattern` already there.
+
+The other 40-odd were real dead code: unused imports, a `cleanupByBlz` stub
+that only `return null`ed and was never called, consts like `API_BASE` /
+`COMPANY_ID` / `CUSTOMER_ID` that nothing read, and unused Playwright
+fixture params (removing an unused `{ page }` also stops Playwright
+instantiating a browser page for that test). Note when deleting an unused
+fixture param that it may be the only one — `async ({}) =>` then trips
+`no-empty-pattern`; drop the whole parameter, `async () =>`.
+
+**Backend has no eslint at all** — no config, no devDependency, no script —
+so `frontend-lint` covers `frontend/` only. Adding lint to the backend is a
+separate decision, deliberately not smuggled into this job.
 
 **Tier 347 closed the seed gap and 10 more skips.** The fixture customer
 `f84ebd20-...` + 1 paid invoice + 1 payment now live in `ci-seed.sh`

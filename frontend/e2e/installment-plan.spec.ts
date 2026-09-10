@@ -169,9 +169,7 @@ test.describe('Tier 168a — Ratenplan (installment plans) rewrite', () => {
     await expect(rows).toHaveCount(3, { timeout: 10_000 })
   })
 
-  test('by-invoice endpoint returns the freshly-created plan', async ({
-    page,
-  }) => {
+  test('by-invoice endpoint returns the freshly-created plan', async () => {
     // Tier 168 GTM multi-tenant drill uses
     // ADMIN_HEADERS directly via the
     // request fixture; we don't need a

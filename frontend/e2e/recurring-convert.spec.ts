@@ -59,7 +59,6 @@ test.beforeAll(() => {
 const TAG = `Tier63-Convert-${Date.now()}`
 let TEST_CUSTOMER_ID: string | null = null
 let TEST_INVOICE_ID: string | null = null
-let TEST_PRODUCT_ID: string | null = null
 
 test.beforeAll(async ({ request }) => {
   // Create a fresh customer + a real invoice with one
@@ -89,7 +88,6 @@ test.beforeAll(async ({ request }) => {
   // free-form or tied to a product). We use a
   // free-form item for the test — no product FK
   // needed.
-  TEST_PRODUCT_ID = null
 
   // 3. Create a real invoice via POST. We hand-build
   // the JSON so we have a known issueDate + total.

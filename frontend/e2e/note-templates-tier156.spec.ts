@@ -25,7 +25,6 @@
  * templates), then restores in afterAll.
  */
 import { test, expect, request as playwrightRequest } from '@playwright/test'
-import { execSync } from 'child_process'
 import { getTestEnv } from './fixtures/test-env'
 
 const COMPANY_ID = getTestEnv().companyId

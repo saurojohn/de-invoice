@@ -149,7 +149,7 @@ test.describe("Mobile responsive audit (iPhone 12 viewport)", () => {
       const overflowAmount =
         overflow.bodyScrollWidth - overflow.bodyClientWidth
       if (overflowAmount > 200) {
-        // eslint-disable-next-line no-console
+         
         console.warn(
           `[mobile] ${path}: ${overflowAmount}px of horizontal overflow clipped by body. Consider a per-page mobile layout.`,
         )

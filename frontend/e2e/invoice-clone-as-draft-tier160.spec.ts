@@ -30,7 +30,7 @@
  *   8. Mobile 375x667: the detail button row
  *      does not overflow
  */
-import { test, expect, request as playwrightRequest } from '@playwright/test'
+import { test, expect } from '@playwright/test'
 import { execSync } from 'child_process'
 import { readFileSync } from 'fs'
 
@@ -59,7 +59,6 @@ const tokens = readCachedTokens()
 const USER_ID = tokens.userId
 const COMPANY_ID = tokens.companyId
 const BWA_CUSTOMER_ID = 'b3f7b274-7696-44b8-9345-8bfd460b3e47'
-const API_BASE = 'http://localhost:3001'
 
 // Non-tier-prefixed fixture name so other specs
 // don't wipe it via `LIKE 'tier<N>%'` cleanup
