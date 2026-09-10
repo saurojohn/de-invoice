@@ -39,7 +39,7 @@
  */
 import { test, expect, request as playwrightRequest } from '@playwright/test'
 import { execSync } from 'child_process'
-import { getTestEnv } from './fixtures/test-env'
+import { getTestEnv, PG_CONTAINER } from './fixtures/test-env'
 
 const USER_ID = getTestEnv().userId
 const COMPANY_ID = getTestEnv().companyId
@@ -97,7 +97,7 @@ test.describe('Tier 152 — Manual Mahnung send', () => {
     require('fs').writeFileSync(tmpFile, sql)
     try {
       execSync(
-        `cat "${tmpFile}" | docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -v ON_ERROR_STOP=1`,
+        `cat "${tmpFile}" | docker exec -i ${PG_CONTAINER} psql -U de_invoice -d de_invoice -v ON_ERROR_STOP=1`,
         { stdio: ['pipe', 'pipe', 'pipe'] },
       )
     } catch (e: any) {
@@ -124,7 +124,7 @@ test.describe('Tier 152 — Manual Mahnung send', () => {
     require('fs').writeFileSync(tmpFile, cleanupSql)
     try {
       execSync(
-        `cat "${tmpFile}" | docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -v ON_ERROR_STOP=1`,
+        `cat "${tmpFile}" | docker exec -i ${PG_CONTAINER} psql -U de_invoice -d de_invoice -v ON_ERROR_STOP=1`,
         { stdio: 'pipe' },
       )
     } finally {

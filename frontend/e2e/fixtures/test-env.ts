@@ -48,6 +48,23 @@ import { readFileSync, existsSync } from "fs"
 
 const AUTH_CACHE = "/tmp/cashbook-e2e-auth.env"
 
+/**
+ * Name of the Postgres container the e2e specs shell into with
+ * `docker exec`.
+ *
+ * Tier 353: 28 spec files hardcoded "de-invoice-postgres" across 54 call
+ * sites, which meant a spec could only ever run against that one
+ * container. Locally that container has been dead since 2026-09-06 (see
+ * HANDOFF), so any spec touching psql failed in `beforeAll` for purely
+ * environmental reasons and could not be verified before pushing — that
+ * blocked local verification three separate times in Tiers 350-352.
+ *
+ * `ci-seed.sh` already took PG_CONTAINER from the environment; this makes
+ * the Playwright side agree with it. Default is unchanged, so CI and any
+ * existing local setup behave exactly as before.
+ */
+export const PG_CONTAINER = process.env.PG_CONTAINER || 'de-invoice-postgres'
+
 export interface TestEnv {
   userId: string
   companyId: string

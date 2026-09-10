@@ -19,7 +19,7 @@
  */
 import { test, expect } from '@playwright/test'
 import { execSync } from 'child_process'
-import { getTestEnv } from './fixtures/test-env'
+import { getTestEnv, PG_CONTAINER } from './fixtures/test-env'
 
 const USER_ID = getTestEnv().userId
 const COMPANY_ID = getTestEnv().companyId
@@ -36,7 +36,7 @@ test.describe('Tier 137 — VIES batch check (suppliers)', () => {
       ON CONFLICT (id) DO UPDATE SET "vatId" = 'DE987654321', name = 'Tier 137 Lieferant GmbH';
     `
     execSync(
-      `docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "${sql.replace(/"/g, '\\"')}"`,
+      `docker exec ${PG_CONTAINER} psql -U de_invoice -d de_invoice -c "${sql.replace(/"/g, '\\"')}"`,
       { stdio: 'ignore' },
     )
   })

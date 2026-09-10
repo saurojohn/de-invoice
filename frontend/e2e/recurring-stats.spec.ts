@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
 import { execSync } from "child_process"
+import { PG_CONTAINER } from './fixtures/test-env'
 
 /**
  * Tier 63: Recurring-invoice dashboard widget.
@@ -132,7 +133,7 @@ test.beforeAll(async ({ request }) => {
   const tomorrowIso = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
   try {
     execSync(
-      `docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "UPDATE \\"RecurringInvoice\\" SET \\"nextRunAt\\" = '${tomorrowIso}'::timestamptz WHERE id = '${TEST_TEMPLATE_ID}';"`,
+      `docker exec ${PG_CONTAINER} psql -U de_invoice -d de_invoice -c "UPDATE \\"RecurringInvoice\\" SET \\"nextRunAt\\" = '${tomorrowIso}'::timestamptz WHERE id = '${TEST_TEMPLATE_ID}';"`,
       { stdio: "pipe" },
     )
   } catch (e: any) {

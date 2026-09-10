@@ -49,7 +49,7 @@
  */
 import { test, expect } from '@playwright/test'
 import { execSync, execFileSync } from 'child_process'
-import { getTestEnv } from './fixtures/test-env'
+import { getTestEnv, PG_CONTAINER } from './fixtures/test-env'
 
 const USER_ID = getTestEnv().userId
 const COMPANY_ID = getTestEnv().companyId
@@ -153,7 +153,7 @@ test.describe('Tier 147 — Recurring generated invoices', () => {
       try {
         execFileSync(
           'docker',
-          ['exec', '-i', 'de-invoice-postgres', 'psql',
+          ['exec', '-i', PG_CONTAINER, 'psql',
            '-U', 'de_invoice',
            '-d', 'de_invoice',
            '-v', 'ON_ERROR_STOP=1',
@@ -183,7 +183,7 @@ test.describe('Tier 147 — Recurring generated invoices', () => {
       lastErr = r
       // Sanity-check the container is still up
       try {
-        execSync('docker inspect --format={{.State.Running}} de-invoice-postgres', { stdio: 'ignore' })
+        execSync(`docker inspect --format={{.State.Running}} ${PG_CONTAINER}`, { stdio: 'ignore' })
       } catch {
         break // container is gone - bail out
       }

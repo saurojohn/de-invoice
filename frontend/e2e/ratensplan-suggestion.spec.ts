@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
+import { PG_CONTAINER } from './fixtures/test-env'
 
 /**
  * Tier 65: Auto-Ratenplan banner on the invoice detail page.
@@ -155,7 +156,7 @@ test.beforeAll(async ({ request }) => {
   // no public endpoint that flips draft → sent.
   const { execSync } = await import("child_process")
   execSync(
-    `docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "UPDATE \\"Invoice\\" SET status = 'sent' WHERE id IN ('${TEST_HIGH_INV_ID}', '${TEST_LOW_INV_ID}');"`,
+    `docker exec ${PG_CONTAINER} psql -U de_invoice -d de_invoice -c "UPDATE \\"Invoice\\" SET status = 'sent' WHERE id IN ('${TEST_HIGH_INV_ID}', '${TEST_LOW_INV_ID}');"`,
     { stdio: "pipe" },
   )
 })

@@ -18,7 +18,7 @@
  */
 import { test, expect, request as playwrightRequest } from '@playwright/test'
 import { execSync } from 'child_process'
-import { getTestEnv } from './fixtures/test-env'
+import { getTestEnv, PG_CONTAINER } from './fixtures/test-env'
 
 // Use the portal-test customer seeded by
 // ci-seed.sh (id aabbccdd-1337-1337-1337-...,
@@ -53,7 +53,7 @@ test.describe('Tier 133 — Portal invoice detail', () => {
     )
     try {
       execSync(
-        `cat "${tmpFile}" | docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -v ON_ERROR_STOP=1`,
+        `cat "${tmpFile}" | docker exec -i ${PG_CONTAINER} psql -U de_invoice -d de_invoice -v ON_ERROR_STOP=1`,
         { stdio: 'pipe' },
       )
     } finally {

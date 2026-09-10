@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
 import { execSync } from "child_process"
+import { PG_CONTAINER } from './fixtures/test-env'
 
 /**
  * Tier 66: MandantSwitcher UI.
@@ -60,7 +61,7 @@ test.afterAll(async () => {
   // Best-effort cleanup of the second company + grant.
   try {
     execSync(
-      `docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL
+      `docker exec -i ${PG_CONTAINER} psql -U de_invoice -d de_invoice <<SQL
 DELETE FROM "UserCompany" WHERE "companyId" = '${SECOND_COMPANY_ID}';
 DELETE FROM "Company" WHERE id = '${SECOND_COMPANY_ID}';
 SQL`,
@@ -110,7 +111,7 @@ function ensureSecondMandantGrant() {
   // The second Mandant must exist before each test
   // that needs it. Use ON CONFLICT to be idempotent.
   execSync(
-    `docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL
+    `docker exec -i ${PG_CONTAINER} psql -U de_invoice -d de_invoice <<SQL
 INSERT INTO "Company" (id, name, "legalName", address, "defaultPaymentDays", "createdAt", "updatedAt")
 VALUES ('${SECOND_COMPANY_ID}', '${TAG} Mandant', 'Tier66 Test GmbH', '{}'::jsonb, 30, NOW(), NOW())
 ON CONFLICT (id) DO NOTHING;
@@ -130,7 +131,7 @@ test.describe("MandantSwitcher", () => {
     // Make sure no stale second Mandant exists from a
     // prior run.
     execSync(
-      `docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL
+      `docker exec -i ${PG_CONTAINER} psql -U de_invoice -d de_invoice <<SQL
 DELETE FROM "UserCompany" WHERE "companyId" = '${SECOND_COMPANY_ID}';
 DELETE FROM "Company" WHERE id = '${SECOND_COMPANY_ID}';
 SQL`,

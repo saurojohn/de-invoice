@@ -35,7 +35,7 @@
  */
 import { test, expect } from '@playwright/test'
 import { execSync } from 'child_process'
-import { getTestEnv } from './fixtures/test-env'
+import { getTestEnv, PG_CONTAINER } from './fixtures/test-env'
 
 const USER_ID = getTestEnv().userId
 const COMPANY_ID = getTestEnv().companyId
@@ -49,7 +49,7 @@ const API_BASE = 'http://localhost:3001'
 // "remaining" values would be wrong.
 function resetCustomerInvoices() {
   execSync(
-    `docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "DELETE FROM \\"Payment\\" WHERE \\"invoiceId\\" IN (SELECT id FROM \\"Invoice\\" WHERE \\"companyId\\"='${COMPANY_ID}' AND \\"customerId\\"='${CUSTOMER_ID}'); UPDATE \\"Invoice\\" SET status='sent' WHERE \\"companyId\\"='${COMPANY_ID}' AND \\"customerId\\"='${CUSTOMER_ID}'"`,
+    `docker exec ${PG_CONTAINER} psql -U de_invoice -d de_invoice -c "DELETE FROM \\"Payment\\" WHERE \\"invoiceId\\" IN (SELECT id FROM \\"Invoice\\" WHERE \\"companyId\\"='${COMPANY_ID}' AND \\"customerId\\"='${CUSTOMER_ID}'); UPDATE \\"Invoice\\" SET status='sent' WHERE \\"companyId\\"='${COMPANY_ID}' AND \\"customerId\\"='${CUSTOMER_ID}'"`,
     { stdio: 'ignore' },
   )
 }
@@ -168,7 +168,7 @@ test.describe('Tier 146 — Customer payment allocation', () => {
     // DB sanity: 4 Payment rows exist for the
     // 4 invoices, each €119.
     const payments = execSync(
-      `docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -c "SELECT count(*), sum(amount)::int FROM \\"Payment\\" WHERE \\"invoiceId\\" IN (SELECT id FROM \\"Invoice\\" WHERE \\"companyId\\"='${COMPANY_ID}' AND \\"customerId\\"='${CUSTOMER_ID}')"`,
+      `docker exec ${PG_CONTAINER} psql -U de_invoice -d de_invoice -t -c "SELECT count(*), sum(amount)::int FROM \\"Payment\\" WHERE \\"invoiceId\\" IN (SELECT id FROM \\"Invoice\\" WHERE \\"companyId\\"='${COMPANY_ID}' AND \\"customerId\\"='${CUSTOMER_ID}')"`,
       { encoding: 'utf-8' },
     ).trim()
     expect(payments).toMatch(/4 \| 500|5 \| 500/)
@@ -246,7 +246,7 @@ test.describe('Tier 146 — Customer payment allocation', () => {
     // pins the count to 4 or 5 rows; here we just
     // assert the count is in the same range.
     const count = execSync(
-      `docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -c "SELECT count(*) FROM \\"Payment\\" WHERE \\"invoiceId\\" IN (SELECT id FROM \\"Invoice\\" WHERE \\"companyId\\"='${COMPANY_ID}' AND \\"customerId\\"='${CUSTOMER_ID}')"`,
+      `docker exec ${PG_CONTAINER} psql -U de_invoice -d de_invoice -t -c "SELECT count(*) FROM \\"Payment\\" WHERE \\"invoiceId\\" IN (SELECT id FROM \\"Invoice\\" WHERE \\"companyId\\"='${COMPANY_ID}' AND \\"customerId\\"='${CUSTOMER_ID}')"`,
       { encoding: 'utf-8' },
     ).trim()
     expect(['4', '5']).toContain(count)

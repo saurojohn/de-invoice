@@ -43,7 +43,7 @@
  * time.
  */
 import { test, expect, request as playwrightRequest } from '@playwright/test'
-import { getTestEnv } from './fixtures/test-env'
+import { getTestEnv, PG_CONTAINER } from './fixtures/test-env'
 
 // Tenant A: SH Leder GmbH (the canonical ci-seed tenant). Read
 // the live UUIDs from the auth cache because re-seeding can rotate
@@ -262,7 +262,7 @@ test.describe('GTM acceptance — cleanup', () => {
     `
     try {
       execSync(
-        `docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice`,
+        `docker exec -i ${PG_CONTAINER} psql -U de_invoice -d de_invoice`,
         { input: sql, stdio: 'pipe' },
       )
     } catch {

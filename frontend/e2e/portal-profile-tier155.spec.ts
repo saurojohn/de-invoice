@@ -21,6 +21,7 @@
  */
 import { test, expect, request as playwrightRequest } from '@playwright/test'
 import { execSync } from 'child_process'
+import { PG_CONTAINER } from './fixtures/test-env'
 
 const CUSTOMER_ID = 'b3f7b274-7696-44b8-9345-8bfd460b3e47'
 const API = 'http://localhost:3001'
@@ -50,7 +51,7 @@ function ensureCustomer() {
   require('fs').writeFileSync(path, sql)
   try {
     execSync(
-      `docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice < ${path}`,
+      `docker exec -i ${PG_CONTAINER} psql -U de_invoice -d de_invoice < ${path}`,
       { stdio: 'pipe' },
     )
   } finally {
@@ -121,7 +122,7 @@ test.describe('Tier 155 — Portal profile', () => {
     require('fs').writeFileSync(path, sql)
     try {
       execSync(
-        `docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice < ${path}`,
+        `docker exec -i ${PG_CONTAINER} psql -U de_invoice -d de_invoice < ${path}`,
         { stdio: 'pipe' },
       )
     } finally {

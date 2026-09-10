@@ -37,7 +37,7 @@
  */
 import { test, expect, request as playwrightRequest } from '@playwright/test'
 import { execSync } from 'child_process'
-import { getTestEnv } from './fixtures/test-env'
+import { getTestEnv, PG_CONTAINER } from './fixtures/test-env'
 
 const COMPANY_ID = getTestEnv().companyId
 const USER_ID = getTestEnv().userId
@@ -92,7 +92,7 @@ function setupFixtures() {
   require('fs').writeFileSync(path, sql)
   try {
     execSync(
-      `docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice < ${path}`,
+      `docker exec -i ${PG_CONTAINER} psql -U de_invoice -d de_invoice < ${path}`,
       { stdio: 'pipe' },
     )
   } finally {
@@ -109,7 +109,7 @@ function cleanupFixtures() {
   require('fs').writeFileSync(path, sql)
   try {
     execSync(
-      `docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice < ${path}`,
+      `docker exec -i ${PG_CONTAINER} psql -U de_invoice -d de_invoice < ${path}`,
       { stdio: 'pipe' },
     )
   } finally {
@@ -183,7 +183,7 @@ test.describe('Tier 159 — Credit-limit warning', () => {
     // the "no customers with a limit" assumption
     // holds.
     execSync(
-      `docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "UPDATE \\"Customer\\" SET \\"creditLimit\\" = NULL WHERE id = 'b3f7b274-7696-44b8-9345-8bfd460b3e47'"`,
+      `docker exec ${PG_CONTAINER} psql -U de_invoice -d de_invoice -c "UPDATE \\"Customer\\" SET \\"creditLimit\\" = NULL WHERE id = 'b3f7b274-7696-44b8-9345-8bfd460b3e47'"`,
       { stdio: 'pipe' },
     )
     const { data } = await fetchUtilization()
@@ -204,7 +204,7 @@ test.describe('Tier 159 — Credit-limit warning', () => {
     require('fs').writeFileSync(path, sql)
     try {
       execSync(
-        `docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice < ${path}`,
+        `docker exec -i ${PG_CONTAINER} psql -U de_invoice -d de_invoice < ${path}`,
         { stdio: 'pipe' },
       )
     } finally {
@@ -218,7 +218,7 @@ test.describe('Tier 159 — Credit-limit warning', () => {
     expect(row.status).toBe('ok')
     // Clean up
     execSync(
-      `docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "DELETE FROM \\"Customer\\" WHERE id = '${noInvoiceId}'"`,
+      `docker exec ${PG_CONTAINER} psql -U de_invoice -d de_invoice -c "DELETE FROM \\"Customer\\" WHERE id = '${noInvoiceId}'"`,
       { stdio: 'pipe' },
     )
   })

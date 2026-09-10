@@ -34,7 +34,7 @@
  */
 import { test, expect, request as playwrightRequest } from '@playwright/test'
 import { execSync } from 'child_process'
-import { getTestEnv } from './fixtures/test-env'
+import { getTestEnv, PG_CONTAINER } from './fixtures/test-env'
 
 const USER_ID = getTestEnv().userId
 const COMPANY_ID = getTestEnv().companyId
@@ -64,12 +64,12 @@ test.describe('Tier 150 — Invoice duplicate detection', () => {
   test.beforeAll(() => {
     // Ensure BWA Test Kunde exists
     execSync(
-      `docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "INSERT INTO \\"Customer\\" (id, \\"companyId\\", type, name, address, contact, \\"paymentTerms\\", tags, \\"createdAt\\", \\"updatedAt\\") VALUES ('${BWA_CUSTOMER_ID}', '${COMPANY_ID}', 'business', 'BWA Test Kunde', '{\\"country\\":\\"Deutschland\\"}'::jsonb, '{}'::jsonb, 30, ARRAY['B2B']::text[], NOW(), NOW()) ON CONFLICT (id) DO NOTHING"`,
+      `docker exec ${PG_CONTAINER} psql -U de_invoice -d de_invoice -c "INSERT INTO \\"Customer\\" (id, \\"companyId\\", type, name, address, contact, \\"paymentTerms\\", tags, \\"createdAt\\", \\"updatedAt\\") VALUES ('${BWA_CUSTOMER_ID}', '${COMPANY_ID}', 'business', 'BWA Test Kunde', '{\\"country\\":\\"Deutschland\\"}'::jsonb, '{}'::jsonb, 30, ARRAY['B2B']::text[], NOW(), NOW()) ON CONFLICT (id) DO NOTHING"`,
       { stdio: 'ignore' },
     )
     // Ensure 4 seed €119 invoices exist
     execSync(
-      `docker exec de-invoice-postgres psql -U de_invoice -d de_invoice <<'SQL'
+      `docker exec ${PG_CONTAINER} psql -U de_invoice -d de_invoice <<'SQL'
 INSERT INTO "Invoice" (id, "companyId", "customerId", "invoiceNumber", "sequencePrefix", "sequenceYear", "sequenceNumber", type, status, "issueDate", "dueDate", subtotal, "totalVat", total, currency, language, "createdAt", "updatedAt")
 VALUES
   ('tier150-inv-1', '${COMPANY_ID}', '${BWA_CUSTOMER_ID}', 'TIER150-001', 'TIER150-', 2026, 1, 'INV', 'sent', '2026-08-03', '2026-09-02', 100, 19, 119, 'EUR', 'de-DE', NOW(), NOW()),
@@ -90,7 +90,7 @@ SQL`,
     // invoices (INV-2026-000203-000206) that
     // earlier tiers created.
     execSync(
-      `docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "DELETE FROM \\"Invoice\\" WHERE id LIKE 'tier150-inv-%'"`,
+      `docker exec ${PG_CONTAINER} psql -U de_invoice -d de_invoice -c "DELETE FROM \\"Invoice\\" WHERE id LIKE 'tier150-inv-%'"`,
       { stdio: 'ignore' },
     )
   })

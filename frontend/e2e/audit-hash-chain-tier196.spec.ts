@@ -32,6 +32,7 @@ import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
 import { execFileSync } from "child_process"
 import path from "path"
+import { PG_CONTAINER } from './fixtures/test-env'
 
 const AUTH_CACHE = "/tmp/cashbook-e2e-auth.env"
 
@@ -118,7 +119,7 @@ function psql(sql: string): string {
     [
       "exec",
       "-i",
-      "de-invoice-postgres",
+      PG_CONTAINER,
       "psql",
       "-U",
       "de_invoice",

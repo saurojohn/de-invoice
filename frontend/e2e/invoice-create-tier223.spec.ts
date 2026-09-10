@@ -23,6 +23,7 @@
 import { test, expect, request as playwrightRequest } from '@playwright/test'
 import { execSync } from 'child_process'
 import { readFileSync } from 'fs'
+import { PG_CONTAINER } from './fixtures/test-env'
 
 const AUTH_CACHE = '/tmp/cashbook-e2e-auth.env'
 
@@ -114,7 +115,7 @@ test.describe("Tier 223 — Invoice create happy path", () => {
     if (customerId) {
       try {
         execSync(
-          `docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "DELETE FROM \\"Customer\\" WHERE id='${customerId}';"`,
+          `docker exec ${PG_CONTAINER} psql -U de_invoice -d de_invoice -c "DELETE FROM \\"Customer\\" WHERE id='${customerId}';"`,
           { stdio: "ignore" },
         )
       } catch {

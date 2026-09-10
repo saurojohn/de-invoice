@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
+import { PG_CONTAINER } from './fixtures/test-env'
 
 /**
  * Tier 87: Anlagenverzeichnis AfA-Buchung flow.
@@ -60,11 +61,11 @@ test.afterAll(async () => {
   const { execSync } = await import("child_process")
   try {
     execSync(
-      `docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "DELETE FROM \\"Expense\\" WHERE \\"relatedAssetId\\" IN (SELECT id FROM \\"Asset\\" WHERE bezeichnung LIKE 'T87PA-%');" >/dev/null 2>&1`,
+      `docker exec ${PG_CONTAINER} psql -U de_invoice -d de_invoice -c "DELETE FROM \\"Expense\\" WHERE \\"relatedAssetId\\" IN (SELECT id FROM \\"Asset\\" WHERE bezeichnung LIKE 'T87PA-%');" >/dev/null 2>&1`,
       { stdio: "ignore" },
     )
     execSync(
-      `docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "DELETE FROM \\"Asset\\" WHERE bezeichnung LIKE 'T87PA-%';" >/dev/null 2>&1`,
+      `docker exec ${PG_CONTAINER} psql -U de_invoice -d de_invoice -c "DELETE FROM \\"Asset\\" WHERE bezeichnung LIKE 'T87PA-%';" >/dev/null 2>&1`,
       { stdio: "ignore" },
     )
   } catch {

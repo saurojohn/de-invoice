@@ -1,7 +1,7 @@
 import { test, expect, request as playwrightRequest } from '@playwright/test'
 import { execSync } from 'child_process'
 import path from 'path'
-import { getTestEnv } from './fixtures/test-env'
+import { getTestEnv, PG_CONTAINER } from './fixtures/test-env'
 
 /**
  * Tier 168a rewrite — 2FA / TOTP UI end-to-end.
@@ -95,7 +95,7 @@ function totpForSecret(secret: string): string {
 // (or null if 2FA is not enabled).
 function readTwoFactorSecret(): string | null {
   const r = execSync(
-    `docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -tA -c "SELECT \\"twoFactorSecret\\" FROM \\"User\\" WHERE id='${USER_ID}';"`,
+    `docker exec ${PG_CONTAINER} psql -U de_invoice -d de_invoice -tA -c "SELECT \\"twoFactorSecret\\" FROM \\"User\\" WHERE id='${USER_ID}';"`,
     { encoding: 'utf-8' },
   ).trim()
   return r && r.length >= 16 ? r : null

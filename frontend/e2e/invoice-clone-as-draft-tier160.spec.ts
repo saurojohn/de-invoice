@@ -33,6 +33,7 @@
 import { test, expect } from '@playwright/test'
 import { execSync } from 'child_process'
 import { readFileSync } from 'fs'
+import { PG_CONTAINER } from './fixtures/test-env'
 
 const AUTH_CACHE = '/tmp/cashbook-e2e-auth.env'
 
@@ -131,7 +132,7 @@ function setupSource() {
   require('fs').writeFileSync(path, sql)
   try {
     execSync(
-      `docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice < ${path}`,
+      `docker exec -i ${PG_CONTAINER} psql -U de_invoice -d de_invoice < ${path}`,
       { stdio: 'pipe' },
     )
   } finally {
@@ -155,7 +156,7 @@ function cleanupClones() {
   require('fs').writeFileSync(path, sql)
   try {
     execSync(
-      `docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice < ${path}`,
+      `docker exec -i ${PG_CONTAINER} psql -U de_invoice -d de_invoice < ${path}`,
       { stdio: 'pipe' },
     )
   } finally {

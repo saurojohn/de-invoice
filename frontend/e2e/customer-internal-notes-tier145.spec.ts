@@ -27,7 +27,7 @@
  */
 import { test, expect } from '@playwright/test'
 import { execSync } from 'child_process'
-import { getTestEnv } from './fixtures/test-env'
+import { getTestEnv, PG_CONTAINER } from './fixtures/test-env'
 
 const USER_ID = getTestEnv().userId
 const COMPANY_ID = getTestEnv().companyId
@@ -41,7 +41,7 @@ test.describe('Tier 145 — Customer internal notes', () => {
   // affect the empty-state assertion below.
   test.beforeAll(() => {
     execSync(
-      `docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "DELETE FROM \\"CustomerInternalNote\\" WHERE \\"companyId\\"='${COMPANY_ID}' AND body LIKE 'Tier 145%'"`,
+      `docker exec ${PG_CONTAINER} psql -U de_invoice -d de_invoice -c "DELETE FROM \\"CustomerInternalNote\\" WHERE \\"companyId\\"='${COMPANY_ID}' AND body LIKE 'Tier 145%'"`,
       { stdio: 'ignore' },
     )
   })
@@ -71,7 +71,7 @@ test.describe('Tier 145 — Customer internal notes', () => {
     // smoke-test one from the previous run) so we
     // can assert on the empty state.
     execSync(
-      `docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "DELETE FROM \\"CustomerInternalNote\\" WHERE \\"companyId\\"='${COMPANY_ID}' AND \\"customerId\\"='${CUSTOMER_ID}'"`,
+      `docker exec ${PG_CONTAINER} psql -U de_invoice -d de_invoice -c "DELETE FROM \\"CustomerInternalNote\\" WHERE \\"companyId\\"='${COMPANY_ID}' AND \\"customerId\\"='${CUSTOMER_ID}'"`,
       { stdio: 'ignore' },
     )
     await page.goto(`/dashboard/customers/${CUSTOMER_ID}`)
@@ -110,7 +110,7 @@ test.describe('Tier 145 — Customer internal notes', () => {
     // Clean up any leftover notes from earlier
     // tests in this run so .first() is unambiguous.
     execSync(
-      `docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "DELETE FROM \\"CustomerInternalNote\\" WHERE \\"companyId\\"='${COMPANY_ID}' AND \\"customerId\\"='${CUSTOMER_ID}'"`,
+      `docker exec ${PG_CONTAINER} psql -U de_invoice -d de_invoice -c "DELETE FROM \\"CustomerInternalNote\\" WHERE \\"companyId\\"='${COMPANY_ID}' AND \\"customerId\\"='${CUSTOMER_ID}'"`,
       { stdio: 'ignore' },
     )
     await page.goto(`/dashboard/customers/${CUSTOMER_ID}`)

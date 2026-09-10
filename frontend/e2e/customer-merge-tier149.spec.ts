@@ -43,7 +43,7 @@
  */
 import { test, expect } from '@playwright/test'
 import { execSync } from 'child_process'
-import { getTestEnv } from './fixtures/test-env'
+import { getTestEnv, PG_CONTAINER } from './fixtures/test-env'
 
 const USER_ID = getTestEnv().userId
 const COMPANY_ID = getTestEnv().companyId
@@ -57,7 +57,7 @@ const API_BASE = 'http://localhost:3001'
 // Idempotent — ON CONFLICT keeps the existing row.
 function ensureDupExists() {
   execSync(
-    `docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -c "INSERT INTO \\"Customer\\" (id, \\"companyId\\", type, name, address, contact, \\"paymentTerms\\", tags, \\"createdAt\\", \\"updatedAt\\") VALUES ('${DUP_ID}', '${COMPANY_ID}', 'business', 'BWA Test Kunde GmbH (duplicate)', '{\\"street\\":\\"Hauptstr 1\\",\\"city\\":\\"Berlin\\",\\"postalCode\\":\\"10115\\",\\"country\\":\\"DE\\"}', '{\\"email\\":\\"duplicate@example.com\\"}', 30, ARRAY['Hardware','Late-payer']::text[], NOW(), NOW()) ON CONFLICT (id) DO NOTHING"`,
+    `docker exec ${PG_CONTAINER} psql -U de_invoice -d de_invoice -c "INSERT INTO \\"Customer\\" (id, \\"companyId\\", type, name, address, contact, \\"paymentTerms\\", tags, \\"createdAt\\", \\"updatedAt\\") VALUES ('${DUP_ID}', '${COMPANY_ID}', 'business', 'BWA Test Kunde GmbH (duplicate)', '{\\"street\\":\\"Hauptstr 1\\",\\"city\\":\\"Berlin\\",\\"postalCode\\":\\"10115\\",\\"country\\":\\"DE\\"}', '{\\"email\\":\\"duplicate@example.com\\"}', 30, ARRAY['Hardware','Late-payer']::text[], NOW(), NOW()) ON CONFLICT (id) DO NOTHING"`,
     { stdio: 'ignore' },
   )
 }
@@ -147,7 +147,7 @@ test.describe('Tier 149 — Customer merge', () => {
     await expect(done).toBeVisible({ timeout: 15_000 })
     // The source should be gone from the DB
     const count = execSync(
-      `docker exec de-invoice-postgres psql -U de_invoice -d de_invoice -t -c "SELECT count(*) FROM \\"Customer\\" WHERE id='${DUP_ID}'"`,
+      `docker exec ${PG_CONTAINER} psql -U de_invoice -d de_invoice -t -c "SELECT count(*) FROM \\"Customer\\" WHERE id='${DUP_ID}'"`,
       { encoding: 'utf-8' },
     ).trim()
     expect(count).toBe('0')
