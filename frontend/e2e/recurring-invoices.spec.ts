@@ -170,27 +170,37 @@ test.describe("Recurring invoices (Tier 30)", () => {
       waitUntil: "domcontentloaded",
     })
 
-    // The run-now test depends on having at least
-    // one active template. The 35-recurring-wizard.sh
-    // e2e cleans up after itself (delete at the end),
-    // so this test is allowed to be a no-op if the
-    // page is empty — we just verify the page loads
-    // and the new-template flow works end-to-end.
+    // Tier 352: this used to wait for `recurring-new-button` and then
+    // immediately `.count()` the run-now buttons, skipping on 0. Those
+    // two elements are not on the same clock. `recurring-new-button`
+    // lives in the page header and renders unconditionally
+    // (recurring-invoices/page.tsx:631); the cards that contain
+    // `recurring-run-now` render only in the loaded branch of
+    // `{loading ? ... : ...}` (:669 / :701). So the count always ran
+    // while loading was still true, always saw 0, and the test has
+    // never once executed its actual assertion.
+    //
+    // Reproduced locally: with the API returning 1 active template,
+    // the test still skipped.
+    //
+    // A template IS guaranteed here, despite a cross-spec delete chain
+    // that took some untangling:
+    //   ci-seed.sh            creates 33333333-cccc-...-0001
+    //   recurring-email-preview-tier136  deletes it BY NAME
+    //                         ('Tier 136 Wartungsvertrag') and puts
+    //                         its own tier136-tpl-001 in its place
+    //   recurring-generated-invoices-tier147  deletes tier136-tpl-001
+    //                         and RE-CREATES 33333333-cccc-...-0001
+    // Those files sort before this one, so by the time this test runs
+    // the ci-seed template is back and isActive. Waiting for the
+    // button is therefore correct, not optimistic.
     const newButton = page.locator(
       '[data-testid="recurring-new-button"]',
     )
     await expect(newButton).toBeVisible({ timeout: 15_000 })
 
-    const runNowCount = await page
-      .locator('[data-testid="recurring-run-now"]')
-      .count()
-    if (runNowCount === 0) {
-      // No templates — skip the generation assertion.
-      // The empty-state + create-modal tests cover
-      // the rest of the UI.
-      test.skip()
-      return
-    }
+    const runNow = page.locator('[data-testid="recurring-run-now"]').first()
+    await expect(runNow).toBeVisible({ timeout: 15_000 })
 
     // Wait for the POST /recurring-invoices/:id/run
     // to complete. Set up the waiter BEFORE clicking

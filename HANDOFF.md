@@ -309,9 +309,38 @@ seeding:
 - `recurring-email-tier129:52` and `recurring-generated-invoices-tier147:284`
   are unconditional skips that delegate coverage elsewhere (a manual Tier
   129 run; the backend response-shape test).
-- `recurring-invoices.spec.ts:191` skips when no `recurring-run-now` button
-  renders. Not yet diagnosed — ci-seed does seed a template
-  (`33333333-cccc-...`), so this one is worth a look rather than a seed.
+- ~~`recurring-invoices.spec.ts:191`~~ — **diagnosed and fixed in Tier 352.**
+  It waited for `recurring-new-button` and then immediately `.count()`-ed
+  the run-now buttons. Those are not on the same clock: the new-button is
+  page-header furniture rendered unconditionally
+  (`recurring-invoices/page.tsx:631`), while the cards holding
+  `recurring-run-now` render only inside the loaded branch of
+  `{loading ? ... : ...}` (`:669` / `:701`). The count therefore always ran
+  during loading, always saw 0, and the test never executed its real
+  assertion. Reproduced locally: API returning 1 active template, test
+  still skipped.
+
+  Untangling whether a template is even present at that point took a
+  cross-spec chain, worth recording because it is not visible from any one
+  file:
+  `ci-seed.sh` creates `33333333-cccc-...-0001`;
+  `recurring-email-preview-tier136` deletes it **by name**
+  ('Tier 136 Wartungsvertrag') and installs its own `tier136-tpl-001`;
+  `recurring-generated-invoices-tier147` deletes `tier136-tpl-001` and
+  **re-creates** `33333333-cccc-...-0001`. All three sort before
+  `recurring-invoices`, so the ci-seed template is back and active by then.
+
+**Local Playwright runs are limited by the dead dev container.** Many specs
+hardcode `docker exec de-invoice-postgres`, so with that container down
+(and a throwaway one under a different name) their `beforeAll` throws and
+they fail locally for environment reasons, not code reasons — seen in Tiers
+350, 351 and 352. Specs without that dependency (installment-plan,
+list-pages-2, recurring-invoices) do run locally. Two ways out: have the
+user run `scripts/fix-dev-pg.sh` (needs sudo), or teach those specs to
+honour a `PG_CONTAINER` env var the way `ci-seed.sh` already does. The
+latter is a decent standalone tier.
+
+
 
 **The webhook dead-letter "cron race" was never a cron race** (Tier 350).
 Four skips and one persistent flake in `webhook-dead-letter-tier198` were
