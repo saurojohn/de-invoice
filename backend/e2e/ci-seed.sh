@@ -576,13 +576,26 @@ VALUES
   ('5a99911e-0000-0000-0000-000000000002', '$COMPANY_ID', 'Druckerei Sued AG', 'DE811234568', '{"street":"Druckstr 7","city":"Muenchen","postalCode":"80331","country":"DE"}'::jsonb, '{"email":"info@druckerei-sued.example"}'::jsonb, 14, NOW(), NOW())
 ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, "updatedAt" = NOW();
 
--- Dedicated invoice for the Ratenplan (invoiceId is @unique).
+-- Dedicated customer AND invoice for the Ratenplan.
+-- The customer must be its own: getSuggestion() rejects an invoice when
+-- ANY active plan exists for that customer
+-- (installment-plan.service.ts:130, the "customerPlan" lookup), so hanging
+-- on the shared 'BWA Test Kunde' (b3f7b274) would make every invoice of
+-- the most-used test customer permanently ineligible for the Tier 65
+-- Ratenplan banner. The invoice must be its own too, because
+-- InstallmentPlan."invoiceId" is @unique.
+-- (No backticks in these comments: this heredoc is <<SQL, so the shell
+--  would execute them -- the exact Tier 347 trap.)
+INSERT INTO "Customer" (id, "companyId", type, name, "customerNumber", address, contact, "paymentTerms", tags, "createdAt", "updatedAt")
+VALUES ('9a7e11a5-0000-0000-0000-0000000000c1', '$COMPANY_ID', 'business', 'Ratenplan Test Kunde GmbH', 'K-RATEN', '{"street":"Ratenweg 3","city":"Koeln","postalCode":"50667","country":"DE"}'::jsonb, '{"email":"raten@example.com"}'::jsonb, 30, '{}'::text[], NOW() - INTERVAL '30 days', NOW())
+ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, "updatedAt" = NOW();
+
 INSERT INTO "Invoice" (id, "companyId", "customerId", "invoiceNumber", "issueDate", "dueDate", subtotal, "totalVat", total, status, "createdAt", "updatedAt")
-VALUES ('9a7e11a5-0000-0000-0000-000000000001', '$COMPANY_ID', 'b3f7b274-7696-44b8-9345-8bfd460b3e47', 'INV-RATEN-001', NOW() - INTERVAL '20 days', NOW() + INTERVAL '10 days', 1000.00, 190.00, 1190.00, 'sent', NOW() - INTERVAL '20 days', NOW())
+VALUES ('9a7e11a5-0000-0000-0000-000000000001', '$COMPANY_ID', '9a7e11a5-0000-0000-0000-0000000000c1', 'INV-RATEN-001', NOW() - INTERVAL '20 days', NOW() + INTERVAL '10 days', 1000.00, 190.00, 1190.00, 'sent', NOW() - INTERVAL '20 days', NOW())
 ON CONFLICT (id) DO UPDATE SET status = 'sent', "updatedAt" = NOW();
 
 INSERT INTO "InstallmentPlan" (id, "companyId", "customerId", "invoiceId", "totalAmount", "installmentCount", "intervalDays", "firstDueDate", status, notes, "createdAt", "updatedAt")
-VALUES ('9a7e11a5-0000-0000-0000-000000000010', '$COMPANY_ID', 'b3f7b274-7696-44b8-9345-8bfd460b3e47', '9a7e11a5-0000-0000-0000-000000000001', 1190.00, 3, 30, (NOW() + INTERVAL '10 days')::date, 'active', 'Tier 351 seed fixture', NOW(), NOW())
+VALUES ('9a7e11a5-0000-0000-0000-000000000010', '$COMPANY_ID', '9a7e11a5-0000-0000-0000-0000000000c1', '9a7e11a5-0000-0000-0000-000000000001', 1190.00, 3, 30, (NOW() + INTERVAL '10 days')::date, 'active', 'Tier 351 seed fixture', NOW(), NOW())
 ON CONFLICT (id) DO UPDATE SET status = 'active', "updatedAt" = NOW();
 
 INSERT INTO "Installment" (id, "planId", "sequenceNumber", "dueDate", amount, "paidAmount", "paidAt", status, "createdAt", "updatedAt")

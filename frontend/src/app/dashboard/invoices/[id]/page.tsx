@@ -253,7 +253,22 @@ export default function InvoiceDetailPage() {
       apiGet<any>(
         `/api/v1/installment-plans/suggestion/${params.id}?companyId=${companyId}`,
       ).catch(() => null),
-    ]).then(([inv, pmts, plan, sug, notes, atts]) => {
+    // Tier 351: the destructure used to read
+    // `[inv, pmts, plan, sug, notes, atts]`, but the Promise.all array
+    // order is invoice, payments, plan, internal-notes, attachments,
+    // suggestion -- the last three were rotated by one. Consequences,
+    // all user-visible:
+    //   * ratensplanSuggestion got the internal-notes ARRAY, so
+    //     `ratensplanSuggestion?.eligible` was always undefined and the
+    //     Tier 65 Ratenplan banner never rendered for anyone;
+    //   * internalNotes got the attachments;
+    //   * invoiceAttachments got the suggestion OBJECT, which fails
+    //     Array.isArray() and so was silently coerced to [] -- Belege
+    //     always looked empty.
+    // ratensplan-suggestion.spec.ts would have caught this on day one,
+    // but its assertions sat behind an always-true test.skip() guard
+    // from Tier 65 until Tier 351 removed it.
+    ]).then(([inv, pmts, plan, notes, atts, sug]) => {
       setInvoice(inv)
       setPayments(Array.isArray(pmts) ? pmts : [])
       setInstallmentPlan(plan)

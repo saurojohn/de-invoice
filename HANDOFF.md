@@ -222,6 +222,42 @@ were races, not missing data, so each needed its own fix:
   to match its two siblings. **Do not rename those two** — the other two
   specs depend on the current names.
 
+**Tier 351b found a real production bug behind the always-true skip.**
+Removing `ratensplan-suggestion`'s guard made both tests FAIL, not pass:
+the Ratenplan banner genuinely never rendered. Cause, in
+`dashboard/invoices/[id]/page.tsx`: the `Promise.all` fetched
+`[invoice, payments, plan, internal-notes, attachments, suggestion]` but
+destructured `([inv, pmts, plan, sug, notes, atts])` — **the last three
+rotated by one**. So `ratensplanSuggestion` held the internal-notes array
+(`.eligible` forever `undefined`, banner never shown), `internalNotes` held
+the attachments, and `invoiceAttachments` held the suggestion object, which
+fails `Array.isArray()` and was coerced to `[]` so Belege always looked
+empty. Three user-visible bugs from one line. Verified fixed in a real
+browser: the banner renders with "1785.00 EUR liegt ueber dem Schwellenwert
+von 500 EUR". That same check also confirmed `installment-plan-card` and
+`installment-plan-create-button` are present *simultaneously* — the card
+really is the unconditional container.
+
+**Two seed traps this tier hit, both already documented above and both
+worth re-reading before touching ci-seed.sh:**
+1. Backticks in a comment inside a `<<SQL` heredoc get executed. I wrote
+   `` `customerPlan` `` in a new comment and the seed printed
+   "customerPlan: command not found" — the exact Tier 347 trap, made while
+   writing a comment about something else. Local run caught it.
+2. Do not hang shared fixtures on the shared customer. The plan was first
+   attached to `b3f7b274` (BWA Test Kunde); `getSuggestion()` rejects an
+   invoice when ANY active plan exists for its customer, so that would have
+   made every invoice of the most-used test customer permanently ineligible
+   for the banner. It now has its own customer
+   (`9a7e11a5-...c1`, "Ratenplan Test Kunde GmbH") and its own invoice.
+
+**Global-count assertions are landmines for anyone adding seed data.**
+`78-tier51-installment-plan.sh` asserted the company-wide active-plan count
+was exactly 1, which only held because ci-seed seeded no plans; section 5h
+broke it instantly. Fixed to count only the plans that script creates,
+keyed by its own invoice ids. Grep for similar
+`assert_eq "... count"` before adding rows.
+
 **Tier 351: skips 11 -> 5, and another wrong in-code diagnosis.**
 
 `ratensplan-suggestion`'s two tests branched on

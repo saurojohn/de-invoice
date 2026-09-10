@@ -358,14 +358,21 @@ assert_status "200" "list returns 200"
 
 api_get "/api/v1/installment-plans?companyId=$COMPANY_ID&status=active"
 assert_status "200" "list?status=active returns 200"
+# Tier 351: this used to be `print(len(d))` and assert the GLOBAL
+# active-plan count is 1. That only held because ci-seed.sh seeded no
+# InstallmentPlan at all; the moment section 5h added one, this failed
+# with "expected=1 actual=2". The DB is shared, so counting every plan
+# in the company was never the right assertion — count only the plans
+# this script created, keyed by its own two invoice ids.
 ACTIVE_COUNT=$(python3 -c "
 import json,sys
 d=json.loads(sys.stdin.read())
+mine={'$INVOICE_ID', '$ROUND_INVOICE_ID'}
 # Only the rounding plan is still 'active' (cancel-target
 # is cancelled, 1st plan is cancelled).
-print(len(d))
+print(len([p for p in d if p.get('invoiceId') in mine]))
 " <<< "$BODY")
-assert_eq "active plan count" "$ACTIVE_COUNT" "1"
+assert_eq "active plan count (this script's plans only)" "$ACTIVE_COUNT" "1"
 
 # ───── 10. Cleanup ─────
 docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
