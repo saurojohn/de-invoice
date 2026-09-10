@@ -288,10 +288,17 @@ test.describe('Tier 168a — Ratenplan (installment plans) rewrite', () => {
     // get the server-rendered status, then
     // assert the badge text is the German
     // "bezahlt".
+    //
+    // Tier 351c: the flag on this regex is load-bearing. The badge
+    // renders capitalised -- "Bezahlt" -- so the original
+    // /bezahlt|paid/ could never match. The pay itself always worked;
+    // only the assertion was wrong, and nobody found out because the
+    // test skipped before ever reaching this line (its list call was
+    // missing ADMIN_HEADERS, so it 401'd and bailed on "no plan").
     await page.reload({ waitUntil: 'domcontentloaded' })
     const nthRow = page.getByTestId('installment-row').nth(seq - 1)
     await expect(nthRow).toBeVisible({ timeout: 15_000 })
-    await expect(nthRow).toContainText(/bezahlt|paid/, { timeout: 5_000 })
+    await expect(nthRow).toContainText(/bezahlt|paid/i, { timeout: 5_000 })
   })
 
   test('invoice detail page still renders (smoke regression)', async ({
