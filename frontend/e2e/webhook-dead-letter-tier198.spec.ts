@@ -417,11 +417,7 @@ test.describe("Tier 198 — Dead-Letter UI on webhooks page", () => {
     const row = page.locator(`[data-testid="dead-letter-row"]`).filter({
       hasText: seedTag,
     })
-    if ((await row.count()) === 0) {
-      test.skip(true, "seeded dead-letter row no longer in the list (cron race or requeue from test 2)")
-      return
-    }
-    await expect(row).toBeVisible({ timeout: 5000 })
+    await expect(row).toBeVisible({ timeout: 15000 })
     // The requeue button on that specific row.
     const requeueBtn = row.getByTestId("dead-letter-requeue")
     await expect(requeueBtn).toBeVisible()
@@ -438,11 +434,7 @@ test.describe("Tier 198 — Dead-Letter UI on webhooks page", () => {
     const row = page.locator(`[data-testid="dead-letter-row"]`).filter({
       hasText: seedTag,
     })
-    if ((await row.count()) === 0) {
-      test.skip(true, "seeded dead-letter row no longer in the list (cron race or requeue from test 2)")
-      return
-    }
-    await expect(row).toBeVisible({ timeout: 5000 })
+    await expect(row).toBeVisible({ timeout: 15000 })
     // Click the requeue button on that row.
     // The button is inside the row.
     const requeueBtn = row.getByTestId("dead-letter-requeue")

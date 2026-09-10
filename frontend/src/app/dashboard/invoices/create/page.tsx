@@ -1888,6 +1888,7 @@ function CreateInvoicePageInner() {
                   <div className="col-span-4 relative">
                     <Input
                       value={item.description}
+                      data-testid="item-description"
                       onChange={(e) => {
                         const items = [...form.items]
                         items[index].description = e.target.value

@@ -19,7 +19,7 @@
  *   3. The button is enabled when the panel loads
  *      (no signature required to enable)
  */
-import { test, expect, request as playwrightRequest } from '@playwright/test'
+import { test, expect } from '@playwright/test'
 import { readFileSync } from 'fs'
 
 const AUTH_CACHE = '/tmp/cashbook-e2e-auth.env'
@@ -81,10 +81,7 @@ test.describe("Tier 246 — Berater personal stamp on invoice PDF", () => {
     )
     await page.waitForTimeout(500)
     const btn = page.getByTestId("pdf-signature-berater-stamp")
-    if ((await btn.count()) === 0) {
-      test.skip(true, "Berater-stamp button not present (page may still be loading)")
-    }
-    await expect(btn).toBeVisible()
+    await expect(btn).toBeVisible({ timeout: 15000 })
   })
 
   test("2. button text says 'Berater-Signatur anwenden' (de-DE)", async ({ page }) => {
@@ -95,9 +92,7 @@ test.describe("Tier 246 — Berater personal stamp on invoice PDF", () => {
     )
     await page.waitForTimeout(500)
     const btn = page.getByTestId("pdf-signature-berater-stamp")
-    if ((await btn.count()) === 0) {
-      test.skip(true, "button not present")
-    }
+    await expect(btn).toBeVisible({ timeout: 15000 })
     const text = (await btn.innerText()).toLowerCase()
     expect(text).toContain("berater")
   })
@@ -110,9 +105,7 @@ test.describe("Tier 246 — Berater personal stamp on invoice PDF", () => {
     )
     await page.waitForTimeout(500)
     const btn = page.getByTestId("pdf-signature-berater-stamp")
-    if ((await btn.count()) === 0) {
-      test.skip(true, "button not present")
-    }
+    await expect(btn).toBeVisible({ timeout: 15000 })
     // Wait for the download to be triggered by the
     // click. Playwright's `waitForEvent` catches the
     // browser download event with the suggested

@@ -92,7 +92,6 @@ async function contextWithAuth(page: any) {
 test.describe("Tier 223 — Invoice create happy path", () => {
   let customerId: string
   let customerName: string
-  let apiInstance: any
 
   test.beforeAll(async () => {
     // The auth cache is populated by the backend e2e
@@ -104,7 +103,6 @@ test.describe("Tier 223 — Invoice create happy path", () => {
     const c = await seedTier223Customer()
     customerId = c.id
     customerName = c.name
-    apiInstance = c.api
   })
 
   test.beforeEach(async ({ page }) => {
@@ -168,26 +166,30 @@ test.describe("Tier 223 — Invoice create happy path", () => {
     })
     await option.click()
 
-    // Fill the first item line. The create page has
-    // inputs keyed by line index (data-testid=invoice-item-...
-    // -0, -1, etc.). Look at the first row's description +
-    // quantity + unitPrice + vatRate.
-    const descInput = page.getByTestId("invoice-item-description-0")
-    const qtyInput = page.getByTestId("invoice-item-quantity-0")
-    const priceInput = page.getByTestId("invoice-item-unitPrice-0")
+    // Fill the first item line. Tier 348: this used to look
+    // for `invoice-item-description-0` / `-quantity-0` /
+    // `-unitPrice-0` and test.skip() when they were missing.
+    // They were ALWAYS missing — no such testid has ever
+    // existed in create/page.tsx — so this test silently
+    // skipped the entire add-item-and-submit path from Tier
+    // 223 onward while reporting green. The real testids on
+    // that row are `item-quantity` and `item-unit-price`;
+    // the description input had none, so Tier 348 added
+    // `item-description` to match its two siblings.
+    //
+    // They are not index-suffixed, and the form starts with
+    // exactly one item row (create/page.tsx: `items: [{...}]`),
+    // so `.first()` targets row 0 — the same convention
+    // invoice-duplicate-check-tier150 and
+    // invoice-clone-as-draft-tier160 already use.
+    const descInput = page.getByTestId("item-description").first()
+    const qtyInput = page.getByTestId("item-quantity").first()
+    const priceInput = page.getByTestId("item-unit-price").first()
 
-    if (await descInput.count() > 0) {
-      await descInput.fill("Tier223 test item")
-      await qtyInput.fill("1")
-      await priceInput.fill("100")
-    } else {
-      // The page might use a different testid layout. If
-      // the item row testids don't exist, skip the rest of
-      // the form and rely on the customer-select assertion
-      // above to prove the page works.
-      test.skip(true, "invoice-item-* testids not found in this version of the create page")
-      return
-    }
+    await expect(descInput).toBeVisible({ timeout: 15000 })
+    await descInput.fill("Tier223 test item")
+    await qtyInput.fill("1")
+    await priceInput.fill("100")
 
     // Submit the form. The save button is the primary action
     // on the create page; its testid is invoice-save-button

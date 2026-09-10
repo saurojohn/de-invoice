@@ -190,18 +190,25 @@ test.describe("Tier 202 — instrumented admin actions write activity rows", () 
       `http://localhost:3001/api/v1/webhooks/${whId}/test?companyId=${tokens!.companyId}`,
       { headers: headers() },
     )
-    await new Promise((r) => setTimeout(r, 1500))
-
-    const list = await request.get(
-      `http://localhost:3001/api/v1/webhooks/${whId}/deliveries?companyId=${tokens!.companyId}&limit=1`,
-      { headers: headers() },
-    )
-    const rows = await list.json()
-    const deliveryId = rows[0]?.id
-    if (!deliveryId) {
-      test.skip(true, "no delivery row landed — race; skip")
-      return
+    // Tier 348: this was a fixed `setTimeout(1500)` followed by a
+    // single GET, and it test.skip()-ed when the delivery row had
+    // not landed yet — turning a slow-but-working queue into a
+    // silent pass. Poll instead: same 5s budget, but it returns as
+    // soon as the row appears and FAILS if it never does. Mirrors
+    // the polling loop webhook-dead-letter-tier198's beforeAll
+    // already uses.
+    let deliveryId: string | undefined
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const list = await request.get(
+        `http://localhost:3001/api/v1/webhooks/${whId}/deliveries?companyId=${tokens!.companyId}&limit=1`,
+        { headers: headers() },
+      )
+      const rows = await list.json()
+      deliveryId = Array.isArray(rows) ? rows[0]?.id : undefined
+      if (deliveryId) break
+      await new Promise((r) => setTimeout(r, 250))
     }
+    expect(deliveryId, "webhook delivery row must land within 5s").toBeTruthy()
     // Force to exhausted.
     execFileSync(
       "docker",

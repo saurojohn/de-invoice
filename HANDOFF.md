@@ -193,6 +193,42 @@ await expect(page.getByTestId("x")).toBeVisible({ timeout: 15000 })
 **Tier 346 converted 18 of the 35**, in the 8 page-smoke specs whose target
 testids were verified to render unconditionally in `frontend/src`.
 
+**Tier 348 took the "masking" skips to 0** (35 -> 18 -> 8 -> 0). The last 8
+were races, not missing data, so each needed its own fix:
+
+- `pdf-berater-stamp-tier246` (3) + `webhook-dead-letter-tier198` (2):
+  same `.count()`-is-instantaneous race -> web-first assertion. The
+  webhook comments blamed "requeue from test 2", which was wrong —
+  `seedTag`/`deliveryId` are scoped inside each `describe`, so the two
+  blocks never shared a row. The real cause was that `dead-letter-card`
+  becomes visible while the row list is still being fetched.
+- `admin-activity-log-tier202` (1): a fixed `setTimeout(1500)` then one
+  GET, skipping if the delivery row had not landed -> poll 20x250ms then
+  assert. Same budget, returns as soon as the row appears, fails if it
+  never does.
+- `aging-credit` (1): guard was unreachable (its `beforeAll` does
+  `expect(res.status()).toBe(201)` and throws) -> kept as an assertion so
+  a broken invariant fails loudly instead of skipping.
+- `invoice-create-tier223` (1): **the worst one.** It looked for
+  `invoice-item-description-0` / `-quantity-0` / `-unitPrice-0` and
+  skipped when absent. Those testids have never existed in
+  `create/page.tsx` — so "5-8. add item + submit creates invoice and
+  redirects", the core create-invoice path of an invoicing app, silently
+  skipped from Tier 223 onward and never tested item entry or submission
+  even once. The row's real testids are `item-quantity` and
+  `item-unit-price` (non-indexed, used with `.first()` by
+  invoice-duplicate-check-tier150 and invoice-clone-as-draft-tier160);
+  the description input had none, so Tier 348 added `item-description`
+  to match its two siblings. **Do not rename those two** — the other two
+  specs depend on the current names.
+
+**Lint debt in `frontend/e2e/`: 38 errors + 42 warnings.** `src/` is clean
+and so is every file Tier 346-348 touched, but the suite at large is not,
+and the "0 eslint errors / 0 warnings" line in `DEPLOY-READY-SUMMARY.md` is
+stale — true at Tier 322, drifted since, because **CI runs no lint job**.
+Mostly `no-empty` (empty catch blocks), plus `no-useless-catch` and
+`no-unused-labels`. A lint job plus one cleanup tier would close it.
+
 **Tier 347 closed the seed gap and 10 more skips.** The fixture customer
 `f84ebd20-...` + 1 paid invoice + 1 payment now live in `ci-seed.sh`
 (section 5g). Seeded by direct SQL on purpose: it sidesteps the Tier 174

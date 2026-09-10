@@ -232,10 +232,13 @@ test.describe("Aging report + credit balance UI", () => {
     // — but Playwright doesn't guarantee the credit POST
     // has finished before the first test starts. Wait for
     // the credit to land by polling the API directly.
-    if (!testTokens || !TEST_CUSTOMER_ID) {
-      test.skip(true, "test fixture not ready")
-      return
-    }
+    // Tier 348: this guard was unreachable — the beforeAll asserts
+    // `expect(res.status()).toBe(201)` and throws on failure, so
+    // TEST_CUSTOMER_ID is always set by the time a test runs. Kept
+    // as an assertion rather than deleted: if the invariant ever
+    // breaks, this must fail loudly, never silently skip.
+    expect(testTokens, "beforeAll must have cached tokens").toBeTruthy()
+    expect(TEST_CUSTOMER_ID, "beforeAll must have seeded a customer").toBeTruthy()
     await expect(async () => {
       const res = await page.request.get(
         `http://localhost:3001/api/v1/customers/${TEST_CUSTOMER_ID}/credit-balance?companyId=${testTokens!.companyId}`,
