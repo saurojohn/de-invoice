@@ -219,8 +219,20 @@ test.describe('Tier 168a — Ratenplan (installment plans) rewrite', () => {
     // cookies already from contextWithAuth
     // above) to find an existing plan with
     // an open Rate.
+    // Tier 351b: ADMIN_HEADERS is REQUIRED here. HeaderAuthGuard reads
+    // req.headers['x-user-id'] (header-auth.guard.ts:29), while
+    // contextWithAuth() only sets COOKIES of that name plus localStorage.
+    // Cookies travel as `Cookie:`, not as `x-user-id:`, and page.request
+    // bypasses the browser entirely so the localStorage-based header
+    // injection in lib/api.ts never runs either. Without the headers this
+    // GET returns 403 with a {statusCode, message} body, `listBody.data
+    // || []` yields [], and the test test.skip()'d itself on "no plan" --
+    // which is why these two have never once executed. The setup calls at
+    // the top of this file always passed ADMIN_HEADERS; these two list
+    // calls just forgot.
     const list = await page.request.get(
       `${API}/api/v1/installment-plans?companyId=${COMPANY_ID}`,
+      { headers: ADMIN_HEADERS },
     )
     const listBody = await list.json()
     const listData = Array.isArray(listBody)
@@ -287,8 +299,20 @@ test.describe('Tier 168a — Ratenplan (installment plans) rewrite', () => {
   }) => {
     await contextWithAuth(page)
     page.setDefaultTimeout(90_000)
+    // Tier 351b: ADMIN_HEADERS is REQUIRED here. HeaderAuthGuard reads
+    // req.headers['x-user-id'] (header-auth.guard.ts:29), while
+    // contextWithAuth() only sets COOKIES of that name plus localStorage.
+    // Cookies travel as `Cookie:`, not as `x-user-id:`, and page.request
+    // bypasses the browser entirely so the localStorage-based header
+    // injection in lib/api.ts never runs either. Without the headers this
+    // GET returns 403 with a {statusCode, message} body, `listBody.data
+    // || []` yields [], and the test test.skip()'d itself on "no plan" --
+    // which is why these two have never once executed. The setup calls at
+    // the top of this file always passed ADMIN_HEADERS; these two list
+    // calls just forgot.
     const list = await page.request.get(
       `${API}/api/v1/installment-plans?companyId=${COMPANY_ID}`,
+      { headers: ADMIN_HEADERS },
     )
     const listBody = await list.json()
     const listData = Array.isArray(listBody)

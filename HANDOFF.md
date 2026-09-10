@@ -222,6 +222,23 @@ were races, not missing data, so each needed its own fix:
   to match its two siblings. **Do not rename those two** — the other two
   specs depend on the current names.
 
+**`page.request` does NOT carry `contextWithAuth`'s auth** (Tier 351c).
+`contextWithAuth()` sets **cookies** named `x-user-id` / `x-company-id`
+plus localStorage. `HeaderAuthGuard` reads
+`req.headers['x-user-id']` (`header-auth.guard.ts:29`) — cookies travel as
+`Cookie:`, never as `x-user-id:`. Browser-driven steps still work because
+`lib/api.ts` injects the headers from localStorage, but **`page.request.*`
+bypasses the browser entirely**, so it gets 401 with a
+`{statusCode, message}` body. `listBody.data || []` then yields `[]` and
+the test skips itself on "no data" — the exact failure mode
+`backend/AGENTS.md` describes for raw `fetch`.
+
+That is why `installment-plan.spec.ts`'s two list-driven tests never ran,
+even after Tier 351 seeded the plan they were looking for: the calls at
+:222 and :290 omitted `ADMIN_HEADERS`, while the setup calls in the same
+file always passed it. **Always pass the auth headers to `page.request.*`
+explicitly** — a suite-wide scan says every other call site already does.
+
 **Tier 351b found a real production bug behind the always-true skip.**
 Removing `ratensplan-suggestion`'s guard made both tests FAIL, not pass:
 the Ratenplan banner genuinely never rendered. Cause, in
