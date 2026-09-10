@@ -10,7 +10,6 @@ import {
   generateUstvaAsciiPreview,
   generateUstjaElsterXml,
   generateUstjaAsciiPreview,
-  normaliseSteuernummer,
 } from './elster.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Auth, Require } from '../../auth/roles.decorator';

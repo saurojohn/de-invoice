@@ -45,7 +45,6 @@
  */
 
 import { PDFDocument, AFRelationship, PDFName, PDFArray, PDFDict } from 'pdf-lib';
-import { randomUUID } from 'crypto';
 
 /**
  * Embed Factur-X / ZUGFeRD XML into a PDF buffer.
@@ -129,7 +128,6 @@ export async function embedFacturX(
   // hints. A ZUGFeRD-aware reader parses XMP first to
   // decide whether to look for the embedded XML at all.
   const producer = `de-invoice (ZUGFeRD ${version})`;
-  const documentId = `factur-x-${randomUUID()}`;
   const now = new Date().toISOString();
 
   const xmp = `<?xpacket begin="\uFEFF" id="W5M0MpCehiHzreSzNTczkc9d"?>

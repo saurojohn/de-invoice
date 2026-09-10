@@ -442,7 +442,11 @@ export class FinTsService {
           body: new Uint8Array(msg),
           headers: { 'Content-Type': 'application/octet-stream' },
         })
-        const parsed = parseFinTsMessage(Buffer.from(await resp.arrayBuffer()))
+        // Tier 356: result unused — FinTS real mode is a documented stub
+      // (see backend/AGENTS.md and the HIRMG/HIRMS TODO below); only mock
+      // mode is a working path. The parse call is kept so the response
+      // shape is still exercised.
+      const _parsed = parseFinTsMessage(Buffer.from(await resp.arrayBuffer()))
         // TODO: parse HIRMG/HIRMS, extract transactions
         return { status: 'failed', errorMessage: 'Real-mode is a stub in this build' }
       } catch (e: any) {
@@ -639,7 +643,8 @@ export class FinTsService {
         body: { syncMode: 'NEW_SYSTEM_ID' },
       },
     ]
-    const req = buildFinTsMessage({
+    // Tier 356: built but not sent — same documented stub as above.
+    const _req = buildFinTsMessage({
       dialogId: '0',
       messageNumber: 1,
       blz: conn.blz,

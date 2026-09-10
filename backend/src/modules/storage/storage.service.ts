@@ -102,23 +102,6 @@ export class StorageService {
     }
 
     // Validate allowed file types
-    const allowedMimeTypes = [
-      'application/pdf',
-      'image/jpeg',
-      'image/png',
-      'image/gif',
-      'image/webp',
-      // text/plain is accepted because the OCR
-      // service trivially passes through .txt
-      // content (no parsing needed). Useful for
-      // supplementary documents that are pure
-      // text (e.g. an emailed order note).
-      'text/plain',
-      'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'application/vnd.ms-excel',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    ];
 
     // For now, accept all buffer uploads (type is determined by extension)
     const ext = path.extname(filename).toLowerCase();

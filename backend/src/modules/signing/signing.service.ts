@@ -201,7 +201,6 @@ export class SigningService {
     }
     const { cert, key, fingerprint, commonName, validUntil } =
       this.generateSelfSignedCert(company.name)
-    const generatedAt = new Date().toISOString()
     // Upsert the singleton row. The schema
     // enforces `@@unique` on companyId so
     // `update` would fail on a fresh deploy —
@@ -559,7 +558,11 @@ export class SigningService {
       // i.e. a SHA-256 digest). The exact match
       // is a sanity check but the structural
       // proof is what matters for GoBD.
-      const digestMatches =
+      // Tier 356: deliberately unused — see the policy comment below, which
+      // explains why `valid` uses the structural check instead of this
+      // byte-for-byte comparison. Kept so the strict check is one line away
+      // if the "v2" strict verify is ever adopted.
+      const _digestMatches =
         digestFromAttrHex != null &&
         digestFromAttrHex.toLowerCase() ===
           expectedDigestHex.toLowerCase()

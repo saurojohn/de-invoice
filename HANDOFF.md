@@ -330,31 +330,54 @@ seeding:
   **re-creates** `33333333-cccc-...-0001`. All three sort before
   `recurring-invoices`, so the ci-seed template is back and active by then.
 
-**Backend now has eslint, at a ratchet not zero** (Tier 355). It previously
-had none at all — no config, no devDependency, no script — so 245 files /
-~82k lines were unlinted. `backend/eslint.config.mjs` mirrors the frontend's
-minimal setup (no type-aware rules; tsc owns that dimension). Errors went
-31 -> 0; warnings 111 -> 45.
+**Backend eslint: 0 errors, 0 warnings, enforced** (Tier 355 set it up at a
+ratchet of 45; Tier 356 worked through all 45 and dropped the job to
+`--max-warnings 0`, matching the frontend). `backend/eslint.config.mjs`
+mirrors the frontend's minimal setup — no type-aware rules, tsc owns that.
+Two config notes: `PDFKit` and `Express` are declared readonly globals
+(TypeScript namespace types `no-undef` cannot see, like `React` on the
+frontend), and `no-empty` uses `allowEmptyCatch`.
 
-The new `backend-lint` CI job runs `--max-warnings 45`, **not 0 like the
-frontend**. That number is a ratchet: it blocks new warnings while the
-remaining 45 wait for judgement. Lower it as they are resolved.
+**Underscore-prefixed variables in the backend are deliberate, not noise.**
+Where a write-only variable was the only surviving evidence that some
+output was intended, Tier 356 kept it with `_` and a comment rather than
+deleting it. Do not "tidy" these away:
 
-Two config notes: `PDFKit` and `Express` must be declared as readonly
-globals (TypeScript namespace types; `no-undef` cannot see them, same as
-`React` on the frontend), and `no-empty` uses `allowEmptyCatch`.
+| Where | What the variable shows |
+|---|---|
+| `reports/ustja.service.ts` | per-rate / igE / §13b Vorsteuer accumulated under a `// Vorsteuer (Kz 56-66)` comment (BMF Vordruck lines) but only the *total* is emitted |
+| `accounting/anlage-kind.service.ts` | `Kindergeld` / `Freibetrag` per child computed, never reported |
+| `recurring/recurring.service.ts` | a skip sentinel whose own comment describes "commit, then throw OUTSIDE" — the throw half was never wired up, so callers are not told a run was skipped |
+| `vat-validation/vat-reverify.scheduler.ts` | a local `transitions` counter incremented but never read, while the scheduler separately reports a `stats.transitions` — looks like a missed wiring |
+| `reports/bwa.service.ts` | `afaMonat`, commented "filled below", nothing reads it |
+| `signing/signing.service.ts` | `digestMatches`, the byte-for-byte digest comparison, deliberately unused — see below |
 
-**Do not bulk-delete the remaining 45 write-only variables.** Several are
-accounting intermediates where the variable is the only evidence of an
-intended output. The clearest: `reports/ustja.service.ts` accumulates
-`_vorsteuer19` / `_vorsteuer7` / `_vorsteuerIgE` /
-`_vorsteuerReverseCharge` under a `// Vorsteuer (Kz 56-66)` comment — BMF
-Vordruck line numbers — yet only the *total* reaches the output. Whether
-the annual return must break input tax out by rate / igE / §13b is a
-question for the Steuerberater, not something to settle from source, so
-they are underscore-prefixed with an OPEN QUESTION comment rather than
-removed. `anlage-kind.service.ts`'s `KINDERGELD_PER_KIND_2024` /
-`FREIBETRAG_PER_KIND_2024` have the same smell and are unreviewed.
+**Two findings worth a decision from the operator / Steuerberater, not from
+code:**
+1. **PDF signature verification is structural, not cryptographic.**
+   `signing.service.ts` confirms "a parseable PKCS#7 SignedData with a
+   32-byte SHA-256 messageDigest attribute and a signer cert" — it does
+   **not** check the digest against the content, and does not verify the
+   signature against the cert's public key. The in-code comment states this
+   is intentional (node-forge DER re-encoding quirks; "strict byte-for-byte
+   verify can be a v2 improvement"). For a GoBD / §146 AO feature that is a
+   real limitation.
+2. **The Vorsteuer / Kindergeld breakdowns above** may be missing lines on
+   the annual returns.
+
+**Upload validation is by file EXTENSION, not MIME type.**
+`storage.service.ts` had a MIME whitelist that was never used — the live
+check is `allowedExtensions`, and the two lists had drifted (`.tif/.tiff`
+existed only in the extension list). The dead MIME list was removed in Tier
+356; the extension check is unchanged.
+
+**Deleting by variable NAME picks the wrong occurrence.** This bit twice —
+Tier 349 (`created` in assets-afa.spec.ts) and again in Tier 356
+(`where`, `stamp`, `year`). A name-based search finds the *first*
+declaration, which is usually the one still in use, while eslint flagged a
+later one. **Always delete by the line number eslint reports, iterating
+from the bottom of the file up so earlier line numbers stay valid.** tsc
+catches the damage, but only after the fact.
 
 **Backend e2e can now run against a throwaway DB too.** Tier 353 did the
 Playwright side and missed the backend: `run-all.sh` plus 570 call sites in

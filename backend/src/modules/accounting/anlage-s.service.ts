@@ -426,7 +426,6 @@ export class AnlageSService {
   ): void {
     const tableTop = doc.y
     const colKz = 50
-    const colLabel = 60
     const colAmount = 350
 
     // Header

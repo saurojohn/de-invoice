@@ -371,7 +371,7 @@ export class AnlageSOV2Service {
     let inFristLoss = 0
     let inFristCount = 0
     let outOfFristCount = 0
-    let inFristLossUsed = 0 // for the "remaining loss" stat
+    let _inFristLossUsed = 0 // Tier 356: never read; the "remaining loss" stat it names is not emitted. Kept as evidence of intent. // for the "remaining loss" stat
     for (const t of transactions) {
       const gain = t.salePrice - t.acquisitionCost
       const fristYears = SPEKULATIONSFRIST_YEARS[t.type] ?? 10
@@ -706,7 +706,6 @@ export class AnlageSOV2Service {
     // Allow case-insensitive header names. The user
     // is allowed to omit the `type` column (then we
     // auto-detect); the rest are required.
-    const hasType = header.includes('type')
     for (const col of expected) {
       if (col === 'type') continue // optional
       if (!header.includes(col)) {

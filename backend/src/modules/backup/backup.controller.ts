@@ -39,7 +39,6 @@
  */
 import { Controller, Delete, Get, HttpCode, Param, Post } from '@nestjs/common'
 import { Throttle } from '@nestjs/throttler'
-import type { Response } from 'express'
 import { Auth, Require } from '../../auth/roles.decorator'
 import { BackupService } from './backup.service'
 

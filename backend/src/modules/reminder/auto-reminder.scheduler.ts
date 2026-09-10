@@ -55,7 +55,6 @@ import {
 import { countWerktage } from "./werktage"
 import { ErrorTrackingService } from "../system/error-tracking.service"
 
-const LEVELS: Array<"first" | "second" | "final"> = ["first", "second", "final"]
 const BANK_LINE = (bank: any): string => {
   if (!bank) return ""
   const parts: string[] = []

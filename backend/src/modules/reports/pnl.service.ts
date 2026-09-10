@@ -77,10 +77,6 @@ export interface PnlResult {
   };
 }
 
-const MONTH_LABELS_DE = [
-  'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
-  'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember',
-];
 
 @Injectable()
 export class PnlService {
@@ -89,8 +85,6 @@ export class PnlService {
   async compute(companyId: string, year: number): Promise<PnlResult> {
     const yearStart = new Date(year, 0, 1);
     const yearEnd = new Date(year, 11, 31, 23, 59, 59, 999);
-    const priorStart = new Date(year - 1, 0, 1);
-    const priorEnd = new Date(year - 1, 11, 31, 23, 59, 59, 999);
 
     // 24 parallel queries: 12 months × (revenue,
     // material, other, vat) for the current year, plus

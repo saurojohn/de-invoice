@@ -385,7 +385,7 @@ export class BwaService {
     // bucket lookups instead of filter passes.
     const materialMonat = sumBucket('2000', monthStart, monthEnd)
     const personalMonat = sumBucket('3000', monthStart, monthEnd)
-    const afaMonat = 0 // filled below from bookedAfaRows
+    const _afaMonat = 0 // Tier 356: comment says "filled below" but nothing reads it. Kept as evidence of intent. // filled below from bookedAfaRows
     const raumMonat = sumBucket('3200', monthStart, monthEnd)
     const versicherungMonat = sumBucket('3300', monthStart, monthEnd)
     const werbungMonat = sumBucket('3400', monthStart, monthEnd)

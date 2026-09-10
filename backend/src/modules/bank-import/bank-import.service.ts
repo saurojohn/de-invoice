@@ -23,7 +23,7 @@ import { parseCamt053, detectFormat } from './camt053';
 import { PaymentService } from '../invoice/payment.service';
 import { VoucherService } from '../accounting/voucher.service';
 import { resolveDatevAccounts } from '../reports/datev.service';
-import type { ParsedStatement, ParsedTransaction } from './parsers';
+import type { ParsedStatement } from './parsers';
 
 @Injectable()
 export class BankImportService {

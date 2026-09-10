@@ -661,7 +661,9 @@ Mit freundlichen Grüßen,
       throw new Error('Company not found');
     }
 
-    const overdueInvoice: OverdueInvoice = {
+    // Tier 356: assembled and then never used. Kept as evidence that
+    // something downstream (PDF / email payload) was meant to consume it.
+    const _overdueInvoice: OverdueInvoice = {
       id: invoice.id,
       invoiceNumber: invoice.invoiceNumber,
       customer: {

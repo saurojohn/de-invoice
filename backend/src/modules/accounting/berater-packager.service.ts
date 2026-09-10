@@ -387,7 +387,6 @@ export class BeraterPackagerService {
     // a Personengesellschaft and files Anlage G
     // (for the Einkommensteuer of the Gesellschafter).
     // Reuse the early Rechtsform check from above.
-    const rechtsform = rechtsformEarly
     const isKapitalgesellschaft = isKapitalgesellschaftEarly
     const kst1OptIn = settings.kst1 === true
     const includeKst1 = kst1OptIn || isKapitalgesellschaft

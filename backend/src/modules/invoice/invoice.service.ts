@@ -1390,7 +1390,6 @@ export class InvoiceService {
     // numbering as the original — the prefix
     // differentiates (CN-2026-001).
     const now = new Date()
-    const year = now.getFullYear()
     const month = now.getMonth() + 1
     // Tier 174: same SEQUENCE-based allocation as create().
     // The old `cnCount + 1` was racy under concurrent CN creates

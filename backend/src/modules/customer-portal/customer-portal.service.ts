@@ -548,7 +548,7 @@ export class CustomerPortalService {
    * operator-only.
    */
   async getCustomerProfile(token: string) {
-    const { session, customer } = await this.resolveSessionAndCustomer(token)
+    const { customer } = await this.resolveSessionAndCustomer(token)
     return {
       id: customer.id,
       name: customer.name,

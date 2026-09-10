@@ -7,7 +7,6 @@ import {
   DatevExportInput,
   BuchungsSatz,
   DatevAccountMap,
-  SKR03_DEFAULTS,
 } from './datev.service'
 
 /**
@@ -526,7 +525,6 @@ export class DatevBuchungslisteService {
     for (const b of buchungen) {
       const key = b.ustSchluessel || '0'
       const betrag = Math.abs(Number(b.betrag) || 0)
-      const rate = UST_RATE[key] ?? 0
       // For revenue rows (ustSchluessel 0/1/2/3)
       // the betrag IS the net amount. For USt
       // rows (ustSchluessel 8/9/20/21) the

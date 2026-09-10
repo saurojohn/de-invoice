@@ -724,7 +724,13 @@ export class RecurringService {
       // we capture the skip as a sentinel, let the
       // transaction COMMIT normally (writing the skipped
       // run row + flipping isActive), then throw OUTSIDE.
-      let skipRunId: string | null = null
+      // Tier 356: this sentinel is ASSIGNED but never read, so the
+      // "then throw OUTSIDE" half of the design described just above was
+      // never wired up. The transaction still commits the skipped run and
+      // flips isActive, so the data is right — but the caller is not told
+      // the run was skipped. Kept, underscored, rather than deleted: the
+      // variable is the only remaining trace of the intended behaviour.
+      let _skipRunId: string | null = null
       if (tpl.endDate && tpl.nextRunAt > new Date(tpl.endDate)) {
         await tx.recurringInvoice.update({
           where: { id: templateId },

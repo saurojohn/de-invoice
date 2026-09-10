@@ -221,7 +221,6 @@ export async function generateMahnungPDF(input: MahnungPdfInput): Promise<Buffer
     y = doc.y + 12
 
     // ─── INVOICE TABLE ───
-    const tableLeft = PAGE_MARGIN
     const colWidths = [220, 90, 90, 90]
     const colX = colWidths.reduce(
       (acc, w, i) => [...acc, (acc[i - 1] || PAGE_MARGIN) + (i === 0 ? 0 : colWidths[i - 1])],

@@ -90,7 +90,15 @@ export async function generateZUGFeRD(
   const xrechnungData = transformToXRechnungData(invoice, company);
 
   // Generate XRechnung XML
-  const xmlContent = generateXRechnung(xrechnungData);
+  //
+  // Tier 356: the result is never used -- the ZUGFeRD PDF embeds
+  // `zugferdXml` below, not this. The call is kept (and the binding
+  // underscored) rather than deleted because generateXRechnung also
+  // walks the whole invoice and would throw on malformed data, so it
+  // currently doubles as a validation pass. If that is not intended,
+  // deleting the call is a free saving -- but that is a behaviour
+  // decision, not a lint cleanup.
+  const _xmlContent = generateXRechnung(xrechnungData);
 
   // Generate ZUGFeRD XML (Factur-X profile)
   const zugferdXml = generateZUGFeRDXml(xrechnungData, version, conformanceLevel);
@@ -221,7 +229,6 @@ function generateTradeParty(
   party: { name: string; address: any; vatId?: string; email?: string },
   type: 'Supplier' | 'Buyer'
 ): string {
-  const elementName = type === 'Supplier' ? 'SupplyChainTradeAgreement' : 'BuyerTradeParty';
 
   return `
     <ram:${type}TradeParty>

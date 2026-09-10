@@ -478,7 +478,6 @@ export class VoucherService {
     // system as create-voucher does: BK-<year>-<seq>. We
     // suffix with -K<stornoSeq> so the file system view groups
     // them together without polluting the BK counter.
-    const year = (correction.date || new Date()).getFullYear();
     const stornoKseq = `${stornoSeq}`; // tie to Storno sequence
     const correctionNumber = `${original.voucherNumber}-K${stornoKseq}`;
 

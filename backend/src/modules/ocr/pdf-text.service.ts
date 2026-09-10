@@ -47,7 +47,7 @@ import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs'
 //     ABI-compatible image. No toolchain in the
 //     runtime image. Skia handles PDF raster natively
 //     (and is the same engine that Chrome uses).
-import { createCanvas, type SKRSContext2D, type Canvas, type Image } from '@napi-rs/canvas'
+import { createCanvas, type SKRSContext2D, type Canvas } from '@napi-rs/canvas'
 
 @Injectable()
 export class PdfTextService {

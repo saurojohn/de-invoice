@@ -464,7 +464,6 @@ export class AuditService {
     skip: number
   }> {
     const q = f.q!.trim()
-    const where = this.buildWhere(f)
     // Convert Prisma where to SQL fragments.
     // We intentionally keep this conservative: only
     // the fields the UI actually sends are translated.

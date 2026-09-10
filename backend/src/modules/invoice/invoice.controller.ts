@@ -4,7 +4,6 @@ import { Response } from 'express';
 import { Prisma } from '@prisma/client';
  
 const archiverLib: any = require('archiver');
-const archiver = (format: string, opts?: any) => archiverLib.create(format, opts);
 import { InvoiceService } from './invoice.service';
 import { PaymentService } from './payment.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -529,7 +528,6 @@ export class InvoiceController {
         ].map(esc).join(';')
       })
       const csv = '\uFEFF' + [header.map(esc).join(';'), ...lines].join('\n')
-      const stamp = new Date().toISOString().slice(0, 10)
       const fromPart = dateFrom || 'alle'
       const toPart = dateTo || 'alle'
       res.set({

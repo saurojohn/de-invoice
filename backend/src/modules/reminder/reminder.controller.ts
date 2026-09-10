@@ -12,8 +12,6 @@ import type { Response } from 'express';
 import { DunningConfigDto } from './dto/dunning-config.dto';
 import {
   readDunningConfig,
-  DEFAULT_DUNNING_CONFIG,
-  DunningConfig,
 } from './reminder.service';
 
 // Mirrors the constant in auto-reminder.scheduler.ts — kept

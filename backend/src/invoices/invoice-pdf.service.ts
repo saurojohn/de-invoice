@@ -489,7 +489,6 @@ export async function generateInvoicePDF(
       detailsRow++
     }
     if ((invoice as any).type === "CN" && (invoice as any).referenceInvoiceId) {
-      const ref = (invoice as any).referenceInvoice
       doc.text("Bezug zu Rechnung:", detailsLabelX, detailsY + detailsRow * 15, { width: 100, align: "right", lineBreak: false })
       detailsRow++
     }

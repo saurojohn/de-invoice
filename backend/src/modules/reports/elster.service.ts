@@ -155,7 +155,6 @@ export function generateUstvaElsterXml(input: ElsterUstvaExportInput): string {
   const v7 = data.vorsteuer.from7;
   const vIgE = data.vorsteuer.fromIgE;
   const v13b = data.vorsteuer.fromReverseCharge;
-  const vTotal = data.vorsteuer.total;
 
   // Differenzbetrag — already computed by the service
   // (line 81: positive = Zahllast / owe, negative = Erstattung / refund)

@@ -180,7 +180,12 @@ export class VatReverifyScheduler {
       where: { vatId: { not: null } },
       select: { id: true, companyId: true, vatId: true, name: true },
     })
-    let transitions = 0
+    // Tier 356: this local counter is incremented below but never read.
+    // Note the scheduler DOES report a `stats.transitions` (see the log
+    // lines and return value above) — a different variable. So this one
+    // looks like it was meant to feed that stat and never got wired up.
+    // Kept rather than deleted so the gap stays visible.
+    let _transitions = 0
     for (const row of rows) {
       if (!row.vatId) continue
       try {
@@ -200,7 +205,7 @@ export class VatReverifyScheduler {
           row.id,
         )
         if (prev && prev.status !== result.status && result.status !== 'unreachable') {
-          transitions++
+          _transitions++ // Tier 356: incremented but never reported — likely a missing metric
           await this.notifyTransition(entityType, row, prev.status, result.status, today)
         }
       } catch (e: any) {

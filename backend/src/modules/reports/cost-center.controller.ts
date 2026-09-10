@@ -889,29 +889,13 @@ export class CostCenterController {
     // work and the controller's class is already
     // large. If a third consumer appears we'll
     // extract.
-    const [budgets, invRows, expRows] = await Promise.all([
-      this.prisma.costCenterBudget.findMany({
-        where: { companyId, year },
-      }),
-      this.prisma.invoice.groupBy({
-        by: ['costCenter'],
-        where: {
-          companyId,
-          issueDate: { gte: yearStart, lt: yearEnd },
-          type: { in: ['INV', 'RCV'] },
-        },
-        _sum: { total: true },
-      }),
-      this.prisma.expense.groupBy({
-        by: ['costCenter'],
-        where: {
-          companyId,
-          invoiceDate: { gte: yearStart, lt: yearEnd },
-          status: { in: ['booked', 'deductible'] },
-        },
-        _sum: { grossAmount: true },
-      }),
-    ])
+    // Tier 356: this used to be a Promise.all of three queries, but the
+    // invoice and expense groupBy results were never read — two
+    // aggregations ran against Postgres on every request and were thrown
+    // away. Only the budgets are used here.
+    const budgets = await this.prisma.costCenterBudget.findMany({
+      where: { companyId, year },
+    })
 
     // Per-line monthly walk — same as tier-44.
     const [invMonth, expMonth] = await Promise.all([

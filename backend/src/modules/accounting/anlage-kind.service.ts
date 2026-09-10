@@ -125,8 +125,13 @@ const AUSGABEN_LINES: Array<{
 // (1-3), 250 EUR/4. Kind (= 1.000 EUR total for 4+).
 // v1: simple per-child rate (ignores 4+ cap).
 // v2: BMF table per year.
-const KINDERGELD_PER_KIND_2024 = 250
-const FREIBETRAG_PER_KIND_2024 = 6612 + 1320 // 7,932 EUR total
+// Tier 356: both are declared and never read. Same shape as the Vorsteuer
+// accumulators in ustja.service.ts (Tier 355) — tax figures that look like
+// they were meant to reach the form. Whether Anlage Kind must show
+// Kindergeld / Freibetrag per child is a Steuerberater question, so these
+// are kept rather than deleted.
+const _KINDERGELD_PER_KIND_2024 = 250
+const _FREIBETRAG_PER_KIND_2024 = 6612 + 1320 // 7,932 EUR total
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100

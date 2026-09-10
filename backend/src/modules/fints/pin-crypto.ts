@@ -41,7 +41,6 @@ import {
 
 const ALGO = 'aes-256-gcm'
 const IV_LEN = 12 // GCM standard
-const TAG_LEN = 16 // GCM standard
 
 /**
  * Derive the 32-byte AES key from the env var.

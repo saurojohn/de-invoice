@@ -8,7 +8,6 @@ import {
   Post,
   Put,
   Query,
-  Res,
   Header,
 } from '@nestjs/common';
 import { ProductService, ImportProductRow } from './product.service';
