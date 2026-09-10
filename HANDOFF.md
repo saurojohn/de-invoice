@@ -222,6 +222,37 @@ were races, not missing data, so each needed its own fix:
   to match its two siblings. **Do not rename those two** — the other two
   specs depend on the current names.
 
+**The webhook dead-letter "cron race" was never a cron race** (Tier 350).
+Four skips and one persistent flake in `webhook-dead-letter-tier198` were
+blamed, in three separate in-file comments, on the retry cron or on "requeue
+from test 2". Both diagnoses were wrong:
+
+- the cron selects `status='failed' AND nextRetryAt <= now()`
+  (`webhook.service.ts:420`), so it can never touch an `'exhausted'` row;
+- `seedTag` / `deliveryId` are scoped **inside** each `describe`, so the two
+  blocks never shared a delivery row.
+
+The real cause: a delivery row is INSERTed `status='pending'`
+(`webhook.service.ts:338`) while the POST to the receiver is still in
+flight, and the service UPDATEs that same row with the final status when the
+response lands (`:792`, or `:815` on network error/timeout). Both
+`beforeAll`s polled only for the row to **exist**, so they broke on the
+pending row and applied the seed UPDATE into a window where the delivery
+write-back was still coming — and it overwrote `'exhausted'`.
+
+Measured on an isolated stack: row appears `pending` at t=0.14s, flips
+terminal at t=0.54s. A/B run of the two loops, 3 attempts each: old logic
+lost the seed 3/3, new logic kept it 3/3.
+
+Fix: poll until `status !== 'pending'`, then seed. Budget is 80 x 250ms =
+**20s on purpose** — the delivery HTTP timeout is 10s (`:848`), the catch
+branch still writes a terminal status, so the row always leaves `pending`,
+but only just after 10s; a 10s budget would race exactly that write.
+
+**Lesson: "pending" is transient but not instant.** Any spec that seeds over
+a row the backend is still writing must wait for a terminal state first, not
+for the row to appear.
+
 **Lint: 0 errors, 0 warnings, and now enforced.** Tier 349 cleared the
 38 errors + 42 warnings that had accumulated in `frontend/e2e/` and added a
 **`frontend-lint` CI job** running `npx eslint . --max-warnings 0`. The

@@ -133,21 +133,49 @@ test.describe("Tier 198 — Dead-letter list + requeue", () => {
     // Wait for the delivery to land (the
     // emit() is fire-and-forget but
     // usually <1s in CI).
+    // Tier 350: wait for the delivery to reach a TERMINAL state, not
+    // merely to exist. The row is INSERTed with status='pending'
+    // (webhook.service.ts:338) and the POST to postman-echo.com is
+    // still in flight at that moment; when the response lands, the
+    // service UPDATEs the same row with the final status
+    // (webhook.service.ts:792). The old loop broke as soon as
+    // `arr.length > 0`, i.e. on the pending row, so the seed UPDATE
+    // below raced that write-back and was silently overwritten with
+    // 'success' whenever postman-echo answered slowly. THAT is what
+    // made tests 1/2/6/7 skip and flake -- not the cron, which only
+    // ever selects `status='failed' AND nextRetryAt <= now()`
+    // (webhook.service.ts:420) and so can never touch an 'exhausted'
+    // row at all. Both in-file comments blaming the cron, and the one
+    // blaming "requeue from test 2", were wrong.
+    //
+    // Budget is 80 x 250ms = 20s, deliberately more than the 10s
+    // delivery HTTP timeout (webhook.service.ts:848): on a timeout the
+    // catch branch still writes a terminal status, so the row always
+    // leaves 'pending' -- but only just after the 10s mark, and a 10s
+    // budget would race exactly that write.
     let attempts = 0
-    while (attempts < 20) {
+    let deliveryStatus = ""
+    while (attempts < 80) {
       const list = await request.get(
         `http://localhost:3001/api/v1/webhooks/${webhookId}/deliveries?companyId=${tokens!.companyId}&limit=5`,
         { headers: headers() },
       )
       const arr = await list.json()
-      if (Array.isArray(arr) && arr.length > 0) {
+      if (Array.isArray(arr) && arr.length > 0 && arr[0].status !== "pending") {
         deliveryId = arr[0].id
+        deliveryStatus = arr[0].status
         break
       }
       await new Promise((r) => setTimeout(r, 250))
       attempts++
     }
-    expect(deliveryId, "delivery row exists after fire").toBeTruthy()
+    expect(
+      deliveryId,
+      "delivery row reached a terminal status within 20s",
+    ).toBeTruthy()
+    expect(deliveryStatus, "delivery must not still be pending").not.toBe(
+      "pending",
+    )
     // Mutate to exhausted via direct SQL.
     // (Frontend e2e context lacks
     // @prisma/client so we shell out.)
@@ -218,10 +246,11 @@ test.describe("Tier 198 — Dead-letter list + requeue", () => {
       ],
       { encoding: "utf-8" },
     ).trim()
-    test.skip(
-      dbStatus !== "exhausted",
-      `Seed row is ${dbStatus}, not exhausted — cron race, skip`,
-    )
+    // Tier 350: was `test.skip(dbStatus !== "exhausted", "... cron race")`.
+    // With the beforeAll now waiting for a terminal delivery status
+    // before seeding, nothing can overwrite the row, so a non-exhausted
+    // status here is a real defect and must fail.
+    expect(dbStatus, "seeded row must still be exhausted").toBe("exhausted")
     const res = await request.get(
       `http://localhost:3001/api/v1/webhooks/deliveries/dead-letter?companyId=${tokens!.companyId}&limit=100`,
       { headers: headers() },
@@ -247,20 +276,17 @@ test.describe("Tier 198 — Dead-letter list + requeue", () => {
       `http://localhost:3001/api/v1/webhooks/deliveries/${deliveryId}/requeue?companyId=${tokens!.companyId}`,
       { headers: headers() },
     )
-    if (res.status() !== 200) {
-      // The requeue is racy in the shared dev DB:
-      // the cron worker may have processed the
-      // requeued row between spec runs, leaving
-      // it in 'failed' instead of 'exhausted'.
-      // Skip rather than fail.
-      const body = await res.text().catch(() => '<no body>')
-      test.skip(
-        true,
-        `requeue not 200 (got ${res.status()}: ${body.slice(0, 200)}) — env race`,
-      )
-      return
-    }
-    expect(res.status(), "requeue should be 200").toBe(200)
+    // Tier 350: was a test.skip() on any non-200, blamed on the cron
+    // worker. The cron selects `status='failed' AND nextRetryAt <=
+    // now()` only, so it never sees the seeded 'exhausted' row; the
+    // real cause was the delivery write-back race the beforeAll now
+    // waits out. Assert the status and surface the body on failure
+    // instead of skipping.
+    const requeueBody = await res.text()
+    expect(
+      res.status(),
+      `requeue should be 200, got ${res.status()}: ${requeueBody.slice(0, 200)}`,
+    ).toBe(200)
     const body = await res.json()
     expect(body.ok).toBe(true)
     expect(body.delivery.id).toBe(deliveryId)
@@ -341,21 +367,29 @@ test.describe("Tier 198 — Dead-Letter UI on webhooks page", () => {
       `http://localhost:3001/api/v1/webhooks/${webhookId}/test?companyId=${tokens!.companyId}`,
       { headers: headers() },
     )
+    // Tier 350: same terminal-state wait as the first describe -- see
+    // the long comment there. Breaking on the 'pending' row let the
+    // in-flight delivery write-back clobber the seeded 'exhausted'
+    // status, which is why tests 6 and 7 skipped and why 6 stayed
+    // flaky after Tier 348 converted its skip to an assertion.
     let attempts = 0
-    while (attempts < 20) {
+    let deliveryStatus = ""
+    while (attempts < 80) {
       const list = await request.get(
         `http://localhost:3001/api/v1/webhooks/${webhookId}/deliveries?companyId=${tokens!.companyId}&limit=5`,
         { headers: headers() },
       )
       const arr = await list.json()
-      if (Array.isArray(arr) && arr.length > 0) {
+      if (Array.isArray(arr) && arr.length > 0 && arr[0].status !== "pending") {
         deliveryId = arr[0].id
+        deliveryStatus = arr[0].status
         break
       }
       await new Promise((r) => setTimeout(r, 250))
       attempts++
     }
-    expect(deliveryId).toBeTruthy()
+    expect(deliveryId, "delivery reached a terminal status").toBeTruthy()
+    expect(deliveryStatus).not.toBe("pending")
     // Same future-dated nextRetryAt trick
     // — protects against any cron race
     // that might flip the row back to
