@@ -25,7 +25,7 @@
  * but the chip filter logic is the same regardless
  * of list size.
  */
-import { test, expect, request as playwrightRequest } from '@playwright/test'
+import { test, expect } from '@playwright/test'
 import { readFileSync } from 'fs'
 
 const AUTH_CACHE = '/tmp/cashbook-e2e-auth.env'
@@ -81,9 +81,7 @@ test.describe("Tier 243 — Customer detail invoices chip filter", () => {
     await page.goto(`http://localhost:3100/dashboard/customers/${SEED_CUSTOMER_ID}`)
     await page.waitForLoadState("networkidle", { timeout: 15000 })
     const group = page.getByTestId("customer-invoices-chip-group")
-    if ((await group.count()) === 0) {
-      test.skip(true, "chip group not present (page may still be loading or customer has no invoices)")
-    }
+    await expect(group).toBeVisible({ timeout: 15000 })
     await expect(group).toBeVisible()
     for (const s of ["draft", "sent", "paid", "overdue", "cancelled"]) {
       const chip = page.getByTestId(`customer-invoices-chip-${s}`)
@@ -97,9 +95,7 @@ test.describe("Tier 243 — Customer detail invoices chip filter", () => {
     await page.goto(`http://localhost:3100/dashboard/customers/${SEED_CUSTOMER_ID}`)
     await page.waitForLoadState("networkidle", { timeout: 15000 })
     const paidChip = page.getByTestId("customer-invoices-chip-paid")
-    if ((await paidChip.count()) === 0) {
-      test.skip(true, "paid chip not present")
-    }
+    await expect(paidChip).toBeVisible({ timeout: 15000 })
     // Initial state: paid chip shows 1 (Tier 50 fixture).
     // Click it.
     await paidChip.click()
@@ -130,9 +126,13 @@ test.describe("Tier 243 — Customer detail invoices chip filter", () => {
     // Click paid + sent (both).
     const paidChip = page.getByTestId("customer-invoices-chip-paid")
     const sentChip = page.getByTestId("customer-invoices-chip-sent")
-    if ((await paidChip.count()) === 0 || (await sentChip.count()) === 0) {
-      test.skip(true, "chip group not present")
-    }
+    // Tier 347: all 5 chips render unconditionally once the group is
+    // up — page.tsx maps a fixed ["draft","sent","paid","overdue",
+    // "cancelled"] array, so a chip with a zero count still exists.
+    // The group itself only needs `invoices.length > 0`, which the
+    // f84ebd20 seed fixture now guarantees.
+    await expect(paidChip).toBeVisible({ timeout: 15000 })
+    await expect(sentChip).toBeVisible({ timeout: 15000 })
     await paidChip.click()
     await sentChip.click()
     await expect(paidChip).toHaveAttribute("data-active", "true")
@@ -151,9 +151,7 @@ test.describe("Tier 243 — Customer detail invoices chip filter", () => {
     await page.goto(`http://localhost:3100/dashboard/customers/${SEED_CUSTOMER_ID}`)
     await page.waitForLoadState("networkidle", { timeout: 15000 })
     const paidChip = page.getByTestId("customer-invoices-chip-paid")
-    if ((await paidChip.count()) === 0) {
-      test.skip(true, "chip group not present")
-    }
+    await expect(paidChip).toBeVisible({ timeout: 15000 })
     // Activate the paid chip.
     await paidChip.click()
     await expect(paidChip).toHaveAttribute("data-active", "true")
@@ -179,9 +177,7 @@ test.describe("Tier 243 — Customer detail invoices chip filter", () => {
     await page.goto(`http://localhost:3100/dashboard/customers/${SEED_CUSTOMER_ID}?status=overdue`)
     await page.waitForLoadState("networkidle", { timeout: 15000 })
     const group = page.getByTestId("customer-invoices-chip-group")
-    if ((await group.count()) === 0) {
-      test.skip(true, "chip group not present")
-    }
+    await expect(group).toBeVisible({ timeout: 15000 })
     // No URL sync on this page — the chip starts unselected.
     const overdueChip = page.getByTestId("customer-invoices-chip-overdue")
     await expect(overdueChip).toHaveAttribute("data-active", "false")

@@ -193,22 +193,34 @@ await expect(page.getByTestId("x")).toBeVisible({ timeout: 15000 })
 **Tier 346 converted 18 of the 35**, in the 8 page-smoke specs whose target
 testids were verified to render unconditionally in `frontend/src`.
 
-**Still open — 17 skips, blocked on a seed gap.** `customer-detail-tabs-tier238`
-and `customer-detail-invoices-chip-tier243` both hard-code the customer UUID
-`f84ebd20-4513-48e4-b331-87ba19477ae3`, described in their comments as
-"created by Tier 50 e2e, has 1 invoice + 1 payment". **That UUID exists in no
-seed script** — `grep -r f84ebd20` matches only those two spec files. It was
-presumably a row in a developer's local dev DB. In CI the customer never
-exists, so the pages render nothing, every dependent assertion misses, and
-~10 tests have been silently skipping since Tier 243 — permanent zero
-coverage. Converting their skips to assertions without first seeding the
-fixture just turns CI red, so Tier 346 deliberately left both files alone.
+**Tier 347 closed the seed gap and 10 more skips.** The fixture customer
+`f84ebd20-...` + 1 paid invoice + 1 payment now live in `ci-seed.sh`
+(section 5g). Seeded by direct SQL on purpose: it sidesteps the Tier 174
+P2002 invoice-sequence race that made the specs hard-code the UUID in the
+first place. 35 -> 8 "masking" skips remain (webhook dead-letter cron race,
+installment-plan, ratensplan, cost-center, vies-batch, invoice-create).
 
-**Fix for a follow-up tier:** add that customer + 1 invoice + 1 payment to
-`backend/e2e/ci-seed.sh` with the same fixed UUID. Direct SQL there sidesteps
-the Tier 174 P2002 invoice-sequence race that the specs' own comments cite as
-the reason they took the hard-coded shortcut in the first place. Grep
-`schema.prisma` for the real column names first (lesson 10).
+**Tier 347 also found `ci-seed.sh` had been silently failing for months.**
+`psql_test()` was a bare `psql`: on error psql prints to stderr, CONTINUES
+to the next statement, and still exits 0 — so a broken INSERT was skipped
+and the `ok "... seeded"` line right below printed a green checkmark. Four
+statements had been dead this whole way:
+
+| Statement | Fault | Fix |
+|---|---|---|
+| `RecurringInvoiceItem` | column `sortOrder` | -> `position` (the exact Tier 343 bug — fixed in the spec then, missed here) |
+| `Invoice` x2 | `date` / `totalNet` / `totalGross` | -> `issueDate` / `subtotal` / `total` |
+| `CashBookClose` | table does not exist (model is `CashBookDailyClose`, entirely different columns) | deleted — the row was referenced nowhere, and `cashbook-signature-tier194.spec.ts` closes its own days via the API |
+
+`psql_test` now passes `-v ON_ERROR_STOP=1`, so this class fails loudly.
+**Before adding SQL to `ci-seed.sh`, run the column audit** (parse
+`schema.prisma` models, diff against every `INSERT INTO "X" (cols)`) — it is
+what surfaced all four, and lesson 10 only catches it if you actually run it.
+
+**No lint job in CI.** The 4 jobs are backend-typecheck, frontend-typecheck,
+e2e and playwright — eslint is never run, which is how an unused-import
+warning drifted into `customer-detail-invoices-chip-tier243.spec.ts` against
+the repo's stated "0 warnings" bar (removed in Tier 347). Worth a job.
 
 ### Operational issues (consider for next tier)
 - **`tmp-pw-fail/`** untracked — delete or `.gitignore`.

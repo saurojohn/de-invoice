@@ -163,11 +163,7 @@ test.describe("Tier 238 — Customer detail Zahlungen + Dokumente tabs", () => {
     await page.goto(`http://localhost:3100/dashboard/customers/${TEST_CUSTOMER_ID}`)
     await page.waitForLoadState("networkidle", { timeout: 15000 })
     const tab = page.getByTestId("tab-payments")
-    if ((await tab.count()) > 0) {
-      await expect(tab).toBeVisible()
-    } else {
-      test.skip(true, "tab-payments testid not found (page may be loading)")
-    }
+    await expect(tab).toBeVisible({ timeout: 15000 })
   })
 
   test("2. Clicking Zahlungen tab shows the table with our seeded payment", async ({ page }) => {
@@ -175,9 +171,7 @@ test.describe("Tier 238 — Customer detail Zahlungen + Dokumente tabs", () => {
     await page.goto(`http://localhost:3100/dashboard/customers/${TEST_CUSTOMER_ID}`)
     await page.waitForLoadState("networkidle", { timeout: 15000 })
     const tab = page.getByTestId("tab-payments")
-    if ((await tab.count()) === 0) {
-      test.skip(true, "tab-payments not present")
-    }
+    await expect(tab).toBeVisible({ timeout: 15000 })
     await tab.click()
     // Wait for the lazy-fetch to complete — the table is the
     // proof the walk finished.
@@ -210,11 +204,7 @@ test.describe("Tier 238 — Customer detail Zahlungen + Dokumente tabs", () => {
     await page.goto(`http://localhost:3100/dashboard/customers/${TEST_CUSTOMER_ID}`)
     await page.waitForLoadState("networkidle", { timeout: 15000 })
     const tab = page.getByTestId("tab-attachments")
-    if ((await tab.count()) > 0) {
-      await expect(tab).toBeVisible()
-    } else {
-      test.skip(true, "tab-attachments testid not found (page may be loading)")
-    }
+    await expect(tab).toBeVisible({ timeout: 15000 })
   })
 
   test("4. Clicking Dokumente tab shows the empty state (no customer attachments)", async ({ page }) => {
@@ -227,9 +217,7 @@ test.describe("Tier 238 — Customer detail Zahlungen + Dokumente tabs", () => {
     await page.goto(`http://localhost:3100/dashboard/customers/${CREATED_CUSTOMER_ID}`)
     await page.waitForLoadState("networkidle", { timeout: 15000 })
     const tab = page.getByTestId("tab-attachments")
-    if ((await tab.count()) === 0) {
-      test.skip(true, "tab-attachments not present")
-    }
+    await expect(tab).toBeVisible({ timeout: 15000 })
     await tab.click()
     // The empty state appears when attachments=[]. No customer
     // attachments are uploaded in the seed or by this test,
@@ -249,9 +237,7 @@ test.describe("Tier 238 — Customer detail Zahlungen + Dokumente tabs", () => {
     await page.waitForLoadState("networkidle", { timeout: 15000 })
     // Click Zahlungen first to trigger the lazy-fetch.
     const tab = page.getByTestId("tab-payments")
-    if ((await tab.count()) === 0) {
-      test.skip(true, "tab-payments not present")
-    }
+    await expect(tab).toBeVisible({ timeout: 15000 })
     await tab.click()
     // Wait for the fetch to populate state.
     const count = page.getByTestId("tab-payments-count")

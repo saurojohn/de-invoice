@@ -55,7 +55,16 @@ TAX_ID="${TAX_ID:-123/456/78901}"
 # is forwarded to psql. Without `-i`, psql's stdin
 # is closed and silent — the SQL is read as empty.
 psql_test() {
-  docker exec -i "$PG_CONTAINER" psql -U "$PG_USER" -d "$PG_DB" "$@"
+  # Tier 347: -v ON_ERROR_STOP=1 is MANDATORY here. Without it psql
+  # reports an ERROR on stderr, CONTINUES with the next statement, and
+  # still exits 0 — so a broken INSERT is silently skipped and the
+  # `ok "... seeded"` line below it prints a green checkmark anyway.
+  # That is how four dead INSERTs (RecurringInvoiceItem.sortOrder,
+  # 2x Invoice.date/totalNet/totalGross, CashBookClose) survived in
+  # this file undetected, permanently starving the specs that depend
+  # on those rows. With ON_ERROR_STOP the seed fails fast and CI says
+  # exactly which statement broke.
+  docker exec -i "$PG_CONTAINER" psql -v ON_ERROR_STOP=1 -U "$PG_USER" -d "$PG_DB" "$@"
 }
 
 note() { echo "▶ $*"; }
@@ -432,14 +441,14 @@ INSERT INTO "RecurringInvoice" (id, "companyId", "customerId", name, interval, "
 VALUES ('33333333-cccc-0000-0000-000000000001', '$COMPANY_ID', 'b3f7b274-7696-44b8-9345-8bfd460b3e47', 'Tier 136 Wartungsvertrag', 'monthly', 1, 1, NOW() - INTERVAL '6 months', NOW() - INTERVAL '1 day', NOW() - INTERVAL '1 month', 'EUR', 'de-DE', 'sent', true, NOW() - INTERVAL '6 months', NOW() - INTERVAL '1 day')
 ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, "isActive" = true, "updatedAt" = NOW();
 
-INSERT INTO "RecurringInvoiceItem" (id, "recurringInvoiceId", description, quantity, "unitPrice", "vatRate", "sortOrder")
+INSERT INTO "RecurringInvoiceItem" (id, "recurringInvoiceId", description, quantity, "unitPrice", "vatRate", position)
 VALUES ('33333333-cccc-0000-0000-000000000010', '33333333-cccc-0000-0000-000000000001', 'Wartung Standard', 1, 119.00, 0.19, 0)
 ON CONFLICT (id) DO UPDATE SET "unitPrice" = EXCLUDED."unitPrice";
 
 -- Two generated invoice runs for the modal's
 -- table to render >= 1 row (the spec asserts
 -- rows.length > 0).
-INSERT INTO "Invoice" (id, "companyId", "customerId", "invoiceNumber", date, "dueDate", "totalNet", "totalVat", "totalGross", status, "createdAt", "updatedAt")
+INSERT INTO "Invoice" (id, "companyId", "customerId", "invoiceNumber", "issueDate", "dueDate", subtotal, "totalVat", total, status, "createdAt", "updatedAt")
 VALUES
   ('44444444-dddd-0000-0000-000000000001', '$COMPANY_ID', 'b3f7b274-7696-44b8-9345-8bfd460b3e47', 'INV-2026-100', NOW() - INTERVAL '1 month', NOW(), 119.00, 22.61, 141.61, 'sent', NOW() - INTERVAL '1 month', NOW() - INTERVAL '1 month'),
   ('44444444-dddd-0000-0000-000000000002', '$COMPANY_ID', 'b3f7b274-7696-44b8-9345-8bfd460b3e47', 'INV-2026-101', NOW() - INTERVAL '2 month', NOW(), 119.00, 22.61, 141.61, 'paid', NOW() - INTERVAL '2 month', NOW() - INTERVAL '2 month')
@@ -458,7 +467,7 @@ ok "test recurring-invoice seeded (1 template + 2 generated invoices)"
 #     "no invoices for customer" before
 #     the modal can render.
 psql_test <<SQL
-INSERT INTO "Invoice" (id, "companyId", "customerId", "invoiceNumber", date, "dueDate", "totalNet", "totalVat", "totalGross", status, "createdAt", "updatedAt")
+INSERT INTO "Invoice" (id, "companyId", "customerId", "invoiceNumber", "issueDate", "dueDate", subtotal, "totalVat", total, status, "createdAt", "updatedAt")
 VALUES
   ('55555555-eeee-0000-0000-000000000001', '$COMPANY_ID', 'b3f7b274-7696-44b8-9345-8bfd460b3e47', 'INV-2026-203', NOW() - INTERVAL '10 days', NOW() + INTERVAL '20 days', 100.00, 19.00, 119.00, 'sent', NOW() - INTERVAL '10 days', NOW() - INTERVAL '10 days'),
   ('55555555-eeee-0000-0000-000000000002', '$COMPANY_ID', 'b3f7b274-7696-44b8-9345-8bfd460b3e47', 'INV-2026-204', NOW() - INTERVAL '8 days', NOW() + INTERVAL '22 days', 100.00, 19.00, 119.00, 'sent', NOW() - INTERVAL '8 days', NOW() - INTERVAL '8 days'),
@@ -468,18 +477,67 @@ ON CONFLICT (id) DO UPDATE SET status = 'sent';
 SQL
 ok "test payment-allocation invoices seeded (4 open invoices for BWA Test Kunde)"
 
-# 5g. Tier 194: seed a closed CashBook entry
-#     so the cashbook-signature spec's
-#     "verify a closed close" assertion has
-#     a row to verify. The spec asserts
-#     exactly one close exists and that
-#     verify returns verified=true.
+# 5g. Tier 347: the "Tier 50 fixture" customer.
+#     frontend/e2e/customer-detail-tabs-tier238.spec.ts and
+#     customer-detail-invoices-chip-tier243.spec.ts both hard-code
+#     the customer UUID f84ebd20-4513-48e4-b331-87ba19477ae3 and
+#     describe it in their comments as "created by Tier 50 e2e, has
+#     1 invoice + 1 payment". It was never in any seed script — a
+#     `grep -r f84ebd20` matched only those two spec files. It was
+#     presumably a row in one developer's local dev DB. In CI the
+#     customer never existed, so the detail page rendered nothing,
+#     every dependent locator missed, and ~10 tests silently
+#     `test.skip`-ed on "not present" from Tier 243 until now:
+#     permanent zero coverage that CI reported as green.
+#
+#     Seeding it here (rather than from the specs' own beforeAll)
+#     is deliberate: direct SQL sidesteps the Tier 174 P2002
+#     invoice-sequence race that those specs' comments cite as the
+#     reason they took the hard-coded shortcut in the first place.
+#
+#     The rows must satisfy, exactly:
+#       tier238 - `tab-payments-count` reads "1"   -> exactly 1 payment
+#               - payment row text contains "bank_transfer"
+#                 and "e2e-50 test"                -> method + reference
+#       tier243 - chip group renders               -> >= 1 invoice
+#                 (page.tsx: `invoices.length > 0`)
+#               - paid chip count is 1             -> exactly 1 paid invoice
 psql_test <<SQL
-INSERT INTO "CashBookClose" (id, "companyId", "periodStart", "periodEnd", "closedBy", "closedAt", "totalIn", "totalOut", "hash", "previousHash", "hashAlgorithm")
-VALUES ('66666666-ffff-0000-0000-000000000001', '$COMPANY_ID', NOW() - INTERVAL '1 month', NOW() - INTERVAL '1 day', '$USER_ID', NOW() - INTERVAL '1 day', 1000.00, 500.00, 'placeholder', '', 'SHA-256-V1')
-ON CONFLICT (id) DO NOTHING;
+INSERT INTO "Customer" (id, "companyId", type, name, "customerNumber", address, contact, "paymentTerms", tags, "createdAt", "updatedAt")
+VALUES ('f84ebd20-4513-48e4-b331-87ba19477ae3', '$COMPANY_ID', 'business', 'Tier 50 Fixture Kunde GmbH', 'K-TIER50', '{"street":"Fixturestr 50","city":"Berlin","postalCode":"10115","country":"DE"}'::jsonb, '{"email":"tier50@example.com"}'::jsonb, 30, '{}'::text[], NOW() - INTERVAL '90 days', NOW())
+ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, "updatedAt" = NOW();
+
+INSERT INTO "Invoice" (id, "companyId", "customerId", "invoiceNumber", "issueDate", "dueDate", subtotal, "totalVat", total, status, "createdAt", "updatedAt")
+VALUES ('f84ebd20-0001-0000-0000-000000000001', '$COMPANY_ID', 'f84ebd20-4513-48e4-b331-87ba19477ae3', 'INV-2026-006343', NOW() - INTERVAL '60 days', NOW() - INTERVAL '30 days', 100.00, 19.00, 119.00, 'paid', NOW() - INTERVAL '60 days', NOW() - INTERVAL '30 days')
+ON CONFLICT (id) DO UPDATE SET status = 'paid', "updatedAt" = NOW();
+
+-- Exactly ONE payment: tier238 asserts the count badge reads "1".
+-- paymentMethod is the raw backend enum value 'bank_transfer'
+-- (English), NOT the German "Überweisung" — the spec asserts on the
+-- stored value.
+INSERT INTO "Payment" (id, "invoiceId", amount, currency, "paymentDate", "paymentMethod", reference, "createdAt")
+VALUES ('f84ebd20-0002-0000-0000-000000000001', 'f84ebd20-0001-0000-0000-000000000001', 119.00, 'EUR', NOW() - INTERVAL '30 days', 'bank_transfer', 'e2e-50 test', NOW() - INTERVAL '30 days')
+ON CONFLICT (id) DO UPDATE SET "paymentMethod" = 'bank_transfer', reference = 'e2e-50 test';
 SQL
-ok "test cashbook-close seeded (1 closed period for Tier 194)"
+ok "Tier 50 fixture customer seeded (f84ebd20 + 1 paid invoice + 1 payment)"
+
+# 5g. Tier 194 cashbook close: REMOVED in Tier 347.
+#     This block inserted into a table named
+#     "CashBookClose", which does not exist —
+#     the model is `CashBookDailyClose` and has a
+#     completely different column set
+#     (businessDate / anfangsbestand / einnahmenSum
+#     / endbestand, not periodStart / totalIn /
+#     hash). The statement therefore errored on
+#     every seed run since it was written, and
+#     because psql_test lacked ON_ERROR_STOP the
+#     failure was swallowed and the `ok` line still
+#     printed. Nothing consumed the row either:
+#     `66666666-ffff-...` was referenced nowhere
+#     else in the repo, and
+#     `cashbook-signature-tier194.spec.ts` closes
+#     its own days through the API. Dead code —
+#     deleted rather than repaired.
 
 # 6. Write the auth cache file that the e2e
 #    tests + Playwright spec rely on.
