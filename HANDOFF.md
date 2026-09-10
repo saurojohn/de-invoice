@@ -330,6 +330,27 @@ seeding:
   **re-creates** `33333333-cccc-...-0001`. All three sort before
   `recurring-invoices`, so the ci-seed template is back and active by then.
 
+**Never `await` two `page.waitForResponse` calls in sequence** (Tier 354).
+When a page fires both requests from one `Promise.all`, the second waiter
+is only registered after the first has resolved — by which point the second
+response may already have gone by, and the wait then hangs for its full
+timeout. Register both promises synchronously and `await Promise.all([...])`.
+
+This was the suite's last flaky (`cost-center-budgets.spec.ts:195`,
+recurring in Tiers 345, 349, 352 with
+`TimeoutError: page.waitForResponse: Timeout 60000ms exceeded`). The
+striking part: the test directly **above** it in the same file already
+carries a comment diagnosing this exact failure from run #308 and using the
+`Promise.all` form. The fix was applied to one test and missed the other —
+the same "fixed here, missed there" shape as Tier 347's `sortOrder` (fixed
+in the spec, missed in `ci-seed.sh`). A suite-wide scan now finds zero
+remaining sequential-await pairs.
+
+Caveat on verifying this class locally: 18/18 passes with `--repeat-each=6
+--retries=0`, but a local dev server is already warm, so the race window is
+far narrower than the cold-compile CI conditions where it actually fired.
+Local green here is supporting evidence, not proof.
+
 **Local Playwright runs no longer need the dev container** (Tier 353).
 28 spec files hardcoded `de-invoice-postgres` across 54 `docker exec` call
 sites, so any spec touching psql could only run against that one container

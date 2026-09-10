@@ -229,14 +229,26 @@ test.describe("Tier 48 — Cost-Center Budgets", () => {
     // blows the 15s waitForResponse default. Bump the
     // wait timeout to 60s to give the report endpoints
     // time to respond after the React tree mounts.
-    await page.waitForResponse((r) =>
-      r.url().includes("/api/v1/reports/cost-center-yearly"),
+    //
+    // Tier 354: these two waits used to be sequential `await`s, which is
+    // the exact bug the test above already documents from run #308 — the
+    // page fires both requests from one Promise.all, so by the time the
+    // SECOND waitForResponse is registered (only after the first has
+    // resolved) the bva response may already have gone by, and the wait
+    // then hangs for its full 60s. That fix landed on the test above and
+    // missed this one, which is why this test — and only this test — kept
+    // showing up as the suite's single flaky, in Tiers 345, 349 and 352.
+    // Registering both promises synchronously means neither can miss a
+    // response that lands while the other is being set up.
+    const yearlyPromise = page.waitForResponse(
+      (r) => r.url().includes("/api/v1/reports/cost-center-yearly"),
       { timeout: 60_000 },
     )
-    await page.waitForResponse((r) =>
-      r.url().includes("/api/v1/reports/cost-center-budget-vs-actual"),
+    const bvaPromise = page.waitForResponse(
+      (r) => r.url().includes("/api/v1/reports/cost-center-budget-vs-actual"),
       { timeout: 60_000 },
     )
+    await Promise.all([yearlyPromise, bvaPromise])
 
     // Δ column rendered. We don't insist on a specific
     // row having the budget stamp because the test
