@@ -1,0 +1,30 @@
+# Tier 363: Docker reads .dockerignore from the root of the BUILD CONTEXT.
+# docker-compose.prod.yml and infra/prod/docker-compose.yml build this image
+# with context ./frontend (../../frontend), so the repository-root
+# .dockerignore — which says it covers "both backend & frontend build
+# contexts" — never applied here, and `COPY . .` carried a developer's
+# .env.local (NEXT_PUBLIC_API_URL=http://localhost:3001) into `next build`.
+# The API base now comes only from the NEXT_PUBLIC_API_URL build arg.
+#
+# Kept deliberately small: e2e/ stays in the context because
+# playwright.config.ts imports from it and `next build` type-checks it.
+
+# Env files (never bake these in)
+.env
+.env.*
+!.env.example
+
+# Rebuilt inside the image
+node_modules
+.next
+out
+
+# Test / tool artifacts
+coverage
+playwright-report
+test-results
+*.log
+
+# VCS / OS
+.git
+.DS_Store

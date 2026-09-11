@@ -1,5 +1,7 @@
 "use client"
 
+import { API_BASE } from "@/lib/api"
+
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -31,7 +33,7 @@ export default function ForgotPasswordPage() {
     try {
       // Pre-auth: no x-user-id/company-id yet, so raw fetch
       // is correct here (apiFetch would inject empty headers).
-      const res = await fetch("http://localhost:3001/api/v1/auth/forgot-password", {
+      const res = await fetch(`${API_BASE}/api/v1/auth/forgot-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: email.trim().toLowerCase() }),

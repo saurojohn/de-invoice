@@ -1,0 +1,25 @@
+# Tier 363: Docker reads .dockerignore from the root of the BUILD CONTEXT.
+# Both compose files build this image with context ./backend
+# (../../backend), so the repository-root .dockerignore never applied, and the
+# dev stage's `COPY . .` carried backend/.env (secrets) and the host's
+# node_modules into the build. The runtime stage copies only node_modules,
+# package.json, src, prisma and tsconfig.json, so .env did not reach the final
+# image — but it sat in the build cache of every host that built one, and a
+# macOS node_modules could replace the Linux one from `npm ci`.
+
+# Env files (never bake these in)
+.env
+.env.*
+!.env.example
+
+# Rebuilt inside the image
+node_modules
+dist
+
+# Test / tool artifacts
+coverage
+*.log
+
+# VCS / OS
+.git
+.DS_Store

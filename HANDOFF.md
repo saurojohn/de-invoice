@@ -656,21 +656,43 @@ Product bugs fixed in Tier 361, both surfaced by these specs:
   500 "PDF generation failed": the catch-all swallowed `findOne`'s
   `NotFoundException`. HTTP exceptions now pass through (404).
 
-Still quarantined, and open:
-- **124** — `DEPLOY.md`'s Hetzner steps create only `backend/.env`, but the
-  root `docker-compose.prod.yml` requires `POSTGRES_PASSWORD` via compose
-  substitution (`${POSTGRES_PASSWORD:?...}`), so step 5 fails as written.
-  Documenting `NEXT_PUBLIC_API_URL` is blocked by the next item.
-- **Frontend production image never receives `NEXT_PUBLIC_API_URL` at build
-  time** (by reading, not by building an image). `src/lib/api.ts` uses
-  `process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"`, which Next.js
-  inlines at `next build`. `frontend/Dockerfile` has no `ARG` for it, and both
-  `docker-compose.prod.yml` and `infra/prod/docker-compose.yml` pass it only as
-  runtime `environment:`. There is no `frontend/.dockerignore`, so an image
-  built from a developer checkout also copies the gitignored `.env.local`
-  (`localhost:3001`) into the build; a clean clone falls back to the same
-  value. Either way browsers would call `http://localhost:3001`. Verify with an
-  image build before relying on this.
+Left open by Tier 361 (each bullet updated as a later tier closed it;
+`QUARANTINE` in `run-all.sh` is empty since Tier 363):
+- **124 and the frontend production image — fixed in Tier 363.** A frontend
+  image built from a clean HEAD had `http://localhost:3001` in 48 client chunks
+  and 14 server files: `next build` inlines `NEXT_PUBLIC_*`, the Dockerfile had
+  no `ARG`, and both prod compose files passed the URL only as runtime
+  `environment:`. The build arg alone would not have been enough — 27 fetches
+  in 12 pages, including **login, register, forgot/reset password and 2FA**,
+  plus user management, reminders, UStVA, invoice create, voucher detail and
+  mail settings, used a literal `http://localhost:3001`, and the cashbook
+  sign-off read `NEXT_PUBLIC_API_BASE`, which nothing sets. A production
+  deploy could not have logged anyone in. Now:
+  - every call uses `API_BASE` from `src/lib/api.ts`;
+  - `frontend/Dockerfile` takes `ARG NEXT_PUBLIC_API_URL` and **refuses to
+    build without it** (verified: the build stops with a clear error);
+  - `docker-compose.prod.yml` passes `NEXT_PUBLIC_API_URL` and
+    `infra/prod/docker-compose.yml` passes `FRONTEND_URL` as build args, both
+    required. The value is the public origin — nginx / Caddy route `/api/` on
+    the same origin. **Changing it needs an image rebuild**;
+  - `frontend/.dockerignore` and `backend/.dockerignore`: the root
+    `.dockerignore` says it covers both build contexts, but Docker reads it from
+    the context root and both images build from their subdirectory, so it never
+    applied — a developer's `frontend/.env.local` went into `next build`, and
+    `backend/.env` into the backend build cache (not the final image);
+  - `DEPLOY.md` step 3 creates the compose `.env` (`POSTGRES_PASSWORD`,
+    `NEXT_PUBLIC_API_URL`) that step 5 needs;
+  - **`release.yml` (tag `v*` → GHCR) now needs the repository variable
+    `NEXT_PUBLIC_API_URL`** — set it before pushing a tag, or the frontend
+    image build fails on purpose. (No tag has ever been pushed.)
+  - spec 124 checks the ARG, both compose build args, both `.dockerignore`
+    files, and that `frontend/src` has no `localhost:3001` outside
+    `src/lib/api.ts` except in `NEXT_PUBLIC_API_URL` fallback lines.
+  Verification: an image built from the working tree with `--build-arg NEXT_PUBLIC_API_URL=https://probe.example.invalid`
+  has 0 `localhost:3001` in client and server bundles, the probe URL in 50 client
+  chunks, and no `.env` file; without the arg the build stops at the guard. The
+  backend image still builds, its dev stage holds only `.env.example`. Full Playwright
+  suite on a fresh CI-equivalent stack: 908 passed / 4 skipped.
 - **142 — fixed in Tier 362.** `pnl.service.ts` aggregated `_sum` per month and
   used the `eurSubtotal` sum whenever any row in that month had one, dropping
   rows whose `eurSubtotal` was NULL. It now reads the year's invoices and sums

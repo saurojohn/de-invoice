@@ -7,7 +7,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
-import { apiFetch, apiGet } from "@/lib/api"
+import { API_BASE, apiFetch, apiGet } from "@/lib/api"
 
 interface UstvaData {
   companyId: string
@@ -244,7 +244,7 @@ function UstvaPageInner() {
     setSaving(true)
     try {
       const res = await fetch(
-        `http://localhost:3001/api/v1/ustva/expenses?companyId=${companyId}`,
+        `${API_BASE}/api/v1/ustva/expenses?companyId=${companyId}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -285,7 +285,7 @@ function UstvaPageInner() {
     if (!confirm(t("ustva.confirmDelete"))) return
     const companyId = localStorage.getItem("companyId")
     if (!companyId) return
-    await fetch(`http://localhost:3001/api/v1/ustva/expenses/${id}?companyId=${companyId}`, {
+    await fetch(`${API_BASE}/api/v1/ustva/expenses/${id}?companyId=${companyId}`, {
       method: "DELETE",
     })
     await loadAll(companyId)
@@ -299,7 +299,7 @@ function UstvaPageInner() {
     setSavedMsg(null)
     try {
       const res = await fetch(
-        `http://localhost:3001/api/v1/ustva/filings?companyId=${companyId}`,
+        `${API_BASE}/api/v1/ustva/filings?companyId=${companyId}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

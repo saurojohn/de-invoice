@@ -1,5 +1,7 @@
 "use client"
 
+import { API_BASE } from "@/lib/api"
+
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -57,10 +59,10 @@ export default function RemindersPage() {
     }
 
     Promise.all([
-      fetch(`http://localhost:3001/api/v1/reminders/overdue?companyId=${companyId}`, {
+      fetch(`${API_BASE}/api/v1/reminders/overdue?companyId=${companyId}`, {
         headers: { 'x-user-id': userId, 'x-company-id': companyId },
       }).then(r => r.json()),
-      fetch(`http://localhost:3001/api/v1/reminders/stats?companyId=${companyId}`, {
+      fetch(`${API_BASE}/api/v1/reminders/stats?companyId=${companyId}`, {
         headers: { 'x-user-id': userId, 'x-company-id': companyId },
       }).then(r => r.json()),
     ])
@@ -116,7 +118,7 @@ export default function RemindersPage() {
 
     try {
       const emailData = await fetch(
-        `http://localhost:3001/api/v1/reminders/${invoice.id}/email-data?companyId=${companyId}&level=${level}`
+        `${API_BASE}/api/v1/reminders/${invoice.id}/email-data?companyId=${companyId}&level=${level}`
       ).then(r => r.json())
 
       // Create mailto link with pre-filled content
@@ -133,7 +135,7 @@ export default function RemindersPage() {
       window.location.href = `mailto:${email}?subject=${subject}&body=${body}`
 
       // Record the reminder send in backend
-      await fetch('http://localhost:3001/api/v1/reminders/send', {
+      await fetch(`${API_BASE}/api/v1/reminders/send`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -149,7 +151,7 @@ export default function RemindersPage() {
 
       // Refresh data
       const updatedInvoices = await fetch(
-        `http://localhost:3001/api/v1/reminders/overdue?companyId=${companyId}`
+        `${API_BASE}/api/v1/reminders/overdue?companyId=${companyId}`
       ).then(r => r.json())
       setOverdueInvoices(updatedInvoices)
     } catch (err) {

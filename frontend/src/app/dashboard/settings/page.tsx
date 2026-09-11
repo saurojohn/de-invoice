@@ -9,7 +9,7 @@ import LanguageSwitcher from "@/components/LanguageSwitcher"
 import DunningConfigCard from "@/components/DunningConfigCard"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
-import { apiGet, apiPost, apiPut, apiDelete, apiFetch, ApiError } from "@/lib/api"
+import { API_BASE, apiGet, apiPost, apiPut, apiDelete, apiFetch, ApiError } from "@/lib/api"
 // Tier 94: feature flags card (autoBookAfa + anlageV).
 import { FeatureFlagsCard } from "./FeatureFlagsCard"
 
@@ -410,7 +410,7 @@ export default function SettingsPage() {
     setMailMessage(null)
     try {
       const res = await fetch(
-        `http://localhost:3001/api/v1/mail/config?companyId=${companyId}`,
+        `${API_BASE}/api/v1/mail/config?companyId=${companyId}`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -483,7 +483,7 @@ export default function SettingsPage() {
     setMailMessage(null)
     try {
       const res = await fetch(
-        `http://localhost:3001/api/v1/mail/test?companyId=${companyId}`,
+        `${API_BASE}/api/v1/mail/test?companyId=${companyId}`,
         { method: "POST" },
       )
       const data = await res.json()
@@ -1699,7 +1699,7 @@ export default function SettingsPage() {
                               <button
                                 onClick={() => {
                                   const a = document.createElement("a")
-                                  a.href = `http://localhost:3001${f.url}`
+                                  a.href = `${API_BASE}${f.url}`
                                   a.target = "_blank"
                                   a.rel = "noopener noreferrer"
                                   a.download = f.originalName

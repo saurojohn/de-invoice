@@ -1,5 +1,7 @@
 "use client"
 
+import { API_BASE } from "@/lib/api"
+
 import { Suspense, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
@@ -38,7 +40,7 @@ function Verify2FAInner() {
     }
     setLoading(true)
     try {
-      const res = await fetch("http://localhost:3001/api/v1/auth/2fa/verify", {
+      const res = await fetch(`${API_BASE}/api/v1/auth/2fa/verify`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

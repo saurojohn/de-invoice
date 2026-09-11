@@ -7,7 +7,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
-import { apiGet, apiPost, apiPut, apiDelete } from "@/lib/api"
+import { API_BASE, apiGet, apiPost, apiPut, apiDelete } from "@/lib/api"
 
 type EntryType = "einnahme" | "ausgabe" | "umbuchung" | "eroeffnung"
 
@@ -343,7 +343,7 @@ export default function CashbookPage() {
   const signClose = async (closeId: string) => {
     const companyId = localStorage.getItem("companyId")!
     const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3001"}/api/v1/cashbook/close-day/${closeId}/sign?companyId=${companyId}`,
+      `${API_BASE}/api/v1/cashbook/close-day/${closeId}/sign?companyId=${companyId}`,
       {
         method: "POST",
         credentials: "include",

@@ -52,6 +52,19 @@ WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+# Tier 363: `next build` inlines NEXT_PUBLIC_* into the client bundle, so the
+# browser-side API base has to exist at BUILD time. Without this ARG the
+# compose files' runtime `environment:` value never reached the bundle and
+# src/lib/api.ts fell back to http://localhost:3001 — every browser would
+# have called its own machine. Refuse to build without it rather than bake
+# that fallback into a production image. Use the public origin the reverse
+# proxy serves (it routes /api/ to the backend), e.g. https://example.com.
+ARG NEXT_PUBLIC_API_URL
+RUN if [ -z "$NEXT_PUBLIC_API_URL" ]; then \
+      echo "ERROR: build arg NEXT_PUBLIC_API_URL is required (public URL, e.g. https://example.com)" >&2; \
+      exit 1; \
+    fi
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 RUN npm run build
 
 # ─── Stage 3: runtime ──────────────────────────────────────────

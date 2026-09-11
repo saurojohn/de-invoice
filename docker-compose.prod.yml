@@ -107,15 +107,22 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      # Tier 363: NEXT_PUBLIC_* values are inlined by `next build`, so the
+      # browser-side API base has to be a BUILD arg. It used to be set only
+      # under `environment:` below, which never reached the bundle — the
+      # image fell back to http://localhost:3001. Use the public origin nginx
+      # serves (it routes /api/ to the backend). Changing it needs a rebuild.
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?NEXT_PUBLIC_API_URL is required (public URL, e.g. https://example.com)}
     container_name: de-invoice-frontend
     environment:
       # Next.js server-side fetches hit
       # the backend by the docker-compose
       # service name. The browser-side
       # fetches use NEXT_PUBLIC_API_URL
-      # (baked in at build time).
+      # (baked in at build time — see build.args
+      # above; a runtime value has no effect).
       BACKEND_INTERNAL_URL: http://backend:3001
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
       NODE_ENV: production
       PORT: 3000
       HOSTNAME: 0.0.0.0

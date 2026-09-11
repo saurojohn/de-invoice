@@ -1,5 +1,7 @@
 "use client"
 
+import { API_BASE } from "@/lib/api"
+
 import { Suspense } from "react"
 
 import { useEffect, useState } from "react"
@@ -62,7 +64,7 @@ function ResetPasswordPageInner() {
       // Pre-auth: no x-user-id/company-id yet, so raw
       // fetch is correct here (apiFetch would inject
       // empty headers).
-      const res = await fetch("http://localhost:3001/api/v1/auth/reset-password", {
+      const res = await fetch(`${API_BASE}/api/v1/auth/reset-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token, password }),

@@ -77,8 +77,8 @@ run_spec() {
 # Never add a spec here to get a red build green without writing down why.
 QUARANTINE=(
   # 17 were quarantined when Tier 361 turned the three-digit specs on; 15 were
-  # fixed in the same tier, 142 in Tier 362 (HANDOFF lists what each needed). Left:
-  "124-tier99-deploy-readiness.sh"       # DEPLOY.md lacks POSTGRES_PASSWORD / NEXT_PUBLIC_API_URL; the latter never reaches the frontend image build (HANDOFF)
+  # fixed in the same tier, 142 in Tier 362, 124 in Tier 363 (HANDOFF lists what
+  # each needed). Empty now — only add a spec with its symptom written down.
 )
 is_quarantined() {
   local q

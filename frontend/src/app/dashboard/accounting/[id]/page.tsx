@@ -1,5 +1,7 @@
 "use client"
 
+import { API_BASE } from "@/lib/api"
+
 import { useEffect, useState } from "react"
 import { useRouter, useParams } from "next/navigation"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
@@ -45,7 +47,7 @@ export default function VoucherDetailPage() {
     }
 
     const voucherId = params.id as string
-    fetch(`http://localhost:3001/api/v1/accounting/vouchers/${voucherId}?companyId=${companyId}`)
+    fetch(`${API_BASE}/api/v1/accounting/vouchers/${voucherId}?companyId=${companyId}`)
       .then((res) => res.json())
       .then(setVoucher)
       .finally(() => setLoading(false))

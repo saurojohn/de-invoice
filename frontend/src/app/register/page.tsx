@@ -1,5 +1,7 @@
 "use client"
 
+import { API_BASE } from "@/lib/api"
+
 import { Suspense } from "react"
 
 import { useEffect, useState } from "react"
@@ -54,7 +56,7 @@ function RegisterPageInner() {
   useEffect(() => {
     if (!inviteToken) return
     setLoadingInvite(true)
-    fetch(`http://localhost:3001/api/v1/invitations/verify?token=${encodeURIComponent(inviteToken)}`)
+    fetch(`${API_BASE}/api/v1/invitations/verify?token=${encodeURIComponent(inviteToken)}`)
       .then((r) => r.json())
       .then((data) => {
         setInvInfo(data)
@@ -93,7 +95,7 @@ function RegisterPageInner() {
 
     setLoading(true)
     try {
-      const res = await fetch("http://localhost:3001/api/v1/auth/register", {
+      const res = await fetch(`${API_BASE}/api/v1/auth/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -133,7 +135,7 @@ function RegisterPageInner() {
     }
     setLoading(true)
     try {
-      const res = await fetch("http://localhost:3001/api/v1/invitations/accept", {
+      const res = await fetch(`${API_BASE}/api/v1/invitations/accept`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token: inviteToken, password: invPassword }),

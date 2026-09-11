@@ -11,7 +11,7 @@ import { Switch } from "@/components/ui/switch"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
-import { apiGet, apiPost, apiPut, apiFetch, ApiError } from "@/lib/api"
+import { API_BASE, apiGet, apiPost, apiPut, apiFetch, ApiError } from "@/lib/api"
 
 type InvoiceType = 'INV' | 'CN' | 'PI' | 'RCV'
 type InvoiceTemplateType = 'standard' | 'simplified' | 'compact'
@@ -419,7 +419,7 @@ function CreateInvoicePageInner() {
       ? localStorage.getItem("companyId")
       : null
     if (!companyId) return
-    fetch(`http://localhost:3001/api/v1/companies/${companyId}`, {
+    fetch(`${API_BASE}/api/v1/companies/${companyId}`, {
       headers: { "x-user-id": localStorage.getItem("userId") || "" },
     })
       .then((r) => r.ok ? r.json() : null)

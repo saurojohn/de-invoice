@@ -1,13 +1,13 @@
 "use client"
 
-import { useEffect, useRef, useState, useCallback, useMemo } from "react"
+import { useEffect, useRef, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
-import { apiGet, ApiError } from "@/lib/api"
+import { API_BASE, apiGet, ApiError } from "@/lib/api"
 
 interface BeraterAttachment {
   id: string
@@ -279,13 +279,8 @@ export default function BeraterPage() {
   const canCreate = isBerater
   const canAct = !isBerater
 
-  const apiBase = useMemo(
-    () =>
-      typeof process !== "undefined"
-        ? process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
-        : "http://localhost:3001",
-    [],
-  )
+  // Tier 363: one API base for the whole app (src/lib/api.ts).
+  const apiBase = API_BASE
 
   return (
     <main className="min-h-screen bg-gray-50 dark:bg-gray-900">

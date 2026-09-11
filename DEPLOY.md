@@ -109,6 +109,16 @@ git clone <repo-url> de-invoice
 cd de-invoice
 cp backend/.env.example backend/.env
 nano backend/.env   # DATABASE_URL, JWT_SECRET, MAIL_*, STORAGE_LOCAL_PATH
+# Compose-Variablen: eine zweite .env neben docker-compose.prod.yml.
+#   POSTGRES_PASSWORD   Pflicht — ohne bricht `docker compose up` ab.
+#   NEXT_PUBLIC_API_URL Pflicht — öffentliche URL der Seite (nginx leitet /api/
+#                       ans Backend). Wird beim Frontend-BUILD eingebacken, nicht
+#                       zur Laufzeit gelesen: nach einer Änderung
+#                       `docker compose -f docker-compose.prod.yml build frontend`.
+cat > .env <<'EOF'
+POSTGRES_PASSWORD=<starkes-zufallspasswort>
+NEXT_PUBLIC_API_URL=https://example.com
+EOF
 
 # 4. Domain + TLS
 # DNS: A-Record example.com → <HETZNER_IP>

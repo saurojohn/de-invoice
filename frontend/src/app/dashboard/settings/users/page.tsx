@@ -1,5 +1,7 @@
 "use client"
 
+import { API_BASE } from "@/lib/api"
+
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -85,7 +87,7 @@ export default function UsersPage() {
     setError(null)
     try {
       const res = await fetch(
-        `http://localhost:3001/api/v1/users?companyId=${companyId}`,
+        `${API_BASE}/api/v1/users?companyId=${companyId}`,
         { headers: { "x-user-id": userId || "", "x-company-id": companyId } }
       )
       if (!res.ok) {
@@ -132,7 +134,7 @@ export default function UsersPage() {
     setInviteMsg(null)
     try {
       const res = await fetch(
-        `http://localhost:3001/api/v1/users/invitations?companyId=${companyId}`,
+        `${API_BASE}/api/v1/users/invitations?companyId=${companyId}`,
         {
           method: "POST",
           headers: {
@@ -164,7 +166,7 @@ export default function UsersPage() {
     const userId = localStorage.getItem("userId")
     if (!companyId || !userId) return
     const res = await fetch(
-      `http://localhost:3001/api/v1/users/invitations/${id}/resend?companyId=${companyId}`,
+      `${API_BASE}/api/v1/users/invitations/${id}/resend?companyId=${companyId}`,
       {
         method: "POST",
         headers: { "x-user-id": userId, "x-company-id": companyId },
@@ -182,7 +184,7 @@ export default function UsersPage() {
     const userId = localStorage.getItem("userId")
     if (!companyId || !userId) return
     const res = await fetch(
-      `http://localhost:3001/api/v1/users/invitations/${id}?companyId=${companyId}`,
+      `${API_BASE}/api/v1/users/invitations/${id}?companyId=${companyId}`,
       {
         method: "DELETE",
         headers: { "x-user-id": userId, "x-company-id": companyId },
@@ -199,7 +201,7 @@ export default function UsersPage() {
     const myId = localStorage.getItem("userId")
     if (!companyId || !myId) return
     const res = await fetch(
-      `http://localhost:3001/api/v1/users/${userId}/role?companyId=${companyId}`,
+      `${API_BASE}/api/v1/users/${userId}/role?companyId=${companyId}`,
       {
         method: "PATCH",
         headers: {
@@ -225,7 +227,7 @@ export default function UsersPage() {
     const myId = localStorage.getItem("userId")
     if (!companyId || !myId) return
     const res = await fetch(
-      `http://localhost:3001/api/v1/users/${userId}/status?companyId=${companyId}`,
+      `${API_BASE}/api/v1/users/${userId}/status?companyId=${companyId}`,
       {
         method: "PATCH",
         headers: {

@@ -206,6 +206,14 @@ services:
     build:
       context: ../../frontend
       dockerfile: Dockerfile
+      # Tier 363: NEXT_PUBLIC_* values are inlined by `next build`, so the
+      # browser-side API base has to be a BUILD arg. It used to be passed only
+      # as runtime `environment:`, which never reached the bundle — the image
+      # fell back to http://localhost:3001. Caddy serves /api/* on the same
+      # origin, so the public FRONTEND_URL is the right value. Rebuild after
+      # changing it.
+      args:
+        NEXT_PUBLIC_API_URL: ${FRONTEND_URL:?FRONTEND_URL is required (public URL, e.g. https://rechnung.example.de)}
     image: de-invoice-frontend:latest
     container_name: de-invoice-frontend
     restart: unless-stopped
@@ -219,10 +227,8 @@ services:
       NODE_ENV: production
       PORT: 3000
       HOSTNAME: 0.0.0.0
-      # Public URL the frontend uses for fetch() calls.
-      # Same as the user's browser URL — no internal
-      # nginx prefix here.
-      NEXT_PUBLIC_API_URL: ${FRONTEND_URL}
+      # NEXT_PUBLIC_API_URL is a build arg (see build.args
+      # above); setting it here at runtime has no effect.
       NEXT_TELEMETRY_DISABLED: "1"
     healthcheck:
       test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:3000/ || exit 1"]

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
-import { apiGet } from "@/lib/api"
+import { API_BASE, apiGet } from "@/lib/api"
 
 interface EBilanzPosition {
   elementId: string
@@ -152,10 +152,8 @@ export function EBilanzTab() {
     setCompanyId(localStorage.getItem("companyId"))
   }, [])
 
-  const apiBase =
-    (typeof process !== "undefined" &&
-      process.env.NEXT_PUBLIC_API_URL) ||
-    "http://localhost:3001"
+  // Tier 363: one API base for the whole app (src/lib/api.ts).
+  const apiBase = API_BASE
 
   const xmlUrl = companyId
     ? `${apiBase}/api/v1/accounting/ebilanz.xml?companyId=${companyId}&year=${year}`

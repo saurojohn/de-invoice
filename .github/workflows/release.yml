@@ -88,6 +88,12 @@ jobs:
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
+          # Tier 363: the frontend bundle inlines NEXT_PUBLIC_API_URL at build
+          # time and frontend/Dockerfile refuses to build without it (the old
+          # silent fallback baked http://localhost:3001 into every image).
+          # Set the repository variable NEXT_PUBLIC_API_URL to the public URL
+          # before pushing a v* tag; without it this build fails on purpose.
+          build-args: ${{ matrix.name == 'frontend' && format('NEXT_PUBLIC_API_URL={0}', vars.NEXT_PUBLIC_API_URL) || '' }}
           # We always push — the alternative
           # (build only, then push manually)
           # adds a step for no benefit when
