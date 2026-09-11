@@ -441,6 +441,90 @@ PG_CONTAINER=tmp-ci-pg bash backend/scripts/local-ci-stack.sh down
 
 Reference result on a fresh stack (Tier 357): **99 passed / 0 failed**, matching CI.
 
+**The same script now covers the Playwright job** (Tier 358):
+
+```bash
+PG_CONTAINER=tmp-ci-pg bash backend/scripts/local-ci-stack.sh run-playwright
+```
+
+It runs the shared `up`, then the CI `playwright` job's own steps: backend
+with `FRONTEND_URL=http://localhost:3100`, `NEXT_PUBLIC_API_URL=http://localhost:3001
+npx next dev -p 3100` under `NODE_ENV=test`, `npx playwright install chromium`,
+and one `CI=true npx playwright test` — not the segmented
+`frontend/scripts/run-all.sh`, which CI does not use. `down` also stops the
+frontend, scoped to port 3100.
+
+Two details that are easy to get wrong:
+- **`PORT` must not be exported globally.** `scripts/start-backend.sh`
+  takes the backend port from `PORT`; the CI job's `PORT: 3100` only ever
+  reaches `next dev`. The script passes it inline.
+- **The gitignored `frontend/.env.local` does not leak into the run.**
+  Verified in the installed `@next/env` 15.5.7: its file list is
+  `[.env.${mode}.local, mode !== "test" && ".env.local", .env.${mode}, .env]`,
+  so under `NODE_ENV=test` — which CI uses — `.env.local` is never loaded.
+
+Reference result on a fresh stack (Tier 358): **906 passed / 1 flaky / 5
+skipped / 0 failed** (912 total) — CI's latest was 907 / 0 / 5. The flaky
+(`webhook-last-success-tier199`) passed on retry.
+
+**Three things the Playwright job needs that the backend job does not**
+(found in Tier 358's first local run: 893 passed / 6 failed / 9 did not run):
+- **The backend log must be `/tmp/backend.log`.** `customer-portal-tier131`,
+  `portal-invoice-detail-tier133` and `portal-profile-tier155` read portal
+  magic-link tokens back out of that exact file. A different log path fails
+  them with "expected to find a portal session token in /tmp/backend.log" and
+  their serial siblings never run.
+- **`BACKUP_ROOT` must not default.** `backup.service.ts` uses
+  `process.env.BACKUP_ROOT || $HOME/data/backups/de-invoice` — on a
+  developer machine that is the **real** backup directory. `backups.spec.ts`
+  listed its 13 real entries (CI's runner has none) and its trigger wrote a
+  backup *of the throwaway test database* into it. The stack now exports
+  `BACKUP_ROOT=/tmp/local-ci-backups` (wiped by `up`) and
+  `BACKUP_DOCKER_CONTAINER=$PG_CONTAINER`.
+- With those, the four failing files re-ran 22/22 and the real backup
+  directory stayed at 13 entries.
+
+**Backups: three operational findings that are not test problems** (Tier 358,
+from inspecting `~/data/backups/de-invoice` by file name and size only):
+1. **The nightly backups have contained no database since 2026-09-06.**
+   Every entry from 2026-08-01 to 2026-09-05 has `db.sql.gz`. From 09-06 on
+   they hold only `attachments.tar.gz`. **The last backup that includes the
+   database is `backup-2026-09-05-224235`.** The schedule is the backend's own
+   `@Cron('0 4 * * *')` in `backup.scheduler.ts` — no crontab or LaunchAgent —
+   so it runs only while a dev backend happens to be up at 04:00.
+2. **The backup health indicator cannot see this.** `BackupService.healthColor`
+   looks only at the age of the newest entry (<24h green, <48h amber, else
+   red) and never checks that `db.sql.gz` exists, so `/admin/backups` showed
+   green every day the database was missing. `restoreDrill()` also takes the
+   newest entry without regard to whether it is a usable dump.
+3. **Probable root cause of the recurring dev-PG corruption:** the dev
+   container's data directory is bind-mounted from `/tmp/pgdata`. The
+   09-06 04:00 dump log reads `FATAL: could not open file
+   "global/pg_filenode.map": No such file or directory` — Postgres system
+   files already gone from the data directory. macOS periodically purges old
+   files under `/tmp`, which fits. Note where that mount comes from:
+   `docker-compose.yml` uses a **named volume** (`postgres_data`), so the
+   dead `de-invoice-postgres` container was not created by compose but by
+   some manual `docker run -v /tmp/pgdata:...`. `scripts/fix-dev-pg.sh` does
+   not recreate the container either — it assumes `/tmp/pgdata` exists,
+   `mkdir -p`s any missing subdirectories, `sudo chown`s, and `docker start`s
+   the same container. That keeps the data in `/tmp`, and recreating empty
+   directories cannot bring back files Postgres has lost, so it repairs the
+   symptom while preserving the cause. Recreating the dev database through
+   `docker-compose.yml`'s named volume would take it out of `/tmp`.
+
+Also: Tier 358's first local run (before the `BACKUP_ROOT` fix) left
+`backup-2026-09-11-082614` in that real directory — a dump of the throwaway
+**test** database, which now sorts as the newest entry and so drives both the
+health colour and the restore drill. Left in place pending the operator's
+decision; it is safe to delete and belongs to no real data.
+
+**`frontend/AGENTS.md` points at `node_modules/next/dist/docs/`, which does
+not exist** in this install. When you need Next.js behaviour confirmed, read
+the installed package source (e.g. `node_modules/@next/env/dist/index.js`)
+rather than trusting that pointer. The block is tool-managed
+(`BEGIN:nextjs-agent-rules`), so it was left unedited.
+
 **A local full-suite run IS comparable to CI — when it is set up like CI**
 (Tier 357). Tiers 355-356 recorded the backend suite as "65 passed / 34
 failed locally vs 99/99 in CI, and the gap is environmental". **That
