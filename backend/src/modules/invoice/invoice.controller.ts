@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, Res, Header, BadRequestException, HttpCode, Req, NotFoundException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, Res, Header, BadRequestException, HttpCode, Req, NotFoundException, HttpException } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { Response } from 'express';
 import { Prisma } from '@prisma/client';
@@ -866,6 +866,12 @@ export class InvoiceController {
       res.set(headers)
       res.end(signedBuffer)
     } catch (error) {
+      // Tier 361: findOne() throws NotFoundException for an unknown or
+      // foreign invoice id, and this catch turned it into
+      // 500 "PDF generation failed" (e2e/154 hit it). Let HTTP exceptions
+      // through to the exception filter; only real generation failures are
+      // a 500.
+      if (error instanceof HttpException) throw error;
       console.error('PDF generation error:', error);
       res.status(500).json({ error: 'PDF generation failed' });
     }

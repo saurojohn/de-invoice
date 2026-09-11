@@ -23,7 +23,11 @@ login
 
 # Pick a sent invoice (the same one the Tier-219 e2e uses is fine,
 # but Tier 219 deleted the bank info so we re-set it here).
-INVOICE_ID="14906169-ea2a-4ea2-878c-45acc9052d0e"
+# Tier 361: this was a hardcoded invoice id that only existed on one
+# developer database, so on the CI seed every request got 404 / 500 the
+# first time the spec ran. INV-TEST-001 is seeded by e2e/ci-seed.sh
+# (status sent, total 119, no backend spec modifies it).
+INVOICE_ID="11deeb35-7147-4bdc-86d9-a302b4f80f3e"  # INV-TEST-001
 
 # Backup the company's bankInfo, then re-apply the Tier 224
 # test IBAN if missing.

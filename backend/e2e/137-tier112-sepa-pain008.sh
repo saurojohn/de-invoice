@@ -44,6 +44,22 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/_lib.sh"
 
 login
+
+# Tier 361: batch creation takes the creditor IBAN from Company.bankInfo
+# (payments/direct-debit.service.ts) and answers 400 "Gläubiger-IBAN fehlt"
+# without one. The developer database's company had bank details; the CI
+# seed's does not, so every batch step failed the first time this spec ran.
+# Merge an IBAN/BIC in for the run and put the original bankInfo back on exit.
+T112_ORIG_BANKINFO=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT coalesce(\"bankInfo\"::text, '') FROM \"Company\" WHERE id='$COMPANY_ID';" 2>/dev/null | tr -d '\n')
+t112_restore_bankinfo() {
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -q -c \
+    "UPDATE \"Company\" SET \"bankInfo\" = NULLIF('${T112_ORIG_BANKINFO}', '')::jsonb WHERE id='$COMPANY_ID';" >/dev/null 2>&1
+}
+trap t112_restore_bankinfo EXIT
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -q -c \
+  "UPDATE \"Company\" SET \"bankInfo\" = coalesce(\"bankInfo\", '{}'::jsonb) || '{\"iban\":\"DE89370400440532013000\",\"bic\":\"COBADEFFXXX\"}'::jsonb WHERE id='$COMPANY_ID';" >/dev/null
+
 TS=$(date +%s)
 PREFIX="Tier112-$TS"
 

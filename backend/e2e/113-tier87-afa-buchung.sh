@@ -164,8 +164,13 @@ for l in d['lines']:
 ")
 BWA_AFA_SOURCE=$(echo "$BWA" | python3 -c "import json,sys; print(json.load(sys.stdin)['afaSource'])")
 BWA_AFA_BOOKINGS=$(echo "$BWA" | python3 -c "import json,sys; print(json.load(sys.stdin)['counts']['afaBookings'])")
-assert_eq "BWA 3100 monat = -1000" "$BWA_3100_MONAT" "-1000"
-assert_eq "BWA 3100 ytd = -1000" "$BWA_3100_YTD" "-1000"
+# Tier 361: these expected AfA as a negative BWA line. That was true when
+# Tier 87 summed the (negative) AfA expense amounts as-is; bwa.service.ts
+# now sums .abs() and subtracts AfA in betriebsergebnis like every other
+# cost bucket (112-tier86-bwa and 119-tier93-bwa-extensions expect positive
+# costs and pass). The spec never ran, so it never followed.
+assert_eq "BWA 3100 monat = 1000" "$BWA_3100_MONAT" "1000"
+assert_eq "BWA 3100 ytd = 1000" "$BWA_3100_YTD" "1000"
 assert_eq "BWA afaSource = booked" "$BWA_AFA_SOURCE" "booked"
 assert_eq "BWA afaBookings = 1" "$BWA_AFA_BOOKINGS" "1"
 

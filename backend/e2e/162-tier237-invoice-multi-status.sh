@@ -20,6 +20,24 @@ set -uo pipefail
 source "$(dirname "$0")/_lib.sh"
 login
 
+# ---- 0. Fixture ----
+# Tier 361: the spec assumed the company already had overdue and sent
+# invoices. The developer database did; the CI seed has no overdue invoice,
+# so assertion 1 ("overdue count = 0") failed the first time the spec ran.
+# Create one of each for a throwaway customer and delete them at the end.
+# The sent invoice's due date is far in the future so nothing can flip it
+# to overdue mid-run.
+T237="t237-$(date +%s)-$$"
+T237_CUST="00000000-0000-4000-8000-$(printf '%012d' $$)"
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -q -c "
+  INSERT INTO \"Customer\" (id, name, type, address, \"paymentTerms\", \"companyId\", \"createdAt\", \"updatedAt\")
+    VALUES ('$T237_CUST', 'Tier 237 fixture $T237', 'business', '{\"country\": \"Deutschland\"}'::jsonb, 30, '$COMPANY_ID', NOW(), NOW());
+  INSERT INTO \"Invoice\" (id, \"invoiceNumber\", type, status, \"issueDate\", \"dueDate\", currency, subtotal, \"totalVat\", total, notes, \"customerId\", \"companyId\", \"createdAt\", \"updatedAt\") VALUES
+    (gen_random_uuid()::text, '$T237-OVERDUE', 'INV', 'overdue', CURRENT_DATE - 60, CURRENT_DATE - 30, 'EUR', 100, 19, 119, '', '$T237_CUST', '$COMPANY_ID', NOW(), NOW()),
+    (gen_random_uuid()::text, '$T237-SENT',    'INV', 'sent',    CURRENT_DATE,      '2099-12-31',      'EUR', 100, 19, 119, '', '$T237_CUST', '$COMPANY_ID', NOW(), NOW());" >/dev/null 2>&1
+T237_ROWS=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c "SELECT count(*) FROM \"Invoice\" WHERE \"customerId\"='$T237_CUST';" 2>/dev/null | tr -d ' ')
+[ "$T237_ROWS" = "2" ] && pass "fixture: 1 overdue + 1 sent invoice ($T237)" || fail "fixture invoices not created (rows: '$T237_ROWS')"
+
 # ---- 1. Single overdue ----
 RESP=$(curl -sS -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" "$API/api/v1/invoices?companyId=$COMPANY_ID&status=overdue&pageSize=500")
 COUNT=$(echo "$RESP" | python3 -c "import json,sys; d=json.loads(sys.stdin.read()); print(d['total'])")
@@ -82,4 +100,11 @@ SENT_ROWS=$(awk -F';' 'NR>1 && $3=="sent"{n++} END{print n+0}' /tmp/tier237-csv.
 [ "$SENT_ROWS" -ge 1 ] && pass "CSV contains $SENT_ROWS sent row(s)" || fail "CSV no sent rows"
 
 rm -f /tmp/tier237-csv.txt
+
+# ---- Cleanup: fixture invoices + customer ----
+LEFT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -q -c "
+  DELETE FROM \"Invoice\" WHERE \"customerId\"='$T237_CUST';
+  DELETE FROM \"Customer\" WHERE id='$T237_CUST';
+  SELECT count(*) FROM \"Customer\" WHERE id='$T237_CUST';" 2>/dev/null | tail -1 | tr -d ' ')
+[ "$LEFT" = "0" ] && pass "cleanup: fixture removed" || fail "cleanup: fixture customer $T237_CUST left behind ('$LEFT')"
 summary

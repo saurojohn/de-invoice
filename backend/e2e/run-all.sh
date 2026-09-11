@@ -40,13 +40,66 @@ if ! docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "SELECT 1" 
   exit 1
 fi
 
+# Tier 361: per-spec timeout. None of the specs has one, there is no
+# timeout(1) on macOS, and CI's job limit is GitHub's 6-hour default, so a
+# single hung curl or docker exec would stall the whole suite. The spec runs
+# in the background (stdin from /dev/null) with a watchdog that kills it —
+# and its direct children — after SPEC_TIMEOUT seconds; it then counts as
+# failed. The slowest spec takes well under a minute.
+SPEC_TIMEOUT="${SPEC_TIMEOUT:-600}"
+run_spec() {
+  bash "$1" < /dev/null &
+  local pid=$!
+  # stderr of the watchdog goes to /dev/null: killing its sleep at the end of
+  # every spec otherwise prints a "Terminated: 15 sleep" job notice.
+  (
+    sleep "$SPEC_TIMEOUT"
+    if kill -0 "$pid" 2>/dev/null; then
+      echo "  TIMEOUT: $1 still running after ${SPEC_TIMEOUT}s, killing it"
+      pkill -TERM -P "$pid"
+      kill -TERM "$pid"
+    fi
+  ) 2>/dev/null &
+  local watchdog=$!
+  wait "$pid"
+  local rc=$?
+  pkill -P "$watchdog" 2>/dev/null
+  kill "$watchdog" 2>/dev/null
+  wait "$watchdog" 2>/dev/null
+  return $rc
+}
+
+# Tier 361: quarantine. Turning on the 70 three-digit specs, 17 failed on a
+# CI-equivalent stack (backend/scripts/local-ci-stack.sh). They are listed
+# here with the symptom seen, NOT a diagnosed cause, and are fixed and
+# removed one by one. A quarantined spec still runs and is reported below,
+# but does not fail the suite; if it passes, the summary says to remove it.
+# Never add a spec here to get a red build green without writing down why.
+QUARANTINE=(
+  # 17 were quarantined when Tier 361 turned the three-digit specs on; 15 were
+  # fixed in the same tier (HANDOFF lists what each needed). Left:
+  "124-tier99-deploy-readiness.sh"       # DEPLOY.md lacks POSTGRES_PASSWORD / NEXT_PUBLIC_API_URL; the latter never reaches the frontend image build (HANDOFF)
+  "142-tier118-5-eur-aggregation.sh"     # PnL drops invoices with NULL eurSubtotal from revenue; recurring invoices never set it (HANDOFF)
+)
+is_quarantined() {
+  local q
+  for q in ${QUARANTINE[@]+"${QUARANTINE[@]}"}; do [[ "$q" == "$1" ]] && return 0; done
+  return 1
+}
+Q_FAILED=()
+Q_PASSED=()
+
 cd "$SCRIPT_DIR"
 PASS=0
 FAIL=0
 FAILED_TESTS=()
 RUN_IN_SEG=0
 SEG_NUM=1
-for t in [0-9][0-9]-*.sh; do
+# Tier 361: three-digit specs too. This loop used to be `[0-9][0-9]-*.sh`
+# — two digits then a hyphen — so the 70 specs numbered 100-169 never ran,
+# here or in CI, and "99/99" meant the two-digit specs only. Globs expand in
+# sorted order, so two-digit specs still run first, then 100-169.
+for t in [0-9][0-9]-*.sh [0-9][0-9][0-9]-*.sh; do
   # Segment checkpoint: every SEGMENT_SIZE specs, sleep +
   # health/deep ping to confirm the backend survived.
   if [[ $RUN_IN_SEG -ge $SEGMENT_SIZE ]]; then
@@ -71,11 +124,15 @@ for t in [0-9][0-9]-*.sh; do
   echo "════════════════════════════════════════════════════════"
   echo "  $t"
   echo "════════════════════════════════════════════════════════"
-  if bash "$t"; then
-    PASS=$((PASS+1))
+  if run_spec "$t"; then
+    if is_quarantined "$t"; then Q_PASSED+=("$t"); else PASS=$((PASS+1)); fi
   else
-    FAIL=$((FAIL+1))
-    FAILED_TESTS+=("$t")
+    if is_quarantined "$t"; then
+      Q_FAILED+=("$t")
+    else
+      FAIL=$((FAIL+1))
+      FAILED_TESTS+=("$t")
+    fi
   fi
   RUN_IN_SEG=$((RUN_IN_SEG + 1))
 done
@@ -86,6 +143,11 @@ echo "  Total: $PASS passed, $FAIL failed"
 if [[ $FAIL -gt 0 ]]; then
   echo "  Failed:"
   for t in "${FAILED_TESTS[@]}"; do echo "    - $t"; done
+fi
+echo "  Quarantined (not counted above, see QUARANTINE in run-all.sh): ${#Q_FAILED[@]} still failing, ${#Q_PASSED[@]} now passing"
+if [[ ${#Q_PASSED[@]} -gt 0 ]]; then
+  echo "  These quarantined specs PASSED — remove them from QUARANTINE:"
+  for t in "${Q_PASSED[@]}"; do echo "    + $t"; done
 fi
 echo "════════════════════════════════════════════════════════"
 exit $FAIL

@@ -80,6 +80,10 @@ DELETE FROM "Customer" WHERE "customerNumber" LIKE 'T116-%' OR name LIKE 'T116-%
 SQL
 ORIGINAL_ADDRESS=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT address::text FROM \"Company\" WHERE id='$COMPANY_ID';" 2>&1 | tr -d '\n' | head -1)
+ORIGINAL_PHONE=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT coalesce(phone, '') FROM \"Company\" WHERE id='$COMPANY_ID';" 2>/dev/null | tr -d '\n')
+ORIGINAL_EMAIL=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT coalesce(email, '') FROM \"Company\" WHERE id='$COMPANY_ID';" 2>/dev/null | tr -d '\n')
 cleanup() {
   docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null 2>&1
 DELETE FROM "InvoiceItem" WHERE "invoiceId" IN (
@@ -88,6 +92,7 @@ DELETE FROM "InvoiceItem" WHERE "invoiceId" IN (
 DELETE FROM "Invoice" WHERE "invoiceNumber" LIKE 'T116-%';
 DELETE FROM "Customer" WHERE "customerNumber" LIKE 'T116-%' OR name LIKE 'T116-%';
 UPDATE "Company" SET address = '${ORIGINAL_ADDRESS}'::jsonb WHERE id = '$COMPANY_ID';
+UPDATE "Company" SET phone = NULLIF('${ORIGINAL_PHONE}', ''), email = NULLIF('${ORIGINAL_EMAIL}', '') WHERE id = '$COMPANY_ID';
 SQL
 }
 trap cleanup EXIT
@@ -95,6 +100,15 @@ trap cleanup EXIT
 docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "UPDATE \"Company\" SET address='{\"street\":\"Otto-Hahn-Str. 24\",\"city\":\"Dreieich\",\"postalCode\":\"63303\",\"country\":\"Deutschland\"}'::jsonb, \"bankInfo\"='{\"bic\":\"HELADEFFXXX\",\"iban\":\"DE89370400440532013000\",\"bankName\":\"Commerzbank\"}'::jsonb WHERE id='$COMPANY_ID';" >/dev/null
 pass "seeded company address + IBAN"
+# Tier 361: XRechnung BR-DE-6 / BR-DE-7 require the seller contact telephone
+# (BT-42) and email (BT-43), which invoice.controller.ts takes from
+# Company.phone and Company.email. The developer database's company had
+# both; the CI seed's has neither, so KoSIT answered REJECT (schematron=N)
+# the first time this spec ran — BR-DE-6 first, then BR-DE-7 once the phone
+# was set. Seed both; cleanup restores the original values.
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -q -c \
+  "UPDATE \"Company\" SET phone='+49 6103 123456', email='buchhaltung@example.com' WHERE id='$COMPANY_ID';" >/dev/null
+pass "seeded company phone + email (BR-DE-6, BR-DE-7)"
 
 docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 INSERT INTO "Customer" (id, "companyId", name, "customerNumber", "vatId", address, "paymentTerms", tags, "createdAt", "updatedAt")

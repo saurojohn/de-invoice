@@ -90,7 +90,15 @@ ERR_CODE=$(json_field "$BODY" errorCode)
 DUR=$(json_field "$BODY" durationMs)
 [ "$STATUS" = "invalid" ] && pass "DE000000000 → status=invalid" || fail "expected invalid, got $STATUS"
 [ "$ERR_CODE" = "UNKNOWN_VAT" ] && pass "DE000000000 → errorCode=UNKNOWN_VAT (real VIES response)" || fail "expected UNKNOWN_VAT, got $ERR_CODE"
-python3 -c "import sys; sys.exit(0 if float('$DUR') >= 100 else 1)" && pass "DE000000000 took ${DUR}ms (real SOAP round-trip)" || fail "DE000000000 only took ${DUR}ms (suspicious — should be ≥100ms for real VIES call)"
+# Tier 361: CI (and backend/scripts/local-ci-stack.sh) runs the backend with
+# VIES_MOCK=1, so there is no SOAP round-trip to time and this check failed
+# (5 ms) the first time the spec ever ran. The errorCode assertions above
+# still apply; only the latency heuristic needs the real service.
+if [[ "${VIES_MOCK:-}" == "1" ]]; then
+  note "DE000000000 took ${DUR}ms — VIES_MOCK=1, real-VIES latency check skipped"
+else
+  python3 -c "import sys; sys.exit(0 if float('$DUR') >= 100 else 1)" && pass "DE000000000 took ${DUR}ms (real SOAP round-trip)" || fail "DE000000000 only took ${DUR}ms (suspicious — should be ≥100ms for real VIES call)"
+fi
 
 # ---- 6. GET /latest after the checks returns the row ----
 api_get "/api/v1/vat-validation/latest?companyId=$COMPANY_ID&entityType=customer&entityId=$ENTITY_ID"

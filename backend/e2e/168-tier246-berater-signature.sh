@@ -42,7 +42,11 @@ login
 # Get a real invoice PDF (Tier 50 fixture) for the
 # user-sign test. The PDF comes pre-signed with the
 # company cert — /user-sign adds a second signature.
-INVOICE_ID="04a16886-2811-4390-87c6-16f2ebe1cf72"
+# Tier 361: this was a hardcoded invoice id that only existed on one
+# developer database, so on the CI seed every request got 404 / 500 the
+# first time the spec ran. INV-TEST-001 is seeded by e2e/ci-seed.sh
+# (status sent, total 119, no backend spec modifies it).
+INVOICE_ID="11deeb35-7147-4bdc-86d9-a302b4f80f3e"  # INV-TEST-001
 COMPANY_SIGNED_PDF=$(curl -sS \
   "$API/api/v1/invoices/$INVOICE_ID/pdf?companyId=$COMPANY_ID&sign=true" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" | base64 -w 0)

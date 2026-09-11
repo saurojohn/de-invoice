@@ -22,6 +22,30 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/_lib.sh"
 
 login
+
+# Tier 361: the § 8b KStG assertions need the company to be a
+# Kapitalgesellschaft. anlage-aus.service.ts reads settings.rechtsform and
+# falls back to legalName, testing /^(GmbH|AG|KGaA|UG)/ — anchored at the
+# start, so "SH Leder GmbH" is not recognised. The developer database had
+# settings.rechtsform set; the CI seed does not, so every § 8b figure came
+# out as for a non-KapG the first time this spec ran. Set it explicitly for
+# the run and put the original back on exit. (The anchored fallback is
+# recorded in HANDOFF as an open product question.)
+T110_ORIG_RF=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT coalesce(settings->>'rechtsform', '') FROM \"Company\" WHERE id='$COMPANY_ID';" 2>/dev/null | tr -d '\n')
+t110_restore_rechtsform() {
+  if [ -n "$T110_ORIG_RF" ]; then
+    docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -q -c \
+      "UPDATE \"Company\" SET settings = jsonb_set(settings, '{rechtsform}', to_jsonb('${T110_ORIG_RF}'::text)) WHERE id='$COMPANY_ID';" >/dev/null 2>&1
+  else
+    docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -q -c \
+      "UPDATE \"Company\" SET settings = settings - 'rechtsform' WHERE id='$COMPANY_ID';" >/dev/null 2>&1
+  fi
+}
+trap t110_restore_rechtsform EXIT
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -q -c \
+  "UPDATE \"Company\" SET settings = coalesce(settings, '{}'::jsonb) || '{\"rechtsform\": \"GmbH\"}'::jsonb WHERE id='$COMPANY_ID';" >/dev/null
+
 TS=$(date +%s)
 YEAR=$((2025 + (TS % 3)))  # 2025/2026/2027
 PREFIX="Tier110-$TS"
@@ -53,7 +77,9 @@ note "=== 2. rechtsform detected ==="
 RECHTSFORM=$(json_field "$BODY" "rechtsform")
 IS_KAPG=$(json_field "$BODY" "isKapg")
 # The test company (SH Leder GmbH) is KapG, so isKapg=true
-[[ "$IS_KAPG" = "True" || "$IS_KAPG" = "true" ]] && pass "isKapg = true (rechtsform=$RECHTSFORM)" || pass "isKapg = $IS_KAPG (rechtsform=$RECHTSFORM)"
+# Tier 361: this passed in both branches, so a non-KapG company went
+# unnoticed and the § 8b assertions failed further down instead.
+[[ "$IS_KAPG" = "True" || "$IS_KAPG" = "true" ]] && pass "isKapg = true (rechtsform=$RECHTSFORM)" || fail "isKapg = $IS_KAPG (rechtsform=$RECHTSFORM), expected true"
 
 # ===== 3. PUT 1 entry: US, no DBA, dividend =====
 echo

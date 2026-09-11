@@ -22,7 +22,11 @@ set -uo pipefail
 source "$(dirname "$0")/_lib.sh"
 login
 
-INVOICE_ID="14906169-ea2a-4ea2-878c-45acc9052d0e"
+# Tier 361: this was a hardcoded invoice id that only existed on one
+# developer database, so on the CI seed every request got 404 / 500 the
+# first time the spec ran. INV-TEST-001 is seeded by e2e/ci-seed.sh
+# (status sent, total 119, no backend spec modifies it).
+INVOICE_ID="11deeb35-7147-4bdc-86d9-a302b4f80f3e"  # INV-TEST-001
 
 # Backup bankInfo, force known state with IBAN
 BANKINFO_BACKUP=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
@@ -47,7 +51,10 @@ MAGIC=$(xxd -p -l 4 /tmp/tier225-qr.png)
 # ---- 2. Content-Disposition ----
 CD=$(grep -i "^content-disposition:" /tmp/tier225-hdr.txt | tr -d '\r' | head -1)
 echo "$CD" | grep -qi "girocode" && pass "Content-Disposition contains 'girocode'" || fail "Content-Disposition bad: $CD"
-echo "$CD" | grep -q "INV-2026-006285" && pass "Content-Disposition contains invoice number" || fail "Content-Disposition missing invoice number: $CD"
+# Tier 361: the expected number was the old dev-database invoice's
+# (INV-2026-006285); read it for the invoice actually under test.
+INV_NUMBER=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "SELECT \"invoiceNumber\" FROM \"Invoice\" WHERE id='$INVOICE_ID';" 2>/dev/null | tr -d ' \n')
+[ -n "$INV_NUMBER" ] && echo "$CD" | grep -qF "$INV_NUMBER" && pass "Content-Disposition contains invoice number ($INV_NUMBER)" || fail "Content-Disposition missing invoice number '$INV_NUMBER': $CD"
 
 # ---- 3. PNG dimensions 566x566 ----
 # PNG IHDR is at offset 8. Width @ +16, height @ +20, both 4-byte BE.

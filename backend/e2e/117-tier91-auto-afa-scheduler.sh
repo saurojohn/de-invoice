@@ -76,6 +76,10 @@ docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "DELETE FROM \"A
 # restore it after the opt-out test. The opt-out
 # test mutates settings.autoBookAfa; the cleanup
 # trap restores it.
+# Tier 361: Company.settings is NULL on the CI seed. The backup came back
+# empty, json.loads('') raised in step 4, the UPDATE became settings=''::jsonb
+# (a syntax error), the opt-out was never applied and asset 2 got its 12 AfA
+# rows anyway. Treat NULL as {} for the edit and restore NULL on cleanup.
 ORIGINAL_SETTINGS=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT settings::text FROM \"Company\" WHERE id='$COMPANY_ID';" 2>&1 | tr -d ' ' | head -1)
 # Trim trailing newline
@@ -88,6 +92,9 @@ cleanup() {
   if [ -n "$ORIGINAL_SETTINGS" ]; then
     docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
       "UPDATE \"Company\" SET settings='$ORIGINAL_SETTINGS'::jsonb WHERE id='$COMPANY_ID';" >/dev/null 2>&1
+  else
+    docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
+      "UPDATE \"Company\" SET settings=NULL WHERE id='$COMPANY_ID';" >/dev/null 2>&1
   fi
   # Remove all test-tagged Expense rows (the 12
   # monthly AfA rows per asset).
@@ -207,7 +214,7 @@ echo "=== 4. opt-out: settings.autoBookAfa=false skips SH Leder ==="
 # Set autoBookAfa=false on SH Leder only.
 UPDATED_SETTINGS=$(echo "$ORIGINAL_SETTINGS" | python3 -c "
 import json,sys
-s = json.loads(sys.stdin.read())
+s = json.loads(sys.stdin.read().strip() or '{}')
 s['autoBookAfa'] = False
 print(json.dumps(s))
 ")
@@ -236,7 +243,7 @@ echo "=== 5. re-enable + re-trigger → asset 2 gets booked ==="
 # So we explicitly set it to true for clarity).
 RESTORED_SETTINGS=$(echo "$ORIGINAL_SETTINGS" | python3 -c "
 import json,sys
-s = json.loads(sys.stdin.read())
+s = json.loads(sys.stdin.read().strip() or '{}')
 if 'autoBookAfa' in s:
   del s['autoBookAfa']
 print(json.dumps(s))
@@ -300,6 +307,11 @@ if [ ! -f "$SCHEDULER_FILE" ]; then
   exit 1
 fi
 CRON_LINE=$(grep -E '@Cron\(' "$SCHEDULER_FILE" | head -1)
+# Tier 361: the decorator is multi-line — timeZone is on its own line after
+# @Cron("5 0 1 * *", { — so the timezone check below grepped a line that could
+# never contain it and exited 1 even with every assertion passing. Check the
+# decorator block instead.
+CRON_BLOCK=$(grep -A3 -E '@Cron\(' "$SCHEDULER_FILE" | head -4)
 echo "  cron decorator: $CRON_LINE"
 # Defense against accidental schedule change.
 if ! echo "$CRON_LINE" | grep -q '"5 0 1 \* \*"'; then
@@ -308,7 +320,7 @@ if ! echo "$CRON_LINE" | grep -q '"5 0 1 \* \*"'; then
 fi
 echo "  PASS: cron schedule is '5 0 1 * *' (5 0 1 * * in Berlin time)"
 # Also check the timezone.
-if ! echo "$CRON_LINE" | grep -q 'Europe/Berlin'; then
+if ! echo "$CRON_BLOCK" | grep -q 'Europe/Berlin'; then
   echo "  FAIL: cron timezone is not Europe/Berlin"
   exit 1
 fi

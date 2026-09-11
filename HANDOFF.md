@@ -593,16 +593,90 @@ the pre-360 script it fails 3 assertions. Rotation policy itself is unchanged
 and still worth an operator look: monthly anchors exist only for runs that
 happen on the 1st, and are kept for the current calendar year only.
 
-**70 backend e2e specs have never run** (found Tier 360, not fixed).
-`backend/e2e/run-all.sh` — which CI calls — loops over `[0-9][0-9]-*.sh`,
-two digits then a hyphen. The 70 specs numbered `100-*` to `169-*` never
-match. "Backend e2e 99/99" is exactly the two-digit specs; `144-tier120-backups`,
-`150-tier218-webhook-replay-requeue` and the rest of 100-169 have no CI
-signal at all. That is why the Tier 360 rotation spec is `42-backup-rotation.sh`
-(duplicate prefix, sorts after `42-backup-fire-drill.sh`) and not `170-*`.
-Widening the glob will surface failures accumulated since those specs were
-written, and some are not CI specs at all (`169-tier247-dryrun-validate.sh`
-targets a dryrun stack on :3002) — handle as its own tier.
+**The 70 three-digit backend e2e specs now run** (found Tier 360, fixed
+Tier 361). `backend/e2e/run-all.sh` — which CI calls — looped over
+`[0-9][0-9]-*.sh`, two digits then a hyphen, so specs `100-*`..`169-*` never
+ran anywhere and "Backend e2e 99/99" meant the two-digit specs only. Tier 361:
+- the loop is `[0-9][0-9]-*.sh [0-9][0-9][0-9]-*.sh` (two-digit first, as before);
+- every spec runs under a watchdog, `SPEC_TIMEOUT` (default 600 s), because no
+  spec has its own timeout, macOS has no `timeout(1)` and CI's job limit is
+  GitHub's 6-hour default;
+- a `QUARANTINE` list in `run-all.sh`: a listed spec still runs and is reported,
+  but does not fail the suite, and the summary says when one starts passing.
+  Each entry carries the observed symptom. Do not add a spec to get a red build
+  green without writing down why;
+- `169-tier247-dryrun-validate.sh` → `dryrun-tier247-validate.sh`: it targets
+  the prod-image dryrun stack (:3002, `de-invoice-dryrun-postgres`), not CI.
+
+First full run on a CI-equivalent stack: 152 passed / 17 failed, all 17 in
+the three-digit range. 15 were fixed in Tier 361:
+
+| Spec | Cause | Fix |
+|---|---|---|
+| 113, 115 | expected AfA as a negative BWA 3100 line (true at Tier 87); `bwa.service.ts` now sums `.abs()` and subtracts AfA like every other cost (112/119 expect positive costs) | expectations |
+| 114 | Personalaufwand > 0 needs a Personal-category expense; the CI seed has none | own fixture |
+| 117 | `Company.settings` is NULL on the CI seed → empty backup → `json.loads('')` in both the opt-out and the re-enable step → neither applied; cron check grepped only the `@Cron(` line of a multi-line decorator and `exit 1`'d | NULL handling in every settings edit; check the decorator block |
+| 134 | sent `zip` / `kontoinhaber` / expense `status`, rejected since the Tier 210/211 DTOs (`postalCode`, `accountHolder`, no status; default `booked` is what pain.001 selects); batch creation also needs a debtor IBAN in `Company.bankInfo` | payloads; merge IBAN for the run, restore on exit |
+| 136 | § 8b assertions need a KapG; see open question below | explicit `settings.rechtsform`, restored on exit |
+| 137 | pain.008 takes the creditor IBAN from `Company.bankInfo`; CI seed has none | merge IBAN for the run, restore on exit |
+| 140 | XRechnung BR-DE-6 / BR-DE-7 need seller phone + email (`Company.phone` / `.email`) | seed both, restore |
+| 148 | `[ cond ] \|\| fail "..."; exit 1` exits unconditionally (`;` binds looser than `\|\|`); ended with an unconditional "ALL PASSED"; `assert_eq` arguments swapped; `COMPANY_ID` unset (no `login`) | all four |
+| 154, 155, 168 | hardcoded invoice ids from one developer database | seeded INV-TEST-001; 155 reads its number |
+| 161 | hardcoded user `tier221-1787169195-90017@example.com` left by one old run | creates and deletes its own user |
+| 162 | assumed overdue + sent invoices exist | own fixture |
+| 164 | "real VIES latency ≥ 100 ms" under `VIES_MOCK=1` | skip that heuristic when mocked |
+
+**Lesson: a spec that passes on a stack other specs have already run on is
+not verified.** 117 and 134 both passed when re-run one by one on the triage
+stack, then failed in the first full fresh run: earlier ad-hoc runs of
+137/140/154 had left `Company.bankInfo` and `Company.settings` populated,
+which masked the missing preconditions. Only a fresh stack in `run-all.sh`
+order (what CI does) counts.
+
+Specs that could not fail, found on the way: `09-vouchers-list.sh` (14
+`assert_eq` calls, but `_lib.sh`'s `fail` only counts, and the spec ended with
+`echo "ALL PASSED"` → now `summary`); 148 above; 136's step 2 passed in both
+branches; 161's invalid-status check was a `note`.
+
+Product bugs fixed in Tier 361, both surfaced by these specs:
+- `PATCH /users/:id/status` accepted any string (`"lolwut"` → 200, stored).
+  The controller now allows only `active` / `inactive`.
+- `GET /invoices/:id/pdf` for an unknown or foreign id answered
+  500 "PDF generation failed": the catch-all swallowed `findOne`'s
+  `NotFoundException`. HTTP exceptions now pass through (404).
+
+Still quarantined, and open:
+- **124** — `DEPLOY.md`'s Hetzner steps create only `backend/.env`, but the
+  root `docker-compose.prod.yml` requires `POSTGRES_PASSWORD` via compose
+  substitution (`${POSTGRES_PASSWORD:?...}`), so step 5 fails as written.
+  Documenting `NEXT_PUBLIC_API_URL` is blocked by the next item.
+- **Frontend production image never receives `NEXT_PUBLIC_API_URL` at build
+  time** (by reading, not by building an image). `src/lib/api.ts` uses
+  `process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"`, which Next.js
+  inlines at `next build`. `frontend/Dockerfile` has no `ARG` for it, and both
+  `docker-compose.prod.yml` and `infra/prod/docker-compose.yml` pass it only as
+  runtime `environment:`. There is no `frontend/.dockerignore`, so an image
+  built from a developer checkout also copies the gitignored `.env.local`
+  (`localhost:3001`) into the build; a clean clone falls back to the same
+  value. Either way browsers would call `http://localhost:3001`. Verify with an
+  image build before relying on this.
+- **142** — `pnl.service.ts` aggregates `_sum` per month and uses the
+  `eurSubtotal` sum whenever any row in that month has one, dropping rows whose
+  `eurSubtotal` is NULL. BWA, GuV and EÜR fall back per row and are correct.
+  NULL is not only legacy data: `recurring.service.ts` creates invoices without
+  `exchangeRate` / `eurSubtotal` / `eurTotalVat` / `eurTotal`, so every
+  recurring-generated invoice is NULL — PnL undercounts them, and the per-row
+  fallback elsewhere counts a non-EUR recurring invoice in its original
+  currency.
+- **Anlage AUS KapG detection** (product question, not changed):
+  `anlage-aus.service.ts` tests `/^(GmbH|AG|KGaA|UG)/i` against
+  `settings.rechtsform || legalName`. Nothing in the frontend writes
+  `settings.rechtsform`, and a legal name carries the form as a suffix
+  ("SH Leder GmbH"), so the fallback never matches. KSt 1 and the Berater
+  packager instead default `rechtsform` to "GmbH". A word-match would also hit
+  "GmbH & Co. KG", which is not a KapG for § 8b — decide the rule first.
+
+Tier 361 local full run on a fresh CI-equivalent stack: 167 passed / 0 failed, plus the 2 quarantined specs (124, 142) still failing as recorded; no spec hit the timeout (7 min).
 
 **`frontend/AGENTS.md` points at `node_modules/next/dist/docs/`, which does
 not exist** in this install. When you need Next.js behaviour confirmed, read

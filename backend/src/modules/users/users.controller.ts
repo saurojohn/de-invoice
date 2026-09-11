@@ -244,6 +244,13 @@ export class UsersController {
     if (!companyId) throw new BadRequestException('companyId is required');
     UsersService.requireRole(req.user?.role, 'users.deactivate');
     if (!body.status) throw new BadRequestException('status ist erforderlich');
+    // Tier 361: the body type says 'active' | 'inactive', but nothing checked
+    // it at runtime — PATCH {"status":"lolwut"} returned 200 and stored
+    // "lolwut" (found when e2e/161 first ran). changeRole validates against
+    // VALID_ROLES; status gets the same treatment.
+    if (body.status !== 'active' && body.status !== 'inactive') {
+      throw new BadRequestException('status muss "active" oder "inactive" sein');
+    }
     return this.users.setStatus(companyId, id, body.status);
   }
 }

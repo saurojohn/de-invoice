@@ -24,6 +24,21 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/_lib.sh"
 
 login
+
+# Tier 361: POST /payments/batches takes the debtor IBAN from Company.bankInfo
+# and answers 400 "Debtor-IBAN fehlt" without one. Run alone after other
+# specs this passed, because 137/140/154 had left bank details behind; in
+# run-all order (and on the CI seed) this spec comes first and bankInfo is
+# NULL. Merge an IBAN/BIC in for the run and put the original back on exit.
+T108_ORIG_BANKINFO=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT coalesce(\"bankInfo\"::text, '') FROM \"Company\" WHERE id='$COMPANY_ID';" 2>/dev/null | tr -d '\n')
+t108_restore_bankinfo() {
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -q -c \
+    "UPDATE \"Company\" SET \"bankInfo\" = NULLIF('${T108_ORIG_BANKINFO}', '')::jsonb WHERE id='$COMPANY_ID';" >/dev/null 2>&1
+}
+trap t108_restore_bankinfo EXIT
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -q -c \
+  "UPDATE \"Company\" SET \"bankInfo\" = coalesce(\"bankInfo\", '{}'::jsonb) || '{\"iban\":\"DE89370400440532013000\",\"bic\":\"COBADEFFXXX\"}'::jsonb WHERE id='$COMPANY_ID';" >/dev/null
 TS=$(date +%s)
 PREFIX="Tier108-$TS"
 
@@ -33,11 +48,17 @@ note "=== Test prefix: $PREFIX ==="
 echo
 note "=== 0. Setup: supplier + 3 expenses ==="
 
+# Tier 361: first run failed 400 on every create. Since the Tier 210/211 DTOs
+# (whitelist + forbidNonWhitelisted) supplier addresses take postalCode,
+# bankInfo takes accountHolder, and CreateExpenseDto has no status field.
+# The spec still sent zip / kontoinhaber / status. Expense.status defaults to
+# "booked", which is what payments.service.ts selects as unpaid, so dropping
+# it changes nothing about the scenario.
 api_post "/api/v1/suppliers?companyId=$COMPANY_ID" \
   "{
     \"name\": \"$PREFIX-Lieferant\",
-    \"address\": {\"street\": \"Musterstr. 1\", \"zip\": \"50667\", \"city\": \"Köln\"},
-    \"bankInfo\": {\"iban\": \"DE89370400440532013000\", \"bic\": \"COBADEFFXXX\", \"kontoinhaber\": \"$PREFIX-Lieferant GmbH\"}
+    \"address\": {\"street\": \"Musterstr. 1\", \"postalCode\": \"50667\", \"city\": \"Köln\"},
+    \"bankInfo\": {\"iban\": \"DE89370400440532013000\", \"bic\": \"COBADEFFXXX\", \"accountHolder\": \"$PREFIX-Lieferant GmbH\"}
   }"
 assert_status "201" "create supplier with IBAN"
 SUPPLIER_ID=$(json_field "$BODY" "id")
@@ -58,8 +79,7 @@ for i in 1 2 3; do
       \"netAmount\": $AMT_NET,
       \"vatRate\": 0.19,
       \"vatAmount\": $AMT_VAT,
-      \"grossAmount\": $AMT_GROSS,
-      \"status\": \"booked\"
+      \"grossAmount\": $AMT_GROSS
     }"
   assert_status "201" "create expense $i ($AMT_GROSS € gross)"
   EID=$(json_field "$BODY" "id")
@@ -249,8 +269,7 @@ api_post "/api/v1/expenses?companyId=$COMPANY_ID" \
     \"invoiceDate\": \"2026-07-01\",
     \"netAmount\": 100,
     \"vatAmount\": 19,
-    \"grossAmount\": 119,
-    \"status\": \"booked\"
+    \"grossAmount\": 119
   }"
 EID_X=$(json_field "$BODY" "id")
 
@@ -360,8 +379,7 @@ api_post "/api/v1/expenses?companyId=$COMPANY_ID" \
     \"invoiceDate\": \"2026-07-01\",
     \"netAmount\": 50,
     \"vatAmount\": 9.5,
-    \"grossAmount\": 59.5,
-    \"status\": \"booked\"
+    \"grossAmount\": 59.5
   }"
 EID_NO_IBAN=$(json_field "$BODY" "id")
 api_get "/api/v1/payments/unpaid?companyId=$COMPANY_ID"

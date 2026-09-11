@@ -1,5 +1,12 @@
 #!/bin/bash
 # Tier 247 — Dryrun smoke validation
+#
+# NOT part of run-all.sh / CI: it targets the prod-image dryrun stack
+# (API :3002, container de-invoice-dryrun-postgres). Tier 361 renamed it from
+# 169-tier247-dryrun-validate.sh when run-all.sh started running three-digit
+# specs; without a leading number the glob no longer picks it up. Run it by
+# hand against a running dryrun stack.
+#
 # Validates that the prod Docker image serves the Tier 246
 # signing endpoints correctly. Uses raw x-user-id / x-company-id
 # headers (no JWT login) since the dryrun DB has a dummy

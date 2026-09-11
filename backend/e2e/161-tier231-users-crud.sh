@@ -29,14 +29,17 @@ set -uo pipefail
 source "$(dirname "$0")/_lib.sh"
 login
 
-# Use the existing accountant test user from Tier 221 invitation
-# acceptance — they're a non-admin user in the test company,
-# so we can mutate their role/status without affecting admin.
-# (The tier207 test user has an empty companyId and isn't in the
-#  test company, so PATCH /users/:id/role returns 404 for them.)
-TEST_EMAIL="tier221-1787169195-90017@example.com"
-TEST_USER_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c "SELECT id FROM \"User\" WHERE email='$TEST_EMAIL' LIMIT 1;")
-[ -n "$TEST_USER_ID" ] && pass "test userId: $TEST_USER_ID" || fail "tier221 accountant user not found"
+# Tier 361: create the non-admin test user here. This used to look up
+# tier221-1787169195-90017@example.com — an accountant left behind by one
+# particular run of spec 152 on a developer database. 152 creates its user
+# with a fresh timestamped email and deletes it again, so on any other
+# database (CI included) the lookup came back empty and every PATCH below
+# went to /users//role. users.service.ts changeRole / setStatus only need a
+# User row whose companyId is the test company. User.id has no database
+# default (Prisma generates it), hence gen_random_uuid().
+TEST_EMAIL="tier231-$(date +%s)-$$@example.com"
+TEST_USER_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -q -c "INSERT INTO \"User\" (id, \"companyId\", email, \"passwordHash\", role, status) VALUES (gen_random_uuid()::text, '$COMPANY_ID', '$TEST_EMAIL', 'x', 'accountant', 'active') RETURNING id;" 2>/dev/null | head -1 | tr -d ' ')
+[ -n "$TEST_USER_ID" ] && pass "test user created: $TEST_USER_ID" || fail "could not create test user $TEST_EMAIL"
 
 # ---- 1 + 2. List users ----
 api_get "/api/v1/users?companyId=$COMPANY_ID"
@@ -93,7 +96,9 @@ HTTP=$(curl -sS -o /dev/null -w "%{http_code}" -X PATCH \
   -H "Content-Type: application/json" \
   -d '{"status":"lolwut"}' \
   "$API/api/v1/users/$TEST_USER_ID/status?companyId=$COMPANY_ID")
-[ "$HTTP" -ge 400 ] && [ "$HTTP" -lt 500 ] && pass "invalid status value rejected (HTTP $HTTP)" || note "invalid status HTTP=$HTTP (tolerated)"
+# Tier 361: this was a note ("tolerated") and the backend answered 200,
+# storing the invalid value. The controller now rejects it, so assert it.
+[ "$HTTP" -ge 400 ] && [ "$HTTP" -lt 500 ] && pass "invalid status value rejected (HTTP $HTTP)" || fail "invalid status value accepted (HTTP $HTTP)"
 
 # ---- 9. GET /users/me/companies ----
 api_get "/api/v1/users/me/companies"
@@ -147,8 +152,10 @@ HTTP=$(curl -sS -o /dev/null -w "%{http_code}" -X PATCH \
   "$API/api/v1/users/00000000-0000-0000-0000-000000000000/role?companyId=$COMPANY_ID")
 [ "$HTTP" -ge 400 ] && [ "$HTTP" -lt 500 ] && pass "fake userId PATCH role rejected (HTTP $HTTP)" || note "fake userId HTTP=$HTTP (tolerated)"
 
-# ---- 14. Cleanup: restore test user's role + status ----
-docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -q -c "UPDATE \"User\" SET role='$ORIG_ROLE' WHERE id='$TEST_USER_ID';" >/dev/null
-pass "Restored test user role: $ORIG_ROLE"
+# ---- 14. Cleanup: delete the test user created above ----
+# No ON_ERROR_STOP: if a foreign key blocks the DELETE, the count still runs
+# and reports the row as left behind.
+LEFT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -q -c "DELETE FROM \"User\" WHERE id='$TEST_USER_ID'; SELECT count(*) FROM \"User\" WHERE email='$TEST_EMAIL';" 2>/dev/null | tail -1 | tr -d ' ')
+[ "$LEFT" = "0" ] && pass "test user deleted" || fail "test user $TEST_EMAIL not deleted (rows left: '$LEFT')"
 
 summary

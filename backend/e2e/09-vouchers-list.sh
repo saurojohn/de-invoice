@@ -205,5 +205,9 @@ docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
 # if the file is already gone.
 [ -f /tmp/voucher-list-001.pdf ] && /Users/shledergmbh/.mavis/bin/mavis-trash /tmp/voucher-list-001.pdf 2>/dev/null || true
 
-echo
-echo "ALL PASSED"
+# Tier 361: this ended with an unconditional `echo "ALL PASSED"`. The 14
+# assert_eq calls above come from _lib.sh, whose fail() only counts —
+# it returns 0, so `set -e` never stops the script — and a failed
+# assertion still exited 0. Only the three inline `|| { ...; exit 1; }`
+# guards could fail this spec. summary returns 1 when FAILS > 0.
+summary

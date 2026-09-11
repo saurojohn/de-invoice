@@ -45,9 +45,20 @@ TEST_TAG="ebilanz-tier88-$TS"
 echo "=== Test: E-Bilanz (test tag: $TEST_TAG) ==="
 
 cleanup() {
-  echo "  cleanup: (no fixture data to remove — read-only report)"
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -q -c \
+    "DELETE FROM \"Expense\" WHERE \"invoiceNumber\" = 'T88-${TS}-PERS';" >/dev/null 2>&1
+  echo "  cleanup: removed T88-${TS}-PERS expense"
 }
 trap cleanup EXIT
+
+# Tier 361: step 5 asserts Personalaufwand > 0, which the report only has
+# when the company booked a Personal-category expense in 2026. The
+# developer database had one; the CI seed has none, so the assertion failed
+# the first time the spec ran. Seed one (same shape as 112-tier86-bwa's
+# Lohn fixture); cleanup removes it.
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -q -c \
+  "INSERT INTO \"Expense\" (id, \"companyId\", \"invoiceNumber\", description, \"invoiceDate\", \"netAmount\", \"vatRate\", \"vatAmount\", \"grossAmount\", category, status, \"createdAt\", \"updatedAt\") VALUES (gen_random_uuid()::text, '$COMPANY_ID', 'T88-${TS}-PERS', 'Lohn', '2026-04-20'::date, 400, 0, 0, 400, 'Personal', 'booked', now(), now());" >/dev/null
+pass "seeded Personal expense T88-${TS}-PERS (400 EUR, 2026)"
 
 # ===== 1. /ebilanz reachable + shape =====
 echo

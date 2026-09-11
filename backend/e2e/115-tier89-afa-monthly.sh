@@ -151,8 +151,13 @@ for l in d['lines']:
 ")
 BWA_JUL_MONAT=$(echo "$BWA_JUL" | cut -d'|' -f1)
 BWA_JUL_YTD=$(echo "$BWA_JUL" | cut -d'|' -f2)
-assert_eq "BWA Jul monat = -200" "$BWA_JUL_MONAT" "-200"
-assert_eq "BWA Jul YTD = -1400 (7 months)" "$BWA_JUL_YTD" "-1400"
+# Tier 361: these expected AfA as a negative BWA line. That was true when
+# Tier 87 summed the (negative) AfA expense amounts as-is; bwa.service.ts
+# now sums .abs() and subtracts AfA in betriebsergebnis like every other
+# cost bucket (112-tier86-bwa and 119-tier93-bwa-extensions expect positive
+# costs and pass). The spec never ran, so it never followed.
+assert_eq "BWA Jul monat = 200" "$BWA_JUL_MONAT" "200"
+assert_eq "BWA Jul YTD = 1400 (7 months)" "$BWA_JUL_YTD" "1400"
 
 # ===== 6. BWA 3100 monat for December = -200 (not -2400) =====
 echo
@@ -170,8 +175,8 @@ for l in d['lines']:
 ")
 BWA_DEC_MONAT=$(echo "$BWA_DEC" | cut -d'|' -f1)
 BWA_DEC_YTD=$(echo "$BWA_DEC" | cut -d'|' -f2)
-assert_eq "BWA Dec monat = -200 (NOT -2400)" "$BWA_DEC_MONAT" "-200"
-assert_eq "BWA Dec YTD = -2400 (12 months)" "$BWA_DEC_YTD" "-2400"
+assert_eq "BWA Dec monat = 200 (NOT 2400)" "$BWA_DEC_MONAT" "200"
+assert_eq "BWA Dec YTD = 2400 (12 months)" "$BWA_DEC_YTD" "2400"
 
 # ===== 7. /book-afa (annual) refused because monthly already exists =====
 echo
