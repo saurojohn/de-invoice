@@ -148,7 +148,10 @@ test.describe("Tier 196 — Audit hash chain", () => {
     )
     expect(res.status()).toBe(200)
     const body = await res.json()
-    expect(body.algorithm).toBe("SHA-256-V1")
+    // Tier 366: rows written before the Decimal canonicalisation fix are
+    // SHA-256-V1, new ones SHA-256-V2; the chain reports the newest signed
+    // row's algorithm.
+    expect(body.algorithm).toMatch(/^SHA-256-V[12]$/)
     expect(typeof body.totalRows).toBe("number")
     // The chain was re-hashed by the Tier 196
     // setup. We don't assert exact row counts
@@ -187,7 +190,10 @@ test.describe("Tier 196 — Audit hash chain", () => {
       `verified should be true; stored=${body.storedHash?.slice(0, 16)} recomputed=${body.recomputedHash?.slice(0, 16)}`,
     ).toBe(true)
     expect(body.storedHash).toBe(body.recomputedHash)
-    expect(body.algorithm).toBe("SHA-256-V1")
+    // Tier 366: rows written before the Decimal canonicalisation fix are
+    // SHA-256-V1, new ones SHA-256-V2; the chain reports the newest signed
+    // row's algorithm.
+    expect(body.algorithm).toMatch(/^SHA-256-V[12]$/)
   })
 
   test("3. verify single detects tampering (newData mutated via raw SQL)", async ({

@@ -20,6 +20,77 @@ import { createHash } from 'crypto'
  * stable key order so the write path and the
  * verify path produce the same input.
  */
+const AUDIT_HASH_V1 = 'SHA-256-V1'
+const AUDIT_HASH_ALGORITHM = 'SHA-256-V2'
+
+// Tier 366: two canonicalisations, selected by the row's hashAlgorithm.
+//
+// V1 (everything written before Tier 366) walked objects with Object.keys()
+// and only special-cased Date. That silently broke every audited model with a
+// Prisma.Decimal column — Invoice, InvoiceItem, Expense, Voucher, Product,
+// CashBookEntry, Account, JournalEntry, BankTransaction: on the WRITE path a
+// Decimal is a live object whose own keys are ["constructor","s","e","d"], so
+// the hash covered decimal.js internals (and "constructor" even serialised to
+// the literal `undefined`), while the VERIFY path re-reads the same field from
+// jsonb as the string "119". Same row, two different hash inputs — an
+// untampered product.updated row verified as verified=false.
+//
+// V2 canonicalises each value to what jsonb actually stores: a Decimal to a
+// JSON number (NOT its toJSON() string), a Date to its ISO string, and BigInt
+// to a decimal string (JSON.stringify throws on BigInt, which would have
+// crashed the audit write).
+//
+// V1 rows keep verifying under V1 rules, so history is not rewritten; rows
+// containing a Decimal were already unverifiable and stay that way until
+// scripts/audit-rehash.ts is run.
+const stableStringifyV1 = (v: any): string => {
+  if (v == null) return ''
+  if (v instanceof Date) return JSON.stringify(v.toISOString())
+  if (typeof v !== 'object') return JSON.stringify(v)
+  if (Array.isArray(v)) {
+    return '[' + v.map(stableStringifyV1).join(',') + ']'
+  }
+  const keys = Object.keys(v).sort()
+  return (
+    '{' +
+    keys
+      .map((k) => JSON.stringify(k) + ':' + stableStringifyV1(v[k]))
+      .join(',') +
+    '}'
+  )
+}
+
+const stableStringifyV2 = (v: any): string => {
+  if (v == null) return ''
+  if (typeof v === 'bigint') return JSON.stringify(v.toString())
+  if (typeof v !== 'object') return JSON.stringify(v)
+  // Prisma writes a Decimal into a Json column as a JSON NUMBER (verified:
+  // jsonb_typeof(newData->'basePrice') = number). Note JSON.stringify() on a
+  // Decimal gives the STRING "19" instead — canonicalising via toJSON() would
+  // hash "19" while the verify path reads the number 19.
+  if (typeof (v as any).toNumber === 'function') {
+    return JSON.stringify((v as any).toNumber())
+  }
+  // Date (and anything else with toJSON) is stored as its ISO string.
+  if (typeof (v as any).toJSON === 'function') {
+    return stableStringifyV2((v as any).toJSON())
+  }
+  if (Array.isArray(v)) {
+    return '[' + v.map(stableStringifyV2).join(',') + ']'
+  }
+  const keys = Object.keys(v).sort()
+  return (
+    '{' +
+    keys
+      .map((k) => JSON.stringify(k) + ':' + stableStringifyV2(v[k]))
+      .join(',') +
+    '}'
+  )
+}
+
+const stringifyFor = (algorithm: string) =>
+  algorithm === AUDIT_HASH_V1 ? stableStringifyV1 : stableStringifyV2
+
 function computeAuditHash(c: {
   action: string
   entityType: string | null
@@ -30,31 +101,8 @@ function computeAuditHash(c: {
   newData: any
   previousHash: string
   createdAt: Date
-}): string {
-  const stableStringify = (v: any): string => {
-    if (v == null) return ''
-    // Date handling: see the matching block in
-    // prisma/audit-log.extension.ts. Prisma
-    // returns Date objects from findUnique /
-    // update; PG jsonb roundtrip gives ISO
-    // strings. We need to canonicalise the
-    // Date to the ISO string here so the
-    // write-path hash and the verify-path
-    // hash agree.
-    if (v instanceof Date) return JSON.stringify(v.toISOString())
-    if (typeof v !== 'object') return JSON.stringify(v)
-    if (Array.isArray(v)) {
-      return '[' + v.map(stableStringify).join(',') + ']'
-    }
-    const keys = Object.keys(v).sort()
-    return (
-      '{' +
-      keys
-        .map((k) => JSON.stringify(k) + ':' + stableStringify(v[k]))
-        .join(',') +
-      '}'
-    )
-  }
+}, algorithm: string = AUDIT_HASH_ALGORITHM): string {
+  const stableStringify = stringifyFor(algorithm)
   const payload = [
     c.action,
     c.entityType ?? '',
@@ -217,8 +265,9 @@ export class AuditService {
       // desc). For a fresh company
       // the first row's previousHash
       // is ''.
+      // Tier 366: newest SIGNED row (see audit-log.extension.ts).
       const prev = await this.prisma.auditLog.findFirst({
-        where: { companyId: input.companyId || null },
+        where: { companyId: input.companyId || null, hash: { not: null } },
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         select: { hash: true },
       })
@@ -255,7 +304,7 @@ export class AuditService {
           createdAt: createdAtRounded,
           hash,
           previousHash,
-          hashAlgorithm: 'SHA-256-V1',
+          hashAlgorithm: AUDIT_HASH_ALGORITHM,
         },
       })
     } catch (err) {
@@ -1092,7 +1141,7 @@ export class AuditService {
         newData: r.newData,
         previousHash: r.previousHash ?? '',
         createdAt: r.createdAt,
-      })
+      }, r.hashAlgorithm || AUDIT_HASH_V1)
       if (recomputed !== r.hash) {
         return {
           ok: false,
@@ -1127,12 +1176,15 @@ export class AuditService {
       }
       expectedPreviousHash = r.hash
     }
+    // Tier 366: a chain can hold V1 rows (written before Tier 366) and V2 rows;
+    // report the algorithm of the newest signed row rather than a constant.
+    const newestSigned = [...rows].reverse().find((r) => r.hash)
     return {
       ok: true,
       totalRows: rows.length,
       verifiedRows: rows.length,
       brokenAt: null,
-      algorithm: 'SHA-256-V1',
+      algorithm: newestSigned?.hashAlgorithm || AUDIT_HASH_ALGORITHM,
       verifiedAt: new Date().toISOString(),
     }
   }
@@ -1171,7 +1223,7 @@ export class AuditService {
       newData: r.newData,
       previousHash: r.previousHash ?? '',
       createdAt: r.createdAt,
-    })
+    }, r.hashAlgorithm || AUDIT_HASH_V1)
     const signed = !!r.hash
     const verified = signed && recomputed === r.hash
     return {

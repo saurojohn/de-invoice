@@ -28,10 +28,18 @@ import { createHash } from 'crypto'
 
 const prisma = new PrismaClient()
 
+// Tier 366: matches stableStringifyV2 in audit-log.extension.ts — anything
+// with toJSON() (Date, Prisma.Decimal) is hashed as the value jsonb stores.
 function stableStringify(v: any): string {
   if (v == null) return ''
-  if (v instanceof Date) return JSON.stringify(v.toISOString())
+  if (typeof v === 'bigint') return JSON.stringify(v.toString())
   if (typeof v !== 'object') return JSON.stringify(v)
+  if (typeof (v as any).toNumber === 'function') {
+    return JSON.stringify((v as any).toNumber())
+  }
+  if (typeof (v as any).toJSON === 'function') {
+    return stableStringify((v as any).toJSON())
+  }
   if (Array.isArray(v)) {
     return '[' + v.map(stableStringify).join(',') + ']'
   }
@@ -86,7 +94,7 @@ async function main() {
           data: {
             hash: expected,
             previousHash: prevHash,
-            hashAlgorithm: 'SHA-256-V1',
+            hashAlgorithm: 'SHA-256-V2',
           },
         })
         updated++

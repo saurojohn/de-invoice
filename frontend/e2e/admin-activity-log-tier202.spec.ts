@@ -290,7 +290,10 @@ test.describe("Tier 202 — instrumented admin actions write activity rows", () 
     expect(data).toHaveProperty("ok")
     expect(data).toHaveProperty("totalRows")
     expect(data).toHaveProperty("algorithm")
-    expect(data.algorithm).toBe("SHA-256-V1")
+    // Tier 366: rows written before the Decimal canonicalisation fix are
+    // SHA-256-V1, new ones SHA-256-V2; the chain reports the newest signed
+    // row's algorithm.
+    expect(data.algorithm).toMatch(/^SHA-256-V[12]$/)
     expect(data.totalRows).toBeGreaterThan(0)
   })
 })

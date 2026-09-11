@@ -29,7 +29,77 @@ import { createHash } from 'crypto'
 // Same string convention as the CashBook Tier 194
 // signature so the verify toolchain is uniform
 // across both subsystems.
-const AUDIT_HASH_ALGORITHM = 'SHA-256-V1'
+const AUDIT_HASH_V1 = 'SHA-256-V1'
+const AUDIT_HASH_ALGORITHM = 'SHA-256-V2'
+
+// Tier 366: two canonicalisations, selected by the row's hashAlgorithm.
+//
+// V1 (everything written before Tier 366) walked objects with Object.keys()
+// and only special-cased Date. That silently broke every audited model with a
+// Prisma.Decimal column — Invoice, InvoiceItem, Expense, Voucher, Product,
+// CashBookEntry, Account, JournalEntry, BankTransaction: on the WRITE path a
+// Decimal is a live object whose own keys are ["constructor","s","e","d"], so
+// the hash covered decimal.js internals (and "constructor" even serialised to
+// the literal `undefined`), while the VERIFY path re-reads the same field from
+// jsonb as the string "119". Same row, two different hash inputs — an
+// untampered product.updated row verified as verified=false.
+//
+// V2 canonicalises each value to what jsonb actually stores: a Decimal to a
+// JSON number (NOT its toJSON() string), a Date to its ISO string, and BigInt
+// to a decimal string (JSON.stringify throws on BigInt, which would have
+// crashed the audit write).
+//
+// V1 rows keep verifying under V1 rules, so history is not rewritten; rows
+// containing a Decimal were already unverifiable and stay that way until
+// scripts/audit-rehash.ts is run.
+const stableStringifyV1 = (v: any): string => {
+  if (v == null) return ''
+  if (v instanceof Date) return JSON.stringify(v.toISOString())
+  if (typeof v !== 'object') return JSON.stringify(v)
+  if (Array.isArray(v)) {
+    return '[' + v.map(stableStringifyV1).join(',') + ']'
+  }
+  const keys = Object.keys(v).sort()
+  return (
+    '{' +
+    keys
+      .map((k) => JSON.stringify(k) + ':' + stableStringifyV1(v[k]))
+      .join(',') +
+    '}'
+  )
+}
+
+const stableStringifyV2 = (v: any): string => {
+  if (v == null) return ''
+  if (typeof v === 'bigint') return JSON.stringify(v.toString())
+  if (typeof v !== 'object') return JSON.stringify(v)
+  // Prisma writes a Decimal into a Json column as a JSON NUMBER (verified:
+  // jsonb_typeof(newData->'basePrice') = number). Note JSON.stringify() on a
+  // Decimal gives the STRING "19" instead — canonicalising via toJSON() would
+  // hash "19" while the verify path reads the number 19.
+  if (typeof (v as any).toNumber === 'function') {
+    return JSON.stringify((v as any).toNumber())
+  }
+  // Date (and anything else with toJSON) is stored as its ISO string.
+  if (typeof (v as any).toJSON === 'function') {
+    return stableStringifyV2((v as any).toJSON())
+  }
+  if (Array.isArray(v)) {
+    return '[' + v.map(stableStringifyV2).join(',') + ']'
+  }
+  const keys = Object.keys(v).sort()
+  return (
+    '{' +
+    keys
+      .map((k) => JSON.stringify(k) + ':' + stableStringifyV2(v[k]))
+      .join(',') +
+    '}'
+  )
+}
+
+const stringifyFor = (algorithm: string) =>
+  algorithm === AUDIT_HASH_V1 ? stableStringifyV1 : stableStringifyV2
+
 
 /**
  * Tier 196 — compute the integrity hash for a
@@ -56,40 +126,8 @@ function computeAuditHash(c: {
   newData: any
   previousHash: string
   createdAt: Date
-}): string {
-  // JSON.stringify is deterministic for the same
-  // input shape, but key ordering can drift
-  // (Prisma may serialise the same object
-  // differently on read vs write). We sort the
-  // keys to make the hash input stable across
-  // the write path and the verify path.
-  const stableStringify = (v: any): string => {
-    if (v == null) return ''
-    // Date instances are typeof 'object' but Object.keys()
-    // returns [] (no own enumerable props), which would
-    // render as "{}" — silently mangling every row that
-    // has a timestamp field. Catch Dates before the
-    // generic object branch and serialise as the
-    // ISO string that PG jsonb also produces. The same
-    // bug-fix applies to BigInt (Prisma uses BigInt for
-    // some IDs) and Prisma.Decimal. We handle Date here
-    // (the only field type we've seen in practice on
-    // the audited models) and leave the other two
-    // for the round-2 cleanup tier.
-    if (v instanceof Date) return JSON.stringify(v.toISOString())
-    if (typeof v !== 'object') return JSON.stringify(v)
-    if (Array.isArray(v)) {
-      return '[' + v.map(stableStringify).join(',') + ']'
-    }
-    const keys = Object.keys(v).sort()
-    return (
-      '{' +
-      keys
-        .map((k) => JSON.stringify(k) + ':' + stableStringify(v[k]))
-        .join(',') +
-      '}'
-    )
-  }
+}, algorithm: string = AUDIT_HASH_ALGORITHM): string {
+  const stableStringify = stringifyFor(algorithm)
   const payload = [
     c.action,
     c.entityType ?? '',
@@ -425,8 +463,13 @@ async function writeAudit(
     // immediately after a concurrent insert
     // burst — that's a known caveat noted in
     // the verify endpoint's response.
+    // Tier 366: chain to the newest SIGNED row. Several services write audit
+    // rows with no hash (auth, assets, company) and ci-seed.sh inserts some
+    // directly; taking the newest row regardless left previousHash='' whenever
+    // one of those landed in between, while verifyChain carries the last signed
+    // hash forward — every such row reported previous_hash_mismatch.
     const prev = await client.auditLog.findFirst({
-      where: { companyId: ctx.companyId || null },
+      where: { companyId: ctx.companyId || null, hash: { not: null } },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       select: { hash: true },
     })

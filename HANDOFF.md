@@ -906,6 +906,77 @@ change was a no-op and the test would have failed every time. Listener now
 registered before the click; the target quarter is whichever differs from the
 current value. Verified: the spec run 5× on a fresh CI-equivalent stack (`--repeat-each=5`): 60 passed, "switching quarter" 5/5, no retries.
 
+### The audit hash chain never verified what it claimed (Tier 366)
+
+GoBD tamper-evidence rested on a chain that was broken by construction. Two
+independent bugs, both confirmed on a throwaway stack before fixing:
+
+1. **Prisma.Decimal was hashed as decimal.js internals.** On the write path a
+   Decimal is a live object whose own keys are `["constructor","s","e","d"]`
+   (and `constructor` serialised to the literal `undefined`); on the verify
+   path the same field comes back from jsonb as `"119"`. Every audited model
+   with a Decimal column — Invoice, InvoiceItem, Expense, Voucher, Product,
+   CashBookEntry, Account, JournalEntry, BankTransaction — wrote rows that
+   reported `verified=false` although nothing had been touched. Measured: a
+   `product.updated` row written by the extension came back
+   `signed=true, verified=false`.
+2. **`previousHash` chained to the newest row, signed or not.** Auth, assets
+   and company write audit rows with no hash, and `ci-seed.sh` inserts 13
+   directly; `verifyChain` carries the last *signed* hash forward, so any
+   unsigned row in between guaranteed `previous_hash_mismatch`. A freshly
+   seeded database verified as **ok=false, 28 rows, 14 signed / 14 unsigned**
+   before any test touched it.
+
+`audit-hash-chain-tier196` passed all along only because its `beforeAll` runs
+`scripts/audit-rehash.ts`, which rewrites every hash and pointer.
+
+**Bug 1 is fixed in Tier 366; bug 2 is not — it is a different defect than it
+first looked.**
+
+Fixed (bug 1):
+- `stableStringifyV2` canonicalises each value to what jsonb actually stores: a
+  Decimal via `toNumber()` (**not** `toJSON()` — `JSON.stringify` on a Decimal
+  yields the string `"19"`, but Prisma stores the JSON *number* `19`;
+  `jsonb_typeof` confirms it), a Date as its ISO string, BigInt as a decimal
+  string (`JSON.stringify` throws on BigInt and would have crashed the write).
+  My first attempt used `toJSON()` and still failed — the spec caught it.
+- V1 is kept and **each row is verified under its own `hashAlgorithm`**, so
+  history is not rewritten. New rows are `SHA-256-V2`; `verifyChain` reports
+  the newest signed row's algorithm instead of a hardcoded string.
+- All three copies of the hash function changed together — the extension, the
+  service, and `scripts/audit-rehash.ts`.
+- `170-tier366-audit-hash-chain.sh` asserts a product update writes a
+  `SHA-256-V2` row whose payload really contains a Decimal, that the untampered
+  row verifies, and that tampering still flips it to `verified=false`.
+
+**Still open (bug 2, now diagnosed): the chain pointer is broken by ordering
+and concurrency, not by unsigned rows.** Measured on a fresh stack: 15 audit
+rows share one second, a mid-chain row carries an empty `previousHash`, and a
+dozen rows all point at the same predecessor. `createdAt` is rounded to whole
+seconds (`Math.floor(Date.now()/1000)*1000`) and the tie-break is a random
+UUID, so the writer's `max(createdAt, id)` and `verifyChain`'s ascending walk
+disagree; concurrent writers also read the same "newest" row and all chain to
+it. A correct fix needs a monotonic sequence column on `AuditLog` (migration)
+and per-company serialisation of the audit write, then chaining and verifying
+by that column — its own tier. Tier 366 did change both writers to chain to
+the newest **signed** row (strictly better, and needed either way), but that
+alone does not make the chain verify.
+
+**Also open:** rows written before Tier 366 that contain a Decimal stay
+unverifiable under V1 rules; `npx ts-node scripts/audit-rehash.ts` re-hashes a
+chain (it also signs previously unsigned rows). That rewrites stored hashes, so
+it is the operator's call — see §9. Seven call sites still write unsigned audit
+rows (auth ×5, assets ×3, company ×1); they are outside the chain by design
+today and could be routed through `audit.service.writeActivity`, which signs.
+
+Verified: fresh CI-equivalent local stack — backend e2e **170 passed / 0 failed** with the new
+spec green: the product update writes a `SHA-256-V2` row whose payload stores
+`basePrice` as a JSON number, the untampered row verifies
+(`storedHash == recomputedHash`), and tampering still flips it to `verified=false`.
+The two audit Playwright specs pass (11 passed). backend + frontend `tsc` and
+`eslint --max-warnings 0` clean. The first attempt (Decimal via `toJSON()`) failed
+this spec — that is how the number-vs-string difference was found.
+
 ### Notes from Tiers 347–352 (recovered in Tier 364)
 
 Tier 353 wrote a new version of this file but left the previous one appended
@@ -1072,16 +1143,22 @@ These are **not in the repo** — only the user can do them:
    2026-09-06** (last full one: `backup-2026-09-05-224235`). Recreate it via
    `docker-compose.yml`'s named volume. Rotation no longer deletes the old
    full backups while dumps fail (Tier 360).
-5. **Review every recurring template's "Rechnung an Kunden senden" setting.**
+5. **Decide whether to re-hash the existing audit chain.** Rows written
+   before Tier 366 that contain a Decimal cannot verify under the rules they
+   were written with (§8). `cd backend && npx ts-node scripts/audit-rehash.ts`
+   recomputes every row's hash and pointer with the fixed canonicalisation —
+   which also means rewriting stored hashes on historical rows, so it is a
+   deliberate operator decision, ideally with a database backup first.
+6. **Review every recurring template's "Rechnung an Kunden senden" setting.**
    Until Tier 365 unchecking it was not saved, so all templates are stored
    with `sendEmail = true` and generated invoices were e-mailed regardless.
    Which ones were meant to be off cannot be recovered from the data:
    `SELECT id, name FROM "RecurringInvoice" ORDER BY name;` and re-save the
    ones that should not e-mail.
-6. **Anlage AUS KapG rule** — `anlage-aus.service.ts` never recognises a
+7. **Anlage AUS KapG rule** — `anlage-aus.service.ts` never recognises a
    legal name like "SH Leder GmbH"; a word match would also hit
    "GmbH & Co. KG" (§8, Tier 361). Needs a product decision.
-7. **Hetzner VPS IP + SSH key** — for `infra/prod/HETZNER-DEPLOY.sh`
+8. **Hetzner VPS IP + SSH key** — for `infra/prod/HETZNER-DEPLOY.sh`
    (DNS A record, deploy). `sudo` only for `scripts/fix-dev-pg.sh`.
 
 When the Hetzner items are available, the deploy is:
