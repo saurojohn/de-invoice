@@ -195,30 +195,31 @@ test.describe("Tier 45 — Cost-Center Monthly drill-in", () => {
     context,
   }) => {
     await setupAuth(context, page)
+    // Tier 358c: register the waiter BEFORE navigating. It used to be set up
+    // after goto + toHaveURL, by which point the yearly request could
+    // already have completed.
+    const yearlyResponse = page.waitForResponse(
+      (r) => r.url().includes("/api/v1/reports/cost-center-yearly"),
+      { timeout: 15_000 },
+    )
     await page.goto("/dashboard/cost-center-report", {
       waitUntil: "domcontentloaded",
     })
     await expect(page).toHaveURL(/\/dashboard\/cost-center-report$/, {
       timeout: 15_000,
     })
+    await yearlyResponse
 
-    // Wait for the yearly report to load.
-    await page.waitForResponse(
-      (r) => r.url().includes("/api/v1/reports/cost-center-yearly"),
-      { timeout: 15_000 },
-    )
-
-    // Find the first non-empty month-cell link (the
-    // first row's first month with a value > 0).
-    // We scan for any month link that exists.
+    // Tier 358c: this was `await monthLinks.count()` followed by
+    // test.skip("no seeded data for current year") on 0. The response having
+    // arrived does not mean React has rendered the rows, and count() does not
+    // wait — so the test intermittently skipped with data present (CI run
+    // 34572785139 skipped it; the run before did not). The data is not in
+    // question: this file's beforeAll creates a VERTRIEB invoice dated
+    // July 15 of the current year on every run. A web-first wait covers the
+    // render, and fails loudly if that seed ever stops producing a row.
     const monthLinks = page.locator('[data-testid^="cc-row-month-link-"]')
-    const count = await monthLinks.count()
-    if (count === 0) {
-      // No data this year — skip (the test isn't
-      // meaningful without seed). Mark as a soft pass.
-      test.skip(true, "no seeded data for current year")
-      return
-    }
+    await expect(monthLinks.first()).toBeVisible({ timeout: 15_000 })
 
     // Pick the first link.
     const firstLink = monthLinks.first()

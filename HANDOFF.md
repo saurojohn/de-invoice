@@ -484,6 +484,30 @@ skipped / 0 failed** (912 total) — CI's latest was 907 / 0 / 5. The flaky
 - With those, the four failing files re-ran 22/22 and the real backup
   directory stayed at 13 entries.
 
+**`cost-center-monthly` "clicking a month-cell" intermittently skipped**
+(fixed Tier 358c). It registered `waitForResponse(cost-center-yearly)` after
+`goto`, then did an instantaneous `monthLinks.count()` and
+`test.skip("no seeded data for current year")` on 0 — the Tier 346 race
+wearing a "missing data" label, which is why that sweep (keyed on
+"not found / not present / may be loading") missed it. CI run 34572785139
+skipped it; the run before did not. Now the waiter is registered before
+navigating and the count is a web-first `toBeVisible` on the first link.
+Local, CI-equivalent stack: this spec plus report / transactions / trend,
+`--repeat-each=3 --retries=0`, 45/45 (warm dev server, so supporting
+evidence rather than proof).
+
+**There is no 2027-01-01 date bomb in the cost-center specs** — recorded
+because it looks like one. `ci-seed.sh` hardcodes 2026 dates (e.g. voucher
+`BK-HIST-001` 2026-01-15) and the Playwright cost-center specs query
+`new Date().getFullYear()`. But the yearly report aggregates only `Invoice`
+and `Expense`, not voucher lines, and `cost-center-monthly`'s `beforeAll`
+creates a VERTRIEB invoice dated July 15 of the *current* year on every run
+(`cost-center-crud` creates one at today's date); both sort before report /
+transactions / trend. Backend e2e 72-75 seed their own 2026 rows and query
+`year=2026` explicitly, so they are self-consistent too. Do **not** make
+`V-185-001`'s date relative: `96-tier69-datev-preview.sh` queries
+2026-01-01..2026-12-31 and depends on it.
+
 **Product bug: the per-webhook "Test" button fires every webhook in the
 company** (found Tier 358, not yet fixed — pending an operator decision
 because it changes what receivers get). `settings/webhooks/page.tsx` renders
