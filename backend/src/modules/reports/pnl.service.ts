@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
@@ -86,12 +87,9 @@ export class PnlService {
     const yearStart = new Date(year, 0, 1);
     const yearEnd = new Date(year, 11, 31, 23, 59, 59, 999);
 
-    // 24 parallel queries: 12 months × (revenue,
-    // material, other, vat) for the current year, plus
-    // 12 months × same for the prior year. We do
-    // them all in parallel because the per-month
-    // cost is identical and we want one round-trip
-    // to Postgres.
+    // Expenses: 12 months × (material, all) for the
+    // current and the prior year, aggregated in
+    // parallel. Invoices: one row read per year (below).
     const months = Array.from({ length: 12 }, (_, idx) => {
       const mStart = new Date(year, idx, 1);
       const mEnd = new Date(year, idx + 1, 0, 23, 59, 59, 999);
@@ -100,26 +98,50 @@ export class PnlService {
       return { idx, mStart, mEnd, pStart, pEnd };
     });
 
+    // Tier 362: invoices are summed row by row. Revenue used to be a per-month
+    // `aggregate` whose `_sum.eurSubtotal` was taken whenever it was non-null —
+    // i.e. as soon as ONE row in the month had an EUR amount — so every row
+    // whose eurSubtotal is NULL silently dropped out of that month's revenue
+    // (e2e/142 measured a 2.97 EUR "delta" for two 1000-unit invoices). NULL is
+    // not only legacy data: until Tier 362 recurring.service.ts never set the
+    // EUR columns. BWA, GuV and EÜR already fall back per row; this now matches.
+    const invoiceStatuses = ['paid', 'sent', 'overdue', 'draft']
+    const invoiceSelect = {
+      issueDate: true,
+      subtotal: true,
+      totalVat: true,
+      eurSubtotal: true,
+      eurTotalVat: true,
+    } as const
+    const [cyInvoices, pyInvoices] = await Promise.all([
+      this.prisma.invoice.findMany({
+        where: { companyId, issueDate: { gte: yearStart, lte: yearEnd }, status: { in: invoiceStatuses } },
+        select: invoiceSelect,
+      }),
+      this.prisma.invoice.findMany({
+        where: {
+          companyId,
+          issueDate: { gte: new Date(year - 1, 0, 1), lte: new Date(year - 1, 11, 31, 23, 59, 59, 999) },
+          status: { in: invoiceStatuses },
+        },
+        select: invoiceSelect,
+      }),
+    ]);
+    // EUR amount per row, falling back to the original-currency amount when
+    // the EUR column is NULL. Summed as Decimal (Tier 216/245 convention).
+    const sumInvoices = (rows: typeof cyInvoices, from: Date, to: Date) => {
+      let revenue = new Prisma.Decimal(0)
+      let vat = new Prisma.Decimal(0)
+      for (const r of rows) {
+        if (r.issueDate < from || r.issueDate > to) continue
+        revenue = revenue.plus(r.eurSubtotal ?? r.subtotal ?? 0)
+        vat = vat.plus(r.eurTotalVat ?? r.totalVat ?? 0)
+      }
+      return { revenue: revenue.toNumber(), vat: vat.toNumber() }
+    }
+
     const monthlyResults = await Promise.all(
       months.flatMap((m) => [
-        // Revenue + VAT for the current year
-        this.prisma.invoice.aggregate({
-          where: {
-            companyId,
-            issueDate: { gte: m.mStart, lte: m.mEnd },
-            status: { in: ['paid', 'sent', 'overdue', 'draft'] },
-          },
-          // Tier 118.5: aggregate the EUR equivalents
-          // (eurSubtotal / eurTotalVat). The PnL is a
-          // German BWA-style form that sums everything
-          // in EUR regardless of source currency. The
-          // raw subtotal / totalVat columns are
-          // summed too for the fallback path (legacy
-          // rows where eurSubtotal is null). The
-          // service below picks eurSubtotal first.
-          _sum: { subtotal: true, totalVat: true, eurSubtotal: true, eurTotalVat: true },
-          _count: { _all: true },
-        }).then((r) => ({ kind: 'cy' as const, idx: m.idx, value: r })),
         // Material expenses for the current year.
         // Categorise: category starts with "Material"
         // or "Waren" → Material; everything else →
@@ -148,18 +170,7 @@ export class PnlService {
           _sum: { netAmount: true },
           _count: { _all: true },
         }).then((r) => ({ kind: 'cyExp' as const, idx: m.idx, value: r })),
-        // Prior year aggregates (only the operating
-        // result is exposed in the UI, but we also
-        // surface revenue / expenses for transparency)
-        this.prisma.invoice.aggregate({
-          where: {
-            companyId,
-            issueDate: { gte: m.pStart, lte: m.pEnd },
-            status: { in: ['paid', 'sent', 'overdue', 'draft'] },
-          },
-          // Tier 118.5: prior-year aggregation in EUR
-          _sum: { subtotal: true, totalVat: true, eurSubtotal: true, eurTotalVat: true },
-        }).then((r) => ({ kind: 'py' as const, idx: m.idx, value: r })),
+        // Prior-year expense aggregates
         this.prisma.expense.aggregate({
           where: {
             companyId,
@@ -194,24 +205,13 @@ export class PnlService {
 
     const result: PnlMonth[] = months.map((m) => {
       const s = byMonth.get(m.idx) || {};
-      // Tier 118.5: prefer eurSubtotal / eurTotalVat
-      // (pre-computed at issue time from the ECB rate)
-      // over the original-currency subtotal / totalVat.
-      // Fall back to the original amounts for legacy
-      // rows where the EUR columns are still null.
-      const sumEur = (s_?: AggRow, eurKey?: 'eurSubtotal' | 'eurTotalVat', origKey?: 'subtotal' | 'totalVat') => {
-        const eur = s_?._sum?.[eurKey!]
-        if (eur != null) return Number(eur)
-        return Number(s_?._sum?.[origKey!] || 0)
-      }
-      const revenue = sumEur(s.cy, 'eurSubtotal', 'subtotal')
-      const vat = sumEur(s.cy, 'eurTotalVat', 'totalVat')
+      const { revenue, vat } = sumInvoices(cyInvoices, m.mStart, m.mEnd)
       const mat = Number(s.cyMat?._sum?.netAmount || 0);
       const totalExp = Number(s.cyExp?._sum?.netAmount || 0);
       const otherExp = Math.max(0, totalExp - mat);
       const operatingResult = revenue - mat - otherExp;
       // Prior year
-      const pRev = sumEur(s.py, 'eurSubtotal', 'subtotal')
+      const pRev = sumInvoices(pyInvoices, m.pStart, m.pEnd).revenue
       const pMat = Number(s.pyMat?._sum?.netAmount || 0);
       const pTotal = Number(s.pyExp?._sum?.netAmount || 0);
       const pOther = Math.max(0, pTotal - pMat);

@@ -8,6 +8,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 // we can record a 'skipped' RecurringRun rather than
 // crashing the cron tick.
 import { InvoiceEmailService } from '../invoice/invoice-email.service';
+import { ExchangeRateService } from '../exchange-rate/exchange-rate.service';
 
 /**
  * Recurring invoice (Abo-Rechnung) service.
@@ -107,6 +108,7 @@ export class RecurringService {
   constructor(
     private prisma: PrismaService,
     private invoiceEmailService: InvoiceEmailService,
+    private exchangeRates: ExchangeRateService,
   ) {}
 
   /**
@@ -872,6 +874,26 @@ export class RecurringService {
       const dueDate = new Date(issueDate)
       dueDate.setDate(dueDate.getDate() + 30)
 
+      // Tier 362: EUR equivalents, by the same rule as InvoiceService.create —
+      // EUR invoices mirror their amounts at rate 1; other currencies divide by
+      // the company's cached ECB rate ("1 EUR = X currency"), which getRate
+      // returns as 1.0000 when no rate is cached. Recurring invoices used to be
+      // created without exchangeRate / eurSubtotal / eurTotalVat / eurTotal,
+      // so every one of them was NULL there: PnL dropped them from revenue,
+      // the per-row fallbacks in BWA / GuV / EÜR / UStVA counted a non-EUR one
+      // in its original currency, and DATEV exported it without a rate.
+      const subtotal4 = Math.round(subtotal * 10000) / 10000
+      const totalVat4 = Math.round(totalVat * 10000) / 10000
+      const total4 = Math.round(total * 10000) / 10000
+      const invoiceCurrency = String(tpl.currency || 'EUR').toUpperCase()
+      let exchangeRate = 1
+      if (invoiceCurrency !== 'EUR') {
+        const parsed = parseFloat(await this.exchangeRates.getRate(companyId, invoiceCurrency))
+        exchangeRate = Number.isFinite(parsed) && parsed > 0 ? parsed : 1
+      }
+      const toEur4 = (v: number) =>
+        (invoiceCurrency === 'EUR' ? v : Math.round((v / exchangeRate) * 10000) / 10000).toFixed(4)
+
       const invoice = await tx.invoice.create({
         data: {
           companyId,
@@ -886,10 +908,14 @@ export class RecurringService {
           dueDate,
           // Prisma Decimal columns reject plain `number`;
           // round to 4dp + string to match `@db.Decimal(12,4)`.
-          subtotal: (Math.round(subtotal * 10000) / 10000).toFixed(4),
-          totalVat: (Math.round(totalVat * 10000) / 10000).toFixed(4),
-          total: (Math.round(total * 10000) / 10000).toFixed(4),
+          subtotal: subtotal4.toFixed(4),
+          totalVat: totalVat4.toFixed(4),
+          total: total4.toFixed(4),
           currency: tpl.currency,
+          exchangeRate: exchangeRate.toFixed(6),
+          eurSubtotal: toEur4(subtotal4),
+          eurTotalVat: toEur4(totalVat4),
+          eurTotal: toEur4(total4),
           language: tpl.language,
           notes: tpl.notes,
           vatBreakdown,

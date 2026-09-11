@@ -671,14 +671,22 @@ Still quarantined, and open:
   (`localhost:3001`) into the build; a clean clone falls back to the same
   value. Either way browsers would call `http://localhost:3001`. Verify with an
   image build before relying on this.
-- **142** — `pnl.service.ts` aggregates `_sum` per month and uses the
-  `eurSubtotal` sum whenever any row in that month has one, dropping rows whose
-  `eurSubtotal` is NULL. BWA, GuV and EÜR fall back per row and are correct.
-  NULL is not only legacy data: `recurring.service.ts` creates invoices without
-  `exchangeRate` / `eurSubtotal` / `eurTotalVat` / `eurTotal`, so every
-  recurring-generated invoice is NULL — PnL undercounts them, and the per-row
-  fallback elsewhere counts a non-EUR recurring invoice in its original
-  currency.
+- **142 — fixed in Tier 362.** `pnl.service.ts` aggregated `_sum` per month and
+  used the `eurSubtotal` sum whenever any row in that month had one, dropping
+  rows whose `eurSubtotal` was NULL. It now reads the year's invoices and sums
+  `eurSubtotal ?? subtotal` per row (as `Prisma.Decimal`), like BWA, GuV and
+  EÜR. The NULLs were not only legacy data: `recurring.service.ts` created
+  invoices without `exchangeRate` / `eurSubtotal` / `eurTotalVat` / `eurTotal`.
+  It now sets them by `InvoiceService.create`'s rule (EUR mirrors at rate 1;
+  other currencies divide by the company's cached ECB rate, 1.0000 when none is
+  cached). `153-tier222-recurring-run.sh` asserts both an EUR and a USD run.
+  **Existing data is not migrated.** EUR recurring invoices created before
+  Tier 362 are already reported correctly through the per-row fallbacks; a
+  non-EUR one is still counted in its original currency and exported to DATEV
+  without a rate, and its issue-day rate cannot be reconstructed automatically.
+  Find them with:
+  `SELECT id, "invoiceNumber", currency, "issueDate", total FROM "Invoice"
+  WHERE "recurringInvoiceId" IS NOT NULL AND "eurSubtotal" IS NULL AND currency <> 'EUR';`
 - **Anlage AUS KapG detection** (product question, not changed):
   `anlage-aus.service.ts` tests `/^(GmbH|AG|KGaA|UG)/i` against
   `settings.rechtsform || legalName`. Nothing in the frontend writes

@@ -77,6 +77,47 @@ assert_eq "generated invoice customerId" "$CUST" "$CUSTOMER_ID"
 TYPE=$(echo "$BODY" | python3 -c "import sys,json;print(json.load(sys.stdin).get('type',''))")
 assert_eq "generated invoice type" "$TYPE" "INV"
 
+# ========== Test 2b: EUR equivalents on the generated invoice (Tier 362) ==========
+# recurring.service.ts used to create invoices without exchangeRate /
+# eurSubtotal / eurTotalVat / eurTotal, so every recurring invoice was NULL
+# there and PnL dropped it from revenue. An EUR invoice mirrors its amounts.
+EUR_ROW=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -F'|' -c \
+  "SELECT currency, \"exchangeRate\", \"eurSubtotal\", \"eurTotalVat\", \"eurTotal\" FROM \"Invoice\" WHERE id='$INVOICE_ID_1';" 2>/dev/null)
+assert_eq "EUR recurring invoice: currency|rate|eurSubtotal|eurTotalVat|eurTotal" "$EUR_ROW" "EUR|1.000000|100.0000|19.0000|119.0000"
+
+# ========== Test 2c: USD template gets the cached ECB rate (Tier 362) ==========
+RATES_PAYLOAD=$(curl -sS -X POST \
+  -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
+  -H "Content-Type: application/json" \
+  -d "{\"companyId\":\"$COMPANY_ID\"}" \
+  "$API/api/v1/exchange-rates/refresh" 2>/dev/null)
+USD_RATE=$(echo "$RATES_PAYLOAD" | python3 -c "import json,sys; print((json.load(sys.stdin).get('rates') or {}).get('USD',''))" 2>/dev/null)
+[[ -n "$USD_RATE" ]] && pass "USD rate cached for the company: $USD_RATE" || fail "no USD rate after /exchange-rates/refresh: $RATES_PAYLOAD"
+USD_TPL_RESP=$(curl -sS -X POST "$API/api/v1/recurring-invoices?companyId=$COMPANY_ID" \
+  -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"name\":\"Tier362 USD subscription\",
+    \"customerId\":\"$CUSTOMER_ID\",
+    \"interval\":\"monthly\",
+    \"startDate\":\"2026-08-19\",
+    \"currency\":\"USD\",
+    \"items\":[{\"description\":\"Monthly hosting (USD)\",\"quantity\":1,\"unitPrice\":100,\"vatRate\":0.19}],
+    \"sendEmail\":false
+  }")
+USD_TEMPLATE_ID=$(echo "$USD_TPL_RESP" | python3 -c "import sys,json;print(json.load(sys.stdin).get('id',''))" 2>/dev/null)
+[[ -n "$USD_TEMPLATE_ID" ]] && pass "USD recurring template created: $USD_TEMPLATE_ID" || fail "could not create USD template: $USD_TPL_RESP"
+api_post "/api/v1/recurring-invoices/$USD_TEMPLATE_ID/run?companyId=$COMPANY_ID" ""
+assert_eq "USD run HTTP" "$STATUS" "201"
+USD_INVOICE_ID=$(echo "$BODY" | python3 -c "import sys,json;print(json.load(sys.stdin).get('invoiceId',''))" 2>/dev/null)
+USD_ROW=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -F'|' -c \
+  "SELECT currency, \"exchangeRate\", \"eurSubtotal\", \"eurTotal\" FROM \"Invoice\" WHERE id='$USD_INVOICE_ID';" 2>/dev/null)
+note "USD recurring invoice row: $USD_ROW"
+assert_eq "USD invoice currency" "$(echo "$USD_ROW" | cut -d'|' -f1)" "USD"
+assert_close "USD invoice exchangeRate = cached rate" "$(echo "$USD_ROW" | cut -d'|' -f2)" "${USD_RATE:-0}" 0.000001
+assert_close "USD invoice eurSubtotal = 100 / rate" "$(echo "$USD_ROW" | cut -d'|' -f3)" "$(python3 -c "print(round(100/float('${USD_RATE:-1}'),4))")" 0.0001
+assert_close "USD invoice eurTotal = 119 / rate" "$(echo "$USD_ROW" | cut -d'|' -f4)" "$(python3 -c "print(round(119/float('${USD_RATE:-1}'),4))")" 0.0001
+
 # ========== Test 3: Second run produces a NEW invoice ==========
 # The recurring scheduler is supposed to advance
 # nextRunDate after each successful run. Two manual
@@ -143,15 +184,21 @@ docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
 # ========== Cleanup ==========
 # Order: RecurringRun records (if any) → invoices → template → customer
 docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
-  "DELETE FROM \"RecurringRun\" WHERE \"templateId\"='$TEMPLATE_ID';" >/dev/null 2>&1
+  "DELETE FROM \"RecurringRun\" WHERE \"recurringInvoiceId\" IN ('$TEMPLATE_ID', '${USD_TEMPLATE_ID:-}');" >/dev/null 2>&1
 docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
-  "DELETE FROM \"InvoiceItem\" WHERE \"invoiceId\" IN ('$INVOICE_ID_1', '$INVOICE_ID_2');" >/dev/null 2>&1
+  "DELETE FROM \"InvoiceItem\" WHERE \"invoiceId\" IN ('$INVOICE_ID_1', '$INVOICE_ID_2', '${USD_INVOICE_ID:-}');" >/dev/null 2>&1
 docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
-  "DELETE FROM \"Invoice\" WHERE id IN ('$INVOICE_ID_1', '$INVOICE_ID_2');" >/dev/null 2>&1
+  "DELETE FROM \"Invoice\" WHERE id IN ('$INVOICE_ID_1', '$INVOICE_ID_2', '${USD_INVOICE_ID:-}');" >/dev/null 2>&1
 docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
-  "DELETE FROM \"RecurringInvoice\" WHERE id='$TEMPLATE_ID';" >/dev/null 2>&1
+  "DELETE FROM \"RecurringInvoice\" WHERE id IN ('$TEMPLATE_ID', '${USD_TEMPLATE_ID:-}');" >/dev/null 2>&1
 docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"Customer\" WHERE id='$CUSTOMER_ID';" >/dev/null 2>&1
-pass "cleanup complete (invoices + template + customer)"
+# Tier 362: the RecurringRun delete named a "templateId" column that does not
+# exist (the field is recurringInvoiceId) and failed silently. Nothing was left
+# behind only because the foreign keys cascade (template -> runs) and set NULL
+# (invoice -> run.invoiceId); cleanup never checked either way. Now it does.
+LEFT_TPL=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT count(*) FROM \"RecurringInvoice\" WHERE id IN ('$TEMPLATE_ID', '${USD_TEMPLATE_ID:-}');" 2>/dev/null | tr -d ' ')
+[[ "$LEFT_TPL" == "0" ]] && pass "cleanup complete (runs + invoices + templates + customer)" || fail "cleanup left $LEFT_TPL recurring template(s) behind"
 
 summary
