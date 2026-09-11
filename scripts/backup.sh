@@ -197,40 +197,70 @@ fi
 # Implementation: list the dated dirs, group by
 # (date, week, month) and pick the most recent of
 # each. Anything not picked is deleted.
+#
+# Tier 360: only backups that contain the database (db.sql.gz) earn a
+# daily / weekly / monthly slot. The slots used to count the dates of ANY
+# stage dir, and a run whose pg_dump fails still leaves one (attachments
+# only). Consecutive failed nights therefore filled the daily slots with
+# dump-less dirs and rotation deleted the real backups, newest first — on
+# one developer machine five failed nights (2026-09-06..10) left the last
+# backup containing the database (2026-09-05) two failed runs from
+# deletion. A failed run can no longer cost a complete backup.
+#
+# Dirs without db.sql.gz are kept only while they are newer than the newest
+# complete backup — they may hold the only recent attachments archive, and
+# their db.dump.log says why the dump failed — capped at the $KEEP_DAILY
+# most recent. Once a complete backup supersedes them they are deleted.
 log "Rotating old backups (keep $KEEP_DAILY daily / $KEEP_WEEKLY weekly)"
+COMPLETE_DIRS=""
+INCOMPLETE_DIRS=""
+for d in $(ls -1 "$BACKUP_ROOT" 2>/dev/null \
+    | grep -E '^backup-[0-9]{4}-[0-9]{2}-[0-9]{2}' | sort); do
+  if [[ -f "$BACKUP_ROOT/$d/db.sql.gz" ]]; then
+    COMPLETE_DIRS+="$d"$'\n'
+  else
+    INCOMPLETE_DIRS+="$d"$'\n'
+  fi
+done
 ROTATE_KEEP=()
 # Daily — one per day
-DAILY_DATES=$(ls -1 "$BACKUP_ROOT" 2>/dev/null \
-  | grep -E '^backup-[0-9]{4}-[0-9]{2}-[0-9]{2}' \
+DAILY_DATES=$(printf '%s' "$COMPLETE_DIRS" \
   | awk -F- '{print $2"-"$3"-"$4}' \
   | sort -u | tail -n "$KEEP_DAILY")
 for d in $DAILY_DATES; do
-  # Keep the latest run of that day
-  LATEST=$(ls -1 "$BACKUP_ROOT" 2>/dev/null \
+  # Keep the latest complete run of that day
+  LATEST=$(printf '%s' "$COMPLETE_DIRS" \
     | grep -E "^backup-${d}-" | sort | tail -1)
   [[ -n "$LATEST" ]] && ROTATE_KEEP+=("$LATEST")
 done
 # Weekly — one per Sunday
-WEEKLY_DATES=$(ls -1 "$BACKUP_ROOT" 2>/dev/null \
-  | grep -E '^backup-[0-9]{4}-[0-9]{2}-[0-9]{2}' \
+WEEKLY_DATES=$(printf '%s' "$COMPLETE_DIRS" \
   | awk -F- '{print $2"-"$3"-"$4}' \
   | while read d; do
       dow=$(date -j -f "%Y-%m-%d" "$d" "+%u" 2>/dev/null || date -d "$d" "+%u" 2>/dev/null)
       [[ "$dow" == "7" ]] && echo "$d"
     done | sort -u | tail -n "$KEEP_WEEKLY")
 for d in $WEEKLY_DATES; do
-  LATEST=$(ls -1 "$BACKUP_ROOT" 2>/dev/null \
+  LATEST=$(printf '%s' "$COMPLETE_DIRS" \
     | grep -E "^backup-${d}-" | sort | tail -1)
   [[ -n "$LATEST" ]] && ROTATE_KEEP+=("$LATEST")
 done
 # Monthly — first-of-month runs only, this year
-MONTHLY=$(ls -1 "$BACKUP_ROOT" 2>/dev/null \
+MONTHLY=$(printf '%s' "$COMPLETE_DIRS" \
   | grep -E "^backup-$(date +%Y)-" \
   | grep -E '^backup-[0-9]{4}-[0-9]{2}-01' | sort -u)
 for m in $MONTHLY; do ROTATE_KEEP+=("$m"); done
+# Dump-less dirs newer than the newest complete backup (see above)
+NEWEST_COMPLETE=$(printf '%s' "$COMPLETE_DIRS" | tail -1)
+PENDING_INCOMPLETE=$(printf '%s' "$INCOMPLETE_DIRS" \
+  | while read d; do
+      if [[ -z "$NEWEST_COMPLETE" || "$d" > "$NEWEST_COMPLETE" ]]; then echo "$d"; fi
+    done | tail -n "$KEEP_DAILY")
+for d in $PENDING_INCOMPLETE; do ROTATE_KEEP+=("$d"); done
 
-# Delete anything not in KEEP
-KEEPED=$(printf '%s\n' "${ROTATE_KEEP[@]}" | sort -u)
+# Delete anything not in KEEP. The ${arr[@]+...} form keeps an empty array
+# from tripping `set -u` on bash 3.2 (macOS /bin/bash).
+KEEPED=$(printf '%s\n' ${ROTATE_KEEP[@]+"${ROTATE_KEEP[@]}"} | sort -u)
 DELETED=0
 for d in $(ls -1 "$BACKUP_ROOT" 2>/dev/null | grep -E '^backup-[0-9]{4}'); do
   if ! echo "$KEEPED" | grep -qx "$d"; then

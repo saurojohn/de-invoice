@@ -578,6 +578,32 @@ Also: Tier 358's first local run (before the `BACKUP_ROOT` fix) left
 health colour and the restore drill. Tier 359 moved it to the macOS Trash
 (not permanently deleted), with the operator's approval.
 
+**Backups: rotation deleted real backups while dumps were failing** (fixed
+Tier 360). `scripts/backup.sh` rotation handed out its 7 daily / 4 weekly /
+monthly slots by the date of *any* stage dir, and a failed `pg_dump` still
+leaves one (attachments only). Replaying the real directory layout in a
+scratch dir showed the pre-360 script deleting `backup-2026-09-05-224235` —
+the last backup containing the database — after two more failed runs; a
+month of failures would have left only the current year's day-01 anchors,
+and those go at the year change. Now only dirs with `db.sql.gz` earn slots;
+dump-less dirs are kept only while newer than the newest complete backup,
+capped at `KEEP_DAILY`. `backend/e2e/42-backup-rotation.sh` covers it with a
+stub `pg_dump` and 2020 fixture dates (no backend or DB needed); run against
+the pre-360 script it fails 3 assertions. Rotation policy itself is unchanged
+and still worth an operator look: monthly anchors exist only for runs that
+happen on the 1st, and are kept for the current calendar year only.
+
+**70 backend e2e specs have never run** (found Tier 360, not fixed).
+`backend/e2e/run-all.sh` — which CI calls — loops over `[0-9][0-9]-*.sh`,
+two digits then a hyphen. The 70 specs numbered `100-*` to `169-*` never
+match. "Backend e2e 99/99" is exactly the two-digit specs; `144-tier120-backups`,
+`150-tier218-webhook-replay-requeue` and the rest of 100-169 have no CI
+signal at all. That is why the Tier 360 rotation spec is `42-backup-rotation.sh`
+(duplicate prefix, sorts after `42-backup-fire-drill.sh`) and not `170-*`.
+Widening the glob will surface failures accumulated since those specs were
+written, and some are not CI specs at all (`169-tier247-dryrun-validate.sh`
+targets a dryrun stack on :3002) — handle as its own tier.
+
 **`frontend/AGENTS.md` points at `node_modules/next/dist/docs/`, which does
 not exist** in this install. When you need Next.js behaviour confirmed, read
 the installed package source (e.g. `node_modules/@next/env/dist/index.js`)
