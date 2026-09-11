@@ -51,6 +51,10 @@ jobs:
   backend-typecheck:
     name: Backend typecheck
     runs-on: ubuntu-latest
+    # Tier 364: GitHub's default job limit is 360 minutes; a hung step would
+    # burn that on every run (and the account has already hit its spending
+    # limit once). Limits are ~2x the normal runtime, with headroom.
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: backend
@@ -94,6 +98,10 @@ jobs:
   backend-lint:
     name: Backend lint
     runs-on: ubuntu-latest
+    # Tier 364: GitHub's default job limit is 360 minutes; a hung step would
+    # burn that on every run (and the account has already hit its spending
+    # limit once). Limits are ~2x the normal runtime, with headroom.
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: backend
@@ -110,6 +118,10 @@ jobs:
   frontend-lint:
     name: Frontend lint
     runs-on: ubuntu-latest
+    # Tier 364: GitHub's default job limit is 360 minutes; a hung step would
+    # burn that on every run (and the account has already hit its spending
+    # limit once). Limits are ~2x the normal runtime, with headroom.
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: frontend
@@ -126,6 +138,10 @@ jobs:
   frontend-typecheck:
     name: Frontend typecheck
     runs-on: ubuntu-latest
+    # Tier 364: GitHub's default job limit is 360 minutes; a hung step would
+    # burn that on every run (and the account has already hit its spending
+    # limit once). Limits are ~2x the normal runtime, with headroom.
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: frontend
@@ -142,6 +158,10 @@ jobs:
   e2e:
     name: End-to-end tests (backend)
     runs-on: ubuntu-latest
+    # Tier 364: GitHub's default job limit is 360 minutes; a hung step would
+    # burn that on every run (and the account has already hit its spending
+    # limit once). Limits are ~2x the normal runtime, with headroom.
+    timeout-minutes: 30
     env:
       DATABASE_URL: postgresql://de_invoice:de_invoice_pass@localhost:5432/de_invoice?schema=public
       NODE_ENV: test
@@ -415,6 +435,10 @@ jobs:
   playwright:
     name: End-to-end tests (Playwright UI)
     runs-on: ubuntu-latest
+    # Tier 364: GitHub's default job limit is 360 minutes; a hung step would
+    # burn that on every run (and the account has already hit its spending
+    # limit once). Limits are ~2x the normal runtime, with headroom.
+    timeout-minutes: 60
     env:
       DATABASE_URL: postgresql://de_invoice:de_invoice_pass@localhost:5432/de_invoice?schema=public
       NODE_ENV: test

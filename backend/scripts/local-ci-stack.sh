@@ -81,29 +81,108 @@ LOCAL_CI_BACKUP_ROOT=/tmp/local-ci-backups
 export BACKUP_ROOT="$LOCAL_CI_BACKUP_ROOT"
 export BACKUP_DOCKER_CONTAINER="$PG_CONTAINER"
 
-stop_backend() {
-  pkill -f "ts-node src/main.ts" 2>/dev/null || true
-  for _ in $(seq 1 20); do
-    pgrep -f "ts-node src/main.ts" >/dev/null || return 0
-    sleep 0.5
+# Tier 364: only ever kill processes this script started. stop_backend used to
+# `pkill -f "ts-node src/main.ts"` and stop_frontend killed whatever listened on
+# :3100 — so running this script silently killed a developer's own backend
+# (which is also what runs the 04:00 backup cron) or frontend.
+#
+# Ownership is a random token, exported to everything the script starts (the
+# backend, spec 20's restarted backend, next dev) and kept in a state file so a
+# later `up` or `down` recognises the same processes. `ps eww` shows a node
+# process's environment; if the token is not visible, the process is foreign.
+# Two simpler markers failed in testing:
+#   - NODE_ENV=test on the :3100 listener: that listener is `next-server (vX)`,
+#     a child of `next dev` that renames its process title, which also hides
+#     its environment — the script's own frontend survived `down`.
+#   - the same marker looked up on parents: `ps eww` prints argv and
+#     environment as one string, so a parent whose COMMAND LINE merely
+#     contained the text (a shell running a script that mentions it) matched,
+#     and a foreign server on :3100 was killed.
+# A random token appears in no command line.
+TOKEN_FILE="/tmp/local-ci-stack-${PG_CONTAINER}.token"
+if [ ! -s "$TOKEN_FILE" ]; then
+  head -c 12 /dev/urandom | od -An -tx1 | tr -d ' \n' > "$TOKEN_FILE"
+fi
+LOCAL_CI_STACK_TOKEN="$(cat "$TOKEN_FILE")"
+export LOCAL_CI_STACK_TOKEN
+has_token() {
+  ps eww -o command= -p "$1" 2>/dev/null | grep -qF "LOCAL_CI_STACK_TOKEN=${LOCAL_CI_STACK_TOKEN}"
+}
+is_own_backend() { has_token "$1"; }
+# The :3100 listener (next-server) hides its environment, so check its parents.
+is_own_frontend() {
+  local pid="$1" _
+  for _ in 1 2 3; do
+    { [ -n "$pid" ] && [ "$pid" -gt 1 ]; } || return 1
+    has_token "$pid" && return 0
+    pid=$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d ' ')
   done
-  pkill -9 -f "ts-node src/main.ts" 2>/dev/null || true
+  return 1
+}
+# guard_port PORT CHECK LABEL — report and return 1 if PORT is held by a
+# process CHECK rejects (callers decide whether that is fatal).
+guard_port() {
+  local port="$1" check="$2" label="$3" pid
+  for pid in $(lsof -ti tcp:"$port" -sTCP:LISTEN 2>/dev/null || true); do
+    if ! "$check" "$pid"; then
+      echo "FATAL: :$port is held by pid $pid, which this script did not start:" >&2
+      ps -o pid=,command= -p "$pid" >&2 || true
+      echo "       Probably your own $label. Stop it yourself (or wait for it); not killing it." >&2
+      return 1
+    fi
+  done
+}
+
+stop_backend() {
+  # A foreign backend is reported and left alone; `down` still cleans up the rest.
+  guard_port 3001 is_own_backend backend || return 0
+  local pids pid
+  for sig in TERM KILL; do
+    pids=""
+    for pid in $(pgrep -f "ts-node src/main.ts" 2>/dev/null || true); do
+      has_token "$pid" && pids="$pids $pid"
+    done
+    [ -z "$pids" ] && return 0
+    # shellcheck disable=SC2086
+    kill -s "$sig" $pids 2>/dev/null || true
+    [ "$sig" = KILL ] && return 0
+    for _ in $(seq 1 20); do
+      local alive=""
+      for pid in $pids; do kill -0 "$pid" 2>/dev/null && alive=1; done
+      [ -z "$alive" ] && return 0
+      sleep 0.5
+    done
+  done
 }
 
 stop_frontend() {
-  # Scoped to port 3100 so unrelated Next.js dev servers are left alone.
-  pkill -f "next dev -p 3100" 2>/dev/null || true
+  guard_port 3100 is_own_frontend frontend || return 0
+  # The whole tree this script started: `npm exec next dev -p 3100` ->
+  # `node .../next dev -p 3100` (both carry the token) -> `next-server`
+  # (the :3100 listener). Killing only the listener left the other two behind.
+  local pids="" pid
+  for pid in $(pgrep -f "next dev -p 3100" 2>/dev/null || true); do
+    has_token "$pid" && pids="$pids $pid"
+  done
+  # Listeners on :3100 were just checked by guard_port, so they are ours.
+  pids="$pids $(lsof -ti tcp:3100 -sTCP:LISTEN 2>/dev/null | tr '\n' ' ' || true)"
+  pids=$(echo $pids)
+  [ -z "$pids" ] && return 0
+  # shellcheck disable=SC2086
+  kill $pids 2>/dev/null || true
   for _ in $(seq 1 20); do
-    PIDS=$(lsof -ti tcp:3100 -sTCP:LISTEN 2>/dev/null || true)
-    [ -z "$PIDS" ] && return 0
-    for pid in $PIDS; do kill "$pid" 2>/dev/null || true; done
+    local alive=""
+    for pid in $pids; do kill -0 "$pid" 2>/dev/null && alive=1; done
+    [ -z "$alive" ] && return 0
     sleep 0.5
   done
-  for pid in $(lsof -ti tcp:3100 -sTCP:LISTEN 2>/dev/null || true); do kill -9 "$pid" 2>/dev/null || true; done
+  # shellcheck disable=SC2086
+  kill -9 $pids 2>/dev/null || true
 }
 
 start_frontend() {
   echo "▶ frontend (CI 'Start frontend' step)"
+  guard_port 3100 is_own_frontend frontend || exit 2
   stop_frontend
   cd "$FRONTEND_DIR"
   # PORT=3100 is inline on purpose: scripts/start-backend.sh reads PORT for
@@ -136,6 +215,8 @@ run_playwright() {
 }
 
 up() {
+  # Refuse before touching anything if :3001 belongs to someone else.
+  guard_port 3001 is_own_backend backend || exit 2
   echo "▶ fresh postgres:16 as '$PG_CONTAINER' on :$PG_PORT"
   docker rm -f "$PG_CONTAINER" >/dev/null 2>&1 || true
   docker run -d --name "$PG_CONTAINER" \
@@ -194,6 +275,6 @@ case "${1:-}" in
         # CI playwright job gives the backend this CORS origin.
         export FRONTEND_URL=http://localhost:3100
         shift; up; start_frontend; run_playwright "$@" ;;
-  down) stop_frontend; stop_backend; docker rm -f "$PG_CONTAINER" >/dev/null 2>&1 || true; echo "down" ;;
+  down) stop_frontend; stop_backend; docker rm -f "$PG_CONTAINER" >/dev/null 2>&1 || true; rm -f "$TOKEN_FILE"; echo "down" ;;
   *)    sed -n '2,36p' "$0"; exit 1 ;;
 esac

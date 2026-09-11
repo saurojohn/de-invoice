@@ -1,4 +1,4 @@
-# de-invoice — Handoff to Claude (2026-09-09)
+# de-invoice — Handoff to Claude (2026-09-11)
 
 **This file is the first thing a new Claude session should read.** It orients you
 to the project state, the most recent changes, the known blockers, and the
@@ -9,36 +9,35 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`, HEAD = `4a6b08a`
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–364 are
+  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 364.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test count (last green CI, Run #315 / commit `4a6b08a`):**
-  - Backend e2e: 99 / 99 ✅
-  - Playwright: 884 passed / **0 failed** / 1 flaky (cron race) / 27 skipped
-  - `npx tsc --noEmit` clean on backend + frontend
-  - 0 ESLint errors / warnings
-  - 172 backend bash scripts validated
+- **Test counts (Tier 363, fresh CI-equivalent local stack — see the CI note below):**
+  - Backend e2e: **169 passed / 0 failed** — 100 two-digit + 69 three-digit
+    specs; before Tier 361 only the two-digit ones ever ran. `QUARANTINE` empty.
+  - Playwright: **908 passed / 0 failed / 4 skipped** (3 deliberate skips +
+    `admin-ops-tier195` 4, which needs a backup with `db.sql.gz`)
+  - `tsc --noEmit` and `eslint . --max-warnings 0` clean, backend + frontend
+- **CI is currently not running jobs:** the Tier 363 push (run 34610316607)
+  never started — GitHub: "recent account payments have failed or your
+  spending limit needs to be increased". The last green CI run is 944adb6
+  (Tier 362b). After the account is fixed: `gh run rerun 34610316607`.
+- **Reproduce CI locally:** `backend/scripts/local-ci-stack.sh run` (backend
+  e2e) and `run-playwright [spec…]` — see §8.
 
-## 2. Branch state (clean)
+## 2. Branch state
 
-```
-$ git log --oneline origin/main | head -5
-4a6b08a Tier 343: rec147 sortOrder -> position (schema column name, Tier 337 lesson)
-047344d Tier 342: rec147 stderr capture + stdin pipe (true error message)
-3982a34 Tier 341: 3 more PW spec cold-compile/race fixes (mobile auth copy, mahnungen loading wait, recurring pg_isready)
-564d1ce Tier 340: 3 PW spec cold-compile hydration fixes (recurring-generated, bulk-send, invoice-tax)
-a644217 Tier 339: full error + vulnerability audit (28 files, 0 critical/high)
-```
+`main` is pushed; there is no work in progress between tiers. `git log --oneline -10`
+is the reliable view — this file does not pin a HEAD any more (it went stale
+every tier). `tmp-pw-fail/` (old Playwright failure artifacts) is gitignored
+since Tier 344; leave it unless the user wants it gone.
 
-- **No** staged, unstaged, or in-progress work
-- **Untracked:** `tmp-pw-fail/` (leftover Playwright failure-artifact directory,
-  15 entries, 2026-09-09 11:33) — safe to delete or `.gitignore`.
-
-## 3. Recent session arc (Tiers 339 → 343, CI-hardening closeout)
+## 3. Session arc, Tiers 339 → 343 (history; later tiers are in §8)
 
 The session that produced `4a6b08a` was a 4-day CI-stabilization arc that
 took the suite from "all jobs fail" to "all jobs green". For full context:
@@ -94,15 +93,17 @@ Operational scripts:
   re-hash the audit-log chain in `createdAt` order (only needed if chain
   gets corrupted)
 
-## 5. CI configuration (`.github/workflows/ci.yml`, 517 lines, 4 jobs)
+## 5. CI configuration (`.github/workflows/ci.yml`, 595 lines, 6 jobs)
 
-- **Jobs:** `backend-typecheck`, `frontend-typecheck`, `e2e`, `playwright`
-  — all run in parallel, no `needs:`, no artifact handoff between jobs
-  (both e2e + playwright re-run `ci-seed.sh` independently).
+- **Jobs:** `backend-typecheck`, `backend-lint`, `frontend-lint`,
+  `frontend-typecheck`, `e2e`, `playwright` — all in parallel, no `needs:`, no
+  artifact handoff (e2e and playwright each run `ci-seed.sh`). Normal runtime:
+  lint/typecheck < 1 min, e2e ~8 min, playwright ~27 min.
 - **Triggers:** push to `main` + pull_request to `main`
 - **`concurrency.cancel-in-progress: true`** is set — a new commit cancels
   the prior run on the same ref.
-- **No `timeout-minutes`** set on any job — relies on GitHub's default 360 min.
+- **`timeout-minutes` on every job** since Tier 364 (15 / 15 / 15 / 15 / 30 /
+  60; `release.yml` 45). Before that each job could run 360 minutes.
 - **All `actions/*` pinned to `@v7`** since Tier 345 (was `@v4`, which
   declares `runs.using: node20` — GitHub deprecated that runtime and was
   force-running them on Node 24). **Gotcha: `actions/upload-artifact@v5` is
@@ -114,15 +115,13 @@ Operational scripts:
   `runs-on: ubuntu-latest` is GitHub-hosted so upload-artifact v6's
   runner >= 2.327.1 requirement is met. `docker/*` actions in `release.yml`
   were left alone — not flagged, third-party release cadence.
-- **5 `if:` clauses** — all artifact uploads (`if: always()` or
-  `if: failure()`). No conditional test-skipping.
+- **5 `if:` clauses** — artifact uploads only. No conditional test-skipping.
 - **No commented-out steps**, no TODO/FIXME in the workflow file.
 
 ## 6. Schema + migrations
 
 - **22 migrations** in `backend/prisma/migrations/` (oldest:
-  `20240101000000_baseline`, newest:
-  `20260905000001_invoice_eur_aggregation`).
+  `20240101000000_baseline`, newest: `20260905000001_invoice_eur_aggregation`).
 - **62 models** in `backend/prisma/schema.prisma`. CI workflow enforces
   `TABLE_COUNT >= 62` after `db push` (`.github/workflows/ci.yml:254`).
 - **Raw-SQL migrations:** 1 — `20260701000001_search_tsv/migration.sql`
@@ -135,9 +134,11 @@ Operational scripts:
 
 ## 7. Tests
 
-- **Backend e2e:** 172 shell specs in `backend/e2e/*.sh`;
-  seed driver `backend/e2e/ci-seed.sh` = 496 lines.
-- **Playwright:** 171 spec files in `frontend/e2e/`;
+- **Backend e2e:** 169 specs run by `backend/e2e/run-all.sh` (100 two-digit, 69
+  three-digit; `dryrun-tier247-validate.sh` is manual). Seed driver
+  `backend/e2e/ci-seed.sh` = 640 lines. `run-all.sh` has a per-spec
+  `SPEC_TIMEOUT` watchdog and a `QUARANTINE` list (empty) — see §8, Tier 361.
+- **Playwright:** 169 spec files in `frontend/e2e/`;
   config `frontend/playwright.config.ts` = 129 lines.
   **No root-level `playwright.config.ts`** — only the frontend copy.
 - All bash scripts use `set -uo pipefail`. 46 historical scripts
@@ -148,9 +149,9 @@ Operational scripts:
   harness: `fail()` increments `FAILS`, and the closing `summary` turns
   `FAILS` into the exit code. `set -e` aborts at the first failing command,
   so `summary` never runs, the remaining assertions never execute, and the
-  per-spec failure count is lost. Convention is `set -uo pipefail`
-  (149/172 specs). The 23 specs carrying `set -euo pipefail` are a
-  historical inconsistency — do not copy them.
+  per-spec failure count is lost. Convention is `set -uo pipefail`; the
+  22 specs still carrying `set -euo pipefail` are a historical inconsistency
+  — do not copy them.
 - CI smoke-test pattern for backend: `bash backend/e2e/run-all.sh`
   with `SEGMENT_SIZE=20 SEGMENT_SLEEP=10` (Tier 312 default).
   For frontend: `bash frontend/scripts/run-all.sh` with
@@ -819,337 +820,50 @@ literals, but a few `docker exec` strings were single- or double-quoted
 into a literal inside a quoted string and neither tsc nor eslint will
 complain. Check that every `${PG_CONTAINER}` sits inside backticks.
 
- de-invoice — Handoff to Claude (2026-09-09)
+### local-ci-stack.sh no longer kills processes it did not start (Tier 364)
 
-**This file is the first thing a new Claude session should read.** It orients you
-to the project state, the most recent changes, the known blockers, and the
-exact commands + docs you need to be productive.
+`stop_backend` used to `pkill -f "ts-node src/main.ts"` and `stop_frontend`
+killed whatever listened on :3100, so every local CI run silently killed a
+developer's own backend — the process that also runs the 04:00 backup cron —
+or frontend. Ownership is now a **random token**: the script exports
+`LOCAL_CI_STACK_TOKEN` to everything it starts (backend, spec 20's restarted
+backend, `next dev`) and keeps it in `/tmp/local-ci-stack-<PG_CONTAINER>.token`
+so a later `up` / `down` recognises the same processes; `down` deletes the
+file. A process counts as its own only if `ps eww` shows that exact token.
+`up` and `run-playwright` refuse (exit 2) when :3001 / :3100 belong to anything
+else; `down` reports the foreign process, leaves it alone, and still removes
+what the script owns. Spec 20's own `lsof -ti:3001 | xargs kill -9` is
+unchanged: it only runs inside the stack.
 
----
+**Two simpler markers failed in testing — don't go back to them:**
+- `NODE_ENV=test` / the backend's `DATABASE_URL` on the listener. The :3100
+  listener is `next-server (v15.5.7)`, a child of `next dev` that renames its
+  process title, which also hides its environment. The script's own frontend
+  counted as foreign and survived `down`.
+- The same marker looked up on parent processes. `ps eww` prints argv and
+  environment as one string, so an ancestor whose **command line** merely
+  contained the text — the shell running a test script that mentions
+  `next dev -p 3100` and `NODE_ENV=test` — matched, and a foreign server on
+  :3100 was killed. A random token appears in no command line.
 
-## 1. Project snapshot
+`stop_frontend` kills the whole own tree (`npm exec` → `next dev` →
+`next-server`), not just the listener. Verified: the guard was exercised on a throwaway stack. Foreign listener on :3100 → `run-playwright`
+exits 2 and the listener survives `down`; foreign :3001 → `up` exits 2, no container;
+a developer `next dev -p 3100` without the token → refused and left running; own
+frontend started twice, then `down` → no listener, no `next dev`/`next-server`, no
+container, no token file; `up` twice replaces its own backend; a full `run` (169 passed /
+0 failed, spec 20 restarts the backend) followed by `down` leaves nothing behind.
 
-- **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`, HEAD = `4a6b08a`
-- **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
-  - All UI text in **German** (operator-facing). PDF output in German. i18n:
-    de / en / zh (de is source of truth).
-  - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
-    UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
-    hash chain. **No simplified MVP** — every feature must be complete.
-- **Test count (last green CI, Run #315 / commit `4a6b08a`):**
-  - Backend e2e: 99 / 99 ✅
-  - Playwright: 884 passed / **0 failed** / 1 flaky (cron race) / 27 skipped
-  - `npx tsc --noEmit` clean on backend + frontend
-  - 0 ESLint errors / warnings
-  - 172 backend bash scripts validated
+### Notes from Tiers 347–352 (recovered in Tier 364)
 
-## 2. Branch state (clean)
-
-```
-$ git log --oneline origin/main | head -5
-4a6b08a Tier 343: rec147 sortOrder -> position (schema column name, Tier 337 lesson)
-047344d Tier 342: rec147 stderr capture + stdin pipe (true error message)
-3982a34 Tier 341: 3 more PW spec cold-compile/race fixes (mobile auth copy, mahnungen loading wait, recurring pg_isready)
-564d1ce Tier 340: 3 PW spec cold-compile hydration fixes (recurring-generated, bulk-send, invoice-tax)
-a644217 Tier 339: full error + vulnerability audit (28 files, 0 critical/high)
-```
-
-- **No** staged, unstaged, or in-progress work
-- **Untracked:** `tmp-pw-fail/` (leftover Playwright failure-artifact directory,
-  15 entries, 2026-09-09 11:33) — safe to delete or `.gitignore`.
-
-## 3. Recent session arc (Tiers 339 → 343, CI-hardening closeout)
-
-The session that produced `4a6b08a` was a 4-day CI-stabilization arc that
-took the suite from "all jobs fail" to "all jobs green". For full context:
-
-| Tier | commit | What it fixed |
-|---|---|---|
-| 333-338 | many | CI infra + 17 spec bugs + 1 deadlock + schema-drift fixup migration (Run #301→#312: e2e 84/99 → 99/99, Playwright 857/31/21 → 261/0/0) |
-| **339** | `a644217` | Full audit doc, 0 critical/high (3 LOW deferred). `AUDIT-TIER339-2026-09-08.md`. |
-| **340** | `564d1ce` | 3 PW spec hydration fixes (recurring-generated beforeAll race + bulk-send date input hydration + invoice-tax radio click hydration) |
-| **341** | `3982a34` | 3 more PW race fixes (mobile auth cookie copy + mahnungen loading wait + recurring pg_isready wait) |
-| **342** | `047344d` | rec147 stderr capture via `execFileSync` + stdin pipe — **revealed the true error that retry+pg_isready couldn't** |
-| **343** | `4a6b08a` | rec147 SQL fix: `sortOrder` → `position` (schema column name drift — Tier 337 lesson applied to specs themselves, not just `ci-seed.sh`) |
-
-The 3 LOW deferred items from Tier 339:
-- L1: `stableStringify` doesn't handle BigInt / Prisma.Decimal — currently no
-  audited model uses BigInt/Decimal so it's a latent issue, not active.
-- L2: `parseCsvLine` in ECB rates service is naive split-on-comma — ECB's
-  CSV has no embedded commas today; failure mode is loud (throws), not silent.
-- ~~L3: 15 e2e scripts (154-247) lack `set -euo pipefail`~~ — **CLOSED in
-  Tier 345. The finding was wrong on three counts:** it was 16 files not 15;
-  they inherited `set -uo pipefail` from `_lib.sh` so exposure was nil; and
-  the recommended `-e` would have **broken** the suite (see next bullet).
-  Tier 345 added a local `set -uo pipefail` to all 16 for consistency.
-
-## 4. Critical docs to read (in order)
-
-1. **`README.md`** (1201 lines, trilingual DE/EN/ZH header) — quickstart, architecture
-2. **`backend/AGENTS.md`** (103 lines) — project-specific backend lessons
-   (UStVA, password reset, PDF currency rules, Prisma gotchas). **THIS IS THE
-   REAL "MEMORY" FOR THIS REPO** — there is no in-repo equivalent.
-3. **`frontend/AGENTS.md`** (5 lines) — points at Next.js 15.5.7 docs, warns
-   "This is NOT the Next.js you know."
-4. **`AUDIT-TIER339-2026-09-08.md`** (253 lines) — most recent audit snapshot
-5. **`DEPLOY-READY-SUMMARY.md`** (278 lines) — what to do next when the
-   Hetzner block lifts
-6. **`DEPLOY-WALKTHROUGH.md`** (462 lines) — 10-step deploy, all runbooks linked
-7. **`PLAYWRIGHT-TIER304-309-FINAL.md`** + **`PLAYWRIGHT-ROUNDS-11-34-SUMMARY.md`**
-   + **`PLAYWRIGHT-TIER290-294-FINAL.md`** — Playwright arc history
-8. **`SECURITY-AUDIT-2026-09-06.md`** (190 lines) — security + code-quality
-   snapshot at commit `054a5a0`
-
-Operational scripts:
-- **`infra/prod/HETZNER-DEPLOY.sh`** (380 lines) — single-command Hetzner
-  deploy (also has `--check` pre-flight mode)
-- **`infra/prod/smoke-test.sh`** (300 lines) — 17-check post-deploy verification
-- **`infra/prod/HETZNER-DEPLOY.md`** (495 lines) — full Hetzner runbook
-- **`infra/prod/RUNBOOK.md`** (590 lines) — operator day-to-day
-- **`infra/prod/DR-TEST.md`** (316 lines) — quarterly disaster-recovery drill
-- **`infra/prod/SECURITY.md`** (144 lines) — running security checklist
-- **`scripts/fix-dev-pg.sh`** (99 lines) — dev PG corruption recovery (needs
-  `sudo` for the chown step)
-- **`backend/scripts/audit-rehash.ts`** (114 lines) — one-off tool to
-  re-hash the audit-log chain in `createdAt` order (only needed if chain
-  gets corrupted)
-
-## 5. CI configuration (`.github/workflows/ci.yml`, 517 lines, 4 jobs)
-
-- **Jobs:** `backend-typecheck`, `frontend-typecheck`, `e2e`, `playwright`
-  — all run in parallel, no `needs:`, no artifact handoff between jobs
-  (both e2e + playwright re-run `ci-seed.sh` independently).
-- **Triggers:** push to `main` + pull_request to `main`
-- **`concurrency.cancel-in-progress: true`** is set — a new commit cancels
-  the prior run on the same ref.
-- **No `timeout-minutes`** set on any job — relies on GitHub's default 360 min.
-- **All `actions/*` pinned to `@v7`** since Tier 345 (was `@v4`, which
-  declares `runs.using: node20` — GitHub deprecated that runtime and was
-  force-running them on Node 24). **Gotcha: `actions/upload-artifact@v5` is
-  still node20** — v6 is the first node24 release for that action, unlike
-  checkout/setup-node where v5 already moved. Verified non-applicable before
-  bumping: no `pull_request_target`/`workflow_run` (checkout v7 fork-PR
-  restriction), no `packageManager` field in either package.json and an
-  explicit `cache: npm` (setup-node v5/v6 auto-cache changes), and
-  `runs-on: ubuntu-latest` is GitHub-hosted so upload-artifact v6's
-  runner >= 2.327.1 requirement is met. `docker/*` actions in `release.yml`
-  were left alone — not flagged, third-party release cadence.
-- **5 `if:` clauses** — all artifact uploads (`if: always()` or
-  `if: failure()`). No conditional test-skipping.
-- **No commented-out steps**, no TODO/FIXME in the workflow file.
-
-## 6. Schema + migrations
-
-- **22 migrations** in `backend/prisma/migrations/` (oldest:
-  `20240101000000_baseline`, newest:
-  `20260905000001_invoice_eur_aggregation`).
-- **62 models** in `backend/prisma/schema.prisma`. CI workflow enforces
-  `TABLE_COUNT >= 62` after `db push` (`.github/workflows/ci.yml:254`).
-- **Raw-SQL migrations:** 1 — `20260701000001_search_tsv/migration.sql`
-  (Tier 28 full-text search with snippet highlight; uses `IF NOT EXISTS`
-  for idempotency; applied via `prisma db execute --stdin`).
-- **Baseline migration is incomplete** (`20240101000000_baseline` only
-  creates 38/62 tables) — the remaining ~24 were created over time by
-  `prisma db push`. Current hybrid apply order: `prisma db push` then
-  pipe `search_tsv/migration.sql` into `prisma db execute --stdin`.
-
-## 7. Tests
-
-- **Backend e2e:** 172 shell specs in `backend/e2e/*.sh`;
-  seed driver `backend/e2e/ci-seed.sh` = 496 lines.
-- **Playwright:** 171 spec files in `frontend/e2e/`;
-  config `frontend/playwright.config.ts` = 129 lines.
-  **No root-level `playwright.config.ts`** — only the frontend copy.
-- All bash scripts use `set -uo pipefail`. 46 historical scripts
-  had a "ALL PASSED" bug that didn't propagate failure to exit code;
-  Tier 207 fixed them with `summary` helper calls. **Future scripts
-  must end with `summary`**, not `echo "ALL PASSED"`.
-- **NEVER add `-e` to an e2e spec.** `_lib.sh` is a failure-*counting*
-  harness: `fail()` increments `FAILS`, and the closing `summary` turns
-  `FAILS` into the exit code. `set -e` aborts at the first failing command,
-  so `summary` never runs, the remaining assertions never execute, and the
-  per-spec failure count is lost. Convention is `set -uo pipefail`
-  (149/172 specs). The 23 specs carrying `set -euo pipefail` are a
-  historical inconsistency — do not copy them.
-- CI smoke-test pattern for backend: `bash backend/e2e/run-all.sh`
-  with `SEGMENT_SIZE=20 SEGMENT_SLEEP=10` (Tier 312 default).
-  For frontend: `bash frontend/scripts/run-all.sh` with
-  `SEGMENT_SIZE=50 SEGMENT_SLEEP=15` (Tier 313 default).
-
-## 8. TODO + known issues
-
-### Code TODOs (intentional, do not "fix")
-- `backend/src/modules/fints/fints.service.ts:446` — TODO to parse
-  HIRMG/HIRMS. FinTS real-mode is a stub; mock mode is the only working
-  path.
-- `backend/src/modules/accounting/ebilanz.service.ts:402` — emits
-  `TODO (manuell)` string for BMF positions. This is **intentional** —
-  those positions must be supplied by the tax advisor in real life.
-
-### Playwright silent-skip coverage hole (Tier 346 partial)
-
-The suite has **62 runtime `test.skip(true, ...)` calls across 29 spec
-files**. 35 of them fire on "element not found / not present / may be
-loading" — i.e. a hydration race or a real UI regression is converted into
-a **silent skip**, and CI still reports green. The skipped set is not
-stable run to run (Tier 344 skipped 28, Tier 345 skipped 29, with 3 in and
-2 out), so "884 passed" is not a fixed number.
-
-Root anti-pattern — `.count()` does NOT wait, unlike a web-first assertion:
-
-```ts
-await page.waitForLoadState("networkidle")   // does NOT imply hydrated
-const el = page.getByTestId("x")
-if ((await el.count()) > 0) { await expect(el).toBeVisible() }
-else { test.skip(true, "x testid not found") }   // silently green
-```
-
-Correct form (retries internally until the timeout):
-
-```ts
-await expect(page.getByTestId("x")).toBeVisible({ timeout: 15000 })
-```
-
-**Tier 346 converted 18 of the 35**, in the 8 page-smoke specs whose target
-testids were verified to render unconditionally in `frontend/src`.
-
-**Tier 348 took the "masking" skips to 0** (35 -> 18 -> 8 -> 0). The last 8
-were races, not missing data, so each needed its own fix:
-
-- `pdf-berater-stamp-tier246` (3) + `webhook-dead-letter-tier198` (2):
-  same `.count()`-is-instantaneous race -> web-first assertion. The
-  webhook comments blamed "requeue from test 2", which was wrong —
-  `seedTag`/`deliveryId` are scoped inside each `describe`, so the two
-  blocks never shared a row. The real cause was that `dead-letter-card`
-  becomes visible while the row list is still being fetched.
-- `admin-activity-log-tier202` (1): a fixed `setTimeout(1500)` then one
-  GET, skipping if the delivery row had not landed -> poll 20x250ms then
-  assert. Same budget, returns as soon as the row appears, fails if it
-  never does.
-- `aging-credit` (1): guard was unreachable (its `beforeAll` does
-  `expect(res.status()).toBe(201)` and throws) -> kept as an assertion so
-  a broken invariant fails loudly instead of skipping.
-- `invoice-create-tier223` (1): **the worst one.** It looked for
-  `invoice-item-description-0` / `-quantity-0` / `-unitPrice-0` and
-  skipped when absent. Those testids have never existed in
-  `create/page.tsx` — so "5-8. add item + submit creates invoice and
-  redirects", the core create-invoice path of an invoicing app, silently
-  skipped from Tier 223 onward and never tested item entry or submission
-  even once. The row's real testids are `item-quantity` and
-  `item-unit-price` (non-indexed, used with `.first()` by
-  invoice-duplicate-check-tier150 and invoice-clone-as-draft-tier160);
-  the description input had none, so Tier 348 added `item-description`
-  to match its two siblings. **Do not rename those two** — the other two
-  specs depend on the current names.
-
-**`page.request` does NOT carry `contextWithAuth`'s auth** (Tier 351c).
-`contextWithAuth()` sets **cookies** named `x-user-id` / `x-company-id`
-plus localStorage. `HeaderAuthGuard` reads
-`req.headers['x-user-id']` (`header-auth.guard.ts:29`) — cookies travel as
-`Cookie:`, never as `x-user-id:`. Browser-driven steps still work because
-`lib/api.ts` injects the headers from localStorage, but **`page.request.*`
-bypasses the browser entirely**, so it gets 401 with a
-`{statusCode, message}` body. `listBody.data || []` then yields `[]` and
-the test skips itself on "no data" — the exact failure mode
-`backend/AGENTS.md` describes for raw `fetch`.
-
-That is why `installment-plan.spec.ts`'s two list-driven tests never ran,
-even after Tier 351 seeded the plan they were looking for: the calls at
-:222 and :290 omitted `ADMIN_HEADERS`, while the setup calls in the same
-file always passed it. **Always pass the auth headers to `page.request.*`
-explicitly** — a suite-wide scan says every other call site already does.
-
-**Tier 351b found a real production bug behind the always-true skip.**
-Removing `ratensplan-suggestion`'s guard made both tests FAIL, not pass:
-the Ratenplan banner genuinely never rendered. Cause, in
-`dashboard/invoices/[id]/page.tsx`: the `Promise.all` fetched
-`[invoice, payments, plan, internal-notes, attachments, suggestion]` but
-destructured `([inv, pmts, plan, sug, notes, atts])` — **the last three
-rotated by one**. So `ratensplanSuggestion` held the internal-notes array
-(`.eligible` forever `undefined`, banner never shown), `internalNotes` held
-the attachments, and `invoiceAttachments` held the suggestion object, which
-fails `Array.isArray()` and was coerced to `[]` so Belege always looked
-empty. Three user-visible bugs from one line. Verified fixed in a real
-browser: the banner renders with "1785.00 EUR liegt ueber dem Schwellenwert
-von 500 EUR". That same check also confirmed `installment-plan-card` and
-`installment-plan-create-button` are present *simultaneously* — the card
-really is the unconditional container.
-
-**Two seed traps this tier hit, both already documented above and both
-worth re-reading before touching ci-seed.sh:**
-1. Backticks in a comment inside a `<<SQL` heredoc get executed. I wrote
-   `` `customerPlan` `` in a new comment and the seed printed
-   "customerPlan: command not found" — the exact Tier 347 trap, made while
-   writing a comment about something else. Local run caught it.
-2. Do not hang shared fixtures on the shared customer. The plan was first
-   attached to `b3f7b274` (BWA Test Kunde); `getSuggestion()` rejects an
-   invoice when ANY active plan exists for its customer, so that would have
-   made every invoice of the most-used test customer permanently ineligible
-   for the banner. It now has its own customer
-   (`9a7e11a5-...c1`, "Ratenplan Test Kunde GmbH") and its own invoice.
-
-**Global-count assertions are landmines for anyone adding seed data.**
-`78-tier51-installment-plan.sh` asserted the company-wide active-plan count
-was exactly 1, which only held because ci-seed seeded no plans; section 5h
-broke it instantly. Fixed to count only the plans that script creates,
-keyed by its own invoice ids. Grep for similar
-`assert_eq "... count"` before adding rows.
-
-**Tier 351: skips 11 -> 5, and another wrong in-code diagnosis.**
-
-`ratensplan-suggestion`'s two tests branched on
-`page.locator('[data-testid="installment-plan-card"]').count() > 0` and
-skipped with "invoice already has an installment plan from a prior run".
-That could never be false: the card is the **unconditional container**
-(`invoices/[id]/page.tsx:1970`) whose own comment says it "shows the
-schedule when a Ratenplan is attached; otherwise offers a one-click
-button". So both tests had skipped on every run since Tier 65. There was no
-shared state to guard either — the `beforeAll` POSTs a fresh EUR 1500
-invoice per run. Guards removed, assertions kept. **The real signals are
-`installment-row` (`:2060`) for has-a-plan and
-`installment-plan-create-button` (`:1987`) for no-plan** — never the card.
-
-`ci-seed.sh` also seeded **zero Suppliers and zero InstallmentPlans**, so
-four more tests skipped on "no suppliers in the DB to search against" /
-"no 3-Raten plan in DB yet" / "no plan with open Rate" / "no installment
-plans in DB". Section 5h now seeds 2 suppliers and one 3-Rate plan, all
-three Raten `open`. Two details that matter there:
-- `InstallmentPlan.invoiceId` is `@unique`, so the plan gets its own
-  dedicated invoice (`INV-RATEN-001`) rather than sharing one another spec
-  may need plan-free.
-- the Tier 168a test **pays** a Rate, so the `ON CONFLICT` clauses reset
-  `status`/`paidAmount`/`paidAt`; without that a re-seed against the same
-  DB leaves every Rate paid and the open-Rate lookup finds nothing.
-
-**The 5 remaining skips are deliberate, not gaps** — do not "fix" them by
-seeding:
-- `vies-batch-tier134:61` is a static `test.skip('...')` declaration, with
-  a documented reason: VIES rate-limits back-to-back supplier+customer
-  batch runs. Re-enabling needs a 60s gap or a fresh backend per batch.
-- `recurring-email-tier129:52` and `recurring-generated-invoices-tier147:284`
-  are unconditional skips that delegate coverage elsewhere (a manual Tier
-  129 run; the backend response-shape test).
-- ~~`recurring-invoices.spec.ts:191`~~ — **diagnosed and fixed in Tier 352.**
-  It waited for `recurring-new-button` and then immediately `.count()`-ed
-  the run-now buttons. Those are not on the same clock: the new-button is
-  page-header furniture rendered unconditionally
-  (`recurring-invoices/page.tsx:631`), while the cards holding
-  `recurring-run-now` render only inside the loaded branch of
-  `{loading ? ... : ...}` (`:669` / `:701`). The count therefore always ran
-  during loading, always saw 0, and the test never executed its real
-  assertion. Reproduced locally: API returning 1 active template, test
-  still skipped.
-
-  Untangling whether a template is even present at that point took a
-  cross-spec chain, worth recording because it is not visible from any one
-  file:
-  `ci-seed.sh` creates `33333333-cccc-...-0001`;
-  `recurring-email-preview-tier136` deletes it **by name**
-  ('Tier 136 Wartungsvertrag') and installs its own `tier136-tpl-001`;
-  `recurring-generated-invoices-tier147` deletes `tier136-tpl-001` and
-  **re-creates** `33333333-cccc-...-0001`. All three sort before
-  `recurring-invoices`, so the ci-seed template is back and active by then.
+Tier 353 wrote a new version of this file but left the previous one appended
+below it, so from Tier 353 to 363 the file held two copies, and everything
+written in Tiers 347–352 existed only in the lower one. It is restored here
+as written then. Several points are superseded: `frontend-lint` (Tier 349) and
+backend eslint (Tiers 355–356) exist, specs honour `PG_CONTAINER` (Tier 353),
+and `backend/scripts/local-ci-stack.sh` reproduces both CI suites (Tiers
+357–358). The ci-seed `ON_ERROR_STOP` faults and the webhook "pending" lesson
+still apply.
 
 **Local Playwright runs are limited by the dead dev container.** Many specs
 hardcode `docker exec de-invoice-postgres`, so with that container down
@@ -1282,23 +996,37 @@ e2e and playwright — eslint is never run, which is how an unused-import
 warning drifted into `customer-detail-invoices-chip-tier243.spec.ts` against
 the repo's stated "0 warnings" bar (removed in Tier 347). Worth a job.
 
-### Operational issues (consider for next tier)
-- **`tmp-pw-fail/`** untracked — delete or `.gitignore`.
-- **No `timeout-minutes`** on CI jobs (relies on GitHub default 360 min).
-- **No `needs:`** between jobs — both e2e + playwright re-run seed
-  independently. Could share via artifact for ~30s speedup.
+### Operational issues (updated Tier 364)
+- ~~`tmp-pw-fail/` untracked~~ — gitignored since Tier 344.
+- ~~No `timeout-minutes` on CI jobs~~ — added in Tier 364.
+- **No `needs:`** between jobs — e2e and playwright each re-run the seed.
+  Sharing it via artifact would save ~30 s; not done.
+- **GitHub Actions is blocked by account billing** (see §1).
 
-## 9. External blockers (user must provide)
+## 9. External blockers (user must provide / decide)
 
-These are **NOT in the repo** — the user needs to provide them:
+These are **not in the repo** — only the user can do them:
 
-1. **Hetzner VPS IP** — needed by `infra/prod/HETZNER-DEPLOY.sh` step 3
-   (DNS A record) and step 5 (the deploy itself).
-2. **Hetzner SSH key** — needed for the initial `ssh-copy-id` to the VPS.
-3. **`sudo` password** (only for `scripts/fix-dev-pg.sh` if dev PG corrupts;
-   not a deploy blocker).
+1. **GitHub account billing / spending limit** — CI jobs are not started
+   until it is fixed; then `gh run rerun 34610316607`.
+2. **Repository variable `NEXT_PUBLIC_API_URL`** (the public site URL) before
+   pushing any `v*` tag — `release.yml` builds the frontend image with it and
+   fails on purpose without it (Tier 363).
+3. **Revoke the old `ghp_` personal access token** that used to be in the git
+   remote URL (github.com/settings/tokens). The remote now uses SSH.
+4. **Dev database out of `/tmp/pgdata`.** The manually created
+   `de-invoice-postgres` container bind-mounts `/tmp/pgdata`; macOS purges
+   `/tmp`, and nightly backups have contained **no database since
+   2026-09-06** (last full one: `backup-2026-09-05-224235`). Recreate it via
+   `docker-compose.yml`'s named volume. Rotation no longer deletes the old
+   full backups while dumps fail (Tier 360).
+5. **Anlage AUS KapG rule** — `anlage-aus.service.ts` never recognises a
+   legal name like "SH Leder GmbH"; a word match would also hit
+   "GmbH & Co. KG" (§8, Tier 361). Needs a product decision.
+6. **Hetzner VPS IP + SSH key** — for `infra/prod/HETZNER-DEPLOY.sh`
+   (DNS A record, deploy). `sudo` only for `scripts/fix-dev-pg.sh`.
 
-When these are available, the deploy is:
+When the Hetzner items are available, the deploy is:
 
 ```bash
 cd infra/prod
@@ -1306,6 +1034,8 @@ cd infra/prod
 ./HETZNER-DEPLOY.sh                # 10-step deploy, ~15-20 min
 bash infra/prod/smoke-test.sh      # 17-check post-deploy verification
 ```
+Set `FRONTEND_URL` in `infra/prod/.env` first: since Tier 363 it is the
+frontend's build arg, and the frontend image refuses to build without it.
 
 ## 10. Critical patterns / lessons (must read)
 
@@ -1335,29 +1065,36 @@ finding critical/high issues. Future agents must respect them:
 10. **Prisma schema column names ≠ spec `INSERT INTO` column names** when
     a recent tier refactored the schema. Always grep `schema.prisma`
     before writing raw SQL in tests (`ci-seed.sh`, Playwright specs).
+11. **A spec that passes on a stack other specs already ran on is not
+    verified.** Only a fresh stack in `run-all.sh` order counts (Tier 361:
+    117 and 134 passed alone, failed fresh).
+12. **A fresh local run is still not the CI runner.** Specs that parse tool
+    output or probe local paths broke on Linux (Tier 361b: `unzip -l` date
+    format, macOS JDK path).
+13. **Instantaneous `.count()` + `test.skip` hides races.** Wait with a
+    web-first assertion; skip only for data that can legitimately be absent
+    (Tiers 346–348, 362b).
 
 ## 11. What to do when you start
 
-1. **Read this file + `backend/AGENTS.md` + `AUDIT-TIER339-2026-09-08.md`.**
-2. **Ask the user:** "Do you want me to continue the CI-hardening work
-   (the 3 deferred LOW items + the 2 operational issues), start the
-   Hetzner deploy (need IP + SSH key), or work on something else?"
-3. **Do NOT touch** the 2 intentional TODO strings in FinTS / eBilanz.
-4. **Do NOT remove** `tmp-pw-fail/` without checking with the user.
-5. **Tier-number convention:** commit messages follow
-   `Tier N: <short summary>`. Sub-tiers use letter suffixes
-   (`Tier 338a/b/c/d`). Numbering is per-change, not per-release.
+1. **Read this file + `backend/AGENTS.md`.** `AUDIT-TIER339-2026-09-08.md` is
+   older background.
+2. **Check whether CI runs again** (`gh run list --limit 3`); if not, verify
+   locally with `backend/scripts/local-ci-stack.sh` and say so.
+3. **Ask the user** which open item to take next — §9 for their blockers, §8
+   for known technical issues.
+4. **Do NOT touch** the 2 intentional TODO strings in FinTS / eBilanz.
+5. **Tier-number convention:** commit messages follow `Tier N: <short summary>`.
+   Sub-tiers use letter suffixes (`Tier 361b`). Numbering is per-change, not
+   per-release.
 
 ## 12. Tier / session-numbering convention
 
-- **390 tier-prefixed commits** in repo history (`git log | grep -c "^.\{8\} Tier"`).
+- **297 tier-prefixed commits** in repo history (`git log --oneline | grep -cE '^[0-9a-f]+ Tier'`).
 - Tier numbers are a **monotonically incrementing per-change counter**,
   not release/sprint numbering.
-- Numbers are referenced in 29 tracked `.md` files (audit / playwright /
-  deploy / runbook docs). They are the project's primary cross-reference
-  scheme for "what was learned/done when".
-- Sub-tiers (e.g. `Tier 338b`) indicate a follow-up commit on the same
-  logical change set, before moving to a higher number.
-- **No `TIER.md` / `TIER-INDEX.md`** at repo root — lookup is by
-  `git log --oneline | grep Tier` or by reading the audit / session-summary
-  docs.
+- They are the project's primary cross-reference scheme in commits and the
+  audit / playwright / deploy / runbook docs.
+- Sub-tiers (e.g. `Tier 338b`) are follow-up commits on the same logical
+  change, before moving to a higher number.
+- **No `TIER.md` / `TIER-INDEX.md`** — look up by `git log --oneline | grep Tier`.

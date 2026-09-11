@@ -41,6 +41,10 @@ jobs:
   build:
     name: Build & push images
     runs-on: ubuntu-latest
+    # Tier 364: GitHub's default job limit is 360 minutes; a hung step would
+    # burn that on every run (and the account has already hit its spending
+    # limit once). Limits are ~2x the normal runtime, with headroom.
+    timeout-minutes: 45
     strategy:
       # Build the two images in parallel
       # — the frontend build is dominated
