@@ -17,16 +17,17 @@ exact commands + docs you need to be productive.
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (Tier 363, fresh CI-equivalent local stack — see the CI note below):**
+- **Test counts (last green CI, run 34617401242 / commit `843f9bf`, Tier 364):**
   - Backend e2e: **169 passed / 0 failed** — 100 two-digit + 69 three-digit
     specs; before Tier 361 only the two-digit ones ever ran. `QUARANTINE` empty.
   - Playwright: **908 passed / 0 failed / 4 skipped** (3 deliberate skips +
     `admin-ops-tier195` 4, which needs a backup with `db.sql.gz`)
   - `tsc --noEmit` and `eslint . --max-warnings 0` clean, backend + frontend
-- **CI is currently not running jobs:** the Tier 363 push (run 34610316607)
-  never started — GitHub: "recent account payments have failed or your
-  spending limit needs to be increased". The last green CI run is 944adb6
-  (Tier 362b). After the account is fixed: `gh run rerun 34610316607`.
+- **CI runs again.** The Tier 363 push (run 34610316607) was never started —
+  GitHub: "recent account payments have failed or your spending limit needs
+  to be increased". After the account was fixed, run 34617401242 (Tier 364,
+  which includes 363) passed all 6 jobs: backend e2e 7 min, Playwright 21 min.
+  Minutes are finite: docs-only commits use `[skip ci]`.
 - **Reproduce CI locally:** `backend/scripts/local-ci-stack.sh run` (backend
   e2e) and `run-playwright [spec…]` — see §8.
 
@@ -1001,14 +1002,14 @@ the repo's stated "0 warnings" bar (removed in Tier 347). Worth a job.
 - ~~No `timeout-minutes` on CI jobs~~ — added in Tier 364.
 - **No `needs:`** between jobs — e2e and playwright each re-run the seed.
   Sharing it via artifact would save ~30 s; not done.
-- **GitHub Actions is blocked by account billing** (see §1).
+- ~~GitHub Actions blocked by account billing~~ — resolved 2026-09-11 (§1).
 
 ## 9. External blockers (user must provide / decide)
 
 These are **not in the repo** — only the user can do them:
 
-1. **GitHub account billing / spending limit** — CI jobs are not started
-   until it is fixed; then `gh run rerun 34610316607`.
+1. ~~**GitHub account billing / spending limit**~~ — fixed 2026-09-11; CI ran
+   green again for `843f9bf`. Keep an eye on the spending limit.
 2. **Repository variable `NEXT_PUBLIC_API_URL`** (the public site URL) before
    pushing any `v*` tag — `release.yml` builds the frontend image with it and
    fails on purpose without it (Tier 363).
@@ -1079,8 +1080,9 @@ finding critical/high issues. Future agents must respect them:
 
 1. **Read this file + `backend/AGENTS.md`.** `AUDIT-TIER339-2026-09-08.md` is
    older background.
-2. **Check whether CI runs again** (`gh run list --limit 3`); if not, verify
-   locally with `backend/scripts/local-ci-stack.sh` and say so.
+2. **Check the last CI run** (`gh run list --limit 3`). If jobs are not
+   started or CI is otherwise unavailable, verify locally with
+   `backend/scripts/local-ci-stack.sh` and say so.
 3. **Ask the user** which open item to take next — §9 for their blockers, §8
    for known technical issues.
 4. **Do NOT touch** the 2 intentional TODO strings in FinTS / eBilanz.
