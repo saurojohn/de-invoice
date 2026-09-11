@@ -687,6 +687,24 @@ Still quarantined, and open:
   Find them with:
   `SELECT id, "invoiceNumber", currency, "issueDate", total FROM "Invoice"
   WHERE "recurringInvoiceId" IS NOT NULL AND "eurSubtotal" IS NULL AND currency <> 'EUR';`
+- **Playwright: five more "instantaneous `.count()` → `test.skip`" guards**
+  (fixed Tier 362b). The Tier 362 CI run skipped `list-pages.spec.ts` "search
+  filters the list" — counted invoice rows once right after `networkidle`, got
+  0 before the list rendered, and skipped as "no invoices in the DB" (the run
+  before passed it in 2.5 s; Playwright went 907/5 → 906/6). Same pattern, now
+  web-first waits on the first row / card: the products search in the same
+  file, `list-pages-2.spec.ts` supplier search, `products-page-tier233` 3-4 and
+  `recurring-page-tier232` 4. The CI seed has all four kinds of data, and none
+  of these skipped in earlier CI runs, so an empty list now fails instead of
+  hiding. Against a developer database without that data they fail too — by
+  design. A sixth, `aging-credit.spec.ts` "credit column rows link to
+  /customers/<id>/credit", had the same guard and lost the race in **every** CI
+  run (it was one of the "5 skipped"): it counted the per-row credit cell right
+  after the h1 appeared, before the aging fetch filled the table. Also fixed.
+  The skips left after 362b: three deliberate unconditional `test.skip`
+  (`recurring-email-tier129`, `recurring-generated-invoices-tier147`,
+  `vies-batch-tier134`) and `admin-ops-tier195` 4, which needs a backup with
+  `db.sql.gz` — none of them this pattern.
 - **Anlage AUS KapG detection** (product question, not changed):
   `anlage-aus.service.ts` tests `/^(GmbH|AG|KGaA|UG)/i` against
   `settings.rechtsform || legalName`. Nothing in the frontend writes

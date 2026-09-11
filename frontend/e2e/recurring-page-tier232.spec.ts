@@ -82,11 +82,13 @@ test.describe("Tier 232 — Recurring invoices list page", () => {
     )
     await page.waitForTimeout(500)
     const cards = page.getByTestId("recurring-card")
-    const count = await cards.count()
-    if (count === 0) {
-      test.skip(true, "no recurring cards in seed (skipping)")
-      return
-    }
+    // Tier 362b: wait for the rows instead of counting them once right after
+    // "networkidle". That instantaneous count could run before the list had
+    // rendered, and the test then skipped as if the DB were empty — CI run
+    // 34599002238 skipped the invoices search this way while the run before
+    // passed it in 2.5 s. The CI seed always has this data, so an empty list is
+    // a failure, not a skip.
+    await expect(cards.first()).toBeVisible({ timeout: 15000 })
     // First card should have data-recurring-name attribute.
     const firstName = await cards
       .first()

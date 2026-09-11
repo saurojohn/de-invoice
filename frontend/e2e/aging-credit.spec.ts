@@ -301,18 +301,13 @@ test.describe("Aging report + credit balance UI", () => {
     const firstCustomerLink = page
       .locator('[data-testid="aging-row-credit"]')
       .first()
-    const exists = (await firstCustomerLink.count()) > 0
-    if (!exists) {
-      // The aging report may have no customers with
-      // credit balance yet (depending on the suite order).
-      // Skip this assertion — the summary line test
-      // already covered the "credit surfaces" path.
-      test.skip(
-        true,
-        "no customer in the aging table has a credit balance — the test fixture didn't add one in time",
-      )
-      return
-    }
+    // Tier 362b: every table row renders this credit cell (a link when the
+    // customer has credit, a dash otherwise), so a missing cell never meant
+    // "no credit balance". The old instantaneous count ran right after the h1
+    // appeared — before the aging fetch had filled the table — and skipped this
+    // test in every CI run. The CI seed has overdue invoices, so the table is
+    // not empty there: wait for the cell.
+    await expect(firstCustomerLink).toBeVisible({ timeout: 15000 })
     // The credit cell is either a link (when credit > 0)
     // or a dash (when credit === 0). We assert the cell
     // is rendered and that a non-dash cell wraps an <a>

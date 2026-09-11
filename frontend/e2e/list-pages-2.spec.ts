@@ -125,12 +125,15 @@ test.describe("Suppliers list", () => {
     await page.goto("/dashboard/suppliers")
     await page.waitForLoadState("networkidle", { timeout: 10_000 })
 
-    const baselineCount = await page
-      .locator('[data-testid="supplier-row"]')
-      .count()
-    if (baselineCount === 0) {
-      test.skip(true, "no suppliers in the DB to search against")
-    }
+    // Tier 362b: wait for the rows instead of counting them once right after
+    // "networkidle". That instantaneous count could run before the list had
+    // rendered, and the test then skipped as if the DB were empty — CI run
+    // 34599002238 skipped the invoices search this way while the run before
+    // passed it in 2.5 s. The CI seed always has this data, so an empty list is
+    // a failure, not a skip.
+    const supplierRows = page.locator('[data-testid="supplier-row"]')
+    await expect(supplierRows.first()).toBeVisible({ timeout: 15_000 })
+    const baselineCount = await supplierRows.count()
 
     // Type a non-matching string. Suppliers
     // search is on Enter (no debounce).

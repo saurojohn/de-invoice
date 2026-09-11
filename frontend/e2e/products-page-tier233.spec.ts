@@ -73,12 +73,13 @@ test.describe("Tier 233 — Products list page", () => {
     await page.waitForLoadState("networkidle", { timeout: 15000 })
     const search = page.getByTestId("product-search-input")
     await expect(search).toBeVisible({ timeout: 15000 })
-    // Count initial rows
-    const initialRows = await page.getByTestId("product-row").count()
-    if (initialRows === 0) {
-      test.skip(true, "no product rows in seed (cannot test filter)")
-      return
-    }
+    // Tier 362b: wait for the rows instead of counting them once right after
+    // "networkidle". That instantaneous count could run before the list had
+    // rendered, and the test then skipped as if the DB were empty — CI run
+    // 34599002238 skipped the invoices search this way while the run before
+    // passed it in 2.5 s. The CI seed always has this data, so an empty list is
+    // a failure, not a skip.
+    await expect(page.getByTestId("product-row").first()).toBeVisible({ timeout: 15000 })
     // Type a non-matching query — expect rows to be 0
     await search.fill("zzzNonexistentQuery12345zzz")
     await page.waitForTimeout(500) // debounce
