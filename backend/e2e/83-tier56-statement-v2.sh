@@ -7,7 +7,7 @@ source "$SCRIPT_DIR/_lib.sh"
 
 login
 cleanup_cashbook
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 DELETE FROM "Installment"        WHERE "planId" IN (
   SELECT id FROM "InstallmentPlan" WHERE "companyId" = '$COMPANY_ID' AND ("notes" LIKE 'Tier56%' OR "notes" IS NULL)
 );
@@ -21,7 +21,7 @@ DELETE FROM "InvoiceItem"        WHERE "invoiceId" IN (
 DELETE FROM "Invoice"            WHERE "companyId" = '$COMPANY_ID' AND "invoiceNumber" LIKE 'Tier56%';
 SQL
 
-CUST_ID=$(docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+CUST_ID=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT id FROM \"Customer\" WHERE \"companyId\" = '$COMPANY_ID' LIMIT 1")
 [[ -n "$CUST_ID" ]] || (echo "FATAL: customer not seeded" && exit 1)
 pass "seeded customer: $CUST_ID"
@@ -35,7 +35,7 @@ SK_INV_ID=$(json_field "$BODY" id)
 # Flip status to 'sent' (default is 'draft') — the
 # customer-statement service excludes 'draft'
 # invoices from the ledger.
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "UPDATE \"Invoice\" SET status='sent' WHERE id='$SK_INV_ID'" >/dev/null
 
 api_post "/api/v1/invoices/$SK_INV_ID/payments?companyId=$COMPANY_ID" \
@@ -66,7 +66,7 @@ api_post "/api/v1/invoices?companyId=$COMPANY_ID" \
   "{\"customerId\":\"$CUST_ID\",\"issueDate\":\"2026-04-01T00:00:00.000Z\",\"dueDate\":\"2026-04-30T00:00:00.000Z\",\"skontoPercent\":2,\"skontoDays\":7,\"items\":[{\"description\":\"Late pay\",\"quantity\":1,\"unitPrice\":100,\"vatRate\":0.19}]}"
 assert_status "201" "create late-Skonto invoice"
 LATE_INV_ID=$(json_field "$BODY" id)
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "UPDATE \"Invoice\" SET status='sent' WHERE id='$LATE_INV_ID'" >/dev/null
 api_post "/api/v1/invoices/$LATE_INV_ID/payments?companyId=$COMPANY_ID" \
   '{"amount":110,"paymentDate":"2026-04-30T00:00:00.000Z","paymentMethod":"Überweisung"}'
@@ -90,7 +90,7 @@ api_post "/api/v1/invoices?companyId=$COMPANY_ID" \
   "{\"customerId\":\"$CUST_ID\",\"issueDate\":\"2026-06-01T00:00:00.000Z\",\"dueDate\":\"2026-07-01T00:00:00.000Z\",\"items\":[{\"description\":\"Ratenplan book\",\"quantity\":1,\"unitPrice\":600,\"vatRate\":0}]}"
 assert_status "201" "create Ratenplan invoice"
 RP_INV_ID=$(json_field "$BODY" id)
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "UPDATE \"Invoice\" SET status='sent' WHERE id='$RP_INV_ID'" >/dev/null
 api_post "/api/v1/installment-plans?companyId=$COMPANY_ID" \
   "{\"invoiceId\":\"$RP_INV_ID\",\"installmentCount\":3,\"totalAmount\":600,\"firstDueDate\":\"2026-12-01\",\"intervalDays\":30,\"notes\":\"Tier56-rp\"}"
@@ -183,7 +183,7 @@ echo "$PDF_TEXT" | grep -q "Rate 3" \
   && pass "PDF lists Rate 3" \
   || fail "PDF missing Rate 3"
 
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 DELETE FROM "Installment"        WHERE "planId" IN (
   SELECT id FROM "InstallmentPlan" WHERE "companyId" = '$COMPANY_ID' AND ("notes" LIKE 'Tier56%' OR "notes" IS NULL)
 );

@@ -40,7 +40,7 @@ cleanup_cashbook
 # run's `cnCount + 1` calculation. We also delete the
 # original Tier53 invoices (and their payments/items) so
 # the test starts from a known-clean state.
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 -- Tier53 CNs (cascading: items + synthetic payment)
 DELETE FROM "VoucherLine" WHERE "voucherId" IN (
   SELECT v.id FROM "Voucher" v
@@ -74,7 +74,7 @@ DELETE FROM "Invoice" WHERE "companyId" = '$COMPANY_ID' AND ("invoiceNumber" LIK
 SQL
 
 # ───── 1. Seed an invoice ─────
-CUST_ID=$(docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+CUST_ID=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT id FROM \"Customer\" WHERE \"companyId\" = '$COMPANY_ID' LIMIT 1")
 [[ -n "$CUST_ID" ]] || (echo "FATAL: customer not seeded" && exit 1)
 pass "seeded customer: $CUST_ID"
@@ -113,12 +113,12 @@ pass "CN invoice number: $CN_NUM"
 assert_eq "CN preserved costCenter" "$CN_COSTCENTER" "VERTRIEB"
 
 # A synthetic Payment was added on the original
-PAY_METHOD=$(docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+PAY_METHOD=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT \"paymentMethod\" FROM \"Payment\" WHERE \"invoiceId\" = '$INV_ID' AND \"paymentMethod\" = 'Gutschrift' LIMIT 1")
 assert_eq "synthetic Payment on original" "$PAY_METHOD" "Gutschrift"
 
 # Original auto-flipped to 'paid' (CN total == original total)
-ORIG_STATUS=$(docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+ORIG_STATUS=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT status FROM \"Invoice\" WHERE id = '$INV_ID'")
 assert_eq "original auto-flipped to paid" "$ORIG_STATUS" "paid"
 
@@ -158,7 +158,7 @@ pass "CN notes carry the reason"
 
 # Original still has open balance: 1190 - 357 = 833.
 # (Mahnung + customer statement both see the open 833.)
-ORIG2_BALANCE=$(docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+ORIG2_BALANCE=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT ROUND((total - COALESCE((SELECT SUM(amount) FROM \"Payment\" WHERE \"invoiceId\" = '$INV2_ID'), 0))::numeric, 2) FROM \"Invoice\" WHERE id = '$INV2_ID'")
 assert_eq "original 2 open balance" "$ORIG2_BALANCE" "833.00"
 
@@ -231,7 +231,7 @@ else
 fi
 
 # ───── 8. Cleanup ─────
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 DELETE FROM "Payment" WHERE "invoiceId" IN (
   SELECT i.id FROM "Invoice" i
   WHERE i."referenceInvoiceId" IN (

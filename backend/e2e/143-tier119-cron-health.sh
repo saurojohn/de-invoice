@@ -37,7 +37,7 @@ note "=== 0. Cleanup + schema check ==="
 # retry-worker has already recorded ticks in the dev
 # DB, so we clean them out here (the cron will re-
 # record a tick within a minute).
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 DELETE FROM "CronHealth";
 SQL
 pass "wiped all CronHealth rows"
@@ -76,7 +76,7 @@ echo "$SCHEDULES" | grep -q "0 2 \* \* \*" && pass "vat-reverify + exchange-rate
 
 # ───── 2. Insert a fake success tick for webhook-retry-worker ─────
 note "=== 2. fake success tick → green ==="
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 INSERT INTO "CronHealth" (id, name, status, "startedAt", "durationMs", summary)
 VALUES (gen_random_uuid()::text, 'webhook-retry-worker', 'success', now() - interval '30 seconds', 42, '5 succeeded, 0 failed, 0 exhausted');
 SQL
@@ -107,7 +107,7 @@ test "$WH_HEALTH" = "green" && pass "webhook-retry-worker: health=green" \
 
 # ───── 3. Insert a fake failed tick → red ─────
 note "=== 3. fake failed tick → red ==="
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 INSERT INTO "CronHealth" (id, name, status, "startedAt", "durationMs", "errorMessage")
 VALUES (gen_random_uuid()::text, 'exchange-rate-refresh', 'failed', now() - interval '5 minutes', 3000, 'ECONNREFUSED to ecb.europa.eu');
 SQL
@@ -137,7 +137,7 @@ echo "$ER_ERROR" | grep -q "ECONNREFUSED" && pass "lastError captures failure de
 
 # ───── 4. Insert an old success tick (>2× interval) → amber ─────
 note "=== 4. stale success (>2× interval) → amber ==="
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 INSERT INTO "CronHealth" (id, name, status, "startedAt", "durationMs")
 VALUES (gen_random_uuid()::text, 'reminder-auto-send', 'success', now() - interval '3 days', 5000);
 SQL
@@ -158,7 +158,7 @@ test "$REM_HEALTH" = "amber" && pass "reminder-auto-send (stale): health=amber" 
 # ───── 5. Clean endpoint ─────
 note "=== 5. POST /admin/cron-health/clean ==="
 # Insert a row from 10 days ago (older than the 7-day retention)
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 INSERT INTO "CronHealth" (id, name, status, "startedAt")
 VALUES (gen_random_uuid()::text, 'old-cron-tick', 'success', now() - interval '10 days');
 SQL
@@ -181,7 +181,7 @@ test "$OLD_AFTER" = "0" && pass "clean removed the 10d-old row" \
 
 # ───── 6. Cleanup ─────
 note "=== 6. Cleanup ==="
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 DELETE FROM "CronHealth" WHERE name IN ('webhook-retry-worker', 'exchange-rate-refresh', 'reminder-auto-send', 'old-cron-tick');
 SQL
 pass "cleaned up test fixtures"

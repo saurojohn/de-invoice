@@ -38,7 +38,7 @@ cleanup_cashbook
 
 echo "=== Test: Tier 12 SSRF guard on FinTS endpointUrl ==="
 # Clean leftover FinTSConnection
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice << EOF >/dev/null 2>&1
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice << EOF >/dev/null 2>&1
 DELETE FROM "FinTsTransfer" WHERE "companyId" = '${COMPANY_ID}';
 DELETE FROM "FinTSSyncRun" WHERE "companyId" = '${COMPANY_ID}';
 DELETE FROM "FinTSConnection" WHERE "companyId" = '${COMPANY_ID}';
@@ -147,7 +147,7 @@ COUNT=$(echo "$BODY" | python3 -c "import json,sys; print(len(json.load(sys.stdi
 assert_eq "11. both connections stored" "$COUNT" "2"
 
 # ----- Cleanup -----
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice << EOF >/dev/null 2>&1
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice << EOF >/dev/null 2>&1
 DELETE FROM "FinTsTransfer" WHERE "companyId" = '${COMPANY_ID}';
 DELETE FROM "FinTSSyncRun" WHERE "companyId" = '${COMPANY_ID}';
 DELETE FROM "FinTSConnection" WHERE "companyId" = '${COMPANY_ID}';

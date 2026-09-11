@@ -23,7 +23,7 @@ source "$SCRIPT_DIR/_lib.sh"
 
 login
 # ───── 0. Wipe prior tier-62 fixtures ─────
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 DELETE FROM "Customer" WHERE "companyId" = '$COMPANY_ID'
   AND name LIKE 'Tier62-%';
 SQL
@@ -172,7 +172,7 @@ assert_eq "AT+AT VAT → euTransaction" "$(jsf_str suggested "$TMP")" "euTransac
 rm -f "$TMP"
 
 # ───── 10. Cleanup ─────
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 DELETE FROM "Customer" WHERE "companyId" = '$COMPANY_ID'
   AND name LIKE 'Tier62-%';
 SQL

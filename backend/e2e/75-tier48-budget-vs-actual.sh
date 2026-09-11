@@ -35,7 +35,7 @@ cleanup_cashbook
 # + expenses from prior test runs (72, 73, 74 etc.). The
 # budget-vs-actual report groups by costCenter, so any
 # pre-existing VERTRIEB row would inflate the assertion.
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 DELETE FROM "InvoiceItem" WHERE "invoiceId" IN (
   SELECT id FROM "Invoice" WHERE "companyId" = '$COMPANY_ID' AND "invoiceNumber" LIKE 'Tier48%'
 );
@@ -67,7 +67,7 @@ DELETE FROM "CostCenterBudget" WHERE "companyId" = '$COMPANY_ID';
 SQL
 
 # ───── 1. Seed customer ─────
-CUSTOMER_ID=$(docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+CUSTOMER_ID=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT id FROM \"Customer\" WHERE \"companyId\" = '$COMPANY_ID' LIMIT 1")
 [[ -n "$CUSTOMER_ID" ]] || (echo "FATAL: no customer seeded" && exit 1)
 pass "customer seeded: $CUSTOMER_ID"
@@ -82,7 +82,7 @@ mk_invoice() {
   date=$(printf "2026-%02d-%02dT12:00:00.000Z" "$month" "$day")
   local next_month=$(( (month % 12) + 1 ))
   due=$(printf "2026-%02d-%02dT12:00:00.000Z" "$next_month" "$day")
-  docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+  docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
     "INSERT INTO \"Invoice\" (id, \"companyId\", \"customerId\", \"invoiceNumber\", \"sequenceYear\", \"sequenceNumber\", \"type\", \"status\", \"issueDate\", \"dueDate\", \"subtotal\", \"totalVat\", \"total\", \"currency\", \"language\", \"costCenter\", \"customerName\", \"createdAt\", \"updatedAt\") VALUES (gen_random_uuid()::text, '$COMPANY_ID', '$CUSTOMER_ID', '$number', 2026, $RANDOM, 'INV', 'sent', '$date', '$due', $total_net, $total_vat, $total, 'EUR', 'de-DE', '$cc', 'Tier48 customer', NOW(), NOW());" \
     >/dev/null
 }
@@ -93,11 +93,11 @@ mk_expense() {
   date=$(printf "2026-%02d-%02dT12:00:00.000Z" "$month" "$day")
   net=$(python3 -c "print(round($gross/1.19, 4))")
   vat=$(python3 -c "print(round($gross - $net, 4))")
-  docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+  docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
     "INSERT INTO \"Expense\" (id, \"companyId\", \"invoiceNumber\", \"invoiceDate\", \"description\", \"grossAmount\", \"netAmount\", \"vatAmount\", \"vatRate\", \"status\", \"createdAt\", \"updatedAt\") VALUES (gen_random_uuid()::text, '$COMPANY_ID', '$number', '$date', '$number', $gross, $net, $vat, 0.19, 'booked', NOW(), NOW());" \
     >/dev/null
   if [[ -n "$cc" ]]; then
-    docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+    docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
       "UPDATE \"Expense\" SET \"costCenter\" = '$cc' WHERE \"invoiceNumber\" = '$number' AND \"companyId\" = '$COMPANY_ID';" >/dev/null
   fi
 }
@@ -238,7 +238,7 @@ TARGET_TOTAL_AFTER=$(python3 -c "import json,sys;print(json.loads(sys.stdin.read
 assert_eq "VERTRIEB targetTotal after delete" "$TARGET_TOTAL_AFTER" "0"
 
 # ───── 10. Cleanup ─────
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 DELETE FROM "InvoiceItem" WHERE "invoiceId" IN (
   SELECT id FROM "Invoice" WHERE "companyId" = '$COMPANY_ID' AND "invoiceNumber" LIKE 'Tier48%'
 );

@@ -58,7 +58,7 @@ cat > /tmp/t37_cleanup.sql << EOF
 DELETE FROM "FinTsTransfer" WHERE "companyId" = '${COMPANY_ID}';
 DELETE FROM "FinTSConnection" WHERE "companyId" = '${COMPANY_ID}' AND label = 'T10-Test';
 EOF
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice < /tmp/t37_cleanup.sql >/dev/null 2>&1
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice < /tmp/t37_cleanup.sql >/dev/null 2>&1
 
 # ===== 1. Create mock FinTS connection =====
 api_post "/api/v1/fints/connections" '{"companyId":"'$COMPANY_ID'","blz":"50050201","userId":"test","label":"T10-Test","pin":"12345","mockMode":true}'
@@ -220,7 +220,7 @@ COUNT=$(echo "$BODY" | python3 -c "import json,sys; print(len(json.load(sys.stdi
 assert_eq "16. connectionId filter returns 2 rows" "$COUNT" "2"
 
 # ----- Cleanup -----
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice < /tmp/t37_cleanup.sql >/dev/null 2>&1
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice < /tmp/t37_cleanup.sql >/dev/null 2>&1
 note "Cleanup done"
 
 cleanup_cashbook

@@ -68,7 +68,7 @@ VALUES ('{os.environ["TEST_USER_ID"]}'::text, '{os.environ["COMPANY_ID"]}', '{os
 '''
 print(sql, end='')
 PY
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice < "$TMP_SQL"
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice < "$TMP_SQL"
 rm -f "$TMP_SQL"
 
 # Tier 66: HeaderAuthGuard now requires a UserCompany row.
@@ -84,7 +84,7 @@ ON CONFLICT ("userId", "companyId") DO NOTHING;
 '''
 print(sql, end='')
 PY
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice < "$TMP_SQL"
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice < "$TMP_SQL"
 rm -f "$TMP_SQL"
 
 # Test 1: verify the freshly-seeded user is queryable.

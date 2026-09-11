@@ -119,7 +119,7 @@ VALUES
 
 COMMIT;
 EOF
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice < "$TMP_SQL"
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice < "$TMP_SQL"
 rm -f "$TMP_SQL"
 
 # Now grab each customer's id (we need them for the invoices)
@@ -164,7 +164,7 @@ VALUES (gen_random_uuid()::text, '$inv_id', 'Item-$rate-$net', 1, $net, $rate, $
     sort=$((sort+1))
   done
   local total=$(python3 -c "print(round($total_net+$total_vat, 2))")
-  docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<EOSQL
+  docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<EOSQL
 INSERT INTO "Invoice" (id, "companyId", "customerId", "invoiceNumber", "type", "status",
                        "issueDate", "subtotal", "totalVat", "total", "currency", "language",
                        "reverseCharge", "euTransaction", "customerName", "createdAt", "updatedAt")

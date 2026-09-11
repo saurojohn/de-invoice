@@ -29,7 +29,7 @@ note "=== Test prefix: $PREFIX / year: $YEAR ==="
 
 # ───── 0. Wipe prior fixtures + ensure rates cached ─────
 note "=== 0. Cleanup + ECB rate cache check ==="
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 DELETE FROM "InvoiceItem" WHERE "invoiceId" IN (
   SELECT id FROM "Invoice" WHERE "invoiceNumber" LIKE 'T118-%' OR "invoiceNumber" LIKE 'GUV-%'
 );
@@ -58,7 +58,7 @@ else
   # verifies the LOGIC, not the live ECB feed.
   USD_RATE="1.1467"
   CHF_RATE="0.9423"
-  docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+  docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 UPDATE "Company" SET settings = COALESCE(settings, '{}'::jsonb) || jsonb_build_object(
   'datev', jsonb_build_object(
     'exchangeRates', jsonb_build_object(
@@ -75,7 +75,7 @@ fi
 
 # ───── 1. Setup: 3 customers + 3 invoices ─────
 note "=== 1. Setup: 3 customers (EUR, USD, CHF) ==="
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 INSERT INTO "Customer" (id, "companyId", name, "customerNumber", "vatId", address, "paymentTerms", tags, "createdAt", "updatedAt")
 VALUES
   ('cust-t118-eur', '$COMPANY_ID', '${PREFIX} EUR-Kunde', '${PREFIX}-EUR',
@@ -104,7 +104,7 @@ pass "created 3 customers (EUR, USD, CHF)"
 # don't need bc — keeps the bash heredoc portable).
 create_invoice() {
   local inv_num="$1" cust_id="$2" currency="$3"
-  docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+  docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 INSERT INTO "Invoice" (id, "companyId", "invoiceNumber", type, status, "issueDate", "dueDate",
                        "customerId", subtotal, "totalVat", total, currency, language,
                        "exchangeRate", "eurSubtotal", "eurTotalVat", "eurTotal",
@@ -248,7 +248,7 @@ grep -q "DocumentCurrencyCode.*EUR" /tmp/t118-eur.xml \
 
 # ───── 7. Cleanup ─────
 note "=== 7. Cleanup ==="
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null 2>&1
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null 2>&1
 DELETE FROM "InvoiceItem" WHERE "invoiceId" IN (
   SELECT id FROM "Invoice" WHERE "invoiceNumber" LIKE '${PREFIX}-%'
 );

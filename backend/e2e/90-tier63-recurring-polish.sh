@@ -31,7 +31,7 @@ source "$SCRIPT_DIR/_lib.sh"
 login
 cleanup_cashbook
 # ───── 0. Wipe prior tier-63 fixtures ─────
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 DELETE FROM "RecurringRun" WHERE "companyId" = '$COMPANY_ID';
 DELETE FROM "RecurringInvoice" WHERE "companyId" = '$COMPANY_ID'
   AND name LIKE 'Tier63-%';
@@ -96,7 +96,7 @@ rm -f "$TMP2"
 
 # Force nextRunAt to be in the past so the cron-equivalent
 # runDueTemplates picks it up.
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 UPDATE "RecurringInvoice"
   SET "nextRunAt" = NOW() - INTERVAL '1 day'
   WHERE id = '$TPL1_ID';
@@ -189,7 +189,7 @@ rm -f "$TMP7"
 # Insert a synthetic failed run row (15 days old, within
 # the 30-day window). This is what runDueTemplates would
 # write when an invoice creation throws.
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 INSERT INTO "RecurringRun"
   (id, "recurringInvoiceId", "companyId", trigger,
    "periodStart", "periodEnd", status, "errorMessage", "createdAt")
@@ -212,7 +212,7 @@ fi
 rm -f "$TMP8"
 
 # Also verify a 31-day-old failed run is NOT counted.
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 INSERT INTO "RecurringRun"
   (id, "recurringInvoiceId", "companyId", trigger,
    "periodStart", "periodEnd", status, "errorMessage", "createdAt")
@@ -260,7 +260,7 @@ TPL3_ID=$(jsf id "$TMP9")
 rm -f "$TMP9"
 
 # Force nextRunAt past endDate
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 UPDATE "RecurringInvoice"
   SET "nextRunAt" = '2026-06-15'::timestamptz
   WHERE id = '$TPL3_ID';
@@ -290,7 +290,7 @@ echo
 note "=== 7. dueThisWeek counts templates due in 0-7 days ==="
 # Set TPL1's nextRunAt to tomorrow. TPL1 should be counted.
 TOMORROW=$(date -v+1d -u +"%Y-%m-%dT%H:%M:%S.000Z" 2>/dev/null || date -u -d "+1 day" +"%Y-%m-%dT%H:%M:%S.000Z")
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 UPDATE "RecurringInvoice"
   SET "nextRunAt" = '$TOMORROW'::timestamptz
   WHERE id = '$TPL1_ID';
@@ -320,7 +320,7 @@ fi
 rm -f "$TMP10"
 
 # ───── 8. Cleanup ─────
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 DELETE FROM "RecurringRun" WHERE "companyId" = '$COMPANY_ID';
 DELETE FROM "RecurringInvoice" WHERE "companyId" = '$COMPANY_ID'
   AND name LIKE 'Tier63-%';

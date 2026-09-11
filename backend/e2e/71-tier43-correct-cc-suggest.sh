@@ -26,7 +26,7 @@ source "$SCRIPT_DIR/_lib.sh"
 
 login
 cleanup_cashbook
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL
 -- Wipe tier-43 originals (NOT the history seed —
 -- the history seed has description 'Tier43 history seed'
 -- which we'd also drop, so we leave it and let the
@@ -40,9 +40,9 @@ DELETE FROM "VoucherLine" WHERE "voucherId" IN (
 DELETE FROM "Voucher" WHERE "description" LIKE 'Tier43 original%' AND "companyId" = '$COMPANY_ID';
 SQL
 
-SACHKONTO_4960=$(docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+SACHKONTO_4960=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT id FROM \"Account\" WHERE \"companyId\" = '$COMPANY_ID' AND \"accountNumber\" = '4960' LIMIT 1")
-SACHKONTO_1200=$(docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+SACHKONTO_1200=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT id FROM \"Account\" WHERE \"companyId\" = '$COMPANY_ID' AND \"accountNumber\" = '1200' LIMIT 1")
 [ -n "$SACHKONTO_4960" ] || (echo "FATAL: 4960 not seeded" && exit 1)
 [ -n "$SACHKONTO_1200" ] || (echo "FATAL: 1200 not seeded" && exit 1)
@@ -84,7 +84,7 @@ JSON
 # prefixed with 'Tier43%' so the tail cleanup block below
 # (which deletes by LIKE 'Tier43%') never wipes it. This
 # Voucher is treated as a long-lived fixture.
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
 DELETE FROM \"VoucherLine\" WHERE \"voucherId\" IN (
   SELECT id FROM \"Voucher\" WHERE \"voucherNumber\" = 'BK-HIST-001' AND \"companyId\" = '$COMPANY_ID'
 );
@@ -179,7 +179,7 @@ assert_eq "K-booking line[0].costObject  = suggested" "$K_CO" "PROJ-X"
 echo "  K-booking persisted $K_CC / $K_CO ✓"
 
 # ───── 3. Cleanup ─────
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL
 DELETE FROM "VoucherLine" WHERE "voucherId" IN (SELECT id FROM "Voucher" WHERE "description" LIKE 'Tier43%' AND "companyId" = '$COMPANY_ID');
 DELETE FROM "Voucher"     WHERE "description" LIKE 'Tier43%' AND "companyId" = '$COMPANY_ID';
 -- BK-HIST-001 (description 'CC history seed') is INTENTIONALLY

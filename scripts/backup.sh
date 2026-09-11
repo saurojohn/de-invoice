@@ -53,6 +53,16 @@ set -uo pipefail
 BACKUP_ROOT="${BACKUP_ROOT:-$HOME/data/backups/de-invoice}"
 BACKUP_DB_HOST="${BACKUP_DB_HOST:-localhost}"
 BACKUP_DB_PORT="${BACKUP_DB_PORT:-5432}"
+# Tier 357: container to `docker exec pg_dump` into. This used to be a
+# hardcoded "de-invoice-postgres", which meant that when backend e2e ran
+# against a throwaway database (PG_CONTAINER=...), the fire-drill spec's
+# backup either fell through to a host pg_dump on :5432 (nothing there ->
+# exit 1) or, if the developer's dev container happened to be running,
+# silently dumped THAT database instead of the one under test. Read-only
+# either way, but the wrong target. Dev default unchanged; production uses
+# infra/prod/backup.sh and a container named de-invoice-postgres-prod, so it
+# is not affected by this file.
+PG_CONTAINER="${PG_CONTAINER:-de-invoice-postgres}"
 BACKUP_DB_USER="${BACKUP_DB_USER:-de_invoice}"
 BACKUP_DB_PASSWORD="${BACKUP_DB_PASSWORD:-de_invoice_pass}"
 BACKUP_DB_NAME="${BACKUP_DB_NAME:-de_invoice}"
@@ -91,9 +101,9 @@ DB_FILE="$STAGE_DIR/db.sql.gz"
 log "Dumping database to $DB_FILE"
 dump_ok=0
 if command -v docker >/dev/null 2>&1 && \
-   docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^de-invoice-postgres$'; then
+   docker ps --format '{{.Names}}' 2>/dev/null | grep -qx "$PG_CONTAINER"; then
   # Container is up — dump from inside it.
-  if docker exec de-invoice-postgres pg_dump \
+  if docker exec "$PG_CONTAINER" pg_dump \
       -U "$BACKUP_DB_USER" \
       -d "$BACKUP_DB_NAME" \
       --format=custom \

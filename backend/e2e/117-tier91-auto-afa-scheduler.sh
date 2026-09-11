@@ -117,7 +117,7 @@ VALUES
   (gen_random_uuid()::text, '$COMPANY_ID', 'Maschine', 'T91-${TS}-Maschine-1', '2028-01-01', 6000, 60, 0, 'linear', '0300', NULL, now(), now()),
   (gen_random_uuid()::text, '$COMPANY_ID', 'Maschine', 'T91-${TS}-Maschine-2', '2029-01-01', 12000, 60, 0, 'linear', '0300', NULL, now(), now());
 EOF
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice < "$TMP_SQL"
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice < "$TMP_SQL"
 rm -f "$TMP_SQL"
 
 ASSET1_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \

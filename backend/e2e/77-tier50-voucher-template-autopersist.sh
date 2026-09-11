@@ -25,7 +25,7 @@ source "$SCRIPT_DIR/_lib.sh"
 login
 cleanup_cashbook
 # ───── 0. Wipe prior tier-50 fixtures ─────
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 DELETE FROM "VoucherLine" WHERE "voucherId" IN (
   SELECT id FROM "Voucher" WHERE "companyId" = '$COMPANY_ID' AND "description" LIKE 'Tier50%'
 );
@@ -36,9 +36,9 @@ DELETE FROM "VoucherTemplate" WHERE "companyId" = '$COMPANY_ID' AND (
 SQL
 
 # ───── 1. Seed a voucher ─────
-SACHKONTO_4960=$(docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+SACHKONTO_4960=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT id FROM \"Account\" WHERE \"companyId\" = '$COMPANY_ID' AND \"accountNumber\" = '4960' LIMIT 1")
-SACHKONTO_1200=$(docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+SACHKONTO_1200=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT id FROM \"Account\" WHERE \"companyId\" = '$COMPANY_ID' AND \"accountNumber\" = '1200' LIMIT 1")
 [[ -n "$SACHKONTO_4960" && -n "$SACHKONTO_1200" ]] || (echo "FATAL: 4960/1200 not seeded" && exit 1)
 pass "Sachkonten seeded"
@@ -230,7 +230,7 @@ assert_status "400" "missing companyId → 400"
 
 # Voucher with <2 lines — seed via SQL (api rejects unbalanced vouch)
 THIN_ID=$(uuidgen)
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 INSERT INTO "Voucher" (id, "companyId", "voucherNumber", "date", "description", "status")
 VALUES ('$THIN_ID', '$COMPANY_ID', 'Tier50-thin', '2026-01-15', 'Tier50 thin', 'posted');
 INSERT INTO "VoucherLine" (id, "voucherId", "accountId", "description", "debit", "credit")
@@ -244,7 +244,7 @@ api_post "/api/v1/voucher-templates/from-voucher/00000000-0000-0000-0000-0000000
 assert_status "404" "non-existent voucher → 404"
 
 # ───── 7. Cleanup ─────
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 DELETE FROM "VoucherLine" WHERE "voucherId" IN (
   SELECT id FROM "Voucher" WHERE "companyId" = '$COMPANY_ID' AND "description" LIKE 'Tier50%'
 );

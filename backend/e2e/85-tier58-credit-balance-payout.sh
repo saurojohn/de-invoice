@@ -38,7 +38,7 @@ login
 # customer name `Tier58-CreditTest-<uuid>` so the shared
 # e2e DB cleanup LIKE 'Tier58%' doesn't sweep historical
 # fixtures from other tiers.
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 DELETE FROM "CustomerCreditTransaction" WHERE "companyId" = '$COMPANY_ID'
   AND "description" LIKE 'Tier58-%';
 DELETE FROM "VoucherLine" WHERE "voucherId" IN (
@@ -89,7 +89,7 @@ assert_eq "invoice total" "$INV_TOTAL" "119"
 # skip the flip; but the post-payment status update only fires
 # for status='sent' going to 'paid', so flipping keeps the
 # status-transition webhook consistent with real usage).
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "UPDATE \"Invoice\" SET status='sent' WHERE id='$INV_ID'" >/dev/null
 
 # ───── 4. Overpay the invoice by 31 EUR (pay 150, invoice 119) ─────
@@ -124,7 +124,7 @@ assert_eq "ledger[0].balanceAfter" "$ROW_BAL_AFTER" "31"
 echo
 note "=== 4. credit-payout 25 EUR → Voucher (1200/1400) + payout row ==="
 # Look up the 1200 (Bank) account id
-BANK_ID=$(docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+BANK_ID=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT id FROM \"Account\" WHERE \"companyId\" = '$COMPANY_ID' AND \"accountNumber\" = '1200' LIMIT 1")
 [[ -n "$BANK_ID" ]] || (echo "FATAL: Bank account 1200 not seeded" && exit 1)
 api_post "/api/v1/customers/$CUST_ID/credit-payout?companyId=$COMPANY_ID" \
@@ -188,7 +188,7 @@ api_post "/api/v1/invoices?companyId=$COMPANY_ID" \
   "{\"customerId\":\"$CUST_ID\",\"issueDate\":\"$TODAY\",\"dueDate\":\"$TODAY\",\"items\":[{\"description\":\"Tier58 2nd item\",\"quantity\":1,\"unitPrice\":200,\"vatRate\":0.19}]}"
 assert_status 201 "create 2nd invoice"
 INV2_ID=$(json_field "$BODY" id)
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "UPDATE \"Invoice\" SET status='sent' WHERE id='$INV2_ID'" >/dev/null
 
 api_post "/api/v1/customers/$CUST_ID/apply-credit?companyId=$COMPANY_ID" \
@@ -200,7 +200,7 @@ assert_eq "apply-credit balanceAfter" "$(json_field "$BODY" balanceAfter)" "0"
 # Payment.amount is Decimal(12,4) so PostgreSQL may serialise
 # the value as "6.0000" — the e2e must match the wire format
 # from `text(...)::numeric` directly.
-SYNTH_PAY=$(docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+SYNTH_PAY=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT amount::text||'|'||\"paymentMethod\" FROM \"Payment\" WHERE \"invoiceId\" = '$INV2_ID'")
 assert_eq "synthetic payment row" "$SYNTH_PAY" "6.0000|Guthaben"
 
@@ -272,7 +272,7 @@ print('OK' if ok else 'BROKEN')
 assert_eq "running balance invariant" "$RUN_OK" "OK"
 
 # ───── 10. Cleanup ─────
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 DELETE FROM "CustomerCreditTransaction" WHERE "companyId" = '$COMPANY_ID'
   AND "description" LIKE 'Tier58-%';
 DELETE FROM "VoucherLine" WHERE "voucherId" IN (

@@ -38,7 +38,7 @@ login
 # on a prior run, so the unique-email index would
 # block re-creation unless we delete first. Invoices
 # must be deleted first to avoid FK violation.
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 DELETE FROM "CustomerCreditTransaction" WHERE "companyId" = '$COMPANY_ID'
   AND "description" LIKE 'Tier59-%';
 DELETE FROM "InvoiceItem" WHERE "invoiceId" IN (SELECT id FROM "Invoice" WHERE "customerId" IN (SELECT id FROM "Customer" WHERE "name" = 'Tier59 Test GmbH'));
@@ -295,7 +295,7 @@ fi
 # /reports/aging) would otherwise see this customer in
 # the report and other tests would either pick it up as
 # their fixture, or assert on a polluted list.
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 DELETE FROM "CustomerCreditTransaction" WHERE "companyId" = '$COMPANY_ID'
   AND "description" LIKE 'Tier59-%';
 DELETE FROM "InvoiceItem"      WHERE "invoiceId" IN (

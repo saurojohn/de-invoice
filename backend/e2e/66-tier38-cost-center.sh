@@ -28,7 +28,7 @@ cleanup_cashbook
 # Invoices are matched by customerId (we create a Tier38-only
 # customer just for this test) since CreateInvoiceDto doesn't
 # accept invoiceNumber overrides.
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL
 DELETE FROM "Payment" WHERE "invoiceId" IN (SELECT id FROM "Invoice" WHERE "customerId" IN (SELECT id FROM "Customer" WHERE "name" = 'Tier38 CC Kunde' AND "companyId" = '$COMPANY_ID'));
 DELETE FROM "PaymentLink" WHERE "invoiceId" IN (SELECT id FROM "Invoice" WHERE "customerId" IN (SELECT id FROM "Customer" WHERE "name" = 'Tier38 CC Kunde' AND "companyId" = '$COMPANY_ID'));
 DELETE FROM "Invoice" WHERE "customerId" IN (SELECT id FROM "Customer" WHERE "name" = 'Tier38 CC Kunde' AND "companyId" = '$COMPANY_ID');
@@ -99,7 +99,7 @@ mk_invoice "100"
 mk_invoice "200"
 
 # Stamp costCenter=100 on both invoices via direct SQL.
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL
 UPDATE "Invoice" SET "costCenter" = '100'
   WHERE "customerId" IN (
     SELECT id FROM "Customer" WHERE name = 'Tier38 CC Kunde' AND "companyId" = '$COMPANY_ID'
@@ -148,7 +148,7 @@ EXP_STATUS=$(cat /tmp/t38_exp_status.txt)
 # Stamp expense costCenter=200 via SQL — same reason
 # as the invoices: the API round-trip might not persist
 # this column depending on service-layer handling.
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "UPDATE \"Expense\" SET \"costCenter\"='200' WHERE \"description\" = 'Tier 38 test expense';" > /dev/null
 
 # Sanity-fetch the dashboard v2 + confirm the costCenterBreakdown
@@ -239,7 +239,7 @@ STATUS=$(curl -sS -o /dev/null -w "%{http_code}" \
 assert_eq "missing companyId returns 400" "$STATUS" "400"
 
 # ───── Cleanup ─────
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL
 DELETE FROM "Payment" WHERE "invoiceId" IN (SELECT id FROM "Invoice" WHERE "customerId" IN (SELECT id FROM "Customer" WHERE "name" = 'Tier38 CC Kunde' AND "companyId" = '$COMPANY_ID'));
 DELETE FROM "PaymentLink" WHERE "invoiceId" IN (SELECT id FROM "Invoice" WHERE "customerId" IN (SELECT id FROM "Customer" WHERE "name" = 'Tier38 CC Kunde' AND "companyId" = '$COMPANY_ID'));
 DELETE FROM "Invoice" WHERE "customerId" IN (SELECT id FROM "Customer" WHERE "name" = 'Tier38 CC Kunde' AND "companyId" = '$COMPANY_ID');

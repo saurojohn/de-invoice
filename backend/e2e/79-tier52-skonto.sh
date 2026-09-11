@@ -37,7 +37,7 @@ source "$SCRIPT_DIR/_lib.sh"
 login
 cleanup_cashbook
 # ───── 0. Wipe prior tier-52 fixtures ─────
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 DELETE FROM "VoucherLine" WHERE "voucherId" IN (
   SELECT v.id FROM "Voucher" v
   LEFT JOIN "Invoice" i ON i."voucherRefId" = v.id
@@ -63,7 +63,7 @@ DELETE FROM "Invoice"          WHERE "companyId" = '$COMPANY_ID' AND "invoiceNum
 SQL
 
 # ───── 1. Seed customer ─────
-CUST_ID=$(docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+CUST_ID=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT id FROM \"Customer\" WHERE \"companyId\" = '$COMPANY_ID' LIMIT 1")
 [[ -n "$CUST_ID" ]] || (echo "FATAL: customer not seeded" && exit 1)
 pass "seeded customer: $CUST_ID"
@@ -172,7 +172,7 @@ STATEMENT_ID="e2e00052-0000-0000-0001-000000000001"
 TXN_ID="e2e00052-0000-0000-0002-000000000001"
 RECON_ID="e2e00052-0000-0000-0003-000000000001"
 
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 INSERT INTO "BankStatement" (id, "companyId", format, "fileName", "fileSize", "rawContent", "createdAt")
 VALUES ('$STATEMENT_ID', '$COMPANY_ID', 'csv', 'tier52-skonto.csv', 100, 'stub', now());
 INSERT INTO "BankTransaction" (id, "statementId", "companyId",
@@ -191,39 +191,39 @@ assert_status "201" "confirm Skonto recon"
 
 # The Voucher should now have 3 lines: Bank debit 1166.20,
 # 8730 Erlösminderung debit 23.80, Forderung credit 1190.00.
-VOUCHER_ID=$(docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+VOUCHER_ID=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT \"voucherRefId\" FROM \"Invoice\" WHERE id = '$INV_ID'")
 [[ -n "$VOUCHER_ID" ]] || (echo "FATAL: voucherRefId not set on invoice" && exit 1)
 pass "voucher: $VOUCHER_ID"
 
-LINE_COUNT=$(docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+LINE_COUNT=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT COUNT(*) FROM \"VoucherLine\" WHERE \"voucherId\" = '$VOUCHER_ID'")
 assert_eq "Voucher line count (Skonto split = 3 lines)" "$LINE_COUNT" "3"
 
 # Sum of debits = sum of credits
-SUM_DEBIT=$(docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+SUM_DEBIT=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT ROUND(SUM(debit)::numeric, 2) FROM \"VoucherLine\" WHERE \"voucherId\" = '$VOUCHER_ID'")
-SUM_CREDIT=$(docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+SUM_CREDIT=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT ROUND(SUM(credit)::numeric, 2) FROM \"VoucherLine\" WHERE \"voucherId\" = '$VOUCHER_ID'")
 assert_eq "voucher balanced (debit)" "$SUM_DEBIT" "1190.00"
 assert_eq "voucher balanced (credit)" "$SUM_CREDIT" "1190.00"
 
 # 8730 line exists with 23.80 (2% of 1190 = 23.80)
-SKONTO_LINE=$(docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+SKONTO_LINE=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT ROUND(debit::numeric, 2) FROM \"VoucherLine\" vl
    JOIN \"Account\" a ON a.id = vl.\"accountId\"
    WHERE vl.\"voucherId\" = '$VOUCHER_ID' AND a.\"accountNumber\" = '8730'")
 assert_eq "Skonto 8730 debit" "$SKONTO_LINE" "23.80"
 
 # Bank 1200 line = 1166.20
-BANK_LINE=$(docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+BANK_LINE=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT ROUND(debit::numeric, 2) FROM \"VoucherLine\" vl
    JOIN \"Account\" a ON a.id = vl.\"accountId\"
    WHERE vl.\"voucherId\" = '$VOUCHER_ID' AND a.\"accountNumber\" = '1200'")
 assert_eq "Bank 1200 debit" "$BANK_LINE" "1166.20"
 
 # Forderung 1406 line credit = 1190 (full original)
-RECV_LINE=$(docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+RECV_LINE=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT ROUND(credit::numeric, 2) FROM \"VoucherLine\" vl
    JOIN \"Account\" a ON a.id = vl.\"accountId\"
    WHERE vl.\"voucherId\" = '$VOUCHER_ID' AND a.\"accountNumber\" = '1406'")
@@ -242,7 +242,7 @@ STATEMENT2="e2e00052-0000-0000-0001-000000000002"
 TXN2="e2e00052-0000-0000-0002-000000000002"
 RECON2="e2e00052-0000-0000-0003-000000000002"
 
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 INSERT INTO "BankStatement" (id, "companyId", format, "fileName", "fileSize", "rawContent", "createdAt")
 VALUES ('$STATEMENT2', '$COMPANY_ID', 'csv', 'tier52-control.csv', 100, 'stub', now());
 INSERT INTO "BankTransaction" (id, "statementId", "companyId",
@@ -258,9 +258,9 @@ SQL
 api_post "/api/v1/bank-statements/reconciliations/$RECON2/confirm?companyId=$COMPANY_ID" '{}'
 assert_status "201" "confirm full recon (no Skonto)"
 
-VOUCHER2_ID=$(docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+VOUCHER2_ID=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT \"voucherRefId\" FROM \"Invoice\" WHERE id = '$INV2_ID'")
-LINE_COUNT2=$(docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+LINE_COUNT2=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT COUNT(*) FROM \"VoucherLine\" WHERE \"voucherId\" = '$VOUCHER2_ID'")
 assert_eq "no-Skonto voucher has 2 lines" "$LINE_COUNT2" "2"
 
@@ -280,7 +280,7 @@ STATEMENT3="e2e00052-0000-0000-0001-000000000003"
 TXN3="e2e00052-0000-0000-0002-000000000003"
 RECON3="e2e00052-0000-0000-0003-000000000003"
 
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 INSERT INTO "BankStatement" (id, "companyId", format, "fileName", "fileSize", "rawContent", "createdAt")
 VALUES ('$STATEMENT3', '$COMPANY_ID', 'csv', 'tier52-late.csv', 100, 'stub', now());
 INSERT INTO "BankTransaction" (id, "statementId", "companyId",
@@ -296,14 +296,14 @@ SQL
 api_post "/api/v1/bank-statements/reconciliations/$RECON3/confirm?companyId=$COMPANY_ID" '{}'
 assert_status "201" "confirm late-Skonto recon"
 
-VOUCHER3_ID=$(docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+VOUCHER3_ID=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT \"voucherRefId\" FROM \"Invoice\" WHERE id = '$INV3_ID'")
-LINE_COUNT3=$(docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+LINE_COUNT3=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT COUNT(*) FROM \"VoucherLine\" WHERE \"voucherId\" = '$VOUCHER3_ID'")
 assert_eq "late-payment voucher has 2 lines (no 8730)" "$LINE_COUNT3" "2"
 
 # ───── 8. Cleanup ─────
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 DELETE FROM "VoucherLine" WHERE "voucherId" IN (
   SELECT v.id FROM "Voucher" v
   LEFT JOIN "Invoice" i ON i."voucherRefId" = v.id

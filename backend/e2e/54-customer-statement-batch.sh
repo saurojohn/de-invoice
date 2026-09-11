@@ -35,12 +35,12 @@ trap cleanup EXIT
 # at the start of its run, so by the time 54 runs in a batch
 # there might be 0. Bulk-insert 120 test customers if the
 # current count is too low. Idempotent: re-running is safe.
-EXISTING=$(docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+EXISTING=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT COUNT(*) FROM \"Customer\" WHERE \"companyId\" = '$COMPANY_ID' AND \"name\" LIKE 'Tier20-%'")
 NEED=$((120 - EXISTING))
 if [[ $NEED -gt 0 ]]; then
   note "Seeding $NEED Tier20-* test customers for the batch statement test"
-  docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+  docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 INSERT INTO "Customer" (id, "companyId", name, type, address, "contact", "paymentTerms", "createdAt", "updatedAt")
 SELECT gen_random_uuid()::text,
        '$COMPANY_ID',
@@ -56,7 +56,7 @@ ON CONFLICT DO NOTHING;
 SQL
 fi
 # Re-count to verify
-EXISTING=$(docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+EXISTING=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT COUNT(*) FROM \"Customer\" WHERE \"companyId\" = '$COMPANY_ID' AND \"name\" LIKE 'Tier20-%'")
 pass "Tier20-* customers available: $EXISTING"
 

@@ -48,7 +48,7 @@ cleanup_cashbook
 # Invoice (Mahnung→Invoice, EmailSend→Invoice). Use
 # the same invoice-subselect the rest of the cleanup
 # already uses.
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL
 DELETE FROM "Mahnung" WHERE "companyId" = '$COMPANY_ID'
   AND "invoiceId" IN (SELECT id FROM "Invoice" WHERE "companyId" = '$COMPANY_ID' AND "customerId" IN (SELECT id FROM "Customer" WHERE "name" LIKE 'Tier37%'));
 DELETE FROM "EmailSend" WHERE "companyId" = '$COMPANY_ID'
@@ -361,7 +361,7 @@ assert_eq "unknown id cancel returns 404" "$STATUS" "404"
 
 # ───── Cleanup ─────
 mavis-trash '/tmp/t37_*.json' '/tmp/t37_*.pdf' '/tmp/t37_*.txt' '2>/dev/null' || true
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL
 DELETE FROM "Mahnung" WHERE "companyId" = '$COMPANY_ID';
 DELETE FROM "EmailSend" WHERE "companyId" = '$COMPANY_ID';
 DELETE FROM "Invoice" WHERE "companyId" = '$COMPANY_ID';

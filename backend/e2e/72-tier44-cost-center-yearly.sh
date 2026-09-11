@@ -31,7 +31,7 @@ cleanup_cashbook
 # a self-sufficient Tier44 customer if needed. Also wipe
 # any residue VERTRIEB / MARKETING / WERKSTATT rows from
 # prior tests that would inflate the cost-center aggregation.
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 DELETE FROM "Payment" WHERE "invoiceId" IN (
   SELECT id FROM "Invoice" WHERE "companyId" = '$COMPANY_ID'
   AND "costCenter" IN ('VERTRIEB', 'MARKETING', 'WERKSTATT')
@@ -75,25 +75,25 @@ assert_status 201 "seed Tier44 customer"
 # block so the assertions can verify "baseline +
 # Tier-44 delta" without hard-failing on the residual
 # data.
-BEFORE_NULL_EC=$(docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+BEFORE_NULL_EC=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT COUNT(*) FROM \"Expense\" WHERE \"companyId\" = '$COMPANY_ID' AND \"costCenter\" IS NULL AND \"invoiceDate\" >= '2026-01-01' AND \"invoiceDate\" < '2027-01-01' AND \"status\" IN ('booked','deductible');")
-BEFORE_NULL_GROSS=$(docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+BEFORE_NULL_GROSS=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT COALESCE(SUM(\"grossAmount\"),0) FROM \"Expense\" WHERE \"companyId\" = '$COMPANY_ID' AND \"costCenter\" IS NULL AND \"invoiceDate\" >= '2026-01-01' AND \"invoiceDate\" < '2027-01-01' AND \"status\" IN ('booked','deductible');")
-BEFORE_NULL_INV=$(docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+BEFORE_NULL_INV=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT COUNT(*) FROM \"Invoice\" WHERE \"companyId\" = '$COMPANY_ID' AND \"costCenter\" IS NULL AND \"issueDate\" >= '2026-01-01' AND \"issueDate\" < '2027-01-01' AND \"type\" IN ('INV','RCV');")
-BEFORE_NULL_REV=$(docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+BEFORE_NULL_REV=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT COALESCE(SUM(\"total\"),0) FROM \"Invoice\" WHERE \"companyId\" = '$COMPANY_ID' AND \"costCenter\" IS NULL AND \"issueDate\" >= '2026-01-01' AND \"issueDate\" < '2027-01-01' AND \"type\" IN ('INV','RCV');")
-BEFORE_TOT_REV=$(docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+BEFORE_TOT_REV=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT COALESCE(SUM(\"total\"),0) FROM \"Invoice\" WHERE \"companyId\" = '$COMPANY_ID' AND \"issueDate\" >= '2026-01-01' AND \"issueDate\" < '2027-01-01' AND \"type\" IN ('INV','RCV');")
-BEFORE_TOT_GROSS=$(docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+BEFORE_TOT_GROSS=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT COALESCE(SUM(\"grossAmount\"),0) FROM \"Expense\" WHERE \"companyId\" = '$COMPANY_ID' AND \"invoiceDate\" >= '2026-01-01' AND \"invoiceDate\" < '2027-01-01' AND \"status\" IN ('booked','deductible');")
-BEFORE_TOT_INV=$(docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+BEFORE_TOT_INV=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT COUNT(*) FROM \"Invoice\" WHERE \"companyId\" = '$COMPANY_ID' AND \"issueDate\" >= '2026-01-01' AND \"issueDate\" < '2027-01-01' AND \"type\" IN ('INV','RCV');")
-BEFORE_TOT_EXP=$(docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+BEFORE_TOT_EXP=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT COUNT(*) FROM \"Expense\" WHERE \"companyId\" = '$COMPANY_ID' AND \"invoiceDate\" >= '2026-01-01' AND \"invoiceDate\" < '2027-01-01' AND \"status\" IN ('booked','deductible');")
 
 # ───── 2. Seed customer (use existing first one) ─────
-CUSTOMER_ID=$(docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+CUSTOMER_ID=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT id FROM \"Customer\" WHERE \"companyId\" = '$COMPANY_ID' LIMIT 1")
 [[ -n "$CUSTOMER_ID" ]] || (echo "FATAL: no customer seeded" && exit 1)
 pass "customer seeded: $CUSTOMER_ID"
@@ -116,7 +116,7 @@ mk_invoice() {
   # day > days-in-next-month, but that's fine for tests).
   local next_month=$(( (month % 12) + 1 ))
   due=$(printf "2026-%02d-%02dT12:00:00.000Z" "$next_month" "$day")
-  docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+  docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
     "INSERT INTO \"Invoice\" (id, \"companyId\", \"customerId\", \"invoiceNumber\", \"sequenceYear\", \"sequenceNumber\", \"type\", \"status\", \"issueDate\", \"dueDate\", \"subtotal\", \"totalVat\", \"total\", \"currency\", \"language\", \"costCenter\", \"customerName\", \"createdAt\", \"updatedAt\") VALUES (gen_random_uuid()::text, '$COMPANY_ID', '$CUSTOMER_ID', '$number', 2026, $RANDOM, 'INV', 'sent', '$date', '$due', $total_net, $total_vat, $total, 'EUR', 'de-DE', '$cc', 'Tier44 customer', NOW(), NOW());" \
     >/dev/null
 }
@@ -140,11 +140,11 @@ mk_expense() {
   vat=$(python3 -c "print(round($gross - $net, 4))")
   # Two-step: INSERT then UPDATE costCenter so NULL
   # (no cc) and '' (no cc) cases both work cleanly.
-  docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+  docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
     "INSERT INTO \"Expense\" (id, \"companyId\", \"invoiceNumber\", \"invoiceDate\", \"description\", \"grossAmount\", \"netAmount\", \"vatAmount\", \"vatRate\", \"status\", \"createdAt\", \"updatedAt\") VALUES (gen_random_uuid()::text, '$COMPANY_ID', '$number', '$date', '$number', $gross, $net, $vat, 0.19, 'booked', NOW(), NOW());" \
     >/dev/null
   if [[ -n "$cc" ]]; then
-    docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+    docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
       "UPDATE \"Expense\" SET \"costCenter\" = '$cc' WHERE \"invoiceNumber\" = '$number' AND \"companyId\" = '$COMPANY_ID';" >/dev/null
   fi
 }
@@ -327,7 +327,7 @@ api_get "/api/v1/reports/cost-center-yearly?companyId=$COMPANY_ID&year=abc"
 assert_status "400" "non-numeric year → 400"
 
 # ───── 11. Cleanup ─────
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 DELETE FROM "InvoiceItem" WHERE "invoiceId" IN (
   SELECT id FROM "Invoice" WHERE "companyId" = '$COMPANY_ID' AND "invoiceNumber" LIKE 'Tier44%'
 );

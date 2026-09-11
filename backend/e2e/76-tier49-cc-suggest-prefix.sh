@@ -34,7 +34,7 @@ source "$SCRIPT_DIR/_lib.sh"
 login
 cleanup_cashbook
 # ───── 0. Wipe prior tier-49 fixtures ─────
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 DELETE FROM "VoucherLine" WHERE "voucherId" IN (
   SELECT id FROM "Voucher" WHERE "companyId" = '$COMPANY_ID' AND "description" LIKE 'Tier49%'
 );
@@ -42,9 +42,9 @@ DELETE FROM "Voucher"     WHERE "companyId" = '$COMPANY_ID' AND "description" LI
 SQL
 
 # ───── 1. Get the Sachkonto ─────
-SACHKONTO_4960=$(docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+SACHKONTO_4960=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT id FROM \"Account\" WHERE \"companyId\" = '$COMPANY_ID' AND \"accountNumber\" = '4960' LIMIT 1")
-SACHKONTO_1200=$(docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+SACHKONTO_1200=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT id FROM \"Account\" WHERE \"companyId\" = '$COMPANY_ID' AND \"accountNumber\" = '1200' LIMIT 1")
 [[ -n "$SACHKONTO_4960" ]] || (echo "FATAL: 4960 not seeded" && exit 1)
 [[ -n "$SACHKONTO_1200" ]] || (echo "FATAL: 1200 not seeded" && exit 1)
@@ -195,7 +195,7 @@ api_get "/api/v1/accounting/vouchers/cost-center-suggestion/list?companyId=$COMP
 assert_status "400" "missing accountId → 400"
 
 # ───── 11. Cleanup ─────
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 DELETE FROM "VoucherLine" WHERE "voucherId" IN (
   SELECT id FROM "Voucher" WHERE "companyId" = '$COMPANY_ID' AND "description" LIKE 'Tier49%'
 );

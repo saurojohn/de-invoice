@@ -46,7 +46,7 @@ echo "=== Test: Tier 12 Buchungsjournal PDF ==="
 # balanced-sum.
 
 # Clean
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice << EOF >/dev/null 2>&1
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice << EOF >/dev/null 2>&1
 DELETE FROM "VoucherLine" WHERE "voucherId" IN (
   SELECT id FROM "Voucher"
   WHERE "companyId" = '${COMPANY_ID}' AND "voucherNumber" LIKE 'E2E-JOURNAL-%'
@@ -72,7 +72,7 @@ VALUES
   ('e2e0000a-0001-0000-0007-000000000022', 'e2e0000a-0001-0000-0007-000000000011', '${ACC_1200}', 'Erstattung', 0, 200.00, 0),
   ('e2e0000a-0001-0000-0007-000000000023', 'e2e0000a-0001-0000-0007-000000000011', '${ACC_4900}', 'Erstattung', 200.00, 0, 1);
 EOF
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice < /tmp/t40_seed.sql >/dev/null 2>&1
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice < /tmp/t40_seed.sql >/dev/null 2>&1
 
 # ===== 1. PDF with our date range (covers both vouchers) =====
 # We use 2027-01-15..2027-01-25 — a date
@@ -194,7 +194,7 @@ print("✓ 14. PDF shows 'double-entry balanced' note")
 PYEOF
 
 # ----- Cleanup -----
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice << EOF >/dev/null 2>&1
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice << EOF >/dev/null 2>&1
 DELETE FROM "VoucherLine" WHERE "voucherId" IN (
   SELECT id FROM "Voucher"
   WHERE "companyId" = '${COMPANY_ID}' AND "voucherNumber" LIKE 'E2E-JOURNAL-%'

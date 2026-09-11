@@ -64,7 +64,7 @@ ON CONFLICT ("userId", "companyId") DO NOTHING;
 '''
 print(sql, end='')
 PY
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice < "$TMP_SQL"
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice < "$TMP_SQL"
 rm -f "$TMP_SQL"
 
 # Helper: read the user's TOTP secret from the DB

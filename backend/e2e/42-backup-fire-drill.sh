@@ -74,7 +74,7 @@ echo "=== Test: Tier 12 backup + restore fire-drill ==="
 # pollute the user's existing backups.
 export BACKUP_ROOT="/tmp/t12-backup-test"
 export BACKUP_DB_HOST=localhost
-export BACKUP_DB_PORT=5432
+export BACKUP_DB_PORT="${BACKUP_DB_PORT:-5432}"  # Tier 357: honour the caller (local-ci-stack.sh); CI default unchanged
 export BACKUP_DB_USER=de_invoice
 export BACKUP_DB_PASSWORD=de_invoice_pass
 export BACKUP_DB_NAME=de_invoice
@@ -123,7 +123,7 @@ docker exec "$PG_CONTAINER" psql -U de_invoice -d postgres -c \
   "DROP DATABASE IF EXISTS $SCRATCH_DB;" >/dev/null 2>&1
 docker exec "$PG_CONTAINER" psql -U de_invoice -d postgres -c \
   "CREATE DATABASE $SCRATCH_DB;" >/dev/null 2>&1
-docker exec -i de-invoice-postgres pg_restore -U de_invoice -d $SCRATCH_DB \
+docker exec -i "$PG_CONTAINER" pg_restore -U de_invoice -d $SCRATCH_DB \
   --no-owner --no-privileges < "$DB_FILE" 2>&1 | tail -3
 RESTORE_OK=$?
 [[ $RESTORE_OK -eq 0 ]] && pass "6. pg_restore to scratch DB: OK" \

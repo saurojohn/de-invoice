@@ -29,7 +29,7 @@ source "$SCRIPT_DIR/_lib.sh"
 
 login
 # ───── 0. Wipe prior tier-60 fixtures ─────
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 DELETE FROM "Payment"          WHERE "invoiceId" IN (
   SELECT id FROM "Invoice" WHERE "companyId" = '$COMPANY_ID' AND "invoiceNumber" LIKE 'Tier60-%'
 );
@@ -41,13 +41,13 @@ SQL
 pass "wiped prior tier-60 fixtures"
 
 # ───── 1. Seed an invoice (use existing customer) ─────
-CUST_ID=$(docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+CUST_ID=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT id FROM \"Customer\" WHERE \"companyId\" = '$COMPANY_ID' AND name LIKE 'Müller%' LIMIT 1")
 if [[ -z "$CUST_ID" ]]; then
   # Polish #10: seed a self-sufficient Müller customer. Earlier
   # the 65 cleanup wiped all customers, so 87 saw 0 in batch runs.
   T60_EMAIL="t60-$(date +%s)@example.com"
-  docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+  docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
     DELETE FROM \"SepaDirectDebitMandate\"   WHERE \"companyId\" = '$COMPANY_ID' AND \"debitorName\" = 'Müller GmbH';
     DELETE FROM \"Customer\"                  WHERE \"companyId\" = '$COMPANY_ID' AND \"name\" = 'Müller GmbH';" >/dev/null 2>&1
   api_post "/api/v1/customers?companyId=$COMPANY_ID" \
@@ -233,7 +233,7 @@ while IFS= read -r line; do
 done
 
 # ───── 7. Cleanup ─────
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 DELETE FROM "Payment"          WHERE "invoiceId" IN (
   SELECT id FROM "Invoice" WHERE "companyId" = '$COMPANY_ID' AND "invoiceNumber" LIKE 'Tier60-%'
 );

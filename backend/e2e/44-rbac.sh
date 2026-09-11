@@ -124,7 +124,7 @@ echo "=== Setup: insert viewer + accountant ==="
 # hash, so the passwordHash survives
 # intact through the shell).
 export COMPANY_ID VIEWER_ID ACCOUNTANT_ID VIEWER_EMAIL ACCOUNTANT_EMAIL PWHASH
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL
 INSERT INTO "User" (id, "companyId", email, "passwordHash", role, status, "createdAt")
 VALUES
   ('${VIEWER_ID}', '${COMPANY_ID}', '${VIEWER_EMAIL}', '${PWHASH_ESC}', 'viewer', 'active', now()),

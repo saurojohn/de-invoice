@@ -24,7 +24,7 @@ source "$SCRIPT_DIR/_lib.sh"
 login
 cleanup_cashbook
 # ───── 0. Wipe prior tier-57 fixtures ─────
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 DELETE FROM "VoucherLine" WHERE "voucherId" IN (
   SELECT v.id FROM "Voucher" v
   LEFT JOIN "Invoice" i ON i."voucherRefId" = v.id
@@ -45,7 +45,7 @@ DELETE FROM "Invoice"          WHERE "companyId" = '$COMPANY_ID' AND "invoiceNum
 SQL
 
 # ───── 1. Seed customer ─────
-CUST_ID=$(docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+CUST_ID=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT id FROM \"Customer\" WHERE \"companyId\" = '$COMPANY_ID' LIMIT 1")
 [[ -n "$CUST_ID" ]] || (echo "FATAL: customer not seeded" && exit 1)
 pass "seeded customer: $CUST_ID"
@@ -77,7 +77,7 @@ api_post "/api/v1/invoices?companyId=$COMPANY_ID" \
 assert_status "201" "create Skonto-window-open invoice"
 OPEN_INV_ID=$(json_field "$BODY" id)
 # Flip to 'sent' (default is 'draft', excluded by overdue query)
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "UPDATE \"Invoice\" SET status='sent' WHERE id='$OPEN_INV_ID'" >/dev/null
 
 # Verify the Skonto-window invoice is EXCLUDED
@@ -103,7 +103,7 @@ api_post "/api/v1/invoices?companyId=$COMPANY_ID" \
   "{\"customerId\":\"$CUST_ID\",\"issueDate\":\"$LONG_AGO\",\"dueDate\":\"$WEEK_AGO\",\"skontoPercent\":2,\"skontoDays\":14,\"items\":[{\"description\":\"Skonto expired\",\"quantity\":1,\"unitPrice\":100,\"vatRate\":0.19}]}"
 assert_status "201" "create Skonto-window-expired invoice"
 EXP_INV_ID=$(json_field "$BODY" id)
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "UPDATE \"Invoice\" SET status='sent' WHERE id='$EXP_INV_ID'" >/dev/null
 
 # Verify the Skonto-expired invoice IS in overdue
@@ -125,7 +125,7 @@ api_post "/api/v1/invoices?companyId=$COMPANY_ID" \
   "{\"customerId\":\"$CUST_ID\",\"issueDate\":\"$LONG_AGO\",\"dueDate\":\"$WEEK_AGO\",\"items\":[{\"description\":\"No Skonto\",\"quantity\":1,\"unitPrice\":100,\"vatRate\":0.19}]}"
 assert_status "201" "create no-Skonto overdue invoice"
 NS_INV_ID=$(json_field "$BODY" id)
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "UPDATE \"Invoice\" SET status='sent' WHERE id='$NS_INV_ID'" >/dev/null
 
 api_get "/api/v1/reminders/overdue?companyId=$COMPANY_ID"
@@ -144,9 +144,9 @@ note "=== 4. auto-run /runForCompany skips Skonto-window ==="
 # Hit /reminders/auto-run (the cron-driven path) and
 # check that NO Mahnung was sent for the Skonto-open
 # invoice. We compare its EmailSend count before vs after.
-BEFORE_OPEN_EMAILS=$(docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+BEFORE_OPEN_EMAILS=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT COUNT(*) FROM \"EmailSend\" WHERE \"invoiceId\" = '$OPEN_INV_ID'")
-BEFORE_EXP_EMAILS=$(docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+BEFORE_EXP_EMAILS=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT COUNT(*) FROM \"EmailSend\" WHERE \"invoiceId\" = '$EXP_INV_ID'")
 pass "before auto-run: Skonto-open=$BEFORE_OPEN_EMAILS, Skonto-expired=$BEFORE_EXP_EMAILS"
 
@@ -158,7 +158,7 @@ pass "before auto-run: Skonto-open=$BEFORE_OPEN_EMAILS, Skonto-expired=$BEFORE_E
 # path calls the same method.
 
 # ───── 7. Cleanup ─────
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 DELETE FROM "EmailSend" WHERE "invoiceId" IN (
   SELECT id FROM "Invoice" WHERE "companyId" = '$COMPANY_ID' AND "invoiceNumber" LIKE 'Tier57%'
 );

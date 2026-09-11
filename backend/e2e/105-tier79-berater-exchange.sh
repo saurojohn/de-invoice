@@ -54,7 +54,7 @@ trap cleanup EXIT
 # Seed the test Berater user + UserCompany grant
 # with role='berater' (tier 66 permission boundary).
 SEED_HASH=$(node -e "console.log(require('bcrypt').hashSync('${TEST_PW}', 10))")
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL
 INSERT INTO "User" (id, "companyId", email, "passwordHash", role, status, "createdAt")
 VALUES ('$TEST_BERATER_ID'::text, '$COMPANY_ID', '$TEST_BERATER_EMAIL',
         '$SEED_HASH', 'berater', 'active', now());
@@ -77,7 +77,7 @@ if [[ -z "$INV_ID" ]]; then
     "SELECT id FROM \"Customer\" WHERE \"companyId\"='$COMPANY_ID' LIMIT 1;" \
     2>&1 | tr -d ' ' | head -1)
   INV_ID="inv-tier79-${TS}"
-  docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL
+  docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL
 INSERT INTO "Invoice" (id, "companyId", "customerId", "invoiceNumber", "type", "status",
                        "issueDate", "subtotal", "totalVat", "total", "currency", "language",
                        "reverseCharge", "euTransaction", "customerName", "createdAt", "updatedAt")

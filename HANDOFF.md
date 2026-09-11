@@ -398,21 +398,70 @@ later one. **Always delete by the line number eslint reports, iterating
 from the bottom of the file up so earlier line numbers stay valid.** tsc
 catches the damage, but only after the fact.
 
-**Backend e2e can now run against a throwaway DB too.** Tier 353 did the
-Playwright side and missed the backend: `run-all.sh` plus 570 call sites in
-96 specs hardcoded the container name. All now honour `PG_CONTAINER` (via
-`_lib.sh`, plus four specs that do not source it). `scripts/start-backend.sh`
-also re-exports `DATABASE_URL` now — e2e spec 20 restarts the backend
-mid-run through that wrapper, and without it the restart fell back to the
-`.env` default and died with Prisma P1001.
+**Backend e2e can now run against a throwaway DB too** (Tiers 355 + 357).
+Tier 353 did the Playwright side and missed the backend. **Tier 355 then
+reported "570 call sites, 0 remaining" — that was wrong.** It replaced only
+the exact string `docker exec de-invoice-postgres`, and its "0 remaining"
+check grepped for that same string, so the verification was circular. It
+missed **254 more** call sites where a flag sits between `exec` and the
+name — `docker exec -i de-invoice-postgres` (252) and
+`docker exec -e PGPASSWORD=... de-invoice-postgres` (2) — across 61 files.
+Locally those still hit the dead dev container, returned nothing, and left
+IDs like `CUST_ID` empty, which cascaded into 27 `500 Related resource not
+found` responses. Tier 357 fixed them with a flag-agnostic pattern and
+verified by grepping for the **container name itself** (excluding comments
+and the `PG_CONTAINER="${PG_CONTAINER:-de-invoice-postgres}"` defaults):
+zero left. Also fixed in Tier 357: `frontend/scripts/run-all.sh`'s
+pre-flight check, and `scripts/backup.sh`, which picked its `pg_dump`
+target by the hardcoded name — so under a throwaway DB it either fell back
+to a host dump on :5432 or, if the dev container was up, dumped the *dev*
+database instead of the one under test. (`scripts/backup.sh` is dev-only;
+production uses `infra/prod/backup.sh` and `de-invoice-postgres-prod`.)
+`scripts/start-backend.sh` re-exports `DATABASE_URL` (Tier 355), because
+e2e spec 20 restarts the backend through it mid-run.
 
-**A local full-suite run is NOT comparable to CI.** On a throwaway DB the
-backend suite scores 65 passed / 34 failed where CI scores 99/99. That gap
-is environmental. **Always A/B against stashed changes on a fresh database
-before concluding anything from a local run** — during this tier an
-uncontrolled comparison (same DB, different accumulated state) made
-`20-vat-validation.sh` look like a regression it was not. Redone properly,
-with a fresh DB per side, the failure lists matched exactly.
+**Lesson: verify a replacement by searching for what should be gone, not
+for the pattern you replaced.**
+
+**Use `backend/scripts/local-ci-stack.sh` for any local backend e2e run.**
+It mirrors the CI `e2e` job step by step — fresh `postgres:16`,
+`prisma db push` **plus the `search_tsv` raw-SQL migration** (hand-typed
+local runs kept skipping this), the >= 62 table check, the backend started
+with CI's exact env (`NODE_ENV=test`, `SMTP_HOST=`, `STORAGE_PATH`,
+`VIES_MOCK`, `EXCHANGE_RATES_MOCK`, `THROTTLE_DISABLED`, CI's fixture
+`FINTS_PIN_ENC_KEY`), then `ci-seed.sh`. It also points `ATTACHMENT_PATH`
+at the test storage so the backup fire-drill does not copy the developer's
+real `~/data/invoice-system` into `/tmp`. It refuses to run with
+`PG_CONTAINER=de-invoice-postgres`, since `up` recreates the container.
+
+```bash
+PG_CONTAINER=tmp-ci-pg bash backend/scripts/local-ci-stack.sh run   # up + run-all.sh
+PG_CONTAINER=tmp-ci-pg bash backend/scripts/local-ci-stack.sh down
+```
+
+Reference result on a fresh stack (Tier 357): **99 passed / 0 failed**, matching CI.
+
+**A local full-suite run IS comparable to CI — when it is set up like CI**
+(Tier 357). Tiers 355-356 recorded the backend suite as "65 passed / 34
+failed locally vs 99/99 in CI, and the gap is environmental". **That
+diagnosis was wrong.** Using `backend/scripts/local-ci-stack.sh` on a fresh
+throwaway database the suite now scores **99 passed / 0 failed, same as
+CI**. The 34 broke down as:
+
+| Cause | Specs |
+|---|---|
+| 254 container-name hardcodes Tier 355 missed (`docker exec -i ...`), leaving IDs empty — 27 cascading `500 Related resource not found` | most of 24-99, incl. the 69-86 block |
+| `search_tsv` raw-SQL migration never applied by hand-typed local stacks | 41-migrate (1a), 60-tier28-search, 95-tier68-global-search |
+| `scripts/backup.sh` choosing its `pg_dump` target by hardcoded name | 42-backup-fire-drill |
+| hardcoded `localhost:5432` in `prisma migrate deploy` on a fresh DB | 41-migrate (11a-11d) |
+
+In other words, mostly a bug in *my* Tier 355 change plus hand-typed setup
+drift — not the environment. The earlier A/B comparisons still stand (both
+sides were equally handicapped), but their local signal was far weaker than
+reported: a spec already failing locally cannot show a regression, which is
+exactly how the Tier 356 skonto timezone failure slipped past a local "zero
+regression" check. **With the stack script there is no longer a local blind
+spot; a local run that differs from 99/99 is a real signal.**
 
 **Never `await` two `page.waitForResponse` calls in sequence** (Tier 354).
 When a page fires both requests from one `Promise.all`, the second waiter

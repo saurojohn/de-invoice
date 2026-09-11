@@ -112,7 +112,7 @@ PGPASSWORD=de_invoice_pass docker exec "$PG_CONTAINER" psql -U de_invoice -d de_
 # dates spanning 2020-01-01..2023-12-31.
 # Each voucher has 2 lines (debit + credit)
 # to satisfy the double-entry constraint.
-PGPASSWORD=de_invoice_pass docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL
+PGPASSWORD=de_invoice_pass docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL
 INSERT INTO "Voucher" (id, "companyId", "voucherNumber", date, description, "referenceType", status, "createdAt")
 SELECT
   gen_random_uuid(),
@@ -127,7 +127,7 @@ FROM generate_series(1, 1500) g;
 SQL
 
 # Now insert matching line items (2 per voucher)
-PGPASSWORD=de_invoice_pass docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL
+PGPASSWORD=de_invoice_pass docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL
 -- Use a single chart-of-accounts account to keep this simple.
 -- Real production data has many accounts; we just need *some* valid FK.
 DO \$\$

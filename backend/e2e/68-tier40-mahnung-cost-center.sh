@@ -23,7 +23,7 @@ source "$SCRIPT_DIR/_lib.sh"
 login
 cleanup_cashbook
 # Wipe any prior Tier-40 fixture customer.
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL
 DELETE FROM "Mahnung"    WHERE "companyId" = '$COMPANY_ID';
 DELETE FROM "EmailSend"  WHERE "companyId" = '$COMPANY_ID';
 DELETE FROM "Payment"    WHERE "invoiceId" IN (SELECT id FROM "Invoice" WHERE "customerId" IN (SELECT id FROM "Customer" WHERE "name" LIKE 'Tier40%' AND "companyId" = '$COMPANY_ID'));
@@ -188,7 +188,7 @@ if command -v pdftotext >/dev/null 2>&1; then
 fi
 
 # ───── Cleanup ─────
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL
 DELETE FROM "Mahnung"    WHERE "companyId" = '$COMPANY_ID';
 DELETE FROM "EmailSend"  WHERE "companyId" = '$COMPANY_ID';
 DELETE FROM "Payment"    WHERE "invoiceId" IN (SELECT id FROM "Invoice" WHERE "customerId" IN (SELECT id FROM "Customer" WHERE "name" LIKE 'Tier40%' AND "companyId" = '$COMPANY_ID'));

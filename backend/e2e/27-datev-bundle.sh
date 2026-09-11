@@ -126,7 +126,7 @@ docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
 # Use laufNr=2 so the filename suffix differs from
 # the default "L001" (we want to confirm the suffix
 # roundtrip works).
-docker exec -e PGPASSWORD=de_invoice_pass de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec -e PGPASSWORD=de_invoice_pass "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   UPDATE \"Company\"
   SET settings = jsonb_build_object(
     'datev', jsonb_build_object(
@@ -316,7 +316,7 @@ docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   DELETE FROM \"Invoice\" WHERE id = '$INV_ID';" >/dev/null 2>&1
 rm -f "$PDF_ABS_PATH"
 # Reset settings (only the laufNr we set above)
-docker exec -e PGPASSWORD=de_invoice_pass de-invoice-postgres psql -U de_invoice -d de_invoice -c "
+docker exec -e PGPASSWORD=de_invoice_pass "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   UPDATE \"Company\"
   SET settings = settings::jsonb #- '{datev,laufNr}'
   WHERE id = '$COMPANY_ID';" >/dev/null 2>&1

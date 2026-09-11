@@ -40,7 +40,7 @@ source "$SCRIPT_DIR/_lib.sh"
 login
 cleanup_cashbook
 # ───── 0. Wipe prior tier-51 fixtures ─────
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 DELETE FROM "Installment"        WHERE "planId" IN (
   SELECT id FROM "InstallmentPlan" WHERE "companyId" = '$COMPANY_ID' AND ("notes" LIKE 'Tier51%' OR "notes" IS NULL)
 );
@@ -52,7 +52,7 @@ DELETE FROM "Invoice"            WHERE "companyId" = '$COMPANY_ID' AND "invoiceN
 SQL
 
 # ───── 1. Seed customer + invoice via SQL ─────
-CUST_ID=$(docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+CUST_ID=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT id FROM \"Customer\" WHERE \"companyId\" = '$COMPANY_ID' LIMIT 1")
 [[ -n "$CUST_ID" ]] || (echo "FATAL: customer not seeded" && exit 1)
 pass "seeded customer: $CUST_ID"
@@ -61,7 +61,7 @@ pass "seeded customer: $CUST_ID"
 # which rejects invoiceNumber/status. The schema lets
 # us set every field directly.
 INVOICE_ID="e2e00051-0000-0000-0001-000000000001"
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 INSERT INTO "Invoice" (id, "companyId", "customerId", "invoiceNumber", "sequenceNumber",
   type, status, "issueDate", "dueDate",
   subtotal, "totalVat", total, currency, language, "vatBreakdown",
@@ -154,7 +154,7 @@ assert_eq "third Rate dueDate (first + 60 days)" "$DUE_3" "2027-01-30"
 echo
 note "=== 2. Rounding remainder absorbed by last installment ==="
 ROUND_INVOICE_ID="e2e00051-0000-0000-0001-000000000002"
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 INSERT INTO "Invoice" (id, "companyId", "customerId", "invoiceNumber", "sequenceNumber",
   type, status, "issueDate", "dueDate",
   subtotal, "totalVat", total, currency, language, "vatBreakdown",
@@ -322,7 +322,7 @@ assert_eq "cancelled plan status" "$CANCEL_STATUS" "cancelled"
 
 # Now create a fresh plan + cancel it before any pay
 CANCEL_INVOICE_ID="e2e00051-0000-0000-0001-000000000003"
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 INSERT INTO "Invoice" (id, "companyId", "customerId", "invoiceNumber", "sequenceNumber",
   type, status, "issueDate", "dueDate",
   subtotal, "totalVat", total, currency, language, "vatBreakdown",
@@ -375,7 +375,7 @@ print(len([p for p in d if p.get('invoiceId') in mine]))
 assert_eq "active plan count (this script's plans only)" "$ACTIVE_COUNT" "1"
 
 # ───── 10. Cleanup ─────
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 DELETE FROM "Installment"        WHERE "planId" IN (
   SELECT id FROM "InstallmentPlan" WHERE "companyId" = '$COMPANY_ID' AND ("notes" LIKE 'Tier51%' OR "notes" IS NULL)
 );

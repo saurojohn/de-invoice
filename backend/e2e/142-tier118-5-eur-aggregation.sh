@@ -28,7 +28,7 @@ note "=== Test prefix: $PREFIX / year: $YEAR ==="
 
 # ───── 0. Cleanup + ECB rate cache ─────
 note "=== 0. Cleanup + ECB rate cache ==="
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 DELETE FROM "InvoiceItem" WHERE "invoiceId" IN (
   SELECT id FROM "Invoice" WHERE "invoiceNumber" LIKE 'T1185-%'
 );
@@ -49,7 +49,7 @@ if [ "$HAS_RATES" = "True" ]; then
   pass "ECB rates cached: USD=$USD_RATE"
 else
   USD_RATE="1.1467"
-  docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+  docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 UPDATE "Company" SET settings = COALESCE(settings, '{}'::jsonb) || jsonb_build_object(
   'datev', jsonb_build_object(
     'exchangeRates', jsonb_build_object(
@@ -66,7 +66,7 @@ fi
 
 # ───── 1. Setup: 2 customers + 2 invoices ─────
 note "=== 1. Setup: 1 USD customer + 1 CHF customer ==="
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 INSERT INTO "Customer" (id, "companyId", name, "customerNumber", "vatId", address, "paymentTerms", tags, "createdAt", "updatedAt")
 VALUES
   ('cust-t1185-usd', '$COMPANY_ID', '${PREFIX} USD-Kunde', '${PREFIX}-USD',
@@ -87,7 +87,7 @@ pass "created 2 customers (USD, CHF)"
 create_invoice() {
   local inv_num="$1" cust_id="$2" currency="$3"
   local rate_str=$(echo "$RATES_PAYLOAD" | python3 -c "import json,sys;d=json.load(sys.stdin);print(d.get('rates',{}).get('$currency','1.0000'))" 2>/dev/null || echo "1.0000")
-  docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+  docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 INSERT INTO "Invoice" (id, "companyId", "invoiceNumber", type, status, "issueDate", "dueDate",
                        "customerId", subtotal, "totalVat", total, currency, language,
                        "exchangeRate", "eurSubtotal", "eurTotalVat", "eurTotal",
@@ -221,7 +221,7 @@ test "$(python3 -c "print(float('$GUV_DELTA') >= float('$USD_EUR_SUB') * 0.9)")"
 
 # ───── 6. Cleanup ─────
 note "=== 6. Cleanup ==="
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null 2>&1
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null 2>&1
 DELETE FROM "InvoiceItem" WHERE "invoiceId" IN (
   SELECT id FROM "Invoice" WHERE "invoiceNumber" LIKE '${PREFIX}-%'
 );

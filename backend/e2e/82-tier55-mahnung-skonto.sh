@@ -22,7 +22,7 @@ source "$SCRIPT_DIR/_lib.sh"
 login
 cleanup_cashbook
 # ───── 0. Wipe prior tier-55 fixtures ─────
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 DELETE FROM "Mahnung" WHERE id LIKE 'e2e00055-%';
 DELETE FROM "VoucherLine" WHERE "voucherId" IN (
   SELECT v.id FROM "Voucher" v
@@ -44,7 +44,7 @@ DELETE FROM "Invoice" WHERE "companyId" = '$COMPANY_ID' AND "invoiceNumber" LIKE
 SQL
 
 # ───── 1. Seed customer ─────
-CUST_ID=$(docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+CUST_ID=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT id FROM \"Customer\" WHERE \"companyId\" = '$COMPANY_ID' LIMIT 1")
 [[ -n "$CUST_ID" ]] || (echo "FATAL: customer not seeded" && exit 1)
 pass "seeded customer: $CUST_ID"
@@ -54,7 +54,7 @@ pass "seeded customer: $CUST_ID"
 fetch_mahnung_pdf() {
   local inv_id="$1"
   local mahn_id="$2"
-  docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+  docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 INSERT INTO "Mahnung" (id, "companyId", "invoiceId", level, "daysOverdue",
   "neueFrist", "mahngebuehr", "verzugszins",
   "totalDue", "recipientEmail", "recipientName", "createdAt")
@@ -124,7 +124,7 @@ echo "$PDF3_TEXT" | grep -q "Skonto-Fenster" \
   || pass "Skonto-still-open invoice has no note"
 
 # ───── 5. Cleanup ─────
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 DELETE FROM "Mahnung" WHERE id LIKE 'e2e00055-%';
 DELETE FROM "Payment" WHERE "invoiceId" IN (
   SELECT id FROM "Invoice" WHERE "companyId" = '$COMPANY_ID' AND "invoiceNumber" LIKE 'Tier55%'

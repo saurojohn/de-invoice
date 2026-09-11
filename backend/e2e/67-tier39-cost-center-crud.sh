@@ -19,7 +19,7 @@ source "$SCRIPT_DIR/_lib.sh"
 login
 cleanup_cashbook
 # Wipe prior Tier 39 fixture rows.
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL
 DELETE FROM "Invoice" WHERE "customerId" IN (SELECT id FROM "Customer" WHERE "name" = 'Tier39 CC Customer' AND "companyId" = '$COMPANY_ID');
 DELETE FROM "Customer" WHERE "name" = 'Tier39 CC Customer' AND "companyId" = '$COMPANY_ID';
 SQL
@@ -147,7 +147,7 @@ EMPTY_CC=$(python3 -c "import json; d=json.load(open('/tmp/t39_inv4.json')); pri
 assert_eq "empty costCenter coerced to null" "$EMPTY_CC" "None"
 
 # ───── Cleanup ─────
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL
 DELETE FROM "Invoice" WHERE "customerId" IN (SELECT id FROM "Customer" WHERE "name" = 'Tier39 CC Customer' AND "companyId" = '$COMPANY_ID');
 DELETE FROM "Customer" WHERE "name" = 'Tier39 CC Customer' AND "companyId" = '$COMPANY_ID';
 SQL

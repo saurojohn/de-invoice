@@ -56,7 +56,7 @@ note "=== Test prefix: $PREFIX ==="
 # Note: invoiceNumber is auto-assigned by the service, so
 # we filter by customer name (which includes the PREFIX) +
 # mandateReference (we'll pass an explicit PREFIX-tagged ref).
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 DELETE FROM "SepaDirectDebitCollection" WHERE "companyId" = '$COMPANY_ID';
 DELETE FROM "SepaDirectDebitBatch"     WHERE "companyId" = '$COMPANY_ID';
 DELETE FROM "SepaDirectDebitMandate"   WHERE "companyId" = '$COMPANY_ID'
@@ -469,7 +469,7 @@ print(m.group(1) if m else 'NONE')
 assert_eq "B2B batch XML LclInstrm" "$B2B_LCL" "B2B"
 
 # Verify the B2B collection's pre-notification deadline is executionDate - 1 day
-DEADLINE_B2B=$(docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+DEADLINE_B2B=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT \"preNotificationDeadline\"::date FROM \"SepaDirectDebitCollection\" WHERE \"batchId\" = '$B2B_BATCH_ID' LIMIT 1")
 EXPECTED_B2B_DEADLINE="2026-07-24"  # 2026-07-25 - 1 day
 assert_eq "B2B pre-notif deadline (execDate - 1)" "$DEADLINE_B2B" "$EXPECTED_B2B_DEADLINE"
@@ -708,7 +708,7 @@ assert_eq "batch list count for prefix" "$BATCH_LIST_COUNT" "2"
 # ───── 17. Cleanup ─────
 echo
 note "=== 17. Cleanup ==="
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 DELETE FROM "SepaDirectDebitCollection" WHERE "companyId" = '$COMPANY_ID';
 DELETE FROM "SepaDirectDebitBatch"     WHERE "companyId" = '$COMPANY_ID'
   AND "notes" LIKE '${PREFIX}%';

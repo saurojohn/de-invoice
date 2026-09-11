@@ -71,7 +71,7 @@ INSERT INTO "Customer" (id, "companyId", name, "customerNumber", "vatId", "addre
 VALUES
   (gen_random_uuid()::text, '$COMPANY_ID', 'ANS Test Kunde', 'ANS-${TS}-DE-1', NULL, '{"country":"Deutschland"}'::jsonb, 30, ARRAY[]::text[], now(), now());
 EOF
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice < "$TMP_SQL"
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice < "$TMP_SQL"
 rm -f "$TMP_SQL"
 CUST_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT id FROM \"Customer\" WHERE \"companyId\"='$COMPANY_ID' AND \"customerNumber\"='ANS-${TS}-DE-1';" \
@@ -96,7 +96,7 @@ echo "  Baseline: K4100=$BASE_K4100 ausgaben=$BASE_TOTAL (4620=$BASE_4620 4660=$
 
 # Add an invoice: 1000 net @ 19% USt → Kz 4100
 INV1_ID="inv-ans-1-$TS"
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<EOF >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<EOF >/dev/null
 INSERT INTO "Invoice" (id, "companyId", "customerId", "invoiceNumber", "type", "status",
                        "issueDate", "subtotal", "totalVat", "total", "currency", "language",
                        "reverseCharge", "euTransaction", "customerName", "createdAt", "updatedAt")
@@ -109,7 +109,7 @@ EOF
 
 # Gutschrift: -200 net (offsets Kz 4100)
 INV2_ID="inv-ans-2-$TS"
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<EOF >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<EOF >/dev/null
 INSERT INTO "Invoice" (id, "companyId", "customerId", "invoiceNumber", "type", "status",
                        "issueDate", "subtotal", "totalVat", "total", "currency", "language",
                        "reverseCharge", "euTransaction", "customerName", "createdAt", "updatedAt")
@@ -125,7 +125,7 @@ EOF
 #  Kfz (4660)            150
 #  Steuerberatung (4700) 200
 #  Sonstiges → 4720      100
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<EOF >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<EOF >/dev/null
 INSERT INTO "Expense" (id, "companyId", "invoiceNumber", description, "invoiceDate",
                        "netAmount", "vatRate", "vatAmount", "grossAmount", category, status,
                        "createdAt", "updatedAt")

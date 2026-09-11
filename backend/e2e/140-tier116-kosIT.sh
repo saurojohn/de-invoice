@@ -71,7 +71,7 @@ fi
 # ───── 1. Setup: 4 invoices ─────
 note "=== 1. Setup: 4 customers + 4 invoices ==="
 # Re-use Tier 115 fixture pattern (PREFIX-based)
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 DELETE FROM "InvoiceItem" WHERE "invoiceId" IN (
   SELECT id FROM "Invoice" WHERE "invoiceNumber" LIKE 'T116-%'
 );
@@ -81,7 +81,7 @@ SQL
 ORIGINAL_ADDRESS=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT address::text FROM \"Company\" WHERE id='$COMPANY_ID';" 2>&1 | tr -d '\n' | head -1)
 cleanup() {
-  docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null 2>&1
+  docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null 2>&1
 DELETE FROM "InvoiceItem" WHERE "invoiceId" IN (
   SELECT id FROM "Invoice" WHERE "invoiceNumber" LIKE 'T116-%'
 );
@@ -92,11 +92,11 @@ SQL
 }
 trap cleanup EXIT
 # Make sure company has a valid address (BR-06)
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "UPDATE \"Company\" SET address='{\"street\":\"Otto-Hahn-Str. 24\",\"city\":\"Dreieich\",\"postalCode\":\"63303\",\"country\":\"Deutschland\"}'::jsonb, \"bankInfo\"='{\"bic\":\"HELADEFFXXX\",\"iban\":\"DE89370400440532013000\",\"bankName\":\"Commerzbank\"}'::jsonb WHERE id='$COMPANY_ID';" >/dev/null
 pass "seeded company address + IBAN"
 
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 INSERT INTO "Customer" (id, "companyId", name, "customerNumber", "vatId", address, "paymentTerms", tags, "createdAt", "updatedAt")
 VALUES
   (gen_random_uuid()::text, '$COMPANY_ID', '${PREFIX} B2B Kunde', 'T116-${TS}-B2B',
@@ -119,7 +119,7 @@ create_invoice() {
   local inv_num="$1" cust_num="$2" skonto_pct="${3:-0}" skonto_days="${4:-0}"
   local cust_id=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
     "SELECT id FROM \"Customer\" WHERE \"customerNumber\"='$cust_num';" 2>&1 | tr -d ' ' | head -1)
-  docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+  docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 INSERT INTO "Invoice" (id, "companyId", "invoiceNumber", type, status, "issueDate", "dueDate",
                        "customerId", subtotal, "totalVat", total, currency, language,
                        "skontoPercent", "skontoDays", "createdAt", "updatedAt")

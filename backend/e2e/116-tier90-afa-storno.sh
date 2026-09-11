@@ -58,7 +58,7 @@ cat > "$TMP_SQL" <<EOF
 INSERT INTO "Asset" (id, "companyId", type, bezeichnung, "anschaffungsDatum", "anschaffungsKosten", "nutzungsdauerMonate", restwert, "afaMethode", "bilanzKonto", notiz, "createdAt", "updatedAt")
 VALUES (gen_random_uuid()::text, '$COMPANY_ID', 'Maschine', 'T90-${TS}-Maschine', '2026-01-01', 6000, 60, 0, 'linear', '0300', NULL, now(), now());
 EOF
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice < "$TMP_SQL"
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice < "$TMP_SQL"
 rm -f "$TMP_SQL"
 ASSET_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT id FROM \"Asset\" WHERE \"companyId\"='$COMPANY_ID' AND bezeichnung='T90-${TS}-Maschine';" \

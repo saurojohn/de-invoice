@@ -24,7 +24,7 @@ source "$SCRIPT_DIR/_lib.sh"
 
 login
 # ───── 0. Wipe prior tier-61 fixtures ─────
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 DELETE FROM "CustomerCreditTransaction" WHERE "companyId" = '$COMPANY_ID'
   AND "description" LIKE 'Tier61-%';
 DELETE FROM "Customer" WHERE "companyId" = '$COMPANY_ID'
@@ -172,7 +172,7 @@ api_get "/api/v1/customers/$CUST_ID/summary"
 assert_status 400 "GET summary without companyId → 400"
 
 # ───── 8. Cleanup ─────
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 DELETE FROM "CustomerCreditTransaction" WHERE "companyId" = '$COMPANY_ID'
   AND "description" LIKE 'Tier61-%';
 SQL

@@ -163,7 +163,19 @@ docker exec "$PG_CONTAINER" psql -U de_invoice -d postgres -c \
 docker exec "$PG_CONTAINER" psql -U de_invoice -d postgres -c \
   "CREATE DATABASE $TEST_DB;" >/dev/null 2>&1
 # Apply the baseline
-DATABASE_URL="postgresql://de_invoice:de_invoice_pass@localhost:5432/$TEST_DB?schema=public" \
+# Tier 357: host:port used to be a hardcoded localhost:5432, so under a
+# throwaway database on another port (backend/scripts/local-ci-stack.sh)
+# `prisma migrate deploy` hit P1001 and 11a-11d failed. Take it from the
+# caller's DATABASE_URL instead. CI sets DATABASE_URL to localhost:5432 at
+# job level, so CI is unchanged; with nothing set it falls back to the old
+# value.
+TEST_DB_HOSTPORT=$(python3 -c "
+import os
+from urllib.parse import urlparse
+u = urlparse(os.environ.get('DATABASE_URL') or 'postgresql://x@localhost:5432/x')
+print(f'{u.hostname or \"localhost\"}:{u.port or 5432}')
+")
+DATABASE_URL="postgresql://de_invoice:de_invoice_pass@${TEST_DB_HOSTPORT}/$TEST_DB?schema=public" \
   npx prisma migrate deploy > /tmp/t41_deploy.txt 2>&1
 DEPLOY_OK=$?
 if [[ $DEPLOY_OK -eq 0 ]]; then
@@ -178,7 +190,7 @@ fi
 # prisma migrate diff doesn't emit
 # GENERATED ALWAYS AS clauses; we
 # have to apply init.sql manually.
-docker exec -i de-invoice-postgres psql -U de_invoice -d $TEST_DB \
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d $TEST_DB \
   < prisma/init.sql > /tmp/t41_init.txt 2>&1
 # Verify the schema
 TABLE_COUNT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d $TEST_DB -tA -c \

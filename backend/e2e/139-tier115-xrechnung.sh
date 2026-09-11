@@ -32,7 +32,7 @@ YEAR=2026
 note "=== Test prefix: $PREFIX / year: $YEAR ==="
 
 # ───── 0. Wipe prior tier-115 fixtures ─────
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 DELETE FROM "InvoiceItem" WHERE "invoiceId" IN (
   SELECT id FROM "Invoice" WHERE "invoiceNumber" LIKE 'T115-%'
 );
@@ -53,7 +53,7 @@ ORIGINAL_SETTINGS=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice
 
 # Cleanup trap
 cleanup() {
-  docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null 2>&1
+  docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null 2>&1
 DELETE FROM "InvoiceItem" WHERE "invoiceId" IN (
   SELECT id FROM "Invoice" WHERE "invoiceNumber" LIKE 'T115-%'
 );
@@ -72,7 +72,7 @@ trap cleanup EXIT
 # a real-ish IBAN. The XRechnung validator
 # (BR-06, BR-16) needs all postal address fields
 # non-empty + a valid IBAN.
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 UPDATE "Company" SET
   address = '{"street":"Otto-Hahn-Str. 24","city":"Dreieich","postalCode":"63303","country":"Deutschland"}'::jsonb,
   "bankInfo" = '{"bic":"HELADEFFXXX","iban":"DE89370400440532013000","bankName":"Commerzbank"}'::jsonb
@@ -86,7 +86,7 @@ note "=== 1. Setup: 4 customers ==="
 # (b) B2B-OSS — Austrian buyer with VAT (intra-EU)
 # (c) B2G — German public body with Leitweg-ID
 # (d) Skonto — Standard B2B (for the Skonto test)
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 INSERT INTO "Customer" (id, "companyId", name, "customerNumber", "vatId", address, "paymentTerms", tags, "createdAt", "updatedAt")
 VALUES
   -- (a) B2B
@@ -126,7 +126,7 @@ create_invoice() {
     vat="190.00"
     total="1190.00"
   fi
-  docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+  docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 INSERT INTO "Invoice" (id, "companyId", "invoiceNumber", type, status, "issueDate", "dueDate",
                        "customerId", subtotal, "totalVat", total, currency, language,
                        "skontoPercent", "skontoDays",
@@ -233,7 +233,7 @@ grep -q "Zahlbar innerhalb von 14 Tagen mit 2.00% Skonto" /tmp/t115-sk.xml \
 note "=== 6. Validation: BR-06 + BR-09 errors on incomplete data ==="
 # Set the company address back to incomplete (city = '')
 # so the validator catches the missing field.
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "UPDATE \"Company\" SET address='{\"street\":\"x\",\"city\":\"\",\"postalCode\":\"12345\",\"country\":\"Deutschland\"}'::jsonb WHERE id='$COMPANY_ID';" >/dev/null
 api_get "/api/v1/invoices/${INV_B2B}/xrechnung/validate?companyId=$COMPANY_ID"
 VAL_OK2=$(json_field "$BODY" "valid")
@@ -244,7 +244,7 @@ HAS_BR06=$(echo "$BODY" | python3 -c "import json,sys;d=json.load(sys.stdin);pri
 test "$HAS_BR06" = "True" && pass "BR-06 error present" \
   || fail "BR-06 error missing"
 # BR-09: missing electronic address — wipe the supplier's VAT/tax IDs
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "UPDATE \"Company\" SET \"vatId\"=NULL, \"taxId\"=NULL, address='{\"street\":\"x\",\"city\":\"x\",\"postalCode\":\"12345\",\"country\":\"Deutschland\"}'::jsonb WHERE id='$COMPANY_ID';" >/dev/null
 api_get "/api/v1/invoices/${INV_B2B}/xrechnung/validate?companyId=$COMPANY_ID"
 HAS_BR09=$(echo "$BODY" | python3 -c "import json,sys;d=json.load(sys.stdin);print(any(e['rule']=='BR-09' for e in d.get('errors',[])))")
@@ -253,7 +253,7 @@ test "$HAS_BR09" = "True" && pass "BR-09 error present (no electronic address)" 
 # BR-1 v2: BuyerReference is mandatory — should always be present (we fall back to customer name)
 
 # Restore company address + IBAN for the rest of the tests
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "UPDATE \"Company\" SET address='{\"street\":\"Otto-Hahn-Str. 24\",\"city\":\"Dreieich\",\"postalCode\":\"63303\",\"country\":\"Deutschland\"}'::jsonb, \"vatId\"='DE308630106', \"bankInfo\"='{\"bic\":\"HELADEFFXXX\",\"iban\":\"DE89370400440532013000\",\"bankName\":\"Commerzbank\"}'::jsonb WHERE id='$COMPANY_ID';" >/dev/null
 
 # ───── 7. Cross-tenant → 401 ─────

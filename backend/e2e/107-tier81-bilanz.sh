@@ -74,7 +74,7 @@ INSERT INTO "Customer" (id, "companyId", name, "customerNumber", "vatId", "addre
 VALUES
   (gen_random_uuid()::text, '$COMPANY_ID', 'BIL Test Kunde', 'BIL-${TS}-DE-1', NULL, '{"country":"Deutschland"}'::jsonb, 30, ARRAY[]::text[], now(), now());
 EOF
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice < "$TMP_SQL"
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice < "$TMP_SQL"
 rm -f "$TMP_SQL"
 CUST_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT id FROM \"Customer\" WHERE \"companyId\"='$COMPANY_ID' AND \"customerNumber\"='BIL-${TS}-DE-1';" \
@@ -132,7 +132,7 @@ echo "  Baseline: 1500=$BASE_1500 1600+1700=$BASE_1600_1700 4000=$BASE_4000 4500
 
 # Add a SENT invoice: 1000 net @ 19% USt → 1500 Forderungen
 INV1_ID="inv-bil-1-$TS"
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<EOF >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<EOF >/dev/null
 INSERT INTO "Invoice" (id, "companyId", "customerId", "invoiceNumber", "type", "status",
                        "issueDate", "subtotal", "totalVat", "total", "currency", "language",
                        "reverseCharge", "euTransaction", "customerName", "createdAt", "updatedAt")
@@ -145,7 +145,7 @@ EOF
 
 # Add a PAID invoice: 500 net @ 19% USt → NOT in 1500 (excluded)
 INV2_ID="inv-bil-2-$TS"
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<EOF >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<EOF >/dev/null
 INSERT INTO "Invoice" (id, "companyId", "customerId", "invoiceNumber", "type", "status",
                        "issueDate", "subtotal", "totalVat", "total", "currency", "language",
                        "reverseCharge", "euTransaction", "customerName", "createdAt", "updatedAt")
@@ -158,7 +158,7 @@ EOF
 
 # Add a DRAFT invoice: 800 net @ 19% USt → NOT in 1500 (excluded)
 INV3_ID="inv-bil-3-$TS"
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<EOF >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<EOF >/dev/null
 INSERT INTO "Invoice" (id, "companyId", "customerId", "invoiceNumber", "type", "status",
                        "issueDate", "subtotal", "totalVat", "total", "currency", "language",
                        "reverseCharge", "euTransaction", "customerName", "createdAt", "updatedAt")
@@ -170,7 +170,7 @@ VALUES (gen_random_uuid()::text, '$INV3_ID', 'Draft', 1, 800, 0.19, 800, 152, 95
 EOF
 
 # Add a BOOKED expense: 300 gross → 4000 Verb. aus L+L
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<EOF >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<EOF >/dev/null
 INSERT INTO "Expense" (id, "companyId", "invoiceNumber", description, "invoiceDate",
                        "netAmount", "vatRate", "vatAmount", "grossAmount", category, status,
                        "createdAt", "updatedAt")
@@ -179,7 +179,7 @@ VALUES
 EOF
 
 # Add a PAID expense: 200 gross → NOT in 4000 (excluded)
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<EOF >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<EOF >/dev/null
 INSERT INTO "Expense" (id, "companyId", "invoiceNumber", description, "invoiceDate",
                        "netAmount", "vatRate", "vatAmount", "grossAmount", category, status,
                        "createdAt", "updatedAt")
@@ -188,7 +188,7 @@ VALUES
 EOF
 
 # Add a customer credit transaction: +150 → 4500 Kundenguthaben
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<EOF >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<EOF >/dev/null
 INSERT INTO "CustomerCreditTransaction" (id, "companyId", "customerId", "amount", "balanceAfter", "type", "description", "createdById", "createdAt")
 VALUES
   (gen_random_uuid()::text, '$COMPANY_ID', '$CUST_ID', 150, 150, 'overpayment', 'BIL-${TS} Gutschrift', '$USER_ID', now());

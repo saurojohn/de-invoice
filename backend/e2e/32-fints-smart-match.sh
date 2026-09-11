@@ -110,7 +110,7 @@ VALUES ('e2e00006-0001-0000-0007-000000000020', '${COMPANY_ID}', '${CUST_ID}', '
  'INV', 'sent', '2026-06-01', '2026-07-01', 2000.00, 380.00, 2380.00, 'EUR', 'de-DE',
  '[{"rate":0.19}]'::jsonb, false, false, 'T6S', 'standard', NULL, '[]', now(), now());
 EOF
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice < /tmp/t32_seed_b.sql >/dev/null 2>&1
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice < /tmp/t32_seed_b.sql >/dev/null 2>&1
 
 # A new BankStatement + BankTransaction for
 # the FX-diff payment. We can't use the
@@ -123,7 +123,7 @@ VALUES ('e2e00006-0001-0000-0007-000000000021', '${COMPANY_ID}', 'fints-mock', '
 INSERT INTO "BankTransaction" (id, "statementId", "companyId", "valueDate", "entryDate", amount, currency, purpose, "endToEndId", "createdAt")
 VALUES ('e2e00006-0001-0000-0007-000000000022', 'e2e00006-0001-0000-0007-000000000021', '${COMPANY_ID}', '2026-06-15', '2026-06-15', 2379.80, 'EUR', 'FX-Rundung E2E-T6S-001', 'MOCK-T6S-fxdiff-001', now());
 EOF
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice < /tmp/t32_seed_b2.sql >/dev/null 2>&1
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice < /tmp/t32_seed_b2.sql >/dev/null 2>&1
 
 api_post "/api/v1/fints/auto-match" "{\"companyId\":\"$COMPANY_ID\"}"
 assert_status 201 "B1. auto-match (with FX diff) returns 201"
@@ -171,7 +171,7 @@ VALUES
   ('e2e00006-0001-0000-0007-000000000031', 'e2e00006-0001-0000-0007-000000000021', '${COMPANY_ID}', '2026-06-15', '2026-06-15', 1000.00, 'EUR', 'Anzahlung 50% E2E-T6S-002', 'MOCK-T6S-anz-001', now()),
   ('e2e00006-0001-0000-0007-000000000032', 'e2e00006-0001-0000-0007-000000000021', '${COMPANY_ID}', '2026-06-15', '2026-06-15', 1000.00, 'EUR', 'Rest 50% E2E-T6S-002', 'MOCK-T6S-anz-002', now());
 EOF
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice < /tmp/t32_seed_c.sql >/dev/null 2>&1
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice < /tmp/t32_seed_c.sql >/dev/null 2>&1
 
 api_post "/api/v1/fints/auto-match" "{\"companyId\":\"$COMPANY_ID\"}"
 assert_status 201 "C1. auto-match (sum-to-invoice) returns 201"
@@ -216,7 +216,7 @@ VALUES ('e2e00006-0001-0000-0007-000000000040', '${COMPANY_ID}', '${CUST_ID}', '
 INSERT INTO "BankTransaction" (id, "statementId", "companyId", "valueDate", "entryDate", amount, currency, purpose, "endToEndId", "createdAt")
 VALUES ('e2e00006-0001-0000-0007-000000000041', 'e2e00006-0001-0000-0007-000000000021', '${COMPANY_ID}', '2026-06-15', '2026-06-15', 593.99, 'EUR', 'Rechnung von Muller GmbH', 'MOCK-T6S-fuzzy-001', now());
 EOF
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice < /tmp/t32_seed_d.sql >/dev/null 2>&1
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice < /tmp/t32_seed_d.sql >/dev/null 2>&1
 
 api_post "/api/v1/fints/auto-match" "{\"companyId\":\"$COMPANY_ID\"}"
 assert_status 201 "D1. auto-match (name fuzzy) returns 201"
@@ -240,7 +240,7 @@ DELETE FROM "FinTSConnection" WHERE "companyId" = '${COMPANY_ID}';
 DELETE FROM "Invoice" WHERE "invoiceNumber" LIKE 'E2E-T6S-%';
 UPDATE "Customer" SET name='Müller GmbH' WHERE id='${CUST_ID}';
 EOF
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice < /tmp/t32_cleanup.sql >/dev/null 2>&1
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice < /tmp/t32_cleanup.sql >/dev/null 2>&1
 note "Cleanup done"
 
 cleanup_cashbook

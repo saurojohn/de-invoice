@@ -66,7 +66,7 @@ note "=== Test prefix: $PREFIX / year: $YEAR / priorYear: $PRIOR_YEAR ==="
 # description to only delete ours.
 api_put "/api/v1/accounting/anlage-so/settings?companyId=$COMPANY_ID" \
   "{\"year\": $YEAR, \"transactions\": [], \"wiederkehrendeBezuege\": 0, \"werbungskosten\": 0}" >/dev/null
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 -- Wipe ALL tier-113 expense fixtures (across all PREFIX
 -- runs) so the importable-expenses count + import count
 -- are deterministic.
@@ -87,7 +87,7 @@ pass "wiped prior tier-113 fixtures"
 # 2 crypto (sonstige) + 1 brokerage (wertpapier).
 # We use direct SQL because the /expenses POST has
 # more required fields than the v2 import needs.
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 INSERT INTO "Expense" (id, "companyId", "invoiceNumber", description, "invoiceDate",
                        "netAmount", "vatRate", "vatAmount", "grossAmount", category,
                        "isIntraEU", "isReverseCharge", status, "createdAt", "updatedAt")
@@ -257,7 +257,7 @@ note "=== 6. Prior-year carryforward: 500 ==="
 # Then PUT $YEAR with gain=200, loss=0 → totalTaxableGain
 # = max(0, 200 - 0 - 500) = 0, carryforward = max(0,
 # 0 + 500 - 200) = 300.
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 UPDATE "Company" SET settings = settings
   || jsonb_build_object('anlageSOLossCarryforward',
        jsonb_build_object('$PRIOR_YEAR'::text, 500::numeric))
@@ -304,7 +304,7 @@ assert_close "inFristGain = 0 (out-of-Frist ignored)" "$GAIN7" "0"
 
 # Reset prior-year carryforward (so it doesn't
 # pollute later tests)
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "UPDATE \"Company\" SET settings = settings || jsonb_build_object('anlageSOLossCarryforward', jsonb_build_object('$PRIOR_YEAR'::text, 0::numeric)) WHERE id = '$COMPANY_ID';" >/dev/null
 
 # ───── 8. CSV import: 4 rows → preview → confirm ─────
@@ -434,7 +434,7 @@ note "=== 11. Expense auto-import: 3 expenses ==="
 # Reset state for a clean import.
 api_put "/api/v1/accounting/anlage-so/settings?companyId=$COMPANY_ID" \
   "{\"year\": $YEAR, \"transactions\": [], \"wiederkehrendeBezuege\": 0, \"werbungskosten\": 0}" >/dev/null
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -c \
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "UPDATE \"Company\" SET settings = settings || jsonb_build_object('anlageSOLossCarryforward', '{}'::jsonb) WHERE id = '$COMPANY_ID';" >/dev/null
 
 # List importable first
@@ -473,7 +473,7 @@ note "=== 13. Berater packager: Kz 99 + Verlustvortrag ==="
 # (Verlustvortrag) line in the response. With no
 # current-year in-Frist activity, carryforward =
 # max(0, 0 + 500 - 0) = 500.
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 UPDATE "Company" SET settings = settings
   || jsonb_build_object('anlageSOLossCarryforward',
        jsonb_build_object('$PRIOR_YEAR'::text, 500::numeric))
@@ -546,7 +546,7 @@ echo
 note "=== 16. Cleanup ==="
 api_put "/api/v1/accounting/anlage-so/settings?companyId=$COMPANY_ID" \
   "{\"year\": $YEAR, \"transactions\": [], \"wiederkehrendeBezuege\": 0, \"werbungskosten\": 0}" >/dev/null
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 DELETE FROM "Expense"
   WHERE "companyId" = '$COMPANY_ID'
     AND description LIKE '${PREFIX}%';

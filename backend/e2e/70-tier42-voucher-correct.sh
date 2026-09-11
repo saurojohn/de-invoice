@@ -26,16 +26,16 @@ source "$SCRIPT_DIR/_lib.sh"
 login
 cleanup_cashbook
 # Wipe Tier-42 fixture Vouchers so the test is hermetic.
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL
 DELETE FROM "VoucherLine" WHERE "voucherId" IN (
   SELECT id FROM "Voucher" WHERE "description" LIKE 'Tier42%' AND "companyId" = '$COMPANY_ID'
 );
 DELETE FROM "Voucher" WHERE "description" LIKE 'Tier42%' AND "companyId" = '$COMPANY_ID';
 SQL
 
-SACHKONTO_4960=$(docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+SACHKONTO_4960=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT id FROM \"Account\" WHERE \"companyId\" = '$COMPANY_ID' AND \"accountNumber\" = '4960' LIMIT 1")
-SACHKONTO_1200=$(docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+SACHKONTO_1200=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT id FROM \"Account\" WHERE \"companyId\" = '$COMPANY_ID' AND \"accountNumber\" = '1200' LIMIT 1")
 echo "4960=$SACHKONTO_4960  1200=$SACHKONTO_1200"
 [ -n "$SACHKONTO_4960" ] && [ -n "$SACHKONTO_1200" ] || (echo "FATAL: SKR03 seed missing" && exit 1)
@@ -137,9 +137,9 @@ echo "=== 5. Original Voucher is unchanged ==="
 # verify via a direct SQL read instead. This is OK because
 # the assertion is about Voucher immutability, not the
 # controller surface.
-ORIG_DEBIT_NOW=$(docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+ORIG_DEBIT_NOW=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT lines.\"debit\" FROM \"VoucherLine\" lines JOIN \"Voucher\" v ON v.id = lines.\"voucherId\" WHERE v.\"id\" = '$ORIG_ID' AND lines.\"sortOrder\" = 0;")
-ORIG_REV_BY=$(docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+ORIG_REV_BY=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT COALESCE(\"reversedById\"::text, 'null') FROM \"Voucher\" WHERE \"id\" = '$ORIG_ID';")
 assert_eq "Original still has debit=1.20" "$ORIG_DEBIT_NOW" "1.2000"
 [ "$ORIG_REV_BY" = "null" ] || (echo "FATAL: original reversedById leaked: $ORIG_REV_BY" && exit 1)
@@ -193,7 +193,7 @@ EMPTY_STATUS=$(cat /tmp/t42_empty_status.txt)
 echo "  ✓ empty lines → 400"
 
 # ───── Cleanup ─────
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL
 DELETE FROM "VoucherLine" WHERE "voucherId" IN (
   SELECT id FROM "Voucher" WHERE "description" LIKE 'Tier42%' AND "companyId" = '$COMPANY_ID'
 );

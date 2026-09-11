@@ -91,7 +91,7 @@ VALUES
   (gen_random_uuid()::text, '$COMPANY_ID', NULL, NULL, 'T92-${TS}-Schuldzinsen Q1', '${TEST_YEAR}-03-15', -1500, 0, 0, -1500, 'Schuldzinsen', false, false, 'booked', 'T92-${TS}-schuldzins test fixture', now(), now()),
   (gen_random_uuid()::text, '$COMPANY_ID', NULL, NULL, 'T92-${TS}-Grundsteuer Q1', '${TEST_YEAR}-04-15', -800, 0, 0, -800, 'Grundsteuer', false, false, 'booked', 'T92-${TS}-grundsteuer test fixture', now(), now());
 EOF
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice < "$TMP_SQL"
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice < "$TMP_SQL"
 rm -f "$TMP_SQL"
 
 # ===== 1. /anlage-v returns the right shape =====
@@ -135,7 +135,7 @@ cat > "$TMP_SQL" <<EOF
 INSERT INTO "Customer" (id, "companyId", name, "customerNumber", address, "createdAt", "updatedAt")
 VALUES (gen_random_uuid()::text, '$COMPANY_ID', 'T92-${TS}-Tenant GmbH', 'T92-${TS}', '{}'::jsonb, now(), now());
 EOF
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice < "$TMP_SQL"
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice < "$TMP_SQL"
 TENANT_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT id FROM \"Customer\" WHERE name='T92-${TS}-Tenant GmbH';" 2>&1 | tr -d ' ' | head -1)
 
@@ -152,7 +152,7 @@ VALUES
   (gen_random_uuid()::text, '$COMPANY_ID', '$TENANT_ID', 'T92-${TS}-INV-1', '${TEST_YEAR}-02-01', '${TEST_YEAR}-02-15', 2000, 380, 2380, 'EUR', 'paid', false, now(), now()),
   (gen_random_uuid()::text, '$COMPANY_ID', '$TENANT_ID', 'T92-${TS}-INV-2', '${TEST_YEAR}-04-01', '${TEST_YEAR}-04-15', 1500, 0, 1500, 'EUR', 'paid', false, now(), now());
 EOF
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice < "$TMP_SQL"
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice < "$TMP_SQL"
 rm -f "$TMP_SQL"
 
 RESP2=$(curl -sS \

@@ -76,7 +76,7 @@ INSERT INTO "Customer" (id, "companyId", name, "customerNumber", "vatId", "addre
 VALUES
   (gen_random_uuid()::text, '$COMPANY_ID', 'BWA Test Kunde', 'BWA-${TS}-DE-1', NULL, '{"country":"Deutschland"}'::jsonb, 30, ARRAY[]::text[], now(), now());
 EOF
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice < "$TMP_SQL"
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice < "$TMP_SQL"
 rm -f "$TMP_SQL"
 CUST_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT id FROM \"Customer\" WHERE \"companyId\"='$COMPANY_ID' AND \"customerNumber\"='BWA-${TS}-DE-1';" \
@@ -123,7 +123,7 @@ echo "  Baseline YTD: umsatz=$BASE_UMSATZ_YTD material=$BASE_MAT_YTD personal=$B
 
 # Seed an invoice: 1000 net @ 19% USt → 1000 to Umsatzerlöse YTD (date in May, BWA month=June)
 INV1_ID="inv-bwa-1-$TS"
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<EOF >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<EOF >/dev/null
 INSERT INTO "Invoice" (id, "companyId", "customerId", "invoiceNumber", "type", "status",
                        "issueDate", "subtotal", "totalVat", "total", "currency", "language",
                        "reverseCharge", "euTransaction", "customerName", "createdAt", "updatedAt")
@@ -135,7 +135,7 @@ EOF
 
 # Seed an invoice in May: 500 net → goes to YTD only
 INV2_ID="inv-bwa-2-$TS"
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<EOF >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<EOF >/dev/null
 INSERT INTO "Invoice" (id, "companyId", "customerId", "invoiceNumber", "type", "status",
                        "issueDate", "subtotal", "totalVat", "total", "currency", "language",
                        "reverseCharge", "euTransaction", "customerName", "createdAt", "updatedAt")
@@ -146,7 +146,7 @@ VALUES (gen_random_uuid()::text, '$INV2_ID', 'Wartung', 1, 500, 0.19, 500, 95, 5
 EOF
 
 # Seed expenses: Material 300 (5a), Personal 400 (6a), Schuldzins 100 (13)
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<EOF >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<EOF >/dev/null
 INSERT INTO "Expense" (id, "companyId", "invoiceNumber", description, "invoiceDate",
                        "netAmount", "vatRate", "vatAmount", "grossAmount", category, status,
                        "createdAt", "updatedAt")

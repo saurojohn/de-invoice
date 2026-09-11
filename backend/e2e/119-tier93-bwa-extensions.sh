@@ -90,7 +90,7 @@ VALUES
   (gen_random_uuid()::text, '$COMPANY_ID', NULL, NULL, 'T93-${TS}-Schuldzins',     '${TEST_YEAR}-${TEST_MONTH}-25', -180,  0, 0, -180,  'Schuldzins',    false, false, 'booked', 'T93-${TS}-schuldzins fixture',    now(), now()),
   (gen_random_uuid()::text, '$COMPANY_ID', NULL, NULL, 'T93-${TS}-Sonstiges',      '${TEST_YEAR}-${TEST_MONTH}-28', -250,  0, 0, -250,  'Sonstiges',     false, false, 'booked', 'T93-${TS}-sonstiges fixture',     now(), now());
 EOF
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice < "$TMP_SQL"
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice < "$TMP_SQL"
 rm -f "$TMP_SQL"
 echo "  seeded 8 expenses for ${TEST_YEAR}-${TEST_MONTH} covering all 7 new buckets + 3600 catchall"
 

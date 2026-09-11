@@ -33,7 +33,7 @@ source "$SCRIPT_DIR/_lib.sh"
 login
 cleanup_cashbook
 # ───── 0. Wipe prior tier-65 fixtures ─────
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 DELETE FROM "Mahnungspause" WHERE "companyId" = '$COMPANY_ID' AND reason = 'Ratenplan aktiv';
 DELETE FROM "Installment" WHERE "planId" IN (SELECT id FROM "InstallmentPlan" WHERE "companyId" = '$COMPANY_ID' AND notes = 'Ratenplan-Vorschlag');
 DELETE FROM "InstallmentPlan" WHERE "companyId" = '$COMPANY_ID' AND notes = 'Ratenplan-Vorschlag';
@@ -174,7 +174,7 @@ rm -f "$TMP5"
 # ───── 6. Cleanup ─────
 echo
 note "=== 6. cleanup ==="
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 DELETE FROM "Mahnungspause" WHERE "companyId" = '$COMPANY_ID' AND reason = 'Ratenplan aktiv';
 DELETE FROM "Installment" WHERE "planId" IN (SELECT id FROM "InstallmentPlan" WHERE "companyId" = '$COMPANY_ID' AND notes = 'Ratenplan-Vorschlag');
 DELETE FROM "InstallmentPlan" WHERE "companyId" = '$COMPANY_ID' AND notes = 'Ratenplan-Vorschlag';

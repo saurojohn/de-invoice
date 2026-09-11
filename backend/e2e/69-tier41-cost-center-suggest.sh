@@ -23,7 +23,7 @@ login
 cleanup_cashbook
 # Wipe Tier-41 fixture Vouchers so the suggestion ranking
 # starts fresh.
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL
 DELETE FROM "VoucherLine" WHERE "voucherId" IN (SELECT id FROM "Voucher" WHERE "description" LIKE 'Tier41%' AND "companyId" = '$COMPANY_ID');
 DELETE FROM "Voucher"     WHERE "description" LIKE 'Tier41%' AND "companyId" = '$COMPANY_ID';
 SQL
@@ -34,9 +34,9 @@ SQL
 # 4960 was an old label that's been mapped to 4900/4960/4980
 # depending on subtype. The behaviour being tested here is
 # the *groupBy+history* logic, not the specific account number.
-SACHKONTO_4960=$(docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+SACHKONTO_4960=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT id FROM \"Account\" WHERE \"companyId\" = '$COMPANY_ID' AND \"accountNumber\" = '4960' LIMIT 1")
-COUNTERPART=$(docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+COUNTERPART=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT id FROM \"Account\" WHERE \"companyId\" = '$COMPANY_ID' AND \"accountNumber\" = '1200' LIMIT 1")
 echo "sachkonto 4960: $SACHKONTO_4960  bank 1200: $COUNTERPART"
 [ -n "$SACHKONTO_4960" ] || (echo "FATAL: Sachkonto 4960 not seeded" && exit 1)
@@ -83,7 +83,7 @@ echo "=== 1. POST /vouchers stamped costCenter + costObject on VoucherLine ==="
 # Look up the most recent voucher's lines via a fresh GET
 # (some services expose GET /vouchers/:id; if not, hit SQL
 # directly to verify).
-LINE_COUNT_CC=$(docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice -t -A -c \
+LINE_COUNT_CC=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT COUNT(*) FROM \"VoucherLine\" vl JOIN \"Voucher\" v ON v.id = vl.\"voucherId\" WHERE v.\"description\" LIKE 'Tier41%' AND v.\"companyId\" = '$COMPANY_ID' AND vl.\"costCenter\" IS NOT NULL;")
 [ "$LINE_COUNT_CC" -eq 3 ] || (echo "FATAL: expected 3 non-null costCenter rows, got $LINE_COUNT_CC" && exit 1)
 echo "  3 lines have non-null costCenter ✓"
@@ -152,7 +152,7 @@ STATUS=$(curl -sS -o /dev/null -w "%{http_code}" \
 echo "  suggest route still reachable (HTTP $STATUS) ✓"
 
 # ───── Cleanup ─────
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL
 DELETE FROM "VoucherLine" WHERE "voucherId" IN (SELECT id FROM "Voucher" WHERE "description" LIKE 'Tier41%' AND "companyId" = '$COMPANY_ID');
 DELETE FROM "Voucher"     WHERE "description" LIKE 'Tier41%' AND "companyId" = '$COMPANY_ID';
 SQL

@@ -109,7 +109,7 @@ INSERT INTO "Customer" (id, "companyId", name, "customerNumber", "vatId", "addre
 VALUES
   (gen_random_uuid()::text, '$COMPANY_ID', 'GUV Test Kunde', 'GUV-${TS}-DE-1', NULL, '{"country":"Deutschland"}'::jsonb, 30, ARRAY[]::text[], now(), now());
 EOF
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice < "$TMP_SQL"
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice < "$TMP_SQL"
 rm -f "$TMP_SQL"
 CUST_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT id FROM \"Customer\" WHERE \"companyId\"='$COMPANY_ID' AND \"customerNumber\"='GUV-${TS}-DE-1';" \
@@ -193,7 +193,7 @@ echo "  Baseline: umsatz=$BASE_UMSATZ 4-sonst=$BASE_SONST_ERTR material=$BASE_MA
 INV1_ID="inv-guv-1-$TS"
 INV2_ID="inv-guv-2-$TS"
 INV3_ID="inv-guv-3-$TS"
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<EOF >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<EOF >/dev/null
 INSERT INTO "Invoice" (id, "companyId", "customerId", "invoiceNumber", "type", "status",
                        "issueDate", "subtotal", "totalVat", "total", "currency", "language",
                        "reverseCharge", "euTransaction", "customerName", "createdAt", "updatedAt")
@@ -216,7 +216,7 @@ EOF
 #  Personal (6a)  500
 #  Schuldzins (13) 100
 #  Miete (8 sonstige) 200
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<EOF >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<EOF >/dev/null
 INSERT INTO "Expense" (id, "companyId", "invoiceNumber", description, "invoiceDate",
                        "netAmount", "vatRate", "vatAmount", "grossAmount", category, status,
                        "createdAt", "updatedAt")
@@ -228,7 +228,7 @@ VALUES
 EOF
 
 # Add a positive customer credit: +250 (sonstige betr. Erträge)
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<EOF >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<EOF >/dev/null
 INSERT INTO "CustomerCreditTransaction" (id, "companyId", "customerId", "amount", "balanceAfter", "type", "description", "createdById", "createdAt")
 VALUES
   (gen_random_uuid()::text, '$COMPANY_ID', '$CUST_ID', 250, 250, 'overpayment', 'GUV-${TS} Gutschrift-Überhang', '$USER_ID', now());

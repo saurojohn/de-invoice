@@ -35,7 +35,7 @@ cleanup_cashbook
 SECOND_COMPANY_ID="tier66-second-company-id"
 
 # ───── 0. Wipe prior tier-66 fixtures ─────
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 DELETE FROM "UserCompany" WHERE "companyId" = '$SECOND_COMPANY_ID';
 DELETE FROM "Company" WHERE id = '$SECOND_COMPANY_ID';
 SQL
@@ -69,7 +69,7 @@ rm -f "$TMP2"
 # ───── 3. Create a second company + grant access ─────
 echo
 note "=== 3. create second Mandant + grant access ==="
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 INSERT INTO "Company" (id, name, "legalName", address, "defaultPaymentDays", "createdAt", "updatedAt")
 VALUES ('$SECOND_COMPANY_ID', 'Tier66 Second GmbH', 'TestGmbH', '{}'::jsonb, 30, NOW(), NOW());
 
@@ -113,7 +113,7 @@ assert_eq "non-granted 403" "$STATUS" "403"
 echo
 note "=== 6. x-company-id = second (no grant) → 401 ==="
 # Remove the second Mandant grant for the test user.
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 DELETE FROM "UserCompany" WHERE "userId" = '$USER_ID' AND "companyId" = '$SECOND_COMPANY_ID';
 SQL
 pass "removed second Mandant grant (for cross-tenant test)"
@@ -138,7 +138,7 @@ assert_eq "SH Leder still 200" "$SH_LEDER_STATUS" "200"
 # ───── 7. Cleanup ─────
 echo
 note "=== 7. cleanup ==="
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 DELETE FROM "UserCompany" WHERE "companyId" = '$SECOND_COMPANY_ID';
 DELETE FROM "Company" WHERE id = '$SECOND_COMPANY_ID';
 SQL

@@ -43,7 +43,7 @@ DELETE FROM "Invoice" WHERE "invoiceNumber" LIKE 'E2E-T9-%';
 DELETE FROM "FinTSSyncRun" WHERE "companyId" = '${COMPANY_ID}';
 DELETE FROM "FinTSConnection" WHERE "companyId" = '${COMPANY_ID}';
 EOF
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice < /tmp/t36_cleanup.sql >/dev/null 2>&1
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice < /tmp/t36_cleanup.sql >/dev/null 2>&1
 
 # Seed 3 reconciliations with different confidences
 CUST_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
@@ -76,7 +76,7 @@ VALUES
   ('e2e00009-0001-0000-0007-000000000031', 'e2e00009-0001-0000-0007-000000000021', 'e2e00009-0001-0000-0007-000000000011', '${COMPANY_ID}', 595.00, 'suggested', 80, 'Betrag exakt + IBAN stimmt', now(), now()),
   ('e2e00009-0001-0000-0007-000000000032', 'e2e00009-0001-0000-0007-000000000022', 'e2e00009-0001-0000-0007-000000000012', '${COMPANY_ID}', 952.00, 'suggested', 50, 'Betrag exakt (keine weitere Korrelation)', now(), now());
 EOF
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice < /tmp/t36_seed.sql >/dev/null 2>&1
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice < /tmp/t36_seed.sql >/dev/null 2>&1
 
 # ===== 1. List all reconciliations (default: suggested+confirmed) =====
 api_get "/api/v1/bank-statements/reconciliations?companyId=$COMPANY_ID"
@@ -149,12 +149,12 @@ COUNT=$(echo "$BODY" | python3 -c "import json,sys; print(len(json.load(sys.stdi
 assert_eq "7d. default = 2 (1 suggested + 1 confirmed)" "$COUNT" "2"
 
 # ----- Cleanup -----
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice < /tmp/t36_cleanup.sql >/dev/null 2>&1
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice < /tmp/t36_cleanup.sql >/dev/null 2>&1
 cat > /tmp/t36_cleanup2.sql << EOF
 DELETE FROM "Invoice" WHERE "invoiceNumber" LIKE 'E2E-T9-%';
 DELETE FROM "BankStatement" WHERE id = 'e2e00009-0001-0000-0007-000000000099';
 EOF
-docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice < /tmp/t36_cleanup2.sql >/dev/null 2>&1
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice < /tmp/t36_cleanup2.sql >/dev/null 2>&1
 note "Cleanup done"
 
 cleanup_cashbook
