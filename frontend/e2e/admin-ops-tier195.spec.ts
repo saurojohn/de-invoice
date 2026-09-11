@@ -195,84 +195,91 @@ test.describe("Tier 195 — Admin: backup restore-drill", () => {
   test("4. restore-drill on a backup with a real db.sql.gz works", async ({
     request,
   }) => {
-    // List available backups and find one with a
-    // non-empty db.sql.gz. We probe via the
-    // :id/verify endpoint which is the canonical
-    // way to ask "is this backup usable?".
-    const list = await request.get(
-      "http://localhost:3001/api/v1/admin/backups",
-      {
-        headers: {
-          "x-user-id": tokens!.userId,
-          "x-company-id": tokens!.companyId,
-        },
-      },
-    )
-    const listBody = await list.json()
-    const items = (listBody?.items || []) as Array<{ id: string; isComplete: boolean; dbFile: string | null }>
-    // Find a backup with a dbFile present and
-    // non-zero size. We can't read the file
-    // directly from the e2e (it lives in the
-    // host filesystem outside the browser context),
-    // but the API tells us hasDb via isComplete.
-    const usable = items.find(
-      (b) => b.isComplete && b.dbFile && b.id,
-    )
+    // Tier 365: this used to skip whenever no backup with a db.sql.gz existed,
+    // which is always the case on a fresh CI runner — so the restore drill
+    // (the path Tier 359 changed to pick the newest COMPLETE backup) never ran
+    // in CI. When the backup root is clearly a throwaway — CI, or under /tmp
+    // as with backend/scripts/local-ci-stack.sh — create a backup first and
+    // delete it again. Anywhere else the root may be a developer's real backup
+    // directory (Tier 358 wrote a test dump into one), so skip there.
+    test.setTimeout(240_000)
+    const headers = {
+      "x-user-id": tokens!.userId,
+      "x-company-id": tokens!.companyId,
+    }
+    type BackupItem = { id: string; isComplete: boolean; dbFile: string | null }
+    const listBackups = async () => {
+      const res = await request.get("http://localhost:3001/api/v1/admin/backups", { headers })
+      expect(res.status(), "GET /admin/backups").toBe(200)
+      return res.json()
+    }
+    const findUsable = (body: { items?: BackupItem[] }) =>
+      (body?.items || []).find((b) => b.isComplete && b.dbFile && b.id)
+
+    let listBody = await listBackups()
+    let usable = findUsable(listBody)
+    let createdId: string | null = null
     if (!usable) {
-      test.skip(
-        true,
-        "no usable backup with db.sql.gz — run a backup first",
+      const root = String(listBody?.backupRoot || "")
+      if (!process.env.CI && !root.startsWith("/tmp/")) {
+        test.skip(
+          true,
+          `no backup with db.sql.gz, and ${root} may be a real backup directory — not creating one outside CI`,
+        )
+        return
+      }
+      const run = await request.post("http://localhost:3001/api/v1/admin/backups/run", {
+        headers,
+        data: {},
+        timeout: 200_000,
+      })
+      expect(run.status(), "POST /admin/backups/run").toBe(200)
+      const runBody = await run.json()
+      expect(runBody.success, `backup.sh failed:\n${String(runBody.log || "").slice(-600)}`).toBe(true)
+      createdId = runBody.id
+      listBody = await listBackups()
+      usable = findUsable(listBody)
+      expect(usable, "the backup just created contains db.sql.gz").toBeTruthy()
+    }
+
+    try {
+      const res = await request.post(
+        `http://localhost:3001/api/v1/admin/backups/restore-drill?companyId=${tokens!.companyId}`,
+        { headers, timeout: 200_000 },
       )
-      return
+      expect(res.status(), "drill endpoint should always 200 (ok=true|false)").toBe(200)
+      const body = await res.json()
+      expect(body.dbName, "drill should target the throwaway DB").toBe(
+        "de_invoice_restore_drill",
+      )
+      expect(typeof body.durationMs).toBe("number")
+      if (createdId) {
+        // A backup taken from the live test database a moment ago has to
+        // restore; ok=false here is a real failure, not "the drill did its job".
+        expect(body.ok, `drill of a fresh backup failed: ${body.error}`).toBe(true)
+      }
+      if (body.ok) {
+        expect(
+          body.tableCount,
+          "ok=true must come with a non-zero table count",
+        ).toBeGreaterThan(0)
+      } else {
+        // ok=false is a valid result for an OLD backup — it was readable but
+        // the restore surfaced a real problem. The drill is doing its job.
+        expect(body.error, "ok=false must come with an error message").toBeTruthy()
+      }
+      // The throwaway DB must be dropped before the drill returns: a second
+      // drill has to be able to CREATE DATABASE again.
+      const res2 = await request.post(
+        `http://localhost:3001/api/v1/admin/backups/restore-drill?companyId=${tokens!.companyId}`,
+        { headers, timeout: 200_000 },
+      )
+      expect([200, 500]).toContain(res2.status())
+    } finally {
+      if (createdId) {
+        await request.delete(`http://localhost:3001/api/v1/admin/backups/${createdId}`, { headers })
+      }
     }
-    const res = await request.post(
-      `http://localhost:3001/api/v1/admin/backups/restore-drill?companyId=${tokens!.companyId}`,
-      {
-        headers: {
-          "x-user-id": tokens!.userId,
-          "x-company-id": tokens!.companyId,
-        },
-      },
-    )
-    expect(res.status(), "drill endpoint should always 200 (ok=true|false)").toBe(200)
-    const body = await res.json()
-    expect(body.dbName, "drill should target the throwaway DB").toBe(
-      "de_invoice_restore_drill",
-    )
-    expect(typeof body.durationMs).toBe("number")
-    if (body.ok) {
-      expect(
-        body.tableCount,
-        "ok=true must come with a non-zero table count",
-      ).toBeGreaterThan(0)
-    } else {
-      // ok=false is also a valid result — the
-      // backup was readable but the restore
-      // surfaced a real problem. The drill is
-      // doing its job.
-      expect(body.error, "ok=false must come with an error message").toBeTruthy()
-    }
-    // Critically: the throwaway DB must be
-    // dropped before we return. Verify by
-    // checking with a quick follow-up drill
-    // (a second drill should succeed in CREATE
-    // DATABASE — if the previous DB leaked, this
-    // would fail).
-    const res2 = await request.post(
-      `http://localhost:3001/api/v1/admin/backups/restore-drill?companyId=${tokens!.companyId}`,
-      {
-        headers: {
-          "x-user-id": tokens!.userId,
-          "x-company-id": tokens!.companyId,
-        },
-      },
-    )
-    // We expect this second drill to either
-    // succeed (the DB was dropped) or 500 with
-    // a CREATE DATABASE error (the DB leaked).
-    // We assert it doesn't hang and doesn't
-    // return 200 with a stale dbName.
-    expect([200, 500]).toContain(res2.status())
   })
 
   test("5. backup list returns the standard envelope", async ({ request }) => {

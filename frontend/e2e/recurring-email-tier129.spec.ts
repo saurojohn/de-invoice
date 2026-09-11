@@ -42,14 +42,49 @@ test.describe('Tier 129 — Recurring invoice auto-email', () => {
     await expect(checkbox).toBeChecked()
   })
 
-  test('unchecking the checkbox persists sendEmail=false on save', async () => {
-    // This test creates a fresh template, unchecks the
-    // email option, and saves it. The backend should
-    // store sendEmail=false. We then re-fetch and
-    // confirm the field is still false.
-    // (Skipped by default to keep the suite idempotent —
-    // uncomment locally to run end-to-end.)
-    test.skip(true, 'idempotency: see Tier 129 manual run for verification path')
+  test('unchecking the checkbox persists sendEmail=false on save', async ({ page, request }) => {
+    // Tier 365: this test was an unconditional skip ("keep the suite
+    // idempotent") since Tier 129 — and it would have failed: create() and
+    // update() in recurring.service.ts never wrote sendEmail, so the column's
+    // default `true` stood and unchecking the box did nothing. It now creates
+    // its own template through the form and deletes it afterwards.
+    const headers = { 'x-user-id': USER_ID, 'x-company-id': COMPANY_ID }
+    const name = `Tier 365 ohne E-Mail ${Date.now()}`
+    await page.goto('/dashboard/recurring-invoices')
+    await expect(page.locator('h1').first()).toBeVisible({ timeout: 30_000 })
+    await page.waitForFunction(() => document.readyState === 'complete', { timeout: 30_000 })
+    await page.waitForTimeout(500)
+    await page.getByTestId('recurring-new-button').click()
+    await page.getByTestId('recurring-form-name').fill(name)
+    // BWA Test Kunde from ci-seed.sh
+    await page.getByTestId('recurring-form-customer').selectOption('b3f7b274-7696-44b8-9345-8bfd460b3e47')
+    await page.getByTestId('recurring-item-description').first().fill('Tier 365 Wartung')
+    await page.getByTestId('recurring-item-unit-price').first().fill('100')
+    const checkbox = page.getByTestId('recurring-form-send-email')
+    await expect(checkbox).toBeChecked()
+    await checkbox.uncheck()
+    await expect(checkbox).not.toBeChecked()
+
+    const created = page.waitForResponse(
+      (r) => r.request().method() === 'POST' && /\/api\/v1\/recurring-invoices\?/.test(r.url()),
+    )
+    await page.getByTestId('recurring-form-save').click()
+    const res = await created
+    expect([200, 201], `create failed: ${await res.text()}`).toContain(res.status())
+    const tpl = await res.json()
+    try {
+      const get = await request.get(
+        `http://localhost:3001/api/v1/recurring-invoices/${tpl.id}?companyId=${COMPANY_ID}`,
+        { headers },
+      )
+      expect(get.status()).toBe(200)
+      expect((await get.json()).sendEmail, 'sendEmail stored for the new template').toBe(false)
+    } finally {
+      await request.delete(
+        `http://localhost:3001/api/v1/recurring-invoices/${tpl.id}?companyId=${COMPANY_ID}`,
+        { headers },
+      )
+    }
   })
 
   test('mobile 375x667: no horizontal overflow on recurring form', async ({ page }) => {

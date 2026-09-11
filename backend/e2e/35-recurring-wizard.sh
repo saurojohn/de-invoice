@@ -28,6 +28,9 @@ assert_status 201 "1. create recurring template (201)"
 TPL_ID=$(echo "$BODY" | python3 -c "import json,sys; print(json.load(sys.stdin)['id'])")
 NAME=$(echo "$BODY" | python3 -c "import json,sys; print(json.load(sys.stdin)['name'])")
 assert_eq "1b. name persisted" "$NAME" "E2E Wartung 2026"
+# Tier 365: sendEmail was never written by create()/update(); the column's
+# default stood. Without a value in the body it must still default to true.
+assert_eq "1c. sendEmail defaults to true" "$(json_field "$BODY" sendEmail)" "True"
 
 # ===== 2. List =====
 api_get "/api/v1/recurring-invoices?companyId=$COMPANY_ID"
@@ -54,6 +57,11 @@ api_put "/api/v1/recurring-invoices/$TPL_ID?companyId=$COMPANY_ID" "{\"name\":\"
 assert_status 200 "5. update template (200)"
 NEW_INTERVAL=$(echo "$BODY" | python3 -c "import json,sys; print(json.load(sys.stdin)['interval'])")
 assert_eq "5b. interval updated to quarterly" "$NEW_INTERVAL" "quarterly"
+# Tier 365: unchecking "Rechnung an Kunden senden" must stick.
+api_put "/api/v1/recurring-invoices/$TPL_ID?companyId=$COMPANY_ID" '{"sendEmail":false}'
+assert_status 200 "5c. update sendEmail=false (200)"
+api_get "/api/v1/recurring-invoices/$TPL_ID?companyId=$COMPANY_ID"
+assert_eq "5d. sendEmail persisted as false" "$(json_field "$BODY" sendEmail)" "False"
 
 # ===== 6. Run now =====
 api_post "/api/v1/recurring-invoices/$TPL_ID/run?companyId=$COMPANY_ID" "{\"companyId\":\"$COMPANY_ID\"}"

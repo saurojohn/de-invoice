@@ -52,6 +52,11 @@ export interface RecurringInput {
   language?: string;
   notes?: string | null;
   invoiceStatus?: 'draft' | 'sent';
+  // Tier 365: e-mail the generated invoice to the customer. The form has
+  // always sent this flag (Tier 129), but create() and update() never wrote
+  // it, so the column's default `true` stood and unchecking the box did
+  // nothing — every generated invoice was still e-mailed.
+  sendEmail?: boolean;
   items: {
     description: string;
     productNumber?: string | null;
@@ -240,6 +245,7 @@ export class RecurringService {
         language: input.language ?? 'de-DE',
         notes: input.notes ?? null,
         invoiceStatus: input.invoiceStatus ?? 'draft',
+        sendEmail: input.sendEmail ?? true,
         // Tier 153: time-bounded pause. NULL by
         // default — the UI uses a separate "Pause
         // bis" modal to set this.
@@ -443,6 +449,7 @@ export class RecurringService {
         language: patch.language ?? undefined,
         notes: patch.notes === undefined ? undefined : patch.notes,
         invoiceStatus: patch.invoiceStatus ?? undefined,
+        sendEmail: patch.sendEmail ?? undefined,
         isActive: patch.isActive ?? undefined,
         // Tier 153: explicit null clears the
         // pause-by-date. The frontend uses

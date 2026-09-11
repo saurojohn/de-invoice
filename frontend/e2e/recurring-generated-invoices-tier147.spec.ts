@@ -269,19 +269,43 @@ test.describe('Tier 147 — Recurring generated invoices', () => {
     expect(href).toMatch(/^\/dashboard\/invoices\//)
   })
 
-  test('the empty state shows when the template has no generations', async () => {
-    // We need a second template with no generations.
-    // Use the global-setup fixture 'tier136-tpl-001'
-    // for the positive path; for the empty state we
-    // can create a throwaway template via raw SQL...
-    // but that's fragile. Instead, just check the
-    // backend endpoint with a known-empty template
-    // (id doesn't exist, so we can just check the
-    // generated path with a take=0 query? no, that
-    // returns empty rows not 0). Skip the UI empty-
-    // state test — the backend covers the no-rows
-    // case via the rows.length assertion below.
-    test.skip(true, 'empty-state UI test skipped — covered by backend response shape test')
+  test('the empty state shows when the template has no generations', async ({ page }) => {
+    // Tier 365: this was an unconditional skip ("creating a throwaway template
+    // via raw SQL is fragile"). The API creates one cleanly: a template that
+    // starts in 2099 has never generated anything, so its Verlauf modal must
+    // show the empty state instead of the table. Deleted again afterwards.
+    const headers = { 'x-user-id': USER_ID, 'x-company-id': COMPANY_ID, 'Content-Type': 'application/json' }
+    const name = `Tier 365 ohne Verlauf ${Date.now()}`
+    const createRes = await fetch(`${API_BASE}/api/v1/recurring-invoices?companyId=${COMPANY_ID}`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        name,
+        customerId: CUSTOMER_ID,
+        interval: 'monthly',
+        startDate: '2099-01-01',
+        sendEmail: false,
+        items: [{ description: 'Tier 365 leer', quantity: 1, unitPrice: 10, vatRate: 0.19 }],
+      }),
+    })
+    expect([200, 201], `create failed: ${await createRes.clone().text()}`).toContain(createRes.status)
+    const tpl = await createRes.json()
+    try {
+      await page.goto('/dashboard/recurring-invoices')
+      await page.waitForFunction(() => document.readyState === 'complete', { timeout: 30_000 })
+      await page.waitForTimeout(500)
+      const card = page.locator(`[data-testid="recurring-card"][data-recurring-name="${name}"]`)
+      await expect(card).toBeVisible({ timeout: 30_000 })
+      await card.locator('[data-testid="recurring-generated-invoices"]').click()
+      await expect(page.getByTestId('recurring-generated-modal')).toBeVisible({ timeout: 30_000 })
+      await expect(page.getByTestId('recurring-generated-empty')).toBeVisible({ timeout: 30_000 })
+      await expect(page.getByTestId('recurring-generated-table')).toHaveCount(0)
+    } finally {
+      await fetch(`${API_BASE}/api/v1/recurring-invoices/${tpl.id}?companyId=${COMPANY_ID}`, {
+        method: 'DELETE',
+        headers,
+      })
+    }
   })
 
   test('backend: the endpoint returns the expected response shape', async () => {

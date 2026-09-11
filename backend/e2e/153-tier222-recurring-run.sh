@@ -53,6 +53,9 @@ if [[ -z "$TEMPLATE_ID" ]]; then
   exit 1
 fi
 pass "recurring template created: $TEMPLATE_ID"
+# Tier 365: the body above sends "sendEmail":false; create() used to drop it.
+TPL_SEND_EMAIL=$(echo "$RECURRING_RESP" | python3 -c "import sys,json;print(json.load(sys.stdin).get('sendEmail'))")
+assert_eq "template stores sendEmail=false from the create body" "$TPL_SEND_EMAIL" "False"
 
 # ========== Test 1: First run ==========
 api_post "/api/v1/recurring-invoices/$TEMPLATE_ID/run?companyId=$COMPANY_ID" ""

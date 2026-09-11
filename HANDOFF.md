@@ -20,8 +20,10 @@ exact commands + docs you need to be productive.
 - **Test counts (last green CI, run 34617401242 / commit `843f9bf`, Tier 364):**
   - Backend e2e: **169 passed / 0 failed** — 100 two-digit + 69 three-digit
     specs; before Tier 361 only the two-digit ones ever ran. `QUARANTINE` empty.
-  - Playwright: **908 passed / 0 failed / 4 skipped** (3 deliberate skips +
-    `admin-ops-tier195` 4, which needs a backup with `db.sql.gz`)
+  - Playwright: **908 passed / 0 failed / 4 skipped** at the last full CI run before Tier 365.
+    Tier 365 turned those 4 skips into real tests (locally: 50 passed / 0 skipped
+    across them and every `recurring*` spec); the next full CI run should show
+    0 skipped.
   - `tsc --noEmit` and `eslint . --max-warnings 0` clean, backend + frontend
 - **CI runs again.** The Tier 363 push (run 34610316607) was never started —
   GitHub: "recent account payments have failed or your spending limit needs
@@ -855,6 +857,45 @@ frontend started twice, then `down` → no listener, no `next dev`/`next-server`
 container, no token file; `up` twice replaces its own backend; a full `run` (169 passed /
 0 failed, spec 20 restarts the backend) followed by `down` leaves nothing behind.
 
+### Recurring "send e-mail" was never saved; the last four Playwright skips (Tier 365)
+
+**Product bug.** The recurring-template form has sent `sendEmail` since Tier
+129, but `RecurringInput` had no such field and `recurring.service.ts`
+`create()` / `update()` never wrote it. The column defaults to `true`, so
+**unchecking "Rechnung an Kunden senden" did nothing — every generated invoice
+was still e-mailed to the customer.** (Clone copies the flag, so clones were
+`true` too.) Now persisted on create (default `true`) and update; the form's
+`openCreate` also resets the checkbox, which only became necessary once a
+template could actually store `false`. Covered by `35-recurring-wizard.sh`
+(default + update), `153-tier222-recurring-run.sh` (create body) and the
+Playwright test below. **Existing templates cannot be repaired automatically**
+— see §9.
+
+The test that would have caught it was one of the four remaining Playwright
+skips. All four hid coverage:
+- `recurring-email-tier129` "unchecking the checkbox persists sendEmail=false":
+  an empty body with `test.skip(true, …)` since Tier 129. Now creates a
+  template through the form, unchecks, saves, reads it back via the API and
+  deletes it.
+- `recurring-generated-invoices-tier147` empty state: skipped as "fragile".
+  Creates a 2099 template via the API, opens its Verlauf modal, expects
+  `recurring-generated-empty`, deletes it.
+- `vies-batch-tier134` "start button runs the batch": `test.skip` for the real
+  VIES per-member-state rate limit. Under `VIES_MOCK=1` (CI, local-ci-stack)
+  `checkVatId()` answers from the mock before the token bucket, so it runs
+  there and asserts result rows; it still skips against real VIES.
+- `admin-ops-tier195` 4 restore drill: skipped whenever no backup with
+  `db.sql.gz` existed — i.e. always on a CI runner, so the drill never ran in
+  CI. It now creates a backup first **only when the root is clearly
+  throwaway** (`CI` set, or under `/tmp/`), expects a fresh backup to restore
+  (`ok: true`), and deletes it; elsewhere it still skips to keep test dumps out
+  of a real backup directory.
+
+Verified: fresh CI-equivalent local stack — backend e2e 169 passed / 0 failed (incl.
+`1c` / `5c` / `5d` in spec 35 and the create-body check in 153); Playwright on the
+four fixed specs plus all `recurring*` specs 50 passed / 0 skipped, the drill
+test's backup deleted again, the real backup directory untouched.
+
 ### Notes from Tiers 347–352 (recovered in Tier 364)
 
 Tier 353 wrote a new version of this file but left the previous one appended
@@ -1021,10 +1062,16 @@ These are **not in the repo** — only the user can do them:
    2026-09-06** (last full one: `backup-2026-09-05-224235`). Recreate it via
    `docker-compose.yml`'s named volume. Rotation no longer deletes the old
    full backups while dumps fail (Tier 360).
-5. **Anlage AUS KapG rule** — `anlage-aus.service.ts` never recognises a
+5. **Review every recurring template's "Rechnung an Kunden senden" setting.**
+   Until Tier 365 unchecking it was not saved, so all templates are stored
+   with `sendEmail = true` and generated invoices were e-mailed regardless.
+   Which ones were meant to be off cannot be recovered from the data:
+   `SELECT id, name FROM "RecurringInvoice" ORDER BY name;` and re-save the
+   ones that should not e-mail.
+6. **Anlage AUS KapG rule** — `anlage-aus.service.ts` never recognises a
    legal name like "SH Leder GmbH"; a word match would also hit
    "GmbH & Co. KG" (§8, Tier 361). Needs a product decision.
-6. **Hetzner VPS IP + SSH key** — for `infra/prod/HETZNER-DEPLOY.sh`
+7. **Hetzner VPS IP + SSH key** — for `infra/prod/HETZNER-DEPLOY.sh`
    (DNS A record, deploy). `sudo` only for `scripts/fix-dev-pg.sh`.
 
 When the Hetzner items are available, the deploy is:

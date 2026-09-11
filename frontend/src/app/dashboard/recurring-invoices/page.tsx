@@ -265,6 +265,10 @@ export default function RecurringInvoicesPage() {
     setStartDate(new Date().toISOString().split("T")[0])
     setEndDate("")
     setInvoiceStatus("draft")
+    // Tier 365: openEdit loads the template's sendEmail, so without this reset
+    // a new template opened after editing a "no e-mail" one would silently
+    // start unchecked. (It never mattered before: the backend ignored the flag.)
+    setSendEmail(true)
     setItems([{ description: "", quantity: 1, unit: "Stück", unitPrice: 0, vatRate: 0.19 }])
     setShowModal(true)
   }

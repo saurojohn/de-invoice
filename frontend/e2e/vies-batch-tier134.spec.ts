@@ -58,7 +58,14 @@ test.describe('Tier 134 — VIES batch check', () => {
     await expect(startBtn).toBeVisible()
   })
 
-  test.skip('start button runs the batch and shows the summary', async ({ page }) => {
+  test('start button runs the batch and shows the summary', async ({ page }) => {
+    // Tier 365: this was `test.skip` since Tier 291/292 because of the real VIES
+    // per-member-state rate limit. With VIES_MOCK=1 — set in the CI playwright
+    // job and by backend/scripts/local-ci-stack.sh — checkVatId() answers from
+    // the mock before the token bucket is ever consulted, so there is no rate
+    // limit to hit. Its supplier twin (supplier-vies-batch-tier137) already
+    // runs the same flow in CI. Against real VIES the skip still applies.
+    test.skip(process.env.VIES_MOCK !== '1', 'needs VIES_MOCK=1 (real VIES rate-limits per member state)')
     await page.goto('/dashboard/customers')
     await expect(page.locator('h1').first()).toBeVisible({ timeout: 30_000 })
     // Tier 291: hydration wait.
@@ -70,15 +77,6 @@ test.describe('Tier 134 — VIES batch check', () => {
     await page.getByTestId('customer-vies-batch-button').click()
     await expect(page.getByTestId('vies-batch-modal')).toBeVisible({ timeout: 15_000 })
     await page.getByTestId('vies-batch-start').click()
-    // Tier 291: skipped — VIES per-region rate limit (60s
-    // token bucket shared with supplier-vies-batch-tier137)
-    // exhausts in this dev env, and the resulting 0-row
-    // batch state can race with the modal mount. The other
-    // 3 tests in this file (renders modal, opens modal, no
-    // horizontal overflow) cover the user-facing happy path.
-    // To re-enable: wait 60s+ between supplier + customer
-    // VIES batch runs OR use a fresh dev backend per
-    // audit batch.
     await expect(page.getByTestId('vies-batch-done')).toBeVisible({
       timeout: 120_000,
     })
@@ -87,32 +85,9 @@ test.describe('Tier 134 — VIES batch check', () => {
     const invalid = page.getByTestId('vies-batch-invalid-count')
     await expect(valid).toBeVisible()
     await expect(invalid).toBeVisible()
-    // At least 1 row in the results table. Tolerate a
-    // zero-row outcome as a soft skip: VIES has 60s rate
-    // limits per-region, and a single batch may complete
-    // before any rows are validated if the dev backend's
-    // mock VIES rejects everything.
-    try {
-      const rows = page.locator('[data-testid^="vies-batch-row-"]')
-      await expect(rows.first()).toBeVisible({ timeout: 15_000 })
-    } catch (e) {
-      // Look for a rate-limit / error state in the
-      // modal — if the batch is showing a 429/rate-limit
-      // banner, skip rather than fail.
-      const errorVisible = await page
-        .locator('text=/rate.?limit|zu viele|too many|429|0 von|all customers failed/i')
-        .first()
-        .isVisible()
-        .catch(() => false)
-      if (errorVisible) {
-        test.skip(
-          true,
-          'VIES batch hit rate-limit / 0-success in this dev env — skip',
-        )
-        return
-      }
-      throw e
-    }
+    // At least 1 row in the results table (the seed's customers have VAT IDs).
+    const rows = page.locator('[data-testid^="vies-batch-row-"]')
+    await expect(rows.first()).toBeVisible({ timeout: 15_000 })
   })
 
   test('mobile 375x667: no horizontal overflow', async ({ page }) => {
