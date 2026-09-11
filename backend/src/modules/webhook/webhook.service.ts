@@ -66,6 +66,7 @@ import { Injectable, Logger, BadRequestException, NotFoundException } from '@nes
 import { PrismaService } from '../../prisma/prisma.service'
 import { createHmac, randomBytes } from 'crypto'
 import { URL } from 'url'
+import type { Webhook } from '@prisma/client'
 
 export type WebhookEventType =
   | 'invoice.created'
@@ -320,38 +321,69 @@ export class WebhookService {
     })
     let delivered = 0
     for (const wh of subscribers) {
-      const subscribedEvents: string[] = JSON.parse(wh.events || '[]')
-      if (!subscribedEvents.includes(event.type) && !subscribedEvents.includes('*')) {
+      if (!WebhookService.subscribesTo(wh, event.type)) {
         continue
       }
-      // Create the delivery row, then
-      // fire the HTTP call without
-      // awaiting (fire-and-forget so the
-      // caller isn't blocked).
-      const delivery = await this.prisma.webhookDelivery.create({
-        data: {
-          webhookId: wh.id,
-          companyId: wh.companyId,
-          eventType: event.type,
-          eventId: event.id,
-          payload: event as any,
-          status: 'pending',
-        },
-      })
-      // Fire-and-forget. We don't await
-      // this — the .catch() handles
-      // errors so they don't become
-      // unhandled promise rejections.
-      // Fire-and-forget. We don't await
-      // this — the .catch() handles
-      // errors so they don't become
-      // unhandled promise rejections.
-      this.deliver(delivery.id, wh.url, wh.secret, event).catch((err) => {
-        this.logger.error(`webhook ${wh.id} delivery ${delivery.id} failed: ${err}`)
-      })
+      await this.createAndDispatch(wh, event)
       delivered += 1
     }
     return { delivered }
+  }
+
+  /**
+   * Send a test event to ONE webhook — the one whose Test button was
+   * pressed.
+   *
+   * Tier 359: POST /webhooks/:id/test used to call emit(), which fans out
+   * to every active webhook in the company subscribed to `webhook.test` or
+   * `*`. Pressing Test on webhook A therefore also delivered a test event
+   * carrying A's name to B, C and any `*` subscriber — possibly a production
+   * receiver. emit()'s company-wide fan-out is right for real business
+   * events; a test is for one endpoint.
+   *
+   * The per-webhook rules are unchanged: an inactive webhook, or one not
+   * subscribed to the event type, gets nothing and `delivered` is 0 —
+   * backend/e2e/50-webhooks.sh asserts exactly that.
+   */
+  async sendTest(
+    wh: Pick<Webhook, 'id' | 'companyId' | 'url' | 'secret' | 'events' | 'status'>,
+    event: WebhookEvent,
+  ): Promise<{ delivered: number }> {
+    if (wh.status !== 'active' || !WebhookService.subscribesTo(wh, event.type)) {
+      return { delivered: 0 }
+    }
+    await this.createAndDispatch(wh, event)
+    return { delivered: 1 }
+  }
+
+  private static subscribesTo(wh: Pick<Webhook, 'events'>, eventType: string): boolean {
+    const subscribedEvents: string[] = JSON.parse(wh.events || '[]')
+    return subscribedEvents.includes(eventType) || subscribedEvents.includes('*')
+  }
+
+  /**
+   * Create the pending delivery row, then fire the HTTP call without
+   * awaiting it (fire-and-forget, so the caller is not blocked). The
+   * .catch() keeps a failed delivery from becoming an unhandled promise
+   * rejection.
+   */
+  private async createAndDispatch(
+    wh: Pick<Webhook, 'id' | 'companyId' | 'url' | 'secret'>,
+    event: WebhookEvent,
+  ): Promise<void> {
+    const delivery = await this.prisma.webhookDelivery.create({
+      data: {
+        webhookId: wh.id,
+        companyId: wh.companyId,
+        eventType: event.type,
+        eventId: event.id,
+        payload: event as any,
+        status: 'pending',
+      },
+    })
+    this.deliver(delivery.id, wh.url, wh.secret, event).catch((err) => {
+      this.logger.error(`webhook ${wh.id} delivery ${delivery.id} failed: ${err}`)
+    })
   }
 
   /**

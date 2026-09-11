@@ -1810,6 +1810,7 @@
     "lastBackup": "Letztes Backup",
     "never": "noch nie",
     "ageLabel": "vor {n}",
+    "noDatabase": "ohne Datenbank-Dump",
     "loading": "Lade…",
     "loadingError": "Fehler beim Laden der Backups",
     "empty": "Keine Backups vorhanden. Erstellen Sie eines mit „Backup jetzt erstellen\".",

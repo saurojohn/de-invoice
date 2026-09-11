@@ -1810,6 +1810,7 @@
     "lastBackup": "Last backup",
     "never": "never",
     "ageLabel": "{n} ago",
+    "noDatabase": "no database dump",
     "loading": "Loading…",
     "loadingError": "Failed to load backups",
     "empty": "No backups yet. Create one with \"Create backup now\".",

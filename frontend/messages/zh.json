@@ -1810,6 +1810,7 @@
     "lastBackup": "最近备份",
     "never": "从未",
     "ageLabel": "{n}前",
+    "noDatabase": "缺少数据库转储",
     "loading": "加载中…",
     "loadingError": "加载备份失败",
     "empty": "暂无备份。点击「立即创建备份」开始。",

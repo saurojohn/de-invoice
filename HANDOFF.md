@@ -508,9 +508,14 @@ transactions / trend. Backend e2e 72-75 seed their own 2026 rows and query
 `V-185-001`'s date relative: `96-tier69-datev-preview.sh` queries
 2026-01-01..2026-12-31 and depends on it.
 
-**Product bug: the per-webhook "Test" button fires every webhook in the
-company** (found Tier 358, not yet fixed — pending an operator decision
-because it changes what receivers get). `settings/webhooks/page.tsx` renders
+**Product bug (fixed Tier 359): the per-webhook "Test" button fired every
+webhook in the company.** The endpoint now calls `WebhookService.sendTest(wh,
+event)`, which creates one delivery for the target only, still returning
+`delivered=0` when the target is inactive or not subscribed to
+`webhook.test`. `emit()` keeps its company-wide fan-out; both share the new
+private `subscribesTo` / `createAndDispatch` helpers. `50-webhooks.sh` 43b/44b
+guard it with a sibling webhook subscribed to `webhook.test` that must receive
+no rows. What it used to do, for the record: `settings/webhooks/page.tsx` renders
 a Test button per row (`data-testid="webhook-test"`) that calls
 `POST /webhooks/:id/test`. The handler looks up that one webhook, but only to
 validate it and put its name in the payload; it then calls
@@ -541,11 +546,16 @@ from inspecting `~/data/backups/de-invoice` by file name and size only):
    database is `backup-2026-09-05-224235`.** The schedule is the backend's own
    `@Cron('0 4 * * *')` in `backup.scheduler.ts` — no crontab or LaunchAgent —
    so it runs only while a dev backend happens to be up at 04:00.
-2. **The backup health indicator cannot see this.** `BackupService.healthColor`
-   looks only at the age of the newest entry (<24h green, <48h amber, else
-   red) and never checks that `db.sql.gz` exists, so `/admin/backups` showed
-   green every day the database was missing. `restoreDrill()` also takes the
-   newest entry without regard to whether it is a usable dump.
+2. **The backup health indicator could not see this** (fixed Tier 359).
+   `BackupService.healthColor` looked only at the age of the newest entry
+   (<24h green, <48h amber, else red) and never checked that `db.sql.gz`
+   exists, so `/admin/backups` showed green every day the database was
+   missing. It now returns red for a newest entry without `db.sql.gz`, and
+   the chip appends `backup.noDatabase` ("no database dump") so a red
+   "3 h ago" explains itself. `restoreDrill()` used to take the newest entry
+   regardless; it now drills the newest entry that has `db.sql.gz`. The
+   underlying problem — `scripts/backup.sh` still producing directories
+   without a dump — is **not** fixed; this only makes it visible.
 3. **Probable root cause of the recurring dev-PG corruption:** the dev
    container's data directory is bind-mounted from `/tmp/pgdata`. The
    09-06 04:00 dump log reads `FATAL: could not open file
@@ -564,9 +574,9 @@ from inspecting `~/data/backups/de-invoice` by file name and size only):
 
 Also: Tier 358's first local run (before the `BACKUP_ROOT` fix) left
 `backup-2026-09-11-082614` in that real directory — a dump of the throwaway
-**test** database, which now sorts as the newest entry and so drives both the
-health colour and the restore drill. Left in place pending the operator's
-decision; it is safe to delete and belongs to no real data.
+**test** database, which sorted as the newest entry and so drove both the
+health colour and the restore drill. Tier 359 moved it to the macOS Trash
+(not permanently deleted), with the operator's approval.
 
 **`frontend/AGENTS.md` points at `node_modules/next/dist/docs/`, which does
 not exist** in this install. When you need Next.js behaviour confirmed, read

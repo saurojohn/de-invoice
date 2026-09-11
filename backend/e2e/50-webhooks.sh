@@ -723,13 +723,45 @@ else
   fail "could not create Tier 14.5 webhook: $T145_RESP"
 fi
 
+# 43b. Tier 359: a sibling webhook in the same company, also subscribed
+# to webhook.test. Before Tier 359 the Test button called emit(), which
+# delivered the test event to EVERY active subscriber in the company — so
+# pressing Test on the Tier 14.5 webhook also hit this one.
+T359_SIBLING_RESP=$(curl -s -X POST "http://localhost:3001/api/v1/webhooks?companyId=$COMPANY_ID" \
+  -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"e2e-tier359-sibling","url":"https://httpbin.org/post","events":["webhook.test"]}')
+T359_SIBLING_ID=$(echo "$T359_SIBLING_RESP" | python3 -c "import sys,json;print(json.load(sys.stdin).get('id',''))")
+if [[ -n "$T359_SIBLING_ID" ]]; then
+  pass "Tier 359 sibling webhook created: $T359_SIBLING_ID"
+else
+  fail "could not create Tier 359 sibling webhook: $T359_SIBLING_RESP"
+fi
+
 # 44. Trigger a webhook.test event.
 # Wait for the delivery to land.
 T145_TRIGGER=$(curl -s -X POST "http://localhost:3001/api/v1/webhooks/$T145_WH_ID/test?companyId=$COMPANY_ID" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID")
 echo "  trigger: $T145_TRIGGER"
+T359_DELIVERED=$(json_field "$T145_TRIGGER" delivered)
+if [[ "$T359_DELIVERED" == "1" ]]; then
+  pass "Test on one webhook reports delivered=1 (not one per subscriber)"
+else
+  fail "Test on one webhook expected delivered=1, got '$T359_DELIVERED'"
+fi
 
 sleep 12
+
+# 44b. Tier 359: the sibling must have received nothing. The row is
+# created before the HTTP call is fired, so the 12s wait above is more
+# than enough for a fanned-out row to exist.
+T359_SIBLING_ROWS=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -c \
+  "SELECT COUNT(*) FROM \"WebhookDelivery\" WHERE \"webhookId\" = '$T359_SIBLING_ID';" 2>/dev/null | tr -d ' \n')
+if [[ -n "$T359_SIBLING_ID" && "$T359_SIBLING_ROWS" == "0" ]]; then
+  pass "Test button did not fan out to a sibling webhook subscribed to webhook.test"
+else
+  fail "sibling webhook got '$T359_SIBLING_ROWS' deliveries from another webhook's Test (fan-out)"
+fi
 
 # 45. Get the original delivery id.
 T145_ORIG=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -c \
@@ -843,6 +875,10 @@ fi
 # 54. Cleanup: delete Tier 14.5 webhook
 api_delete "/api/v1/webhooks/$T145_WH_ID?companyId=$COMPANY_ID"
 assert_status 200 "DELETE Tier 14.5 webhook (cleanup)"
+if [[ -n "$T359_SIBLING_ID" ]]; then
+  api_delete "/api/v1/webhooks/$T359_SIBLING_ID?companyId=$COMPANY_ID"
+  assert_status 200 "DELETE Tier 359 sibling webhook (cleanup)"
+fi
 
 # Summary
 echo

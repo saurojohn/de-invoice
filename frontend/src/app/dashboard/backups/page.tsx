@@ -237,6 +237,15 @@ export default function BackupsPage() {
           {data?.newest
             ? t("backup.ageLabel").replace("{n}", formatAge(data.newest.ageHours))
             : t("backup.never")}
+          {/* Tier 359: the backend now scores a newest backup without
+              db.sql.gz red regardless of age; say why, or a red chip
+              reading "3 h ago" looks like a bug. */}
+          {data?.newest && !data.newest.isComplete && (
+            <span data-testid="backup-health-no-db">
+              {" · "}
+              {t("backup.noDatabase")}
+            </span>
+          )}
         </div>
         {data?.newest && (
           <div className="px-3 py-1 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">

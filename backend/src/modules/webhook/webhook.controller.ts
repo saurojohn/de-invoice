@@ -163,7 +163,9 @@ export class WebhookController {
       where: { id, companyId },
     })
     if (!wh) throw new NotFoundException('Webhook not found')
-    const result = await this.webhooks.emit({
+    // Tier 359: sendTest delivers to this webhook only; emit() would fan the
+    // test event out to every subscriber in the company.
+    const result = await this.webhooks.sendTest(wh, {
       id: `test_${Date.now()}_${Math.random().toString(36).slice(2)}`,
       type: 'webhook.test',
       occurredAt: new Date().toISOString(),

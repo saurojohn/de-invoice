@@ -383,7 +383,12 @@ export class BackupService {
   }> {
     const started = Date.now()
     const dbName = 'de_invoice_restore_drill'
-    // Pick the newest backup.
+    // Tier 359: drill the newest backup that actually contains the database.
+    // This used to take all[0] unconditionally, so once dumps started failing
+    // (a run that leaves a directory without db.sql.gz — see healthColor) the
+    // drill answered "db.sql.gz not found" about the broken entry instead of
+    // exercising the last backup that could really be restored, which is the
+    // question the drill exists to answer.
     const all = await this.list()
     if (all.length === 0) {
       return {
@@ -394,7 +399,16 @@ export class BackupService {
         error: 'no backups available to drill',
       }
     }
-    const newest = all[0]
+    const newest = all.find((b) => b.isComplete)
+    if (!newest) {
+      return {
+        ok: false,
+        dbName,
+        tableCount: 0,
+        durationMs: 0,
+        error: `none of the ${all.length} backups contains db.sql.gz`,
+      }
+    }
     const dbFile = path.join(this.backupRoot, `backup-${newest.id}`, 'db.sql.gz')
     if (!fs.existsSync(dbFile)) {
       return {
@@ -523,6 +537,7 @@ export class BackupService {
   /**
    * Best-effort health colour for the "last backup" card:
    *   - grey  no backup has ever been taken
+   *   - red   last backup has no database dump (db.sql.gz missing)
    *   - red   last backup is older than 2 days (likely stuck)
    *   - amber last backup is 1-2 days old (warning)
    *   - green last backup is < 1 day old
@@ -532,11 +547,19 @@ export class BackupService {
    * 24h and 48h is "the cron ran but the script
    * failed silently" territory. 48h+ is "the whole
    * pipeline is broken" territory.
+   *
+   * Tier 359 added the db.sql.gz rule. Age alone could not see the most
+   * important failure: scripts/backup.sh still creates the stage directory
+   * (and archives attachments) when pg_dump fails, so a fresh, complete-
+   * looking entry with no database scored green. On one developer machine
+   * that ran for five consecutive nights (2026-09-06..10) while the page
+   * stayed green.
    */
   static healthColor(
     newest: BackupInfo | null,
   ): 'green' | 'amber' | 'red' | 'grey' {
     if (!newest) return 'grey'
+    if (!newest.isComplete) return 'red'
     if (newest.ageHours > 48) return 'red'
     if (newest.ageHours > 24) return 'amber'
     return 'green'
