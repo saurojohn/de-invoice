@@ -484,6 +484,31 @@ skipped / 0 failed** (912 total) — CI's latest was 907 / 0 / 5. The flaky
 - With those, the four failing files re-ran 22/22 and the real backup
   directory stayed at 13 entries.
 
+**Product bug: the per-webhook "Test" button fires every webhook in the
+company** (found Tier 358, not yet fixed — pending an operator decision
+because it changes what receivers get). `settings/webhooks/page.tsx` renders
+a Test button per row (`data-testid="webhook-test"`) that calls
+`POST /webhooks/:id/test`. The handler looks up that one webhook, but only to
+validate it and put its name in the payload; it then calls
+`webhooks.emit({ type: 'webhook.test', companyId, ... })`, and `emit()` fans
+out to **every active webhook in the company subscribed to `webhook.test` or
+`*`**. So testing webhook A also delivers a test event — carrying A's name —
+to B, C and any `*` subscriber, which may be a production receiver. The
+fan-out is correct for the 17 real `emit()` callers (vouchers, suppliers,
+customers); the fix belongs in the test endpoint alone, e.g. creating a
+single delivery for the target webhook, not in `emit()`.
+
+This is also the cause of the suite's intermittent
+`webhook-last-success-tier199` "2. lastSuccessAt === lastDeliveryAt"
+failure (seen as the one flaky in Tier 358's local run: 28 ms apart). The
+spec presses Test once per webhook, so each fan-out gives both webhooks a
+delivery — two rows each. `lastSuccessAt` and `lastDeliveryAt` are
+`_max(attemptedAt)` over successful rows and over all rows, and
+`attemptedAt` defaults to `now()` at creation, so a second delivery still
+pending when the spec reads (after a fixed 2 s sleep) makes them differ.
+Fixing the endpoint removes the second row; leaving it means the spec
+should wait for all deliveries to reach a terminal status instead.
+
 **Backups: three operational findings that are not test problems** (Tier 358,
 from inspecting `~/data/backups/de-invoice` by file name and size only):
 1. **The nightly backups have contained no database since 2026-09-06.**
