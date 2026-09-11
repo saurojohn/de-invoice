@@ -17,13 +17,12 @@ exact commands + docs you need to be productive.
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 34617401242 / commit `843f9bf`, Tier 364):**
+- **Test counts (last green CI, run 34635127273 / commit `f03048e`, Tier 365):**
   - Backend e2e: **169 passed / 0 failed** — 100 two-digit + 69 three-digit
     specs; before Tier 361 only the two-digit ones ever ran. `QUARANTINE` empty.
-  - Playwright: **908 passed / 0 failed / 4 skipped** at the last full CI run before Tier 365.
-    Tier 365 turned those 4 skips into real tests (locally: 50 passed / 0 skipped
-    across them and every `recurring*` spec); the next full CI run should show
-    0 skipped.
+  - Playwright: **911 passed / 0 failed / 0 skipped / 1 flaky**. Tier 365
+    turned the last 4 skips into real tests. The flaky one,
+    `bwa-quarterly-tier163` "switching quarter", was fixed in Tier 365b.
   - `tsc --noEmit` and `eslint . --max-warnings 0` clean, backend + frontend
 - **CI runs again.** The Tier 363 push (run 34610316607) was never started —
   GitHub: "recent account payments have failed or your spending limit needs
@@ -895,6 +894,17 @@ Verified: fresh CI-equivalent local stack — backend e2e 169 passed / 0 failed 
 `1c` / `5c` / `5d` in spec 35 and the create-body check in 153); Playwright on the
 four fixed specs plus all `recurring*` specs 50 passed / 0 skipped, the drill
 test's backup deleted again, the real backup directory untouched.
+
+**Tier 365b — the one flaky test in the Tier 365 CI run.**
+`bwa-quarterly-tier163` "switching quarter triggers a new fetch + re-render"
+timed out on its first attempt (passed on retry). Two bugs in the spec, not the
+page: the `/bwa-quarterly` response listener was registered *after* the BWA tab
+click, although `BwaTab` mounts on that click and fetches at once — a fast run
+missed the response and waited out 90 s; and it always switched to `Q2`, while
+the select defaults to the **current** quarter, so from April to June the
+change was a no-op and the test would have failed every time. Listener now
+registered before the click; the target quarter is whichever differs from the
+current value. Verified: the spec run 5× on a fresh CI-equivalent stack (`--repeat-each=5`): 60 passed, "switching quarter" 5/5, no retries.
 
 ### Notes from Tiers 347–352 (recovered in Tier 364)
 

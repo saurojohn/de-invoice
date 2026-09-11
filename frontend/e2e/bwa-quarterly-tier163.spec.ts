@@ -166,27 +166,31 @@ test.describe('Tier 163 — BWA quarterly comparison', () => {
     page.setDefaultTimeout(90_000)
     await page.goto('/dashboard/reports', { timeout: 90_000 })
     await expect(page.locator('h1').first()).toBeVisible({ timeout: 90_000 })
-    await page.getByTestId('tab-bwa').click()
 
-    // Wait for the initial quarterly BWA fetch
-    // to complete (it auto-loads on mount with
-    // the current quarter).
+    // Tier 365b: register the listener BEFORE the tab click. BwaTab only mounts
+    // on that click and fetches /bwa-quarterly at once; the listener used to be
+    // created after the click, so a fast run could miss the response and wait
+    // out the full 90 s (flaky in CI run 34635127273, passed on retry).
     const firstFetch = page.waitForResponse(
       (r) => r.url().includes('/bwa-quarterly'),
       { timeout: 90_000 },
     )
+    await page.getByTestId('tab-bwa').click()
     await firstFetch
 
-    // Click the quarter select + change to Q2
     const quarterSelect = page.getByTestId('bwa-quarter')
     await expect(quarterSelect).toBeVisible({ timeout: 30_000 })
-    // Wait for the second fetch triggered by the
-    // change event
+    // Tier 365b: the select defaults to the CURRENT quarter. The test always
+    // picked Q2, so from April to June selectOption('Q2') changed nothing, no
+    // second fetch fired, and the test failed every time. Pick a quarter that
+    // differs from the current value.
+    const current = await quarterSelect.inputValue()
+    const target = current === 'Q1' ? 'Q2' : 'Q1'
     const secondFetch = page.waitForResponse(
-      (r) => r.url().includes('/bwa-quarterly') && r.url().includes('Q2'),
+      (r) => r.url().includes('/bwa-quarterly') && r.url().includes(`quarter=${target}`),
       { timeout: 30_000 },
     )
-    await quarterSelect.selectOption('Q2')
+    await quarterSelect.selectOption(target)
     const res = await secondFetch
     expect(res.status()).toBe(200)
     // The table should now reflect Q2 (2026)
