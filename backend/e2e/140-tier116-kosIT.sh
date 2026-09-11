@@ -35,6 +35,19 @@ YEAR=2026
 
 KOSIT_ROOT="$SCRIPT_DIR/../../infra/kosit"
 JAVA_HOME_DIR="$SCRIPT_DIR/../../infra/java/jdk-17.0.13+11/Contents/Home"
+# Tier 361: resolve Java the way src/invoices/kosIT-validator.service.ts does —
+# bundled JDK, then $JAVA_HOME, then java on PATH. This spec only looked at the
+# bundled macOS JDK (infra/java, not in git), so on the CI runner it reported
+# "Java 17 MISSING" and a failed --help while the backend, using the runner's
+# JDK, validated every invoice ACCEPTABLE.
+JAVA_BIN="$JAVA_HOME_DIR/bin/java"
+if [[ ! -x "$JAVA_BIN" ]]; then
+  if [[ -n "${JAVA_HOME:-}" && -x "$JAVA_HOME/bin/java" ]]; then
+    JAVA_BIN="$JAVA_HOME/bin/java"
+  else
+    JAVA_BIN=$(command -v java || true)
+  fi
+fi
 
 note "=== Test prefix: $PREFIX / year: $YEAR ==="
 
@@ -55,13 +68,13 @@ if [[ -f "$KOSIT_ROOT/repository/xsd/maindoc/UBL-Invoice-2.1.xsd" ]]; then
 else
   fail "UBL 2.1 XSD MISSING"
 fi
-if [[ -x "$JAVA_HOME_DIR/bin/java" ]]; then
-  pass "Java 17 present: $JAVA_HOME_DIR/bin/java"
+if [[ -n "$JAVA_BIN" && -x "$JAVA_BIN" ]]; then
+  pass "Java present: $JAVA_BIN"
 else
-  fail "Java 17 MISSING — install via brew install openjdk@17 or use Temurin"
+  fail "Java MISSING (no bundled JDK, JAVA_HOME or java on PATH) — install Temurin 17"
 fi
 # Quick smoke test — run validator --help
-HELP_OUT=$("$JAVA_HOME_DIR/bin/java" -jar "$KOSIT_ROOT/validator.jar" --help 2>&1 | head -1)
+HELP_OUT=$("$JAVA_BIN" -jar "$KOSIT_ROOT/validator.jar" --help 2>&1 | head -1)
 if echo "$HELP_OUT" | grep -q "KoSIT Validator"; then
   pass "validator.jar runs (--help output valid)"
 else

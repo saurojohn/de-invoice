@@ -55,6 +55,13 @@ assert_eq "application/zip content-type" "$CT" "application/zip"
 MAGIC=$(head -c 4 "$ZIP_PATH" | od -An -tx1 | tr -d ' \n')
 assert_eq "ZIP magic bytes (50 4b 03 04)" "$MAGIC" "504b0304"
 
+# Tier 361: entries used to be read by grepping `unzip -l` for MM-DD-YYYY
+# dates — the macOS unzip format. On the Linux CI runner the listing did not
+# match, so the ZIP "had 0 entries" and every name/CSV check below failed
+# while the archive itself was fine (200, PK magic). zipfile gives the same
+# names on every platform.
+ZIP_ENTRIES=$(python3 -c "import sys, zipfile; print('\n'.join(zipfile.ZipFile(sys.argv[1]).namelist()))" "$ZIP_PATH" 2>/dev/null)
+
 # ── 2. ZIP has at least 8 entries (no Anlage V) ──
 echo
 note "=== 2. ZIP has >= 8 entries (tier 85: base 8, +Anlage KAP +KSt1 +Anlage SO +UStJA +GewSt +Anlage AUS) ==="
@@ -65,7 +72,7 @@ note "=== 2. ZIP has >= 8 entries (tier 85: base 8, +Anlage KAP +KSt1 +Anlage SO
 # (UStJA, GewSt). The exact count depends on which
 # optional Anlagen are enabled for the company; we
 # only assert >= 8.
-ENTRY_COUNT=$(unzip -l "$ZIP_PATH" | awk '/^[ ]+[0-9]+[ ]+[0-9]{2}-[0-9]{2}-[0-9]{4}/' | wc -l | tr -d ' ')
+ENTRY_COUNT=$(printf '%s\n' "$ZIP_ENTRIES" | grep -c .)
 if [ "$ENTRY_COUNT" -ge 8 ]; then
   pass "ZIP has $ENTRY_COUNT entries (>= 8)"
 else
@@ -81,7 +88,7 @@ EXPECTED_FILES=(
   "MANIFEST.md"
 )
 for fname in "${EXPECTED_FILES[@]}"; do
-  if unzip -l "$ZIP_PATH" | awk '/^[ ]+[0-9]+[ ]+[0-9]{2}-[0-9]{2}-[0-9]{4}/' | awk '{print $NF}' | grep -qx "$fname"; then
+  if printf '%s\n' "$ZIP_ENTRIES" | grep -qxF "$fname"; then
     assert_eq "  $fname present" "yes" "yes"
   else
     assert_eq "  $fname present" "yes" "MISSING"
@@ -91,7 +98,7 @@ done
 # ── 3. Each PDF in the ZIP has %PDF magic ──
 echo
 note "=== 3. All PDFs in ZIP have %PDF magic bytes ==="
-for fname in $(unzip -l "$ZIP_PATH" | awk '/^[ ]+[0-9]+[ ]+[0-9]{2}-[0-9]{2}-[0-9]{4}[ ]+.*\.pdf$/{print $NF}'); do
+for fname in $(printf '%s\n' "$ZIP_ENTRIES" | grep -E '\.pdf$'); do
   MAGIC=$(unzip -p "$ZIP_PATH" "$fname" | head -c 4 | od -An -tx1 | tr -d ' \n')
   assert_eq "  $fname PDF magic" "$MAGIC" "25504446"
 done
@@ -102,7 +109,7 @@ note "=== 4. Anlagenverzeichnis.csv has correct German semicolon header ==="
 # The CSV position depends on how many optional
 # Anlagen are included (Anlage KAP, G, N, R, Kind,
 # SO, AUS). Find it by name.
-CSV_NAME=$(unzip -l "$ZIP_PATH" | awk '/^[ ]+[0-9]+[ ]+[0-9]{2}-[0-9]{2}-[0-9]{4}[ ]+.*Anlagenverzeichnis\.csv$/{print $NF}')
+CSV_NAME=$(printf '%s\n' "$ZIP_ENTRIES" | grep -E 'Anlagenverzeichnis\.csv$' | head -1)
 if [ -n "$CSV_NAME" ]; then
   pass "Anlagenverzeichnis.csv present: $CSV_NAME"
 else

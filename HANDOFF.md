@@ -633,6 +633,17 @@ stack, then failed in the first full fresh run: earlier ad-hoc runs of
 which masked the missing preconditions. Only a fresh stack in `run-all.sh`
 order (what CI does) counts.
 
+**And a fresh local run is still not CI** (Tier 361b). The Tier 361 push went
+red on two specs that passed in both fresh local runs, both macOS-only
+assumptions: `111-tier85-berater-packager.sh` counted ZIP entries by grepping
+`unzip -l` for `MM-DD-YYYY` dates (the macOS listing format; on the runner
+nothing matched, "0 entries", while the ZIP itself was valid) → now Python
+`zipfile`; `140-tier116-kosIT.sh` looked for Java only in the bundled macOS JDK
+under `infra/java` (not in git) → now bundled JDK, `$JAVA_HOME`, `java` on
+PATH, the same order as `kosIT-validator.service.ts`. In CI the backend itself
+had validated every invoice ACCEPTABLE with the runner's JDK. When a spec
+parses tool output or probes a local path, assume the runner differs.
+
 Specs that could not fail, found on the way: `09-vouchers-list.sh` (14
 `assert_eq` calls, but `_lib.sh`'s `fail` only counts, and the spec ended with
 `echo "ALL PASSED"` → now `summary`); 148 above; 136's step 2 passed in both
