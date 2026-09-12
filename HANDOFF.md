@@ -9,19 +9,21 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–367 are
-  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 367.)
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–368 are
+  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 368.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 34684152720 / commit `8dd0db1`, Tier 367):**
-  - Backend e2e: **170 passed / 0 failed** — 100 two-digit + 70 three-digit
+- **Test counts (last green CI, run 34694296465 / commit `8ee0572`, Tier 368):**
+  - Backend e2e: **171 passed / 0 failed** — 100 two-digit + 71 three-digit
     specs; before Tier 361 only the two-digit ones ever ran. `QUARANTINE` empty.
-    Spec 170 now asserts on the runner that the audit chain verifies with no
-    re-hash and survives concurrent writes (Tier 367).
+    Spec 170 asserts on the runner that the audit chain verifies with no re-hash
+    and survives concurrent writes (Tier 367); spec 171 (new in Tier 368) asserts
+    the auth audit rows exist at all and are signed — nothing had ever asserted
+    on them, which is how a failed login for an unknown e-mail went unaudited.
   - Playwright: **912 passed / 0 failed / 0 skipped / 0 flaky** — every test
     runs and none needed a retry. Tier 365 turned the last 4 skips into real
     tests; Tier 365b fixed the one flaky test (`bwa-quarterly-tier163`).
