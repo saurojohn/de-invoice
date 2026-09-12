@@ -69,8 +69,8 @@ test.beforeEach(async ({ context }: { context: any }) => {
   )
 })
 
-// Re-hash the entire chain in createdAt order
-// before the suite runs. This gives every test
+// Re-hash the entire chain in `seq` order before
+// the suite runs. This gives every test
 // a known-good baseline (the first test reads
 // ok=true). The rehash script is a one-off
 // helper invoked by the e2e — the production
@@ -79,6 +79,11 @@ test.beforeEach(async ({ context }: { context: any }) => {
 // concern. Tamper tests intentionally leave
 // the chain broken at the end; the next suite
 // run will rehash again to reset.
+//
+// Tier 367: this beforeAll is why the chain bug hid here for ten tiers — the
+// rehash rewrote every pointer, so the spec never exercised the order the
+// application actually wrote. backend/e2e/170 now asserts the chain verifies
+// with no re-hash, and under concurrent writes.
 test.beforeAll(() => {
   // execFileSync resolves the script's own
   // dependencies (Prisma) relative to its own

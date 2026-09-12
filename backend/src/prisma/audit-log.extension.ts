@@ -69,7 +69,10 @@ const stableStringifyV1 = (v: any): string => {
   )
 }
 
-const stableStringifyV2 = (v: any): string => {
+// Exported (Tier 367) so a diagnostic can canonicalise with the REAL function
+// instead of a copy. Tier 366 lost a cycle to exactly that: a hand-reasoned
+// duplicate of this logic agreed with itself and disagreed with production.
+export const stableStringifyV2 = (v: any): string => {
   if (v == null) return ''
   if (typeof v === 'bigint') return JSON.stringify(v.toString())
   if (typeof v !== 'object') return JSON.stringify(v)
@@ -87,7 +90,21 @@ const stableStringifyV2 = (v: any): string => {
   if (Array.isArray(v)) {
     return '[' + v.map(stableStringifyV2).join(',') + ']'
   }
-  const keys = Object.keys(v).sort()
+  // Tier 367: skip keys whose value is `undefined`. Prisma drops them when it
+  // writes the payload into the jsonb column, so the verify path re-reads an
+  // object that never had the key — while the write path hashed it as
+  // `"key":` (V2 maps both null and undefined to ''). Measured: a
+  // `recurringinvoice.created` result carries `invoiceNumber: undefined`, and
+  // that row was the first in the chain to report hash_mismatch (write 933
+  // chars, read 916, diverging at offset 429).
+  //
+  // `null` is deliberately NOT skipped — jsonb stores nulls faithfully, so
+  // both sides see them. And this cannot break a row that previously verified:
+  // it only changes payloads that carried an undefined-valued key, which by
+  // construction never matched.
+  const keys = Object.keys(v)
+    .filter((k) => v[k] !== undefined)
+    .sort()
   return (
     '{' +
     keys
@@ -116,7 +133,7 @@ const stringifyFor = (algorithm: string) =>
  * (SHA-256-V2) and write a migration that
  * re-hashes every existing row.
  */
-function computeAuditHash(c: {
+export function computeAuditHash(c: {
   action: string
   entityType: string | null
   entityId: string | null
@@ -309,8 +326,21 @@ export function createAuditLogExtension() {
           // Invoice + RecurringInvoice models.
           const data = sanitize(result)
           if (model === 'Invoice' || model === 'RecurringInvoice') {
-            data.invoiceNumber = (result as any).invoiceNumber
-            data.customerId = (result as any).customerId
+            // Tier 367: assign only what the model actually has. RecurringInvoice
+            // has no invoiceNumber column, so `result.invoiceNumber` is undefined
+            // and this line CREATED an own key holding undefined. The write path
+            // hashed it as `"invoiceNumber":`; Prisma drops undefined keys when
+            // writing jsonb, so the verify path re-read a payload without it and
+            // every recurringinvoice.created row failed as hash_mismatch. It was
+            // the first such row in a seeded chain (write 933 chars, read 916).
+            // stableStringifyV2 now skips undefined keys as well — this stops
+            // fabricating one at the source. Storage is unchanged either way.
+            if ((result as any).invoiceNumber !== undefined) {
+              data.invoiceNumber = (result as any).invoiceNumber
+            }
+            if ((result as any).customerId !== undefined) {
+              data.customerId = (result as any).customerId
+            }
           }
           await writeAudit(_auditLogClient, {
             action: actionOf('create', model),
@@ -437,88 +467,85 @@ async function writeAudit(
     userAgent: null,
   }
   try {
-    // Tier 196 — read the previous row's hash
-    // to chain this one to it. The chain is
-    // per-companyId, ordered by createdAt then
-    // id (id is the tiebreaker for rows in the
-    // same millisecond). For a fresh DB, the
-    // first audit row's previousHash is ''.
+    // Tier 196 — chain this row to the previous one. The chain is per-company;
+    // on a fresh DB the first row's previousHash is ''.
     //
-    // We compute the previousHash lookup OUTSIDE
-    // the create call to avoid a "create with
-    // self-reference" race condition where two
-    // concurrent requests both see "no previous"
-    // and both write previousHash=''. The
-    // auditLog model doesn't have a unique
-    // constraint on (companyId, createdAt, id)
-    // so the actual race is harmless — the
-    // later of the two writes wins, and the
-    // earlier one's previousHash points to a
-    // different row than the one we just
-    // read. The verify endpoint walks in
-    // createdAt order, so the chain is
-    // well-defined even with interleaved
-    // inserts. We just have to accept that
-    // "verify" might report a broken chain
-    // immediately after a concurrent insert
-    // burst — that's a known caveat noted in
-    // the verify endpoint's response.
     // Tier 366: chain to the newest SIGNED row. Several services write audit
     // rows with no hash (auth, assets, company) and ci-seed.sh inserts some
     // directly; taking the newest row regardless left previousHash='' whenever
     // one of those landed in between, while verifyChain carries the last signed
     // hash forward — every such row reported previous_hash_mismatch.
-    const prev = await client.auditLog.findFirst({
-      where: { companyId: ctx.companyId || null, hash: { not: null } },
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      select: { hash: true },
-    })
-    const previousHash = prev?.hash ?? ''
-    // We compute the hash with a placeholder
-    // id (we don't have the id yet — Prisma
-    // returns it after the create) then
-    // include the actual id in a second
-    // pass. Wait — actually we don't need
-    // the id in the hash because the id
-    // is server-generated and not part of
-    // the user-meaningful audit content.
-    // We hash the (action, entityType, entityId,
-    // userId, oldData, newData, previousHash,
-    // createdAt) tuple. The createdAt we use
-    // is the server's "now" rounded to second
-    // boundary (matching the Tier 194 pattern
-    // for the CashBook signature).
-    const createdAtRounded = new Date(
-      Math.floor(Date.now() / 1000) * 1000,
-    )
-    const hash = computeAuditHash({
-      action: entry.action,
-      entityType: entry.entityType ?? null,
-      entityId: entry.entityId ?? null,
-      userId: ctx.userId,
-      companyId: ctx.companyId,
-      oldData: entry.oldData,
-      newData: entry.newData,
-      previousHash,
-      createdAt: createdAtRounded,
-    })
-    await client.auditLog.create({
-      data: {
-        companyId: ctx.companyId || null,
-        userId: ctx.userId || null,
-        action: entry.action,
-        entityType: entry.entityType,
-        entityId: entry.entityId,
-        oldData: entry.oldData || undefined,
-        newData: entry.newData || undefined,
-        ipAddress: ctx.ipAddress || null,
-        userAgent: ctx.userAgent || null,
-        createdAt: createdAtRounded,
-        hash,
-        previousHash,
-        hashAlgorithm: AUDIT_HASH_ALGORITHM,
+    //
+    // Tier 367: read-previous → hash → insert is one serialised critical
+    // section per company, ordered by `seq`. Two defects lived in the gap this
+    // closes, and the old comment here dismissed both as harmless:
+    //
+    //   - ORDER. The writer took max(createdAt, id) while verifyChain walked
+    //     ascending (createdAt, id). createdAt is rounded to whole seconds and
+    //     the id is a random UUID, so within one second the two disagreed about
+    //     which row came last. A fresh seeded database had 15 rows in a single
+    //     second and reported previous_hash_mismatch.
+    //   - CONCURRENCY. Nothing serialised the read, so parallel writers all
+    //     read the same predecessor and all chained to it — measured: twelve
+    //     rows sharing one previousHash, and a mid-chain row with none.
+    //
+    // `seq` (monotonic, DB-assigned) is now the only order either side uses, and
+    // pg_advisory_xact_lock gives one writer per company at a time. The lock is
+    // transaction-scoped, so it is released on commit AND on rollback. The audit
+    // insert already ran on its own connection whenever the caller was inside an
+    // interactive transaction, so this adds no connection to the pool.
+    const lockKey = ctx.companyId || '__no_company__'
+    await client.$transaction(
+      async (tx: any) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${lockKey}::text))`
+        const prev = await tx.auditLog.findFirst({
+          where: { companyId: ctx.companyId || null, hash: { not: null } },
+          orderBy: { seq: 'desc' },
+          select: { hash: true },
+        })
+        const previousHash = prev?.hash ?? ''
+        // The id is not hashed: it is server-generated and carries no
+        // user-meaningful content. The tuple is (action, entityType, entityId,
+        // userId, companyId, oldData, newData, previousHash, createdAt), with
+        // createdAt rounded to the second (Tier 194/196 pattern) so the hash
+        // input matches what the verify path recomputes after the PG round-trip.
+        // Ordering no longer depends on that rounded value — `seq` does.
+        const createdAtRounded = new Date(
+          Math.floor(Date.now() / 1000) * 1000,
+        )
+        const hash = computeAuditHash({
+          action: entry.action,
+          entityType: entry.entityType ?? null,
+          entityId: entry.entityId ?? null,
+          userId: ctx.userId,
+          companyId: ctx.companyId,
+          oldData: entry.oldData,
+          newData: entry.newData,
+          previousHash,
+          createdAt: createdAtRounded,
+        })
+        await tx.auditLog.create({
+          data: {
+            companyId: ctx.companyId || null,
+            userId: ctx.userId || null,
+            action: entry.action,
+            entityType: entry.entityType,
+            entityId: entry.entityId,
+            oldData: entry.oldData || undefined,
+            newData: entry.newData || undefined,
+            ipAddress: ctx.ipAddress || null,
+            userAgent: ctx.userAgent || null,
+            createdAt: createdAtRounded,
+            hash,
+            previousHash,
+            hashAlgorithm: AUDIT_HASH_ALGORITHM,
+          },
+        })
       },
-    })
+      // Writers queue on the advisory lock; the default 5s ceiling is tight for
+      // a burst. Each critical section is one SELECT plus one INSERT.
+      { timeout: 20000, maxWait: 20000 },
+    )
   } catch (err) {
     // Don't fail the user-facing request
     // if the audit log fails. Just log to

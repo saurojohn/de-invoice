@@ -1501,13 +1501,21 @@ model AuditLog {
   // row insertion in the middle of the chain
   // breaks the subsequent rows' previousHash
   // pointers. The verify endpoint walks the
-  // chain in createdAt order and surfaces the
+  // chain in `seq` order and surfaces the
   // first mismatch.
   hash          String?
   previousHash  String?
   hashAlgorithm String?
+  // Tier 367 — the chain's order. createdAt is rounded to whole seconds by the
+  // writer and `id` is a random UUID, so (createdAt, id) could not order rows
+  // written within the same second the way the writer chained them: a fresh
+  // seeded DB had 15 rows in one second and reported previous_hash_mismatch.
+  // `seq` is DB-assigned and monotonic, and the writer, the verify walk and
+  // scripts/audit-rehash.ts all use it — nothing orders by createdAt any more.
+  seq           BigInt   @default(autoincrement()) @unique
 
   @@index([companyId, createdAt])
+  @@index([companyId, seq])
   @@index([entityType, entityId])
 }
 

@@ -1,6 +1,8 @@
 #!/usr/bin/env ts-node
 // Tier 196: re-hash the entire audit-log chain in
-// createdAt order so the chain is "clean" again.
+// `seq` order so the chain is "clean" again.
+// (Tier 367: was createdAt order — see the IMPORTANT
+// note below and src/prisma/audit-log.extension.ts.)
 //
 // Why this exists: the audit-hash-chain-tier196
 // Playwright spec asserts
@@ -14,11 +16,19 @@
 // IMPORTANT: the production verify walks the chain
 // per-companyId (each company has its own chain
 // rooted at previousHash = ''). So we have to
-// re-hash per-companyId, sorted by createdAt — not
+// re-hash per-companyId, sorted by `seq` — not
 // the global row order. Re-hashing the global
 // order would compute a hash that depends on rows
 // from OTHER companies, which the per-company
 // verify would then reject as "previous_hash_mismatch".
+//
+// Tier 367: the sort key is `seq`, not createdAt. createdAt is rounded to
+// whole seconds by the writer and the id tiebreak is a random UUID, so
+// re-hashing in (createdAt, id) order produced a chain in an order the live
+// writer would never extend — the next real write chained to a different
+// predecessor and the walk broke again. Note this tool is no longer what makes
+// the chain verify: e2e/170 asserts a freshly seeded database verifies with no
+// re-hash at all. It stays for repairing a chain that really is corrupted.
 //
 // Usage:
 //   cd backend && npx ts-node scripts/audit-rehash.ts
@@ -43,7 +53,13 @@ function stableStringify(v: any): string {
   if (Array.isArray(v)) {
     return '[' + v.map(stableStringify).join(',') + ']'
   }
-  const keys = Object.keys(v).sort()
+  // Tier 367: skip `undefined`-valued keys — Prisma drops them when writing
+  // the jsonb payload, so hashing them made the write and verify paths
+  // disagree. `null` is kept (jsonb stores it). Must stay identical to
+  // stableStringifyV2 in src/prisma/audit-log.extension.ts.
+  const keys = Object.keys(v)
+    .filter((k) => v[k] !== undefined)
+    .sort()
   return (
     '{' +
     keys
@@ -82,7 +98,9 @@ async function main() {
   for (const { companyId } of companies) {
     const rows = await prisma.auditLog.findMany({
       where: { companyId },
-      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      // Tier 367: the same order the writer and verifyChain use. Re-hashing in
+      // any other order would hand back a chain the live writer cannot extend.
+      orderBy: { seq: 'asc' },
     })
     let prevHash = ''
     let updated = 0

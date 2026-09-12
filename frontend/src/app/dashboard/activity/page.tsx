@@ -178,9 +178,11 @@ export default function ActivityPage() {
   // the existing
   // `GET /api/v1/audit-logs/verify`
   // endpoint (Tier 196) which walks
-  // the whole chain in createdAt
-  // order. The activity-log rows
-  // are part of that chain.
+  // the whole chain in `seq` order
+  // (Tier 367 — was createdAt, which
+  // could not order same-second rows).
+  // The activity-log rows are part
+  // of that chain.
   const verifyChain = async () => {
     if (!companyId) return
     setVerifying(true)

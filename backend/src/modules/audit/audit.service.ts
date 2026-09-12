@@ -78,7 +78,13 @@ const stableStringifyV2 = (v: any): string => {
   if (Array.isArray(v)) {
     return '[' + v.map(stableStringifyV2).join(',') + ']'
   }
-  const keys = Object.keys(v).sort()
+  // Tier 367: skip `undefined`-valued keys — Prisma drops them when writing
+  // the jsonb payload, so hashing them made the write and verify paths
+  // disagree. `null` is kept (jsonb stores it). See audit-log.extension.ts for
+  // the measurement.
+  const keys = Object.keys(v)
+    .filter((k) => v[k] !== undefined)
+    .sort()
   return (
     '{' +
     keys
@@ -258,55 +264,57 @@ export class AuditService {
     metadata?: Record<string, any>
   }): Promise<void> {
     try {
-      // Read the previous row's hash
-      // to chain this one to it. Same
-      // ordering as the extension
-      // helper (createdAt desc, id
-      // desc). For a fresh company
-      // the first row's previousHash
-      // is ''.
-      // Tier 366: newest SIGNED row (see audit-log.extension.ts).
-      const prev = await this.prisma.auditLog.findFirst({
-        where: { companyId: input.companyId || null, hash: { not: null } },
-        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-        select: { hash: true },
-      })
-      const previousHash = prev?.hash ?? ''
-      // Round createdAt to the
-      // second boundary (Tier 194/196
-      // pattern) so the hash input
-      // matches what verify path
-      // recomputes after PG round-
-      // trips the value.
-      const createdAtRounded = new Date(
-        Math.floor(Date.now() / 1000) * 1000,
-      )
-      const hash = computeAuditHash({
-        action: input.action,
-        entityType: input.entityType,
-        entityId: input.entityId ?? null,
-        userId: input.userId,
-        companyId: input.companyId,
-        oldData: null,
-        newData: input.metadata || null,
-        previousHash,
-        createdAt: createdAtRounded,
-      })
-      await this.prisma.auditLog.create({
-        data: {
-          companyId: input.companyId,
-          userId: input.userId,
-          action: input.action,
-          entityType: input.entityType,
-          entityId: input.entityId || null,
-          oldData: undefined,
-          newData: input.metadata || undefined,
-          createdAt: createdAtRounded,
-          hash,
-          previousHash,
-          hashAlgorithm: AUDIT_HASH_ALGORITHM,
+      // Read the previous row's hash to chain this one to it. Tier 366: the
+      // newest SIGNED row. Tier 367: ordered by `seq` and serialised by the
+      // same per-company advisory lock the extension takes, so the activity log
+      // and the per-write audit log — which share one chain — cannot pick the
+      // same predecessor concurrently. See audit-log.extension.ts for the full
+      // account of the two defects this closes.
+      const lockKey = input.companyId || '__no_company__'
+      await this.prisma.$transaction(
+        async (tx) => {
+          await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${lockKey}::text))`
+          const prev = await tx.auditLog.findFirst({
+            where: { companyId: input.companyId || null, hash: { not: null } },
+            orderBy: { seq: 'desc' },
+            select: { hash: true },
+          })
+          const previousHash = prev?.hash ?? ''
+          // Round createdAt to the second boundary (Tier 194/196 pattern) so
+          // the hash input matches what the verify path recomputes after PG
+          // round-trips the value.
+          const createdAtRounded = new Date(
+            Math.floor(Date.now() / 1000) * 1000,
+          )
+          const hash = computeAuditHash({
+            action: input.action,
+            entityType: input.entityType,
+            entityId: input.entityId ?? null,
+            userId: input.userId,
+            companyId: input.companyId,
+            oldData: null,
+            newData: input.metadata || null,
+            previousHash,
+            createdAt: createdAtRounded,
+          })
+          await tx.auditLog.create({
+            data: {
+              companyId: input.companyId,
+              userId: input.userId,
+              action: input.action,
+              entityType: input.entityType,
+              entityId: input.entityId || null,
+              oldData: undefined,
+              newData: input.metadata || undefined,
+              createdAt: createdAtRounded,
+              hash,
+              previousHash,
+              hashAlgorithm: AUDIT_HASH_ALGORITHM,
+            },
+          })
         },
-      })
+        { timeout: 20000, maxWait: 20000 },
+      )
     } catch (err) {
       // Don't fail the operator's
       // action because the audit
@@ -1099,9 +1107,13 @@ export class AuditService {
     algorithm: string
     verifiedAt: string
   }> {
+    // Tier 367: walk by `seq`. It is the only order the writer and this walk
+    // can agree on — createdAt is rounded to whole seconds and ids are random
+    // UUIDs, so (createdAt, id) put same-second rows in an order the writer
+    // never used.
     const rows = await this.prisma.auditLog.findMany({
       where: { companyId },
-      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      orderBy: { seq: 'asc' },
     })
     let expectedPreviousHash = ''
     for (const r of rows) {

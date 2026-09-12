@@ -92,8 +92,8 @@ Operational scripts:
 - **`scripts/fix-dev-pg.sh`** (99 lines) — dev PG corruption recovery (needs
   `sudo` for the chown step)
 - **`backend/scripts/audit-rehash.ts`** (114 lines) — one-off tool to
-  re-hash the audit-log chain in `createdAt` order (only needed if chain
-  gets corrupted)
+  re-hash the audit-log chain in `seq` order (Tier 367; only needed if the
+  chain really is corrupted — a healthy chain verifies without it)
 
 ## 5. CI configuration (`.github/workflows/ci.yml`, 595 lines, 6 jobs)
 
@@ -930,8 +930,8 @@ independent bugs, both confirmed on a throwaway stack before fixing:
 `audit-hash-chain-tier196` passed all along only because its `beforeAll` runs
 `scripts/audit-rehash.ts`, which rewrites every hash and pointer.
 
-**Bug 1 is fixed in Tier 366; bug 2 is not — it is a different defect than it
-first looked.**
+**Bug 1 is fixed in Tier 366; bug 2 was a different defect than it first looked
+and is fixed in Tier 367 (next section).**
 
 Fixed (bug 1):
 - `stableStringifyV2` canonicalises each value to what jsonb actually stores: a
@@ -949,8 +949,8 @@ Fixed (bug 1):
   `SHA-256-V2` row whose payload really contains a Decimal, that the untampered
   row verifies, and that tampering still flips it to `verified=false`.
 
-**Still open (bug 2, now diagnosed): the chain pointer is broken by ordering
-and concurrency, not by unsigned rows.** Measured on a fresh stack: 15 audit
+**Bug 2 (diagnosed here, fixed in Tier 367): the chain pointer is broken by
+ordering and concurrency, not by unsigned rows.** Measured on a fresh stack: 15 audit
 rows share one second, a mid-chain row carries an empty `previousHash`, and a
 dozen rows all point at the same predecessor. `createdAt` is rounded to whole
 seconds (`Math.floor(Date.now()/1000)*1000`) and the tie-break is a random
@@ -976,6 +976,68 @@ spec green: the product update writes a `SHA-256-V2` row whose payload stores
 The two audit Playwright specs pass (11 passed). backend + frontend `tsc` and
 `eslint --max-warnings 0` clean. The first attempt (Decimal via `toJSON()`) failed
 this spec — that is how the number-vs-string difference was found.
+
+### The audit chain now verifies as written (Tier 367)
+
+The chain verifies on a freshly seeded database **without** running
+`audit-rehash.ts` — the assertion that had been missing since Tier 196, and the
+only one that proves the application writes a valid chain.
+
+1. **Order.** The writer chained to `max(createdAt, id)` while `verifyChain`
+   walked ascending `(createdAt, id)`. `createdAt` is rounded to whole seconds
+   and `id` is a random UUID, so within one second the two disagreed about which
+   row came last (a seeded DB had 15 rows in one second). `AuditLog.seq`
+   (`BigInt @default(autoincrement()) @unique`) is now the only order the
+   writer, `verifyChain` and `audit-rehash.ts` use.
+2. **Concurrency.** Nothing serialised read-previous → hash → insert, so
+   parallel writers all read the same predecessor — measured: a dozen rows
+   sharing one `previousHash`, and a mid-chain row with none. Both writers now
+   hold `pg_advisory_xact_lock(hashtext(companyId))` for that critical section
+   inside a `$transaction` (20s timeout). The lock is transaction-scoped, so it
+   releases on commit *and* on rollback; the audit insert already used its own
+   connection whenever the caller was mid-transaction, so this adds none at
+   `connection_limit=8`.
+3. **A third defect, visible only once the order was right.** With the walk
+   fixed, `recurringinvoice.created` failed as `hash_mismatch`. Cause: Tier 304
+   does `data.invoiceNumber = result.invoiceNumber` for `Invoice` **and
+   `RecurringInvoice`**, which has no such column — so the assignment created an
+   own key holding `undefined`. The write path hashed it as `"invoiceNumber":`
+   while Prisma drops undefined keys from the jsonb payload, so the verify path
+   re-read an object without it (write 933 chars, read 916, first difference at
+   offset 429). Fixed at both ends: `stableStringifyV2` skips `undefined`-valued
+   keys (never `null` — jsonb stores those faithfully), and the Tier 304
+   assignment only fires when the value is defined. **No algorithm bump:** the
+   filter changes the outcome only for payloads that carried an undefined key,
+   and those never verified, so nothing that passed before can start failing.
+
+The migration `20260912000001_audit_log_seq` adds the column nullable, backfills
+in `(createdAt, id)` order — the order existing pointers were computed against —
+then attaches the sequence and sets NOT NULL. Neither CI nor
+`local-ci-stack.sh` runs `migrate deploy` (both `db push` from schema.prisma),
+but `e2e/41-migrate.sh` does, against a throwaway DB, so the file is exercised.
+
+`computeAuditHash` / `stableStringifyV2` are now exported from the extension so
+a diagnostic can canonicalise with the **real** function — hand-reasoning a
+duplicate is how Tier 366 lost a cycle, and reasoning about this canonicalisation
+was wrong twice more in Tier 367 before the probe settled it by measurement.
+
+Two of my own errors, recorded because both are easy to repeat: spec 170 first
+asserted chain integrity at step 4 while its own tampered row from step 3 was
+still in the table (the tamper now runs last, before cleanup); and
+`audit-hash-chain-tier196`'s `beforeAll` re-hashes the entire chain, which is
+*why* this hid for ten tiers — a green run of that spec never proved anything
+about what the application wrote.
+
+Verified on a fresh CI-equivalent stack, twice end to end: backend e2e
+**170 passed / 0 failed**, spec 170 green including `chain ok` with no re-hash
+and 7 concurrent updates chaining to 7 distinct predecessors; the seven
+Playwright audit/activity specs **39 passed / 0 failed**; backend + frontend
+`tsc` and `eslint --max-warnings 0` clean. The migration was applied both to a
+fresh `migrate deploy` (`seq` NOT NULL DEFAULT nextval, both indexes) and to a
+populated DB (backfill `d,a,b,c`, sequence continues, NOT NULL and UNIQUE both
+enforced). A probe canonicalising the live create result against the stored
+jsonb with the real function reports `canonical strings equal: YES`, 0 field
+differences.
 
 ### Notes from Tiers 347–352 (recovered in Tier 364)
 
@@ -1136,19 +1198,29 @@ These are **not in the repo** — only the user can do them:
    pushing any `v*` tag — `release.yml` builds the frontend image with it and
    fails on purpose without it (Tier 363).
 3. **Revoke the old `ghp_` personal access token** that used to be in the git
-   remote URL (github.com/settings/tokens). The remote now uses SSH.
+   remote URL (github.com/settings/tokens). Corrected in Tier 367: the remote
+   does **not** use SSH — `origin` is `https://github.com/saurojohn/de-invoice.git`
+   with `credential.helper=osxkeychain`. The token is no longer *in the URL*
+   (which was the leak), but an HTTPS remote authenticates from the macOS
+   keychain, so the old PAT is most likely still stored there and still valid.
+   Revoking it is therefore still worth doing; a push will then prompt for a
+   fresh credential (or switch the remote to SSH).
 4. **Dev database out of `/tmp/pgdata`.** The manually created
    `de-invoice-postgres` container bind-mounts `/tmp/pgdata`; macOS purges
    `/tmp`, and nightly backups have contained **no database since
    2026-09-06** (last full one: `backup-2026-09-05-224235`). Recreate it via
    `docker-compose.yml`'s named volume. Rotation no longer deletes the old
    full backups while dumps fail (Tier 360).
-5. **Decide whether to re-hash the existing audit chain.** Rows written
-   before Tier 366 that contain a Decimal cannot verify under the rules they
-   were written with (§8). `cd backend && npx ts-node scripts/audit-rehash.ts`
-   recomputes every row's hash and pointer with the fixed canonicalisation —
-   which also means rewriting stored hashes on historical rows, so it is a
-   deliberate operator decision, ideally with a database backup first.
+5. **Decide whether to re-hash the existing audit chain.** Only for *historical*
+   rows — since Tier 367 a healthy chain verifies with no re-hash at all, so
+   this is no longer needed to make `/audit-logs/verify` return ok. Rows that
+   cannot verify under the rules they were written with: pre-Tier-366 rows
+   containing a Decimal, and Tier-366-era rows whose payload carried an
+   undefined-valued key (`recurringinvoice.created`; see §8).
+   `cd backend && npx ts-node scripts/audit-rehash.ts` recomputes every row's
+   hash and pointer in `seq` order with the fixed canonicalisation — which means
+   rewriting stored hashes on historical rows, so it stays a deliberate operator
+   decision, ideally with a database backup first.
 6. **Review every recurring template's "Rechnung an Kunden senden" setting.**
    Until Tier 365 unchecking it was not saved, so all templates are stored
    with `sendEmail = true` and generated invoices were e-mailed regardless.

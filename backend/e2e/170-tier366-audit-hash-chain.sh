@@ -18,12 +18,12 @@
 # reads back. Rows written before Tier 366 keep their SHA-256-V1 tag and are
 # still verified under V1 rules, so history is not rewritten.
 #
-# NOT asserted here — see HANDOFF §8: the CHAIN (previousHash) is still broken
-# by an ordering/concurrency defect. `createdAt` is rounded to whole seconds
-# and the tie-break is a random UUID, so the writer (max createdAt,id) and
-# verifyChain (ascending createdAt,id) disagree, and concurrent writers all
-# chain to the same predecessor. Fixing that needs a monotonic sequence column
-# and serialised writes per company — its own tier with a migration.
+# Tier 367 added the chain assertions below: a monotonic `seq` column plus a
+# per-company advisory lock around read-previous/hash/insert. Before that the
+# writer took max(createdAt, id) while verifyChain walked ascending — with
+# second-rounded timestamps and random UUIDs the two disagreed, and concurrent
+# writers all chained to the same predecessor (measured: 15 rows in one second,
+# a mid-chain row with an empty previousHash, a dozen sharing one predecessor).
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/_lib.sh"
@@ -58,19 +58,56 @@ assert_eq "row verifies" "$(json_field "$BODY" verified)" "True"
 assert_eq "storedHash == recomputedHash" \
   "$(json_field "$BODY" storedHash)" "$(json_field "$BODY" recomputedHash)"
 
-note "=== 3. tampering with that row still flips it to verified=false ==="
+note "=== 3. the chain verifies as the application wrote it (Tier 367) ==="
+# No re-hash: scripts/audit-rehash.ts rewrites every pointer, which is exactly
+# what hid the ordering bug from audit-hash-chain-tier196 for ten tiers.
+api_get "/api/v1/audit-logs/verify?companyId=$COMPANY_ID"
+assert_status 200 "GET /audit-logs/verify"
+CHAIN_REASON=$(echo "$BODY" | python3 -c "import json,sys; b=json.load(sys.stdin).get('brokenAt') or {}; print('%s %s' % (b.get('reason',''), b.get('id','')))" 2>/dev/null)
+assert_eq "chain ok (brokenAt: ${CHAIN_REASON:-none})" "$(json_field "$BODY" ok)" "True"
+
+note "=== 4. concurrent writes keep the chain intact (Tier 367) ==="
+# Six parallel updates on the same company. Before Tier 367 every writer read
+# the same "newest" row and chained to it, so the walk broke at the second one.
+for i in 1 2 3 4 5 6; do
+  curl -sS -o /dev/null -X PUT \
+    -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" -H "Content-Type: application/json" \
+    -d "{\"name\":\"Tier 367 parallel $i\"}" \
+    "$API/api/v1/products/$PRODUCT_ID?companyId=$COMPANY_ID" &
+done
+wait
+PARALLEL_ROWS=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT count(*) FROM \"AuditLog\" WHERE \"entityId\"='$PRODUCT_ID' AND hash IS NOT NULL;" 2>/dev/null | tr -d ' ')
+test "${PARALLEL_ROWS:-0}" -ge 6 && pass "parallel updates wrote $PARALLEL_ROWS signed rows" \
+  || fail "expected >= 6 signed rows from the parallel updates, got ${PARALLEL_ROWS:-0}"
+DISTINCT_PREV=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT count(DISTINCT \"previousHash\") FROM \"AuditLog\" WHERE \"entityId\"='$PRODUCT_ID' AND hash IS NOT NULL;" 2>/dev/null | tr -d ' ')
+assert_eq "each concurrent row chained to a different predecessor" "$DISTINCT_PREV" "$PARALLEL_ROWS"
+api_get "/api/v1/audit-logs/verify?companyId=$COMPANY_ID"
+CHAIN_REASON2=$(echo "$BODY" | python3 -c "import json,sys; b=json.load(sys.stdin).get('brokenAt') or {}; print('%s %s' % (b.get('reason',''), b.get('id','')))" 2>/dev/null)
+assert_eq "chain ok after concurrent writes (brokenAt: ${CHAIN_REASON2:-none})" "$(json_field "$BODY" ok)" "True"
+
+note "=== 5. tampering with that row still flips it to verified=false ==="
+# Deliberately LAST before cleanup: this leaves a row whose stored hash no
+# longer matches its content, so every chain assertion has to run before it.
+# (Tier 367 first put this at step 3 and then asserted chain integrity at
+# steps 4-5 — with the tampered row still in the table. The assertions were
+# wrong by construction, not the chain.)
 docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -q -c \
   "UPDATE \"AuditLog\" SET \"newData\" = jsonb_set(\"newData\", '{basePrice}', '999999') WHERE id='$ROW_ID';" >/dev/null 2>&1
 api_get "/api/v1/audit-logs/$ROW_ID/verify?companyId=$COMPANY_ID"
 assert_eq "tampered row does not verify" "$(json_field "$BODY" verified)" "False"
 
-note "=== 4. Cleanup ==="
+note "=== 6. Cleanup ==="
 # Delete the probe's audit rows (the tampered one included) and restore the name.
 docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -q -c \
   "DELETE FROM \"AuditLog\" WHERE id='$ROW_ID';" >/dev/null 2>&1
 LEFT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT count(*) FROM \"AuditLog\" WHERE id='$ROW_ID';" 2>/dev/null | tr -d ' ')
 assert_eq "probe audit row removed" "$LEFT" "0"
+# The parallel probes leave their own rows; drop them so the next run starts clean.
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -q -c \
+  "DELETE FROM \"AuditLog\" WHERE \"entityId\"='$PRODUCT_ID' AND action='product.updated';" >/dev/null 2>&1
 api_put "/api/v1/products/$PRODUCT_ID?companyId=$COMPANY_ID" "{\"name\":\"$ORIG_NAME\"}"
 assert_status 200 "restore product name"
 
