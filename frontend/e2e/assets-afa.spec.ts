@@ -259,10 +259,12 @@ test("Tier 89: monthly booking button click opens monthly confirm modal", async 
   await yearInput.fill("2027")
   await page.waitForTimeout(2500)
   const monthlyBtn = page.getByTestId("assets-book-afa-monthly")
-  if (!(await monthlyBtn.isVisible().catch(() => false))) {
-    test.skip(true, "No bookable assets visible for year 2027")
-    return
-  }
+  // Tier 369: was `isVisible()` + test.skip(). isVisible() does not wait, so a
+  // slow hydration became a silent pass — the same anti-pattern Tier 346
+  // removed elsewhere. createTestAsset() above seeds a bookable asset, and the
+  // preceding test asserts this very button with a web-first assertion, so
+  // assert it here too and let it retry.
+  await expect(monthlyBtn).toBeVisible({ timeout: 15_000 })
   await monthlyBtn.click()
   // The monthly confirm modal shows the
   // per-month amount + the per-asset total

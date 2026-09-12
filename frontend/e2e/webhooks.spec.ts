@@ -352,6 +352,12 @@ test.describe("Webhooks UI", () => {
     try {
       await deliveryRow.waitFor({ state: "visible", timeout: 30_000 })
     } catch {
+      // Tier 369: KEPT deliberately, unlike the skips this tier removed. Those
+      // hid missing seed data or un-awaited hydration; this one guards a real
+      // timing dependency — the delivery row is produced by the webhook cron,
+      // so a 30s miss can genuinely be a tick landing badly rather than a
+      // regression. Note the wait above is already a web-first waitFor, not a
+      // .count() probe, so there is no silent-pass hiding in it.
       test.skip(
         true,
         "webhook delivery row not visible within 30s (cron race — re-run later)",

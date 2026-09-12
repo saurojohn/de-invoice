@@ -89,12 +89,12 @@ test.describe('Tier 137 — VIES batch check (suppliers)', () => {
     // many other specs have consumed the budget.
     // Try a longer wait; if the env is rate-limited
     // the test skips rather than fail.
-    try {
-      await expect(page.getByTestId('supplier-vies-batch-done')).toBeVisible({ timeout: 60_000 })
-    } catch {
-      test.skip(true, "VIES batch didn't complete in 60s (rate limit)")
-      return
-    }
+    // Tier 369: was wrapped in try/catch + test.skip on timeout. The suite runs
+    // with VIES_MOCK=1 (CI and local-ci-stack both export it), so there is no
+    // real per-region token bucket to exhaust — a 60s timeout here cannot be
+    // explained by rate limiting and would be a genuine regression in the batch
+    // flow, which is exactly what this spec exists to catch.
+    await expect(page.getByTestId('supplier-vies-batch-done')).toBeVisible({ timeout: 60_000 })
     // At least 1 row in the results table (the test supplier)
     const rows = page.locator('[data-testid^="supplier-vies-batch-row-"]')
     await expect(rows.first()).toBeVisible({ timeout: 5_000 })

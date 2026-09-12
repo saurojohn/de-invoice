@@ -190,10 +190,14 @@ test.describe("Customer detail page UI (Tier 61)", () => {
       },
     )
     const invBody = await invoicesRes.json()
-    if (invBody.total > 0) {
-      test.skip(true, "test customer unexpectedly has invoices")
-      return
-    }
+    // Tier 369: was a test.skip(). The customer is created fresh in beforeAll,
+    // so it cannot legitimately have invoices — the skip text said
+    // "unexpectedly" itself. If this ever holds it is data contamination or a
+    // backend bug, and the empty-state assertions below would be meaningless.
+    expect(
+      invBody.total,
+      "a customer created fresh in beforeAll must have no invoices",
+    ).toBe(0)
 
     // Each tab eventually shows the empty state. Poll with
     // 10s timeout per tab. The page also shows a loading

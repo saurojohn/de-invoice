@@ -115,7 +115,13 @@ test.describe("Customer portal (Tier 33)", () => {
     // public tests).
     const userId = testTokens?.userId ?? ""
     const companyId = testTokens?.companyId ?? ""
-    if (!userId || !companyId) test.skip()
+    // Tier 369: was a bare test.skip(). These come from the shared auth cache
+    // that every spec depends on — if they are missing the cache is gone or
+    // corrupt, which is a failure, not a reason to report green.
+    expect(
+      userId && companyId,
+      "the auth cache must provide userId + companyId",
+    ).toBeTruthy()
     // Find a real invoice id (skip test fixtures
     // like 'T160-CLONE-SRC' that have non-standard
     // invoice numbers).
@@ -133,7 +139,9 @@ test.describe("Customer portal (Tier 33)", () => {
     const invoice = items.find(
       (i: any) => /^INV-\d{4}-\d+$/.test(i.invoiceNumber),
     ) || items[0]
-    if (!invoice) test.skip()
+    // Tier 369: was a bare test.skip(). ci-seed.sh always seeds invoices for
+    // this company; an empty list means the seed failed.
+    expect(invoice, "ci-seed must provide at least one invoice").toBeTruthy()
     // Mint a fresh link via the authed API.
     const linkResp = await page.request.post(
       `http://localhost:3001/api/v1/invoices/${invoice.id}/generate-payment-link?companyId=${companyId}`,
@@ -148,7 +156,10 @@ test.describe("Customer portal (Tier 33)", () => {
     )
     const linkBody = await linkResp.json()
     const token = linkBody.token as string
-    if (!token) test.skip()
+    // Tier 369: was a bare test.skip(). The token is what
+    // generate-payment-link exists to return — no token is the very regression
+    // this test is here to catch.
+    expect(token, "generate-payment-link must return a token").toBeTruthy()
 
     // Open the public page — deliberately NO context
     // cookies (the portal page is auth-free and the

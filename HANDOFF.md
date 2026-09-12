@@ -173,7 +173,13 @@ Operational scripts:
   `TODO (manuell)` string for BMF positions. This is **intentional** —
   those positions must be supplied by the tax advisor in real life.
 
-### Playwright silent-skip coverage hole (Tier 346 partial)
+### Playwright silent-skip coverage hole (Tier 346 partial → closed in Tier 369)
+
+**Closed in Tier 369; the counts below are historical and were never measured
+with a pattern that matched the code.** The real figure was 24 single-line
+`test.skip(true, …)` calls plus a multi-line form and a bare `test.skip()` that
+the original sweep missed entirely; 28 call sites were changed and exactly three
+intentional skips remain. See the Tier 369 section below.
 
 The suite has **62 runtime `test.skip(true, ...)` calls across 29 spec
 files**. 35 of them fire on "element not found / not present / may be
@@ -1131,6 +1137,63 @@ skipped**, backend + frontend `tsc` and `eslint --max-warnings 0` clean.
 migrations are exercised. One caveat found on the way: `gobd-archive.spec.ts:87`
 fails when Playwright runs on a **subset**, because it assumes Expense rows that
 an earlier spec creates (ci-seed inserts none); it passes in the full run.
+
+### Silent skips removed; three intentional ones documented (Tier 369)
+
+28 call sites changed across 12 spec files. Three `test.skip()` calls remain,
+each with its reason written into the code.
+
+**Dead branches (10, deleted).** `customer-detail-page-tier232` ×5 and
+`customer-detail-tabs-tier238` ×5 all guarded on
+`if (!TEST_CUSTOMER_ID) test.skip(…)`. Neither guard could ever fire: tier232's
+`beforeAll` already throws on a failed create, and tier238 assigns a **hard-coded
+constant**. They only made the specs look like they had a fallback. Both
+`beforeAll`s gained a real check instead — tier232 asserts the create returned an
+id; tier238 now GETs its hard-coded seed customer (`f84ebd20-…`, created by the
+Tier 50 e2e) and throws naming the id if it is gone. That row is a genuine hidden
+dependency — the anti-pattern `fixtures/test-env.ts` opens by warning about — and
+if it vanished the page would simply render empty while the "tab is visible"
+assertions kept passing.
+
+**Data-precondition skips (15, now assertions).** Each was checked against what
+ci-seed actually creates before being converted:
+- `audit-fulltext-search` ×2 — ci-seed seeds invoices for this company.
+- `cost-center-suggest-prefix` ×4 — ci-seed creates the SKR03 defaults and stamps
+  a VoucherLine with `costCenter='VERTRIEB'` on account 4960 (ci-seed.sh:320/341),
+  so both "no accounts seeded" and "no account has cc stamps" are real failures.
+- `installment-plan` ×3 — the first test in the describe creates the plan, and
+  `playwright.config` pins `workers: 1` + `fullyParallel: false`, so it always
+  runs first. The skip only ever fired when that create FAILED, turning one real
+  failure into three green runs.
+- `portal` ×3 — bare `test.skip()` on a missing auth cache, invoice, or payment
+  token; the token is what the endpoint under test exists to return.
+- `customer-detail` ×1 — "test customer unexpectedly has invoices", on a customer
+  created fresh in `beforeAll`; the skip text said "unexpectedly" itself.
+- `assets-afa` ×1 — `isVisible()` + skip. `isVisible()` does not wait, so slow
+  hydration passed silently; the preceding test already asserts the same button
+  web-first.
+- `supplier-vies-batch` ×1 — "VIES batch didn't complete in 60s (rate limit)",
+  but CI and local-ci-stack both export `VIES_MOCK=1`, so there is no token
+  bucket to exhaust and a timeout would be a real regression.
+
+**Kept, with reasons in the code (3).** `webhooks` (the delivery row comes from
+the cron, so a 30s miss can be tick timing; its wait is already a web-first
+`waitFor`, not a `.count()` probe), `admin-ops-tier195` (safety guard: outside CI
+`backupRoot` may be a developer's real backup directory), `vies-batch-tier134`
+(environment precondition on `VIES_MOCK`).
+
+The older §8 note claimed "62 runtime skips across 29 files". That was never
+measured with a pattern that matches the code: `test.skip(true` misses both the
+multi-line `test.skip(\n  true,` form (webhooks, admin-ops) and the bare
+`test.skip()` (portal ×3) — the same class of mistake as Tier 368's grep for
+`DELETE FROM \"AuditLog\"`. Count the bare symbol and filter comments from the
+*content* field: grep output is `file:line:content`, so `grep -v "^\s*//"`
+filters nothing at all.
+
+Verified: full Playwright **912 passed / 0 failed / 0 skipped** on a fresh
+CI-equivalent stack; frontend `tsc` + `eslint --max-warnings 0` clean; backend
+untouched this tier. Every converted assertion held — which is the point: those
+15 sites had never once been exercised without their escape hatch.
 
 ### Notes from Tiers 347–352 (recovered in Tier 364)
 

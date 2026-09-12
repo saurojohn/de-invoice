@@ -65,7 +65,10 @@ test.describe('Tier 134 — VIES batch check', () => {
     // the mock before the token bucket is ever consulted, so there is no rate
     // limit to hit. Its supplier twin (supplier-vies-batch-tier137) already
     // runs the same flow in CI. Against real VIES the skip still applies.
-    test.skip(process.env.VIES_MOCK !== '1', 'needs VIES_MOCK=1 (real VIES rate-limits per member state)')
+    // Tier 369: KEPT deliberately — an environment precondition, not a data
+// problem. CI and local-ci-stack both export VIES_MOCK=1 so this never fires
+// there; without the mock, real VIES rate-limits per member state.
+test.skip(process.env.VIES_MOCK !== '1', 'needs VIES_MOCK=1 (real VIES rate-limits per member state)')
     await page.goto('/dashboard/customers')
     await expect(page.locator('h1').first()).toBeVisible({ timeout: 30_000 })
     // Tier 291: hydration wait.

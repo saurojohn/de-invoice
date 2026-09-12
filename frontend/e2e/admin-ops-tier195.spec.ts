@@ -222,6 +222,9 @@ test.describe("Tier 195 — Admin: backup restore-drill", () => {
     if (!usable) {
       const root = String(listBody?.backupRoot || "")
       if (!process.env.CI && !root.startsWith("/tmp/")) {
+        // Tier 369: KEPT deliberately. This is a safety guard, not a silent
+        // green: outside CI, backupRoot may be the developer's real backup
+        // directory, and the branch below would create a backup inside it.
         test.skip(
           true,
           `no backup with db.sql.gz, and ${root} may be a real backup directory — not creating one outside CI`,

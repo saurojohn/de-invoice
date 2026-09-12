@@ -68,6 +68,17 @@ test.beforeAll(async () => {
     throw new Error(`Failed to seed customer: HTTP ${res.status()}`)
   }
   const body = await res.json()
+  // Tier 369: the tests below used to each start with
+  // `if (!TEST_CUSTOMER_ID) test.skip(...)`. That branch could never fire — a
+  // failed create already throws above — so it was dead code that only made the
+  // suite look like it had a fallback. The one gap it nominally covered is a
+  // 201 with no id in the body, so assert that here and let the tests assume a
+  // customer exists.
+  if (!body.id) {
+    throw new Error(
+      `Customer create returned 201 without an id: ${JSON.stringify(body).slice(0, 200)}`,
+    )
+  }
   TEST_CUSTOMER_ID = body.id
 })
 
@@ -94,7 +105,6 @@ test.describe("Tier 232 — Customer detail page", () => {
   })
 
   test("1. /dashboard/customers/:id renders without 5xx", async ({ page }) => {
-    if (!TEST_CUSTOMER_ID) test.skip(true, "no test customer seeded")
     const errors: string[] = []
     page.on("response", (resp) => {
       if (resp.status() >= 500) {
@@ -109,7 +119,6 @@ test.describe("Tier 232 — Customer detail page", () => {
   })
 
   test("2. back button visible", async ({ page }) => {
-    if (!TEST_CUSTOMER_ID) test.skip(true, "no test customer seeded")
     await page.goto(`http://localhost:3100/dashboard/customers/${TEST_CUSTOMER_ID}`)
     await page.waitForLoadState("networkidle", { timeout: 15000 })
     const back = page.getByTestId("customer-detail-back")
@@ -117,7 +126,6 @@ test.describe("Tier 232 — Customer detail page", () => {
   })
 
   test("3. KPI strip (open balance) visible", async ({ page }) => {
-    if (!TEST_CUSTOMER_ID) test.skip(true, "no test customer seeded")
     await page.goto(`http://localhost:3100/dashboard/customers/${TEST_CUSTOMER_ID}`)
     await page.waitForLoadState("networkidle", { timeout: 15000 })
     const kpi = page.getByTestId("kpi-open-balance")
@@ -125,7 +133,6 @@ test.describe("Tier 232 — Customer detail page", () => {
   })
 
   test("4-5. allocate payment + statement + VIES buttons visible", async ({ page }) => {
-    if (!TEST_CUSTOMER_ID) test.skip(true, "no test customer seeded")
     await page.goto(`http://localhost:3100/dashboard/customers/${TEST_CUSTOMER_ID}`)
     await page.waitForLoadState("networkidle", { timeout: 15000 })
     const allocate = page.getByTestId("customer-detail-allocate-payment")
@@ -143,7 +150,6 @@ test.describe("Tier 232 — Customer detail page", () => {
   })
 
   test("6. mobile 375x667: page renders without crash", async ({ page }) => {
-    if (!TEST_CUSTOMER_ID) test.skip(true, "no test customer seeded")
     await page.setViewportSize({ width: 375, height: 667 })
     await page.goto(`http://localhost:3100/dashboard/customers/${TEST_CUSTOMER_ID}`)
     await page.waitForLoadState("networkidle", { timeout: 15000 })

@@ -107,10 +107,13 @@ test("typing in cc input fires prefix-filtered list call", async ({
         (els as HTMLOptionElement[]).map((e) => e.value),
       )
     const realValues = optionValues.filter((v) => v && v.length > 0)
-    if (realValues.length === 0) {
-      test.skip(true, "no accounts seeded")
-      return
-    }
+    // Tier 369: was a test.skip(). ci-seed creates the default SKR03 accounts
+    // (1000/1200/1400/…), so an empty account select means the seed or the page
+    // failed — not a reason to report green.
+    expect(
+      realValues.length,
+      "the account select must offer the seeded accounts",
+    ).toBeGreaterThan(0)
 
     let picked = false
     for (const accId of realValues) {
@@ -133,10 +136,14 @@ test("typing in cc input fires prefix-filtered list call", async ({
         break
       }
     }
-    if (!picked) {
-      test.skip(true, "no account has cc stamps")
-      return
-    }
+    // Tier 369: was a test.skip(). ci-seed.sh stamps a VoucherLine with
+    // costCenter='VERTRIEB' on account 4960, so at least one account does have
+    // a suggestion. If the loop finds none, either the suggestion API or the
+    // seed is broken — and every datalist assertion below would be vacuous.
+    expect(
+      picked,
+      "at least one seeded account must have a cost-center suggestion",
+    ).toBe(true)
 
     // Now type a partial cost-center in line 0 — the
     // datalist effect should re-fire the API with
@@ -208,10 +215,13 @@ test("typing in cc input fires prefix-filtered list call", async ({
         (els as HTMLOptionElement[]).map((e) => e.value),
       )
     const realValues = optionValues.filter((v) => v && v.length > 0)
-    if (realValues.length === 0) {
-      test.skip(true, "no accounts seeded")
-      return
-    }
+    // Tier 369: was a test.skip(). ci-seed creates the default SKR03 accounts
+    // (1000/1200/1400/…), so an empty account select means the seed or the page
+    // failed — not a reason to report green.
+    expect(
+      realValues.length,
+      "the account select must offer the seeded accounts",
+    ).toBeGreaterThan(0)
 
     let picked = false
     for (const accId of realValues) {
@@ -234,10 +244,14 @@ test("typing in cc input fires prefix-filtered list call", async ({
         break
       }
     }
-    if (!picked) {
-      test.skip(true, "no account has cc stamps")
-      return
-    }
+    // Tier 369: was a test.skip(). ci-seed.sh stamps a VoucherLine with
+    // costCenter='VERTRIEB' on account 4960, so at least one account does have
+    // a suggestion. If the loop finds none, either the suggestion API or the
+    // seed is broken — and every datalist assertion below would be vacuous.
+    expect(
+      picked,
+      "at least one seeded account must have a cost-center suggestion",
+    ).toBe(true)
 
     // Allow React to flush.
     await page.waitForTimeout(300)

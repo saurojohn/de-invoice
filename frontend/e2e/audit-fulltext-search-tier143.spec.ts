@@ -82,10 +82,13 @@ test.describe('Tier 143 — Audit full-text search', () => {
     const items = Array.isArray(listData)
       ? listData
       : listData?.items || listData?.data || []
-    if (items.length === 0) {
-      test.skip(true, 'no invoice in company to search against')
-      return
-    }
+    // Tier 369: was a test.skip(). ci-seed.sh always seeds invoices for this
+    // company, and every assertion below depends on one existing — an empty
+    // list means the seed failed, which must not report green.
+    expect(
+      items.length,
+      'ci-seed must provide at least one invoice to search against',
+    ).toBeGreaterThan(0)
     // Tier 302: the original test searched by
     // `invoiceNumber` but the audit `newData`
     // blob does NOT include invoiceNumber — only
@@ -201,10 +204,11 @@ test.describe('Tier 143 — Audit full-text search', () => {
     const items = Array.isArray(listData)
       ? listData
       : listData?.items || listData?.data || []
-    if (items.length === 0) {
-      test.skip(true, 'no invoice in company to query against')
-      return
-    }
+    // Tier 369: was a test.skip() — see the note on the search test above.
+    expect(
+      items.length,
+      'ci-seed must provide at least one invoice to query against',
+    ).toBeGreaterThan(0)
     // Tier 302: the original spec queried by
     // invoice number (which is NOT in audit newData)
     // or by entityId UUID. Both paths are unreliable

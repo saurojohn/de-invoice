@@ -104,6 +104,21 @@ test.beforeAll(async () => {
   // tab — that's a "no data" path the tests need to
   // cover separately.
   TEST_CUSTOMER_ID = "f84ebd20-4513-48e4-b331-87ba19477ae3"
+  // Tier 369: this is a hard-coded dependency on a row Tier 50 created — the
+  // anti-pattern fixtures/test-env.ts opens by warning about. The tests below
+  // used to guard it with `if (!TEST_CUSTOMER_ID) test.skip(...)`, which can
+  // never fire for a non-empty constant; worse, if the row were missing the
+  // page would just render empty and the "tab is visible" assertions would
+  // still pass. Check it once here so a missing seed row fails loudly and says
+  // which row it wants.
+  const seedRes = await api.get(
+    `/api/v1/customers/${TEST_CUSTOMER_ID}?companyId=${companyId}`,
+  )
+  if (seedRes.status() !== 200) {
+    throw new Error(
+      `Seed customer ${TEST_CUSTOMER_ID} (created by the Tier 50 e2e; needed for the Zahlungen tab assertions) is missing: HTTP ${seedRes.status()}`,
+    )
+  }
 
   const custRes = await api.post(`/api/v1/customers?companyId=${companyId}`, {
     data: {
@@ -159,7 +174,6 @@ test.describe("Tier 238 — Customer detail Zahlungen + Dokumente tabs", () => {
   })
 
   test("1. Zahlungen tab button is visible on the detail page", async ({ page }) => {
-    if (!TEST_CUSTOMER_ID) test.skip(true, "no test customer seeded")
     await page.goto(`http://localhost:3100/dashboard/customers/${TEST_CUSTOMER_ID}`)
     await page.waitForLoadState("networkidle", { timeout: 15000 })
     const tab = page.getByTestId("tab-payments")
@@ -167,7 +181,6 @@ test.describe("Tier 238 — Customer detail Zahlungen + Dokumente tabs", () => {
   })
 
   test("2. Clicking Zahlungen tab shows the table with our seeded payment", async ({ page }) => {
-    if (!TEST_CUSTOMER_ID) test.skip(true, "no test customer seeded")
     await page.goto(`http://localhost:3100/dashboard/customers/${TEST_CUSTOMER_ID}`)
     await page.waitForLoadState("networkidle", { timeout: 15000 })
     const tab = page.getByTestId("tab-payments")
@@ -200,7 +213,6 @@ test.describe("Tier 238 — Customer detail Zahlungen + Dokumente tabs", () => {
   })
 
   test("3. Dokumente tab button is visible on the detail page", async ({ page }) => {
-    if (!TEST_CUSTOMER_ID) test.skip(true, "no test customer seeded")
     await page.goto(`http://localhost:3100/dashboard/customers/${TEST_CUSTOMER_ID}`)
     await page.waitForLoadState("networkidle", { timeout: 15000 })
     const tab = page.getByTestId("tab-attachments")
@@ -213,7 +225,6 @@ test.describe("Tier 238 — Customer detail Zahlungen + Dokumente tabs", () => {
     // customer has invoices, but using the fresh customer
     // ensures we test the "completely empty customer" case
     // (no invoices, no payments, no attachments).
-    if (!CREATED_CUSTOMER_ID) test.skip(true, "no fresh customer seeded")
     await page.goto(`http://localhost:3100/dashboard/customers/${CREATED_CUSTOMER_ID}`)
     await page.waitForLoadState("networkidle", { timeout: 15000 })
     const tab = page.getByTestId("tab-attachments")
@@ -232,7 +243,6 @@ test.describe("Tier 238 — Customer detail Zahlungen + Dokumente tabs", () => {
   })
 
   test("5. Tab counter badge updates on Zahlungen when payment count > 0", async ({ page }) => {
-    if (!TEST_CUSTOMER_ID) test.skip(true, "no test customer seeded")
     await page.goto(`http://localhost:3100/dashboard/customers/${TEST_CUSTOMER_ID}`)
     await page.waitForLoadState("networkidle", { timeout: 15000 })
     // Click Zahlungen first to trigger the lazy-fetch.

@@ -189,13 +189,15 @@ test.describe('Tier 168a — Ratenplan (installment plans) rewrite', () => {
     const pw = listData.find(
       (p: any) => (p.installments ?? []).length === 3,
     )
-    if (!pw) {
-      // No 3-Raten plan exists yet — that's
-      // fine, the previous test creates one
-      // in its own run. Skip instead of fail.
-      test.skip(true, 'no 3-Raten plan in DB yet')
-      return
-    }
+    // Tier 369: was a test.skip(). The first test in this describe creates the
+    // 3-Raten plan, and playwright.config sets workers: 1 + fullyParallel:
+    // false, so it has always run before this one. The skip therefore only ever
+    // fired when that create FAILED — turning one real failure into a green
+    // run here. Assert instead, so a broken create fails in both places.
+    expect(
+      pw,
+      'the create test above must have left a 3-Raten plan in the DB',
+    ).toBeTruthy()
     const byInv = await ctx.get(
       `${API}/api/v1/installment-plans/by-invoice/${pw.invoiceId}?companyId=${COMPANY_ID}`,
     )
@@ -243,10 +245,11 @@ test.describe('Tier 168a — Ratenplan (installment plans) rewrite', () => {
         (i: any) => i.status === 'open' || i.status === 'partial',
       ),
     )
-    if (!plan) {
-      test.skip(true, 'no plan with open Rate')
-      return
-    }
+    // Tier 369: was a test.skip() — see the note on the by-invoice test above.
+    expect(
+      plan,
+      'the create test above must have left a plan with an open Rate',
+    ).toBeTruthy()
     const invoiceId = plan.invoiceId
     // Capture the first open Rate's
     // sequence number BEFORE navigating so
@@ -326,10 +329,11 @@ test.describe('Tier 168a — Ratenplan (installment plans) rewrite', () => {
       ? listBody
       : listBody.data || []
     const plan = listData[0]
-    if (!plan) {
-      test.skip(true, 'no installment plans in DB')
-      return
-    }
+    // Tier 369: was a test.skip() — see the note on the by-invoice test above.
+    expect(
+      plan,
+      'the create test above must have left at least one installment plan',
+    ).toBeTruthy()
     await page.goto(
       `/dashboard/invoices/${plan.invoiceId}?companyId=${COMPANY_ID}`,
       { waitUntil: 'domcontentloaded' },
