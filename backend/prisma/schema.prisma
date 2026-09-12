@@ -76,7 +76,7 @@ model Company {
   cashBookDailyCloses CashBookDailyClose[]
   accounts    Account[]
   vouchers    Voucher[]
-  auditLogs   AuditLog[]
+  // Tier 368: AuditLog.companyId is a snapshot, not a relation (see AuditLog).
   errorEvents ErrorEvent[]
   emailSends   EmailSend[]
   mahnungspausen Mahnungspause[]
@@ -218,7 +218,7 @@ model User {
 
    createdInvoices  Invoice[] @relation("CreatedBy")
    createdVouchers  Voucher[] @relation("CreatedBy")
-   auditLogs        AuditLog[]
+   // Tier 368: AuditLog.userId is a snapshot, not a relation (see AuditLog).
    errorEvents      ErrorEvent[]
    emailSends       EmailSend[]
    createdVatRates   VatRate[] @relation("VatRateCreator")
@@ -1472,10 +1472,16 @@ model Attachment {
 
 model AuditLog {
   id          String    @id @default(uuid())
+  // Tier 368: no relation to Company/User any more. Both FKs were
+  // ON DELETE SET NULL, so deleting a user made PostgreSQL silently rewrite
+  // `userId` on rows that were already SIGNED — the stored hash then described
+  // a row that no longer existed and the chain broke with hash_mismatch,
+  // without anyone tampering. An audit record must not change when the data it
+  // describes is deleted. These are now plain snapshots of who acted and may
+  // point at ids that no longer resolve; audit.service resolves the e-mail with
+  // a batched lookup instead (attachUserEmails).
   companyId   String?
-  company     Company?  @relation(fields: [companyId], references: [id])
   userId      String?
-  user        User?    @relation(fields: [userId], references: [id])
   action      String
   entityType  String?
   entityId    String?

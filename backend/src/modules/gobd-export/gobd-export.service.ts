@@ -320,16 +320,39 @@ export class GobdExportService {
     // the archive). The CSV is the same format as
     // GET /audit-logs/export.csv but scoped to the
     // year.
-    const auditLogs = await this.prisma.auditLog.findMany({
+    const auditLogRows = await this.prisma.auditLog.findMany({
       where: {
         companyId: opts.companyId,
         createdAt: { gte: yearStart, lt: yearEnd },
       },
       orderBy: { createdAt: 'asc' },
-      include: {
-        user: { select: { email: true } },
-      },
     })
+    // Tier 368: AuditLog has no relation to User any more. The FK was
+    // ON DELETE SET NULL, so deleting a user silently rewrote `userId` on rows
+    // that were already signed and the hash chain broke with no tampering
+    // involved (migration 20260912000002_audit_log_drop_actor_fks). The CSV
+    // keeps its userEmail column: the e-mails are resolved in one batched
+    // query, and a row whose user has since been deleted keeps its userId and
+    // exports an empty e-mail — the honest history for a Prüfer.
+    const auditUserIds = [
+      ...new Set(
+        auditLogRows.map((l) => l.userId).filter((id): id is string => !!id),
+      ),
+    ]
+    const auditUsers = auditUserIds.length
+      ? await this.prisma.user.findMany({
+          where: { id: { in: auditUserIds } },
+          select: { id: true, email: true },
+        })
+      : []
+    const auditEmailById = new Map(auditUsers.map((u) => [u.id, u.email]))
+    const auditLogs = auditLogRows.map((l) => ({
+      ...l,
+      user:
+        l.userId && auditEmailById.has(l.userId)
+          ? { email: auditEmailById.get(l.userId) as string }
+          : null,
+    }))
 
     this.logger.log(
       `GoBD export for ${company.name} (${opts.companyId}) year=${year}: ` +

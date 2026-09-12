@@ -195,7 +195,7 @@ AUDIT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
     COALESCE(\"oldData\"->>'stornoedTotal', 'NULL')
   FROM \"AuditLog\"
   WHERE action='assets.afa.stornoed' AND \"entityId\"='year-2026'
-  ORDER BY \"createdAt\" DESC LIMIT 1;" 2>&1 | tr -d ' ')
+  ORDER BY seq DESC LIMIT 1;" 2>&1 | tr -d ' ')
 # Both stornos (annual + monthly) wrote an entry — we want the latest one (monthly)
 AUDIT_YEAR=$(echo "$AUDIT" | cut -d'|' -f1)
 AUDIT_MODE=$(echo "$AUDIT" | cut -d'|' -f2)

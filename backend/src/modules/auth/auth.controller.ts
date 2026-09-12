@@ -5,6 +5,7 @@ import { LoginDto, RegisterDto } from './dto/auth.dto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { HeaderAuthGuard } from '../../auth/header-auth.guard';
 import { MailService } from '../mail/mail.service';
+import { AuditService } from '../audit/audit.service';
 import * as bcrypt from 'bcrypt';
 
 interface LoginAttempt {
@@ -27,6 +28,8 @@ export class AuthController {
     private authService: AuthService,
     private prisma: PrismaService,
     private mailService: MailService,
+    // Tier 368: signs the auth audit rows so they join the hash chain.
+    private audit: AuditService,
   ) {}
 
   private cleanup() {
@@ -93,18 +96,19 @@ export class AuthController {
     // leaking account status to attackers.
     if (user && user.status && user.status !== 'active') {
       this.logger.warn(`Login blocked: user ${user.id} (${user.email}) is inactive`);
-      try {
-        await this.prisma.auditLog.create({
-          data: {
-            companyId: user.companyId || 'unknown',
-            userId: user.id,
-            action: 'login_failed_inactive',
-            entityType: 'auth',
-            entityId: user.id,
-            ipAddress: ip, userAgent: req?.headers['user-agent'] || null,
-          },
-        });
-      } catch { /* ignore */ }
+      // Tier 368: signed via AuditService so this row joins the hash chain.
+      // `|| 'unknown'` went into companyId, which is a FK to Company — for a
+      // user without a company the insert violated it and the empty catch
+      // swallowed the error. null is allowed by the column and persists.
+      await this.audit.writeActivity({
+        companyId: user.companyId || null,
+        userId: user.id,
+        action: 'login_failed_inactive',
+        entityType: 'auth',
+        entityId: user.id,
+        ipAddress: ip,
+        userAgent: req?.headers['user-agent'] || null,
+      });
       throw new BadRequestException('Invalid email or password');
     }
 
@@ -117,34 +121,37 @@ export class AuthController {
         this.logger.warn(`IP ${ip} locked out after ${a.count} failed attempts (last email: ${a.lastEmail})`);
       }
       this.attempts.set(ip, a);
-      try {
-        await this.prisma.auditLog.create({
-          data: {
-            companyId: user?.companyId || 'unknown',
-            userId: user?.id || 'unknown',
-            action: 'login_failed',
-            entityType: 'auth',
-            entityId: dto.email,
-            ipAddress: ip, userAgent: req?.headers['user-agent'] || null,
-          },
-        });
-      } catch { /* ignore audit log errors */ }
+      // Tier 368: this row was silently lost for the failure that matters most.
+      // When the e-mail does not exist, `user` is null, so companyId AND userId
+      // were both the literal 'unknown' — both are FKs (to Company and User), so
+      // every insert violated them and the empty catch discarded the error
+      // without even a log line. Measured on a throwaway stack: a login attempt
+      // with an unknown e-mail produced HTTP 400 and zero AuditLog rows, while a
+      // real user with a wrong password (real ids) wrote its row fine. User
+      // enumeration and credential stuffing were the un-audited cases.
+      await this.audit.writeActivity({
+        companyId: user?.companyId ?? null,
+        userId: user?.id ?? null,
+        action: 'login_failed',
+        entityType: 'auth',
+        entityId: dto.email,
+        ipAddress: ip,
+        userAgent: req?.headers['user-agent'] || null,
+      });
       throw new BadRequestException('Invalid email or password');
     }
 
     this.attempts.delete(ip);
-    try {
-      await this.prisma.auditLog.create({
-        data: {
-          companyId: user.companyId,
-          userId: user.id,
-          action: 'login_success',
-          entityType: 'auth',
-          entityId: user.id,
-          ipAddress: ip, userAgent: req?.headers['user-agent'] || null,
-        },
-      });
-    } catch { /* ignore */ }
+    // Tier 368: signed via AuditService (was an unsigned direct insert).
+    await this.audit.writeActivity({
+      companyId: user.companyId,
+      userId: user.id,
+      action: 'login_success',
+      entityType: 'auth',
+      entityId: user.id,
+      ipAddress: ip,
+      userAgent: req?.headers['user-agent'] || null,
+    });
     // 2FA gate: if the user has TOTP enabled, the password
     // is correct but we don't issue the session yet —
     // return a 200 with twoFactorRequired:true so the
@@ -369,18 +376,16 @@ export class AuthController {
         this.logger.error(`Failed to send password reset email to ${result.user.email}: ${(err as Error).message}`);
       }
 
-      try {
-        await this.prisma.auditLog.create({
-          data: {
-            companyId: result.user.companyId ?? undefined,
-            userId: result.user.id,
-            action: 'password_reset_requested',
-            entityType: 'auth',
-            entityId: result.user.id,
-            ipAddress: req?.ip || null, userAgent: req?.headers['user-agent'] || null,
-          },
-        });
-      } catch { /* ignore */ }
+      // Tier 368: signed via AuditService (was an unsigned direct insert).
+      await this.audit.writeActivity({
+        companyId: result.user.companyId ?? null,
+        userId: result.user.id,
+        action: 'password_reset_requested',
+        entityType: 'auth',
+        entityId: result.user.id,
+        ipAddress: req?.ip || null,
+        userAgent: req?.headers['user-agent'] || null,
+      });
     }
 
     // Always the same response (no enumeration)

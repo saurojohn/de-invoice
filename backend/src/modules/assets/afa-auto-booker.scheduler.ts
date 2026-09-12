@@ -49,6 +49,7 @@ import { Injectable, Logger } from "@nestjs/common"
 import { Cron } from "@nestjs/schedule"
 import { PrismaService } from "../../prisma/prisma.service"
 import { AssetsService } from "./assets.service"
+import { AuditService } from "../audit/audit.service"
 // Tier 119: record every cron tick to the shared
 // CronHealthService for the admin dashboard.
 import { CronHealthService } from "../admin/cron-health.service"
@@ -61,6 +62,8 @@ export class AfaAutoBookerScheduler {
     private prisma: PrismaService,
     private assets: AssetsService,
     private health: CronHealthService,
+    // Tier 368: signs the auto-book audit rows (were unsigned direct inserts).
+    private audit: AuditService,
   ) {}
 
   /**
@@ -133,24 +136,25 @@ export class AfaAutoBookerScheduler {
         // userId as null and the userAgent as
         // the auto-booker marker so the
         // Berater can see the source.
-        await this.prisma.auditLog.create({
-          data: {
-            companyId: company.id,
-            userId: null,
-            action: "assets.afa.auto_booked",
-            entityType: "AssetAfaBooking",
-            entityId: `auto-year-${prevYear}`,
-            oldData: {
-              year: prevYear,
-              mode: "monthly",
-              bookedCount: result.bookedCount,
-              skippedAlreadyCount: result.skippedAlreadyCount,
-              totalAnnualAfA: result.totalAnnualAfA,
-              triggeredBy: "AfaAutoBookerScheduler",
-            } as any,
-            ipAddress: null,
-            userAgent: "de-invoice:AfaAutoBookerScheduler",
+        // Tier 368: signed via AuditService so the scheduled booking joins the
+        // hash chain. The surrounding try/catch stays — it guards the whole
+        // bookAfaMonthly step, not just this write.
+        await this.audit.writeActivity({
+          companyId: company.id,
+          userId: null,
+          action: "assets.afa.auto_booked",
+          entityType: "AssetAfaBooking",
+          entityId: `auto-year-${prevYear}`,
+          oldData: {
+            year: prevYear,
+            mode: "monthly",
+            bookedCount: result.bookedCount,
+            skippedAlreadyCount: result.skippedAlreadyCount,
+            totalAnnualAfA: result.totalAnnualAfA,
+            triggeredBy: "AfaAutoBookerScheduler",
           },
+          ipAddress: null,
+          userAgent: "de-invoice:AfaAutoBookerScheduler",
         })
       } catch (err) {
         errorCount++
@@ -217,24 +221,23 @@ export class AfaAutoBookerScheduler {
           year,
         )
         bookedCount += result.bookedCount
-        await this.prisma.auditLog.create({
-          data: {
-            companyId: company.id,
-            userId: null,
-            action: "assets.afa.auto_booked",
-            entityType: "AssetAfaBooking",
-            entityId: `auto-year-${year}`,
-            oldData: {
-              year,
-              mode: "monthly",
-              bookedCount: result.bookedCount,
-              skippedAlreadyCount: result.skippedAlreadyCount,
-              totalAnnualAfA: result.totalAnnualAfA,
-              triggeredBy: "AfaAutoBookerScheduler:force",
-            } as any,
-            ipAddress: null,
-            userAgent: "de-invoice:AfaAutoBookerScheduler:force",
+        // Tier 368: signed via AuditService (was an unsigned direct insert).
+        await this.audit.writeActivity({
+          companyId: company.id,
+          userId: null,
+          action: "assets.afa.auto_booked",
+          entityType: "AssetAfaBooking",
+          entityId: `auto-year-${year}`,
+          oldData: {
+            year,
+            mode: "monthly",
+            bookedCount: result.bookedCount,
+            skippedAlreadyCount: result.skippedAlreadyCount,
+            totalAnnualAfA: result.totalAnnualAfA,
+            triggeredBy: "AfaAutoBookerScheduler:force",
           },
+          ipAddress: null,
+          userAgent: "de-invoice:AfaAutoBookerScheduler:force",
         })
       } catch (err) {
         errorCount++

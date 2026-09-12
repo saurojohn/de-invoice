@@ -66,11 +66,20 @@ OPT_OUT_YEAR=2029
 # previous aborted run of this test.
 docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "DELETE FROM \"Expense\" WHERE \"relatedAssetId\" IN (SELECT id FROM \"Asset\" WHERE bezeichnung LIKE 'T91-${TS}-%');" >/dev/null 2>&1
 docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "DELETE FROM \"Asset\" WHERE bezeichnung LIKE 'T91-${TS}-%';" >/dev/null 2>&1
-# Also clean any audit log entries from previous
-# aborted runs of this test (filtered by oldData
-# year=TEST_YEAR or OPT_OUT_YEAR + company=SH Leder
-# to be safe).
-docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "DELETE FROM \"AuditLog\" WHERE action='assets.afa.auto_booked' AND (\"oldData\"->>'year')::int IN ($TEST_YEAR, $OPT_OUT_YEAR);" >/dev/null 2>&1
+# Tier 368: this used to DELETE leftover 'assets.afa.auto_booked' audit rows
+# from an aborted run. Those rows are SIGNED now — they go through
+# audit.service.writeActivity and are part of the hash chain — and deleting a
+# signed row breaks every row after it: the next row's previousHash then points
+# at a hash that exists nowhere, and verifyChain reports previous_hash_mismatch.
+# (Measured: specs 170 and 171 both broke on exactly that, with seq 334/335
+# simply gone.) Audit rows are append-only by design.
+#
+# Instead of deleting, remember where the chain stands and scope the assertions
+# below to rows this run appended.
+BASELINE_SEQ=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT COALESCE(MAX(seq), 0) FROM \"AuditLog\";" 2>/dev/null | tr -d ' ' | head -1)
+BASELINE_SEQ=${BASELINE_SEQ:-0}
+echo "  audit-chain baseline seq=$BASELINE_SEQ (assertions below only look past it)"
 
 # Backup the SH Leder settings JSON so we can
 # restore it after the opt-out test. The opt-out
@@ -103,12 +112,10 @@ cleanup() {
   # Remove test-tagged Asset rows.
   docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
     "DELETE FROM \"Asset\" WHERE bezeichnung LIKE 'T91-${TS}-%';" >/dev/null 2>&1
-  # Remove audit log entries for the test years
-  # (only the auto_booked ones — leave other
-  # audit entries alone).
-  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
-    "DELETE FROM \"AuditLog\" WHERE action='assets.afa.auto_booked' AND (\"oldData\"->>'year')::int IN ($TEST_YEAR, $OPT_OUT_YEAR);" >/dev/null 2>&1
-  echo "  cleanup: removed T91-${TS}-* assets + their AfA expenses + auto-booked audit log entries; restored settings"
+  # Tier 368: the auto_booked audit rows are deliberately NOT deleted any more.
+  # They are signed and chained; removing one breaks every row that follows it.
+  # They are legitimate audit history — leave them where they are.
+  echo "  cleanup: removed T91-${TS}-* assets + their AfA expenses; restored settings (audit rows kept — they are signed)"
 }
 trap cleanup EXIT
 
@@ -278,7 +285,8 @@ AUDIT_YEAR=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c
     AND \"companyId\"='$COMPANY_ID'
     AND (\"oldData\"->>'year')::int = $TEST_YEAR
     AND (\"oldData\"->>'bookedCount')::int > 0
-  ORDER BY \"createdAt\" ASC LIMIT 1;" 2>&1 | tr -d ' ' | head -1)
+    AND seq > $BASELINE_SEQ
+  ORDER BY seq ASC LIMIT 1;" 2>&1 | tr -d ' ' | head -1)
 AY_YEAR=$(echo "$AUDIT_YEAR" | cut -d'|' -f1)
 AY_MODE=$(echo "$AUDIT_YEAR" | cut -d'|' -f2)
 AY_TRIG=$(echo "$AUDIT_YEAR" | cut -d'|' -f3)

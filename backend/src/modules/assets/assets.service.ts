@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
+import { AuditService } from '../audit/audit.service'
 
 /**
  * Tier 83+87: Anlagenverzeichnis (Asset Register)
@@ -174,7 +175,11 @@ function diffMonths(from: Date, to: Date): number {
 export class AssetsService {
   private readonly logger = new Logger(AssetsService.name)
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    // Tier 368: signs the AfA storno marker row (was unsigned).
+    private audit: AuditService,
+  ) {}
 
   async list(companyId: string) {
     if (!companyId) {
@@ -763,33 +768,25 @@ export class AssetsService {
     // (not auto-audited) so the Berater
     // can see "this was a storno, not
     // a manual delete" in the audit log.
-    try {
-      await this.prisma.auditLog.create({
-        data: {
-          companyId,
-          userId: userId ?? null,
-          action: 'assets.afa.stornoed',
-          entityType: 'AssetAfaBooking',
-          entityId: `year-${year}`,
-          oldData: {
-            year,
-            mode: modeDesc,
-            stornoedCount: count,
-            stornoedTotal,
-          } as any,
-          // No "new" state for a storno —
-          // the rows are gone.
-          ipAddress: null,
-          userAgent: 'de-invoice:AssetsService.stornoAfa',
-        },
-      })
-    } catch (err) {
-      // Audit log failure should not block
-      // the storno — log + continue.
-      this.logger.warn(
-        `Storno audit log write failed (year=${year}): ${(err as Error).message}`,
-      )
-    }
+    // Tier 368: signed via AuditService so this marker joins the hash chain.
+    // writeActivity never throws (it logs internally and swallows), so the
+    // try/catch that used to guard the storno is no longer needed.
+    await this.audit.writeActivity({
+      companyId,
+      userId: userId ?? null,
+      action: 'assets.afa.stornoed',
+      entityType: 'AssetAfaBooking',
+      entityId: `year-${year}`,
+      oldData: {
+        year,
+        mode: modeDesc,
+        stornoedCount: count,
+        stornoedTotal,
+      },
+      // No "new" state for a storno — the rows are gone.
+      ipAddress: null,
+      userAgent: 'de-invoice:AssetsService.stornoAfa',
+    })
 
     this.logger.log(
       `AfA-Storno ${companyId} year=${year}: deleted=${count} total=${stornoedTotal} (mode=${modeDesc})`,

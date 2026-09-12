@@ -13,12 +13,15 @@ import {
 import * as fs from 'fs';
 import * as path from 'path';
 import { Request } from 'express';
+import { AuditService } from '../audit/audit.service';
 
 @Controller('companies')
 export class CompanyController {
   constructor(
     private companyService: CompanyService,
     private prisma: PrismaService,
+    // Tier 368: signs the feature-flag audit row (was unsigned).
+    private audit: AuditService,
   ) {}
 
   @Auth()
@@ -296,33 +299,28 @@ export class CompanyController {
     // trail. The userId is in req.user via
     // HeaderAuthGuard.
     const userId = req?.user?.id || null
-    try {
-      await this.prisma.auditLog.create({
-        data: {
-          companyId: id,
-          userId,
-          action: 'company.feature_flags.updated',
-          entityType: 'Company',
-          entityId: id,
-          oldData: prev as any,
-          newData: {
-            autoBookAfa: body.autoBookAfa,
-            anlageV: body.anlageV,
-            anlageG: body.anlageG,
-            anlageN: body.anlageN,
-            anlageKind: body.anlageKind,
-            anlageSo: body.anlageSo,
-            anlageAus: body.anlageAus,
-          } as any,
-          ipAddress: null,
-          userAgent: 'de-invoice:CompanyController.updateFeatureFlags',
-        },
-      })
-    } catch (err) {
-      // Audit log failure should not block the
-      // flag change — log + continue.
-      console.warn(`feature-flags audit log write failed: ${(err as Error).message}`)
-    }
+    // Tier 368: signed via AuditService so this row joins the hash chain.
+    // writeActivity never throws (it logs internally), so the flag change is
+    // still never blocked by an audit failure.
+    await this.audit.writeActivity({
+      companyId: id,
+      userId,
+      action: 'company.feature_flags.updated',
+      entityType: 'Company',
+      entityId: id,
+      oldData: prev as any,
+      metadata: {
+        autoBookAfa: body.autoBookAfa,
+        anlageV: body.anlageV,
+        anlageG: body.anlageG,
+        anlageN: body.anlageN,
+        anlageKind: body.anlageKind,
+        anlageSo: body.anlageSo,
+        anlageAus: body.anlageAus,
+      },
+      ipAddress: null,
+      userAgent: 'de-invoice:CompanyController.updateFeatureFlags',
+    })
 
     return {
       autoBookAfa: body.autoBookAfa !== undefined ? body.autoBookAfa : prev.autoBookAfa,

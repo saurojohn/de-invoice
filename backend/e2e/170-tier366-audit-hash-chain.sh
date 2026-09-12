@@ -93,21 +93,30 @@ note "=== 5. tampering with that row still flips it to verified=false ==="
 # (Tier 367 first put this at step 3 and then asserted chain integrity at
 # steps 4-5 — with the tampered row still in the table. The assertions were
 # wrong by construction, not the chain.)
+# Tier 368: save the payload first so cleanup can put it back (see below).
+ORIG_NEWDATA=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT COALESCE(\"newData\"::text, '') FROM \"AuditLog\" WHERE id='$ROW_ID';" 2>/dev/null | head -1)
 docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -q -c \
   "UPDATE \"AuditLog\" SET \"newData\" = jsonb_set(\"newData\", '{basePrice}', '999999') WHERE id='$ROW_ID';" >/dev/null 2>&1
 api_get "/api/v1/audit-logs/$ROW_ID/verify?companyId=$COMPANY_ID"
 assert_eq "tampered row does not verify" "$(json_field "$BODY" verified)" "False"
 
-note "=== 6. Cleanup ==="
-# Delete the probe's audit rows (the tampered one included) and restore the name.
+note "=== 6. Cleanup: restore the row, never delete it (Tier 368) ==="
+# This used to DELETE the probe rows. Deleting a SIGNED audit row breaks the
+# chain for everything after it: the next row's previousHash then points at a
+# hash that exists nowhere, and verifyChain reports previous_hash_mismatch.
+# Measured after Tier 368 put the auth/assets/company rows into the chain —
+# seq 334 and 335 were simply gone, and specs 170 and 171 both broke on it.
+# Audit rows are append-only by design, so restore the tampered payload and
+# leave the concurrent-probe rows alone: they are legitimate audit history.
+ESCAPED_NEWDATA=$(printf '%s' "$ORIG_NEWDATA" | sed "s/'/''/g")
 docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -q -c \
-  "DELETE FROM \"AuditLog\" WHERE id='$ROW_ID';" >/dev/null 2>&1
-LEFT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
-  "SELECT count(*) FROM \"AuditLog\" WHERE id='$ROW_ID';" 2>/dev/null | tr -d ' ')
-assert_eq "probe audit row removed" "$LEFT" "0"
-# The parallel probes leave their own rows; drop them so the next run starts clean.
-docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -q -c \
-  "DELETE FROM \"AuditLog\" WHERE \"entityId\"='$PRODUCT_ID' AND action='product.updated';" >/dev/null 2>&1
+  "UPDATE \"AuditLog\" SET \"newData\" = '$ESCAPED_NEWDATA'::jsonb WHERE id='$ROW_ID';" >/dev/null 2>&1
+api_get "/api/v1/audit-logs/$ROW_ID/verify?companyId=$COMPANY_ID"
+assert_eq "the restored row verifies again" "$(json_field "$BODY" verified)" "True"
+api_get "/api/v1/audit-logs/verify?companyId=$COMPANY_ID"
+CHAIN_REASON3=$(echo "$BODY" | python3 -c "import json,sys; b=json.load(sys.stdin).get('brokenAt') or {}; print('%s %s' % (b.get('reason',''), b.get('id','')))" 2>/dev/null)
+assert_eq "chain intact on exit (brokenAt: ${CHAIN_REASON3:-none})" "$(json_field "$BODY" ok)" "True"
 api_put "/api/v1/products/$PRODUCT_ID?companyId=$COMPANY_ID" "{\"name\":\"$ORIG_NAME\"}"
 assert_status 200 "restore product name"
 

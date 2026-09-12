@@ -262,6 +262,14 @@ export class AuditService {
     entityType: string
     entityId?: string | null
     metadata?: Record<string, any>
+    // Tier 368: the call sites being migrated onto this method (auth, assets,
+    // company) wrote these columns directly. Without them here the migration
+    // would silently drop the login audit trail's ipAddress/userAgent and the
+    // storno/feature-flag before-images. `ipAddress`/`userAgent` are stored but
+    // NOT hashed — same as the extension's writeAudit. `oldData` IS hashed.
+    ipAddress?: string | null
+    userAgent?: string | null
+    oldData?: Record<string, any> | null
   }): Promise<void> {
     try {
       // Read the previous row's hash to chain this one to it. Tier 366: the
@@ -292,7 +300,7 @@ export class AuditService {
             entityId: input.entityId ?? null,
             userId: input.userId,
             companyId: input.companyId,
-            oldData: null,
+            oldData: input.oldData ?? null,
             newData: input.metadata || null,
             previousHash,
             createdAt: createdAtRounded,
@@ -304,8 +312,10 @@ export class AuditService {
               action: input.action,
               entityType: input.entityType,
               entityId: input.entityId || null,
-              oldData: undefined,
+              oldData: input.oldData ?? undefined,
               newData: input.metadata || undefined,
+              ipAddress: input.ipAddress ?? null,
+              userAgent: input.userAgent ?? null,
               createdAt: createdAtRounded,
               hash,
               previousHash,
@@ -328,6 +338,44 @@ export class AuditService {
         (err as Error).message,
       )
     }
+  }
+
+  /**
+   * Tier 368 — resolve actor e-mails without a foreign key.
+   *
+   * AuditLog no longer has a relation to User (migration
+   * 20260912000002_audit_log_drop_actor_fks): the FK was ON DELETE SET NULL, so
+   * deleting a user silently rewrote `userId` on rows that were already signed,
+   * and the chain broke with hash_mismatch through no tampering at all.
+   *
+   * `userId` is now a plain snapshot that may name a user who no longer exists.
+   * This resolves the e-mails in ONE batched query per page (never N+1) and
+   * shapes the result exactly like the old relation did, so every caller that
+   * reads `r.user?.email` keeps working. A row whose user is gone keeps its
+   * userId and gets a null e-mail — which is the history an auditor should see.
+   */
+  private async attachUserEmails<T extends { userId: string | null }>(
+    rows: T[],
+  ): Promise<(T & { user: { email: string } | null })[]> {
+    const ids = [
+      ...new Set(
+        rows.map((r) => r.userId).filter((id): id is string => !!id),
+      ),
+    ]
+    const users = ids.length
+      ? await this.prisma.user.findMany({
+          where: { id: { in: ids } },
+          select: { id: true, email: true },
+        })
+      : []
+    const byId = new Map(users.map((u) => [u.id, u.email]))
+    return rows.map((r) => ({
+      ...r,
+      user:
+        r.userId && byId.has(r.userId)
+          ? { email: byId.get(r.userId) as string }
+          : null,
+    }))
   }
 
   /**
@@ -461,14 +509,14 @@ export class AuditService {
           // a diff), so we don't
           // bother selecting it.
           newData: true,
-          // user email for the "who" column
-          user: { select: { email: true } },
         },
       }),
       this.prisma.auditLog.count({ where }),
     ])
     return {
-      rows: rows.map((r) => ({
+      // Tier 368: the "who" column used to come from a Prisma relation; the FK
+      // is gone, so the e-mails are resolved in one batched lookup.
+      rows: (await this.attachUserEmails(rows)).map((r) => ({
         id: r.id,
         action: r.action,
         entityType: r.entityType,
@@ -728,13 +776,14 @@ export class AuditService {
         oldData: true,
         newData: true,
         createdAt: true,
-        user: { select: { email: true } },
       },
     })
     if (!row) return null
+    // Tier 368: resolve the actor e-mail without the (now removed) relation.
+    const [rowWithUser] = await this.attachUserEmails([row])
     return {
-      ...row,
-      userEmail: row.user?.email ?? null,
+      ...rowWithUser,
+      userEmail: rowWithUser.user?.email ?? null,
     }
   }
 
@@ -866,12 +915,12 @@ export class AuditService {
             entityType: true,
             entityId: true,
             userId: true,
-            user: { select: { email: true } },
             ipAddress: true,
             newData: true,
           },
         })
-        allRows.push(...rows)
+        // Tier 368: relation removed — resolve e-mails per prefix batch.
+        allRows.push(...(await this.attachUserEmails(rows)))
       }
       // Dedupe (a row could in
       // theory match multiple
@@ -915,12 +964,12 @@ export class AuditService {
         entityType: true,
         entityId: true,
         userId: true,
-        user: { select: { email: true } },
         ipAddress: true,
         newData: true,
       },
     })
-    return this.buildActivityCsv(rows)
+    // Tier 368: relation removed — resolve e-mails in one batched lookup.
+    return this.buildActivityCsv(await this.attachUserEmails(rows))
   }
 
   /**
@@ -1039,9 +1088,12 @@ export class AuditService {
           oldData: true,
           newData: true,
           createdAt: true,
-          user: { select: { email: true } },
         },
       })
+      // Tier 368: relation removed — resolve e-mails in one batched lookup.
+      // (The raw-SQL branch above already carries userEmail from its own
+      // LEFT JOIN, which never needed the foreign key.)
+      rawRows = await this.attachUserEmails(rawRows)
     }
     const header = [
       'Zeitstempel',

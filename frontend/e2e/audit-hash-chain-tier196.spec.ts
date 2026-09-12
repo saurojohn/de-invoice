@@ -31,7 +31,8 @@
 import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
 import { execFileSync } from "child_process"
-import path from "path"
+// Tier 368: `path` was only needed to resolve the backend dir for the rehash
+// beforeAll, which is gone.
 import { PG_CONTAINER } from './fixtures/test-env'
 
 const AUTH_CACHE = "/tmp/cashbook-e2e-auth.env"
@@ -69,52 +70,19 @@ test.beforeEach(async ({ context }: { context: any }) => {
   )
 })
 
-// Re-hash the entire chain in `seq` order before
-// the suite runs. This gives every test
-// a known-good baseline (the first test reads
-// ok=true). The rehash script is a one-off
-// helper invoked by the e2e — the production
-// code only ever writes hashes at row-create
-// time, so this is purely a test-harness
-// concern. Tamper tests intentionally leave
-// the chain broken at the end; the next suite
-// run will rehash again to reset.
+// Tier 368: the rehash beforeAll is GONE.
 //
-// Tier 367: this beforeAll is why the chain bug hid here for ten tiers — the
-// rehash rewrote every pointer, so the spec never exercised the order the
-// application actually wrote. backend/e2e/170 now asserts the chain verifies
-// with no re-hash, and under concurrent writes.
-test.beforeAll(() => {
-  // execFileSync resolves the script's own
-  // dependencies (Prisma) relative to its own
-  // location, but `require('@prisma/client')`
-  // inside the script uses cwd's node_modules.
-  // The rehash helper lives in backend/scripts/ as a
-  // TypeScript file; we invoke it via npx ts-node so
-  // the spec doesn't have to maintain a separate JS
-  // copy in /tmp. (The previous design copied a .js
-  // file from /tmp into the backend dir — that file
-  // never existed in CI, so the test failed with
-  // ENOENT on the first run.)
-  try {
-    execFileSync(
-      "npx",
-      ["ts-node", "scripts/audit-rehash.ts"],
-      {
-        encoding: "utf-8",
-        stdio: "pipe",
-        cwd: path.resolve(__dirname, "..", "..", "backend"),
-      },
-    )
-  } catch (e: any) {
-    // Re-raise with stderr attached so the test failure
-    // message points to the rehash error rather than
-    // the subsequent chain-verify call.
-    throw new Error(
-      `audit-rehash failed: ${(e.stderr || e.stdout || e.message || "").toString().slice(0, 500)}`,
-    )
-  }
-})
+// It used to run scripts/audit-rehash.ts before every test in this file,
+// rewriting every hash and pointer to hand test 1 a clean baseline. That is
+// exactly why the Tier 367 ordering defect hid here for ten tiers: the spec
+// never exercised the order the application actually wrote, only the order the
+// rehash imposed, so it stayed green while a freshly seeded database reported
+// previous_hash_mismatch.
+//
+// Two changes make it unnecessary. Tier 367 made the application write a chain
+// that verifies on its own (backend/e2e/170 asserts exactly that, with no
+// re-hash and under concurrent writes), and test 3 below now restores the row
+// it tampers with instead of leaving the chain broken for the next run.
 
 // Raw psql helper (same pattern as the cashbook
 // tier 194 spec).
@@ -173,8 +141,11 @@ test.describe("Tier 196 — Audit hash chain", () => {
     // Pick the most-recent row with a hash. The
     // exact id varies per run, but every such row
     // is a freshly-written, properly-hashed entry.
+    // Tier 368: order by `seq`, not createdAt. createdAt is rounded to whole
+    // seconds, so among same-second rows "most recent" was whatever the UUID
+    // sort happened to return.
     const idOut = psql(
-      `SELECT id FROM "AuditLog" WHERE "hash" IS NOT NULL ORDER BY "createdAt" DESC LIMIT 1;`,
+      `SELECT id FROM "AuditLog" WHERE "hash" IS NOT NULL ORDER BY seq DESC LIMIT 1;`,
     )
     const id = idOut.split("\n")[0].trim()
     expect(id.length, "expected a row with a hash to exist").toBeGreaterThan(0)
@@ -216,20 +187,22 @@ test.describe("Tier 196 — Audit hash chain", () => {
       },
     )
     const beforeBody = await before.json()
-    // If the chain is already broken from a prior
-    // test, skip — the "detect tamper" assertion
-    // only makes sense from a known-good baseline.
-    if (!beforeBody.ok) {
-      test.skip(true, "chain was already broken at the start of the test — rehash via the per-row helper to reset")
-      return
-    }
-    // Pick a target row to tamper. Use the
-    // most-recent with a hash so the chain head
-    // is at the tail (avoids breaking earlier
-    // rows' previousHash pointers if we picked
-    // a middle row).
+    // Tier 368: this used to `test.skip()` when the chain was already broken,
+    // which turned a real regression into a green run. Since Tier 367 the
+    // application writes a chain that verifies on its own, and this test now
+    // restores the row it tampers with, so a broken chain here is a genuine
+    // failure and must fail.
+    expect(
+      beforeBody.ok,
+      `chain must be intact before tampering; brokenAt=${JSON.stringify(beforeBody.brokenAt)}`,
+    ).toBe(true)
+    // Pick the newest signed row by `seq` so the tampered row is the chain's
+    // tail. Tier 368: this was `ORDER BY "createdAt" DESC` — and createdAt is
+    // rounded to whole seconds, so among same-second rows it could return a
+    // MIDDLE row, which is exactly what the old comment said it wanted to
+    // avoid: tampering a middle row also breaks the following rows' pointers.
     const id = psql(
-      `SELECT id FROM "AuditLog" WHERE "hash" IS NOT NULL ORDER BY "createdAt" DESC LIMIT 1;`,
+      `SELECT id FROM "AuditLog" WHERE "hash" IS NOT NULL ORDER BY seq DESC LIMIT 1;`,
     ).split("\n")[0].trim()
     // Sanity: single-row verify should pass
     // before tampering.
@@ -243,10 +216,13 @@ test.describe("Tier 196 — Audit hash chain", () => {
       },
     )
     const preBody = await pre.json()
-    if (!preBody.verified) {
-      test.skip(true, "row's stored hash doesn't match recompute — rehash via the per-row helper first")
-      return
-    }
+    // Tier 368: was a test.skip() — the same silent-green trap as the chain
+    // check above. Since Tier 367 a freshly written row verifies on its own, so
+    // a mismatch here is a real regression and has to fail.
+    expect(
+      preBody.verified,
+      `the row must verify before we tamper with it; stored=${preBody.storedHash?.slice(0, 16)} recomputed=${preBody.recomputedHash?.slice(0, 16)}`,
+    ).toBe(true)
     // Tamper: replace the newData JSONB value
     // with a DIFFERENT shape from the current
     // one (which may already be the tamper
@@ -254,6 +230,12 @@ test.describe("Tier 196 — Audit hash chain", () => {
     // a unique discriminator so a re-run on
     // a chain that already had the row
     // tampered still flips the hash.
+    // Tier 368: save the original payload so this test can put it back. It used
+    // to leave the chain permanently broken and rely on the beforeAll rehash to
+    // launder it — precisely what hid the Tier 367 ordering defect for ten tiers.
+    const originalNewData = psql(
+      `SELECT COALESCE("newData"::text, '') FROM "AuditLog" WHERE "id" = '${id}';`,
+    )
     const tamperValue = `{"tampered_at_${Date.now()}": true}`
     psql(
       `UPDATE "AuditLog" SET "newData" = '${tamperValue}'::jsonb WHERE "id" = '${id}';`,
@@ -292,15 +274,31 @@ test.describe("Tier 196 — Audit hash chain", () => {
     expect(oneBody.signed).toBe(true)
     expect(oneBody.verified).toBe(false)
     expect(oneBody.storedHash).not.toBe(oneBody.recomputedHash)
-    // Note: we intentionally do NOT rehash the
-    // tampered row back to its original value.
-    // The next tier's e2e suite should detect
-    // a broken chain and either rehash it
-    // (with the actual original data) or skip
-    // the chain-ok assertion. We leave the
-    // chain broken at the end of this test on
-    // purpose — that's the tamper-detection
-    // footprint.
+    // Tier 368: restore the row and prove the chain is whole again, so this
+    // spec leaves no tampered row behind for the next run. (A SQL string
+    // literal escapes a quote by doubling it; psql is invoked via execFileSync,
+    // so no shell quoting is involved.)
+    if (originalNewData === "") {
+      psql(`UPDATE "AuditLog" SET "newData" = NULL WHERE "id" = '${id}';`)
+    } else {
+      psql(
+        `UPDATE "AuditLog" SET "newData" = '${originalNewData.replace(/'/g, "''")}'::jsonb WHERE "id" = '${id}';`,
+      )
+    }
+    const restored = await request.get(
+      `http://localhost:3001/api/v1/audit-logs/verify?companyId=${tokens!.companyId}`,
+      {
+        headers: {
+          "x-user-id": tokens!.userId,
+          "x-company-id": tokens!.companyId,
+        },
+      },
+    )
+    const restoredBody = await restored.json()
+    expect(
+      restoredBody.ok,
+      `chain should be intact again after restoring; brokenAt=${JSON.stringify(restoredBody.brokenAt)}`,
+    ).toBe(true)
   })
 
   test("4. frontend audit page renders the chain verify button + badge", async ({

@@ -195,7 +195,7 @@ LATEST=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT COALESCE(\"oldData\"::text, 'null') || '|' || COALESCE(\"newData\"::text, 'null') || '|' || COALESCE(\"userId\", 'null')
    FROM \"AuditLog\"
    WHERE action='company.feature_flags.updated' AND \"companyId\"='$COMPANY_ID'
-   ORDER BY \"createdAt\" DESC LIMIT 1;" 2>&1 | tr -d ' ' | head -1)
+   ORDER BY seq DESC LIMIT 1;" 2>&1 | tr -d ' ' | head -1)
 echo "  latest entry: $LATEST"
 # The last entry was the PATCH {} (no-op) —
 # oldData should reflect the current state

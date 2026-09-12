@@ -967,9 +967,11 @@ alone does not make the chain verify.
 **Also open:** rows written before Tier 366 that contain a Decimal stay
 unverifiable under V1 rules; `npx ts-node scripts/audit-rehash.ts` re-hashes a
 chain (it also signs previously unsigned rows). That rewrites stored hashes, so
-it is the operator's call — see §9. Seven call sites still write unsigned audit
-rows (auth ×5, assets ×3, company ×1); they are outside the chain by design
-today and could be routed through `audit.service.writeActivity`, which signs.
+it is the operator's call — see §9. **Nine** call sites wrote unsigned audit
+rows (auth ×5, assets ×3, company ×1 — "seven" was a miscount here; the
+breakdown itself always summed to nine). Tier 368 routed all nine through
+`audit.service.writeActivity`, which signs and chains them — see the Tier 368
+section below.
 
 Verified: fresh CI-equivalent local stack — backend e2e **170 passed / 0 failed** with the new
 spec green: the product update writes a `SHA-256-V2` row whose payload stores
@@ -1040,6 +1042,93 @@ populated DB (backfill `d,a,b,c`, sequence continues, NOT NULL and UNIQUE both
 enforced). A probe canonicalising the live create result against the stored
 jsonb with the real function reports `canonical strings equal: YES`, 0 field
 differences.
+
+### The chain is append-only, and the auth rows are in it (Tier 368)
+
+Tier 367 made the chain verify. This tier put the rows that were still *outside*
+it into it — which immediately exposed two structural defects that had been
+invisible precisely because those rows were unsigned.
+
+**1. Nine unsigned call sites are signed now.** auth ×5 (controller ×4, service
+×1), assets ×3 (service ×1, AfA scheduler ×2), company ×1 all wrote via
+`prisma.auditLog.create`, which bypasses the audit extension: no hash, no chain.
+They now go through `audit.service.writeActivity`, which signs and chains them
+under the per-company advisory lock. `writeActivity` gained optional
+`ipAddress` / `userAgent` / `oldData` — without them the migration would have
+silently dropped the login trail's IP and user-agent and the storno /
+feature-flag before-images. ipAddress/userAgent are stored but NOT hashed (same
+as the extension); `oldData` IS hashed.
+
+**2. A failed login for an unknown e-mail was never audited at all.** That call
+site wrote `companyId: 'unknown'` and `userId: 'unknown'`; both were foreign
+keys, so every such insert violated them and died inside an empty
+`catch { /* ignore */ }` — not even a log line. Measured before the fix: an
+unknown-e-mail login returned HTTP 400 and produced **zero** AuditLog rows,
+while a real user with a wrong password (real ids) wrote its row fine. The
+un-audited case was the interesting one — user enumeration, credential
+stuffing. Nothing in the suite had ever asserted on an auth audit row, which is
+why it survived; `e2e/171-tier368-auth-audit-signed.sh` now does.
+
+**3. The foreign keys were rewriting signed rows.** `AuditLog_userId_fkey` and
+`AuditLog_companyId_fkey` were **ON DELETE SET NULL**, so deleting a user made
+PostgreSQL silently null `userId` on rows that user had already produced —
+signed ones included. The hash covers userId, so the stored hash then described
+a row that no longer existed and verifyChain reported `hash_mismatch` with
+nobody tampering. Measured: 4 such rows, e.g. a `login_success` whose
+`entityId` still held `user-2fa-test-…` (entityId has no FK, so it survived)
+while `userId` was gone. **Not** specific to this tier's rows — an
+`invoice.updated` row from the extension was in the same state; those were
+unsigned before, so verifyChain skipped them.
+
+Fixed by dropping both FKs (migration `20260912000002_audit_log_drop_actor_fks`;
+the operator chose this over an actor-snapshot column). `companyId`/`userId` are
+plain snapshots now and may name ids that no longer resolve — which is what an
+audit trail should do. The six Prisma relation queries were replaced by
+`AuditService.attachUserEmails()`: one batched lookup that shapes the result
+exactly like the old relation, so every `r.user?.email` consumer is unchanged.
+The two raw-SQL paths already used a manual `LEFT JOIN` and never needed the FK.
+`ON DELETE NO ACTION` was not an option: seven e2e specs delete users via raw
+SQL, and `161-tier231-users-crud.sh` asserts on the delete succeeding.
+
+**4. Deleting an audit row in test cleanup breaks the chain.** Once these rows
+are signed, a `DELETE FROM "AuditLog"` in a spec's cleanup removes a link: the
+next row's `previousHash` points at a hash that exists nowhere and verifyChain
+reports `previous_hash_mismatch`. Measured: seq 334/335 simply gone, specs 170
+and 171 both failing on it. The offenders were `117` (two DELETEs of
+`assets.afa.auto_booked`) and `170` itself (two DELETEs I wrote in Tier 367).
+Audit rows are append-only:
+- `170` **restores** the tampered payload instead of deleting it, and asserts
+  the row verifies again and the chain is intact on exit.
+- `117` records `BASELINE_SEQ = MAX(seq)` up front and scopes its assertions to
+  `seq > $BASELINE_SEQ` instead of deleting leftovers.
+- `116` / `120` took audit rows with `ORDER BY "createdAt" DESC LIMIT 1`. Since
+  `writeActivity` rounds createdAt to whole seconds that is ambiguous (120 does
+  four PATCHes inside one second) — both order by `seq` now.
+
+**5. The Tier 196 Playwright spec no longer launders the chain.** Its
+`beforeAll` ran `audit-rehash.ts` before every test, rewriting every hash and
+pointer — which is why the Tier 367 defect hid there for ten tiers. Removed.
+Test 3 saves the payload it tampers with and restores it, so the spec leaves no
+broken chain behind. Its two `test.skip()` escapes ("chain was already broken",
+"row's stored hash doesn't match recompute") are hard assertions now — both were
+silent-green traps. Tests 2 and 3 also picked their target row with
+`ORDER BY "createdAt" DESC`, which among same-second rows could return a MIDDLE
+row — exactly what the spec's own comment said it had to avoid. Both use `seq`.
+
+A methodology note worth keeping: my first grep for specs mutating AuditLog used
+`DELETE FROM \"AuditLog\"`, which the shell turned into `DELETE FROM "AuditLog"`
+— but specs write that SQL inside bash double quotes, as `\"AuditLog\"`. Every
+hit was missed and I concluded "only ci-seed touches AuditLog" while spec 170
+itself had two DELETEs. Grep the table name alone and filter, rather than
+guessing the quoting.
+
+Verified on a fresh CI-equivalent stack: backend e2e **171 passed / 0 failed**
+(including the new spec 171), full Playwright **912 passed / 0 failed / 0
+skipped**, backend + frontend `tsc` and `eslint --max-warnings 0` clean.
+`e2e/41-migrate.sh` runs `prisma migrate deploy` on a throwaway DB, so both new
+migrations are exercised. One caveat found on the way: `gobd-archive.spec.ts:87`
+fails when Playwright runs on a **subset**, because it assumes Expense rows that
+an earlier spec creates (ci-seed inserts none); it passes in the full run.
 
 ### Notes from Tiers 347–352 (recovered in Tier 364)
 
@@ -1178,10 +1267,13 @@ stderr**.
 `schema.prisma` models, diff against every `INSERT INTO "X" (cols)`) — it is
 what surfaced all four, and lesson 10 only catches it if you actually run it.
 
-**No lint job in CI.** The 4 jobs are backend-typecheck, frontend-typecheck,
-e2e and playwright — eslint is never run, which is how an unused-import
-warning drifted into `customer-detail-invoices-chip-tier243.spec.ts` against
-the repo's stated "0 warnings" bar (removed in Tier 347). Worth a job.
+~~**No lint job in CI.**~~ **Obsolete — corrected in Tier 368.** CI has had six
+jobs for some time, `backend-lint` (`ci.yml:98`) and `frontend-lint`
+(`ci.yml:118`) among them, and both ran green in run 34684152720. The claim
+below was also self-contradictory: §5 has listed 6 jobs all along. What
+remains true is the history — an unused-import warning once drifted into
+`customer-detail-invoices-chip-tier243.spec.ts` while no lint job existed
+(removed in Tier 347); the lint jobs are what stop that recurring.
 
 ### Operational issues (updated Tier 364)
 - ~~`tmp-pw-fail/` untracked~~ — gitignored since Tier 344.

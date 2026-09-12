@@ -2,12 +2,17 @@ import { Injectable, UnauthorizedException, BadRequestException, Logger } from '
 import { PrismaService } from '../../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
+import { AuditService } from '../audit/audit.service';
 
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    // Tier 368: signs the password_reset_success row (was unsigned).
+    private audit: AuditService,
+  ) {}
 
   async validateUser(email: string, password: string) {
     const user = await this.prisma.user.findUnique({ where: { email } });
@@ -168,14 +173,13 @@ export class AuthService {
     try {
       const user = await this.prisma.user.findUnique({ where: { id: userId } });
       if (user) {
-        await this.prisma.auditLog.create({
-          data: {
-            companyId: user.companyId ?? undefined,
-            userId: user.id,
-            action: 'password_reset_success',
-            entityType: 'auth',
-            entityId: user.id,
-          },
+        // Tier 368: signed via AuditService (was an unsigned direct insert).
+        await this.audit.writeActivity({
+          companyId: user.companyId ?? null,
+          userId: user.id,
+          action: 'password_reset_success',
+          entityType: 'auth',
+          entityId: user.id,
         });
       }
     } catch { /* ignore */ }
