@@ -17,8 +17,8 @@ exact commands + docs you need to be productive.
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 34637385799 / commit `af3551e`, Tier 365b):**
-  - Backend e2e: **169 passed / 0 failed** — 100 two-digit + 69 three-digit
+- **Test counts (last green CI, run 34659421459 / commit `d99ade3`, Tier 366):**
+  - Backend e2e: **170 passed / 0 failed** — 100 two-digit + 70 three-digit
     specs; before Tier 361 only the two-digit ones ever ran. `QUARANTINE` empty.
   - Playwright: **912 passed / 0 failed / 0 skipped / 0 flaky** — every test
     runs and none needed a retry. Tier 365 turned the last 4 skips into real
