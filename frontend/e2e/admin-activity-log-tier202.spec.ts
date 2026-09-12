@@ -199,17 +199,39 @@ test.describe("Tier 202 — instrumented admin actions write activity rows", () 
     // the polling loop webhook-dead-letter-tier198's beforeAll
     // already uses.
     let deliveryId: string | undefined
+    let deliveryStatus: string | undefined
     for (let attempt = 0; attempt < 20; attempt++) {
       const list = await request.get(
         `http://localhost:3001/api/v1/webhooks/${whId}/deliveries?companyId=${tokens!.companyId}&limit=1`,
         { headers: headers() },
       )
       const rows = await list.json()
-      deliveryId = Array.isArray(rows) ? rows[0]?.id : undefined
-      if (deliveryId) break
+      const row = Array.isArray(rows) ? rows[0] : undefined
+      deliveryId = row?.id
+      deliveryStatus = row?.status
+      // Tier 369b: wait for a TERMINAL status, not merely for the row to exist.
+      // POST /test dispatches asynchronously, so the row shows up as 'pending'
+      // while the HTTP attempt is still in flight. Forcing status='exhausted'
+      // at that moment is racy — the in-flight dispatch lands a moment later
+      // and overwrites it with success/failed, and the requeue below then 400s
+      // with "is X, not exhausted" (requeueDelivery accepts only 'exhausted').
+      // Seen in CI run 34696678293: first attempt failed in 196ms on
+      // `expect(rq.status()).toBe(200)` receiving 400, retry passed, reported
+      // as "1 flaky". A flaky test hides a real failure exactly like the
+      // silent skips this tier removed.
+      if (
+        deliveryId &&
+        ["success", "failed", "exhausted"].includes(deliveryStatus ?? "")
+      ) {
+        break
+      }
       await new Promise((r) => setTimeout(r, 250))
     }
     expect(deliveryId, "webhook delivery row must land within 5s").toBeTruthy()
+    expect(
+      deliveryStatus,
+      "the delivery must reach a terminal status before we force it to exhausted",
+    ).toMatch(/^(success|failed|exhausted)$/)
     // Force to exhausted.
     execFileSync(
       "docker",

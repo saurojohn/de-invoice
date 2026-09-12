@@ -9,8 +9,8 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–368 are
-  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 368.)
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–369 are
+  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 369.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
@@ -181,9 +181,9 @@ with a pattern that matched the code.** The real figure was 24 single-line
 the original sweep missed entirely; 28 call sites were changed and exactly three
 intentional skips remain. See the Tier 369 section below.
 
-The suite has **62 runtime `test.skip(true, ...)` calls across 29 spec
-files**. 35 of them fire on "element not found / not present / may be
-loading" — i.e. a hydration race or a real UI regression is converted into
+As counted at the time, the suite had **62 runtime `test.skip(true, ...)` calls
+across 29 spec files**. 35 of them fired on "element not found / not present /
+may be loading" — i.e. a hydration race or a real UI regression is converted into
 a **silent skip**, and CI still reports green. The skipped set is not
 stable run to run (Tier 344 skipped 28, Tier 345 skipped 29, with 3 in and
 2 out), so "884 passed" is not a fixed number.
@@ -1194,6 +1194,29 @@ Verified: full Playwright **912 passed / 0 failed / 0 skipped** on a fresh
 CI-equivalent stack; frontend `tsc` + `eslint --max-warnings 0` clean; backend
 untouched this tier. Every converted assertion held — which is the point: those
 15 sites had never once been exercised without their escape hatch.
+
+**Tier 369b — CI then surfaced a flaky, which is the same disease.** The Tier
+369 run (34696678293) was green but reported `911 passed, 1 flaky`:
+`admin-activity-log-tier202.spec.ts:165` ("webhook.requeue writes an activity
+row") failed its first attempt in 196ms and passed on retry. Not caused by this
+work — Tier 368 never touched the webhook module, Tier 369 only added a comment
+to `webhooks.spec.ts`, and the two previous CI runs were clean 912s. A
+low-frequency pre-existing race.
+
+Root cause: `POST /webhooks/:id/test` dispatches asynchronously, and the spec's
+polling loop waited only for the delivery ROW to appear — not for it to reach a
+terminal status. It then forced `status='exhausted'` via psql while the HTTP
+attempt was still in flight; that attempt landed a moment later and overwrote
+the status with success/failed, so `requeueDelivery` — which accepts only
+`exhausted` (webhook.service.ts:713) — returned 400 and the test died on
+`expect(rq.status()).toBe(200)`. The loop now waits for
+`success|failed|exhausted` (the deliveries list already selects `status`) and
+asserts the terminal status before forcing it. That closes the window instead of
+widening a timeout.
+
+Worth stating plainly, because it is the same lesson as the skips: a flaky test
+hides a real failure exactly as a silent skip does — behind a retry rather than
+behind a green skip. It belongs in this tier, not in a TODO.
 
 ### Notes from Tiers 347–352 (recovered in Tier 364)
 
