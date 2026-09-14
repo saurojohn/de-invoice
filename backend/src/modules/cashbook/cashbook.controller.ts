@@ -1,7 +1,13 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Query, BadRequestException, Res } from '@nestjs/common';
 import type { Response } from 'express';
-import { KassenbuchService, CashBookEntryType } from './kassenbuch.service';
-import { UpdateCashBookEntryDto } from './dto/cashbook.dto';
+import { KassenbuchService } from './kassenbuch.service';
+import {
+  UpdateCashBookEntryDto,
+  CreateCashBookEntryDto,
+  ReverseCashBookEntryDto,
+  CloseCashBookDayDto,
+  ReopenCashBookDayDto,
+} from './dto/cashbook.dto';
 import { Auth, Require } from '../../auth/roles.decorator';
 
 @Auth()
@@ -51,18 +57,7 @@ export class CashBookController {
   @Require('accounting.create')
   async create(
     @Query('companyId') companyId: string,
-    @Body() body: { createdById?: string } & {
-      businessDate: string
-      type: CashBookEntryType
-      description: string
-      amount: number
-      vatRate?: number
-      counterparty?: string
-      belegNumber?: string
-      expenseId?: string
-      invoiceId?: string
-      notes?: string
-    },
+    @Body() body: CreateCashBookEntryDto,
   ) {
     if (!companyId) throw new BadRequestException('companyId is required');
     const { createdById, ...rest } = body;
@@ -104,10 +99,10 @@ export class CashBookController {
   async reverse(
     @Query('companyId') companyId: string,
     @Param('id') id: string,
-    @Body() body: { reason: string; createdById?: string },
+    @Body() body: ReverseCashBookEntryDto,
   ) {
     if (!companyId) throw new BadRequestException('companyId is required');
-    return this.svc.reverseEntry(companyId, id, body.reason, body.createdById);
+    return this.svc.reverseEntry(companyId, id, body.reason ?? '', body.createdById);
   }
 
   // ========== Tagesabschluss (Z-Bericht) ==========
@@ -121,7 +116,7 @@ export class CashBookController {
   @Require('accounting.update')
   async closeDay(
     @Query('companyId') companyId: string,
-    @Body() body: { date: string; physicalCount: number; closedById?: string; differenzNote?: string },
+    @Body() body: CloseCashBookDayDto,
   ) {
     if (!companyId) throw new BadRequestException('companyId is required');
     if (!body.date) throw new BadRequestException('date is required');
@@ -141,7 +136,7 @@ export class CashBookController {
   @Require('accounting.update')
   async reopenDay(
     @Query('companyId') companyId: string,
-    @Body() body: { date: string },
+    @Body() body: ReopenCashBookDayDto,
   ) {
     if (!companyId) throw new BadRequestException('companyId is required');
     if (!body.date) throw new BadRequestException('date is required');

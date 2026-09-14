@@ -6,6 +6,7 @@ import { Prisma } from '@prisma/client';
 const archiverLib: any = require('archiver');
 import { InvoiceService } from './invoice.service';
 import { PaymentService } from './payment.service';
+import { CreatePaymentDto, CreateCreditNoteDto } from './dto/payment-credit-note.dto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { MailService } from '../mail/mail.service';
@@ -1561,18 +1562,8 @@ export class InvoiceController {
   async createPayment(
     @Param('id') id: string,
     @Query('companyId') companyId: string,
-    @Body() body: {
-      amount: number;
-      paymentDate: string;
-      paymentMethod: string;
-      reference?: string;
-      notes?: string;
-      receiptNumber?: string;
-    },
+    @Body() body: CreatePaymentDto,
   ) {
-    if (!body || !body.amount || !body.paymentDate || !body.paymentMethod) {
-      throw new Error('Betrag, Datum und Zahlungsweg sind erforderlich');
-    }
     return this.paymentService.create(id, companyId, {
       amount: Number(body.amount),
       paymentDate: new Date(body.paymentDate),
@@ -1609,16 +1600,7 @@ export class InvoiceController {
   async createCreditNote(
     @Param('id') id: string,
     @Query('companyId') companyId: string,
-    @Body() body: {
-      amount?: number
-      lines?: Array<{
-        description: string
-        quantity?: number
-        unitPrice: number
-        vatRate?: number
-      }>
-      reason?: string
-    },
+    @Body() body: CreateCreditNoteDto,
   ) {
     if (!companyId) {
       throw new BadRequestException('companyId ist erforderlich')

@@ -1443,6 +1443,81 @@ pause, clone and convert flows; then the full backend suite **174 passed /
 frontend dev server on :3100, so `16-dark-mode.sh` found one and ran. In CI's
 e2e job there is no frontend, so it skips there.)
 
+### Money routes validated: payments, credit notes, Kassenbuch (Tier 374)
+
+**Survey first.** A script listed every `@Body()` in a controller and classified
+its declared type: **135** bodies, only **27** class DTOs; the rest are inline
+object literals, interfaces/type aliases, `@Body('field')`, a `Partial<>`, an
+`any` — none of which ValidationPipe checks. Calibrated against raw grep (135)
+and known cases. It had one **false positive**: `POST /accounting/vouchers`
+looked unvalidated because `voucher.service.ts` declares an
+`interface CreateVoucherDto` with the same name as the class the controller
+actually imports from `./dto/voucher.dto`. Matching type names across the tree
+is wrong; the survey now resolves the name through the controller's own
+imports. The reverse trap is real too: `AssetCreateDto` / `AssetUpdateDto` /
+`AssetDisposeDto` are **interfaces** in `assets.service.ts` — named like DTOs,
+not validated. After this tier: 135 bodies, 34 validated, **101 not** (6 fixed
+here + the voucher false positive). Highest-risk remaining: accounting voucher
+status/reversal/correct, `voucher-templates/:id/apply`, the Anlage settings
+PUTs, `payments/batches`, `payments/mandates`, `direct-debit/batches`, assets.
+
+**Measured before the change** (fresh stack, not inferred):
+| Route | Body | Before |
+|---|---|---|
+| `POST /invoices/:id/payments` | `{}`, `paymentDate:"abc"`, `amount:1e12` | 500 |
+| `POST /invoices/:id/credit-note` | `amount:1e12`, line `vatRate:19` | 500 |
+| `POST /invoices/:id/credit-note` | `amount:"zehn"`, `-50`, `0` | **201 — full refund** (-119 on a 119 invoice) |
+| `POST /cashbook/entries` | `businessDate:"abc"`, `vatRate:19`, `amount:1e12` | 500 |
+| `POST /cashbook/close-day` | `date:"abc"` | 500 |
+
+The credit-note one is the real finding: a non-number or non-positive `amount`
+failed the service's `amount > 0` test and fell through to the mirror-every-line
+branch, so a typo produced a credit note for the whole invoice.
+
+**Callers enumerated before any decorator** (multi-line aware; `$INV1_ID`-style
+variables with digits defeated the first regex): invoice detail page
+(payment form, credit-note modal), cashbook page (save, storno, Z-Bericht,
+reopen), backend e2e 01–07, 50, 52, 80, 81, 83, 85, 149, Playwright
+credit-note, sequence-tier174, cashbook-signature-tier194. Shapes that shaped
+the DTOs: `vatRate`/`counterparty`/`belegNumber`/`notes` sent as `null`
+(cashbook page), `paymentDate` as both `YYYY-MM-DD` and a full ISO timestamp
+(e2e 52/83), a storno with no `reason` (e2e 03 expects the service's
+"Begründung" message).
+
+**e2e 07's fixture branch was broken twice over, silently.** It only runs
+when the company has no paid invoice — never in CI, whose seed has one (the
+full local run confirmed the branch was skipped). Forced on a fresh stack: the
+invoice create sent `status: "paid"`, which `CreateInvoiceDto` does not
+declare → 400 into `/dev/null`, so `INV_ID` picked whatever invoice was newest;
+then the payment said `method`, not `paymentMethod` → 500 (measured on the old
+code), also into `/dev/null`. Both bodies are fixed, both steps assert 201, and
+`INV_ID` comes from the create response. Verified with the branch forced and
+unforced. (The Tier 334 SQL status patch stays; whether the create path also
+overwrites `status` was not measured.) **Lesson: a spec's fallback branch that
+CI never enters is untested code — force it once.**
+
+New DTOs: `invoice/dto/payment-credit-note.dto.ts` (`CreatePaymentDto`,
+`CreateCreditNoteDto`, `CreditNoteLineDto`) and in `cashbook/dto/cashbook.dto.ts`
+`CreateCashBookEntryDto`, `ReverseCashBookEntryDto`, `CloseCashBookDayDto`,
+`ReopenCashBookDayDto`. Bounds follow the `Decimal(12,4)` / `Decimal(5,4)`
+columns; dates are `IsDateString({ strict: true })` (rejects 30 February).
+Checks the services already make with a German message the specs assert
+(payment amount > 0, blank description, missing storno reason, Z-Bericht
+differenz note) were deliberately **left in the services**. The controller's
+plain `throw new Error(...)` for missing payment fields is gone.
+
+Spec `e2e/175-tier374-money-routes-dto.sh`: section 1 replays every caller
+shape (must succeed, service messages unchanged); section 2 asserts 400 for
+each measured case above and that no payment, credit note, entry or close was
+written by the invalid requests.
+
+Verified on fresh CI-equivalent stacks: the 8 Playwright specs that touch
+these routes or pages (cashbook-signature-tier194, cashbook-tier223,
+credit-note incl. the modal submit, customer-detail-tabs-tier238, direct-debit,
+payments, sequence-tier174, ustva-history-tier161) — **52 passed / 0 failed**;
+the full backend suite **174 passed / 0 failed / 1 skipped** of 175 specs
+(`16-dark-mode.sh`, no frontend); `tsc` and `eslint` clean.
+
 ### Notes from Tiers 347–352 (recovered in Tier 364)
 
 Tier 353 wrote a new version of this file but left the previous one appended

@@ -61,7 +61,6 @@ if [[ "$PAID_COUNT" == "0" ]]; then
   api_post "/api/v1/invoices?companyId=$COMPANY_ID" "{
     \"customerId\": \"$CUST_ID\",
     \"type\": \"INV\",
-    \"status\": \"paid\",
     \"issueDate\": \"2026-06-01\",
     \"dueDate\": \"2026-06-15\",
     \"currency\": \"EUR\",
@@ -73,10 +72,12 @@ if [[ "$PAID_COUNT" == "0" ]]; then
       \"unitPrice\": 100,
       \"vatRate\": 0.19
     }]
-  }" >/dev/null
-
-  INV_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
-    "SELECT id FROM \"Invoice\" WHERE \"companyId\" = '$COMPANY_ID' AND type = 'INV' ORDER BY \"createdAt\" DESC LIMIT 1;" 2>/dev/null | tr -d ' ')
+  }"
+  # Tier 374: this create sent \"status\": \"paid\", which CreateInvoiceDto does
+  # not declare, so it was a 400 into /dev/null and INV_ID below silently
+  # picked whatever invoice was created last. Assert it and use its own id.
+  assert_status "201" "fixture invoice created"
+  INV_ID=$(json_field "$BODY" id)
   INV_NO=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
     "SELECT \"invoiceNumber\" FROM \"Invoice\" WHERE id = '$INV_ID';" 2>/dev/null | tr -d ' ')
   note "Created invoice $INV_NO"
@@ -85,10 +86,16 @@ if [[ "$PAID_COUNT" == "0" ]]; then
   api_post "/api/v1/invoices/$INV_ID/payments?companyId=$COMPANY_ID" "{
     \"amount\": 119.00,
     \"paymentDate\": \"2026-06-01\",
-    \"method\": \"bank_transfer\",
+    \"paymentMethod\": \"bank_transfer\",
     \"notes\": \"E2E test payment\"
-  }" >/dev/null
+  }"
 
+  # Tier 374: this body said "method" instead of "paymentMethod", so the
+  # payment was never recorded either (measured: 500, into /dev/null).
+  # This branch only runs when the company has no paid invoice — never in
+  # CI, whose seed includes one — which is how both faults went unnoticed.
+  assert_status "201" "payment recorded"
+  #
   # Tier 334: belt-and-suspenders. The /payments endpoint
   # normally flips status to 'paid' once sum(payments) >=
   # invoice total, but a regression in the create path
