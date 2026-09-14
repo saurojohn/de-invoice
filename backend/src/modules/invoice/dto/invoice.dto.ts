@@ -5,18 +5,35 @@ export class InvoiceItemDto {
   @IsString()
   description!: string;
   
+  // Tier 372: bounded to what InvoiceItem.quantity (Decimal(12,4)) can hold.
+  // Without this, an oversized value passed validation and failed in Postgres
+  // with "numeric field overflow" — a 500 for a client error. The range is
+  // symmetric on purpose: this only turns that 500 into a 400 and does not
+  // decide whether negative lines are allowed.
   @IsNumber()
+  @Min(-99999999.9999)
+  @Max(99999999.9999)
   quantity!: number;
-  
+
   @IsString()
   @IsOptional()
   unit?: string;
   
+  // Tier 372: same column limit as quantity (Decimal(12,4)); symmetric, so a
+  // negative adjustment line stays possible.
   @IsNumber()
+  @Min(-99999999.9999)
+  @Max(99999999.9999)
   unitPrice!: number;
-  
+
+  // Tier 372: a fraction, like every other VAT-rate DTO in the codebase
+  // (expense, cashbook, product all use @Min(0) @Max(1)) and like the frontend
+  // sends it (0.19). This had no bounds, so vatRate: 19 reached the
+  // Decimal(5,4) column and failed with a numeric overflow → HTTP 500.
   @IsNumber()
   @IsOptional()
+  @Min(0, { message: 'MwSt-Satz darf nicht negativ sein' })
+  @Max(1, { message: 'MwSt-Satz ist ein Anteil (z. B. 0.19), höchstens 1' })
   vatRate?: number;
 
   @IsString()
@@ -69,12 +86,20 @@ export class CreateInvoiceDto {
   @IsOptional()
   notes?: string;
 
+  // Tier 372: discountPercent had no bounds while its sibling skontoPercent
+  // below is @Min(0) @Max(100); the column is Decimal(5,2), so >999.99 was a
+  // numeric overflow → 500. discountAmount is bounded to its Decimal(12,4)
+  // column only.
   @IsNumber()
   @IsOptional()
+  @Min(0)
+  @Max(100)
   discountPercent?: number;
 
   @IsNumber()
   @IsOptional()
+  @Min(-99999999.9999)
+  @Max(99999999.9999)
   discountAmount?: number;
 
   @IsNumber()
@@ -175,8 +200,9 @@ export class UpdateInvoiceDto {
   @IsString() @IsOptional() currency?: string;
   @IsString() @IsOptional() language?: string;
   @IsString() @IsOptional() notes?: string;
-  @IsNumber() @IsOptional() discountPercent?: number;
-  @IsNumber() @IsOptional() discountAmount?: number;
+  // Tier 372: same bounds as CreateInvoiceDto (see there).
+  @IsNumber() @IsOptional() @Min(0) @Max(100) discountPercent?: number;
+  @IsNumber() @IsOptional() @Min(-99999999.9999) @Max(99999999.9999) discountAmount?: number;
   @IsNumber() @IsOptional() paymentTerms?: number;
   @IsString() @IsOptional() paymentMethod?: string;
   @IsString() @IsOptional() templateType?: string;

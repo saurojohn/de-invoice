@@ -1338,11 +1338,9 @@ or the spec matches the official ELSTER schema is **§9 item 9** — a possible
 compliance issue for a tax filing format, not something to change inside a test
 tier.
 
-**Minor backend robustness issues noticed, not fixed:** a missing required
-`companyId` on `GET /invoices/:id/pdf` returns 500 instead of 400; an
-out-of-range `vatRate` (e.g. `19` instead of `0.19`) on invoice create returns
-500 (numeric overflow on a `Decimal(5,4)` column) instead of a 400 from DTO
-validation.
+**Minor backend robustness issues noticed here** — a missing `companyId` on
+`GET /invoices/:id/pdf` and an out-of-range `vatRate` on invoice create, both
+500s — were fixed in Tier 372 (below).
 
 Lesson, again: the Tier 370 static search for "SKIP then exit 0" found 3; the CI
 log showed the rest, including skips that don't exit at all but step over one
@@ -1351,6 +1349,53 @@ assertion. **For "what never runs", read the CI log, not the code.**
 Verified on a fresh CI-equivalent stack: the three specs standalone on an empty
 DB (49 took the create path), guard 172 both ways, and the full suite:
 **171 passed / 0 failed / 1 skipped** (`16-dark-mode.sh`).
+
+### Client errors answered as 500s, or silently as 200s (Tier 372)
+
+**Fixed:**
+- **Invoice create/update bounds.** `InvoiceItemDto` had bare `@IsNumber()` on
+  `quantity`, `unitPrice`, `vatRate`; `CreateInvoiceDto`/`UpdateInvoiceDto` the
+  same on `discountPercent`, `discountAmount`. Values beyond the Decimal column
+  failed in Postgres with "numeric field overflow" → 500 (measured: `vatRate: 19`,
+  `quantity: 1e9`). Values that fit the column but are meaningless (`vatRate: 5`,
+  `discountPercent: 150`) had no check at all — not measured before the fix, so
+  not claimed. Now: `vatRate` 0..1 (a fraction, like the expense / cashbook /
+  product DTOs and like the frontend sends it), `discountPercent` 0..100 (like
+  `skontoPercent`, and like the UI input's `min="0" max="100"`), and `quantity` /
+  `unitPrice` / `discountAmount` bounded to their `Decimal(12,4)` range **in both
+  signs** — that only turns the 500 into a 400; whether negative lines are
+  allowed was not decided here. No frontend or e2e payload exceeds the new bounds.
+- **`GET /invoices/:id/pdf` without `?companyId=`** → 500 "PDF generation failed".
+  The auth guard reads the `x-company-id` header, so the request passed auth and
+  then Prisma threw on `companyId: undefined`. Now 400 up front (the handler's
+  catch rethrows HttpExceptions).
+- **`GET /reports/vat`**: a missing or non-numeric `year` → `parseInt` → NaN →
+  Invalid Date → 500; and `quarter=9` / `month=13` were answered 200 with a report
+  for a period that does not exist. A missing year now defaults to the current
+  year (like `/sales` and `/customers` in the same controller); an invalid year,
+  quarter or month is 400.
+
+**How the scope was found, not guessed:** a sweep called all **182**
+parameter-less GET routes without `companyId` (153 of them read it). Only
+`/reports/vat` answered 500 — so the PDF route was an isolated case, not a
+pattern. Regression spec: `e2e/173-tier372-client-errors-are-400.sh` asserts
+every 400 above **and** that the valid requests (vatRate 0.19 and 0, discount
+10 %, the PDF, `/reports/vat` defaults) still succeed.
+
+**Open — needs a decision before anyone "fixes" it:** the recurring-invoice
+routes have **no DTO validation at all**. `recurring.controller.ts` types its
+bodies as TypeScript intersections (`{ createdById?: string } & RecurringInput`,
+`Partial<RecurringInput> & { isActive?: boolean }`); Nest's ValidationPipe can
+only validate classes, so these bodies pass through unchecked — `vatRate: 19`
+there would hit the same overflow. Converting them to DTO classes is the right
+direction, but with the global `whitelist + forbidNonWhitelisted` any field the
+recurring UI sends that the new DTO does not declare would start failing with
+400. Do it with the frontend payloads enumerated first and a Playwright run of
+the recurring specs, not as a side edit.
+
+Verified on a fresh CI-equivalent stack: probes for every case (400s and the
+still-valid 201/200s), the route sweep, and the full suite **172 passed /
+0 failed / 1 skipped**; spec 159's valid `/reports/vat` calls still pass.
 
 ### Notes from Tiers 347–352 (recovered in Tier 364)
 

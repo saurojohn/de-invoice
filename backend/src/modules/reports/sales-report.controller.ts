@@ -55,11 +55,37 @@ export class SalesReportController {
     @Query('quarter') quarter?: string,
     @Query('month') month?: string,
   ) {
+    // Tier 372: this passed parseInt(year) straight through. A missing or
+    // non-numeric year became NaN, the service built an Invalid Date, and
+    // Prisma threw a validation error — HTTP 500 (the only parameter-less GET
+    // route that 500'd in a sweep of all 182). Worse, quarter=9 and month=13
+    // were accepted with a 200 and a report for a period that does not exist.
+    //
+    // A missing year defaults to the current year, like /sales and /customers
+    // in this controller. Anything present but invalid is a 400.
+    const y = year === undefined || year === '' ? new Date().getFullYear() : Number(year);
+    if (!Number.isInteger(y) || y < 2000 || y > 2100) {
+      throw new BadRequestException('year muss ein Jahr zwischen 2000 und 2100 sein');
+    }
+    let q: number | undefined;
+    if (quarter !== undefined && quarter !== '') {
+      q = Number(quarter);
+      if (!Number.isInteger(q) || q < 1 || q > 4) {
+        throw new BadRequestException('quarter muss 1, 2, 3 oder 4 sein');
+      }
+    }
+    let m: number | undefined;
+    if (month !== undefined && month !== '') {
+      m = Number(month);
+      if (!Number.isInteger(m) || m < 1 || m > 12) {
+        throw new BadRequestException('month muss zwischen 1 und 12 liegen');
+      }
+    }
     return this.reportsService.getVatReport({
       companyId,
-      year: parseInt(year, 10),
-      quarter: quarter ? parseInt(quarter, 10) : undefined,
-      month: month ? parseInt(month, 10) : undefined,
+      year: y,
+      quarter: q,
+      month: m,
     });
   }
 

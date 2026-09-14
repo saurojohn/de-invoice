@@ -673,6 +673,15 @@ export class InvoiceController {
     @Res() res: Response,
   ) {
     try {
+      // Tier 372: a missing ?companyId= used to reach invoiceService.findOne()
+      // as `undefined`, where Prisma threw a validation error and this route
+      // answered 500 "PDF generation failed". The auth guard reads the
+      // x-company-id HEADER, so such a request passes auth and only fails
+      // later. It is a client error: say so. (The catch below rethrows
+      // HttpExceptions, so this stays a 400.)
+      if (!companyId) {
+        throw new BadRequestException('companyId ist erforderlich')
+      }
       // Tier 165: ?meta=true short-circuits
       // before PDF generation. We still
       // resolve the company + cert so the
