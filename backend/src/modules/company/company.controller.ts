@@ -3,6 +3,7 @@ import { CompanyService } from './company.service';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Auth, Require } from '../../auth/roles.decorator';
+import { CompanyIdParam } from '../../auth/public.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   SKR03_DEFAULTS,
@@ -15,6 +16,8 @@ import * as path from 'path';
 import { Request } from 'express';
 import { AuditService } from '../audit/audit.service';
 
+// Tier 376: `:id` is the company — bind it to the authenticated one.
+@CompanyIdParam('id')
 @Controller('companies')
 export class CompanyController {
   constructor(
@@ -25,6 +28,7 @@ export class CompanyController {
   ) {}
 
   @Auth()
+  @Require('company.read')
   @Get(':id')
   async findOne(@Param('id') id: string) {
     return this.companyService.findById(id);
@@ -53,6 +57,7 @@ export class CompanyController {
    * able to see what account map will be used.
    */
   @Auth()
+  @Require('company.read')
   @Get(':id/datev-config')
   async getDatevConfig(@Param('id') id: string) {
     const company = await this.companyService.findById(id)
@@ -345,6 +350,7 @@ export class CompanyController {
    * ISO timestamp at the start of next month.
    */
   @Auth()
+  @Require('company.read')
   @Get(':id/feature-flags')
   async getFeatureFlags(@Param('id') id: string) {
     const company = await this.companyService.findById(id)
@@ -371,6 +377,7 @@ export class CompanyController {
   }
 
   @Auth()
+  @Require('company.update')
   @Post('upload-logo')
   @UseInterceptors(FileInterceptor('file', {
     limits: { fileSize: 2 * 1024 * 1024 }, // 2MB limit
@@ -485,6 +492,7 @@ export class CompanyController {
    * would reappear after the next GET.
    */
   @Auth()
+  @Require('company.update')
   @Post('remove-logo')
   async removeLogo(@Req() req: Request) {
     const companyId = (req.headers['x-company-id'] as string) || '';

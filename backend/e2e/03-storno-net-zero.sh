@@ -66,6 +66,10 @@ api_post "/api/v1/cashbook/entries/$EID/reverse?companyId=$COMPANY_ID" "{
   \"reason\":\"another\",
   \"createdById\":\"$USER_ID\"
 }"
+# Tier 376: reversesId is unique — this second storno of the same entry used to
+# fail in Postgres and answer 500, unasserted. It is a 400 now.
+assert_status "400" "second storno of the same entry rejected"
+echo "$BODY" | grep -q "bereits storniert" && pass "Error says already reversed" || fail "Should say bereits storniert: $BODY"
 # EID is the original; its reversal has reversesId=EID. So trying
 # to storno the original again would create a second reversal which
 # is technically allowed (because the original is not itself a

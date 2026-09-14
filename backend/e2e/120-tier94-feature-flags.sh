@@ -163,15 +163,18 @@ STATUS_CROSS=$(curl -sS -o /dev/null -w "%{http_code}" -X PATCH \
   -d '{"autoBookAfa": false}')
 assert_eq "cross-tenant PATCH → 401" "$STATUS_CROSS" "401"
 
-# ===== 8. Nonexistent company → 400 =====
+# ===== 8. Nonexistent company → 403 =====
+# Tier 376: /companies/:id is bound to the authenticated company, so any other
+# id — existing or not — is refused by HeaderAuthGuard (403) before the
+# handler's "Firma nicht gefunden" (400) is reached.
 echo
-echo "=== 8. Nonexistent companyId → 400 ==="
+echo "=== 8. Nonexistent companyId → 403 ==="
 STATUS_404=$(curl -sS -o /dev/null -w "%{http_code}" -X PATCH \
   "$API/api/v1/companies/00000000-0000-0000-0000-000000000000/feature-flags" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
   -H "Content-Type: application/json" \
   -d '{"autoBookAfa": false}')
-assert_eq "nonexistent company → 400" "$STATUS_404" "400"
+assert_eq "nonexistent company → 403" "$STATUS_404" "403"
 
 # ===== 9. Audit log entries =====
 echo

@@ -47,10 +47,14 @@ set -uo pipefail
 source "$(dirname "$0")/_lib.sh"
 login
 
-# ---- 1. POST creates a global rate ----
+# ---- 1. POST creates a rate for the caller's company ----
+# Tier 376: this used to create a GLOBAL row (companyId NULL) that every other
+# tenant's GET /current then returned. A created rate now always belongs to the
+# caller's company; reads see global rows plus the company's own.
 api_post "/api/v1/vat-rates" \
   '{"countryCode":"DE","rate":0.19,"rateType":"standard","name":"Regelsteuersatz","effectiveFrom":"2020-01-01T00:00:00Z","description":"19% USt"}'
-assert_status "201" "POST /vat-rates (global DE 19%)"
+assert_status "201" "POST /vat-rates (DE 19%)"
+assert_eq "created rate belongs to the caller's company" "$(json_field "$BODY" companyId)" "$COMPANY_ID"
 RATE_ID=$(json_field "$BODY" id)
 RATE_ID=$(echo "$RATE_ID" | tr -d ' \n')
 [ -n "$RATE_ID" ] && pass "POST returns id ($RATE_ID)" || fail "POST no id"

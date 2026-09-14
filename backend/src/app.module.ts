@@ -4,6 +4,7 @@ import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { ScheduleModule } from '@nestjs/schedule';
 import { APP_GUARD } from '@nestjs/core';
 import { HeaderAuthGuard } from './auth/header-auth.guard';
+import { RolesGuard } from './auth/roles.guard';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CompanyModule } from './modules/company/company.module';
@@ -164,6 +165,10 @@ import { AssetsModule } from './modules/assets/assets.module';
     // Registered before the throttler so an unauthenticated request is not
     // counted against a caller's rate limit.
     { provide: APP_GUARD, useClass: HeaderAuthGuard },
+    // Tier 376: @Require() is enforced everywhere. Before, RolesGuard only ran
+    // where a controller applied @Auth() or @UseGuards(..., RolesGuard); the
+    // nine installment-plan routes carried @Require() that never ran.
+    { provide: APP_GUARD, useClass: RolesGuard },
     // Tier 172: guard also conditional on the env var.
     // When THROTTLE_DISABLED=1, no ThrottlerModule is
     // registered above, so wiring the guard here would

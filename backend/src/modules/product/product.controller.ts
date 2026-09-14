@@ -88,6 +88,7 @@ export class ProductController {
    * a deliberate code change, not a side-effect of
    * adding a row to the seed data.
    */
+  @Require('product.read')
   @Get('import/template.csv')
   @Header('Content-Type', 'text/csv; charset=utf-8')
   @Header('Content-Disposition', 'attachment; filename="produkte-import.csv"')

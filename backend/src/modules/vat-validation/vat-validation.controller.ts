@@ -234,6 +234,7 @@ export class VatValidationController {
    * each entity's "Verlauf" tab). The PDF just
    * collates it.
    */
+  @Require('customer.read')
   @Get('audit.pdf')
   // @Require deliberately omitted: this report
   // collates the same data each user can already

@@ -67,6 +67,7 @@ export class BwaController {
     return this.bwa.compute(companyId, year, month)
   }
 
+  @Require('reports.read')
   @Get('bwa.pdf')
   @Header('Content-Type', 'application/pdf')
   async getBwaPdf(

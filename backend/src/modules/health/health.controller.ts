@@ -26,17 +26,17 @@
 // time and never updated, so the `uptime`
 // field is wall-clock-since-boot.
 
-import { Controller, Get } from '@nestjs/common'
+import { Controller, Get, Req } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
 import { Public } from '../../auth/public.decorator'
+import { Require } from '../../auth/roles.decorator'
 
 const STARTED_AT = new Date()
 const VERSION = process.env.npm_package_version || '0.0.0'
 
-@Public()
 @Controller('health')
 export class HealthController {
   constructor(private readonly prisma: PrismaService) {}
@@ -52,6 +52,7 @@ export class HealthController {
    * stops returning, the
    * process is wedged.
    */
+  @Public()
   @Get()
   liveness() {
     return {
@@ -75,6 +76,7 @@ export class HealthController {
    * balancer should route
    * to a different replica.
    */
+  @Public()
   @Get('deep')
   async deep() {
     const checks: Record<string, { status: 'ok' | 'fail'; detail?: string }> = {}
@@ -149,8 +151,16 @@ export class HealthController {
    * monitoring). The /metrics endpoint stays text-only
    * for Prometheus; this is the JSON sibling.
    */
+  // Tier 376: authenticated and scoped to the caller's company. It was public
+  // and counted every company, user, invoice and customer on the platform —
+  // every tenant's dashboard showed the whole installation's size. Ops
+  // monitoring uses /health, /health/deep and /metrics, which stay public.
+  @Require('company.read')
   @Get('summary')
-  async summary() {
+  async summary(@Req() req: { headers: Record<string, string | string[] | undefined>; user?: { id: string } }) {
+    // HeaderAuthGuard has verified this header against UserCompany.
+    const companyId = String(req.headers['x-company-id'] || '')
+    const userId = req.user?.id || ''
     let dbOk = false
     let companies = 0
     let users = 0
@@ -164,10 +174,12 @@ export class HealthController {
       // index-only scan. The dashboard widget polls
       // every 30s, so we don't want a 5-table join.
       const [c, u, i, cu] = await Promise.all([
-        this.prisma.company.count(),
-        this.prisma.user.count(),
-        this.prisma.invoice.count(),
-        this.prisma.customer.count(),
+        // companies this user can switch between
+        this.prisma.userCompany.count({ where: { userId } }),
+        // users with access to this company
+        this.prisma.userCompany.count({ where: { companyId } }),
+        this.prisma.invoice.count({ where: { companyId } }),
+        this.prisma.customer.count({ where: { companyId } }),
       ])
       companies = c
       users = u

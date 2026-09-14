@@ -7,8 +7,9 @@
 #     companyId: GET /accounting/accounts and /accounting/vouchers returned
 #     the chart of accounts and every Buchungsbeleg (200), POST
 #     /accounting/accounts created an account (201), POST /ocr/match-supplier
-#     created a supplier (201), GET /mail/config returned the SMTP settings
-#     including the smtpPassword field, and PUT /mail/config, the voucher
+#     created a supplier (201), GET /mail/config returned the SMTP host and
+#     user, and PUT /mail/config (which keeps the stored password when the
+#     field is empty — so a changed host receives it), the voucher
 #     reversal / status / generate routes and PUT /inventory/:id/adjust
 #     reached their handlers (404 only because the probe used a dummy id).
 #   * Any authenticated user could name another company: a freshly
@@ -42,7 +43,6 @@ GET customer-portal/invoices
 GET customer-portal/profile
 GET health
 GET health/deep
-GET health/summary
 GET invitations/verify
 GET metrics
 GET portal/:token
@@ -101,7 +101,7 @@ ROUTE_COUNT=$(python3 -c "import json,sys;print(len(json.loads(sys.argv[1])))" "
 [[ "$ROUTE_COUNT" -gt 400 ]] && pass "route inventory parsed ($ROUTE_COUNT routes)" || fail "route inventory looks wrong: $ROUTE_COUNT routes"
 ACTUAL_PUBLIC=$(python3 -c "import json,sys;print('\n'.join(sorted({r['method']+' '+r['path'] for r in json.loads(sys.argv[1]) if r['public']})))" "$ROUTES_JSON")
 if [[ "$ACTUAL_PUBLIC" == "$EXPECTED_PUBLIC" ]]; then
-  pass "@Public() routes match the reviewed list (23)"
+  pass "@Public() routes match the reviewed list (22)"
 else
   fail "@Public() routes differ from the reviewed list:"
   diff <(echo "$EXPECTED_PUBLIC") <(echo "$ACTUAL_PUBLIC") | sed 's/^/      /'

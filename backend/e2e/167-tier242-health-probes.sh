@@ -93,7 +93,12 @@ PG_OK=$(json_field "$(cat /tmp/tier242-sysdeep.txt)" checks.postgres.ok)
 [ "$PG_OK" = "True" ] || [ "$PG_OK" = "true" ] && pass "system/health/deep checks.postgres.ok = true" || fail "postgres.ok = $PG_OK"
 
 # ---- 7. /api/v1/health/summary → 200 + JSON ----
+# Tier 376: authenticated and scoped to the caller's company (was public and
+# platform-wide); without headers it is 401.
+NOAUTH=$(curl -sS -o /dev/null -w "%{http_code}" "$API/api/v1/health/summary")
+assert_eq "GET /api/v1/health/summary without credentials" "$NOAUTH" "401"
 BODY=$(curl -sS -o /tmp/tier242-summary.txt -w "%{http_code}" \
+  -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
   "$API/api/v1/health/summary")
 [ "$BODY" = "200" ] && pass "GET /api/v1/health/summary → 200" || fail "expected 200, got $BODY"
 STATUS=$(json_field "$(cat /tmp/tier242-summary.txt)" status)
@@ -115,6 +120,11 @@ INVOICES=$(json_field "$(cat /tmp/tier242-summary.txt)" business.invoices)
 [ -n "$COMPANIES" ] && [ -n "$INVOICES" ] && \
   pass "summary has business.companies=$COMPANIES, business.invoices=$INVOICES" || \
   fail "business counts missing"
+# Tier 376: the counts are the company's, not the platform's.
+DB_INVOICES=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "SELECT count(*) FROM \"Invoice\" WHERE \"companyId\" = '$COMPANY_ID';" | tr -d ' ')
+assert_eq "business.invoices is this company's invoice count" "$INVOICES" "$DB_INVOICES"
+DB_COMPANIES=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "SELECT count(*) FROM \"UserCompany\" WHERE \"userId\" = '$USER_ID';" | tr -d ' ')
+assert_eq "business.companies is the companies this user can access" "$COMPANIES" "$DB_COMPANIES"
 
 # ---- 10. /metrics → 200 + Prometheus text format ----
 BODY=$(curl -sS -o /tmp/tier242-metrics.txt -w "%{http_code}" \

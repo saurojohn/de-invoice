@@ -12,6 +12,7 @@ import { FileInterceptor } from '@nestjs/platform-express'
 import { Throttle } from '@nestjs/throttler'
 import { OcrService, OCR_FIXTURE, extractFieldsFromText } from './ocr.service'
 import { PrismaService } from '../../prisma/prisma.service'
+import { Require } from '../../auth/roles.decorator'
 
 /**
  * Tier 29: OCR endpoints for Eingangsrechnung scan ingestion.
@@ -62,6 +63,7 @@ export class OcrController {
    * The size cap (10MB) prevents OOM on accidental
    * huge uploads.
    */
+  @Require('expense.read')
   @Post('scan')
   // OCR scan — heavy (tesseract / AI call, seconds of CPU).
   // Tight local limit (overrides the global 600/60s):
@@ -111,6 +113,7 @@ export class OcrController {
    * used by the production e2e (which exercises the
    * full /scan + /expenses/prefilled path).
    */
+  @Require('expense.read')
   @Get('fixture')
   fixture() {
     return OCR_FIXTURE
@@ -124,6 +127,7 @@ export class OcrController {
    * weird OCR output?"). The text param is URL-
    * encoded by the caller.
    */
+  @Require('expense.read')
   @Get('extract')
   extract(@Query('text') text: string) {
     if (!text) {
@@ -157,6 +161,7 @@ export class OcrController {
    * Centralising the matching logic here keeps
    * the UI clean.
    */
+  @Require('expense.write')
   @Post('match-supplier')
   async matchSupplier(
     @Body() body: { vatId?: string; name?: string; companyId?: string },

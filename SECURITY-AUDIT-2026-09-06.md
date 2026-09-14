@@ -9,6 +9,11 @@
 > auth trusts client-supplied user/company ids. The first two are fixed in
 > Tier 375; the third is open (HANDOFF §9 item 10). Re-verify any verdict here
 > before relying on it.
+>
+> **Tier 376 addendum.** Also measured: any registered user could overwrite
+> another tenant's company record (`PUT /companies/<id>` → 200), and a `viewer`
+> could create accounts, assets and suppliers and rewrite the SMTP config
+> (96 routes had no role check). Both fixed in Tier 376.
 
 > **Snapshot**: full security + code-quality audit
 > of the de-invoice repo on commit `054a5a0`

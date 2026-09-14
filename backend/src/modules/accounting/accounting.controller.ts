@@ -63,6 +63,7 @@ import { EBilanzService } from './ebilanz.service';
 import { GobdArchiveService } from './gobd-archive.service';
 import { HeaderAuthGuard } from '../../auth/header-auth.guard';
 import { PrismaService } from '../../prisma/prisma.service';
+import { Require } from '../../auth/roles.decorator';
 
 @Controller('accounting')
 export class AccountingController {
@@ -112,6 +113,7 @@ export class AccountingController {
   ) {}
 
   // ========== Accounts ==========
+  @Require('accounting.read')
   @Get('accounts')
   async listAccounts(@Query('companyId') companyId: string) {
     if (!companyId) {
@@ -120,6 +122,7 @@ export class AccountingController {
     return this.accountService.findAll(companyId);
   }
 
+  @Require('accounting.create')
   @Post('accounts')
   async createAccount(
     @Query('companyId') companyId: string,
@@ -131,6 +134,7 @@ export class AccountingController {
     return this.accountService.create(companyId, body);
   }
 
+  @Require('accounting.create')
   @Get('accounts/seed')
   async seedAccounts(@Query('companyId') companyId: string) {
     if (!companyId) {
@@ -158,6 +162,7 @@ export class AccountingController {
    * `@Get('vouchers')` so neither swallows the literal
    * "cost-center-suggestion" segment.
    */
+  @Require('accounting.read')
   @Get('vouchers/cost-center-suggestion')
   async suggestVoucherCostCenter(
     @Query('companyId') companyId: string,
@@ -191,6 +196,7 @@ export class AccountingController {
    * cost-center input — typing "VER" narrows the
    * suggestions to "VERTRIEB" / "VERTRIEB-100" etc.
    */
+  @Require('accounting.read')
   @Get('vouchers/cost-center-suggestion/list')
   async listVoucherCostCenters(
     @Query('companyId') companyId: string,
@@ -212,6 +218,7 @@ export class AccountingController {
     return { items: rows, count: rows.length }
   }
 
+  @Require('accounting.read')
   @Get('vouchers')
   async listVouchers(
     @Query('companyId') companyId: string,
@@ -237,6 +244,7 @@ export class AccountingController {
     });
   }
 
+  @Require('accounting.read')
   @Get('vouchers/:id')
   async getVoucher(@Param('id') id: string, @Query('companyId') companyId: string) {
     if (!companyId) {
@@ -245,6 +253,7 @@ export class AccountingController {
     return this.voucherService.findOne(id, companyId);
   }
 
+  @Require('accounting.create')
   @Post('vouchers')
   async createVoucher(
     @Body() body: CreateVoucherDto,
@@ -266,6 +275,7 @@ export class AccountingController {
     });
   }
 
+  @Require('accounting.create')
   @Post('vouchers/generate/:invoiceId')
   async generateVoucherFromInvoice(
     @Param('invoiceId') invoiceId: string,
@@ -277,6 +287,7 @@ export class AccountingController {
     return this.voucherService.generateFromInvoice(invoiceId, companyId);
   }
 
+  @Require('accounting.update')
   @Put('vouchers/:id/status')
   async updateVoucherStatus(
     @Param('id') id: string,
@@ -301,6 +312,7 @@ export class AccountingController {
     * self-relation. Body carries an optional reason
     * that gets prepended to the Storno description.
     */
+  @Require('accounting.update')
   @Post('vouchers/:id/reversal')
   async createReversal(
     @Param('id') id: string,
@@ -348,6 +360,7 @@ export class AccountingController {
    * Response: { reversal, correction } — both Vouchers
    * with their line breakdowns, full edges intact.
    */
+  @Require('accounting.update')
   @Post('vouchers/:id/correct')
   async correctVoucher(
     @Param('id') id: string,
@@ -392,6 +405,7 @@ export class AccountingController {
    * so the Beleg a Berater hands the tax auditor
    * is self-contained.
    */
+  @Require('accounting.read')
   @Get('vouchers/:id/pdf')
   @Header('Content-Type', 'application/pdf')
   async downloadVoucherPdf(
@@ -497,6 +511,7 @@ export class AccountingController {
    * leak the company's full P&L to anyone with
    * the URL.
    */
+  @Require('accounting.read')
   @Get('euer')
   @UseGuards(HeaderAuthGuard)
   async getEuer(
@@ -523,6 +538,7 @@ export class AccountingController {
    * footer is the same one the Berater wants to
    * see before signing.
    */
+  @Require('accounting.read')
   @Get('euer.pdf')
   @UseGuards(HeaderAuthGuard)
   @Header('Content-Type', 'application/pdf')
@@ -554,6 +570,7 @@ export class AccountingController {
    * Defaults: previous calendar year. Year
    * validation matches /euer.
    */
+  @Require('accounting.read')
   @Get('anlage-s')
   @UseGuards(HeaderAuthGuard)
   async getAnlageS(
@@ -570,6 +587,7 @@ export class AccountingController {
     return this.anlageS.compute(companyId, year)
   }
 
+  @Require('accounting.read')
   @Get('anlage-s.pdf')
   @UseGuards(HeaderAuthGuard)
   @Header('Content-Type', 'application/pdf')
@@ -607,6 +625,7 @@ export class AccountingController {
    * Defaults: previous calendar year. Year
    * validation matches /euer.
    */
+  @Require('accounting.read')
   @Get('anlage-v')
   @UseGuards(HeaderAuthGuard)
   async getAnlageV(
@@ -623,6 +642,7 @@ export class AccountingController {
     return this.anlageV.compute(companyId, year)
   }
 
+  @Require('accounting.read')
   @Get('anlage-v.pdf')
   @UseGuards(HeaderAuthGuard)
   @Header('Content-Type', 'application/pdf')
@@ -660,6 +680,7 @@ export class AccountingController {
   // the purpose field are tentatively classified
   // as Kapitalerträge. The user adjusts in
   // their ELSTER submission.
+  @Require('accounting.read')
   @Get('anlage-kap')
   @UseGuards(HeaderAuthGuard)
   async getAnlageKAP(
@@ -677,6 +698,7 @@ export class AccountingController {
     return this.anlageKAP.compute(companyId, year)
   }
 
+  @Require('accounting.read')
   @Get('anlage-kap.pdf')
   @UseGuards(HeaderAuthGuard)
   @Header('Content-Type', 'application/pdf')
@@ -718,6 +740,7 @@ export class AccountingController {
   // Hinzurechnung Miete/Pacht) and 5100 (50%
   // Kürzung Kfz-Nutzungsanteil) are computed;
   // the rest is placeholder.
+  @Require('accounting.read')
   @Get('anlage-g')
   @UseGuards(HeaderAuthGuard)
   async getAnlageG(
@@ -734,6 +757,7 @@ export class AccountingController {
     return this.anlageG.compute(companyId, year)
   }
 
+  @Require('accounting.read')
   @Get('anlage-g.pdf')
   @UseGuards(HeaderAuthGuard)
   @Header('Content-Type', 'application/pdf')
@@ -776,6 +800,7 @@ export class AccountingController {
   // income (e.g. pure Freelancer with no
   // side job), the section is empty + the
   // Berater packager skips it.
+  @Require('accounting.read')
   @Get('anlage-n')
   @UseGuards(HeaderAuthGuard)
   async getAnlageN(
@@ -792,6 +817,7 @@ export class AccountingController {
     return this.anlageN.compute(companyId, year)
   }
 
+  @Require('accounting.read')
   @Get('anlage-n.pdf')
   @UseGuards(HeaderAuthGuard)
   @Header('Content-Type', 'application/pdf')
@@ -823,6 +849,7 @@ export class AccountingController {
   // werbungskosten, sonderausgaben,
   // aussergewoehnlicheBelastungen}[year].
   // Auth: HeaderAuthGuard (same as the GET).
+  @Require('accounting.update')
   @Put('anlage-n/settings')
   @UseGuards(HeaderAuthGuard)
   async updateAnlageNSettings(
@@ -913,6 +940,7 @@ export class AccountingController {
   // + Soli + GewSt + Anrechnung formula.
   // The KSt-Korrekturen (vGAs, Spenden, etc.)
   // are placeholder for the Berater.
+  @Require('accounting.read')
   @Get('kst1')
   @UseGuards(HeaderAuthGuard)
   async getKSt1(
@@ -929,6 +957,7 @@ export class AccountingController {
     return this.kst1.compute(companyId, year)
   }
 
+  @Require('accounting.read')
   @Get('kst1.pdf')
   @UseGuards(HeaderAuthGuard)
   @Header('Content-Type', 'application/pdf')
@@ -965,6 +994,7 @@ export class AccountingController {
   // year. Ertragsanteil for private Rente
   // simplified to 50% (the post-2012 default).
   // Data from Company.settings.renten[year].
+  @Require('accounting.read')
   @Get('anlage-r')
   @UseGuards(HeaderAuthGuard)
   async getAnlageR(
@@ -981,6 +1011,7 @@ export class AccountingController {
     return this.anlageR.compute(companyId, year)
   }
 
+  @Require('accounting.read')
   @Get('anlage-r.pdf')
   @UseGuards(HeaderAuthGuard)
   @Header('Content-Type', 'application/pdf')
@@ -1008,6 +1039,7 @@ export class AccountingController {
   // The endpoint stores these on
   // Company.settings.{renten,
   // rentenWerbungskosten}[year].
+  @Require('accounting.update')
   @Put('anlage-r/settings')
   @UseGuards(HeaderAuthGuard)
   async updateAnlageRSettings(
@@ -1082,6 +1114,7 @@ export class AccountingController {
   // kindergeldEligible }. The service counts
   // them + applies the standard Freibetrag +
   // Kindergeld per year (2024 rates as default).
+  @Require('accounting.read')
   @Get('anlage-kind')
   @UseGuards(HeaderAuthGuard)
   async getAnlageKind(
@@ -1098,6 +1131,7 @@ export class AccountingController {
     return this.anlageKind.compute(companyId, year)
   }
 
+  @Require('accounting.read')
   @Get('anlage-kind.pdf')
   @UseGuards(HeaderAuthGuard)
   @Header('Content-Type', 'application/pdf')
@@ -1120,6 +1154,7 @@ export class AccountingController {
   // per-year Kinder list. Body:
   //   { year: 2026, kinder: [{ name, birthDate,
   //     kindergeldEligible }, ...] }
+  @Require('accounting.update')
   @Put('anlage-kind/settings')
   @UseGuards(HeaderAuthGuard)
   async updateAnlageKindSettings(
@@ -1190,6 +1225,7 @@ export class AccountingController {
   // UStJA block in the Berater packager.
   // =============================================================
 
+  @Require('accounting.read')
   @Get('anlage-so')
   @UseGuards(HeaderAuthGuard)
   async getAnlageSo(
@@ -1206,6 +1242,7 @@ export class AccountingController {
     return this.anlageSo.compute(companyId, year)
   }
 
+  @Require('accounting.read')
   @Get('anlage-so.pdf')
   @UseGuards(HeaderAuthGuard)
   @Header('Content-Type', 'application/pdf')
@@ -1229,6 +1266,7 @@ export class AccountingController {
   // Body: { year, transactions: [{ type, description,
   //   acquisitionDate, acquisitionCost, saleDate,
   //   salePrice }], wiederkehrendeBezuege, werbungskosten }
+  @Require('accounting.update')
   @Put('anlage-so/settings')
   @UseGuards(HeaderAuthGuard)
   async updateAnlageSoSettings(
@@ -1329,6 +1367,7 @@ export class AccountingController {
   // and the UStJA block in the Berater packager.
   // =============================================================
 
+  @Require('accounting.read')
   @Get('anlage-aus')
   @UseGuards(HeaderAuthGuard)
   async getAnlageAus(
@@ -1345,6 +1384,7 @@ export class AccountingController {
     return this.anlageAus.compute(companyId, year)
   }
 
+  @Require('accounting.read')
   @Get('anlage-aus.pdf')
   @UseGuards(HeaderAuthGuard)
   @Header('Content-Type', 'application/pdf')
@@ -1368,6 +1408,7 @@ export class AccountingController {
   //   { year, entries: [{ country, countryName, hasDba,
   //     incomeType, grossAmount, foreignTaxPaid,
   //     description }] }
+  @Require('accounting.update')
   @Put('anlage-aus/settings')
   @UseGuards(HeaderAuthGuard)
   async updateAnlageAusSettings(
@@ -1458,6 +1499,7 @@ export class AccountingController {
   // Sits between the Anlage series and the HGB
   // reports in the Berater packager.
   // =============================================================
+  @Require('accounting.read')
   @Get('gewst')
   @UseGuards(HeaderAuthGuard)
   async getGewst(
@@ -1474,6 +1516,7 @@ export class AccountingController {
     return this.gewst.compute(companyId, year)
   }
 
+  @Require('accounting.read')
   @Get('gewst.pdf')
   @UseGuards(HeaderAuthGuard)
   @Header('Content-Type', 'application/pdf')
@@ -1496,6 +1539,7 @@ export class AccountingController {
   // per-year Vorauszahlungen (Q1-Q4) from the
   // 4 Quartalsbescheide. Body:
   //   { year: 2026, q1, q2, q3, q4: number }
+  @Require('accounting.update')
   @Put('gewst/settings')
   @UseGuards(HeaderAuthGuard)
   async updateGewstSettings(
@@ -1569,6 +1613,7 @@ export class AccountingController {
    * appreciates having the immutable copy
    * for offline review.
    */
+  @Require('accounting.read')
   @Get('gobd-archive')
   @UseGuards(HeaderAuthGuard)
   async getGobdArchive(
@@ -1595,6 +1640,7 @@ export class AccountingController {
    * (a multi-MB download is much more pleasant
    * after a confirmation dialog).
    */
+  @Require('accounting.read')
   @Get('gobd-archive/summary')
   @UseGuards(HeaderAuthGuard)
   async getGobdArchiveSummary(
@@ -1627,6 +1673,7 @@ export class AccountingController {
    * Berater replaces it with the real equity
    * from the SKR03 / Handelsregister.
    */
+  @Require('accounting.read')
   @Get('bilanz')
   @UseGuards(HeaderAuthGuard)
   async getBilanz(
@@ -1643,6 +1690,7 @@ export class AccountingController {
     return this.bilanz.compute(companyId, year)
   }
 
+  @Require('accounting.read')
   @Get('bilanz.pdf')
   @UseGuards(HeaderAuthGuard)
   @Header('Content-Type', 'application/pdf')
@@ -1685,6 +1733,7 @@ export class AccountingController {
    * Year defaults to previous calendar year,
    * matching the EÜR / Anlage S / Bilanz.
    */
+  @Require('accounting.read')
   @Get('guv')
   @UseGuards(HeaderAuthGuard)
   async getGuV(
@@ -1701,6 +1750,7 @@ export class AccountingController {
     return this.guv.compute(companyId, year)
   }
 
+  @Require('accounting.read')
   @Get('guv.pdf')
   @UseGuards(HeaderAuthGuard)
   @Header('Content-Type', 'application/pdf')
@@ -1736,6 +1786,7 @@ export class AccountingController {
    * Year defaults to previous calendar year,
    * matching the Bilanz + G+V endpoints.
    */
+  @Require('accounting.read')
   @Get('anhang')
   @UseGuards(HeaderAuthGuard)
   async getAnhang(
@@ -1752,6 +1803,7 @@ export class AccountingController {
     return this.anhang.compute(companyId, year)
   }
 
+  @Require('accounting.read')
   @Get('anhang.pdf')
   @UseGuards(HeaderAuthGuard)
   @Header('Content-Type', 'application/pdf')
@@ -1788,6 +1840,7 @@ export class AccountingController {
    * (a stand-in for `res` that captures bytes
    * instead of writing to HTTP).
    */
+  @Require('accounting.read')
   @Get('berater-packager')
   @UseGuards(HeaderAuthGuard)
   async getBeraterPackager(
@@ -1827,6 +1880,7 @@ export class AccountingController {
    * hits this to render the mapping table +
    * the count summary.
    */
+  @Require('accounting.read')
   @Get('ebilanz')
   @UseGuards(HeaderAuthGuard)
   async getEBilanz(
@@ -1856,6 +1910,7 @@ export class AccountingController {
    * document). The file extension is .xbrl
    * per BMF convention.
    */
+  @Require('accounting.read')
   @Get('ebilanz.xml')
   @UseGuards(HeaderAuthGuard)
   @Header('Content-Type', 'application/xml; charset=utf-8')
@@ -1885,6 +1940,7 @@ export class AccountingController {
    * reviews this before uploading the .xbrl
    * file to ELSTER.
    */
+  @Require('accounting.read')
   @Get('ebilanz.pdf')
   @UseGuards(HeaderAuthGuard)
   @Header('Content-Type', 'application/pdf')

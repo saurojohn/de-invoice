@@ -13,6 +13,7 @@ import { Throttle } from '@nestjs/throttler'
 import type { Response } from 'express'
 import { AnlageSOV2Service } from './anlage-so-v2.service'
 import { HeaderAuthGuard } from '../../auth/header-auth.guard'
+import { Require } from '../../auth/roles.decorator'
 
 /**
  * Tier 113 v2: Anlage SO — Broker PDF/CSV auto-import
@@ -50,6 +51,7 @@ export class AnlageSOV2Controller {
    * The frontend uses this to show the new Verlustvortrag
    * line in the summary card.
    */
+  @Require('accounting.read')
   @Get('v2')
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
   async getAnlageSoV2(
@@ -71,6 +73,7 @@ export class AnlageSOV2Controller {
    * The v2 PDF — same layout as v1 + the loss-verrechnung
    * summary block + the Kz 99 line.
    */
+  @Require('accounting.read')
   @Get('v2.pdf')
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
   @Header('Content-Type', 'application/pdf')
@@ -98,6 +101,7 @@ export class AnlageSOV2Controller {
    * Returns either the preview or the import result
    * (see the service for the response shape).
    */
+  @Require('accounting.update')
   @Post('import-csv')
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
   async importCsv(
@@ -136,6 +140,7 @@ export class AnlageSOV2Controller {
    * Returns the import result:
    *   { importedCount, skippedCount, transactions }
    */
+  @Require('accounting.update')
   @Post('import-from-expenses')
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
   async importFromExpenses(
@@ -156,6 +161,7 @@ export class AnlageSOV2Controller {
    * prior-year carryforward (the one used in the
    * current year's compute()).
    */
+  @Require('accounting.read')
   @Get('loss-carryforward')
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
   async getLossCarryforward(
@@ -179,6 +185,7 @@ export class AnlageSOV2Controller {
    * item carries an `alreadyImported` flag so the UI
    * can pre-check the not-yet-imported ones.
    */
+  @Require('accounting.read')
   @Get('importable-expenses')
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
   async listImportableExpenses(

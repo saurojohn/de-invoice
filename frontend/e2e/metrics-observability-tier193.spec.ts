@@ -117,9 +117,15 @@ test.describe("Tier 193 — Prometheus /metrics", () => {
   })
 })
 
+// Tier 376: /health/summary needs the auth headers and counts only the
+// caller's company (it used to be public and platform-wide).
+function authHeaders(): Record<string, string> {
+  return { "x-user-id": tokens!.userId, "x-company-id": tokens!.companyId }
+}
+
 test.describe("Tier 193 — /api/v1/health/summary", () => {
   test("4. returns the dashboard-friendly JSON shape", async ({ request }) => {
-    const res = await request.get("http://localhost:3001/api/v1/health/summary")
+    const res = await request.get("http://localhost:3001/api/v1/health/summary", { headers: authHeaders() })
     expect(res.status()).toBe(200)
     const body = await res.json()
     // Top-level keys
@@ -151,19 +157,20 @@ test.describe("Tier 193 — /api/v1/health/summary", () => {
   })
 
   test("5. healthy status with DB up + storage up", async ({ request }) => {
-    const res = await request.get("http://localhost:3001/api/v1/health/summary")
+    const res = await request.get("http://localhost:3001/api/v1/health/summary", { headers: authHeaders() })
     const body = await res.json()
     expect(body.status, "expected status=ok").toBe("ok")
     expect(body.dbOk, "expected dbOk=true").toBe(true)
     expect(body.storageOk, "expected storageOk=true").toBe(true)
   })
 
-  test("6. does NOT require auth (public health probe)", async ({ request }) => {
-    // Same endpoint, no cookies. The /health summary
-    // is intentionally unauthenticated so monitoring
-    // tools can poll it without Mandant context.
-    const res = await request.get("http://localhost:3001/api/v1/health/summary")
-    expect(res.status()).toBe(200)
+  test("6. requires auth; the public probes stay public", async ({ request }) => {
+    // Tier 376: the summary carries business counts, so it is no longer a
+    // public probe. Monitoring polls /api/v1/health and /metrics instead.
+    const summary = await request.get("http://localhost:3001/api/v1/health/summary")
+    expect(summary.status()).toBe(401)
+    const liveness = await request.get("http://localhost:3001/api/v1/health")
+    expect(liveness.status()).toBe(200)
   })
 })
 

@@ -1,7 +1,7 @@
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { PrismaService } from '../prisma/prisma.service';
-import { ALLOW_OTHER_COMPANY_ID_KEY, IS_PUBLIC_KEY } from './public.decorator';
+import { ALLOW_OTHER_COMPANY_ID_KEY, COMPANY_ID_PARAM_KEY, IS_PUBLIC_KEY } from './public.decorator';
 
 /**
  * Auth guard — reads `x-user-id` and `x-company-id` from request headers
@@ -109,8 +109,10 @@ export class HeaderAuthGuard implements CanActivate {
     req.user = { ...user, role: access.role, readonly }
 
     if (!this.reflector.getAllAndOverride<boolean>(ALLOW_OTHER_COMPANY_ID_KEY, targets)) {
+      const companyParam = this.reflector.getAllAndOverride<string>(COMPANY_ID_PARAM_KEY, targets)
       for (const [where, value] of [
         ['path', req.params?.companyId],
+        ['path', companyParam ? req.params?.[companyParam] : undefined],
         ['query', req.query?.companyId],
         ['body', req.body && typeof req.body === 'object' ? req.body.companyId : undefined],
       ] as const) {

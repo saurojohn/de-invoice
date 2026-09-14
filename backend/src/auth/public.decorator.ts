@@ -25,3 +25,14 @@ export const Public = () => SetMetadata(IS_PUBLIC_KEY, true)
  */
 export const ALLOW_OTHER_COMPANY_ID_KEY = 'auth:allow-other-company-id'
 export const AllowOtherCompanyId = () => SetMetadata(ALLOW_OTHER_COMPANY_ID_KEY, true)
+
+/**
+ * Tier 376 — a route parameter that IS a company id under another name (the
+ * CompanyController addresses the company as `/companies/:id`). HeaderAuthGuard
+ * binds it to the authenticated company exactly like `companyId`. Before this,
+ * any registered user — an admin of their own new company — could
+ * PUT /companies/<another tenant's id> and overwrite its master data (measured:
+ * 200, the name changed in the database).
+ */
+export const COMPANY_ID_PARAM_KEY = 'auth:company-id-param'
+export const CompanyIdParam = (name: string) => SetMetadata(COMPANY_ID_PARAM_KEY, name)

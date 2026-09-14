@@ -1529,8 +1529,11 @@ route (only a `companyId` in the query) got: `GET /accounting/accounts` and
 `GET /accounting/vouchers` → 200 with the chart of accounts and every
 Buchungsbeleg; `POST /accounting/accounts` → 201 (account created);
 `POST /ocr/match-supplier` → 201 (supplier created); `GET /mail/config` → 200
-including an `smtpPassword` field; `PUT /mail/config` (redirect a tenant's
-outgoing mail), voucher reversal/status/generate and `PUT /inventory/:id/adjust`
+with the SMTP host and user (**correction, Tier 376:** this said the response
+included `smtpPassword` — the field is there but the controller always sends
+`''`; I saw the key and did not check the value); `PUT /mail/config` (redirect a
+tenant's outgoing mail — it keeps the stored password when the field is empty,
+so the new host receives it), voucher reversal/status/generate and `PUT /inventory/:id/adjust`
 reached their handlers (404 only for the dummy id). Unguarded modules:
 accounting (13 routes), inventory, mail, ocr, vat-rates — plus the routes that
 are public by design.
@@ -1582,15 +1585,92 @@ Playwright **911 passed / 1 failed** — the tier154 case above; re-run of that
 spec 7/7. The voucher detail page was checked in a browser against the new
 guard. `tsc` + `eslint` clean on both sides.
 
-**Still open (not fixed here):** the header auth itself is forgeable — §9
-item 10. `AccountingController` has no `@Require`, so roles and read-only mode
-are not enforced on vouchers/accounts (RolesGuard only acts on `@Require`).
-`GET /mail/config` returns `smtpPassword` to the client (the settings form
-round-trips it; masking needs a form change). `GET /health/summary` is public
-by design but returns platform-wide counts of companies/users/invoices.
-`VatRate` is a global table any tenant admin may write (unused by app logic;
-only e2e 165 calls it). `SECURITY-AUDIT-2026-09-06.md` rated auth ✅ and missed
-all of this — treat its verdicts as unverified.
+**Still open after Tier 375:** the header auth itself is forgeable — §9
+item 10. The role, `/health/summary` and `VatRate` items listed here were
+fixed in Tier 376 (below). `SECURITY-AUDIT-2026-09-06.md` rated auth ✅ and
+missed all of this — treat its verdicts as unverified.
+
+### Roles enforced everywhere, `/companies/:id` bound to the tenant (Tier 376)
+
+Started as the Tier 375 leftovers; measuring them found a worse hole. On a
+fresh stack, before the change:
+
+- **Any registered user could overwrite another tenant's company.** Tier 375
+  bound parameters *named* `companyId`; `CompanyController` calls it `:id`.
+  Tenant B (admin of its own new company, so `company.update` passes) sent
+  `PUT /companies/<A>` `{"name":…}` → **200 and A's name changed in the DB**;
+  `GET /companies/<A>`, `/datev-config`, `/feature-flags` → 200 with A's data.
+- **A `viewer` could write.** 96 non-public routes had no `@Require` (55 in
+  `accounting.controller.ts`). A viewer granted on A: `POST /accounting/accounts`
+  → 201, `POST /assets` → 201, `POST /ocr/match-supplier` → 201,
+  `PUT /mail/config` → 200.
+- **`@Require` that never ran.** `RolesGuard` only runs where a controller
+  applies `@Auth()` or `@UseGuards(…, RolesGuard)`. The nine installment-plan
+  routes had `@Require('invoice.*')` under `@UseGuards(HeaderAuthGuard)` alone.
+- **VAT rates leaked between tenants.** `POST /vat-rates` stored
+  `companyId NULL`; tenant B's DE 99 % rate was what tenant A's
+  `GET /vat-rates/current` returned.
+- `GET /health/summary` was public and counted the whole installation.
+
+**Fix:**
+- `RolesGuard` is a second `APP_GUARD` (after `HeaderAuthGuard`).
+- `@Require` added to all 96 routes: GETs → `accounting.read` / `company.read` /
+  `product.read` / `expense.read` / `reports.read` / `customer.read` /
+  `invoice.read` / `admin.read`; writes → `accounting.create|update`,
+  `company.update` (mail config + test, logo, VAT rate create),
+  `product.update`, `expense.write`; `GET /accounting/accounts/seed` (it
+  writes) → `accounting.create`; `POST /assets/_test/auto-booker-trigger` →
+  `admin.update`.
+- Read-only mode's allowlist lacked `company.read`, `expense.read`,
+  `payment.read`, `admin.read`, `berater.note.read` — reads that would have been
+  refused once guarded. Added.
+- `@CompanyIdParam('id')` on `CompanyController`: the guard binds that param
+  like `companyId`.
+- VAT rates: create always sets the caller's company; reads return global rows
+  plus the caller's own.
+- `/health/summary`: `@Require('company.read')`, counts scoped to the company
+  (companies = the user's grants). `/health`, `/health/deep`, `/metrics` stay
+  public. (`/metrics` still exposes platform-wide business gauges; nginx
+  restricts it per `infra/prod/nginx.conf`.)
+
+**Specs.** New `e2e/177-tier376-roles-and-company-scope.sh`: static — RolesGuard
+is global, `CompanyController` binds `:id`, and the routes without any role
+check equal an 11-entry reviewed list (auth/me, 2fa, users/me/*, search — search
+filters per entity in its service); runtime — each measured viewer write → 403
+with no row written, viewer reads 200, read-only reads 200 / writes 403, tenant B
+on `/companies/<A>` → 403 with A's name unchanged, VAT rates invisible across
+tenants. Updated: 167 and Playwright `metrics-observability-tier193` (summary
+now authenticated and scoped; 167 asserts the counts equal the company's), 165
+(created rate belongs to the caller), 176 (22 public routes).
+
+Only self-service routes and search now lack a role check. What remains is the
+forgeable header auth (§9 item 10) — and with it, read-only mode is still a
+client choice (`x-readonly`), not a server-side property of the user.
+
+**Found on the way, fixed:** a second storno of the same Kassenbuch entry
+answered **500** (`CashBookEntry.reversesId` is `@unique`, P2002). e2e 03 sent
+exactly that request and never asserted its status; only the backend log showed
+it. Now 400 "Diese Buchung wurde bereits storniert.", asserted in 03. 120
+expected 400 for `/companies/<nonexistent>/feature-flags`; the guard answers
+403 first. **Lesson: grep the backend log for `] 500` after a suite run — a
+green suite can hide server errors in unasserted requests.**
+
+**Seen once, not explained:** in the first full run `15-dashboard-kpis.sh` got
+a 500 from `GET /reports/dashboard`. Its backend log was lost — spec 20 restarts
+the backend and `start-backend.sh` truncates `/tmp/backend.log`. Not reproduced
+in three attempts (spec alone; specs 01–19 in order on a fresh stack; a full run
+with `tail -F /tmp/backend.log` capturing across the restart — that run's only
+500 was the one below). If it recurs, capture the log the same way.
+
+**Noted, not changed:** a CORS preflight from a disallowed origin answers 500
+(`enableCors` callback error) and is logged as ERROR + a system-error
+notification per request; e2e 125 accepts 500. Returning 403 quietly would stop
+anyone from filling the error inbox with preflights.
+
+Verified on fresh CI-equivalent stacks: first full backend run **174 passed /
+2 failed / 1 skipped** (15 above, and 120); after the fixes **176 passed /
+0 failed / 1 skipped** of 177 specs. Full Playwright **912 passed / 0 failed**.
+`tsc` + `eslint` clean.
 
 ### Notes from Tiers 347–352 (recovered in Tier 364)
 

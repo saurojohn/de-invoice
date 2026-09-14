@@ -177,6 +177,7 @@ export class StorageController {
    * informational only (returns disk free space, reachability, write
    * permission) and doesn't expose any other company's data.
    */
+  @Require('admin.read')
   @Get('health')
   async getHealth() {
     const health = await this.storageService.getHealth()

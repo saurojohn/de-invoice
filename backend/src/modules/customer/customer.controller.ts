@@ -876,6 +876,7 @@ export class CustomerController {
    * address, one private without VAT ID, one with
    * paymentTerms override). UTF-8 + BOM for Excel.
    */
+  @Require('customer.read')
   @Get('import/template.csv')
   @Header('Content-Type', 'text/csv; charset=utf-8')
   @Header('Content-Disposition', 'attachment; filename="kunden-import.csv"')

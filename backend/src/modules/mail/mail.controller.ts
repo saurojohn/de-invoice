@@ -30,6 +30,7 @@ export class MailController {
     private prisma: PrismaService,
   ) {}
 
+  @Require('company.read')
   @Get('config')
   async getConfig(@Query('companyId') companyId: string) {
     if (!companyId) throw new BadRequestException('companyId is required');
@@ -65,6 +66,7 @@ export class MailController {
     };
   }
 
+  @Require('company.update')
   @Put('config')
   async saveConfig(
     @Query('companyId') companyId: string,
@@ -105,6 +107,7 @@ export class MailController {
     };
   }
 
+  @Require('company.update')
   @Post('test')
   async testConnection(@Query('companyId') companyId: string) {
     if (!companyId) throw new BadRequestException('companyId is required');

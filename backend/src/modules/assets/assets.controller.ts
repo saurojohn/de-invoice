@@ -21,6 +21,7 @@ import { AssetsService, AssetCreateDto, AssetUpdateDto, AssetDisposeDto } from '
 // an HTTP route — this is a development/test
 // convenience.
 import { AfaAutoBookerScheduler } from './afa-auto-booker.scheduler'
+import { Require } from '../../auth/roles.decorator'
 
 /**
  * Tier 83: Anlagenverzeichnis REST endpoints.
@@ -43,6 +44,7 @@ export class AssetsController {
     private afaAutoBooker: AfaAutoBookerScheduler,
   ) {}
 
+  @Require('accounting.read')
   @Get()
   async list(@Query('companyId') companyId: string) {
     if (!companyId) throw new BadRequestException('companyId ist erforderlich')
@@ -64,6 +66,7 @@ export class AssetsController {
    * it's been booked + the booked amount. The
    * frontend uses this to show ✓/— badges.
    */
+  @Require('accounting.read')
   @Get('booking-status')
   async bookingStatus(
     @Query('companyId') companyId: string,
@@ -86,6 +89,7 @@ export class AssetsController {
    * system books for the current calendar
    * year.
    */
+  @Require('accounting.update')
   @Post('book-afa')
   async bookAfa(
     @Query('companyId') companyId: string,
@@ -109,6 +113,7 @@ export class AssetsController {
    * trail — the deleted Expense rows
    * themselves are gone.
    */
+  @Require('accounting.update')
   @Post('storno-afa')
   async stornoAfa(
     @Query('companyId') companyId: string,
@@ -144,6 +149,7 @@ export class AssetsController {
    * Idempotent on (relatedAssetId, afaYear,
    * afaMonth).
    */
+  @Require('accounting.update')
   @Post('book-afa-monthly')
   async bookAfaMonthly(
     @Query('companyId') companyId: string,
@@ -170,6 +176,7 @@ export class AssetsController {
   // surface.
   // ----------------------------------------------------------------
 
+  @Require('admin.update')
   @Post('_test/auto-booker-trigger')
   async autoBookerTrigger(
     @Query('year') yearRaw?: string,
@@ -187,12 +194,14 @@ export class AssetsController {
     return this.afaAutoBooker.forceTriggerForYear(year)
   }
 
+  @Require('accounting.read')
   @Get(':id')
   async findOne(@Param('id') id: string, @Query('companyId') companyId: string) {
     if (!companyId) throw new BadRequestException('companyId ist erforderlich')
     return this.assets.findOne(id, companyId)
   }
 
+  @Require('accounting.update')
   @Post()
   async create(@Query('companyId') companyId: string, @Body() body: AssetCreateDto) {
     if (!companyId) throw new BadRequestException('companyId ist erforderlich')
@@ -202,6 +211,7 @@ export class AssetsController {
     })
   }
 
+  @Require('accounting.update')
   @Patch(':id')
   async update(
     @Param('id') id: string,
@@ -226,6 +236,7 @@ export class AssetsController {
    * sale event to record any Veräußerungs-
    * erlös on the G+V.
    */
+  @Require('accounting.update')
   @Post(':id/dispose')
   async dispose(
     @Param('id') id: string,

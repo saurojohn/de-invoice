@@ -70,6 +70,7 @@ export class ExpenseController {
    * is users who export from sevDesk / lexoffice /
    * DATEV and paste into Excel first).
    */
+  @Require('expense.read')
   @Get('import/template.csv')
   @Header('Content-Type', 'text/csv; charset=utf-8')
   @Header('Content-Disposition', 'attachment; filename="eingangsrechnungen-import.csv"')

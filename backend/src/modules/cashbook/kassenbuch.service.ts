@@ -396,6 +396,16 @@ export class KassenbuchService {
     if (original.reversesId) {
       throw new BadRequestException('Diese Buchung ist bereits eine Storno-Buchung und kann nicht selbst storniert werden. Stornieren Sie stattdessen die Originalbuchung.')
     }
+    // Tier 376: CashBookEntry.reversesId is @unique, so a second storno of the
+    // same entry failed in Postgres (P2002) and answered 500 — e2e 03 sent
+    // exactly that request without asserting the status.
+    const existingReversal = await this.prisma.cashBookEntry.findFirst({
+      where: { reversesId: original.id },
+      select: { id: true },
+    })
+    if (existingReversal) {
+      throw new BadRequestException('Diese Buchung wurde bereits storniert.')
+    }
     // The reversal carries the NEGATIVE of the original
     // amount. Same type, same vatRate — that way the row
     // stays categorically correct in the by-type breakdown

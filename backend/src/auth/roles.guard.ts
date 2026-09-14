@@ -68,6 +68,13 @@ export class RolesGuard implements CanActivate {
         'reports.read',
         'ustva.read',
         'audit.read',
+        // Tier 376: read actions that were missing, so read-only mode
+        // would have refused plain reads once these routes got @Require.
+        'company.read',
+        'expense.read',
+        'payment.read',
+        'admin.read',
+        'berater.note.read',
       ])
       if (!READONLY_ALLOW.has(action)) {
         throw new ForbiddenException(
