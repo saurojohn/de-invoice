@@ -9,17 +9,19 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–369 are
-  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 369.)
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–370 are
+  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 370.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 34698099685 / commit `eb1bab8`, Tier 369b):**
-  - Backend e2e: **171 passed / 0 failed** — 100 two-digit + 71 three-digit
+- **Test counts (last green CI, run 34842448618 / commit `7927818`, Tier 370):**
+  - Backend e2e: **172 passed / 0 failed** — 100 two-digit + 72 three-digit
     specs; before Tier 361 only the two-digit ones ever ran. `QUARANTINE` empty.
+    Spec 172 (Tier 370) guards the harness itself: no spec may use `_lib.sh`
+    assertions while exiting on its own counter, or discard `summary`'s result.
     Spec 170 asserts on the runner that the audit chain verifies with no re-hash
     and survives concurrent writes (Tier 367); spec 171 (new in Tier 368) asserts
     the auth audit rows exist at all and are signed — nothing had ever asserted
@@ -1279,8 +1281,10 @@ show them. Adding a distinct exit code for "skipped" (e.g. 77) and counting it i
 `run-all.sh` would make them visible; not done.
 
 Verified: backend e2e **171 passed / 0 failed** on a fresh CI-equivalent stack
-with the 55/22 fixes; guard 172 verified standalone in both directions (it has
-not yet run inside a full `run-all.sh`, so CI is its first full-suite run).
+with the 55/22 fixes; guard 172 verified standalone in both directions; then CI
+run 34842448618 ran the whole thing — **172 passed / 0 failed**, the guard
+checking 154 lib-assertion specs inside a full `run-all.sh`, Playwright 912
+passed with no flaky.
 
 ### Notes from Tiers 347–352 (recovered in Tier 364)
 
