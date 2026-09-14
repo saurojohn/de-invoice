@@ -1273,18 +1273,82 @@ the `grep -vE "^\s*//"` that could not match `file:line:` output, and this one):
 **before trusting a survey, inject the thing you are looking for and confirm the
 survey sees it.**
 
-**Not changed (still exit 0 and count as passed):** `skip_if` in `_lib.sh`
-(2 callers: 91, 92), `16-dark-mode.sh` (no frontend in the e2e job),
-`163-tier238-customer-detail-tabs.sh` (seed has no paid invoices). Each prints a
-visible `SKIP`, but `run-all.sh` has no skipped count, so the totals line cannot
-show them. Adding a distinct exit code for "skipped" (e.g. 77) and counting it in
-`run-all.sh` would make them visible; not done.
+**Skips (done in Tier 371, see below):** `skip_if` in `_lib.sh`,
+`16-dark-mode.sh` and `163-tier238-customer-detail-tabs.sh` used to exit 0 and
+count as passed; they now exit 77 and `run-all.sh` counts and lists them.
 
 Verified: backend e2e **171 passed / 0 failed** on a fresh CI-equivalent stack
 with the 55/22 fixes; guard 172 verified standalone in both directions; then CI
 run 34842448618 ran the whole thing — **172 passed / 0 failed**, the guard
 checking 154 lib-assertion specs inside a full `run-all.sh`, Playwright 912
 passed with no flaky.
+
+### Checks that had never run in CI; skips made visible (Tier 371)
+
+Started as "give skipped specs their own exit code". The CI log of run
+34842448618 — the ground truth, not a static search — showed which skips
+actually fire, and three of them were hiding checks that had **never executed
+in CI**:
+
+- **`49-elster-xml.sh` — the whole spec.** On CI's fresh database there is no
+  UStVA filing, so it creates one. The payload still sent `outputVat`,
+  `inputVat`, `payableVat`, `intraEUSales`, `intraEUPurchase`, which
+  `SaveUstvaFilingDto` (= `UstvaDataDto` + `taxNumber`/`notes`/`status`, with
+  `forbidNonWhitelisted`) rejects → HTTP 400 → `SKIP … 0 passed, 0 failed` →
+  `exit 0` → counted as a pass in every run. Locally it "worked" because the dev
+  DB already had a filing. Fixed payload (compute output + taxNumber + status,
+  verified 201 and a 200 XML), and a failed create now `exit 1`.
+- **`59-tier27-ust-behandlung.sh` — the §13b PDF footnote.** Three faults at
+  once: the URL omitted `?companyId=`, so the endpoint answered **HTTP 500**
+  `{"error":"PDF generation failed"}`; the body went into a bash variable, which
+  drops NUL bytes; and CI has no `pdftotext`, while a raw grep cannot see text in
+  a FlateDecode stream — so it printed SKIP. Now saved to a file, asserted as
+  HTTP 200 + `%PDF-`, and read with `_lib.sh`'s `pdf_contains`, verified to find
+  "§13b" and "Steuerschuldnerschaft" and NOT find unrelated words.
+- **`60-tier28-search.sh` — invoice search.** Skipped whenever the search was
+  empty, and in CI it always was: ci-seed inserts no invoice for Müller, and its
+  raw-SQL invoices have an empty `customerName` (the service fills that snapshot
+  on create; a raw INSERT does not). The spec now creates a Müller invoice via
+  the API and requires the hit. (Checked first whether this was a product bug —
+  it is not: `invoice.service.ts:761` writes `customerName`.)
+
+**Skips are now visible.** Exit code **77** means skipped (automake/TAP
+convention). `skip_if` in `_lib.sh`, `16-dark-mode.sh` and
+`163-tier238-customer-detail-tabs.sh` exit 77; `run-all.sh` counts it separately
+and prints `Total: N passed, M failed, K skipped` plus the list. Skips do not
+fail the run; the run's exit code still reflects failures only. Guard 172 gained
+rule 2b: a spec that prints SKIP and then `exit 0` fails the guard (verified by
+re-injecting `exit 0` into 16-dark-mode — flagged at line 30).
+
+**Left as is, on purpose:** the in-spec mode branches in `61-tier29-ocr.sh`
+(mock vs tesseract blocks are mutually exclusive), and the nginx note in
+`51-cloudflare-real-ip.sh` (documents an untestable case; no assertion is
+skipped).
+
+**Still skipping inside 49 — and why it matters.** Four checks
+(`<Umsatzsteuervoranmeldung>`, `<DatenLieferant>`, B-prefix, `<Kz81>`) still
+print SKIP. Their old reason, "no Kz values in this draft", was false: they look
+for elements `elster.service.ts` **never emits** — it writes amounts as
+`B-Kz081=…` lines in `<Kennzahlen>`/`<Feld>`. Changing the period does not help
+either (every quarter computes `umsatzsteuer=0` on seed data, whose invoices
+have no items). The messages now state the real reason. Whether the generator
+or the spec matches the official ELSTER schema is **§9 item 9** — a possible
+compliance issue for a tax filing format, not something to change inside a test
+tier.
+
+**Minor backend robustness issues noticed, not fixed:** a missing required
+`companyId` on `GET /invoices/:id/pdf` returns 500 instead of 400; an
+out-of-range `vatRate` (e.g. `19` instead of `0.19`) on invoice create returns
+500 (numeric overflow on a `Decimal(5,4)` column) instead of a 400 from DTO
+validation.
+
+Lesson, again: the Tier 370 static search for "SKIP then exit 0" found 3; the CI
+log showed the rest, including skips that don't exit at all but step over one
+assertion. **For "what never runs", read the CI log, not the code.**
+
+Verified on a fresh CI-equivalent stack: the three specs standalone on an empty
+DB (49 took the create path), guard 172 both ways, and the full suite:
+**171 passed / 0 failed / 1 skipped** (`16-dark-mode.sh`).
 
 ### Notes from Tiers 347–352 (recovered in Tier 364)
 
@@ -1482,6 +1546,20 @@ These are **not in the repo** — only the user can do them:
    "GmbH & Co. KG" (§8, Tier 361). Needs a product decision.
 8. **Hetzner VPS IP + SSH key** — for `infra/prod/HETZNER-DEPLOY.sh`
    (DNS A record, deploy). `sudo` only for `scripts/fix-dev-pg.sh`.
+9. **Verify the ELSTER UStVA XML format against the official schema** (found
+   Tier 371). `src/modules/reports/elster.service.ts` says its output is "ERiC
+   Datenlieferungs-XML … following the official ERiC 32.x schema" and "one
+   upload away from being filed". What it actually writes is a `<Datenlieferung>`
+   whose amounts are text lines like `B-Kz081=…` inside `<Kennzahlen>`/`<Feld>`
+   — it emits **no** `<Umsatzsteuervoranmeldung>`, `<DatenLieferant>` or
+   `<KzNN>` elements. `e2e/49-elster-xml.sh` was written expecting exactly those
+   elements, which (to my understanding) is closer to the official ELSTER UStVA
+   layout — but I could not check the official XSD offline, so this is a strong
+   suspicion, not a verified defect. There is no ERiC submission path in the code:
+   users download the XML and upload it themselves, so a wrong format would
+   surface as a rejected upload at ELSTER. Needs someone with the ERiC schema
+   (or a test upload in Mein ELSTER's test mode) to decide which side is right
+   before anyone changes the generator — it is a tax filing format.
 
 When the Hetzner items are available, the deploy is:
 

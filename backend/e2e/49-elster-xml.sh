@@ -96,29 +96,28 @@ d = json.loads('''$COMPUTE''')
 # shape (which is also a UstvaData
 # shape — see ustva.service.ts).
 # Top-level fields expected by saveFiling:
+# Tier 371: SaveUstvaFilingDto is UstvaDataDto (exactly the compute output)
+# plus optional taxNumber / notes / status, validated with
+# forbidNonWhitelisted. This used to also send outputVat, inputVat,
+# payableVat, intraEUSales and intraEUPurchase — fields that no longer exist —
+# so every create was rejected with HTTP 400 and the spec skipped. On CI's
+# fresh database there is never a pre-existing filing, so this spec had never
+# asserted anything in CI.
 out = {
-  'year': 2026,
-  'quarter': 1,
-  'taxNumber': '04424316529',  # SH Leder's tax #
-  'outputVat': d.get('umsatzsteuer', 0),
-  'inputVat': d.get('vorsteuerSum', 0),
-  'payableVat': d.get('differenzbetrag', 0),
-  'intraEUSales': d.get('igL', 0),
-  'intraEUPurchase': d.get('reverseCharge', 0),
-  'status': 'draft',
-  # The full compute output (UstvaData
-  # shape) is also accepted and persisted
-  # as `data` JSON on the filing row —
-  # the elster-xml endpoint needs it.
   **d,
+  'taxNumber': '04424316529',  # SH Leder's tax #
+  'status': 'draft',
 }
 print(json.dumps(out))
 ")")
   FILING_ID=$(echo "$SAVE" | python3 -c "import json,sys;print(json.load(sys.stdin).get('id',''))" 2>/dev/null)
   if [[ -z "$FILING_ID" ]]; then
-    echo "  SKIP: failed to create UStVA filing (response: $SAVE)"
-    echo "==== 0 passed, 0 failed ===="
-    exit 0
+    # Tier 371: was `SKIP … exit 0`. A failed create is a failure — it is how
+    # the stale payload above hid for as long as it did: 0 passed, 0 failed,
+    # exit 0, counted as a pass by run-all.sh.
+    echo "  FAIL: could not create a UStVA filing (response: $SAVE)"
+    echo "==== 0 passed, 1 failed ===="
+    exit 1
   fi
   echo "Created filing $FILING_ID"
 fi
@@ -160,7 +159,13 @@ if [[ "$KV_COUNT" -ge "1" ]]; then
     FAIL=$((FAIL+1))
   fi
 else
-  echo "  SKIP: <Umsatzsteuervoranmeldung> (no Kz values in this draft)"
+  # Tier 371: the old reason ("no Kz values in this draft") was wrong. This
+  # check is gated on <KzNN> elements, and elster.service.ts never emits any —
+  # it writes amounts as "B-Kz081=…" lines inside <Kennzahlen>/<Feld>. So this
+  # check could never run, with or without data. Whether the generator or this
+  # expectation matches the official ELSTER schema is an open question — see
+  # HANDOFF §9.
+  echo "  SKIP: <Umsatzsteuervoranmeldung> — generator emits no <KzNN> elements (format question, HANDOFF §9)"
 fi
 
 # 4. <Steuernummer> — 13 digits. Skip
@@ -179,7 +184,9 @@ if grep -q "<DatenLieferant>" "$XML_FILE"; then
   DATEN_LIEF=$(grep -oE "<DatenLieferant>[^<]+</DatenLieferant>" "$XML_FILE" | sed -E 's|<DatenLieferant>([^<]+)</DatenLieferant>|\1|')
   assert "DatenLieferant=1 (taxpayer filing)" "1" "$DATEN_LIEF"
 else
-  echo "  SKIP: <DatenLieferant> (no data in this draft)"
+  # Tier 371: not a data issue — elster.service.ts never writes a
+  # <DatenLieferant> element at all. Format question, see HANDOFF §9.
+  echo "  SKIP: <DatenLieferant> — generator never emits this element (format question, HANDOFF §9)"
 fi
 
 # 6. <Erstellungsdatum> present
@@ -214,7 +221,10 @@ if [[ "$KV_COUNT" -ge "1" ]]; then
     FAIL=$((FAIL+1))
   fi
 else
-  echo "  SKIP: B-prefix format (no Kz values in this draft)"
+  # Tier 371: gated on <KzNN> elements, which the generator never emits (it
+  # writes "B-Kz081=…" text lines), so this could never run. Format question,
+  # see HANDOFF §9.
+  echo "  SKIP: B-prefix format — gated on <KzNN> elements the generator never emits (HANDOFF §9)"
 fi
 
 # 8. <Kz81> (Verbleibender Betrag) present
@@ -227,7 +237,10 @@ if [[ "$KV_COUNT" -ge "1" ]]; then
     FAIL=$((FAIL+1))
   fi
 else
-  echo "  SKIP: <Kz81> (no data in this draft)"
+  # Tier 371: not a data issue — the generator writes Kz 81 as a "B-Kz081=…"
+  # line, never as a <Kz81> element, so this check could never run. Format
+  # question, see HANDOFF §9.
+  echo "  SKIP: <Kz81> — generator writes Kz 81 as a B-Kz081 text line, not an element (HANDOFF §9)"
 fi
 
 # 9. <Vorgang> present and non-empty

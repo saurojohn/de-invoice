@@ -218,7 +218,12 @@ summary() {
 # The check is a bash command string. If it
 # succeeds (exit 0), the test continues
 # normally. If it fails, the test prints the
-# reason and exits 0 (skip = no test failure).
+# reason and exits 77 — "skipped".
+#
+# Tier 371: this used to exit 0, so run-all.sh counted a skipped spec as
+# PASSED and the totals line could not show that it never ran. 77 is the
+# automake/TAP skip convention; run-all.sh now counts it separately and lists
+# skipped specs. A skip is not a failure, but it must be visible.
 SKIP_REASON=""
 skip_if() {
   local reason="$1"
@@ -226,7 +231,7 @@ skip_if() {
   if ! bash -c "$check" 2>/dev/null; then
     echo -e "\n${YELLOW}⏭ SKIPPED${NC}: $reason"
     echo "  (precondition failed: $check)"
-    exit 0
+    exit 77
   fi
 }
 

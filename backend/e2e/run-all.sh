@@ -92,6 +92,8 @@ cd "$SCRIPT_DIR"
 PASS=0
 FAIL=0
 FAILED_TESTS=()
+SKIP=0
+SKIPPED_TESTS=()
 RUN_IN_SEG=0
 SEG_NUM=1
 # Tier 361: three-digit specs too. This loop used to be `[0-9][0-9]-*.sh`
@@ -123,7 +125,16 @@ for t in [0-9][0-9]-*.sh [0-9][0-9][0-9]-*.sh; do
   echo "════════════════════════════════════════════════════════"
   echo "  $t"
   echo "════════════════════════════════════════════════════════"
-  if run_spec "$t"; then
+  # Tier 371: exit code 77 means "skipped" (the automake / TAP convention).
+  # Before this, a spec that could not run in this environment exited 0 and was
+  # counted as passed, so the totals line could not show that anything was
+  # skipped — and 49-elster-xml had in fact been "passing" with zero assertions.
+  run_spec "$t"
+  rc=$?
+  if [[ $rc -eq 77 ]]; then
+    SKIP=$((SKIP+1))
+    SKIPPED_TESTS+=("$t")
+  elif [[ $rc -eq 0 ]]; then
     if is_quarantined "$t"; then Q_PASSED+=("$t"); else PASS=$((PASS+1)); fi
   else
     if is_quarantined "$t"; then
@@ -138,10 +149,16 @@ done
 
 echo ""
 echo "════════════════════════════════════════════════════════"
-echo "  Total: $PASS passed, $FAIL failed"
+echo "  Total: $PASS passed, $FAIL failed, $SKIP skipped"
 if [[ $FAIL -gt 0 ]]; then
   echo "  Failed:"
   for t in "${FAILED_TESTS[@]}"; do echo "    - $t"; done
+fi
+if [[ $SKIP -gt 0 ]]; then
+  # Skips do not fail the run, but they are listed so a spec that silently
+  # stopped running shows up here instead of hiding inside "passed".
+  echo "  Skipped (exit 77 — see each spec's SKIP line for why):"
+  for t in "${SKIPPED_TESTS[@]}"; do echo "    ~ $t"; done
 fi
 echo "  Quarantined (not counted above, see QUARANTINE in run-all.sh): ${#Q_FAILED[@]} still failing, ${#Q_PASSED[@]} now passing"
 if [[ ${#Q_PASSED[@]} -gt 0 ]]; then

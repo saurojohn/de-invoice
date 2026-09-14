@@ -66,6 +66,23 @@ else
   fail "summary's return value discarded by exit 0 at: $(echo "$SWALLOW" | tr '\n' ' ')"
 fi
 
+note "=== 2b. a whole-spec skip exits 77, never 0 (Tier 371) ==="
+# run-all.sh counts exit 77 as "skipped" and lists it; exit 0 is a pass. A spec
+# that prints SKIP and then exits 0 is reported as passing while it tested
+# nothing — 49-elster-xml did exactly that in every CI run until Tier 371.
+SKIP0=$(awk '
+  FNR == 1 { skipline = 0 }
+  $0 !~ /^[[:space:]]*#/ && tolower($0) ~ /skip/ { skipline = FNR }
+  $0 ~ /^[[:space:]]*exit[[:space:]]+0[[:space:]]*$/ && skipline > 0 && FNR - skipline <= 3 {
+    print FILENAME ":" FNR
+  }
+' $(ls [0-9][0-9]-*.sh [0-9][0-9][0-9]-*.sh | grep -vx "$SELF"))
+if [[ -z "$SKIP0" ]]; then
+  pass "no spec prints SKIP and then exits 0"
+else
+  fail "SKIP followed by exit 0 (use exit 77) at: $(echo "$SKIP0" | tr '\n' ' ')"
+fi
+
 note "=== 3. the _lib.sh semantics the fix relies on ==="
 # Run each probe in a fresh bash so this spec's own FAILS is untouched.
 PROBE=$(mktemp)

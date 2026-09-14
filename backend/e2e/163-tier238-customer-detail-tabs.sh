@@ -65,7 +65,8 @@ TEST_CUSTOMER_NAME=$(echo "$CUSTOMER_INFO" | cut -d'|' -f2 | sed 's/^ *//;s/ *$/
 if [[ -z "$TEST_CUSTOMER_ID" ]]; then
   echo -e "\n${YELLOW}⏭ SKIPPED${NC}: no customer with paid invoices in seed DB"
   echo "  (the test depends on Payment rows — without them, the walk finds nothing)"
-  exit 0
+  # Tier 371: 77 = skipped. run-all.sh counts it separately instead of as a pass.
+  exit 77
 fi
 pass "test customer: $TEST_CUSTOMER_NAME ($TEST_CUSTOMER_ID)"
 

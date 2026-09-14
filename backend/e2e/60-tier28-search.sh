@@ -89,6 +89,14 @@ fi
 # ---- 3. Invoice search by customer name ----
 echo
 echo "=== 3. Invoice search 'müller' returns invoices ==="
+# Tier 371: this step used to SKIP whenever the search came back empty, and in
+# CI it always did — ci-seed inserts no invoice for Müller, and its SQL-inserted
+# invoices carry an empty customerName anyway (the service fills that snapshot
+# on create; a raw INSERT does not). So the invoice search had never been
+# asserted in CI. Create one through the API, which sets customerName, and
+# require the search to find it. (vatRate is a fraction: 0.19, not 19.)
+api_post "/api/v1/invoices?companyId=$COMPANY_ID" "{\"customerId\":\"$CUSTOMER_ID\",\"issueDate\":\"$(date +%Y-%m-%d)\",\"items\":[{\"description\":\"e2e-60 search probe\",\"quantity\":1,\"unit\":\"Stk\",\"unitPrice\":100,\"vatRate\":0.19}]}"
+assert_status 201 "create an invoice for Müller GmbH to search for"
 api_get "/api/v1/search/invoices?companyId=$COMPANY_ID&q=muller"
 echo "$BODY" > /tmp/t60_invoices.json
 HITS=$(echo "$BODY" | python3 -c "import json,sys; print(len(json.load(sys.stdin)))")
@@ -102,8 +110,9 @@ if [[ "$HITS" -ge 1 ]]; then
     fail "invoice hit missing customerName"
   fi
 else
-  # Not all companies have invoices linked to Müller — skip
-  echo "  SKIP: no invoices linked to Müller (acceptable — invoices are denormalised at issue time)"
+  # Tier 371: was a SKIP. An invoice for Müller was just created above, so
+  # an empty result means invoice search is broken.
+  fail "invoice search for 'muller' returned 0 hits although an invoice for Müller GmbH was just created"
 fi
 
 # ---- 4. Short query (< 2 chars) returns empty ----

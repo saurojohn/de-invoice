@@ -207,30 +207,29 @@ echo "=== 5. PDF includes the §13b footnote ==="
 # (we just toggled the previous one off).
 api_post "/api/v1/invoices?companyId=$COMPANY_ID" "$RC_BODY" > /dev/null
 RC_PDF_INVOICE_ID=$(echo "$BODY" | python3 -c "import json,sys; print(json.load(sys.stdin).get('id',''))")
-PDF_BODY=$(curl -sS -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-  "$API/api/v1/invoices/$RC_PDF_INVOICE_ID/pdf")
-# The PDF binary starts with %PDF-; the
-# text inside is zlib-compressed. We use
-# pdftotext if available, otherwise a
-# best-effort grep on the raw stream.
-if command -v pdftotext >/dev/null 2>&1; then
-  echo "$PDF_BODY" | pdftotext - - 2>/dev/null > /tmp/t59_rc_text.txt
-  if grep -q "§13b" /tmp/t59_rc_text.txt 2>/dev/null; then
-    pass "PDF contains §13b footnote"
-  else
-    fail "PDF missing §13b footnote"
-  fi
-else
-  # Fallback: PDF binary usually contains the
-  # literal text near the end (PDF doesn't
-  # compress every text run). Look for the
-  # German string in the raw stream.
-  if echo "$PDF_BODY" | grep -F "§13b" >/dev/null 2>&1; then
-    pass "PDF (raw) contains §13b footnote"
-  else
-    echo "  SKIP: pdftotext not installed and raw grep failed"
-  fi
-fi
+# Tier 371: this check had never run in CI. Three things were wrong at once:
+#   - the URL omitted ?companyId=, so the endpoint answered HTTP 500
+#     {"error":"PDF generation failed"} — the "PDF" was a JSON error;
+#   - the body went into a bash variable, which drops NUL bytes and corrupts
+#     any real PDF before a tool could read it;
+#   - the CI runner has no pdftotext, and a raw grep can never find text in a
+#     FlateDecode stream — so the branch printed SKIP and moved on.
+# Now: save to a file, assert it is a PDF, and read the text with
+# _lib.sh's pdf_contains, which inflates the stream. Verified on a real RC
+# invoice PDF: "§13b" and "Steuerschuldnerschaft" are found, unrelated words
+# are not — so the check can actually fail.
+RC_PDF_FILE=/tmp/t59_rc_invoice.pdf
+PDF_HTTP=$(curl -sS -o "$RC_PDF_FILE" -w "%{http_code}" \
+  -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
+  "$API/api/v1/invoices/$RC_PDF_INVOICE_ID/pdf?companyId=$COMPANY_ID")
+assert_eq "RC invoice PDF HTTP status" "$PDF_HTTP" "200"
+assert_eq "RC invoice PDF magic header" "$(head -c 5 "$RC_PDF_FILE" 2>/dev/null)" "%PDF-"
+pdf_contains "§13b" "$RC_PDF_FILE"
+case $? in
+  0) pass "PDF contains the §13b reverse-charge footnote" ;;
+  1) fail "PDF is missing the §13b reverse-charge footnote" ;;
+  *) fail "could not decode the PDF text stream to look for §13b" ;;
+esac
 
 # ---- Cleanup ----
 echo

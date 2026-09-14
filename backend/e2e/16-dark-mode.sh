@@ -26,7 +26,8 @@ source "$SCRIPT_DIR/_lib.sh"
 # there's no frontend — skip rather than fail.
 if ! curl -sS -o /dev/null --max-time 1 -w '%{http_code}' http://localhost:3100/login 2>/dev/null | grep -qE '^(200|307|404)$'; then
   echo "SKIP: 16-dark-mode.sh requires frontend dev server on :3100 (only available in playwright job)"
-  exit 0
+  # Tier 371: 77 = skipped. run-all.sh counts it separately instead of as a pass.
+  exit 77
 fi
 
 # We need a way to drive a real browser. Use the
