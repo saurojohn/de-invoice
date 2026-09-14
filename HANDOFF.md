@@ -1382,8 +1382,8 @@ pattern. Regression spec: `e2e/173-tier372-client-errors-are-400.sh` asserts
 every 400 above **and** that the valid requests (vatRate 0.19 and 0, discount
 10 %, the PDF, `/reports/vat` defaults) still succeed.
 
-**Open — needs a decision before anyone "fixes" it:** the recurring-invoice
-routes have **no DTO validation at all**. `recurring.controller.ts` types its
+**Done in Tier 373 (below):** the recurring-invoice routes had **no DTO
+validation at all**. `recurring.controller.ts` types its
 bodies as TypeScript intersections (`{ createdById?: string } & RecurringInput`,
 `Partial<RecurringInput> & { isActive?: boolean }`); Nest's ValidationPipe can
 only validate classes, so these bodies pass through unchecked — `vatRate: 19`
@@ -1396,6 +1396,52 @@ the recurring specs, not as a side edit.
 Verified on a fresh CI-equivalent stack: probes for every case (400s and the
 still-valid 201/200s), the route sweep, and the full suite **172 passed /
 0 failed / 1 skipped**; spec 159's valid `/reports/vat` calls still pass.
+
+### Recurring-invoice bodies validated, callers enumerated first (Tier 373)
+
+`recurring.controller.ts` typed its bodies as TypeScript intersections, which
+ValidationPipe cannot validate, so create / update / clone bodies were not
+checked at all. New `src/modules/recurring/dto/recurring.dto.ts`:
+`CreateRecurringInvoiceDto`, `UpdateRecurringInvoiceDto`,
+`CloneRecurringInvoiceDto`, `RecurringItemDto`.
+
+**The risk was the global `forbidNonWhitelisted`**: any field a caller sends that
+the DTO does not declare becomes a 400. So every caller was enumerated before a
+single decorator was written:
+- frontend `recurring-invoices/page.tsx`: create/update (`createdById`, `name`,
+  `customerId`, `interval`, `intervalCount`, `dayOfMonth`, `startDate`, `endDate`
+  or `null`, `invoiceStatus`, `sendEmail`, `items`), pause
+  (`isActive` + ISO `pausedUntil`), un-pause (`pausedUntil: null`), clone.
+  Items come from `openEdit` or the `from-invoice` prefill — both already
+  normalised to `{description, productNumber, quantity, unit, unitPrice,
+  vatRate}` with numbers, so no stray `id`/`recurringInvoiceId` reaches the API.
+- e2e 35 and 90 send **`companyId` in the body** → declared optional and ignored
+  (the controller drops it; the company always comes from the query string).
+  153 sends `currency: "USD"` and an item without `unit`.
+- Playwright: recurring-stats (create), -pause (PUT), -clone.
+The first caller search missed the Playwright files entirely — they write
+`request.post(` with the URL on the next line. The per-file count found them.
+
+Bounds only guard columns or restate existing rules: item `vatRate` 0..1,
+`quantity`/`unitPrice` to their `Decimal(12,4)` range in both signs,
+`intervalCount` ≥ 1 (0 would never advance `nextRunAt`), `dayOfMonth` 1..31,
+`invoiceStatus` draft|sent and `interval` as in `VALID_INTERVALS`, `currency`
+3 letters. `startDate`/`endDate` must be `YYYY-MM-DD`: `normalizeDates()` appends
+`T00:00:00.000Z`, so a full timestamp would have become an Invalid Date — every
+caller already sends date-only (the prefill uses `.toISOString().slice(0,10)`).
+The service reads patch fields one by one and never spreads the body into
+Prisma, so whitelist-stripping undeclared keys changes nothing it uses.
+
+Spec `e2e/174-tier373-recurring-dto.sh` replays every caller shape above (must
+succeed) and asserts 400 for item `vatRate: 19`, an undeclared field, a
+full-timestamp `startDate`, `intervalCount: 0` and `dayOfMonth: 40`.
+
+Verified on a fresh CI-equivalent stack: all 12 Playwright specs that touch
+`recurring-invoices` — **64 passed / 0 failed**, including the UI save, edit,
+pause, clone and convert flows; then the full backend suite **174 passed /
+0 failed**. (It reported 0 skipped, not 1: the Playwright run had left the
+frontend dev server on :3100, so `16-dark-mode.sh` found one and ran. In CI's
+e2e job there is no frontend, so it skips there.)
 
 ### Notes from Tiers 347–352 (recovered in Tier 364)
 

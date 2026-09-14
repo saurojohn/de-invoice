@@ -1,6 +1,13 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Query, BadRequestException } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { RecurringService, RecurringInput } from './recurring.service';
+// Tier 373: real DTO classes. The bodies used to be TypeScript intersection
+// types, which ValidationPipe cannot validate — see dto/recurring.dto.ts.
+import {
+  CloneRecurringInvoiceDto,
+  CreateRecurringInvoiceDto,
+  UpdateRecurringInvoiceDto,
+} from './dto/recurring.dto';
 import { Auth, Require } from '../../auth/roles.decorator';
 
 @Auth()
@@ -54,11 +61,17 @@ export class RecurringController {
   @Require('invoice.create')
   async create(
     @Query('companyId') companyId: string,
-    @Body() body: { createdById?: string } & RecurringInput,
+    @Body() body: CreateRecurringInvoiceDto,
   ) {
     if (!companyId) throw new BadRequestException('companyId is required');
-    const { createdById, ...input } = body;
-    return this.svc.create(companyId, createdById, this.normalizeDates(input));
+    // companyId in the body is accepted by the DTO but deliberately dropped:
+    // the company always comes from the query string.
+    const { createdById, companyId: _bodyCompanyId, ...input } = body;
+    return this.svc.create(
+      companyId,
+      createdById,
+      this.normalizeDates(input) as unknown as RecurringInput,
+    );
   }
 
   /**
@@ -77,12 +90,7 @@ export class RecurringController {
   async clone(
     @Query('companyId') companyId: string,
     @Param('id') id: string,
-    @Body() body: {
-      name?: string
-      customerId?: string
-      startDate?: string
-      createdById?: string
-    },
+    @Body() body: CloneRecurringInvoiceDto,
   ) {
     if (!companyId) throw new BadRequestException('companyId is required');
     const overrides: any = {}
@@ -97,10 +105,16 @@ export class RecurringController {
   async update(
     @Query('companyId') companyId: string,
     @Param('id') id: string,
-    @Body() body: Partial<RecurringInput> & { isActive?: boolean },
+    @Body() body: UpdateRecurringInvoiceDto,
   ) {
     if (!companyId) throw new BadRequestException('companyId is required');
-    return this.svc.update(companyId, id, this.normalizeDates(body));
+    // The service reads patch fields one by one (it never spreads the body into
+    // Prisma), so the whitelist stripping undeclared keys changes nothing it uses.
+    return this.svc.update(
+      companyId,
+      id,
+      this.normalizeDates(body) as Partial<RecurringInput> & { isActive?: boolean },
+    );
   }
 
   /**
@@ -110,7 +124,10 @@ export class RecurringController {
    * for day-of-month fields like startDate, so we patch
    * them to midnight UTC here.
    */
-  private normalizeDates<T extends Partial<RecurringInput>>(input: T): T {
+  // Tier 373: takes the DTO (dates as YYYY-MM-DD strings) and returns the
+  // service shape (dates as Date). The DTO guarantees the date-only format, so
+  // the 'T00:00:00.000Z' suffix below always yields a valid Date.
+  private normalizeDates(input: object): Record<string, unknown> {
     const out: any = { ...input }
     if (typeof out.startDate === 'string') {
       out.startDate = new Date(out.startDate + 'T00:00:00.000Z')
