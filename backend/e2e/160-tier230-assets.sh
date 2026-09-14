@@ -129,8 +129,14 @@ api_post "/api/v1/assets?companyId=$COMPANY_ID" "{\"type\":\"Sonstiges\",\"bezei
 CROSS_ID=$(json_field "$BODY" id)
 [ -n "$CROSS_ID" ] && pass "cross-tenant asset created" || fail "cross-tenant create failed"
 FAKE_COMPANY="00000000-0000-0000-0000-000000000000"
+# Tier 375: a companyId that is not the authenticated company is now refused
+# by HeaderAuthGuard before any lookup, so the answer is 403 whether or not the
+# record exists — still no existence oracle, which was the point of the 404.
+# Record-level scoping with the tenant's own companyId is covered by e2e 176.
 api_get "/api/v1/assets/$CROSS_ID?companyId=$FAKE_COMPANY"
-assert_status 404 "GET /assets/:id cross-tenant (security through obscurity)"
+assert_status 403 "GET /assets/:id with a foreign companyId → 403"
+api_get "/api/v1/assets/00000000-0000-0000-0000-000000000000?companyId=$FAKE_COMPANY"
+assert_status 403 "…and the same 403 for an id that does not exist"
 
 # ---- 13. Missing companyId → 400 ----
 api_get "/api/v1/assets"

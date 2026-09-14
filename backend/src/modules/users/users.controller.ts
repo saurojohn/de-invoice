@@ -15,6 +15,7 @@ import {
 import { Throttle } from '@nestjs/throttler';
 import { UsersService } from './users.service';
 import { HeaderAuthGuard } from '../../auth/header-auth.guard';
+import { Public, AllowOtherCompanyId } from '../../auth/public.decorator';
 
 interface AuthedRequest extends Request {
   user?: { id: string; companyId: string; role: string };
@@ -95,6 +96,7 @@ export class UsersController {
    * grant before returning success. If the user
    * has no UserCompany row for the target, 403.
    */
+  @AllowOtherCompanyId()
   @Post('me/switch-company')
   async switchCompany(
     @Req() req: AuthedRequest,
@@ -264,6 +266,7 @@ export class UsersController {
 export class InvitationsController {
   constructor(private users: UsersService) {}
 
+  @Public()
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @Get('verify')
   async verify(@Query('token') token: string) {
@@ -282,6 +285,7 @@ export class InvitationsController {
     };
   }
 
+  @Public()
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('accept')
   async accept(@Body() body: { token?: string; password?: string }) {

@@ -15,6 +15,7 @@ import { PrismaService } from '../../prisma/prisma.service'
 import * as os from 'os'
 import * as fs from 'fs'
 import * as path from 'path'
+import { Public } from '../../auth/public.decorator'
 
 const STARTED_AT = Date.now()
 const VERSION = process.env.npm_package_version || '0.0.0'
@@ -61,6 +62,7 @@ const normalizeRoute = (route: string): string =>
     )
     .replace(/\/\d+(?=\/|$)/g, '/:n')
 
+@Public()
 @Controller('metrics')
 export class MetricsController implements OnApplicationBootstrap {
   private readonly counters = new Map<string, Counter>()

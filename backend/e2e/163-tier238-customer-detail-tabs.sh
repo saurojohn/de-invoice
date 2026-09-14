@@ -158,7 +158,13 @@ rm -f "$TMP_FILE" /tmp/tier238-upload-resp.txt
 # companyId. A request with the right invoiceId but wrong
 # companyId must 404 (not 403, security through obscurity).
 WRONG_COMPANY="00000000-0000-0000-0000-000000000000"
+# Tier 375: a companyId that is not the authenticated company is now refused
+# by HeaderAuthGuard before any lookup, so the answer is 403 whether or not the
+# record exists — still no existence oracle, which was the point of the 404.
+# Record-level scoping with the tenant's own companyId is covered by e2e 176.
 api_get "/api/v1/invoices/$TEST_INV_ID/payments?companyId=$WRONG_COMPANY"
-assert_status "404" "GET /invoices/<id>/payments with wrong companyId → 404"
+assert_status "403" "GET /invoices/<id>/payments with wrong companyId → 403"
+api_get "/api/v1/invoices/00000000-0000-0000-0000-000000000000/payments?companyId=$WRONG_COMPANY"
+assert_status "403" "…and the same 403 for an invoice that does not exist"
 
 summary

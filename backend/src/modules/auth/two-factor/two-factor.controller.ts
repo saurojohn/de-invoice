@@ -41,6 +41,7 @@ import { Request } from "express"
 import { PrismaService } from "../../../prisma/prisma.service"
 import { HeaderAuthGuard } from "../../../auth/header-auth.guard"
 import { TwoFactorService } from "./two-factor.service"
+import { Public } from "../../../auth/public.decorator"
 
 // In-memory map of userId -> { secret, issuedAt }.
 // 10-min TTL. Process-local — on restart the user has
@@ -212,6 +213,7 @@ export class TwoFactorController {
    * /auth/login). This is intentionally a "re-login"
    * that returns the same payload.
    */
+  @Public()
   @Post("verify")
   async verify(
     @Body() body: {

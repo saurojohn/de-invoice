@@ -1518,6 +1518,80 @@ payments, sequence-tier174, ustva-history-tier161) — **52 passed / 0 failed**;
 the full backend suite **174 passed / 0 failed / 1 skipped** of 175 specs
 (`16-dark-mode.sh`, no frontend); `tsc` and `eslint` clean.
 
+### Authentication default-deny + tenant binding (Tier 375)
+
+Started as the next DTO batch; stopped when `AccountingController` showed 57
+routes, **zero `@Require`** and guards on only some methods. Measured, not
+inferred, on a fresh stack:
+
+**1. 49 of 449 routes had no guard at all.** A no-credentials sweep of every
+route (only a `companyId` in the query) got: `GET /accounting/accounts` and
+`GET /accounting/vouchers` → 200 with the chart of accounts and every
+Buchungsbeleg; `POST /accounting/accounts` → 201 (account created);
+`POST /ocr/match-supplier` → 201 (supplier created); `GET /mail/config` → 200
+including an `smtpPassword` field; `PUT /mail/config` (redirect a tenant's
+outgoing mail), voucher reversal/status/generate and `PUT /inventory/:id/adjust`
+reached their handlers (404 only for the dummy id). Unguarded modules:
+accounting (13 routes), inventory, mail, ocr, vat-rates — plus the routes that
+are public by design.
+
+**2. Cross-tenant reads for any registered user.** Registration is public.
+Tenant B, with its own valid headers and `?companyId=<A>`, got **200 with A's
+invoices and customers**. The guard verified `x-company-id`; handlers read the
+query string; nothing compared them. The ~20 existing "cross-tenant → 401"
+assertions all send a wrong **header**, never a wrong query string — which is
+why it was never caught.
+
+**Fix** (`src/auth/public.decorator.ts`, `header-auth.guard.ts`, `app.module.ts`):
+- `HeaderAuthGuard` is an **`APP_GUARD`**: every route needs the headers unless
+  marked **`@Public()`**. 23 routes are public: auth login/register/forgot/
+  reset, 2fa verify, the token-based customer-portal and `/portal/:token`
+  routes, invitations verify/accept, health/system-health/metrics,
+  `POST /system/errors`. Existing `@Auth()`/`@UseGuards(HeaderAuthGuard)` stay;
+  the second run returns early (`req.headerAuthDone`), no extra DB lookups.
+- The guard **binds `companyId`** in path, query and JSON body to the
+  authenticated company → **403** "Kein Zugriff auf diese Firma". A repeated
+  `?companyId=` (array) is refused too. `@AllowOtherCompanyId()` exempts
+  `POST /users/me/switch-company`, which checks the grant itself.
+- Frontend: three raw `fetch()` calls sent no auth headers and only worked
+  *because* their routes were unguarded — voucher detail
+  (`accounting/[id]/page.tsx`), mail config save and mail test
+  (`settings/page.tsx`). Now `apiGet` / `apiFetch`.
+
+**Specs.** New `e2e/176-tier375-auth-default-deny.sh`: (1) static — the guard
+is `APP_GUARD` and the `@Public()` set equals a reviewed list, so a new public
+route is a deliberate spec edit; (2) runtime — every other route (386 fired,
+host/bank/mail mutations excluded, they are covered by 1) answers 401 with no
+credentials; (3) the measured routes above are 401; (4) public routes still
+work; (5) tenant B naming A in query or body → 403, own tenant 200, and
+record-level scoping with the tenant's *own* companyId still 404; (6)
+switch-company → 403 without a grant, 201 with one. Its first run failed on
+its own parser (`@Throttle({ default: {…} })` braces hid an `@Public()` above
+them) — the runtime sweep flagged the same five routes independently.
+Changed: 156/160/163 asserted 404 for a foreign `?companyId=`; the guard now
+answers 403 before any lookup, **also for ids that do not exist** (asserted),
+so there is still no existence oracle. 165 used `companyId:"X"` as its
+"unknown field" and now uses the tenant's own id. Playwright
+`kontoauszug-email-tier154` sent a foreign body `companyId` expecting 400/404;
+now 403.
+
+Verified on fresh CI-equivalent stacks: full backend suite **171 passed /
+4 failed / 1 skipped** — the four were exactly 156/160/163/165 above; after the
+edits each passed when re-run (with 176 re-run after its extension). Full
+Playwright **911 passed / 1 failed** — the tier154 case above; re-run of that
+spec 7/7. The voucher detail page was checked in a browser against the new
+guard. `tsc` + `eslint` clean on both sides.
+
+**Still open (not fixed here):** the header auth itself is forgeable — §9
+item 10. `AccountingController` has no `@Require`, so roles and read-only mode
+are not enforced on vouchers/accounts (RolesGuard only acts on `@Require`).
+`GET /mail/config` returns `smtpPassword` to the client (the settings form
+round-trips it; masking needs a form change). `GET /health/summary` is public
+by design but returns platform-wide counts of companies/users/invoices.
+`VatRate` is a global table any tenant admin may write (unused by app logic;
+only e2e 165 calls it). `SECURITY-AUDIT-2026-09-06.md` rated auth ✅ and missed
+all of this — treat its verdicts as unverified.
+
 ### Notes from Tiers 347–352 (recovered in Tier 364)
 
 Tier 353 wrote a new version of this file but left the previous one appended
@@ -1728,6 +1802,25 @@ These are **not in the repo** — only the user can do them:
    surface as a rejected upload at ELSTER. Needs someone with the ERiC schema
    (or a test upload in Mein ELSTER's test mode) to decide which side is right
    before anyone changes the generator — it is a tax filing format.
+10. **Replace the header "authentication" before any real deployment** (found
+    Tier 375). `HeaderAuthGuard` trusts the `x-user-id` / `x-company-id`
+    request headers: it checks that the user exists, is active and has a
+    `UserCompany` row — but nothing proves the caller *is* that user. No token,
+    no session cookie, no signature; the frontend reads both ids from
+    localStorage. Anyone who learns a user id and a company id (UUIDs; they
+    appear in API responses, audit rows, the other tenant's data a user can
+    see) can act as that user. `JWT_SECRET` is required by the deploy scripts
+    and the Sept-6 security audit rated it "✅ 64-char", yet **nothing in
+    `backend/src` reads it**. The guard's own comment says "header-based shim,
+    not JWT". Also client-asserted: the Steuerberater read-only mode
+    (`x-readonly` header — the client decides whether it is read-only).
+    Tier 375 closed the two holes that needed no stolen id at all (unguarded
+    routes, `?companyId=` of another tenant); this one needs a design decision:
+    signed httpOnly session cookie (recommended: fits the same-origin nginx
+    setup, no token in localStorage) or a JWT, plus migrating the frontend
+    `api.ts`, the Playwright auth helper and the bash e2e `_lib.sh`. It changes
+    login behaviour and every test harness, so it is not a side edit. Per §9
+    item 8 the app is not deployed yet.
 
 When the Hetzner items are available, the deploy is:
 

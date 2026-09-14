@@ -1,5 +1,7 @@
-import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
+import { CanActivate, ExecutionContext, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { PrismaService } from '../prisma/prisma.service';
+import { ALLOW_OTHER_COMPANY_ID_KEY, IS_PUBLIC_KEY } from './public.decorator';
 
 /**
  * Auth guard — reads `x-user-id` and `x-company-id` from request headers
@@ -17,14 +19,32 @@ import { PrismaService } from '../prisma/prisma.service';
  * NOTE: this is a header-based shim, not JWT. Fine for first-party
  * dashboard use. For per-action permission checks, use
  * `@Require('action')` on the controller method.
+ *
+ * Tier 375: registered globally (app.module.ts APP_GUARD), so it runs for
+ * every route; @Public() opts out. It still appears in many @UseGuards /
+ * @Auth() decorators — the second run returns early instead of repeating
+ * the two DB lookups. It also binds the request's `companyId` (path, query,
+ * body) to the authenticated company: before, any registered user could
+ * read another tenant's invoices by changing `?companyId=`.
  */
 @Injectable()
 export class HeaderAuthGuard implements CanActivate {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private reflector: Reflector,
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const http = context.switchToHttp();
     const req = http.getRequest();
+
+    const targets = [context.getHandler(), context.getClass()];
+    if (this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, targets)) {
+      return true;
+    }
+    if (req.headerAuthDone) {
+      return true;
+    }
 
     const userId = req.headers['x-user-id'] as string | undefined;
     const companyId = req.headers['x-company-id'] as string | undefined;
@@ -87,6 +107,23 @@ export class HeaderAuthGuard implements CanActivate {
     ).toLowerCase()
     const readonly = readonlyHeader === '1' || readonlyHeader === 'true'
     req.user = { ...user, role: access.role, readonly }
+
+    if (!this.reflector.getAllAndOverride<boolean>(ALLOW_OTHER_COMPANY_ID_KEY, targets)) {
+      for (const [where, value] of [
+        ['path', req.params?.companyId],
+        ['query', req.query?.companyId],
+        ['body', req.body && typeof req.body === 'object' ? req.body.companyId : undefined],
+      ] as const) {
+        if (value === undefined || value === null || value === '') continue
+        // An array (?companyId=a&companyId=b) or a non-string body value can
+        // never be the authenticated company.
+        if (value !== companyId) {
+          throw new ForbiddenException(`Kein Zugriff auf diese Firma (companyId im ${where === 'path' ? 'Pfad' : where === 'query' ? 'Query-String' : 'Body'})`)
+        }
+      }
+    }
+
+    req.headerAuthDone = true
     return true
   }
 }

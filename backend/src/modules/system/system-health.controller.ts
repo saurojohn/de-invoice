@@ -19,7 +19,9 @@
 import { Controller, Get } from "@nestjs/common"
 import { PrismaService } from "../../prisma/prisma.service"
 import { SkipThrottle } from "@nestjs/throttler"
+import { Public } from "../../auth/public.decorator"
 
+@Public()
 @Controller("system")
 @SkipThrottle() // health checks should never be rate-limited
 export class SystemHealthController {

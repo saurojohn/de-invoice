@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { ScheduleModule } from '@nestjs/schedule';
 import { APP_GUARD } from '@nestjs/core';
+import { HeaderAuthGuard } from './auth/header-auth.guard';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CompanyModule } from './modules/company/company.module';
@@ -158,6 +159,11 @@ import { AssetsModule } from './modules/assets/assets.module';
     ScheduleModule.forRoot(),
   ],
   providers: [
+    // Tier 375: authentication is default-deny — every route needs the auth
+    // headers unless marked @Public() (src/auth/public.decorator.ts).
+    // Registered before the throttler so an unauthenticated request is not
+    // counted against a caller's rate limit.
+    { provide: APP_GUARD, useClass: HeaderAuthGuard },
     // Tier 172: guard also conditional on the env var.
     // When THROTTLE_DISABLED=1, no ThrottlerModule is
     // registered above, so wiring the guard here would

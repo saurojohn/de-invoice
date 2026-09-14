@@ -27,6 +27,7 @@ import {
 import { Request } from 'express'
 import { PortalService } from './portal.service'
 import { Auth, Require } from '../../auth/roles.decorator'
+import { Public } from '../../auth/public.decorator'
 
 @Controller('portal')
 export class PortalController {
@@ -42,6 +43,7 @@ export class PortalController {
    * ip() handler param is omitted because the
    * service does its own audit log via the IP arg.
    */
+  @Public()
   @Get(':token')
   async view(
     @Param('token') token: string,
@@ -59,6 +61,7 @@ export class PortalController {
    * Body is empty — the token alone is the auth.
    * Returns 200 with the payment receipt summary.
    */
+  @Public()
   @Post(':token/mark-paid')
   async markPaid(@Param('token') token: string) {
     return this.portal.markPaid(token)

@@ -55,6 +55,7 @@ import { CustomerPortalService } from './customer-portal.service';
 // the trust boundary, not a random visitor.
 import { Auth, Require } from '../../auth/roles.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
+import { Public } from '../../auth/public.decorator';
 
 @Controller('customer-portal')
 export class CustomerPortalController {
@@ -62,6 +63,7 @@ export class CustomerPortalController {
     private readonly svc: CustomerPortalService,
     private readonly prisma: PrismaService,
   ) {}
+  @Public()
 
   @Post('request-session')
   async requestSession(
@@ -78,6 +80,7 @@ export class CustomerPortalController {
     const ip = this.ipFromRequest(req)
     return this.svc.requestSession(email, origin, ip)
   }
+  @Public()
 
   @Get('invoices')
   async getInvoices(@Query('token') token: string) {
@@ -86,6 +89,7 @@ export class CustomerPortalController {
     }
     return this.svc.getCustomerInvoices(token)
   }
+  @Public()
 
   @Get('invoice/:id')
   async getInvoice(
@@ -97,6 +101,7 @@ export class CustomerPortalController {
     }
     return this.svc.getInvoice(token, id)
   }
+  @Public()
 
   @Get('invoice/:id/pdf')
   @Header('Content-Type', 'application/pdf')
@@ -116,6 +121,7 @@ export class CustomerPortalController {
     )
     res.send(pdf)
   }
+  @Public()
 
   @Post('invoice/:id/mark-paid')
   async markPaid(
@@ -149,6 +155,7 @@ export class CustomerPortalController {
    * with `invoice/:id` anyway, but keeping the
    * convention tidy.
    */
+  @Public()
   @Get('profile')
   async getProfile(@Query('token') token: string) {
     if (!token) {
@@ -156,6 +163,7 @@ export class CustomerPortalController {
     }
     return this.svc.getCustomerProfile(token)
   }
+  @Public()
 
   @Patch('profile')
   @HttpCode(200)

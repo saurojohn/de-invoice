@@ -162,12 +162,14 @@ test.describe('Tier 154 — Kontoauszug email', () => {
     }
   })
 
-  test('backend: cross-tenant customerId → 400', async () => {
+  test('backend: cross-tenant companyId in the body → 403', async () => {
     // The customerId we use belongs to
     // COMPANY_ID; we pass a DIFFERENT companyId
-    // in the body. The service does
-    // customer.findFirst({ id, companyId }) and
-    // that should return null → 400.
+    // in the body. Since Tier 375 HeaderAuthGuard
+    // refuses a body companyId that is not the
+    // authenticated company (403) before the
+    // service's customer.findFirst({ id, companyId })
+    // is reached; before, that lookup answered 400.
     const OTHER_COMPANY = '11111111-2222-3333-4444-555555555555'
     const ctx = await authedRequest()
     try {
@@ -181,9 +183,7 @@ test.describe('Tier 154 — Kontoauszug email', () => {
           },
         },
       )
-      // The service throws 400 (Customer not
-      // found in this company).
-      expect([400, 404]).toContain(res.status())
+      expect(res.status()).toBe(403)
     } finally {
       await ctx.dispose()
     }

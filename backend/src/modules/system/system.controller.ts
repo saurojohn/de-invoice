@@ -35,6 +35,7 @@ import { RolesGuard } from "../../auth/roles.guard"
 import { Require } from "../../auth/roles.decorator"
 import { NotificationService } from "./notification.service"
 import { ConfigService } from "@nestjs/config"
+import { Public } from "../../auth/public.decorator"
 
 @Controller("system")
 // No class-level guard — POST /errors is public (SoftAuthGuard),
@@ -53,6 +54,7 @@ export class SystemController {
    * so login-page / register-page crashes (no
    * x-user-id available) still get captured.
    */
+  @Public()
   @Post("errors")
   @SetMetadata("publicRoute", true)
   @UseGuards(SoftAuthGuard)

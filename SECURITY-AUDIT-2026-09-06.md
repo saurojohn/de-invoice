@@ -1,5 +1,15 @@
 # SECURITY-AUDIT-2026-09-06.md
 
+> **Correction (Tier 375, 2026-09-14).** This audit did not examine
+> authentication or tenant isolation, and several ✅ below are wrong or
+> irrelevant. Measured on a fresh stack: 49 routes had no guard (vouchers,
+> chart of accounts, `PUT /mail/config` reachable with no credentials); any
+> registered user could read another tenant's invoices via `?companyId=`; and
+> `JWT_SECRET` ("✅ 64-char") is read by nothing in `backend/src` — the header
+> auth trusts client-supplied user/company ids. The first two are fixed in
+> Tier 375; the third is open (HANDOFF §9 item 10). Re-verify any verdict here
+> before relying on it.
+
 > **Snapshot**: full security + code-quality audit
 > of the de-invoice repo on commit `054a5a0`
 > (32 commits in the Tier 304-323 hardening arc).

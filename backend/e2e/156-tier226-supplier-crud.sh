@@ -148,8 +148,14 @@ api_post "/api/v1/suppliers?companyId=$COMPANY_ID" "{\"name\": \"Tier226 Cross $
 CROSS_ID=$(json_field "$BODY" id)
 [ -n "$CROSS_ID" ] && pass "cross-tenant supplier created" || fail "cross-tenant create failed"
 FAKE_COMPANY="00000000-0000-0000-0000-000000000000"
+# Tier 375: a companyId that is not the authenticated company is now refused
+# by HeaderAuthGuard before any lookup, so the answer is 403 whether or not the
+# record exists — still no existence oracle, which was the point of the 404.
+# Record-level scoping with the tenant's own companyId is covered by e2e 176.
 api_get "/api/v1/suppliers/$CROSS_ID?companyId=$FAKE_COMPANY"
-assert_status 404 "GET /suppliers/:id cross-tenant returns 404 (not 403)"
+assert_status 403 "GET /suppliers/:id with a foreign companyId → 403"
+api_get "/api/v1/suppliers/00000000-0000-0000-0000-000000000000?companyId=$FAKE_COMPANY"
+assert_status 403 "…and the same 403 for an id that does not exist"
 
 # ---- 16. Cleanup the remaining 2 test suppliers ----
 api_delete "/api/v1/suppliers/$MIN_ID?companyId=$COMPANY_ID" >/dev/null

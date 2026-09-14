@@ -71,8 +71,10 @@ api_post "/api/v1/vat-rates" \
 assert_status "400" "POST /vat-rates with missing rateType → 400"
 
 # ---- 5. POST rejects unknown field (whitelistProperty) ----
+# Tier 375: companyId is the tenant's own — a foreign one is now refused by
+# HeaderAuthGuard (403) before validation runs, which would hide this check.
 api_post "/api/v1/vat-rates" \
-  '{"countryCode":"DE","rate":0.19,"rateType":"standard","effectiveFrom":"2020-01-01T00:00:00Z","companyId":"X","secret":"leak"}'
+  "{\"countryCode\":\"DE\",\"rate\":0.19,\"rateType\":\"standard\",\"effectiveFrom\":\"2020-01-01T00:00:00Z\",\"companyId\":\"$COMPANY_ID\",\"secret\":\"leak\"}"
 assert_status "400" "POST /vat-rates with unknown field → 400 (whitelistProperty)"
 
 # ---- 6. GET / returns the seeded rate ----

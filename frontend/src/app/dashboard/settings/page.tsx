@@ -409,14 +409,13 @@ export default function SettingsPage() {
     setMailSaving(true)
     setMailMessage(null)
     try {
-      const res = await fetch(
-        `${API_BASE}/api/v1/mail/config?companyId=${companyId}`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(mailForm),
-        },
-      )
+      // Tier 375: apiFetch adds the auth headers; this raw fetch() only
+      // worked while PUT /mail/config had no guard.
+      const res = await apiFetch(`/api/v1/mail/config?companyId=${companyId}`, {
+        method: "PUT",
+        body: JSON.stringify(mailForm),
+        throwOnError: false,
+      })
       const data = await res.json()
       if (res.ok) {
         setMailMessage({ ok: true, text: t("mail.savedOk") })
@@ -482,10 +481,11 @@ export default function SettingsPage() {
     setMailTesting(true)
     setMailMessage(null)
     try {
-      const res = await fetch(
-        `${API_BASE}/api/v1/mail/test?companyId=${companyId}`,
-        { method: "POST" },
-      )
+      // Tier 375: same as saveMailConfig — needs the auth headers now.
+      const res = await apiFetch(`/api/v1/mail/test?companyId=${companyId}`, {
+        method: "POST",
+        throwOnError: false,
+      })
       const data = await res.json()
       if (data.ok) {
         setMailMessage({ ok: true, text: `${t("mail.testOk")} (${data.from})` })

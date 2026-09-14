@@ -7,6 +7,7 @@ import { HeaderAuthGuard } from '../../auth/header-auth.guard';
 import { MailService } from '../mail/mail.service';
 import { AuditService } from '../audit/audit.service';
 import * as bcrypt from 'bcrypt';
+import { Public } from '../../auth/public.decorator';
 
 interface LoginAttempt {
   count: number;
@@ -67,6 +68,7 @@ export class AuthController {
    * AUTH_RATE_LIMIT_DISABLED=1 by accident
    * would have had login rate-limiting disabled.
    */
+  @Public()
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('login')
   @HttpCode(HttpStatus.OK)
@@ -292,6 +294,7 @@ export class AuthController {
   /**
    * Register: also rate-limited. Validates password strength server-side.
    */
+  @Public()
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('register')
   async register(@Body() dto: RegisterDto) {
@@ -328,6 +331,7 @@ export class AuthController {
    *  - In dev (no SMTP configured), the link is logged to backend stdout
    *    so a developer can click it without setting up an SMTP server.
    */
+  @Public()
   @Throttle({ default: { limit: 3, ttl: 3_600_000 } })
   @Post('forgot-password')
   @HttpCode(HttpStatus.OK)
@@ -399,6 +403,7 @@ export class AuthController {
    * Reset password — accept a token (from email link) and a new password.
    * Verifies the token, updates the bcrypt hash, and invalidates the token.
    */
+  @Public()
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('reset-password')
   @HttpCode(HttpStatus.OK)

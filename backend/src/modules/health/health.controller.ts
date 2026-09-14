@@ -31,10 +31,12 @@ import { PrismaService } from '../../prisma/prisma.service'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
+import { Public } from '../../auth/public.decorator'
 
 const STARTED_AT = new Date()
 const VERSION = process.env.npm_package_version || '0.0.0'
 
+@Public()
 @Controller('health')
 export class HealthController {
   constructor(private readonly prisma: PrismaService) {}

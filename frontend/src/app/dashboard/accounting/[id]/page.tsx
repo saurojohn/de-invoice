@@ -1,6 +1,6 @@
 "use client"
 
-import { API_BASE } from "@/lib/api"
+import { apiGet } from "@/lib/api"
 
 import { useEffect, useState } from "react"
 import { useRouter, useParams } from "next/navigation"
@@ -47,9 +47,11 @@ export default function VoucherDetailPage() {
     }
 
     const voucherId = params.id as string
-    fetch(`${API_BASE}/api/v1/accounting/vouchers/${voucherId}?companyId=${companyId}`)
-      .then((res) => res.json())
+    // Tier 375: apiGet sends the auth headers. This raw fetch() only worked
+    // because GET /accounting/vouchers/:id had no guard at all.
+    apiGet<Voucher>(`/api/v1/accounting/vouchers/${voucherId}?companyId=${companyId}`)
       .then(setVoucher)
+      .catch(() => setVoucher(null))
       .finally(() => setLoading(false))
   }, [router, params.id])
 
