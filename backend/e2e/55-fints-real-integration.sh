@@ -212,5 +212,13 @@ docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
 pass "7. Test fixtures cleaned up"
 
 echo
-echo "==== $PASS passed, $FAIL failed (lib FAILS=$FAILS) ===="
-exit $FAIL
+# Tier 370: this spec sources _lib.sh (line 49) and calls its fail /
+# assert_eq / assert_status helpers, which bump the LIB counter FAILS — but it
+# also declares its own PASS=0 / FAIL=0 and exited with `exit $FAIL`, a variable
+# nothing ever increments. Every failed assertion was printed and then
+# discarded; run-all.sh judges a spec purely by its exit code, so this spec
+# could not fail. The summary line below already printed `lib FAILS=` — someone
+# had noticed the counters diverging, but the exit code kept ignoring it.
+# e2e/172-tier370-harness-exit-codes.sh now guards against this shape.
+echo "==== $PASS passed, $((FAIL + ${FAILS:-0})) failed (own=$FAIL lib=${FAILS:-0}) ===="
+exit $(( FAIL + ${FAILS:-0} ))

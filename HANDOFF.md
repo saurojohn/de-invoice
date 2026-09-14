@@ -1222,6 +1222,66 @@ Worth stating plainly, because it is the same lesson as the skips: a flaky test
 hides a real failure exactly as a silent skip does — behind a retry rather than
 behind a green skip. It belongs in this tier, not in a TODO.
 
+### Backend specs that could not fail (Tier 370)
+
+`run-all.sh` judges a spec by its **exit code and nothing else**
+(`if run_spec "$t"; then PASS++`). Tier 370 audited the bash harness for specs
+whose exit code could not become non-zero.
+
+**Two real defects, both fixed:**
+- `55-fints-real-integration.sh` sources `_lib.sh` and calls its
+  `fail` / `assert_eq` / `assert_status`, which bump the **lib** counter
+  `FAILS` — but it also declared its own `PASS=0` / `FAIL=0` and ended with
+  `exit $FAIL`, a variable nothing incremented. Every failed assertion was
+  printed and then discarded. Its summary line even printed `lib FAILS=`: the
+  divergence had been noticed, the exit code was never changed. Now
+  `exit $(( FAIL + ${FAILS:-0} ))`.
+- `22-mahnung-cron.sh` did `summary; exit 0` in its throttled branch, after two
+  `assert_eq` calls had already run. `summary` returns 1 after a failure; the
+  `exit 0` threw it away. Now `exit $?`.
+
+The full suite stayed green with `lib=0` in both, so the defects were real but
+**latent** — no red build was hiding. A green suite only proves no regression,
+not that a fix works, so the fix was proven separately with synthetic scripts:
+old shapes exit 0 after a lib `fail`, new shapes exit 1, and a passing run still
+exits 0.
+
+**Guard:** `e2e/172-tier370-harness-exit-codes.sh` (no backend needed, <1s)
+statically rejects both shapes across every spec and checks the `_lib.sh`
+semantics the fix relies on. It was verified in both directions on a copy of
+the tree: re-injecting either old shape makes it fail; the current tree passes;
+a spec that only *mentions* `_lib.sh` in a comment is not flagged.
+
+**Checked and clean:** no spec has `summary` anywhere but last (155 specs call
+it); no spec calls a helper it neither defines nor loads — which would make
+bash print `command not found` and silently skip the assertion. The other 14
+specs that skip `summary` are legitimate: they fail fast with `exit 1`, or keep
+their own counter and helpers consistently.
+
+**A correction worth keeping.** The first pass also "fixed" `44-rbac.sh` and
+`47-journal-cap.sh`. Both were fine: neither loads `_lib.sh` — each defines its
+own `assert_eq` that bumps its own `FAIL`, so `exit $FAIL` was correct. The
+survey had used `grep -c "source.*_lib"`, which matched a **comment** ("this
+script does not source _lib.sh"). It was caught only because the guard was
+tested by injection: an injected 44 was ignored — correctly — which exposed the
+diagnosis, not the guard, as wrong. Both were reverted to HEAD, and the guard's
+rule now requires a real non-comment `source`/`.` line. That is the fourth
+pattern mistake in Tiers 368–370 (`DELETE FROM \"AuditLog\"`, `test.skip(true`,
+the `grep -vE "^\s*//"` that could not match `file:line:` output, and this one):
+**before trusting a survey, inject the thing you are looking for and confirm the
+survey sees it.**
+
+**Not changed (still exit 0 and count as passed):** `skip_if` in `_lib.sh`
+(2 callers: 91, 92), `16-dark-mode.sh` (no frontend in the e2e job),
+`163-tier238-customer-detail-tabs.sh` (seed has no paid invoices). Each prints a
+visible `SKIP`, but `run-all.sh` has no skipped count, so the totals line cannot
+show them. Adding a distinct exit code for "skipped" (e.g. 77) and counting it in
+`run-all.sh` would make them visible; not done.
+
+Verified: backend e2e **171 passed / 0 failed** on a fresh CI-equivalent stack
+with the 55/22 fixes; guard 172 verified standalone in both directions (it has
+not yet run inside a full `run-all.sh`, so CI is its first full-suite run).
+
 ### Notes from Tiers 347–352 (recovered in Tier 364)
 
 Tier 353 wrote a new version of this file but left the previous one appended

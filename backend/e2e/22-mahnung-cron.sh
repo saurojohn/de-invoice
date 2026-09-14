@@ -112,8 +112,12 @@ if echo "$RUN1" | grep -q "Throttler\|Too Many"; then
   note "auto-run throttled — skipping the rest of the cron tests"
   note "  (subsequent tests would also 429 since the limit is 5/5min)"
   cleanup_done=1
+  # Tier 370: was `summary; exit 0`. summary() returns 1 when an assertion has
+  # already failed — and two assert_eq calls run before this point (lines 55 and
+  # 79) — but `exit 0` threw that return value away, so a spec with real
+  # failures reported success. run-all.sh judges a spec purely by its exit code.
   summary
-  exit 0
+  exit $?
 fi
 RUN1_SENT=$(json_field "$RUN1" sent)
 [ "$RUN1_SENT" -ge 1 ] && echo "✓ first auto-run sent >= 1 = $RUN1_SENT" || { echo "✗ first auto-run sent $RUN1_SENT"; exit 1; }
