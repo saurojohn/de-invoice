@@ -9,17 +9,19 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–370 are
-  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 370.)
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–371 are
+  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 371.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 34842448618 / commit `7927818`, Tier 370):**
-  - Backend e2e: **172 passed / 0 failed** — 100 two-digit + 72 three-digit
-    specs; before Tier 361 only the two-digit ones ever ran. `QUARANTINE` empty.
+- **Test counts (last green CI, run 34846578139 / commit `36a8c72`, Tier 371):**
+  - Backend e2e: **171 passed / 0 failed / 1 skipped** of 172 specs — 100
+    two-digit + 72 three-digit; before Tier 361 only the two-digit ones ever ran.
+    `QUARANTINE` empty. The one skip is `16-dark-mode.sh` (no frontend in the e2e
+    job); since Tier 371 skips exit 77 and are listed, not counted as passes.
     Spec 172 (Tier 370) guards the harness itself: no spec may use `_lib.sh`
     assertions while exiting on its own counter, or discard `summary`'s result.
     Spec 170 asserts on the runner that the audit chain verifies with no re-hash
