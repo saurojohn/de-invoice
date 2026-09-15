@@ -2116,6 +2116,60 @@ CI, one run per tier, all six jobs green: Tier 383 run 34977321738 (backend
 182/0/1, Playwright 913), Tier 384 run 34979145232 (183/0/1, 913), Tier 385 run
 34981686035 (184/0/1, 913).
 
+### Personal signing keys usable across tenants, private keys in responses (Tier 386)
+
+Tier 246 added a per-user certificate (the Berater stamp, a second PDF
+signature carrying the user's name). Its three routes took `userId` from the
+client and checked nothing but `company.update` in the caller's own company.
+Measured as a freshly registered tenant B against tenant A's user:
+
+| Request | Result |
+|---|---|
+| `GET /signing/user-cert-info?userId=<A's user>` | 200, A's user's cert info |
+| `POST /signing/user-sign {"userId":<A's user>, pdf}` | **201 — an arbitrary PDF signed with A's user's certificate** (same fingerprint) |
+| `POST /signing/user-regenerate?userId=<A's user>` | **201 — A's user's key rotated, and the response contained the new `-----BEGIN RSA PRIVATE KEY-----`** |
+
+`POST /signing/regenerate` also returned the **company** private key (own
+company only) — its own doc comment lists `{ commonName, fingerprint,
+validUntil, generatedAt }`; nothing in the frontend or the specs reads `key`.
+Bodies: `pdf` not base64 → 500, `pdf: 123` → 500, undeclared fields → 201.
+
+Fix (`signing.controller.ts`, `dto/signing.dto.ts`):
+- both regenerate responses drop `key`;
+- `user-sign` signs with the **caller's** certificate only — `userId` is still
+  required (e2e 168) and must be the caller, else 403;
+- `user-cert-info` / `user-regenerate` accept the caller or a member of the
+  active company (`UserCompany`), else 404 — the Tier 246 comment says an admin
+  may force a colleague's rotation;
+- the `signing.user_regenerate` audit row takes the active company
+  (`x-company-id`), not `User.companyId`;
+- `SignPdfDto` / `VerifyPdfDto` / `UserSignPdfDto` (base64, ≤ 10 MB).
+
+Callers: `PdfSignaturePanel.tsx` (sends its own `userId`, `{pdf}` to verify),
+e2e 98 / 168, Playwright pdf-signing, pdf-signed-tier165,
+pdf-berater-stamp-tier246.
+
+**Not done:** keys rotated or obtained through these routes before the fix stay
+as they are; a tenant whose user key may have been exposed can rotate it
+(`user-regenerate`), which is now scoped. The self-signed certificates are not
+QES anyway: they are self-signed (`generateSelfSignedCert`).
+
+Spec `e2e/186-tier386-signing-keys-scope.sh`: own cert info / rotate / sign /
+company rotate work and return no private key; B's cert-info and rotate of A's
+user → 404 with A's fingerprint unchanged and no audit row; B's sign as A's
+user → 403; the three bad bodies → 400. It failed 11 assertions against the
+old code.
+
+Verified on a fresh stack: full backend **186 passed / 0 failed / 0 skipped** of
+186 specs, zero 500s in the captured log; Playwright pdf-signing,
+pdf-signed-tier165, pdf-berater-stamp-tier246: 15 passed.
+
+**Seen in passing, not changed:** `POST /auth/2fa/verify` is `@Public()` and
+takes only `email` + a TOTP or recovery code — no password, no attempt limit
+beyond the global throttler. With header auth (§9 item 10) knowing a user id
+already is a login, so 2FA cannot protect anything yet; it belongs to the
+auth replacement.
+
 ### Notes from Tiers 347–352 (recovered in Tier 364)
 
 Tier 353 wrote a new version of this file but left the previous one appended

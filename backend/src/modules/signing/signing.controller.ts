@@ -5,7 +5,10 @@ import {
   Query,
   Body,
   Req,
+  Headers,
   BadRequestException,
+  ForbiddenException,
+  NotFoundException,
 } from '@nestjs/common'
 import { Request } from 'express'
 import { SigningService } from './signing.service'
@@ -13,6 +16,7 @@ import { Auth } from '../../auth/roles.decorator'
 import { Require } from '../../auth/roles.decorator'
 import { AuditService } from '../audit/audit.service'
 import { PrismaService } from '../../prisma/prisma.service'
+import { SignPdfDto, UserSignPdfDto, VerifyPdfDto } from './dto/signing.dto'
 
 /**
  * Tier 72: Signing HTTP API.
@@ -78,6 +82,27 @@ export class SigningController {
     private readonly audit: AuditService,
   ) {}
 
+  /** Tier 386: a regenerate response carries the certificate data, never the private key. */
+  private withoutKey<T extends { key?: string }>(settings: T): Omit<T, 'key'> {
+    const { key: _key, ...rest } = settings
+    return rest
+  }
+
+  /**
+   * Tier 386: personal-certificate routes act on the caller or on a member of
+   * the caller's company. They took any userId: a freshly registered tenant
+   * read another tenant's user's cert info, rotated that user's key (and got
+   * the new private key back) and signed a PDF with it.
+   */
+  private async assertUserInCompany(targetUserId: string, companyId: string, callerId: string) {
+    if (targetUserId === callerId) return
+    const member = await this.prisma.userCompany.findUnique({
+      where: { userId_companyId: { userId: targetUserId, companyId } },
+      select: { userId: true },
+    })
+    if (!member) throw new NotFoundException('Benutzer nicht gefunden')
+  }
+
   @Get('cert-info')
   @Require('company.update')
   async certInfo(@Query('companyId') companyId: string) {
@@ -107,13 +132,13 @@ export class SigningController {
       entityId: companyId,
       metadata: { source: 'manual_api_call' },
     })
-    return this.signing.regenerate(companyId)
+    return this.withoutKey(await this.signing.regenerate(companyId))
   }
 
   @Post('sign')
   @Require('company.update')
   async sign(
-    @Body() body: { companyId?: string; pdf?: string },
+    @Body() body: SignPdfDto,
   ) {
     if (!body?.companyId) {
       throw new BadRequestException('companyId ist erforderlich')
@@ -134,7 +159,7 @@ export class SigningController {
 
   @Post('verify')
   @Require('company.update')
-  async verify(@Body() body: { pdf?: string }) {
+  async verify(@Body() body: VerifyPdfDto) {
     if (!body?.pdf) {
       throw new BadRequestException('pdf (base64) ist erforderlich')
     }
@@ -154,8 +179,13 @@ export class SigningController {
 
   @Get('user-cert-info')
   @Require('company.update')
-  async userCertInfo(@Query('userId') userId: string) {
+  async userCertInfo(
+    @Req() req: Request,
+    @Headers('x-company-id') companyId: string,
+    @Query('userId') userId: string,
+  ) {
     if (!userId) throw new BadRequestException('userId ist erforderlich')
+    await this.assertUserInCompany(userId, companyId, (req as any).user?.id)
     return this.signing.getUserCertInfo(userId)
   }
 
@@ -163,33 +193,38 @@ export class SigningController {
   @Require('company.update')
   async userRegenerate(
     @Req() req: Request,
+    @Headers('x-company-id') companyId: string,
     @Query('userId') userId: string,
   ) {
     if (!userId) throw new BadRequestException('userId ist erforderlich')
     const actorId = (req as any).user?.id || null
+    await this.assertUserInCompany(userId, companyId, actorId)
     await this.audit.writeActivity({
-      companyId: (req as any).user?.companyId || null,
+      // the active company (User.companyId is only the user's default one)
+      companyId,
       userId: actorId,
       action: 'signing.user_regenerate',
       entityType: 'UserSigningKey',
       entityId: userId,
       metadata: { targetUserId: userId },
     })
-    return this.signing.regenerateUser(userId)
+    return this.withoutKey(await this.signing.regenerateUser(userId))
   }
 
   @Post('user-sign')
   @Require('company.update')
-  async userSign(@Body() body: { userId?: string; pdf?: string }) {
-    if (!body?.userId) {
-      throw new BadRequestException('userId ist erforderlich')
+  async userSign(@Req() req: Request, @Body() body: UserSignPdfDto) {
+    // A signature names a person: only the caller's own certificate.
+    const userId = (req as any).user?.id as string
+    if (body.userId !== userId) {
+      throw new ForbiddenException('Nur mit dem eigenen Zertifikat signieren')
     }
     if (!body?.pdf) {
       throw new BadRequestException('pdf (base64) ist erforderlich')
     }
     const pdf = Buffer.from(body.pdf, 'base64')
-    const signed = await this.signing.signPdfAsUser(body.userId, pdf)
-    const cert = await this.signing.getUserCertInfo(body.userId)
+    const signed = await this.signing.signPdfAsUser(userId, pdf)
+    const cert = await this.signing.getUserCertInfo(userId)
     return {
       signedPdf: signed.toString('base64'),
       fingerprint: cert.fingerprint,
