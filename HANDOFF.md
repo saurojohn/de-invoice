@@ -2404,6 +2404,73 @@ a suite runs on it.**
 
 CI run 35025847641, all six jobs green: backend 188/0/1, Playwright 922.
 
+### SSRF: webhook and FinTS URL guards had bypasses (Tier 391)
+
+`POST /webhooks` and `POST /fints/connections` take a URL from the client (both
+`company.update`) and the backend later fetches it. Each had its own ad-hoc
+allow/deny check. Measured against the webhook guard (`isValidUrl`), all
+accepted (201) though they reach loopback / internal:
+
+| URL | old | now |
+|---|---|---|
+| `http://0.0.0.0/` | 201 | 400 |
+| `http://[::1]/` | 201 | 400 |
+| `http://[::ffff:127.0.0.1]/` | 201 | 400 |
+| `http://user:pass@127.0.0.1/` | 400 (parse) | 400 (explicit) |
+| `http://127.0.0.1.nip.io/` (DNS → 127.0.0.1) | 201 | 400 |
+| `http://127.0.0.1/`, `http://2130706433/` (Node normalizes to 127.0.0.1) | 400 | 400 |
+
+Node's WHATWG URL parser already normalizes decimal/octal/hex IPv4
+(`http://2130706433` → hostname `127.0.0.1`), so those were already caught; the
+gaps were `0.0.0.0`, every IPv6 form, IPv4-mapped IPv6, URL credentials, and any
+DNS name. The webhook delivery also followed redirects (a public host could
+302 into the internal network) and stores up to 4000 chars of the response body,
+shown in the deliveries drawer — so a successful SSRF exfiltrates.
+
+Fix: one shared guard `src/common/ssrf-guard.ts`:
+- `isPrivateAddress(ip)` — an IP-family-aware classifier (loopback, `0.0.0.0/8`,
+  RFC1918, `169.254/16` incl. cloud metadata, CGNAT `100.64/10`, IPv6 `::`,
+  `::1`, `fc00::/7`, `fe80::/10`, and IPv4-mapped IPv6). Unit-checked against
+  15 private + 9 public addresses.
+- `assertPublicHttpUrl(raw, {requireHttps,label})` — protocol (http(s), or
+  https-only for FinTS), no URL credentials, reserved private-use TLDs
+  (`localhost`, `.local`, `.internal`), and the IP-literal range check.
+- `assertHostResolvesPublic(host, label, {allowUnresolved})` — resolves DNS and
+  rejects a private result. `webhook.create` calls it lenient (a name that
+  resolves private → 400 now; one that does not resolve here is left to
+  delivery, so a prod-only or transient name is not blocked). `postJson`
+  (delivery) calls it strict and sets `redirect: 'error'`, so a name that was
+  public at create but resolves private at delivery (rebinding) is still caught
+  and no redirect is followed.
+
+Both `webhook.service.ts` (`isValidUrl` deleted) and `fints.controller.ts`
+(inline block deleted) now use it; FinTS requires HTTPS as before.
+
+**Residual (documented, not fixed):** delivery re-resolves and then `fetch`
+resolves again — a sub-second DNS-rebinding window between the two remains. A
+full fix pins the resolved IP into the connection (custom undici dispatcher);
+not done — the re-resolve + no-redirects closes the practical exfil path for an
+authenticated-but-malicious company admin, the only actor who can reach these
+routes.
+
+Spec: extended `e2e/50-webhooks.sh`'s existing SSRF section (§10b) with the five
+bypasses above — 0.0.0.0, `[::1]`, `::ffff:127.0.0.1`, credentials, and the
+nip.io DNS name → all 400; the public `https://example.com` / `httpbin.org`
+cases still 201. The existing `e2e/39-ssrf-guard.sh` (the FinTS endpointUrl
+guard, incl. its `.internal` case) still passes unchanged — the shared guard
+keeps the `.local`/`.internal` block the old FinTS code had. The delivery-time
+redirect / rebinding guards are code- and unit-verified, not e2e-reproduced
+(needs a controllable public redirector).
+
+Verified locally: full backend **189 passed / 0 failed** of 189 specs, zero 500s
+in the captured log; Playwright webhooks, webhook-dead-letter, -deliveries-csv,
+-event-type-filter, -last-success, fints-banking: 34 passed. (In the CI backend
+job 16-dark-mode skips, no frontend → 188/0/1.)
+
+**Not changed:** the webhook create body is still an inline type (name/events
+length unbounded) — the same low-severity class as the Tier 388 `@IsString`
+note.
+
 **Seen in passing, not changed:** `POST /auth/2fa/verify` is `@Public()` and
 takes only `email` + a TOTP or recovery code — no password, no attempt limit
 beyond the global throttler. With header auth (§9 item 10) knowing a user id

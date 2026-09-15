@@ -172,6 +172,27 @@ api_post "/api/v1/webhooks?companyId=$COMPANY_ID" \
   '{"name":"ssrf 172.16","url":"http://172.16.0.1/","events":["invoice.created"]}'
 assert_status 400 "POST /webhooks SSRF 172.16"
 
+# 10b. Tier 391 — bypasses the old isValidUrl accepted (measured: all 201).
+# 0.0.0.0 (= this host), IPv6 loopback, IPv4-mapped IPv6 loopback, credentials
+# in the URL, and a DNS name that resolves to 127.0.0.1.
+api_post "/api/v1/webhooks?companyId=$COMPANY_ID" \
+  '{"name":"ssrf 0.0.0.0","url":"http://0.0.0.0/","events":["invoice.created"]}'
+assert_status 400 "POST /webhooks SSRF 0.0.0.0 (was 201)"
+api_post "/api/v1/webhooks?companyId=$COMPANY_ID" \
+  '{"name":"ssrf ipv6 loopback","url":"http://[::1]/","events":["invoice.created"]}'
+assert_status 400 "POST /webhooks SSRF [::1] (was 201)"
+api_post "/api/v1/webhooks?companyId=$COMPANY_ID" \
+  '{"name":"ssrf mapped","url":"http://[::ffff:127.0.0.1]/","events":["invoice.created"]}'
+assert_status 400 "POST /webhooks SSRF ::ffff:127.0.0.1 (was 201)"
+api_post "/api/v1/webhooks?companyId=$COMPANY_ID" \
+  '{"name":"ssrf creds","url":"http://user:pass@127.0.0.1/","events":["invoice.created"]}'
+assert_status 400 "POST /webhooks SSRF credentials in URL (was 400 for parse, now explicit)"
+# nip.io resolves *.<ip>.nip.io to <ip> — a DNS name that lands on 127.0.0.1.
+# The create-time DNS check (lenient) catches it because it resolves here.
+api_post "/api/v1/webhooks?companyId=$COMPANY_ID" \
+  '{"name":"ssrf dns","url":"http://127.0.0.1.nip.io/","events":["invoice.created"]}'
+assert_status 400 "POST /webhooks SSRF DNS name resolving to 127.0.0.1 (was 201)"
+
 # 11. Update — change status to paused
 api_post "/api/v1/webhooks/$WH_ID/test?companyId=$COMPANY_ID" ""
 # Test event should return delivered=0 because

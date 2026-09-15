@@ -65,7 +65,7 @@
 import { Injectable, Logger, BadRequestException, NotFoundException } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import { createHmac, randomBytes } from 'crypto'
-import { URL } from 'url'
+import { assertHostResolvesPublic, assertPublicHttpUrl } from '../../common/ssrf-guard'
 import type { Webhook } from '@prisma/client'
 
 export type WebhookEventType =
@@ -226,11 +226,13 @@ export class WebhookService {
     events: string[]
     description?: string
   }) {
-    if (!isValidUrl(input.url)) {
-      throw new BadRequestException(
-        'Invalid webhook URL: must be a public http(s) URL (private IPs and localhost are not allowed)',
-      )
-    }
+    // Tier 391: the shared SSRF guard — isValidUrl accepted 0.0.0.0, ::1,
+    // ::ffff:127.0.0.1 and any DNS name (measured). The static check plus a
+    // lenient DNS check (a name that resolves to a private address is rejected
+    // now; one that does not resolve here is left to delivery). Delivery
+    // (postJson) re-resolves authoritatively and refuses redirects.
+    const parsedUrl = assertPublicHttpUrl(input.url, { label: 'Webhook-URL' })
+    await assertHostResolvesPublic(parsedUrl.hostname, 'Webhook-URL', { allowUnresolved: true })
     if (input.events.length === 0) {
       throw new BadRequestException('At least one event type is required')
     }
@@ -894,11 +896,18 @@ export class WebhookService {
     signature: string,
     timeoutMs: number,
   ): Promise<{ statusCode: number; body: string }> {
+    // Tier 391: re-resolve the host and reject a private address at delivery
+    // time (a name public at create time may resolve private now), and never
+    // follow a redirect (a public host could 302 into the internal network —
+    // the response body is stored and shown in the deliveries drawer).
+    const parsed = assertPublicHttpUrl(url, { label: 'Webhook-URL' })
+    await assertHostResolvesPublic(parsed.hostname, 'Webhook-URL')
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), timeoutMs)
     try {
       const res = await fetch(url, {
         method: 'POST',
+        redirect: 'error',
         headers: {
           'Content-Type': 'application/json',
           'X-Signature': `sha256=${signature}`,
@@ -1062,36 +1071,3 @@ export class WebhookService {
   }
 }
 
-/**
- * Reject non-http(s) URLs and URLs to
- * private IP ranges. Same SSRF guard
- * logic as the FinTS endpoint (Tier 12
- * §39) — we don't want a webhook
- * creation to allow probing the
- * internal network.
- */
-function isValidUrl(url: string): boolean {
-  let parsed: URL
-  try {
-    parsed = new URL(url)
-  } catch {
-    return false
-  }
-  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
-    return false
-  }
-  // Block private IPs
-  const host = parsed.hostname
-  if (
-    host === 'localhost' ||
-    host === '127.0.0.1' ||
-    host === '::1' ||
-    host.startsWith('10.') ||
-    host.startsWith('192.168.') ||
-    host.startsWith('169.254.') ||
-    /^172\.(1[6-9]|2[0-9]|3[01])\./.test(host)
-  ) {
-    return false
-  }
-  return true
-}

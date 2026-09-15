@@ -13,6 +13,7 @@ import {
 import { Auth, Require } from '../../auth/roles.decorator'
 import { FinTsService } from './fints.service'
 import { FintsSyncScheduler } from './fints-sync.scheduler'
+import { assertPublicHttpUrl } from '../../common/ssrf-guard'
 
 interface CreateConnectionDto {
   companyId: string
@@ -150,33 +151,11 @@ export class FinTsController {
     // catches "the user pasted
     // http://10.0.0.1/..." style SSRF attempts
     // before the value is persisted.
+    // Tier 391: the shared SSRF guard (HTTPS-only for a bank endpoint). Replaces
+    // an ad-hoc check that missed ::ffff:127.0.0.1, link-local IPv6 and any DNS
+    // name resolving to a private address.
     if (body.endpointUrl) {
-      let url: URL
-      try {
-        url = new URL(body.endpointUrl)
-      } catch {
-        throw new BadRequestException('endpointUrl ist keine gültige URL')
-      }
-      if (url.protocol !== 'https:') {
-        throw new BadRequestException('endpointUrl muss HTTPS sein')
-      }
-      const host = url.hostname.toLowerCase()
-      const isLocal =
-        host === 'localhost' ||
-        host === '127.0.0.1' ||
-        host === '::1' ||
-        host === '0.0.0.0' ||
-        host.endsWith('.local') ||
-        host.endsWith('.internal') ||
-        /^10\./.test(host) ||
-        /^192\.168\./.test(host) ||
-        /^172\.(1[6-9]|2[0-9]|3[01])\./.test(host) ||
-        /^169\.254\./.test(host)
-      if (isLocal) {
-        throw new BadRequestException(
-          'endpointUrl darf nicht auf eine lokale/private IP zeigen',
-        )
-      }
+      assertPublicHttpUrl(body.endpointUrl, { requireHttps: true, label: 'endpointUrl' })
     }
     return this.fints.createConnection({
       companyId: body.companyId,
