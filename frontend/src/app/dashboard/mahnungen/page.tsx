@@ -24,7 +24,7 @@ import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { ThemeToggle } from "@/components/ThemeToggle"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
-import { apiGet, apiPost } from "@/lib/api"
+import { apiGet, apiPost, downloadApiFile } from "@/lib/api"
 
 interface MahnungRow {
   id: string
@@ -153,12 +153,12 @@ export default function MahnhistoriePage() {
   function downloadPdf(row: MahnungRow) {
     const companyId = localStorage.getItem("companyId")
     if (!companyId) return
-    // Open in a new tab — the backend stream sets
-    // Content-Disposition so the browser saves as a file.
-    // We bypass the apiFetch helper because we need the
-    // raw binary body, not parsed JSON.
-    const url = `${process.env.NEXT_PUBLIC_API_URL}/api/v1/reminders/mahnungen/${row.id}/pdf?companyId=${companyId}`
-    window.open(url, "_blank")
+    // Tier 389: fetched with the auth headers and opened as a blob — a
+    // window.open to the API sends no headers (401), and without
+    // NEXT_PUBLIC_API_URL the URL started with "undefined".
+    downloadApiFile(`/api/v1/reminders/mahnungen/${row.id}/pdf?companyId=${companyId}`, {
+      newTab: true,
+    }).catch((e: any) => toast.error(e?.message || "PDF konnte nicht geladen werden"))
   }
 
   return (

@@ -2275,6 +2275,72 @@ manual-mahnung-send-tier152, mahnung-templates-tier151,
 mahnung-fees-preview-tier164, mahnungspause, mahnung, mahnungen-page-tier232,
 mahnung-cost-center, dunning-config-tier123: 52 passed.
 
+### Download links answered 401 in the browser (Tier 389)
+
+Tier 377 listed the frontend's backend URLs that are not passed to an `api*`
+helper and deferred the navigation downloads to the session-cookie decision
+(§9 item 10). Measured now, as the browser sends them (no auth headers) and
+with the headers:
+
+| Route | no headers | with headers |
+|---|---|---|
+| `accounting/anlage-n.pdf`, `euer.pdf`, `gobd-archive` | 401 | 200 |
+| `reports/bwa.pdf`, `reports/datev-export` | 401 | 200 |
+| `audit-logs/activity.csv`, `ustva/ustja.pdf` | 401 | 200 |
+
+Those were measured; every other download built as a link or `window.open`
+targets a route behind the same global guard (none is `@Public`), so the same
+applies — code, not each one measured: the
+Anlage N/R/S/V/G/KAP/Kind/SO/AUS, EÜR, GuV, Bilanz, GewSt, KSt1, Anhang,
+E-Bilanz (XML + PDF) and UStJA (PDF, ELSTER XML) buttons, GoBD archive and
+Berater-Packager ZIPs, BWA PDF, OSS CSV, the four DATEV exports, activity and
+webhook-delivery CSVs, attachment view/download links (invoice, customer,
+ReceiptsPanel, Berater notes), Kassenabschluss PDF, cashbook CSV export,
+Mahnung PDF (whose URL even began with `undefined` without
+`NEXT_PUBLIC_API_URL`), the storage-settings file download. Relative
+`/api/v1/…` links (activity CSV) hit the Next server instead and got 404. The
+Playwright tests only asserted the `href`; the DATEV month test asserted the
+popup's URL.
+
+Fix, independent of how auth is decided later:
+- `downloadApiFile(path, { filename?, newTab? })` in `lib/api.ts`: `apiFetch`
+  with the auth headers → blob → saved (`a.download`, file name from
+  `Content-Disposition`) or, for PDFs/images with `newTab`, shown in a tab
+  opened synchronously in the click (popup blockers).
+- `AuthenticatedDownloads` (root layout): one document click listener takes over
+  primary clicks on links whose `href` is a backend `/api/v1/…` URL
+  (`API_BASE`-absolute or relative) and runs `downloadApiFile` — the ~30 link
+  sites keep their markup, `href`, `target` and `download`. Customer-portal /
+  pay routes (token in the URL) and `/portal` pages are left alone.
+- The `window.open` buttons (four DATEV exports, cashbook CSV, Mahnung PDF) call
+  `downloadApiFile` directly.
+- Backend CORS `exposedHeaders: ['Content-Disposition']` so the cross-origin
+  fetch can read the file name.
+
+Spec `frontend/e2e/authenticated-downloads-tier389.spec.ts` clicks the Anlage N
+PDF link, the GoBD ZIP link, the activity CSV link and the DATEV CSV button and
+asserts the file request carried `x-user-id` and answered 200 (and a download
+with the right extension). Against the old frontend all four failed (401, 401,
+404, no download). `datev-month-button-tier185` test 3 now waits for the
+download and the authenticated request instead of a popup URL.
+
+**Steuerberater-Modus blocked every page request.** With the read-only toggle
+on (Tier 71), `apiFetch` adds `x-readonly: 1`. The backend's CORS
+`allowedHeaders` did not list it, so the browser's preflight (frontend :3100 →
+API :3001) failed — measured in Chromium: `/dashboard/customers` → the customers
+request `net::ERR_FAILED`, "blocked by CORS policy", no response. The existing
+readonly Playwright tests only toggled the banner and called the backend
+directly. `x-readonly` is now allowed; a new test in `readonly-mode.spec.ts`
+loads the customers page with the mode on and asserts a 200 carrying
+`x-readonly` and no blocked request — it failed against the old CORS config.
+Same-origin deployments (frontend and API behind one host, no preflight) were
+not affected; which one production uses depends on `NEXT_PUBLIC_API_URL` (§9).
+
+Verified locally: full Playwright **917 passed** (913 + the 4 new download
+tests; the readonly test was added after that run and passed with its spec),
+none flaky or skipped; `authenticated-downloads-tier389` with
+`--repeat-each=3` 12 passed; full backend **188 / 0 / 0**, zero 500s.
+
 **Seen in passing, not changed:** `POST /auth/2fa/verify` is `@Public()` and
 takes only `email` + a TOTP or recovery code — no password, no attempt limit
 beyond the global throttler. With header auth (§9 item 10) knowing a user id

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
-import { apiFetch, apiGet } from "@/lib/api"
+import { apiFetch, apiGet, downloadApiFile } from "@/lib/api"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { PnlTab } from "./PnlTab"
@@ -1019,10 +1019,10 @@ function DatevExportTab({
               variant="outline"
               onClick={() => {
                 if (!companyId) return
-                window.open(
+                // Tier 389: a window.open cannot send the auth headers (401).
+                downloadApiFile(
                   `/api/v1/reports/datev-export?companyId=${companyId}&startDate=${startDate}&endDate=${endDate}`,
-                  "_blank",
-                )
+                ).catch((e: any) => toast.error(e?.message || "Download fehlgeschlagen"))
               }}
               data-testid="datev-download-csv-btn"
             >
@@ -1032,10 +1032,10 @@ function DatevExportTab({
               variant="outline"
               onClick={() => {
                 if (!companyId) return
-                window.open(
+                // Tier 389: a window.open cannot send the auth headers (401).
+                downloadApiFile(
                   `/api/v1/reports/datev-export-bundle?companyId=${companyId}&startDate=${startDate}&endDate=${endDate}`,
-                  "_blank",
-                )
+                ).catch((e: any) => toast.error(e?.message || "Download fehlgeschlagen"))
               }}
               data-testid="datev-download-bundle-btn"
             >
@@ -1052,10 +1052,10 @@ function DatevExportTab({
                 // be imported as its own Buchungslauf.
                 // Sequential laufNr (L001, L002, ...) keeps
                 // the DATEV import order deterministic.
-                window.open(
+                // Tier 389: a window.open cannot send the auth headers (401).
+                downloadApiFile(
                   `/api/v1/reports/datev-export-monthly?companyId=${companyId}&startDate=${startDate}&endDate=${endDate}`,
-                  "_blank",
-                )
+                ).catch((e: any) => toast.error(e?.message || "Download fehlgeschlagen"))
               }}
               data-testid="datev-download-monthly-btn"
               title="Erzeugt einen ZIP-Ordner mit einer CSV pro Monat + Belegbilder pro Monat — für Buchungslauf pro Monat in DATEV."
@@ -1125,10 +1125,10 @@ function DatevExportTab({
                     toast.error(t("datevExport.invalidMonth"))
                     return
                   }
-                  window.open(
+                  // Tier 389: a window.open cannot send the auth headers (401).
+                  downloadApiFile(
                     `/api/v1/reports/datev-export-bundle?companyId=${companyId}&year=${monthYear}&month=${monthMonth}`,
-                    "_blank",
-                  )
+                  ).catch((e: any) => toast.error(e?.message || "Download fehlgeschlagen"))
                 }}
                 data-testid="datev-bundle-month-btn"
                 title={t("datevExport.bundleMonthTooltip")}

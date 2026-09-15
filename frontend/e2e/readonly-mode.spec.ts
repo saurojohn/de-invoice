@@ -76,6 +76,28 @@ async function injectAuth(page: any) {
 }
 
 test.describe("Steuerberater-Modus (Read-Only)", () => {
+  // Tier 389: with the mode on, the page's requests carry x-readonly: 1. The
+  // backend's CORS allow-list did not name that header, so the preflight
+  // failed and every page request was blocked (net::ERR_FAILED) — the other
+  // tests here only toggle the banner or call the backend directly.
+  test("pages still load data while the mode is on", async ({ page }) => {
+    await injectAuth(page)
+    await page.addInitScript(() => localStorage.setItem("readonly", "1"))
+    const failed: string[] = []
+    page.on("requestfailed", (r) => {
+      if (r.url().includes("/api/v1/")) failed.push(`${r.url()} ${r.failure()?.errorText}`)
+    })
+    const customers = page.waitForResponse(
+      (r) => r.url().includes("/api/v1/customers?") && r.request().method() === "GET",
+      { timeout: 60_000 },
+    )
+    await page.goto("/dashboard/customers")
+    const res = await customers
+    expect(res.status(), "customers list status").toBe(200)
+    expect((await res.request().allHeaders())["x-readonly"], "x-readonly sent").toBe("1")
+    expect(failed, `blocked API requests: ${failed.join(", ")}`).toEqual([])
+  })
+
   test("toggle off by default — banner absent", async ({ page }) => {
     await injectAuth(page)
     await page.goto("/dashboard")

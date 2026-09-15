@@ -7,7 +7,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
-import { API_BASE, apiGet, apiPost, apiPut, apiDelete } from "@/lib/api"
+import { API_BASE, apiGet, apiPost, apiPut, apiDelete, downloadApiFile } from "@/lib/api"
 
 type EntryType = "einnahme" | "ausgabe" | "umbuchung" | "eroeffnung"
 
@@ -371,7 +371,8 @@ export default function CashbookPage() {
     const companyId = localStorage.getItem("companyId")!
     const year = new Date().getFullYear()
     const url = `/api/v1/cashbook/export?companyId=${companyId}&from=${year}-01-01&to=${year}-12-31`
-    window.open(url, "_blank")
+    // Tier 389: a window.open cannot send the auth headers (401).
+    downloadApiFile(url).catch((e: any) => toast.error(e?.message || "Export fehlgeschlagen"))
   }
 
   const typeLabel = (ty: EntryType | "storno") => {

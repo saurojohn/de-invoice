@@ -200,3 +200,79 @@ export async function apiGetBlob(
   const blob = await res.blob()
   return { blob, headers: Object.fromEntries(res.headers.entries()) }
 }
+
+/** Tier 389: the path of a backend API URL a link or button points at, or null
+ *  for anything else. Accepts API_BASE-absolute and relative `/api/v1/…` URLs.
+ *  Customer-portal and payment-link routes authenticate with a token in the
+ *  URL and still work as plain navigations, so they are left alone. */
+export function apiPathOf(href: string): string | null {
+  if (typeof window === "undefined" || !href || href === "#") return null
+  let url: URL
+  try {
+    url = new URL(href, window.location.origin)
+  } catch {
+    return null
+  }
+  const base = new URL(API_BASE, window.location.origin)
+  if (url.origin !== base.origin && url.origin !== window.location.origin) return null
+  if (!url.pathname.startsWith("/api/v1/")) return null
+  if (/^\/api\/v1\/(customer-portal|pay|payment-links?)\//.test(url.pathname)) return null
+  return url.pathname + url.search
+}
+
+function filenameFrom(disposition: string | null, path: string): string {
+  if (disposition) {
+    const star = /filename\*\s*=\s*UTF-8''([^;]+)/i.exec(disposition)
+    if (star) {
+      try {
+        return decodeURIComponent(star[1].trim().replace(/^"|"$/g, ""))
+      } catch {
+        // fall through
+      }
+    }
+    const plain = /filename\s*=\s*"?([^";]+)"?/i.exec(disposition)
+    if (plain) return plain[1].trim()
+  }
+  const last = path.split("?")[0].split("/").filter(Boolean).pop()
+  return last ? decodeURIComponent(last) : "download"
+}
+
+/** Tier 389: download (or open in a new tab) a file from a protected backend
+ *  route. A plain navigation — `<a href>`, `window.open` — sends no
+ *  x-user-id / x-company-id, and every such route answers 401: measured for
+ *  the Anlage / EÜR / GuV / Bilanz PDFs, GoBD archive, BWA, DATEV exports,
+ *  activity CSV, UStJA — all 200 with the headers, 401 without. This fetches
+ *  with the auth headers and hands the browser a blob.
+ *
+ *  Call it synchronously from the click handler: with `newTab` the tab is
+ *  opened before the fetch so popup blockers see the user gesture. */
+export async function downloadApiFile(
+  path: string,
+  opts: { filename?: string; newTab?: boolean } = {},
+): Promise<void> {
+  const tab = opts.newTab ? window.open("", "_blank") : null
+  try {
+    const res = await apiFetch(path, { method: "GET" })
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    setTimeout(() => URL.revokeObjectURL(url), 120_000)
+    const viewable = /^(application\/pdf|image\/|text\/plain|text\/html)/.test(blob.type)
+    if (tab && viewable) {
+      tab.location.href = url
+      return
+    }
+    tab?.close()
+    const a = document.createElement("a")
+    a.href = url
+    a.download = opts.filename || filenameFrom(res.headers.get("content-disposition"), path)
+    a.style.display = "none"
+    // Marked so the document-level interceptor does not pick it up again.
+    a.dataset.apiDownload = "done"
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+  } catch (err) {
+    tab?.close()
+    throw err
+  }
+}

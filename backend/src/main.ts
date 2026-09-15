@@ -90,7 +90,16 @@ async function bootstrap() {
       // block the preflight and the request never reaches the API.
       'x-user-id',
       'x-company-id',
+      // Tier 389: the Steuerberater-Modus (Tier 71) adds x-readonly: 1 to every
+      // request. Missing here, the browser's preflight failed and every request
+      // from the page was blocked by CORS as soon as the mode was on (measured:
+      // /dashboard/customers → net::ERR_FAILED, no response).
+      'x-readonly',
     ],
+    // Tier 389: downloads are fetched with the auth headers and saved as a
+    // blob; the file name comes from Content-Disposition, which a cross-origin
+    // fetch can only read when it is exposed.
+    exposedHeaders: ['Content-Disposition'],
     maxAge: 86400, // Cache preflight 24h
   });
 

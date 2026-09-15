@@ -150,7 +150,7 @@ test.describe("Tier 185 — frontend DATEV month bundle button", () => {
     )
   })
 
-  test("3. clicking the button opens a new tab to the month bundle URL", async ({ page, context }) => {
+  test("3. clicking the button downloads the month bundle with the auth headers", async ({ page }) => {
     page.setDefaultTimeout(60_000)
     await page.goto("/dashboard/reports", {
       timeout: 90_000,
@@ -173,19 +173,22 @@ test.describe("Tier 185 — frontend DATEV month bundle button", () => {
     const btn = page.getByTestId("datev-bundle-month-btn")
     await expect(btn).toBeEnabled({ timeout: 10_000 })
 
-    // The button calls `window.open(url, "_blank")`
-    // which Playwright turns into a popup event.
-    const popupPromise = context.waitForEvent("page", { timeout: 30_000 })
-    await btn.click()
-    const popup = await popupPromise
-    // The popup URL should contain year=2026&month=7
-    // and the datev-export-bundle endpoint.
-    const url = popup.url()
-    expect(url, `expected month bundle URL, got: ${url}`).toMatch(
-      /\/api\/v1\/reports\/datev-export-bundle/,
+    // Tier 389: the button used window.open(url) — a navigation without the
+    // auth headers, which the backend answers with 401 (this test only read
+    // the popup URL). It now fetches with the headers and saves the ZIP.
+    const responsePromise = page.waitForResponse(
+      (r) => r.url().includes("/api/v1/reports/datev-export-bundle"),
+      { timeout: 60_000 },
     )
+    const downloadPromise = page.waitForEvent("download", { timeout: 60_000 })
+    await btn.click()
+    const res = await responsePromise
+    const url = res.url()
     expect(url, `expected year=2026, got: ${url}`).toMatch(/year=2026/)
     expect(url, `expected month=7, got: ${url}`).toMatch(/month=7/)
+    expect(res.status(), "bundle request status").toBe(200)
+    expect((await res.request().allHeaders())["x-user-id"], "x-user-id sent").toBeTruthy()
+    expect((await downloadPromise).suggestedFilename()).toMatch(/\.zip$/i)
   })
 
   test("4. error path: month=13 → 400 with German error", async ({ request }) => {

@@ -6,6 +6,7 @@ import { THEME_PREHYDRATION_SCRIPT } from "@/components/useTheme";
 import { ToastProvider } from "@/components/useToast";
 import { GlobalErrorCapture } from "@/components/GlobalErrorCapture";
 import AuthCookieSync from "@/components/AuthCookieSync";
+import AuthenticatedDownloads from "@/components/AuthenticatedDownloads";
 import GlobalSearch from "@/components/GlobalSearch";
 import { ReadOnlyProvider } from "@/components/ReadOnlyBanner";
 import { SiteFooter } from "@/components/SiteFooter";
@@ -81,7 +82,7 @@ export default function RootLayout({
           {THEME_PREHYDRATION_SCRIPT}
         </Script>
       </head>
-      <body className="min-h-full flex flex-col bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 overflow-x-hidden"><AuthCookieSync /><ToastProvider><GlobalErrorCapture><ReadOnlyProvider>{children}<SiteFooter /></ReadOnlyProvider></GlobalErrorCapture><GlobalSearch /><CookieBanner /></ToastProvider></body>
+      <body className="min-h-full flex flex-col bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 overflow-x-hidden"><AuthCookieSync /><ToastProvider><AuthenticatedDownloads /><GlobalErrorCapture><ReadOnlyProvider>{children}<SiteFooter /></ReadOnlyProvider></GlobalErrorCapture><GlobalSearch /><CookieBanner /></ToastProvider></body>
     </html>
   );
 }
