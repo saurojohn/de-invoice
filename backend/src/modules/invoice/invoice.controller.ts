@@ -26,7 +26,7 @@ import { generateZUGFeRD } from '../../invoices/zugferd.service';
 // Tier 62: USt-Behandlung auto-detector (pure function, no
 // DI — we just import and call suggestUstBehandlung()).
 import { suggestUstBehandlung, UstSuggestion } from './ust-behandlung-detector';
-import { CreateInvoiceDto, UpdateInvoiceDto } from './dto/invoice.dto';
+import { CreateInvoiceDto, UpdateInvoiceDto, UpdateInvoiceStatusDto } from './dto/invoice.dto';
 import { Auth, Require } from '../../auth/roles.decorator';
 // Tier 129: renderInvoiceEmail + EmailLang moved to
 // InvoiceEmailService. The controller still has the
@@ -1186,9 +1186,9 @@ export class InvoiceController {
   async updateStatus(
     @Param('id') id: string,
     @Query('companyId') companyId: string,
-    @Body('status') status: string,
+    @Body() body: UpdateInvoiceStatusDto,
   ) {
-    return this.invoiceService.updateStatus(id, companyId, status);
+    return this.invoiceService.updateStatus(id, companyId, body.status);
   }
 
   @Get(':id/email-data')

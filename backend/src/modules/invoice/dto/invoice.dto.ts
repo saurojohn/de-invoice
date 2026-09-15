@@ -1,4 +1,4 @@
-import { IsString, IsArray, ValidateNested, IsNumber, IsOptional, IsDateString, IsBoolean, MaxLength, IsInt, Min, Max } from 'class-validator';
+import { IsString, IsArray, ValidateNested, IsNumber, IsOptional, IsDateString, IsBoolean, MaxLength, IsInt, Min, Max, IsIn } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class InvoiceItemDto {
@@ -242,3 +242,22 @@ export class UpdateInvoiceDto {
   @IsString() @IsOptional() internalNotes?: string;
 }
 
+
+/**
+ * Tier 379 — PUT /invoices/:id/status.
+ *
+ * The handler read `@Body('status') status: string` and stored it verbatim:
+ * `{"status":"lolwut"}` answered 200 and was persisted, `{}` answered 200 and
+ * changed nothing (both measured). The values are the ones the only UI caller
+ * offers — the status dropdown on the invoice detail page — and the ones the
+ * backend itself writes (draft on create, sent / paid / cancelled). `partial`,
+ * `voided` and `open` appear in a few comparisons but nothing ever writes them.
+ */
+export const INVOICE_STATUSES = ['draft', 'sent', 'paid', 'overdue', 'cancelled'] as const;
+
+export class UpdateInvoiceStatusDto {
+  @IsIn(INVOICE_STATUSES, {
+    message: `status muss einer der Werte ${INVOICE_STATUSES.join(', ')} sein`,
+  })
+  status!: (typeof INVOICE_STATUSES)[number];
+}

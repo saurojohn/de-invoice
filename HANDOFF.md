@@ -1785,7 +1785,7 @@ authenticated `x-company-id` header. The inventory body was an interface → new
 "Resource not found" and stored as ErrorEvents). P2002/P2003 stay 500 on purpose —
 they also come from server races.
 
-**Found, not fixed — invoice status is free text.** `PUT /invoices/:id/status`
+**Found here, fixed in Tier 379 — invoice status was free text.** `PUT /invoices/:id/status`
 stores any string: company A's own `{"status":"lolwut"}` → 200, persisted
 (measured, reverted). The status vocabulary is not one list in the code (specs
 and code use draft/sent/paid/overdue/cancelled, and also `void`/`voided`), so an
@@ -1808,6 +1808,33 @@ berater, cost-center budgets, credit balance, direct-debit, payments, kontoauszu
 e-mail, system-errors timeline, webhooks, XRechnung, aging credit) 68 passed; no
 Playwright spec covers the inventory page, so its three request bodies were
 replayed against the new DTO (200 each).
+
+### Invoice status values (Tier 379)
+
+`PUT /invoices/:id/status` stored any string (`"lolwut"` → 200, persisted;
+`{}` → 200, no-op — measured). Before choosing an allowlist the vocabulary was
+enumerated, not guessed:
+- **The only UI caller** is the status dropdown on the invoice detail page:
+  `draft`, `sent`, `paid`, `overdue`, `cancelled`. The first caller search
+  missed it — the value is a variable (`{ status: newStatus }`) and the literal
+  scan only found spec calls (137, 52, 179: `sent`, `paid`).
+- **Backend writes:** `draft` (create), `sent` (credit note, payment removed),
+  `paid` (payments, portal, customer portal, credit balance). `partial`,
+  `voided` and `open` appear only in comparisons / filters (fints, installment
+  plan, customer statement) — nothing writes them.
+- `PUT /invoices/:id` cannot set a status (not in `UpdateInvoiceDto`).
+- After a full suite run the database held only `draft`, `paid`, `sent`.
+
+`UpdateInvoiceStatusDto` allows exactly the five dropdown values. Transitions
+are **not** restricted (e.g. `paid` → `draft` is still allowed); whether a sent
+or paid invoice may go back to draft is a GoBD/business question, not decided
+here.
+
+Spec `e2e/180-tier379-invoice-status-values.sh`: every dropdown value → 200 and
+stored; unknown, missing, numeric, wrong-case and undeclared-field bodies → 400
+with the status unchanged. Verified: full backend **179 passed / 0 failed /
+1 skipped** of 180 specs, zero 500s; the dropdown was changed in a browser
+(draft → sent: PUT 200, stored `sent`) — no Playwright spec covers it.
 
 ### Notes from Tiers 347–352 (recovered in Tier 364)
 
