@@ -2210,6 +2210,71 @@ Verified on a fresh stack: full backend **187 passed / 0 failed / 0 skipped** of
 187 specs, zero 500s in the captured log; Playwright mandant-switcher,
 readonly-mode, two-factor: 10 passed.
 
+### Manual Mahnung never sent; paid and draft invoices dunned; reminder bodies (Tier 388)
+
+**The invoice page's "Mahnung senden" sent nothing.** The modal ("Diese
+Rechnung sofort per E-Mail mahnen", then "Mahnung wurde versendet") posts to
+`POST /reminders/send`, which only wrote an `EmailSend` row with status `sent`
+and a Mahnung with fees — measured: no mail attempt in the backend log (no
+`[NO-SMTP]` / `Email sent` line), while the bulk send produced one per invoice
+(the cron calls `mail.send` too — code, not measured). The Mahnhistorie therefore recorded letters, fees and Verzugszins that no
+customer received. It now runs `BulkReminderService.sendSingle` — the
+bulk / cron pipeline for one invoice: company template, Mahnung PDF, the
+customer's stored address, one Mahnung per level per day (a second send → 409).
+The modal's recipient / subject / body are accepted but not used (they are the
+same preview).
+
+**Paid and draft invoices were dunned.** The cron selects `status 'sent'`, type
+INV; manual and bulk checked nothing. Measured: manual send on a paid and on a
+draft invoice → Mahnung with fees; bulk send on both → "succeeded 2" and a mail
+to the customer. `sendOne` now refuses anything but `sent` / `overdue` and credit
+notes (bulk: `failed`, manual: 400).
+
+**Bodies** (`dto/reminder.dto.ts`): measured before — level `"bogus"` → 201 and
+a Mahnung with level "bogus"; missing invoiceId → 500; fees-config `null` /
+`"abc"` / `-5` → stored 0, `5000` → 1000, `99` → 50, `"mahngebuehr":"x"` → 200;
+templates stored a 5000-char subject and a 200 000-char body; cancel stored a
+20 000-char reason; Mahnungspause `pausedUntil "abc"` → 500, `"2026-02-30"`
+stored, `customerId: 123` → 500, PATCH `"abc"` → 500. Fee fields refuse `null`
+(`@IsOptional` would skip it and the service turns null into 0); bulk refuses
+more than 100 invoices instead of cutting the list.
+
+**Specs that only passed because drafts could be dunned:** e2e 65 "flipped" its
+invoice with `PATCH /invoices/:id {"status":"sent"}` into `/dev/null` — it never
+changed the status; e2e 68 had no flip at all. Both now use
+`PUT /invoices/:id/status`. **e2e 65's final cleanup deleted every Mahnung,
+EmailSend, Invoice and Customer of the company** (`WHERE "companyId" = …` only)
+— now scoped to its Tier37 customer like its setup block. Specs default
+`PG_CONTAINER` to `de-invoice-postgres`, so run standalone that cleanup would
+have hit the dev database.
+
+**Not changed:**
+- A Mahnungspause stops only the cron (Tier 64 use case 5); manual and bulk
+  sends still go out for a paused customer / invoice, and ignore the Skonto
+  window. Whether an explicit send may override a pause → §9 item 13.
+- `dashboard/reminders/page.tsx` (older page) opens `mailto:` and then posts
+  `/reminders/send` with a raw `fetch` without auth headers (401), and
+  `dashboard/reminders/templates/page.tsx` calls `/reminders/templates` without
+  `/api/v1`. The `mahnungen/*` pages replaced them; neither was changed.
+- **`@IsString` does not refuse numbers or objects.** The global
+  `ValidationPipe` has `enableImplicitConversion`, so class-transformer turns
+  `123` into `"123"` and `{"a":1}` into `"[object Object]"` before validation —
+  measured: template subject `{"a":1}` → 200, stored `[object Object]`. This
+  applies to every DTO string field. Next tier.
+
+Spec `e2e/188-tier388-reminder-send-bodies.sh`: manual send (page shape) → 201,
+a mail to the customer's address in the backend log, the company's subject; a
+second send → 409; paid / draft → 400 (manual) and `failed` (bulk) with no
+Mahnung; each measured bad body → 400 with the fee config and the pauses
+unchanged; the page shapes (fees, template, cancel, pause with `toISOString`,
+PATCH `null`) succeed. It failed 30 assertions against the old code.
+
+Verified on a fresh stack: full backend **188 passed / 0 failed / 0 skipped** of
+188 specs, zero 500s in the captured log; Playwright bulk-mahnung-tier157,
+manual-mahnung-send-tier152, mahnung-templates-tier151,
+mahnung-fees-preview-tier164, mahnungspause, mahnung, mahnungen-page-tier232,
+mahnung-cost-center, dunning-config-tier123: 52 passed.
+
 **Seen in passing, not changed:** `POST /auth/2fa/verify` is `@Public()` and
 takes only `email` + a TOTP or recovery code — no password, no attempt limit
 beyond the global throttler. With header auth (§9 item 10) knowing a user id
@@ -2472,6 +2537,13 @@ These are **not in the repo** — only the user can do them:
     rewriting them breaks verification. Options: leave them and document the
     period; or add a correction record per affected row. Neither was done. Only
     relevant if a database with real users ran a build before Tier 384.
+
+13. **May an explicit Mahnung override a Mahnungspause?** (found Tier 388)
+    A pause (e.g. for an agreed Ratenplan, or a disputed invoice) stops only the
+    daily cron. The invoice page's manual send and the bulk send still dun a
+    paused customer or invoice — and since Tier 388 the manual send really
+    e-mails. Options: refuse (400 "Mahnungspause aktiv"), or allow with a
+    warning in the modal. Not changed.
 
 When the Hetzner items are available, the deploy is:
 

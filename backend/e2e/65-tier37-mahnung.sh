@@ -18,12 +18,9 @@
 #      returns 0.
 #   6. GET /reminders/mahnungen/:id/pdf streams a valid PDF
 #      (%PDF- magic header at offset 0, ≥ 4 KB).
-#   7. POST /reminders/send on a paid invoice does NOT create a
-#      new Mahnung (no escalation after settlement — Tier 37's
-#      payment-cancel cascade is tested in the cashbook e2e).
-#   8. Bad-inputs: missing companyId → 400, missing invoiceId → 500
-#      from the controller, malformed level for fees-config put
-#      returns 200 with the value clamped to 0.
+#   7. Bad inputs: missing companyId → 400, invalid status → 400,
+#      unknown Mahnung id on cancel → 404. (Paid invoices, invalid
+#      levels and fee values are covered by e2e 188 since Tier 388.)
 
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -152,11 +149,11 @@ echo "invoice: $INVOICE_ID ($INVOICE_NUMBER)"
 # Flip status from 'draft' (default after create) to 'sent' so
 # the auto-reminder / invoices.routed-by-status queries see it
 # as an overdue candidate.
-curl -sS -o /dev/null -w "%{http_code}" -X PATCH \
-  "$API/api/v1/invoices/$INVOICE_ID?companyId=$COMPANY_ID" \
-  -H "Content-Type: application/json" \
-  -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-  -d '{"status":"sent"}' > /dev/null
+# Tier 388: this was a PATCH /invoices/:id with {"status":"sent"} whose answer
+# went to /dev/null — it never changed the status, and the draft was dunned.
+# Since Tier 388 only open invoices are dunned, so the real status route.
+api_put "/api/v1/invoices/$INVOICE_ID/status?companyId=$COMPANY_ID" '{"status":"sent"}'
+assert_status 200 "invoice set to sent"
 
 # Also seed a payment-link / paymark so we can test the
 # payment-cancel cascade in step 7. We do this by simply
@@ -361,11 +358,21 @@ assert_eq "unknown id cancel returns 404" "$STATUS" "404"
 
 # ───── Cleanup ─────
 mavis-trash '/tmp/t37_*.json' '/tmp/t37_*.pdf' '/tmp/t37_*.txt' '2>/dev/null' || true
+# Tier 388: this used to delete every Mahnung, EmailSend, Invoice and Customer
+# of the company — not just this spec's. Now only the Tier37 customer's rows,
+# the same scope as the setup block above.
 docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL
-DELETE FROM "Mahnung" WHERE "companyId" = '$COMPANY_ID';
-DELETE FROM "EmailSend" WHERE "companyId" = '$COMPANY_ID';
-DELETE FROM "Invoice" WHERE "companyId" = '$COMPANY_ID';
-DELETE FROM "Customer" WHERE "companyId" = '$COMPANY_ID';
+DELETE FROM "Mahnung" WHERE "companyId" = '$COMPANY_ID'
+  AND "invoiceId" IN (SELECT id FROM "Invoice" WHERE "companyId" = '$COMPANY_ID' AND "customerId" IN (SELECT id FROM "Customer" WHERE "name" LIKE 'Tier37%'));
+DELETE FROM "EmailSend" WHERE "companyId" = '$COMPANY_ID'
+  AND "invoiceId" IN (SELECT id FROM "Invoice" WHERE "companyId" = '$COMPANY_ID' AND "customerId" IN (SELECT id FROM "Customer" WHERE "name" LIKE 'Tier37%'));
+DELETE FROM "InvoiceItem" WHERE "invoiceId" IN (
+  SELECT id FROM "Invoice" WHERE "companyId" = '$COMPANY_ID'
+  AND "customerId" IN (SELECT id FROM "Customer" WHERE "name" LIKE 'Tier37%')
+);
+DELETE FROM "Invoice" WHERE "companyId" = '$COMPANY_ID'
+  AND "customerId" IN (SELECT id FROM "Customer" WHERE "name" LIKE 'Tier37%');
+DELETE FROM "Customer" WHERE "companyId" = '$COMPANY_ID' AND "name" LIKE 'Tier37%';
 SQL
 
 summary "Tier N"

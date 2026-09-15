@@ -140,6 +140,28 @@ export class BulkReminderService {
   }
 
   /**
+   * Tier 388: one invoice, for the invoice page's "Mahnung senden" button
+   * (POST /reminders/send). That route used to record an EmailSend row with
+   * status "sent" plus a Mahnung without sending anything — measured: no mail
+   * attempt at all, while the modal said "Mahnung wurde versendet". It now
+   * runs the same pipeline as the bulk send and the cron.
+   */
+  async sendSingle(
+    companyId: string,
+    invoiceId: string,
+    level: "first" | "second" | "final",
+    createdById?: string,
+  ): Promise<BulkSendResultRow> {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+    })
+    if (!company) {
+      throw new Error(`Company ${companyId} not found`)
+    }
+    return this.sendOne(company, invoiceId, level, createdById)
+  }
+
+  /**
    * Per-invoice pipeline: load + render + PDF + email +
    * audit. Same code as auto-reminder.scheduler, but
    * with the level passed in by the operator (the cron
@@ -164,6 +186,23 @@ export class BulkReminderService {
         ok: false,
         status: "failed",
         error: "Rechnung nicht gefunden",
+      }
+    }
+
+    // Tier 388: only an open invoice can be dunned — the cron already selects
+    // status 'sent' and type INV. Measured: a paid and a draft invoice each got
+    // a Mahnung with fees (bulk also e-mailed the customer).
+    if (!["sent", "overdue"].includes(invoice.status) || invoice.type === "CN") {
+      return {
+        invoiceId,
+        invoiceNumber: invoice.invoiceNumber,
+        customerName: invoice.customer.name,
+        ok: false,
+        status: "failed",
+        error:
+          invoice.type === "CN"
+            ? "Gutschriften werden nicht gemahnt"
+            : `Rechnung ist nicht offen (Status: ${invoice.status})`,
       }
     }
 

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Body, Param, Query, BadRequestException, NotFoundException, Req, Res } from '@nestjs/common';
+import { Controller, Get, Post, Put, Body, Param, Query, BadRequestException, ConflictException, NotFoundException, Req, Res } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { ReminderService } from './reminder.service';
 import { AutoReminderService } from './auto-reminder.scheduler';
@@ -6,10 +6,11 @@ import { BulkReminderService } from './bulk-reminder.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Auth, Require } from '../../auth/roles.decorator';
 import { Request } from 'express';
-import { generateMahnungPDF, computeNeueFrist } from './mahnung-pdf.service';
+import { generateMahnungPDF } from './mahnung-pdf.service';
 import { countWerktage } from './werktage';
 import type { Response } from 'express';
 import { DunningConfigDto } from './dto/dunning-config.dto';
+import { BulkSendReminderDto, CancelMahnungDto, FeeConfigDto, ReminderTemplateDto, SendReminderDto } from './dto/reminder.dto';
 import {
   readDunningConfig,
 } from './reminder.service';
@@ -92,7 +93,7 @@ export class ReminderController {
   async updateTemplate(
     @Query('companyId') companyId: string,
     @Param('level') level: 'first' | 'second' | 'final',
-    @Body() body: { subject: string; body: string },
+    @Body() body: ReminderTemplateDto,
   ) {
     if (!companyId) throw new BadRequestException('companyId is required');
     if (!['first', 'second', 'final'].includes(level)) {
@@ -172,92 +173,31 @@ export class ReminderController {
 
   @Post('send')
   @Require('invoice.send')
-  async sendReminder(
-    @Body()
-    body: {
-      invoiceId: string;
-      companyId: string;
-      recipientEmail: string;
-      recipientName: string;
-      subject: string;
-      body: string;
-      level: 'first' | 'second' | 'final';
-      createdById?: string;
-    },
-  ) {
-    const reminder = await this.reminderService.recordReminderSend(
+  async sendReminder(@Body() body: SendReminderDto) {
+    // Tier 388: this route recorded an EmailSend row (status "sent") and a
+    // Mahnung but never sent the letter — the invoice page's "Mahnung senden"
+    // modal then showed "Mahnung wurde versendet". It now runs the bulk / cron
+    // pipeline for one invoice: open invoices only, the company's template, the
+    // Mahnung PDF, the customer's stored address, one Mahnung per level per day.
+    const r = await this.bulkReminder.sendSingle(
       body.companyId,
       body.invoiceId,
-      body.recipientEmail,
-      body.recipientName,
-      body.subject,
-      body.body,
       body.level,
       body.createdById,
-    );
-
-    // Tier 37: also stamp the Mahnung audit table so the
-    // Mahnhistorie / dashboard widget can list this letter
-    // without joining into EmailSend. We compute the
-    // Mahngebühr + Verzugszins at send-time and carry them on
-    // the row — the values are stable even if the invoice
-    // balance changes later.
-    //
-    // We compute daysOverdue from the invoice's dueDate so the
-    // snapshot is consistent with the PDF body text. If the
-    // invoice somehow has no dueDate (very old data), we fall
-    // back to 0 — the Mahnung still gets recorded, just with
-    // 0 overdue days.
-    let mahnungId: string | null = null
-    try {
-      const inv = await this.prisma.invoice.findFirst({
-        where: { id: body.invoiceId, companyId: body.companyId },
-        select: { dueDate: true, total: true },
-      })
-      if (inv?.dueDate) {
-        const today = new Date()
-        today.setHours(0, 0, 0, 0)
-        const due = new Date(inv.dueDate)
-        const days = Math.max(
-          0,
-          Math.floor((today.getTime() - due.getTime()) / (1000 * 60 * 60 * 24)),
-        )
-        const fees = await this.reminderService.computeFees(
-          body.companyId,
-          Number(inv.total),
-          days,
-          body.level,
-        )
-        const recorded = await this.reminderService.recordMahnung(
-          body.companyId,
-          body.invoiceId,
-          body.level,
-          {
-            daysOverdue: days,
-            neueFrist: computeNeueFrist(today, body.level),
-            mahngebuehr: fees.mahngebuehr,
-            verzugszins: fees.verzugszins,
-            totalDue: fees.totalDue,
-            recipientEmail: body.recipientEmail,
-            recipientName: body.recipientName,
-            sentById: body.createdById ?? null,
-            emailSendId: reminder.id,
-          },
-        )
-        mahnungId = recorded.id
-      }
-    } catch {
-      // Soft-fail — the EmailSend is already persisted (the
-      // call above it succeeded), so a duplicate-prevention
-      // collision or transient DB glitch shouldn't 500 the
-      // user. The next manual send will create the audit row.
+    )
+    if (r.status === 'skipped') {
+      throw new ConflictException(r.error || 'Mahnung heute bereits versendet')
     }
-
+    if (r.status === 'failed') {
+      if (r.error === 'Rechnung nicht gefunden') throw new NotFoundException(r.error)
+      throw new BadRequestException(r.error || 'Mahnung konnte nicht versendet werden')
+    }
     return {
       success: true,
-      reminderId: reminder.id,
-      mahnungId,
-      message: 'Erinnerung wurde erfolgreich gesendet',
+      reminderId: r.reminderId,
+      mahnungId: r.mahnungId ?? null,
+      recipient: r.recipient,
+      message: 'Mahnung wurde versendet',
     }
   }
 
@@ -290,13 +230,7 @@ export class ReminderController {
   // 20s) and matches the operator-realistic ceiling.
   @Throttle({ default: { limit: 15, ttl: 300_000 } })
   async bulkSend(
-    @Body()
-    body: {
-      companyId: string
-      invoiceIds: string[]
-      level: 'first' | 'second' | 'final'
-      createdById?: string
-    },
+    @Body() body: BulkSendReminderDto,
   ) {
     if (!body?.companyId) {
       throw new BadRequestException('companyId is required')
@@ -535,15 +469,7 @@ export class ReminderController {
   @Require('users.read')
   async setFeeConfig(
     @Query('companyId') companyId: string,
-    @Body()
-    body: {
-      verzugszinsPct?: number;
-      mahngebuehr?: {
-        first?: number;
-        second?: number;
-        final?: number;
-      };
-    },
+    @Body() body: FeeConfigDto,
   ) {
     if (!companyId) throw new BadRequestException('companyId ist erforderlich');
     return this.reminderService.setFeeConfig(companyId, body || {});
@@ -674,7 +600,7 @@ export class ReminderController {
   async cancelMahnung(
     @Param('id') id: string,
     @Query('companyId') companyId: string,
-    @Body() body: { reason?: string } = {},
+    @Body() body: CancelMahnungDto = {},
     @Req() req?: Request,
   ) {
     if (!companyId) throw new BadRequestException('companyId ist erforderlich');

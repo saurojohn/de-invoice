@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common'
 import { MahnungspauseService } from './mahnungspause.service'
 import { Auth, Require } from '../../auth/roles.decorator'
+import { CreateMahnungspauseDto, UpdateMahnungspauseDto } from './dto/reminder.dto'
 
 /**
  * Tier 64: Mahnungspause HTTP API.
@@ -51,14 +52,7 @@ export class MahnungspauseController {
   @Require('invoice.update')
   async create(
     @Query('companyId') companyId: string,
-    @Body() body: {
-      createdById?: string
-      customerId?: string | null
-      invoiceId?: string | null
-      reason: string
-      pausedFrom?: string
-      pausedUntil?: string | null
-    },
+    @Body() body: CreateMahnungspauseDto,
   ) {
     if (!companyId) throw new BadRequestException('companyId ist erforderlich')
     return this.svc.create(companyId, body.createdById, {
@@ -75,7 +69,7 @@ export class MahnungspauseController {
   async update(
     @Query('companyId') companyId: string,
     @Param('id') id: string,
-    @Body() body: { pausedUntil?: string | null; reason?: string },
+    @Body() body: UpdateMahnungspauseDto,
   ) {
     if (!companyId) throw new BadRequestException('companyId ist erforderlich')
     return this.svc.update(companyId, id, {

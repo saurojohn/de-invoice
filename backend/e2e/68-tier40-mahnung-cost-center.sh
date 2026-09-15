@@ -64,6 +64,9 @@ curl -sS -o /tmp/t40_inv.json -w "%{http_code}" -X POST \
   -d "$INV_BODY" > /tmp/t40_inv_status.txt
 [ "$(cat /tmp/t40_inv_status.txt)" = "201" ] || (echo "FATAL inv=$(cat /tmp/t40_inv_status.txt) — $(cat /tmp/t40_inv.json | head -c 300)" && exit 1)
 INVOICE_ID=$(python3 -c "import json; print(json.load(open('/tmp/t40_inv.json'))['id'])")
+# Tier 388: only open invoices are dunned — this spec used to dun a draft.
+api_put "/api/v1/invoices/$INVOICE_ID/status?companyId=$COMPANY_ID" '{"status":"sent"}'
+assert_status 200 "invoice set to sent"
 echo "invoice: $INVOICE_ID"
 
 # Sanity: cc/co persisted at the JSON level.
@@ -156,6 +159,8 @@ curl -sS -o /tmp/t40_inv2.json -X POST \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
   -d "$INV2_BODY" > /dev/null
 INVOICE_ID2=$(python3 -c "import json; print(json.load(open('/tmp/t40_inv2.json'))['id'])")
+api_put "/api/v1/invoices/$INVOICE_ID2/status?companyId=$COMPANY_ID" '{"status":"sent"}'
+assert_status 200 "second invoice set to sent"
 # Send / generate Mahnung on it.
 EMAIL2=$(curl -sS \
   "$API/api/v1/reminders/$INVOICE_ID2/email-data?companyId=$COMPANY_ID&level=first" \
