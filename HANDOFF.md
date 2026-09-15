@@ -9,17 +9,17 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–381 are
-  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 381.)
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–382 are
+  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 382.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 34966091268 / commit `42ee845`, Tier 381):**
-  - Backend e2e: **180 passed / 0 failed / 1 skipped** of 181 specs — 100
-    two-digit + 81 three-digit; before Tier 361 only the two-digit ones ever ran.
+- **Test counts (last green CI, run 34970262961 attempt 2 / commit `fe6447d`, Tier 382):**
+  - Backend e2e: **181 passed / 0 failed / 1 skipped** of 182 specs — 100
+    two-digit + 82 three-digit; before Tier 361 only the two-digit ones ever ran.
     `QUARANTINE` empty. The one skip is `16-dark-mode.sh` (no frontend in the e2e
     job); since Tier 371 skips exit 77 and are listed, not counted as passes.
     Spec 172 (Tier 370) guards the harness itself: no spec may use `_lib.sh`
@@ -1935,7 +1935,9 @@ stored year unchanged.
 
 Verified on a fresh stack: full backend **181 passed / 0 failed / 1 skipped** of
 182 specs, zero 500s in the captured log; Playwright anlage-n/r/kind/so/aus and
-gewst 30 passed.
+gewst 30 passed. CI run 34970262961 failed on its first attempt before any
+test ran — "Start sidecar postgres" got `502 Bad Gateway` from Docker Hub while
+pulling `postgres:16-alpine`; the re-run of that job passed (913/913).
 
 ### Notes from Tiers 347–352 (recovered in Tier 364)
 
