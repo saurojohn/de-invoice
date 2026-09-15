@@ -9,17 +9,17 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–382 are
-  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 382.)
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–385 are
+  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 385.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 34970262961 attempt 2 / commit `fe6447d`, Tier 382):**
-  - Backend e2e: **181 passed / 0 failed / 1 skipped** of 182 specs — 100
-    two-digit + 82 three-digit; before Tier 361 only the two-digit ones ever ran.
+- **Test counts (last green CI, run 34981686035 / commit `e1252c4`, Tier 385):**
+  - Backend e2e: **184 passed / 0 failed / 1 skipped** of 185 specs — 100
+    two-digit + 85 three-digit; before Tier 361 only the two-digit ones ever ran.
     `QUARANTINE` empty. The one skip is `16-dark-mode.sh` (no frontend in the e2e
     job); since Tier 371 skips exit 77 and are listed, not counted as passes.
     Spec 172 (Tier 370) guards the harness itself: no spec may use `_lib.sh`
@@ -2111,6 +2111,10 @@ Verified on a fresh stack: full backend **185 passed / 0 failed / 0 skipped** of
 185 specs, zero 500s in the captured log; Playwright settings-vat-mode-tier176,
 invoice-attachments-tier140, berater-packager: 12 passed. No Playwright spec
 covers the storage settings section.
+
+CI, one run per tier, all six jobs green: Tier 383 run 34977321738 (backend
+182/0/1, Playwright 913), Tier 384 run 34979145232 (183/0/1, 913), Tier 385 run
+34981686035 (184/0/1, 913).
 
 ### Notes from Tiers 347–352 (recovered in Tier 364)
 
