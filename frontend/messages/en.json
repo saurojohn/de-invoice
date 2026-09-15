@@ -1745,7 +1745,7 @@
     "filesCount": "Files",
     "totalSize": "Total Size",
     "attachments": "Attachments",
-    "localPathHint": "Where files are stored on this server",
+    "localPathHint": "Where files are stored on this server (set by the operator via STORAGE_PATH)",
     "healthTitle": "Storage health",
     "healthLocal": "Local storage is reachable",
     "healthLocalMissing": "Local storage path is not accessible",

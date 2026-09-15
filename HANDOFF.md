@@ -2012,11 +2012,8 @@ skonto: 42 passed, none skipped.
 **Found, not fixed (next tiers):**
 
 - ~~**Audit context is a process global.**~~ Measured and fixed in Tier 384.
-- **Storage module:** `GET` / `DELETE /storage/files/*` have no `@Require` and
-  no company check (any user can read or delete any tenant's file by path);
-  `POST /storage/config` (company.update) changes the storage root for every
-  tenant; `isPathSafe` is a string-prefix check (`/root-evil` passes for
-  `/root`). Not yet measured.
+- ~~**Storage module**~~ (file routes unscoped, storage root settable) — measured
+  and fixed in Tier 385.
 
 ### Audit rows written under another tenant (Tier 384)
 
@@ -2064,6 +2061,56 @@ Verified on a fresh stack: full backend **184 passed / 0 failed / 0 skipped** of
 zero 500s in the captured log; Playwright audit-trail, audit-hash-chain-tier196,
 audit-filter, audit-fulltext-search, audit-timeline, admin-activity-log / -csv,
 invoice-attachments-tier140: 43 passed.
+
+### Storage files readable across tenants, storage root settable (Tier 385)
+
+Measured as a freshly registered tenant B, before the change:
+
+| Request | Result |
+|---|---|
+| `GET /storage/files/<A's file>` | **200 with A's file** |
+| `DELETE /storage/files/<A's file>` | **200, A's file deleted** |
+| `GET /storage/files/..,<root>-sibling,x.txt` | 200 — `isPathSafe` was `normalize(p).startsWith(root)` |
+| `POST /storage/config {"localPath":"/"}` | 201 — for every tenant (in-memory, until restart) |
+| then `GET /storage/files/etc,hosts` | **200 with the server's `/etc/hosts`** |
+
+Neither file route had `@Require` or a company check; any registered user
+could read or delete any tenant's stored PDFs and, via the config route, read
+any file the backend process can read. The probe read only its own files and
+`/etc/hosts` and restored the root afterwards.
+
+Fix:
+- `StorageService.companyFilePath(path, companyId)`: a client path must be
+  `{yyyy}/{mm}/{attachments|pdf|images|image}/{own companyId}/{file}` with a
+  plain file name, else 404. `GET` needs `company.read` (and is
+  `Cache-Control: private` instead of `public, max-age=31536000`), `DELETE`
+  `company.update`.
+- `isPathSafe` uses `path.relative` (used by the attachment service's own
+  `getFile` / `deleteFile` on stored paths).
+- `updateConfig` refuses a `localPath` different from the current one (403);
+  the root is `STORAGE_PATH`. The settings form posts the whole form, so the
+  unchanged value is accepted; the input is now `readOnly` (its comment already
+  said "read-only — server config") and the hint names `STORAGE_PATH`. It never
+  persisted anyway — the in-memory value was lost on restart, and existing
+  files stayed in the old root. `cloudEnabled` / `cloudProvider` are still
+  settable by any company admin and still process-wide; nothing reads them yet
+  ("coming soon") — part of §9 item 11.
+
+Still open: the settings page's file **Download** button is a plain navigation
+to `${API_BASE}${f.url}` without auth headers — the same class as Tier 377's
+"backend URLs not passed to an `api*` helper", though built from response data
+so that scan does not count it. It answers 401, as before this change.
+
+Spec `e2e/185-tier385-storage-files-scope.sh`: own upload / read / list url /
+delete work; B's read and delete of A's file → 404 and the file survives;
+`..,<sibling>` (commas, encoded slashes, via the own directory) → 404;
+`localPath "/"` → 403, `etc,hosts` → 404, root unchanged; the settings form's
+save → 201. It failed 10 assertions against the old code.
+
+Verified on a fresh stack: full backend **185 passed / 0 failed / 0 skipped** of
+185 specs, zero 500s in the captured log; Playwright settings-vat-mode-tier176,
+invoice-attachments-tier140, berater-packager: 12 passed. No Playwright spec
+covers the storage settings section.
 
 ### Notes from Tiers 347–352 (recovered in Tier 364)
 

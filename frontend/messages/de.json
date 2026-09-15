@@ -1745,7 +1745,7 @@
     "filesCount": "Dateien",
     "totalSize": "Gesamtgröße",
     "attachments": "Anhänge",
-    "localPathHint": "Speicherort für Dateien auf diesem Server",
+    "localPathHint": "Speicherort für Dateien auf diesem Server (vom Betreiber über STORAGE_PATH festgelegt)",
     "healthTitle": "Speicherstatus",
     "healthLocal": "Lokaler Speicher erreichbar",
     "healthLocalMissing": "Lokaler Speicherpfad nicht verfügbar",

@@ -75,12 +75,19 @@ export class StorageController {
    * GET /api/v1/storage/files/<path>
    */
   @Get('files/*splat')
-  @Header('Cache-Control', 'public, max-age=31536000')
-  async getFile(@Param('splat') splat: string[], @Res() res: Response) {
+  @Require('company.read')
+  // Tier 385: a company's own file — never `public` (shared caches).
+  @Header('Cache-Control', 'private, max-age=3600')
+  async getFile(
+    @Param('splat') splat: string[],
+    @Headers('x-company-id') companyId: string,
+    @Res() res: Response,
+  ) {
     // Convert path parts back to a slash-joined path
-    const filePath = (Array.isArray(splat) ? splat.join('/') : splat || '').replace(/,/g, '/');
+    const requested = (Array.isArray(splat) ? splat.join('/') : splat || '').replace(/,/g, '/');
+    const filePath = this.storageService.companyFilePath(requested, companyId);
 
-    const file = await this.storageService.getFile(filePath);
+    const file = filePath ? await this.storageService.getFile(filePath) : null;
 
     if (!file) {
       throw new NotFoundException('Datei nicht gefunden.');
@@ -100,10 +107,12 @@ export class StorageController {
    * DELETE /api/v1/storage/files/<path>
    */
   @Delete('files/*splat')
-  async deleteFile(@Param('splat') splat: string[]) {
-    const filePath = (Array.isArray(splat) ? splat.join('/') : splat || '').replace(/,/g, '/');
+  @Require('company.update')
+  async deleteFile(@Param('splat') splat: string[], @Headers('x-company-id') companyId: string) {
+    const requested = (Array.isArray(splat) ? splat.join('/') : splat || '').replace(/,/g, '/');
+    const filePath = this.storageService.companyFilePath(requested, companyId);
 
-    const deleted = await this.storageService.deleteFile(filePath);
+    const deleted = filePath ? await this.storageService.deleteFile(filePath) : false;
 
     if (!deleted) {
       throw new NotFoundException('Datei nicht gefunden oder bereits gelöscht.');

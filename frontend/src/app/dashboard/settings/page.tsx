@@ -1606,7 +1606,7 @@ export default function SettingsPage() {
                   </label>
                   <Input
                     value={storageForm.localPath}
-                    onChange={(e) => setStorageForm({ ...storageForm, localPath: e.target.value })}
+                    readOnly
                     placeholder="~/data/invoice-system"
                   />
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">

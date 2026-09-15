@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, ForbiddenException } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -71,6 +71,13 @@ export class StorageService {
    * Update storage configuration
    */
   updateConfig(newConfig: Partial<StorageConfig>): void {
+    // Tier 385: the storage root is the installation's (STORAGE_PATH), not a
+    // company setting. Any company admin could set it — for every tenant — and
+    // with localPath "/" GET /storage/files/etc,hosts returned the server's
+    // /etc/hosts (measured). The settings form posts the unchanged value back.
+    if (newConfig.localPath !== undefined && newConfig.localPath !== this.config.localPath) {
+      throw new ForbiddenException('Der Speicherpfad wird vom Betreiber über STORAGE_PATH festgelegt.');
+    }
     this.config = { ...this.config, ...newConfig };
     this.ensureBaseDir();
   }
@@ -399,8 +406,27 @@ export class StorageService {
    * Check if file path is safe (prevents directory traversal)
    */
   private isPathSafe(filePath: string): boolean {
-    const normalizedPath = path.normalize(filePath);
-    return normalizedPath.startsWith(this.config.localPath);
+    // Tier 385: a string-prefix test let `../<root>-sibling/x` through
+    // (measured: 200 with the sibling directory's file).
+    const rel = path.relative(path.resolve(this.config.localPath), path.resolve(filePath));
+    return rel !== '' && !rel.startsWith('..') && !path.isAbsolute(rel);
+  }
+
+  /**
+   * Tier 385: a path from a client (GET / DELETE /storage/files/*) names one
+   * file saveFile wrote for this company — {year}/{month}/{type}/{companyId}/{file}.
+   * Anything else is null. The routes took any path: company B read and deleted
+   * company A's files (measured).
+   */
+  companyFilePath(relativePath: string, companyId: string): string | null {
+    const parts = relativePath.split('/');
+    if (parts.length !== 5) return null;
+    const [year, month, type, owner, file] = parts;
+    if (!/^\d{4}$/.test(year) || !/^\d{2}$/.test(month)) return null;
+    if (!['attachments', 'pdf', 'images', 'image'].includes(type)) return null;
+    if (!companyId || owner !== companyId) return null;
+    if (!/^[A-Za-z0-9._-]+$/.test(file) || file === '.' || file === '..') return null;
+    return parts.join('/');
   }
 
   /**

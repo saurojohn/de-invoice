@@ -1745,7 +1745,7 @@
     "filesCount": "文件",
     "totalSize": "总大小",
     "attachments": "附件",
-    "localPathHint": "本服务器文件存储位置",
+    "localPathHint": "本服务器文件存储位置（由运维通过 STORAGE_PATH 设置）",
     "healthTitle": "存储健康",
     "healthLocal": "本地存储可访问",
     "healthLocalMissing": "本地存储路径不可访问",
