@@ -398,15 +398,29 @@ export class UsersService {
     if (!VALID_ROLES.has(newRole)) {
       throw new BadRequestException(`Ungültige Rolle: ${newRole}`);
     }
-    const user = await this.prisma.user.findFirst({
-      where: { id: userId, companyId },
+    // Tier 387: permissions come from UserCompany.role (HeaderAuthGuard, Tier 66),
+    // but this updated only User.role. Measured: an accountant demoted to viewer
+    // was listed as viewer and still created customers (201). The membership
+    // row is now the one that changes; User.role follows for the user's home
+    // company, which is what the user list shows.
+    // A user whose home company this is but who has no membership row — every
+    // user invited before Tier 387 — gets one here: the admin is setting that
+    // user's role in this company, which is what the invitation meant.
+    const membership = await this.prisma.userCompany.findUnique({
+      where: { userId_companyId: { userId, companyId } },
+      select: { role: true },
     });
-    if (!user) throw new NotFoundException('Benutzer nicht gefunden');
+    const home = await this.prisma.user.findFirst({
+      where: { id: userId, companyId },
+      select: { id: true, role: true },
+    });
+    if (!membership && !home) throw new NotFoundException('Benutzer nicht gefunden');
+    const currentRole = membership?.role ?? home!.role;
 
-    if (user.role === ROLES.ADMIN && newRole !== ROLES.ADMIN) {
+    if (currentRole === ROLES.ADMIN && newRole !== ROLES.ADMIN) {
       // Make sure there's at least one other admin remaining
-      const otherAdmins = await this.prisma.user.count({
-        where: { companyId, role: ROLES.ADMIN, status: 'active', NOT: { id: userId } },
+      const otherAdmins = await this.prisma.userCompany.count({
+        where: { companyId, role: ROLES.ADMIN, userId: { not: userId }, user: { status: 'active' } },
       });
       if (otherAdmins === 0) {
         throw new BadRequestException(
@@ -415,10 +429,23 @@ export class UsersService {
       }
     }
 
-    return this.prisma.user.update({
-      where: { id: userId },
-      data: { role: newRole },
-      select: { id: true, email: true, role: true, status: true },
+    return this.prisma.$transaction(async (tx) => {
+      await tx.userCompany.upsert({
+        where: { userId_companyId: { userId, companyId } },
+        create: { userId, companyId, role: newRole },
+        update: { role: newRole },
+      });
+      const user = home
+        ? await tx.user.update({
+            where: { id: userId },
+            data: { role: newRole },
+            select: { id: true, email: true, role: true, status: true },
+          })
+        : await tx.user.findUniqueOrThrow({
+            where: { id: userId },
+            select: { id: true, email: true, role: true, status: true },
+          });
+      return { ...user, role: newRole };
     });
   }
 
@@ -498,19 +525,28 @@ export class UsersService {
     if (existing) throw new BadRequestException('Benutzer existiert bereits');
 
     const passwordHash = await bcrypt.hash(password, 10);
-    const user = await this.prisma.user.create({
-      data: {
-        email: inv.email,
-        passwordHash,
-        companyId: inv.companyId,
-        role: inv.role,
-        status: 'active',
-      },
-    });
-
-    await this.prisma.userInvitation.update({
-      where: { id: inv.id },
-      data: { acceptedAt: new Date() },
+    // Tier 387: HeaderAuthGuard grants access through UserCompany (Tier 66), and
+    // only registration created that row. Measured: an accepted invitation
+    // logged in (200) and then got 401 "Kein Zugriff auf diese Firma" on every
+    // request. User, membership and the accepted invitation are one step.
+    const user = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.user.create({
+        data: {
+          email: inv.email,
+          passwordHash,
+          companyId: inv.companyId,
+          role: inv.role,
+          status: 'active',
+        },
+      });
+      await tx.userCompany.create({
+        data: { userId: created.id, companyId: inv.companyId, role: inv.role },
+      });
+      await tx.userInvitation.update({
+        where: { id: inv.id },
+        data: { acceptedAt: new Date() },
+      });
+      return created;
     });
 
     this.logger.log(`Invitation accepted: email=${inv.email} companyId=${inv.companyId} role=${inv.role}`);

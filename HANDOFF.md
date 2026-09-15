@@ -2164,6 +2164,52 @@ Verified on a fresh stack: full backend **186 passed / 0 failed / 0 skipped** of
 186 specs, zero 500s in the captured log; Playwright pdf-signing,
 pdf-signed-tier165, pdf-berater-stamp-tier246: 15 passed.
 
+### Invited users locked out; role changes without effect (Tier 387)
+
+Since Tier 66 `HeaderAuthGuard` grants access through `UserCompany` and takes
+the role from `UserCompany.role`. Only registration (`auth.service.ts`) ever
+created such a row. Measured on a fresh company:
+
+- **Invitations:** `POST /users/invitations` → resend → `POST /invitations/accept`
+  → 201, `/auth/login` → 200 — and then **every request 401 "Kein Zugriff auf
+  diese Firma"**; the accepted user had no `UserCompany` row. e2e 152 checked the
+  `User` row only and never made a request as the invited user. So no invited
+  team member has ever been able to use the app.
+- **Role changes:** `PATCH /users/:id/role` updated `User.role` only. With a
+  membership row inserted by hand (role accountant), demoting to viewer answered
+  200, the user list showed viewer — and **`POST /customers` as that user still
+  answered 201**. An admin could not take rights away.
+
+Fix (`users.service.ts`):
+- `acceptInvitation` creates `User`, `UserCompany` (invited role) and marks the
+  invitation accepted in one transaction;
+- `changeRole` updates `UserCompany.role` (upsert) and `User.role` for the
+  user's home company (what the list shows); the last-admin check counts active
+  admin memberships. A user whose home company this is but who has no
+  membership — every user invited before this fix, and e2e 161's SQL fixture —
+  gets the row created when an admin sets their role: that is the repair path
+  for existing installations. Another company's user → 404, no row.
+
+Not changed: `setStatus` still looks the user up by `User.companyId` and sets
+the global `User.status` (switching to membership lookup would let a Mandant's
+admin deactivate a Berater for all their Mandanten); `listCompanyUsers` still
+lists by `User.companyId`, so a Berater granted access to a company does not
+appear in its user list; inviting an e-mail that already has an account is
+refused ("Benutzer existiert bereits"), so an existing user cannot be added to a
+second company through the UI.
+
+Spec `e2e/187-tier387-invited-members-roles.sh`: invite → accept → login → the
+member reads customers (was 401) and as viewer cannot create one; promote →
+201, demote → 403 with the membership role and the list both viewer; the only
+admin cannot demote themselves; a pre-fix member without membership gets access
+once an admin sets the role; another company's user → 404. It failed 6
+assertions against the old code (the demotion case only shows with a membership
+row, so it was measured with the hand-inserted one).
+
+Verified on a fresh stack: full backend **187 passed / 0 failed / 0 skipped** of
+187 specs, zero 500s in the captured log; Playwright mandant-switcher,
+readonly-mode, two-factor: 10 passed.
+
 **Seen in passing, not changed:** `POST /auth/2fa/verify` is `@Public()` and
 takes only `email` + a TOTP or recovery code — no password, no attempt limit
 beyond the global throttler. With header auth (§9 item 10) knowing a user id
