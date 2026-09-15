@@ -126,7 +126,7 @@ export class PaymentsService {
     const debtorBic =
       params.debtorBic || (company.bankInfo as any)?.bic
     const debtorName = params.debtorName || company.legalName || company.name
-    if (!debtorIban || !/^[A-Z]{2}\d{2}/.test(String(debtorIban).replace(/\s/g, ''))) {
+    if (!debtorIban || !/^[A-Z]{2}\d{2}/.test(String(debtorIban).replace(/\s/g, '').toUpperCase())) {
       throw new BadRequestException(
         'Debtor-IBAN fehlt oder ist ungültig (bitte unter "Einstellungen" → Bankverbindung erfassen).',
       )
@@ -169,7 +169,7 @@ export class PaymentsService {
     const xml = this.buildPain001Xml({
       companyId,
       companyName: debtorName,
-      debtorIban: String(debtorIban).replace(/\s/g, ''),
+      debtorIban: String(debtorIban).replace(/\s/g, '').toUpperCase(),
       debtorBic: debtorBic ? String(debtorBic).replace(/\s/g, '') : undefined,
       executionDate: params.executionDate,
       notes: params.notes,
@@ -208,7 +208,7 @@ export class PaymentsService {
         xmlContent: xml,
         paymentCount: expenses.length,
         totalAmount: Math.round(totalAmount * 100) / 100,
-        debtorIban: String(debtorIban).replace(/\s/g, ''),
+        debtorIban: String(debtorIban).replace(/\s/g, '').toUpperCase(),
         debtorBic: debtorBic ? String(debtorBic).replace(/\s/g, '') : null,
         debtorName,
         executionDate: new Date(params.executionDate),

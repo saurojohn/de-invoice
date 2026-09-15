@@ -435,7 +435,7 @@ api_post "/api/v1/payments/mandates" \
     \"customerId\": \"$B2B_CUST_ID\",
     \"dateOfSignature\": \"2026-07-20\",
     \"type\": \"B2B\",
-    \"iban\": \"DE89370400440532013999\",
+    \"iban\": \"DE82370400440532013999\",
     \"bic\": \"COBADEFFXXX\",
     \"debitorName\": \"$PREFIX-B2B-Kunde AG\"
   }"
@@ -608,7 +608,7 @@ api_post "/api/v1/payments/mandates" \
     \"customerId\": \"$CUST_ID\",
     \"dateOfSignature\": \"2026-07-20\",
     \"type\": \"CORE\",
-    \"iban\": \"DE89370400440532013888\",
+    \"iban\": \"DE72370400440532013888\",
     \"bic\": \"COBADEFFXXX\",
     \"debitorName\": \"$PREFIX-Kunde GmbH\"
   }"
@@ -656,7 +656,7 @@ api_post "/api/v1/payments/mandates" \
     \"customerId\": \"$K2_CUST_ID\",
     \"dateOfSignature\": \"2026-07-20\",
     \"type\": \"CORE\",
-    \"iban\": \"DE89370400440532013777\",
+    \"iban\": \"DE62370400440532013777\",
     \"bic\": \"COBADEFFXXX\",
     \"debitorName\": \"$PREFIX-Kunde2 GmbH\"
   }"
@@ -681,7 +681,7 @@ api_post "/api/v1/payments/mandates" \
     \"customerId\": \"$CUST_ID\",
     \"dateOfSignature\": \"2026-07-22\",
     \"type\": \"CORE\",
-    \"iban\": \"DE89370400440532013666\",
+    \"iban\": \"DE52370400440532013666\",
     \"bic\": \"COBADEFFXXX\",
     \"debitorName\": \"$PREFIX-Kunde GmbH\",
     \"description\": \"2. Mandat für Abos\"

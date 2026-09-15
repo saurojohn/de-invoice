@@ -1,6 +1,15 @@
 import { test, expect, type Page, type APIRequestContext } from "@playwright/test"
 import { readFileSync } from "fs"
 
+
+// ISO 13616 check digits for a German IBAN (bank code + 10-digit account).
+function germanIban(blz: string, account: string): string {
+  const digits = `${blz}${account}131400` // "DE" → 13 14, check digits "00"
+  let rem = 0
+  for (const ch of digits) rem = (rem * 10 + Number(ch)) % 97
+  return `DE${String(98 - rem).padStart(2, "0")}${blz}${account}`
+}
+
 // Tier 112: SEPA pain.008 (Lastschrift / direct debit).
 //
 // Tests for /dashboard/payments/direct-debit.
@@ -142,7 +151,10 @@ test.describe("SEPA pain.008 direct-debit — /dashboard/payments/direct-debit",
     expect(list.length).toBeGreaterThan(0)
     const customer = list[0]
     const today = new Date().toISOString().slice(0, 10)
-    const uniqueIban = `DE89370400440532013${String(Date.now()).slice(-3)}`
+    // Tier 380: mandates validate the IBAN check digits (mod-97), so the
+    // varied account number gets its own check digits instead of reusing
+    // DE89's — the old value was invalid for all but one suffix.
+    const uniqueIban = germanIban("37040044", `0532013${String(Date.now()).slice(-3)}`)
     const createRes = await request.post(
       `${API_BASE}/api/v1/payments/mandates`,
       {

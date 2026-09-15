@@ -14,6 +14,7 @@ import {
 import { Throttle } from '@nestjs/throttler'
 import type { Response } from 'express'
 import { DirectDebitService } from './direct-debit.service'
+import { CreateMandateDto, CreateDirectDebitBatchDto } from './dto/sepa.dto'
 import { Auth, Require } from '../../auth/roles.decorator'
 import { HeaderAuthGuard } from '../../auth/header-auth.guard'
 import { UseGuards } from '@nestjs/common'
@@ -76,18 +77,7 @@ export class DirectDebitController {
   @Post('mandates')
   @Require('customer.create')
   async createMandate(
-    @Body()
-    body: {
-      companyId: string
-      customerId: string
-      mandateReference?: string
-      dateOfSignature: string
-      type?: 'CORE' | 'B2B'
-      iban: string
-      bic?: string
-      debitorName: string
-      description?: string
-    },
+    @Body() body: CreateMandateDto,
   ) {
     if (!body || !body.companyId) {
       throw new BadRequestException('companyId ist erforderlich')
@@ -188,18 +178,7 @@ export class DirectDebitController {
   @Post('direct-debit/batches')
   @Require('invoice.write')
   async createBatch(
-    @Body()
-    body: {
-      companyId: string
-      collections: Array<{ invoiceId: string; mandateId: string }>
-      executionDate: string
-      type?: 'CORE' | 'B2B'
-      notes?: string
-      creditorIban?: string
-      creditorBic?: string
-      creditorName?: string
-      creditorIdentifier?: string
-    },
+    @Body() body: CreateDirectDebitBatchDto,
   ) {
     if (!body || !body.companyId) {
       throw new BadRequestException('companyId ist erforderlich')

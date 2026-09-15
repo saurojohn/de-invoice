@@ -2,6 +2,7 @@ import { Controller, Get, Post, Body, Query, Param, Res, BadRequestException, He
 import { Throttle } from '@nestjs/throttler'
 import type { Response } from 'express'
 import { PaymentsService } from './payments.service'
+import { CreateCreditTransferBatchDto } from './dto/sepa.dto'
 import { Auth, Require } from '../../auth/roles.decorator'
 import { HeaderAuthGuard } from '../../auth/header-auth.guard'
 import { UseGuards } from '@nestjs/common'
@@ -101,16 +102,7 @@ export class PaymentsController {
   @Post('batches')
   @Require('expense.write')
   async createBatch(
-    @Body()
-    body: {
-      companyId: string
-      expenseIds: string[]
-      executionDate: string
-      notes?: string
-      debtorIban?: string
-      debtorBic?: string
-      debtorName?: string
-    },
+    @Body() body: CreateCreditTransferBatchDto,
   ) {
     if (!body || !body.companyId) {
       throw new BadRequestException('companyId ist erforderlich')

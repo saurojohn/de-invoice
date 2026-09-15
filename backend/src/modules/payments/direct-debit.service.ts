@@ -80,7 +80,9 @@ export class DirectDebitService {
     if (!body.dateOfSignature || !/^\d{4}-\d{2}-\d{2}$/.test(body.dateOfSignature)) {
       throw new BadRequestException('dateOfSignature ist ungültig (YYYY-MM-DD)')
     }
-    if (!body.iban || !/^[A-Z]{2}\d{2}/.test(String(body.iban).replace(/\s/g, ''))) {
+    // Tier 380: normalise before the check — a lower-case IBAN typed with spaces
+    // was refused here although it is stored normalised below.
+    if (!body.iban || !/^[A-Z]{2}\d{2}/.test(String(body.iban).replace(/\s/g, '').toUpperCase())) {
       throw new BadRequestException('IBAN ist ungültig')
     }
     if (!body.debitorName || body.debitorName.trim().length === 0) {
@@ -275,7 +277,7 @@ export class DirectDebitService {
       params.creditorIdentifier ||
       (company.settings as any)?.sepaCreditorIdentifier ||
       `DE${company.id.replace(/-/g, '').substring(0, 14).toUpperCase()}00`
-    if (!creditorIban || !/^[A-Z]{2}\d{2}/.test(String(creditorIban).replace(/\s/g, ''))) {
+    if (!creditorIban || !/^[A-Z]{2}\d{2}/.test(String(creditorIban).replace(/\s/g, '').toUpperCase())) {
       throw new BadRequestException(
         'Gläubiger-IBAN fehlt oder ist ungültig (bitte unter "Einstellungen" → Bankverbindung erfassen).',
       )
@@ -362,7 +364,7 @@ export class DirectDebitService {
     const xml = this.buildPain008Xml({
       companyId,
       messageId: `DD-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
-      creditorIban: String(creditorIban).replace(/\s/g, ''),
+      creditorIban: String(creditorIban).replace(/\s/g, '').toUpperCase(),
       creditorBic: creditorBic ? String(creditorBic).replace(/\s/g, '') : undefined,
       creditorName,
       creditorIdentifier,
@@ -394,7 +396,7 @@ export class DirectDebitService {
         xmlContent: xml,
         collectionCount: invMandatePairs.length,
         totalAmount: Math.round(totalAmount * 100) / 100,
-        creditorIban: String(creditorIban).replace(/\s/g, ''),
+        creditorIban: String(creditorIban).replace(/\s/g, '').toUpperCase(),
         creditorBic: creditorBic ? String(creditorBic).replace(/\s/g, '') : null,
         creditorName,
         creditorIdentifier,

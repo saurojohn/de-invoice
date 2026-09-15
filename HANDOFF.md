@@ -1836,6 +1836,44 @@ with the status unchanged. Verified: full backend **179 passed / 0 failed /
 1 skipped** of 180 specs, zero 500s; the dropdown was changed in a browser
 (draft → sent: PUT 200, stored `sent`) — no Playwright spec covers it.
 
+### SEPA mandate and batch bodies (Tier 380)
+
+`POST /payments/mandates`, `/payments/direct-debit/batches` and
+`/payments/batches` had inline body types; the services checked IBANs with
+`/^[A-Z]{2}\d{2}/` and dates with a shape regex. Measured before the change:
+
+| Route | Before |
+|---|---|
+| mandates | `dateOfSignature` "2026-02-30" → 201, **stored 2026-03-02**; IBAN "DE00", "DE12!!!@@@", wrong check digit → 201; `mandateReference` 80 chars (SEPA max 35), `debitorName` 300 (max 70), BIC "not a bic!!", undeclared field → 201 |
+| mandates | the reverse: a valid IBAN typed lower case with spaces → **400** (prefix regex ran before normalising) |
+| direct-debit batches | `collections` `["x"]` / numeric / null ids → 500; `executionDate` "2026-13-45" → 500; `creditorIban` "DE00" → 201 **and written into the pain.008 XML** |
+| credit-transfer batches | `expenseIds` `[123]` / `[null]` → 500 |
+
+The XML generators escape their values (checked), so this was bank-file
+validity, not injection. A bank rejects a pain.001/pain.008 file with an invalid
+IBAN, so `dto/sepa.dto.ts` checks the ISO 13616 check digits (`@IsIBAN`, which
+also accepts spaces / lower case), `@IsBIC`, strict `YYYY-MM-DD` dates, SEPA
+field lengths (MndtId / CI 35 with the SEPA character set, names 70, remittance
+140) and typed id arrays. The services now upper-case IBANs before their own
+check and before writing XML. Service checks stay (customer / invoices /
+mandates of this company, active mandate, no CORE+B2B mix).
+
+**Fixtures that were invalid:** e2e 137 derived four extra mandate IBANs from
+`DE89370400440532013000` by changing the account number but keeping `89` — all
+four failed mod-97; the Playwright direct-debit spec did the same with a
+timestamp suffix (invalid for all but one value). Both now compute check digits
+(137: precomputed `DE82…013999`, `DE72…013888`, `DE62…013777`, `DE52…013666`;
+Playwright: a `germanIban()` helper).
+
+Spec `e2e/181-tier380-sepa-bodies.sh`: caller shapes (137 full body, page body
+without BIC, lower-case IBAN with spaces stored normalised, batch body) → 201;
+each measured bad body → 400 with no mandate / batch stored. It failed 20
+assertions against the old code.
+
+Verified on a fresh stack: full backend **180 passed / 0 failed / 1 skipped** of
+181 specs, zero 500s in the captured backend log; Playwright direct-debit +
+payments 15 passed.
+
 ### Notes from Tiers 347–352 (recovered in Tier 364)
 
 Tier 353 wrote a new version of this file but left the previous one appended
@@ -2011,6 +2049,10 @@ These are **not in the repo** — only the user can do them:
    2026-09-06** (last full one: `backup-2026-09-05-224235`). Recreate it via
    `docker-compose.yml`'s named volume. Rotation no longer deletes the old
    full backups while dumps fail (Tier 360).
+   **Update 2026-09-15 (Tier 380):** the Mac rebooted; `/tmp/pgdata` no longer
+   exists (checked with `ls`). `de-invoice-postgres` had already been
+   `Exited (1)` for 4 days. Nothing was touched — rebuilding the dev database
+   (from `backup-2026-09-05-224235` or fresh) is the user's call.
 5. **Decide whether to re-hash the existing audit chain.** Only for *historical*
    rows — since Tier 367 a healthy chain verifies with no re-hash at all, so
    this is no longer needed to make `/audit-logs/verify` return ok. Rows that
