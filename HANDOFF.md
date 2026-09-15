@@ -9,17 +9,17 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–385 are
-  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 385.)
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–389 are
+  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 389.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 34981686035 / commit `e1252c4`, Tier 385):**
-  - Backend e2e: **184 passed / 0 failed / 1 skipped** of 185 specs — 100
-    two-digit + 85 three-digit; before Tier 361 only the two-digit ones ever ran.
+- **Test counts (last green CI, run 35016230066 / commit `2195654`, Tier 389):**
+  - Backend e2e: **187 passed / 0 failed / 1 skipped** of 188 specs — 100
+    two-digit + 88 three-digit; before Tier 361 only the two-digit ones ever ran.
     `QUARANTINE` empty. The one skip is `16-dark-mode.sh` (no frontend in the e2e
     job); since Tier 371 skips exit 77 and are listed, not counted as passes.
     Spec 172 (Tier 370) guards the harness itself: no spec may use `_lib.sh`
@@ -28,7 +28,7 @@ exact commands + docs you need to be productive.
     and survives concurrent writes (Tier 367); spec 171 (new in Tier 368) asserts
     the auth audit rows exist at all and are signed — nothing had ever asserted
     on them, which is how a failed login for an unknown e-mail went unaudited.
-  - Playwright: **913 passed / 0 failed / 0 skipped / 0 flaky** (913 since Tier 377's voucher-PDF test) — every test
+  - Playwright: **918 passed / 0 failed / 0 skipped / 0 flaky** (918 since Tier 389's download and read-only tests) — every test
     runs and none needed a retry. Tier 365 turned the last 4 skips into real
     tests; Tier 365b fixed the one flaky test (`bwa-quarterly-tier163`).
     Tier 369 removed 28 silent-skip call sites — three intentional ones remained
@@ -2340,6 +2340,11 @@ Verified locally: full Playwright **917 passed** (913 + the 4 new download
 tests; the readonly test was added after that run and passed with its spec),
 none flaky or skipped; `authenticated-downloads-tier389` with
 `--repeat-each=3` 12 passed; full backend **188 / 0 / 0**, zero 500s.
+
+CI, all six jobs green: Tier 386 run 35007112386 (backend 185/0/1, Playwright
+913), Tier 387 run 35009369478 (186/0/1, 913), Tier 388 run 35011694318
+(187/0/1, 913; e2e 188's mail check ran against the CI backend log), Tier 389
+run 35016230066 (187/0/1, 918).
 
 **Seen in passing, not changed:** `POST /auth/2fa/verify` is `@Public()` and
 takes only `email` + a TOTP or recovery code — no password, no attempt limit
