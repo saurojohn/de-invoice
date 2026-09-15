@@ -33,6 +33,8 @@ import {
   Controller,
   Delete,
   Get,
+  Headers,
+  NotFoundException,
   Param,
   Post,
   Query,
@@ -835,7 +837,11 @@ export class CostCenterController {
    */
   @Delete('cost-center-budgets/:id')
   @Require('reports.write')
-  async deleteCostCenterBudget(@Param('id') id: string) {
+  async deleteCostCenterBudget(@Param('id') id: string, @Headers('x-company-id') companyId: string) {
+    // Tier 378: deleted by id alone — tenant B deleted company A's budget
+    // (measured). Scoped; a foreign or unknown id is 404.
+    const existing = await this.prisma.costCenterBudget.findFirst({ where: { id, companyId } })
+    if (!existing) throw new NotFoundException('Budget nicht gefunden')
     const row = await this.prisma.costCenterBudget.delete({
       where: { id },
     })

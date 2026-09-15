@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Param, Query, Body, Res, Header, Req, BadRequestException, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Param, Query, Body, Res, Header, Req, BadRequestException, UseGuards, HttpException } from '@nestjs/common';
 import { Response } from 'express';
 import { AccountService } from './account.service';
 import { CreateAccountDto } from './dto/account.dto';
@@ -462,6 +462,9 @@ export class AccountingController {
       });
       res.end(pdfBuffer);
     } catch (e: any) {
+      // Tier 378: an unknown or foreign voucher id (NotFoundException from
+      // findOne) answered 500.
+      if (e instanceof HttpException) throw e;
       console.error('Voucher PDF generation error:', e);
       // Headers may already be set — just end the
       // response with an error if we can.

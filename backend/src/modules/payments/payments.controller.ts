@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Query, Param, Res, BadRequestException, Header } from '@nestjs/common'
+import { Controller, Get, Post, Body, Query, Param, Res, BadRequestException, Header, Headers } from '@nestjs/common'
 import { Throttle } from '@nestjs/throttler'
 import type { Response } from 'express'
 import { PaymentsService } from './payments.service'
@@ -68,8 +68,8 @@ export class PaymentsController {
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @Get('batches/:id')
   @Require('expense.read')
-  async getBatch(@Param('id') id: string) {
-    const batch = await this.payments.getBatch(id)
+  async getBatch(@Param('id') id: string, @Headers('x-company-id') companyId: string) {
+    const batch = await this.payments.getBatch(companyId, id)
     if (!batch) {
       throw new BadRequestException('Batch nicht gefunden')
     }
@@ -83,8 +83,9 @@ export class PaymentsController {
   async getBatchXml(
     @Res({ passthrough: true }) res: Response,
     @Param('id') id: string,
+    @Headers('x-company-id') companyId: string,
   ) {
-    const batch = await this.payments.getBatch(id)
+    const batch = await this.payments.getBatch(companyId, id)
     if (!batch) {
       throw new BadRequestException('Batch nicht gefunden')
     }

@@ -23,6 +23,7 @@ import {
   Req,
   SetMetadata,
   UseGuards,
+  NotFoundException,
 } from "@nestjs/common"
 import { Request } from "express"
 import { Prisma } from "@prisma/client"
@@ -455,11 +456,26 @@ export class SystemController {
     }
   }
 
+  /**
+   * Tier 378: resolve / mute acted on any ErrorEvent id — tenant B muted and
+   * resolved company A's error (measured). Same scope as GET /system/errors:
+   * the caller's company. Platform-wide rows (companyId NULL) are not a
+   * tenant's to change; see HANDOFF (platform admin).
+   */
+  private async assertOwnError(req: Request, id: string) {
+    const companyId = (req as any).user?.companyId
+    const row = companyId
+      ? await this.prisma.errorEvent.findFirst({ where: { id, companyId }, select: { id: true } })
+      : null
+    if (!row) throw new NotFoundException("Fehlereintrag nicht gefunden")
+  }
+
   @Post("errors/:id/resolve")
   @UseGuards(HeaderAuthGuard, RolesGuard)
   @Require("users.read")
   async resolve(@Req() req: Request, @Param("id") id: string) {
     const userId = (req as any).user?.id || "system"
+    await this.assertOwnError(req, id)
     const event = await this.tracker.resolve(id, userId)
     return { ok: true, status: event.status }
   }
@@ -467,7 +483,8 @@ export class SystemController {
   @Post("errors/:id/mute")
   @UseGuards(HeaderAuthGuard, RolesGuard)
   @Require("users.read")
-  async mute(@Param("id") id: string) {
+  async mute(@Req() req: Request, @Param("id") id: string) {
+    await this.assertOwnError(req, id)
     const event = await this.tracker.mute(id)
     return { ok: true, status: event.status }
   }

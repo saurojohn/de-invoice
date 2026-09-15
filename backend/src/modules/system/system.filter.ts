@@ -53,9 +53,18 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     // it for visibility but don't pollute the dashboard
     // with expected client errors.
     const isHttp = exception instanceof HttpException
+    // Tier 378: Prisma P2025 ("record to update/delete not found") is a
+    // not-found, not a server fault. It answered 500 — e.g. PATCH / DELETE
+    // /webhooks/<another tenant's id>, whose update is scoped by companyId,
+    // and was stored as an ErrorEvent. P2002 / P2003 stay 500 on purpose:
+    // they also come from server-side races (Tier 174's invoice numbers).
+    const isPrismaNotFound =
+      !isHttp && (exception as { code?: unknown })?.code === "P2025"
     const status = isHttp
       ? (exception as HttpException).getStatus()
-      : HttpStatus.INTERNAL_SERVER_ERROR
+      : isPrismaNotFound
+        ? HttpStatus.NOT_FOUND
+        : HttpStatus.INTERNAL_SERVER_ERROR
 
     // The message we expose to the client (sanitized for 5xx).
     const publicMessage = isHttp

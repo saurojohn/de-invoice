@@ -516,6 +516,10 @@ export class CreditBalanceService {
       createdById?: string;
     },
   ) {
+    // Tier 378: the customer was never checked against the company — tenant B
+    // booked a credit transaction on company A's customer (measured).
+    const owned = await this.prisma.customer.findFirst({ where: { id: customerId, companyId }, select: { id: true } })
+    if (!owned) throw new NotFoundException('Kunde nicht gefunden')
     if (!params.description?.trim()) {
       throw new BadRequestException('Beschreibung ist erforderlich');
     }

@@ -1,4 +1,5 @@
 import {
+  Headers,
   Controller,
   Get,
   Post,
@@ -154,8 +155,8 @@ export class DirectDebitController {
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @Get('direct-debit/batches/:id')
   @Require('invoice.read')
-  async getBatch(@Param('id') id: string) {
-    const batch = await this.directDebit.getBatch(id)
+  async getBatch(@Param('id') id: string, @Headers('x-company-id') companyId: string) {
+    const batch = await this.directDebit.getBatch(companyId, id)
     if (!batch) {
       throw new BadRequestException('Lastschrift-Batch nicht gefunden')
     }
@@ -169,8 +170,9 @@ export class DirectDebitController {
   async getBatchXml(
     @Res({ passthrough: true }) res: Response,
     @Param('id') id: string,
+    @Headers('x-company-id') companyId: string,
   ) {
-    const batch = await this.directDebit.getBatch(id)
+    const batch = await this.directDebit.getBatch(companyId, id)
     if (!batch) {
       throw new BadRequestException('Lastschrift-Batch nicht gefunden')
     }

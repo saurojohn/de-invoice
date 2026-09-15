@@ -331,9 +331,11 @@ export class PaymentsService {
 `
   }
 
-  async getBatch(batchId: string) {
-    return this.prisma.sepaBatch.findUnique({
-      where: { id: batchId },
+  // Tier 378: scoped to the company. findUnique({ id }) let any tenant read
+  // another company's batch — payee IBANs and the pain.001 XML (measured).
+  async getBatch(companyId: string, batchId: string) {
+    return this.prisma.sepaBatch.findFirst({
+      where: { id: batchId, companyId },
       include: { expenses: { select: { id: true, invoiceNumber: true, description: true, grossAmount: true } } },
     })
   }

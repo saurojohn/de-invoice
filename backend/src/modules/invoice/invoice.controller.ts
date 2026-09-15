@@ -924,6 +924,9 @@ export class InvoiceController {
       })
       res.end(buffer)
     } catch (err) {
+      // Tier 378: rethrow NotFound etc. (as Tier 361 did for the PDF) —
+      // an unknown or foreign invoice id answered 500.
+      if (err instanceof HttpException) throw err
       console.error('XRechnung generation error:', err)
       res.status(500).json({ error: 'XRechnung generation failed' })
     }
@@ -959,6 +962,7 @@ export class InvoiceController {
       });
       res.end(buffer);
     } catch (error) {
+      if (error instanceof HttpException) throw error; // Tier 378, see above
       console.error('XRechnung generation error:', error);
       res.status(500).json({ error: 'XRechnung generation failed' });
     }
@@ -1064,6 +1068,7 @@ export class InvoiceController {
       });
       res.end(pdfBuffer);
     } catch (error) {
+      if (error instanceof HttpException) throw error; // Tier 378, see above
       console.error('ZUGFeRD generation error:', error);
       res.status(500).json({ error: 'ZUGFeRD generation failed' });
     }

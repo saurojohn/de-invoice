@@ -1,5 +1,6 @@
-import { Controller, Get, Put, Body, Param, Query } from '@nestjs/common';
-import { InventoryService, AdjustStockDto } from './inventory.service';
+import { Controller, Get, Put, Body, Param, Query, Headers } from '@nestjs/common';
+import { InventoryService } from './inventory.service';
+import { AdjustStockDto } from './dto/adjust-stock.dto';
 import { Require } from '../../auth/roles.decorator';
 
 @Controller('inventory')
@@ -24,25 +25,27 @@ export class InventoryController {
 
   @Require('product.read')
   @Get(':productId')
-  async getStock(@Param('productId') productId: string) {
-    return this.inventoryService.getStock(productId);
+  async getStock(@Param('productId') productId: string, @Headers('x-company-id') companyId: string) {
+    return this.inventoryService.getStock(companyId, productId);
   }
 
   @Require('product.update')
   @Put(':productId/adjust')
   async adjustStock(
     @Param('productId') productId: string,
+    @Headers('x-company-id') companyId: string,
     @Body() dto: AdjustStockDto,
   ) {
-    return this.inventoryService.adjustStock(productId, dto);
+    return this.inventoryService.adjustStock(companyId, productId, dto);
   }
 
   @Require('product.read')
   @Get(':productId/history')
   async getHistory(
     @Param('productId') productId: string,
+    @Headers('x-company-id') companyId: string,
     @Query('limit') limit?: string,
   ) {
-    return this.inventoryService.getStockHistory(productId, limit ? parseInt(limit) : 50);
+    return this.inventoryService.getStockHistory(companyId, productId, limit ? parseInt(limit) : 50);
   }
 }

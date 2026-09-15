@@ -583,9 +583,11 @@ export class DirectDebitService {
 `
   }
 
-  async getBatch(batchId: string) {
-    return this.prisma.sepaDirectDebitBatch.findUnique({
-      where: { id: batchId },
+  // Tier 378: scoped to the company — the unscoped lookup returned another
+  // tenant's batch with the debtors' IBANs and the pain.008 XML (measured).
+  async getBatch(companyId: string, batchId: string) {
+    return this.prisma.sepaDirectDebitBatch.findFirst({
+      where: { id: batchId, companyId },
       include: {
         collections: {
           include: {

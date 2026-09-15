@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MahnungspauseService } from './mahnungspause.service';
 
@@ -650,7 +650,8 @@ Mit freundlichen Grüßen,
     });
 
     if (!invoice) {
-      throw new Error('Invoice not found');
+      // Tier 378: plain Error → 500 for an unknown or foreign invoice id.
+      throw new NotFoundException('Rechnung nicht gefunden');
     }
 
     const company = await this.prisma.company.findUnique({

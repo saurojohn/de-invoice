@@ -11,6 +11,7 @@ import {
   BadRequestException,
   NotFoundException,
   HttpCode,
+  Headers,
 } from '@nestjs/common'
 import { FileInterceptor } from '@nestjs/platform-express'
 import { Response } from 'express'
@@ -114,9 +115,15 @@ export class BeraterController {
 
   @Get(':id')
   @Require('berater.note.read')
-  async getOne(@Param('id') id: string) {
+  async getOne(@Param('id') id: string, @Headers('x-company-id') companyId: string) {
     if (!id) throw new BadRequestException('id ist erforderlich')
-    return this.berater.getById(id)
+    // Tier 378: getById looks the note up by id alone; any tenant could read
+    // another company's note (measured). Same answer for foreign and unknown.
+    const note = await this.berater.getById(id).catch(() => null)
+    if (!note || note.companyId !== companyId) {
+      throw new NotFoundException('Notiz nicht gefunden')
+    }
+    return note
   }
 
   /**

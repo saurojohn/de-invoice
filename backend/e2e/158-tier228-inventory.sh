@@ -101,9 +101,9 @@ assert_status 200 "GET fake id (null body)"
 [ -z "$BODY" ] && pass "fake id returns empty body (TS null serialised by Express 4)" || fail "fake id body = '$BODY' (expected empty)"
 
 # ---- 8. PUT adjust with fake product id → 500 ----
-# Pre-existing: service throws plain `new Error('Product not found')`
-# not a NestJS NotFoundException, so it surfaces as 500. Not
-# fixing in a coverage tier.
+# The service throws NotFoundException since Tier 235; this used to be
+# a `note`, so a 500 here would never have failed. Tier 378 asserts it
+# (a product of another company answers the same 404 — e2e 179).
 api_put "/api/v1/inventory/00000000-0000-0000-0000-000000000000/adjust" '{"changeType":"purchase","quantity":1}'
 HTTP=$(curl -sS -o /tmp/tier228-fake-prod.json -w "%{http_code}" \
   -X PUT \
@@ -111,7 +111,7 @@ HTTP=$(curl -sS -o /tmp/tier228-fake-prod.json -w "%{http_code}" \
   -H "Content-Type: application/json" \
   -d '{"changeType":"purchase","quantity":1}' \
   "$API/api/v1/inventory/00000000-0000-0000-0000-000000000000/adjust")
-[ "$HTTP" = "500" ] && pass "fake productId 500 (plain Error, pre-existing)" || note "fake productId HTTP = $HTTP (expected 500, but tolerated)"
+assert_eq "fake productId adjust → 404" "$HTTP" "404"
 
 # ---- 9. GET stock history ----
 api_get "/api/v1/inventory/$PROD_ID/history?limit=10"

@@ -1742,6 +1742,73 @@ row written; B's account refused on create and correct). Verified: backend
 **177 passed / 0 failed / 1 skipped** of 178 specs with **zero 500s** in the
 captured backend log; related Playwright 41 + 33 passed.
 
+### Cross-tenant record ids (Tier 378)
+
+Tiers 375/376 bound the `companyId` a request names; the **record id** in the
+path was still looked up by id alone in several services. Method: register a
+fresh tenant B and call every route that takes a record id with company A's ids
+(one per table, taken from the DB after a full suite run, plus fixtures for
+tables that run leaves empty), B's own `companyId`, and look for 2xx with A's
+data; then valid bodies for the routes whose first answer was a validation 400;
+plus a static pass (id routes whose handler never passes a company). Measured:
+
+| Route | Tenant B got |
+|---|---|
+| `GET /berater/notes/:id` | 200 — A's note incl. who acknowledged it |
+| `GET /inventory/:productId` (+ `/history`) | 200 — A's product, stock, history |
+| `PUT /inventory/:productId/adjust` | 200 — **A's stock set to 42** |
+| `GET /payments/batches/:id` (+ `/xml`) | 200 — A's SEPA credit-transfer batch and pain.001 |
+| `GET /payments/direct-debit/batches/:id` (+ `/xml`) | 200 — **debtors' IBANs**, pain.008 |
+| `PUT /invoices/:id/status` | 200 — A's invoice changed; **the audit row was written under B's company** |
+| `DELETE /reports/cost-center-budgets/:id` | 200 — A's budget deleted |
+| `POST /system/errors/:id/resolve` \| `/mute` | 201 — A's error event changed |
+| `POST /customers/:id/credit-adjust` | 201 — credit transaction on A's customer |
+
+Everything else answered 403/404 or a not-found 400 (the services use
+`findFirst({ id, companyId })`). Two tables stayed without a fixture — `Mahnung`,
+`BankStatement`/`BankReconciliation` — and FinTS was not fired (bank calls);
+their routes were covered only by the static pass, which found nothing there.
+
+**Fix:** each lookup is scoped to the company — `getBatch(companyId, id)` in both
+payment services, `InventoryService` methods take the company (history filters
+`product.companyId`), `updateStatus` uses `findFirst({ id, companyId })`, budget
+delete / error resolve+mute / berater note check ownership first,
+`manualAdjustment` checks the customer. Routes whose callers send no
+`?companyId=` (inventory page, batch detail) take the company from the
+authenticated `x-company-id` header. The inventory body was an interface → new
+`dto/adjust-stock.dto.ts`. A foreign id answers exactly like an unknown one.
+
+**500 for a foreign/unknown id → 404:** voucher PDF, XRechnung ×2, ZUGFeRD
+(the catch swallowed the NotFoundException, as the invoice PDF did before Tier
+361), reminder email-data (plain `Error`), and Prisma **P2025** globally in
+`GlobalExceptionFilter` (PATCH/DELETE `/webhooks/:id` of another tenant were 500
+"Resource not found" and stored as ErrorEvents). P2002/P2003 stay 500 on purpose —
+they also come from server races.
+
+**Found, not fixed — invoice status is free text.** `PUT /invoices/:id/status`
+stores any string: company A's own `{"status":"lolwut"}` → 200, persisted
+(measured, reverted). The status vocabulary is not one list in the code (specs
+and code use draft/sent/paid/overdue/cancelled, and also `void`/`voided`), so an
+allowlist needs the callers enumerated first.
+
+**Platform-level routes** (backups, cron runs, notification config) are open to
+any tenant admin — §9 item 11, a decision.
+
+Specs: new `e2e/179-tier378-cross-tenant-ids.sh` — (1) generic sweep: every GET
+route with a record id called by a fresh tenant with company A's ids must not
+return A's data (50 fired in the full run, 12 skipped for lack of a fixture; it flagged 7 routes on the old code); (2) the
+measured reads; (3) the measured writes, each asserting A's row is unchanged;
+(4) the former 500s are 404; (5) company A still works on its own records.
+Against the old code it failed 26 assertions. 158 turned a tolerated `note`
+("fake product 500") into an assertion (404).
+
+Verified on a fresh stack: full backend **178 passed / 0 failed / 1 skipped** of
+179 specs, zero 500s in the captured backend log. Related Playwright (admin-ops,
+berater, cost-center budgets, credit balance, direct-debit, payments, kontoauszug
+e-mail, system-errors timeline, webhooks, XRechnung, aging credit) 68 passed; no
+Playwright spec covers the inventory page, so its three request bodies were
+replayed against the new DTO (200 each).
+
 ### Notes from Tiers 347–352 (recovered in Tier 364)
 
 Tier 353 wrote a new version of this file but left the previous one appended
@@ -1971,6 +2038,22 @@ These are **not in the repo** — only the user can do them:
     `api.ts`, the Playwright auth helper and the bash e2e `_lib.sh`. It changes
     login behaviour and every test harness, so it is not a side edit. Per §9
     item 8 the app is not deployed yet.
+11. **Decide who is a platform operator** (found Tier 378). Registration is
+    public and every new user is `admin` of their own company, but several
+    routes act on the *installation*, not a company, and only check a tenant
+    role: `/admin/backups` (list, `run` a full pg_dump of all tenants, `verify`,
+    `restore-drill`, `DELETE` a backup — `admin.read`, i.e. accountant rank),
+    `/admin/cron-health` (status of every cron; `:name/run` triggers a cron for
+    all tenants, e.g. reminder auto-send — `admin.update`), `/system/errors`
+    prune / resolve-all / mute-all and `/system/notifications/*` (platform
+    Slack/e-mail alert config and threshold — `users.read`). Measured as a
+    freshly registered tenant: `GET /admin/backups`, `/admin/cron-health`,
+    `/system/notifications/config` and `/threshold` → 200. Nothing was run or
+    deleted in the probe. Needs a notion of platform admin — recommended: an
+    env allowlist (`PLATFORM_ADMIN_EMAILS`) checked by a `@PlatformAdmin()`
+    guard, set for the CI seed user and by the operator in `infra/prod/.env`.
+    For a single-company installation the operator must set it, or those admin
+    pages stop working — hence a decision, not a side edit.
 
 When the Hetzner items are available, the deploy is:
 

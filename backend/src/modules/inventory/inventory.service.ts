@@ -3,21 +3,23 @@ import { PrismaService } from '../../prisma/prisma.service';
 
 export type StockChangeType = 'sale' | 'purchase' | 'adjustment' | 'return' | 'initial';
 
-export interface AdjustStockDto {
+export interface AdjustStockInput {
   quantity: number;
   changeType: StockChangeType;
-  reference?: string;
+  reference?: string | null;
   referenceType?: string;
-  notes?: string;
+  notes?: string | null;
 }
 
 @Injectable()
 export class InventoryService {
   constructor(private prisma: PrismaService) {}
 
-  async getStock(productId: string) {
-    const product = await this.prisma.product.findUnique({
-      where: { id: productId },
+  // Tier 378: every method takes the company. They looked products up by id
+  // alone — tenant B read company A's stock and set it to 42 (measured).
+  async getStock(companyId: string, productId: string) {
+    const product = await this.prisma.product.findFirst({
+      where: { id: productId, companyId },
       select: {
         id: true,
         name: true,
@@ -31,9 +33,9 @@ export class InventoryService {
     return product;
   }
 
-  async adjustStock(productId: string, dto: AdjustStockDto) {
-    const product = await this.prisma.product.findUnique({
-      where: { id: productId },
+  async adjustStock(companyId: string, productId: string, dto: AdjustStockInput) {
+    const product = await this.prisma.product.findFirst({
+      where: { id: productId, companyId },
     });
 
     if (!product) {
@@ -126,9 +128,9 @@ export class InventoryService {
     });
   }
 
-  async getStockHistory(productId: string, limit = 50) {
+  async getStockHistory(companyId: string, productId: string, limit = 50) {
     return this.prisma.productStockHistory.findMany({
-      where: { productId },
+      where: { productId, product: { companyId } },
       orderBy: { createdAt: 'desc' },
       take: limit,
     });

@@ -1164,7 +1164,10 @@ export class InvoiceService {
   }
 
   async updateStatus(id: string, companyId: string, status: string) {
-    const before = await this.prisma.invoice.findUnique({ where: { id } });
+    // Tier 378: companyId was accepted and ignored — tenant B's
+    // PUT /invoices/<A's id>/status changed A's invoice, and the audit row
+    // landed under B's company (measured).
+    const before = await this.prisma.invoice.findFirst({ where: { id, companyId } });
     if (!before) throw new NotFoundException('Rechnung nicht gefunden');
 
     const updated = await this.prisma.invoice.update({
