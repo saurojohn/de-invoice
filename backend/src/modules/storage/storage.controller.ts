@@ -7,17 +7,17 @@ import {
   Param,
   Query,
   Res,
-  UseInterceptors,
   UploadedFile,
   BadRequestException,
   NotFoundException,
   Header,
+  Headers,
 } from '@nestjs/common';
 import { Response } from 'express';
 import { StorageService } from './storage.service';
 import { StorageConfigDto, UploadFileDto } from './dto/storage-config.dto';
-import { FileInterceptor } from '@nestjs/platform-express';
 import { Auth, Require } from '../../auth/roles.decorator';
+import { CallerBoundUpload } from '../../auth/caller-bound-upload';
 
 // Define Multer file type
 interface MulterFile {
@@ -43,12 +43,13 @@ export class StorageController {
    */
   @Post('upload')
   @Require('company.update')
-  @UseInterceptors(FileInterceptor('file', {
+  @CallerBoundUpload('file', {
     limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
-  }))
+  })
   async uploadFile(
     @UploadedFile() file: MulterFile,
     @Body() dto: UploadFileDto,
+    @Headers('x-company-id') companyId: string,
   ) {
     if (!file) {
       throw new BadRequestException('Keine Datei hochgeladen.');
@@ -58,7 +59,9 @@ export class StorageController {
       file.buffer,
       file.originalname,
       dto.type || 'attachments',
-      dto.companyId || 'default',
+      // The authenticated company, not the form's (which could name another
+      // tenant before Tier 383) or the shared 'default' directory.
+      companyId,
     );
 
     return {

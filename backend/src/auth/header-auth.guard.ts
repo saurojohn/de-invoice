@@ -1,6 +1,7 @@
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { PrismaService } from '../prisma/prisma.service';
+import { assertBodyBoundToCaller } from './caller-bound-upload';
 import { ALLOW_OTHER_COMPANY_ID_KEY, COMPANY_ID_PARAM_KEY, IS_PUBLIC_KEY } from './public.decorator';
 
 /**
@@ -124,6 +125,14 @@ export class HeaderAuthGuard implements CanActivate {
         }
       }
     }
+
+    // Tier 383: actor ids in the body name the authenticated user. Several
+    // routes took `createdById` / `closedById` / `uploadedById` from the client
+    // and wrote it into GoBD records: company A's credit-adjust with another
+    // tenant's user id as createdById answered 201 and stored that user as the
+    // author (measured). The UI and the specs always send their own id.
+    // Multipart bodies are parsed after the guards: see CallerBoundUpload.
+    assertBodyBoundToCaller(req.body, companyId, userId, { checkCompany: false })
 
     req.headerAuthDone = true
     return true

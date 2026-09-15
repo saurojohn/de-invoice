@@ -34,15 +34,14 @@ import {
   Param,
   Query,
   Body,
-  UseInterceptors,
   UploadedFile,
   Res,
   BadRequestException,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
 import { Auth, Require } from '../../auth/roles.decorator';
 import { AttachmentsService } from './attachments.service';
+import { CallerBoundUpload } from '../../auth/caller-bound-upload';
 
 // Mirror of the Multer file shape used by the
 // storage controller — FileInterceptor puts the
@@ -79,9 +78,9 @@ export class AttachmentsController {
    */
   @Post()
   @Require('invoice.create')
-  @UseInterceptors(FileInterceptor('file', {
+  @CallerBoundUpload('file', {
     limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
-  }))
+  })
   async upload(
     @UploadedFile() file: MulterFile,
     @Body() body: { companyId: string; entityType: string; entityId: string; uploadedById?: string },

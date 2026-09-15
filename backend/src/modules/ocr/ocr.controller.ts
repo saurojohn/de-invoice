@@ -2,17 +2,16 @@ import {
   Controller,
   Post,
   UploadedFile,
-  UseInterceptors,
   BadRequestException,
   Query,
   Get,
   Body,
 } from '@nestjs/common'
-import { FileInterceptor } from '@nestjs/platform-express'
 import { Throttle } from '@nestjs/throttler'
 import { OcrService, OCR_FIXTURE, extractFieldsFromText } from './ocr.service'
 import { PrismaService } from '../../prisma/prisma.service'
 import { Require } from '../../auth/roles.decorator'
+import { CallerBoundUpload } from '../../auth/caller-bound-upload'
 
 /**
  * Tier 29: OCR endpoints for Eingangsrechnung scan ingestion.
@@ -72,25 +71,23 @@ export class OcrController {
   // accountant who batches a stack of receipts, and the
   // e2e suite which runs scan several times.
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
-  @UseInterceptors(
-    FileInterceptor('file', {
-      limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
-      fileFilter: (req, file, cb) => {
-        // Accept images + PDF. PDF OCR is harder
-        // (tesseract needs OCRmyPDF or similar), so
-        // the future tesseract impl will branch on
-        // mimetype.
-        const ok = [
-          /^image\//,
-          /^application\/pdf$/,
-        ].some((re) => re.test(file.mimetype))
-        if (!ok) {
-          return cb(new BadRequestException(`Nicht unterstütztes Dateiformat: ${file.mimetype}`), false)
-        }
-        cb(null, true)
-      },
-    }),
-  )
+  @CallerBoundUpload('file', {
+    limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+    fileFilter: (req, file, cb) => {
+      // Accept images + PDF. PDF OCR is harder
+      // (tesseract needs OCRmyPDF or similar), so
+      // the future tesseract impl will branch on
+      // mimetype.
+      const ok = [
+        /^image\//,
+        /^application\/pdf$/,
+      ].some((re) => re.test(file.mimetype))
+      if (!ok) {
+        return cb(new BadRequestException(`Nicht unterstütztes Dateiformat: ${file.mimetype}`), false)
+      }
+      cb(null, true)
+    },
+  })
   async scan(
     @UploadedFile() file: Express.Multer.File | undefined,
     @Query('companyId') _companyId: string,

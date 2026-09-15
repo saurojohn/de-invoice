@@ -281,7 +281,9 @@ GRAND_NET=$(python3 -c "import json,sys;print(json.load(sys.stdin)['grandNetTota
 GRAND_TOTAL=$(python3 -c "import json,sys;print(json.load(sys.stdin)['grandTotal'])" <<< "$BODY")
 TOTAL_CB=$(python3 -c "import json,sys;print(json.load(sys.stdin)['totalCreditBalance'])" <<< "$BODY")
 EXPECTED=$(python3 -c "print(max(0, $GRAND_TOTAL - $TOTAL_CB))")
-assert_eq "grandNetTotal = max(0, grandTotal - totalCreditBalance)" "$GRAND_NET" "$EXPECTED"
+# Cents, not float equality: 28403.51 vs a Python difference of 28403.510000000002
+# failed once other specs' credit balances were in the totals (Tier 383).
+assert_close "grandNetTotal = max(0, grandTotal - totalCreditBalance)" "$GRAND_NET" "$EXPECTED" 0.005
 # It must be >= 0 (the floor)
 if python3 -c "exit(0 if $GRAND_NET >= 0 else 1)"; then
   pass "grandNetTotal is non-negative: $GRAND_NET"

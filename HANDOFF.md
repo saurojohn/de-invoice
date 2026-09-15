@@ -1939,6 +1939,91 @@ gewst 30 passed. CI run 34970262961 failed on its first attempt before any
 test ran — "Start sidecar postgres" got `502 Bad Gateway` from Docker Hub while
 pulling `postgres:16-alpine`; the re-run of that job passed (913/913).
 
+### Credit / installment bodies, actor ids, multipart uploads (Tier 383)
+
+**Bodies.** Customer credit and payment allocation and
+`installment-plans/from-invoice` took inline types. Measured before the change:
+
+| Route | Input | Result |
+|---|---|---|
+| `credit-adjust` | amount 1e12 | 500 |
+| `credit-adjust` | 5000-char description, undeclared field | 201, stored |
+| `credit-payout` | paymentDate `"abc"` / amount 1e12 | 500 / 500 |
+| `credit-payout` | paymentDate `"2026-02-30"` | 201 |
+| `apply-credit` | `invoiceId: 123` | 500 (now converted to `"123"` → 404) |
+| `allocate-payment` | paymentDate `"2026-02-30"` | 201, Payment dated 2026-03-02 |
+| `allocate-payment` | amount 1e12 | 201 |
+| `from-invoice` | installmentCount 2.5 | 201: plan "2 Raten" with **3** rows of 476 € = 1428 € for a 1190 € invoice |
+| `from-invoice` | installmentCount 5000 | 201, 5000 rows |
+| `from-invoice` | intervalDays -30 / 0 | 201 |
+| `from-invoice` | `"drei"`, firstDueDate `"abc"`, `"3"` (a string) | 500 |
+
+`customer/dto/credit.dto.ts` and `CreateInstallmentPlanFromInvoiceDto`
+(integer count 2…120, intervalDays 1…365, strict dates). Callers: customer
+detail and credit pages, the invoice page's Ratenplan modal (sends
+`Number(...)`), e2e 85/86/88/92/149/179, Playwright aging-credit,
+customer-payment-allocation-tier146, ratensplan-suggestion, installment-plan.
+String numbers from API clients are now converted (were 500).
+
+**Actor ids.** Company A's `credit-adjust` with another tenant's user id as
+`createdById` answered 201 and stored that user as the GoBD author.
+`HeaderAuthGuard` now answers 403 when `createdById` / `closedById` /
+`uploadedById` / `sentById` / `grantedById` in a body is not the caller (the UI
+and the specs always send their own id). Shared helper:
+`src/auth/caller-bound-upload.ts` `assertBodyBoundToCaller`.
+
+**Multipart uploads bypassed the guard's body binding.** Guards run before
+multer parses a multipart body, so the guard saw no `companyId` and every upload
+handler trusted the form. Measured:
+
+- `POST /attachments` as tenant B with the form field `companyId=<A>` and one
+  of A's invoices → **201, file stored under company A** (the service's
+  `entityId`-in-company check passed, because the company was A);
+- company A's upload with `uploadedById=<B>` → 201, stored as the uploader;
+- `POST /storage/upload` as tenant B with `companyId=<A>` → 201 into A's
+  directory; without `companyId` → the shared `default` directory;
+- `POST /storage/upload` with `type=../../../t383-escape` → **201, file written
+  outside the storage root** (`saveFile` joined `type` into the path unchecked).
+
+`upload-logo` was already refused (its own 400 re-check); berater notes by the
+berater-role check. Fix: `@CallerBoundUpload(field, options)` =
+`FileInterceptor` + `CallerBoundBodyInterceptor`, which runs after multer and
+applies the same binding (plus `userId`, the bank-import form's importer). All
+six upload routes use it (attachments, bank-statements import + preview,
+company logo, storage, berater notes, OCR scan). `storage/upload` now stores
+under the authenticated company; `UploadFileDto.type` is one of
+`attachments | pdf | images`, and `saveFile` refuses any `type` / `companyId`
+that is not `[A-Za-z0-9_-]{1,64}` (all callers).
+
+Spec `e2e/183-tier383-credit-installments-actor.sh` (53 assertions): caller
+shapes; bad bodies → 400 with no ledger / payment / plan rows; spoofed actor ids
+→ 403; each multipart case above → 403 / 400 with no attachment or statement
+stored; a static check that no controller uses `FileInterceptor` directly and
+that every `@UploadedFile` controller uses `CallerBoundUpload`. e2e 86 compared
+`grandNetTotal` with float equality (`28403.51` vs `28403.510000000002`) and
+failed once other specs' credit balances were in the totals — now to the cent.
+
+Verified on a fresh stack: full backend **182 passed / 0 failed / 1 skipped** of
+183 specs, zero 500s in the captured backend log; Playwright aging-credit,
+berater, customer-payment-allocation-tier146, installment-plan,
+invoice-attachments-tier140, ocr-upload, ratensplan-suggestion, credit-balance,
+skonto: 42 passed, none skipped.
+
+**Found, not fixed (next tiers):**
+
+- **Audit context is a process global.** `main.ts` middleware calls
+  `setRequestContext` → `globalThis.__deInvoiceRequestContext`, which
+  `audit-log.extension.ts` reads for `userId` / `companyId` (also the hash-chain
+  lock key and the company whose chain the row joins). Concurrent requests
+  overwrite it, and one request's `finish` clears it while another is still
+  running — so an audit row (with oldData / newData) can land in another
+  tenant's chain. Not yet measured.
+- **Storage module:** `GET` / `DELETE /storage/files/*` have no `@Require` and
+  no company check (any user can read or delete any tenant's file by path);
+  `POST /storage/config` (company.update) changes the storage root for every
+  tenant; `isPathSafe` is a string-prefix check (`/root-evil` passes for
+  `/root`). Not yet measured.
+
 ### Notes from Tiers 347–352 (recovered in Tier 364)
 
 Tier 353 wrote a new version of this file but left the previous one appended

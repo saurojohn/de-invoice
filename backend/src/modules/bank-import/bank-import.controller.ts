@@ -1,8 +1,8 @@
-import { Controller, Get, Post, Delete, Body, Param, Query, UseInterceptors, UploadedFile, BadRequestException, Req } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Body, Param, Query, UploadedFile, BadRequestException, Req } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import { FileInterceptor } from '@nestjs/platform-express';
 import { BankImportService } from './bank-import.service';
 import { Auth, Require } from '../../auth/roles.decorator';
+import { CallerBoundUpload } from '../../auth/caller-bound-upload';
 
 // IMPORTANT: literal routes (`/import`, `/reconciliations/...`) MUST
 // be registered BEFORE `:id` routes. NestJS Express matches in
@@ -27,9 +27,9 @@ export class BankImportController {
   // per month; 20/min is plenty for the human + the e2e
   // suite (which imports several fixtures per pass).
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
-  @UseInterceptors(FileInterceptor('file', {
+  @CallerBoundUpload('file', {
     limits: { fileSize: 5 * 1024 * 1024 }, // 5MB cap — CAMT files for a year of statements fit easily
-  }))
+  })
   async importFile(
     @UploadedFile() file: Express.Multer.File,
     @Body('companyId') companyId: string,
@@ -53,9 +53,9 @@ export class BankImportController {
    */
   @Post('preview')
   @Require('invoice.create')
-  @UseInterceptors(FileInterceptor('file', {
+  @CallerBoundUpload('file', {
     limits: { fileSize: 5 * 1024 * 1024 },
-  }))
+  })
   async previewFile(
     @UploadedFile() file: Express.Multer.File,
     @Body('take') take?: string,

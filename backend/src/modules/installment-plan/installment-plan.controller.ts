@@ -13,6 +13,7 @@ import { HeaderAuthGuard } from '../../auth/header-auth.guard'
 import { Require } from '../../auth/roles.decorator'
 import {
   CreateInstallmentPlanDto,
+  CreateInstallmentPlanFromInvoiceDto,
   PayInstallmentDto,
 } from './installment-plan.dto'
 import { InstallmentPlanService } from './installment-plan.service'
@@ -129,16 +130,7 @@ export class InstallmentPlanController {
   @Require('invoice.write')
   async createFromInvoice(
     @Query('companyId') companyId: string,
-    @Body() body: {
-      invoiceId: string
-      installmentCount: number
-      firstDueDate: string
-      intervalDays?: number
-      notes?: string
-      autoPause?: boolean
-      pauseReason?: string
-      createdById?: string
-    },
+    @Body() body: CreateInstallmentPlanFromInvoiceDto,
   ) {
     if (!companyId) throw new BadRequestException('companyId ist erforderlich')
     return this.svc.createFromInvoice(companyId, body.createdById, body.invoiceId, {

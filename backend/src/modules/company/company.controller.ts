@@ -1,7 +1,6 @@
-import { Controller, Get, Put, Patch, Post, Body, Param, UseInterceptors, UploadedFile, BadRequestException, Req } from '@nestjs/common';
+import { Controller, Get, Put, Patch, Post, Body, Param, UploadedFile, BadRequestException, Req } from '@nestjs/common';
 import { CompanyService } from './company.service';
 import { UpdateCompanyDto } from './dto/update-company.dto';
-import { FileInterceptor } from '@nestjs/platform-express';
 import { Auth, Require } from '../../auth/roles.decorator';
 import { CompanyIdParam } from '../../auth/public.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -15,6 +14,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { Request } from 'express';
 import { AuditService } from '../audit/audit.service';
+import { CallerBoundUpload } from '../../auth/caller-bound-upload';
 
 // Tier 376: `:id` is the company — bind it to the authenticated one.
 @CompanyIdParam('id')
@@ -379,9 +379,9 @@ export class CompanyController {
   @Auth()
   @Require('company.update')
   @Post('upload-logo')
-  @UseInterceptors(FileInterceptor('file', {
+  @CallerBoundUpload('file', {
     limits: { fileSize: 2 * 1024 * 1024 }, // 2MB limit
-  }))
+  })
   async uploadLogo(
     @Req() req: Request,
     @UploadedFile() file: Express.Multer.File,

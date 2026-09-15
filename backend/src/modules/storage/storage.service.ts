@@ -111,6 +111,15 @@ export class StorageService {
       throw new BadRequestException('Dateityp nicht erlaubt.');
     }
 
+    // Tier 383: `type` and `companyId` become directory names. POST
+    // /storage/upload passed the form's `type` through, and type
+    // "../../../t383-escape" wrote the file outside the storage root (measured).
+    for (const segment of [type, companyId]) {
+      if (!/^[A-Za-z0-9_-]{1,64}$/.test(segment)) {
+        throw new BadRequestException('Ungültiger Speicherpfad.');
+      }
+    }
+
     // Build directory structure: {localPath}/{year}/{month}/{type}/{companyId}/
     const now = new Date();
     const year = now.getFullYear().toString();

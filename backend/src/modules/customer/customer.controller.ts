@@ -1,5 +1,6 @@
 import { BadRequestException, Controller, Get, Post, Put, Delete, Body, Param, Query, Header, Res, Headers, HttpCode } from '@nestjs/common';
 import type { Response } from 'express';
+import { AllocatePaymentDto, ApplyCreditDto, CreditAdjustDto, CreditPayoutDto } from './dto/credit.dto';
 import { CustomerService, ImportCustomerRow } from './customer.service';
 import { CustomerStatementService } from './customer-statement.service';
 import { CustomerStatementBatchService } from './customer-statement-batch.service';
@@ -251,13 +252,7 @@ export class CustomerController {
   async allocatePayment(
     @Param('id') id: string,
     @Query('companyId') companyId: string,
-    @Body() body: {
-      amount?: number
-      paymentDate?: string
-      paymentMethod?: string
-      reference?: string
-      notes?: string
-    },
+    @Body() body: AllocatePaymentDto,
   ) {
     this.assertCompanyId(companyId)
     const amount = Number(body?.amount)
@@ -418,13 +413,7 @@ export class CustomerController {
   async creditPayout(
     @Param('id') id: string,
     @Query('companyId') companyId: string,
-    @Body() body: {
-      amount: number;
-      paymentDate: string;
-      bankAccountId: string;
-      description?: string;
-      createdById?: string;
-    },
+    @Body() body: CreditPayoutDto,
   ) {
     this.assertCompanyId(companyId)
     if (!body || typeof body.amount !== 'number' || !body.paymentDate || !body.bankAccountId) {
@@ -457,11 +446,7 @@ export class CustomerController {
   async applyCredit(
     @Param('id') id: string,
     @Query('companyId') companyId: string,
-    @Body() body: {
-      invoiceId: string;
-      amount: number;
-      createdById?: string;
-    },
+    @Body() body: ApplyCreditDto,
   ) {
     this.assertCompanyId(companyId)
     if (!body || !body.invoiceId || typeof body.amount !== 'number') {
@@ -488,11 +473,7 @@ export class CustomerController {
   async creditAdjust(
     @Param('id') id: string,
     @Query('companyId') companyId: string,
-    @Body() body: {
-      amount: number;
-      description: string;
-      createdById?: string;
-    },
+    @Body() body: CreditAdjustDto,
   ) {
     this.assertCompanyId(companyId)
     if (!body || typeof body.amount !== 'number' || !body.description) {

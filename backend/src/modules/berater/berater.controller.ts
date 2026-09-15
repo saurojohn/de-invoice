@@ -6,20 +6,19 @@ import {
   Query,
   Body,
   Res,
-  UseInterceptors,
   UploadedFile,
   BadRequestException,
   NotFoundException,
   HttpCode,
   Headers,
 } from '@nestjs/common'
-import { FileInterceptor } from '@nestjs/platform-express'
 import { Response } from 'express'
 import * as path from 'path'
 import { Auth, Require, CurrentUser } from '../../auth/roles.decorator'
 import { BeraterService } from './berater.service'
 import { PrismaService } from '../../prisma/prisma.service'
 import { StorageService } from '../storage/storage.service'
+import { CallerBoundUpload } from '../../auth/caller-bound-upload'
 
 /**
  * Mirror of the Multer file shape used by the
@@ -141,11 +140,9 @@ export class BeraterController {
    */
   @Post()
   @Require('berater.note.create')
-  @UseInterceptors(
-    FileInterceptor('file', {
-      limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
-    }),
-  )
+  @CallerBoundUpload('file', {
+    limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+  })
   async create(
     @UploadedFile() file: MulterFile | undefined,
     @Body()
