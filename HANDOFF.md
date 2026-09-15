@@ -31,7 +31,8 @@ exact commands + docs you need to be productive.
   - Playwright: **913 passed / 0 failed / 0 skipped / 0 flaky** (913 since Tier 377's voucher-PDF test) — every test
     runs and none needed a retry. Tier 365 turned the last 4 skips into real
     tests; Tier 365b fixed the one flaky test (`bwa-quarterly-tier163`).
-    Tier 369 removed 28 silent-skip call sites — three intentional ones remain,
+    Tier 369 removed 28 silent-skip call sites — three intentional ones remained
+    (two since Tier 381, which turned the webhook replay skip into a real wait),
     each with its reason written into the code — and Tier 369b closed the
     `webhook.requeue` race that surfaced as `911 passed, 1 flaky` in run
     34696678293.
@@ -1184,7 +1185,7 @@ ci-seed actually creates before being converted:
   but CI and local-ci-stack both export `VIES_MOCK=1`, so there is no token
   bucket to exhaust and a timeout would be a real regression.
 
-**Kept, with reasons in the code (3).** `webhooks` (the delivery row comes from
+**Kept, with reasons in the code (3; the `webhooks` one removed in Tier 381 — its cron explanation was wrong).** `webhooks` (the delivery row comes from
 the cron, so a 30s miss can be tick timing; its wait is already a web-first
 `waitFor`, not a `.count()` probe), `admin-ops-tier195` (safety guard: outside CI
 `backupRoot` may be a developer's real backup directory), `vies-batch-tier134`
@@ -1873,6 +1874,27 @@ assertions against the old code.
 Verified on a fresh stack: full backend **180 passed / 0 failed / 1 skipped** of
 181 specs, zero 500s in the captured backend log; Playwright direct-debit +
 payments 15 passed.
+
+### Webhook replay test: a skip CI took, replaced by a wait (Tier 381)
+
+Tier 380's CI run 34963691074 was green but reported **912 passed, 1 skipped**
+where the previous run had 913 passed. The skipped test was
+`webhooks.spec.ts › replay button in deliveries drawer`, one of Tier 369's kept
+skips ("delivery row not visible within 30s — cron race"). That explanation does
+not hold: delivery rows are inserted when the event is emitted (Tier 350), not
+by a cron. Read in the code instead: `InvoiceService.create` does **not await**
+`webhooks.emit()`, and the deliveries drawer loads its list **only when opened**
+(no polling) — a drawer opened before the emit lands stays empty however long
+the test waits. That is the likeliest cause; it did not reproduce locally
+(3/3 passed). Also, the test's customer and invoice `fetch` calls never checked
+their status, so a failed setup would have ended in the same skip.
+
+Fix (test only): both setup calls must answer 201; the test polls
+`GET /webhooks/:id/deliveries` until the delivery exists, then opens the drawer;
+the skip is gone, so the next miss is a failure with a message. Verified:
+`webhooks.spec.ts` with `--repeat-each=3` → 12 passed. **Lesson: compare the
+test count, not only the pass/fail verdict — a green run with one test fewer
+is a skip hiding.**
 
 ### Notes from Tiers 347–352 (recovered in Tier 364)
 

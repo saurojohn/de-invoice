@@ -297,9 +297,12 @@ test.describe("Webhooks UI", () => {
             }),
           },
         )
+        // Tier 380: both setup calls are checked. Unchecked, a failed
+        // create meant no delivery and the test ended in its skip branch.
+        if (custRes.status !== 201) throw new Error(`customer create ${custRes.status}`)
         const customer = await custRes.json()
         // Now create an invoice against that customer
-        await fetch(
+        const invRes = await fetch(
           `http://localhost:3001/api/v1/invoices?companyId=${cid}`,
           {
             method: "POST",
@@ -326,10 +329,39 @@ test.describe("Webhooks UI", () => {
             }),
           },
         )
+        if (invRes.status !== 201) throw new Error(`invoice create ${invRes.status}`)
         return customer
       },
       { uid: testTokens!.userId, cid: testTokens!.companyId },
     )
+
+    // Tier 380: wait for the delivery row via the API before opening the
+    // drawer. InvoiceService.create does not await webhooks.emit(), and the
+    // drawer loads deliveries only when opened (no polling) — so a drawer
+    // opened before the emit lands shows an empty list for good. That is the
+    // likeliest cause of the skip CI took once (not reproduced locally, 3/3).
+    // The old comment blamed a cron; rows are inserted on emit (Tier 350).
+    const auth = { "x-user-id": testTokens!.userId, "x-company-id": testTokens!.companyId }
+    const hooks = await (
+      await page.request.get(
+        `http://localhost:3001/api/v1/webhooks?companyId=${testTokens!.companyId}`,
+        { headers: auth },
+      )
+    ).json()
+    const hook = (hooks as Array<{ id: string; name: string }>).find((h) => h.name === uniqueName)
+    expect(hook, "created webhook listed by the API").toBeTruthy()
+    await expect
+      .poll(
+        async () => {
+          const r = await page.request.get(
+            `http://localhost:3001/api/v1/webhooks/${hook!.id}/deliveries?companyId=${testTokens!.companyId}`,
+            { headers: auth },
+          )
+          return r.ok() ? ((await r.json()) as unknown[]).length : -1
+        },
+        { timeout: 20_000, message: "invoice.created produced no webhook delivery" },
+      )
+      .toBeGreaterThan(0)
 
     // Open the deliveries drawer
     await row.locator('[data-testid="webhook-deliveries"]').click()
@@ -348,22 +380,11 @@ test.describe("Webhooks UI", () => {
     // skip the test rather than fail — the
     // assertion is correct, the env is just
     // unlucky.
+    // Tier 380: no skip any more. It was kept in Tier 369 as a "cron race";
+    // CI run 34963691074 took it once (912 passed, 1 skipped). The delivery
+    // now exists before the drawer opens, so a missing row is a real failure.
     const deliveryRow = page.locator('[data-testid="delivery-row"]').first()
-    try {
-      await deliveryRow.waitFor({ state: "visible", timeout: 30_000 })
-    } catch {
-      // Tier 369: KEPT deliberately, unlike the skips this tier removed. Those
-      // hid missing seed data or un-awaited hydration; this one guards a real
-      // timing dependency — the delivery row is produced by the webhook cron,
-      // so a 30s miss can genuinely be a tick landing badly rather than a
-      // regression. Note the wait above is already a web-first waitFor, not a
-      // .count() probe, so there is no silent-pass hiding in it.
-      test.skip(
-        true,
-        "webhook delivery row not visible within 30s (cron race — re-run later)",
-      )
-      return
-    }
+    await expect(deliveryRow).toBeVisible({ timeout: 15_000 })
 
     // Count deliveries before replay
     const beforeCount = await page
