@@ -7,7 +7,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
-import { apiGet, apiPost } from "@/lib/api"
+import { apiGet, apiPost, apiFetch, apiGetBlob } from "@/lib/api"
 import { ReceiptsPanel } from "@/components/ReceiptsPanel"
 
 // VoucherLine — the individual debit/credit lines that
@@ -207,18 +207,30 @@ export default function VoucherDetailPage() {
             {voucher && (
               <Button
                 variant="outline"
-                onClick={() => {
-                  // Direct browser download. The API
-                  // returns application/pdf with
-                  // Content-Disposition: attachment;
-                  // filename=BK-XXXX.pdf — a plain
-                  // window.location assignment triggers
-                  // the file save dialog.
+                data-testid="voucher-pdf-download"
+                onClick={async () => {
+                  // Tier 377: fetch with the auth headers and save the
+                  // blob. This was a plain window.location.assign to a
+                  // relative URL: it only reached the backend behind
+                  // nginx, and only worked because GET
+                  // /accounting/vouchers/:id/pdf had no guard. Since
+                  // Tier 375 a navigation (which cannot send headers)
+                  // gets 401.
                   const companyId =
                     localStorage.getItem("companyId") || ""
-                  window.location.assign(
-                    `/api/v1/accounting/vouchers/${voucher.id}/pdf?companyId=${companyId}`
-                  )
+                  try {
+                    const { blob } = await apiGetBlob(
+                      `/api/v1/accounting/vouchers/${voucher.id}/pdf?companyId=${companyId}`,
+                    )
+                    const url = URL.createObjectURL(blob)
+                    const a = document.createElement("a")
+                    a.href = url
+                    a.download = `${voucher.voucherNumber || "Buchungsbeleg"}.pdf`
+                    a.click()
+                    setTimeout(() => URL.revokeObjectURL(url), 60000)
+                  } catch (e: any) {
+                    toast.error(e?.message || "PDF konnte nicht geladen werden")
+                  }
                 }}
               >
                 {t("voucher.downloadPdf")}
@@ -240,17 +252,15 @@ export default function VoucherDetailPage() {
                     const companyId =
                       localStorage.getItem("companyId") || ""
                     try {
-                      const res = await fetch(
+                      // Tier 377: apiFetch prefixes API_BASE. The relative
+                      // `/api/v1/...` only reached the backend behind nginx;
+                      // elsewhere it hit the Next server (no rewrites) → 404.
+                      const res = await apiFetch(
                         `/api/v1/accounting/vouchers/${voucher.id}/reversal?companyId=${companyId}`,
                         {
                           method: "POST",
-                          headers: {
-                            "Content-Type": "application/json",
-                            "x-user-id":
-                              localStorage.getItem("userId") || "",
-                            "x-company-id": companyId,
-                          },
-                          body: JSON.stringify({ reason: reason || "" }),
+                          body: { reason: reason || "" },
+                          throwOnError: false,
                         },
                       )
                       if (!res.ok) {
@@ -903,16 +913,12 @@ export default function VoucherDetailPage() {
                   setCorrectSaving(true)
                   setCorrectError(null)
                   try {
-                    const res = await fetch(
+                    // Tier 377: apiFetch → API_BASE (see the reversal above).
+                    const res = await apiFetch(
                       `/api/v1/accounting/vouchers/${voucher.id}/correct?companyId=${companyId}`,
                       {
                         method: "POST",
-                        headers: {
-                          "Content-Type": "application/json",
-                          "x-user-id":
-                            localStorage.getItem("userId") || "",
-                          "x-company-id": companyId,
-                        },
+                        throwOnError: false,
                         body: JSON.stringify({
                           date: new Date().toISOString(),
                           description: "Korrektur zu " + voucher.voucherNumber,

@@ -2,7 +2,7 @@ import { Controller, Get, Post, Put, Param, Query, Body, Res, Header, Req, BadRe
 import { Response } from 'express';
 import { AccountService } from './account.service';
 import { CreateAccountDto } from './dto/account.dto';
-import { CreateVoucherDto } from './dto/voucher.dto';
+import { CreateVoucherDto, CorrectVoucherDto, ReverseVoucherDto, UpdateVoucherStatusDto } from './dto/voucher.dto';
 import { VoucherService } from './voucher.service';
 import { generateVoucherPDF } from '../../accounting/voucher-pdf.service';
 import { EuerService } from './euer.service';
@@ -292,7 +292,7 @@ export class AccountingController {
   async updateVoucherStatus(
     @Param('id') id: string,
     @Query('companyId') companyId: string,
-    @Body() body: { status: string },
+    @Body() body: UpdateVoucherStatusDto,
   ) {
     if (!companyId) {
       return { error: 'companyId ist erforderlich' };
@@ -317,7 +317,7 @@ export class AccountingController {
   async createReversal(
     @Param('id') id: string,
     @Query('companyId') companyId: string,
-    @Body() body: { reason?: string },
+    @Body() body: ReverseVoucherDto,
   ) {
     if (!companyId) {
       return { error: 'companyId ist erforderlich' };
@@ -365,21 +365,7 @@ export class AccountingController {
   async correctVoucher(
     @Param('id') id: string,
     @Query('companyId') companyId: string,
-    @Body() body: {
-      date?: string;
-      description?: string;
-      reason?: string;
-      lines: Array<{
-        accountId: string;
-        debit?: number;
-        credit?: number;
-        description?: string;
-        vatRate?: number;
-        vatAmount?: number;
-        costCenter?: string;
-        costObject?: string;
-      }>;
-    },
+    @Body() body: CorrectVoucherDto,
   ) {
     if (!companyId) {
       throw new BadRequestException('companyId ist erforderlich');
@@ -393,7 +379,8 @@ export class AccountingController {
       date: body.date ? new Date(body.date) : new Date(),
       description: body.description,
       reason: body.reason,
-      lines: body.lines,
+      // correct() rejects a line without accountId before using it.
+      lines: body.lines as Array<CorrectVoucherDto['lines'][number] & { accountId: string }>,
     });
   }
 

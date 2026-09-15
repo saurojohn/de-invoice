@@ -9,7 +9,7 @@
  * `if (!data.name)` fallback for the days the pipe is
  * bypassed (tests, internal calls, cron).
  */
-import { IsString, IsOptional, MinLength, MaxLength } from "class-validator"
+import { IsString, IsOptional, MinLength, MaxLength, IsNumber, IsDateString, Max } from "class-validator"
 
 /**
  * POST /voucher-templates
@@ -76,4 +76,27 @@ export class UpdateVoucherTemplateDto {
   @IsString()
   @IsOptional()
   linesJson?: string
+}
+
+/**
+ * Tier 377 — POST /voucher-templates/:id/apply. The body was an inline type.
+ * Measured before: amount "zehn", date "abc" and amount 1e12 all answered 201
+ * with lines built from them (a null debit, a 1e12 debit that the voucher
+ * create would later refuse). Callers: accounting page, e2e 14/77, Playwright
+ * voucher-template-autopersist. amount <= 0 stays in the service
+ * ("Betrag muss > 0 sein").
+ */
+export class ApplyVoucherTemplateDto {
+  @IsNumber({}, { message: "Betrag muss eine Zahl sein" })
+  @Max(99999999.9999, { message: "Betrag darf höchstens 99999999.9999 sein" })
+  amount!: number
+
+  @IsDateString({}, { message: "date muss ein gültiges Datum sein" })
+  date!: string
+
+  @IsString() @IsOptional() @MaxLength(200)
+  counterparty?: string
+
+  @IsString() @IsOptional() @MaxLength(500)
+  description?: string
 }

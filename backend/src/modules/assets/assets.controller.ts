@@ -12,7 +12,8 @@ import {
   NotFoundException,
 } from '@nestjs/common'
 import { HeaderAuthGuard } from '../../auth/header-auth.guard'
-import { AssetsService, AssetCreateDto, AssetUpdateDto, AssetDisposeDto } from './assets.service'
+import { AssetsService } from './assets.service'
+import { CreateAssetDto, UpdateAssetDto, DisposeAssetDto } from './dto/asset.dto'
 // Tier 91: the auto-AfA scheduler is injected
 // into the controller so a test-only HTTP route
 // can call `forceTriggerForYear` (see
@@ -203,7 +204,7 @@ export class AssetsController {
 
   @Require('accounting.update')
   @Post()
-  async create(@Query('companyId') companyId: string, @Body() body: AssetCreateDto) {
+  async create(@Query('companyId') companyId: string, @Body() body: CreateAssetDto) {
     if (!companyId) throw new BadRequestException('companyId ist erforderlich')
     return this.assets.create(companyId, {
       ...body,
@@ -216,7 +217,7 @@ export class AssetsController {
   async update(
     @Param('id') id: string,
     @Query('companyId') companyId: string,
-    @Body() body: AssetUpdateDto,
+    @Body() body: UpdateAssetDto,
   ) {
     if (!companyId) throw new BadRequestException('companyId ist erforderlich')
     const update = {
@@ -241,12 +242,12 @@ export class AssetsController {
   async dispose(
     @Param('id') id: string,
     @Query('companyId') companyId: string,
-    @Body() body: AssetDisposeDto,
+    @Body() body: DisposeAssetDto,
   ) {
     if (!companyId) throw new BadRequestException('companyId ist erforderlich')
     return this.assets.dispose(id, companyId, {
       verkauftAm: new Date(body.verkauftAm),
-      verkaufsPreis: body.verkaufsPreis,
+      verkaufsPreis: body.verkaufsPreis ?? 0,
     })
   }
 }

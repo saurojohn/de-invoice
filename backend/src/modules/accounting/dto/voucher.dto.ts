@@ -29,6 +29,12 @@ import {
 } from "class-validator"
 import { Type } from "class-transformer"
 
+// VoucherLine.debit / credit / vatAmount are Decimal(12,4). Tier 377: without
+// an upper bound a larger amount passed validation and failed in Postgres
+// ("numeric field overflow") — POST /accounting/vouchers with debit 1e12
+// answered 500 (measured).
+const DECIMAL_12_4_MAX = 99999999.9999
+
 /**
  * One voucher line (Soll/Haben position).
  */
@@ -53,12 +59,14 @@ export class CreateVoucherLineDto {
   @Type(() => Number)
   @IsNumber()
   @Min(0)
+  @Max(DECIMAL_12_4_MAX)
   debit?: number
 
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
   @Min(0)
+  @Max(DECIMAL_12_4_MAX)
   credit?: number
 
   /**
@@ -76,6 +84,7 @@ export class CreateVoucherLineDto {
   @Type(() => Number)
   @IsNumber()
   @Min(0)
+  @Max(DECIMAL_12_4_MAX)
   vatAmount?: number
 
   @IsString() @IsOptional() @MaxLength(20)
@@ -131,4 +140,48 @@ export class CreateVoucherDto {
   @ValidateNested({ each: true })
   @Type(() => CreateVoucherLineDto)
   lines!: CreateVoucherLineDto[]
+}
+
+/**
+ * Tier 377 — POST /accounting/vouchers/:id/correct.
+ *
+ * The body was an inline type. Measured before: date "abc", a line amount of
+ * 1e12, "zehn" as an amount and vatRate 19 all answered 500; negative debit /
+ * credit was accepted (201) although creating a voucher requires >= 0. Lines
+ * use the same line DTO as POST /accounting/vouchers. Callers: voucher detail
+ * page, e2e 70/71, Playwright voucher-correct. "at least 2 lines", "every line
+ * needs an account" and "Soll = Haben" stay in the controller/service, whose
+ * messages the specs assert.
+ */
+export class CorrectVoucherDto {
+  @IsOptional()
+  @IsDateString({}, { message: "date muss ein gültiges Datum sein" })
+  date?: string
+
+  @IsString() @IsOptional() @MaxLength(500)
+  description?: string
+
+  @IsString() @IsOptional() @MaxLength(2000)
+  reason?: string
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateVoucherLineDto)
+  lines!: CreateVoucherLineDto[]
+}
+
+/** Tier 377 — POST /accounting/vouchers/:id/reversal. */
+export class ReverseVoucherDto {
+  @IsString() @IsOptional() @MaxLength(2000)
+  reason?: string
+}
+
+/**
+ * Tier 377 — PUT /accounting/vouchers/:id/status. Only "voided" does anything
+ * (it creates the Storno); any other value used to answer 200 and change
+ * nothing. No caller in the frontend or the specs.
+ */
+export class UpdateVoucherStatusDto {
+  @IsIn(["voided"], { message: 'status: nur "voided" wird unterstützt (erzeugt einen Storno)' })
+  status!: "voided"
 }

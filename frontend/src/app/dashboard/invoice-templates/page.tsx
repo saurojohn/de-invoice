@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react"
 import { useI18n } from "@/components/useI18n"
-import { apiGet, apiPost, apiPut, apiDelete } from "@/lib/api"
+import { apiGet, apiPost, apiPut, apiDelete, apiFetch } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -169,13 +169,11 @@ export default function InvoiceTemplatesPage() {
     // because window.open with a POST body is
     // not standard. The blob URL gives the
     // browser a real PDF to render.
-    fetch(`/api/v1/invoice-templates/${id}/preview?companyId=${companyId}`, {
+    // Tier 377: apiFetch prefixes API_BASE (the relative URL only reached
+    // the backend behind nginx) and throws on a non-2xx, so an error page is
+    // not opened as a "PDF".
+    apiFetch(`/api/v1/invoice-templates/${id}/preview?companyId=${companyId}`, {
       method: "POST",
-      headers: {
-        "x-user-id": localStorage.getItem("userId") || "",
-        "x-company-id": companyId,
-        "Content-Type": "application/json",
-      },
     })
       .then((r) => r.blob())
       .then((b) => {

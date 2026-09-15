@@ -204,4 +204,30 @@ test.describe("Tier 42 — Voucher Korrektur", () => {
       timeout: 15_000,
     })
   })
+
+  // Tier 377: the "PDF" button on the voucher detail page navigated to a
+  // relative /api/v1/... URL. That only reached the backend behind nginx and
+  // could not send the auth headers, so once Tier 375 guarded the route the
+  // download was a 401. It now fetches with apiGetBlob; this clicks it.
+  test("voucher detail PDF button downloads from the backend with auth", async ({
+    page,
+    context,
+  }) => {
+    await setupAuth(context, page)
+    const seed = await createSeedVoucher(page)
+    await page.goto(`/dashboard/accounting/vouchers/${seed.id}`, {
+      waitUntil: "domcontentloaded",
+    })
+    const btn = page.getByTestId("voucher-pdf-download")
+    await expect(btn).toBeVisible({ timeout: 30_000 })
+    const pdfResponse = page.waitForResponse(
+      (r) => /\/api\/v1\/accounting\/vouchers\/[^/]+\/pdf/.test(r.url()),
+      { timeout: 15_000 },
+    )
+    await btn.click()
+    const res = await pdfResponse
+    expect(res.url()).toContain("localhost:3001")
+    expect(res.status()).toBe(200)
+    expect(res.headers()["content-type"] || "").toContain("application/pdf")
+  })
 })

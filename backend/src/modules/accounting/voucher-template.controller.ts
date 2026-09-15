@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Put, Delete, Param, Query, Body, BadRequestException } from '@nestjs/common';
 import { VoucherTemplateService } from './voucher-template.service';
-import { CreateVoucherTemplateDto, UpdateVoucherTemplateDto } from './dto/voucher-template.dto';
+import { CreateVoucherTemplateDto, UpdateVoucherTemplateDto, ApplyVoucherTemplateDto } from './dto/voucher-template.dto';
 import { Auth, Require } from '../../auth/roles.decorator';
 
 @Auth()
@@ -71,7 +71,7 @@ export class VoucherTemplateController {
   async apply(
     @Param('id') id: string,
     @Query('companyId') companyId: string,
-    @Body() body: { amount: number; date: string; counterparty?: string; description?: string },
+    @Body() body: ApplyVoucherTemplateDto,
   ) {
     if (!companyId) throw new BadRequestException('companyId ist erforderlich');
     return this.svc.applyTemplate(id, companyId, body);

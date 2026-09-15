@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
-import { API_BASE, apiGet, ApiError } from "@/lib/api"
+import { API_BASE, apiGet, apiFetch, ApiError } from "@/lib/api"
 
 interface BeraterAttachment {
   id: string
@@ -200,13 +200,16 @@ export default function BeraterPage() {
       fd.append("entityId", formEntityId.trim())
       fd.append("message", formMessage.trim())
       if (formFile) fd.append("file", formFile)
-      const res = await fetch("/api/v1/berater/notes", {
+      // Tier 377: apiFetch → API_BASE (relative URLs only worked behind
+      // nginx). FormData keeps its own multipart Content-Type.
+      const res = await apiFetch("/api/v1/berater/notes", {
         method: "POST",
         headers: {
           "x-user-id": callerUserId,
           "x-company-id": companyId,
         },
         body: fd,
+        throwOnError: false,
       })
       if (!res.ok) {
         const txt = await res.text()
@@ -242,16 +245,19 @@ export default function BeraterPage() {
         // automatically via apiFetch; the
         // 3-arg form of apiPost doesn't
         // exist.
-        const res = await fetch(
+        // Tier 377: apiFetch prefixes API_BASE — the relative URL only
+        // reached the backend behind nginx. The explicit headers still win
+        // over apiFetch's defaults.
+        const res = await apiFetch(
           `/api/v1/berater/notes/${id}/${action}`,
           {
             method: "POST",
             headers: {
-              "Content-Type": "application/json",
               "x-user-id": callerUserId,
               "x-company-id": companyId,
             },
-            body: JSON.stringify({ companyId }),
+            body: { companyId },
+            throwOnError: false,
           },
         )
         if (!res.ok) {

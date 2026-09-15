@@ -219,6 +219,15 @@ test.describe("Tier 43 — Korrektur auto-fills cost-center from suggestion", ()
 
     await submit.click()
     const sent = await correctPost
+    // Tier 377: the test used to stop at the request payload. The page posted
+    // to a relative `/api/v1/...` URL, which outside the nginx setup lands on
+    // the Next server (no rewrites) and 404s — the correction never reached
+    // the backend, and nothing here noticed.
+    const correctRes = await sent.response()
+    expect(correctRes?.url() ?? "", "correct must go to the backend API").toContain(
+      "localhost:3001",
+    )
+    expect(correctRes?.status(), "POST /correct status").toBe(201)
     const body = JSON.parse(sent.postData() || "{}")
     const expenseLine = (body.lines || []).find(
       (l: any) => Number(l.debit) > 0,

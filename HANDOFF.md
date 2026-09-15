@@ -1672,6 +1672,76 @@ Verified on fresh CI-equivalent stacks: first full backend run **174 passed /
 0 failed / 1 skipped** of 177 specs. Full Playwright **912 passed / 0 failed**.
 `tsc` + `eslint` clean.
 
+### CORS 403, voucher/asset bodies, own accounts only, relative API URLs (Tier 377)
+
+All measured on a fresh stack before changing anything.
+
+**CORS.** A request from a disallowed Origin — preflight or not, no credentials
+needed — answered 500 and wrote one `ErrorEvent` row plus a notification per
+request; the fingerprint includes the URL, so varying the query string created
+new rows without limit (6 requests → 6 rows). The `cors` origin callback can
+only reject by raising an Error. A middleware registered before `enableCors`
+now answers 403 without touching the exception filter. e2e 125 asserted
+"500 or 403 or 401"; it now requires 403, no `Access-Control-Allow-Origin`, and
+no new `ErrorEvent` row (it failed 3 assertions against the old code).
+
+**Bodies** (callers enumerated first: voucher detail page, accounting page,
+assets page, e2e 10/11/14/50/58/69/70/71/76/77/109/160/177, Playwright
+voucher-correct, voucher-correct-cost-center, voucher-template-autopersist,
+assets-afa):
+| Route | Before | Now |
+|---|---|---|
+| `POST /accounting/vouchers` (had a DTO) | line debit 1e12 → 500 | 400 (`@Max` on debit/credit/vatAmount) |
+| `POST /accounting/vouchers/:id/correct` | date "abc", 1e12, "zehn", vatRate 19 → 500; **negative debit/credit → 201** | `CorrectVoucherDto` (same line DTO as create) → 400 |
+| `PUT /accounting/vouchers/:id/status` | "bogus"/missing → 200, nothing done | only `"voided"`; no caller exists |
+| `POST /voucher-templates/:id/apply` | amount "zehn", date "abc", 1e12 → 201 | `ApplyVoucherTemplateDto` → 400 |
+| `POST/PATCH /assets`, `/dispose` | invalid date, 1e14 (Decimal 14,4), "hundert" → 500; ND 12.5 → 201 | `dto/asset.dto.ts` → 400 |
+
+The asset bodies were typed `AssetCreateDto` etc. — **interfaces** in
+`assets.service.ts`, named like DTOs and invisible to ValidationPipe. PATCH with
+`verkauftAm` did **not** bypass dispose (the service ignores the field; measured).
+
+**Voucher lines on another tenant's account.** `VoucherService.create` and
+`correct` never checked that `accountId` belongs to the company: company A's
+voucher with tenant B's account id → **201, the line stored on B's account**;
+an id that exists nowhere → FK error → 500. Both now 400 via
+`assertAccountsBelongTo`. The same check runs for the internal callers
+(bank-import, credit balance). The general question — which other body ids
+(customerId, supplierId, expenseId…) are not checked against the tenant — is
+**open**: invoice create with B's customer was already 404 (measured), so it is
+per-route, and needs its own survey.
+
+**Relative `/api/v1` URLs.** Six raw `fetch()` calls used a relative URL
+(voucher reversal + correction, berater note create + acknowledge, attachment
+upload, invoice-template preview). Next has no rewrites, so outside nginx they hit
+the Next server: the Playwright test for the correction modal only captured the
+request payload — tightened to assert the response, it failed against the old
+code with `http://localhost:3100/…/correct`. Now `apiFetch` (API_BASE + auth
+headers). **Regression from Tier 375 fixed:** the voucher PDF button did
+`window.location.assign('/api/v1/accounting/vouchers/:id/pdf')` — it only worked
+because that route had no guard; a navigation cannot send the auth headers, so
+since Tier 375 it was a 401. Now `apiGetBlob` + a new Playwright test that clicks
+it (not run against the old code).
+
+**Still open — backend URLs not passed straight to an `api*` helper.** A
+multi-line scan (a quoted `/api/v1/…` not directly inside an `api*` call) still
+flags **28** places. Not all are bugs: some store the path in a variable that a
+helper uses later (`import/page.tsx`, `VatCheckPanel.tsx` — spot-checked).
+Six are `window.open` navigations — the four DATEV exports in
+`reports/page.tsx` and two customer-portal PDFs (token in the URL, so those
+can work). A navigation sends no `x-user-id`, and the DATEV export routes have
+been `@Auth()` since long before Tier 375, so those four downloads cannot work
+from the browser. The rest (cashbook export / Kassenabschluss PDF, attachment
+files, SEPA XML, activity/webhook CSV, invoice PDF after create, …) each need a
+look. Converting to `apiGetBlob` works per call; a session cookie (§9 item 10)
+would make navigations authenticate — another reason to decide that first.
+
+Specs: new `e2e/178-tier377-voucher-asset-bodies.sh` (44 assertions: caller
+shapes still succeed incl. service messages; each measured bad body 400 with no
+row written; B's account refused on create and correct). Verified: backend
+**177 passed / 0 failed / 1 skipped** of 178 specs with **zero 500s** in the
+captured backend log; related Playwright 41 + 33 passed.
+
 ### Notes from Tiers 347–352 (recovered in Tier 364)
 
 Tier 353 wrote a new version of this file but left the previous one appended

@@ -55,7 +55,23 @@ export class VoucherService {
     private webhooks: WebhookService,
   ) {}
 
+  /**
+   * Tier 377: every accountId on a line must be an Account of this company.
+   * Nothing checked it: company A's POST /accounting/vouchers with tenant B's
+   * account id answered 201 and the VoucherLine pointed at B's account
+   * (measured); an id that exists nowhere hit the foreign key → 500.
+   */
+  private async assertAccountsBelongTo(companyId: string, lines: Array<{ accountId?: string | null }>) {
+    const ids = [...new Set(lines.map((l) => l.accountId).filter((id): id is string => !!id))];
+    if (ids.length === 0) return;
+    const found = await this.prisma.account.count({ where: { companyId, id: { in: ids } } });
+    if (found !== ids.length) {
+      throw new BadRequestException('Sachkonto nicht gefunden (nicht in dieser Firma)');
+    }
+  }
+
   async create(dto: CreateVoucherDto) {
+    await this.assertAccountsBelongTo(dto.companyId, dto.lines);
     // Validate debits = credits
     const totalDebit = dto.lines.reduce((sum, l) => sum + (l.debit || 0), 0);
     const totalCredit = dto.lines.reduce((sum, l) => sum + (l.credit || 0), 0);
@@ -461,6 +477,7 @@ export class VoucherService {
         'Soll und Haben müssen im Korrekturbeleg ausgeglichen sein',
       );
     }
+    await this.assertAccountsBelongTo(companyId, correction.lines);
 
     // Allocate new voucher numbers BEFORE the transaction
     // (using separate counters per suffix so Storno + Korrektur

@@ -111,14 +111,23 @@ REJECT_STATUS=$(curl -sS -o /dev/null -w "%{http_code}" \
   -H "Access-Control-Request-Method: GET" \
   -H "Access-Control-Request-Headers: x-user-id" \
   "$API/api/v1/invoices?companyId=$COMPANY_ID")
-# 500 (CORS callback rejected) or 403 are both
-# acceptable — the point is the request
-# is NOT permitted.
-if [[ "$REJECT_STATUS" == "500" || "$REJECT_STATUS" == "403" || "$REJECT_STATUS" == "401" ]]; then
-  pass "CORS rejects unknown origin (status=$REJECT_STATUS)"
-else
-  fail "CORS allowed unknown origin (status=$REJECT_STATUS) — should reject"
-fi
+# Tier 377: exactly 403. It used to be a 500 raised by the cors origin
+# callback, which GlobalExceptionFilter logged, stored as an ErrorEvent and
+# notified — one new row per distinct URL, from unauthenticated requests.
+assert_eq "CORS rejects unknown origin with 403" "$REJECT_STATUS" "403"
+EVENTS_BEFORE=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "SELECT count(*) FROM \"ErrorEvent\" WHERE message LIKE '%CORS%';" | tr -d ' ')
+for i in 1 2 3; do
+  curl -sS -o /dev/null -X OPTIONS -H "Origin: https://evil-$i.example.com" \
+    -H "Access-Control-Request-Method: GET" "$API/api/v1/invoices?companyId=$COMPANY_ID&probe=$i"
+done
+code=$(curl -sS -o /dev/null -w "%{http_code}" -H "Origin: https://evil.example.com" \
+  -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" "$API/api/v1/invoices?companyId=$COMPANY_ID")
+assert_eq "non-preflight request from an unknown origin" "$code" "403"
+EVENTS_AFTER=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "SELECT count(*) FROM \"ErrorEvent\" WHERE message LIKE '%CORS%';" | tr -d ' ')
+assert_eq "rejected origins write no ErrorEvent rows" "$EVENTS_AFTER" "$EVENTS_BEFORE"
+ACAO=$(curl -sS -D - -o /dev/null -X OPTIONS -H "Origin: https://evil.example.com" \
+  -H "Access-Control-Request-Method: GET" "$API/api/v1/invoices" | grep -ci "^access-control-allow-origin")
+assert_eq "no Access-Control-Allow-Origin for an unknown origin" "$ACAO" "0"
 
 note "=== 4. No X-Powered-By header (don't leak framework) ==="
 # Express often sends `X-Powered-By: Express`

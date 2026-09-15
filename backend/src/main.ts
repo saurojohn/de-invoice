@@ -55,6 +55,21 @@ async function bootstrap() {
   // CORS — explicit whitelist (no wildcard)
   const frontendUrl = configService.get<string>('FRONTEND_URL', 'http://localhost:3000');
   const allowedOrigins = frontendUrl.split(',').map((s) => s.trim()).filter(Boolean);
+  // Tier 377: refuse a disallowed Origin here, before the cors middleware.
+  // The cors `origin` callback below can only reject by raising an Error, and
+  // that Error reached GlobalExceptionFilter as a 500: every such request —
+  // unauthenticated, preflight or not — was logged as ERROR, stored as an
+  // ErrorEvent row and notified. The fingerprint includes the URL, so varying
+  // the query string created a new row per request (measured: 6 requests,
+  // 6 rows). A plain 403 without the filter keeps the same block, quietly.
+  app.use((req: { headers: Record<string, string | string[] | undefined> }, res: { status: (n: number) => { json: (b: unknown) => void } }, next: () => void) => {
+    const origin = req.headers.origin;
+    if (typeof origin === 'string' && origin !== '' && !allowedOrigins.includes(origin)) {
+      res.status(403).json({ statusCode: 403, message: 'CORS: Origin nicht erlaubt', error: 'Forbidden' });
+      return;
+    }
+    next();
+  });
   app.enableCors({
     origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
       // Allow same-origin (no Origin header) + explicit whitelist

@@ -28,7 +28,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import { useI18n } from "@/components/useI18n"
-import { apiDelete, apiGet } from "@/lib/api"
+import { apiDelete, apiGet, apiFetch } from "@/lib/api"
 
 export interface Attachment {
   id: string
@@ -121,18 +121,15 @@ export function ReceiptsPanel({ companyId, entityType, entityId, onChange }: Pro
         fd.append("entityType", entityType)
         fd.append("entityId", entityId)
         if (userId) fd.append("uploadedById", userId)
-        const res = await fetch("/api/v1/attachments", {
+        // Tier 377: apiFetch prefixes API_BASE (the relative URL only
+        // reached the backend behind nginx) and adds the auth headers.
+        // Note: don't set Content-Type — the browser must add the multipart
+        // boundary itself; apiFetch leaves it alone for FormData.
+        const res = await apiFetch("/api/v1/attachments", {
           method: "POST",
-          // Note: don't set Content-Type — the browser
-          // must add the multipart boundary itself.
-          // Setting it manually breaks the request
-          // (see NestJS / multer requirements).
           body: fd,
           credentials: "include",
-          headers: {
-            "x-user-id": localStorage.getItem("userId") || "",
-            "x-company-id": companyId,
-          },
+          throwOnError: false,
         })
         if (!res.ok) {
           const errText = await res.text()
