@@ -2011,18 +2011,59 @@ skonto: 42 passed, none skipped.
 
 **Found, not fixed (next tiers):**
 
-- **Audit context is a process global.** `main.ts` middleware calls
-  `setRequestContext` → `globalThis.__deInvoiceRequestContext`, which
-  `audit-log.extension.ts` reads for `userId` / `companyId` (also the hash-chain
-  lock key and the company whose chain the row joins). Concurrent requests
-  overwrite it, and one request's `finish` clears it while another is still
-  running — so an audit row (with oldData / newData) can land in another
-  tenant's chain. Not yet measured.
+- ~~**Audit context is a process global.**~~ Measured and fixed in Tier 384.
 - **Storage module:** `GET` / `DELETE /storage/files/*` have no `@Require` and
   no company check (any user can read or delete any tenant's file by path);
   `POST /storage/config` (company.update) changes the storage root for every
   tenant; `isPathSafe` is a string-prefix check (`/root-evil` passes for
   `/root`). Not yet measured.
+
+### Audit rows written under another tenant (Tier 384)
+
+The audit-log extension read who / which company / IP from
+`globalThis.__deInvoiceRequestContext`, set by a `main.ts` middleware and
+cleared on response `finish`. The Tier 13 comment reasoned that audit writes
+run "in the same call stack as an HTTP request" — but Node serves requests
+concurrently: every request arriving while another awaited the database
+replaced the global, and every finished response cleared it for the rest.
+
+Measured on a fresh stack, two new tenants each sending 40 concurrent
+`PUT /customers/:id`:
+
+| Company A's customer, 42 audit rows | |
+|---|---|
+| `companyId` = A | 15 |
+| `companyId` = **B**, `userId` = B's user | 8 |
+| `companyId` = null | 19 |
+
+B's `GET /audit-logs` returned 18 rows, **8 of them A's customer** with A's
+customer data in `newData`, attributed to B's user. The same applies to the
+GoBD hash chain: the row joined the wrong company's chain (the chain lock key is
+the context company). Of 10 attachment uploads interleaved with the other tenant's
+updates, 2 audit rows did not name A and A's user.
+
+Fix: `src/prisma/request-context.ts` — an `AsyncLocalStorage`; the middleware
+runs the rest of the request inside `runWithRequestContext`, the extension reads
+`getRequestContext()`. The global and `setRequestContext` /
+`clearRequestContext` are gone. Cron jobs and scripts still have no context (no
+user on their rows, as before).
+
+**Existing data:** in any database that served concurrent requests before this
+fix, audit rows may carry the wrong or no company / user. They are signed into hash chains, so they cannot be corrected
+in place; nothing was changed. Whether and how to annotate them is a user
+decision (§9).
+
+Spec `e2e/184-tier384-audit-context-concurrency.sh`: 40 concurrent updates
+per tenant → every audit row carries its own request's user and company, B's
+audit log lists none of A's rows; 10 multipart uploads interleaved with the
+other tenant's updates → 10 audit rows naming A and A's user. It failed 6
+assertions against the old code.
+
+Verified on a fresh stack: full backend **184 passed / 0 failed / 0 skipped** of
+184 specs (16-dark-mode ran instead of skipping: the frontend was still up),
+zero 500s in the captured log; Playwright audit-trail, audit-hash-chain-tier196,
+audit-filter, audit-fulltext-search, audit-timeline, admin-activity-log / -csv,
+invoice-attachments-tier140: 43 passed.
 
 ### Notes from Tiers 347–352 (recovered in Tier 364)
 
@@ -2273,6 +2314,13 @@ These are **not in the repo** — only the user can do them:
     guard, set for the CI seed user and by the operator in `infra/prod/.env`.
     For a single-company installation the operator must set it, or those admin
     pages stop working — hence a decision, not a side edit.
+
+12. **Audit rows written before Tier 384** (found Tier 384). Under concurrent
+    requests the audit log stamped rows with another request's company and user,
+    or none (§8 Tier 384). The rows are signed into per-company hash chains, so
+    rewriting them breaks verification. Options: leave them and document the
+    period; or add a correction record per affected row. Neither was done. Only
+    relevant if a database with real users ran a build before Tier 384.
 
 When the Hetzner items are available, the deploy is:
 

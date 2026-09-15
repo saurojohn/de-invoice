@@ -2,51 +2,7 @@ import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/commo
 import { PrismaClient } from '@prisma/client';
 import { withAuditLog } from './audit-log.extension';
 
-// Tier 13: this is the "Request context" —
-// populated by an HTTP middleware so the
-// audit log can record who made each change
-// and from which IP.
-//
-// We use a process-global (set/cleared in
-// main.ts via a small Express middleware)
-// rather than AsyncLocalStorage because the
-// audit log only needs to fire from
-// service-layer code that runs in the same
-// call stack as an HTTP request. Background
-// cron jobs and CLI scripts run without a
-// request context — those audit rows will
-// have userId='system' and ipAddress=null,
-// which is exactly the signal we want to
-// distinguish automated vs. user actions.
-declare global {
-   
-  var __deInvoiceRequestContext:
-    | {
-        userId: string | null
-        companyId: string | null
-        ipAddress: string | null
-        userAgent: string | null
-      }
-    | undefined
-}
-
-export const setRequestContext = (ctx: {
-  userId: string | null
-  companyId: string | null
-  ipAddress?: string | null
-  userAgent?: string | null
-}) => {
-  globalThis.__deInvoiceRequestContext = {
-    userId: ctx.userId ?? null,
-    companyId: ctx.companyId ?? null,
-    ipAddress: ctx.ipAddress ?? null,
-    userAgent: ctx.userAgent ?? null,
-  }
-}
-
-export const clearRequestContext = () => {
-  delete globalThis.__deInvoiceRequestContext
-}
+// The audit request context lives in ./request-context (Tier 384).
 
 const basePrisma = new PrismaClient({
   log: process.env.NODE_ENV === 'production' ? ['error'] : ['error', 'warn'],

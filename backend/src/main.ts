@@ -7,7 +7,7 @@ import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './modules/system/system.filter';
 import { ErrorTrackingService } from './modules/system/error-tracking.service';
 import { MetricsController } from './modules/health/metrics.controller';
-import { setRequestContext, clearRequestContext } from './prisma/prisma.service';
+import { runWithRequestContext } from './prisma/request-context';
 import helmet from 'helmet';
 import type * as Multer from 'multer';
 
@@ -136,20 +136,19 @@ async function bootstrap() {
   // and companyId from the same x-user-id / x-company-id headers
   // the HeaderAuthGuard uses, so the audit row records the
   // caller's identity without needing a DB lookup. The
-  // prisma.auditLog extension reads this global on every
-  // update/delete and stamps userId on the row.
+  // prisma.auditLog extension reads it on every write.
+  // Tier 384: scoped to this request with AsyncLocalStorage — it was a
+  // process global that concurrent requests overwrote (see request-context.ts).
   expressApp.use((req: any, _res: any, next: any) => {
-    setRequestContext({
-      userId: req.headers['x-user-id'] || null,
-      companyId: req.headers['x-company-id'] || null,
-      ipAddress: req.ip || req.socket?.remoteAddress || null,
-      userAgent: req.headers['user-agent'] || null,
-    })
-    // Clear the context on response finish so a
-    // background continuation can't read a stale
-    // userId after the request has ended.
-    _res.on('finish', () => clearRequestContext())
-    next()
+    runWithRequestContext(
+      {
+        userId: req.headers['x-user-id'] || null,
+        companyId: req.headers['x-company-id'] || null,
+        ipAddress: req.ip || req.socket?.remoteAddress || null,
+        userAgent: req.headers['user-agent'] || null,
+      },
+      next,
+    )
   })
 
   // Global validation pipe

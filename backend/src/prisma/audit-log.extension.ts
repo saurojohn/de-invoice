@@ -4,25 +4,11 @@
 // and deleteMany. This is the GoBD
 // "Wer hat wann was geändert?" answer:
 //
-// The request context is a process-global
-// (set by main.ts's request middleware).
-// We declare it here so this file is
-// self-contained — prisma.service.ts
-// ALSO declares it (in its own scope) and
-// the two declarations must agree.
-declare global {
-   
-  var __deInvoiceRequestContext:
-    | {
-        userId: string | null
-        companyId: string | null
-        ipAddress: string | null
-        userAgent: string | null
-      }
-    | undefined
-}
+// The request context (who / which company / IP) comes from
+// ./request-context — one per request since Tier 384.
 
 import { Prisma } from '@prisma/client'
+import { getRequestContext } from './request-context'
 import { createHash } from 'crypto'
 
 // Tier 196 — hash chain algorithm identifier.
@@ -460,7 +446,7 @@ async function writeAudit(
     companyId: string | null
     ipAddress: string | null
     userAgent: string | null
-  } = globalThis.__deInvoiceRequestContext || {
+  } = getRequestContext() || {
     userId: null,
     companyId: null,
     ipAddress: null,
