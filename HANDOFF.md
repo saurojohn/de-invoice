@@ -1896,6 +1896,47 @@ the skip is gone, so the next miss is a failure with a message. Verified:
 test count, not only the pass/fail verdict — a green run with one test fewer
 is a skip hiding.**
 
+### Tax-form settings bodies (Tier 382)
+
+The six `PUT /accounting/{anlage-n,anlage-r,anlage-kind,anlage-so,anlage-aus,gewst}/settings`
+routes took inline types and "sanitised" by coercion (`Number(x) || 0`,
+`Math.max(0, …)`, `.slice(0, 2)`). Measured before the change — every request
+answered **200**:
+
+| Form | Input | Stored |
+|---|---|---|
+| N | `lohnsteuer: "zehn"` | 0 |
+| N | `lohnsteuer: -500` | -500 |
+| N | `werbungskosten` with a string value, a nested object, an HTML key | verbatim |
+| N | `werbungskosten` with 20000 keys | yes — `Company.settings` 298 KB |
+| R | `drv: "zehn"`, `bav: -5` | 0, 0 |
+| Kind | 5000-char name, `birthDate: "2026-02-30"` | both |
+| SO | `acquisitionCost: "zehn"`, `salePrice: -100`, `saleDate: "2031-13-01"` | 0, -100, the date |
+| AUS | `country: "XXXX"`, `incomeType: "bogus"`, `grossAmount: "abc"`, `foreignTaxPaid: -3` | "XX", "other", 0, -3 |
+| GewSt | `q1: -100`, `q2: "zehn"` | 0, 0 |
+
+These figures go onto Vordrucke; a typo becoming 0 (or a negative Lohnsteuer)
+is worse than a 400. `dto/tax-settings.dto.ts`: amounts must be numbers
+0…999,999,999.99 (`null` too is refused — the sections only produce it from
+NaN); Kennziffer maps (`{"140": 1500}`) allow 1–4 digit keys, ≤ 30 entries,
+amounts ≥ 0; dates are `""` (empty date input) or a real `YYYY-MM-DD`; country
+`""` or two letters (e2e 136 uses "UK", so not an ISO list); income types from
+the handler's own list; arrays capped (Kind 20, SO 500, AUS 200). One lenient
+change: `year: "2031"` (a string) is now converted and accepted — it was 400.
+
+Callers enumerated first: the six `*Section.tsx` components (number inputs,
+`"" → 0` on the client, date inputs `""`, country upper-cased with
+`maxLength={2}`) and e2e 127/129/130/132/135/136/138 — all passed unchanged.
+The handlers' coercion is left in place; it can no longer change a value.
+
+Spec `e2e/182-tier382-tax-settings-bodies.sh` (year 2033, removed afterwards):
+section shapes incl. empty dates → 200; each measured bad value → 400 with the
+stored year unchanged.
+
+Verified on a fresh stack: full backend **181 passed / 0 failed / 1 skipped** of
+182 specs, zero 500s in the captured log; Playwright anlage-n/r/kind/so/aus and
+gewst 30 passed.
+
 ### Notes from Tiers 347–352 (recovered in Tier 364)
 
 Tier 353 wrote a new version of this file but left the previous one appended

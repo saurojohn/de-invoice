@@ -3,6 +3,14 @@ import { Response } from 'express';
 import { AccountService } from './account.service';
 import { CreateAccountDto } from './dto/account.dto';
 import { CreateVoucherDto, CorrectVoucherDto, ReverseVoucherDto, UpdateVoucherStatusDto } from './dto/voucher.dto';
+import {
+  AnlageNSettingsDto,
+  AnlageRSettingsDto,
+  AnlageKindSettingsDto,
+  AnlageSoSettingsDto,
+  AnlageAusSettingsDto,
+  GewstSettingsDto,
+} from './dto/tax-settings.dto';
 import { VoucherService } from './voucher.service';
 import { generateVoucherPDF } from '../../accounting/voucher-pdf.service';
 import { EuerService } from './euer.service';
@@ -844,20 +852,7 @@ export class AccountingController {
   @UseGuards(HeaderAuthGuard)
   async updateAnlageNSettings(
     @Query('companyId') companyId: string,
-    @Body() body: {
-      year: number
-      bruttoArbeitslohn?: number
-      lohnsteuer?: number
-      soli?: number
-      kirchensteuer?: number
-      rentenversicherung?: number
-      arbeitslosenversicherung?: number
-      krankenversicherung?: number
-      pflegeversicherung?: number
-      werbungskosten?: Record<string, number>
-      sonderausgaben?: Record<string, number>
-      aussergewoehnlicheBelastungen?: Record<string, number>
-    },
+    @Body() body: AnlageNSettingsDto,
   ) {
     if (!companyId) throw new BadRequestException('companyId ist erforderlich')
     if (!body || !Number.isInteger(body.year) || body.year < 2000 || body.year > 2100) {
@@ -1034,16 +1029,7 @@ export class AccountingController {
   @UseGuards(HeaderAuthGuard)
   async updateAnlageRSettings(
     @Query('companyId') companyId: string,
-    @Body() body: {
-      year: number
-      drv?: number
-      bav?: number
-      riester?: number
-      ruerup?: number
-      privat?: number
-      sonstige?: number
-      werbungskosten?: Record<string, number>
-    },
+    @Body() body: AnlageRSettingsDto,
   ) {
     if (!companyId) throw new BadRequestException('companyId ist erforderlich')
     if (!body || !Number.isInteger(body.year) || body.year < 2000 || body.year > 2100) {
@@ -1149,14 +1135,7 @@ export class AccountingController {
   @UseGuards(HeaderAuthGuard)
   async updateAnlageKindSettings(
     @Query('companyId') companyId: string,
-    @Body() body: {
-      year: number
-      kinder: Array<{
-        name?: string
-        birthDate?: string
-        kindergeldEligible?: boolean
-      }>
-    },
+    @Body() body: AnlageKindSettingsDto,
   ) {
     if (!companyId) throw new BadRequestException('companyId ist erforderlich')
     if (!body || !Number.isInteger(body.year) || body.year < 2000 || body.year > 2100) {
@@ -1261,19 +1240,7 @@ export class AccountingController {
   @UseGuards(HeaderAuthGuard)
   async updateAnlageSoSettings(
     @Query('companyId') companyId: string,
-    @Body() body: {
-      year: number
-      transactions: Array<{
-        type?: 'wertpapier' | 'sonstige'
-        description?: string
-        acquisitionDate?: string
-        acquisitionCost?: number
-        saleDate?: string
-        salePrice?: number
-      }>
-      wiederkehrendeBezuege?: number
-      werbungskosten?: number
-    },
+    @Body() body: AnlageSoSettingsDto,
   ) {
     if (!companyId) throw new BadRequestException('companyId ist erforderlich')
     if (!body || !Number.isInteger(body.year) || body.year < 2000 || body.year > 2100) {
@@ -1403,18 +1370,7 @@ export class AccountingController {
   @UseGuards(HeaderAuthGuard)
   async updateAnlageAusSettings(
     @Query('companyId') companyId: string,
-    @Body() body: {
-      year: number
-      entries: Array<{
-        country?: string
-        countryName?: string
-        hasDba?: boolean
-        incomeType?: string
-        grossAmount?: number
-        foreignTaxPaid?: number
-        description?: string
-      }>
-    },
+    @Body() body: AnlageAusSettingsDto,
   ) {
     if (!companyId) throw new BadRequestException('companyId ist erforderlich')
     if (!body || !Number.isInteger(body.year) || body.year < 2000 || body.year > 2100) {
@@ -1534,13 +1490,7 @@ export class AccountingController {
   @UseGuards(HeaderAuthGuard)
   async updateGewstSettings(
     @Query('companyId') companyId: string,
-    @Body() body: {
-      year: number
-      q1?: number
-      q2?: number
-      q3?: number
-      q4?: number
-    },
+    @Body() body: GewstSettingsDto,
   ) {
     if (!companyId) throw new BadRequestException('companyId ist erforderlich')
     if (!body || !Number.isInteger(body.year) || body.year < 2000 || body.year > 2100) {
