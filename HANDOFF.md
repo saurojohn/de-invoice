@@ -2346,6 +2346,62 @@ CI, all six jobs green: Tier 386 run 35007112386 (backend 185/0/1, Playwright
 (187/0/1, 913; e2e 188's mail check ran against the CI backend log), Tier 389
 run 35016230066 (187/0/1, 918).
 
+### Pages still calling the API without auth; UStVA expense supplier (Tier 390)
+
+After Tier 389 a rescan of `/api/v1/` URLs not passed to an `api*` helper
+left raw `fetch` calls without headers on three dashboard pages (the remaining
+raw fetches are the public login / register / reset / 2FA / invitation pages,
+which need none). Measured in Chromium:
+
+| Page | Request | Before |
+|---|---|---|
+| `/dashboard/reminders` (linked from the dashboard and the Mahnhistorie) "Erinnerung per E-Mail senden" | `email-data`, `POST /reminders/send`, refresh | 401 ×3; no Mahnung (the `mailto:` was built from the 401 body — code, not observed) |
+| `/dashboard/reminders/templates` | `GET :3001/reminders/templates` (no `/api/v1`) | 404; no templates listed |
+| `/dashboard/accounting/ustva` | `POST /ustva/expenses`, `DELETE /ustva/expenses/:id`, `POST /ustva/filings` | 401 (curl without headers) |
+| `/dashboard/import` "Vorlage herunterladen" | relative `fetch('/api/v1/…/template.csv')` → Next server | 404 (API: 200) |
+
+Fixes: the reminders page uses `apiGet` / `apiPost`; "senden" posts
+`/reminders/send` (which since Tier 388 sends the letter itself) instead of
+opening `mailto:` and recording — a `mailto:` on top would now double the mail;
+success and the backend's message (e.g. 409 "bereits heute versendet") are
+shown; the bulk loop counted every attempt as sent because the single send
+swallowed its errors — it now counts failures. The templates page's four calls
+get `/api/v1`. UStVA uses `apiPost` / `apiDelete` (the delete had no error
+handling at all). Import uses `apiFetch`.
+
+**Behind the 401: two backend bugs in `POST /ustva/expenses`.** The form's
+empty supplier select sends `supplierId: ""` → foreign-key 500. And the
+supplier was not checked against the company: company B's expense with company
+A's `supplierId` → 201, with A's supplier record in the response (and in B's
+expense list). `UstvaService.createExpense` now treats `""` as no supplier and
+refuses a supplier of another company (400) — the check `ExpenseService.create`
+already had; Tier 378's IDOR survey did not cover this path.
+
+Specs: Playwright `pages-api-auth-tier390.spec.ts` (reminders send → 201 and a
+Mahnung; templates → 200 from the API URL; UStVA expense save → 201; import
+template → download from the API) — against the old frontend all four failed
+(401, wrong URL, missing test ids — the UStVA 401 was measured with curl — and
+the Next URL). Backend `e2e/189-tier390-foreign-ids.sh`: empty
+supplier → 201 without supplier, own supplier linked, another company's → 400
+with nothing stored; failed 6 assertions against the old code. The UStVA form
+got `data-testid`s for the spec.
+
+A heuristic scan for other service writes of a request-supplied foreign id
+without a same-company lookup found `KassenbuchService.createEntry`
+(`invoiceId` / `expenseId`, both foreign keys): measured, company B's cash book
+entry with another company's invoiceId → 201. Nothing reads the reverse
+relation, so no data leaked, but a GoBD cash record pointed into another
+tenant. Both ids are now looked up in the company (400 otherwise); no page
+sends them. (FinTS `mandateId` is the mandate reference string for the XML.)
+Spec 189 is `e2e/189-tier390-foreign-ids.sh` and covers both.
+
+Verified locally: full backend **188 passed / 0 failed / 1 skipped** of 189
+specs, zero 500s (a first run had two failures caused by this session — spec 189
+renamed mid-run, and a probe run in parallel while e2e 64 hit "Can't reach
+database server"; rerun clean); full Playwright **922 passed** (918 + the 4 new
+tests), none flaky or skipped. **Lesson: never probe the throwaway stack while
+a suite runs on it.**
+
 **Seen in passing, not changed:** `POST /auth/2fa/verify` is `@Public()` and
 takes only `email` + a TOTP or recovery code — no password, no attempt limit
 beyond the global throttler. With header auth (§9 item 10) knowing a user id

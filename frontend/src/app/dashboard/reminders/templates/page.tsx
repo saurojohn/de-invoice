@@ -53,7 +53,7 @@ export default function ReminderTemplatesPage() {
       router.push("/login")
       return
     }
-    apiGet<ReminderTemplate[]>(`/reminders/templates?companyId=${companyId}`)
+    apiGet<ReminderTemplate[]>(`/api/v1/reminders/templates?companyId=${companyId}`)
       .then((d) => setTemplates(d || []))
       .catch((err) => console.error("Templates load failed:", err))
       .finally(() => setLoading(false))
@@ -81,7 +81,7 @@ export default function ReminderTemplatesPage() {
     setPreviewLoading(true)
     try {
       const p = await apiGet<{ subject: string; body: string }>(
-        `/reminders/templates/${editing}/preview?companyId=${companyId}`
+        `/api/v1/reminders/templates/${editing}/preview?companyId=${companyId}`
       )
       setPreview(p)
     } catch (e) {
@@ -99,7 +99,7 @@ export default function ReminderTemplatesPage() {
     setSaved(null)
     try {
       const updated = await apiPut<ReminderTemplate>(
-        `/reminders/templates/${editing}?companyId=${companyId}`,
+        `/api/v1/reminders/templates/${editing}?companyId=${companyId}`,
         { subject, body }
       )
       setTemplates((prev) => prev.map((t) => (t.level === editing ? updated : t)))
@@ -119,7 +119,7 @@ export default function ReminderTemplatesPage() {
     if (!companyId) return
     try {
       const fresh = await apiPost<ReminderTemplate>(
-        `/reminders/templates/${editing}/reset?companyId=${companyId}`
+        `/api/v1/reminders/templates/${editing}/reset?companyId=${companyId}`
       )
       setTemplates((prev) => prev.map((t) => (t.level === editing ? fresh : t)))
       setSubject(fresh.subject)

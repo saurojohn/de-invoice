@@ -641,10 +641,20 @@ export class UstvaService {
     isReverseCharge?: boolean;
     notes?: string;
   }) {
+    // Tier 390: the supplier must be this company's — the same check
+    // ExpenseService.create makes. Measured: company B's expense with company
+    // A's supplierId → 201, and the response (and B's expense list) carried A's
+    // supplier record. The UStVA page's empty select sends "" — that was a
+    // foreign-key 500; it means "no supplier".
+    const supplierId = data.supplierId?.trim() || null;
+    if (supplierId) {
+      const sup = await this.prisma.supplier.findFirst({ where: { id: supplierId, companyId } });
+      if (!sup) throw new BadRequestException('Lieferant nicht gefunden');
+    }
     return this.prisma.expense.create({
       data: {
         companyId,
-        supplierId: data.supplierId,
+        supplierId,
         invoiceNumber: data.invoiceNumber,
         description: data.description,
         invoiceDate: data.invoiceDate,

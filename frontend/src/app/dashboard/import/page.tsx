@@ -32,7 +32,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
-import { apiPost, ApiError } from "@/lib/api"
+import { apiFetch, apiPost, ApiError } from "@/lib/api"
 import { parseCsv } from "@/lib/csv"
 
 type EntityType = "customer" | "product" | "expense"
@@ -198,13 +198,9 @@ function BulkImportPageInner() {
     // consistent with other endpoints.
     const url = `${ENTITIES[entity].template}?companyId=${companyId || ""}`
     try {
-      const res = await fetch(url, {
-        headers: {
-          "x-user-id": localStorage.getItem("userId") || "",
-          "x-company-id": companyId || "",
-        },
-        credentials: "include",
-      })
+      // Tier 390: a relative fetch reached the Next server, not the backend
+      // (measured: 404 there, 200 from the API). apiFetch prefixes API_BASE.
+      const res = await apiFetch(url, { throwOnError: false })
       if (!res.ok) {
         setSubmitError(`Template-Download fehlgeschlagen: HTTP ${res.status}`)
         return

@@ -7,7 +7,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
-import { API_BASE, apiFetch, apiGet } from "@/lib/api"
+import { ApiError, apiDelete, apiFetch, apiGet, apiPost } from "@/lib/api"
 
 interface UstvaData {
   companyId: string
@@ -243,21 +243,14 @@ function UstvaPageInner() {
     }
     setSaving(true)
     try {
-      const res = await fetch(
-        `${API_BASE}/api/v1/ustva/expenses?companyId=${companyId}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            ...exForm,
-            netAmount: parseFloat(exForm.netAmount),
-            vatRate: parseFloat(exForm.vatRate),
-            vatAmount: parseFloat(exForm.vatAmount || "0"),
-            grossAmount: parseFloat(exForm.grossAmount || "0"),
-          }),
-        }
-      )
-      if (!res.ok) throw new Error(await res.text())
+      // Tier 390: was a raw fetch without the auth headers (401).
+      await apiPost(`/api/v1/ustva/expenses?companyId=${companyId}`, {
+        ...exForm,
+        netAmount: parseFloat(exForm.netAmount),
+        vatRate: parseFloat(exForm.vatRate),
+        vatAmount: parseFloat(exForm.vatAmount || "0"),
+        grossAmount: parseFloat(exForm.grossAmount || "0"),
+      })
       setShowAdd(false)
       setExForm({
         invoiceDate: new Date().toISOString().split("T")[0],
@@ -275,7 +268,7 @@ function UstvaPageInner() {
       await loadAll(companyId)
     } catch (err) {
       console.error("Add expense failed:", err)
-      toast.error("Fehler beim Speichern der Eingangsrechnung")
+      toast.error(err instanceof ApiError ? err.message : "Fehler beim Speichern der Eingangsrechnung")
     } finally {
       setSaving(false)
     }
@@ -285,9 +278,12 @@ function UstvaPageInner() {
     if (!confirm(t("ustva.confirmDelete"))) return
     const companyId = localStorage.getItem("companyId")
     if (!companyId) return
-    await fetch(`${API_BASE}/api/v1/ustva/expenses/${id}?companyId=${companyId}`, {
-      method: "DELETE",
-    })
+    // Tier 390: was a raw fetch without the auth headers (401, nothing deleted).
+    try {
+      await apiDelete(`/api/v1/ustva/expenses/${id}?companyId=${companyId}`)
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Löschen fehlgeschlagen")
+    }
     await loadAll(companyId)
   }
 
@@ -298,27 +294,20 @@ function UstvaPageInner() {
     setSaving(true)
     setSavedMsg(null)
     try {
-      const res = await fetch(
-        `${API_BASE}/api/v1/ustva/filings?companyId=${companyId}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            ...data,
-            taxNumber: taxNumber || null,
-            notes: notes || null,
-            status,
-          }),
-        }
-      )
-      if (!res.ok) throw new Error(await res.text())
+      // Tier 390: was a raw fetch without the auth headers (401).
+      await apiPost(`/api/v1/ustva/filings?companyId=${companyId}`, {
+        ...data,
+        taxNumber: taxNumber || null,
+        notes: notes || null,
+        status,
+      })
       setSavedMsg(
         status === "submitted" ? t("ustva.submitSuccess") : t("ustva.saveSuccess")
       )
       await loadAll(companyId)
     } catch (err) {
       console.error("Save filing failed:", err)
-      toast.error("Fehler beim Speichern der UStVA")
+      toast.error(err instanceof ApiError ? err.message : "Fehler beim Speichern der UStVA")
     } finally {
       setSaving(false)
     }
@@ -710,7 +699,7 @@ function UstvaPageInner() {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle>{t("ustva.expenses")}</CardTitle>
-                  <Button size="sm" onClick={() => setShowAdd(!showAdd)}>
+                  <Button size="sm" onClick={() => setShowAdd(!showAdd)} data-testid="ustva-add-expense-toggle">
                     {showAdd ? "×" : `+ ${t("ustva.addExpense")}`}
                   </Button>
                 </div>
@@ -764,6 +753,7 @@ function UstvaPageInner() {
                         <input
                           value={exForm.description}
                           onChange={(e) => setExForm({ ...exForm, description: e.target.value })}
+                          data-testid="ustva-expense-description"
                           className="w-full px-2 py-1.5 border rounded text-sm"
                         />
                       </div>
@@ -787,6 +777,7 @@ function UstvaPageInner() {
                           step="0.01"
                           value={exForm.netAmount}
                           onChange={(e) => setExForm({ ...exForm, netAmount: e.target.value })}
+                          data-testid="ustva-expense-net"
                           className="w-full px-2 py-1.5 border rounded text-sm text-right"
                         />
                       </div>
@@ -841,7 +832,7 @@ function UstvaPageInner() {
                       <Button variant="outline" size="sm" onClick={() => setShowAdd(false)}>
                         ×
                       </Button>
-                      <Button size="sm" onClick={submitExpense} disabled={saving}>
+                      <Button size="sm" onClick={submitExpense} disabled={saving} data-testid="ustva-expense-submit">
                         ✓ {saving ? "…" : t("ustva.saveDraft")}
                       </Button>
                     </div>
@@ -939,7 +930,7 @@ function UstvaPageInner() {
                   </div>
                 </div>
                 <div className="mt-4 flex flex-wrap items-center gap-3">
-                  <Button variant="outline" onClick={() => saveFiling("draft")} disabled={saving}>
+                  <Button variant="outline" onClick={() => saveFiling("draft")} disabled={saving} data-testid="ustva-save-draft">
                     {t("ustva.saveDraft")}
                   </Button>
                   <Button onClick={() => saveFiling("submitted")} disabled={saving}>

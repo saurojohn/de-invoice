@@ -323,6 +323,17 @@ export class KassenbuchService {
     if (data.type === 'eroeffnung') {
       await this.assertEroeffnung(companyId)
     }
+    // Tier 390: expenseId / invoiceId are foreign keys to this company's
+    // records. Measured: company B's entry with company A's invoiceId → 201 —
+    // a GoBD cash record in one company pointing at another company's invoice.
+    if (data.invoiceId) {
+      const inv = await this.prisma.invoice.findFirst({ where: { id: data.invoiceId, companyId }, select: { id: true } })
+      if (!inv) throw new BadRequestException('Rechnung nicht gefunden')
+    }
+    if (data.expenseId) {
+      const exp = await this.prisma.expense.findFirst({ where: { id: data.expenseId, companyId }, select: { id: true } })
+      if (!exp) throw new BadRequestException('Ausgabe nicht gefunden')
+    }
     // Normalise the date to midnight UTC so the DB @db.Date
     // column gets a clean value.
     const bd = new Date(data.businessDate)

@@ -1,6 +1,6 @@
 "use client"
 
-import { API_BASE } from "@/lib/api"
+import { ApiError, apiGet, apiPost } from "@/lib/api"
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
@@ -52,19 +52,14 @@ export default function RemindersPage() {
 
   useEffect(() => {
     const companyId = localStorage.getItem("companyId")
-    const userId = localStorage.getItem("userId") || ""
     if (!companyId) {
       router.push("/login")
       return
     }
 
     Promise.all([
-      fetch(`${API_BASE}/api/v1/reminders/overdue?companyId=${companyId}`, {
-        headers: { 'x-user-id': userId, 'x-company-id': companyId },
-      }).then(r => r.json()),
-      fetch(`${API_BASE}/api/v1/reminders/stats?companyId=${companyId}`, {
-        headers: { 'x-user-id': userId, 'x-company-id': companyId },
-      }).then(r => r.json()),
+      apiGet<OverdueInvoice[]>(`/api/v1/reminders/overdue?companyId=${companyId}`),
+      apiGet<ReminderStats>(`/api/v1/reminders/stats?companyId=${companyId}`),
     ])
       .then(([invoices, statsData]) => {
         // Defensive: the backend can return { statusCode, message }
@@ -110,53 +105,39 @@ export default function RemindersPage() {
     return t("reminder.daysOverdue").replace("{days}", String(days))
   }
 
-  const handleSendReminder = async (invoice: OverdueInvoice) => {
+  // Tier 390: this opened a mailto: link and then posted /reminders/send, the
+  // email-data and the refresh all with a raw fetch without auth headers —
+  // measured: all three 401, nothing recorded, and the mailto carried no
+  // data. Since Tier 388 /reminders/send sends the letter itself (template,
+  // PDF, customer address), so the page only asks the backend to send it.
+  // Throws on failure so the bulk loop counts it.
+  const sendReminder = async (invoice: OverdueInvoice) => {
+    const companyId = localStorage.getItem("companyId")
+    if (!companyId) throw new Error("Keine Firma ausgewählt")
+    const level = selectedLevel[invoice.id] || getNextReminderLevel(invoice)
+    await apiPost(`/api/v1/reminders/send`, {
+      companyId,
+      invoiceId: invoice.id,
+      level,
+      ...(localStorage.getItem("userId") ? { createdById: localStorage.getItem("userId") } : {}),
+    })
+  }
+
+  const reloadOverdue = async () => {
     const companyId = localStorage.getItem("companyId")
     if (!companyId) return
+    const list = await apiGet<OverdueInvoice[]>(`/api/v1/reminders/overdue?companyId=${companyId}`)
+    setOverdueInvoices(Array.isArray(list) ? list : [])
+  }
 
-    const level = selectedLevel[invoice.id] || 'first'
-
+  const handleSendReminder = async (invoice: OverdueInvoice) => {
     try {
-      const emailData = await fetch(
-        `${API_BASE}/api/v1/reminders/${invoice.id}/email-data?companyId=${companyId}&level=${level}`
-      ).then(r => r.json())
-
-      // Create mailto link with pre-filled content
-      const subject = encodeURIComponent(emailData.subject)
-      const body = encodeURIComponent(emailData.body)
-      const email = emailData.recipientEmail || invoice.customer.contact?.email || ''
-
-      if (!email) {
-        toast.error(t("reminder.noEmailForCustomer"))
-        return
-      }
-
-      // Open email client with mailto:
-      window.location.href = `mailto:${email}?subject=${subject}&body=${body}`
-
-      // Record the reminder send in backend
-      await fetch(`${API_BASE}/api/v1/reminders/send`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          invoiceId: invoice.id,
-          companyId,
-          recipientEmail: email,
-          recipientName: emailData.recipientName,
-          subject: emailData.subject,
-          body: emailData.body,
-          level,
-        }),
-      })
-
-      // Refresh data
-      const updatedInvoices = await fetch(
-        `${API_BASE}/api/v1/reminders/overdue?companyId=${companyId}`
-      ).then(r => r.json())
-      setOverdueInvoices(updatedInvoices)
+      await sendReminder(invoice)
+      toast.success(t("reminder.reminderSent"))
+      await reloadOverdue()
     } catch (err) {
       console.error("Fehler beim Senden der Erinnerung:", err)
-      toast.error(t("reminder.sendError"))
+      toast.error(err instanceof ApiError ? err.message : t("reminder.sendError"))
     }
   }
 
@@ -180,20 +161,16 @@ export default function RemindersPage() {
         fail++
         continue
       }
-      const level = selectedLevel[id] || getNextReminderLevel(inv)
-      // Tier 322: `level` is computed but the bulk-send
-      // flow only re-uses the existing reminder pipeline,
-      // which derives its own level from invoice state.
-      // We keep the computation in place for now since
-      // it's read by a planned per-row badge (Tier 323+).
-      void level
       try {
-        await handleSendReminder(inv) // re-uses existing flow
+        // Tier 390: handleSendReminder swallowed every error, so this counted
+        // failures as sent.
+        await sendReminder(inv)
         ok++
       } catch {
         fail++
       }
     }
+    await reloadOverdue().catch(() => {})
     setBulkSending(false)
     setBulkResult({ ok, fail })
     setSelectedIds(new Set())
