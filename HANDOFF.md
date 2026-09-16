@@ -3056,6 +3056,63 @@ These are **not in the repo** — only the user can do them:
     `api.ts`, the Playwright auth helper and the bash e2e `_lib.sh`. It changes
     login behaviour and every test harness, so it is not a side edit. Per §9
     item 8 the app is not deployed yet.
+    **Measured plan (Tier 399) — read this before deciding.**
+
+    *Today:* `x-user-id` **is** the credential. `HeaderAuthGuard` looks the id up,
+    checks `UserCompany` for `x-company-id`, and lets the request through — so
+    anyone who knows a user's UUID is that user. This is why 2FA cannot protect
+    anything yet (Tier 386), why downloads needed the blob workaround (Tier 389)
+    and why `x-readonly` needed a CORS entry (Tier 389).
+
+    *Blast radius, counted:*
+
+    | Surface | Files | Occurrences |
+    |---|---|---|
+    | backend source reading `x-user-id` | 16 (2 guards + 14 controllers) | — |
+    | backend e2e specs | 140 (139 with direct `curl`, `_lib.sh` has only 5) | 712 |
+    | Playwright specs | 169 | 425 |
+    | frontend source | 24, but `apiFetch` funnels through **one** `authHeaders()` | — |
+
+    The important consequence: **making production safe does not require touching
+    the ~300 spec files.** Gate the legacy header path behind
+    `ALLOW_HEADER_AUTH` — CI keeps it on, production turns it off.
+
+    *Option A — server-side session + httpOnly cookie (recommended).* A
+    `UserSession` table mirroring the existing `CustomerPortalSession`
+    (token, expiresAt, lastSeenAt, revokedAt). `/auth/login` and
+    `/auth/2fa/verify` create it and `Set-Cookie`; the guard resolves the cookie
+    (or `Authorization: Bearer`) and falls back to the header only when
+    `ALLOW_HEADER_AUTH=1`; `/auth/logout` revokes. Revocable, no key management,
+    and it matches a pattern already in this codebase. `x-company-id` stays what
+    it is today — a *selector* for the active Mandant, already validated against
+    `UserCompany` — so the Berater switching flow is untouched.
+
+    *Option B — JWT.* Stateless, no table, but revocation needs a denylist;
+    worse fit for GoBD and for Berater access that must be withdrawable.
+
+    *Option C — leave it.* Defensible only while nothing is deployed (§9 items 7-8
+    are still open, so real exposure today is zero), but it keeps 2FA meaningless.
+
+    *Migration that keeps 189 + 922 green:*
+    1. add sessions, guard accepts session **or** legacy header
+       (`ALLOW_HEADER_AUTH=1` by default) — no spec changes;
+    2. frontend logs in to a cookie: `authHeaders()` stops sending `x-user-id`,
+       `apiFetch` gains `credentials: 'include'`; the Next middleware gates on the
+       httpOnly cookie instead of the JS-readable one;
+    3. `ALLOW_HEADER_AUTH=0` in `infra/prod/.env`; specs keep using headers.
+
+    *Two details already checked, so the plan is not guesswork:*
+    - **Cookies ignore ports.** Measured in Chromium: a `localhost` cookie set by
+      the frontend on :3100 is in the jar for `http://localhost:3001` as well, so
+      dev works with `credentials: 'include'` (CORS already sets
+      `credentials: true`); behind nginx it is same-origin anyway.
+    - **The audit context (Tier 384) is set in an Express middleware that runs
+      before guards**, so it cannot read a session-resolved user. Fix without an
+      extra query: start the AsyncLocalStorage with an empty mutable context in
+      the middleware and let the guard fill in `userId` / `companyId` — the store
+      is an object, so mutation inside the scope is visible to the audit
+      extension.
+
 11. **Decide who is a platform operator** (found Tier 378). Registration is
     public and every new user is `admin` of their own company, but several
     routes act on the *installation*, not a company, and only check a tenant
