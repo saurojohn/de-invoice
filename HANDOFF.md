@@ -2467,6 +2467,18 @@ cron, so `e2e/143`'s three hard-coded `8`s became `9` — that count is exactly
 what the assertion is for. The Playwright side asserts `>= 7`, so it was
 unaffected.
 
+**CI caught what my grep did not.** Adding the 9th cron means editing every
+place that pins the count, and I found two of the three: `e2e/143` (three `8`s)
+and `system-health.spec.ts` (which asserts `>= 7`, so it was fine). The third,
+`cron-history-tier124.spec.ts:51`, pins `toHaveCount(8)` — I had grepped the
+Playwright specs for `crons` and `toBe(8)`, and that line matches neither.
+Playwright went 926 → 925. The count is pinned on purpose in both suites, the
+same deliberate-edit gate as the `EXPECTED` registry, so the fix is the number,
+not a looser assertion. **Lesson, sharper than Tier 398's:** when a change
+alters something a spec can count, grep for the *thing being counted*
+(`cron-row`, the registry name) across **both** suites, not for the number or
+the word.
+
 Spec: `e2e/192-tier403-session-lifecycle.sh` (18 assertions) — two sessions
 from two sign-ins both die at the reset, both rows carry `revokedAt`, none is
 left live, the audit row records the count, the old password stops working and
