@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
+import { storeSession } from "@/lib/auth"
 
 const MAX_ATTEMPTS = 5
 const LOCKOUT_DURATION_MS = 15 * 60 * 1000 // 15 min
@@ -52,6 +53,10 @@ export default function LoginPage() {
     try {
       const res = await fetch(`${API_BASE}/api/v1/auth/login`, {
         method: "POST",
+        // Tier 401: without credentials the browser DISCARDS the Set-Cookie on
+        // this cross-origin response (:3100 → :3001) and the session would
+        // exist server-side but never reach the browser.
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: form.email.trim().toLowerCase(),
@@ -89,25 +94,10 @@ export default function LoginPage() {
         router.push(`/login/verify-2fa?email=${encodeURIComponent(data.email || form.email)}`)
         return
       }
-      localStorage.setItem("userId", data.id)
-      localStorage.setItem("userEmail", data.email || "")
-      localStorage.setItem("companyId", data.companyId)
-      // Tier 12: mirror the auth tokens
-      // into cookies so the Next.js
-      // middleware (which can't see
-      // localStorage) lets the user
-      // into /dashboard. The
-      // AuthCookieSync effect also
-      // writes these, but it runs
-      // AFTER mount — by then the
-      // middleware has already
-      // redirected to /login. We set
-      // the cookies inline here so the
-      // very next navigation is
-      // accepted.
-      const oneDay = 60 * 60 * 24
-      document.cookie = `x-user-id=${encodeURIComponent(data.id)}; path=/; max-age=${oneDay}; SameSite=Lax`
-      document.cookie = `x-company-id=${encodeURIComponent(data.companyId)}; path=/; max-age=${oneDay}; SameSite=Lax`
+      // Tier 401: one place stores the ids and records whether the response
+      // carried a session (see src/lib/auth.ts). It also writes the two
+      // mirrored cookies the middleware reads.
+      storeSession(data)
       setAttemptCount(0)
       setLockoutUntil(null)
       router.push("/dashboard")

@@ -58,9 +58,18 @@ export function middleware(req: NextRequest) {
   // can see them here. If the cookie
   // is missing or empty, redirect to
   // /login.
+  //
+  // Tier 401: the real credential is `de_session`, the httpOnly cookie the
+  // backend sets at login — the middleware can read it (httpOnly hides it from
+  // JavaScript, not from the server) and it is the only one of these three a
+  // visitor cannot write by hand. The legacy mirrored `x-user-id` cookie is
+  // still accepted because the e2e suites seed it without logging in; with
+  // ALLOW_HEADER_AUTH=0 it buys an attacker nothing, since the API behind this
+  // page answers 401 without a session.
+  const session = req.cookies.get("de_session")?.value
   const userId = req.cookies.get("x-user-id")?.value
   const companyId = req.cookies.get("x-company-id")?.value
-  if (!userId || !companyId) {
+  if ((!session && !userId) || !companyId) {
     const loginUrl = new URL("/login", req.url)
     // Carry the original target through
     // the auth redirect so we can come

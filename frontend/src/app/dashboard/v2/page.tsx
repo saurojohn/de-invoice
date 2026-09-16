@@ -29,6 +29,7 @@ import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { ThemeToggle } from "@/components/ThemeToggle"
 import { useI18n } from "@/components/useI18n"
 import { apiGet } from "@/lib/api"
+import { signOut } from "@/lib/auth"
 
 interface MonthlyRow {
   month: string
@@ -613,8 +614,10 @@ export default function DashboardV2Page() {
             <ThemeToggle />
             <Button
               variant="outline"
-              onClick={() => {
-                localStorage.clear()
+              onClick={async () => {
+                // Tier 401: revoke the session server-side first — clearing
+                // localStorage used to leave the credential valid.
+                await signOut()
                 router.push("/login")
               }}
             >

@@ -42,7 +42,9 @@ SET_COOKIE=$(grep -i '^set-cookie:' "$HDRS" | tr -d '\r')
 # 30 days, sliding — the operator's choice (Tier 399/400).
 MAXAGE=$(echo "$SET_COOKIE" | sed -n 's/.*Max-Age=\([0-9]*\).*/\1/p')
 assert_eq "…Max-Age is 30 days" "$MAXAGE" "2592000"
-assert_eq "…one session row for the user" "$(sql "SELECT count(*) FROM \"UserSession\" WHERE \"userId\" = '$U' AND \"revokedAt\" IS NULL;")" "1"
+# Two live sessions: the fixture registered (which is itself a login since
+# Tier 401) and then logged in. Sessions are per sign-in, not per user.
+assert_eq "…a session row per sign-in" "$(sql "SELECT count(*) FROM \"UserSession\" WHERE \"userId\" = '$U' AND \"revokedAt\" IS NULL;")" "2"
 assert_eq "…the token is stored, not the password" "$(sql "SELECT count(*) FROM \"UserSession\" WHERE token = '$TOKEN';")" "1"
 rm -f "$HDRS"
 
@@ -105,7 +107,39 @@ sql "UPDATE \"UserSession\" SET \"expiresAt\" = now() - interval '1 day' WHERE t
 STATUS=$(curl -sS -o /dev/null -w "%{http_code}" "$API/api/v1/customers?companyId=$C" -H "Cookie: de_session=$TOKEN2" -H "x-company-id: $C")
 assert_status 401 "an expired session is refused"
 
-note "=== 6. the production setting (static — the stack runs with the flag on) ==="
+note "=== 6. every route that completes a login mints one (Tier 401) ==="
+# /auth/login is covered above. /auth/2fa/verify is asserted in e2e/24 (it needs
+# the TOTP machinery). The other two auto-log the user in and had no session at
+# all until Tier 401 — with ALLOW_HEADER_AUTH=0 that means a brand-new user or
+# an invited member could not use the app they had just signed up for.
+REG2=$(curl -sS -D "$SCRIPT_DIR/../.t190-hdrs" -X POST "$API/api/v1/auth/register" -H "Content-Type: application/json" \
+  -d "{\"email\":\"$TAG-r@example.test\",\"password\":\"Tier401-e2e\",\"companyName\":\"$TAG reg\"}")
+R_TOKEN=$(json_field "$REG2" sessionToken)
+R_COMPANY=$(python3 -c "import sys,json;d=json.load(sys.stdin);print(d['user'].get('companyId') or d['company']['id'])" <<< "$REG2" 2>/dev/null)
+assert_eq "register mints a session (was absent)" "${#R_TOKEN}" "64"
+[[ "$(grep -ic de_session "$SCRIPT_DIR/../.t190-hdrs")" == "1" ]] && pass "…and sets the cookie" || fail "…register set no cookie"
+rm -f "$SCRIPT_DIR/../.t190-hdrs"
+STATUS=$(curl -sS -o /dev/null -w "%{http_code}" "$API/api/v1/customers?companyId=$R_COMPANY" \
+  -H "Cookie: de_session=$R_TOKEN" -H "x-company-id: $R_COMPANY")
+assert_status 200 "…the new company is usable with the cookie alone"
+
+# An invited member: create the invitation as the seed company, then accept it.
+api_post "/api/v1/users/invitations?companyId=$COMPANY_ID" "{\"email\":\"$TAG-inv@example.test\",\"role\":\"accountant\"}"
+INV_ID=$(json_field "$BODY" id)
+api_post "/api/v1/users/invitations/$INV_ID/resend?companyId=$COMPANY_ID" "{}"
+INV_TOKEN=$(json_field "$BODY" tokenPlain)
+[[ -n "$INV_TOKEN" ]] && pass "fixture: an invitation for this company" || fail "no invitation token — $BODY"
+ACC=$(curl -sS -X POST "$API/api/v1/invitations/accept" -H "Content-Type: application/json" \
+  -d "{\"token\":\"$INV_TOKEN\",\"password\":\"Tier401-e2e\"}")
+A_TOKEN=$(json_field "$ACC" sessionToken)
+assert_eq "invitation accept mints a session (was absent)" "${#A_TOKEN}" "64"
+STATUS=$(curl -sS -o /dev/null -w "%{http_code}" "$API/api/v1/customers?companyId=$COMPANY_ID" \
+  -H "Cookie: de_session=$A_TOKEN" -H "x-company-id: $COMPANY_ID")
+assert_status 200 "…the invited member is signed in to the company they joined"
+assert_eq "…as their own user, not the inviter" \
+  "$(sql "SELECT u.email FROM \"UserSession\" s JOIN \"User\" u ON u.id = s.\"userId\" WHERE s.token = '$A_TOKEN';")" "$TAG-inv@example.test"
+
+note "=== 7. the production setting (static — the stack runs with the flag on) ==="
 GUARD="$SCRIPT_DIR/../src/auth/header-auth.guard.ts"
 grep -q "legacyHeaderAuthAllowed()" "$GUARD" \
   && pass "HeaderAuthGuard gates x-user-id behind ALLOW_HEADER_AUTH" || fail "the guard accepts x-user-id unconditionally"

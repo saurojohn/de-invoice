@@ -74,6 +74,30 @@ export class UserSessionService {
   }
 
   /**
+   * Tier 401 — mint a session for a request that has just proved who the user
+   * is, and set the cookie on the response. There are four such places
+   * (password login, 2FA verify, registration, invitation accept) and all four
+   * must mint one: with `ALLOW_HEADER_AUTH=0` a caller who finishes any of them
+   * without a session simply cannot use the app.
+   */
+  async issue(
+    res: { setHeader(name: string, value: string): unknown },
+    userId: string,
+    req?: { ip?: string; headers?: Record<string, unknown>; socket?: { remoteAddress?: string } },
+    ipOverride?: string | null,
+  ): Promise<{ token: string; expiresAt: Date }> {
+    const session = await this.create(userId, {
+      ipAddress: ipOverride ?? req?.ip ?? req?.socket?.remoteAddress ?? null,
+      userAgent: (req?.headers?.['user-agent'] as string) ?? null,
+    })
+    res.setHeader(
+      'Set-Cookie',
+      UserSessionService.cookie(session.token, SESSION_TTL_DAYS * 24 * 60 * 60),
+    )
+    return session
+  }
+
+  /**
    * Resolve a token to its user, or null when it is unknown, revoked or
    * expired. Slides the expiry (at most hourly, to keep this to one write per
    * session per hour rather than one per request).

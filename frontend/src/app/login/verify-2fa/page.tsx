@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/card"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
+import { storeSession } from "@/lib/auth"
 
 function Verify2FAInner() {
   const router = useRouter()
@@ -42,6 +43,7 @@ function Verify2FAInner() {
     try {
       const res = await fetch(`${API_BASE}/api/v1/auth/2fa/verify`, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email,
@@ -58,9 +60,9 @@ function Verify2FAInner() {
       }
       // Same shape as /auth/login → set the headers the
       // dashboard uses for auth.
-      localStorage.setItem("userId", data.id)
-      localStorage.setItem("userEmail", data.email || email)
-      localStorage.setItem("companyId", data.companyId)
+      // Tier 401: this route completes the login for a 2FA user, so it is
+      // also where their session arrives (the backend mints one here too).
+      storeSession({ ...data, email: data.email || email })
       localStorage.removeItem("pending2faEmail")
       router.push("/dashboard")
     } catch (err: any) {

@@ -25,6 +25,7 @@ import { ThemeToggle } from "@/components/ThemeToggle"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiGet, apiPost, downloadApiFile } from "@/lib/api"
+import { signOut } from "@/lib/auth"
 
 interface MahnungRow {
   id: string
@@ -196,8 +197,10 @@ export default function MahnhistoriePage() {
             <ThemeToggle />
             <Button
               variant="outline"
-              onClick={() => {
-                localStorage.clear()
+              onClick={async () => {
+                // Tier 401: revoke the session server-side first — clearing
+                // localStorage used to leave the credential valid.
+                await signOut()
                 router.push("/login")
               }}
             >
@@ -408,7 +411,7 @@ export default function MahnhistoriePage() {
                                 <button
                                   type="button"
                                   className="text-xs px-2 py-1 bg-gray-300 rounded dark:bg-gray-700"
-                                  onClick={() => {
+                                  onClick={async () => {
                                     setCancelling(null)
                                     setCancelReason("")
                                   }}

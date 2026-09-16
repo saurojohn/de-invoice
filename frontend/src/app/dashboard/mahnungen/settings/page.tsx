@@ -19,6 +19,7 @@ import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { ThemeToggle } from "@/components/ThemeToggle"
 import { useI18n } from "@/components/useI18n"
 import { apiGet, apiPut } from "@/lib/api"
+import { signOut } from "@/lib/auth"
 
 interface FeeConfig {
   verzugszinsPct: number
@@ -131,8 +132,10 @@ export default function MahnungSettingsPage() {
             <ThemeToggle />
             <Button
               variant="outline"
-              onClick={() => {
-                localStorage.clear()
+              onClick={async () => {
+                // Tier 401: revoke the session server-side first — clearing
+                // localStorage used to leave the credential valid.
+                await signOut()
                 router.push("/login")
               }}
             >

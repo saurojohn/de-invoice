@@ -33,12 +33,14 @@ import {
   Controller,
   Post,
   Req,
+  Res,
   UseGuards,
   BadRequestException,
   UnauthorizedException,
 } from "@nestjs/common"
-import { Request } from "express"
+import { Request, Response } from "express"
 import { PrismaService } from "../../../prisma/prisma.service"
+import { UserSessionService } from "../../../auth/user-session.service"
 import { HeaderAuthGuard } from "../../../auth/header-auth.guard"
 import { TwoFactorService } from "./two-factor.service"
 import { Public } from "../../../auth/public.decorator"
@@ -65,6 +67,7 @@ export class TwoFactorController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly twoFactor: TwoFactorService,
+    private readonly sessions: UserSessionService,
   ) {}
 
   /**
@@ -221,6 +224,8 @@ export class TwoFactorController {
       code?: string
       recoveryCode?: string
     },
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
   ) {
     const email = (body?.email || "").toString().trim().toLowerCase()
     if (!email) throw new BadRequestException("E-Mail ist erforderlich")
@@ -271,11 +276,19 @@ export class TwoFactorController {
       where: { id: user.id },
       data: { lastLogin: new Date() },
     })
+    // Tier 401: this route IS the second half of a login — /auth/login answers
+            // `requires2fa` and stops, so a user with 2FA on never passes through the
+    // session-minting branch there. Without this they would finish signing in
+    // with no session at all, i.e. be unable to use the app once
+    // ALLOW_HEADER_AUTH=0.
+    const session = await this.sessions.issue(res, user.id, req as any)
     return {
       id: user.id,
       email: user.email,
       companyId: user.companyId,
       role: user.role,
+      sessionToken: session.token,
+      sessionExpiresAt: session.expiresAt,
     }
   }
 

@@ -10,12 +10,15 @@ import {
   BadRequestException,
   ForbiddenException,
   Req,
+  Res,
   UseGuards,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { Throttle } from '@nestjs/throttler';
 import { UsersService } from './users.service';
 import { HeaderAuthGuard } from '../../auth/header-auth.guard';
 import { Public, AllowOtherCompanyId } from '../../auth/public.decorator';
+import { UserSessionService } from '../../auth/user-session.service';
 
 interface AuthedRequest extends Request {
   user?: { id: string; companyId: string; role: string };
@@ -264,7 +267,11 @@ export class UsersController {
  */
 @Controller('invitations')
 export class InvitationsController {
-  constructor(private users: UsersService) {}
+  constructor(
+    private users: UsersService,
+    // Tier 401: accepting an invitation is a login, so it mints a session.
+    private sessions: UserSessionService,
+  ) {}
 
   @Public()
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
@@ -288,13 +295,22 @@ export class InvitationsController {
   @Public()
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('accept')
-  async accept(@Body() body: { token?: string; password?: string }) {
+  async accept(
+    @Body() body: { token?: string; password?: string },
+    @Req() req: any,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     if (!body.token || !body.password) {
       throw new BadRequestException('token und password sind erforderlich');
     }
     const result = await this.users.acceptInvitation(body.token, body.password);
+    // Tier 401: accepting an invitation auto-logs the member in, so it mints a
+    // session too — the same reasoning as /auth/register.
+    const session = await this.sessions.issue(res, result.user.id, req);
     return {
       ok: true,
+      sessionToken: session.token,
+      sessionExpiresAt: session.expiresAt,
       userId: result.user.id,
       email: result.user.email,
       role: result.user.role,

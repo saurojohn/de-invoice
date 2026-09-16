@@ -2420,6 +2420,71 @@ see below); Tier 398a run 35099184553 green: backend 188/0/1, Playwright 922.
 Tier 400 run 35112477951, all six jobs green: backend 189/0/1 (the new spec
 is the +1; the skip is still 16-dark-mode), Playwright 922.
 
+### The browser now signs in with the cookie (Tier 401)
+
+Phase 2 of the §9 item 10 plan. Tier 400 gave the backend sessions; the browser
+still logged in by header, so the hole was *closable*, not closed.
+
+**Three of the four routes that finish a login minted nothing.** Tier 400 only
+did `/auth/login`, and I had not checked the others — measured here:
+
+| Route | Who reaches it | Before Tier 401 |
+|---|---|---|
+| `/auth/2fa/verify` | every user with 2FA on | no session — `/auth/login` returns `twoFactorRequired` and stops *before* the minting branch |
+| `/auth/register` | every new company | no session, yet the page writes the ids and redirects to /dashboard |
+| `/invitations/accept` | every invited member | same |
+
+With `ALLOW_HEADER_AUTH=0` each of those users would have finished signing in
+and then been unable to use the app at all. All four now go through one
+`UserSessionService.issue()`. The 2FA case also carries a real guarantee worth
+pinning: a correct password alone still mints nothing — the session appears
+only after the code is verified (`e2e/24`, 4 new assertions).
+
+Frontend:
+
+- `src/lib/auth.ts` (new) is the only place that starts or ends a session.
+  `storeSession()` stores the ids (still needed to show who is signed in and to
+  select the Mandant) and records **only the boolean fact** that a session
+  exists — the token is deliberately not stored, since putting a bearer token in
+  localStorage would recreate exactly the stealable credential this removes.
+- `apiFetch` sends `credentials: "include"` and, once a session exists,
+  **stops sending `x-user-id` entirely**. The fallback stays for the e2e suites,
+  which seed ids without ever logging in.
+- The four login pages funnel through `storeSession()`. Each of their `fetch`
+  calls needed `credentials: "include"` as well: without it the browser
+  **discards the Set-Cookie** on a cross-origin response (:3100 → :3001), so the
+  session would exist server-side and never reach the browser.
+- The Next middleware gates on `de_session` (it is httpOnly against JavaScript,
+  not against the server) and still accepts the mirrored legacy cookie for the
+  specs.
+- **"Abmelden" was `localStorage.clear()` in five places.** With sessions that
+  would leave the credential valid for its full 30 days in whoever's hands had
+  the cookie. All five now call `signOut()`, which revokes server-side first.
+
+Spec: `frontend/e2e/session-cookie-tier401.spec.ts` drives the real login form
+(no injected auth — the point is what the *browser* does): the cookie is
+httpOnly and unreadable from the page and never mirrored into storage; after
+login **no** request to `/api/v1/` carries `x-user-id`; the dashboard still
+works after deleting `userId` from localStorage, which is the proof that only
+the cookie is authenticating; and Abmelden makes the token 401 afterwards. All
+four fail against the old frontend (verified with the source stashed).
+
+One measurement that is *not* a Tier 401 finding but was made here: on this
+developer machine `50-webhooks.sh` failed its Tier 391 DNS-rebinding assertion
+(`http://127.0.0.1.nip.io/` → expected 400, got 201). Both `nip.io` and
+`sslip.io` answered "has no A record" while `google.com` resolved fine — this
+network's resolver strips private-IP answers — so `assertHostResolvesPublic`
+took its lenient `allowUnresolved` path. The spec fails identically against
+pre-Tier-401 code, and CI (whose resolver does answer) is green. The assertion
+depends on a third-party wildcard DNS service; making it network-independent is
+filed as its own task.
+
+**What is still open in §9 item 10:** the ~169 Playwright specs seed
+`x-user-id` directly, so CI must keep `ALLOW_HEADER_AUTH` on — phase 3 (setting
+it to 0 in `infra/prod/.env`) is safe for production but cannot be verified by
+the suite until those helpers mint real sessions. The measured browser path is
+now cookie-only either way.
+
 ### `x-user-id` was the credential; login now mints a session (Tier 400)
 
 The single largest hole in §9, and the reason 2FA (Tier 386) protected nothing:
@@ -3119,8 +3184,9 @@ These are **not in the repo** — only the user can do them:
    (or a test upload in Mein ELSTER's test mode) to decide which side is right
    before anyone changes the generator — it is a tax filing format.
 10. **Replace the header "authentication" before any real deployment**
-    (**phase 1 done in Tier 400** — sessions exist and work; the frontend still
-    logs in by header, so this item stays open until phase 2) (found
+    (**phases 1-2 done, Tiers 400-401** — the browser is cookie-only; what is
+    left is phase 3, `ALLOW_HEADER_AUTH=0`, which CI cannot run until the
+    Playwright helpers mint sessions) (found
     Tier 375). `HeaderAuthGuard` trusts the `x-user-id` / `x-company-id`
     request headers: it checks that the user exists, is active and has a
     `UserCompany` row — but nothing proves the caller *is* that user. No token,
@@ -3183,13 +3249,14 @@ These are **not in the repo** — only the user can do them:
        cookie / Bearer token first, `POST /auth/logout` revokes, 30 days sliding.
        Spec `190-tier400-session-auth.sh`. Measured with `ALLOW_HEADER_AUTH=0`:
        the legacy header is 401, cookie and Bearer are 200.
-    2. **next:** frontend logs in to a cookie: `authHeaders()` stops sending
-       `x-user-id`, `apiFetch` gains `credentials: 'include'`; the Next
-       middleware gates on the httpOnly cookie instead of the JS-readable one.
-       This is the phase that touches the ~169 Playwright specs' `injectAuth` /
-       `setupAuth` helpers — they must mint a real session instead of writing
-       ids into localStorage. Until it lands the browser still authenticates by
-       header, so the hole is only *closable*, not closed;
+    2. ~~frontend logs in to a cookie~~ **done, Tier 401** — `apiFetch` sends
+       `credentials: 'include'` and stops sending `x-user-id` once a session
+       exists, the four login routes all mint one (2FA verify, register and
+       invitation accept minted *nothing* before), the middleware gates on
+       `de_session`, and Abmelden revokes server-side. Spec
+       `frontend/e2e/session-cookie-tier401.spec.ts` drives the real form and
+       proves no request carries `x-user-id` any more. The ~169 Playwright
+       specs still seed ids directly, which is why the flag stays on in CI;
     3. `ALLOW_HEADER_AUTH=0` in `infra/prod/.env`; the bash specs keep using
        headers, so the flag must stay on in CI.
 

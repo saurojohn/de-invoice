@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
+import { storeSession } from "@/lib/auth"
 
 type Strength = { ok: boolean; msg: string }
 
@@ -97,6 +98,7 @@ function RegisterPageInner() {
     try {
       const res = await fetch(`${API_BASE}/api/v1/auth/register`, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: form.email.trim().toLowerCase(),
@@ -113,9 +115,9 @@ function RegisterPageInner() {
         throw new Error(msg)
       }
       const data = await res.json()
-      localStorage.setItem("companyId", data.company.id)
-      localStorage.setItem("userId", data.user.id)
-      localStorage.setItem("userEmail", data.user.email || "")
+      // Tier 401: registration auto-logs the new user in, so it carries a
+      // session like /auth/login does.
+      storeSession(data)
       toast.success(t("auth.registerSuccess"))
       router.push("/dashboard")
     } catch (err: any) {
@@ -137,6 +139,7 @@ function RegisterPageInner() {
     try {
       const res = await fetch(`${API_BASE}/api/v1/invitations/accept`, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token: inviteToken, password: invPassword }),
       })
@@ -145,10 +148,8 @@ function RegisterPageInner() {
         throw new Error(data.message || t("auth.inviteAcceptError"))
       }
       const data = await res.json()
-      // Auto-login: set localStorage and redirect
-      localStorage.setItem("companyId", data.companyId)
-      localStorage.setItem("userId", data.userId)
-      localStorage.setItem("userEmail", data.email)
+      // Auto-login — with a real session since Tier 401.
+      storeSession(data)
       router.push("/dashboard")
     } catch (err: any) {
       setError(err.message)

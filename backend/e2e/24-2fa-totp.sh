@@ -190,6 +190,20 @@ VERIFY=$(curl -sS -X POST "$API/api/v1/auth/2fa/verify" \
 VERIFY_ID=$(echo "$VERIFY" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('id', 'MISSING'))")
 assert_eq "verify TOTP returns id" "$VERIFY_ID" "$TEST_USER_ID"
 
+# Tier 401: /auth/2fa/verify is the second half of a login, so it is where a
+# 2FA user's session is minted. /auth/login answers `twoFactorRequired` and
+# returns before minting anything — a correct password alone must not hand out
+# a credential. Before Tier 401 neither route minted one for these users, i.e.
+# with ALLOW_HEADER_AUTH=0 a 2FA user could not use the app at all.
+LOGIN_HAD_SESSION=$(echo "$LOGIN_2FA" | python3 -c "import json,sys; print('yes' if json.load(sys.stdin).get('sessionToken') else 'no')")
+assert_eq "the password step alone mints no session" "$LOGIN_HAD_SESSION" "no"
+VERIFY_TOKEN=$(echo "$VERIFY" | python3 -c "import json,sys; print(json.load(sys.stdin).get('sessionToken',''))")
+assert_eq "2fa/verify mints a session (was absent)" "${#VERIFY_TOKEN}" "64"
+V_COMPANY=$(echo "$VERIFY" | python3 -c "import json,sys; print(json.load(sys.stdin).get('companyId') or '')")
+V_STATUS=$(curl -sS -o /dev/null -w "%{http_code}" "$API/api/v1/customers?companyId=$V_COMPANY" \
+  -H "Cookie: de_session=$VERIFY_TOKEN" -H "x-company-id: $V_COMPANY")
+assert_eq "…and that session authenticates" "$V_STATUS" "200"
+
 # Test 11: /auth/2fa/verify with recovery code → session + 1 used
 RECOVERY_VERIFY=$(curl -sS -X POST "$API/api/v1/auth/2fa/verify" \
   -H "Content-Type: application/json" \

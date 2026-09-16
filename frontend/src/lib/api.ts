@@ -1,10 +1,13 @@
 /**
  * Authenticated fetch helper.
  *
- * Every protected backend route requires the `x-user-id` and `x-company-id`
- * headers (set by HeaderAuthGuard). When these are missing, the backend
- * returns 403 "Unzureichende Berechtigung" and the frontend ends up
- * showing empty data — this is the silent "saved but not displayed" bug.
+ * Tier 401: the credential is the httpOnly session cookie the backend sets at
+ * login, carried by `credentials: "include"`. `x-company-id` still selects the
+ * active Mandant, and `x-user-id` is only sent when there is no session (the
+ * e2e suites seed ids without logging in) — it used to BE the credential, see
+ * HANDOFF §9 item 10. When the company header is missing the backend returns
+ * 403 "Unzureichende Berechtigung" and the frontend shows empty data — this is
+ * the silent "saved but not displayed" bug.
  *
  * Use apiFetch() instead of raw fetch() for any call to
  * `http://localhost:3001/api/v1/...` from the dashboard.
@@ -14,6 +17,8 @@
  *   - injects Content-Type: application/json when a body is sent
  *   - throws ApiError on non-2xx so .catch() actually fires
  */
+import { hasSession, SESSION_FLAG } from "./auth"
+
 export class ApiError extends Error {
   status: number
   body: any
@@ -35,7 +40,14 @@ function authHeaders(): Record<string, string> {
   // Steuerberater-Modus). Default off.
   const readonly = localStorage.getItem("readonly") === "1"
   return {
-    "x-user-id": localStorage.getItem("userId") || "",
+    // Tier 401: once login has minted a session, the httpOnly cookie IS the
+    // credential and this header is not sent at all — production runs with
+    // ALLOW_HEADER_AUTH=0, where it would be ignored anyway, and sending it
+    // would keep a guessable id travelling on every request for no reason.
+    // The fallback stays for the e2e suites (which seed ids without logging
+    // in) and for a browser talking to a backend from before Tier 400.
+    ...(hasSession() ? {} : { "x-user-id": localStorage.getItem("userId") || "" }),
+    // Never a credential: the Mandant selector, validated against UserCompany.
     "x-company-id": localStorage.getItem("companyId") || "",
     ...(readonly ? { "x-readonly": "1" } : {}),
   }
@@ -86,7 +98,19 @@ export async function apiFetch(path: string, opts: ApiFetchOptions = {}): Promis
   // parameter, some browsers (notably Safari) and service
   // workers can still return a cached body. 'no-store' is
   // the explicit opt-out.
-  const res = await fetch(url, { cache: "no-store", ...rest, headers: finalHeaders, body: finalBody })
+  // Tier 401: `credentials: "include"` is what carries the httpOnly session
+  // cookie. The dashboard runs on :3100 and the API on :3001, so this is a
+  // cross-origin request and the default ("same-origin") would send no cookie
+  // at all — and would silently drop the Set-Cookie on login. CORS already
+  // answers with Access-Control-Allow-Credentials: true; behind nginx the two
+  // are same-origin anyway.
+  const res = await fetch(url, {
+    cache: "no-store",
+    credentials: "include",
+    ...rest,
+    headers: finalHeaders,
+    body: finalBody,
+  })
   if (throwOnError && !res.ok) {
     const data = await res.json().catch(() => ({}))
     const msg = Array.isArray(data.message)
@@ -108,6 +132,10 @@ export async function apiFetch(path: string, opts: ApiFetchOptions = {}): Promis
         localStorage.removeItem("userId")
         localStorage.removeItem("companyId")
         localStorage.removeItem("userEmail")
+        // Tier 401: the session is gone too — leaving this set would make
+        // authHeaders() keep omitting x-user-id after a re-login against a
+        // backend that minted nothing.
+        localStorage.removeItem(SESSION_FLAG)
         document.cookie = "x-user-id=; path=/; max-age=0"
         document.cookie = "x-company-id=; path=/; max-age=0"
         // Use replace() so the user can hit back

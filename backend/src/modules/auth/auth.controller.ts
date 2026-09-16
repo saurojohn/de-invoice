@@ -183,14 +183,7 @@ export class AuthController {
     // Tier 400: mint the session and set the httpOnly cookie. `sessionToken`
     // is also returned so non-browser clients (the e2e suites, scripts) can send
     // `Authorization: Bearer` instead of carrying a cookie jar.
-    const session = await this.sessions.create(user.id, {
-      ipAddress: ip,
-      userAgent: req?.headers['user-agent'] ?? null,
-    })
-    res.setHeader(
-      'Set-Cookie',
-      UserSessionService.cookie(session.token, SESSION_TTL_DAYS * 24 * 60 * 60),
-    )
+    const session = await this.sessions.issue(res, user.id, req, ip)
     return {
       id: user.id,
       email: user.email,
@@ -318,7 +311,11 @@ export class AuthController {
   @Public()
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('register')
-  async register(@Body() dto: RegisterDto) {
+  async register(
+    @Body() dto: RegisterDto,
+    @Req() req: any,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     if (dto.password.length < 8) {
       throw new BadRequestException('Passwort muss mindestens 8 Zeichen lang sein');
     }
@@ -336,7 +333,15 @@ export class AuthController {
       // Generic message — don't confirm the email exists
       throw new BadRequestException('Registrierung fehlgeschlagen. Bitte überprüfen Sie Ihre Angaben.');
     }
-    return this.authService.register(dto);
+    const created = await this.authService.register(dto);
+    // Tier 401: registration auto-logs the user in (the page writes the ids and
+    // redirects to /dashboard), so it has to mint a session like /auth/login.
+    const session = await this.sessions.issue(res, created.user.id, req);
+    return {
+      ...created,
+      sessionToken: session.token,
+      sessionExpiresAt: session.expiresAt,
+    };
   }
 
   /**
