@@ -8,7 +8,7 @@ import { MailService } from '../mail/mail.service';
 import { AuditService } from '../audit/audit.service';
 import * as bcrypt from 'bcrypt';
 import { Public } from '../../auth/public.decorator';
-import { SESSION_TTL_DAYS, UserSessionService } from '../../auth/user-session.service';
+import { UserSessionService } from '../../auth/user-session.service';
 import { Response } from 'express';
 
 interface LoginAttempt {
