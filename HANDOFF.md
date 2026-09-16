@@ -2432,6 +2432,62 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Every tenant was numbering invoices out of one shared counter (Tier 404)
+
+Two fresh companies on a throwaway stack, alternating creates:
+
+```
+A: INV-2026-000001
+B: INV-2026-000002
+B: INV-2026-000003
+B: INV-2026-000004
+A: INV-2026-000005
+```
+
+Company A's books go 1, 5. Tier 174 was right that numbering had to be atomic
+and used a Postgres SEQUENCE per (type, year) — but one sequence for the whole
+platform, reasoning that `@@unique([companyId, invoiceNumber])` "already handles
+per-company isolation downstream". It does prevent duplicates; it also hides
+what the shared counter does to each tenant's series:
+
+- **Cross-tenant leak.** A reads its own gaps and knows how many invoices
+  everyone else issued between its two.
+- **§ 14 Abs. 4 Nr. 4 UStG.** The number must be *fortlaufend*. In a
+  Betriebsprüfung the operator has to explain the missing numbers, and the only
+  explanation is other clients' invoices — data they may not show.
+
+The sequence is now per `(company, type, year)`. Existing numbers are never
+rewritten (GoBD § 146 forbids altering a booked document): a company's sequence
+is created starting **above** the highest number that company already used for
+that type and year, read from the invoice numbers themselves rather than from
+`sequenceNumber`, which is null for every row written before Tier 174.
+
+**A second bug, measured while proving the first.** On the old code the shared
+sequence had no relationship to any one company's numbers, and when it handed
+out a number that company had already used, the P2002 from the unique
+constraint was never caught — the invoice create answered `500 Internal server
+error`. Cross-tenant traffic can no longer cause that, but a restore or a
+direct insert still can, so the numbering now checks its candidate, and on a
+clash fast-forwards the sequence past the company's max and takes the next one
+(bounded to three attempts). Measured after: rewinding a sequence by hand
+yields the next free number instead of a 500.
+
+**And the code existed twice.** `recurring.service.ts` had its own copy with a
+comment asking that "the two implementations must stay in sync" — they had
+already drifted (the recurring one hardcoded `INV` and skipped the Tier 318
+type guard), and it used the shared sequence, so every recurring run punched a
+gap into every other company's books. Both now call
+`src/modules/invoice/invoice-number.ts`, which is the only copy and carries the
+Tier 174 / 318 reasoning with it.
+
+Spec: `e2e/193-tier404-invoice-numbering.sh` (23 assertions) — two companies
+each numbering from 1 through interleaved creates, credit notes as their own
+per-company series, an existing company continuing at max+1 with nothing
+reused, 8 parallel creates still distinct and contiguous (Tier 174's original
+race), the self-repair after a rewound sequence, and a recurring run taking its
+own company's next number without moving anyone else's. 11 of them fail against
+the old code.
+
 ### A password reset did not end the sessions (Tier 403)
 
 Sessions (Tier 400) gave the app a credential that outlives a single request —

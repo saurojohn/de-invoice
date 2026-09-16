@@ -9,6 +9,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 // crashing the cron tick.
 import { InvoiceEmailService } from '../invoice/invoice-email.service';
 import { ExchangeRateService } from '../exchange-rate/exchange-rate.service';
+import { nextInvoiceNumber } from '../invoice/invoice-number'
 
 /**
  * Recurring invoice (Abo-Rechnung) service.
@@ -846,34 +847,17 @@ export class RecurringService {
       // must stay in sync — see the matching helper in
       // invoice.service.ts nextInvoiceNumber().
       const currentYear = periodStart.getFullYear()
-      // Tier 174: lowercase unquoted sequence name to dodge
-      // Prisma 5.22's query-engine identifier cache (see
-      // invoice.service.ts.nextInvoiceNumber for the full
-      // story). Mixed-case quoted names trigger 42P01 in
-      // long-lived Prisma clients.
-      // Tier 318: validate the year is a safe integer
-      // (1000-9999) BEFORE interpolating into the raw
-      // SQL sequence name. currentYear = getFullYear()
-      // is normally 0-9999, but a corrupted DB row with
-      // an extreme periodStart could produce anything.
-      // This guard prevents the seqName from becoming
-      // an SQL-injection vector if a future refactor
-      // accidentally lets user input flow into the
-      // sequence name template.
-      if (!Number.isInteger(currentYear) || currentYear < 1000 || currentYear > 9999) {
-        throw new BadRequestException(
-          `Invalid period year for recurring invoice: ${currentYear}`,
-        )
-      }
-      const seqName = `invoice_seq_inv_${currentYear}`
-      await tx.$executeRawUnsafe(
-        `CREATE SEQUENCE IF NOT EXISTS ${seqName} START 1 INCREMENT 1`
+      // Tier 404: one implementation, in invoice-number.ts. This block used to
+      // be a second copy with a comment asking that the two stay in sync — they
+      // had already drifted (no type guard here) — and it used the sequence
+      // that was shared by every tenant, so a recurring run punched gaps into
+      // every other company's numbering too.
+      const { invoiceNumber, sequencePrefix, sequenceNumber } = await nextInvoiceNumber(
+        tx,
+        companyId,
+        'INV',
+        currentYear,
       )
-      const seqRows = await tx.$queryRawUnsafe<Array<{ nextval: bigint }>>(
-        `SELECT nextval('${seqName}') AS nextval`
-      )
-      const seq = Number(seqRows[0].nextval)
-      const invoiceNumber = `INV-${currentYear}-${String(seq).padStart(6, '0')}`
 
       // Create the invoice. issueDate = today; dueDate = issueDate + 30d
       // by default (the user can edit per-invoice later).
@@ -906,9 +890,9 @@ export class RecurringService {
           companyId,
           customerId: tpl.customerId,
           invoiceNumber,
-          sequencePrefix: 'INV',
+          sequencePrefix,
           sequenceYear: currentYear,
-          sequenceNumber: seq,
+          sequenceNumber,
           type: 'INV',
           status: tpl.invoiceStatus || 'draft',
           issueDate,

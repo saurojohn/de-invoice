@@ -17,6 +17,7 @@ import { CreditBalanceService } from '../customer/credit-balance.service';
 // the PDF / XRechnung / customer-facing display. The EUR
 // amounts are what EÜR / UStVA / BWA / GuV aggregate over.
 import { ExchangeRateService } from '../exchange-rate/exchange-rate.service';
+import { nextInvoiceNumber } from './invoice-number';
 
 export type InvoiceType = 'INV' | 'CN' | 'PI' | 'RCV';
 
@@ -179,80 +180,15 @@ export class InvoiceService {
     sequenceYear: number;
     sequenceNumber: number;
   }> {
+    // Tier 404: the sequence lives in invoice-number.ts and is per company —
+    // it used to be shared by every tenant, so each company's books had a gap
+    // wherever another company issued an invoice. That module also carries the
+    // Tier 174 (atomic nextval) and Tier 318 (raw-SQL guards) reasoning, and is
+    // now the only copy: recurring.service.ts had a second one.
     const year = new Date().getFullYear();
-    // Tier 318: validate year is a safe integer (1000-9999)
-    // before interpolating into the raw SQL sequence name.
-    // `new Date().getFullYear()` always returns 0-9999, but
-    // this guard prevents the seqName from becoming an
-    // SQL-injection vector if a future refactor lets user
-    // input flow into the year (e.g. a manual override
-    // field or a corrupted system clock).
-    if (!Number.isInteger(year) || year < 1000 || year > 9999) {
-      throw new BadRequestException(
-        `Invalid year for invoice number: ${year}`,
-      )
-    }
-    // Tier 318: also validate type is a known enum value.
-    // `type` is typed as InvoiceType at the TS level but
-    // the raw SQL below concatenates it; ensure it only
-    // contains [a-zA-Z0-9_].
-    if (!/^[A-Z]{2,5}$/.test(type)) {
-      throw new BadRequestException(
-        `Invalid invoice type: ${type}`,
-      )
-    }
-    const prefix =
-      type === 'CN' ? 'CN-' :
-      type === 'PI' ? 'PI-' :
-      type === 'RCV' ? 'RCV-' :
-      'INV-';
-    const seqName = `invoice_seq_${type.toLowerCase()}_${year}`;
-    // Tier 174: sequence name is unquoted-lowercase.
-    //
-    // We originally used `CREATE SEQUENCE "invoice_seq_INV_2026"`
-    // with quoted mixed case, and `SELECT nextval('"invoice_seq_INV_2026"')`.
-    // That works in a fresh Node script (Prisma's query engine
-    // forwards the SQL untouched), but inside our NestJS
-    // backend the same query returned 42P01 ("relation
-    // invoice_seq_inv_2026 does not exist") for every
-    // request. Root cause: Prisma 5.22's query engine binary
-    // normalises unrecognised identifiers to lowercase
-    // before the schema-existence check, and the cached
-    // miss then poisons subsequent calls. Using an
-    // all-lowercase unquoted name keeps both the engine's
-    // pre-flight check and PG's `regclass` lookup in
-    // agreement, so the 42P01 disappears.
-    //
-    // The trade-off: sequence names look "ugly" in
-    // pg_class (`invoice_seq_inv_2026` instead of
-    // `invoice_seq_INV_2026`), but they're internal — the
-    // user-facing invoice number is still `INV-2026-000207`
-    // because we derive the prefix from the `type` field,
-    // not from the sequence name.
-    //
-    // Also wrapped in a transaction so the CREATE and the
-    // nextval see the same connection (the engine batches
-    // statements in interactive transactions, bypassing
-    // the per-statement identifier cache).
-    const run = async (tx: Prisma.TransactionClient) => {
-      await tx.$executeRawUnsafe(
-        `CREATE SEQUENCE IF NOT EXISTS ${seqName} START 1 INCREMENT 1`
-      );
-      const r = await tx.$queryRawUnsafe<Array<{ nextval: bigint }>>(
-        `SELECT nextval('${seqName}') AS nextval`
-      );
-      return r;
-    };
-    const rows = executor
-      ? await run(executor)
-      : await this.prisma.$transaction(run);
-    const seq = Number(rows[0].nextval);
-    return {
-      invoiceNumber: `${prefix}${year}-${String(seq).padStart(6, '0')}`,
-      sequencePrefix: prefix.replace(/-$/, ''),
-      sequenceYear: year,
-      sequenceNumber: seq,
-    };
+    const run = (tx: Prisma.TransactionClient) =>
+      nextInvoiceNumber(tx, companyId, type, year);
+    return executor ? run(executor) : this.prisma.$transaction(run);
   }
 
   async findDuplicates(
