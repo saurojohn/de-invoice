@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, HttpCode, HttpStatus, BadRequestException, Logger, Req, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, Get, HttpCode, HttpStatus, BadRequestException, Logger, Req, Res, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { LoginDto, RegisterDto } from './dto/auth.dto';
@@ -8,6 +8,8 @@ import { MailService } from '../mail/mail.service';
 import { AuditService } from '../audit/audit.service';
 import * as bcrypt from 'bcrypt';
 import { Public } from '../../auth/public.decorator';
+import { SESSION_TTL_DAYS, UserSessionService } from '../../auth/user-session.service';
+import { Response } from 'express';
 
 interface LoginAttempt {
   count: number;
@@ -31,6 +33,8 @@ export class AuthController {
     private mailService: MailService,
     // Tier 368: signs the auth audit rows so they join the hash chain.
     private audit: AuditService,
+    // Tier 400: mints the session the cookie carries.
+    private sessions: UserSessionService,
   ) {}
 
   private cleanup() {
@@ -72,7 +76,11 @@ export class AuthController {
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  async login(@Body() dto: LoginDto, @Req() req: any) {
+  async login(
+    @Body() dto: LoginDto,
+    @Req() req: any,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     this.cleanup();
     const ip = this.getClientIp(req);
     const now = Date.now();
@@ -172,12 +180,25 @@ export class AuthController {
     // public; even authenticated users should not see their own
     // bcrypt hash in the response. We only return what the
     // frontend needs to populate x-user-id / x-company-id.
+    // Tier 400: mint the session and set the httpOnly cookie. `sessionToken`
+    // is also returned so non-browser clients (the e2e suites, scripts) can send
+    // `Authorization: Bearer` instead of carrying a cookie jar.
+    const session = await this.sessions.create(user.id, {
+      ipAddress: ip,
+      userAgent: req?.headers['user-agent'] ?? null,
+    })
+    res.setHeader(
+      'Set-Cookie',
+      UserSessionService.cookie(session.token, SESSION_TTL_DAYS * 24 * 60 * 60),
+    )
     return {
       id: user.id,
       email: user.email,
       companyId: user.companyId,
       role: user.role,
       status: user.status,
+      sessionToken: session.token,
+      sessionExpiresAt: session.expiresAt,
       profile: user.profile,
       preferences: user.preferences,
       createdAt: user.createdAt,
@@ -331,6 +352,21 @@ export class AuthController {
    *  - In dev (no SMTP configured), the link is logged to backend stdout
    *    so a developer can click it without setting up an SMTP server.
    */
+  /**
+   * Tier 400 — end the session behind the cookie (or Bearer token) and clear it.
+   * Public: a request with an expired or already-revoked session must still be
+   * able to log out rather than get a 401 it cannot clear.
+   */
+  @Public()
+  @Post('logout')
+  @HttpCode(HttpStatus.OK)
+  async logout(@Req() req: any, @Res({ passthrough: true }) res: Response) {
+    const token = UserSessionService.tokenFromRequest(req)
+    if (token) await this.sessions.revoke(token)
+    res.setHeader('Set-Cookie', UserSessionService.clearedCookie())
+    return { ok: true }
+  }
+
   @Public()
   @Throttle({ default: { limit: 3, ttl: 3_600_000 } })
   @Post('forgot-password')

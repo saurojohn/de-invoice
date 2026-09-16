@@ -3,6 +3,9 @@ import { Reflector } from '@nestjs/core';
 import { PrismaService } from '../prisma/prisma.service';
 import { assertBodyBoundToCaller } from './caller-bound-upload';
 import { ALLOW_OTHER_COMPANY_ID_KEY, COMPANY_ID_PARAM_KEY, IS_PUBLIC_KEY } from './public.decorator';
+import { UserSessionService } from './user-session.service';
+import { getRequestContext } from '../prisma/request-context';
+import { legacyHeaderAuthAllowed } from './auth-mode';
 
 /**
  * Auth guard — reads `x-user-id` and `x-company-id` from request headers
@@ -33,6 +36,7 @@ export class HeaderAuthGuard implements CanActivate {
   constructor(
     private prisma: PrismaService,
     private reflector: Reflector,
+    private sessions: UserSessionService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -47,12 +51,32 @@ export class HeaderAuthGuard implements CanActivate {
       return true;
     }
 
-    const userId = req.headers['x-user-id'] as string | undefined;
+    // Tier 400: the session cookie (or Authorization: Bearer) is the credential.
+    // `x-user-id` used to BE the credential — knowing a UUID was enough to be
+    // that user (HANDOFF §9 item 10). It is still accepted while
+    // ALLOW_HEADER_AUTH is on, which is how ~300 existing specs keep working;
+    // production sets ALLOW_HEADER_AUTH=0 and only the cookie counts.
     const companyId = req.headers['x-company-id'] as string | undefined;
+    let userId: string | undefined;
 
-    // Both headers are required. A request missing either is unauthorized.
+    const sessionToken = UserSessionService.tokenFromRequest(req);
+    if (sessionToken) {
+      const session = await this.sessions.resolve(sessionToken);
+      if (!session) {
+        throw new UnauthorizedException('Sitzung abgelaufen oder ungültig');
+      }
+      userId = session.userId;
+      req.sessionId = session.sessionId;
+    } else if (legacyHeaderAuthAllowed()) {
+      userId = req.headers['x-user-id'] as string | undefined;
+    }
+
     if (!userId || !companyId) {
-      throw new UnauthorizedException('Authentifizierung erforderlich (x-user-id und x-company-id fehlen)')
+      throw new UnauthorizedException(
+        legacyHeaderAuthAllowed()
+          ? 'Authentifizierung erforderlich (x-user-id und x-company-id fehlen)'
+          : 'Authentifizierung erforderlich (keine gültige Sitzung)',
+      )
     }
 
     let user
@@ -108,6 +132,16 @@ export class HeaderAuthGuard implements CanActivate {
     ).toLowerCase()
     const readonly = readonlyHeader === '1' || readonlyHeader === 'true'
     req.user = { ...user, role: access.role, readonly }
+
+    // Tier 400: the audit context (Tier 384) is started by a middleware that
+    // runs before guards, so with a session cookie it has no user yet. Fill it
+    // in here — the ALS store is a mutable object, so the audit extension sees
+    // the authenticated user rather than whatever the client put in a header.
+    const auditCtx = getRequestContext()
+    if (auditCtx) {
+      auditCtx.userId = user.id
+      auditCtx.companyId = companyId
+    }
 
     if (!this.reflector.getAllAndOverride<boolean>(ALLOW_OTHER_COMPANY_ID_KEY, targets)) {
       const companyParam = this.reflector.getAllAndOverride<string>(COMPANY_ID_PARAM_KEY, targets)

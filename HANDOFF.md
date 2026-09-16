@@ -2416,6 +2416,85 @@ Tier 396 run 35082666894, all six jobs green: backend 188/0/1 (only
 Tier 397 run 35090119146, all six jobs green: backend 188/0/1, Playwright 922.
 Tier 398 run 35094143231 **failed** (Playwright 921 — portal-profile-tier155,
 see below); Tier 398a run 35099184553 green: backend 188/0/1, Playwright 922.
+Tier 400 run RUN_ID, all six jobs green: backend 189/0/1, Playwright 922.
+
+### `x-user-id` was the credential; login now mints a session (Tier 400)
+
+The single largest hole in §9, and the reason 2FA (Tier 386) protected nothing:
+the guard took `x-user-id`, looked the user up, checked `UserCompany` for
+`x-company-id` and let the request through. **Knowing a user's UUID was being
+that user** — and UUIDs are not secrets: they travel in invitation flows, in
+audit exports, in Berater hand-offs. Nothing could be revoked, nothing expired,
+and the password check protected only the login response itself. Measured on the
+old code: `POST /auth/login` returned no cookie and no token, a request carrying
+only a cookie or `Authorization: Bearer` got 401, and `POST /auth/logout` was a
+404 — there was no credential to steal, only an id to guess.
+
+Phase 1 of the Tier 399 plan, with the operator's two decisions: **server-side
+sessions**, **30 days, sliding**.
+
+- `UserSession` (63rd model), shaped like the `CustomerPortalSession` that has
+  carried the portal since Tier 130: token `@unique`, `expiresAt`, `lastSeenAt`,
+  `revokedAt`, plus `ipAddress` / `userAgent` for the record.
+- `auth/user-session.service.ts`: `create` (32 random bytes, hex),
+  `resolve` (unknown / revoked / expired → null, otherwise slides `expiresAt`
+  **at most hourly** so this is one write per session per hour, not one per
+  request), `revoke`, and the `Set-Cookie` builders — `HttpOnly`, `SameSite=Lax`,
+  `Path=/`, `Secure` only when `NODE_ENV=production`. The token is read from the
+  cookie header (parsed by hand — no `cookie-parser` dependency for one cookie)
+  or from `Authorization: Bearer`, which is what lets scripts and the e2e suites
+  authenticate without a cookie jar.
+- `POST /auth/login` mints the session, sets the cookie and also returns
+  `sessionToken` / `sessionExpiresAt`. New `POST /auth/logout` revokes and clears
+  the cookie; it is `@Public()` on purpose — an expired session must still be
+  able to log out instead of getting a 401 it cannot clear.
+- Both guards resolve **session first, legacy header second**, and the header
+  path is behind `legacyHeaderAuthAllowed()` (`ALLOW_HEADER_AUTH !== '0'`). A
+  present-but-invalid session is a 401 and never falls back to the header.
+- The guard also fills the Tier 384 audit context (`getRequestContext()`) with
+  `userId` / `companyId` after it resolves them. The context is created by an
+  Express middleware that runs **before** guards, so under cookie auth it would
+  otherwise have had no user to record — the store is a mutable object, so the
+  guard writing into it is visible to the audit extension.
+
+`x-company-id` is unchanged: it was never the credential, it selects the active
+Mandant and is still validated against `UserCompany`, so the Berater switching
+flow is untouched.
+
+Three things worth keeping:
+
+- **The DI failure is informative.** `HeaderAuthGuard` is constructed in many
+  modules, so adding a constructor argument produced "Nest can't resolve
+  dependencies of the HeaderAuthGuard (PrismaService, Reflector, ?) … in the
+  StorageModule". A `@Global()` `UserSessionModule` is the right answer for a
+  dependency of a guard that is wired in everywhere.
+- **The flag was measured, not assumed.** With `ALLOW_HEADER_AUTH=0` — what
+  production will run — a legacy-header request is `401
+  Authentifizierung erforderlich (keine gültige Sitzung)` while the cookie and
+  the Bearer token both answer 200.
+- Audit attribution was checked under cookie-only auth: `customer.created` and
+  `customer.updated` carry the session's user and company.
+
+`e2e/176-tier375-auth-default-deny.sh` also needed one line: it keeps a reviewed
+list of every `@Public()` route and went red on `POST auth/logout` — which is
+exactly what that list is for, so the route was added deliberately rather than
+the check loosened.
+
+Spec: `e2e/190-tier400-session-auth.sh` — the cookie's flags and 30-day Max-Age,
+that the cookie and the Bearer token authenticate with no `x-user-id` anywhere,
+that an unknown token is refused and does **not** fall back to the header, that a
+session cannot claim another Mandant, audit attribution, logout revoking one
+session but not the user's other one, and an expired session being refused. The
+`ALLOW_HEADER_AUTH=0` behaviour is asserted statically, the way the `@Throttle`
+limits are (the stack runs with the flag on so the other ~300 specs keep
+passing).
+
+**Still to do (phases 2-3 of the plan, §9 item 10):** the frontend still logs in
+with headers — `authHeaders()` must stop sending `x-user-id`, `apiFetch` needs
+`credentials: 'include'`, and the Next middleware must gate on the httpOnly
+cookie; that is what forces `ALLOW_HEADER_AUTH=0` in `infra/prod/.env` to be
+safe, and it touches the `injectAuth` / `setupAuth` helpers of ~169 Playwright
+specs.
 
 ### The last unbounded bodies: portal profile, note and invoice templates (Tier 398)
 
@@ -3037,7 +3116,9 @@ These are **not in the repo** — only the user can do them:
    surface as a rejected upload at ELSTER. Needs someone with the ERiC schema
    (or a test upload in Mein ELSTER's test mode) to decide which side is right
    before anyone changes the generator — it is a tax filing format.
-10. **Replace the header "authentication" before any real deployment** (found
+10. **Replace the header "authentication" before any real deployment**
+    (**phase 1 done in Tier 400** — sessions exist and work; the frontend still
+    logs in by header, so this item stays open until phase 2) (found
     Tier 375). `HeaderAuthGuard` trusts the `x-user-id` / `x-company-id`
     request headers: it checks that the user exists, is active and has a
     `UserCompany` row — but nothing proves the caller *is* that user. No token,
@@ -3094,12 +3175,21 @@ These are **not in the repo** — only the user can do them:
     are still open, so real exposure today is zero), but it keeps 2FA meaningless.
 
     *Migration that keeps 189 + 922 green:*
-    1. add sessions, guard accepts session **or** legacy header
-       (`ALLOW_HEADER_AUTH=1` by default) — no spec changes;
-    2. frontend logs in to a cookie: `authHeaders()` stops sending `x-user-id`,
-       `apiFetch` gains `credentials: 'include'`; the Next middleware gates on the
-       httpOnly cookie instead of the JS-readable one;
-    3. `ALLOW_HEADER_AUTH=0` in `infra/prod/.env`; specs keep using headers.
+    1. ~~add sessions, guard accepts session **or** legacy header
+       (`ALLOW_HEADER_AUTH=1` by default) — no spec changes;~~ **done, Tier 400**
+       — `UserSession` + `auth/user-session.service.ts`, both guards resolve the
+       cookie / Bearer token first, `POST /auth/logout` revokes, 30 days sliding.
+       Spec `190-tier400-session-auth.sh`. Measured with `ALLOW_HEADER_AUTH=0`:
+       the legacy header is 401, cookie and Bearer are 200.
+    2. **next:** frontend logs in to a cookie: `authHeaders()` stops sending
+       `x-user-id`, `apiFetch` gains `credentials: 'include'`; the Next
+       middleware gates on the httpOnly cookie instead of the JS-readable one.
+       This is the phase that touches the ~169 Playwright specs' `injectAuth` /
+       `setupAuth` helpers — they must mint a real session instead of writing
+       ids into localStorage. Until it lands the browser still authenticates by
+       header, so the hole is only *closable*, not closed;
+    3. `ALLOW_HEADER_AUTH=0` in `infra/prod/.env`; the bash specs keep using
+       headers, so the flag must stay on in CI.
 
     *Two details already checked, so the plan is not guesswork:*
     - **Cookies ignore ports.** Measured in Chromium: a `localhost` cookie set by

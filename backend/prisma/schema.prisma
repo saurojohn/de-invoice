@@ -172,6 +172,8 @@ model User {
   company          Company?  @relation(fields: [companyId], references: [id])
   // UserCompany back-relation (Tier 66).
   userCompanies    UserCompany[]
+  // Tier 400: browser sessions (the cookie credential). See UserSession.
+  sessions         UserSession[]
   email            String    @unique
   passwordHash     String
   // Role within the company: "admin" | "accountant" | "viewer"
@@ -990,6 +992,37 @@ model PaymentLink {
 /// are different enough that one model would be a
 /// leaky abstraction. A single customer can have
 /// many of each concurrently.
+// Tier 400 — a logged-in user's browser session.
+//
+// Before this, `x-user-id` WAS the credential: the guard looked the id up and
+// let the request through, so anyone who knew a user's UUID was that user
+// (HANDOFF §9 item 10). Login now mints a row here and sets an httpOnly
+// cookie; the guard resolves the cookie (or `Authorization: Bearer`) to the
+// user. Deliberately the same shape as CustomerPortalSession below, which has
+// worked for the customer portal since Tier 130.
+model UserSession {
+  id         String    @id @default(uuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // 32 random bytes hex-encoded = 64 chars. Stored as-is: it is a bearer
+  // credential with a 30-day life, not a password.
+  token      String    @unique
+  // Sliding: an authenticated request pushes this out by another 30 days (at
+  // most hourly), so an idle session dies after 30 days — the operator's
+  // choice (Tier 399).
+  expiresAt  DateTime
+  // Set by /auth/logout. A revoked row is kept so the audit trail can still
+  // explain who was signed in when.
+  revokedAt  DateTime?
+  lastSeenAt DateTime  @default(now())
+  createdAt  DateTime  @default(now())
+  ipAddress  String?
+  userAgent  String?
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
 model CustomerPortalSession {
   id          String   @id @default(uuid())
   companyId   String

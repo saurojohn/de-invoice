@@ -9,17 +9,31 @@
  */
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
+import { UserSessionService } from './user-session.service'
+import { legacyHeaderAuthAllowed } from './auth-mode'
 
 @Injectable()
 export class SoftAuthGuard implements CanActivate {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private sessions: UserSessionService,
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const http = context.switchToHttp()
     const req = http.getRequest()
 
-    const userId = req.headers['x-user-id'] as string | undefined
+    // Tier 400: prefer the session cookie; the header is legacy (see
+    // HeaderAuthGuard). Either way this guard never blocks the request.
     const companyId = req.headers['x-company-id'] as string | undefined
+    let userId: string | undefined
+    const sessionToken = UserSessionService.tokenFromRequest(req)
+    if (sessionToken) {
+      const session = await this.sessions.resolve(sessionToken).catch(() => null)
+      userId = session?.userId
+    } else if (legacyHeaderAuthAllowed()) {
+      userId = req.headers['x-user-id'] as string | undefined
+    }
 
     // No headers? That's fine for a public route. Just
     // return true and let downstream code use nulls.

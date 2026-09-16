@@ -52,6 +52,7 @@ PATCH customer-portal/profile
 POST auth/2fa/verify
 POST auth/forgot-password
 POST auth/login
+POST auth/logout
 POST auth/register
 POST auth/reset-password
 POST customer-portal/invoice/:id/mark-paid

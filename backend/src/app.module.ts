@@ -68,6 +68,7 @@ import { BeraterModule } from './modules/berater/berater.module';
 // Anlagevermögen + 7a Abschreibungen positions
 // on the § 266 HGB / § 275 HGB reports.
 import { AssetsModule } from './modules/assets/assets.module';
+import { UserSessionModule } from './auth/user-session.module';
 
 @Module({
   imports: [
@@ -110,6 +111,7 @@ import { AssetsModule } from './modules/assets/assets.module';
           ]),
         ]),
     PrismaModule,
+    UserSessionModule,
     MailModule,
     AuthModule,
     CompanyModule,

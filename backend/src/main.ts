@@ -151,6 +151,12 @@ async function bootstrap() {
   expressApp.use((req: any, _res: any, next: any) => {
     runWithRequestContext(
       {
+        // Tier 400: with session cookies the user is only known once the guard
+        // has resolved the session — and this middleware runs BEFORE guards.
+        // The header values are a starting point (still the credential while
+        // ALLOW_HEADER_AUTH is on); HeaderAuthGuard overwrites userId with the
+        // authenticated one. The store is a mutable object, so a write inside
+        // the scope is what the audit extension reads.
         userId: req.headers['x-user-id'] || null,
         companyId: req.headers['x-company-id'] || null,
         ipAddress: req.ip || req.socket?.remoteAddress || null,
