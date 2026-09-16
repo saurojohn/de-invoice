@@ -131,6 +131,25 @@ api_get "/api/v1/invoice-templates?companyId=$COMPANY_ID"
 COUNT=$(echo "$BODY" | python3 -c "import json,sys; print(len(json.load(sys.stdin)))")
 assert_eq "12. list shows 1 after delete" "$COUNT" "1"
 
+# ===== Tier 398: invoice-template fields are bounded =====
+# Measured: name 50 000 chars, templateType "bogus-type" and a 500 KB configJson
+# were all stored (validateConfig checked the known keys only).
+t398_tpl() { # json -> STATUS
+  curl -sS -o /tmp/t398-tpl.out -w "%{http_code}" -X POST \
+    "$API/api/v1/invoice-templates" \
+    -H "Content-Type: application/json" -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
+    --data-binary "$1"
+}
+python3 -c "import json,sys;print(json.dumps({'companyId':sys.argv[1],'name':'N'*50000,'configJson':{}}))" "$COMPANY_ID" > /tmp/t398-a.json
+assert_eq "invoice-template: 50 000-character name refused (was 201)" "$(t398_tpl @/tmp/t398-a.json)" "400"
+python3 -c "import json,sys;print(json.dumps({'companyId':sys.argv[1],'name':'t398','templateType':'bogus-type','configJson':{}}))" "$COMPANY_ID" > /tmp/t398-b.json
+assert_eq "invoice-template: unknown templateType refused (was stored)" "$(t398_tpl @/tmp/t398-b.json)" "400"
+python3 -c "import json,sys;print(json.dumps({'companyId':sys.argv[1],'name':'t398','configJson':{'pad':'P'*500000}}))" "$COMPANY_ID" > /tmp/t398-c.json
+assert_eq "invoice-template: 500 KB configJson refused (was stored)" "$(t398_tpl @/tmp/t398-c.json)" "400"
+python3 -c "import json,sys;print(json.dumps({'companyId':sys.argv[1],'name':'Tier398 Vorlage','templateType':'custom','configJson':{'primaryColor':'#1e3a8a'}}))" "$COMPANY_ID" > /tmp/t398-d.json
+assert_eq "invoice-template: the settings page shape still saves" "$(t398_tpl @/tmp/t398-d.json)" "201"
+rm -f /tmp/t398-a.json /tmp/t398-b.json /tmp/t398-c.json /tmp/t398-d.json /tmp/t398-tpl.out
+
 # ----- Cleanup -----
 docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   DELETE FROM \"InvoiceTemplate\" WHERE \"companyId\" = '$COMPANY_ID';" >/dev/null 2>&1

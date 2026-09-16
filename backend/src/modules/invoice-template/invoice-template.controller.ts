@@ -12,21 +12,8 @@ import {
 } from '@nestjs/common'
 import { Response } from 'express'
 import { Auth, Require } from '../../auth/roles.decorator'
-import { InvoiceTemplateService, TemplateConfig } from './invoice-template.service'
-
-interface CreateTemplateDto {
-  companyId: string
-  name: string
-  templateType?: string
-  configJson: TemplateConfig
-  isDefault?: boolean
-}
-
-interface UpdateTemplateDto {
-  name?: string
-  configJson?: TemplateConfig
-  isDefault?: boolean
-}
+import { InvoiceTemplateService } from './invoice-template.service'
+import { CreateInvoiceTemplateDto, UpdateInvoiceTemplateDto } from './dto/invoice-template.dto'
 
 @Auth()
 @Controller('invoice-templates')
@@ -49,7 +36,7 @@ export class InvoiceTemplateController {
 
   @Post()
   @Require('company.update')
-  async create(@Body() body: CreateTemplateDto) {
+  async create(@Body() body: CreateInvoiceTemplateDto) {
     if (!body?.companyId) throw new BadRequestException('companyId is required')
     return this.svc.create(body.companyId, {
       name: body.name,
@@ -64,7 +51,7 @@ export class InvoiceTemplateController {
   async update(
     @Param('id') id: string,
     @Query('companyId') companyId: string,
-    @Body() body: UpdateTemplateDto,
+    @Body() body: UpdateInvoiceTemplateDto,
   ) {
     if (!companyId) throw new BadRequestException('companyId is required')
     return this.svc.update(id, companyId, body)

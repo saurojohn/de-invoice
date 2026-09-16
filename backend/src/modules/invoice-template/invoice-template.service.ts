@@ -367,6 +367,20 @@ export class InvoiceTemplateService {
    */
   private validateConfig(c: TemplateConfig) {
     if (!c) return
+    // Tier 398: the known fields were checked but unknown keys were not, and
+    // nothing bounded the size — a 500 KB configJson was stored (measured).
+    // The render config is a handful of colours and strings; 20 KB is generous.
+    try {
+      const size = JSON.stringify(c).length
+      if (size > 20_000) {
+        throw new BadRequestException(
+          `configJson ist zu groß (${size} Zeichen, max. 20000)`,
+        )
+      }
+    } catch (e) {
+      if (e instanceof BadRequestException) throw e
+      throw new BadRequestException('configJson ist nicht serialisierbar')
+    }
     if (c.fontFamily && !['Helvetica', 'Times-Roman', 'Courier'].includes(c.fontFamily)) {
       throw new BadRequestException(
         `fontFamily must be Helvetica|Times-Roman|Courier (got ${c.fontFamily})`,

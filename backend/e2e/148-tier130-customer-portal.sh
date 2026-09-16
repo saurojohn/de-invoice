@@ -106,6 +106,35 @@ HTTP_CODE=$(curl -sS -o /dev/null -w "%{http_code}" -X POST "http://localhost:30
 assert_eq "6th request in 5min returns 400 (rate-limited)" "$HTTP_CODE" "400"
 
 echo ""
+echo ""
+echo "=== Tier 398: the portal customer's own fields are bounded ==="
+# The portal customer is the only externally driven writer. The service checked
+# that name is non-empty and that the e-mail parses, but nothing was bounded —
+# measured: name 100 000 chars, vatId 5 000, address.street 50 000, all stored.
+# That name is printed on the customer's invoices and goes into DATEV / GoBD.
+t398_patch() { # json -> STATUS/BODY
+  local resp
+  resp=$(curl -sS -w "\n%{http_code}" -X PATCH \
+    "http://localhost:3001/api/v1/customer-portal/profile?token=$TOKEN" \
+    -H "Content-Type: application/json" -d "$1")
+  STATUS=$(echo "$resp" | tail -n1); BODY=$(echo "$resp" | sed '$d')
+}
+python3 -c "import json;print(json.dumps({'name':'X'*100000}))" > /tmp/t398-name.json
+T398_CODE=$(curl -sS -o /dev/null -w "%{http_code}" -X PATCH \
+  "http://localhost:3001/api/v1/customer-portal/profile?token=$TOKEN" \
+  -H "Content-Type: application/json" --data-binary @/tmp/t398-name.json)
+assert_eq "portal: 100 000-character name refused (was 200 + stored)" "$T398_CODE" "400"
+rm -f /tmp/t398-name.json
+t398_patch '{"contact":{"email":"keine-email"}}'
+assert_eq "portal: invalid e-mail refused" "$STATUS" "400"
+t398_patch '{"address":{"postalCode":"012345678901234567890123456789"}}'
+assert_eq "portal: over-long postal code refused" "$STATUS" "400"
+assert_eq "portal: nothing over-long stored" \
+  "$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "SELECT count(*) FROM \"Customer\" WHERE id = '$CUSTOMER_ID' AND length(name) > 200;" 2>/dev/null | tr -d ' ')" "0"
+# The portal form's own shape still saves.
+t398_patch '{"name":"Tier398 Portal Kunde","contact":{"email":"t398-portal@example.test","phone":"+49 69 1234"},"address":{"street":"Teststr 1","postalCode":"60311","city":"Frankfurt","country":"DE"}}'
+assert_eq "portal: the form's own shape still saves" "$STATUS" "200"
+
 echo "=== Step 8: cleanup ==="
 docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tAc \
   "DELETE FROM \"CustomerPortalSession\" WHERE email='$EMAIL';" >/dev/null

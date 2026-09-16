@@ -181,6 +181,22 @@ CROSS_HERE=$(python3 -c "import json,sys; rows=json.loads(sys.argv[1]); print('y
 [ "$CROSS_HERE" = "yes" ] && pass "own-company list contains cross-tenant test row" || fail "own-company list missing test row"
 note "Cross-tenant 5xx on fake-companyId is a pre-existing auto-seed FK bug, not a data leak — skipped"
 
+# ===== Tier 398: note-template fields are bounded =====
+# Measured: label 50 000 chars, text 500 000 chars and sortOrder -5 were stored.
+python3 -c "import json;print(json.dumps({'label':'L'*50000,'text':'T'*500000}))" > /tmp/t398-note.json
+T398N=$(curl -sS -o /dev/null -w "%{http_code}" -X POST \
+  "$API/api/v1/note-templates?companyId=$COMPANY_ID" \
+  -H "Content-Type: application/json" -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
+  --data-binary @/tmp/t398-note.json)
+assert_eq "note-template: 50k label / 500k text refused (was 201)" "$T398N" "400"
+rm -f /tmp/t398-note.json
+api_post "/api/v1/note-templates?companyId=$COMPANY_ID" '{"label":"t398","text":"x","sortOrder":-5}'
+assert_status 400 "note-template: negative sortOrder refused (was stored)"
+api_post "/api/v1/note-templates?companyId=$COMPANY_ID" '{"label":"Tier398 Hinweis","text":"Zahlbar binnen 14 Tagen.","sortOrder":1}'
+assert_status 201 "note-template: the page's own shape still saves"
+T398_NID=$(json_field "$BODY" id)
+[ -n "$T398_NID" ] && api_delete "/api/v1/note-templates/$T398_NID?companyId=$COMPANY_ID" >/dev/null
+
 # ---- Cleanup ----
 api_delete "/api/v1/note-templates/$ORD_ID?companyId=$COMPANY_ID" >/dev/null
 api_delete "/api/v1/note-templates/$CROSS_ID?companyId=$COMPANY_ID" >/dev/null

@@ -49,6 +49,7 @@ import {
 } from '@nestjs/common'
 import { Auth, Require } from '../../auth/roles.decorator'
 import { NoteTemplateService } from './note-template.service'
+import { CreateNoteTemplateDto, PreviewNoteTemplateDto, UpdateNoteTemplateDto } from './dto/note-template.dto'
 
 @Auth()
 @Controller('note-templates')
@@ -65,7 +66,7 @@ export class NoteTemplateController {
   @Require('invoice.update')
   async create(
     @Query('companyId') companyId: string,
-    @Body() body: { label: string; text: string; sortOrder?: number },
+    @Body() body: CreateNoteTemplateDto,
   ) {
     return this.svc.create(companyId, body)
   }
@@ -75,7 +76,7 @@ export class NoteTemplateController {
   async update(
     @Param('id') id: string,
     @Query('companyId') companyId: string,
-    @Body() body: { label?: string; text?: string; sortOrder?: number },
+    @Body() body: UpdateNoteTemplateDto,
   ) {
     return this.svc.update(id, companyId, body)
   }
@@ -94,13 +95,7 @@ export class NoteTemplateController {
   async preview(
     @Param('id') id: string,
     @Query('companyId') companyId: string,
-    @Body() body: {
-      customerName?: string
-      invoiceNumber?: string
-      dueDate?: string
-      total?: string
-      companyName?: string
-    },
+    @Body() body: PreviewNoteTemplateDto,
   ) {
     if (!id || !companyId) {
       throw new BadRequestException('id and companyId are required')

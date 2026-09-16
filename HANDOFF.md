@@ -2415,6 +2415,52 @@ Tier 396 run 35082666894, all six jobs green: backend 188/0/1 (only
 16-dark-mode), Playwright 922.
 Tier 397 run 35090119146, all six jobs green: backend 188/0/1, Playwright 922.
 
+### The last unbounded bodies: portal profile, note and invoice templates (Tier 398)
+
+Three bodies were still inline types. Measured, all stored verbatim:
+
+| Route | Input | Before |
+|---|---|---|
+| `PATCH /customer-portal/profile` (token auth — the customer) | name × 100 000, vatId × 5 000, address.street × 50 000 | 200, all stored |
+| `POST /note-templates` | label × 50 000, text × 500 000, `sortOrder: -5` | 201, all stored |
+| `POST /invoice-templates` | name × 50 000, `templateType: "bogus-type"`, configJson 500 KB | 201, all stored |
+
+The portal one matters most: it is the only externally driven write in the app —
+the actor is the customer holding a portal token, not a company user — and that
+name is printed on their invoices and travels into the DATEV / GoBD exports.
+The service did check that `name` is non-empty and that the e-mail parses, so
+this was purely about bounds.
+
+- `dto/update-profile.dto.ts`: name and vatId reuse the Tier 397 constants
+  (200 / 20), contact and address are nested DTOs with per-field limits and the
+  e-mail check; the objects stay partial, so the service's merge is unchanged.
+- `dto/note-template.dto.ts`: label ≤ 200, text ≤ 5000, sortOrder an integer
+  0…9999, plus a bounded preview DTO.
+- `dto/invoice-template.dto.ts`: name ≤ 200, `templateType` restricted to
+  standard|simplified|compact|custom (the four the service actually renders).
+  `configJson` stays free-form — `validateConfig` checked the known keys but
+  ignored unknown ones, so it now bounds the serialised size at 20 KB, the same
+  approach as the Tier 392 error context.
+
+Two self-inflicted problems caught before committing, both worth recording:
+
+- The note-template DTO first emitted German "erforderlich" messages, but
+  `e2e/157` pins the service's existing English "label is required" /
+  "text is required". The DTO now emits those exact strings — a DTO that
+  replaces hand-rolled checks has to keep their message contract.
+- The portal section was first appended at the very end of `e2e/148`, i.e.
+  **after** that spec's own "Step 8: cleanup", so the final positive assertion
+  got 401 on a revoked session. Moved ahead of the cleanup step.
+
+Specs: `148` (portal, 5 assertions), `157` (note templates, 3) and `33`
+(invoice templates, 4), each also asserting that the real page shape still
+saves. 8 of them fail against the old code.
+
+Verified locally: full backend **189 passed / 0 failed** of 189 specs, zero 500s
+in the captured log; Playwright portal, portal-link-tier132,
+note-templates-tier156, note-templates-page-tier233, settings-vat-mode-tier176:
+26 passed.
+
 ### Bulk import bypassed the interactive rules; the VIES budget was the client's (Tier 397)
 
 The three importers (`customers` / `products` / `expenses`) already cap the file

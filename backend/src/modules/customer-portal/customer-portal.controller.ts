@@ -56,6 +56,7 @@ import { CustomerPortalService } from './customer-portal.service';
 import { Auth, Require } from '../../auth/roles.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Public } from '../../auth/public.decorator';
+import { UpdatePortalProfileDto } from './dto/update-profile.dto'
 
 @Controller('customer-portal')
 export class CustomerPortalController {
@@ -169,26 +170,10 @@ export class CustomerPortalController {
   @HttpCode(200)
   async updateProfile(
     @Query('token') token: string,
-    @Body() body: {
-      name?: string
-      vatId?: string | null
-      // The contact object is partial —
-      // omitted keys are preserved. The frontend
-      // sends the whole shape so it's easier to
-      // reason about; we still merge here so a
-      // partial POST (e.g. just the email) works.
-      contact?: {
-        email?: string | null
-        phone?: string | null
-        name?: string | null
-      }
-      address?: {
-        street?: string | null
-        postalCode?: string | null
-        city?: string | null
-        country?: string | null
-      }
-    },
+    // Tier 398: bounded — the portal customer is an external actor and every
+    // field was unbounded (measured: a 100 000-character name was stored).
+    // The contact/address objects stay partial; the service merges them.
+    @Body() body: UpdatePortalProfileDto,
   ) {
     if (!token) {
       throw new BadRequestException('token is required')
