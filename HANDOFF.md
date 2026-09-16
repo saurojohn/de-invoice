@@ -9,20 +9,20 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–396 are
-  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 396.)
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–397 are
+  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 397.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 35082666894 / commit `5b62249`, Tier 396):**
+- **Test counts (last green CI, run 35090119146 / commit `6810561`, Tier 397):**
   - Backend e2e: **188 passed / 0 failed / 1 skipped** of 189 specs — 100
     two-digit + 89 three-digit (Tiers 391-396 extended existing specs —
     50-webhooks.sh, 21-system-errors.sh, 08-bank-import.sh, 17-email-send.sh,
-    179-tier378-cross-tenant-ids.sh — and made 92 self-sufficient; no new spec
-    files); before Tier 361 only the two-digit ones ever ran.
+    179-tier378-cross-tenant-ids.sh, 19-bulk-import.sh — and made 92
+    self-sufficient; no new spec files); before Tier 361 only the two-digit ones ever ran.
     `QUARANTINE` empty. The one skip is `16-dark-mode.sh` (no frontend in the e2e
     job); since Tier 371 skips exit 77 and are listed, not counted as passes.
     Spec 172 (Tier 370) guards the harness itself: no spec may use `_lib.sh`
@@ -2413,6 +2413,7 @@ Tier 394 run 35075859822, all six jobs green: backend 188/0/1, Playwright 922.
 Tier 395 run 35079629677: green but **187/0/2** — the hidden skip Tier 396 fixed.
 Tier 396 run 35082666894, all six jobs green: backend 188/0/1 (only
 16-dark-mode), Playwright 922.
+Tier 397 run 35090119146, all six jobs green: backend 188/0/1, Playwright 922.
 
 ### Bulk import bypassed the interactive rules; the VIES budget was the client's (Tier 397)
 
