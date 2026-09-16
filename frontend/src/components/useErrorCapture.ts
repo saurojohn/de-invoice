@@ -23,23 +23,12 @@ import { useEffect } from "react"
 import { apiBase } from "@/lib/apiBase"
 
 /**
- * Synchronous fingerprint — same error 50 times
- * → same fingerprint → 1 row with occurrences=50.
- * Mirrors the backend's ErrorTrackingService.fingerprint()
- * so frontend and backend dedupe to the same key.
+ * Tier 392: the fingerprint is no longer computed here. It decided which group
+ * the backend row joined, and the public capture route trusted it — a post with
+ * an existing group's fingerprint rewrote that group's message (measured). The
+ * local hash was also only 32-bit, so unrelated real errors could collide and
+ * clobber each other. The server now derives it from message + first stack frame.
  */
-function fingerprint(message: string, stack: string | null | undefined): string {
-  const firstFrame = (stack || "").split("\n")[0]?.trim() || ""
-  // Simple non-cryptographic hash (we don't need
-  // SHA-256 on the frontend; the backend re-hashes
-  // with crypto.createHash on receipt).
-  let h = 0
-  const s = `frontend::${message}::${firstFrame}`
-  for (let i = 0; i < s.length; i++) {
-    h = ((h << 5) - h + s.charCodeAt(i)) | 0
-  }
-  return Math.abs(h).toString(16).padStart(8, "0").slice(0, 32)
-}
 
 let _installed = false
 
@@ -79,10 +68,6 @@ export function useErrorCapture() {
           lineno: event.lineno,
           colno: event.colno,
         },
-        fingerprint: fingerprint(
-          event.message || "Unknown error",
-          event.error?.stack,
-        ),
       })
     }
 
@@ -99,7 +84,6 @@ export function useErrorCapture() {
         kind: "unhandled",
         browser: navigator.userAgent,
         context: { type: "unhandledrejection" },
-        fingerprint: fingerprint(message, stack),
       })
     }
 
@@ -135,7 +119,6 @@ export function reportBoundaryError(
         url: window.location.pathname + window.location.search,
         kind: "boundary",
         browser: navigator.userAgent,
-        fingerprint: fingerprint(error.message, error.stack),
       }),
     }).catch(() => {})
   } catch {

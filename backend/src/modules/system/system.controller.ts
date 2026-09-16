@@ -28,6 +28,7 @@ import {
 import { Request } from "express"
 import { Prisma } from "@prisma/client"
 import { ErrorTrackingService } from "./error-tracking.service"
+import { Throttle } from "@nestjs/throttler"
 import { PrismaService } from "../../prisma/prisma.service"
 import { AuditService } from "../audit/audit.service"
 import { HeaderAuthGuard } from "../../auth/header-auth.guard"
@@ -37,6 +38,7 @@ import { Require } from "../../auth/roles.decorator"
 import { NotificationService } from "./notification.service"
 import { ConfigService } from "@nestjs/config"
 import { Public } from "../../auth/public.decorator"
+import { boundContext, CaptureErrorDto } from "./dto/capture-error.dto"
 
 @Controller("system")
 // No class-level guard — POST /errors is public (SoftAuthGuard),
@@ -57,10 +59,14 @@ export class SystemController {
    */
   @Public()
   @Post("errors")
+  // Tier 392: public and unauthenticated — a tight per-IP limit (the global
+  // default is 600/60s). A crashing page bursts a handful of errors; 60/min is
+  // far more than a real client needs and bounds the row / notification flood.
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
   @SetMetadata("publicRoute", true)
   @UseGuards(SoftAuthGuard)
-  async captureError(@Body() body: any, @Req() req: Request) {
-    if (!body || typeof body.message !== "string") {
+  async captureError(@Body() body: CaptureErrorDto, @Req() req: Request) {
+    if (!body?.message) {
       // Don't persist garbage — just 200 OK so the
       // frontend doesn't see a noisy 400 in devtools.
       return { ok: true, deduped: false }
@@ -75,13 +81,19 @@ export class SystemController {
       statusCode: null,
       userId: (req as any).user?.id || null,
       companyId: (req as any).user?.companyId || null,
-      context: {
+      // Tier 392: the context is bounded — an unauthenticated post stored a
+      // 2 MB context verbatim (measured).
+      context: boundContext({
         component: body.component,
         browser: body.browser,
         level: body.level,
         ...body.context,
-      },
-      fingerprint: body.fingerprint || undefined,
+      }),
+      // Tier 392: the client's fingerprint is NOT used. It decided which group
+      // a row joined, so an unauthenticated post could rewrite an existing
+      // group's message and stack, or mint unlimited new groups (each firing an
+      // operator notification). The service derives it from source + message +
+      // first stack frame — what the frontend's own hash approximated.
     })
     return { ok: true, deduped: saved?.occurrences ?? 1 }
   }

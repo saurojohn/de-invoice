@@ -2405,6 +2405,60 @@ a suite runs on it.**
 CI run 35025847641, all six jobs green: backend 188/0/1, Playwright 922.
 Tier 391 run 35032619006, all six jobs green: backend 188/0/1, Playwright 922.
 
+### The public error-capture route trusted the client (Tier 392)
+
+`POST /system/errors` is `@Public()` (a crash on the login page must still be
+recorded) and took `any`. Measured unauthenticated against the running backend:
+
+| Request | Result |
+|---|---|
+| 5 posts with random `fingerprint` | 5 `ErrorEvent` rows — and a new row fires `pushErrorNotification`, so 5 operator alerts |
+| `context: { pad: "A".repeat(2_000_000) }` | stored verbatim, 2 000 011 chars (JSON body limit 10 MB → ~10 MB/row) |
+| post carrying an existing group's `fingerprint` | **that group's message and stack were rewritten** — "Echter Fehler: Zahlung fehlgeschlagen" became "Alles in Ordnung, bitte ignorieren", occurrences 1 → 2 |
+
+The fingerprint decides which group a row joins, and `capture()` refreshes
+`message`/`stack` on every hit — so an outsider could blank a real error out of
+the operator's dashboard, mint unlimited groups, or bloat the table.
+
+The frontend computed that fingerprint itself with a **32-bit** hash (its comment
+claimed it mirrored the backend's SHA-256 — it did not), so unrelated real
+errors could also collide and clobber each other's message with no attacker
+involved.
+
+Fix: `dto/capture-error.dto.ts` + the handler —
+- the client's `fingerprint` is **not used**; the service derives it from
+  source + message + first stack frame (what the frontend's hash approximated),
+  so grouping is unchanged: same message twice → 1 row, occurrences 2 (verified);
+- `context` is bounded to 4000 serialised chars, else stored as
+  `{truncated, bytes, preview}` (2 MB → 555 chars, verified);
+- `message` ≤ 4000, `stack` ≤ 8192, `url` ≤ 2048, `browser` ≤ 500,
+  `kind` restricted to the stored `ErrorKind` union (any string was accepted
+  before), `level` to error|warn|info|fatal;
+- `@Throttle` 60/60s per IP on the route (the global default is 600/60s);
+- the frontend no longer computes or sends a fingerprint.
+
+`fingerprint` and `source` stay declared-but-ignored in the DTO so an
+already-loaded browser tab (and Playwright tier205, which posts `source`) is not
+refused by `forbidNonWhitelisted`; `message` stays optional so a body without one
+still answers 200 `{ok:true}` — the deliberate "no noisy 400 in devtools"
+behaviour e2e 21 test 14 pins.
+
+`CaptureInput.fingerprint` is kept for the trusted internal caller
+(`system.filter.ts` hashes the route name in so five routes throwing the same DB
+error don't dedupe into one row).
+
+Spec: `e2e/21-system-errors.sh` §15–19 — the server computes the fingerprint and
+ignores the client's, an existing group is not rewritten by a posted
+fingerprint, same-message dedupe still gives occurrences=2, an oversized context
+is bounded and marked truncated, a 4001-char message and an unknown `kind` are
+400, and a static check that the route carries a `@Throttle` (THROTTLE_DISABLED
+in CI, so the limit itself cannot be exercised). Against the old code the
+section fails at the first assertion (the client fingerprint was stored).
+
+Verified locally: full backend **189 passed / 0 failed** of 189 specs, zero 500s
+in the captured log; Playwright system-errors-timeline, error-rate-threshold,
+top-fingerprint-rate, admin-notifications, error-pages: 36 passed.
+
 ### SSRF: webhook and FinTS URL guards had bypasses (Tier 391)
 
 `POST /webhooks` and `POST /fints/connections` take a URL from the client (both

@@ -164,6 +164,65 @@ EMPTY=$(curl -sS -X POST http://localhost:3001/api/v1/system/errors \
 EMPTY_OK=$(json_field "$EMPTY" ok | tr 'A-Z' 'a-z')
 assert_eq "empty body ok" "$EMPTY_OK" "true"
 
+# ===== Tier 392: the PUBLIC capture route does not trust the client =====
+# Measured before, all unauthenticated: a post carrying an existing group's
+# fingerprint rewrote that group's message and stack; random fingerprints minted
+# unlimited rows (each firing an operator notification); context was stored
+# verbatim (2 MB).
+T392="SYS-TEST-392-$(date +%s%N | cut -c1-13)"
+sql392() { docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "$1" 2>/dev/null; }
+
+# 15. A real group, then an outsider posting that group's own fingerprint with a
+# different message must NOT rewrite it.
+curl -sS -o /dev/null -X POST http://localhost:3001/api/v1/system/errors \
+  -H "Content-Type: application/json" \
+  -d "{\"message\":\"$T392 echt\",\"stack\":\"at PaymentService.charge\",\"fingerprint\":\"client-chosen-$T392\"}"
+FP392=$(sql392 "SELECT fingerprint FROM \"ErrorEvent\" WHERE message = '$T392 echt';")
+[ -n "$FP392" ] && [ "$FP392" != "client-chosen-$T392" ] \
+  && echo "✓ server computes the fingerprint, client value ignored" \
+  || { echo "✗ client fingerprint was stored: $FP392"; exit 1; }
+curl -sS -o /dev/null -X POST http://localhost:3001/api/v1/system/errors \
+  -H "Content-Type: application/json" \
+  -d "{\"message\":\"$T392 uebernommen\",\"stack\":\"at PaymentService.charge\",\"fingerprint\":\"$FP392\"}"
+STILL=$(sql392 "SELECT message FROM \"ErrorEvent\" WHERE fingerprint = '$FP392';")
+assert_eq "existing group not rewritten by a posted fingerprint" "$STILL" "$T392 echt"
+
+# 16. Grouping still works without any client fingerprint (same message twice).
+for _ in 1 2; do
+  curl -sS -o /dev/null -X POST http://localhost:3001/api/v1/system/errors \
+    -H "Content-Type: application/json" -d "{\"message\":\"$T392 dedupe\",\"stack\":\"at X.y\"}"
+done
+assert_eq "same message dedupes to one row" "$(sql392 "SELECT count(*) FROM \"ErrorEvent\" WHERE message = '$T392 dedupe';")" "1"
+assert_eq "…with occurrences=2" "$(sql392 "SELECT occurrences FROM \"ErrorEvent\" WHERE message = '$T392 dedupe';")" "2"
+
+# 17. An oversized context is bounded (2 MB was stored verbatim).
+python3 -c "import json;print(json.dumps({'message':'$T392 big','context':{'pad':'A'*2000000}}))" > /tmp/t392-big.json
+curl -sS -o /dev/null -X POST http://localhost:3001/api/v1/system/errors \
+  -H "Content-Type: application/json" --data-binary @/tmp/t392-big.json
+CTX_LEN=$(sql392 "SELECT length(context::text) FROM \"ErrorEvent\" WHERE message = '$T392 big';")
+[ -n "$CTX_LEN" ] && [ "$CTX_LEN" -lt 5000 ] \
+  && echo "✓ oversized context bounded ($CTX_LEN chars, was 2000011)" \
+  || { echo "✗ context not bounded: $CTX_LEN"; exit 1; }
+assert_eq "…marked truncated" "$(sql392 "SELECT context->>'truncated' FROM \"ErrorEvent\" WHERE message = '$T392 big';")" "true"
+rm -f /tmp/t392-big.json
+
+# 18. Bounded fields: an over-long message and an unknown kind are refused.
+LONG=$(python3 -c "print('M'*4001)")
+CODE=$(curl -sS -o /dev/null -w "%{http_code}" -X POST http://localhost:3001/api/v1/system/errors \
+  -H "Content-Type: application/json" -d "{\"message\":\"$LONG\"}")
+assert_eq "4001-char message refused" "$CODE" "400"
+CODE=$(curl -sS -o /dev/null -w "%{http_code}" -X POST http://localhost:3001/api/v1/system/errors \
+  -H "Content-Type: application/json" -d "{\"message\":\"$T392 kind\",\"kind\":\"bogus\"}")
+assert_eq "unknown kind refused" "$CODE" "400"
+
+# 19. The public route declares a per-IP throttle. THROTTLE_DISABLED=1 here and
+# in CI, so the limit itself cannot be exercised — assert the decorator is on
+# the route (the global default is 600/60s, far too loose for a public write).
+CAPTURE_SRC=$(sed -n '/@Post("errors")/,/async captureError/p' "$SCRIPT_DIR/../src/modules/system/system.controller.ts")
+echo "$CAPTURE_SRC" | grep -q "@Throttle(" \
+  && echo "✓ POST /system/errors carries a @Throttle" \
+  || { echo "✗ POST /system/errors has no @Throttle"; exit 1; }
+
 # Cleanup any test rows
 docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"ErrorEvent\" WHERE message LIKE 'SYS-TEST%';" >/dev/null 2>&1
