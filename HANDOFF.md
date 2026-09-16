@@ -9,19 +9,20 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–402 are
-  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 402.)
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–403 are
+  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 403.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 35140985920 / commit `a4d75f8`, Tier 402):**
-  - Backend e2e: **190 passed / 0 failed / 1 skipped** of 191 specs — 100
-    two-digit + 91 three-digit (Tier 400 added `190-tier400-session-auth.sh`
-    and Tier 402 `191-tier402-production-auth-mode.sh`, which restarts the
-    backend with `ALLOW_HEADER_AUTH=0` and back; Tiers 391-398 extended existing ones —
+- **Test counts (last green CI, run 35151805726 / commit `9d93bdb`, Tier 403a):**
+  - Backend e2e: **191 passed / 0 failed / 1 skipped** of 192 specs — 100
+    two-digit + 92 three-digit (Tier 400 added `190-tier400-session-auth.sh`,
+    Tier 402 `191-tier402-production-auth-mode.sh`, which restarts the backend
+    with `ALLOW_HEADER_AUTH=0` and back, and Tier 403
+    `192-tier403-session-lifecycle.sh`; Tiers 391-398 extended existing ones —
     50-webhooks.sh, 21-system-errors.sh, 08-bank-import.sh, 17-email-send.sh,
     179-tier378-cross-tenant-ids.sh, 19-bulk-import.sh, 148, 157, 33 — and made
     92 self-sufficient; no new spec files); before Tier 361 only the two-digit ones ever ran.
@@ -2422,6 +2423,9 @@ see below); Tier 398a run 35099184553 green: backend 188/0/1, Playwright 922.
 Tier 400 run 35112477951, all six jobs green: backend 189/0/1 (the new spec
 is the +1; the skip is still 16-dark-mode), Playwright 922.
 Tier 402 run 35140985920, all six jobs green: backend 190/0/1, Playwright 926.
+Tier 403 run 35147946203 **failed** on Playwright (925 — the third hard-coded
+cron count, see below); Tier 403a run 35151805726 green: backend 191/0/1,
+Playwright 926.
 Tier 401 run 35123354210 **failed** on backend lint — a warning
 (`SESSION_TTL_DAYS` unused after the cookie code moved into `issue()`), and CI
 runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
