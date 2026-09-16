@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer'
-import { IsEmail, IsObject, IsOptional, IsString, MaxLength, ValidateNested } from 'class-validator'
+import { IsObject, IsOptional, IsString, MaxLength, ValidateNested } from 'class-validator'
 import { CUSTOMER_NAME_MAX, CUSTOMER_VAT_ID_MAX } from '../../customer/customer.service'
 
 /**
@@ -18,7 +18,12 @@ const FIELD_MAX = 200
 
 export class PortalContactDto {
   // null clears the field — @IsOptional() skips null, which the merge handles.
-  @IsOptional() @IsEmail({}, { message: 'Ungültige E-Mail-Adresse' }) @MaxLength(320)
+  // Deliberately NOT @IsEmail: the service already checks the format and throws
+  // BadRequestException("Ungültige E-Mail-Adresse: …") as a plain string, which
+  // Playwright portal-profile-tier155 pins with .toMatch(). Validating here too
+  // made the pipe answer first with a message ARRAY and broke that assertion.
+  // Only the length is bounded here; the format stays the service's call.
+  @IsOptional() @IsString() @MaxLength(320)
   email?: string | null
 
   @IsOptional() @IsString() @MaxLength(60)

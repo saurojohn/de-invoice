@@ -2442,7 +2442,7 @@ this was purely about bounds.
   ignored unknown ones, so it now bounds the serialised size at 20 KB, the same
   approach as the Tier 392 error context.
 
-Two self-inflicted problems caught before committing, both worth recording:
+Three self-inflicted problems, the third only caught by CI — all worth recording:
 
 - The note-template DTO first emitted German "erforderlich" messages, but
   `e2e/157` pins the service's existing English "label is required" /
@@ -2451,6 +2451,23 @@ Two self-inflicted problems caught before committing, both worth recording:
 - The portal section was first appended at the very end of `e2e/148`, i.e.
   **after** that spec's own "Step 8: cleanup", so the final positive assertion
   got 401 on a revoked session. Moved ahead of the cleanup step.
+
+- **CI caught the third: `portal-profile-tier155.spec.ts` went red.** It asserts
+  `expect(data.message).toMatch(/ungültige e-mail/i)` — a *string*. Adding
+  `@IsEmail` to the portal DTO made the ValidationPipe answer first, so
+  `message` became an array `["contact.Ungültige E-Mail-Adresse"]` and
+  `toMatch` threw `TypeError`. The DTO now bounds only the length of
+  `contact.email`; the format stays the service's check, which still throws the
+  plain-string German message the spec pins. Same lesson as the note-template
+  one, in a spec my local selection did not include — I had run `portal.spec.ts`
+  and `portal-link-tier132.spec.ts` but not `portal-profile-tier155.spec.ts`.
+
+**Lesson: pick the specs to re-run by grepping for the route, not by name.**
+`grep -rln "customer-portal/profile" frontend/e2e` names the spec in one second;
+guessing from spec names missed it. For a change that touches a shared route,
+run the full Playwright suite locally before pushing — the last two pushes each
+had something a full local run would have caught (Tier 396's hidden skip, and
+this).
 
 Specs: `148` (portal, 5 assertions), `157` (note templates, 3) and `33`
 (invoice templates, 4), each also asserting that the real page shape still
