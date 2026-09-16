@@ -93,6 +93,8 @@ export class CronHealthService {
     { name: 'afa-auto-booker', schedule: '5 0 1 * *', timeZone: 'Europe/Berlin', intervalMinutes: 43200 },
     { name: 'recurring-invoices-daily', schedule: '0 6 * * *', timeZone: 'Europe/Berlin', intervalMinutes: 1440 },
     { name: 'daily-auto-backup', schedule: '0 4 * * *', timeZone: 'Europe/Berlin', intervalMinutes: 1440 },
+    // Tier 403: drops session rows older than SESSION_RETENTION_DAYS.
+    { name: 'session-cleanup', schedule: '30 3 * * *', timeZone: 'Europe/Berlin', intervalMinutes: 1440 },
   ]
 
   /**

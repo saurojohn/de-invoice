@@ -1,5 +1,7 @@
 import { Global, Module } from '@nestjs/common';
 import { UserSessionService } from './user-session.service';
+import { SessionCleanupScheduler } from './session-cleanup.scheduler';
+import { AdminModule } from '../modules/admin/admin.module';
 
 /**
  * Tier 400 — global, like PrismaModule: HeaderAuthGuard and SoftAuthGuard are
@@ -9,7 +11,10 @@ import { UserSessionService } from './user-session.service';
  */
 @Global()
 @Module({
-  providers: [UserSessionService],
+  // Tier 403: AdminModule exports CronHealthService, which the cleanup
+  // scheduler wraps its tick in so the admin dashboard sees the run.
+  imports: [AdminModule],
+  providers: [UserSessionService, SessionCleanupScheduler],
   exports: [UserSessionService],
 })
 export class UserSessionModule {}

@@ -2428,6 +2428,53 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### A password reset did not end the sessions (Tier 403)
+
+Sessions (Tier 400) gave the app a credential that outlives a single request —
+and nothing took it away when it had to. Measured on the stack:
+
+```
+register → session minted        GET /customers  200
+forgot-password + reset-password {"ok":true,"…Sie können sich jetzt anmelden"}
+the SAME session afterwards      GET /customers  200   ← the hole
+```
+
+Resetting the password is the move someone makes when they believe their
+account is in the wrong hands. With 30-day sliding expiry the intruder kept
+working for a month while the owner believed they had locked them out.
+
+The two neighbouring cases were measured too, and both were **already** safe —
+worth recording so nobody "fixes" them twice: `HeaderAuthGuard` re-reads the
+user and the `UserCompany` row on every request, so deactivating a user (401)
+and revoking a company grant (401) take effect immediately. The password reset
+was the one path that evicted nobody.
+
+- `UserSessionService.revokeAllForUser()`, called from `resetPassword`. The
+  count goes into the `password_reset_success` audit row's `newData`, so the
+  trail shows the lock-out happened rather than only that a password changed.
+- The owner logs in again — which the response already told them to do.
+
+**Second finding, from the same look: nothing ever deleted a session row.**
+Not `UserSession`, not the `CustomerPortalSession` that has carried the portal
+since Tier 130. One row per sign-in, for ever — 20 users logging in daily is
+~7000 rows a year, plus one per magic link a customer clicks. The new
+`session-cleanup` cron (03:30 Europe/Berlin, between the cron-health check and
+the backup) drops rows whose `expiresAt` is older than
+`SESSION_RETENTION_DAYS` = 90. They are kept that long on purpose: a dead row
+still answers "who was signed in, from which address, when", which is what an
+incident review or a GoBD question actually asks. It is the 9th registered
+cron, so `e2e/143`'s three hard-coded `8`s became `9` — that count is exactly
+what the assertion is for. The Playwright side asserts `>= 7`, so it was
+unaffected.
+
+Spec: `e2e/192-tier403-session-lifecycle.sh` (18 assertions) — two sessions
+from two sign-ins both die at the reset, both rows carry `revokedAt`, none is
+left live, the audit row records the count, the old password stops working and
+the new one mints a fresh session; then the cleanup cron drops a 200-day-old
+row, **keeps** a 5-day-dead one (the evidence window) and leaves the live
+session alone, with the run visible in `CronHealth`. 7 of them fail against the
+old code.
+
 ### The production auth mode is now measured, not grepped (Tier 402)
 
 Tiers 400-401 left `ALLOW_HEADER_AUTH=1` on in CI, because ~300 specs

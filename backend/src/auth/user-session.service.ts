@@ -19,6 +19,13 @@ export const SESSION_TTL_DAYS = 30
 const SESSION_TTL_MS = SESSION_TTL_DAYS * 24 * 60 * 60 * 1000
 /** Don't write lastSeenAt/expiresAt on every single request. */
 const SLIDE_THROTTLE_MS = 60 * 60 * 1000
+/**
+ * Tier 403 — how long a dead session row is kept before the cleanup cron drops
+ * it. Long past any use as a credential (30 days), short enough that the table
+ * stays bounded; the window is what lets an operator answer "who was signed in
+ * last quarter" from the row rather than only from AuditLog.
+ */
+export const SESSION_RETENTION_DAYS = 90
 
 export interface ResolvedSession {
   sessionId: string
@@ -122,6 +129,39 @@ export class UserSessionService {
         })
     }
     return { sessionId: session.id, userId: session.userId }
+  }
+
+  /**
+   * Tier 403 — end every session a user has.
+   *
+   * A password reset is the move someone makes when they believe their account
+   * is in the wrong hands; leaving the existing sessions alive would let the
+   * intruder keep working for the full 30 days. Returns how many were ended so
+   * the caller can log it.
+   */
+  async revokeAllForUser(userId: string): Promise<number> {
+    if (!userId) return 0
+    const { count } = await this.prisma.userSession.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    })
+    return count
+  }
+
+  /**
+   * Tier 403 — drop sessions that expired long ago.
+   *
+   * Rows are kept well past their expiry on purpose: a revoked or expired row
+   * still answers "who was signed in, from where, when" for the audit trail.
+   * What they must not do is grow without bound, which is what they did until
+   * this existed (nothing ever deleted one, here or in CustomerPortalSession).
+   */
+  async purgeExpired(olderThanDays = SESSION_RETENTION_DAYS): Promise<number> {
+    const cutoff = new Date(Date.now() - olderThanDays * 24 * 60 * 60 * 1000)
+    const { count } = await this.prisma.userSession.deleteMany({
+      where: { expiresAt: { lt: cutoff } },
+    })
+    return count
   }
 
   async revoke(token: string): Promise<void> {

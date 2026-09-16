@@ -3,6 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
 import { AuditService } from '../audit/audit.service';
+import { UserSessionService } from '../../auth/user-session.service';
 
 @Injectable()
 export class AuthService {
@@ -12,6 +13,8 @@ export class AuthService {
     private prisma: PrismaService,
     // Tier 368: signs the password_reset_success row (was unsigned).
     private audit: AuditService,
+    // Tier 403: a password reset ends the sessions that existed before it.
+    private sessions: UserSessionService,
   ) {}
 
   async validateUser(email: string, password: string) {
@@ -170,6 +173,16 @@ export class AuthService {
       },
     });
 
+    // Tier 403: end every session this user had.
+    //
+    // Resetting the password is what someone does when they think their
+    // account is in the wrong hands. Measured before this: the session minted
+    // before the reset still answered 200 afterwards, so the intruder kept
+    // working for the remaining 30 days while the owner believed they had
+    // locked them out. The owner logs in again — the response already says
+    // "Sie können sich jetzt anmelden".
+    const endedSessions = await this.sessions.revokeAllForUser(userId);
+
     try {
       const user = await this.prisma.user.findUnique({ where: { id: userId } });
       if (user) {
@@ -180,6 +193,9 @@ export class AuthService {
           action: 'password_reset_success',
           entityType: 'auth',
           entityId: user.id,
+          // Tier 403: how many live sessions the reset ended. An operator
+          // reading the trail should see that the lock-out actually happened.
+          metadata: { endedSessions },
         });
       }
     } catch { /* ignore */ }
