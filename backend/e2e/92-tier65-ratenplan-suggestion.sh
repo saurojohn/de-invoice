@@ -40,31 +40,28 @@ DELETE FROM "InstallmentPlan" WHERE "companyId" = '$COMPANY_ID' AND notes = 'Rat
 SQL
 pass "wiped prior tier-65 fixtures"
 
-# Pick a real customer
-CUST_ID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
-  SELECT id FROM \"Customer\" WHERE \"companyId\" = '$COMPANY_ID' LIMIT 1;" 2>/dev/null | tr -d ' ' | head -1)
-[[ -n "$CUST_ID" ]] && pass "picked a real customer: $CUST_ID" || fail "no customer to use"
+# Tier 396: this used to pick an arbitrary customer (`Customer ... LIMIT 1`,
+# no ORDER BY) and then REQUIRE that customer to happen to own both a >= 500 EUR
+# and a < 500 EUR sent invoice, skipping when it did not. Adding customers
+# anywhere in the suite changed which row came back, and CI silently went from
+# 188 passed / 1 skipped to 187 / 2. The spec now creates exactly the two
+# invoices it needs, so it cannot skip on ambient data.
+T396="e2e-92-$(date +%s%N | cut -c1-13)"
+api_post "/api/v1/customers?companyId=$COMPANY_ID" "{\"name\":\"$T396 Ratenplan\",\"type\":\"business\"}"
+CUST_ID=$(json_field "$BODY" id)
+[[ -n "$CUST_ID" ]] && pass "created the test customer: $CUST_ID" || { fail "customer create failed: $BODY"; summary; exit 1; }
 
-# Find a high-amount sent invoice (>= 500 EUR) for the customer.
-# Tier 96: data-dependent — the dev DB state has
-# drifted over time. Use skip_if-empty guard so
-# CI shows "skipped" rather than "failed".
-HIGH_INV=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
-  SELECT id FROM \"Invoice\" WHERE \"companyId\" = '$COMPANY_ID'
-    AND type = 'INV' AND status = 'sent'
-    AND total::numeric >= 500
-    AND \"customerId\" = '$CUST_ID' LIMIT 1;" 2>/dev/null | tr -d ' ' | head -1)
-skip_if "no high-amount (>= 500 EUR) sent invoice for the test customer (tier 65 ratenplan test)" \
-  "test -n \"$HIGH_INV\""
-[[ -n "$HIGH_INV" ]] && pass "picked a high-amount invoice: $HIGH_INV"
-
-# Find a low-amount sent invoice (< 500 EUR) for the customer
-LOW_INV=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
-  SELECT id FROM \"Invoice\" WHERE \"companyId\" = '$COMPANY_ID'
-    AND type = 'INV' AND status = 'sent'
-    AND total::numeric < 500
-    AND \"customerId\" = '$CUST_ID' LIMIT 1;" 2>/dev/null | tr -d ' ' | head -1)
-[[ -n "$LOW_INV" ]] && pass "picked a low-amount invoice: $LOW_INV" || fail "no low-amount invoice"
+mkinv92() { # unitPrice -> invoice id, status sent
+  local id
+  api_post "/api/v1/invoices?companyId=$COMPANY_ID" "{\"customerId\":\"$CUST_ID\",\"issueDate\":\"$(date +%Y-%m-%d)\",\"items\":[{\"description\":\"$T396\",\"quantity\":1,\"unit\":\"Stk\",\"unitPrice\":$1,\"vatRate\":0}]}"
+  id=$(json_field "$BODY" id)
+  api_put "/api/v1/invoices/$id/status?companyId=$COMPANY_ID" '{"status":"sent"}'
+  echo "$id"
+}
+HIGH_INV=$(mkinv92 1000)
+LOW_INV=$(mkinv92 100)
+[[ -n "$HIGH_INV" ]] && pass "high-amount invoice (1000 EUR, sent): $HIGH_INV" || { fail "high invoice missing"; summary; exit 1; }
+[[ -n "$LOW_INV" ]] && pass "low-amount invoice (100 EUR, sent): $LOW_INV" || { fail "low invoice missing"; summary; exit 1; }
 
 # Helper: stash $BODY into a file
 stash() { printf '%s' "$BODY" > "$1"; }
@@ -178,6 +175,10 @@ docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 DELETE FROM "Mahnungspause" WHERE "companyId" = '$COMPANY_ID' AND reason = 'Ratenplan aktiv';
 DELETE FROM "Installment" WHERE "planId" IN (SELECT id FROM "InstallmentPlan" WHERE "companyId" = '$COMPANY_ID' AND notes = 'Ratenplan-Vorschlag');
 DELETE FROM "InstallmentPlan" WHERE "companyId" = '$COMPANY_ID' AND notes = 'Ratenplan-Vorschlag';
+-- Tier 396: the spec's own customer + its two invoices.
+DELETE FROM "InvoiceItem" WHERE "invoiceId" IN (SELECT id FROM "Invoice" WHERE "customerId" = '$CUST_ID');
+DELETE FROM "Invoice" WHERE "customerId" = '$CUST_ID';
+DELETE FROM "Customer" WHERE id = '$CUST_ID';
 SQL
 pass "cleanup complete"
 

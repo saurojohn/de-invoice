@@ -2462,6 +2462,33 @@ Verified locally: full backend **189 passed / 0 failed** of 189 specs, zero 500s
 in the captured log; Playwright portal, portal-link-tier132,
 system-errors-timeline-tier200, customer-detail-page-tier232: 17 passed.
 
+### e2e 92 skipped on ambient data (Tier 396)
+
+Tier 395's CI run was green at **187 passed / 0 failed / 2 skipped** where every
+run since Tier 383 had been 188 / 0 / 1 — a green run hiding one more skip, the
+Tier 381 lesson. The new skip was `92-tier65-ratenplan-suggestion.sh`: "no
+high-amount (>= 500 EUR) sent invoice for the test customer".
+
+Cause, not a product regression: the spec picked an arbitrary customer
+(`SELECT id FROM "Customer" ... LIMIT 1`, no ORDER BY) and then *required* that
+customer to happen to own both a >= 500 EUR and a < 500 EUR sent invoice,
+`skip_if`-ing when it did not. The specs added in Tiers 388-395 create and
+delete customers in the seed company, which changes which row an unordered
+LIMIT 1 returns. Its own comment already admitted the fragility ("data-dependent
+— the dev DB state has drifted over time").
+
+The spec now creates exactly what it needs — its own customer plus a 1000 EUR
+and a 100 EUR invoice, both set to `sent` — and deletes them in its cleanup. The
+`skip_if` is gone, so it can no longer skip on ambient data. Full backend is
+back to **189 passed / 0 failed / 0 skipped** locally (188/0/1 in the CI backend
+job, where 16-dark-mode skips for want of a frontend).
+
+**Lesson (again, and now with a second instance): compare the counts, not the
+verdict.** Tier 381 was a Playwright skip; this one was a backend skip that
+appeared only in CI. A spec that selects its fixtures with an unordered
+`LIMIT 1` over shared seed data will eventually pick a different row — specs
+should create the fixtures they assert on.
+
 ### Invoice e-mail: the CC fields were unbounded and unchecked (Tier 394)
 
 `POST /invoices/:id/send-email` and `/invoices/bulk-send-email` took inline
