@@ -2426,6 +2426,43 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### The production auth mode is now measured, not grepped (Tier 402)
+
+Tiers 400-401 left `ALLOW_HEADER_AUTH=1` on in CI, because ~300 specs
+authenticate with the header. That meant **nothing ever started the app the way
+production runs it**: spec 190 could only grep the two guards for the flag, the
+same way the `@Throttle` limits are checked (`THROTTLE_DISABLED=1` in CI). A
+grep cannot catch a controller that reads `x-user-id` directly (Tier 399
+counted 14 of them), a login path that mints no session — exactly the Tier 401
+bug, which was invisible while the header worked — or a public route that stops
+answering.
+
+`e2e/191-tier402-production-auth-mode.sh` restarts the backend with
+`ALLOW_HEADER_AUTH=0`, measures, and restarts it back. The restart follows
+`e2e/20` (which already does this for `VIES_MOCK`): kill by port, go through
+`scripts/start-backend.sh` so `FRONTEND_URL` and friends survive, and wait on
+`/health/deep` rather than `/health`, which answers before Nest has wired the
+modules. Two details make it safe to have in the suite:
+
+- it is numbered **last** (the runner's glob expands in sorted order), and
+- it restores the backend from an `EXIT` trap, so a failed assertion cannot
+  leave later specs talking to a backend in the wrong mode. The final assertion
+  is that `x-user-id` works *again*, which is what proves the restore happened.
+
+Measured with the flag off: the legacy header is `401 … keine gültige Sitzung`;
+login and register both mint sessions and the cookie and Bearer forms each
+answer 200; a brand-new company is usable immediately; `/health` and
+`/invitations/verify` still reach their handlers rather than the guard; and a
+write under session-only auth is attributed to the session's user in `AuditLog`.
+
+A hazard worth recording, hit while writing this: run standalone from a shell
+that has no `DATABASE_URL`, the restart falls back to `.env` and the backend
+comes up against the **dev** database at :5432 (it failed with P1001 here only
+because that container was not running). Inside `run-all.sh` — in CI and under
+`local-ci-stack.sh` — the URL is exported into the spec's environment and
+inherited by `env`, which is why this works there. `e2e/20` has the same
+property.
+
 ### The browser now signs in with the cookie (Tier 401)
 
 Phase 2 of the §9 item 10 plan. Tier 400 gave the backend sessions; the browser
@@ -3264,7 +3301,12 @@ These are **not in the repo** — only the user can do them:
        proves no request carries `x-user-id` any more. The ~169 Playwright
        specs still seed ids directly, which is why the flag stays on in CI;
     3. `ALLOW_HEADER_AUTH=0` in `infra/prod/.env`; the bash specs keep using
-       headers, so the flag must stay on in CI.
+       headers, so the flag must stay on in CI — but since **Tier 402** CI does
+       start the backend that way for one spec
+       (`191-tier402-production-auth-mode.sh`, which restarts it with the flag
+       off, measures, and restarts it back), so the production mode is no longer
+       unverified. What remains is the deployment-side edit itself, which is
+       blocked behind §9 items 7-8 (nothing is deployed yet).
 
     *Two details already checked, so the plan is not guesswork:*
     - **Cookies ignore ports.** Measured in Chromium: a `localhost` cookie set by
