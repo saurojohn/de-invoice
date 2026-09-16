@@ -9,17 +9,18 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–398 are
-  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 398.)
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–400 are
+  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 400.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 35099184553 / commit `045ccd2`, Tier 398a):**
-  - Backend e2e: **188 passed / 0 failed / 1 skipped** of 189 specs — 100
-    two-digit + 89 three-digit (Tiers 391-396 extended existing specs —
+- **Test counts (last green CI, run 35112477951 / commit `4579349`, Tier 400):**
+  - Backend e2e: **189 passed / 0 failed / 1 skipped** of 190 specs — 100
+    two-digit + 90 three-digit (Tier 400 added `190-tier400-session-auth.sh`,
+    the first new spec file since Tier 390; Tiers 391-398 extended existing ones —
     50-webhooks.sh, 21-system-errors.sh, 08-bank-import.sh, 17-email-send.sh,
     179-tier378-cross-tenant-ids.sh, 19-bulk-import.sh, 148, 157, 33 — and made
     92 self-sufficient; no new spec files); before Tier 361 only the two-digit ones ever ran.
@@ -2416,7 +2417,8 @@ Tier 396 run 35082666894, all six jobs green: backend 188/0/1 (only
 Tier 397 run 35090119146, all six jobs green: backend 188/0/1, Playwright 922.
 Tier 398 run 35094143231 **failed** (Playwright 921 — portal-profile-tier155,
 see below); Tier 398a run 35099184553 green: backend 188/0/1, Playwright 922.
-Tier 400 run RUN_ID, all six jobs green: backend 189/0/1, Playwright 922.
+Tier 400 run 35112477951, all six jobs green: backend 189/0/1 (the new spec
+is the +1; the skip is still 16-dark-mode), Playwright 922.
 
 ### `x-user-id` was the credential; login now mints a session (Tier 400)
 
