@@ -3,6 +3,7 @@ import { Throttle } from '@nestjs/throttler';
 import { BankImportService } from './bank-import.service';
 import { Auth, Require } from '../../auth/roles.decorator';
 import { CallerBoundUpload } from '../../auth/caller-bound-upload';
+import { BookExpenseDto, MatchTransactionDto, SuggestMatchesDto } from './dto/book-expense.dto';
 
 // IMPORTANT: literal routes (`/import`, `/reconciliations/...`) MUST
 // be registered BEFORE `:id` routes. NestJS Express matches in
@@ -197,12 +198,12 @@ export class BankImportController {
     @Req() req: any,
     @Query('companyId') companyId: string,
     @Param('id') id: string,
-    @Body('autoConfirmThreshold') autoConfirmThreshold?: number,
+    @Body() body: SuggestMatchesDto,
   ) {
     if (!companyId) throw new BadRequestException('companyId is required');
     const userId = req?.headers?.['x-user-id'] || undefined;
     return this.svc.generateSuggestions(companyId, id, {
-      autoConfirmThreshold: typeof autoConfirmThreshold === 'number' ? autoConfirmThreshold : 0,
+      autoConfirmThreshold: typeof body?.autoConfirmThreshold === 'number' ? body.autoConfirmThreshold : 0,
       userId,
     });
   }
@@ -237,10 +238,10 @@ export class BankImportController {
     @Query('companyId') companyId: string,
     @Param('id') id: string,
     @Param('txnId') txnId: string,
-    @Body('invoiceId') invoiceId: string,
+    @Body() body: MatchTransactionDto,
   ) {
     if (!companyId) throw new BadRequestException('companyId is required');
-    if (!invoiceId) throw new BadRequestException('invoiceId ist erforderlich');
+    const invoiceId = body.invoiceId;
     const stmt = await this.svc.getStatement(companyId, id);
     if (!stmt) throw new BadRequestException('Kontoauszug nicht gefunden');
     if (!stmt.transactions.some((t) => t.id === txnId)) {
@@ -276,13 +277,9 @@ export class BankImportController {
     @Query('companyId') companyId: string,
     @Param('id') id: string,
     @Param('txnId') txnId: string,
-    @Body('expenseAccountNumber') expenseAccountNumber?: string,
-    @Body('description') description?: string,
-    @Body('supplierId') supplierId?: string,
-    @Body('expenseId') expenseId?: string,
-    @Body('vatRate') vatRate?: number,
-    @Body('vatAmount') vatAmount?: number,
+    @Body() body: BookExpenseDto,
   ) {
+    const { expenseAccountNumber, description, supplierId, expenseId, vatRate, vatAmount } = body;
     if (!companyId) throw new BadRequestException('companyId is required');
     const stmt = await this.svc.getStatement(companyId, id);
     if (!stmt) throw new BadRequestException('Kontoauszug nicht gefunden');

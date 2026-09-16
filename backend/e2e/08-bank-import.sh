@@ -860,6 +860,90 @@ docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
    DELETE FROM \"Expense\" WHERE id = '$EXP_ID';
    DELETE FROM \"Supplier\" WHERE id = '$SUP_ID';" >/dev/null 2>&1
 
+# ===== Tier 393: book-expense inputs are checked before anything is written =====
+# Measured before, on a real 150 EUR debit transaction:
+#   expenseAccountNumber "NICHT-EXISTENT-9999" -> 201 and an Account with that
+#     number was created in the chart of accounts and booked against (the UI
+#     field is a free-text prompt defaulting to "4900");
+#   another company's expenseId -> the voucher was written and the transaction
+#     marked booked, THEN ownership failed: 404, but the voucher stayed
+#     (tagged [expense:<foreign id>]) and the transaction was consumed;
+#   vatAmount 999 on a 150 EUR booking -> "Soll und Haben müssen ausgeglichen
+#     sein" from inside the voucher service.
+T393="t393-$(date +%s%N | cut -c1-13)"
+sql393() { docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "$1" 2>/dev/null | tr -d ' '; }
+mk393() { # suffix -> statement id (one debit transaction)
+  cat > "/tmp/$T393-$1.mt940" <<MT
+:20:T393$1
+:25:DE89370400440532013000
+:28C:1/1
+:60F:C260601EUR5000,00
+:61:2606020602D150,00NTRFNONREF//Test
+Vermieter GmbH
+$T393 $1
+:62F:C260603EUR4850,00
+-
+MT
+  curl -sS -X POST -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
+    "$API/api/v1/bank-statements/import?companyId=$COMPANY_ID" \
+    -F "file=@/tmp/$T393-$1.mt940;type=text/plain" \
+    -F "companyId=$COMPANY_ID" -F "userId=$USER_ID" \
+    | python3 -c "import sys,json;print(json.load(sys.stdin).get('id',''))"
+}
+txn393() { sql393 "SELECT id FROM \"BankTransaction\" WHERE \"statementId\" = '$1' AND amount < 0 LIMIT 1;"; }
+book393() { # statementId txnId json -> sets STATUS/BODY
+  local resp
+  resp=$(curl -sS -w "\n%{http_code}" -X POST \
+    "$API/api/v1/bank-statements/$1/transactions/$2/book-expense?companyId=$COMPANY_ID" \
+    -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" -H "Content-Type: application/json" -d "$3")
+  STATUS=$(echo "$resp" | tail -n1); BODY=$(echo "$resp" | sed '$d')
+}
+
+ACCTS_BEFORE=$(sql393 "SELECT count(*) FROM \"Account\" WHERE \"companyId\" = '$COMPANY_ID';")
+S393A=$(mk393 a); T393A=$(txn393 "$S393A")
+[ -n "$T393A" ] && pass "t393 fixture: debit transaction" || fail "t393 fixture missing"
+book393 "$S393A" "$T393A" '{"expenseAccountNumber":"NICHT-EXISTENT-9999"}'
+assert_status 400 "book-expense: junk account number (was 201 + account created)"
+book393 "$S393A" "$T393A" '{"expenseAccountNumber":"1200"}'
+assert_status 400 "book-expense: the bank account is not an Aufwandskonto"
+assert_eq "…no account added to the chart of accounts" "$(sql393 "SELECT count(*) FROM \"Account\" WHERE \"companyId\" = '$COMPANY_ID';")" "$ACCTS_BEFORE"
+book393 "$S393A" "$T393A" '{"vatAmount":999,"vatRate":0.19}'
+assert_status 400 "book-expense: vatAmount above the booking amount"
+echo "$BODY" | grep -q "vatAmount" && pass "…named in the message (was the voucher balance error)" || fail "…message: $BODY"
+book393 "$S393A" "$T393A" '{"vatRate":5}'
+assert_status 400 "book-expense: vatRate 5 (500 %)"
+
+# Another company's expenseId must not leave a voucher behind.
+REG393=$(curl -sS -X POST "$API/api/v1/auth/register" -H "Content-Type: application/json" \
+  -d "{\"email\":\"$T393@example.test\",\"password\":\"Tier393-e2e\",\"companyName\":\"$T393 other\"}")
+read -r U393 C393 < <(echo "$REG393" | python3 -c "import sys,json;d=json.load(sys.stdin);print(d['user']['id'], d['user'].get('companyId') or d['company']['id'])" 2>/dev/null)
+FOREIGN393=$(curl -sS -X POST "$API/api/v1/ustva/expenses?companyId=$C393" \
+  -H "x-user-id: $U393" -H "x-company-id: $C393" -H "Content-Type: application/json" \
+  -d "{\"description\":\"$T393 foreign\",\"invoiceDate\":\"2026-09-01\",\"netAmount\":100,\"vatRate\":0.19}" \
+  | python3 -c "import sys,json;print(json.load(sys.stdin).get('id',''))" 2>/dev/null)
+VOUCHERS_BEFORE=$(sql393 "SELECT count(*) FROM \"Voucher\" WHERE \"companyId\" = '$COMPANY_ID';")
+book393 "$S393A" "$T393A" "{\"expenseId\":\"$FOREIGN393\"}"
+assert_status 404 "book-expense: another company's expenseId (was 404 AFTER writing the voucher)"
+assert_eq "…no voucher written" "$(sql393 "SELECT count(*) FROM \"Voucher\" WHERE \"companyId\" = '$COMPANY_ID';")" "$VOUCHERS_BEFORE"
+assert_eq "…transaction still bookable" "$(sql393 "SELECT \"voucherId\" IS NULL FROM \"BankTransaction\" WHERE id = '$T393A';")" "t"
+# The legitimate booking still works.
+book393 "$S393A" "$T393A" '{"expenseAccountNumber":"4900","description":"t393 ok"}'
+assert_status 201 "book-expense: 4900 (the UI default) still books"
+
+# A Prisma not-found answers 404 in the body too (was HTTP 404 with statusCode 500).
+NF393=$(curl -sS -w "\n%{http_code}" -X PATCH \
+  "$API/api/v1/webhooks/00000000-0000-0000-0000-000000000000?companyId=$COMPANY_ID" \
+  -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" -H "Content-Type: application/json" -d '{"status":"paused"}')
+NF393_CODE=$(echo "$NF393" | tail -n1)
+NF393_BODY_CODE=$(echo "$NF393" | sed '$d' | python3 -c "import sys,json;print(json.load(sys.stdin).get('statusCode',''))" 2>/dev/null)
+assert_eq "P2025 HTTP status" "$NF393_CODE" "404"
+assert_eq "…and the body's statusCode matches (was 500)" "$NF393_BODY_CODE" "404"
+
+rm -f "/tmp/$T393-"*.mt940
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
+  "DELETE FROM \"VoucherLine\" WHERE \"voucherId\" IN (SELECT id FROM \"Voucher\" WHERE \"companyId\" = '$COMPANY_ID' AND description LIKE '%$T393%');
+   DELETE FROM \"Voucher\" WHERE \"companyId\" = '$COMPANY_ID' AND description LIKE '%$T393%';" >/dev/null 2>&1
+
 # Cleanup
 docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"BankReconciliation\" WHERE \"companyId\" = '$COMPANY_ID';

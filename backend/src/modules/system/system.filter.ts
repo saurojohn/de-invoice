@@ -127,7 +127,9 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const responseBody = isHttp
       ? (exception as HttpException).getResponse()
       : {
-          statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+          // Tier 393: was hard-coded to 500 while res.status(status) sent the
+          // mapped code — a P2025 answered HTTP 404 with a body saying 500.
+          statusCode: status,
           message: publicMessage,
         }
     res.status(status).json(responseBody)

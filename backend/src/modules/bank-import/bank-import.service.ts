@@ -1066,6 +1066,27 @@ export class BankImportService {
       throw new BadRequestException('Diese Buchung wurde bereits als Aufwand gebucht');
     }
 
+    // Tier 393: everything the caller supplied is checked BEFORE the first
+    // write. The expenseId used to be verified only by the expense.update at
+    // the very end — measured: with another company's expenseId the voucher was
+    // created and the transaction marked booked, then the update threw, so an
+    // error response left a permanent voucher tagged with a foreign expense and
+    // consumed the transaction.
+    if (opts.expenseId) {
+      const exp = await this.prisma.expense.findFirst({
+        where: { id: opts.expenseId, companyId },
+        select: { id: true },
+      });
+      if (!exp) throw new NotFoundException('Ausgabe nicht gefunden');
+    }
+    if (opts.supplierId) {
+      const sup = await this.prisma.supplier.findFirst({
+        where: { id: opts.supplierId, companyId },
+        select: { id: true },
+      });
+      if (!sup) throw new NotFoundException('Lieferant nicht gefunden');
+    }
+
     // Resolve accounts (per-company DATEV config).
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
@@ -1075,6 +1096,23 @@ export class BankImportService {
     const accts = resolveDatevAccounts(settings.datev);
 
     const expenseNumber = opts.expenseAccountNumber || accts.expenseDefault;
+    // Tier 393: a caller-supplied number that already names an account of
+    // another type would book the expense line onto e.g. the bank account
+    // (debit and credit both bank — balanced, nonsense). An unknown number is
+    // still created on first use (the intended convenience); the DTO keeps it
+    // to 3-8 digits so a typo like "NICHT-EXISTENT-9999" can no longer enter
+    // the chart of accounts.
+    if (opts.expenseAccountNumber) {
+      const existingAcct = await this.prisma.account.findUnique({
+        where: { companyId_accountNumber: { companyId, accountNumber: opts.expenseAccountNumber } },
+        select: { type: true },
+      });
+      if (existingAcct && existingAcct.type !== 'expense') {
+        throw new BadRequestException(
+          `Konto ${opts.expenseAccountNumber} ist kein Aufwandskonto`,
+        );
+      }
+    }
     const bankAccount = await this.ensureAccount(companyId, accts.bank, 'Bank', 'asset', 'liquidity');
     const expenseAccount = await this.ensureAccount(
       companyId,
@@ -1097,6 +1135,14 @@ export class BankImportService {
     // supplies a positive vatAmount. 0% VAT books
     // the legacy 2-line voucher.
     const vatAmount = Math.max(0, Number(opts.vatAmount ?? 0));
+    // Tier 393: more VAT than the payment made the voucher unbalanced, which
+    // surfaced as "Soll und Haben müssen ausgeglichen sein" from the voucher
+    // service. Say it where the caller can act on it.
+    if (vatAmount > absAmount) {
+      throw new BadRequestException(
+        `vatAmount (${vatAmount}) darf den Buchungsbetrag (${absAmount}) nicht übersteigen`,
+      );
+    }
     const vatRate = Math.max(0, Number(opts.vatRate ?? 0));
     const netAmount = Math.max(0, absAmount - vatAmount);
 

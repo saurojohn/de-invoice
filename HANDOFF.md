@@ -2407,6 +2407,58 @@ CI run 35025847641, all six jobs green: backend 188/0/1, Playwright 922.
 Tier 391 run 35032619006, all six jobs green: backend 188/0/1, Playwright 922.
 Tier 392 run 35065207044, all six jobs green: backend 188/0/1, Playwright 922.
 
+### Bank-import book-expense wrote before it validated (Tier 393)
+
+The three bank-import money routes took single `@Body('x')` params, which the
+global ValidationPipe cannot check. Measured on a real 150 € debit transaction:
+
+| Input | Before | Now |
+|---|---|---|
+| `expenseAccountNumber: "NICHT-EXISTENT-9999"` | **201** — an Account with that number ("Sonstige betriebliche Aufwendungen", type expense) was created in the chart of accounts and booked against | 400, chart unchanged |
+| `expenseAccountNumber: "1200"` (the bank account) | 201 — the expense line was debited to the bank account | 400 "Konto 1200 ist kein Aufwandskonto" |
+| another company's `expenseId` | **404 — but the voucher was already written** (tagged `[expense:<foreign id>]`, `referenceType: 'Expense'`) and the transaction marked booked, so it could never be booked again | 404, no voucher, transaction still bookable |
+| `vatAmount: 999` on 150 € | 400 "Soll und Haben müssen ausgeglichen sein" from inside the voucher service | 400 naming vatAmount and the booking amount |
+
+The account one matters because the UI field is a raw `prompt()` defaulting to
+"4900" — any typo permanently entered the company's Kontenrahmen and flowed on
+into DATEV export, BWA, GuV and Bilanz.
+
+The `expenseId` one is the GoBD-relevant defect: ownership was checked only by
+the `expense.update({where:{id, companyId}})` at the very end, after
+`voucherService.create` and the transaction link, and outside any transaction —
+so an error response left a permanent booking behind.
+
+Fix (`dto/book-expense.dto.ts` + the service):
+- everything the caller supplies is validated **before the first write**:
+  `expenseId` and `supplierId` must belong to the company (404);
+- `expenseAccountNumber` must look like an account number (3-8 digits), so an
+  unknown but plausible SKR number is still auto-created on first use — the
+  intended convenience — while nonsense is refused; and if the number already
+  names an account of another type the booking is refused;
+- `vatAmount` ≤ the booking amount, `vatRate` 0…1, `description` ≤ 500;
+- `autoConfirmThreshold` 0…100 (the service already clamped it; it is now
+  rejected rather than silently clamped), `invoiceId` required and bounded.
+
+`supplierId` is accepted and validated but **still unused** by `bookExpense` —
+it is declared in the opts type and never read (the vendor-bill path uses
+`expenseId`). Left as-is; noted so it is not mistaken for a working field.
+
+Also fixed: `system.filter.ts` built the body with a hard-coded
+`statusCode: 500` while `res.status(status)` sent the mapped code, so every
+Prisma P2025 answered **HTTP 404 with a body saying 500** (Tier 378 mapped the
+status but not the body).
+
+Spec: `e2e/08-bank-import.sh` gained a Tier 393 section — 12 assertions. It
+reuses one transaction for every rejected booking, which only works because a
+rejected booking no longer consumes it; the final "4900 still books" 201 proves
+that. Against the old code 7 fail, and the cascade shows the bug: the junk
+account booking succeeded, so every later call answered "bereits als Aufwand
+gebucht".
+
+Verified locally: full backend **189 passed / 0 failed** of 189 specs, zero 500s
+in the captured log; Playwright fints-banking, webhooks, error-pages,
+system-errors-timeline: 17 passed.
+
 ### The public error-capture route trusted the client (Tier 392)
 
 `POST /system/errors` is `@Public()` (a crash on the login page must still be
