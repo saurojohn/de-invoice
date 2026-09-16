@@ -2414,6 +2414,50 @@ Tier 395 run 35079629677: green but **187/0/2** — the hidden skip Tier 396 fix
 Tier 396 run 35082666894, all six jobs green: backend 188/0/1 (only
 16-dark-mode), Playwright 922.
 
+### Bulk import bypassed the interactive rules; the VIES budget was the client's (Tier 397)
+
+The three importers (`customers` / `products` / `expenses`) already cap the file
+at 5000 rows, and the product importer validates each row (a negative price is
+refused). Two gaps remained, both in the customer path:
+
+| Input | Before |
+|---|---|
+| a row with `name` × 100 000 chars | imported verbatim — the row is stored with a 100 000-character name |
+| a row with `email: "nicht-eine-email"` | imported verbatim, though `POST /customers` refuses it (`@IsEmail`) |
+| `maxVatVerifications: 5000` | used as-is: 50 rows with a VAT id were **all** verified, though the intended cap is 10 |
+
+The VIES one is the amplification: `MAX_VERIFICATIONS = opts.maxVatVerifications
+?? 10` took the client's number, so a 5000-row file could fire 5000 synchronous
+VIES calls in one request — the code's own comment notes each can take ~8s and
+that 10 is chosen to leave the shared token bucket for interactive
+"Jetzt prüfen" clicks. VIES is an external EU service; exhausting its limit
+affects the whole deployment.
+
+Fix:
+- the budget is clamped to 0…50 server-side (a non-finite value falls back to
+  the default 10), so the client can lower it but not raise it past the ceiling;
+- `importBulk` now applies the rules the interactive route already had —
+  name ≤ 200, e-mail format, vatId ≤ 20 — and reports each violation **per row**
+  like every other import check, so one bad line does not fail the file;
+- `CreateCustomerDto` gained the matching `@MaxLength` on `name` and `vatId`:
+  the 100 000-character name was accepted on the interactive route too, so this
+  was a missing bound rather than only an import bypass. The constants live in
+  `customer.service.ts` and are shared by both paths.
+
+Not changed: the product and expense importers already validate their rows, and
+all three keep the 5000-row cap.
+
+Spec: `e2e/19-bulk-import.sh` gained a Tier 397 section (8 assertions) — a file
+with one over-long name and one bad e-mail imports only its good row and reports
+both per row, nothing over-long reaches the table, `POST /customers` refuses the
+long name, and the VIES budget comes back clamped to 50 when the client asks for
+5000. All 6 of the assertions that exercise the old paths fail against it.
+
+Verified locally: full backend **189 passed / 0 failed** of 189 specs, zero 500s
+in the captured log; Playwright customers-import, vies-verify-tier128,
+vies-batch-tier134, customer-detail-page-tier232, supplier-vies-batch-tier137:
+16 passed.
+
 ### An omitted companyId dropped the tenant filter (Tier 395)
 
 `HeaderAuthGuard` binds a `companyId` in the body/query to the authenticated

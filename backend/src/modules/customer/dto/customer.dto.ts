@@ -16,6 +16,7 @@ import {
   IsArray,
 } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
+import { CUSTOMER_NAME_MAX, CUSTOMER_VAT_ID_MAX } from '../customer.service';
 
 export class CustomerAddressDto {
   @IsString()
@@ -55,6 +56,10 @@ export class CreateCustomerDto {
   @IsString()
   @IsNotEmpty({ message: 'Name ist erforderlich' })
   @MinLength(1, { message: 'Name ist erforderlich' })
+  // Tier 397: was unbounded — a 100 000-character name was stored (measured).
+  @MaxLength(CUSTOMER_NAME_MAX, {
+    message: `Name darf höchstens ${CUSTOMER_NAME_MAX} Zeichen lang sein`,
+  })
   name!: string;
 
   // Customer number (K-0001...). If omitted, the service auto-assigns
@@ -72,6 +77,7 @@ export class CreateCustomerDto {
 
   @IsString()
   @IsOptional()
+  @MaxLength(CUSTOMER_VAT_ID_MAX)
   vatId?: string;
 
   @IsBoolean()

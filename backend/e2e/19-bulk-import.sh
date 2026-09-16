@@ -185,6 +185,58 @@ docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"Supplier\" WHERE \"companyId\" = '${COMPANY_ID}' AND name LIKE 'T13-Sup-Exp-${UNIQ}';" >/dev/null 2>&1
 docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"Supplier\" WHERE \"companyId\" = '${COMPANY_ID}' AND name LIKE 'T13-AutoSup-${UNIQ}';" >/dev/null 2>&1
+# ===== Tier 397: the importer enforces what the interactive create does =====
+# Measured before:
+#   a 100 000-character name and "nicht-eine-email" were imported verbatim,
+#   though POST /customers rejects that e-mail (@IsEmail);
+#   maxVatVerifications: 5000 was used as-is — 50 rows with a VAT id were all
+#   verified though the intended cap is 10, so a 5000-row file could fire 5000
+#   synchronous VIES calls in one request.
+T397="T397-${UNIQ}"
+LONGNAME=$(python3 -c "print('X'*100000)")
+cat > /tmp/t397-rows.json <<JSON
+{"rows":[
+  {"name":"${LONGNAME}","email":"a-${T397}@example.test"},
+  {"name":"${T397}-bademail","email":"nicht-eine-email"},
+  {"name":"${T397}-gut","email":"gut-${T397}@example.test"}
+],"verifyVat":false}
+JSON
+api_post_file() { # path file
+  local resp
+  resp=$(curl -sS -w "\n%{http_code}" -X POST "$API$1" \
+    -H "Content-Type: application/json" -H "x-user-id: ${USER_ID}" -H "x-company-id: ${COMPANY_ID}" \
+    --data-binary "@$2")
+  STATUS=$(echo "$resp" | tail -n1); BODY=$(echo "$resp" | sed '$d')
+}
+api_post_file "/api/v1/customers/import?companyId=${COMPANY_ID}" /tmp/t397-rows.json
+assert_status 201 "import with one over-long name and one bad e-mail"
+T397_IMPORTED=$(json_field "$BODY" imported)
+assert_eq "…only the good row is imported (was 3)" "$T397_IMPORTED" "1"
+echo "$BODY" | grep -q "Name ist zu lang" && pass "…the long name is reported per row" || fail "…no name error: ${BODY:0:200}"
+echo "$BODY" | grep -q "Ungültige E-Mail" && pass "…the bad e-mail is reported per row" || fail "…no e-mail error: ${BODY:0:200}"
+assert_eq "…nothing over-long stored" \
+  "$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "SELECT count(*) FROM \"Customer\" WHERE \"companyId\" = '${COMPANY_ID}' AND length(name) > 200;" 2>/dev/null | tr -d ' ')" "0"
+
+# The same rules on the interactive route.
+python3 -c "import json;print(json.dumps({'name':'X'*100000,'type':'business'}))" > /tmp/t397-one.json
+api_post_file "/api/v1/customers?companyId=${COMPANY_ID}" /tmp/t397-one.json
+assert_status 400 "POST /customers with a 100 000-character name (was 201)"
+
+# The VIES budget is the server's, not the client's.
+python3 - "$T397" > /tmp/t397-vat.json <<'PY'
+import json, sys
+tag = sys.argv[1]
+rows = [{"name": f"{tag}-vat-{i}", "vatId": "DE123456789", "email": f"v{i}-{tag}@example.test"} for i in range(12)]
+print(json.dumps({"rows": rows, "verifyVat": True, "maxVatVerifications": 5000}))
+PY
+api_post_file "/api/v1/customers/import?companyId=${COMPANY_ID}" /tmp/t397-vat.json
+assert_status 201 "import with maxVatVerifications 5000"
+T397_MAX=$(python3 -c "import json,sys; print(json.load(sys.stdin)['vatVerifications']['maxPerImport'])" <<< "$BODY")
+[ "$T397_MAX" -le 50 ] && pass "…budget clamped to $T397_MAX (client asked for 5000)" || fail "…budget not clamped: $T397_MAX"
+rm -f /tmp/t397-rows.json /tmp/t397-one.json /tmp/t397-vat.json
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
+  "DELETE FROM \"Customer\" WHERE \"companyId\" = '${COMPANY_ID}' AND name LIKE '${T397}%';" >/dev/null 2>&1
+
 pass "cleanup done"
 
 rm -f /tmp/t13-cap.json

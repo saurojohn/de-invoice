@@ -4,6 +4,11 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { VatValidationService } from '../vat-validation/vat-validation.service';
 import { WebhookService } from '../webhook/webhook.service';
 
+// Tier 397: shared by the DTO (interactive create) and the importer.
+export const CUSTOMER_NAME_MAX = 200
+export const CUSTOMER_VAT_ID_MAX = 20
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
 export interface ImportCustomerRow {
   name?: string
   vatId?: string
@@ -1484,7 +1489,15 @@ export class CustomerService {
     // time. 10 is conservative — it leaves the
     // rest of the token bucket available for
     // interactive "Jetzt prüfen" clicks.
-    const MAX_VERIFICATIONS = opts.maxVatVerifications ?? 10
+    // Tier 397: the client's number was used as-is. Measured: 50 rows with
+    // maxVatVerifications 5000 verified all 50 (the intended cap is 10), so a
+    // 5000-row import could fire 5000 synchronous VIES calls in one request —
+    // each up to ~8s, against a shared external rate limit. Clamped to 0-50.
+    const MAX_VERIFICATION_CEILING = 50
+    const requestedMax = Number(opts.maxVatVerifications)
+    const MAX_VERIFICATIONS = Number.isFinite(requestedMax)
+      ? Math.max(0, Math.min(MAX_VERIFICATION_CEILING, Math.trunc(requestedMax)))
+      : 10
     const verifyVat = opts.verifyVat ?? true
     let verificationsDone = 0
     let verificationsSkipped = 0
@@ -1499,7 +1512,24 @@ export class CustomerService {
           result.errors.push({ row: rowNum, error: 'Name fehlt', name })
           continue
         }
+        // Tier 397: the import bypassed rules the interactive create enforces.
+        // Measured: a 100 000-character name and "nicht-eine-email" were stored
+        // verbatim (POST /customers rejects that e-mail via @IsEmail). Reported
+        // per row, like every other import check, so one bad line does not fail
+        // the whole file.
+        if (name.length > CUSTOMER_NAME_MAX) {
+          result.errors.push({ row: rowNum, error: `Name ist zu lang (max. ${CUSTOMER_NAME_MAX} Zeichen)`, name: name.slice(0, 50) })
+          continue
+        }
         const email = (row.email || '').trim()
+        if (email && !EMAIL_RE.test(email)) {
+          result.errors.push({ row: rowNum, error: `Ungültige E-Mail-Adresse: ${email.slice(0, 60)}`, name })
+          continue
+        }
+        if ((row.vatId || '').trim().length > CUSTOMER_VAT_ID_MAX) {
+          result.errors.push({ row: rowNum, error: `USt-IdNr. ist zu lang (max. ${CUSTOMER_VAT_ID_MAX} Zeichen)`, name })
+          continue
+        }
         if (email) {
           const existing = await this.findByEmail(email, companyId)
           if (existing) {
