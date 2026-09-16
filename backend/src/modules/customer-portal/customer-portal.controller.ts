@@ -220,10 +220,17 @@ export class CustomerPortalController {
     // limit here (admin clicks = low frequency) —
     // the public email path's limit is what protects
     // against abuse.
+    // Tier 395: the company comes from the authenticated header, never from the
+    // body. HeaderAuthGuard binds a body companyId only when it is PRESENT —
+    // omitting it left `companyId: undefined`, which Prisma drops from the
+    // where clause, so the lookup matched any company's customer. Measured:
+    // tenant B posting only another tenant's customerId got 201 with a working
+    // portal token + URL for that customer (and the login mail was sent to them).
+    const authCompanyId = (req.headers['x-company-id'] as string) || ''
     const customer = await this.prisma.customer.findFirst({
       where: {
         id: body.customerId,
-        companyId: body.companyId,
+        companyId: authCompanyId,
       },
     })
     if (!customer) {

@@ -2410,6 +2410,58 @@ Tier 392 run 35065207044, all six jobs green: backend 188/0/1, Playwright 922.
 Tier 393 run 35071721340, all six jobs green: backend 188/0/1, Playwright 922.
 Tier 394 run 35075859822, all six jobs green: backend 188/0/1, Playwright 922.
 
+### An omitted companyId dropped the tenant filter (Tier 395)
+
+`HeaderAuthGuard` binds a `companyId` in the body/query to the authenticated
+company **only when it is present** (Tier 375). Where a handler passed that
+optional value straight into a Prisma `where`, leaving it out made the filter
+`undefined` — which Prisma drops, so the lookup matched every company.
+
+`POST /customer-portal/admin/create-session` did exactly that. Measured, tenant
+B against company A's customer id:
+
+| Body | Result |
+|---|---|
+| `{customerId: A's, companyId: A's}` | 403 — the guard catches it |
+| `{customerId: A's, companyId: B's}` | 400 "Kunde nicht gefunden" |
+| `{customerId: A's}` — **companyId omitted** | **201 with a working portal token + URL for A's customer**, that customer's e-mail address in the response, and the portal login mail sent to them |
+
+The portal shows a customer their invoices, so that token is cross-tenant data
+access, not just an id leak. The lookup now takes the company from the
+guard-validated `x-company-id` header and never from the body; the UI keeps
+sending `companyId` and is unaffected.
+
+`GET /system/errors/timeline` had the same shape (`if (companyId) where.companyId
+= companyId` on an optional query param): without it, the timeline counted every
+tenant's errors. It now derives the company from the caller like its sibling
+`GET /system/errors` does, so both halves of the dashboard agree. (Both use
+`req.user.companyId` — the user's *home* company, not the active Mandant; for a
+Berater switched to another Mandant that is the pre-existing behaviour of the
+errors list and was not changed here.)
+
+A scan of every `companyId: <request expression>` inside a Prisma `where` found
+no other instance: the remaining optional-`companyId` routes either fall back to
+a guard-checked query value (`ocr/match-supplier`), throw when it is missing, or
+ignore it (the dev-only assets test trigger).
+
+Checked and found already correct, so not changed: `PUT /companies/:id/datev-config`
+validates everything (account numbers 3-5 digits via `sanitizeDatevConfig`,
+Berater/Mandanten-Nr `^\d{1,5}$`, opening-balance entries filtered by konto /
+shVz / positive betrag with the text truncated to 60, `laufNr` keys 4-digit years
+with positive integer values) — its doc comment claiming the fields are
+"round-tripped verbatim; the client validates" is stale. Only the
+`openingBalances` array length is uncapped. `PATCH /companies/:id/feature-flags`
+type-checks each of its seven booleans explicitly.
+
+Spec: `e2e/179-tier378-cross-tenant-ids.sh` §4b — B minting a portal session for
+A's customer without a companyId is 400 with no token, the guard still refuses
+the explicit foreign companyId, and B's error timeline counts none of A's
+errors. 3 of the 4 fail against the old code.
+
+Verified locally: full backend **189 passed / 0 failed** of 189 specs, zero 500s
+in the captured log; Playwright portal, portal-link-tier132,
+system-errors-timeline-tier200, customer-detail-page-tier232: 17 passed.
+
 ### Invoice e-mail: the CC fields were unbounded and unchecked (Tier 394)
 
 `POST /invoices/:id/send-email` and `/invoices/bulk-send-email` took inline

@@ -178,6 +178,32 @@ if [[ -n "$WEBHOOK" ]]; then
   as_b DELETE "/api/v1/webhooks/$WEBHOOK?$QB";              assert_status 404 "DELETE webhook, foreign id (was 500)"
 fi
 
+note "=== 4b. Tier 395: an OMITTED companyId must not drop the tenant filter ==="
+# HeaderAuthGuard binds a body/query companyId only when it is PRESENT. Where a
+# handler passed that optional value straight into a Prisma where, leaving it
+# out removed the filter. Measured: B posting only A's customerId to
+# /customer-portal/admin/create-session got 201 with a working portal token +
+# URL for A's customer, that customer's e-mail address, and the portal login
+# mail was sent to them.
+as_b POST "/api/v1/customer-portal/admin/create-session" "{\"customerId\":\"$CUST\"}"
+assert_status 400 "B mints a portal session for A's customer, no companyId (was 201 + token)"
+[[ "$BODY" != *"token="* ]] && pass "…no portal token in the answer" || fail "…token leaked: ${BODY:0:120}"
+as_b POST "/api/v1/customer-portal/admin/create-session" "{\"customerId\":\"$CUST\",\"companyId\":\"$A\"}"
+assert_status 403 "…and with A's companyId the guard still refuses"
+# The error timeline took an optional companyId query param; omitting it counted
+# every tenant's errors.
+as_b GET "/api/v1/system/errors/timeline?days=30"
+assert_status 200 "B reads the error timeline without a companyId"
+cat > "/tmp/$TAG-tl.py" <<'PY'
+import json, sys
+d = json.load(sys.stdin)
+# shape: {days, source, buckets:[{date,total,open,resolved,muted}]}
+print(int(sum(b.get("total", 0) for b in d.get("buckets", []))))
+PY
+TL_TOTAL=$(echo "$BODY" | python3 "/tmp/$TAG-tl.py" 2>/dev/null || echo 0)
+rm -f "/tmp/$TAG-tl.py"
+assert_eq "…and counts none of A's errors (B's company is empty)" "$TL_TOTAL" "0"
+
 note "=== 5. company A still works on its own records ==="
 api_get "/api/v1/payments/direct-debit/batches/$DD_BATCH?companyId=$A";  assert_status 200 "A reads its direct-debit batch"
 api_get "/api/v1/inventory/$PRODUCT";                                   assert_status 200 "A reads its stock"

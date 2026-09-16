@@ -177,10 +177,15 @@ export class SystemController {
   @UseGuards(HeaderAuthGuard, RolesGuard)
   @Require("users.read")
   async errorTimeline(
+    @Req() req: Request,
     @Query("days") daysStr?: string,
     @Query("source") source?: string,
-    @Query("companyId") companyId?: string,
   ) {
+    // Tier 395: the company comes from the caller, not from an optional query
+    // param — omitting it used to drop the filter, so the timeline counted
+    // every tenant's errors. Same source as GET /errors above, so the two
+    // halves of the dashboard agree.
+    const companyId = (req as any).user?.companyId
     const days = Math.min(
       Math.max(parseInt(daysStr || "30", 10) || 30, 1),
       90,
