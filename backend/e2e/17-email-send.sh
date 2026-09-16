@@ -185,6 +185,40 @@ else
   fail "Email Center has only ${LIST_TOTAL:-0} entries — expected ≥6"
 fi
 
+# ===== Tier 394: the CC fields are bounded and validated =====
+# Measured before: extraCc with 200 addresses -> 201 and all 200 reached the
+# mailer (each receives the customer's invoice PDF, via the company's SMTP);
+# ccEmail "total-garbage-not-email" -> 201; ccEmail with a raw CRLF -> 201;
+# a 20 000-character overrideSubject -> 201.
+send394() { # json -> STATUS/BODY
+  local resp
+  resp=$(curl -sS -w "\n%{http_code}" -X POST \
+    "http://localhost:3001/api/v1/invoices/${INVOICE_ID}/send-email?companyId=${COMPANY_ID}" \
+    -H "Content-Type: application/json" -H "x-user-id: ${USER_ID}" -H "x-company-id: ${COMPANY_ID}" \
+    -d "$1")
+  STATUS=$(echo "$resp" | tail -n1); BODY=$(echo "$resp" | sed '$d')
+}
+CC200=$(python3 -c "import json;print(json.dumps({'extraCc':['cc%d-t394@example.test'%i for i in range(200)]}))")
+send394 "$CC200"
+assert_status 400 "extraCc with 200 addresses (was 201, all 200 sent)"
+CC11=$(python3 -c "import json;print(json.dumps({'extraCc':['cc%d-t394@example.test'%i for i in range(11)]}))")
+send394 "$CC11"
+assert_status 400 "extraCc with 11 addresses (cap is 10)"
+send394 '{"ccEmail":"total-garbage-not-email"}'
+assert_status 400 "ccEmail not an address (was 201)"
+send394 '{"ccEmail":"a@b.test\r\nBcc: victim@evil.test"}'
+assert_status 400 "ccEmail with a raw CRLF (was 201)"
+send394 '{"extraCc":["ok-t394@example.test","nope"]}'
+assert_status 400 "extraCc with one bad address (was 201)"
+send394 "$(python3 -c "import json;print(json.dumps({'overrideSubject':'S'*20000}))")"
+assert_status 400 "overrideSubject 20 000 chars (was 201)"
+send394 '{"language":"kl"}'
+assert_status 400 "unknown language"
+# The invoice-page shapes still send.
+CC_OK=$(python3 -c "import json;print(json.dumps({'ccEmail':'me-t394@example.test','extraCc':['a-t394@example.test','b-t394@example.test'],'language':'de'}))")
+send394 "$CC_OK"
+assert_status 201 "invoice page shape: ccEmail + 2 extraCc still sends"
+
 # 14. Cleanup — delete the test invoice + customer so
 # the next run starts clean. (Customer delete cascades
 # to invoices via the FK relationship in the schema.)

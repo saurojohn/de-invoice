@@ -2408,6 +2408,47 @@ Tier 391 run 35032619006, all six jobs green: backend 188/0/1, Playwright 922.
 Tier 392 run 35065207044, all six jobs green: backend 188/0/1, Playwright 922.
 Tier 393 run 35071721340, all six jobs green: backend 188/0/1, Playwright 922.
 
+### Invoice e-mail: the CC fields were unbounded and unchecked (Tier 394)
+
+`POST /invoices/:id/send-email` and `/invoices/bulk-send-email` took inline
+types. The recipient (`overrideTo`) was already validated —
+`InvoiceEmailService` throws "Ungültige Empfänger-E-Mail" — but the CC fields
+were only `trim()`ed. Measured:
+
+| Input | Before |
+|---|---|
+| `extraCc` with 200 addresses | 201, and **all 200 reached the mailer** (verified in the `[NO-SMTP]` log line) — every one receives the customer's invoice PDF, sent through the company's own SMTP account |
+| `ccEmail: "total-garbage-not-email"` | 201 |
+| `ccEmail: "a@b.test\r\nBcc: victim@evil.test"` (raw CRLF) | 201 |
+| `overrideSubject` × 20 000 chars | 201 |
+| `language: "kl"` | 201 |
+
+`dto/send-invoice-email.dto.ts`: `overrideTo` / `ccEmail` must be e-mail
+addresses, `extraCc` is an array of addresses capped at **10** (the UI's CC box
+is a comma-separated field a person types), `overrideSubject` ≤ 300,
+`overrideBody` ≤ 20000, `language` de|en|zh, `salutation` ≤ 200. The bulk body
+gets the same fields plus `concurrency` 1…10 (the handler clamped it silently)
+and `invoiceIds` elements ≤ 64 chars — the **count** stays the handler's check so
+its German "Maximal 100 Rechnungen pro Anfrage" is still what the caller sees.
+
+Already correct and left alone: the bulk handlers cap at 100 invoices,
+`bulk-send-by-filter` requires a date range and caps at 100 rows, both are
+throttled 15/5 min, and `createdById` is bound to the caller by HeaderAuthGuard
+(Tier 383).
+
+`overrideTo` pointing at an unrelated address is **by design** (send the invoice
+to the customer's accounting department) and is recorded on the EmailSend row —
+not changed.
+
+Spec: `e2e/17-email-send.sh` gained a Tier 394 section (8 assertions); the
+invoice-page shape (ccEmail + 2 extraCc) still sends. 7 fail against the old
+code.
+
+Verified locally: full backend **189 passed / 0 failed** of 189 specs, zero 500s
+in the captured log; Playwright bulk-send, bulk-send-by-filter-tier141,
+recurring-email-tier129, recurring-email-preview-tier136,
+customer-email-history-tier144: 20 passed.
+
 ### Bank-import book-expense wrote before it validated (Tier 393)
 
 The three bank-import money routes took single `@Body('x')` params, which the

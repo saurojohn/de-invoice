@@ -52,6 +52,7 @@ import { SigningService } from '../signing/signing.service';
 // the /attachments endpoint directly so the storage
 // + OCR + content-hash pipeline is shared.
 import { AttachmentsService } from '../attachment/attachments.service';
+import { BulkSendInvoiceEmailDto, SendInvoiceEmailDto } from './dto/send-invoice-email.dto';
 
 @Auth()
 @Controller('invoices')
@@ -1247,16 +1248,7 @@ export class InvoiceController {
   async sendInvoiceEmail(
     @Param('id') id: string,
     @Query('companyId') companyId: string,
-    @Body() body: {
-      ccEmail?: string;
-      extraCc?: string[];
-      overrideTo?: string;
-      overrideSubject?: string;
-      overrideBody?: string;
-      language?: 'de' | 'en' | 'zh';
-      salutation?: string;
-      createdById?: string;
-    },
+    @Body() body: SendInvoiceEmailDto,
   ) {
     // Tier 129: the actual email workflow now lives in
     // InvoiceEmailService so the recurring scheduler can
@@ -1401,17 +1393,7 @@ export class InvoiceController {
   @Throttle({ default: { limit: 15, ttl: 300_000 } })
   async bulkSendEmails(
     @Query('companyId') companyId: string,
-    @Body() body: {
-      invoiceIds?: string[];
-      language?: 'de' | 'en' | 'zh';
-      overrideSubject?: string;
-      overrideBody?: string;
-      ccEmail?: string;
-      extraCc?: string[];
-      createdById?: string;
-      dryRun?: boolean;
-      concurrency?: number;
-    },
+    @Body() body: BulkSendInvoiceEmailDto,
   ) {
     if (!companyId) {
       throw new BadRequestException('companyId ist erforderlich');
