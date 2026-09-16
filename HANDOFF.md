@@ -9,15 +9,15 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–400 are
-  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 400.)
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–401 are
+  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 401.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 35112477951 / commit `4579349`, Tier 400):**
+- **Test counts (last green CI, run 35123583394 / commit `03fcbfc`, Tier 401a):**
   - Backend e2e: **189 passed / 0 failed / 1 skipped** of 190 specs — 100
     two-digit + 90 three-digit (Tier 400 added `190-tier400-session-auth.sh`,
     the first new spec file since Tier 390; Tiers 391-398 extended existing ones —
@@ -32,7 +32,8 @@ exact commands + docs you need to be productive.
     and survives concurrent writes (Tier 367); spec 171 (new in Tier 368) asserts
     the auth audit rows exist at all and are signed — nothing had ever asserted
     on them, which is how a failed login for an unknown e-mail went unaudited.
-  - Playwright: **922 passed / 0 failed / 0 skipped / 0 flaky** (922 since Tier 390's page tests) — every test
+  - Playwright: **926 passed / 0 failed / 0 skipped / 0 flaky** (922 since Tier 390's
+    page tests; +4 in Tier 401's session-cookie spec) — every test
     runs and none needed a retry. Tier 365 turned the last 4 skips into real
     tests; Tier 365b fixed the one flaky test (`bwa-quarterly-tier163`).
     Tier 369 removed 28 silent-skip call sites — three intentional ones remained
@@ -2419,6 +2420,11 @@ Tier 398 run 35094143231 **failed** (Playwright 921 — portal-profile-tier155,
 see below); Tier 398a run 35099184553 green: backend 188/0/1, Playwright 922.
 Tier 400 run 35112477951, all six jobs green: backend 189/0/1 (the new spec
 is the +1; the skip is still 16-dark-mode), Playwright 922.
+Tier 401 run 35123354210 **failed** on backend lint — a warning
+(`SESSION_TTL_DAYS` unused after the cookie code moved into `issue()`), and CI
+runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
+after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
+(+4 from session-cookie-tier401).
 
 ### The browser now signs in with the cookie (Tier 401)
 
