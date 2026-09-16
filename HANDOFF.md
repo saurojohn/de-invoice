@@ -9,18 +9,18 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–392 are
-  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 392.)
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–393 are
+  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 393.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 35065207044 / commit `c1de4f6`, Tier 392):**
+- **Test counts (last green CI, run 35071721340 / commit `0411ddf`, Tier 393):**
   - Backend e2e: **188 passed / 0 failed / 1 skipped** of 189 specs — 100
-    two-digit + 89 three-digit (Tiers 391-392 extended 50-webhooks.sh and
-    21-system-errors.sh, no new spec files); before Tier 361 only the two-digit ones ever ran.
+    two-digit + 89 three-digit (Tiers 391-393 extended 50-webhooks.sh,
+    21-system-errors.sh and 08-bank-import.sh, no new spec files); before Tier 361 only the two-digit ones ever ran.
     `QUARANTINE` empty. The one skip is `16-dark-mode.sh` (no frontend in the e2e
     job); since Tier 371 skips exit 77 and are listed, not counted as passes.
     Spec 172 (Tier 370) guards the harness itself: no spec may use `_lib.sh`
@@ -2406,6 +2406,7 @@ a suite runs on it.**
 CI run 35025847641, all six jobs green: backend 188/0/1, Playwright 922.
 Tier 391 run 35032619006, all six jobs green: backend 188/0/1, Playwright 922.
 Tier 392 run 35065207044, all six jobs green: backend 188/0/1, Playwright 922.
+Tier 393 run 35071721340, all six jobs green: backend 188/0/1, Playwright 922.
 
 ### Bank-import book-expense wrote before it validated (Tier 393)
 
