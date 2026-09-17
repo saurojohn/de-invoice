@@ -2437,6 +2437,59 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### A flaky test that was a production 502 (Tier 405)
+
+Tier 404's CI run reported success, but Playwright counted **925 passed + 1
+flaky**, not 926. `gobd-month-button-tier183` #4 had failed once with
+
+```
+Error: apiRequestContext.get: read ECONNRESET
+  → GET http://localhost:3001/api/v1/gobd-export?year=2026&month=13&…
+```
+
+and passed on retry. Nothing about that request was wrong — it is a plain
+400-path check. The obvious move is to shrug at a retry that passed; the job
+verdict invites exactly that. The count is what made it worth a look, and
+§1 has tracked "0 flaky" since Tier 365b.
+
+**Cause: Node closes idle keep-alive sockets after 5 s.** Measured with the new
+`backend/scripts/probe-keepalive.ts` (one TCP connection, one request, then
+silence, report when the server hangs up): **closed 6004 ms after the
+response.** Any client that pools connections can reuse a socket at the moment
+the server closes it; Playwright's request context did, and got ECONNRESET.
+
+**In production that client is nginx.** `infra/prod/nginx.conf` pools upstream
+connections (`keepalive 32`, `proxy_http_version 1.1`, `Connection ""`) with
+nginx's default 60 s `keepalive_timeout`. nginx believes a socket is good for a
+minute that the backend drops after five seconds, so under light traffic —
+exactly when a socket sits idle — a user's request can land on a dead one and
+get **502 "upstream prematurely closed connection"**: intermittent, unlogged by
+the app, and unreproducible by hand. The flaky test was the only place this was
+visible before deployment.
+
+- `main.ts` sets `server.keepAliveTimeout = 65 s` (overridable with
+  `HTTP_KEEPALIVE_TIMEOUT_MS`) and `headersTimeout` 1 s above it — Node needs the
+  latter larger, or it can drop a connection while the next request's headers
+  are arriving on it. The rule is simply that the server must outlast every
+  client that pools connections to it.
+- `nginx.conf` states `keepalive_timeout 60s` on the backend upstream. That is
+  nginx's default, so no behaviour changes; it is there so the pairing is
+  visible where someone would change it.
+
+Measured after: the idle socket was **still open after 15 s**; with
+`HTTP_KEEPALIVE_TIMEOUT_MS=3000` it closed at ~4 s, which shows both that the
+knob works and that the probe does detect a close.
+
+Spec `e2e/194-tier405-keepalive.sh`: an idle socket survives 10 s (the old
+server closed at ~6 s), and — statically, since nobody wants a 65 s test — the
+backend default, the `headersTimeout` derivation, nginx's explicit value, and
+that the backend's is the larger. Raising nginx's timeout past the backend's
+turns the spec red. 4 of the 5 assertions fail against the old code.
+
+**Lesson:** a job that says success is not the same as a count that matches.
+Tier 395 found a hidden skip that way; this one was a flaky that pointed at a
+production failure mode.
+
 ### Every tenant was numbering invoices out of one shared counter (Tier 404)
 
 Two fresh companies on a throwaway stack, alternating creates:

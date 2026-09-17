@@ -186,6 +186,28 @@ async function bootstrap() {
 
   const port = configService.get('PORT', 3001);
   await app.listen(port);
+
+  // Tier 405: keep idle keep-alive sockets open longer than anything that
+  // pools connections to us.
+  //
+  // Node's default keepAliveTimeout is 5 s — measured with
+  // scripts/probe-keepalive.js, an idle socket was closed 6004 ms after its
+  // response. nginx keeps upstream connections for 60 s (`keepalive 32` with
+  // the default keepalive_timeout, see infra/prod/nginx.conf), so it can hand a
+  // request to a socket at the moment Node closes it: the user gets a 502
+  // "upstream prematurely closed connection", intermittently and unreproducibly.
+  // CI saw the same race from Playwright's request pool as `read ECONNRESET` on
+  // a request that had nothing wrong with it (gobd-month-button-tier183, run
+  // 35157628517).
+  //
+  // The server must outlast the client, so 65 s against nginx's 60 s.
+  // headersTimeout has to be larger still, or Node can drop a connection while
+  // the next request's headers are arriving on it.
+  const server = app.getHttpServer();
+  const keepAliveMs = Number(process.env.HTTP_KEEPALIVE_TIMEOUT_MS) || 65_000;
+  server.keepAliveTimeout = keepAliveMs;
+  server.headersTimeout = keepAliveMs + 1_000;
+
   console.log(`Backend running on http://localhost:${port}`);
 }
 
