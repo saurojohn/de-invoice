@@ -191,6 +191,29 @@ const AUDITED_MODELS = new Set<string>([
   // individual actions, summary
   // for bulk.
   'ErrorEvent',
+  // Tier 407 — records that carry money or settle a debt, and had no trail at
+  // all. Measured: a 119 € cash payment recorded and then deleted left three
+  // `invoice.updated` rows and nothing naming the payment, its amount or who
+  // removed it. None of these services wrote an explicit audit row either.
+  'Payment',
+  'Mahnung',
+  'Mahnungspause',
+  'InstallmentPlan',
+  'Installment',
+  'CustomerCreditTransaction',
+  'CashBookDailyClose',
+  'UStvaFiling',
+  'VoucherLine',
+  'BankReconciliation',
+  'SepaBatch',
+  'SepaDirectDebitMandate',
+  'SepaDirectDebitBatch',
+  'SepaDirectDebitCollection',
+  'VatRate',
+  // …and who may do what: the company's master data (tax numbers, bank
+  // details) and a member's role in it. See the PEM redaction in sanitize().
+  'Company',
+  'UserCompany',
 ])
 
 // Strip fields that shouldn't go in
@@ -206,17 +229,78 @@ const SENSITIVE_FIELDS = new Set<string>([
   'passwordHash',
   'passwordResetToken',
   'twoFactorSecret',
+  // Tier 407: named secrets that could appear once more models are audited.
+  'recoveryCodes',
+  'keyPem',
+  'privateKey',
+  'pinEncrypted',
+  'pin',
+  'password',
+  'secret',
 ])
 
 const MAX_JSON_BYTES = 8 * 1024 // 8KB
 
-const sanitize = (data: any): any => {
-  if (data == null) return null
-  if (typeof data !== 'object') return data
-  // Drop sensitive fields
-  for (const f of SENSITIVE_FIELDS) {
-    if (f in data) data[f] = '[REDACTED]'
+// Tier 407: any string that is a PEM private key, wherever it sits.
+//
+// Company joined the audited models in Tier 407, and before Tier 208 a
+// company's signing key lived in Company.settings.signing.key. A database from
+// that era would copy the private key into AuditLog — an append-only,
+// hash-chained table that can never be cleaned — on the first company update.
+// Matching the PEM armour rather than a field name also covers keys under
+// names nobody thought of.
+const PRIVATE_KEY_PEM = /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----/
+
+const isPlainObject = (v: any): boolean => {
+  if (v === null || typeof v !== 'object') return false
+  const proto = Object.getPrototypeOf(v)
+  return proto === Object.prototype || proto === null
+}
+
+// Returns `value` itself when nothing needs redacting, otherwise a copy of just
+// the levels that changed. Never mutates: `sanitize(result)` used to overwrite
+// fields on the very object the query returned to the service. Decimal and
+// Date instances are left alone — the hash canonicalisation (Tier 366) relies
+// on seeing them as they are.
+const redactDeep = (value: any, depth: number): any => {
+  if (typeof value === 'string') {
+    return PRIVATE_KEY_PEM.test(value) ? '[REDACTED]' : value
   }
+  if (depth > 12) return value
+  if (Array.isArray(value)) {
+    let out: any[] | null = null
+    for (let i = 0; i < value.length; i++) {
+      const r = redactDeep(value[i], depth + 1)
+      if (r !== value[i]) {
+        const copy: any[] = out ?? value.slice()
+        copy[i] = r
+        out = copy
+      }
+    }
+    return out || value
+  }
+  if (isPlainObject(value)) {
+    let out: Record<string, any> | null = null
+    for (const k of Object.keys(value)) {
+      const r = SENSITIVE_FIELDS.has(k) ? '[REDACTED]' : redactDeep(value[k], depth + 1)
+      if (r !== value[k]) {
+        const copy: Record<string, any> = out ?? { ...value }
+        copy[k] = r
+        out = copy
+      }
+    }
+    return out || value
+  }
+  return value
+}
+
+const sanitize = (input: any): any => {
+  if (input == null) return null
+  if (typeof input !== 'object') return input
+  // Always a fresh top level, so callers that add fields (the Invoice branch in
+  // the create hook) never touch the query's result object.
+  const redacted = redactDeep(input, 0)
+  const data = redacted === input ? { ...input } : redacted
   // Truncate if too large
   const json = JSON.stringify(data)
   if (json.length > MAX_JSON_BYTES) {
@@ -363,6 +447,36 @@ export function createAuditLogExtension() {
           })
           return result
         },
+        // Tier 407: upsert had no hook, so every write made with it skipped the
+        // trail — measured: changing a member's role (users.service changeRole
+        // upserts the UserCompany row) left no audit row at all.
+        async upsert({ model, _operation, args, query }: any) {
+          if (!AUDITED_MODELS.has(model)) return query(args)
+          const before = await getPreImage(_auditLogClient, model, args)
+          const result = await query(args)
+          await writeAudit(_auditLogClient, {
+            action: actionOf(before ? 'update' : 'create', model),
+            entityType: model,
+            entityId: extractId(args, result),
+            oldData: sanitize(before),
+            newData: sanitize(result),
+          })
+          return result
+        },
+        // Tier 407: nothing calls this on an audited model today; it is here so
+        // the first caller does not silently open the same gap.
+        async createMany({ model, _operation, args, query }: any) {
+          if (!AUDITED_MODELS.has(model)) return query(args)
+          const result = await query(args)
+          await writeAudit(_auditLogClient, {
+            action: `${model.toLowerCase()}.created`,
+            entityType: model,
+            entityId: 'bulk:' + String(Array.isArray(args?.data) ? args.data.length : 1),
+            oldData: null,
+            newData: { count: result?.count ?? null },
+          })
+          return result
+        },
         async delete({ model, _operation, args, query }: any) {
           if (!AUDITED_MODELS.has(model)) return query(args)
           const before = await getPreImage(_auditLogClient, model, args)
@@ -418,6 +532,12 @@ async function getPreImage(
     if (args.where && args.where.id) {
       return await client[lowerFirst(model)].findUnique({ where: { id: args.where.id } })
     }
+    // Tier 407: update/delete always take a unique input, and some audited
+    // models have a composite key instead of an id (UserCompany is
+    // userId + companyId). Without this their role changes had no before-image.
+    if (args.where && typeof args.where === 'object') {
+      return await client[lowerFirst(model)].findUnique({ where: args.where })
+    }
     return null
   } catch {
     return null
@@ -429,6 +549,22 @@ const lowerFirst = (s: string) => s[0].toLowerCase() + s.slice(1)
 const extractId = (args: any, result: any): string | null => {
   if (result && typeof result === 'object' && 'id' in result) return result.id
   if (args && args.where && args.where.id) return args.where.id
+  // Tier 407: a composite key (e.g. where: { userId_companyId: { userId,
+  // companyId } }) becomes "userId:companyId", so the row is still findable.
+  const where = args && args.where
+  if (where && typeof where === 'object') {
+    for (const v of Object.values(where)) {
+      if (isPlainObject(v)) {
+        const parts = Object.values(v as Record<string, unknown>)
+        if (parts.length > 1 && parts.every((x) => typeof x === 'string')) {
+          return (parts as string[]).join(':')
+        }
+      }
+    }
+  }
+  if (result && typeof result === 'object' && typeof result.userId === 'string' && typeof result.companyId === 'string') {
+    return `${result.userId}:${result.companyId}`
+  }
   return null
 }
 
@@ -482,15 +618,30 @@ export async function runWithBufferedAudit<T>(run: () => Promise<T>): Promise<T>
 async function writeAudit(client: any, entry: AuditEntry) {
   // The request context is captured now, not at flush time, so a buffered row
   // is attributed to whoever made the change.
-  const ctx: AuditCtx = getRequestContext() || {
+  // A copy: the request context is one mutable object shared by the whole
+  // request (the auth guard fills it in), and the fallback below must not leak
+  // one row's company into the next write.
+  const ctx: AuditCtx = {
     userId: null,
     companyId: null,
     ipAddress: null,
     userAgent: null,
+    ...(getRequestContext() || {}),
+  }
+  // Tier 407: public routes (registration, invitation acceptance, the payment
+  // portal) and crons have no company in the request context, so their rows
+  // went onto the company-less chain — measured: every usercompany.created row
+  // had companyId NULL and was invisible in the company's own trail. The row
+  // being written knows its company; use that when the request does not.
+  if (!ctx.companyId) {
+    const own = entry.newData?.companyId ?? entry.oldData?.companyId
+    if (typeof own === 'string' && own) {
+      ctx.companyId = own
+    }
   }
   const buffer = pendingAudit.getStore()
   if (buffer) {
-    buffer.push({ entry, ctx: { ...ctx } })
+    buffer.push({ entry, ctx })
     return
   }
   await writeAuditNow(client, entry, ctx)

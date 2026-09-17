@@ -2441,6 +2441,67 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Payments, roles and company data had no audit trail (Tier 407)
+
+Tier 406 made transactional writes reach the audit extension. The next question
+was what the extension actually covers: 18 models. Everything else was written
+with no row — and, checked service by service, with no explicit
+`writeActivity` call either. Measured:
+
+| Change | Trail before |
+|---|---|
+| a 119 € cash payment recorded, then deleted | three `invoice.updated` rows; nothing naming the payment, the amount or who deleted it |
+| a member's role changed viewer → accountant | **no row at all** — `changeRole` upserts, and the extension had no `upsert` hook |
+| registration / invitation acceptance | `usercompany.created` with `companyId` NULL — on the company-less chain, absent from the company's own trail |
+
+Added to `AUDITED_MODELS`: the records that carry money or settle a debt —
+`Payment`, `Mahnung`, `Mahnungspause`, `InstallmentPlan`, `Installment`,
+`CustomerCreditTransaction`, `CashBookDailyClose`, `UStvaFiling`, `VoucherLine`,
+`BankReconciliation`, the four SEPA models, `VatRate` — and who may do what:
+`Company` (tax numbers, bank details) and `UserCompany` (roles).
+
+Four supporting changes in the extension:
+
+- **`upsert` and `createMany` hooks.** `upsert` records `created` or `updated`
+  depending on whether a before-image existed. Nothing calls `createMany` on an
+  audited model today; the hook is there so the first caller does not reopen
+  the gap.
+- **Composite keys.** `getPreImage` only knew `where.id`; update/delete always
+  take a unique input, so it now uses `args.where` as given, and `extractId`
+  turns `{ userId_companyId: {…} }` into `userId:companyId`. Without this a
+  role change had no before-image and no findable entity id.
+- **Company fallback for public routes and crons.** When the request context
+  has no company, the row's own `companyId` is used, so registration,
+  invitation acceptance and the payment portal land in the company's chain.
+  The context is **copied** first: it is one mutable object per request (the
+  guard fills it in since Tier 400), and assigning into it would have leaked
+  one row's company into every later write of the same request.
+- **`sanitize()` redacts PEM private keys at any depth and no longer mutates.**
+  Adding `Company` carried a real risk: before Tier 208 a company's signing key
+  lived in `Company.settings.signing.key`, and a database from that era would
+  have copied it into an append-only, hash-chained table on the first company
+  update — permanently. Any string carrying `-----BEGIN … PRIVATE KEY-----` is
+  now `[REDACTED]`, wherever it sits and whatever the field is called, plus a
+  few named secret columns. The old version also wrote `[REDACTED]` into the
+  very object the query returned to the service; the new one copies only the
+  levels it changes and leaves Decimal / Date instances alone for the Tier 366
+  hash canonicalisation.
+
+Measured after: the payment's trail is `payment.created, payment.deleted` with
+amount and actor; the role change is `usercompany.updated viewer → accountant`
+by the admin; both memberships are in the company's chain; a company update
+with a planted legacy key is audited, the key text appears **0** times in
+`AuditLog`, the rest of `settings` is kept, the company row is untouched, and
+the chain verifies.
+
+Spec `e2e/196-tier407-audit-coverage.sh` (24 assertions) asserts all of that,
+plus a gate: every model with a `Decimal` column must be in `AUDITED_MODELS` or
+in the spec's exemption list with a reason (`ProductStockHistory` and
+`VatRateHistory` are history tables themselves, `RecurringInvoiceItem` is a
+template, `Asset` writes explicit activity rows since Tier 368). A new
+money-bearing model turns it red until someone decides. 13 fail against the old
+code.
+
 ### Writes inside a transaction were never audited (Tier 406)
 
 Found by pulling on something smaller. `InvoiceService.delete` allows removing
