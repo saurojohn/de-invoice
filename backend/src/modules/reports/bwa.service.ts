@@ -4,6 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service'
 import { AssetsService } from '../assets/assets.service'
 import { Response } from 'express'
 import PDFDocument from 'pdfkit'
+import { invoiceNetRevenue } from '../invoice/tax-breakdown';
 
 /**
  * Tier 86 + 93: BWA (Betriebswirtschaftliche
@@ -286,7 +287,17 @@ export class BwaService {
         // ECB rate) and fall back to `subtotal` for legacy
         // rows that pre-date Tier 118 (the column was added
         // nullable and backfilled for existing rows).
-        select: { subtotal: true, eurSubtotal: true, issueDate: true },
+        // Tier 411: + total / totalVat and their EUR twins — revenue is net after
+        // the invoice discount.
+        select: {
+          subtotal: true,
+          eurSubtotal: true,
+          issueDate: true,
+          total: true,
+          totalVat: true,
+          eurTotal: true,
+          eurTotalVat: true,
+        },
       }),
       this.prisma.expense.findMany({
         where: {
@@ -322,8 +333,9 @@ export class BwaService {
     // Tier 118.5: aggregate in EUR. Prefer eurSubtotal
     // (pre-computed at issue time), fall back to
     // subtotal for legacy rows.
-    const eurSubtotal = (i: { subtotal: any; eurSubtotal: any }) =>
-      i.eurSubtotal != null ? Number(i.eurSubtotal) : Number(i.subtotal)
+    // Tier 411: net after the invoice discount (was eurSubtotal ?? subtotal,
+    // the amount before it). The helper keeps its name for the callers below.
+    const eurSubtotal = (i: Parameters<typeof invoiceNetRevenue>[0]) => invoiceNetRevenue(i)
     const invoiceMonat = sumInMonth(
       invoices.map((i) => ({ date: i.issueDate, amount: eurSubtotal(i) })),
       monthStart,
@@ -465,7 +477,14 @@ export class BwaService {
         // Tier 118.5: prior-year aggregation in EUR.
         // eurSubtotal for multi-currency, fallback to
         // subtotal for legacy null rows.
-        select: { subtotal: true, eurSubtotal: true },
+        select: {
+          subtotal: true,
+          eurSubtotal: true,
+          total: true,
+          totalVat: true,
+          eurTotal: true,
+          eurTotalVat: true,
+        },
       }),
       this.prisma.expense.findMany({
         where: {
@@ -489,10 +508,8 @@ export class BwaService {
       }),
     ])
 
-    const vorjahresYtdInvoice = vorjahresInvoices.reduce(
-      (s, i) => s + (i.eurSubtotal != null ? Number(i.eurSubtotal) : Number(i.subtotal)),
-      0,
-    )
+    // Tier 411: after the invoice discount, as for the current year.
+    const vorjahresYtdInvoice = vorjahresInvoices.reduce((s, i) => s + invoiceNetRevenue(i), 0)
     // Tier 93: bucket the prior-year expenses the
     // same way as the current year (one filter
     // pass per expense, one sum per bucket). The

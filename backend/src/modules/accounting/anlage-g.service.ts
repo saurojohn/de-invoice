@@ -2,6 +2,7 @@ import { Injectable, BadRequestException } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import { Response } from 'express'
 import PDFDocument from 'pdfkit'
+import { invoiceEurFactor, invoiceNetRevenue, invoiceTaxBreakdown } from '../invoice/tax-breakdown'
 
 /**
  * Tier 100: Anlage G — Einkünfte aus
@@ -108,35 +109,19 @@ export interface AnlageGResult {
 // v1 uses VAT-status matchers similar to Anlage S
 // / V: 19% USt vs 7% USt vs § 19 UStG Kleinunter-
 // nehmer. ReverseCharge goes to 2150 (igLeistungen).
-const EINNAHMEN_LINES: Array<{ kz: string; label: string; matcher: (inv: any) => boolean }> = [
-  {
-    kz: '2110',
-    label: 'Umsatzerlöse 19% USt (Standard-Besteuerung)',
-    matcher: (inv) => Number(inv.totalVat) > 0 && Number(inv.subtotal) > 0 && !inv.reverseCharge,
-  },
-  {
-    kz: '2120',
-    label: 'Umsatzerlöse 7% USt (ermäßigt)',
-    matcher: (inv) =>
-      Number(inv.subtotal) > 0 &&
-      Number(inv.totalVat) > 0 &&
-      Math.abs(Number(inv.totalVat) / Number(inv.subtotal) - 0.07) < 0.01,
-  },
-  {
-    kz: '2130',
-    label: 'Umsatzerlöse nach § 19 UStG (Kleinunternehmer, 0% USt)',
-    matcher: (inv) => Number(inv.totalVat) === 0 && Number(inv.subtotal) > 0 && !inv.reverseCharge,
-  },
+// Tier 411: bucketing is per VAT rate (see the compute loop); these only name
+// the lines. The old per-invoice matchers had two defects: 2110 took any
+// invoice with VAT and ran first, so 2120 (7 %) was never reached; and a mixed
+// 19 % + 7 % invoice could only land on one line.
+const EINNAHMEN_LINES: Array<{ kz: string; label: string }> = [
+  { kz: '2110', label: 'Umsatzerlöse 19% USt (Standard-Besteuerung)' },
+  { kz: '2120', label: 'Umsatzerlöse 7% USt (ermäßigt)' },
+  { kz: '2130', label: 'Umsatzerlöse nach § 19 UStG (Kleinunternehmer, 0% USt)' },
   {
     kz: '2150',
     label: 'Innergemeinschaftliche Lieferungen / igLeistungen (§ 25b UStG, Reverse Charge)',
-    matcher: (inv) => inv.reverseCharge === true,
   },
-  {
-    kz: '2190',
-    label: 'Sonstige Erlöse (Gutschriften, Nebenerlöse, Provisionen)',
-    matcher: () => false, // fallback
-  },
+  { kz: '2190', label: 'Sonstige Erlöse (Gutschriften, Nebenerlöse, Provisionen)' },
 ]
 
 // Tier 100: Anlage G Betriebsausgaben 2200-2890.
@@ -345,8 +330,19 @@ export class AnlageGService {
         subtotal: true,
         totalVat: true,
         reverseCharge: true,
+        // Tier 411: revenue after the discount, in EUR, split per rate.
+        total: true,
+        eurTotal: true,
+        eurTotalVat: true,
+        euTransaction: true,
+        items: { select: { quantity: true, unitPrice: true, vatRate: true } },
       },
     })
+    const vatModeRow = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { defaultVatMode: true },
+    })
+    const kleinunternehmer = vatModeRow?.defaultVatMode === 'kleinunternehmer'
 
     // Betriebsausgaben (Expense rows). Exclude
     // Storno / 'voided' — those go to negative
@@ -370,16 +366,28 @@ export class AnlageGService {
     // / EÜR.
     const einnahmenBuckets = new Map<string, number>()
     for (const def of EINNAHMEN_LINES) einnahmenBuckets.set(def.kz, 0)
+    const addTo = (kz: string, amount: number) =>
+      einnahmenBuckets.set(kz, (einnahmenBuckets.get(kz) || 0) + amount)
     for (const inv of invoices) {
-      const subtotal = Number(inv.subtotal)
-      if (subtotal < 0) {
+      // Tier 411: after the invoice discount and in EUR (was subtotal).
+      const revenue = invoiceNetRevenue(inv)
+      if (revenue < 0) {
         // Gutschrift (CN) — reduce Kz 2110 directly
-        einnahmenBuckets.set('2110', (einnahmenBuckets.get('2110') || 0) + subtotal)
+        addTo('2110', revenue)
         continue
       }
-      const matched = EINNAHMEN_LINES.find((d) => d.matcher(inv))
-      const kz = matched?.kz || '2190'
-      einnahmenBuckets.set(kz, (einnahmenBuckets.get(kz) || 0) + subtotal)
+      if (inv.reverseCharge === true || inv.euTransaction === true) {
+        addTo('2150', revenue)
+        continue
+      }
+      const f = invoiceEurFactor(inv)
+      for (const bucket of invoiceTaxBreakdown(inv).byRate) {
+        const kz =
+          bucket.rate === 0 ? (kleinunternehmer ? '2130' : '2190')
+          : Math.abs(bucket.rate - 0.07) < 0.001 ? '2120'
+          : '2110'
+        addTo(kz, bucket.net * f)
+      }
     }
 
     // Bucket expenses. The Sonstige 2890 is the

@@ -107,3 +107,36 @@ export function invoiceTaxBreakdown(inv: BreakdownInvoice): TaxBreakdown {
     byRate: rates.map((rate, i) => ({ rate, net: nets[i], vat: vats[i] })),
   }
 }
+
+/**
+ * Tier 411 — an invoice's revenue: net, after its discount, in EUR.
+ *
+ * The income statements (EÜR, Anlage S/G/V, GuV, BWA, the GoBD archive
+ * summary) took `eurSubtotal ?? subtotal` — the amount BEFORE the invoice
+ * discount. Measured: a 1 000 € invoice with 10 % off, paid 1 071 €, put 1 000
+ * on EÜR 4100 and Anlage S 4100 (owed 900). The document's own figures are the
+ * anchor, as in invoiceTaxBreakdown: total − totalVat, converted with the
+ * EUR amounts computed at issue time when the invoice has them. Signed, so a
+ * credit note stays negative.
+ */
+export interface RevenueInvoice {
+  total: unknown
+  totalVat: unknown
+  eurTotal?: unknown
+  eurTotalVat?: unknown
+}
+
+export function invoiceNetRevenue(inv: RevenueInvoice): number {
+  if (inv.eurTotal != null && inv.eurTotalVat != null) {
+    return r4(num(inv.eurTotal) - num(inv.eurTotalVat))
+  }
+  return r4(num(inv.total) - num(inv.totalVat))
+}
+
+/** EUR per unit of the invoice currency, from the amounts stored at issue. */
+export function invoiceEurFactor(inv: RevenueInvoice): number {
+  const total = num(inv.total)
+  if (inv.eurTotal == null || total === 0) return 1
+  const f = num(inv.eurTotal) / total
+  return Number.isFinite(f) && f > 0 ? f : 1
+}

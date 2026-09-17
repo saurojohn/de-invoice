@@ -101,8 +101,10 @@ export class ReportsService {
     });
 
     // Calculate total sales
+    // Tier 411: net after the invoice discount (was subtotal, before it). The
+    // rest of this report stays in the invoice currency, and so does this.
     const totalSales = invoices.reduce(
-      (sum, inv) => sum + Number(inv.subtotal),
+      (sum, inv) => sum + Number(inv.total) - Number(inv.totalVat),
       0,
     );
     const totalVat = invoices.reduce(

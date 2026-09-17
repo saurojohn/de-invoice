@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
 import { Response } from 'express'
 import PDFDocument from 'pdfkit'
+import { invoiceNetRevenue } from '../invoice/tax-breakdown';
 
 /**
  * Tier 92: Anlage V — Einkünfte aus Vermietung
@@ -206,6 +207,10 @@ export class AnlageVService {
       select: {
         subtotal: true,
         totalVat: true,
+        // Tier 411: revenue is total − totalVat (after the discount), in EUR.
+        total: true,
+        eurTotal: true,
+        eurTotalVat: true,
         reverseCharge: true,
       },
     })
@@ -279,7 +284,8 @@ export class AnlageVService {
     const einnahmenBuckets = new Map<string, number>()
     for (const def of REVENUE_LINES) einnahmenBuckets.set(def.kz, 0)
     for (const inv of invoices) {
-      const subtotal = Number(inv.subtotal)
+      // Tier 411: after the invoice discount, in EUR (see anlage-s).
+      const subtotal = invoiceNetRevenue(inv)
       if (subtotal < 0) {
         // Gutschrift (CN) — same convention as
         // tier 76 EÜR / tier 80 Anlage S: offset

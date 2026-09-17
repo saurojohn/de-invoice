@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Response } from 'express';
 import PDFDocument from 'pdfkit';
+import { invoiceNetRevenue } from '../invoice/tax-breakdown';
 
 /**
  * Tier 76: Anlage EÜR (Einnahmen-Überschuss-Rechnung).
@@ -182,6 +183,9 @@ export class EuerService {
       select: {
         subtotal: true,
         totalVat: true,
+        // Tier 411: revenue is total − totalVat (after the discount), in EUR
+        // (eurTotal / eurTotalVat are selected below).
+        total: true,
         // Tier 118: cross-currency aggregation.
         // EÜR is a German Finanzamt form that adds
         // everything up in EUR. Pre-invoice amounts
@@ -252,7 +256,10 @@ export class EuerService {
       // pre-computed eurSubtotal; fall back to the
       // original subtotal if the column is null
       // (legacy invoices, manual DB rows).
-      const subtotal = inv.eurSubtotal != null ? Number(inv.eurSubtotal) : Number(inv.subtotal)
+      // Tier 411: after the invoice discount (was eurSubtotal ?? subtotal —
+      // the amount before it). The name stays: every use below is the
+      // invoice's revenue, and its sign still marks a credit note.
+      const subtotal = invoiceNetRevenue(inv)
       if (subtotal < 0) {
         // Gutschrift — offset Kz 4100 (negative)
         einnahmenBuckets.set('4100', (einnahmenBuckets.get('4100') || 0) + subtotal)

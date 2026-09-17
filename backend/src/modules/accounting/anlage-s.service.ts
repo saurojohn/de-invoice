@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
 import { Response } from 'express'
 import PDFDocument from 'pdfkit'
+import { invoiceNetRevenue } from '../invoice/tax-breakdown';
 
 /**
  * Tier 80: Anlage S — Einkünfte aus
@@ -222,6 +223,10 @@ export class AnlageSService {
       select: {
         subtotal: true,
         totalVat: true,
+        // Tier 411: revenue is total − totalVat (after the discount), in EUR.
+        total: true,
+        eurTotal: true,
+        eurTotalVat: true,
         reverseCharge: true,
         // Tier 410: the igL flag is separate from reverseCharge.
         euTransaction: true,
@@ -275,7 +280,9 @@ export class AnlageSService {
     const einnahmenBuckets = new Map<string, number>()
     for (const def of REVENUE_LINES) einnahmenBuckets.set(def.kz, 0)
     for (const inv of invoices) {
-      const subtotal = Number(inv.subtotal)
+      // Tier 411: after the invoice discount, in EUR (was subtotal — before
+      // the discount, and in the invoice currency).
+      const subtotal = invoiceNetRevenue(inv)
       if (subtotal < 0) {
         // Gutschrift (CN) — same convention as
         // tier 76 EÜR: offset Kz 4100 directly.

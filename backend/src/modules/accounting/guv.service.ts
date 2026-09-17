@@ -4,6 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service'
 import { AssetsService } from '../assets/assets.service'
 import { Response } from 'express'
 import PDFDocument from 'pdfkit'
+import { invoiceNetRevenue } from '../invoice/tax-breakdown';
 
 /**
  * Tier 82: Anlage G+V (Gewinn- und Verlustrechnung).
@@ -174,6 +175,9 @@ export class GuVService {
         eurSubtotal: true,
         eurTotalVat: true,
         reverseCharge: true,
+        // Tier 411: revenue is total − totalVat (after the discount).
+        total: true,
+        eurTotal: true,
       },
     })
     // Tier 118.5: aggregate in EUR. Prefer
@@ -181,11 +185,8 @@ export class GuVService {
     // the ECB rate); fall back to the original
     // subtotal for legacy rows where the EUR
     // columns are still null.
-    const umsatzerloese = invoices.reduce(
-      (s, inv) =>
-        s + (inv.eurSubtotal != null ? Number(inv.eurSubtotal) : Number(inv.subtotal)),
-      0,
-    )
+    // Tier 411: after the invoice discount (was eurSubtotal ?? subtotal).
+    const umsatzerloese = invoices.reduce((s, inv) => s + invoiceNetRevenue(inv), 0)
 
     // ===== EXPENSES =====
     // Pull every booked/deductible expense in

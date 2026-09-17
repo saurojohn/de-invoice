@@ -2449,6 +2449,39 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### The income statements counted revenue before the discount (Tier 411)
+
+Tier 409 put the tax figures on the discounted, per-rate breakdown; the income
+statements still took `eurSubtotal ?? subtotal` — the amount *before* the
+invoice discount. One company, a 1 000 € invoice at 10 % off plus a 100 € 19 %
++ 100 € 7 % invoice — net revenue 1 100:
+
+| Report | Before | Now |
+|---|---|---|
+| EÜR 4100, Anlage S 4100 | 1 200 | 1 100 |
+| GuV Umsatzerlöse, BWA Erlöse | 1 200 | 1 100 |
+| GoBD archive summary `totalRevenueNet` | 1 200 | 1 100 |
+| sales report `totalSales` | 1 200 | 1 100 |
+| Anlage G 2110 / 2120 | 1 200 / **0** | 1 000 / 100 |
+
+Anlage G had a second defect of its own: its 19 % matcher took any invoice with
+VAT and ran first, so the 7 % line (2120) was unreachable, and a mixed invoice
+could only land on one line. It now splits each invoice per rate with the
+Tier 409 breakdown (0 % → 2130 for a Kleinunternehmer, otherwise 2190; igL /
+§ 13b → 2150, as in Tier 410).
+
+`invoiceNetRevenue()` (in `tax-breakdown.ts`) is `total − totalVat`, from the
+EUR amounts stored at issue when the invoice has them, signed so a credit note
+stays negative. Anlage S and V now aggregate in EUR too, as EÜR already did.
+The sales report keeps the invoice currency, like the rest of that report.
+
+Spec `e2e/200-tier411-net-revenue.sh` (11 assertions), 8 failing against the
+old code.
+
+Left open: the GoBD archive summary and its PDF bundle include drafts and
+cancelled invoices in the revenue total (the document list should include them;
+the total arguably should not); BWA sums expenses by `grossAmount` (with VAT).
+
 ### Every igL and reverse-charge invoice was issued with 19 % VAT (Tier 410)
 
 `invoice.service.ts` wrote `item.vatRate || 0.19` in twelve places. `0` is

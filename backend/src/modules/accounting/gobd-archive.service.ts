@@ -273,7 +273,8 @@ export class GobdArchiveService {
             issueDate: { gte: yearStart, lte: yearEnd },
             status: { in: ['paid', 'sent', 'overdue', 'draft'] },
           },
-          _sum: { subtotal: true },
+          // Tier 411: net revenue = total − totalVat (after the discount).
+          _sum: { total: true, totalVat: true },
         }),
         this.prisma.expense.aggregate({
           where: {
@@ -302,7 +303,8 @@ export class GobdArchiveService {
       ])
 
     const attachmentCount = expenses.filter((e) => e.attachmentPath).length
-    const totalRevenueNet = Number(totalRev._sum.subtotal || 0)
+    const totalRevenueNet =
+      Number(totalRev._sum.total || 0) - Number(totalRev._sum.totalVat || 0)
     const totalExpenseNet = Number(totalExp._sum.netAmount || 0)
     const totalVatVal = Number(totalVat._sum.totalVat || 0)
     const totalVsVal = Number(totalVs._sum.vatAmount || 0)
@@ -359,7 +361,9 @@ export class GobdArchiveService {
         result.push({
           id: inv.id,
           invoiceNumber: inv.invoiceNumber,
-          subtotal: Number(inv.subtotal),
+          // Tier 411: net after the invoice discount (was subtotal, before it).
+          // The field keeps its name; the manifest sums it as revenue.
+          subtotal: Number(inv.total) - Number(inv.totalVat),
           vat: Number(inv.totalVat),
           pdfBuffer,
         })
