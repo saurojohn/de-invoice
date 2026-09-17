@@ -9,17 +9,18 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–406 are
-  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 406.)
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–407 are
+  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 407.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 35199915513 / commit `cd65f5f`, Tier 406):**
-  - Backend e2e: **194 passed / 0 failed / 1 skipped** of 195 specs — 100
-    two-digit + 95 three-digit (Tier 406 added `195-tier406-transaction-audit.sh`,
+- **Test counts (last green CI, run 35208090438 / commit `90ce850`, Tier 407):**
+  - Backend e2e: **195 passed / 0 failed / 1 skipped** of 196 specs — 100
+    two-digit + 96 three-digit (Tier 407 added `196-tier407-audit-coverage.sh`,
+    Tier 406 `195-tier406-transaction-audit.sh`,
     Tier 405 `194-tier405-keepalive.sh`;
     Tier 400 added `190-tier400-session-auth.sh`,
     Tier 402 `191-tier402-production-auth-mode.sh`, which restarts the backend
@@ -2426,6 +2427,7 @@ see below); Tier 398a run 35099184553 green: backend 188/0/1, Playwright 922.
 Tier 400 run 35112477951, all six jobs green: backend 189/0/1 (the new spec
 is the +1; the skip is still 16-dark-mode), Playwright 922.
 Tier 402 run 35140985920, all six jobs green: backend 190/0/1, Playwright 926.
+Tier 407 run 35208090438, all six jobs green: backend 195/0/1, Playwright 926 passed, 0 flaky.
 Tier 406 run 35199915513, all six jobs green: backend 194/0/1, Playwright 926 passed, 0 flaky.
 Tier 405 run 35193118556, all six jobs green: backend 193/0/1, Playwright 926 passed, 0 flaky — the keep-alive fix held.
 Tier 404 run 35157628517, all six jobs green: backend 192/0/1, but Playwright
