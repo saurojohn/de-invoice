@@ -2,6 +2,7 @@ import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import type { Response } from 'express';
+import { invoiceTaxBreakdown } from '../invoice/tax-breakdown';
 
 /**
  * UStVA — Umsatzsteuervoranmeldung
@@ -152,10 +153,13 @@ export class UstvaService {
       const isGermanVatId = customerVatId.startsWith('DE');
       const f = eurFactor(inv)
 
-      for (const item of inv.items) {
-        const rate = Number(item.vatRate);
-        const net = Number(item.netAmount) * f;
-        const vat = Number(item.vatAmount) * f;
+      // Tier 409: per rate and after the invoice discount. The stored line
+      // amounts are before it — a 1 000 € invoice with 10 % off was reported
+      // as net 1 000 / VAT 190 instead of 900 / 171.
+      for (const bucket of invoiceTaxBreakdown(inv).byRate) {
+        const rate = bucket.rate;
+        const net = bucket.net * f;
+        const vat = bucket.vat * f;
 
         if (rate > 0) {
           addToRate(rate, net, vat);
@@ -175,10 +179,11 @@ export class UstvaService {
     // Credit notes — subtract from sales (CN items have negative net/vat)
     for (const cn of creditNotes) {
       const f = eurFactor(cn)
-      for (const item of cn.items) {
-        const rate = Number(item.vatRate);
-        const net = Number(item.netAmount) * f;
-        const vat = Number(item.vatAmount) * f;
+      // Tier 409: same breakdown; a credit note's buckets are negative.
+      for (const bucket of invoiceTaxBreakdown(cn).byRate) {
+        const rate = bucket.rate;
+        const net = bucket.net * f;
+        const vat = bucket.vat * f;
         if (rate > 0) {
           addToRate(rate, net, vat); // CN is already negative
         }

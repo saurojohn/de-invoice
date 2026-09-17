@@ -2445,6 +2445,65 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### The invoice discount never reached a tax figure (Tier 409)
+
+Started from rounding (invoice amounts are stored to 4 places and never
+rounded to cents — still open, see below) and found something much larger.
+An invoice-level discount lives only on the invoice; the stored line amounts
+are *before* it (create stores quantity × price — which is also what EN 16931
+means by a line's net amount). Every tax figure was built from those lines.
+One invoice, 1 000 € net, 10 % discount, 19 %, customer pays 1 071 €:
+
+| Figure | Before | Owed |
+|---|---|---|
+| UStVA 19 % | net 1 000, VAT 190 | 900 / 171 |
+| OSS (AT customer, 200 € − 10 %) | 200 / 38 | 180 / 34.20 |
+| DATEV revenue | **1 000 on 8125, key 0** | 900 on 8400, key 1 |
+| DATEV VAT | 171 on 1760 (the 7 % account) | 171 on 1776 |
+| DATEV receivable | debit 1 071, credit 1 171 — 100 short | balanced |
+
+DATEV derived one blended rate as `totalVat / subtotal`; 171 / 1 000 = 0.171
+is neither 19 % nor 7 %, so the revenue went to **8125 — the tax-free
+intra-EU account the ZM is built from** — and the VAT to the 7 % account. And
+the blend did not need a discount to go wrong: **every 19 % + 7 % invoice**
+(26 / 200 = 0.13) was exported the same way, its whole revenue as tax-free EU
+turnover. Two smaller ones rode along: the VAT report (`/reports/vat`) counted
+drafts (measured: 1 600 / 304 instead of 1 000 / 190), and `update()` stored
+discounted line net/VAT next to an undiscounted gross while `create()` stored
+undiscounted amounts — saving an invoice unchanged on its issue day changed
+every report that read its lines.
+
+`src/modules/invoice/tax-breakdown.ts` is now the one place that answers
+"which taxable amount and which tax, at which rate". It anchors on the
+invoice's own totals — the document the customer received, whose stated tax is
+what is owed (§ 14c UStG): net after discount = total − totalVat, tax =
+totalVat. Only the split across rates comes from the lines (weighted by
+quantity × price, and by quantity × price × rate for the tax), rounded to 4
+places with the remainder on the largest bucket so the parts always sum to the
+document. UStVA (sales and credit notes), the VAT report, OSS and the DATEV
+export all read it; DATEV now emits one revenue row and one USt row per rate,
+on that rate's account with that rate's key. `update()` stores the same line
+semantics as `create()`. For invoices already edited under the old update
+path, the breakdown does not read the stored line amounts at all, so their
+reports are right too.
+
+Spec `e2e/198-tier409-tax-breakdown.sh` (22 assertions): UStVA per rate and in
+total, the VAT report without the draft, DATEV's accounts and keys per rate
+with both invoices balancing and nothing on 8125, OSS for an Austrian private
+customer, and an unchanged same-day save leaving lines and totals alone. 11
+fail against the old code — with the old numbers in the table above.
+
+**Still open, deliberately not in this tier:**
+
+- **The documents.** The PDF for that invoice prints *Zwischensumme (Netto)
+  1.000,00 · Gesamtbetrag USt 171,00 · Gesamtbetrag 1.071,00* — no discount
+  line, so it does not add up, and § 14 Abs. 4 Nr. 7 UStG wants an agreed
+  reduction of the consideration stated. Its XRechnung fails the validator on
+  exactly this (BR-CO-09: tax subtotal 190 ≠ total tax 171; BR-CO-13; the
+  100 € allowance is absent and the taxable amount is 1 000). Next tier.
+- **Rounding.** Totals are stored to 4 places (0.357, 3.5343, 33.7133 measured)
+  and never rounded to cents, while the PDF shows cents. Needs its own look.
+
 ### A bulk write left a count, not a record (Tier 408)
 
 `updateMany` / `deleteMany` on an audited model wrote one row: entityId

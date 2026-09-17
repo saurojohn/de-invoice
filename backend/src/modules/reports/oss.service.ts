@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import { normaliseCountry } from '../invoice/ust-behandlung-detector'
+import { invoiceTaxBreakdown } from '../invoice/tax-breakdown'
 
 /**
  * Tier 78: EU OSS (One-Stop-Shop) — quarterly
@@ -214,6 +215,9 @@ export class OssService {
             netAmount: true,
             vatAmount: true,
             grossAmount: true,
+            // Tier 409: the per-rate split is weighted by quantity × price.
+            quantity: true,
+            unitPrice: true,
           },
         },
       },
@@ -275,13 +279,14 @@ export class OssService {
         countryInvoiceIds.set(country, ids)
       }
       ids.add(inv.id)
-      for (const item of inv.items) {
+      // Tier 409: per rate, after the invoice discount (see tax-breakdown.ts).
+      for (const bucket of invoiceTaxBreakdown(inv).byRate) {
         items.push({
           invoiceId: inv.id,
-          vatRate: Number(item.vatRate),
-          net: Number(item.netAmount),
-          vat: Number(item.vatAmount),
-          gross: Number(item.grossAmount),
+          vatRate: bucket.rate,
+          net: bucket.net,
+          vat: bucket.vat,
+          gross: bucket.net + bucket.vat,
         })
       }
     }

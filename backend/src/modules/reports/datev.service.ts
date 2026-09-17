@@ -45,6 +45,8 @@ import {
   outputUstSchluessel,
   UstSchluesselMode,
 } from './datev-ust-schluessel';
+// Tier 409: per-rate amounts after the invoice discount.
+import { invoiceTaxBreakdown } from '../invoice/tax-breakdown';
 
 const DELIM = ';'
 const QUOTE = '"'
@@ -579,6 +581,8 @@ export async function buildBuchungenFromDb(
     include: {
       payments: { orderBy: { paymentDate: 'asc' } },
       voucherRef: { select: { voucherNumber: true } },
+      // Tier 409: revenue and VAT are booked per rate (see tax-breakdown.ts).
+      items: { select: { quantity: true, unitPrice: true, vatRate: true } },
       // Customer address — DATEV column 21 (country code)
       // is read off the customer's country for the
       // EU/non-EU split when reverse-charge applies.
@@ -587,10 +591,15 @@ export async function buildBuchungenFromDb(
   })
 
   for (const inv of paidInvoices) {
-    const net = Number(inv.subtotal)
-    const vat = Number(inv.totalVat)
-    const total = Number(inv.total)
-    const vatRate = net > 0 ? vat / net : 0
+    // Tier 409: the amounts come from the per-rate breakdown after the invoice
+    // discount. This used `subtotal` (before the discount) as the revenue and
+    // derived one blended rate as totalVat / subtotal — so a 10 %-discounted
+    // 19 % invoice booked 1 000 revenue (the discount was never booked and the
+    // receivable did not clear) on the tax-free intra-EU account 8125 with key
+    // 0, since 0.171 is neither 19 % nor 7 %; and every 19 % + 7 % invoice
+    // landed on the same tax-free account.
+    const breakdown = invoiceTaxBreakdown(inv)
+    const total = breakdown.gross
     const hasVoucher = !!inv.voucherRefId
     const voucherNumber = inv.voucherRef?.voucherNumber
     // Currency + country code + payment method are
@@ -649,30 +658,20 @@ export async function buildBuchungenFromDb(
     // config if needed.
     const isIgE = (inv as any).euTransaction === true
     const isRC = (inv as any).reverseCharge === true
-    const revenueKonto =
+    // Per rate: the revenue account and USt-Schlüssel follow the rate. For
+    // the OUTGOING side of an IgE (§1a) or §13b invoice the customer
+    // self-assesses, so every bucket goes to revenue0 with key '0' and no USt
+    // line (the Berater's DATEV client pivots on 8125 for the ZM). The keys
+    // '14'/'15' and '12'/'13' are for the INCOMING side — see Site 2 below.
+    const revenueKontoFor = (rate: number) =>
       isIgE ? accounts.revenue0
-      : Math.abs(vatRate - 0.19) < 0.001 ? accounts.revenue19
-      : Math.abs(vatRate - 0.07) < 0.001 ? accounts.revenue7
+      : Math.abs(rate - 0.19) < 0.001 ? accounts.revenue19
+      : Math.abs(rate - 0.07) < 0.001 ? accounts.revenue7
       : accounts.revenue0
-    // USt-Schlüssel: DATEV column 12.
-    //
-    // For the OUTGOING side of an IgE or §13b invoice,
-    // we always write '0' (steuerfrei). The keys '14',
-    // '15' (IgE input) and '12', '13' (§13b input) are
-    // used for the INCOMING side (the supplier bills us
-    // in reverse-charge / we self-assess IgE VAT).
-    // See Site 2 below for that branch.
-    //
-    // Tier 26.4 wired the existing rate→key mapping
-    // through the shared helper so a 5% legacy rate
-    // also maps correctly when the per-company "legacy"
-    // flag is set. For new (2024+) bookings we use
-    // the modern keys: '1' = 19%, '2' = 7%.
-    const ustSchluessel =
-      isIgE || isRC ? '0'
-      : outputUstSchluessel(vatRate) || '0'
-    const vatKonto =
-      Math.abs(vatRate - 0.19) < 0.001 ? accounts.vatPayable19
+    const ustSchluesselFor = (rate: number) =>
+      isIgE || isRC ? '0' : outputUstSchluessel(rate) || '0'
+    const vatKontoFor = (rate: number) =>
+      Math.abs(rate - 0.19) < 0.001 ? accounts.vatPayable19
       : accounts.vatPayable7
 
     // Buchung 1: Bank an Forderung (Zahlungseingang)
@@ -697,55 +696,51 @@ export async function buildBuchungenFromDb(
        })
      }
 
-    // Buchung 2: Forderung an Erlöse (Storno der offenen
-    // Forderung bei Zahlung). Single line, splits into
-    // net + VAT.
-    if (net > 0) {
-      out.push({
-        belegdatum: inv.payments[0]?.paymentDate || inv.issueDate,
-        belegfeld1: inv.invoiceNumber,
-        // The Belegfeld 2 is the voucher number when
-        // the cash side is on the Voucher pass. The
-        // Berater can pivot the revenue row to the
-        // Buchungsbeleg via the voucher number.
-        belegfeld2: hasVoucher ? voucherNumber : undefined,
-        konto: accounts.receivable,
-        gegenkonto: revenueKonto,
-        betrag: net,
-        shVz: 'H',
-        buchungstext: `Erlöse ${inv.invoiceNumber}`,
-        ustSchluessel,
-        // For IgE/RC we still want ustBetrag=0 on the
-        // row so the UStVA export sees a "steuerfrei"
-        // line with 0 EUR USt — this is how DATEV
-        // distinguishes "steuerfreier Umsatz nach
-        // §1a UStG" (line 41) from "steuerfreier
-        // Umsatz nach §4 UStG" (line 43).
-        ustBetrag: isIgE || isRC ? 0 : vat,
-        currency,
-        exchangeRate,
-        paymentMethod,
-        countryCode,
-        kost1,
-        kost2,
-      })
-      // USt-Buchung
-      // SKIPPED for IgE and §13b reverse-charge
-      // invoices — the customer self-assesses VAT
-      // (or there is no VAT), so we don't book a
-      // USt payable. The Berater's DATEV client picks
-      // up the steuerfreien Umsatz from the USt-
-      // Schlüssel "0" + revenue0 (8125) account.
-      // The Zusammenfassende Meldung (ZM) is
-      // populated from the EU sales lines (those
-      // with countryCode set on the customer).
-      if (vat > 0 && !isIgE && !isRC) {
+    // Buchung 2: Forderung an Erlöse — one revenue row and one USt row per
+    // VAT rate on the invoice, so they sum to the amount the customer paid.
+    for (const bucket of breakdown.byRate) {
+      const net = bucket.net
+      const vat = isIgE || isRC ? 0 : bucket.vat
+      const ustSchluessel = ustSchluesselFor(bucket.rate)
+      if (net > 0) {
+        out.push({
+          belegdatum: inv.payments[0]?.paymentDate || inv.issueDate,
+          belegfeld1: inv.invoiceNumber,
+          // The Belegfeld 2 is the voucher number when
+          // the cash side is on the Voucher pass. The
+          // Berater can pivot the revenue row to the
+          // Buchungsbeleg via the voucher number.
+          belegfeld2: hasVoucher ? voucherNumber : undefined,
+          konto: accounts.receivable,
+          gegenkonto: revenueKontoFor(bucket.rate),
+          betrag: net,
+          shVz: 'H',
+          buchungstext: `Erlöse ${inv.invoiceNumber}`,
+          ustSchluessel,
+          // For IgE/RC we still want ustBetrag=0 on the
+          // row so the UStVA export sees a "steuerfrei"
+          // line with 0 EUR USt — this is how DATEV
+          // distinguishes "steuerfreier Umsatz nach
+          // §1a UStG" (line 41) from "steuerfreier
+          // Umsatz nach §4 UStG" (line 43).
+          ustBetrag: vat,
+          currency,
+          exchangeRate,
+          paymentMethod,
+          countryCode,
+          kost1,
+          kost2,
+        })
+      }
+      // USt-Buchung — SKIPPED for IgE and §13b reverse-charge invoices: the
+      // customer self-assesses VAT (or there is none), so no USt payable.
+      if (vat > 0) {
         out.push({
           belegdatum: inv.payments[0]?.paymentDate || inv.issueDate,
           belegfeld1: inv.invoiceNumber,
           belegfeld2: hasVoucher ? voucherNumber : undefined,
           konto: accounts.receivable,
-          gegenkonto: vatKonto,
+          gegenkonto: vatKontoFor(bucket.rate),
           betrag: vat,
           shVz: 'H',
           buchungstext: `USt ${inv.invoiceNumber}`,

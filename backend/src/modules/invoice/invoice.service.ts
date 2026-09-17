@@ -867,8 +867,14 @@ export class InvoiceService {
           unit: item.unit || 'Stück',
           unitPrice: item.unitPrice,
           vatRate: item.vatRate || 0.19,
-          netAmount: isCN ? -(item.quantity * item.unitPrice) : (item.quantity * item.unitPrice) * (1 - discountRatio),
-          vatAmount: isCN ? -(item.quantity * item.unitPrice * (item.vatRate || 0.19)) : (item.quantity * item.unitPrice * (1 - discountRatio)) * (item.vatRate || 0.19),
+          // Tier 409: the same line semantics as create() — quantity × price,
+          // before the invoice discount (EN 16931's line net amount). This
+          // path used to store a discounted net and VAT next to an undiscounted
+          // gross, so saving an invoice unchanged on its issue day changed
+          // what every tax report read from it. The discount stays on the
+          // invoice; tax-breakdown.ts applies it per rate.
+          netAmount: isCN ? -(item.quantity * item.unitPrice) : (item.quantity * item.unitPrice),
+          vatAmount: isCN ? -(item.quantity * item.unitPrice * (item.vatRate || 0.19)) : (item.quantity * item.unitPrice * (item.vatRate || 0.19)),
           grossAmount: isCN
             ? -(item.quantity * item.unitPrice * (1 + (item.vatRate || 0.19)))
             : (item.quantity * item.unitPrice * (1 + (item.vatRate || 0.19))),

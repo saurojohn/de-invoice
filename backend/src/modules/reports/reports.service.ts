@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
+import { invoiceTaxBreakdown } from '../invoice/tax-breakdown';
 
 export interface SalesReportParams {
   companyId: string;
@@ -230,7 +231,9 @@ export class ReportsService {
       where: {
         companyId,
         issueDate: { gte: startDate, lte: endDate },
-        status: { in: ['paid', 'sent', 'overdue', 'draft'] },
+        // Tier 409: drafts are not issued and owe nothing — UStVA already
+        // excluded them; this report counted them.
+        status: { in: ['paid', 'sent', 'overdue'] },
       },
       include: { items: true },
     });
@@ -242,19 +245,21 @@ export class ReportsService {
     >();
 
     for (const inv of invoices) {
-      for (const item of inv.items) {
-        const rate = Number(item.vatRate);
+      // Tier 409: per rate, after the invoice discount (see tax-breakdown.ts).
+      for (const bucket of invoiceTaxBreakdown(inv).byRate) {
+        const rate = bucket.rate;
         const existing = rateMap.get(rate);
         if (existing) {
-          existing.netAmount += Number(item.netAmount);
-          existing.vatAmount += Number(item.vatAmount);
-          existing.grossAmount += Number(item.grossAmount);
+          existing.netAmount += bucket.net;
+          existing.vatAmount += bucket.vat;
+          existing.grossAmount += bucket.net + bucket.vat;
+          existing.invoiceCount += 1;
         } else {
           rateMap.set(rate, {
             vatRate: rate,
-            netAmount: Number(item.netAmount),
-            vatAmount: Number(item.vatAmount),
-            grossAmount: Number(item.grossAmount),
+            netAmount: bucket.net,
+            vatAmount: bucket.vat,
+            grossAmount: bucket.net + bucket.vat,
             invoiceCount: 1,
           });
         }
