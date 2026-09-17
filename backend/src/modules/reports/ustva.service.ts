@@ -3,6 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import type { Response } from 'express';
 import { invoiceTaxBreakdown } from '../invoice/tax-breakdown';
+import { normaliseCountry } from '../invoice/ust-behandlung-detector';
 
 /**
  * UStVA — Umsatzsteuervoranmeldung
@@ -148,7 +149,13 @@ export class UstvaService {
     }
 
     for (const inv of salesInvoices) {
-      const customerCountry = (inv.customer as any)?.country || '';
+      // Tier 410: Customer has no `country` column — the country lives in the
+      // address JSON — so this was always '', and every zero-rated sale fell
+      // through to "sonstige steuerfreie Umsätze". An igL invoice never reached
+      // the igL line (Kz 41) the ZM is reconciled against. Read the address,
+      // normalised the way the OSS report does ("Frankreich" → "FR").
+      const customerCountry =
+        normaliseCountry((inv.customer as any)?.address?.country) || '';
       const customerVatId = (inv.customer as any)?.vatId || '';
       const isGermanVatId = customerVatId.startsWith('DE');
       const f = eurFactor(inv)
@@ -164,8 +171,9 @@ export class UstvaService {
         if (rate > 0) {
           addToRate(rate, net, vat);
         } else {
-          // Zero-rated — determine category
-          if (this.isIntraEU(customerCountry, customerVatId, isGermanVatId)) {
+          // Zero-rated — determine category. The invoice's own igL flag is
+          // the user's explicit statement and wins over any inference.
+          if ((inv as any).euTransaction === true || this.isIntraEU(customerCountry, customerVatId, isGermanVatId)) {
             igL += Math.abs(net);
           } else if (customerCountry && !this.isEUCountry(customerCountry)) {
             exportThirdCountry += Math.abs(net);

@@ -114,7 +114,10 @@ if [[ "$NEEDS_RESTART" == "1" ]]; then
   # 600/60s throttler and 429 the rest of the e2e
   # suite (which is the original root cause of the
   # Tier 303 followup's 9 hard fails).
-  nohup env VIES_MOCK=1 THROTTLE_DISABLED=1 bash scripts/start-backend.sh > /tmp/backend.log 2>&1 &
+  # Tier 410: append, not truncate. A mid-suite restart used to wipe every log
+  # line written before it, so a 500 in an earlier spec left no trace — the
+  # dashboard 500 in spec 15 was found by its assertion, not by the log.
+  nohup env VIES_MOCK=1 THROTTLE_DISABLED=1 bash scripts/start-backend.sh >> /tmp/backend.log 2>&1 &
   # Tier 299 fix: ping /health/deep (which runs a
   # Prisma $queryRaw) instead of /health. /health
   # returns 200 the moment the controller is mapped

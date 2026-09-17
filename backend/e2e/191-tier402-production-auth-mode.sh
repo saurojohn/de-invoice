@@ -33,7 +33,7 @@ restart_backend() { # extra env assignments, e.g. "ALLOW_HEADER_AUTH=0"
   cd "$SCRIPT_DIR/.."
   # shellcheck disable=SC2086
   nohup env VIES_MOCK=1 THROTTLE_DISABLED=1 $extra bash scripts/start-backend.sh \
-    > /tmp/backend.log 2>&1 &
+    >> /tmp/backend.log 2>&1 &  # Tier 410: append — see e2e/20
   for i in $(seq 1 60); do
     sleep 1
     DEEP=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 1 \

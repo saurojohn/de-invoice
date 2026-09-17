@@ -87,6 +87,13 @@ BASE=$(curl -sS \
   "$API/api/v1/accounting/anlage-s?companyId=$COMPANY_ID&year=2026" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID")
 BASE_K4100=$(echo "$BASE" | python3 -c "import json,sys; d=json.load(sys.stdin); print(next(l['amount'] for l in d['einnahmen'] if l['kennziffer']=='4100'))")
+# Tier 410: the other revenue lines and the revenue total get their own
+# baseline. This spec used to assume every other line was 0 and to compare the
+# revenue TOTAL against the 4100 baseline — both only held because a 0 % line
+# was billed at 19 % and so always landed on 4100. Other specs leave igL / §13b
+# invoices in this company, which now (correctly) sit on the tax-free line.
+BASE_OTHER_REV=$(echo "$BASE" | python3 -c "import json,sys; d=json.load(sys.stdin); print(json.dumps({l['kennziffer']: l['amount'] for l in d['einnahmen'] if l['kennziffer']!='4100'}))")
+BASE_REV_TOTAL=$(echo "$BASE" | python3 -c "import json,sys; print(json.load(sys.stdin)['totals']['einnahmenTotal'])")
 BASE_TOTAL=$(echo "$BASE" | python3 -c "import json,sys; print(json.load(sys.stdin)['totals']['ausgabenTotal'])")
 BASE_4620=$(echo "$BASE" | python3 -c "import json,sys; d=json.load(sys.stdin); print(next(l['amount'] for l in d['ausgaben'] if l['kennziffer']=='4620'))")
 BASE_4660=$(echo "$BASE" | python3 -c "import json,sys; d=json.load(sys.stdin); print(next(l['amount'] for l in d['ausgaben'] if l['kennziffer']=='4660'))")
@@ -172,13 +179,15 @@ assert_eq "Kz 4100 delta = 800" "$K4100_DELTA" "800"
 # ── 3. Other revenue lines all 0 (or unchanged) ──
 echo
 note "=== 3. Kz 4120/4135/4170/4190 unchanged from baseline ==="
-ALL_ZERO=$(python3 -c "
-import json
+ALL_ZERO=$(BASE_OTHER_REV="$BASE_OTHER_REV" python3 -c "
+import json, os
 d = json.load(open('$TMP'))
-others = [l['amount'] for l in d['einnahmen'] if l['kennziffer'] != '4100']
-print('true' if all(v == 0 for v in others) else f'non-zero: {others}')
+base = json.loads(os.environ['BASE_OTHER_REV'])
+others = {l['kennziffer']: l['amount'] for l in d['einnahmen'] if l['kennziffer'] != '4100'}
+changed = {k: (base.get(k), v) for k, v in others.items() if abs(v - base.get(k, 0)) > 0.005}
+print('true' if not changed else f'changed: {changed}')
 ")
-assert_eq "all other rev lines 0" "$ALL_ZERO" "true"
+assert_eq "all other rev lines unchanged by the 19 % fixtures" "$ALL_ZERO" "true"
 
 # ── 4. Expense mapping deltas ──
 echo
@@ -207,13 +216,13 @@ SUM_OK=$(python3 -c "
 import json
 d = json.load(open('$TMP'))
 # Delta from baseline.
-e_delta = d['totals']['einnahmenTotal'] - float('$BASE_K4100')
+e_delta = d['totals']['einnahmenTotal'] - float('$BASE_REV_TOTAL')
 a_delta = d['totals']['ausgabenTotal'] - float('$BASE_TOTAL')
 expected_rev_delta = 800.0  # 1000 - 200
 expected_exp_delta = 750.0  # 300 + 150 + 200 + 100
 # gewinn delta = rev delta - exp delta = 50
 expected_gewinn_delta = expected_rev_delta - expected_exp_delta
-base_gewinn = float('$BASE_K4100') - float('$BASE_TOTAL')
+base_gewinn = float('$BASE_REV_TOTAL') - float('$BASE_TOTAL')
 new_gewinn = d['totals']['gewinn']
 ok = (
   abs(e_delta - expected_rev_delta) < 0.01 and

@@ -252,9 +252,12 @@ export class ProductService {
           continue
         }
 
-        const vatRate = parseFloat(
+        // Tier 410: only an unparseable value falls back to 19 % — `|| 0.19`
+        // also turned a deliberate 0 (a tax-exempt product) into 19 %.
+        const parsedVatRate = parseFloat(
           String(row.vatRate ?? '0.19').trim().replace(',', '.'),
-        ) || 0.19
+        )
+        const vatRate = Number.isFinite(parsedVatRate) ? parsedVatRate : 0.19
 
         await this.prisma.product.create({
           data: {

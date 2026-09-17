@@ -19,6 +19,25 @@ import { CreditBalanceService } from '../customer/credit-balance.service';
 import { ExchangeRateService } from '../exchange-rate/exchange-rate.service';
 import { nextInvoiceNumber, releaseInvoiceNumber } from './invoice-number';
 
+/**
+ * Tier 410 — a line's VAT rate, defaulting only when none was given.
+ *
+ * Every place in this service wrote `item.vatRate || 0.19`, and 0 is falsy: a
+ * line sent with 0 % was stored and billed at 19 %. Measured — exactly as the
+ * invoice form sends them (choosing Reverse Charge or innergemeinschaftliche
+ * Lieferung sets every line to 0):
+ *
+ *   igL invoice, 1 000 € net          → VAT 190, total 1 190, line rate 0.19
+ *   §13b reverse-charge, 1 000 € net  → VAT 190, total 1 190, line rate 0.19
+ *   one 0 % line (§4 steuerfrei)      → VAT 19 on 100
+ *
+ * An invoice that states VAT owes it (§ 14c UStG) whether or not it was due —
+ * and the EU business customer was billed German VAT on a tax-free supply.
+ */
+function vatRateOf(item: { vatRate?: number | null }): number {
+  return item.vatRate ?? 0.19
+}
+
 export type InvoiceType = 'INV' | 'CN' | 'PI' | 'RCV';
 
 export interface StockWarning {
@@ -470,7 +489,7 @@ export class InvoiceService {
     const totalVat = dto.items?.reduce((sum, item) => {
       const itemNet = item.quantity * item.unitPrice;
       const discountedNet = itemNet * (1 - discountRatio);
-      return sum + (discountedNet * (item.vatRate || 0.19));
+      return sum + (discountedNet * vatRateOf(item));
     }, 0) || 0;
     const total = subtotal - discountAmount + totalVat;
 
@@ -712,12 +731,12 @@ export class InvoiceService {
             quantity: item.quantity,
             unit: item.unit || 'Stück',
             unitPrice: item.unitPrice,
-            vatRate: item.vatRate || 0.19,
+            vatRate: vatRateOf(item),
             netAmount: type === 'CN' ? -(item.quantity * item.unitPrice) : (item.quantity * item.unitPrice),
-            vatAmount: type === 'CN' ? -(item.quantity * item.unitPrice * (item.vatRate || 0.19)) : (item.quantity * item.unitPrice * (item.vatRate || 0.19)),
+            vatAmount: type === 'CN' ? -(item.quantity * item.unitPrice * vatRateOf(item)) : (item.quantity * item.unitPrice * vatRateOf(item)),
             grossAmount: type === 'CN'
-              ? -(item.quantity * item.unitPrice * (1 + (item.vatRate || 0.19)))
-              : (item.quantity * item.unitPrice * (1 + (item.vatRate || 0.19))),
+              ? -(item.quantity * item.unitPrice * (1 + vatRateOf(item)))
+              : (item.quantity * item.unitPrice * (1 + vatRateOf(item))),
             sortOrder: index,
           })),
         },
@@ -853,7 +872,7 @@ export class InvoiceService {
       const subtotal = dto.items.reduce((s, i) => s + i.quantity * i.unitPrice, 0);
       const totalVat = dto.items.reduce((s, i) => {
         const net = i.quantity * i.unitPrice * (1 - discountRatio);
-        return s + net * (i.vatRate || 0.19);
+        return s + net * vatRateOf(i);
       }, 0);
       const total = subtotal - discountAmount + totalVat;
 
@@ -866,7 +885,7 @@ export class InvoiceService {
           quantity: item.quantity,
           unit: item.unit || 'Stück',
           unitPrice: item.unitPrice,
-          vatRate: item.vatRate || 0.19,
+          vatRate: vatRateOf(item),
           // Tier 409: the same line semantics as create() — quantity × price,
           // before the invoice discount (EN 16931's line net amount). This
           // path used to store a discounted net and VAT next to an undiscounted
@@ -874,10 +893,10 @@ export class InvoiceService {
           // what every tax report read from it. The discount stays on the
           // invoice; tax-breakdown.ts applies it per rate.
           netAmount: isCN ? -(item.quantity * item.unitPrice) : (item.quantity * item.unitPrice),
-          vatAmount: isCN ? -(item.quantity * item.unitPrice * (item.vatRate || 0.19)) : (item.quantity * item.unitPrice * (item.vatRate || 0.19)),
+          vatAmount: isCN ? -(item.quantity * item.unitPrice * vatRateOf(item)) : (item.quantity * item.unitPrice * vatRateOf(item)),
           grossAmount: isCN
-            ? -(item.quantity * item.unitPrice * (1 + (item.vatRate || 0.19)))
-            : (item.quantity * item.unitPrice * (1 + (item.vatRate || 0.19))),
+            ? -(item.quantity * item.unitPrice * (1 + vatRateOf(item)))
+            : (item.quantity * item.unitPrice * (1 + vatRateOf(item))),
           sortOrder: index,
         })),
       };

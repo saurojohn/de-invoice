@@ -203,8 +203,11 @@ note "=== 5. EÜR aggregation: sums all invoices in EUR ==="
 # trap didn't fire). The PRE should reflect "all 2026
 # invoices except our 3 test ones + any GUV-test
 # residue from a prior run".
+# Tier 410: only what EÜR actually puts on 4100 — invoices with VAT, and credit
+# notes (which offset 4100). Summing every invoice held only while a 0 % line
+# was billed at 19 %; zero-VAT invoices now sit on the tax-free line (4170).
 PRE_4100=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
-  "SELECT COALESCE(SUM(COALESCE(\"eurSubtotal\", subtotal)),0)::text FROM \"Invoice\" WHERE \"companyId\"='$COMPANY_ID' AND status IN ('paid','sent','overdue') AND \"invoiceNumber\" NOT LIKE '${PREFIX}-%' AND \"invoiceNumber\" NOT LIKE 'GUV-%' AND EXTRACT(YEAR FROM \"issueDate\")=${YEAR};" 2>&1 | tr -d ' ' | head -1)
+  "SELECT COALESCE(SUM(COALESCE(\"eurSubtotal\", subtotal)),0)::text FROM \"Invoice\" WHERE \"companyId\"='$COMPANY_ID' AND status IN ('paid','sent','overdue') AND (\"totalVat\" > 0 OR COALESCE(\"eurSubtotal\", subtotal) < 0) AND \"invoiceNumber\" NOT LIKE '${PREFIX}-%' AND \"invoiceNumber\" NOT LIKE 'GUV-%' AND EXTRACT(YEAR FROM \"issueDate\")=${YEAR};" 2>&1 | tr -d ' ' | head -1)
 
 EXPECTED_DELTA=$(python3 -c "
 print(round(

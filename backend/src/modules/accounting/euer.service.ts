@@ -74,7 +74,10 @@ export interface EuerResult {
 // The "matcher" is a keyword-based heuristic — a v2
 // could let the user override the mapping per
 // expense via a settings page.
-const REVENUE_LINES: Array<{ kz: string; label: string; matcher: (inv: any) => boolean }> = [
+type RevenueCtx = { kleinunternehmer: boolean }
+const isTaxFreeSupply = (inv: any) => inv.reverseCharge === true || inv.euTransaction === true
+
+const REVENUE_LINES: Array<{ kz: string; label: string; matcher: (inv: any, ctx: RevenueCtx) => boolean }> = [
   {
     kz: '4100',
     label: 'Umsatzerlöse (umsatzsteuerpflichtig)',
@@ -86,7 +89,14 @@ const REVENUE_LINES: Array<{ kz: string; label: string; matcher: (inv: any) => b
     kz: '4120',
     label: 'Umsatzerlöse nach §19 UStG (Kleinunternehmer)',
     // §19: total === subtotal (no VAT charged)
-    matcher: (inv) => Number(inv.totalVat) === 0 && Number(inv.subtotal) > 0,
+    // Tier 410: only a Kleinunternehmer's revenue is §19 revenue. The
+    // matcher used to take every zero-VAT invoice — igL, §13b and §4-exempt
+    // sales too — and ran before the tax-free line, which therefore only
+    // ever saw invoices that had VAT on them (before Tier 410 a 0 % line
+    // was billed at 19 %, so nobody noticed).
+    matcher: (inv, ctx) =>
+      ctx.kleinunternehmer && !isTaxFreeSupply(inv) &&
+      Number(inv.totalVat) === 0 && Number(inv.subtotal) > 0,
   },
   {
     kz: '4170',
@@ -95,7 +105,11 @@ const REVENUE_LINES: Array<{ kz: string; label: string; matcher: (inv: any) => b
     // side (delivery within the EU to a B2B
     // customer — the buyer accounts for VAT under
     // §13b). The seller's revenue is steuerfrei.
-    matcher: (inv) => inv.reverseCharge === true,
+    // Tier 410: the invoice's own igL / §13b flags, and any other zero-VAT
+    // revenue of a company that is not a Kleinunternehmer (§4 exempt).
+    matcher: (inv, ctx) =>
+      isTaxFreeSupply(inv) ||
+      (!ctx.kleinunternehmer && Number(inv.totalVat) === 0 && Number(inv.subtotal) > 0),
   },
   {
     kz: '4190',
@@ -144,6 +158,15 @@ export class EuerService {
   constructor(private prisma: PrismaService) {}
 
   async compute(companyId: string, year: number): Promise<EuerResult> {
+    // Tier 410: whether zero-VAT revenue is §19 revenue depends on the
+    // company, not on the invoice.
+    const vatModeRow = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { defaultVatMode: true },
+    })
+    const revenueCtx: RevenueCtx = {
+      kleinunternehmer: vatModeRow?.defaultVatMode === 'kleinunternehmer',
+    }
     const yearStart = new Date(year, 0, 1)
     const yearEnd = new Date(year, 11, 31, 23, 59, 59, 999)
 
@@ -183,6 +206,8 @@ export class EuerService {
         // igL + §13b cases). intra-EU purchases on
         // the buyer's side (igE) live on Expense.
         reverseCharge: true,
+        // Tier 410: the igL flag is separate from reverseCharge.
+        euTransaction: true,
       },
     })
     // Same approach for expenses. Tier 87:
@@ -233,7 +258,7 @@ export class EuerService {
         einnahmenBuckets.set('4100', (einnahmenBuckets.get('4100') || 0) + subtotal)
         continue
       }
-      const matched = REVENUE_LINES.find((d) => d.matcher(inv))
+      const matched = REVENUE_LINES.find((d) => d.matcher(inv, revenueCtx))
       const kz = matched?.kz || '4190'
       einnahmenBuckets.set(kz, (einnahmenBuckets.get(kz) || 0) + subtotal)
     }

@@ -9,17 +9,18 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–408 are
-  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 408.)
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–409 are
+  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 409.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 35220078060 / commit `9473c85`, Tier 408):**
-  - Backend e2e: **196 passed / 0 failed / 1 skipped** of 197 specs — 100
-    two-digit + 97 three-digit (Tier 408 added `197-tier408-bulk-audit.sh`,
+- **Test counts (last green CI, run 35227068422 / commit `c65bee0`, Tier 409):**
+  - Backend e2e: **197 passed / 0 failed / 1 skipped** of 198 specs — 100
+    two-digit + 98 three-digit (Tier 409 added `198-tier409-tax-breakdown.sh`,
+    Tier 408 `197-tier408-bulk-audit.sh`,
     Tier 407 `196-tier407-audit-coverage.sh`,
     Tier 406 `195-tier406-transaction-audit.sh`,
     Tier 405 `194-tier405-keepalive.sh`;
@@ -2428,6 +2429,7 @@ see below); Tier 398a run 35099184553 green: backend 188/0/1, Playwright 922.
 Tier 400 run 35112477951, all six jobs green: backend 189/0/1 (the new spec
 is the +1; the skip is still 16-dark-mode), Playwright 922.
 Tier 402 run 35140985920, all six jobs green: backend 190/0/1, Playwright 926.
+Tier 409 run 35227068422, all six jobs green: backend 197/0/1, Playwright 926 passed, 0 flaky.
 Tier 408 run 35220078060, all six jobs green: backend 196/0/1, Playwright 926 passed, 0 flaky.
 Tier 407 run 35208090438, all six jobs green: backend 195/0/1, Playwright 926 passed, 0 flaky.
 Tier 406 run 35199915513, all six jobs green: backend 194/0/1, Playwright 926 passed, 0 flaky.
@@ -2444,6 +2446,93 @@ Tier 401 run 35123354210 **failed** on backend lint — a warning
 runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
+
+### Every igL and reverse-charge invoice was issued with 19 % VAT (Tier 410)
+
+`invoice.service.ts` wrote `item.vatRate || 0.19` in twelve places. `0` is
+falsy. The invoice form, when the user picks *Reverse Charge* or
+*innergemeinschaftliche Lieferung*, sets every line to `vatRate: 0` — so the
+backend stored and billed 19 %. Measured, sent exactly as the form sends them:
+
+| Invoice | Before | Correct |
+|---|---|---|
+| igL (§ 4 Nr. 1b / § 6a), 1 000 € net | VAT 190, total **1 190**, line rate 0.19 | 0 / 1 000 / 0 |
+| § 13b reverse charge, 1 000 € net | VAT 190, total **1 190** | 0 / 1 000 |
+| a 0 % line (§ 4 steuerfrei), 100 € | VAT 19 | 0 |
+| 19 % + 0 %, 100 € each | VAT 38 | 19 |
+| a same-day edit of a 0 % invoice | VAT 38 on 200 | 0 |
+
+An invoice that states VAT owes it whether or not it was due (§ 14c UStG):
+the company owed 190 € per such invoice, the EU business customer was billed
+German VAT on a tax-free supply, and the document contradicted itself —
+flagged tax-free, VAT on it. `vatRateOf(item)` now defaults only a *missing*
+rate (`??`). The product CSV import had the same `|| 0.19`; an unparseable
+value still falls back to 19 %, an explicit 0 no longer does.
+
+**A second defect on the same path.** With the rate fixed, the igL invoice
+still did not reach the UStVA's igL line: the classifier read
+`customer.country`, and `Customer` has no such column — the country is in the
+address JSON — so it was always `''` and every zero-rated sale fell through to
+*sonstige steuerfreie Umsätze*. The igL figure the ZM is reconciled against was
+0 for everyone. It now reads `address.country` (normalised like the OSS
+report: "Frankreich" → FR) and the invoice's own `euTransaction` flag wins over
+any inference.
+
+**A third, surfaced by the full suite.** Once 0 % invoices really were 0 %,
+EÜR and Anlage S filed them as **§ 19 Kleinunternehmer revenue**: their
+zero-VAT matcher (4120) took *every* invoice without VAT and ran before the
+tax-free line (EÜR 4170 / Anlage S 4135), which in turn only looked at
+`reverseCharge` and never at `euTransaction`. Neither was visible before, since
+no invoice was ever really 0 %. Now the tax-free line takes the invoice's own
+igL / § 13b flags and any zero-VAT revenue of a company that is not a
+Kleinunternehmer; 4120 is used only when `Company.defaultVatMode` is
+`kleinunternehmer`.
+
+Two existing specs had **baselines that only held because of the bug**, and
+went red in the full run once other specs' igL / § 13b invoices landed on the
+tax-free line: `e2e/106` asserted every non-4100 revenue line of the shared
+company was 0 and compared the revenue *total* against the *4100* baseline;
+`e2e/141` summed every 2026 invoice as if all were 4100. Both now baseline what
+they measure (per line, and what EÜR actually puts on 4100: invoices with VAT
+plus credit notes).
+
+Spec `e2e/199-tier410-zero-vat-rate.sh` (24 assertions), including EÜR's
+classification for an ordinary company (igL → 4170) and for a Kleinunternehmer
+(→ 4120), and a static gate that no `|| 0.<n>` default on a VAT rate is left
+in `src`. 10 of the original 19 fail against the old code; the EÜR ones do too.
+
+**An unexplained 500, and why the log could not explain it.** One of four
+full backend runs failed `e2e/15-dashboard-kpis.sh` with a 500 from
+`GET /reports/dashboard`; the other three passed, two sequential runs of specs
+01-15 passed, and the endpoint answered 200 on the same database afterwards.
+The backend log had nothing — and could not have had: `e2e/20` and `e2e/191`
+restart the backend with `> /tmp/backend.log`, **truncating** everything
+written before them, so the "zero 500s in the log" check every tier has
+reported only ever covered the specs after spec 20. Both now append. The run
+after that change reported 199 / 0 / 0 with zero 500s across the whole run,
+which is the first time that number covered every spec. If the dashboard 500
+comes back, the log will now say why; the suspicion to test first is the
+Prisma pool (the stack's `DATABASE_URL` sets no `connection_limit`, and
+Tiers 406-408 added a serialised audit write per changed record).
+
+**Next, found while tracing this (Tier 411):** EÜR, Anlage S / G / V, GuV, BWA,
+Bilanz and the GoBD archive summary still take `subtotal` — the amount *before*
+the invoice discount — as revenue. Tier 409 fixed the tax figures (UStVA, OSS,
+VAT report, DATEV); the income statements need the same treatment.
+
+Found on the way and **not** changed:
+
+- **Outgoing § 13b sales** belong in UStVA Kz 60; the compute result has no
+  field for it, so they still land in *sonstige steuerfreie Umsätze*. Adding
+  the field touches the UStVA PDF and page — its own tier.
+- **The KoSIT engine does not check EN 16931** — see §9 item 16. It needs a
+  download to fix, so it is a question, not a change.
+- **Skonto is emitted as a document-level `AllowanceCharge`** in the
+  XRechnung without reducing `TaxExclusiveAmount`. EN 16931 treats Skonto as a
+  payment term (`#SKONTO#` in the XRechnung PaymentTerms note), not an
+  allowance. The in-process check does not look for it and, per item 16,
+  neither does "KoSIT". Belongs with the document tier below.
+- Still open from Tier 409: the discounted invoice's PDF and XRechnung.
 
 ### The invoice discount never reached a tax figure (Tier 409)
 
@@ -3794,6 +3883,22 @@ These are **not in the repo** — only the user can do them:
     counter-booking that nets it to zero). Options: keep delete-and-rebook
     (simple, audited), or book negative counter-entries. Matters most once a
     year's figures have gone into a filed Anlage EÜR / E-Bilanz. Not changed.
+
+16. **The "KoSIT" XRechnung check does not run the EN 16931 rules — may I
+    download them?** (found Tier 410) `infra/kosit/scenarios.xml` is a
+    project-written scenario that runs the UBL XSD and
+    `XRechnung-UBL-validation.xsl` — which contains **82 rule ids, all
+    `BR-DE-*`, and no `BR-*`, `BR-CO-*` or `BR-S-*` at all**. The EN 16931
+    core schematron (CEN/TC 434 `EN16931-UBL-validation.xslt`) that the
+    official `validator-configuration-xrechnung` runs as a separate step is
+    not in the repository. `infra/kosit/setup.sh` says the engine checks "the
+    full EN 16931 rule set (150+ rules)"; it does not. Measured: an XRechnung
+    whose tax subtotal (190) contradicts its total tax (171) is
+    `ACCEPTABLE` under `?engine=kosit`, while the in-process check flags it
+    (BR-CO-09). Fixing it means downloading the CEN validation artefacts
+    (ConnectingEurope/eInvoicing-EN16931 release, a few MB) and adding a
+    second `validateWithSchematron` step — a download needs your go-ahead.
+    Until then, `engine=kosit` must not be read as "EN 16931 compliant".
 
 When the Hetzner items are available, the deploy is:
 
