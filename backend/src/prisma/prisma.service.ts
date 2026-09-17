@@ -1,6 +1,6 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
-import { withAuditLog } from './audit-log.extension';
+import { runWithBufferedAudit, withAuditLog } from './audit-log.extension';
 
 // The audit request context lives in ./request-context (Tier 384).
 
@@ -63,6 +63,24 @@ export class PrismaService
        
       ;(this as any)[model] = ext[model]
     }
+
+    // Tier 406: transactions go through the extended client as well.
+    //
+    // The loop above skips every `$…` member, so `$transaction` stayed the one
+    // PrismaService inherits — a second, unextended PrismaClient. In the
+    // callback form its `tx` bypassed the audit extension, and eleven writes
+    // (credit notes, recurring invoices, customer credit, merges, instalment
+    // plans, portal payments, invitations, invoice deletion) left no AuditLog
+    // row. The callback form also buffers those rows until the transaction
+    // commits — see runWithBufferedAudit. The array form was already audited
+    // (its promises come from the extended accessors, and a failed batch
+    // rejects before any row is written); it now simply runs on the same
+    // client and pool as everything else.
+    const extTransaction = ext.$transaction.bind(ext)
+    ;(this as any).$transaction = (arg: any, options?: any) =>
+      typeof arg === 'function'
+        ? runWithBufferedAudit(() => extTransaction(arg, options))
+        : extTransaction(arg, options)
   }
 
   async onModuleDestroy() {

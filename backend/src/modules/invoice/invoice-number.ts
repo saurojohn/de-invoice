@@ -164,3 +164,63 @@ export async function nextInvoiceNumber(
 export function resetInvoiceNumberCache(): void {
   known.clear()
 }
+
+/**
+ * Tier 406 — give a deleted invoice's number back to the series.
+ *
+ * InvoiceService.delete only allows removing the newest invoice of its type,
+ * and says why: so the series stays *lückenlos*. That stopped being true when
+ * Tier 174 moved numbering onto a SEQUENCE — nextval never goes backwards, so
+ * deleting INV-…-000002 and creating the next invoice produced 000003, and the
+ * book read 1, 3 (measured). Now that the sequence belongs to one company
+ * (Tier 404), it can safely be set back so the next number is the one that was
+ * deleted.
+ *
+ * The caller must only do this for a **draft**. A draft's number was never
+ * given to anyone; a sent invoice's was, and handing it out again would put two
+ * different documents with one number into circulation — far worse than a gap,
+ * which the audit trail now explains (Tier 406).
+ *
+ * If another request has already taken the following number, rewinding still
+ * cannot produce a duplicate: nextInvoiceNumber() checks every candidate and
+ * fast-forwards past the company's max.
+ */
+export async function releaseInvoiceNumber(
+  tx: Prisma.TransactionClient,
+  companyId: string,
+  invoiceNumber: string,
+): Promise<void> {
+  const m = /^([A-Z]+)-(\d{4})-(\d+)$/.exec(invoiceNumber || '')
+  if (!m) return
+  const prefix = `${m[1]}-`
+  const type = m[1]
+  const year = Number(m[2])
+  const seq = Number(m[3])
+  if (invoiceNumberPrefix(type) !== prefix || !Number.isInteger(year) || year < 1000 || year > 9999) {
+    return
+  }
+  if (!/^[A-Z]{2,5}$/.test(type) || !Number.isInteger(seq) || seq < 1) return
+  const seqName = `invoice_seq_${type.toLowerCase()}_${year}_${companyToken(companyId)}`
+  const exists = await tx.$queryRaw<Array<{ one: number }>>`
+    SELECT 1 AS one FROM pg_class WHERE relkind = 'S' AND relname = ${seqName}
+  `
+  if (exists.length === 0) return
+  // Only step back if this really was the newest number handed out; never move
+  // the sequence below a number that is still in use.
+  const rows = await tx.$queryRaw<Array<{ max: bigint | null }>>`
+    SELECT MAX(CAST(SUBSTRING("invoiceNumber" FROM '([0-9]+)$') AS BIGINT)) AS max
+    FROM "Invoice"
+    WHERE "companyId" = ${companyId}
+      AND "invoiceNumber" LIKE ${`${prefix}${year}-%`}
+      AND "invoiceNumber" ~ '[0-9]+$'
+  `
+  const remainingMax = Number(rows[0]?.max ?? 0)
+  if (remainingMax >= seq) return
+  // setval(n, true) → next is n + 1; a sequence cannot be set to 0, so the
+  // "next is 1" case uses is_called = false.
+  if (remainingMax < 1) {
+    await tx.$executeRawUnsafe(`SELECT setval('${seqName}', 1, false)`)
+  } else {
+    await tx.$executeRawUnsafe(`SELECT setval('${seqName}', ${remainingMax}, true)`)
+  }
+}

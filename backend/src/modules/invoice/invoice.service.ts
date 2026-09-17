@@ -17,7 +17,7 @@ import { CreditBalanceService } from '../customer/credit-balance.service';
 // the PDF / XRechnung / customer-facing display. The EUR
 // amounts are what EÜR / UStVA / BWA / GuV aggregate over.
 import { ExchangeRateService } from '../exchange-rate/exchange-rate.service';
-import { nextInvoiceNumber } from './invoice-number';
+import { nextInvoiceNumber, releaseInvoiceNumber } from './invoice-number';
 
 export type InvoiceType = 'INV' | 'CN' | 'PI' | 'RCV';
 
@@ -1069,12 +1069,33 @@ export class InvoiceService {
         'Es kann nur die zuletzt erstellte Rechnung gelöscht werden. Für ältere Rechnungen den Status auf "Storniert" setzen.',
       )
     }
+    // Tier 406: an invoice with recorded payments is not deleted.
+    //
+    // This used to delete the payments along with it — measured: a paid invoice
+    // issued today was removed together with its 119 € payment, and (because
+    // this transaction bypassed the audit extension, fixed in PrismaService)
+    // without a single AuditLog row. A payment is a booked cash receipt; GoBD
+    // § 146 Abs. 4 AO does not let it disappear. The correction is a Storno or
+    // a credit note, which is what the message says.
+    const paymentCount = await this.prisma.payment.count({ where: { invoiceId: id } });
+    if (paymentCount > 0) {
+      throw new ForbiddenException(
+        'Rechnung mit erfassten Zahlungen kann nicht gelöscht werden. Bitte stornieren oder eine Gutschrift erstellen.',
+      );
+    }
     const deleted = await this.prisma.$transaction(async (tx) => {
-      await tx.payment.deleteMany({ where: { invoiceId: id } });
       // deleteMany items explicitly even though cascade exists —
       // it's a no-op then, but future-proofs if cascade is removed.
       await tx.invoiceItem.deleteMany({ where: { invoiceId: id } });
-      return tx.invoice.delete({ where: { id } });
+      const gone = await tx.invoice.delete({ where: { id } });
+      // Tier 406: the last-invoice rule above exists so the series stays
+      // lückenlos, but the SEQUENCE never went backwards, so the next invoice
+      // skipped the deleted number (measured: the book read 1, 3). For a draft —
+      // a number nobody has seen — give it back. A sent invoice keeps its gap.
+      if (existing.status === 'draft') {
+        await releaseInvoiceNumber(tx, companyId, existing.invoiceNumber);
+      }
+      return gone;
     });
 
     // Fire invoice.deleted event with a stable eventId

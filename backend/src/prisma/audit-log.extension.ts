@@ -8,6 +8,7 @@
 // ./request-context — one per request since Tier 384.
 
 import { Prisma } from '@prisma/client'
+import { AsyncLocalStorage } from 'async_hooks'
 import { getRequestContext } from './request-context'
 import { createHash } from 'crypto'
 
@@ -431,27 +432,71 @@ const extractId = (args: any, result: any): string | null => {
   return null
 }
 
-async function writeAudit(
-  client: any,
-  entry: {
-    action: string
-    entityType: string
-    entityId: string | null
-    oldData: any
-    newData: any
-  },
-) {
-  const ctx: {
-    userId: string | null
-    companyId: string | null
-    ipAddress: string | null
-    userAgent: string | null
-  } = getRequestContext() || {
+type AuditEntry = {
+  action: string
+  entityType: string
+  entityId: string | null
+  oldData: any
+  newData: any
+}
+type AuditCtx = {
+  userId: string | null
+  companyId: string | null
+  ipAddress: string | null
+  userAgent: string | null
+}
+
+/**
+ * Tier 406 — audit rows for writes made inside an interactive transaction.
+ *
+ * Until now there were none. PrismaService copies the extended client's model
+ * accessors onto itself but not `$transaction`, so `this.prisma.$transaction(
+ * async (tx) => …)` ran on PrismaService's own, unextended client and every
+ * write through `tx` skipped this extension entirely. Measured: a plain
+ * invoice create left one AuditLog row, a credit note (created in such a
+ * transaction) left none, and deleting a paid invoice removed the invoice and
+ * its payment with no row at all. Eleven call sites were affected — credit
+ * notes, recurring invoices, customer credit, customer merges, instalment
+ * plans, portal payments, invitation acceptance and invoice deletion.
+ *
+ * Routing those transactions through the extended client is not enough on its
+ * own: this module writes its rows on a separate connection, so a write that is
+ * later rolled back would still leave a row saying it happened (measured: row
+ * gone, audit row present). So inside a transaction the rows are held here and
+ * written only once it has committed; a rollback discards them.
+ */
+const pendingAudit = new AsyncLocalStorage<Array<{ entry: AuditEntry; ctx: AuditCtx }>>()
+
+export async function runWithBufferedAudit<T>(run: () => Promise<T>): Promise<T> {
+  // Nested transaction: the outermost one decides when the rows are written.
+  if (pendingAudit.getStore()) return run()
+  const buffer: Array<{ entry: AuditEntry; ctx: AuditCtx }> = []
+  // A rollback rejects here, before anything below runs — the buffer is dropped.
+  const result = await pendingAudit.run(buffer, run)
+  for (const { entry, ctx } of buffer) {
+    await writeAuditNow(_auditLogClient, entry, ctx)
+  }
+  return result
+}
+
+async function writeAudit(client: any, entry: AuditEntry) {
+  // The request context is captured now, not at flush time, so a buffered row
+  // is attributed to whoever made the change.
+  const ctx: AuditCtx = getRequestContext() || {
     userId: null,
     companyId: null,
     ipAddress: null,
     userAgent: null,
   }
+  const buffer = pendingAudit.getStore()
+  if (buffer) {
+    buffer.push({ entry, ctx: { ...ctx } })
+    return
+  }
+  await writeAuditNow(client, entry, ctx)
+}
+
+async function writeAuditNow(client: any, entry: AuditEntry, ctx: AuditCtx) {
   try {
     // Tier 196 — chain this row to the previous one. The chain is per-company;
     // on a fresh DB the first row's previousHash is ''.

@@ -2439,6 +2439,74 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Writes inside a transaction were never audited (Tier 406)
+
+Found by pulling on something smaller. `InvoiceService.delete` allows removing
+the newest invoice of the day — measured, that included a **paid** one, and its
+119 € payment went with it. Then the audit trail for that invoice read
+`invoice.created, invoice.updated, invoice.updated` and stopped: no deletion,
+no payment. The extension covers `delete`, so why no row?
+
+**Cause.** `PrismaService` copies the audit-extended client's model accessors
+onto itself and skips every `$…` member, so `this.prisma.$transaction` is the
+one `PrismaService` inherits — a *second*, unextended `PrismaClient`. In the
+callback form, `tx` belongs to that client and every write through it bypassed
+the audit extension. Controlled measurement:
+
+| Write | Audit rows |
+|---|---|
+| plain invoice create | 1 |
+| credit note (`$transaction(async tx => …)`) | **0** |
+| voucher correction (`$transaction([…])`) | 1 — the array form's promises come from the extended accessors |
+
+Eleven callback-form sites were affected: **credit notes, recurring invoices,
+customer credit movements, customer merges, instalment plans, portal
+"mark paid", invitation acceptance, invoice deletion.** For a GoBD system the
+credit notes and recurring invoices alone are the kind of gap a Prüfer finds.
+
+**The obvious fix was wrong on its own.** Pointing `$transaction` at the
+extended client does produce the rows — measured, it also produced a row for a
+write that was then **rolled back** (customer absent, audit row present),
+because the extension writes on its own connection. So inside a transaction the
+rows are now held in an `AsyncLocalStorage` buffer and written only after the
+transaction commits (`runWithBufferedAudit`); a rollback rejects before the
+flush and the buffer is dropped. The request context is captured when the
+change is made, so a buffered row is attributed to whoever made it; a nested
+transaction leaves the flush to the outermost. The array form now runs on the
+same client and pool too. None of the eleven callbacks writes through
+`this.prisma` instead of `tx` (checked), which is the one pattern the buffer
+would mis-handle — a non-tx write inside a callback that later rolls back.
+
+`scripts/probe-audit-transactions.ts` drives exactly that wiring against a
+database and prints `{"committedRows":1,"rolledBackRow":0,"rolledBackRows":0,
+"nestedRows":1}`.
+
+**Two neighbouring findings, fixed with it.**
+
+- **An invoice with recorded payments could be deleted**, payments and all. It
+  is now refused with a message pointing at Storno / Gutschrift. A payment is a
+  booked cash receipt.
+- **The "only the newest may be deleted" rule no longer did its job.** It
+  exists so the series stays *lückenlos*, but since Tier 174 numbers come from a
+  SEQUENCE that never goes back: delete the newest draft, create the next, and
+  the book read 1, 3 (measured). `releaseInvoiceNumber()` now sets the
+  company's sequence back — **for drafts only**. A sent invoice's number may be
+  in a customer's hands; issuing it again would put two documents with one
+  number into circulation, which is worse than a gap the audit row now
+  explains.
+
+**Left open, as a decision (§9 item 14):** `update` and `delete` still allow a
+*sent* invoice to be changed or removed on its issue day. That is a policy
+question, not a defect with one right answer.
+
+Spec `e2e/195-tier406-transaction-audit.sh` (27 assertions): the credit note's
+and the recurring invoice's audit rows with user and company, the probe's
+commit / rollback / nested counts, the paid invoice refused with invoice and
+payment intact, a sent invoice's deletion audited with its number in the
+before-image and not reused, a draft's number given back, and the company's
+audit chain still verifying after the buffered writes. 16 fail against the old
+code.
+
 ### A flaky test that was a production 502 (Tier 405)
 
 Tier 404's CI run reported success, but Playwright counted **925 passed + 1
@@ -3531,6 +3599,20 @@ These are **not in the repo** — only the user can do them:
     paused customer or invoice — and since Tier 388 the manual send really
     e-mails. Options: refuse (400 "Mahnungspause aktiv"), or allow with a
     warning in the modal. Not changed.
+
+14. **May a sent invoice be edited or deleted on its issue day?** (found
+    Tier 406) Both `update` and `delete` check only that the issue date is
+    today, not the status: a `sent` invoice can have its amounts changed or be
+    removed until midnight, although the customer may already hold the PDF (the
+    delete method's own comment says so). GoBD's position is that an issued
+    invoice is corrected by a new document — Storno or credit note — not
+    altered. Tier 406 closed the two unambiguous cases (an invoice with
+    recorded payments can no longer be deleted; every deletion is now audited,
+    and a sent invoice's number is never reused), but left this one: options
+    are "drafts only" (the GoBD reading, a UX change for anyone who fixes a
+    typo right after sending) or "same day, as now". The frontend shows
+    Bearbeiten / Löschen on every invoice dated today. Also open under the same
+    heading: editing an invoice that has payments.
 
 When the Hetzner items are available, the deploy is:
 
