@@ -9,17 +9,18 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–404 are
-  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 404.)
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–405 are
+  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 405.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 35157628517 / commit `1af37f5`, Tier 404):**
-  - Backend e2e: **192 passed / 0 failed / 1 skipped** of 193 specs — 100
-    two-digit + 93 three-digit (Tier 400 added `190-tier400-session-auth.sh`,
+- **Test counts (last green CI, run 35193118556 / commit `1e2991e`, Tier 405):**
+  - Backend e2e: **193 passed / 0 failed / 1 skipped** of 194 specs — 100
+    two-digit + 94 three-digit (Tier 405 added `194-tier405-keepalive.sh`;
+    Tier 400 added `190-tier400-session-auth.sh`,
     Tier 402 `191-tier402-production-auth-mode.sh`, which restarts the backend
     with `ALLOW_HEADER_AUTH=0` and back, Tier 403
     `192-tier403-session-lifecycle.sh` and Tier 404
@@ -2424,6 +2425,7 @@ see below); Tier 398a run 35099184553 green: backend 188/0/1, Playwright 922.
 Tier 400 run 35112477951, all six jobs green: backend 189/0/1 (the new spec
 is the +1; the skip is still 16-dark-mode), Playwright 922.
 Tier 402 run 35140985920, all six jobs green: backend 190/0/1, Playwright 926.
+Tier 405 run 35193118556, all six jobs green: backend 193/0/1, Playwright 926 passed, 0 flaky — the keep-alive fix held.
 Tier 404 run 35157628517, all six jobs green: backend 192/0/1, but Playwright
 **925 passed + 1 flaky** — `gobd-month-button-tier183` #4 failed once with
 `read ECONNRESET` and passed on retry. The job verdict hid it; the count did
