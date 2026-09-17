@@ -319,6 +319,18 @@ function PortalInvoiceDetailInner() {
                 <td className="px-4 py-3 text-right font-mono">{fmtEur(Number(inv.subtotal), inv.currency)}</td>
                 <td className="px-4 py-3 text-right font-mono font-medium">{fmtEur(Number(inv.total), inv.currency)}</td>
               </tr>
+              {/* Tier 413: `subtotal` is the line sum before the invoice
+                  discount; without this row the customer's copy did not add up. */}
+              {Math.abs(Number(inv.subtotal) - (Number(inv.total) - Number(inv.totalVat))) > 0.005 && (
+                <tr data-testid="portal-discount-row">
+                  <td colSpan={4} className="px-4 py-3 text-right text-sm text-gray-600 dark:text-gray-300">
+                    {t("portal.discount") || "Rabatt"}:
+                  </td>
+                  <td className="px-4 py-3 text-right font-mono" colSpan={2}>
+                    −{fmtEur(Number(inv.subtotal) - (Number(inv.total) - Number(inv.totalVat)), inv.currency)}
+                  </td>
+                </tr>
+              )}
             </tfoot>
           </table>
         </div>

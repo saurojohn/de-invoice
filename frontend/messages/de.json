@@ -3500,6 +3500,7 @@
     "colMethod": "Methode",
     "colReference": "Referenz",
     "subtotal": "Zwischensumme",
+    "discount": "Rabatt",
     "notes": "Notizen",
     "paymentHistory": "Zahlungshistorie",
     "issueDate": "Rechnungsdatum",

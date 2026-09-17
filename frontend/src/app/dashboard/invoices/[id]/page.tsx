@@ -514,6 +514,10 @@ export default function InvoiceDetailPage() {
 
   const totalPaid = payments.reduce((s, p) => s + Number(p.amount), 0)
   const outstanding = invoice ? Math.max(0, Number(invoice.total) - totalPaid) : 0
+  // Tier 413: `subtotal` is the line sum BEFORE the invoice discount, so a
+  // discounted invoice read "1000,00 + 171,00 = 1071,00" here.
+  const netAfterDiscount = invoice ? Number(invoice.total) - Number(invoice.totalVat) : 0
+  const invoiceDiscount = invoice ? Number(invoice.subtotal) - netAfterDiscount : 0
 
   const getStatusLabel = (status: string) => {
     const labels: Record<string, string> = {
@@ -1664,6 +1668,12 @@ export default function InvoiceDetailPage() {
           <Card className="w-80">
             <CardContent className="space-y-3">
               <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-300">Zwischensumme (Netto):</span><span>€{parseFloat(invoice.subtotal).toFixed(2)}</span></div>
+              {Math.abs(invoiceDiscount) > 0.005 && (
+                <>
+                  <div className="flex justify-between" data-testid="invoice-discount-row"><span className="text-gray-600 dark:text-gray-300">Rabatt:</span><span>−€{Math.abs(invoiceDiscount).toFixed(2)}</span></div>
+                  <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-300">Nettobetrag:</span><span>€{netAfterDiscount.toFixed(2)}</span></div>
+                </>
+              )}
               <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-300">Umsatzsteuer:</span><span>€{parseFloat(invoice.totalVat).toFixed(2)}</span></div>
               <div className="flex justify-between text-xl font-bold border-t pt-3"><span>Gesamtbetrag:</span><span className="text-blue-600 dark:text-blue-400">€{parseFloat(invoice.total).toFixed(2)}</span></div>
               <div className="flex justify-between text-sm pt-1"><span className="text-green-700 dark:text-green-300">Bezahlt:</span><span className="text-green-700 dark:text-green-300">€{totalPaid.toFixed(2)}</span></div>

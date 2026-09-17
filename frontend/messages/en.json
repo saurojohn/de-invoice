@@ -3500,6 +3500,7 @@
     "colMethod": "Method",
     "colReference": "Reference",
     "subtotal": "Subtotal",
+    "discount": "Discount",
     "notes": "Notes",
     "paymentHistory": "Payment history",
     "issueDate": "Invoice date",

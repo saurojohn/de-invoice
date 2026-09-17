@@ -2,6 +2,7 @@ import PDFKit from "pdfkit"
 import * as fs from "fs"
 import * as path from "path"
 import QRCode from "qrcode"
+import { invoiceTaxBreakdown } from "../modules/invoice/tax-breakdown"
 
 interface Customer {
   name: string
@@ -29,6 +30,9 @@ interface Invoice {
   subtotal: any
   totalVat: any
   total: any
+  /** Tier 413: invoice-level discount (§ 14 Abs. 4 Nr. 7 UStG) */
+  discountPercent?: any
+  discountAmount?: any
   notes?: string | null
   currency: string
   templateType?: string
@@ -633,7 +637,56 @@ export async function generateInvoicePDF(
       })
     }
 
+    // Tier 413: the totals block states the discount and the VAT per rate.
+    // It used to print the *undiscounted* line sum, one blended VAT figure and
+    // the discounted total — 1 000,00 + 171,00 = 1 071,00 on the page — and a
+    // 19 % + 7 % invoice showed neither rate's tax. § 14 Abs. 4 Nr. 7 UStG
+    // wants the agreed reduction stated and the Entgelt broken down by rate,
+    // Nr. 8 the rate and its tax amount.
+    const breakdown = invoiceTaxBreakdown({
+      total: invoice.total,
+      totalVat: invoice.totalVat,
+      items: invoice.items,
+    })
+    const lineNetSum = round2(invoice.items.reduce((sum, i) => sum + toFloat(i.netAmount), 0))
+    const discount = round2(lineNetSum - breakdown.net)
+    const rows: Array<{ label: string; amount: number }> = [
+      { label: "Zwischensumme (Netto):", amount: lineNetSum },
+    ]
+    if (Math.abs(discount) >= 0.005) {
+      const pct = toFloat(invoice.discountPercent)
+      rows.push({
+        label: pct > 0 ? `Rabatt ${pct.toLocaleString("de-DE", { maximumFractionDigits: 2 })} %:` : "Rabatt:",
+        amount: -discount,
+      })
+      rows.push({ label: "Nettobetrag:", amount: breakdown.net })
+    }
+    for (const bucket of breakdown.byRate) {
+      rows.push({
+        label:
+          breakdown.byRate.length > 1
+            ? `USt ${formatVatRate(bucket.rate)} auf ${formatCurrency(bucket.net)}:`
+            : `USt ${formatVatRate(bucket.rate)}:`,
+        amount: bucket.vat,
+      })
+    }
+    if (breakdown.byRate.length > 1) {
+      rows.push({ label: "Gesamtbetrag USt:", amount: toFloat(invoice.totalVat) })
+    }
+
     // Totals - ink-saving design: just borders and bold text, no fills
+    const totalsLineHeightPre = isCompact ? 20 : 22
+    const gesamtHeightPre = totalsLineHeightPre + 4
+    // Tier 413: the block is 2 to 6 rows now, so it can reach the footer on a
+    // long invoice. When it does not fit above the footer, it starts a page of
+    // its own — the footer is drawn on the page the writing ends on, and an
+    // overflowing block used to push it onto a second page by itself.
+    const notesHeightPre = invoice.notes ? (isCompact ? 12 : 20) + 40 : 0
+    const blockHeight = 5 + rows.length * totalsLineHeightPre + gesamtHeightPre + notesHeightPre
+    if (y + (isCompact ? 15 : 20) + blockHeight > doc.page.height - 74 - 10) {
+      doc.addPage()
+      y = 50
+    }
     const totalsY = y + (isCompact ? 15 : 20)
     const totalsLineY = totalsY
     // Anchor amounts to the SAME right edge as the table's Gesamt column
@@ -645,17 +698,18 @@ export async function generateInvoicePDF(
       .moveTo(totalsAmountX, totalsLineY).lineTo(rightMargin, totalsLineY).lineWidth(0.8).stroke()
 
     const totalsFontSize = isCompact ? 10 : 11
-    const totalsLineHeight = isCompact ? 20 : 22
+    const totalsLineHeight = totalsLineHeightPre
 
     doc.fillColor(textColor).font(fontFor('regular')).fontSize(totalsFontSize).lineWidth(0.3)
-    doc.text("Zwischensumme (Netto):", totalsLabelX, totalsY + 5, { lineBreak: false })
-    doc.text(formatCurrency(toFloat(invoice.subtotal)), totalsAmountX, totalsY + 5, { width: totalsAmountWidth, align: "right", lineBreak: false })
-    doc.text("Gesamtbetrag USt:", totalsLabelX, totalsY + totalsLineHeight, { lineBreak: false })
-    doc.text(formatCurrency(toFloat(invoice.totalVat)), totalsAmountX, totalsY + totalsLineHeight, { width: totalsAmountWidth, align: "right", lineBreak: false })
+    rows.forEach((row, i) => {
+      const rowY = totalsY + 5 + i * totalsLineHeight
+      doc.text(row.label, totalsLabelX, rowY, { lineBreak: false })
+      doc.text(formatCurrency(row.amount), totalsAmountX, rowY, { width: totalsAmountWidth, align: "right", lineBreak: false })
+    })
 
     // Gesamtbetrag with bold border box (no fill, just outline)
-    const gesamtY = totalsY + totalsLineHeight * 2
-    const gesamtHeight = totalsLineHeight + 4
+    const gesamtY = totalsY + 5 + rows.length * totalsLineHeight
+    const gesamtHeight = gesamtHeightPre
     const gesamtBoxX = totalsLabelX - 5
     const gesamtBoxWidth = rightMargin - gesamtBoxX
     doc.lineWidth(1.0)
@@ -666,7 +720,7 @@ export async function generateInvoicePDF(
 
     // Notes
     if (invoice.notes) {
-      const notesY = totalsY + (isCompact ? 60 : 80)
+      const notesY = gesamtY + gesamtHeight + (isCompact ? 12 : 20)
       doc.fontSize(9).font(fontFor('bold')).text("Bemerkungen:", leftMargin, notesY, { lineBreak: false })
       doc.font(fontFor('regular')).text(invoice.notes, leftMargin, notesY + 15, { width: isCompact ? 300 : 400, lineBreak: true })
     }
@@ -1010,9 +1064,15 @@ function formatCurrency(val: number): string {
 }
 
 function formatVatRate(rate: number): string {
-  if (rate === 0.19) return "19%"
-  if (rate === 0.07) return "7%"
-  return "0%"
+  // Tier 413: any rate, not just today's two. A 16 % or 5 % line (2020) or a
+  // 10,7 % flat rate printed "0%" — the rate a § 14 Abs. 4 Nr. 8 invoice must
+  // state, stated wrongly.
+  const pct = rate * 100
+  return `${pct.toLocaleString("de-DE", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} %`
+}
+
+function round2(n: number): number {
+  return Math.round(n * 100) / 100
 }
 
 // Tier 224: GiroCode (EPC QR code) generator.

@@ -2454,6 +2454,49 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### The invoice document never showed the discount (Tier 413)
+
+The PDF the customer receives — and the invoice detail page, and the customer
+portal — printed the line sum *before* the invoice discount next to the
+discounted total. Measured on a 1 000 € invoice at 10 % off:
+
+```
+Zwischensumme (Netto):   1.000,00
+Gesamtbetrag USt:          171,00     1 000 + 171 = 1 171, not 1 071
+Gesamtbetrag:            1.071,00
+```
+
+The 100 € reduction appeared nowhere, which § 14 Abs. 4 Nr. 7 UStG requires
+("im Voraus vereinbarte Minderungen des Entgelts"), and a 19 % + 7 % invoice
+showed one blended figure instead of each rate's Entgelt and tax (Nr. 8). The
+totals block is now built from the Tier 409 breakdown:
+
+| | Before | Now |
+|---|---|---|
+| 1 000 € − 10 % | Zwischensumme 1.000,00 · USt 171,00 | Zwischensumme 1.000,00 · **Rabatt 10 % −100,00** · **Nettobetrag 900,00** · USt 19 % 171,00 |
+| 100 € 19 % + 100 € 7 % | Gesamtbetrag USt 26,00 | **USt 19 % auf 100,00 → 19,00** · **USt 7 % auf 100,00 → 7,00** · Gesamtbetrag USt 26,00 |
+
+`formatVatRate` had a third defect of its own: it mapped 19 % and 7 % and
+returned **"0%" for everything else**, so a 16 % or 5 % line (2020's rates)
+stated a rate the invoice did not charge. It now formats any rate.
+
+The block is 2 to 6 rows now, so on a long invoice it can reach the footer.
+When it does not fit, it starts a page of its own — an overflowing block
+pushed the footer onto a second page by itself (measured with 12 items).
+
+The invoice detail page and the customer portal show the Rabatt row too; the
+portal's footer had the same before/after mismatch.
+
+Specs: `e2e/202-tier413-invoice-pdf-discount.sh` (25 assertions, 14 failing
+against the old code) reads the PDF's text with `pdf_contains`;
+`frontend/e2e/invoice-discount-row-tier413.spec.ts` (2 tests) covers the
+detail page.
+
+Left open: the ZUGFeRD/Factur-X CII XML still groups VAT per line and ignores
+the discount (XRechnung was fixed in Tier 412); invoice amounts are stored to
+4 places and never rounded to cents; a multi-page invoice still labels every
+page "Seite 1".
+
 ### Every XRechnung failed EN 16931 — the check never ran it (Tier 412)
 
 With your go-ahead (§9 item 16) the CEN EN 16931 UBL schematron is now in
