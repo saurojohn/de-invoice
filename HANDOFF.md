@@ -9,17 +9,19 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–411 are
-  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 411.)
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–412 are
+  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 412.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 35250944012 / commit `19c1a2e`, Tier 411):**
-  - Backend e2e: **199 passed / 0 failed / 1 skipped** of 200 specs — 100
-    two-digit + 100 three-digit (Tier 411 added `200-tier411-net-revenue.sh`,
+- **Test counts (last green CI, run 35256287464 / commit `6a7706b`, Tier 412):**
+  - Backend e2e: **200 passed / 0 failed / 1 skipped** of 201 specs — 100
+    two-digit + 101 three-digit (Tier 412 added
+    `201-tier412-xrechnung-en16931.sh`,
+    Tier 411 `200-tier411-net-revenue.sh`,
     Tier 410 `199-tier410-zero-vat-rate.sh`,
     Tier 409 `198-tier409-tax-breakdown.sh`,
     Tier 408 `197-tier408-bulk-audit.sh`,
@@ -2431,6 +2433,7 @@ see below); Tier 398a run 35099184553 green: backend 188/0/1, Playwright 922.
 Tier 400 run 35112477951, all six jobs green: backend 189/0/1 (the new spec
 is the +1; the skip is still 16-dark-mode), Playwright 922.
 Tier 402 run 35140985920, all six jobs green: backend 190/0/1, Playwright 926.
+Tier 412 run 35256287464, all six jobs green: backend 200/0/1, Playwright 926 passed, 0 flaky.
 Tier 411 run 35250944012, all six jobs green: backend 199/0/1, Playwright 926 passed, 0 flaky.
 Tier 410 run 35234704698, all six jobs green: backend 198/0/1, Playwright 926 passed, 0 flaky.
 Tier 409 run 35227068422, all six jobs green: backend 197/0/1, Playwright 926 passed, 0 flaky.
