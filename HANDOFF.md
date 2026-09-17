@@ -2451,6 +2451,69 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Every XRechnung failed EN 16931 — the check never ran it (Tier 412)
+
+With your go-ahead (§9 item 16) the CEN EN 16931 UBL schematron is now in
+`infra/kosit/repository/schematron/en16931/` (release
+`validation-1.3.16`, `en16931-ubl-1.3.16.zip`, EUPL-1.2, checksums in the
+README there and in `setup.sh`) and runs as step 2 of
+`infra/kosit/scenarios.xml`, before the XRechnung rules. The first run with it
+**rejected every invoice the app produced, including a plain one**:
+
+| Invoice | Rules broken |
+|---|---|
+| all | BR-06 / BR-07 (no `PartyLegalEntity/RegistrationName`), BR-CL-25 (`EndpointID schemeID="DE:VAT"` is not an EAS code; a Steuernummer went out as 9931 — the **Estonian** VAT number) |
+| 10 % discount | BR-CO-14 / BR-CO-15 — tax subtotal 190 from the lines next to a total tax of 171 |
+| Skonto | BR-S-08, BR-CO-11 — Skonto as a document allowance that reduced nothing |
+| igL, § 13b | BR-E-01, BR-S-01, BR-S-08 — 0 % lines as S/E, no exemption reason |
+| buyer without e-mail (AT) | PEPPOL-EN16931-R010 — no buyer electronic address |
+| seller with only a Steuernummer | BR-S-02, BR-CO-26 |
+
+plus warnings for `LineCountNumeric`, per-line `TaxTotal` and the
+`listID`/`listAgencyID` attributes. `xrechnung.service.ts` now:
+
+- computes every amount once, in integer cents (`computeXRechnungTotals`):
+  lines stay undiscounted (EN 16931's line net); an invoice discount becomes
+  one document allowance per VAT category (reason code 95), sized so each
+  category's taxable amount is its share of `total − totalVat` from the
+  Tier 409 breakdown; tax per category = taxable × rate; payable = taxable +
+  tax. The arithmetic rules hold by construction.
+- names the tax category from the invoice: rate > 0 → S; `euTransaction` → K
+  (VATEX-EU-IC, with the deliver-to address, BR-IC-12 / BR-DE-10/11);
+  `reverseCharge` → AE (VATEX-EU-AE); otherwise E.
+- writes Skonto as the XRechnung payment-terms line
+  `#SKONTO#TAGE=14#PROZENT=2.00#`, not as an allowance.
+- gives both parties a `RegistrationName` (the seller's `legalName` when set),
+  the seller's `registerEntry` as BT-30, a Steuernummer as BT-32 (tax scheme
+  `FC`) and — when there is no VAT id and no register entry — also as the
+  seller identifier BT-29, which BR-CO-26 needs.
+- uses CEF EAS codes for `EndpointID`: e-mail `EM`, Leitweg-ID `0204`, a VAT
+  id under its country's code (DE 9930, AT 9914, FR 9957, … — `vatEasScheme`).
+- drops `LineCountNumeric`, line `TaxTotal` and the `listID` attributes.
+
+The in-process check (`engine=basic`) compared the stored totals with the
+lines (BR-CO-09/10/13), which a correctly discounted invoice can never
+satisfy; it now checks the computed XML totals against the document
+(payable = total, tax = totalVat, ±0.01), requires the seller's e-mail or an
+EAS-coded VAT id (BR-09 — a Steuernummer is not an electronic address) and
+the buyer's electronic address (PEPPOL-EN16931-R010).
+
+Measured after the change with the real validator: plain, 10 % discount,
+19 % + 7 %, 19 % + 7 % with 10 % off (odd cents), Skonto, igL, § 13b and an
+Austrian buyer without e-mail are all `ACCEPTABLE` with no warnings.
+
+Spec `e2e/201-tier412-xrechnung-en16931.sh` (46 assertions, 32 failing
+against the old code). `e2e/139` asserted the old defects (`DE:VAT`,
+`LineCountNumeric`, Skonto as `AllowanceCharge`) and now asserts the
+corrections; it also seeds the company e-mail and — a leak found on the way —
+restores the seed company's `vatId`/`taxId`, which its BR-09 section wiped and
+never put back.
+
+Left open: ZUGFeRD / Factur-X (CII) reuses the transform but has its own
+generator with the same per-line VAT grouping, and nothing validates the CII;
+the PDF of a discounted invoice still shows no discount line (§ 14 Abs. 4
+Nr. 7 UStG) and no per-rate VAT.
+
 ### The income statements counted revenue before the discount (Tier 411)
 
 Tier 409 put the tax figures on the discounted, per-rate breakdown; the income
@@ -3921,21 +3984,11 @@ These are **not in the repo** — only the user can do them:
     (simple, audited), or book negative counter-entries. Matters most once a
     year's figures have gone into a filed Anlage EÜR / E-Bilanz. Not changed.
 
-16. **The "KoSIT" XRechnung check does not run the EN 16931 rules — may I
-    download them?** (found Tier 410) `infra/kosit/scenarios.xml` is a
-    project-written scenario that runs the UBL XSD and
-    `XRechnung-UBL-validation.xsl` — which contains **82 rule ids, all
-    `BR-DE-*`, and no `BR-*`, `BR-CO-*` or `BR-S-*` at all**. The EN 16931
-    core schematron (CEN/TC 434 `EN16931-UBL-validation.xslt`) that the
-    official `validator-configuration-xrechnung` runs as a separate step is
-    not in the repository. `infra/kosit/setup.sh` says the engine checks "the
-    full EN 16931 rule set (150+ rules)"; it does not. Measured: an XRechnung
-    whose tax subtotal (190) contradicts its total tax (171) is
-    `ACCEPTABLE` under `?engine=kosit`, while the in-process check flags it
-    (BR-CO-09). Fixing it means downloading the CEN validation artefacts
-    (ConnectingEurope/eInvoicing-EN16931 release, a few MB) and adding a
-    second `validateWithSchematron` step — a download needs your go-ahead.
-    Until then, `engine=kosit` must not be read as "EN 16931 compliant".
+16. ~~**The "KoSIT" XRechnung check does not run the EN 16931 rules — may I
+    download them?**~~ (found Tier 410) **Resolved Tier 412** with your
+    go-ahead: the CEN EN 16931 UBL schematron 1.3.16 runs as step 2 of
+    `infra/kosit/scenarios.xml`, and the XRechnung generator was fixed until
+    every invoice type passes it — see §8, Tier 412.
 
 When the Hetzner items are available, the deploy is:
 

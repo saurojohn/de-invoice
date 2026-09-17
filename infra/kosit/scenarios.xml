@@ -60,7 +60,21 @@
             </resource>
         </validateWithXmlSchema>
 
-        <!-- 2. XRechnung 3.0.2 schematron (CIUS-level rules) -->
+        <!-- 2. EN 16931 core rules (CEN/TC 434 schematron 1.3.16).
+             Tier 410/412: this step was missing. The XRechnung schematron
+             below only carries the German CIUS rules (82 ids, all BR-DE-*);
+             every BR-*, BR-CO-* and BR-S/Z/E/AE/K-* rule lives here. The
+             official validator-configuration-xrechnung (v2026-08-31) runs
+             both, with this version. Without it an XRechnung whose tax
+             subtotal contradicted its total tax was ACCEPTABLE. -->
+        <validateWithSchematron>
+            <resource>
+                <name>EN 16931 UBL validation (CEN 1.3.16)</name>
+                <location>schematron/en16931/EN16931-UBL-validation.xslt</location>
+            </resource>
+        </validateWithSchematron>
+
+        <!-- 3. XRechnung 3.0.2 schematron (CIUS-level rules) -->
         <validateWithSchematron>
             <resource>
                 <name>XRechnung 3.0 UBL validation</name>

@@ -104,6 +104,30 @@ else
   ok "XRechnung 3.0.2 schematron installed"
 fi
 
+# ───── 4b. EN 16931 core schematron (CEN/TC 434) ─────
+# Tier 412: the XRechnung schematron above holds only the German CIUS rules
+# (BR-DE-*). The EN 16931 rules themselves (BR-*, BR-CO-*, BR-S-* …) are a
+# separate CEN artefact, run first by the official validator-configuration-
+# xrechnung (v2026-08-31 uses 1.3.16). Pinned by checksum.
+EN16931_VERSION="1.3.16"
+EN16931_ZIP_SHA256="bafada015efbc5248bf5e05ad2191e1d9833ef96e9dd5f4bce420a747342da85"
+EN16931_XSLT="$REPO_DIR/schematron/en16931/EN16931-UBL-validation.xslt"
+if [[ -f "$EN16931_XSLT" ]]; then
+  ok "EN 16931 schematron already present"
+else
+  note "Downloading EN 16931 UBL validation artefacts $EN16931_VERSION (~2.5MB)..."
+  TMP=$(mktemp -d)
+  curl -sSL -o "$TMP/en16931-ubl.zip" \
+    "https://github.com/ConnectingEurope/eInvoicing-EN16931/releases/download/validation-$EN16931_VERSION/en16931-ubl-$EN16931_VERSION.zip"
+  echo "$EN16931_ZIP_SHA256  $TMP/en16931-ubl.zip" | shasum -a 256 -c - >/dev/null \
+    || fail "EN 16931 archive checksum mismatch"
+  unzip -o -q "$TMP/en16931-ubl.zip" -d "$TMP/x"
+  mkdir -p "$(dirname "$EN16931_XSLT")"
+  cp "$TMP/x/xslt/EN16931-UBL-validation.xslt" "$EN16931_XSLT"
+  rm -rf "$TMP"
+  ok "EN 16931 schematron $EN16931_VERSION installed"
+fi
+
 # ───── 5. Default report.xsl (KoSIT's printable report template) ─────
 if [[ -f "$REPO_DIR/report.xsl" ]]; then
   ok "report.xsl already present"

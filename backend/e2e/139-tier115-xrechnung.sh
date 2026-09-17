@@ -13,7 +13,8 @@
 #   2.  B2B standard: download XRechnung + validate
 #   3.  B2B reverse-charge: intra-EU with VAT-ID
 #   4.  B2G: Leitweg-ID as BuyerReference
-#   5.  Skonto: 2% / 14 Tage → AllowanceCharge block
+#   5.  Skonto: 2% / 14 Tage → #SKONTO# payment terms (Tier 412; was an
+#       AllowanceCharge that reduced nothing — BR-CO-11 / BR-S-08)
 #   6.  Validation: incomplete data → BR-06 / BR-09 errors
 #   7.  Cross-tenant → 401
 #   8.  Missing companyId → 400
@@ -50,6 +51,12 @@ ORIGINAL_BANK=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA
   "SELECT \"bankInfo\"::text FROM \"Company\" WHERE id='$COMPANY_ID';" 2>&1 | tr -d '\n' | head -1)
 ORIGINAL_SETTINGS=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT settings::text FROM \"Company\" WHERE id='$COMPANY_ID';" 2>&1 | tr -d '\n' | head -1)
+# Tier 412: section 6 wipes vatId/taxId; they were never put back.
+ORIGINAL_IDS=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -F '|' -c \
+  "SELECT coalesce(\"vatId\", ''), coalesce(\"taxId\", '') FROM \"Company\" WHERE id='$COMPANY_ID';" 2>/dev/null | tr -d '\n')
+ORIGINAL_VATID=${ORIGINAL_IDS%%|*}; ORIGINAL_TAXID=${ORIGINAL_IDS#*|}
+ORIGINAL_EMAIL=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT coalesce(email, '') FROM \"Company\" WHERE id='$COMPANY_ID';" 2>/dev/null | tr -d '\n')
 
 # Cleanup trap
 cleanup() {
@@ -62,7 +69,10 @@ DELETE FROM "Customer" WHERE name LIKE 'T115-%' OR "customerNumber" LIKE 'T115-%
 UPDATE "Company" SET
   address = '${ORIGINAL_ADDRESS}'::jsonb,
   "bankInfo" = '${ORIGINAL_BANK}'::jsonb,
-  settings = '${ORIGINAL_SETTINGS}'::jsonb
+  settings = '${ORIGINAL_SETTINGS}'::jsonb,
+  email = NULLIF('${ORIGINAL_EMAIL}', ''),
+  "vatId" = NULLIF('${ORIGINAL_VATID}', ''),
+  "taxId" = NULLIF('${ORIGINAL_TAXID}', '')
 WHERE id = '$COMPANY_ID';
 SQL
 }
@@ -75,10 +85,14 @@ trap cleanup EXIT
 docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 UPDATE "Company" SET
   address = '{"street":"Otto-Hahn-Str. 24","city":"Dreieich","postalCode":"63303","country":"Deutschland"}'::jsonb,
-  "bankInfo" = '{"bic":"HELADEFFXXX","iban":"DE89370400440532013000","bankName":"Commerzbank"}'::jsonb
+  "bankInfo" = '{"bic":"HELADEFFXXX","iban":"DE89370400440532013000","bankName":"Commerzbank"}'::jsonb,
+  email = 'buchhaltung@example.com'
 WHERE id = '$COMPANY_ID';
 SQL
-pass "seeded company address + IBAN"
+# Tier 412: the seller's electronic address (BT-34) is its e-mail address; a
+# Steuernummer is not an electronic address (it used to go out as scheme 9931,
+# which is the Estonian VAT number).
+pass "seeded company address + IBAN + e-mail"
 
 # ───── 1. Setup: 4 customers ─────
 note "=== 1. Setup: 4 customers ==="
@@ -162,9 +176,9 @@ grep -q "xrechnung_3.0" /tmp/t115-b2b.xml && pass "CustomizationID 3.0" \
 # UBLVersionID = 2.1 (Tier 117)
 grep -q "<cbc:UBLVersionID>2.1</cbc:UBLVersionID>" /tmp/t115-b2b.xml && pass "UBLVersionID 2.1" \
   || fail "UBLVersionID not 2.1"
-# LineCountNumeric = 1
-grep -q "<cbc:LineCountNumeric>1</cbc:LineCountNumeric>" /tmp/t115-b2b.xml && pass "LineCountNumeric 1" \
-  || fail "LineCountNumeric not 1"
+# Tier 412: LineCountNumeric is not part of EN 16931 (UBL-CR-011)
+! grep -q "<cbc:LineCountNumeric" /tmp/t115-b2b.xml && pass "no LineCountNumeric (UBL-CR-011)" \
+  || fail "LineCountNumeric still present"
 # BuyerReference must come AFTER DocumentCurrencyCode (Tier 117 XSD order fix)
 LINE_BUYER=$(grep -n "<cbc:BuyerReference>" /tmp/t115-b2b.xml | head -1 | cut -d: -f1)
 LINE_CURR=$(grep -n "<cbc:DocumentCurrencyCode" /tmp/t115-b2b.xml | head -1 | cut -d: -f1)
@@ -173,9 +187,12 @@ test "$LINE_BUYER" -gt "$LINE_CURR" && pass "BuyerReference after DocumentCurren
 # BuyerReference present
 grep -q "<cbc:BuyerReference>" /tmp/t115-b2b.xml && pass "BuyerReference present" \
   || fail "BuyerReference missing"
-# Supplier has DE:VAT scheme on EndpointID
-grep -q 'schemeID="DE:VAT"' /tmp/t115-b2b.xml && pass "Supplier EndpointID scheme=DE:VAT" \
-  || fail "Supplier EndpointID scheme not DE:VAT"
+# Tier 412: EndpointID schemes are CEF EAS codes (BR-CL-25) — "DE:VAT" is not one
+grep -q '<cbc:EndpointID schemeID="EM">buchhaltung@example.com</cbc:EndpointID>' /tmp/t115-b2b.xml \
+  && pass "Supplier EndpointID = e-mail (EM)" || fail "Supplier EndpointID not EM"
+grep -q '<cbc:EndpointID schemeID="9930">DE123456789</cbc:EndpointID>' /tmp/t115-b2b.xml \
+  && pass "Buyer EndpointID = DE VAT id (9930)" || fail "Buyer EndpointID not 9930"
+! grep -q 'DE:VAT' /tmp/t115-b2b.xml && pass "no DE:VAT scheme" || fail "DE:VAT scheme still present"
 # PaymentMeans block with IBAN
 grep -q "DE89370400440532013000" /tmp/t115-b2b.xml && pass "IBAN in PaymentMeans" \
   || fail "IBAN missing"
@@ -195,6 +212,9 @@ grep -q '<cbc:IdentificationCode>AT</cbc:IdentificationCode>' /tmp/t115-oss.xml 
 # Customer VAT-ID present
 grep -q "ATU12345678" /tmp/t115-oss.xml && pass "Customer VAT-ID present" \
   || fail "Customer VAT-ID missing"
+# Tier 412: an Austrian VAT id is EAS 9914 (buyer electronic address is mandatory)
+grep -q '<cbc:EndpointID schemeID="9914">ATU12345678</cbc:EndpointID>' /tmp/t115-oss.xml \
+  && pass "Buyer EndpointID = AT VAT id (9914)" || fail "Buyer EndpointID not 9914"
 
 # ───── 4. B2G with Leitweg-ID ─────
 note "=== 4. B2G: Leitweg-ID as BuyerReference ==="
@@ -210,20 +230,19 @@ grep -q "991-12345-67" /tmp/t115-b2g.xml && pass "Leitweg-ID as BuyerReference" 
   || fail "Leitweg-ID not in BuyerReference"
 
 # ───── 5. Skonto invoice (2% / 14 Tage) ─────
-note "=== 5. Skonto: 2% / 14 Tage → AllowanceCharge ==="
+note "=== 5. Skonto: 2% / 14 Tage → #SKONTO# payment terms ==="
 INV_SK=$(create_invoice "T115-${TS}-SK" "T115-${TS}-SK" 2 14)
 api_get "/api/v1/invoices/${INV_SK}/xrechnung?companyId=$COMPANY_ID"
 echo "$BODY" > /tmp/t115-sk.xml
-# AllowanceCharge block present (BR-CO-21: Skonto must be an AllowanceCharge)
-grep -q "<cac:AllowanceCharge>" /tmp/t115-sk.xml && pass "AllowanceCharge present (Skonto)" \
-  || fail "AllowanceCharge missing for Skonto invoice"
-# Reason = "Skonto 2.00%"
-grep -q "Skonto 2.00%" /tmp/t115-sk.xml && pass "Skonto reason text" \
-  || fail "Skonto reason text missing"
-# ChargeIndicator = false (it's an allowance, not a charge)
-grep -q "<cbc:ChargeIndicator>false</cbc:ChargeIndicator>" /tmp/t115-sk.xml \
-  && pass "ChargeIndicator = false" \
-  || fail "ChargeIndicator not false"
+# Tier 412: Skonto is a payment term, not an allowance. As an AllowanceCharge
+# it lowered nothing (the totals stayed 1 190), which EN 16931 rejects
+# (BR-CO-11, BR-S-08). XRechnung's format is a #SKONTO# line in the note.
+! grep -q "<cac:AllowanceCharge>" /tmp/t115-sk.xml && pass "no AllowanceCharge for Skonto" \
+  || fail "Skonto still an AllowanceCharge"
+grep -q "#SKONTO#TAGE=14#PROZENT=2.00#" /tmp/t115-sk.xml && pass "#SKONTO#TAGE=14#PROZENT=2.00#" \
+  || fail "#SKONTO# line missing"
+grep -q '<cbc:PayableAmount currencyID="EUR">1190.00</cbc:PayableAmount>' /tmp/t115-sk.xml \
+  && pass "payable stays 1190.00 (Skonto is taken at payment)" || fail "payable changed"
 # Payment terms text
 grep -q "Zahlbar innerhalb von 14 Tagen mit 2.00% Skonto" /tmp/t115-sk.xml \
   && pass "Payment terms text for Skonto" \
@@ -243,9 +262,10 @@ test "$VAL_OK2" = "False" && pass "validate fails with empty city" \
 HAS_BR06=$(echo "$BODY" | python3 -c "import json,sys;d=json.load(sys.stdin);print(any(e['rule']=='BR-06' for e in d.get('errors',[])))")
 test "$HAS_BR06" = "True" && pass "BR-06 error present" \
   || fail "BR-06 error missing"
-# BR-09: missing electronic address — wipe the supplier's VAT/tax IDs
+# BR-09: missing electronic address — wipe the supplier's VAT/tax IDs and
+# (Tier 412) its e-mail address, which is now the electronic address
 docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
-  "UPDATE \"Company\" SET \"vatId\"=NULL, \"taxId\"=NULL, address='{\"street\":\"x\",\"city\":\"x\",\"postalCode\":\"12345\",\"country\":\"Deutschland\"}'::jsonb WHERE id='$COMPANY_ID';" >/dev/null
+  "UPDATE \"Company\" SET \"vatId\"=NULL, \"taxId\"=NULL, email=NULL, address='{\"street\":\"x\",\"city\":\"x\",\"postalCode\":\"12345\",\"country\":\"Deutschland\"}'::jsonb WHERE id='$COMPANY_ID';" >/dev/null
 api_get "/api/v1/invoices/${INV_B2B}/xrechnung/validate?companyId=$COMPANY_ID"
 HAS_BR09=$(echo "$BODY" | python3 -c "import json,sys;d=json.load(sys.stdin);print(any(e['rule']=='BR-09' for e in d.get('errors',[])))")
 test "$HAS_BR09" = "True" && pass "BR-09 error present (no electronic address)" \

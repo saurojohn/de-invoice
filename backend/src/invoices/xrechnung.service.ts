@@ -33,6 +33,8 @@
  *   - zugferd.service.ts (Factur-X reuses the data transform)
  */
 
+import { invoiceTaxBreakdown } from '../modules/invoice/tax-breakdown'
+
 export interface XRechnungSupplier {
   name: string
   address: {
@@ -43,12 +45,16 @@ export interface XRechnungSupplier {
   }
   vatId?: string
   taxId?: string
+  /** Tier 412: registered name (BT-27) when it differs from the trading name */
+  legalName?: string
+  /** Tier 412: Handelsregister entry (BT-30) */
+  registerEntry?: string
   /** German Leitweg-ID for B2G invoices (e.g. "991-12345-67") */
   leitwegId?: string
   /** Electronic address (Peppol-ID or email-as-EM) */
   electronicAddress?: {
     id: string
-    schemeId: string // '9930' (Leitweg-ID), '9931' (Steuernummer), 'DE:VAT', 'EM' (email)
+    schemeId: string // CEF EAS code: 'EM' (e-mail), '9930' (DE VAT), '0204' (Leitweg-ID); legacy 'DE:VAT' is read as 9930
   }
   bankInfo?: {
     bankName?: string
@@ -120,6 +126,15 @@ export interface XRechnungData {
   skonto?: XRechnungAllowance
   /** Free-text payment terms (e.g. "Zahlbar innerhalb von 14 Tagen mit 2% Skonto"). */
   paymentTermsNote?: string
+  /**
+   * Tier 412: the invoice's tax treatment and its per-rate breakdown after the
+   * invoice discount (tax-breakdown.ts). Optional so callers that build the
+   * data by hand keep working; without them the lines are taken as they are.
+   */
+  euTransaction?: boolean
+  reverseCharge?: boolean
+  hasDocumentDiscount?: boolean
+  taxBreakdown?: Array<{ rate: number; net: number; vat: number }>
 }
 
 /**
@@ -145,8 +160,10 @@ export function generateXRechnung(data: XRechnungData): string {
   const invoiceDate = formatXRechnungDate(data.issueDate)
   const dueDate = data.dueDate ? formatXRechnungDate(data.dueDate) : null
 
-  // Group VAT by rate for TaxSubtotal
-  const vatByRate = groupVatByRate(data.items)
+  // Tier 412: every amount in the document comes from one computation, so the
+  // EN 16931 arithmetic rules (BR-CO-10/11/13/14/15, BR-S-08/09) hold by
+  // construction. See computeXRechnungTotals.
+  const t = computeXRechnungTotals(data)
 
   // XRechnung 3.0 conformance identifier (current spec, 2024)
   // Replaces the 2.3.1 / 1.2 IDs from earlier versions. The
@@ -187,22 +204,23 @@ export function generateXRechnung(data: XRechnungData): string {
   ${dueDate ? `<!-- Fälligkeitsdatum / Due Date -->
   <cbc:DueDate>${dueDate}</cbc:DueDate>` : ''}
 
-  <!-- Rechnungsart / Invoice Type Code (BR-04 v2: 380 = Commercial invoice) -->
-  <cbc:InvoiceTypeCode listID="UN/ECE 1001" listAgencyID="6">380</cbc:InvoiceTypeCode>
+  <!-- Rechnungsart / Invoice Type Code (BR-04 v2: 380 = Commercial invoice).
+       Tier 412: no listID / listAgencyID — EN 16931 flags both (UBL-CR-656,
+       UBL-DT-28). -->
+  <cbc:InvoiceTypeCode>380</cbc:InvoiceTypeCode>
 
   ${data.notes ? `<!-- Bemerkungen / Notes (XSD position: after InvoiceTypeCode) -->
   <cbc:Note>${escapeXml(data.notes)}</cbc:Note>` : ''}
 
   <!-- Währung / Currency (BR-05) -->
-  <cbc:DocumentCurrencyCode listID="ISO 4217 Alpha" listAgencyID="6">${escapeXml(data.currency)}</cbc:DocumentCurrencyCode>
+  <cbc:DocumentCurrencyCode>${escapeXml(data.currency)}</cbc:DocumentCurrencyCode>
   <!-- BR-53: TaxCurrencyCode absichtlich weggelassen (nur nötig wenn
        != DocumentCurrencyCode). Wir setzen aktuell keine
        abweichende VAT-Währung. -->
 
-  <!-- Anzahl Rechnungspositionen / Line Count Numeric -->
-  <cbc:LineCountNumeric>${data.items.length}</cbc:LineCountNumeric>
+  <!-- Tier 412: LineCountNumeric removed — not part of EN 16931 (UBL-CR-011). -->
 
-  <!-- BR-1 v2: BuyerReference ist Pflicht (XSD position: after LineCountNumeric) -->
+  <!-- BR-1 v2: BuyerReference ist Pflicht -->
   <cbc:BuyerReference>${escapeXml(data.buyerReference)}</cbc:BuyerReference>
 
   <!-- Leistungszeitraum / Invoice Period (BR-DE-TMP-32 / BG-14).
@@ -218,39 +236,36 @@ export function generateXRechnung(data: XRechnungData): string {
 
   ${generateCustomerParty(data.customer)}
 
+  ${t.categories.includes('K') ? generateDelivery(data.customer) : ''}
+
   ${generatePaymentMeans(data.supplier)}
 
   ${generatePaymentTerms(data)}
 
-  ${data.skonto ? generateAllowanceCharge(data.skonto, data.currency) : ''}
+  ${t.allowances.map((a) => generateDocumentAllowance(a, data.currency)).join('\n  ')}
 
-  <!-- Steuerübersicht / Tax Total (BR-CO-09, BR-CO-13) — XSD position: before LegalMonetaryTotal -->
+  <!-- Steuerübersicht / Tax Total (BR-CO-14, BR-S-08/09) -->
   <cac:TaxTotal>
-    <cbc:TaxAmount currencyID="${escapeXml(data.currency)}">${formatDecimal(data.totalVat)}</cbc:TaxAmount>
-    ${vatByRate.map(vat => `
+    <cbc:TaxAmount currencyID="${escapeXml(data.currency)}">${formatCents(t.taxTotal)}</cbc:TaxAmount>
+    ${t.subtotals.map((v) => `
     <cac:TaxSubtotal>
-      <cbc:TaxableAmount currencyID="${escapeXml(data.currency)}">${formatDecimal(vat.taxableAmount)}</cbc:TaxableAmount>
-      <cbc:TaxAmount currencyID="${escapeXml(data.currency)}">${formatDecimal(vat.taxAmount)}</cbc:TaxAmount>
-      <cac:TaxCategory>
-        <cbc:ID>S</cbc:ID>
-        <cbc:Percent>${formatPercent(vat.rate)}</cbc:Percent>
-        <cac:TaxScheme>
-          <cbc:ID>VAT</cbc:ID>
-        </cac:TaxScheme>
-      </cac:TaxCategory>
+      <cbc:TaxableAmount currencyID="${escapeXml(data.currency)}">${formatCents(v.taxable)}</cbc:TaxableAmount>
+      <cbc:TaxAmount currencyID="${escapeXml(data.currency)}">${formatCents(v.tax)}</cbc:TaxAmount>
+      ${taxCategoryXml(v.category, v.rate, true)}
     </cac:TaxSubtotal>`).join('')}
   </cac:TaxTotal>
 
-  <!-- Gesamtbetrag / Legal Monetary Total (BR-CO-10, BR-CO-13, BR-CO-15) — XSD position: after TaxTotal, before InvoiceLine -->
+  <!-- Gesamtbetrag / Legal Monetary Total (BR-CO-10, BR-CO-11, BR-CO-13, BR-CO-15, BR-CO-16) -->
   <cac:LegalMonetaryTotal>
-    <cbc:LineExtensionAmount currencyID="${escapeXml(data.currency)}">${formatDecimal(data.subtotal)}</cbc:LineExtensionAmount>
-    <cbc:TaxExclusiveAmount currencyID="${escapeXml(data.currency)}">${formatDecimal(data.subtotal)}</cbc:TaxExclusiveAmount>
-    <cbc:TaxInclusiveAmount currencyID="${escapeXml(data.currency)}">${formatDecimal(data.total)}</cbc:TaxInclusiveAmount>
-    <cbc:PayableAmount currencyID="${escapeXml(data.currency)}">${formatDecimal(data.total)}</cbc:PayableAmount>
+    <cbc:LineExtensionAmount currencyID="${escapeXml(data.currency)}">${formatCents(t.lineExtension)}</cbc:LineExtensionAmount>
+    <cbc:TaxExclusiveAmount currencyID="${escapeXml(data.currency)}">${formatCents(t.taxExclusive)}</cbc:TaxExclusiveAmount>
+    <cbc:TaxInclusiveAmount currencyID="${escapeXml(data.currency)}">${formatCents(t.taxInclusive)}</cbc:TaxInclusiveAmount>
+    ${t.allowanceTotal !== 0 ? `<cbc:AllowanceTotalAmount currencyID="${escapeXml(data.currency)}">${formatCents(t.allowanceTotal)}</cbc:AllowanceTotalAmount>` : ''}
+    <cbc:PayableAmount currencyID="${escapeXml(data.currency)}">${formatCents(t.payable)}</cbc:PayableAmount>
   </cac:LegalMonetaryTotal>
 
   <!-- Rechnungspositionen / Invoice Lines (BR-21, BR-22) — XSD position: last element group -->
-  ${data.items.map((item, index) => generateInvoiceLine(item, index + 1, data.currency)).join('\n  ')}
+  ${data.items.map((item, index) => generateInvoiceLine(item, index + 1, data.currency, t.lineNets[index], t.categoryOf(item.vatRate))).join('\n  ')}
 
 </Invoice>`
 
@@ -261,19 +276,30 @@ function generateSupplierParty(s: XRechnungSupplier): string {
   // EndpointID: prefer the explicit electronicAddress, fall
   // back to VAT-ID with scheme DE:VAT, then tax-ID with
   // scheme 9931 (Steuernummer).
+  // Tier 412: the scheme must be a CEF EAS code (BR-CL-25). "DE:VAT" is not
+  // one, and 9931 — used here as "Steuernummer" — is the Estonian VAT number.
+  // E-mail (EM) is what XRechnung expects for BT-34; a German VAT id is 9930.
   let endpointBlock = ''
-  if (s.electronicAddress) {
-    endpointBlock = `<cbc:EndpointID schemeID="${escapeXml(s.electronicAddress.schemeId)}">${escapeXml(s.electronicAddress.id)}</cbc:EndpointID>`
-  } else if (s.vatId) {
-    endpointBlock = `<cbc:EndpointID schemeID="DE:VAT">${escapeXml(s.vatId)}</cbc:EndpointID>`
-  } else if (s.taxId) {
-    endpointBlock = `<cbc:EndpointID schemeID="9931">${escapeXml(s.taxId)}</cbc:EndpointID>`
+  const explicitScheme = s.electronicAddress?.schemeId === 'DE:VAT' ? '9930' : s.electronicAddress?.schemeId
+  if (s.electronicAddress && explicitScheme && explicitScheme !== '9931') {
+    endpointBlock = `<cbc:EndpointID schemeID="${escapeXml(explicitScheme)}">${escapeXml(s.electronicAddress.id)}</cbc:EndpointID>`
+  } else if (s.email) {
+    endpointBlock = `<cbc:EndpointID schemeID="EM">${escapeXml(s.email)}</cbc:EndpointID>`
+  } else if (s.vatId && vatEasScheme(s.vatId)) {
+    endpointBlock = `<cbc:EndpointID schemeID="${vatEasScheme(s.vatId)}">${escapeXml(s.vatId)}</cbc:EndpointID>`
   }
 
   return `<!-- Lieferant / Supplier Party (BR-06, BR-09, BR-DE-2) -->
   <cac:AccountingSupplierParty>
     <cac:Party>
       ${endpointBlock}
+      ${!s.vatId && !s.registerEntry && s.taxId ? `
+      <!-- BR-CO-26 wants BT-29, BT-30 or BT-31. A seller with only a
+           Steuernummer (no USt-IdNr., no Handelsregister) has nothing else to
+           give, so it doubles as the seller identifier. Tier 412. -->
+      <cac:PartyIdentification>
+        <cbc:ID>${escapeXml(s.taxId)}</cbc:ID>
+      </cac:PartyIdentification>` : ''}
       <cac:PartyName>
         <cbc:Name>${escapeXml(s.name)}</cbc:Name>
       </cac:PartyName>
@@ -293,9 +319,20 @@ function generateSupplierParty(s: XRechnungSupplier): string {
         </cac:TaxScheme>
       </cac:PartyTaxScheme>` : ''}
       ${s.taxId ? `
-      <cac:PartyLegalEntity>
+      <!-- BT-32 Steuernummer (Tier 412): a standard-rated line needs BT-31 or
+           BT-32 (BR-S-02); the tax scheme is "FC", not VAT. -->
+      <cac:PartyTaxScheme>
         <cbc:CompanyID>${escapeXml(s.taxId)}</cbc:CompanyID>
-      </cac:PartyLegalEntity>` : ''}
+        <cac:TaxScheme>
+          <cbc:ID>FC</cbc:ID>
+        </cac:TaxScheme>
+      </cac:PartyTaxScheme>` : ''}
+      <!-- BR-06: Seller name (BT-27) is PartyLegalEntity/RegistrationName;
+           PartyName above is the trading name (BT-28). Tier 412. -->
+      <cac:PartyLegalEntity>
+        <cbc:RegistrationName>${escapeXml(s.legalName || s.name)}</cbc:RegistrationName>
+        ${s.registerEntry ? `<cbc:CompanyID>${escapeXml(s.registerEntry)}</cbc:CompanyID>` : ''}
+      </cac:PartyLegalEntity>
       <!-- BR-DE-2/6/7 (XRechnung Pflicht): Seller Contact (BG-6).
            Pflicht: Name + Telefon (BT-42) + E-Mail (BT-43).
            Wir nutzen den Firmennamen als Ansprechpartner-Fallback. -->
@@ -312,11 +349,16 @@ function generateCustomerParty(c: XRechnungCustomer): string {
   // BR-DE-TMP-1: Buyer electronic address MUST be provided.
   // Prefer VAT-ID (scheme DE:VAT), fall back to Leitweg-ID
   // (scheme 9930) for B2G buyers.
+  // Tier 412: CEF EAS codes (BR-CL-25) — Leitweg-ID is 0204 (9930 is the
+  // German VAT number), then e-mail, then the VAT id under its country's code.
+  // XRechnung requires the buyer's electronic address (PEPPOL-EN16931-R010).
   let endpointBlock = ''
-  if (c.vatId) {
-    endpointBlock = `<cbc:EndpointID schemeID="DE:VAT">${escapeXml(c.vatId)}</cbc:EndpointID>`
-  } else if (c.leitwegId) {
-    endpointBlock = `<cbc:EndpointID schemeID="9930">${escapeXml(c.leitwegId)}</cbc:EndpointID>`
+  if (c.leitwegId) {
+    endpointBlock = `<cbc:EndpointID schemeID="0204">${escapeXml(c.leitwegId)}</cbc:EndpointID>`
+  } else if (c.email) {
+    endpointBlock = `<cbc:EndpointID schemeID="EM">${escapeXml(c.email)}</cbc:EndpointID>`
+  } else if (c.vatId && vatEasScheme(c.vatId)) {
+    endpointBlock = `<cbc:EndpointID schemeID="${vatEasScheme(c.vatId)}">${escapeXml(c.vatId)}</cbc:EndpointID>`
   }
 
   return `<!-- Kunde / Customer Party (BR-07, BR-08) -->
@@ -341,15 +383,56 @@ function generateCustomerParty(c: XRechnungCustomer): string {
           <cbc:ID>VAT</cbc:ID>
         </cac:TaxScheme>
       </cac:PartyTaxScheme>` : ''}
+      <!-- BR-07: Buyer name (BT-44). Tier 412. -->
+      <cac:PartyLegalEntity>
+        <cbc:RegistrationName>${escapeXml(c.name)}</cbc:RegistrationName>
+      </cac:PartyLegalEntity>
     </cac:Party>
   </cac:AccountingCustomerParty>`
+}
+
+/**
+ * Tier 412: the CEF EAS code for a VAT number, by its country prefix. Only
+ * countries whose VAT number has its own code; Italy, Sweden, Finland and
+ * Denmark use register-based codes and get none.
+ */
+const VAT_EAS: Record<string, string> = {
+  AT: '9914', BE: '9925', BG: '9926', CH: '9927', CY: '9928', CZ: '9929',
+  DE: '9930', EE: '9931', GB: '9932', EL: '9933', GR: '9933', HR: '9934',
+  IE: '9935', LT: '9937', LU: '9938', LV: '9939', MT: '9943', NL: '9944',
+  PL: '9945', PT: '9946', RO: '9947', SI: '9949', SK: '9950', ES: '9920',
+  HU: '9910', FR: '9957',
+}
+
+export function vatEasScheme(vatId: string): string | undefined {
+  return VAT_EAS[vatId.trim().slice(0, 2).toUpperCase()]
+}
+
+/**
+ * Tier 412: BR-IC-12 — an intra-community supply names where the goods went;
+ * XRechnung then wants the full address (BR-DE-10/11). The buyer's address is
+ * the only one the invoice knows.
+ */
+function generateDelivery(c: XRechnungCustomer): string {
+  return `<cac:Delivery>
+    <cac:DeliveryLocation>
+      <cac:Address>
+        <cbc:StreetName>${escapeXml(c.address.street || '')}</cbc:StreetName>
+        <cbc:CityName>${escapeXml(c.address.city || '')}</cbc:CityName>
+        <cbc:PostalZone>${escapeXml(c.address.postalCode || '')}</cbc:PostalZone>
+        <cac:Country>
+          <cbc:IdentificationCode>${escapeXml(normalizeCountryCode(c.address.country))}</cbc:IdentificationCode>
+        </cac:Country>
+      </cac:Address>
+    </cac:DeliveryLocation>
+  </cac:Delivery>`
 }
 
 function generatePaymentMeans(s: XRechnungSupplier): string {
   if (!s.bankInfo?.iban) return ''
   return `<!-- Zahlungsmittel / Payment Means (BR-16: gültiges IBAN-Format) -->
   <cac:PaymentMeans>
-    <cbc:PaymentMeansCode listID="UN/ECE 4461">58</cbc:PaymentMeansCode>
+    <cbc:PaymentMeansCode>58</cbc:PaymentMeansCode>
     <cac:PayeeFinancialAccount>
       <cbc:ID>${escapeXml(s.bankInfo.iban)}</cbc:ID>
       ${s.bankInfo.bic ? `<cac:FinancialInstitutionBranch>
@@ -369,67 +452,77 @@ function generatePaymentTerms(data: XRechnungData): string {
   } else if (!note) {
     note = 'Zahlbar innerhalb von 30 Tagen'
   }
+  // Tier 412: Skonto is a payment term, not an allowance. It used to be a
+  // document-level AllowanceCharge that did not reduce the totals (BR-CO-11,
+  // BR-S-08). XRechnung carries it as a machine-readable line in this note:
+  // #SKONTO#TAGE=n#PROZENT=x.xx# followed by a line break.
+  if (data.skonto) {
+    const pct = (data.skonto.percent * 100).toFixed(2)
+    note = `${note}\n#SKONTO#TAGE=${data.skonto.days ?? 14}#PROZENT=${pct}#\n`
+  }
   return `<!-- Zahlungsbedingungen / Payment Terms (BR-CO-25) -->
   <cac:PaymentTerms>
     <cbc:Note>${escapeXml(note)}</cbc:Note>
   </cac:PaymentTerms>`
 }
 
-function generateAllowanceCharge(a: XRechnungAllowance, currency: string): string {
-  // Document-level allowance (Skonto or doc-wide discount)
-  const reasonCode = a.type === 'skonto' ? '95' : '1' // 95 = discount
-  const reason =
-    a.type === 'skonto'
-      ? `Skonto ${formatPercent(a.percent)}%`
-      : `Rabatt ${formatPercent(a.percent)}%`
-  return `<!-- Skonto / Rabatt auf Rechnungsebene (BR-CO-21) -->
+type TaxCategoryCode = 'S' | 'K' | 'AE' | 'E'
+
+/** Tier 412: exemption reasons for the zero-rated categories (BR-K-10, BR-AE-10, BR-E-10). */
+const EXEMPTION: Record<Exclude<TaxCategoryCode, 'S'>, { code?: string; text: string }> = {
+  K: { code: 'VATEX-EU-IC', text: 'Steuerfreie innergemeinschaftliche Lieferung' },
+  AE: { code: 'VATEX-EU-AE', text: 'Steuerschuldnerschaft des Leistungsempfängers' },
+  E: { text: 'Steuerbefreite Leistung' },
+}
+
+function taxCategoryXml(category: TaxCategoryCode, rate: number, withReason: boolean): string {
+  const ex = category === 'S' ? undefined : EXEMPTION[category]
+  return `<cac:TaxCategory>
+        <cbc:ID>${category}</cbc:ID>
+        <cbc:Percent>${formatPercent(rate)}</cbc:Percent>
+        ${withReason && ex?.code ? `<cbc:TaxExemptionReasonCode>${ex.code}</cbc:TaxExemptionReasonCode>` : ''}
+        ${withReason && ex ? `<cbc:TaxExemptionReason>${escapeXml(ex.text)}</cbc:TaxExemptionReason>` : ''}
+        <cac:TaxScheme>
+          <cbc:ID>VAT</cbc:ID>
+        </cac:TaxScheme>
+      </cac:TaxCategory>`
+}
+
+function generateDocumentAllowance(
+  a: { amount: number; category: TaxCategoryCode; rate: number },
+  currency: string,
+): string {
+  // UNTDID 5189 code 95 = Discount. One allowance per VAT category, since each
+  // must name the category it reduces (BR-32, BR-S-08).
+  return `<!-- Rabatt auf Rechnungsebene (BG-20) -->
   <cac:AllowanceCharge>
     <cbc:ChargeIndicator>false</cbc:ChargeIndicator>
-    <cbc:AllowanceChargeReasonCode listID="UNTDID 5189">${reasonCode}</cbc:AllowanceChargeReasonCode>
-    <cbc:AllowanceChargeReason>${escapeXml(reason)}</cbc:AllowanceChargeReason>
-    <cbc:Amount currencyID="${escapeXml(currency)}">${formatDecimal(a.amount)}</cbc:Amount>
-    <cac:TaxCategory>
-      <cbc:ID>S</cbc:ID>
-      <cbc:Percent>19.00</cbc:Percent>
-      <cac:TaxScheme>
-        <cbc:ID>VAT</cbc:ID>
-      </cac:TaxScheme>
-    </cac:TaxCategory>
+    <cbc:AllowanceChargeReasonCode>95</cbc:AllowanceChargeReasonCode>
+    <cbc:AllowanceChargeReason>Rabatt</cbc:AllowanceChargeReason>
+    <cbc:Amount currencyID="${escapeXml(currency)}">${formatCents(a.amount)}</cbc:Amount>
+    ${taxCategoryXml(a.category, a.rate, false)}
   </cac:AllowanceCharge>`
 }
 
-function generateInvoiceLine(item: XRechnungItem, lineNumber: number, currency: string): string {
+function generateInvoiceLine(
+  item: XRechnungItem,
+  lineNumber: number,
+  currency: string,
+  lineNetCents: number,
+  category: TaxCategoryCode,
+): string {
   const unitCode = mapUnitToUNECE(item.unit)
-  const vatCategoryId = item.vatRate > 0 ? 'S' : 'E'
-  const hasLineDiscount = item.discountPercent && item.discountPercent > 0
-  // ──────────────────────────────────────────────────────
-  // UBL 2.1 InvoiceLineType element order (per
-  // UBL-CommonAggregateComponents-2.1.xsd):
-  //   ID, UUID, Note, InvoicedQuantity, LineExtensionAmount,
-  //   ..., AllowanceCharge, TaxTotal, Item, Price, ...
-  //   The tax category lives inside Item/ClassifiedTaxCategory
-  //   (NOT in a separate ItemLocationQuantity — that was
-  //   UBL 2.0 and is not part of the 2.1 XSD for InvoiceLine).
-  // ──────────────────────────────────────────────────────
+  // Tier 412: no per-line TaxTotal (UBL-CR-561 — VAT is stated per category in
+  // the document's TaxTotal), and the line's category matches the breakdown.
   return `<cac:InvoiceLine>
     <cbc:ID>${lineNumber}</cbc:ID>
     <cbc:InvoicedQuantity unitCode="${unitCode}">${formatDecimal(item.quantity)}</cbc:InvoicedQuantity>
-    <cbc:LineExtensionAmount currencyID="${escapeXml(currency)}">${formatDecimal(item.netAmount)}</cbc:LineExtensionAmount>
-    ${hasLineDiscount ? `
-    <cac:AllowanceCharge>
-      <cbc:ChargeIndicator>false</cbc:ChargeIndicator>
-      <cbc:AllowanceChargeReasonCode listID="UNTDID 5189">1</cbc:AllowanceChargeReasonCode>
-      <cbc:AllowanceChargeReason>Rabatt ${formatPercent(item.discountPercent || 0)}%</cbc:AllowanceChargeReason>
-      <cbc:Amount currencyID="${escapeXml(currency)}">${formatDecimal((item.unitPrice * item.quantity) - item.netAmount)}</cbc:Amount>
-    </cac:AllowanceCharge>` : ''}
-    <cac:TaxTotal>
-      <cbc:TaxAmount currencyID="${escapeXml(currency)}">${formatDecimal(item.vatAmount)}</cbc:TaxAmount>
-    </cac:TaxTotal>
+    <cbc:LineExtensionAmount currencyID="${escapeXml(currency)}">${formatCents(lineNetCents)}</cbc:LineExtensionAmount>
     <cac:Item>
       <cbc:Description>${escapeXml(item.description)}</cbc:Description>
       <cbc:Name>${escapeXml(item.description.split('\n')[0])}</cbc:Name>
       <cac:ClassifiedTaxCategory>
-        <cbc:ID>${vatCategoryId}</cbc:ID>
+        <cbc:ID>${category}</cbc:ID>
         <cbc:Percent>${formatPercent(item.vatRate)}</cbc:Percent>
         <cac:TaxScheme>
           <cbc:ID>VAT</cbc:ID>
@@ -442,27 +535,110 @@ function generateInvoiceLine(item: XRechnungItem, lineNumber: number, currency: 
   </cac:InvoiceLine>`
 }
 
-function groupVatByRate(items: XRechnungItem[]): { rate: number; taxableAmount: number; taxAmount: number }[] {
-  const grouped: Map<number, { taxableAmount: number; taxAmount: number }> = new Map()
+export interface XRechnungTotals {
+  /** per line, in cents, as LineExtensionAmount (BT-131) */
+  lineNets: number[]
+  lineExtension: number
+  allowances: Array<{ amount: number; category: TaxCategoryCode; rate: number }>
+  allowanceTotal: number
+  taxExclusive: number
+  subtotals: Array<{ rate: number; category: TaxCategoryCode; taxable: number; tax: number }>
+  taxTotal: number
+  taxInclusive: number
+  payable: number
+  categories: TaxCategoryCode[]
+  categoryOf: (rate: number) => TaxCategoryCode
+}
 
-  for (const item of items) {
-    const existing = grouped.get(item.vatRate)
-    if (existing) {
-      existing.taxableAmount += item.netAmount
-      existing.taxAmount += item.vatAmount
-    } else {
-      grouped.set(item.vatRate, {
-        taxableAmount: item.netAmount,
-        taxAmount: item.vatAmount,
-      })
-    }
+const cents = (n: number) => Math.round(n * 100)
+
+/** Split `total` cents over `weights`; the remainder goes to the largest weight. */
+function allocateCents(total: number, weights: number[]): number[] {
+  const sum = weights.reduce((a, b) => a + b, 0)
+  if (weights.length === 0) return []
+  if (sum === 0) return weights.map((_, i) => (i === 0 ? total : 0))
+  const parts = weights.map((w) => Math.round((total * w) / sum))
+  const drift = total - parts.reduce((a, b) => a + b, 0)
+  if (drift !== 0) {
+    let largest = 0
+    for (let i = 1; i < weights.length; i++) if (Math.abs(weights[i]) > Math.abs(weights[largest])) largest = i
+    parts[largest] += drift
+  }
+  return parts
+}
+
+/**
+ * Tier 412 — the document's amounts, computed once, in integer cents.
+ *
+ * EN 16931 checks the arithmetic of the XML itself: line nets sum to BT-106,
+ * BT-109 = BT-106 − allowances, BT-110 = Σ category tax, BT-112 = BT-109 +
+ * BT-110, and each category's tax = its taxable amount × its rate. The old
+ * generator printed the stored invoice totals next to line-derived subtotals,
+ * so a discounted invoice contradicted itself (tax subtotal 190, total tax 171)
+ * and Skonto appeared as an allowance that reduced nothing.
+ *
+ * Lines stay undiscounted (EN 16931's line net). A document discount becomes
+ * one allowance per VAT category, sized so each category's taxable amount is
+ * that category's share of the discounted net (tax-breakdown.ts).
+ */
+export function computeXRechnungTotals(data: XRechnungData): XRechnungTotals {
+  const categoryOf = (rate: number): TaxCategoryCode =>
+    rate > 0 ? 'S' : data.euTransaction ? 'K' : data.reverseCharge ? 'AE' : 'E'
+
+  const lineNets = data.items.map((i) => cents(i.netAmount))
+  const lineExtension = lineNets.reduce((a, b) => a + b, 0)
+
+  const rates: number[] = []
+  const lineByRate = new Map<number, number>()
+  data.items.forEach((item, i) => {
+    const r = Math.round(item.vatRate * 10000) / 10000
+    if (!lineByRate.has(r)) rates.push(r)
+    lineByRate.set(r, (lineByRate.get(r) ?? 0) + lineNets[i])
+  })
+  rates.sort((a, b) => b - a)
+
+  let taxables = rates.map((r) => lineByRate.get(r) ?? 0)
+  if (data.hasDocumentDiscount && data.taxBreakdown && data.taxBreakdown.length > 0) {
+    const docNet = cents(data.taxBreakdown.reduce((a, b) => a + b.net, 0))
+    const weights = rates.map((r) => {
+      const b = data.taxBreakdown!.find((x) => Math.abs(x.rate - r) < 1e-6)
+      return b ? b.net : 0
+    })
+    taxables = allocateCents(docNet, weights)
   }
 
-  return Array.from(grouped.entries()).map(([rate, values]) => ({
-    rate,
-    taxableAmount: values.taxableAmount,
-    taxAmount: values.taxAmount,
-  }))
+  const allowances = rates
+    .map((r, i) => ({ amount: (lineByRate.get(r) ?? 0) - taxables[i], category: categoryOf(r), rate: r }))
+    .filter((a) => a.amount !== 0)
+  const allowanceTotal = allowances.reduce((a, b) => a + b.amount, 0)
+  const taxExclusive = lineExtension - allowanceTotal
+
+  const subtotals = rates.map((r, i) => {
+    const category = categoryOf(r)
+    const tax = category === 'S' ? Math.round((taxables[i] * r * 10000) / 10000) : 0
+    return { rate: r, category, taxable: taxables[i], tax }
+  })
+  const taxTotal = subtotals.reduce((a, b) => a + b.tax, 0)
+  const taxInclusive = taxExclusive + taxTotal
+  return {
+    lineNets,
+    lineExtension,
+    allowances,
+    allowanceTotal,
+    taxExclusive,
+    subtotals,
+    taxTotal,
+    taxInclusive,
+    payable: taxInclusive,
+    categories: [...new Set(subtotals.map((x) => x.category))],
+    categoryOf,
+  }
+}
+
+function formatCents(c: number): string {
+  const sign = c < 0 ? '-' : ''
+  const abs = Math.abs(c)
+  return `${sign}${Math.floor(abs / 100)}.${String(abs % 100).padStart(2, '0')}`
 }
 
 function mapUnitToUNECE(unit?: string): string {
@@ -645,21 +821,36 @@ export function validateXRechnung(data: XRechnungData): XRechnungValidation {
       location: 'cac:AccountingSupplierParty/cac:Country',
     })
   }
-  // BR-09: electronic address scheme required for XRechnung
-  // v2 — supplier must have an electronicAddress (VAT, tax
-  // number, or Leitweg-ID).
+  // BR-09: electronic address required for XRechnung (BT-34).
+  // Tier 412: a Steuernummer or the seller's own Leitweg-ID is not one (the
+  // generator used them under invalid schemes); it is the e-mail address or a
+  // VAT number with its own EAS code.
   if (
     !data.supplier.electronicAddress &&
-    !data.supplier.vatId &&
-    !data.supplier.taxId &&
-    !data.supplier.leitwegId
+    !data.supplier.email &&
+    !(data.supplier.vatId && vatEasScheme(data.supplier.vatId))
   ) {
     errors.push({
       rule: 'BR-09',
       severity: 'error',
       message:
-        'Elektronische Adresse des Lieferanten fehlt (BR-09 — VAT-ID, Steuernummer oder Leitweg-ID erforderlich)',
+        'Elektronische Adresse des Lieferanten fehlt (BR-09 — E-Mail-Adresse oder USt-IdNr. erforderlich)',
       location: 'cac:AccountingSupplierParty/cbc:EndpointID',
+    })
+  }
+  // Tier 412: the buyer's electronic address (BT-49) is mandatory in
+  // XRechnung (PEPPOL-EN16931-R010): Leitweg-ID, e-mail or VAT number.
+  if (
+    !data.customer?.leitwegId &&
+    !data.customer?.email &&
+    !(data.customer?.vatId && vatEasScheme(data.customer.vatId))
+  ) {
+    errors.push({
+      rule: 'PEPPOL-EN16931-R010',
+      severity: 'error',
+      message:
+        'Elektronische Adresse des Kunden fehlt (BT-49 — Leitweg-ID, E-Mail-Adresse oder USt-IdNr. beim Kunden hinterlegen)',
+      location: 'cac:AccountingCustomerParty/cbc:EndpointID',
     })
   }
   // BR-1 v2: BuyerReference mandatory
@@ -713,34 +904,26 @@ export function validateXRechnung(data: XRechnungData): XRechnungValidation {
       })
     }
   })
-  // BR-CO-09: TaxSubtotal amounts must add up to totalVat
-  const vatByRate = groupVatByRate(data.items)
-  const sumVat = vatByRate.reduce((s, v) => s + v.taxAmount, 0)
-  if (Math.abs(sumVat - data.totalVat) > 0.01) {
+  // Tier 412: BR-CO-09/10/13 used to compare the stored totals with the lines,
+  // which a correctly discounted invoice can never satisfy (net + VAT ≠ lines +
+  // line VAT). The XML's arithmetic now holds by construction
+  // (computeXRechnungTotals); what can still go wrong is the XML disagreeing
+  // with the document the customer received.
+  const computed = computeXRechnungTotals(data)
+  if (Math.abs(computed.payable - Math.round(data.total * 100)) > 1) {
     errors.push({
-      rule: 'BR-CO-09',
+      rule: 'BR-CO-15',
       severity: 'error',
-      message: `Steuer-Subtotal-Summe (${sumVat.toFixed(2)}) ≠ Gesamtsteuer (${data.totalVat.toFixed(2)}) (BR-CO-09)`,
-      location: 'cac:TaxTotal',
+      message: `XRechnung-Zahlbetrag (${(computed.payable / 100).toFixed(2)}) ≠ Rechnungsbetrag (${data.total.toFixed(2)}) (BR-CO-15)`,
+      location: 'cac:LegalMonetaryTotal/cbc:PayableAmount',
     })
   }
-  // BR-CO-10: line sums must add up to subtotal
-  const lineSum = data.items.reduce((s, i) => s + i.netAmount, 0)
-  if (Math.abs(lineSum - data.subtotal) > 0.01) {
+  if (Math.abs(computed.taxTotal - Math.round(data.totalVat * 100)) > 1) {
     errors.push({
-      rule: 'BR-CO-10',
+      rule: 'BR-CO-14',
       severity: 'error',
-      message: `Positionssumme (${lineSum.toFixed(2)}) ≠ Nettobetrag (${data.subtotal.toFixed(2)}) (BR-CO-10)`,
-      location: 'cac:LegalMonetaryTotal/cbc:LineExtensionAmount',
-    })
-  }
-  // BR-CO-13: tax inclusive = tax exclusive + tax total
-  if (Math.abs(data.total - (data.subtotal + data.totalVat)) > 0.01) {
-    errors.push({
-      rule: 'BR-CO-13',
-      severity: 'error',
-      message: `Bruttobetrag (${data.total.toFixed(2)}) ≠ Netto + USt (${(data.subtotal + data.totalVat).toFixed(2)}) (BR-CO-13)`,
-      location: 'cac:LegalMonetaryTotal',
+      message: `XRechnung-Steuerbetrag (${(computed.taxTotal / 100).toFixed(2)}) ≠ ausgewiesene USt (${data.totalVat.toFixed(2)}) (BR-CO-14)`,
+      location: 'cac:TaxTotal/cbc:TaxAmount',
     })
   }
   // BR-CO-15: payable amount = total (no prepaid amount for v1)
@@ -798,6 +981,11 @@ export function transformToXRechnungData(
     /** v2: per-invoice Skonto (cash discount) */
     skontoPercent?: any
     skontoDays?: any
+    /** Tier 412: tax treatment and the invoice discount */
+    euTransaction?: boolean | null
+    reverseCharge?: boolean | null
+    discountPercent?: any
+    discountAmount?: any
     customer: {
       name: string
       vatId?: string | null
@@ -820,6 +1008,8 @@ export function transformToXRechnungData(
     name: string
     vatId?: string | null
     taxId?: string | null
+    legalName?: string | null
+    registerEntry?: string | null
     address: any
     bankInfo?: any
     /** v2: Leitweg-ID stored in settings (B2G use) */
@@ -879,6 +1069,8 @@ export function transformToXRechnungData(
       address: company.address || {},
       vatId: company.vatId || undefined,
       taxId: company.taxId || undefined,
+      legalName: company.legalName || undefined,
+      registerEntry: company.registerEntry || undefined,
       leitwegId: company.leitwegId || undefined,
       bankInfo: company.bankInfo || undefined,
       email: company.email || undefined,
@@ -909,6 +1101,16 @@ export function transformToXRechnungData(
     total: parseFloat(String(invoice.total)),
     notes: invoice.notes || undefined,
     skonto,
+    // Tier 412
+    euTransaction: invoice.euTransaction === true,
+    reverseCharge: invoice.reverseCharge === true,
+    hasDocumentDiscount:
+      Number(invoice.discountPercent ?? 0) > 0 || Number(invoice.discountAmount ?? 0) > 0,
+    taxBreakdown: invoiceTaxBreakdown({
+      total: invoice.total,
+      totalVat: invoice.totalVat,
+      items: invoice.items,
+    }).byRate,
   }
 }
 
