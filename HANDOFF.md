@@ -2443,6 +2443,51 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### A bulk write left a count, not a record (Tier 408)
+
+`updateMany` / `deleteMany` on an audited model wrote one row: entityId
+`bulk:<where>`, newData `{ count }`. Measured on a customer merge:
+
+- both invoices moved to the other customer, and each invoice's own trail still
+  read only `invoice.created`;
+- the one relevant row said "2 invoices of customer A were updated" — not
+  which, and not to what;
+- five more rows said `{ count: 0 }` for relations the customer did not have.
+
+The same shape covered an invoice's items deleted with it, the AfA storno
+deleting booked depreciation, a SEPA batch marking invoices paid, and customer
+credit / instalment / mandate moves in the merge. *Wer hat wann was geändert*
+had no answer precisely for the operations that change many booked records at
+once.
+
+Now each affected record gets its own row under its own id: the before-image
+(read before the statement) and, for an update, the after-image. **The
+after-image is read lazily, when the audit row is written** — that is the
+subtle part. The merge runs in a transaction, and a read from the audit
+writer's own connection before commit would still see the *old* customer; with
+Tier 406's buffer the row is written after commit, so the after-image is the
+committed state (asserted). Outside a transaction the statement has already
+committed when the row is written.
+
+- A bulk that matched nothing writes nothing.
+- `ErrorEvent` keeps the count-only row: its bulk operations are retention
+  purges and "resolve all" over operational data, with per-row rows written
+  elsewhere since Tier 208.
+- Above `BULK_DETAIL_CAP` (5000) records the first 5000 are detailed and a
+  summary row notes the rest, so a runaway statement cannot stall a request on
+  the serialised audit writer.
+- Composite-key models (no `id`) keep the summary row.
+
+Spec `e2e/197-tier408-bulk-audit.sh` (17 assertions): both merged invoices show
+source → target in their own trail, attributed, with the committed after-image,
+and no count-only rows; a deleted invoice's two items each on the record with
+their text; the AfA storno's removed booking on the record under its own id
+with amount and asset; the chain verifying; and the two escape hatches pinned.
+10 fail against the old code.
+
+Found on the way, left as a decision (§9 item 15): the AfA storno deletes the
+bookings rather than reversing them.
+
 ### Payments, roles and company data had no audit trail (Tier 407)
 
 Tier 406 made transactional writes reach the audit extension. The next question
@@ -3678,6 +3723,16 @@ These are **not in the repo** — only the user can do them:
     typo right after sending) or "same day, as now". The frontend shows
     Bearbeiten / Löschen on every invoice dated today. Also open under the same
     heading: editing an invoice that has payments.
+
+15. **Should the AfA storno reverse bookings instead of deleting them?**
+    (found Tier 408) `POST /assets/storno-afa` hard-deletes the year's booked
+    depreciation expenses and re-books on the next run. Since Tier 408 every
+    deleted booking is on the audit record with its amount and asset, so the
+    history is recoverable — but the ledger itself no longer shows that the
+    booking ever existed, which is not how a Storno normally works (a
+    counter-booking that nets it to zero). Options: keep delete-and-rebook
+    (simple, audited), or book negative counter-entries. Matters most once a
+    year's figures have gone into a filed Anlage EÜR / E-Bilanz. Not changed.
 
 When the Hetzner items are available, the deploy is:
 

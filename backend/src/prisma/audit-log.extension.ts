@@ -437,14 +437,9 @@ export function createAuditLogExtension() {
         },
         async updateMany({ model, _operation, args, query }: any) {
           if (!AUDITED_MODELS.has(model)) return query(args)
+          const affected = await findAffected(_auditLogClient, model, args.where)
           const result = await query(args)
-          await writeAudit(_auditLogClient, {
-            action: actionOf('updateMany', model),
-            entityType: model,
-            entityId: 'bulk:' + JSON.stringify(args.where).slice(0, 200),
-            oldData: null,
-            newData: { count: result.count },
-          })
+          await writeBulkAudit(model, 'updateMany', args, result, affected)
           return result
         },
         // Tier 407: upsert had no hook, so every write made with it skipped the
@@ -492,14 +487,9 @@ export function createAuditLogExtension() {
         },
         async deleteMany({ model, _operation, args, query }: any) {
           if (!AUDITED_MODELS.has(model)) return query(args)
+          const affected = await findAffected(_auditLogClient, model, args.where)
           const result = await query(args)
-          await writeAudit(_auditLogClient, {
-            action: actionOf('deleteMany', model),
-            entityType: model,
-            entityId: 'bulk:' + JSON.stringify(args.where).slice(0, 200),
-            oldData: null,
-            newData: { count: result.count },
-          })
+          await writeBulkAudit(model, 'deleteMany', args, result, affected)
           return result
         },
       },
@@ -523,6 +513,99 @@ export function withAuditLog(client: any): any {
 // row was deleted between the request
 // reaching the service and the extension
 // running).
+/**
+ * Tier 408 — a bulk write is recorded per record, not as a count.
+ *
+ * updateMany / deleteMany used to leave one row: `bulk:<where>` and
+ * `{ count }`. Measured on a customer merge: both invoices moved to the other
+ * customer, each invoice's own trail still read only `invoice.created`, and the
+ * one bulk row said "2 invoices of customer A were updated" — not which ones,
+ * and not to what. The same shape covered a SEPA batch marking invoices paid,
+ * the AfA storno deleting booked expenses, and an invoice's items being
+ * removed with it. "Wer hat wann was geändert" had no answer for exactly the
+ * operations that change many booked records at once.
+ *
+ * Now each affected record gets its own row under its own id, with its
+ * before-image, and for an update its after-image. The after-image is read
+ * lazily, when the row is written: inside a transaction that is after commit
+ * (Tier 406's buffer), so it shows the committed state rather than the old
+ * values an outside connection would still see mid-transaction.
+ *
+ * ErrorEvent keeps the summary row: its bulk operations are retention purges
+ * and "resolve all" over operational data, recorded per row elsewhere
+ * (Tier 208). A bulk that touches more than BULK_DETAIL_CAP records is
+ * detailed up to the cap and summarised beyond it, so a runaway statement
+ * cannot stall the request on the audit writer.
+ */
+const BULK_DETAIL_CAP = 5000
+const BULK_SUMMARY_ONLY = new Set<string>(['ErrorEvent'])
+
+async function findAffected(client: any, model: string, where: any): Promise<any[] | null> {
+  if (BULK_SUMMARY_ONLY.has(model)) return null
+  try {
+    const rows = await client[lowerFirst(model)].findMany({
+      where: where ?? {},
+      take: BULK_DETAIL_CAP + 1,
+    })
+    // Per-record rows need a per-record id; composite-key models keep the summary.
+    if (rows.length > 0 && !('id' in rows[0])) return null
+    return rows
+  } catch {
+    return null
+  }
+}
+
+async function writeBulkAudit(
+  model: string,
+  op: 'updateMany' | 'deleteMany',
+  args: any,
+  result: any,
+  affected: any[] | null,
+) {
+  const count = Number(result?.count ?? 0)
+  // Nothing matched, nothing changed: no row. A merge used to leave six
+  // `{ count: 0 }` rows for relations the customer did not have.
+  if (count === 0) return
+  const summary = (extra: Record<string, unknown> = {}) =>
+    writeAudit(_auditLogClient, {
+      action: actionOf(op, model),
+      entityType: model,
+      entityId: 'bulk:' + JSON.stringify(args.where).slice(0, 200),
+      oldData: null,
+      newData: { count, ...extra },
+    })
+  if (!affected) {
+    await summary()
+    return
+  }
+  const detailed = affected.slice(0, BULK_DETAIL_CAP)
+  let afterById: Promise<Map<string, any>> | null = null
+  const after = () => {
+    if (!afterById) {
+      afterById = _auditLogClient[lowerFirst(model)]
+        .findMany({ where: { id: { in: detailed.map((r) => r.id) } } })
+        .then((rows: any[]) => new Map(rows.map((r) => [r.id, r])))
+        .catch(() => new Map())
+    }
+    return afterById as Promise<Map<string, any>>
+  }
+  for (const row of detailed) {
+    await writeAudit(_auditLogClient, {
+      action: actionOf(op === 'updateMany' ? 'update' : 'delete', model),
+      entityType: model,
+      entityId: row.id,
+      oldData: sanitize(row),
+      newData:
+        op === 'updateMany'
+          ? async () => sanitize((await after()).get(row.id) ?? null)
+          : null,
+    })
+  }
+  if (affected.length > BULK_DETAIL_CAP) {
+    await summary({ detailed: BULK_DETAIL_CAP, note: 'bulk larger than the per-record cap' })
+  }
+}
+
 async function getPreImage(
   client: any,
   model: string,
@@ -647,8 +730,14 @@ async function writeAudit(client: any, entry: AuditEntry) {
   await writeAuditNow(client, entry, ctx)
 }
 
-async function writeAuditNow(client: any, entry: AuditEntry, ctx: AuditCtx) {
+async function writeAuditNow(client: any, rawEntry: AuditEntry, ctx: AuditCtx) {
   try {
+    // Tier 408: a bulk update's after-image is resolved here, i.e. after the
+    // change is committed (see writeBulkAudit).
+    const entry: AuditEntry =
+      typeof rawEntry.newData === 'function'
+        ? { ...rawEntry, newData: await rawEntry.newData() }
+        : rawEntry
     // Tier 196 — chain this row to the previous one. The chain is per-company;
     // on a fresh DB the first row's previousHash is ''.
     //
