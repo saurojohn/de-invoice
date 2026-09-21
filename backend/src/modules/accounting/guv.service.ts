@@ -1,3 +1,4 @@
+import { expenseCost } from './expense-cost'
 import { Injectable } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
@@ -203,6 +204,13 @@ export class GuVService {
     // "AfA buchen" for this year). Without this
     // exclusion the AfA rows would land in the
     // Sonstige bucket (8) and double-count.
+    // Tier 419: net for a business that deducts input tax, gross for a
+    // Kleinunternehmer (expense-cost.ts). This summed gross amounts.
+    const vatMode = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { defaultVatMode: true },
+    })
+    const kleinunternehmer = vatMode?.defaultVatMode === 'kleinunternehmer'
     const expenses = await this.prisma.expense.findMany({
       where: {
         companyId,
@@ -268,19 +276,19 @@ export class GuVService {
     )
 
     const materialaufwand = materialExpenses.reduce(
-      (s, e) => s.plus(e.grossAmount ?? new Prisma.Decimal(0)),
+      (s, e) => s.plus(new Prisma.Decimal(expenseCost(e, kleinunternehmer))),
       new Prisma.Decimal(0),
     ).toNumber()
     const personalaufwand = personalExpenses.reduce(
-      (s, e) => s.plus(e.grossAmount ?? new Prisma.Decimal(0)),
+      (s, e) => s.plus(new Prisma.Decimal(expenseCost(e, kleinunternehmer))),
       new Prisma.Decimal(0),
     ).toNumber()
     const sonstigeAufwendungen = sonstigeExpenses.reduce(
-      (s, e) => s.plus(e.grossAmount ?? new Prisma.Decimal(0)),
+      (s, e) => s.plus(new Prisma.Decimal(expenseCost(e, kleinunternehmer))),
       new Prisma.Decimal(0),
     ).toNumber()
     const zinsaufwendungen = zinsExpenses.reduce(
-      (s, e) => s.plus(e.grossAmount ?? new Prisma.Decimal(0)),
+      (s, e) => s.plus(new Prisma.Decimal(expenseCost(e, kleinunternehmer))),
       new Prisma.Decimal(0),
     ).toNumber()
 

@@ -1,3 +1,4 @@
+import { expenseCost } from '../accounting/expense-cost'
 import { Injectable } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
@@ -251,6 +252,11 @@ export class BwaService {
   }
 
   async compute(companyId: string, year: number, month: number): Promise<BwaResult> {
+    // Tier 419: expenses at their net cost unless the company is a
+    // Kleinunternehmer (expense-cost.ts).
+    const kleinunternehmer =
+      (await this.prisma.company.findUnique({ where: { id: companyId }, select: { defaultVatMode: true } }))
+        ?.defaultVatMode === 'kleinunternehmer'
     const company = await this.prisma.company.findUnique({ where: { id: companyId } })
     if (!company) throw new Error('Company nicht gefunden')
 
@@ -311,7 +317,7 @@ export class BwaService {
           category: { not: 'AfA' },
           invoiceDate: { gte: yearStart, lte: monthEnd },
         },
-        select: { grossAmount: true, category: true, invoiceDate: true },
+        select: { netAmount: true, grossAmount: true, category: true, invoiceDate: true },
       }),
       this.prisma.asset.findMany({ where: { companyId } }),
       this.prisma.expense.findMany({
@@ -375,9 +381,12 @@ export class BwaService {
     //   - "correct" accounting sign with negative
     //     grossAmount (= outflow, matches the
     //     signing used in Anlage S / EÜR)
+    // Tier 419: net for a business that deducts input tax, gross for a
+    // Kleinunternehmer (expense-cost.ts). This took grossAmount: every expense
+    // was overstated by its VAT, next to revenue counted net (Tier 411).
     const bucketedExpenses = expenses.map((e) => ({
       date: e.invoiceDate,
-      amount: Math.abs(Number(e.grossAmount)),
+      amount: Math.abs(expenseCost(e, kleinunternehmer)),
       bucket: bucketFor(e.category),
     }))
 
@@ -495,7 +504,7 @@ export class BwaService {
           category: { not: 'AfA' },
           invoiceDate: { gte: vorjahresYtdStart, lte: vorjahresYtdEnd },
         },
-        select: { grossAmount: true, category: true },
+        select: { netAmount: true, grossAmount: true, category: true },
       }),
       this.prisma.expense.findMany({
         where: {
@@ -518,7 +527,7 @@ export class BwaService {
     // Math.abs() convention as the current year
     // (line values are positive).
     const vorjahresBucketed = vorjahresExpenses.map((e) => ({
-      amount: Math.abs(Number(e.grossAmount)),
+      amount: Math.abs(expenseCost(e, kleinunternehmer)),
       bucket: bucketFor(e.category),
     }))
     const vorjahresYtdByBucket = (bucket: string) =>

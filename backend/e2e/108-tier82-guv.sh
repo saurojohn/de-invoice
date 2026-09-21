@@ -212,7 +212,8 @@ VALUES
 EOF
 
 # Add 4 expenses across 4 categories:
-#  Material (5a)  400
+#  Material (5a)  400 gross / 336.13 net — Tier 419: the GuV counts the net
+#  (input tax is deductible); this spec used to assert the gross
 #  Personal (6a)  500
 #  Schuldzins (13) 100
 #  Miete (8 sonstige) 200
@@ -288,7 +289,7 @@ assert_eq "Umsatzerlöse delta = +2000" "$D_UMSATZ" "2000"
 
 # ── 3. Pos 5a (Materialaufwand) ──
 echo
-note "=== 3. Pos 5a (Materialaufwand) delta = +400 ==="
+note "=== 3. Pos 5a (Materialaufwand) delta = +336 (net of 400 gross) ==="
 NEW_MAT=$(python3 -c "
 import json
 d = json.load(open('$TMP'))
@@ -298,11 +299,11 @@ for l in d['cost']['lines']:
     break
 ")
 D_MAT=$(python3 -c "print(round(float('$NEW_MAT') - float('$BASE_MATERIAL')))")
-assert_eq "Materialaufwand delta = +400" "$D_MAT" "400"
+assert_eq "Materialaufwand delta = +336 (net; was the 400 gross)" "$D_MAT" "336"
 
 # ── 4. Pos 6a (Personalaufwand) ──
 echo
-note "=== 4. Pos 6a (Personalaufwand) delta = +500 ==="
+note "=== 4. Pos 6a (Personalaufwand) delta = +420 (net of 500 gross) ==="
 NEW_PERS=$(python3 -c "
 import json
 d = json.load(open('$TMP'))
@@ -312,11 +313,11 @@ for l in d['cost']['lines']:
     break
 ")
 D_PERS=$(python3 -c "print(round(float('$NEW_PERS') - float('$BASE_PERSONAL')))")
-assert_eq "Personalaufwand delta = +500" "$D_PERS" "500"
+assert_eq "Personalaufwand delta = +420 (net; was the 500 gross)" "$D_PERS" "420"
 
 # ── 5. Pos 8 (Sonstige betr. Aufwendungen) ──
 echo
-note "=== 5. Pos 8 (Sonstige betr. Aufwendungen) delta = +200 (Miete only) ==="
+note "=== 5. Pos 8 (Sonstige betr. Aufwendungen) delta = +168 (Miete only, net of 200 gross) ==="
 NEW_SONST_AUFW=$(python3 -c "
 import json
 d = json.load(open('$TMP'))
@@ -326,11 +327,11 @@ for l in d['cost']['lines']:
     break
 ")
 D_SONST_AUFW=$(python3 -c "print(round(float('$NEW_SONST_AUFW') - float('$BASE_SONST_AUFW')))")
-assert_eq "Sonstige Aufwendungen delta = +200" "$D_SONST_AUFW" "200"
+assert_eq "Sonstige Aufwendungen delta = +168 (net; was the 200 gross)" "$D_SONST_AUFW" "168"
 
 # ── 6. Pos 13 (Zinsen) ──
 echo
-note "=== 6. Pos 13 (Zinsen und ähnliche Aufwendungen) delta = +100 ==="
+note "=== 6. Pos 13 (Zinsen und ähnliche Aufwendungen) delta = +84 (net of 100 gross) ==="
 NEW_ZINS=$(python3 -c "
 import json
 d = json.load(open('$TMP'))
@@ -340,7 +341,7 @@ for l in d['financial']['lines']:
     break
 ")
 D_ZINS=$(python3 -c "print(round(float('$NEW_ZINS') - float('$BASE_ZINS')))")
-assert_eq "Zinsaufwendungen delta = +100" "$D_ZINS" "100"
+assert_eq "Zinsaufwendungen delta = +84 (net; was the 100 gross)" "$D_ZINS" "84"
 
 # ── 7. Nicht ausgewiesen positions ──
 echo

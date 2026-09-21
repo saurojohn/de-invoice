@@ -9,17 +9,18 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–417 are
-  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 417.)
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–418 are
+  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 418.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 35634107905 / commit `888aa3e`, Tier 417):**
-  - Backend e2e: **205 passed / 0 failed / 1 skipped** of 206 specs — 100
-    two-digit + 106 three-digit (Tier 417 added `206-tier417-ustva-kennzahlen.sh`,
+- **Test counts (last green CI, run 35647495312 / commit `8831a04`, Tier 418):**
+  - Backend e2e: **206 passed / 0 failed / 1 skipped** of 207 specs — 100
+    two-digit + 107 three-digit (Tier 418 added `207-tier418-pdf-pagination.sh`,
+    Tier 417 `206-tier417-ustva-kennzahlen.sh`,
     Tier 416 `205-tier416-credit-note-tax.sh`,
     Tier 415 `204-tier415-amounts-in-cents.sh`,
     Tier 414 `203-tier414-zugferd-cii.sh`,
@@ -2438,6 +2439,7 @@ see below); Tier 398a run 35099184553 green: backend 188/0/1, Playwright 922.
 Tier 400 run 35112477951, all six jobs green: backend 189/0/1 (the new spec
 is the +1; the skip is still 16-dark-mode), Playwright 922.
 Tier 402 run 35140985920, all six jobs green: backend 190/0/1, Playwright 926.
+Tier 418 run 35647495312, all six jobs green: backend 206/0/1, Playwright 930 passed, 0 flaky.
 Tier 417 run 35634107905, all six jobs green: backend 205/0/1, Playwright 930 passed, 0 flaky.
 Tier 416 run 35628280500, all six jobs green: backend 204/0/1, Playwright 930 passed, 0 flaky.
 Tier 415 run 35621206517, all six jobs green: backend 203/0/1, Playwright 930 passed (+2), 0 flaky.
@@ -2463,6 +2465,29 @@ Tier 401 run 35123354210 **failed** on backend lint — a warning
 runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
+
+### GuV and BWA counted input tax as a cost (Tier 419)
+
+Both summed the expenses' `grossAmount` — the supplier's price including VAT.
+For a business that deducts input tax, that VAT comes back through the UStVA;
+it is not a cost. Measured on one company, revenue 1 000 € and three expenses
+of 100 € net / 119 € gross:
+
+| Report | Before | Now |
+|---|---|---|
+| GuV Jahresüberschuss | 643 | 700 |
+| BWA Materialaufwand / Jahresergebnis | 119 / 643 | 100 / 700 |
+| EÜR Gewinn (already net) | 700 | 700 |
+
+`expense-cost.ts` now decides: net, or gross for a Kleinunternehmer (§ 19
+UStG, `Company.defaultVatMode`), who cannot deduct input tax. The Bilanz still
+reads gross amounts for Verbindlichkeiten — correctly, a payable is the gross.
+
+`e2e/108` and `e2e/112` inserted expenses with gross 400 / net 336.13 and
+asserted the GuV / BWA moved by 400 — the defect; they now expect the net.
+
+Spec `e2e/208-tier419-expense-net-cost.sh` (9 assertions, 3 failing against
+the old code; the Kleinunternehmer half is the same before and after).
 
 ### A long invoice was a PDF of hundreds of mostly blank pages (Tier 418)
 
@@ -2844,7 +2869,7 @@ old code.
 
 Left open: the GoBD archive summary and its PDF bundle include drafts and
 cancelled invoices in the revenue total (the document list should include them;
-the total arguably should not); BWA sums expenses by `grossAmount` (with VAT).
+the total arguably should not); BWA sums expenses by `grossAmount` (with VAT) — fixed in Tier 419.
 
 ### Every igL and reverse-charge invoice was issued with 19 % VAT (Tier 410)
 

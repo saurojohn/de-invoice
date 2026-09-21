@@ -146,6 +146,7 @@ VALUES (gen_random_uuid()::text, '$INV2_ID', 'Wartung', 1, 500, 0.19, 500, 95, 5
 EOF
 
 # Seed expenses: Material 300 (5a), Personal 400 (6a), Schuldzins 100 (13)
+# (gross; Tier 419: the BWA counts the net amounts — this spec used to assert the gross)
 docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<EOF >/dev/null
 INSERT INTO "Expense" (id, "companyId", "invoiceNumber", description, "invoiceDate",
                        "netAmount", "vatRate", "vatAmount", "grossAmount", category, status,
@@ -227,7 +228,7 @@ assert_eq "Umsatzerlöse YTD delta = +1500" "$D_UMSATZ" "1500"
 
 # ── 5. YTD Material delta = +300 ──
 echo
-note "=== 5. YTD Materialaufwand (2000) delta = +300 ==="
+note "=== 5. YTD Materialaufwand (2000) delta = +252 (net of 300 gross) ==="
 NEW_MAT_YTD=$(python3 -c "
 import json
 d = json.load(open('$TMP'))
@@ -237,11 +238,11 @@ for l in d['lines']:
     break
 ")
 D_MAT=$(python3 -c "print(round(float('$NEW_MAT_YTD') - float('$BASE_MAT_YTD')))")
-assert_eq "Materialaufwand YTD delta = +300" "$D_MAT" "300"
+assert_eq "Materialaufwand YTD delta = +252 (net; was the 300 gross)" "$D_MAT" "252"
 
 # ── 6. YTD Personal delta = +400 ──
 echo
-note "=== 6. YTD Personalkosten (3000) delta = +400 ==="
+note "=== 6. YTD Personalkosten (3000) delta = +336 (net of 400 gross) ==="
 NEW_PERS_YTD=$(python3 -c "
 import json
 d = json.load(open('$TMP'))
@@ -251,7 +252,7 @@ for l in d['lines']:
     break
 ")
 D_PERS=$(python3 -c "print(round(float('$NEW_PERS_YTD') - float('$BASE_PERS_YTD')))")
-assert_eq "Personalkosten YTD delta = +400" "$D_PERS" "400"
+assert_eq "Personalkosten YTD delta = +336 (net; was the 400 gross)" "$D_PERS" "336"
 
 # ── 7. Tier 93: Miete-category expense now goes to 3200 Raumkosten ──
 echo
@@ -273,7 +274,7 @@ for l in d['lines']:
     break
 ")
 D_RAUM=$(python3 -c "print(round(float('$NEW_RAUM_YTD') - float('$BASE_RAUM_YTD')))")
-assert_eq "3200 Raumkosten YTD delta = +200 (Miete)" "$D_RAUM" "200"
+assert_eq "3200 Raumkosten YTD delta = +168 (Miete, net; was the 200 gross)" "$D_RAUM" "168"
 # And 3600 should NOT have the Miete delta.
 NEW_SONST_YTD=$(python3 -c "
 import json
