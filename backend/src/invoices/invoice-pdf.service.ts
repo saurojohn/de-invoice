@@ -214,7 +214,8 @@ export async function generateInvoicePDF(
     // triggering an addPage. PDFKit's `margins` option takes
     // a per-side object — `margin` (singular) is the all-sides
     // shortcut and would clobber this.
-    const doc = new PDFKit({ margins: { top: 50, left: 50, right: 50, bottom: 10 }, size: "A4" }) as any
+    // Tier 418: bufferPages so every page can get its "Seite i von n" at the end.
+    const doc = new PDFKit({ margins: { top: 50, left: 50, right: 50, bottom: 10 }, size: "A4", bufferPages: true }) as any
     const chunks: Buffer[] = []
 
     doc.on("data", (chunk: Buffer) => chunks.push(chunk))
@@ -532,6 +533,17 @@ export async function generateInvoicePDF(
       ? Math.max(280, Math.max(custY, detailsEndY) + 20)
       : Math.max(280, Math.max(custY, detailsEndY) + 20)
     let y = tableStartY
+    // Tier 418: the item table breaks across pages. It had no page break at
+    // all: a row below the page's bottom margin made PDFKit start a new page
+    // for each of its cells, so 25 items became a 26-page PDF and 40 items
+    // 116 pages, mostly blank, with the totals on the last one. A row that
+    // does not fit now starts a page with the column headers repeated, and
+    // leaves room for the page number.
+    const rowFits = (height: number) => y + height <= doc.page.height - 40
+    const newTablePage = () => {
+      doc.addPage()
+      y = 50
+    }
 
     if (isCompact) {
       // Compact table with fewer columns (Brutto column removed)
@@ -543,18 +555,19 @@ export async function generateInvoicePDF(
 
       // Compact table header - no fill, just bottom border.
       // Tier 7.5: stroke uses primaryColor.
-      doc.strokeColor(primaryColor)
-        .moveTo(leftMargin, y + compactHeaderHeight).lineTo(rightMargin, y + compactHeaderHeight).lineWidth(0.8).stroke()
-      doc.fillColor(textColor)
-      doc.fillColor(textColor)
-        .fontSize(9).font(fontFor('bold'))
-        .text("Artikel Nr.", leftMargin + 5, y + 6, { width: compactColWidths.sku - 10, lineBreak: false })
-        .text("Beschreibung", leftMargin + compactColWidths.sku, y + 6, { width: compactColWidths.desc - 10, lineBreak: false })
-        .text("Menge", leftMargin + compactColWidths.sku + compactColWidths.desc, y + 6, { width: compactColWidths.qty, align: "center", lineBreak: false })
-        .text("Einzelpreis", leftMargin + compactColWidths.sku + compactColWidths.desc + compactColWidths.qty, y + 6, { width: compactColWidths.price, align: "center", lineBreak: false })
-
-      y += compactHeaderHeight
-      doc.fillColor(textColor).font(fontFor('regular')).fontSize(9).lineWidth(0.3)
+      const drawCompactHeader = () => {
+        doc.strokeColor(primaryColor)
+          .moveTo(leftMargin, y + compactHeaderHeight).lineTo(rightMargin, y + compactHeaderHeight).lineWidth(0.8).stroke()
+        doc.fillColor(textColor)
+          .fontSize(9).font(fontFor('bold'))
+          .text("Artikel Nr.", leftMargin + 5, y + 6, { width: compactColWidths.sku - 10, lineBreak: false })
+          .text("Beschreibung", leftMargin + compactColWidths.sku, y + 6, { width: compactColWidths.desc - 10, lineBreak: false })
+          .text("Menge", leftMargin + compactColWidths.sku + compactColWidths.desc, y + 6, { width: compactColWidths.qty, align: "center", lineBreak: false })
+          .text("Einzelpreis", leftMargin + compactColWidths.sku + compactColWidths.desc + compactColWidths.qty, y + 6, { width: compactColWidths.price, align: "center", lineBreak: false })
+        y += compactHeaderHeight
+        doc.fillColor(textColor).font(fontFor('regular')).fontSize(9).lineWidth(0.3)
+      }
+      drawCompactHeader()
       // Center amounts in their columns
       const cQtyX = leftMargin + compactColWidths.sku + compactColWidths.desc
       const cQtyW = compactColWidths.qty
@@ -562,8 +575,14 @@ export async function generateInvoicePDF(
       const cPriceW = compactColWidths.price
       invoice.items.forEach((item, i) => {
         const rowHeight = 20
+        let firstOnPage = i === 0
+        if (!rowFits(rowHeight)) {
+          newTablePage()
+          drawCompactHeader()
+          firstOnPage = true
+        }
         // Light dotted line between rows instead of fill
-        if (i > 0) {
+        if (!firstOnPage) {
           doc.moveTo(leftMargin, y).lineTo(rightMargin, y).stroke()
         }
         // SKU in its own column (centered); if no linked product, show "—"
@@ -585,24 +604,26 @@ export async function generateInvoicePDF(
       const headerHeight = 25
       const rowHeight = 24
 
+      // Gesamt header: right-aligned within net column → right edge = rightMargin
+      const sNetX = leftMargin + colWidths.sku + colWidths.desc + colWidths.qty + colWidths.price + colWidths.vat
+      const sNetW = colWidths.net
       // Table header - no fill, just bottom border.
       // Tier 7.5: stroke uses primaryColor.
-      doc.strokeColor(primaryColor)
-        .moveTo(leftMargin, y + headerHeight).lineTo(rightMargin, y + headerHeight).lineWidth(0.8).stroke()
-      doc.fillColor(textColor)
-        .fontSize(10).font(fontFor('bold'))
-        .text("Artikel Nr.", leftMargin + 5, y + 8, { width: colWidths.sku - 10, lineBreak: false })
-        .text("Beschreibung", leftMargin + colWidths.sku, y + 8, { width: colWidths.desc - 10, lineBreak: false })
-        .text("Menge", leftMargin + colWidths.sku + colWidths.desc, y + 8, { width: colWidths.qty, align: "center", lineBreak: false })
-        .text("Einzelpreis", leftMargin + colWidths.sku + colWidths.desc + colWidths.qty, y + 8, { width: colWidths.price, align: "center", lineBreak: false })
-        .text("MwSt", leftMargin + colWidths.sku + colWidths.desc + colWidths.qty + colWidths.price, y + 8, { width: colWidths.vat, align: "center", lineBreak: false })
-        // Gesamt header: right-aligned within net column → right edge = rightMargin
-        const sNetX = leftMargin + colWidths.sku + colWidths.desc + colWidths.qty + colWidths.price + colWidths.vat
-        const sNetW = colWidths.net
+      const drawHeader = () => {
+        doc.strokeColor(primaryColor)
+          .moveTo(leftMargin, y + headerHeight).lineTo(rightMargin, y + headerHeight).lineWidth(0.8).stroke()
+        doc.fillColor(textColor)
+          .fontSize(10).font(fontFor('bold'))
+          .text("Artikel Nr.", leftMargin + 5, y + 8, { width: colWidths.sku - 10, lineBreak: false })
+          .text("Beschreibung", leftMargin + colWidths.sku, y + 8, { width: colWidths.desc - 10, lineBreak: false })
+          .text("Menge", leftMargin + colWidths.sku + colWidths.desc, y + 8, { width: colWidths.qty, align: "center", lineBreak: false })
+          .text("Einzelpreis", leftMargin + colWidths.sku + colWidths.desc + colWidths.qty, y + 8, { width: colWidths.price, align: "center", lineBreak: false })
+          .text("MwSt", leftMargin + colWidths.sku + colWidths.desc + colWidths.qty + colWidths.price, y + 8, { width: colWidths.vat, align: "center", lineBreak: false })
         doc.text("Gesamt", sNetX, y + 8, { width: sNetW, align: "right", lineBreak: false })
-
-      y += headerHeight
-      doc.font(fontFor('regular')).fontSize(10).lineWidth(0.3)
+        y += headerHeight
+        doc.font(fontFor('regular')).fontSize(10).lineWidth(0.3)
+      }
+      drawHeader()
       // Pre-compute column positions
       const sQtyX = leftMargin + colWidths.sku + colWidths.desc
       const sQtyW = colWidths.qty
@@ -611,8 +632,14 @@ export async function generateInvoicePDF(
       const sVatX = leftMargin + colWidths.sku + colWidths.desc + colWidths.qty + colWidths.price
       const sVatW = colWidths.vat
       invoice.items.forEach((item, i) => {
+        let firstOnPage = i === 0
+        if (!rowFits(rowHeight)) {
+          newTablePage()
+          drawHeader()
+          firstOnPage = true
+        }
         // Light dotted line between rows
-        if (i > 0) {
+        if (!firstOnPage) {
           doc.moveTo(leftMargin, y).lineTo(rightMargin, y).stroke()
         }
         // SKU in its own column (centered); priority:
@@ -969,34 +996,20 @@ export async function generateInvoicePDF(
     // string "undefined" to appear at the right margin. Fall
     // back to the buffered page count from PDFKit's own helper,
     // which is always populated while writing.
-    const pageCount = doc.bufferedPageRange
-      ? doc.bufferedPageRange().count
-      : doc.page?.number ?? 1
-    const pageNumberY = doc.page.height - 22
-    doc.text(
-      `Seite ${pageCount}`,
-      leftMargin,
-      pageNumberY,
-      { width: pageWidth - leftMargin * 2, align: "center", lineBreak: false }
-    )
+    // Tier 418: "Seite i von n" on every page — the one label written here
+    // used to be "Seite 1" whatever page it landed on.
+    const range = doc.bufferedPageRange()
+    for (let i = range.start; i < range.start + range.count; i++) {
+      doc.switchToPage(i)
+      doc.font(fontFor('regular')).fontSize(8).fillColor(textColor)
+      doc.text(
+        `Seite ${i - range.start + 1} von ${range.count}`,
+        leftMargin,
+        doc.page.height - 22,
+        { width: pageWidth - leftMargin * 2, align: "center", lineBreak: false }
+      )
+    }
 
-    // Page number — bottom-right corner, on the LAST line of the
-    // left-side Zahlungsinformationen block. We previously tried
-    // to place it directly under the right-side Impressum block
-    // by reading doc.y after the right-block writes, but that
-    // caused a 2nd page whenever otherInfo wrapped to 2+ lines
-    // (the page number text was written at y ≈ 790, lineHeight
-    // pushed doc.y to ≈ 802, which exceeded maxY 792 and forced
-    // an addPage). Pinning the page number to a fixed Y
-    // (footerY + 60 — same row as the old USt-IDNr. line that
-    // used to live there) is robust to any otherInfo length.
-    //
-    // `doc.page.number` can be undefined in some PDFKit builds
-    // (notably when the doc is being torn down asynchronously
-    // after `doc.end()`), which previously caused the literal
-    // string "undefined" to appear at the right margin. Fall
-    // back to the buffered page count from PDFKit's own helper,
-    // which is always populated while writing.
     doc.end()
   })
 }

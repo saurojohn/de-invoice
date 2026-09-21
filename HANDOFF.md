@@ -2464,6 +2464,39 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### A long invoice was a PDF of hundreds of mostly blank pages (Tier 418)
+
+The invoice PDF's item table had no page break. Once a row fell below the
+page's bottom margin, PDFKit started a new page for each of its cells.
+Measured:
+
+| Items | Pages before | Pages now |
+|---|---|---|
+| 12 | 1 | 1 |
+| 25 | **26** | 2 |
+| 40 | **116** | 2 |
+| 100 | **476** | 4 |
+
+The totals, notes and bank details landed on the very last page, the header
+only on page 1, and the one page label written said "Seite 1" wherever it
+ended up. The ZUGFeRD PDF embeds the same document, so it had the same page
+count.
+
+A row that does not fit now starts a new page with the column headers
+repeated (standard and compact layouts), keeping 40 pt free for the page
+number; the document is built with `bufferPages` and every page gets
+"Seite i von n". The totals guard from Tier 413 still moves the totals block
+to a page of its own when it would reach the footer.
+
+Spec `e2e/207-tier418-pdf-pagination.sh` (13 assertions, 9 failing against
+the old code): page counts for 5 / 25 / 100 items, every item row printed
+exactly once, the labels, headers on every page, totals on the last page, and
+the ZUGFeRD PDF's page count.
+
+Not changed: the bank / Impressum footer is drawn on the last page only; the
+other PDF generators (Mahnung, Beleg, reports) draw short fixed tables — a
+voucher with very many lines could overflow the same way.
+
 ### The UStVA put reverse charge on the wrong lines, under invented Kennzahlen (Tier 417)
 
 Measured in one month for one company:
