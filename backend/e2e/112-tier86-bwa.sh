@@ -222,7 +222,7 @@ for l in d['lines']:
     print(l['ytd'])
     break
 ")
-D_UMSATZ=$(python3 -c "print(int(float('$NEW_UMSATZ_YTD') - float('$BASE_UMSATZ_YTD')))")
+D_UMSATZ=$(python3 -c "print(round(float('$NEW_UMSATZ_YTD') - float('$BASE_UMSATZ_YTD')))")
 assert_eq "Umsatzerlöse YTD delta = +1500" "$D_UMSATZ" "1500"
 
 # ── 5. YTD Material delta = +300 ──
@@ -236,7 +236,7 @@ for l in d['lines']:
     print(l['ytd'])
     break
 ")
-D_MAT=$(python3 -c "print(int(float('$NEW_MAT_YTD') - float('$BASE_MAT_YTD')))")
+D_MAT=$(python3 -c "print(round(float('$NEW_MAT_YTD') - float('$BASE_MAT_YTD')))")
 assert_eq "Materialaufwand YTD delta = +300" "$D_MAT" "300"
 
 # ── 6. YTD Personal delta = +400 ──
@@ -250,7 +250,7 @@ for l in d['lines']:
     print(l['ytd'])
     break
 ")
-D_PERS=$(python3 -c "print(int(float('$NEW_PERS_YTD') - float('$BASE_PERS_YTD')))")
+D_PERS=$(python3 -c "print(round(float('$NEW_PERS_YTD') - float('$BASE_PERS_YTD')))")
 assert_eq "Personalkosten YTD delta = +400" "$D_PERS" "400"
 
 # ── 7. Tier 93: Miete-category expense now goes to 3200 Raumkosten ──
@@ -272,7 +272,7 @@ for l in d['lines']:
     print(l['ytd'])
     break
 ")
-D_RAUM=$(python3 -c "print(int(float('$NEW_RAUM_YTD') - float('$BASE_RAUM_YTD')))")
+D_RAUM=$(python3 -c "print(round(float('$NEW_RAUM_YTD') - float('$BASE_RAUM_YTD')))")
 assert_eq "3200 Raumkosten YTD delta = +200 (Miete)" "$D_RAUM" "200"
 # And 3600 should NOT have the Miete delta.
 NEW_SONST_YTD=$(python3 -c "
@@ -283,7 +283,7 @@ for l in d['lines']:
     print(l['ytd'])
     break
 ")
-D_SONST=$(python3 -c "print(int(float('$NEW_SONST_YTD') - float('$BASE_SONST_YTD')))")
+D_SONST=$(python3 -c "print(round(float('$NEW_SONST_YTD') - float('$BASE_SONST_YTD')))")
 assert_eq "3600 Sonstige (catchall) NOT changed by Miete seed" "$D_SONST" "0"
 
 # ── 8. Betriebsergebnis identity: YTD = umsatz - mat - pers - afa - 3200/3300/3400/3500 - 3600 ──

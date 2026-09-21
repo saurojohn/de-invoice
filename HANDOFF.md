@@ -9,17 +9,18 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–414 are
-  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 414.)
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–415 are
+  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 415.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 35613762360 / commit `209fd7a`, Tier 414):**
-  - Backend e2e: **202 passed / 0 failed / 1 skipped** of 203 specs — 100
-    two-digit + 103 three-digit (Tier 414 added `203-tier414-zugferd-cii.sh`,
+- **Test counts (last green CI, run 35621206517 / commit `def98d0`, Tier 415):**
+  - Backend e2e: **203 passed / 0 failed / 1 skipped** of 204 specs — 100
+    two-digit + 104 three-digit (Tier 415 added `204-tier415-amounts-in-cents.sh`,
+    Tier 414 `203-tier414-zugferd-cii.sh`,
     Tier 413 `202-tier413-invoice-pdf-discount.sh`,
     Tier 412 `201-tier412-xrechnung-en16931.sh`,
     Tier 411 `200-tier411-net-revenue.sh`,
@@ -45,9 +46,9 @@ exact commands + docs you need to be productive.
     and survives concurrent writes (Tier 367); spec 171 (new in Tier 368) asserts
     the auth audit rows exist at all and are signed — nothing had ever asserted
     on them, which is how a failed login for an unknown e-mail went unaudited.
-  - Playwright: **928 passed / 0 failed / 0 skipped / 0 flaky** (922 since Tier 390's
+  - Playwright: **930 passed / 0 failed / 0 skipped / 0 flaky** (922 since Tier 390's
     page tests; +4 in Tier 401's session-cookie spec; +2 in Tier 413's
-    invoice-discount-row spec) — every test
+    invoice-discount-row spec; +2 in Tier 415's invoice-form-totals spec) — every test
     runs and none needed a retry. Tier 365 turned the last 4 skips into real
     tests; Tier 365b fixed the one flaky test (`bwa-quarterly-tier163`).
     Tier 369 removed 28 silent-skip call sites — three intentional ones remained
@@ -2435,6 +2436,7 @@ see below); Tier 398a run 35099184553 green: backend 188/0/1, Playwright 922.
 Tier 400 run 35112477951, all six jobs green: backend 189/0/1 (the new spec
 is the +1; the skip is still 16-dark-mode), Playwright 922.
 Tier 402 run 35140985920, all six jobs green: backend 190/0/1, Playwright 926.
+Tier 415 run 35621206517, all six jobs green: backend 203/0/1, Playwright 930 passed (+2), 0 flaky.
 Tier 414 run 35613762360, all six jobs green: backend 202/0/1, Playwright 928 passed, 0 flaky.
 Tier 413 run 35263817448, all six jobs green: backend 201/0/1, Playwright 928 passed (+2 from invoice-discount-row-tier413), 0 flaky.
 Tier 412 run 35256287464, all six jobs green: backend 200/0/1, Playwright 926 passed, 0 flaky.
@@ -2457,6 +2459,44 @@ Tier 401 run 35123354210 **failed** on backend lint — a warning
 runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
+
+### Credit notes took back the wrong tax (Tier 416)
+
+`createCreditNote` had three ways to build a Gutschrift and each got the tax
+wrong. Measured:
+
+| Credit note | Before | Now |
+|---|---|---|
+| full, of 1 000 € − 10 % @ 19 % (invoice 1 071 €) | −1 190 €, VAT −190 — the discount was not mirrored | −1 071 €, VAT −171 |
+| by amount, 119 € of a 19 % invoice — the dialog's "Erstattungsbetrag", i.e. **every partial refund** | one line of −119 € at **0 %** | −100 € + −19 € VAT |
+| by amount, 113 € of a 19 % + 7 % invoice (226 €) | −113 € at 0 % | −50 € @ 19 % + −50 € @ 7 %, VAT −13 |
+| a refund line without a rate, on a 7 % invoice | 19 % | 7 % |
+| two full refunds of a 1 190 € invoice | both accepted (−2 380 €) | the second refused (400) |
+
+In one month's UStVA for those transactions, 19 %: **1 940 / 368,60 before,
+950 / 180,50 correct**. A partial refund reduced the customer's debt but not
+the output tax (§ 17 UStG), so the company paid VAT on money it had given
+back; a full refund of a discounted invoice took back more VAT than was ever
+charged.
+
+Now: the refund amount is gross (the dialog pre-fills it with the open
+balance) and is split over the original's rates by their gross amounts, one
+line per rate; the full refund mirrors the lines *and* the discount (stored on
+the CN, so its PDF shows the Rabatt row); a line without a rate takes the
+original's rate, and with several rates it must name one; credit notes
+together cannot exceed the invoice total, and a "full" refund after partial
+ones credits what is left. The dialog's label now says "brutto".
+
+Spec `e2e/205-tier416-credit-note-tax.sh` (18 assertions, 14 failing against
+the old code), ending with the UStVA figure above.
+
+**Five specs truncated their deltas.** The full run failed `e2e/106` with
+"Kz 4100 delta = 799, expected 800": the data was right — the baseline was
+3 795,98, now 4 595,98 — but the spec computed `int(4595.98 − 3795.98)`, and
+that float is 799.9999999999995. The same `print(int(float(a) − float(b)))`
+was in 106, 107, 108, 109 and 112; any of them failed whenever the shared
+company's baseline had cents, which cent-rounded amounts (Tier 415) and
+split refunds (this tier) now make common. They round instead.
 
 ### Invoice amounts were stored to four places, never to cents (Tier 415)
 
@@ -2501,7 +2541,7 @@ against the old code) and `frontend/e2e/invoice-form-totals-tier415.spec.ts`
 (2 tests; the fill-and-check is retried as one step because a fill before
 hydration is reset — it failed once that way before the retry was added).
 
-Found on the way, **next tier**: a full credit note of a discounted invoice
+Found on the way, fixed in Tier 416: a full credit note of a discounted invoice
 mirrors the lines without the discount (a 1 071 € invoice is refunded as
 −1 190 €), and a refund by amount (`amount: 100`) is booked at **0 % VAT**
 whatever the original's rate — a partial refund of a 19 % sale reduces the

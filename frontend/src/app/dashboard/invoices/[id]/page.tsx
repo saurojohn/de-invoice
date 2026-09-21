@@ -2831,7 +2831,7 @@ export default function InvoiceDetailPage() {
 
             <div className="mb-3">
               <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
-                {t("invoice.creditNoteAmount") || "Erstattungsbetrag (€)"} *
+                {t("invoice.creditNoteAmount") || "Erstattungsbetrag brutto (€)"} *
               </label>
               <Input
                 type="number"

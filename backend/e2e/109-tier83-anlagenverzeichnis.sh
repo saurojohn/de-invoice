@@ -98,7 +98,7 @@ for l in d['cost']['lines']:
     print(l['amount'] or 0)
     break
 ")
-AFA_7A_DELTA=$(python3 -c "print(int(float('$AFA_7A') - 2400))")
+AFA_7A_DELTA=$(python3 -c "print(round(float('$AFA_7A') - 2400))")
 # In a fresh DB, the baseline 7a is 0. With our 1 asset contributing 2400,
 # the absolute value should be exactly 2400 (assuming the test runs in a
 # clean DB state — the pre-cleanup only catches our test fixtures, not

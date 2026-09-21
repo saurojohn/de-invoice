@@ -271,7 +271,7 @@ for sec in d['aktiva']:
       print(l['amount'] or 0)
       break
 ")
-D1500=$(python3 -c "print(int(float('$NEW_1500') - float('$BASE_1500')))")
+D1500=$(python3 -c "print(round(float('$NEW_1500') - float('$BASE_1500')))")
 assert_eq "1500 delta = +1190 (SENT only)" "$D1500" "1190"
 
 # ── 3. 1600+1700 Liquide Mittel: derived from cash book ──
@@ -287,7 +287,7 @@ for sec in d['aktiva']:
       break
 ")
 # We didn't add cash book entries — delta should be 0.
-D1600=$(python3 -c "print(int(float('$NEW_1600_1700') - float('$BASE_1600_1700')))")
+D1600=$(python3 -c "print(round(float('$NEW_1600_1700') - float('$BASE_1600_1700')))")
 assert_eq "1600+1700 delta = 0 (no new cash entries)" "$D1600" "0"
 
 # ── 4. 4000 Verb. aus L+L: BOOKED only ──
@@ -302,7 +302,7 @@ for sec in d['passiva']:
       print(l['amount'] or 0)
       break
 ")
-D4000=$(python3 -c "print(int(float('$NEW_4000') - float('$BASE_4000')))")
+D4000=$(python3 -c "print(round(float('$NEW_4000') - float('$BASE_4000')))")
 assert_eq "4000 delta = +300 (BOOKED only)" "$D4000" "300"
 
 # ── 5. 4500 Kundenguthaben delta = +150 ──
@@ -317,7 +317,7 @@ for sec in d['passiva']:
       print(l['amount'] or 0)
       break
 ")
-D4500=$(python3 -c "print(int(float('$NEW_4500') - float('$BASE_4500')))")
+D4500=$(python3 -c "print(round(float('$NEW_4500') - float('$BASE_4500')))")
 assert_eq "4500 delta = +150" "$D4500" "150"
 
 # ── 6. Bilanzgleichung always balanced (Saldoposten compensates) ──

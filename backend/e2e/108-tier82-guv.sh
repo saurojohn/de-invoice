@@ -283,7 +283,7 @@ for l in d['revenue']['lines']:
     print(l['amount'] or 0)
     break
 ")
-D_UMSATZ=$(python3 -c "print(int(float('$NEW_UMSATZ') - float('$BASE_UMSATZ')))")
+D_UMSATZ=$(python3 -c "print(round(float('$NEW_UMSATZ') - float('$BASE_UMSATZ')))")
 assert_eq "Umsatzerlöse delta = +2000" "$D_UMSATZ" "2000"
 
 # ── 3. Pos 5a (Materialaufwand) ──
@@ -297,7 +297,7 @@ for l in d['cost']['lines']:
     print(l['amount'] or 0)
     break
 ")
-D_MAT=$(python3 -c "print(int(float('$NEW_MAT') - float('$BASE_MATERIAL')))")
+D_MAT=$(python3 -c "print(round(float('$NEW_MAT') - float('$BASE_MATERIAL')))")
 assert_eq "Materialaufwand delta = +400" "$D_MAT" "400"
 
 # ── 4. Pos 6a (Personalaufwand) ──
@@ -311,7 +311,7 @@ for l in d['cost']['lines']:
     print(l['amount'] or 0)
     break
 ")
-D_PERS=$(python3 -c "print(int(float('$NEW_PERS') - float('$BASE_PERSONAL')))")
+D_PERS=$(python3 -c "print(round(float('$NEW_PERS') - float('$BASE_PERSONAL')))")
 assert_eq "Personalaufwand delta = +500" "$D_PERS" "500"
 
 # ── 5. Pos 8 (Sonstige betr. Aufwendungen) ──
@@ -325,7 +325,7 @@ for l in d['cost']['lines']:
     print(l['amount'] or 0)
     break
 ")
-D_SONST_AUFW=$(python3 -c "print(int(float('$NEW_SONST_AUFW') - float('$BASE_SONST_AUFW')))")
+D_SONST_AUFW=$(python3 -c "print(round(float('$NEW_SONST_AUFW') - float('$BASE_SONST_AUFW')))")
 assert_eq "Sonstige Aufwendungen delta = +200" "$D_SONST_AUFW" "200"
 
 # ── 6. Pos 13 (Zinsen) ──
@@ -339,7 +339,7 @@ for l in d['financial']['lines']:
     print(l['amount'] or 0)
     break
 ")
-D_ZINS=$(python3 -c "print(int(float('$NEW_ZINS') - float('$BASE_ZINS')))")
+D_ZINS=$(python3 -c "print(round(float('$NEW_ZINS') - float('$BASE_ZINS')))")
 assert_eq "Zinsaufwendungen delta = +100" "$D_ZINS" "100"
 
 # ── 7. Nicht ausgewiesen positions ──
@@ -404,7 +404,7 @@ for l in d['revenue']['lines']:
     print(l['amount'] or 0)
     break
 ")
-D_SONST_ERTR=$(python3 -c "print(int(float('$NEW_SONST_ERTR') - float('$BASE_SONST_ERTR')))")
+D_SONST_ERTR=$(python3 -c "print(round(float('$NEW_SONST_ERTR') - float('$BASE_SONST_ERTR')))")
 assert_eq "Sonstige betr. Erträge delta = +250" "$D_SONST_ERTR" "250"
 
 # ── 10. PDF endpoint ──

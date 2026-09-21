@@ -173,7 +173,7 @@ assert_eq "13 expense lines" "$AUSG" "13"
 echo
 note "=== 2. Kz 4100 delta = 800 (1000 - 200 CN) ==="
 K4100_NOW=$(python3 -c "import json; d=json.load(open('$TMP')); print(next(l['amount'] for l in d['einnahmen'] if l['kennziffer']=='4100'))")
-K4100_DELTA=$(python3 -c "print(int(float('$K4100_NOW') - float('$BASE_K4100')))")
+K4100_DELTA=$(python3 -c "print(round(float('$K4100_NOW') - float('$BASE_K4100')))")
 assert_eq "Kz 4100 delta = 800" "$K4100_DELTA" "800"
 
 # ── 3. Other revenue lines all 0 (or unchanged) ──

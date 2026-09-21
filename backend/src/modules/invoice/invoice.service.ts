@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { computeInvoiceAmounts } from './invoice-amounts';
+import { computeInvoiceAmounts, toCents } from './invoice-amounts';
+import { invoiceTaxBreakdown } from './tax-breakdown';
 import { Prisma } from '@prisma/client';
 import { WebhookService } from '../webhook/webhook.service';
 import { CreateInvoiceDto, UpdateInvoiceDto } from './dto/invoice.dto';
@@ -1306,51 +1307,105 @@ export class InvoiceService {
 
     // Build the line items for the CN. Three modes
     // as documented above.
+    // Tier 416: what the original stated, per rate (its own totals are the
+    // anchor, as in the tax reports), and how much of it earlier credit notes
+    // already took back.
+    const origBreakdown = invoiceTaxBreakdown({
+      total: original.total,
+      totalVat: original.totalVat,
+      items: original.items,
+    })
+    const origRates = origBreakdown.byRate.map((b) => b.rate)
+    const priorCredits = await this.prisma.invoice.aggregate({
+      where: { referenceInvoiceId: original.id, type: 'CN', status: { not: 'cancelled' } },
+      _sum: { total: true },
+    })
+    const alreadyCredited = Math.abs(Number(priorCredits._sum.total ?? 0))
+    const remaining = toCents(Number(original.total) - alreadyCredited) / 100
+
     let cnLines: Array<{
       description: string
       quantity: number
       unitPrice: number
       vatRate: number
     }>
-    if (opts.lines && opts.lines.length > 0) {
-      // Partial refund: caller-supplied lines. Negate
-      // unitPrice so the CN carries negative amounts.
-      cnLines = opts.lines.map((l) => ({
-        description: l.description,
-        quantity: l.quantity ?? 1,
-        unitPrice: -Math.abs(Number(l.unitPrice)),
-        vatRate: l.vatRate ?? 0.19,
-      }))
-    } else if (opts.amount != null && opts.amount > 0) {
-      // Flat amount: single "Erstattung" line. We
-      // don't add VAT — the user can override via
-      // lines: [...] if they need a VAT-bearing CN.
-      cnLines = [
-        {
-          description: opts.reason || 'Erstattung',
+    let cnDiscount: { discountPercent?: number; discountAmount?: number } = {}
+    const refundByAmount = (gross: number) => {
+      // Tier 416: the refund amount is what the customer gets back — gross,
+      // as the dialog's "Erstattungsbetrag (€)" pre-filled with the open
+      // balance says. It is split over the original's rates by their gross
+      // amounts; each part carries its rate. It used to be one line at 0 %:
+      // a 119 € refund of a 19 % sale reduced the customer's debt by 119 and
+      // the output tax by nothing (§ 17 UStG).
+      const grossCents = toCents(gross)
+      const weights = origBreakdown.byRate.map((b) => toCents(b.net + b.vat))
+      const sum = weights.reduce((a, b) => a + b, 0)
+      const parts = weights.map((w) => (sum === 0 ? 0 : Math.round((grossCents * w) / sum)))
+      const drift = grossCents - parts.reduce((a, b) => a + b, 0)
+      if (parts.length > 0) parts[0] += drift
+      return origBreakdown.byRate
+        .map((b, i) => ({
+          description:
+            origBreakdown.byRate.length > 1
+              ? `${opts.reason || 'Erstattung'} (${Math.round(b.rate * 10000) / 100} % USt)`
+              : opts.reason || 'Erstattung',
           quantity: 1,
-          unitPrice: -Math.abs(Number(opts.amount)),
-          vatRate: 0,
-        },
-      ]
+          unitPrice: -toCents(parts[i] / 100 / (1 + b.rate)) / 100,
+          vatRate: b.rate,
+        }))
+        .filter((l) => l.unitPrice !== 0)
+    }
+    if (opts.lines && opts.lines.length > 0) {
+      cnLines = opts.lines.map((l) => {
+        // Tier 416: a line without a rate took 19 % whatever the original
+        // charged (measured: a 7 % book refunded at 19 %). It now takes the
+        // original's rate; with several rates the line must name its own.
+        if (l.vatRate == null && origRates.length !== 1) {
+          throw new BadRequestException(
+            'Die Originalrechnung hat mehrere Steuersätze — bitte für jede Gutschriftsposition den Steuersatz angeben.',
+          )
+        }
+        return {
+          description: l.description,
+          quantity: l.quantity ?? 1,
+          unitPrice: -Math.abs(Number(l.unitPrice)),
+          vatRate: l.vatRate ?? origRates[0],
+        }
+      })
+    } else if (opts.amount != null && opts.amount > 0) {
+      cnLines = refundByAmount(Number(opts.amount))
+    } else if (alreadyCredited > 0) {
+      // A "full" refund after partial ones credits what is left.
+      cnLines = refundByAmount(remaining)
     } else {
-      // Full refund: mirror every line of the original.
       cnLines = original.items.map((it) => ({
         description: it.description,
         quantity: Number(it.quantity),
         unitPrice: -Number(it.unitPrice),
         vatRate: Number(it.vatRate ?? 0.19),
       }))
+      // Tier 416: the full refund mirrors the original including its
+      // discount. Without it a 1 071 € invoice (1 000 − 10 %) was refunded
+      // as −1 190 €, taking back 190 € of VAT where 171 € had been charged.
+      const pct = Number(original.discountPercent ?? 0)
+      cnDiscount =
+        pct > 0
+          ? { discountPercent: pct }
+          : { discountAmount: -Math.abs(Number(original.discountAmount ?? 0)) }
     }
 
-    // Compute the CN's totals using the same logic as
-    // the regular create flow. We use a small inline
-    // calculator (we don't have a "negative invoice"
-    // create DTO — the create DTO always expects
-    // positive unit prices).
     // Tier 415: cents, by invoice-amounts.ts (negative unit prices).
-    const amounts = computeInvoiceAmounts(cnLines)
+    const amounts = computeInvoiceAmounts(cnLines, cnDiscount)
     const { subtotal, totalVat, total } = amounts
+
+    // Tier 416: credit notes cannot take back more than the invoice stated.
+    // Measured: two full refunds of a 1 190 € invoice were both accepted
+    // (−2 380 €).
+    if (cnLines.length === 0 || Math.abs(total) > remaining + 0.005) {
+      throw new BadRequestException(
+        `Die Gutschrift (${Math.abs(total).toFixed(2)} €) übersteigt den noch nicht gutgeschriebenen Betrag der Rechnung (${Math.max(remaining, 0).toFixed(2)} €).`,
+      )
+    }
 
     // Allocate a new invoice number on the CN's
     // number sequence. CNs use the same year/month
@@ -1388,6 +1443,8 @@ export class InvoiceService {
           subtotal,
           totalVat,
           total,
+          discountPercent: cnDiscount.discountPercent ?? null,
+          discountAmount: amounts.discountAmount !== 0 ? amounts.discountAmount : null,
           // The original is the source — copy over
           // the same cost-center stamps.
           costCenter: original.costCenter,
