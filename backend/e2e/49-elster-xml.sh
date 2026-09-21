@@ -35,7 +35,7 @@
 #      filing date
 #   7. Each numeric field uses the BMF
 #      "B"-prefix format ("B 1234567890123")
-#   8. <Kz81> (Verbleibender Betrag) is
+#   8. <Kz83> (verbleibende Vorauszahlung — Tier 417: this said Kz 81, which is the 19 % base) is
 #      present — required by the Anlage
 #   9. <Vorgang> is present and non-empty
 
@@ -227,20 +227,20 @@ else
   echo "  SKIP: B-prefix format — gated on <KzNN> elements the generator never emits (HANDOFF §9)"
 fi
 
-# 8. <Kz81> (Verbleibender Betrag) present
+# 8. <Kz83> (verbleibende Vorauszahlung / Überschuss) present
 if [[ "$KV_COUNT" -ge "1" ]]; then
-  if grep -qE "<Kz81>" "$XML_FILE"; then
-    echo "  PASS: <Kz81> (Verbleibender Betrag) present"
+  if grep -qE "<Kz83>" "$XML_FILE"; then
+    echo "  PASS: <Kz83> (verbleibende Vorauszahlung) present"
     PASS=$((PASS+1))
   else
-    echo "  FAIL: <Kz81> missing — required by Anlage UStVA"
+    echo "  FAIL: <Kz83> missing — required by the USt 1 A"
     FAIL=$((FAIL+1))
   fi
 else
   # Tier 371: not a data issue — the generator writes Kz 81 as a "B-Kz081=…"
   # line, never as a <Kz81> element, so this check could never run. Format
   # question, see HANDOFF §9.
-  echo "  SKIP: <Kz81> — generator writes Kz 81 as a B-Kz081 text line, not an element (HANDOFF §9)"
+  echo "  SKIP: <Kz83> — generator writes Kz 83 as a B-Kz083 text line, not an element (HANDOFF §9)"
 fi
 
 # 9. <Vorgang> present and non-empty

@@ -33,10 +33,9 @@ interface UstjaResult {
   totals: {
     umsatzsteuer: number
     vorsteuer: number
-    sondervorauszahlung: number
     zahllast: number
-    restzahlung: number
-    differenzbetrag: number
+    vorauszahlungssoll: number
+    abschlusszahlung: number
   }
   monthlyBreakdown: UstjaMonthlyRow[]
   counts: {
@@ -250,14 +249,24 @@ export function UstjaSection() {
                       <th className="text-left py-1 w-12">Kz</th>
                       <th className="text-left py-1">Bezeichnung</th>
                       <th className="text-right py-1 w-32">Betrag (€)</th>
+                      <th className="text-right py-1 w-28">Steuer (€)</th>
                     </tr>
                   </thead>
                   <tbody>
+                    {/* Tier 417: only non-zero Kennzahlen are listed, so a
+                        year without turnover has no rows. */}
+                    {data.lines.length === 0 && (
+                      <tr data-testid="ustja-no-lines">
+                        <td colSpan={4} className="py-2 text-xs text-gray-500">
+                          Keine Umsätze oder Vorsteuerbeträge in diesem Jahr.
+                        </td>
+                      </tr>
+                    )}
                     {data.lines.map((l) => (
                       <tr
-                        key={l.kennziffer}
+                        key={l.kennziffer || l.label}
                         className="border-b"
-                        data-testid={`ustja-${l.kennziffer}`}
+                        data-testid={`ustja-${l.kennziffer || "ohne-kz"}`}
                       >
                         <td className="py-1 font-mono">{l.kennziffer}</td>
                         <td className="py-1 text-xs">{l.label}</td>
@@ -270,7 +279,10 @@ export function UstjaSection() {
                               : "text-gray-400"
                           }`}
                         >
-                          {fmt(l.amount ?? l.net ?? 0)}
+                          {fmt(l.amount ?? l.net ?? l.vat ?? 0)}
+                        </td>
+                        <td className="py-1 text-right font-mono text-gray-600 dark:text-gray-300">
+                          {l.vat != null && (l.amount != null || l.net != null) ? fmt(l.vat) : ""}
                         </td>
                       </tr>
                     ))}
@@ -287,37 +299,39 @@ export function UstjaSection() {
                   <div className="text-xs text-gray-500 dark:text-gray-400 uppercase">
                     {tRef.current("ustja.umsatzsteuer")}
                   </div>
-                  <div className="text-lg font-bold font-mono text-emerald-700 dark:text-emerald-300" data-testid="ustja-kz66">
+                  <div className="text-lg font-bold font-mono text-emerald-700 dark:text-emerald-300" data-testid="ustja-total-umsatzsteuer">
                     {fmt(data.totals.umsatzsteuer)}
                   </div>
-                  <div className="text-[10px] text-gray-500">Kz 66</div>
+                  
                 </div>
                 <div className="p-3 rounded text-center bg-blue-50 dark:bg-blue-900/30">
                   <div className="text-xs text-gray-500 dark:text-gray-400 uppercase">
                     {tRef.current("ustja.vorsteuer")}
                   </div>
-                  <div className="text-lg font-bold font-mono text-blue-700 dark:text-blue-300" data-testid="ustja-kz67">
+                  <div className="text-lg font-bold font-mono text-blue-700 dark:text-blue-300" data-testid="ustja-total-vorsteuer">
                     {fmt(data.totals.vorsteuer)}
                   </div>
-                  <div className="text-[10px] text-gray-500">Kz 67</div>
+                  
                 </div>
                 <div className="p-3 rounded text-center bg-amber-50 dark:bg-amber-900/30">
                   <div className="text-xs text-gray-500 dark:text-gray-400 uppercase">
                     {tRef.current("ustja.zahllast")}
                   </div>
-                  <div className="text-lg font-bold font-mono text-amber-700 dark:text-amber-300" data-testid="ustja-kz68">
+                  <div className="text-lg font-bold font-mono text-amber-700 dark:text-amber-300" data-testid="ustja-total-zahllast">
                     {fmt(data.totals.zahllast)}
                   </div>
-                  <div className="text-[10px] text-gray-500">Kz 68</div>
+                  <div className="text-[10px] text-gray-500">Umsatzsteuer − Vorsteuer</div>
                 </div>
                 <div className="p-3 rounded text-center bg-red-50 dark:bg-red-900/30">
                   <div className="text-xs text-gray-500 dark:text-gray-400 uppercase">
-                    Restzahlung
+                    Abschlusszahlung
                   </div>
-                  <div className="text-lg font-bold font-mono text-red-700 dark:text-red-300" data-testid="ustja-kz69">
-                    {fmt(data.totals.restzahlung)}
+                  <div className="text-lg font-bold font-mono text-red-700 dark:text-red-300" data-testid="ustja-total-abschlusszahlung">
+                    {fmt(data.totals.abschlusszahlung)}
                   </div>
-                  <div className="text-[10px] text-gray-500">Kz 69 (bis 31.07.)</div>
+                  <div className="text-[10px] text-gray-500">
+                    abzgl. Vorauszahlungssoll {fmt(data.totals.vorauszahlungssoll)}
+                  </div>
                 </div>
               </div>
 

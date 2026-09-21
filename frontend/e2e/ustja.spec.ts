@@ -54,23 +54,26 @@ test.describe("UStJA — /dashboard/accounting", () => {
     await expect(page.getByTestId("ustja-monthly-table")).toBeVisible({ timeout: 10_000 })
     await expect(page.getByTestId("ustja-vordruck-table")).toBeVisible({ timeout: 10_000 })
 
-    // Spot-check key Kennziffern
-    await expect(page.getByTestId("ustja-66")).toBeVisible({ timeout: 5_000 })
-    await expect(page.getByTestId("ustja-67")).toBeVisible({ timeout: 5_000 })
-    await expect(page.getByTestId("ustja-68")).toBeVisible({ timeout: 5_000 })
-    await expect(page.getByTestId("ustja-39")).toBeVisible({ timeout: 5_000 })
-    await expect(page.getByTestId("ustja-69")).toBeVisible({ timeout: 5_000 })
+    // Tier 417: the rows carry the USt 2 A 2026 Kennzahlen (19 % = Kz 177).
+    // The invented "Kz 66/67/68/39/69" total rows are gone — on the form
+    // Kz 66 does not exist in the annual return and 68/69/39 are not totals.
+    // A row per non-zero Kennzahl, or the empty-state row.
+    const table = page.getByTestId("ustja-vordruck-table")
+    await expect(table.locator("tbody tr").first()).toBeVisible({ timeout: 10_000 })
+    for (const legacy of ["66", "67", "68", "39", "69", "81", "20"]) {
+      await expect(page.getByTestId(`ustja-${legacy}`)).toHaveCount(0)
+    }
   })
 
-  test("Summary block shows Kz 66/67/68/69 amounts", async ({ page }) => {
+  test("Summary block shows Umsatzsteuer / Vorsteuer / Zahllast / Abschlusszahlung", async ({ page }) => {
     await injectAuth(page)
     await page.goto("/dashboard/accounting")
     await expect(page.getByTestId("ustja-section")).toBeVisible({ timeout: 30_000 })
     await expect(page.getByTestId("ustja-summary")).toBeVisible({ timeout: 10_000 })
-    await expect(page.getByTestId("ustja-kz66")).toBeVisible()
-    await expect(page.getByTestId("ustja-kz67")).toBeVisible()
-    await expect(page.getByTestId("ustja-kz68")).toBeVisible()
-    await expect(page.getByTestId("ustja-kz69")).toBeVisible()
+    await expect(page.getByTestId("ustja-total-umsatzsteuer")).toBeVisible()
+    await expect(page.getByTestId("ustja-total-vorsteuer")).toBeVisible()
+    await expect(page.getByTestId("ustja-total-zahllast")).toBeVisible()
+    await expect(page.getByTestId("ustja-total-abschlusszahlung")).toBeVisible()
   })
 
   test("12 monthly rows are visible", async ({ page }) => {

@@ -3077,7 +3077,7 @@
     "vorsteuer": "Input VAT (Kz 67)",
     "zahllast": "Tax payable (Kz 68)",
     "vordruck": "BMF form — fields (Kennziffern)",
-    "fieldsHint": "Tax bases (Kz 20-23) and input VAT (Kz 67) are derived from the 12 monthly UStVAs. Sondervorauszahlung (Kz 39) is 1/11 of the January UStVA per § 47 para. 1 UStDV. Restzahlung (Kz 69) is due to the Finanzamt by July 31 of the following year.",
+    "fieldsHint": "Kennzahlen per the official USt 2 A 2026 form, summed from the 12 monthly returns. The advance-payment total here is the sum of the computed months — what counts is the amount the tax office assessed, including any special advance payment. The final payment is due one month after filing (§ 18(4) UStG).",
     "totals": "Summary",
     "restzahlungHint": "Restzahlung (Kz 69) — due to the Finanzamt by 31.07 of the following year",
     "generatedAt": "Generated",

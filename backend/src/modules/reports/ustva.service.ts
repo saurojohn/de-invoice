@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client';
 import type { Response } from 'express';
 import { invoiceTaxBreakdown } from '../invoice/tax-breakdown';
 import { normaliseCountry } from '../invoice/ust-behandlung-detector';
+import { KzEntry, ustvaKennzahlen } from './ust-kennzahlen';
 
 /**
  * UStVA — Umsatzsteuervoranmeldung
@@ -35,8 +36,26 @@ export interface UstvaData {
   export: number;       // Zeile 43: Ausfuhren (Drittland)
   otherExempt: number;  // Zeile 44: sonstige steuerfreie Umsätze
 
-  // Line 36: reverse charge (§ 13b UStG)
-  reverseCharge: number;  // igE (innergemeinschaftliche Erwerbe)
+  // Tier 417: zero-rated sales where the customer owes the tax. Both used to
+  // fall into `otherExempt` or, for an EU customer with a VAT id, into `igL`.
+  /** Kz 60 — steuerpflichtige Umsätze, für die der Leistungsempfänger die Steuer nach § 13b schuldet */
+  reverseChargeSales: number;
+  /** Kz 21 — nicht steuerbare sonstige Leistungen an Unternehmer im übrigen Gemeinschaftsgebiet (§ 18b) */
+  euServicesSales: number;
+  /** Kz 45 — übrige nicht steuerbare Umsätze (Leistungsort nicht im Inland, außerhalb der EU) */
+  nonTaxableOther: number;
+
+  // Purchases on which this company owes the tax (§ 13b, igE).
+  /** Legacy: the net of all of them together */
+  reverseCharge: number;
+  /** Tier 417: Kz 89 / 93 — innergemeinschaftliche Erwerbe, net and the tax owed on them */
+  intraEuAcquisitions: { net: number; vat: number };
+  /** Tier 417: the same per rate — the form has Kz 89 (19 %), 93 (7 %), 95 / 98 (other) */
+  intraEuAcquisitionsByRate: Array<{ rate: number; net: number; vat: number }>;
+  /** Tier 417: Kz 46 / 47 — sonstige Leistungen eines im übrigen Gemeinschaftsgebiet ansässigen Unternehmers */
+  reverseChargeEuServices: { net: number; vat: number };
+  /** Tier 417: Kz 84 / 85 — andere Leistungen nach § 13b (z. B. Bauleistungen) */
+  reverseChargeOther: { net: number; vat: number };
 
   // Line 50-66: input tax (Vorsteuer) by category
   vorsteuer: {
@@ -44,6 +63,8 @@ export interface UstvaData {
     from7: number;        // Zeile 57: Vorsteuer aus 7% Eingangsrechnungen
     fromIgE: number;      // Zeile 59: Vorsteuer aus igE
     fromReverseCharge: number;  // Zeile 60: §13b Steuerschuldnerschaft
+    /** Tier 417: input VAT at a rate other than 19 / 7 % (e.g. 16 % / 5 % in 2020) */
+    fromOther: number;
     total: number;        // Summe Vorsteuer (Zeile 66)
   };
 
@@ -56,6 +77,9 @@ export interface UstvaData {
     invoices: number;
     expenses: number;
   };
+
+  /** Tier 417: the amounts under their USt 1 A 2026 Kennzahlen (ust-kennzahlen.ts) */
+  kennzahlen?: KzEntry[];
 }
 
 @Injectable()
@@ -114,7 +138,7 @@ export class UstvaService {
         status: { in: ['paid', 'sent', 'overdue'] },
         type: 'CN',
       },
-      include: { items: true, customer: true },
+      include: { items: true, customer: true, referenceInvoice: { select: { euTransaction: true, reverseCharge: true } } },
     });
 
     // Sales by rate — output VAT
@@ -122,6 +146,38 @@ export class UstvaService {
     let igL = 0;
     let exportThirdCountry = 0;
     let otherExempt = 0;
+    let reverseChargeSales = 0;
+    let euServicesSales = 0;
+    let nonTaxableOther = 0;
+    // Tier 417: one classification for zero-rated amounts, used for invoices
+    // and — with the original's flags — for their credit notes, which used to
+    // be skipped at 0 % (a refunded igL stayed in Kz 41). Signed: a credit
+    // note subtracts.
+    const addZeroRated = (
+      flags: { euTransaction?: boolean | null; reverseCharge?: boolean | null },
+      country: string,
+      vatId: string,
+      net: number,
+    ) => {
+      const isGermanVatId = vatId.startsWith('DE');
+      if (flags.euTransaction === true) {
+        igL += net;
+      } else if (flags.reverseCharge === true) {
+        // The customer owes the tax. Abroad in the EU: a B2B service whose
+        // place of supply is there (Kz 21); outside the EU: Kz 45; otherwise
+        // a domestic § 13b supply (Kz 60). These used to land in "sonstige
+        // steuerfreie Umsätze", or in igL for an EU customer with a VAT id.
+        if (country && country !== 'DE' && this.isEUCountry(country)) euServicesSales += net;
+        else if (country && !this.isEUCountry(country)) nonTaxableOther += net;
+        else reverseChargeSales += net;
+      } else if (this.isIntraEU(country, vatId, isGermanVatId)) {
+        igL += net;
+      } else if (country && !this.isEUCountry(country)) {
+        exportThirdCountry += net;
+      } else {
+        otherExempt += net;
+      }
+    };
     let invoiceCount = salesInvoices.length;
 
     const addToRate = (rate: number, net: number, vat: number) => {
@@ -157,7 +213,6 @@ export class UstvaService {
       const customerCountry =
         normaliseCountry((inv.customer as any)?.address?.country) || '';
       const customerVatId = (inv.customer as any)?.vatId || '';
-      const isGermanVatId = customerVatId.startsWith('DE');
       const f = eurFactor(inv)
 
       // Tier 409: per rate and after the invoice discount. The stored line
@@ -171,15 +226,9 @@ export class UstvaService {
         if (rate > 0) {
           addToRate(rate, net, vat);
         } else {
-          // Zero-rated — determine category. The invoice's own igL flag is
-          // the user's explicit statement and wins over any inference.
-          if ((inv as any).euTransaction === true || this.isIntraEU(customerCountry, customerVatId, isGermanVatId)) {
-            igL += Math.abs(net);
-          } else if (customerCountry && !this.isEUCountry(customerCountry)) {
-            exportThirdCountry += Math.abs(net);
-          } else {
-            otherExempt += Math.abs(net);
-          }
+          // Zero-rated — the invoice's own igL / § 13b flags are the user's
+          // explicit statement and win over any inference.
+          addZeroRated(inv as any, customerCountry, customerVatId, net);
         }
       }
     }
@@ -194,6 +243,13 @@ export class UstvaService {
         const vat = bucket.vat * f;
         if (rate > 0) {
           addToRate(rate, net, vat); // CN is already negative
+        } else {
+          addZeroRated(
+            (cn as any).referenceInvoice ?? {},
+            normaliseCountry((cn.customer as any)?.address?.country) || '',
+            (cn.customer as any)?.vatId || '',
+            net,
+          );
         }
       }
     }
@@ -210,9 +266,14 @@ export class UstvaService {
 
     let vorsteuer19 = 0;
     let vorsteuer7 = 0;
+    let vorsteuerOther = 0;
     let vorsteuerIgE = 0;
     let vorsteuerReverseCharge = 0;
     let reverseCharge = 0;
+    const igE = { net: 0, vat: 0 };
+    const igEByRate = new Map<number, { net: number; vat: number }>();
+    const rcEu = { net: 0, vat: 0 };
+    const rcOther = { net: 0, vat: 0 };
     let expenseCount = expenses.length;
 
     for (const exp of expenses) {
@@ -221,24 +282,46 @@ export class UstvaService {
       const vat = Number(exp.vatAmount);
 
       if (exp.isReverseCharge || exp.isIntraEU) {
-        // igE / §13b — buyer is tax-debtor
+        // igE / § 13b — this company owes the tax and, with the right to
+        // deduct, claims the same amount as input tax.
+        //
+        // Tier 417: the tax is net × rate. The supplier's invoice carries no
+        // VAT, so the stored vatAmount is normally 0 — the Vorsteuer side read
+        // it, while the output side added net × 19 %: a 2 000 € § 13b purchase
+        // produced 380 € to pay and 0 € to deduct. A rate of 0 on such an
+        // expense means "not entered"; 19 % is assumed, as before.
+        const r = rate > 0 ? rate : 0.19;
+        const owed = Math.round(Math.abs(net) * r * 100) / 100;
+        reverseCharge += Math.abs(net);
         if (exp.isIntraEU) {
-          reverseCharge += Math.abs(net);
-          vorsteuerIgE += Math.abs(vat);
+          igE.net += Math.abs(net);
+          igE.vat += owed;
+          vorsteuerIgE += owed;
+          const b = igEByRate.get(r) ?? { net: 0, vat: 0 };
+          b.net += Math.abs(net);
+          b.vat += owed;
+          igEByRate.set(r, b);
         } else {
-          reverseCharge += Math.abs(net);
-          vorsteuerReverseCharge += Math.abs(vat);
+          const supplierCountry = normaliseCountry((exp.supplier as any)?.address?.country) || '';
+          const bucket = supplierCountry && supplierCountry !== 'DE' && this.isEUCountry(supplierCountry) ? rcEu : rcOther;
+          bucket.net += Math.abs(net);
+          bucket.vat += owed;
+          vorsteuerReverseCharge += owed;
         }
       } else if (rate === 0.19) {
         vorsteuer19 += Math.abs(vat);
       } else if (rate === 0.07) {
         vorsteuer7 += Math.abs(vat);
+      } else if (rate > 0) {
+        // Tier 417: e.g. a 16 % or 5 % invoice from 2020 — deductible like
+        // any other; it used to be dropped.
+        vorsteuerOther += Math.abs(vat);
       } else {
-        // 0% (e.g. Kleinunternehmer supplier) — not deductible
+        // 0% (e.g. Kleinunternehmer supplier) — no input tax
       }
     }
 
-    const vorsteuerTotal = vorsteuer19 + vorsteuer7 + vorsteuerIgE + vorsteuerReverseCharge;
+    const vorsteuerTotal = vorsteuer19 + vorsteuer7 + vorsteuerOther + vorsteuerIgE + vorsteuerReverseCharge;
 
     // ── TOTALS ────────────────────────────────────────────────────
     let salesVat = 0;
@@ -246,10 +329,10 @@ export class UstvaService {
     salesVat = Math.round(salesVat * 100) / 100;
 
     // Lines 20-23 + Line 36 (§13b) = total Umsatzsteuer
+    // Tier 417: the tax owed on igE / § 13b purchases, at each expense's rate
+    // (it was net × 19 % whatever the rate).
     const umsatzsteuer =
-      Math.round((salesVat + (reverseCharge > 0 ? (reverseCharge * 0.19) : 0)) * 100) / 100;
-    // Note: in real UStVA, §13b amount goes to line 36 with explicit rate
-    // Here we apply 19% as the most common rate — refine with `exp.vatRate` when known
+      Math.round((salesVat + igE.vat + rcEu.vat + rcOther.vat) * 100) / 100;
 
     const periodLabel = month
       ? `${year}-${String(month).padStart(2, '0')}`
@@ -257,7 +340,7 @@ export class UstvaService {
         ? `${year} Q${quarter}`
         : `${year}`;
 
-    return {
+    const result: UstvaData = {
       companyId,
       year,
       quarter,
@@ -274,22 +357,34 @@ export class UstvaService {
       igL: Math.round(igL * 100) / 100,
       export: Math.round(exportThirdCountry * 100) / 100,
       otherExempt: Math.round(otherExempt * 100) / 100,
+      reverseChargeSales: Math.round(reverseChargeSales * 100) / 100,
+      euServicesSales: Math.round(euServicesSales * 100) / 100,
+      nonTaxableOther: Math.round(nonTaxableOther * 100) / 100,
       reverseCharge: Math.round(reverseCharge * 100) / 100,
+      intraEuAcquisitions: { net: Math.round(igE.net * 100) / 100, vat: Math.round(igE.vat * 100) / 100 },
+      intraEuAcquisitionsByRate: [...igEByRate.entries()]
+        .map(([rate, v]) => ({ rate, net: Math.round(v.net * 100) / 100, vat: Math.round(v.vat * 100) / 100 }))
+        .sort((a, b) => b.rate - a.rate),
+      reverseChargeEuServices: { net: Math.round(rcEu.net * 100) / 100, vat: Math.round(rcEu.vat * 100) / 100 },
+      reverseChargeOther: { net: Math.round(rcOther.net * 100) / 100, vat: Math.round(rcOther.vat * 100) / 100 },
       vorsteuer: {
         from19: Math.round(vorsteuer19 * 100) / 100,
         from7: Math.round(vorsteuer7 * 100) / 100,
         fromIgE: Math.round(vorsteuerIgE * 100) / 100,
         fromReverseCharge: Math.round(vorsteuerReverseCharge * 100) / 100,
+        fromOther: Math.round(vorsteuerOther * 100) / 100,
         total: Math.round(vorsteuerTotal * 100) / 100,
       },
       umsatzsteuer,
-      vorsteuerSum: vorsteuerTotal,
+      vorsteuerSum: Math.round(vorsteuerTotal * 100) / 100,
       differenzbetrag: Math.round((umsatzsteuer - vorsteuerTotal) * 100) / 100,
       counts: {
         invoices: invoiceCount,
         expenses: expenseCount,
       },
     };
+    result.kennzahlen = ustvaKennzahlen(result);
+    return result;
   }
 
   /**
@@ -389,10 +484,23 @@ export class UstvaService {
     doc.text(this.fmtEur(data.otherExempt), 380, sY3, { width: 90, align: 'right' })
     doc.text('—', 480, sY3, { width: 90, align: 'right' })
     doc.moveDown(0.3)
-    const sY4 = doc.y
-    doc.text('Reverse-Charge (§13b UStG) — BMG', 50, sY4, { width: 250 })
-    doc.text(this.fmtEur(data.reverseCharge), 380, sY4, { width: 90, align: 'right' })
-    doc.text('—', 480, sY4, { width: 90, align: 'right' })
+    // Tier 417: sales where the customer owes the tax, on their own lines.
+    const row = (label: string, net: number, vat?: number) => {
+      doc.moveDown(0.3)
+      const y = doc.y
+      doc.text(label, 50, y, { width: 320 })
+      doc.text(this.fmtEur(net), 380, y, { width: 90, align: 'right' })
+      doc.text(vat == null ? '—' : this.fmtEur(vat), 480, y, { width: 90, align: 'right' })
+    }
+    row('§ 13b: Leistungsempfänger schuldet die Steuer (Kz 60)', data.reverseChargeSales)
+    row('Sonstige Leistungen an Unternehmer in der EU (Kz 21)', data.euServicesSales)
+    row('Übrige nicht steuerbare Umsätze (Kz 45)', data.nonTaxableOther)
+    doc.moveDown(0.5)
+    doc.fontSize(11).font('Helvetica-Bold').text('Steuer als Leistungsempfänger')
+    doc.fontSize(9).font('Helvetica')
+    row('Innergemeinschaftliche Erwerbe (Kz 89 / 93)', data.intraEuAcquisitions.net, data.intraEuAcquisitions.vat)
+    row('§ 13b: Leistungen aus dem übrigen Gemeinschaftsgebiet (Kz 46 / 47)', data.reverseChargeEuServices.net, data.reverseChargeEuServices.vat)
+    row('§ 13b: andere Leistungen (Kz 84 / 85)', data.reverseChargeOther.net, data.reverseChargeOther.vat)
 
     // Section 3: Vorsteuer (input tax deduction)
     doc.moveDown(0.5)
@@ -408,13 +516,19 @@ export class UstvaService {
     doc.text(this.fmtEur(data.vorsteuer.from7), 480, vY2, { width: 90, align: 'right' })
     doc.moveDown(0.3)
     const vY3 = doc.y
-    doc.text('aus igL (§1a Abs. 4 UStG)', 50, vY3, { width: 350 })
+    doc.text('aus innergemeinschaftlichem Erwerb', 50, vY3, { width: 350 })
     doc.text(this.fmtEur(data.vorsteuer.fromIgE), 480, vY3, { width: 90, align: 'right' })
     doc.moveDown(0.3)
     const vY4 = doc.y
     doc.text('aus Reverse-Charge (§13b UStG)', 50, vY4, { width: 350 })
     doc.text(this.fmtEur(data.vorsteuer.fromReverseCharge), 480, vY4, { width: 90, align: 'right' })
     doc.moveDown(0.3)
+    if (data.vorsteuer.fromOther) {
+      const vY5 = doc.y
+      doc.text('aus anderen Steuersätzen', 50, vY5, { width: 350 })
+      doc.text(this.fmtEur(data.vorsteuer.fromOther), 480, vY5, { width: 90, align: 'right' })
+      doc.moveDown(0.3)
+    }
     doc.moveTo(50, doc.y).lineTo(570, doc.y).stroke()
     doc.moveDown(0.2)
     const vTotalY = doc.y
@@ -580,7 +694,13 @@ export class UstvaService {
     })
   }
 
-  async saveFiling(companyId: string, data: UstvaData & { taxNumber?: string; notes?: string; status?: 'draft' | 'submitted' }) {
+  async saveFiling(
+    companyId: string,
+    data: Pick<
+      UstvaData,
+      'year' | 'quarter' | 'month' | 'periodLabel' | 'umsatzsteuer' | 'vorsteuerSum' | 'differenzbetrag' | 'igL' | 'reverseCharge'
+    > & { taxNumber?: string; notes?: string; status?: 'draft' | 'submitted' },
+  ) {
     const quarter = data.quarter ?? null;
     const month = data.month ?? null;
 

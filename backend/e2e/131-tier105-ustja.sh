@@ -8,10 +8,11 @@
 # Berater packager 10-way shift (V + KAP + G +
 # N + KSt 1 + R + Kind + UStJA + 4 HGB).
 #
-# v1: aggregates 12 monthly UStVAs into the BMF
-# Vordruck Kz 20-23 / 66 / 67 / 68 / 39 / 69 / 81.
-# Sondervorauszahlung (Kz 39) = 1/11 of Jan-UStVA.
-# Restzahlung (Kz 69) = Kz 68 - Kz 39.
+# Aggregates 12 monthly UStVAs. Tier 417: the lines carry the Kennzahlen of
+# the official USt 2 A 2026 form (19 % = Kz 177, igL = 741, Vorsteuer 320 /
+# 761 / 467 …). The spec used to require an invented set — Kz 20-23 for the
+# rates and "Kz 66/67/68/39/69/81" as total lines, with the
+# Sondervorauszahlung as January / 11 — and so asserted the defect.
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -20,73 +21,48 @@ source "$SCRIPT_DIR/_lib.sh"
 login
 TS=$(date +%s)
 
-# ===== 1. /ustja shape: Kz 66/67/68/39/69/81 + rate Kz 20 =====
+# ===== 1. /ustja shape: 12 months, only USt 2 A 2026 Kennzahlen =====
 echo
-note "=== 1. /ustja shape (Kz 20 + 66 + 67 + 68 + 39 + 69 + 81) ==="
+note "=== 1. /ustja shape (12 months; Kennzahlen of the USt 2 A 2026) ==="
 api_get "/api/v1/ustva/ustja?companyId=$COMPANY_ID&year=2026"
 TMP=$(mktemp); printf '%s' "$BODY" > "$TMP"
-
-# 12-month breakdown
 MONTHS=$(python3 -c "import json,sys; print(len(json.load(sys.stdin)['monthlyBreakdown']))" < "$TMP")
 assert_eq "monthly breakdown count == 12" "$MONTHS" "12"
-
-# Key Kennziffern present
-for kz in 66 67 68 39 69 81; do
-  HAS=$(python3 -c "
+UNKNOWN=$(python3 -c "
 import json, sys
 d = json.load(sys.stdin)
-print(any(l['kennziffer'] == '$kz' for l in d['lines']))
+official = {'177','275','155','156','741','752','781','793','798','799','846','847','877','878','209','721','205','320','761','467',''}
+print(sorted({l['kennziffer'] for l in d['lines']} - official))
 " < "$TMP")
-  assert_eq "Kennziffer $kz present" "$HAS" "True"
-done
+assert_eq "every line carries an official Kennzahl (none of the old 20/66/68/39/69/81)" "$UNKNOWN" "[]"
 rm -f "$TMP"
 
-# ===== 2. Math identity: Kz 66 - Kz 67 = Kz 68 =====
+# ===== 2. Totals: Umsatzsteuer − Vorsteuer, then the Vorauszahlungssoll =====
 echo
-note "=== 2. Math identity: Kz 68 = Kz 66 - Kz 67 ==="
+note "=== 2. totals: zahllast = USt − VSt; abschlusszahlung = zahllast − Soll ==="
 api_get "/api/v1/ustva/ustja?companyId=$COMPANY_ID&year=2026"
 TMP=$(mktemp); printf '%s' "$BODY" > "$TMP"
-
 MATH=$(python3 -c "
 import json, sys
-d = json.load(sys.stdin)
-kz66 = next(l for l in d['lines'] if l['kennziffer'] == '66')['amount']
-kz67 = next(l for l in d['lines'] if l['kennziffer'] == '67')['amount']
-kz68 = next(l for l in d['lines'] if l['kennziffer'] == '68')['amount']
-kz39 = next(l for l in d['lines'] if l['kennziffer'] == '39')['amount']
-kz69 = next(l for l in d['lines'] if l['kennziffer'] == '69')['amount']
-expected68 = kz66 - kz67
-expected69 = expected68 - kz39
-print(f'{abs(kz68 - expected68) < 0.01}|{abs(kz69 - expected69) < 0.01}|{kz66}|{kz67}|{kz68}|{kz39}|{kz69}')
+t = json.load(sys.stdin)['totals']
+print(f\"{abs(t['zahllast'] - (t['umsatzsteuer'] - t['vorsteuer'])) < 0.01}|{abs(t['abschlusszahlung'] - (t['zahllast'] - t['vorauszahlungssoll'])) < 0.01}\")
 " < "$TMP")
-assert_eq "Kz 68 = Kz 66 - Kz 67" "$(echo "$MATH" | cut -d'|' -f1)" "True"
-assert_eq "Kz 69 = Kz 68 - Kz 39" "$(echo "$MATH" | cut -d'|' -f2)" "True"
-pass "Kz 66=$(echo "$MATH" | cut -d'|' -f3), Kz 67=$(echo "$MATH" | cut -d'|' -f4), Kz 68=$(echo "$MATH" | cut -d'|' -f5), Kz 39=$(echo "$MATH" | cut -d'|' -f6), Kz 69=$(echo "$MATH" | cut -d'|' -f7)"
+assert_eq "zahllast = umsatzsteuer - vorsteuer" "$(echo "$MATH" | cut -d'|' -f1)" "True"
+assert_eq "abschlusszahlung = zahllast - vorauszahlungssoll" "$(echo "$MATH" | cut -d'|' -f2)" "True"
 rm -f "$TMP"
 
-# ===== 3. totals object matches Kz lines =====
+# ===== 3. Vorsteuer total = Kz 320 + 761 + 467 =====
 echo
-note "=== 3. totals object matches Kz lines ==="
+note "=== 3. totals.vorsteuer = Kz 320 + 761 + 467 ==="
 api_get "/api/v1/ustva/ustja?companyId=$COMPANY_ID&year=2026"
 TMP=$(mktemp); printf '%s' "$BODY" > "$TMP"
-
-TOTALS_MATCH=$(python3 -c "
+VST=$(python3 -c "
 import json, sys
 d = json.load(sys.stdin)
-t = d['totals']
-l = d['lines']
-kz66 = next(x for x in l if x['kennziffer'] == '66')['amount']
-kz67 = next(x for x in l if x['kennziffer'] == '67')['amount']
-kz39 = next(x for x in l if x['kennziffer'] == '39')['amount']
-matches = (
-  abs(t['umsatzsteuer'] - kz66) < 0.01
-  and abs(t['vorsteuer'] - kz67) < 0.01
-  and abs(t['sondervorauszahlung'] - kz39) < 0.01
-  and abs(t['differenzbetrag'] - t['zahllast']) < 0.01
-)
-print('True' if matches else 'False')
+s = sum(l.get('vat') or 0 for l in d['lines'] if l['kennziffer'] in ('320','761','467'))
+print(abs(s - d['totals']['vorsteuer']) < 0.01)
 " < "$TMP")
-assert_eq "totals object matches Kz lines" "$TOTALS_MATCH" "True"
+assert_eq "vorsteuer = Kz 320 + 761 + 467" "$VST" "True"
 rm -f "$TMP"
 
 # ===== 4. 12 monthly rows sum to yearly totals =====
@@ -274,25 +250,17 @@ PERIOD=$(python3 -c "import json,sys; print(json.load(sys.stdin)['periodLabel'])
 assert_eq "periodLabel" "$PERIOD" "01.01.2026 – 31.12.2026"
 rm -f "$TMP"
 
-# ===== 12. Kz 20-23 percentage labels =====
+# ===== 12. 19 % turnover is Kz 177 =====
 echo
-note "=== 12. Kz 20-23 percentage labels (19% / 7%) ==="
+note "=== 12. 19 % turnover is Kz 177 (was 'Kz 20') ==="
 api_get "/api/v1/ustva/ustja?companyId=$COMPANY_ID&year=2026"
 TMP=$(mktemp); printf '%s' "$BODY" > "$TMP"
-
-HAS_19=$(python3 -c "
+R19=$(python3 -c "
 import json, sys
 d = json.load(sys.stdin)
-print(any('19%' in l['label'] and l['kennziffer'] in ('20',) for l in d['lines']))
+print(any(l['kennziffer'] == '177' and '19 %' in l['label'] for l in d['lines']))
 " < "$TMP")
-# Note: for SH Leder GmbH there might only be 19% sales.
-# We check 19% exists if 19% data is present, otherwise
-# the test is satisfied by absence of error.
-if [[ "$HAS_19" == "True" ]]; then
-  pass "Kz 20 = 19% Umsätze present"
-else
-  pass "No 19% data in this year — Kz 20 not present (expected if company had no 19% sales)"
-fi
+if [[ "$R19" == "True" ]]; then pass "Kz 177 = 19 % Umsätze present"; else pass "No 19 % sales in 2026 on this company — Kz 177 absent"; fi
 rm -f "$TMP"
 
 summary

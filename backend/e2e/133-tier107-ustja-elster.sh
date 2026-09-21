@@ -46,15 +46,35 @@ except Exception as e:
 ")
 assert_eq "XML parseable by Python ElementTree" "$WELLFORMED" "True"
 
-# ===== 3. Contains expected BMF Vordruck 2024 Kz fields =====
+# ===== 3. Kennzahlen: the USt 2 A 2026 numbers, with the /ustja values =====
+# Tier 417: this checked for an invented set (020/026/021/027/036/041/043/044/
+# 066/067/039/068/069/081 — "081" as the Differenzbetrag, which on the monthly
+# form is the 19 % base). The export now writes the official annual numbers.
 echo
-note "=== 3. Contains expected BMF Vordruck 2024 Kz fields ==="
-for kz in 020 026 021 027 036 041 043 044 066 067 039 068 069 081; do
-  HAS=$(grep -c "B-Kz${kz}=" /tmp/ustja-elster-$TS.xml 2>/dev/null || echo 0)
-  HAS=$(echo "$HAS" | tr -d ' \n')
-  HAS=${HAS:-0}
-  test "$HAS" -ge 1 && pass "Kz $kz present in ELSTER XML" || fail "Kz $kz missing from ELSTER XML"
-done
+note "=== 3. Kennzahlen: USt 2 A 2026 numbers, same values as /ustja ==="
+api_get "/api/v1/ustva/ustja?companyId=$COMPANY_ID&year=2026"
+printf '%s' "$BODY" > /tmp/ustja-json-$TS.json
+KZCHECK=$(python3 - /tmp/ustja-elster-$TS.xml /tmp/ustja-json-$TS.json <<'PY2'
+import json, re, sys
+xml = open(sys.argv[1]).read()
+d = json.load(open(sys.argv[2]))
+got = {int(k): int(v) for k, v in re.findall(r'B-Kz(\d{3})=([+-]\d{12,13})', xml)}
+official = {177,275,155,156,741,752,781,793,798,799,846,847,877,878,209,721,205,320,761,467}
+unknown = sorted(set(got) - official)
+want = {}
+for l in d['lines']:
+    if not l['kennziffer']:
+        continue
+    tax_only = l.get('net') is None and l.get('amount') is None
+    v = l.get('vat') if tax_only else (l.get('net') if l.get('net') is not None else l.get('amount'))
+    if v:
+        want[int(l['kennziffer'])] = round(v * 100)
+print(f"{unknown}|{got == want}|{len(got)}")
+PY2
+)
+assert_eq "no Kennzahl outside the USt 2 A 2026 set (was 020/066/068/069/081 …)" "$(echo "$KZCHECK" | cut -d'|' -f1)" "[]"
+assert_eq "every B-Kz value equals its /ustja line (cents)" "$(echo "$KZCHECK" | cut -d'|' -f2)" "True"
+XML_KZ_COUNT=$(echo "$KZCHECK" | cut -d'|' -f3)
 
 # ===== 4. TransferHeader has correct Anlage + Zeitraum (full year) =====
 echo
@@ -96,28 +116,23 @@ assert_eq "ASCII content-type" "$ASCII_CTYPE" "text/plain; charset=utf-8"
 
 ASCII_KZ_COUNT=$(grep -c '^B-Kz' /tmp/ustja-ascii-$TS.txt 2>/dev/null || echo 0)
 ASCII_KZ_COUNT=${ASCII_KZ_COUNT:-0}
-test "$ASCII_KZ_COUNT" -ge 14 && pass "ASCII has $ASCII_KZ_COUNT Kz lines" || fail "ASCII has only $ASCII_KZ_COUNT Kz lines (expected ≥ 14)"
+assert_eq "the Kennzahlen list has the same Kz lines as the XML" "$ASCII_KZ_COUNT" "$XML_KZ_COUNT"
+grep -q "Keine amtliche Upload-Datei" /tmp/ustja-ascii-$TS.txt && pass "the list says it is not an ELSTER upload" \
+  || fail "the list still presents itself as an upload format"
 
-# ===== 6. Math identity: Kz 68 = Kz 66 - Kz 67 in cents =====
+# ===== 6. Vorsteuer: Kz 320 + 761 + 467 in the XML = totals.vorsteuer =====
 echo
-note "=== 6. Math identity: Kz 68 = Kz 66 - Kz 67 ==="
-MATH=$(python3 -c "
-import re
-with open('/tmp/ustja-elster-$TS.xml') as f:
-  s = f.read()
-def get(kz):
-  m = re.search(rf'B-Kz{kz:03d}=([+-]\d{{13}})', s)
-  return int(m.group(1)) if m else 0
-kz66 = get(66)
-kz67 = get(67)
-kz68 = get(68)
-kz69 = get(69)
-expected68 = kz66 - kz67
-print(f'{abs(kz68 - expected68) < 1}|{abs(kz69 - expected68) < 1}|{kz66}|{kz67}|{kz68}|{kz69}|{expected68}')
-")
-assert_eq "Kz 68 = Kz 66 - Kz 67 (cents)" "$(echo "$MATH" | cut -d'|' -f1)" "True"
-assert_eq "Kz 69 = Kz 68 (no Sondervorauszahlung in this year)" "$(echo "$MATH" | cut -d'|' -f2)" "True"
-pass "Kz 66=$(echo "$MATH" | cut -d'|' -f3) cents, Kz 67=$(echo "$MATH" | cut -d'|' -f4), Kz 68=$(echo "$MATH" | cut -d'|' -f5), Kz 69=$(echo "$MATH" | cut -d'|' -f6), expected=$(echo "$MATH" | cut -d'|' -f7)"
+note "=== 6. Kz 320 + 761 + 467 = totals.vorsteuer ==="
+VST=$(python3 - /tmp/ustja-elster-$TS.xml /tmp/ustja-json-$TS.json <<'PY2'
+import json, re, sys
+xml = open(sys.argv[1]).read()
+t = json.load(open(sys.argv[2]))['totals']
+got = {int(k): int(v) for k, v in re.findall(r'B-Kz(\d{3})=([+-]\d{12,13})', xml)}
+print(abs(sum(got.get(k, 0) for k in (320, 761, 467)) - round(t['vorsteuer'] * 100)) <= 1)
+PY2
+)
+assert_eq "Vorsteuer Kennzahlen add up to totals.vorsteuer" "$VST" "True"
+rm -f /tmp/ustja-json-$TS.json
 
 # ===== 7. ?download=1 sets Content-Disposition =====
 echo

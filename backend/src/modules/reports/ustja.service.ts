@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
-import { UstvaService } from './ustva.service'
+import { UstvaData, UstvaService } from './ustva.service'
+import { sumUstva, ustjaKennzahlen } from './ust-kennzahlen'
 import PDFDocument from 'pdfkit'
 
 /**
@@ -25,24 +26,17 @@ import PDFDocument from 'pdfkit'
  * user sees on /dashboard/accounting/ustva (the
  * monthly view); UStJA is the year view.
  *
- * BMF Vordruck UStJA 2024 — Kennziffern we expose:
- *   Kz 20-23 — Besteuerungsgrundlagen by rate (19/7)
- *   Kz 26-29 — Steuerfreie Umsätze (igL, Ausfuhren, sonstige)
- *   Kz 36 — Reverse-Charge (§ 13b UStG)
- *   Kz 66 — Summe Umsatzsteuer (Bemessungsgrundlage × Satz)
- *   Kz 67 — Summe Vorsteuer
- *   Kz 39 — Sondervorauszahlung (1/11 der Jan-UStVA)
- *   Kz 68 — Verbleibender Betrag (Zahllast, Kz 66 - Kz 67)
- *   Kz 69 — Restzahlung (Kz 68 - Kz 39)
- *   Kz 81 — Differenzbetrag (= Kz 68; redundant but
- *           listed for consistency with UStVA)
+ * Kennzahlen: USt 2 A 2026 (BMF-Schreiben vom 29.12.2025), mapped in
+ * ust-kennzahlen.ts. Tier 417 replaced an invented numbering (Kz 20-23,
+ * 26-29, 36, 66-69, 39, 81) that matched neither the annual nor the monthly
+ * form.
  */
 export interface UstjaLine {
   kennziffer: string
   label: string
   net?: number
   vat?: number
-  amount?: number // pre-computed single value (Kz 39, 68, 69, 81)
+  amount?: number
   source?: 'computed' | 'placeholder'
   note?: string
 }
@@ -61,12 +55,14 @@ export interface UstjaResult {
   periodLabel: string
   lines: UstjaLine[]
   totals: {
-    umsatzsteuer: number // Kz 66
-    vorsteuer: number // Kz 67
-    sondervorauszahlung: number // Kz 39
-    zahllast: number // Kz 68 (66 - 67)
-    restzahlung: number // Kz 69 (68 - 39)
-    differenzbetrag: number // Kz 81 (same as 68)
+    umsatzsteuer: number
+    vorsteuer: number
+    /** Verbleibende Umsatzsteuer (Umsatzsteuer − Vorsteuer) */
+    zahllast: number
+    /** Sum of the monthly returns as computed — the Finanzamt's Soll governs */
+    vorauszahlungssoll: number
+    /** zahllast − vorauszahlungssoll */
+    abschlusszahlung: number
   }
   monthlyBreakdown: UstjaMonthlyRow[]
   counts: {
@@ -140,76 +136,20 @@ export class UstjaService {
     )
 
     // ── Aggregate ──────────────────────────────────
-    const lines: UstjaLine[] = []
+    // Tier 417: the months are summed into one UstvaData and mapped onto the
+    // USt 2 A 2026 Kennzahlen (ust-kennzahlen.ts). The lines used an invented
+    // numbering (19 % as "Kz 20", the Zahllast as "Kz 81" — on the form Kz 81
+    // is the 19 % base of the monthly return) and the § 13b tax as net × 19 %.
     const monthlyBreakdown: UstjaMonthlyRow[] = []
-
-    // Bemessungsgrundlagen by rate (Kz 20-23)
-    const rateAgg = new Map<number, { net: number; vat: number; label: string }>()
-    // Exempts (Kz 26-29)
-    let igL = 0
-    let exportThird = 0
-    let otherExempt = 0
-    // Reverse charge (Kz 36)
-    let reverseCharge = 0
-    // Vorsteuer (Kz 56-66)
-    //
-    // Tier 355 — OPEN QUESTION, deliberately not resolved in code.
-    // These four are accumulated below but never read: only
-    // `vorsteuerTotal` reaches the output (Kz 66, and the zahllast
-    // calculation). The names and the "Kz 56-66" comment say someone
-    // meant them to land on their own Vordruck lines, so this may be a
-    // missing breakdown in the annual return rather than dead code.
-    // Whether the UStJA has to report input tax split by rate / igE /
-    // §13b, or only as a total, is a BMF-form question for the
-    // Steuerberater — not something to settle from the source. They are
-    // therefore kept and underscore-prefixed rather than deleted, so the
-    // intent survives until someone qualified decides.
-    let _vorsteuer19 = 0
-    let _vorsteuer7 = 0
-    let _vorsteuerIgE = 0
-    let _vorsteuerReverseCharge = 0
-    // Differenzbetrag (Kz 81) per month
-    let umsatzsteuerTotal = 0 // Kz 66
-    let vorsteuerTotal = 0 // Kz 67
-
+    const present: UstvaData[] = []
     let monthsWithData = 0
-    for (let i = 0; i < monthlyResults.length; i++) {
-      const m = monthlyResults[i]
+    monthlyResults.forEach((m, i) => {
       if (!m) {
-        monthlyBreakdown.push({
-          month: i + 1,
-          monthLabel: MONTH_LABELS[i],
-          umsatzsteuer: 0,
-          vorsteuer: 0,
-          zahllast: 0,
-        })
-        continue
+        monthlyBreakdown.push({ month: i + 1, monthLabel: MONTH_LABELS[i], umsatzsteuer: 0, vorsteuer: 0, zahllast: 0 })
+        return
       }
-      const hasMonthData =
-        m.umsatzsteuer !== 0 || m.vorsteuerSum !== 0 || m.igL !== 0
-      if (hasMonthData) monthsWithData++
-
-      for (const s of m.salesByRate) {
-        const existing = rateAgg.get(s.rate) || {
-          net: 0,
-          vat: 0,
-          label: s.label,
-        }
-        existing.net += s.net
-        existing.vat += s.vat
-        rateAgg.set(s.rate, existing)
-      }
-      igL += m.igL
-      exportThird += m.export
-      otherExempt += m.otherExempt
-      reverseCharge += m.reverseCharge
-      _vorsteuer19 += m.vorsteuer.from19
-      _vorsteuer7 += m.vorsteuer.from7
-      _vorsteuerIgE += m.vorsteuer.fromIgE
-      _vorsteuerReverseCharge += m.vorsteuer.fromReverseCharge
-      umsatzsteuerTotal += m.umsatzsteuer
-      vorsteuerTotal += m.vorsteuerSum
-
+      if (m.umsatzsteuer !== 0 || m.vorsteuerSum !== 0 || m.igL !== 0) monthsWithData++
+      present.push(m)
       monthlyBreakdown.push({
         month: i + 1,
         monthLabel: MONTH_LABELS[i],
@@ -217,120 +157,32 @@ export class UstjaService {
         vorsteuer: round2(m.vorsteuerSum),
         zahllast: round2(m.differenzbetrag),
       })
-    }
+    })
+    const annual = sumUstva(present, { companyId, year, periodLabel: String(year) })
+    const lines: UstjaLine[] = ustjaKennzahlen(annual)
+      .filter((e) => e.value !== 0)
+      .map((e) => ({
+        kennziffer: e.kz,
+        label: e.label,
+        ...(e.kind === 'tax' ? { vat: e.value } : { net: e.value, amount: e.value }),
+        ...(e.tax != null ? { vat: e.tax } : {}),
+        source: 'computed' as const,
+      }))
 
-    // ── Lines (BMF Vordruck order) ──────────────────
-    // Bemessungsgrundlagen (Kz 20-23)
-    // The BMF Vordruck uses these Kz:
-    //   Kz 20 — 19% Umsätze
-    //   Kz 21 — 7% Umsätze
-    //   Kz 22 — 0% (igL, igE) — already covered
-    //        by Kz 41 below
-    //   Kz 23 — sonstige (übrige)
-    // We detect the rate as the percentage value
-    // (i.e. 19 or 7), not the decimal form (0.19
-    // or 0.07) — the BMF Vordruck labels use the
-    // integer percentage.
-    for (const [rate, agg] of [...rateAgg.entries()].sort((a, b) => b[0] - a[0])) {
-      // Normalize: if rate is 0.19 → 19; if 19 → 19
-      const pct =
-        Math.abs(rate) < 1 ? Math.round(rate * 100) : Math.round(rate)
-      let kz = ''
-      if (pct === 19) kz = '20'
-      else if (pct === 7) kz = '21'
-      else if (pct === 0) kz = '22'
-      else kz = '23'
-      lines.push({
-        kennziffer: kz,
-        label: `Steuerpflichtige Umsätze ${pct}% (§ 12 Abs. 1 UStG)`,
-        net: round2(agg.net),
-        vat: round2(agg.vat),
-        source: 'computed',
-      })
-    }
-
-    // Steuerfreie Umsätze (Kz 26-29)
-    if (igL !== 0 || exportThird !== 0 || otherExempt !== 0) {
-      lines.push({
-        kennziffer: '41',
-        label: 'Innergemeinschaftliche Lieferungen (§ 4 Nr. 1b UStG)',
-        net: round2(igL),
-        amount: round2(igL),
-        source: 'computed',
-      })
-      lines.push({
-        kennziffer: '43',
-        label: 'Ausfuhren (§ 4 Nr. 1a UStG, Drittland)',
-        net: round2(exportThird),
-        amount: round2(exportThird),
-        source: 'computed',
-      })
-      lines.push({
-        kennziffer: '44',
-        label: 'Sonstige steuerfreie Umsätze',
-        net: round2(otherExempt),
-        amount: round2(otherExempt),
-        source: 'computed',
-      })
-    }
-
-    // Reverse Charge (Kz 36)
-    if (reverseCharge !== 0) {
-      lines.push({
-        kennziffer: '36',
-        label: 'Innergemeinschaftliche Erwerbe (§ 1a UStG) — Reverse Charge',
-        net: round2(reverseCharge),
-        vat: round2(reverseCharge * 0.19),
-        source: 'computed',
-      })
-    }
-
-    // ── Totals (Kz 66, 67) ──────────────────────────
-    const sondervorauszahlung = round2(
-      (monthlyResults[0]?.differenzbetrag || 0) / 11,
-    )
+    // ── Totals ──────────────────────────────────────
+    // Verbleibende Umsatzsteuer = Umsatzsteuer − Vorsteuer. The form then
+    // subtracts the Vorauszahlungssoll (the year's advance payments,
+    // including a Sondervorauszahlung) to get the Abschlusszahlung. The
+    // Sondervorauszahlung used to be computed as January's Zahllast / 11; on
+    // the form it is 1/11 of the *previous* year's advance payments, and it
+    // only exists under Dauerfristverlängerung. Here the Soll is the sum of
+    // the monthly returns as computed — the Finanzamt's assessed Soll is what
+    // counts, so the Abschlusszahlung shown is the difference to that sum.
+    const umsatzsteuerTotal = round2(annual.umsatzsteuer)
+    const vorsteuerTotal = round2(annual.vorsteuerSum)
     const zahllast = round2(umsatzsteuerTotal - vorsteuerTotal)
-    const restzahlung = round2(zahllast - sondervorauszahlung)
-
-    // Add the totals as summary lines (rendered in
-    // a separate block by the frontend; included in
-    // the lines array for completeness).
-    lines.push({
-      kennziffer: '66',
-      label: 'Summe Umsatzsteuer (Bemessungsgrundlagen × Steuersätze)',
-      amount: round2(umsatzsteuerTotal),
-      source: 'computed',
-    })
-    lines.push({
-      kennziffer: '67',
-      label: 'Summe Vorsteuer (aus Eingangsrechnungen + igE + § 13b)',
-      amount: round2(vorsteuerTotal),
-      source: 'computed',
-    })
-    lines.push({
-      kennziffer: '68',
-      label: 'Verbleibender Betrag (Kz 66 - Kz 67) — Zahllast (positiv) / Erstattung (negativ)',
-      amount: zahllast,
-      source: 'computed',
-    })
-    lines.push({
-      kennziffer: '39',
-      label: 'Sondervorauszahlung (1/11 der Jan-UStVA, § 47 Abs. 1 UStDV)',
-      amount: sondervorauszahlung,
-      source: 'computed',
-    })
-    lines.push({
-      kennziffer: '69',
-      label: 'Restzahlung (Kz 68 - Kz 39) — bis 31.05. des Folgejahres an das Finanzamt',
-      amount: restzahlung,
-      source: 'computed',
-    })
-    lines.push({
-      kennziffer: '81',
-      label: 'Differenzbetrag (= Kz 68, Vordruck-Konsistenz mit UStVA)',
-      amount: zahllast,
-      source: 'computed',
-    })
+    const vorauszahlungssoll = round2(present.reduce((a, m) => a + m.differenzbetrag, 0))
+    const abschlusszahlung = round2(zahllast - vorauszahlungssoll)
 
     return {
       year,
@@ -338,12 +190,11 @@ export class UstjaService {
       periodLabel: `01.01.${year} – 31.12.${year}`,
       lines,
       totals: {
-        umsatzsteuer: round2(umsatzsteuerTotal),
-        vorsteuer: round2(vorsteuerTotal),
-        sondervorauszahlung,
+        umsatzsteuer: umsatzsteuerTotal,
+        vorsteuer: vorsteuerTotal,
         zahllast,
-        restzahlung,
-        differenzbetrag: zahllast,
+        vorauszahlungssoll,
+        abschlusszahlung,
       },
       monthlyBreakdown,
       counts: {
@@ -353,18 +204,14 @@ export class UstjaService {
       generatedAt: new Date().toISOString(),
       disclaimer:
         'Diese Vorschau wurde automatisch aus den 12 monatlichen UStVA-Daten ' +
-        `(${year}) aggregiert (§ 18 Abs. 3 UStG, BMF Vordruck UStJA 2024). ` +
-        'Grundlage: alle finalisierten Rechnungen (status=paid/sent/overdue) + ' +
-        'Eingangsrechnungen (status=booked/deductible) im Zeitraum. ' +
-        'Bemessungsgrundlagen (Kz 20-23) und Vorsteuer (Kz 67) stammen aus den ' +
-        'BMF-Vordruck-Positionen; die Sondervorauszahlung (Kz 39) wird als 1/11 der ' +
-        'Januar-Differenz berechnet (§ 47 Abs. 1 UStDV). Im Festsetzungs-Bescheid ' +
-        'verwendet das Finanzamt die tatsächlichen Vorauszahlungen des Mandanten ' +
-        '(aus den 12 UStVA-Filings); die Differenz wird über Kz 39 + Kz 69 ' +
-        'ausgeglichen. v1: vereinfachtes Modell — Berater verifiziert die ' +
-        'BMF-Sätze pro Bundesland und prüft Korrekturen (z.B. § 1a / § 13b ' +
-        'UStG Erwerbe, igL-Bestätigungen, EU-OSS-Sachverhalte). v2: native ' +
-        'ELSTER-XML-Export für die elektronische Übermittlung.',
+        `(${year}) aggregiert (§ 18 Abs. 3 UStG). Kennzahlen nach dem Vordruckmuster ` +
+        'USt 2 A 2026 (BMF-Schreiben vom 29.12.2025). Grundlage: alle finalisierten ' +
+        'Rechnungen (status=paid/sent/overdue) und Eingangsrechnungen ' +
+        '(status=booked/deductible) im Zeitraum. Das Vorauszahlungssoll ist hier die ' +
+        'Summe der berechneten Monatswerte; maßgeblich ist das vom Finanzamt ' +
+        'festgesetzte Soll einschließlich einer Sondervorauszahlung. Sonstige ' +
+        'steuerfreie Umsätze sind nach ihrer Befreiungsvorschrift einer Kennzahl ' +
+        'zuzuordnen. Der Berater prüft die Werte vor der Übermittlung.',
     }
   }
 
@@ -411,7 +258,7 @@ export class UstjaService {
     doc.moveDown(0.8)
 
     // Lines table
-    doc.fontSize(12).font('Helvetica-Bold').text('BMF Vordruck — Kennziffern')
+    doc.fontSize(12).font('Helvetica-Bold').text('Kennzahlen (Vordruck USt 2 A 2026)')
     doc.moveDown(0.3)
     this.renderLinesTable(doc, data.lines)
     doc.moveDown(0.8)
@@ -419,9 +266,9 @@ export class UstjaService {
     // Summary
     doc.fontSize(13).font('Helvetica-Bold')
     doc.text(
-      `Zahllast (Kz 68): ${this.fmtEur(data.totals.zahllast)} €  |  ` +
-        `Sondervorauszahlung (Kz 39): ${this.fmtEur(data.totals.sondervorauszahlung)} €  |  ` +
-        `Restzahlung (Kz 69): ${this.fmtEur(data.totals.restzahlung)} €`,
+      `Verbleibende Umsatzsteuer: ${this.fmtEur(data.totals.zahllast)} €  |  ` +
+        `Vorauszahlungssoll: ${this.fmtEur(data.totals.vorauszahlungssoll)} €  |  ` +
+        `Abschlusszahlung: ${this.fmtEur(data.totals.abschlusszahlung)} €`,
     )
     doc.moveDown(1)
 

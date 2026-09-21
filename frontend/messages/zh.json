@@ -3077,7 +3077,7 @@
     "vorsteuer": "进项税 (Kz 67)",
     "zahllast": "应缴税款 (Kz 68)",
     "vordruck": "BMF 表格字段",
-    "fieldsHint": "计税基础 (Kz 20-23) 和进项税 (Kz 67) 来自 12 个月度 UStVA。Sondervorauszahlung (Kz 39) 是 1 月 UStVA 的 1/11（§ 47 Abs. 1 UStDV）。Restzahlung (Kz 69) 应在次年 7 月 31 日前缴至财政局。",
+    "fieldsHint": "按官方 USt 2 A 2026 年度申报表的编号，由 12 个月的预申报汇总而来。此处的预缴合计是按月计算值之和——以税务局核定的预缴额（含特别预缴）为准。年度补缴款在提交申报后一个月内到期（§ 18 Abs. 4 UStG）。",
     "totals": "汇总",
     "restzahlungHint": "Restzahlung (Kz 69) — 次年 7 月 31 日前缴至财政局",
     "generatedAt": "生成于",

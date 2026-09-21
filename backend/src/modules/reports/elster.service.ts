@@ -1,51 +1,26 @@
 /**
- * ELSTER XML generator for UStVA
- * (Umsatzsteuervoranmeldung — German VAT advance return, § 18 UStG)
+ * UStVA / UStJA export files (§ 18 UStG).
  *
- * Output format: ERiC Datenlieferungs-XML (Anlage UStVA 2026),
- * suitable for upload to Mein ELSTER (ElsterOnline) or for
- * electronic submission via the official ERiC C-API. The output
- * is a complete <Datenlieferung> packet that ELSTER can parse.
+ * What these files are: the declared amounts under their official
+ * Kennzahlen, for review and for transcription into Mein ELSTER. What they
+ * are NOT: an ELSTER upload. Tier 417 removed this header's claim that the
+ * XML was "suitable for upload … one upload away from being filed": nothing
+ * here follows a verified ERiC schema (the container format is §9 item 9 of
+ * HANDOFF), there is no signature and no submission path. The Steuernummer
+ * handling below is likewise unverified.
  *
- * Why this and not a "raw" CSV/Excel export?
- *   Because if you go to the effort of generating a UStVA at all,
- *   you want to file it. Hand-typing 30+ numbers back into the
- *   ELSTER web form defeats the purpose. This file is one upload
- *   away from being filed (after a quick visual review in
- *   Mein ELSTER).
+ * Kennzahlen (Tier 417): USt 1 A 2026 for the UStVA, USt 2 A 2026 for the
+ * UStJA — see ust-kennzahlen.ts. Before, both exports used an invented
+ * numbering: bases in "Kz 20-23", tax in "Kz 26-29", input tax in
+ * "Kz 56-60" and the amount payable in "Kz 81", which on the form is the
+ * 19 % tax base.
  *
- * What this is NOT
- *   - Not a substitute for the official ERiC C library
- *     (libericapi). ERiC does server-side signature / submission;
- *     we generate the *data* packet only.
- *   - Not PDF-A-3. For submission to the Finanzamt you still need
- *     a signature (typically ElsterSecure, Zertifikatsdatei). This
- *     file is the *content* of the upload — you sign separately.
- *
- * Schema
- *   The packet layout follows the official ERiC 32.x schema for
- *   UStVA. Each numeric field is rendered as a 13-character
- *   semicolon-separated "ASCII-art" line, signed "B" = Betrag.
- *   Per ERiC convention, amounts are output in cents (no decimal
- *   point). Negative values are prefixed with "-".
- *
- * Field mapping (BMF Anlage UStVA 2026):
- *   Kz 20 / 21 / 22 / 23  =  Bemessungsgrundlagen (sales)
- *   Kz 26 / 27 / 28 / 29  =  Steuer zu Kz 20..23
- *   Kz 36                 =  §13b UStG reverse-charge Umsätze
- *   Kz 41                 =  innergemeinschaftliche Lieferungen
- *   Kz 43                 =  Ausfuhren (Drittland)
- *   Kz 44                 =  sonstige steuerfreie Umsätze
- *   Kz 50-66              =  Vorsteuer breakdown
- *   Kz 81                 =  Verbleibender Betrag (Zahllast / Erstattung)
- *
- *   Field ranges:
- *     Kz 20..23  = 0..9999999999999 (13 digits)
- *     Kz 81      = -999999999999..999999999999 (13 + sign)
+ * Amounts are written in cents, signed ("B-Kz081=+000000100000").
  */
 
 import { UstvaData } from './ustva.service';
 import { UstjaResult } from './ustja.service';
+import { KzEntry, ustvaKennzahlen } from './ust-kennzahlen';
 
 export interface ElsterUstvaExportInput {
   /** The computed UStVA data */
@@ -109,8 +84,20 @@ function fmt13(cents: number): string {
  * Render a numeric field as a Kz (Kennzahl) line.
  * "B" prefix = Betrag (amount).
  */
-function kzLine(kz: number, cents: number): string {
+function kzLine(kz: number | string, cents: number): string {
   return `B-Kz${String(kz).padStart(3, '0')}=${fmt13(cents)}`;
+}
+
+/**
+ * Tier 417: the Kennzahl lines of a form, from ust-kennzahlen.ts. A base
+ * whose tax the form computes itself (Kz 81, 86, 89, 93; 177, 275, 781,
+ * 793) is written without that tax. Lines without a Kennzahl or with 0 are
+ * left out, except `always`.
+ */
+function kzLines(entries: KzEntry[], always: string[] = []): string[] {
+  return entries
+    .filter((e) => e.kz !== '' && (e.value !== 0 || always.includes(e.kz)))
+    .map((e) => kzLine(e.kz, Math.round(e.value * 100)));
 }
 
 /**
@@ -128,65 +115,9 @@ export function generateUstvaElsterXml(input: ElsterUstvaExportInput): string {
   const quartal = data.quarter ? String(data.quarter) : '';
   const monat = data.month ? String(data.month) : '';
 
-  // Helper: locate the rate bucket for a given USt-satz
-  const rateBucket = (rate: number) =>
-    data.salesByRate.find((r) => Math.abs(r.rate - rate) < 1e-6);
-
-  // Sales (Bemessungsgrundlage + Steuer) — UStVA Anlage 2026
-  // Kz 20 = 19%, Kz 21 = 7%, Kz 22 = 5%, Kz 23 = 16% (old rate).
-  // We map dynamically based on what the service computed.
-  const outNet19 = rateBucket(0.19)?.net ?? 0;
-  const outVat19 = rateBucket(0.19)?.vat ?? 0;
-  const outNet7 = rateBucket(0.07)?.net ?? 0;
-  const outVat7 = rateBucket(0.07)?.vat ?? 0;
-  const outNet5 = rateBucket(0.05)?.net ?? 0;
-  const outVat5 = rateBucket(0.05)?.vat ?? 0;
-
-  // Reverse-charge (§ 13b) and intra-EU purchases (igE)
-  // Kz 36 (Bemessungsgrundlage for §13b) + 36 (Steuer) — we
-  // apply 19% to igE as the standard rate (Kleinunternehmer
-  // doesn't file igE; §13b with other rates is a rare case the
-  // service doesn't compute).
-  const reverseChargeNet = data.reverseCharge;
-  const reverseChargeVat = Math.round(reverseChargeNet * 0.19 * 100);
-
-  // Vorsteuer (input VAT)
-  const v19 = data.vorsteuer.from19;
-  const v7 = data.vorsteuer.from7;
-  const vIgE = data.vorsteuer.fromIgE;
-  const v13b = data.vorsteuer.fromReverseCharge;
-
-  // Differenzbetrag — already computed by the service
-  // (line 81: positive = Zahllast / owe, negative = Erstattung / refund)
-  const differenz = data.differenzbetrag;
-
-  // All amounts in cents
-  const c = (eur: number) => Math.round(eur * 100);
-
-  // Kennzahlen block — each Kz is one or two <Feld> entries
-  // (Bemessungsgrundlage + Steuer). 13-character signed amounts.
-  const kzBlock = [
-    kzLine(20, c(outNet19)),
-    kzLine(26, c(outVat19)),
-    kzLine(21, c(outNet7)),
-    kzLine(27, c(outVat7)),
-    kzLine(22, c(outNet5)),
-    kzLine(28, c(outVat5)),
-    // Zero-rate buckets
-    kzLine(41, c(data.igL)),
-    kzLine(43, c(data.export)),
-    kzLine(44, c(data.otherExempt)),
-    // Reverse-charge
-    kzLine(36, c(reverseChargeNet)),
-    kzLine(36, c(reverseChargeVat)),  // Kz 36 is reused for tax amount
-    // Vorsteuer (input VAT)
-    kzLine(56, c(v19)),
-    kzLine(57, c(v7)),
-    kzLine(59, c(vIgE)),
-    kzLine(60, c(v13b)),
-    // Differenzbetrag
-    kzLine(81, c(differenz)),
-  ].join('\n        ');
+  // Tier 417: the official USt 1 A 2026 Kennzahlen (ust-kennzahlen.ts);
+  // Kz 83 (verbleibende Vorauszahlung / Überschuss) is always written.
+  const kzBlock = kzLines(ustvaKennzahlen(data), ['83']).join('\n        ');
 
   // Transfer header — the "Transferticket" identifies the data
   // packet to the ELSTER backend. Vorgang = "UStVA", Anlage = 1.
@@ -243,32 +174,43 @@ export function generateUstvaElsterXml(input: ElsterUstvaExportInput): string {
 export function generateUstvaAsciiPreview(input: ElsterUstvaExportInput): string {
   const { data, taxNumber, companyName } = input;
   const steuernummer = normaliseSteuernummer(taxNumber);
-  const c = (eur: number) => fmt13(Math.round(eur * 100));
-  const r = (rate: number) =>
-    data.salesByRate.find((x) => Math.abs(x.rate - rate) < 1e-6);
+  return fillInList('UStVA', 'USt 1 A 2026', companyName, steuernummer, data.periodLabel, ustvaKennzahlen(data), ['83'], [
+    `# ${data.counts.invoices} Rechnungen, ${data.counts.expenses} Ausgaben zugrundegelegt.`,
+  ]);
+}
 
+/**
+ * Tier 417: a readable list of the Kennzahlen to enter in Mein ELSTER — the
+ * "ASCII preview" called itself a "Mein-ELSTER-Paste-Format", which does not
+ * exist. Each line keeps the B-Kz form of the XML plus the form's label.
+ */
+function fillInList(
+  what: string,
+  form: string,
+  companyName: string,
+  steuernummer: string,
+  period: string,
+  entries: KzEntry[],
+  always: string[],
+  footer: string[],
+): string {
   const lines: string[] = [];
-  lines.push(`# UStVA ASCII-Export (Mein-ELSTER-Paste-Format)`);
+  lines.push(`# ${what} — Kennzahlen zur Übertragung in Mein ELSTER (Vordruck ${form})`);
+  lines.push(`# Keine amtliche Upload-Datei. Bemessungsgrundlagen werden im Formular in vollen Euro eingetragen;`);
+  lines.push(`# die Steuer zu Kz 81/86/89/93 (bzw. 177/275/781/793) berechnet ELSTER selbst.`);
   lines.push(`# Firma:        ${companyName}`);
   lines.push(`# Steuernr.:    ${steuernummer}`);
-  lines.push(`# Zeitraum:     ${data.periodLabel}`);
+  lines.push(`# Zeitraum:     ${period}`);
   lines.push(`# Erstellt am:  ${new Date().toLocaleString('de-DE')}`);
   lines.push(``);
-  lines.push(`B-Kz020=${c(r(0.19)?.net ?? 0)}   # Bemessungsgrundlage 19%`);
-  lines.push(`B-Kz026=${c(r(0.19)?.vat ?? 0)}   # Steuer 19%`);
-  lines.push(`B-Kz021=${c(r(0.07)?.net ?? 0)}   # Bemessungsgrundlage 7%`);
-  lines.push(`B-Kz027=${c(r(0.07)?.vat ?? 0)}   # Steuer 7%`);
-  lines.push(`B-Kz041=${c(data.igL)}   # igL`);
-  lines.push(`B-Kz043=${c(data.export)}   # Drittland-Exporte`);
-  lines.push(`B-Kz044=${c(data.otherExempt)}   # sonstige steuerfreie`);
-  lines.push(`B-Kz036=${c(data.reverseCharge)}   # §13b Bemessungsgrundlage`);
-  lines.push(`B-Kz056=${c(data.vorsteuer.from19)}   # Vorsteuer 19%`);
-  lines.push(`B-Kz057=${c(data.vorsteuer.from7)}   # Vorsteuer 7%`);
-  lines.push(`B-Kz059=${c(data.vorsteuer.fromIgE)}   # Vorsteuer igE`);
-  lines.push(`B-Kz060=${c(data.vorsteuer.fromReverseCharge)}   # Vorsteuer §13b`);
-  lines.push(`B-Kz081=${c(data.differenzbetrag)}   # Differenzbetrag`);
+  for (const e of entries) {
+    if (e.kz === '' ? e.value === 0 : e.value === 0 && !always.includes(e.kz)) continue;
+    const kz = e.kz === '' ? '# ohne Kz' : kzLine(e.kz, Math.round(e.value * 100));
+    const tax = e.tax != null && e.tax !== 0 ? ` (Steuer lt. Rechnungen: ${e.tax.toFixed(2)} €)` : '';
+    lines.push(`${kz}   # ${e.label}${e.kz === '' ? `: ${e.value.toFixed(2)} €` : ''}${tax}`);
+  }
   lines.push(``);
-  lines.push(`# ${data.counts.invoices} Rechnungen, ${data.counts.expenses} Ausgaben zugrundegelegt.`);
+  lines.push(...footer);
   return lines.join('\n');
 }
 
@@ -291,34 +233,32 @@ function escapeXml(text: string): string {
 //     "AnlageUStVA")
 //   - Zeitraum has neither Quartal nor Monat
 //     (whole year only)
-//   - Kz numbers are the BMF UStJA fields
-//     (66 / 67 / 68 / 39 / 69 / 81 plus the
-//     Bemessungsgrundlagen 20-23 + Vorsteuer-
-//     breakdown 56-60)
+//   - Kz numbers are the USt 2 A 2026 fields
+//     (Tier 417, ust-kennzahlen.ts)
 //
 // The 12 monthly UStVAs have already been
 // consolidated by the service (see
 // UstjaService.compute). What we add here is
-// the XML/ASCII serialisation for ELSTER
-// upload.
+// the XML / Kennzahlen-list serialisation — not
+// an ELSTER upload (see the header).
 // =============================================================
 
 /**
- * Locate the UstjaLine with the given Kennziffer.
- * Returns the line's `amount` (for Bemessungsgrundlage
- * + flat amounts like Kz 68) or `vat` (for the
- * Steuer-rate lines).
+ * Tier 417: the UStJA's lines already carry their USt 2 A 2026 Kennzahl
+ * (ust-kennzahlen.ts). Back to KzEntry form: a tax line's value is its `vat`,
+ * anything else its `net` / `amount`.
  */
-function findUstjaLine(
-  data: UstjaResult,
-  kz: string,
-  field: 'amount' | 'vat' | 'net' = 'amount',
-): number {
-  const l = data.lines.find((x) => x.kennziffer === kz)
-  if (!l) return 0
-  if (field === 'net') return l.net ?? 0
-  if (field === 'vat') return l.vat ?? 0
-  return l.amount ?? 0
+function ustjaEntries(data: UstjaResult): KzEntry[] {
+  return data.lines.map((l) => {
+    const taxOnly = l.net == null && l.amount == null
+    return {
+      kz: l.kennziffer,
+      label: l.label,
+      value: taxOnly ? l.vat ?? 0 : l.net ?? l.amount ?? 0,
+      kind: taxOnly ? 'tax' : 'base',
+      tax: taxOnly ? undefined : l.vat,
+    }
+  })
 }
 
 /**
@@ -330,42 +270,8 @@ export function generateUstjaElsterXml(input: ElsterUstjaExportInput): string {
   const steuernummer = normaliseSteuernummer(taxNumber)
   const jahr = String(data.year)
 
-  // All amounts in cents
-  const c = (eur: number) => Math.round(eur * 100)
-
-  // BMF UStJA 2024 Kennziffern:
-  //   Kz 20-23  Bemessungsgrundlagen by rate (19/7/0/sonstige)
-  //   Kz 36     §13b UStG Bemessungsgrundlage
-  //   Kz 41-44  steuerfreie Umsätze (igL / Ausfuhren / sonstige)
-  //   Kz 56-66  Vorsteuer breakdown (Kz 56: 19%, Kz 57: 7%, Kz 60: §13b)
-  //   Kz 66     Summe USt (consolidated from 12 monthly)
-  //   Kz 67     Summe Vorsteuer
-  //   Kz 39     Sondervorauszahlung (1/11 Jan-UStVA)
-  //   Kz 68     Verbleibender Betrag (Zahllast = 66-67)
-  //   Kz 69     Restzahlung (Kz 68 - Kz 39)
-  //   Kz 81     Differenzbetrag (= Kz 68)
-  const kzBlock = [
-    kzLine(20, c(findUstjaLine(data, '20', 'net'))),
-    kzLine(26, c(findUstjaLine(data, '20', 'vat'))),
-    kzLine(21, c(findUstjaLine(data, '21', 'net'))),
-    kzLine(27, c(findUstjaLine(data, '21', 'vat'))),
-    kzLine(22, c(findUstjaLine(data, '22', 'net'))),
-    // Kz 22 Steuer = 0 (igL / §4 Nr 1b are 0% rated)
-    kzLine(36, c(findUstjaLine(data, '36', 'net'))),
-    kzLine(41, c(findUstjaLine(data, '41', 'amount'))),
-    kzLine(43, c(findUstjaLine(data, '43', 'amount'))),
-    kzLine(44, c(findUstjaLine(data, '44', 'amount'))),
-    // Vorsteuer breakdown — v1 doesn't split per
-    // rate. Lump the VorsteuerTotal into Kz 66
-    // (Vorsteuer allgemein) and zero the others.
-    // v2: split per rate + igE + §13b.
-    kzLine(66, c(findUstjaLine(data, '66', 'amount'))),
-    kzLine(67, c(findUstjaLine(data, '67', 'amount'))),
-    kzLine(39, c(findUstjaLine(data, '39', 'amount'))),
-    kzLine(68, c(findUstjaLine(data, '68', 'amount'))),
-    kzLine(69, c(findUstjaLine(data, '69', 'amount'))),
-    kzLine(81, c(findUstjaLine(data, '81', 'amount'))),
-  ].join('\n        ')
+  // Tier 417: USt 2 A 2026 Kennzahlen, as the UStJA lines carry them.
+  const kzBlock = kzLines(ustjaEntries(data)).join('\n        ')
 
   // Transfer header — Anlage = "AnlageUStJA"
   // (vs UStVA's "AnlageUStVA"). Vorgang = "UStJA".
@@ -415,35 +321,9 @@ export function generateUstjaElsterXml(input: ElsterUstjaExportInput): string {
 export function generateUstjaAsciiPreview(input: ElsterUstjaExportInput): string {
   const { data, taxNumber, companyName } = input
   const steuernummer = normaliseSteuernummer(taxNumber)
-  const c = (eur: number) => fmt13(Math.round(eur * 100))
-  const ln = (kz: string) => c(findUstjaLine(data, kz, 'amount'))
-  const lnVat = (kz: string) => c(findUstjaLine(data, kz, 'vat'))
-  const lnNet = (kz: string) => c(findUstjaLine(data, kz, 'net'))
-
-  const lines: string[] = []
-  lines.push(`# UStJA ASCII-Export (Mein-ELSTER-Paste-Format)`)
-  lines.push(`# Firma:        ${companyName}`)
-  lines.push(`# Steuernr.:    ${steuernummer}`)
-  lines.push(`# Zeitraum:     ${data.periodLabel}`)
-  lines.push(`# Erstellt am:  ${new Date().toLocaleString('de-DE')}`)
-  lines.push(``)
-  lines.push(`B-Kz020=${lnNet('20')}   # Bemessungsgrundlage 19%`)
-  lines.push(`B-Kz026=${lnVat('20')}   # Steuer 19%`)
-  lines.push(`B-Kz021=${lnNet('21')}   # Bemessungsgrundlage 7%`)
-  lines.push(`B-Kz027=${lnVat('21')}   # Steuer 7%`)
-  lines.push(`B-Kz036=${lnNet('36')}   # §13b Bemessungsgrundlage`)
-  lines.push(`B-Kz041=${ln('41')}   # igL`)
-  lines.push(`B-Kz043=${ln('43')}   # Ausfuhren (Drittland)`)
-  lines.push(`B-Kz044=${ln('44')}   # sonstige steuerfreie`)
-  lines.push(`B-Kz066=${ln('66')}   # Summe USt (Σ Monate)`)
-  lines.push(`B-Kz067=${ln('67')}   # Summe Vorsteuer`)
-  lines.push(`B-Kz039=${ln('39')}   # Sondervorauszahlung (1/11 Jan-UStVA)`)
-  lines.push(`B-Kz068=${ln('68')}   # Verbleibender Betrag (66-67)`)
-  lines.push(`B-Kz069=${ln('69')}   # Restzahlung (68-39)`)
-  lines.push(`B-Kz081=${ln('81')}   # Differenzbetrag`)
-  lines.push(``)
-  lines.push(
+  return fillInList('UStJA', 'USt 2 A 2026', companyName, steuernummer, data.periodLabel, ustjaEntries(data), [], [
+    `# Umsatzsteuer ${data.totals.umsatzsteuer.toFixed(2)} € − Vorsteuer ${data.totals.vorsteuer.toFixed(2)} € = verbleibende Umsatzsteuer ${data.totals.zahllast.toFixed(2)} €`,
+    `# Vorauszahlungssoll (berechnet) ${data.totals.vorauszahlungssoll.toFixed(2)} € — maßgeblich ist das festgesetzte Soll`,
     `# ${data.counts.monthsWithData}/12 Monate mit Daten konsolidiert.`,
-  )
-  return lines.join('\n')
+  ])
 }

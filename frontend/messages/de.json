@@ -3077,7 +3077,7 @@
     "vorsteuer": "Vorsteuer (Kz 67)",
     "zahllast": "Zahllast (Kz 68)",
     "vordruck": "BMF Vordruck — Kennziffern",
-    "fieldsHint": "Besteuerungsgrundlagen (Kz 20-23) und Vorsteuer (Kz 67) stammen aus den 12 monatlichen UStVAs. Sondervorauszahlung (Kz 39) ist 1/11 der Jan-UStVA gemäß § 47 Abs. 1 UStDV. Restzahlung (Kz 69) ist bis 31.07. des Folgejahres an das Finanzamt zu entrichten.",
+    "fieldsHint": "Kennzahlen nach dem Vordruckmuster USt 2 A 2026, aus den 12 monatlichen UStVAs summiert. Das Vorauszahlungssoll ist hier die Summe der berechneten Monatswerte — maßgeblich ist das vom Finanzamt festgesetzte Soll einschließlich einer Sondervorauszahlung. Die Abschlusszahlung ist einen Monat nach Abgabe der Erklärung fällig (§ 18 Abs. 4 UStG).",
     "totals": "Zusammenfassung",
     "restzahlungHint": "Restzahlung (Kz 69) — bis 31.07. des Folgejahres an das Finanzamt",
     "generatedAt": "Erstellt",

@@ -9,17 +9,18 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–415 are
-  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 415.)
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–416 are
+  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 416.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 35621206517 / commit `def98d0`, Tier 415):**
-  - Backend e2e: **203 passed / 0 failed / 1 skipped** of 204 specs — 100
-    two-digit + 104 three-digit (Tier 415 added `204-tier415-amounts-in-cents.sh`,
+- **Test counts (last green CI, run 35628280500 / commit `9f12e37`, Tier 416):**
+  - Backend e2e: **204 passed / 0 failed / 1 skipped** of 205 specs — 100
+    two-digit + 105 three-digit (Tier 416 added `205-tier416-credit-note-tax.sh`,
+    Tier 415 `204-tier415-amounts-in-cents.sh`,
     Tier 414 `203-tier414-zugferd-cii.sh`,
     Tier 413 `202-tier413-invoice-pdf-discount.sh`,
     Tier 412 `201-tier412-xrechnung-en16931.sh`,
@@ -2436,6 +2437,7 @@ see below); Tier 398a run 35099184553 green: backend 188/0/1, Playwright 922.
 Tier 400 run 35112477951, all six jobs green: backend 189/0/1 (the new spec
 is the +1; the skip is still 16-dark-mode), Playwright 922.
 Tier 402 run 35140985920, all six jobs green: backend 190/0/1, Playwright 926.
+Tier 416 run 35628280500, all six jobs green: backend 204/0/1, Playwright 930 passed, 0 flaky.
 Tier 415 run 35621206517, all six jobs green: backend 203/0/1, Playwright 930 passed (+2), 0 flaky.
 Tier 414 run 35613762360, all six jobs green: backend 202/0/1, Playwright 928 passed, 0 flaky.
 Tier 413 run 35263817448, all six jobs green: backend 201/0/1, Playwright 928 passed (+2 from invoice-discount-row-tier413), 0 flaky.
@@ -2459,6 +2461,78 @@ Tier 401 run 35123354210 **failed** on backend lint — a warning
 runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
+
+### The UStVA put reverse charge on the wrong lines, under invented Kennzahlen (Tier 417)
+
+Measured in one month for one company:
+
+| Transaction | Before | Now |
+|---|---|---|
+| § 13b sale to a German builder, 1 000 | "sonstige steuerfreie Umsätze" | Kz 60 |
+| B2B consulting to an Austrian company, 500 | counted as **igL** | Kz 21 (§ 18b) |
+| igL 300, refunded 100 | igL **800** (500 + 300; a 0 % credit note never subtracted) | 200 |
+| § 13b purchase 2 000 (domestic) | tax owed 380, **deducted 0** | Kz 84/85 2 000 / 380, Vorsteuer Kz 67 380 |
+| igE 400 | tax owed 76, **deducted 0** | Kz 89 400 (76), Vorsteuer Kz 61 76 |
+| input tax on a 16 % invoice | dropped | Kz 66 |
+| **Zahllast** | **+456** | **−16** |
+
+The output side added net × 19 % for every igE / § 13b purchase, but the input
+side read the expense's `vatAmount`, which is 0 on a reverse-charge invoice —
+so every such purchase made the company pay the tax it was entitled to
+deduct. The tax is now net × the expense's rate on both sides; zero-rated
+sales are classified once (invoice flags first, then customer country) and
+credit notes use their original's flags.
+
+**The Kennzahlen were invented.** Checked against the BMF form models of
+29.12.2025 (USt 1 A 2026 and USt 2 A 2026), none of the app's numbers matched:
+19 % / 7 % bases in "Kz 20 / 21" with tax in "Kz 26 / 27", § 13b in "Kz 36",
+other exempt sales in "Kz 44" (the form's Kz 44 is new vehicles), input tax
+in "Kz 56 / 57 / 59 / 60" (Kz 60 is § 13b *sales*), and **the amount payable
+in "Kz 81" — the form's 19 % tax base**. Measured: the old export wrote
+`B-Kz081=+000000045600` for a Zahllast of 456 €; typed into ELSTER, that
+declares 456 € of 19 % turnover. The UStJA used the same invented set (plus
+"Kz 66/67/68/39/69" totals, with a Sondervorauszahlung of "January ÷ 11" —
+on the form it is 1/11 of the *previous* year's advance payments).
+
+`ust-kennzahlen.ts` now holds both mappings (USt 1 A: 81, 86, 35/36, 41, 43,
+48, 89, 93, 95/98, 46/47, 84/85, 60, 21, 45, 66, 61, 67, 83; USt 2 A: 177,
+275, 155/156, 741, 752, 781, 793, 798/799, 846/847, 877/878, 209, 721, 205,
+320, 761, 467). The UStVA compute returns its `kennzahlen`; the UStVA page
+shows them and exports its CSV from them; the UStJA lines, PDF and both
+ELSTER exports use them. Zero-rated sales without an igL / § 13b / export
+classification have no single annual Kennzahl (the USt 2 A splits them by
+exemption provision) and are listed without one. The UStJA totals are now
+Umsatzsteuer − Vorsteuer = verbleibende Umsatzsteuer, minus the
+Vorauszahlungssoll (the sum of the computed months; the Finanzamt's Soll
+governs) = Abschlusszahlung.
+
+A code comment from Tier 355 left open "whether the UStJA has to report input
+tax split by rate / igE / § 13b, or only as a total" and kept four unused
+accumulators for it. The USt 2 A answers it — Kz 320 / 761 / 467 are separate
+lines — and the UStJA now reports them.
+
+The export files no longer claim to be an ELSTER upload ("one upload away
+from being filed"); the text list says "Keine amtliche Upload-Datei". The
+XML container itself is unchanged — §9 item 9 still stands.
+
+Also: `SaveUstvaFilingDto` had `@Min(0)` on the sales amounts and the
+Umsatzsteuer, so a month whose credit notes exceeded its sales could not be
+saved; and it rejected the new fields, which would have broken "save filing"
+on the page.
+
+Specs: `e2e/206-tier417-ustva-kennzahlen.sh` (29 assertions, 25 failing
+against the old code). `e2e/131` and `e2e/133` asserted the invented
+numbering and now assert the official one; `e2e/49` called Kz 81 the
+"Verbleibender Betrag"; `frontend/e2e/ustja.spec.ts` looked for the invented
+total rows.
+
+Local full run: backend 204 / 1 / 1 (the failure is `50-webhooks`, nip.io DNS
+as always locally), 0 × 500; Playwright 928 + 1 failed + 1 flaky before the
+fix below. The failure was mine: with only non-zero Kennzahlen listed, the
+seed company's UStJA table can be empty, and `ustja.spec.ts` assumed a row —
+the section now shows an empty-state row. The flaky one,
+`admin-activity-log-tier202` #3, posts a real webhook to httpbin.org and gives
+it 5 s; a delivery took 6.1 s. Unrelated to this tier; spun off as a task.
 
 ### Credit notes took back the wrong tax (Tier 416)
 
@@ -4025,6 +4099,11 @@ These are **not in the repo** — only the user can do them:
    surface as a rejected upload at ELSTER. Needs someone with the ERiC schema
    (or a test upload in Mein ELSTER's test mode) to decide which side is right
    before anyone changes the generator — it is a tax filing format.
+   *Tier 417:* the **Kennzahlen** inside it are now verified against the
+   BMF form models (USt 1 A / USt 2 A 2026) and corrected — the old ones were
+   invented and put the Zahllast in Kz 81 (the 19 % base). What remains open
+   is only the container format, and the files no longer claim to be an
+   upload.
 10. **Replace the header "authentication" before any real deployment**
     (**phases 1-2 done, Tiers 400-401** — the browser is cookie-only; what is
     left is phase 3, `ALLOW_HEADER_AUTH=0`, which CI cannot run until the

@@ -39,11 +39,28 @@ export class UstvaSalesByRateDto {
   @IsString() @MaxLength(50)
   label!: string
 
-  @IsNumber() @Min(0)
+  // Tier 417: a month whose credit notes exceed its sales has a negative
+  // base and tax; @Min(0) made that month's filing unsaveable (400).
+  @IsNumber()
   net!: number
 
-  @IsNumber() @Min(0)
+  @IsNumber()
   vat!: number
+}
+
+/** Tier 417: a net / tax pair (igE, § 13b purchases). */
+export class UstvaNetVatDto {
+  @IsNumber()
+  net!: number
+
+  @IsNumber()
+  vat!: number
+}
+
+/** Tier 417: igE per rate. */
+export class UstvaRateNetVatDto extends UstvaNetVatDto {
+  @IsNumber() @Min(0) @Max(9.9999)
+  rate!: number
 }
 
 /**
@@ -62,6 +79,9 @@ export class UstvaVorsteuerDto {
 
   @IsNumber() @Min(0)
   fromReverseCharge!: number
+
+  @IsNumber() @IsOptional()
+  fromOther?: number
 
   @IsNumber() @Min(0)
   total!: number
@@ -105,23 +125,51 @@ export class UstvaDataDto {
   @Type(() => UstvaSalesByRateDto)
   salesByRate!: UstvaSalesByRateDto[]
 
-  @IsNumber() @Min(0)
+  // Tier 417: signed — credit notes subtract (see UstvaSalesByRateDto).
+  @IsNumber()
   igL!: number
 
-  @IsNumber() @Min(0)
+  @IsNumber()
   export!: number
 
-  @IsNumber() @Min(0)
+  @IsNumber()
   otherExempt!: number
 
   @IsNumber() @Min(0)
   reverseCharge!: number
 
+  // Tier 417: the fields compute() now returns. Optional, so a filing saved
+  // by an older page still validates.
+  @IsNumber() @IsOptional()
+  reverseChargeSales?: number
+
+  @IsNumber() @IsOptional()
+  euServicesSales?: number
+
+  @IsNumber() @IsOptional()
+  nonTaxableOther?: number
+
+  @IsOptional() @ValidateNested() @Type(() => UstvaNetVatDto)
+  intraEuAcquisitions?: UstvaNetVatDto
+
+  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => UstvaRateNetVatDto)
+  intraEuAcquisitionsByRate?: UstvaRateNetVatDto[]
+
+  @IsOptional() @ValidateNested() @Type(() => UstvaNetVatDto)
+  reverseChargeEuServices?: UstvaNetVatDto
+
+  @IsOptional() @ValidateNested() @Type(() => UstvaNetVatDto)
+  reverseChargeOther?: UstvaNetVatDto
+
+  /** Tier 417: echoed back from compute(); not stored */
+  @IsOptional() @IsArray()
+  kennzahlen?: unknown[]
+
   @ValidateNested()
   @Type(() => UstvaVorsteuerDto)
   vorsteuer!: UstvaVorsteuerDto
 
-  @IsNumber() @Min(0)
+  @IsNumber()
   umsatzsteuer!: number
 
   @IsNumber() @Min(0)

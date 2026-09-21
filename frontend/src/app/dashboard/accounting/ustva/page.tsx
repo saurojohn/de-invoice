@@ -20,11 +20,17 @@ interface UstvaData {
   export: number
   otherExempt: number
   reverseCharge: number
+  // Tier 417
+  reverseChargeSales?: number
+  euServicesSales?: number
+  nonTaxableOther?: number
+  kennzahlen?: Array<{ kz: string; label: string; value: number; kind: "base" | "tax" | "amount"; tax?: number }>
   vorsteuer: {
     from19: number
     from7: number
     fromIgE: number
     fromReverseCharge: number
+    fromOther?: number
     total: number
   }
   umsatzsteuer: number
@@ -346,27 +352,16 @@ function UstvaPageInner() {
   const downloadCsv = () => {
     if (!data) return
     const lines: string[] = []
-    lines.push("Position;Bemessungsgrundlage;Steuer")
-    for (const r of data.salesByRate) {
-      lines.push(
-        `USt ${(r.rate * 100).toFixed(0)}% (${r.label});${r.net.toFixed(2)};${r.vat.toFixed(2)}`
-      )
+    // Tier 417: the official USt 1 A 2026 Kennzahlen, as the backend maps
+    // them. This listed invented "Zeilen" (the payable amount as "Zeile 81",
+    // which on the form is the 19 % tax base).
+    lines.push("Kennzahl;Bezeichnung;Betrag;Steuer lt. Rechnungen")
+    for (const k of data.kennzahlen ?? []) {
+      if (k.value === 0 && k.kz !== "83") continue
+      lines.push(`${k.kz};${k.label};${k.value.toFixed(2)};${k.tax != null ? k.tax.toFixed(2) : ""}`)
     }
-    lines.push(`igL (Zeile 41);${data.igL.toFixed(2)};0,00`)
-    lines.push(`Ausfuhren (Zeile 43);${data.export.toFixed(2)};0,00`)
-    lines.push(`Sonstige steuerfrei (Zeile 44);${data.otherExempt.toFixed(2)};0,00`)
-    lines.push(
-      `Reverse Charge §13b / igE (Zeile 36);${data.reverseCharge.toFixed(2)};-`
-    )
-    lines.push(`Vorsteuer 19% (Zeile 56);-;${data.vorsteuer.from19.toFixed(2)}`)
-    lines.push(`Vorsteuer 7% (Zeile 57);-;${data.vorsteuer.from7.toFixed(2)}`)
-    lines.push(`Vorsteuer igE (Zeile 59);-;${data.vorsteuer.fromIgE.toFixed(2)}`)
-    lines.push(
-      `Vorsteuer §13b (Zeile 60);-;${data.vorsteuer.fromReverseCharge.toFixed(2)}`
-    )
-    lines.push(`Summe Umsatzsteuer;-;${data.umsatzsteuer.toFixed(2)}`)
-    lines.push(`Summe Vorsteuer;-;${data.vorsteuer.total.toFixed(2)}`)
-    lines.push(`Differenzbetrag (Zeile 81);-;${data.differenzbetrag.toFixed(2)}`)
+    lines.push(`;Summe Umsatzsteuer;${data.umsatzsteuer.toFixed(2)};`)
+    lines.push(`;Summe Vorsteuer;${data.vorsteuer.total.toFixed(2)};`)
 
     const csv = "\uFEFF" + lines.join("\n")
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
@@ -621,11 +616,24 @@ function UstvaPageInner() {
                           {formatCurrency(data.export)}
                         </td>
                       </tr>
-                      <tr>
+                      <tr className="border-b">
                         <td className="py-2">{t("ustva.otherExempt")}</td>
                         <td className="py-2 text-right font-medium">
                           {formatCurrency(data.otherExempt)}
                         </td>
+                      </tr>
+                      {/* Tier 417: sales on which the customer owes the tax */}
+                      <tr className="border-b" data-testid="ustva-rc-sales">
+                        <td className="py-2">§ 13b — Leistungsempfänger schuldet die Steuer (Kz 60)</td>
+                        <td className="py-2 text-right font-medium">{formatCurrency(data.reverseChargeSales ?? 0)}</td>
+                      </tr>
+                      <tr className="border-b" data-testid="ustva-eu-services">
+                        <td className="py-2">Sonstige Leistungen an Unternehmer in der EU (Kz 21)</td>
+                        <td className="py-2 text-right font-medium">{formatCurrency(data.euServicesSales ?? 0)}</td>
+                      </tr>
+                      <tr>
+                        <td className="py-2">Übrige nicht steuerbare Umsätze (Kz 45)</td>
+                        <td className="py-2 text-right font-medium">{formatCurrency(data.nonTaxableOther ?? 0)}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -672,6 +680,33 @@ function UstvaPageInner() {
                 </CardContent>
               </Card>
             </div>
+
+            {/* Tier 417: the amounts under their official Kennzahlen */}
+            {data.kennzahlen && data.kennzahlen.some((k) => k.value !== 0) && (
+              <Card className="mb-6" data-testid="ustva-kennzahlen">
+                <CardHeader>
+                  <CardTitle>Kennzahlen (Vordruck USt 1 A 2026)</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <table className="w-full text-sm">
+                    <tbody>
+                      {data.kennzahlen
+                        .filter((k) => k.value !== 0 || k.kz === "83")
+                        .map((k) => (
+                          <tr key={k.kz} className="border-b" data-testid={`ustva-kz-${k.kz}`}>
+                            <td className="py-2 font-mono w-12">{k.kz}</td>
+                            <td className="py-2 text-xs">{k.label}</td>
+                            <td className="py-2 text-right font-medium">{formatCurrency(k.value)}</td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                  <p className="text-[11px] text-gray-500 mt-2">
+                    Zur Übertragung in Mein ELSTER. Bemessungsgrundlagen werden dort in vollen Euro eingetragen; die Steuer zu Kz 81/86/89/93 berechnet ELSTER selbst.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Reverse charge line */}
             {data.reverseCharge > 0 && (
