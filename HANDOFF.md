@@ -9,17 +9,18 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–420 are
-  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 420.)
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–421 are
+  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 421.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 35655102546 / commit `b284cb8`, Tier 420):**
-  - Backend e2e: **208 passed / 0 failed / 1 skipped** of 209 specs — 100
-    two-digit + 109 three-digit (Tier 420 added `209-tier420-gobd-archive-issued.sh`,
+- **Test counts (last green CI, run 35658942460 / commit `f22fe38`, Tier 421):**
+  - Backend e2e: **209 passed / 0 failed / 1 skipped** of 210 specs — 100
+    two-digit + 110 three-digit (Tier 421 added `210-tier421-verzugszinsen.sh`,
+    Tier 420 `209-tier420-gobd-archive-issued.sh`,
     Tier 419 `208-tier419-expense-net-cost.sh`,
     Tier 418 `207-tier418-pdf-pagination.sh`,
     Tier 417 `206-tier417-ustva-kennzahlen.sh`,
@@ -2441,6 +2442,7 @@ see below); Tier 398a run 35099184553 green: backend 188/0/1, Playwright 922.
 Tier 400 run 35112477951, all six jobs green: backend 189/0/1 (the new spec
 is the +1; the skip is still 16-dark-mode), Playwright 922.
 Tier 402 run 35140985920, all six jobs green: backend 190/0/1, Playwright 926.
+Tier 421 run 35658942460, all six jobs green: backend 209/0/1, Playwright 930 passed, 0 flaky.
 Tier 420 run 35655102546, all six jobs green: backend 208/0/1, Playwright 930 passed, 0 flaky.
 Tier 419 run 35651151007, all six jobs green: backend 207/0/1, Playwright 930 passed, 0 flaky.
 Tier 418 run 35647495312, all six jobs green: backend 206/0/1, Playwright 930 passed, 0 flaky.
