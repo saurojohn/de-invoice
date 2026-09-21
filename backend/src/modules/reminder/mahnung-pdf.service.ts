@@ -67,6 +67,17 @@ export interface MahnungPdfInput {
   /** Verzugszins percentage applied, e.g. 9.0 (% per year). */
   verzugszinsPct?: number
   /**
+   * Tier 421: what is still open (invoice total minus payments and credit
+   * notes). The letter showed the invoice total as "Offener Betrag" and added
+   * the fees to it, so a part-paid invoice was dunned for the full amount.
+   */
+  openAmount?: number
+  /** Tier 421: the Basiszinssatz and the surcharge the interest was computed with */
+  basiszinssatz?: number
+  zinsaufschlag?: number
+  /** Tier 421: § 288 Abs. 1 (consumer, +5 points) instead of Abs. 2 (+9) */
+  consumer?: boolean
+  /**
    * Tier 40: optional DATEV Kostenstelle 1 + Kostenträger
    * stamps copied from the underlying Invoice. Pulled by
    * the controller + auto-reminder at send-time (not
@@ -341,8 +352,18 @@ export async function generateMahnungPDF(input: MahnungPdfInput): Promise<Buffer
       { width: CONTENT_WIDTH },
     )
     y = doc.y + 8
+    const open = input.openAmount ?? input.totalAmount
+    if (open !== input.totalAmount) {
+      doc.text(
+        `Rechnungsbetrag: ${formatEUR(input.totalAmount)} — abzüglich Zahlungen und Gutschriften: ${formatEUR(input.totalAmount - open)}`,
+        PAGE_MARGIN,
+        y,
+        { width: CONTENT_WIDTH },
+      )
+      y = doc.y + 4
+    }
     doc.text(
-      `Offener Betrag: ${formatEUR(input.totalAmount)}`,
+      `Offener Betrag: ${formatEUR(open)}`,
       PAGE_MARGIN,
       y,
       { width: CONTENT_WIDTH },
@@ -362,7 +383,7 @@ export async function generateMahnungPDF(input: MahnungPdfInput): Promise<Buffer
     const feeM = Number(input.mahngebuehr || 0)
     const feeV = Number(input.verzugszins || 0)
     if (feeM > 0 || feeV > 0) {
-      const grand = input.totalAmount + feeM + feeV
+      const grand = open + feeM + feeV
       const feeBoxLeft = PAGE_MARGIN
       const feeLabelW = CONTENT_WIDTH * 0.65
       const feeValueW = CONTENT_WIDTH * 0.35
@@ -394,10 +415,16 @@ export async function generateMahnungPDF(input: MahnungPdfInput): Promise<Buffer
         })
       }
       if (feeV > 0) {
-        const pct = input.verzugszinsPct
-        const label = pct
-          ? `Verzugszinsen (${pct.toFixed(2)} % über Basiszinssatz, §288 Abs. 2 BGB)`
-          : `Verzugszinsen (§288 Abs. 2 BGB)`
+        // Tier 421: this said "9.00 % über Basiszinssatz" while a flat 9 %
+        // a year was charged. It now states how the interest was computed.
+        const abs = input.consumer ? 1 : 2
+        const de = (n: number) => n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        const label =
+          input.basiszinssatz != null && input.zinsaufschlag != null && input.verzugszinsPct != null
+            ? `Verzugszinsen (${de(input.verzugszinsPct)} % p. a. = Basiszinssatz ${de(input.basiszinssatz)} % + ${de(input.zinsaufschlag)} Prozentpunkte, § 288 Abs. ${abs} BGB)`
+            : input.zinsaufschlag != null
+              ? `Verzugszinsen (Basiszinssatz + ${de(input.zinsaufschlag)} Prozentpunkte, § 288 Abs. ${abs} BGB)`
+              : `Verzugszinsen (§ 288 Abs. ${abs} BGB)`
         feeLines.push({ label, value: feeV })
       }
       // Grand total — bold, separated by a thin rule above
@@ -470,7 +497,9 @@ export async function generateMahnungPDF(input: MahnungPdfInput): Promise<Buffer
         .fontSize(9)
         .fillColor("#333333")
         .text(
-          "Hinweis: Bei Verzug schulden Sie Verzugszinsen in Höhe von 9 Prozentpunkten über dem Basiszinssatz (§288 Abs. 2 BGB) sowie Mahngebühren.",
+          input.consumer
+            ? "Hinweis: Bei Verzug schulden Sie Verzugszinsen in Höhe von 5 Prozentpunkten über dem Basiszinssatz (§ 288 Abs. 1 BGB) sowie Mahngebühren."
+            : "Hinweis: Bei Verzug schulden Sie Verzugszinsen in Höhe von 9 Prozentpunkten über dem Basiszinssatz (§ 288 Abs. 2 BGB) sowie Mahngebühren.",
           PAGE_MARGIN,
           y,
           { width: CONTENT_WIDTH },

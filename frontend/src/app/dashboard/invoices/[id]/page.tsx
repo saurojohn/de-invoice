@@ -777,6 +777,9 @@ export default function InvoiceDetailPage() {
     mahngebuehr: number
     verzugszins: number
     verzugszinsPct: number
+    // Tier 421: the rate is Basiszinssatz + surcharge (§ 288 BGB)
+    basiszinssatz?: number
+    zinsaufschlag?: number
     totalDue: number
   }
   const [mahnungFees, setMahnungFees] = useState<MahnungFees | null>(null)
@@ -3412,7 +3415,11 @@ export default function InvoiceDetailPage() {
                     <div className="flex justify-between">
                       <span className="text-gray-600 dark:text-gray-300">
                         + {t("invoice.verzugszins") || "Verzugszins"} (
-                        {mahnungFees.verzugszinsPct}% p.a.)
+                        {mahnungFees.verzugszinsPct}% p.a.
+                        {mahnungFees.basiszinssatz != null && mahnungFees.zinsaufschlag != null
+                          ? ` = Basiszinssatz ${mahnungFees.basiszinssatz}% + ${mahnungFees.zinsaufschlag} Pkt.`
+                          : ""}
+                        )
                       </span>
                       <span
                         className="font-mono"

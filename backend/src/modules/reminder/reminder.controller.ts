@@ -1,3 +1,4 @@
+import { isConsumer } from './reminder.service';
 import { Controller, Get, Post, Put, Body, Param, Query, BadRequestException, ConflictException, NotFoundException, Req, Res } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { ReminderService } from './reminder.service';
@@ -574,9 +575,14 @@ export class ReminderController {
         ? Number((inv as any).skontoPercent)
         : null,
       skontoDays: (inv as any).skontoDays ?? null,
-      verzugszinsPct: (
-        await this.reminderService.getFeeConfig(companyId)
-      ).verzugszinsPct,
+      // Tier 421: the stored Mahnung's amounts — its open balance is the
+      // total due minus its fees — and the surcharge over the Basiszinssatz.
+      openAmount:
+        Math.round((Number(mahnung.totalDue) - Number(mahnung.mahngebuehr) - Number(mahnung.verzugszins)) * 100) / 100,
+      zinsaufschlag: isConsumer((inv as any).customer?.type)
+        ? Math.min((await this.reminderService.getFeeConfig(companyId)).verzugszinsPct, 5)
+        : (await this.reminderService.getFeeConfig(companyId)).verzugszinsPct,
+      consumer: isConsumer((inv as any).customer?.type),
     });
 
     res.setHeader('Content-Type', 'application/pdf');

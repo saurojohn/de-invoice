@@ -1,3 +1,4 @@
+import { verzugszinsen } from './basiszinssatz';
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MahnungspauseService } from './mahnungspause.service';
@@ -809,6 +810,7 @@ Mit freundlichen Grüßen,
     });
     const cfg = (company?.bankInfo as any)?.mahnungConfig || {};
     return {
+      // Tier 421: the surcharge over the Basiszinssatz (§ 288 Abs. 2 BGB).
       verzugszinsPct: typeof cfg.verzugszinsPct === 'number' ? cfg.verzugszinsPct : 9.0,
       mahngebuehr: {
         // Tier 164: defaults changed from 0/2.50/5.00
@@ -898,23 +900,53 @@ Mit freundlichen Grüßen,
   async computeFees(
     companyId: string,
     principalGross: number,
-    daysOverdue: number,
+    dueDate: Date | null,
     level: 'first' | 'second' | 'final',
+    consumer: boolean,
   ) {
     const cfg = await this.getFeeConfig(companyId);
     const mahngebuehr = cfg.mahngebuehr[level] || 0;
-    const verzugszinsRaw =
-      principalGross * ((cfg.verzugszinsPct as number) / 100) * (daysOverdue / 365);
-    const verzugszins = Math.round(verzugszinsRaw * 100) / 100;
+    // Tier 421: `verzugszinsPct` is the surcharge over the Basiszinssatz — as
+    // the settings page always said (§ 288 Abs. 2 BGB) — not the whole rate,
+    // which is how it was applied (a flat 9 % a year). A consumer owes at
+    // most Basiszinssatz + 5 points (Abs. 1), whatever the company set.
+    const surcharge = consumer
+      ? Math.min(cfg.verzugszinsPct as number, 5)
+      : (cfg.verzugszinsPct as number);
+    const interest = dueDate
+      ? verzugszinsen(principalGross, new Date(dueDate), new Date(), surcharge)
+      : { amount: 0, currentRate: 0, currentBasiszinssatz: 0, days: 0 };
+    const verzugszins = interest.amount;
     const mahngebuehrRounded = Math.round(mahngebuehr * 100) / 100;
     const totalDue =
       Math.round((principalGross + mahngebuehrRounded + verzugszins) * 100) / 100;
     return {
       mahngebuehr: mahngebuehrRounded,
       verzugszins,
-      verzugszinsPct: cfg.verzugszinsPct,
+      /** the annual rate applied on the last day (Basiszinssatz + surcharge) */
+      verzugszinsPct: interest.currentRate,
+      basiszinssatz: interest.currentBasiszinssatz,
+      zinsaufschlag: surcharge,
       totalDue,
     };
+  }
+
+  /**
+   * Tier 421: what the customer still owes on an invoice — total minus
+   * payments minus credit notes against it. Dunning charged interest on, and
+   * demanded, the invoice total even after a part payment.
+   */
+  async openBalance(invoiceId: string, total: number): Promise<number> {
+    const [paid, credited] = await Promise.all([
+      this.prisma.payment.aggregate({ where: { invoiceId }, _sum: { amount: true } }),
+      this.prisma.invoice.aggregate({
+        where: { referenceInvoiceId: invoiceId, type: 'CN', status: { not: 'cancelled' } },
+        _sum: { total: true },
+      }),
+    ]);
+    const open =
+      total - Number(paid._sum.amount ?? 0) - Math.abs(Number(credited._sum.total ?? 0));
+    return Math.max(0, Math.round(open * 100) / 100);
   }
 
   /**
@@ -950,14 +982,21 @@ Mit freundlichen Grüßen,
         total: true,
         dueDate: true,
         status: true,
+        customer: { select: { type: true } },
       },
     });
     if (!invoice) {
       throw new BadRequestException('Rechnung nicht gefunden');
     }
-    const principalGross = Number(invoice.total);
+    const principalGross = await this.openBalance(invoice.id, Number(invoice.total));
     const daysOverdue = this.computeDaysOverdue(invoice.dueDate);
-    const fees = await this.computeFees(companyId, principalGross, daysOverdue, level);
+    const fees = await this.computeFees(
+      companyId,
+      principalGross,
+      invoice.dueDate,
+      level,
+      isConsumer(invoice.customer?.type),
+    );
     return {
       invoiceId: invoice.id,
       invoiceNumber: invoice.invoiceNumber,
@@ -1190,4 +1229,8 @@ Mit freundlichen Grüßen,
     });
     return { cancelled: res.count };
   }
+}
+/** Tier 421: § 288 Abs. 1 BGB applies when the debtor is a consumer. */
+export function isConsumer(type: string | null | undefined): boolean {
+  return ['individual', 'private', 'consumer', 'privat'].includes(String(type ?? '').toLowerCase());
 }

@@ -9,17 +9,18 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–419 are
-  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 419.)
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–420 are
+  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 420.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 35651151007 / commit `a828f72`, Tier 419):**
-  - Backend e2e: **207 passed / 0 failed / 1 skipped** of 208 specs — 100
-    two-digit + 108 three-digit (Tier 419 added `208-tier419-expense-net-cost.sh`,
+- **Test counts (last green CI, run 35655102546 / commit `b284cb8`, Tier 420):**
+  - Backend e2e: **208 passed / 0 failed / 1 skipped** of 209 specs — 100
+    two-digit + 109 three-digit (Tier 420 added `209-tier420-gobd-archive-issued.sh`,
+    Tier 419 `208-tier419-expense-net-cost.sh`,
     Tier 418 `207-tier418-pdf-pagination.sh`,
     Tier 417 `206-tier417-ustva-kennzahlen.sh`,
     Tier 416 `205-tier416-credit-note-tax.sh`,
@@ -2440,6 +2441,7 @@ see below); Tier 398a run 35099184553 green: backend 188/0/1, Playwright 922.
 Tier 400 run 35112477951, all six jobs green: backend 189/0/1 (the new spec
 is the +1; the skip is still 16-dark-mode), Playwright 922.
 Tier 402 run 35140985920, all six jobs green: backend 190/0/1, Playwright 926.
+Tier 420 run 35655102546, all six jobs green: backend 208/0/1, Playwright 930 passed, 0 flaky.
 Tier 419 run 35651151007, all six jobs green: backend 207/0/1, Playwright 930 passed, 0 flaky.
 Tier 418 run 35647495312, all six jobs green: backend 206/0/1, Playwright 930 passed, 0 flaky.
 Tier 417 run 35634107905, all six jobs green: backend 205/0/1, Playwright 930 passed, 0 flaky.
@@ -2467,6 +2469,43 @@ Tier 401 run 35123354210 **failed** on backend lint — a warning
 runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
+
+### Verzugszinsen were a flat 9 %, on the invoice total (Tier 421)
+
+§ 288 BGB: Basiszinssatz + 9 percentage points between businesses (Abs. 2),
++ 5 points against a consumer (Abs. 1). The app charged a flat 9 % a year to
+everyone, and on the invoice total even after part payments. Measured on a
+1 190 € invoice, 100 days overdue, 500 € already paid:
+
+| | Before | Now |
+|---|---|---|
+| principal / "Offener Betrag" on the letter | 1 190 | 690 |
+| rate, business customer | 9 % | 10,52 % (1,52 + 9) |
+| rate, consumer | 9 % — **above the legal maximum** | 6,52 % (1,52 + 5) |
+| Verzugszins business / consumer | 29,34 / 29,34 | 19,81 / 12,25 |
+| totalDue on the letter | 1 224,34 (the 500 demanded again) | 714,81 / 707,25 |
+| letter wording | "9.00 % über Basiszinssatz" while a flat 9 % was charged | "10,52 % p. a. = Basiszinssatz 1,52 % + 9,00 Prozentpunkte, § 288 Abs. 2 BGB" |
+
+The settings page always described `verzugszinsPct` as the surcharge over the
+Basiszinssatz; the backend applied it as the whole rate. It is now the
+surcharge, capped at 5 for a consumer (a company may charge less, not more).
+`basiszinssatz.ts` holds the Deutsche Bundesbank table (checked 21.09.2026,
+last entry 1.7.2026 = 1,52 %) and computes day by day, so a period across a
+1 January / 1 July change uses both rates. **The table must be extended every
+half year** — past its last entry it keeps using the last value. The open
+balance is total − payments − credit notes; interest runs on today's open
+balance for the whole period, which under-charges when a part payment fell
+inside the overdue period (never over-charges). The letter shows the invoice
+total, the deduction and the open amount, and its legal note cites Abs. 1 or
+Abs. 2 by customer type.
+
+Spec `e2e/210-tier421-verzugszinsen.sh` (14 assertions, 12 failing against
+the old code).
+
+Not changed — see §9 item 17: the default Mahngebühren (5 / 5 / 10 €, the
+first Mahnung included) rest on a code comment citing a "post-2023 § 288 BGB
+reform" that I cannot find; and the 40 € Pauschale of § 288 Abs. 5 is not
+offered.
 
 ### The GoBD archive did not hold the invoices as issued (Tier 420)
 
@@ -4347,6 +4386,18 @@ These are **not in the repo** — only the user can do them:
     go-ahead: the CEN EN 16931 UBL schematron 1.3.16 runs as step 2 of
     `infra/kosit/scenarios.xml`, and the XRechnung generator was fixed until
     every invoice type passes it — see §8, Tier 412.
+
+17. **Mahngebühren defaults** (found Tier 421). `getFeeConfig` defaults to
+    5 € for the first Mahnung, 5 € for the second and 10 € for the final one,
+    justified in code by a "post-2023 § 288 BGB reform (BGBl. I 2022 Nr. 51)"
+    that supposedly allows charging for the first Mahnung. I could not verify
+    that reform. The usual reading: the first reminder that puts the debtor in
+    default is not chargeable (unless default already arose from a calendar
+    due date, § 286 Abs. 2 Nr. 1), and only actual costs may be charged —
+    courts often allow 1–3 € per letter, flat 5–10 € is contested, especially
+    against consumers. Between businesses § 288 Abs. 5 allows a 40 € flat fee
+    per claim, which the app does not offer. Which defaults to ship is a legal
+    / business decision; nothing was changed.
 
 When the Hetzner items are available, the deploy is:
 

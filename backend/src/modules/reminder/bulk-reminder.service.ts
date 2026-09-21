@@ -24,6 +24,7 @@
  * row says "skipped: bereits heute gemahnt" so the
  * operator can see what happened.
  */
+import { isConsumer } from './reminder.service'
 import { Injectable, Logger } from "@nestjs/common"
 import { PrismaService } from "../../prisma/prisma.service"
 import { MailService } from "../mail/mail.service"
@@ -265,11 +266,14 @@ export class BulkReminderService {
 
     // Compute fees (Mahngebühr + Verzugszins) the same
     // way the single-send + auto-reminder do it.
+    // Tier 421: on the open balance (not the invoice total), at the statutory
+    // rate for this kind of customer.
     const fees = await this.reminders.computeFees(
       companyId,
-      Number(invoice.total),
-      daysOverdue,
+      await this.reminders.openBalance(invoice.id, Number(invoice.total)),
+      dueDate,
       level,
+      isConsumer((invoice.customer as any)?.type),
     )
 
     // Render the email subject + body.
@@ -296,6 +300,12 @@ export class BulkReminderService {
       invoiceDate: new Date(invoice.issueDate),
       dueDate,
       totalAmount: Number(invoice.total),
+      // Tier 421: the open balance, and how the interest was computed.
+      openAmount: Math.round((fees.totalDue - fees.mahngebuehr - fees.verzugszins) * 100) / 100,
+      verzugszinsPct: fees.verzugszinsPct,
+      basiszinssatz: fees.basiszinssatz,
+      zinsaufschlag: fees.zinsaufschlag,
+      consumer: isConsumer((invoice.customer as any)?.type),
       mahngebuehr: fees.mahngebuehr,
       customer: invoice.customer as any,
       company: {
