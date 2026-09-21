@@ -90,16 +90,19 @@ else
   fail "expected ≥2 factur-x references in PDF, got $FACTUR_HITS"
 fi
 
-# XMP must declare Factur-X 2.1 / EN16931
-if grep -q "fx:Version>2.1\|Factur-X 2.1" "$DEFAULT_PDF"; then
-  pass "XMP declares Factur-X 2.1"
+# XMP must declare the Factur-X schema values. Tier 414: the Factur-X XMP
+# schema's version is "1.0" (for ZUGFeRD 2.x / Factur-X 1.0) and the level is
+# "EN 16931" with a space; this spec used to require "2.1" and "EN16931",
+# which is what the generator wrongly wrote.
+if grep -aq "fx:Version>1.0<" "$DEFAULT_PDF"; then
+  pass "XMP declares Factur-X schema version 1.0"
 else
-  fail "XMP does not declare Factur-X 2.1"
+  fail "XMP does not declare fx:Version 1.0"
 fi
-if grep -q "EN16931" "$DEFAULT_PDF"; then
-  pass "XMP declares EN16931 conformance"
+if grep -aq "fx:ConformanceLevel>EN 16931<" "$DEFAULT_PDF"; then
+  pass "XMP declares EN 16931 conformance"
 else
-  fail "XMP does not declare EN16931"
+  fail "XMP does not declare fx:ConformanceLevel EN 16931"
 fi
 if grep -q "pdfaid:part>3" "$DEFAULT_PDF"; then
   pass "XMP declares PDF/A-3 (required for ZUGFeRD)"
@@ -207,9 +210,9 @@ data = ref['/EF']['/F'].get_object().get_data().decode('utf-8')
 checks = {
   "has CrossIndustryInvoice root": "<rsm:CrossIndustryInvoice" in data,
   "has EN16931 guideline":         "urn:cen.eu:en16931:2017" in data,
-  "has Factur-X name":             "Factur-X" in data,
+  "no invented header elements":   "<ram:TestIndicator>false" not in data and "SupplierTradeParty" not in data,
   "has supplier name":             "SH Leder" in data,
-  "has issue date":                "<ram:IssueDate>" in data,
+  "has issue date (format 102)":   '<ram:IssueDateTime>' in data and 'format="102"' in data,
   "has invoice number":            "INV-2026" in data,
   "AFRelationship = Source":       names[1].get_object().get('/AFRelationship') == '/Source',
 }
@@ -230,7 +233,10 @@ while IFS= read -r line; do
       fail "$(echo "$line" | sed 's/^✗ //')"
       ;;
   esac
-done
+# Tier 414: this loop had no input redirect, so it read the runner's stdin
+# (empty on CI) and none of the deep checks above was ever counted — the
+# ✓/✗ lines came from the `cat` before it. It reads the parse output now.
+done < "$TMPDIR/parse.txt"
 
 # ───── 7. Cleanup ─────
 docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null

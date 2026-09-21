@@ -15,3 +15,20 @@ version **1.3.16** (last update 2026-03-30).
 
 Added in Tier 412: before it, `scenarios.xml` ran only the XRechnung CIUS
 schematron, which contains no EN 16931 core rule.
+
+## CII (Tier 414)
+
+`EN16931-CII-validation.xslt` — the EN 16931 core schematron for UN/CEFACT CII,
+same release **1.3.16**, used for the XML inside ZUGFeRD / Factur-X PDFs
+(scenario `EN16931-CII` in `scenarios.xml`).
+
+- Source: `en16931-cii-1.3.16.zip` from the same release (226 664 bytes,
+  sha256 `1cd53cb8a84d38aedc82c0caede217da983a7934dd663f793a092fd66443c561`),
+  file `xslt/EN16931-CII-validation.xslt`
+  (sha256 `0b234dea2bbfee739b7761e607a992c17fab88773014ef56355b6158cfb1cc53`).
+- The CII D16B schema it runs after is in `../../xsd/cii/uncefact/` — the
+  "D16B SCRDM (Subset) / uncoupled clm" tree from the same tag of
+  ConnectingEurope/eInvoicing-EN16931 (54 XSD files; tree checksum in
+  `setup.sh`).
+- Licence: EUPL 1.2 (repository licence); the D16B schemas are UN/CEFACT
+  publications distributed there.

@@ -96,6 +96,45 @@
         </createReport>
     </scenario>
 
+    <!-- Tier 414: ZUGFeRD / Factur-X (EN 16931 profile). The CII XML embedded
+         in the PDF had never been validated by anything; it used element
+         names that do not exist in CII D16B. -->
+    <scenario>
+        <name>EN16931-CII</name>
+        <description>
+            <p>Validate a UN/CEFACT CII D16B CrossIndustryInvoice (the XML inside
+               a ZUGFeRD / Factur-X PDF, EN 16931 profile) against the CII D16B
+               schema and the CEN EN 16931 CII schematron 1.3.16.</p>
+        </description>
+
+        <namespace prefix="rsm">urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100</namespace>
+        <namespace prefix="ram">urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100</namespace>
+        <namespace prefix="udt">urn:un:unece:uncefact:data:standard:UnqualifiedDataType:100</namespace>
+
+        <match>/rsm:CrossIndustryInvoice</match>
+
+        <validateWithXmlSchema>
+            <resource>
+                <name>CII D16B (SCRDM subset, uncoupled code lists)</name>
+                <location>xsd/cii/uncefact/data/standard/CrossIndustryInvoice_100pD16B.xsd</location>
+            </resource>
+        </validateWithXmlSchema>
+
+        <validateWithSchematron>
+            <resource>
+                <name>EN 16931 CII validation (CEN 1.3.16)</name>
+                <location>schematron/en16931/EN16931-CII-validation.xslt</location>
+            </resource>
+        </validateWithSchematron>
+
+        <createReport>
+            <resource>
+                <name>Report for eRechnung</name>
+                <location>report.xsl</location>
+            </resource>
+        </createReport>
+    </scenario>
+
     <!-- noScenarioReport: required by scenarios.xsd.
          Uses the same report.xsl template as the scenarios
          (so an unmatched input still produces a printable

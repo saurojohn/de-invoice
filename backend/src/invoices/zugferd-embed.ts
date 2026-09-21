@@ -154,8 +154,8 @@ export async function embedFacturX(
       <pdfaid:conformance>B</pdfaid:conformance>
       <fx:DocumentType>INVOICE</fx:DocumentType>
       <fx:DocumentFileName>${escapeXml(fileName)}</fx:DocumentFileName>
-      <fx:Version>${escapeXml(version)}</fx:Version>
-      <fx:ConformanceLevel>${escapeXml(conformanceLevel)}</fx:ConformanceLevel>
+      <fx:Version>${FACTUR_X_XMP_VERSION}</fx:Version>
+      <fx:ConformanceLevel>${escapeXml(xmpConformanceLevel(conformanceLevel))}</fx:ConformanceLevel>
     </rdf:Description>
   </rdf:RDF>
 </x:xmpmeta>
@@ -182,4 +182,27 @@ function escapeXml(text: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&apos;');
+}
+
+/**
+ * Tier 414: the Factur-X XMP schema (urn:factur-x:pdfa:CrossIndustryDocument:
+ * invoice:1p0#) has its own values, not the ZUGFeRD release number: the
+ * version of the XMP schema is "1.0" for ZUGFeRD 2.x / Factur-X 1.0, and the
+ * level is one of MINIMUM, BASIC WL, BASIC, EN 16931, EXTENDED, XRECHNUNG —
+ * "EN 16931" with a space. This wrote "2.1" and "EN16931".
+ */
+const FACTUR_X_XMP_VERSION = '1.0';
+
+function xmpConformanceLevel(level: string): string {
+  const key = level.replace(/[\s_-]/g, '').toUpperCase();
+  const map: Record<string, string> = {
+    MINIMUM: 'MINIMUM',
+    BASICWL: 'BASIC WL',
+    BASIC: 'BASIC',
+    EN16931: 'EN 16931',
+    COMFORT: 'EN 16931',
+    EXTENDED: 'EXTENDED',
+    XRECHNUNG: 'XRECHNUNG',
+  };
+  return map[key] ?? level;
 }

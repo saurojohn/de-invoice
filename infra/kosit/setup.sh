@@ -128,6 +128,47 @@ else
   ok "EN 16931 schematron $EN16931_VERSION installed"
 fi
 
+# ───── 4c. EN 16931 CII: schematron + CII D16B schema ─────
+# Tier 414: the ZUGFeRD / Factur-X XML (CII) had no validation at all. The CEN
+# CII schematron comes from the same release as 4b; the CII D16B schema
+# (SCRDM subset, uncoupled code lists) from the same tag of that repository.
+# Both pinned by checksum (the schema as a hash over its sorted file hashes).
+EN16931_CII_ZIP_SHA256="1cd53cb8a84d38aedc82c0caede217da983a7934dd663f793a092fd66443c561"
+EN16931_CII_XSLT="$REPO_DIR/schematron/en16931/EN16931-CII-validation.xslt"
+if [[ -f "$EN16931_CII_XSLT" ]]; then
+  ok "EN 16931 CII schematron already present"
+else
+  note "Downloading EN 16931 CII validation artefacts $EN16931_VERSION (~220KB)..."
+  TMP=$(mktemp -d)
+  curl -sSL -o "$TMP/en16931-cii.zip" \
+    "https://github.com/ConnectingEurope/eInvoicing-EN16931/releases/download/validation-$EN16931_VERSION/en16931-cii-$EN16931_VERSION.zip"
+  echo "$EN16931_CII_ZIP_SHA256  $TMP/en16931-cii.zip" | shasum -a 256 -c - >/dev/null \
+    || fail "EN 16931 CII archive checksum mismatch"
+  unzip -o -q "$TMP/en16931-cii.zip" -d "$TMP/x"
+  mkdir -p "$(dirname "$EN16931_CII_XSLT")"
+  cp "$TMP/x/xslt/EN16931-CII-validation.xslt" "$EN16931_CII_XSLT"
+  rm -rf "$TMP"
+  ok "EN 16931 CII schematron $EN16931_VERSION installed"
+fi
+CII_XSD_TREE_SHA256="127086195620c04577eb03ea0b2f6d499d29165f5461672a6120bc9ce9363283"
+CII_XSD_DIR="$REPO_DIR/xsd/cii"
+if [[ -f "$CII_XSD_DIR/uncefact/data/standard/CrossIndustryInvoice_100pD16B.xsd" ]]; then
+  ok "CII D16B schema already present"
+else
+  note "Fetching the CII D16B schema (54 files, ~450KB) from eInvoicing-EN16931 validation-$EN16931_VERSION..."
+  TMP=$(mktemp -d)
+  git clone -q --depth 1 --filter=blob:none --sparse --branch "validation-$EN16931_VERSION" \
+    https://github.com/ConnectingEurope/eInvoicing-EN16931.git "$TMP/repo"
+  git -C "$TMP/repo" sparse-checkout set "cii/schema/D16B SCRDM (Subset)/uncoupled clm/CII/uncefact"
+  mkdir -p "$CII_XSD_DIR"
+  cp -R "$TMP/repo/cii/schema/D16B SCRDM (Subset)/uncoupled clm/CII/uncefact" "$CII_XSD_DIR/"
+  find "$CII_XSD_DIR" -type f ! -name '*.xsd' -delete
+  GOT=$(cd "$CII_XSD_DIR" && find . -name '*.xsd' -print0 | LC_ALL=C sort -z | xargs -0 shasum -a 256 | shasum -a 256 | cut -d' ' -f1)
+  rm -rf "$TMP"
+  [[ "$GOT" == "$CII_XSD_TREE_SHA256" ]] || fail "CII D16B schema checksum mismatch ($GOT)"
+  ok "CII D16B schema installed"
+fi
+
 # ───── 5. Default report.xsl (KoSIT's printable report template) ─────
 if [[ -f "$REPO_DIR/report.xsl" ]]; then
   ok "report.xsl already present"

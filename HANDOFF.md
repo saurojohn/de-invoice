@@ -2457,6 +2457,57 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### The ZUGFeRD XML was not CII — nothing had ever checked it (Tier 414)
+
+With your go-ahead, the CEN EN 16931 **CII** schematron (`en16931-cii-1.3.16.zip`,
+same release as Tier 412) and the **CII D16B schema** (SCRDM subset,
+uncoupled code lists, 54 XSD files from the same tag of
+ConnectingEurope/eInvoicing-EN16931) are now in `infra/kosit/repository/`,
+and `scenarios.xml` has a second scenario, `EN16931-CII`, matched on
+`/rsm:CrossIndustryInvoice`. The official CEN examples pass it.
+
+The `factur-x.xml` embedded in every ZUGFeRD PDF **failed the schema before a
+single business rule was reached**. The generator wrote elements that do not
+exist in CII — `SupplierTradeParty`, `DefinedTradeAddress`, `StreetName`,
+`ExchangedDocument/IssueDate` as "01.09.2026", `ExchangedDocument/Name`,
+`TestIndicator` with text content — and put the parties straight under the
+transaction and the lines last, where D16B wants lines first, then
+`ApplicableHeaderTradeAgreement` / `…Delivery` / `…Settlement`. Behind that,
+the amounts had the pre-Tier 412 defects: on a 10 % discounted invoice the
+tax basis was 1000 and the tax 190, next to `TaxBasisTotalAmount` 1000 and
+`TaxTotalAmount` 171; every header tax line was category S, the 0 % igL one
+included, with an empty `ExemptionReason`. A receiving ERP that reads the XML
+(the point of ZUGFeRD) could not parse it; one that falls back to the PDF was
+never told.
+
+`generateZUGFeRDXml` is rewritten in D16B order and takes every amount,
+category and discount allowance from `computeXRechnungTotals` — the XRechnung
+computation, so the two formats cannot disagree. Parties, identifiers and
+electronic addresses follow the Tier 412 rules. Skonto is the `#SKONTO#`
+payment term. The igL rule BR-IC-11 wants a delivery date or period: both
+formats now use the invoice's `deliveryDate` (Leistungsdatum) when set, else
+the issue date — the UBL already used the issue date as its invoice period.
+
+The Factur-X XMP said `fx:Version` 2.1 and `fx:ConformanceLevel` "EN16931";
+the Factur-X XMP schema's values are "1.0" and "EN 16931".
+
+`e2e/87` asserted those two wrong XMP values, and **its XML checks never
+counted**: the loop that turns them into pass/fail had no input redirect, so
+it read the runner's stdin (empty on CI) — the ✓/✗ lines in the log came from
+a `cat` before it. It now reads the parse output, and checks for D16B
+elements instead of the invented ones.
+
+Spec `e2e/203-tier414-zugferd-cii.sh` (34 assertions, 27 failing against the
+old code) runs KoSIT on the CII of six invoices — plain, 10 % discount,
+19 % + 7 % with 10 % off, Skonto, igL, § 13b — all ACCEPTABLE, and checks the
+key amounts and codes.
+
+Left open: the PDF itself is not PDF/A-3 conformant as ZUGFeRD requires — the
+XMP has no `pdfaExtension` schema description for the `fx` namespace, and there
+is no output intent; checking that needs veraPDF. The app has no
+"validate ZUGFeRD" endpoint (`/xrechnung/validate?engine=kosit` covers UBL
+only); the CII scenario is used by spec 203 directly.
+
 ### The invoice document never showed the discount (Tier 413)
 
 The PDF the customer receives — and the invoice detail page, and the customer

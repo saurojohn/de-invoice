@@ -112,6 +112,8 @@ export interface XRechnungData {
   invoiceNumber: string
   issueDate: string
   dueDate?: string
+  /** Tier 414: Leistungsdatum (BT-72); the issue date stands in when unset. */
+  deliveryDate?: string
   currency: string
   /** BR-1 v2: BuyerReference is now mandatory. */
   buyerReference: string
@@ -228,8 +230,8 @@ export function generateXRechnung(data: XRechnungData): string {
        wir den Leistungszeitraum auf das Rechnungsdatum. XSD-Position:
        nach BuyerReference, vor SupplierParty. -->
   <cac:InvoicePeriod>
-    <cbc:StartDate>${invoiceDate}</cbc:StartDate>
-    <cbc:EndDate>${invoiceDate}</cbc:EndDate>
+    <cbc:StartDate>${formatXRechnungDate(data.deliveryDate ?? data.issueDate)}</cbc:StartDate>
+    <cbc:EndDate>${formatXRechnungDate(data.deliveryDate ?? data.issueDate)}</cbc:EndDate>
   </cac:InvoicePeriod>
 
   ${generateSupplierParty(data.supplier)}
@@ -466,10 +468,10 @@ function generatePaymentTerms(data: XRechnungData): string {
   </cac:PaymentTerms>`
 }
 
-type TaxCategoryCode = 'S' | 'K' | 'AE' | 'E'
+export type TaxCategoryCode = 'S' | 'K' | 'AE' | 'E'
 
 /** Tier 412: exemption reasons for the zero-rated categories (BR-K-10, BR-AE-10, BR-E-10). */
-const EXEMPTION: Record<Exclude<TaxCategoryCode, 'S'>, { code?: string; text: string }> = {
+export const EXEMPTION: Record<Exclude<TaxCategoryCode, 'S'>, { code?: string; text: string }> = {
   K: { code: 'VATEX-EU-IC', text: 'Steuerfreie innergemeinschaftliche Lieferung' },
   AE: { code: 'VATEX-EU-AE', text: 'Steuerschuldnerschaft des Leistungsempfängers' },
   E: { text: 'Steuerbefreite Leistung' },
@@ -635,13 +637,13 @@ export function computeXRechnungTotals(data: XRechnungData): XRechnungTotals {
   }
 }
 
-function formatCents(c: number): string {
+export function formatCents(c: number): string {
   const sign = c < 0 ? '-' : ''
   const abs = Math.abs(c)
   return `${sign}${Math.floor(abs / 100)}.${String(abs % 100).padStart(2, '0')}`
 }
 
-function mapUnitToUNECE(unit?: string): string {
+export function mapUnitToUNECE(unit?: string): string {
   const unitMap: Record<string, string> = {
     piece: 'C62',
     stück: 'C62',
@@ -713,7 +715,7 @@ const COUNTRY_NAME_TO_ISO: Record<string, string> = {
   greece: 'GR',
 }
 
-function normalizeCountryCode(raw?: string | null): string {
+export function normalizeCountryCode(raw?: string | null): string {
   if (!raw) return 'DE'
   const trimmed = String(raw).trim()
   if (!trimmed) return 'DE'
@@ -971,6 +973,7 @@ export function transformToXRechnungData(
     invoiceNumber: string
     issueDate: Date | string
     dueDate?: Date | string | null
+    deliveryDate?: Date | string | null
     currency: string
     subtotal: any
     totalVat: any
@@ -1062,6 +1065,9 @@ export function transformToXRechnungData(
     invoiceNumber: invoice.invoiceNumber,
     issueDate: invoice.issueDate instanceof Date ? invoice.issueDate.toISOString() : invoice.issueDate,
     dueDate: invoice.dueDate ? (invoice.dueDate instanceof Date ? invoice.dueDate.toISOString() : invoice.dueDate) : undefined,
+    deliveryDate: invoice.deliveryDate
+      ? (invoice.deliveryDate instanceof Date ? invoice.deliveryDate.toISOString() : invoice.deliveryDate)
+      : undefined,
     currency: invoice.currency,
     buyerReference,
     supplier: {

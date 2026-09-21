@@ -1,4 +1,14 @@
-import { generateXRechnung, transformToXRechnungData, XRechnungData } from './xrechnung.service';
+import {
+  computeXRechnungTotals,
+  EXEMPTION,
+  formatCents,
+  generateXRechnung,
+  mapUnitToUNECE,
+  normalizeCountryCode,
+  transformToXRechnungData,
+  vatEasScheme,
+  XRechnungData,
+} from './xrechnung.service';
 import { embedFacturX } from './zugferd-embed';
 import { generateInvoicePDF } from './invoice-pdf.service';
 
@@ -119,19 +129,32 @@ export async function generateZUGFeRD(
   return embedFacturX(visualPdf, zugferdXml, version, conformanceLevel);
 }
 
-function generateZUGFeRDXml(
+/**
+ * Tier 414 — the CII D16B CrossIndustryInvoice embedded in the PDF
+ * (Factur-X / ZUGFeRD 2.x, EN 16931 profile).
+ *
+ * The previous generator wrote elements that do not exist in CII —
+ * `SupplierTradeParty`, `DefinedTradeAddress`, `StreetName`,
+ * `ExchangedDocument/IssueDate` with "01.09.2026" — in the wrong order (parties
+ * straight under the transaction, lines last), so the XML failed the CII
+ * schema before a single business rule was checked. Its amounts had the
+ * pre-Tier 412 defects too: the tax breakdown came from the undiscounted lines
+ * (basis 1000, tax 190 next to a total tax of 171) and every rate was category
+ * S, a 0 % igL invoice included.
+ *
+ * The amounts, tax categories and discount allowances now come from
+ * computeXRechnungTotals — the same computation the XRechnung uses — and the
+ * element order follows the CII D16B schema. Validated with KoSIT against the
+ * CII D16B XSD and the CEN EN 16931 CII schematron 1.3.16 (scenarios.xml).
+ */
+export function generateZUGFeRDXml(
   data: XRechnungData,
-  version: string,
+  _version: string,
   _conformanceLevel: string
 ): string {
-  const invoiceDate = formatDate(data.issueDate);
-  const dueDate = data.dueDate ? formatDate(data.dueDate) : null;
+  const t = computeXRechnungTotals(data);
+  const cur = escapeXml(data.currency);
 
-  // Build seller/buyer trade parties
-  const sellerParty = generateTradeParty(data.supplier, 'Supplier');
-  const buyerParty = generateTradeParty(data.customer, 'Buyer');
-
-  // Build line items
   const lineItems = data.items.map((item, index) => `
     <ram:IncludedSupplyChainTradeLineItem>
       <ram:AssociatedDocumentLineDocument>
@@ -139,149 +162,230 @@ function generateZUGFeRDXml(
       </ram:AssociatedDocumentLineDocument>
       <ram:SpecifiedTradeProduct>
         <ram:Name>${escapeXml(item.description.split('\n')[0])}</ram:Name>
+        ${item.description.includes('\n') ? `<ram:Description>${escapeXml(item.description)}</ram:Description>` : ''}
       </ram:SpecifiedTradeProduct>
       <ram:SpecifiedLineTradeAgreement>
         <ram:NetPriceProductTradePrice>
-          <ram:ChargeAmount>${formatDecimal(item.unitPrice)}</ram:ChargeAmount>
-          <ram:BasisQuantity unitCode="C62">${formatDecimal(item.quantity)}</ram:BasisQuantity>
+          <ram:ChargeAmount>${formatDecimal4(item.unitPrice)}</ram:ChargeAmount>
         </ram:NetPriceProductTradePrice>
       </ram:SpecifiedLineTradeAgreement>
       <ram:SpecifiedLineTradeDelivery>
-        <ram:BilledQuantity unitCode="C62">${formatDecimal(item.quantity)}</ram:BilledQuantity>
+        <ram:BilledQuantity unitCode="${mapUnitToUNECE(item.unit)}">${formatDecimal4(item.quantity)}</ram:BilledQuantity>
       </ram:SpecifiedLineTradeDelivery>
       <ram:SpecifiedLineTradeSettlement>
         <ram:ApplicableTradeTax>
           <ram:TypeCode>VAT</ram:TypeCode>
-          <ram:CategoryCode>${item.vatRate > 0 ? 'S' : 'E'}</ram:CategoryCode>
+          <ram:CategoryCode>${t.categoryOf(item.vatRate)}</ram:CategoryCode>
           <ram:RateApplicablePercent>${formatPercent(item.vatRate)}</ram:RateApplicablePercent>
         </ram:ApplicableTradeTax>
         <ram:SpecifiedTradeSettlementLineMonetarySummation>
-          <ram:LineTotalAmount currencyID="${data.currency}">${formatDecimal(item.netAmount)}</ram:LineTotalAmount>
+          <ram:LineTotalAmount>${formatCents(t.lineNets[index])}</ram:LineTotalAmount>
         </ram:SpecifiedTradeSettlementLineMonetarySummation>
       </ram:SpecifiedLineTradeSettlement>
     </ram:IncludedSupplyChainTradeLineItem>`).join('');
 
-  // Build VAT breakdown
-  const vatByRate = groupVatByRate(data.items);
-  const vatBreakdown = vatByRate.map(vat => `
-    <ram:ApplicableTradeTax>
-      <ram:CalculatedAmount currencyID="${data.currency}">${formatDecimal(vat.taxAmount)}</ram:CalculatedAmount>
-      <ram:TypeCode>VAT</ram:TypeCode>
-      <ram:ExemptionReason></ram:ExemptionReason>
-      <ram:BasisAmount currencyID="${data.currency}">${formatDecimal(vat.taxableAmount)}</ram:BasisAmount>
-      <ram:CategoryCode>S</ram:CategoryCode>
-      <ram:RateApplicablePercent>${formatPercent(vat.rate)}</ram:RateApplicablePercent>
-    </ram:ApplicableTradeTax>`).join('');
+  const taxBreakdown = t.subtotals.map((v) => {
+    const ex = v.category === 'S' ? undefined : EXEMPTION[v.category];
+    return `
+      <ram:ApplicableTradeTax>
+        <ram:CalculatedAmount>${formatCents(v.tax)}</ram:CalculatedAmount>
+        <ram:TypeCode>VAT</ram:TypeCode>
+        ${ex ? `<ram:ExemptionReason>${escapeXml(ex.text)}</ram:ExemptionReason>` : ''}
+        <ram:BasisAmount>${formatCents(v.taxable)}</ram:BasisAmount>
+        <ram:CategoryCode>${v.category}</ram:CategoryCode>
+        ${ex?.code ? `<ram:ExemptionReasonCode>${ex.code}</ram:ExemptionReasonCode>` : ''}
+        <ram:RateApplicablePercent>${formatPercent(v.rate)}</ram:RateApplicablePercent>
+      </ram:ApplicableTradeTax>`;
+  }).join('');
 
-  // Build payment terms
-  const paymentTerms = dueDate ? `
-    <ram:SpecifiedTradePaymentTerms>
-      <ram:Description>Zahlbar bis ${dueDate}</ram:Description>
-    </ram:SpecifiedTradePaymentTerms>` : '';
+  // One document allowance per VAT category (reason code 95 = discount).
+  const allowances = t.allowances.map((a) => `
+      <ram:SpecifiedTradeAllowanceCharge>
+        <ram:ChargeIndicator>
+          <udt:Indicator>false</udt:Indicator>
+        </ram:ChargeIndicator>
+        <ram:ActualAmount>${formatCents(a.amount)}</ram:ActualAmount>
+        <ram:ReasonCode>95</ram:ReasonCode>
+        <ram:Reason>Rabatt</ram:Reason>
+        <ram:CategoryTradeTax>
+          <ram:TypeCode>VAT</ram:TypeCode>
+          <ram:CategoryCode>${a.category}</ram:CategoryCode>
+          <ram:RateApplicablePercent>${formatPercent(a.rate)}</ram:RateApplicablePercent>
+        </ram:CategoryTradeTax>
+      </ram:SpecifiedTradeAllowanceCharge>`).join('');
+
+  // Skonto is a payment term, written in the XRechnung #SKONTO# convention
+  // (as in the UBL, Tier 412).
+  let terms = data.paymentTermsNote;
+  if (!terms && data.skonto) {
+    terms = `Zahlbar innerhalb von ${data.skonto.days ?? 14} Tagen mit ${(data.skonto.percent * 100).toFixed(2)}% Skonto`;
+  }
+  if (data.skonto) {
+    terms = `${terms}\n#SKONTO#TAGE=${data.skonto.days ?? 14}#PROZENT=${(data.skonto.percent * 100).toFixed(2)}#\n`;
+  }
+  const paymentTerms = terms || data.dueDate ? `
+      <ram:SpecifiedTradePaymentTerms>
+        ${terms ? `<ram:Description>${escapeXml(terms)}</ram:Description>` : ''}
+        ${data.dueDate ? `<ram:DueDateDateTime>
+          <udt:DateTimeString format="102">${formatDate102(data.dueDate)}</udt:DateTimeString>
+        </ram:DueDateDateTime>` : ''}
+      </ram:SpecifiedTradePaymentTerms>` : '';
+
+  const iban = data.supplier.bankInfo?.iban?.replace(/\s+/g, '');
+  const paymentMeans = iban ? `
+      <ram:SpecifiedTradeSettlementPaymentMeans>
+        <ram:TypeCode>58</ram:TypeCode>
+        <ram:PayeePartyCreditorFinancialAccount>
+          <ram:IBANID>${escapeXml(iban)}</ram:IBANID>
+          ${data.supplier.bankInfo?.bankName ? `<ram:AccountName>${escapeXml(data.supplier.name)}</ram:AccountName>` : ''}
+        </ram:PayeePartyCreditorFinancialAccount>
+        ${data.supplier.bankInfo?.bic ? `<ram:PayeeSpecifiedCreditorFinancialInstitution>
+          <ram:BICID>${escapeXml(data.supplier.bankInfo.bic)}</ram:BICID>
+        </ram:PayeeSpecifiedCreditorFinancialInstitution>` : ''}
+      </ram:SpecifiedTradeSettlementPaymentMeans>` : '';
+
+  // BR-IC-12: an intra-community supply names the deliver-to country.
+  const shipTo = t.categories.includes('K') ? `
+      <ram:ShipToTradeParty>
+        <ram:PostalTradeAddress>
+          <ram:PostcodeCode>${escapeXml(data.customer.address.postalCode || '')}</ram:PostcodeCode>
+          <ram:LineOne>${escapeXml(data.customer.address.street || '')}</ram:LineOne>
+          <ram:CityName>${escapeXml(data.customer.address.city || '')}</ram:CityName>
+          <ram:CountryID>${escapeXml(normalizeCountryCode(data.customer.address.country))}</ram:CountryID>
+        </ram:PostalTradeAddress>
+      </ram:ShipToTradeParty>` : '';
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <rsm:CrossIndustryInvoice xmlns:rsm="urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100"
                           xmlns:ram="urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100"
-                          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
-
+                          xmlns:qdt="urn:un:unece:uncefact:data:standard:QualifiedDataType:100"
+                          xmlns:udt="urn:un:unece:uncefact:data:standard:UnqualifiedDataType:100">
   <rsm:ExchangedDocumentContext>
-    <ram:TestIndicator>${false}</ram:TestIndicator>
     <ram:GuidelineSpecifiedDocumentContextParameter>
       <ram:ID>urn:cen.eu:en16931:2017</ram:ID>
-      <ram:Name>Factur-X</ram:Name>
-      <ram:Version>${version}</ram:Version>
     </ram:GuidelineSpecifiedDocumentContextParameter>
   </rsm:ExchangedDocumentContext>
-
   <rsm:ExchangedDocument>
     <ram:ID>${escapeXml(data.invoiceNumber)}</ram:ID>
-    <ram:Name>RECHNUNG</ram:Name>
     <ram:TypeCode>380</ram:TypeCode>
-    <ram:IssueDate>${invoiceDate}</ram:IssueDate>
-    ${dueDate ? `<ram:DueDate>${dueDate}</ram:DueDate>` : ''}
-    <ram:IncludedNote>
-      <ram:Content>Rechnungsdokument</ram:Content>
-    </ram:IncludedNote>
+    <ram:IssueDateTime>
+      <udt:DateTimeString format="102">${formatDate102(data.issueDate)}</udt:DateTimeString>
+    </ram:IssueDateTime>
+    ${data.notes ? `<ram:IncludedNote>
+      <ram:Content>${escapeXml(data.notes)}</ram:Content>
+    </ram:IncludedNote>` : ''}
   </rsm:ExchangedDocument>
-
-  <rsm:SupplyChainTradeTransaction>
-    ${sellerParty}
-    ${buyerParty}
-    ${paymentTerms}
+  <rsm:SupplyChainTradeTransaction>${lineItems}
+    <ram:ApplicableHeaderTradeAgreement>
+      <ram:BuyerReference>${escapeXml(data.buyerReference)}</ram:BuyerReference>
+      ${generateSellerParty(data.supplier)}
+      ${generateBuyerParty(data.customer)}
+    </ram:ApplicableHeaderTradeAgreement>
+    <ram:ApplicableHeaderTradeDelivery>${shipTo}
+      <!-- BT-72 Leistungsdatum; the issue date when none was recorded, as the
+           UBL's invoice period does. BR-IC-11 requires it for igL. -->
+      <ram:ActualDeliverySupplyChainEvent>
+        <ram:OccurrenceDateTime>
+          <udt:DateTimeString format="102">${formatDate102(data.deliveryDate ?? data.issueDate)}</udt:DateTimeString>
+        </ram:OccurrenceDateTime>
+      </ram:ActualDeliverySupplyChainEvent>
+    </ram:ApplicableHeaderTradeDelivery>
     <ram:ApplicableHeaderTradeSettlement>
-      <ram:InvoiceCurrencyCode>${escapeXml(data.currency)}</ram:InvoiceCurrencyCode>
-      ${vatBreakdown}
+      <ram:InvoiceCurrencyCode>${cur}</ram:InvoiceCurrencyCode>${paymentMeans}${taxBreakdown}${allowances}${paymentTerms}
       <ram:SpecifiedTradeSettlementHeaderMonetarySummation>
-        <ram:LineTotalAmount currencyID="${data.currency}">${formatDecimal(data.subtotal)}</ram:LineTotalAmount>
-        <ram:TaxBasisTotalAmount currencyID="${data.currency}">${formatDecimal(data.subtotal)}</ram:TaxBasisTotalAmount>
-        <ram:TaxTotalAmount currencyID="${data.currency}">${formatDecimal(data.totalVat)}</ram:TaxTotalAmount>
-        <ram:GrandTotalAmount currencyID="${data.currency}">${formatDecimal(data.total)}</ram:GrandTotalAmount>
-        <ram:DuePayableAmount currencyID="${data.currency}">${formatDecimal(data.total)}</ram:DuePayableAmount>
+        <ram:LineTotalAmount>${formatCents(t.lineExtension)}</ram:LineTotalAmount>
+        ${t.allowanceTotal !== 0 ? `<ram:AllowanceTotalAmount>${formatCents(t.allowanceTotal)}</ram:AllowanceTotalAmount>` : ''}
+        <ram:TaxBasisTotalAmount>${formatCents(t.taxExclusive)}</ram:TaxBasisTotalAmount>
+        <ram:TaxTotalAmount currencyID="${cur}">${formatCents(t.taxTotal)}</ram:TaxTotalAmount>
+        <ram:GrandTotalAmount>${formatCents(t.taxInclusive)}</ram:GrandTotalAmount>
+        <ram:DuePayableAmount>${formatCents(t.payable)}</ram:DuePayableAmount>
       </ram:SpecifiedTradeSettlementHeaderMonetarySummation>
     </ram:ApplicableHeaderTradeSettlement>
-    ${lineItems}
   </rsm:SupplyChainTradeTransaction>
-
 </rsm:CrossIndustryInvoice>`;
 }
 
-function generateTradeParty(
-  party: { name: string; address: any; vatId?: string; email?: string },
-  type: 'Supplier' | 'Buyer'
-): string {
-
-  return `
-    <ram:${type}TradeParty>
-      <ram:Name>${escapeXml(party.name)}</ram:Name>
-      ${party.vatId ? `<ram:SpecifiedTaxRegistration>
-        <ram:ID schemeID="VA">${escapeXml(party.vatId)}</ram:ID>
-      </ram:SpecifiedTaxRegistration>` : ''}
-      <ram:DefinedTradeAddress>
-        <ram:StreetName>${escapeXml(party.address?.street || '')}</ram:StreetName>
-        <ram:CityName>${escapeXml(party.address?.city || '')}</ram:CityName>
-        <ram:PostcodeCode>${escapeXml(party.address?.postalCode || '')}</ram:PostcodeCode>
-        <ram:CountryID>${escapeXml(party.address?.country || 'DE')}</ram:CountryID>
-      </ram:DefinedTradeAddress>
-      ${party.email ? `<ram:DefinedTradeContact>
-        <ram:EmailURIUniversalCommunication>
-          <ram:URIID>${escapeXml(party.email)}</ram:URIID>
-        </ram:EmailURIUniversalCommunication>
-      </ram:DefinedTradeContact>` : ''}
-    </ram:${type}TradeParty>`;
+/** PostalTradeAddress in D16B order: PostcodeCode, LineOne, CityName, CountryID. */
+function postalAddress(a: { street?: string; postalCode?: string; city?: string; country?: string }): string {
+  return `<ram:PostalTradeAddress>
+          <ram:PostcodeCode>${escapeXml(a.postalCode || '')}</ram:PostcodeCode>
+          <ram:LineOne>${escapeXml(a.street || '')}</ram:LineOne>
+          <ram:CityName>${escapeXml(a.city || '')}</ram:CityName>
+          <ram:CountryID>${escapeXml(normalizeCountryCode(a.country))}</ram:CountryID>
+        </ram:PostalTradeAddress>`;
 }
 
-
-function groupVatByRate(items: XRechnungData['items']): { rate: number; taxableAmount: number; taxAmount: number }[] {
-  const grouped: Map<number, { taxableAmount: number; taxAmount: number }> = new Map();
-
-  for (const item of items) {
-    const existing = grouped.get(item.vatRate);
-    if (existing) {
-      existing.taxableAmount += item.netAmount;
-      existing.taxAmount += item.vatAmount;
-    } else {
-      grouped.set(item.vatRate, {
-        taxableAmount: item.netAmount,
-        taxAmount: item.vatAmount,
-      });
-    }
-  }
-
-  return Array.from(grouped.entries()).map(([rate, values]) => ({
-    rate,
-    taxableAmount: values.taxableAmount,
-    taxAmount: values.taxAmount,
-  }));
+/**
+ * Seller (BG-4). TradePartyType order: ID, Name, SpecifiedLegalOrganization,
+ * DefinedTradeContact, PostalTradeAddress, URIUniversalCommunication,
+ * SpecifiedTaxRegistration. Identifiers as in the UBL (Tier 412): register
+ * entry as BT-30, a Steuernummer as BT-32 (FC) and — with no VAT id and no
+ * register entry — also as BT-29 (BR-CO-26).
+ */
+function generateSellerParty(s: XRechnungData['supplier']): string {
+  const endpoint = s.email
+    ? { id: s.email, scheme: 'EM' }
+    : s.vatId && vatEasScheme(s.vatId)
+      ? { id: s.vatId, scheme: vatEasScheme(s.vatId)! }
+      : undefined;
+  return `<ram:SellerTradeParty>
+        ${!s.vatId && !s.registerEntry && s.taxId ? `<ram:ID>${escapeXml(s.taxId)}</ram:ID>` : ''}
+        <ram:Name>${escapeXml(s.legalName || s.name)}</ram:Name>
+        ${s.registerEntry ? `<ram:SpecifiedLegalOrganization>
+          <ram:ID>${escapeXml(s.registerEntry)}</ram:ID>
+          ${s.legalName && s.legalName !== s.name ? `<ram:TradingBusinessName>${escapeXml(s.name)}</ram:TradingBusinessName>` : ''}
+        </ram:SpecifiedLegalOrganization>` : ''}
+        ${s.phone || s.email ? `<ram:DefinedTradeContact>
+          <ram:PersonName>${escapeXml(s.legalName || s.name)}</ram:PersonName>
+          ${s.phone ? `<ram:TelephoneUniversalCommunication>
+            <ram:CompleteNumber>${escapeXml(s.phone)}</ram:CompleteNumber>
+          </ram:TelephoneUniversalCommunication>` : ''}
+          ${s.email ? `<ram:EmailURIUniversalCommunication>
+            <ram:URIID>${escapeXml(s.email)}</ram:URIID>
+          </ram:EmailURIUniversalCommunication>` : ''}
+        </ram:DefinedTradeContact>` : ''}
+        ${postalAddress(s.address)}
+        ${endpoint ? `<ram:URIUniversalCommunication>
+          <ram:URIID schemeID="${endpoint.scheme}">${escapeXml(endpoint.id)}</ram:URIID>
+        </ram:URIUniversalCommunication>` : ''}
+        ${s.vatId ? `<ram:SpecifiedTaxRegistration>
+          <ram:ID schemeID="VA">${escapeXml(s.vatId)}</ram:ID>
+        </ram:SpecifiedTaxRegistration>` : ''}
+        ${s.taxId ? `<ram:SpecifiedTaxRegistration>
+          <ram:ID schemeID="FC">${escapeXml(s.taxId)}</ram:ID>
+        </ram:SpecifiedTaxRegistration>` : ''}
+      </ram:SellerTradeParty>`;
 }
 
-function formatDate(date: string | Date): string {
+/** Buyer (BG-7), same element order; electronic address as in the UBL. */
+function generateBuyerParty(c: XRechnungData['customer']): string {
+  const endpoint = c.leitwegId
+    ? { id: c.leitwegId, scheme: '0204' }
+    : c.email
+      ? { id: c.email, scheme: 'EM' }
+      : c.vatId && vatEasScheme(c.vatId)
+        ? { id: c.vatId, scheme: vatEasScheme(c.vatId)! }
+        : undefined;
+  return `<ram:BuyerTradeParty>
+        <ram:Name>${escapeXml(c.name)}</ram:Name>
+        ${postalAddress(c.address)}
+        ${endpoint ? `<ram:URIUniversalCommunication>
+          <ram:URIID schemeID="${endpoint.scheme}">${escapeXml(endpoint.id)}</ram:URIID>
+        </ram:URIUniversalCommunication>` : ''}
+        ${c.vatId ? `<ram:SpecifiedTaxRegistration>
+          <ram:ID schemeID="VA">${escapeXml(c.vatId)}</ram:ID>
+        </ram:SpecifiedTaxRegistration>` : ''}
+      </ram:BuyerTradeParty>`;
+}
+
+/** CII date format 102: YYYYMMDD. */
+function formatDate102(date: string | Date): string {
   const d = date instanceof Date ? date : new Date(date);
-  return d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  return d.toISOString().slice(0, 10).replace(/-/g, '');
 }
 
-
-function formatDecimal(value: number): string {
-  return value.toFixed(2);
+function formatDecimal4(value: number): string {
+  return String(Math.round(value * 10000) / 10000);
 }
 
 function formatPercent(rate: number): string {
