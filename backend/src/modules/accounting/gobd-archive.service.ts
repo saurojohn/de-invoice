@@ -2,7 +2,8 @@ import { Injectable, Logger } from '@nestjs/common'
 import { Response } from 'express'
 import { PrismaService } from '../../prisma/prisma.service'
 import { StorageService } from '../storage/storage.service'
-import { generateInvoicePDF } from '../../invoices/invoice-pdf.service'
+import { generateZUGFeRD } from '../../invoices/zugferd.service'
+import { InvoiceTemplateService } from '../invoice-template/invoice-template.service'
 import { generateDatevBuchungsstapel, buildBuchungenFromDb } from '../reports/datev.service'
 import * as archiver from 'archiver'
 import * as fs from 'fs'
@@ -79,6 +80,7 @@ export class GobdArchiveService {
   constructor(
     private prisma: PrismaService,
     private storage: StorageService,
+    private templates: InvoiceTemplateService,
   ) {}
 
   /**
@@ -155,8 +157,10 @@ export class GobdArchiveService {
       archive.append(inv.pdfBuffer, {
         name: `Invoices/${safeName}.pdf`,
       })
-      totalRevenueNet += inv.subtotal
-      totalVat += inv.vat
+      if (inv.counts) {
+        totalRevenueNet += inv.subtotal
+        totalVat += inv.vat
+      }
     }
 
     let attachmentCount = 0
@@ -247,6 +251,7 @@ export class GobdArchiveService {
           where: {
             companyId,
             issueDate: { gte: yearStart, lte: yearEnd },
+            status: { not: 'draft' },
           },
           select: { subtotal: true, totalVat: true },
         }),
@@ -271,7 +276,8 @@ export class GobdArchiveService {
           where: {
             companyId,
             issueDate: { gte: yearStart, lte: yearEnd },
-            status: { in: ['paid', 'sent', 'overdue', 'draft'] },
+            // Tier 420: a draft is not revenue (it was counted).
+            status: { in: ['paid', 'sent', 'overdue'] },
           },
           // Tier 411: net revenue = total − totalVat (after the discount).
           _sum: { total: true, totalVat: true },
@@ -288,7 +294,8 @@ export class GobdArchiveService {
           where: {
             companyId,
             issueDate: { gte: yearStart, lte: yearEnd },
-            status: { in: ['paid', 'sent', 'overdue', 'draft'] },
+            // Tier 420: a draft is not revenue (it was counted).
+            status: { in: ['paid', 'sent', 'overdue'] },
           },
           _sum: { totalVat: true },
         }),
@@ -333,31 +340,67 @@ export class GobdArchiveService {
 
   // ── helpers ──
 
+  /** Tier 420: the company fields GET /invoices/:id/pdf passes to the renderer. */
+  private companyContext(company: any, templateConfig: any) {
+    return {
+      name: company?.name || '',
+      legalName: company?.legalName || undefined,
+      address: company?.address || {},
+      vatId: company?.vatId || undefined,
+      taxId: company?.taxId || undefined,
+      email: company?.email || undefined,
+      phone: company?.phone || undefined,
+      fax: company?.fax || undefined,
+      website: company?.website || undefined,
+      registerEntry: company?.registerEntry || undefined,
+      managingDirector: company?.managingDirector || undefined,
+      otherInfo: company?.otherInfo || undefined,
+      bankInfo: company?.bankInfo || undefined,
+      logoPath: company?.logoPath || undefined,
+      templateConfig,
+    } as any
+  }
+
   private async collectInvoices(
     companyId: string,
     yearStart: Date,
     yearEnd: Date,
     company: any,
-  ): Promise<Array<{ id: string; invoiceNumber: string | null; subtotal: number; vat: number; pdfBuffer: Buffer }>> {
+  ): Promise<Array<{ id: string; invoiceNumber: string | null; subtotal: number; vat: number; counts: boolean; pdfBuffer: Buffer }>> {
+    // Tier 420: drafts were never issued, so they are not archived; a
+    // cancelled invoice was, and is. Only issued, not cancelled invoices count
+    // towards the totals (`counts`).
     const invoices = await this.prisma.invoice.findMany({
       where: {
         companyId,
         issueDate: { gte: yearStart, lte: yearEnd },
+        status: { not: 'draft' },
       },
-      include: { items: true, customer: true },
+      include: { items: true, customer: true, referenceInvoice: true },
       orderBy: { issueDate: 'asc' },
     })
     const result = []
     for (const inv of invoices) {
       try {
-        // generateInvoicePDF expects the full
-        // Invoice + CompanyInfo. The signature is
-        // happy with the raw Prisma row + a partial
-        // company object.
-        const pdfBuffer = await generateInvoicePDF(
-          inv as any,
-          { name: company.name, taxId: company.taxId } as any,
-        )
+        // Tier 420: archive the document that was issued. This re-rendered
+        // every invoice from `{ name, taxId }` alone — the archived copy had
+        // no seller address, no USt-IdNr., no bank details, so it was not the
+        // invoice the customer received (§ 14 Abs. 4 / § 147 AO). The stored
+        // PDF (saved on the first download, as sent) comes first; without
+        // one, it is rendered exactly as GET /invoices/:id/pdf renders it.
+        let pdfBuffer: Buffer | null = null
+        if (inv.pdfPath) {
+          pdfBuffer = (await this.storage.getFile(inv.pdfPath))?.buffer ?? null
+        }
+        if (!pdfBuffer) {
+          let templateConfig: any
+          try {
+            templateConfig = (await this.templates.resolveConfig(companyId, inv.templateType || 'standard', (inv as any).templateId)).config
+          } catch {
+            templateConfig = undefined
+          }
+          pdfBuffer = await generateZUGFeRD(inv as any, this.companyContext(company, templateConfig), { templateConfig })
+        }
         result.push({
           id: inv.id,
           invoiceNumber: inv.invoiceNumber,
@@ -365,6 +408,7 @@ export class GobdArchiveService {
           // The field keeps its name; the manifest sums it as revenue.
           subtotal: Number(inv.total) - Number(inv.totalVat),
           vat: Number(inv.totalVat),
+          counts: inv.status !== 'cancelled',
           pdfBuffer,
         })
       } catch (e: any) {

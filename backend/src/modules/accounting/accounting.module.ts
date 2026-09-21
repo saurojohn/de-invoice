@@ -82,6 +82,7 @@ import { AnhangService } from './anhang.service';
 import { BeraterPackagerService } from './berater-packager.service';
 import { EBilanzService } from './ebilanz.service';
 import { GobdArchiveService } from './gobd-archive.service';
+import { InvoiceTemplateModule } from '../invoice-template/invoice-template.module';
 import { StorageModule } from '../storage/storage.module';
 import { WebhookModule } from '../webhook/webhook.module';
 // Tier 83: Anlagenverzeichnis + AfA — the
@@ -99,7 +100,7 @@ import { AssetsModule } from '../assets/assets.module';
 import { ReportsModule } from '../reports/reports.module';
 
 @Module({
-  imports: [PrismaModule, StorageModule, WebhookModule, AssetsModule, ReportsModule],
+  imports: [PrismaModule, StorageModule, WebhookModule, AssetsModule, ReportsModule, InvoiceTemplateModule],
   controllers: [AccountingController, VoucherTemplateController, JournalController, AnlageSOV2Controller],
   providers: [AccountService, VoucherService, VoucherTemplateService, JournalService, EuerService, AnlageSService, AnlageVService, AnlageKAPService, AnlageGService, AnlageNService, KSt1Service, AnlageRService, AnlageKindService, AnlageSOService, AnlageSOV2Service, AnlageAUSService, GewstService, BilanzService, GuVService, AnhangService, BeraterPackagerService, EBilanzService, GobdArchiveService],
   exports: [AccountService, VoucherService, VoucherTemplateService, JournalService, EuerService, AnlageSService, AnlageVService, AnlageKAPService, AnlageGService, AnlageNService, KSt1Service, AnlageRService, AnlageKindService, AnlageSOService, AnlageSOV2Service, AnlageAUSService, GewstService, BilanzService, GuVService, AnhangService, BeraterPackagerService, EBilanzService, GobdArchiveService],

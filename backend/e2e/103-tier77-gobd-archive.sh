@@ -58,9 +58,9 @@ assert_eq "all summary keys present" "$HAS_KEYS" "true"
 # ── 2. Invoice/expense counts match the DB ──
 echo
 note "=== 2. invoice/expense counts match the DB ==="
-# Get DB counts directly
+# Get DB counts directly. Tier 420: drafts were never issued and are not archived.
 DB_INV=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
-  "SELECT COUNT(*) FROM \"Invoice\" WHERE \"companyId\"='$COMPANY_ID' AND \"issueDate\">='2026-01-01' AND \"issueDate\"<='2026-12-31';" \
+  "SELECT COUNT(*) FROM \"Invoice\" WHERE \"companyId\"='$COMPANY_ID' AND \"issueDate\">='2026-01-01' AND \"issueDate\"<='2026-12-31' AND status <> 'draft';" \
   2>&1 | tr -d ' ' | head -1)
 DB_EXP=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT COUNT(*) FROM \"Expense\" WHERE \"companyId\"='$COMPANY_ID' AND \"invoiceDate\">='2026-01-01' AND \"invoiceDate\"<='2026-12-31';" \

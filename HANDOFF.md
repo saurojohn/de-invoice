@@ -9,17 +9,18 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–418 are
-  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 418.)
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–419 are
+  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 419.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 35647495312 / commit `8831a04`, Tier 418):**
-  - Backend e2e: **206 passed / 0 failed / 1 skipped** of 207 specs — 100
-    two-digit + 107 three-digit (Tier 418 added `207-tier418-pdf-pagination.sh`,
+- **Test counts (last green CI, run 35651151007 / commit `a828f72`, Tier 419):**
+  - Backend e2e: **207 passed / 0 failed / 1 skipped** of 208 specs — 100
+    two-digit + 108 three-digit (Tier 419 added `208-tier419-expense-net-cost.sh`,
+    Tier 418 `207-tier418-pdf-pagination.sh`,
     Tier 417 `206-tier417-ustva-kennzahlen.sh`,
     Tier 416 `205-tier416-credit-note-tax.sh`,
     Tier 415 `204-tier415-amounts-in-cents.sh`,
@@ -2439,6 +2440,7 @@ see below); Tier 398a run 35099184553 green: backend 188/0/1, Playwright 922.
 Tier 400 run 35112477951, all six jobs green: backend 189/0/1 (the new spec
 is the +1; the skip is still 16-dark-mode), Playwright 922.
 Tier 402 run 35140985920, all six jobs green: backend 190/0/1, Playwright 926.
+Tier 419 run 35651151007, all six jobs green: backend 207/0/1, Playwright 930 passed, 0 flaky.
 Tier 418 run 35647495312, all six jobs green: backend 206/0/1, Playwright 930 passed, 0 flaky.
 Tier 417 run 35634107905, all six jobs green: backend 205/0/1, Playwright 930 passed, 0 flaky.
 Tier 416 run 35628280500, all six jobs green: backend 204/0/1, Playwright 930 passed, 0 flaky.
@@ -2465,6 +2467,33 @@ Tier 401 run 35123354210 **failed** on backend lint — a warning
 runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
+
+### The GoBD archive did not hold the invoices as issued (Tier 420)
+
+Measured on one company — two sent invoices (1 000 € and 200 €), a 500 €
+draft, a cancelled 300 € invoice:
+
+| | Before | Now |
+|---|---|---|
+| summary `totalRevenueNet` / `totalVat` | 1 700 / 323 (the draft counted) | 1 200 / 228 |
+| summary `invoiceCount`, PDFs in the ZIP | 4 (the draft included) | 3 |
+| MANIFEST.json `revenueNet` | 2 000 (draft and cancelled counted) | 1 200 |
+| archived invoice PDF | re-rendered from `{ name, taxId }`: **no seller address, no USt-IdNr., no bank details** | the stored PDF as issued, else rendered as `GET /invoices/:id/pdf` renders it |
+
+The archive is what the company hands the tax office under § 147 AO; the
+invoices in it were not the ones the customers received. The first download
+of an invoice's PDF is stored (`pdfPath`); the archive now takes that file
+byte for byte — measured: after the company moved, the archived copy still
+shows the address it was issued with. Invoices never downloaded are rendered
+with the full company data and template (`companyContext`, the same fields as
+the controller). Drafts were never issued and are left out; a cancelled
+invoice was issued and stays in the archive, but not in the totals.
+
+`e2e/103` compared the archive's invoice count with every row of the year,
+drafts included; it now excludes drafts.
+
+Spec `e2e/209-tier420-gobd-archive-issued.sh` (12 assertions, 10 failing
+against the old code).
 
 ### GuV and BWA counted input tax as a cost (Tier 419)
 
@@ -2867,7 +2896,7 @@ The sales report keeps the invoice currency, like the rest of that report.
 Spec `e2e/200-tier411-net-revenue.sh` (11 assertions), 8 failing against the
 old code.
 
-Left open: the GoBD archive summary and its PDF bundle include drafts and
+Left open (fixed in Tier 420): the GoBD archive summary and its PDF bundle include drafts and
 cancelled invoices in the revenue total (the document list should include them;
 the total arguably should not); BWA sums expenses by `grossAmount` (with VAT) — fixed in Tier 419.
 
