@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { computeInvoiceAmounts } from './invoice-amounts';
 import { Prisma } from '@prisma/client';
 import { WebhookService } from '../webhook/webhook.service';
 import { CreateInvoiceDto, UpdateInvoiceDto } from './dto/invoice.dto';
@@ -477,21 +478,15 @@ export class InvoiceService {
     // (e.g. 10% discount with 19% VAT on a €100 line was charged as
     // 19% VAT instead of 19% on €90). The discount is allocated
     // proportionally to each line so per-item tax stays correct.
-    const subtotal = dto.items?.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0) || 0;
-    const discountPercent = dto.discountPercent || 0;
-    const discountAmount = dto.discountAmount || (discountPercent > 0 ? subtotal * (discountPercent / 100) : 0);
-    const discountRatio =
-      discountPercent > 0
-        ? discountPercent / 100
-        : subtotal > 0
-        ? discountAmount / subtotal
-        : 0;
-    const totalVat = dto.items?.reduce((sum, item) => {
-      const itemNet = item.quantity * item.unitPrice;
-      const discountedNet = itemNet * (1 - discountRatio);
-      return sum + (discountedNet * vatRateOf(item));
-    }, 0) || 0;
-    const total = subtotal - discountAmount + totalVat;
+    //
+    // Tier 415: in cents, by invoice-amounts.ts — the same rules the
+    // XRechnung and the PDF state. These used to be stored to four places
+    // (VAT 18,9981 on a document that says 19,00).
+    const amounts = computeInvoiceAmounts(
+      (dto.items ?? []).map((item) => ({ quantity: item.quantity, unitPrice: item.unitPrice, vatRate: vatRateOf(item) })),
+      { discountPercent: dto.discountPercent, discountAmount: dto.discountAmount },
+    );
+    const { subtotal, discountAmount, totalVat, total } = amounts;
 
     // For Credit Notes, total / subtotal / totalVat are all negative
     // — the line items already get negated below. Apply the same sign
@@ -732,11 +727,9 @@ export class InvoiceService {
             unit: item.unit || 'Stück',
             unitPrice: item.unitPrice,
             vatRate: vatRateOf(item),
-            netAmount: type === 'CN' ? -(item.quantity * item.unitPrice) : (item.quantity * item.unitPrice),
-            vatAmount: type === 'CN' ? -(item.quantity * item.unitPrice * vatRateOf(item)) : (item.quantity * item.unitPrice * vatRateOf(item)),
-            grossAmount: type === 'CN'
-              ? -(item.quantity * item.unitPrice * (1 + vatRateOf(item)))
-              : (item.quantity * item.unitPrice * (1 + vatRateOf(item))),
+            netAmount: type === 'CN' ? -amounts.lines[index].net : amounts.lines[index].net,
+            vatAmount: type === 'CN' ? -amounts.lines[index].vat : amounts.lines[index].vat,
+            grossAmount: type === 'CN' ? -amounts.lines[index].gross : amounts.lines[index].gross,
             sortOrder: index,
           })),
         },
@@ -862,19 +855,16 @@ export class InvoiceService {
       const type = existing.type as InvoiceType;
       const isCN = type === 'CN';
       const discountPercent = dto.discountPercent ?? Number(existing.discountPercent ?? 0);
-      const discountAmount = dto.discountAmount ?? Number(existing.discountAmount ?? 0);
-      const discountRatio =
+      // Tier 415: a percentage discount is recomputed from the new lines; an
+      // absolute one is kept. (With a percentage, the stored discountAmount
+      // is the previous lines' — reusing it here was wrong.)
+      const amounts = computeInvoiceAmounts(
+        dto.items.map((i) => ({ quantity: i.quantity, unitPrice: i.unitPrice, vatRate: vatRateOf(i) })),
         discountPercent > 0
-          ? discountPercent / 100
-          : dto.items.reduce((s, i) => s + i.quantity * i.unitPrice, 0) > 0
-            ? discountAmount / dto.items.reduce((s, i) => s + i.quantity * i.unitPrice, 0)
-            : 0;
-      const subtotal = dto.items.reduce((s, i) => s + i.quantity * i.unitPrice, 0);
-      const totalVat = dto.items.reduce((s, i) => {
-        const net = i.quantity * i.unitPrice * (1 - discountRatio);
-        return s + net * vatRateOf(i);
-      }, 0);
-      const total = subtotal - discountAmount + totalVat;
+          ? { discountPercent }
+          : { discountAmount: dto.discountAmount ?? Number(existing.discountAmount ?? 0) },
+      );
+      const { subtotal, discountAmount, totalVat, total } = amounts;
 
       itemsData = {
         deleteMany: {},
@@ -892,11 +882,9 @@ export class InvoiceService {
           // gross, so saving an invoice unchanged on its issue day changed
           // what every tax report read from it. The discount stays on the
           // invoice; tax-breakdown.ts applies it per rate.
-          netAmount: isCN ? -(item.quantity * item.unitPrice) : (item.quantity * item.unitPrice),
-          vatAmount: isCN ? -(item.quantity * item.unitPrice * vatRateOf(item)) : (item.quantity * item.unitPrice * vatRateOf(item)),
-          grossAmount: isCN
-            ? -(item.quantity * item.unitPrice * (1 + vatRateOf(item)))
-            : (item.quantity * item.unitPrice * (1 + vatRateOf(item))),
+          netAmount: isCN ? -amounts.lines[index].net : amounts.lines[index].net,
+          vatAmount: isCN ? -amounts.lines[index].vat : amounts.lines[index].vat,
+          grossAmount: isCN ? -amounts.lines[index].gross : amounts.lines[index].gross,
           sortOrder: index,
         })),
       };
@@ -1360,15 +1348,9 @@ export class InvoiceService {
     // calculator (we don't have a "negative invoice"
     // create DTO — the create DTO always expects
     // positive unit prices).
-    let subtotal = 0
-    let totalVat = 0
-    for (const l of cnLines) {
-      const net = l.quantity * l.unitPrice
-      const vat = net * l.vatRate
-      subtotal += net
-      totalVat += vat
-    }
-    const total = subtotal + totalVat
+    // Tier 415: cents, by invoice-amounts.ts (negative unit prices).
+    const amounts = computeInvoiceAmounts(cnLines)
+    const { subtotal, totalVat, total } = amounts
 
     // Allocate a new invoice number on the CN's
     // number sequence. CNs use the same year/month
@@ -1422,7 +1404,7 @@ export class InvoiceService {
           // expired) at the time of the original
           // payment. A subsequent refund is a
           // separate transaction.
-          vatBreakdown: this.computeVatBreakdown(cnLines),
+          vatBreakdown: amounts.byRate,
           items: {
             create: cnLines.map((l, i) => ({
               description: l.description,
@@ -1430,9 +1412,9 @@ export class InvoiceService {
               unit: 'Stück',
               unitPrice: l.unitPrice,
               vatRate: l.vatRate,
-              netAmount: l.quantity * l.unitPrice,
-              vatAmount: l.quantity * l.unitPrice * l.vatRate,
-              grossAmount: l.quantity * l.unitPrice * (1 + l.vatRate),
+              netAmount: amounts.lines[i].net,
+              vatAmount: amounts.lines[i].vat,
+              grossAmount: amounts.lines[i].gross,
               sortOrder: i,
               // No costCenter/costObject on CN
               // lines — the original carried the
@@ -1564,32 +1546,6 @@ export class InvoiceService {
     // before returning — callers should not see it.
     const { _gutschriftOverage, ...cnForCaller } = cn as any
     return cnForCaller
-  }
-
-  /**
-   * Helper: build the JSON VAT breakdown from a
-   * list of negative-priced line items. Same shape
-   * as the create flow's breakdown but for refunds.
-   */
-  private computeVatBreakdown(
-    lines: Array<{
-      quantity: number
-      unitPrice: number
-      vatRate: number
-    }>,
-  ) {
-    const byRate: Record<string, { rate: number; net: number; vat: number }> =
-      {}
-    for (const l of lines) {
-      const key = l.vatRate.toFixed(2)
-      if (!byRate[key]) {
-        byRate[key] = { rate: l.vatRate, net: 0, vat: 0 }
-      }
-      const net = l.quantity * l.unitPrice
-      byRate[key].net += net
-      byRate[key].vat += net * l.vatRate
-    }
-    return Object.values(byRate)
   }
 
   // ---- Tier 138: internal team notes ----

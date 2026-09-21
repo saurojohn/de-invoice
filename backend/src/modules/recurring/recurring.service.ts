@@ -1,5 +1,5 @@
 import { Injectable, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { computeInvoiceAmounts } from '../invoice/invoice-amounts';
 import { PrismaService } from '../../prisma/prisma.service';
 // Tier 129: send the generated invoice to the customer
 // after a successful template run. The service throws
@@ -803,30 +803,20 @@ export class RecurringService {
         tpl.dayOfMonth,
       )
 
-      // Compute totals from the snapshot items.
-      const subtotal = items.reduce(
-        (s, it) => s.plus(
-          new Prisma.Decimal(it.unitPrice ?? 0).times(it.quantity ?? 0),
-        ),
-        new Prisma.Decimal(0),
-      ).toNumber()
-      // VAT breakdown per rate.
-      const vatByRate = new Map<number, { rate: number; net: number; vat: number }>()
-      for (const it of items) {
-        const net = Number(it.unitPrice) * Number(it.quantity)
-        const rate = Number(it.vatRate)
-        const vat = net * rate
-        const cur = vatByRate.get(rate) || { rate, net: 0, vat: 0 }
-        cur.net += net
-        cur.vat += vat
-        vatByRate.set(rate, cur)
-      }
-      const totalVat = Array.from(vatByRate.values()).reduce((s, v) => s + v.vat, 0)
-      const total = subtotal + totalVat
-      const vatBreakdown = Array.from(vatByRate.values()).map((v) => ({
+      // Compute totals from the snapshot items. Tier 415: in cents, by the
+      // same function as a manually created invoice (invoice-amounts.ts).
+      const amounts = computeInvoiceAmounts(
+        items.map((it) => ({
+          quantity: Number(it.quantity ?? 0),
+          unitPrice: Number(it.unitPrice ?? 0),
+          vatRate: Number(it.vatRate ?? 0),
+        })),
+      )
+      const { subtotal, totalVat, total } = amounts
+      const vatBreakdown = amounts.byRate.map((v) => ({
         rate: v.rate,
-        netAmount: Math.round(v.net * 100) / 100,
-        vatAmount: Math.round(v.vat * 100) / 100,
+        netAmount: v.net,
+        vatAmount: v.vat,
       }))
 
       // Tier 174: invoice number allocated by the same
@@ -913,16 +903,16 @@ export class RecurringService {
           recurringInvoiceId: templateId,
           createdById: tpl.createdById,
           items: {
-            create: items.map((it) => ({
+            create: items.map((it, idx) => ({
               description: it.description,
               productNumber: it.productNumber,
               quantity: it.quantity.toString(),
               unit: it.unit,
               unitPrice: it.unitPrice.toString(),
               vatRate: it.vatRate.toString(),
-              netAmount: (Math.round(Number(it.unitPrice) * Number(it.quantity) * 10000) / 10000).toFixed(4),
-              vatAmount: (Math.round(Number(it.unitPrice) * Number(it.quantity) * Number(it.vatRate) * 10000) / 10000).toFixed(4),
-              grossAmount: (Math.round(Number(it.unitPrice) * Number(it.quantity) * (1 + Number(it.vatRate)) * 10000) / 10000).toFixed(4),
+              netAmount: amounts.lines[idx].net.toFixed(2),
+              vatAmount: amounts.lines[idx].vat.toFixed(2),
+              grossAmount: amounts.lines[idx].gross.toFixed(2),
               // productId snapshot if the productNumber matches
               // an existing product — best-effort (not implemented
               // yet; user can edit the invoice afterwards to link).
@@ -1160,41 +1150,35 @@ export class RecurringService {
 
     const periodStart = new Date(tpl.nextRunAt)
     const periodEnd = this.advanceTo(periodStart, tpl.interval as RecurringInterval, tpl.intervalCount, tpl.dayOfMonth)
-    const subtotal = tpl.items.reduce(
-      (s, it) => s.plus(
-        new Prisma.Decimal(it.unitPrice ?? 0).times(it.quantity ?? 0),
-      ),
-      new Prisma.Decimal(0),
-    ).toNumber()
-    const totalVat = tpl.items.reduce(
-      (s, it) => s.plus(
-        new Prisma.Decimal(it.unitPrice ?? 0)
-          .times(it.quantity ?? 0)
-          .times(it.vatRate ?? 0),
-      ),
-      new Prisma.Decimal(0),
-    ).toNumber()
-    const total = subtotal + totalVat
+    // Tier 415: the preview used to round only its totals, so it could differ
+    // from the invoice the run then created; both now use invoice-amounts.ts.
+    const amounts = computeInvoiceAmounts(
+      tpl.items.map((it) => ({
+        quantity: Number(it.quantity ?? 0),
+        unitPrice: Number(it.unitPrice ?? 0),
+        vatRate: Number(it.vatRate ?? 0),
+      })),
+    )
 
     return {
       periodStart: periodStart.toISOString(),
       periodEnd: periodEnd.toISOString(),
       issueDate: new Date().toISOString(),
       dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-      items: tpl.items.map((it) => ({
+      items: tpl.items.map((it, idx) => ({
         description: it.description,
         productNumber: it.productNumber,
         quantity: Number(it.quantity),
         unit: it.unit,
         unitPrice: Number(it.unitPrice),
         vatRate: Number(it.vatRate),
-        netAmount: Math.round(Number(it.unitPrice) * Number(it.quantity) * 100) / 100,
-        vatAmount: Math.round(Number(it.unitPrice) * Number(it.quantity) * Number(it.vatRate) * 100) / 100,
-        grossAmount: Math.round(Number(it.unitPrice) * Number(it.quantity) * (1 + Number(it.vatRate)) * 100) / 100,
+        netAmount: amounts.lines[idx].net,
+        vatAmount: amounts.lines[idx].vat,
+        grossAmount: amounts.lines[idx].gross,
       })),
-      subtotal: Math.round(subtotal * 100) / 100,
-      totalVat: Math.round(totalVat * 100) / 100,
-      total: Math.round(total * 100) / 100,
+      subtotal: amounts.subtotal,
+      totalVat: amounts.totalVat,
+      total: amounts.total,
     }
   }
 

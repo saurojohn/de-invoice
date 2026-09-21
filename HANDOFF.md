@@ -2458,6 +2458,55 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Invoice amounts were stored to four places, never to cents (Tier 415)
+
+Every invoice amount was stored with four decimals and never rounded; the
+documents rounded only when printing. Measured:
+
+| Invoice | Stored before | Stated on the PDF before | Now stored and stated |
+|---|---|---|---|
+| 3 × 33,33 @ 19 % | VAT 18,9981 · total 118,9881 | 19,00 · 118,99 | 19,00 · 118,99 |
+| 1,5 × 87,35 @ 19 % + 7 × 2,99 @ 7 % | net 151,955 · VAT 26,3598 · total 178,3149 | 151,96 + 26,36 = **178,31** (does not add up) | 151,96 + 26,37 = 178,33 |
+| 3 × 0,99 @ 19 % | VAT 0,5643 | 0,56 | 0,56 |
+| 3 × 33,33 − 7,5 % | discount 7,4992 · VAT 17,5732 | 7,50 · 17,57 | 7,50 · 17,57 |
+
+The tax owed is the tax stated on the invoice (§ 14c UStG); UStVA, OSS and
+DATEV sum the stored VAT, so they drifted from what was invoiced by up to half
+a cent per invoice. The in-process XRechnung check itself flagged BR-CO-15 on
+the mixed-rate invoice.
+
+`invoice-amounts.ts` (`computeInvoiceAmounts`) now computes an invoice's
+amounts once, in integer cents, by EN 16931's rules — line net rounded to the
+cent; the discount rounded and split across rates by their line nets; VAT per
+rate on the discounted net, rounded (BR-CO-17); total VAT = the sum per rate,
+not per line — so the stored figures are what the PDF, XRechnung and ZUGFeRD
+state. It replaces four copies of the arithmetic: create, same-day edit,
+credit note and the recurring run. Two of them had their own defects: the
+**recurring preview** rounded only its totals, so it could show a different
+amount from the invoice the run then created (26,36 vs 26,3598), and the
+**edit** path reused the stored `discountAmount` from the previous lines when
+the discount was a percentage.
+
+The **invoice form's live summary** computed VAT on the lines before the
+discount: 1 000 € at 10 % off showed "USt 190,00 · Gesamt 1.090,00", and the
+invoice it created said 171,00 / 1.071,00. It now uses
+`frontend/src/lib/invoice-amounts.ts`, a copy of the backend module (separate
+packages); spec 204 fails if the two differ.
+
+Existing invoices keep their four-place amounts — issued documents are not
+rewritten. Reports read both kinds.
+
+Specs: `e2e/204-tier415-amounts-in-cents.sh` (24 assertions, 21 failing
+against the old code) and `frontend/e2e/invoice-form-totals-tier415.spec.ts`
+(2 tests; the fill-and-check is retried as one step because a fill before
+hydration is reset — it failed once that way before the retry was added).
+
+Found on the way, **next tier**: a full credit note of a discounted invoice
+mirrors the lines without the discount (a 1 071 € invoice is refunded as
+−1 190 €), and a refund by amount (`amount: 100`) is booked at **0 % VAT**
+whatever the original's rate — a partial refund of a 19 % sale reduces the
+customer's debt but not the output tax (§ 17 UStG).
+
 ### The ZUGFeRD XML was not CII — nothing had ever checked it (Tier 414)
 
 With your go-ahead, the CEN EN 16931 **CII** schematron (`en16931-cii-1.3.16.zip`,

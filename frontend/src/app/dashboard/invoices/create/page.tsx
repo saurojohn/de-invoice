@@ -12,6 +12,7 @@ import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { API_BASE, apiGet, apiPost, apiPut, apiFetch, ApiError } from "@/lib/api"
+import { computeInvoiceAmounts } from "@/lib/invoice-amounts"
 
 type InvoiceType = 'INV' | 'CN' | 'PI' | 'RCV'
 type InvoiceTemplateType = 'standard' | 'simplified' | 'compact'
@@ -922,27 +923,28 @@ function CreateInvoicePageInner() {
     })
   }
 
-  const calculateSubtotal = () => {
-    return form.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0)
-  }
+  // Tier 415: the backend's arithmetic (lib/invoice-amounts.ts). The VAT here
+  // used to ignore the invoice discount, so the form showed a different total
+  // from the invoice it created.
+  const amounts = () =>
+    computeInvoiceAmounts(
+      form.items.map((item) => ({
+        quantity: Number(item.quantity) || 0,
+        unitPrice: Number(item.unitPrice) || 0,
+        vatRate: Number(item.vatRate) || 0,
+      })),
+      form.discountPercent > 0
+        ? { discountPercent: form.discountPercent }
+        : { discountAmount: form.discountAmount },
+    )
 
-  const calculateDiscount = () => {
-    if (form.discountPercent > 0) {
-      return calculateSubtotal() * (form.discountPercent / 100)
-    }
-    return form.discountAmount
-  }
+  const calculateSubtotal = () => amounts().subtotal
 
-  const calculateVat = () => {
-    return form.items.reduce((sum, item) => {
-      const itemNet = item.quantity * item.unitPrice
-      return sum + itemNet * item.vatRate
-    }, 0)
-  }
+  const calculateDiscount = () => amounts().discountAmount
 
-  const calculateTotal = () => {
-    return calculateSubtotal() - calculateDiscount() + calculateVat()
-  }
+  const calculateVat = () => amounts().totalVat
+
+  const calculateTotal = () => amounts().total
 
   // Tier 118: format an amount in the selected currency.
   // Uses Intl.NumberFormat for the per-currency symbol
@@ -2045,6 +2047,7 @@ function CreateInvoicePageInner() {
                     min="0"
                     max="100"
                     step="0.1"
+                    data-testid="discount-percent"
                     value={form.discountPercent}
                     onChange={(e) => setForm({ ...form, discountPercent: Number(e.target.value), discountAmount: 0 })}
                   />
