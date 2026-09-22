@@ -9,18 +9,18 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–426 are
-  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 426.)
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–427 are
+  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 427.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 35765712311 / commit `5912035`, Tier 426):**
-  - Backend e2e: **214 passed / 0 failed / 1 skipped** of 215 specs — 100
-    two-digit + 115 three-digit (Tier 426 added
-    `215-tier426-bilanz-open-amounts.sh`, Tier 425 `214-tier425-kassenbuch.sh`,
+- **Test counts (last green CI, run 35778522341 / commit `13a181e`, Tier 427):**
+  - Backend e2e: **215 passed / 0 failed / 1 skipped** of 216 specs — 100
+    two-digit + 116 three-digit (Tier 427 added `216-tier427-afa-monate.sh`,
+    Tier 426 `215-tier426-bilanz-open-amounts.sh`, Tier 425 `214-tier425-kassenbuch.sh`,
     Tier 424 `213-tier424-document-scope.sh`,
     Tier 423 `212-tier423-datev-buchungsstapel.sh`,
     Tier 422 `211-tier422-skonto-settlement.sh`,
