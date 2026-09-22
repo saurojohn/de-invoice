@@ -58,10 +58,13 @@ exact commands + docs you need to be productive.
     and survives concurrent writes (Tier 367); spec 171 (new in Tier 368) asserts
     the auth audit rows exist at all and are signed — nothing had ever asserted
     on them, which is how a failed login for an unknown e-mail went unaudited.
-  - Playwright: **930 passed / 0 failed / 0 skipped / 0 flaky** (922 since Tier 390's
+  - Playwright: **929 passed / 0 failed / 0 skipped / 1 flaky** in the Tier 428
+    run — `list-pages.spec.ts` "Invoices list renders without console errors"
+    expected the empty state and saw a populated list, then passed on retry;
+    it is not related to that tier and had never flaked before. 930 tests
+    (922 since Tier 390's
     page tests; +4 in Tier 401's session-cookie spec; +2 in Tier 413's
-    invoice-discount-row spec; +2 in Tier 415's invoice-form-totals spec) — every test
-    runs and none needed a retry. Tier 365 turned the last 4 skips into real
+    invoice-discount-row spec; +2 in Tier 415's invoice-form-totals spec). Tier 365 turned the last 4 skips into real
     tests; Tier 365b fixed the one flaky test (`bwa-quarterly-tier163`).
     Tier 369 removed 28 silent-skip call sites — three intentional ones remained
     (two since Tier 381, which turned the webhook replay skip into a real wait),
