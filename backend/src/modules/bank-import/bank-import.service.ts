@@ -593,6 +593,14 @@ export class BankImportService {
     // BankReconciliation.voucherId — that's the audit
     // trail showing the user (not the system) accepted
     // this booking.
+    // Tier 422: PaymentService.create() above settles the Skonto with a
+    // credit note split over the invoice's rates (Erlösminderung *and* the
+    // USt correction, § 17 UStG). The voucher therefore books the cash only;
+    // the 8730 line it used to add took the gross Skonto off revenue without
+    // correcting the VAT, and would now book the Skonto twice.
+    if (skontoAmount > 0) {
+      this.logger.log(`Skonto ${skontoAmount} settled by credit note for invoice=${recon.invoiceId}`);
+    }
     const voucher = await this.bookPaymentVoucher(
       companyId,
       applied,
@@ -600,7 +608,7 @@ export class BankImportService {
       recon.invoiceId,
       recon.bankTransaction.counterpartyName,
       recon.bankTransaction.purpose,
-      skontoAmount,
+      0,
     );
 
     // Flip reconciliation to confirmed (with voucher link).

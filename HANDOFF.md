@@ -2472,6 +2472,46 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### A Skonto payment left the invoice open and the VAT unreduced (Tier 422)
+
+Measured on a 1 190 € invoice with 2 % Skonto (14 days), paid 1 166,20 € on
+the issue day:
+
+| | Before | Now |
+|---|---|---|
+| invoice status | sent | paid |
+| open to dun | **23,80** — the dunning chased the discount, plus interest and fees | 0 |
+| UStVA 19 % | 1 000 / 190 | 980 / 186,20 (§ 17 UStG) |
+| bank-import voucher | 8730 debit 23,80 gross, no VAT correction | cash only; the Skonto is a credit note |
+
+`PaymentService.create` now settles a Skonto when a payment inside the window
+(issue date + `skontoDays`) leaves exactly the offered discount open: it
+creates a credit note for it, dated the payment day and split over the
+invoice's rates like a refund by amount (Tier 416) — "Skonto 2 %". The UStVA,
+the open balance and the dunning then see it; the credit note's synthetic
+payment settles the invoice. A payment after the window, or of a different
+amount, is an ordinary part payment. `createCreditNote` takes an optional
+`issueDate` for this.
+
+**A mistake of mine in Tier 421, found here.** `createCreditNote` books a
+synthetic "Gutschrift" payment on the original for every credit note, so the
+payments already include them. Tier 421's `openBalance` subtracted the credit
+notes a second time: a 1 190 € invoice with a 190 € credit note was dunned for
+810 € instead of 1 000 €. Fixed (open = total − payments), with a regression
+check. (Early in this tier I also believed a credit note did not count towards
+settling an invoice — it does, through that synthetic payment.)
+
+`e2e/79` asserted the 8730 voucher line; it now asserts the cash-only voucher,
+the credit note (−20,00 net / −3,80 USt) and the paid status.
+
+Spec `e2e/211-tier422-skonto-settlement.sh` (15 assertions, 8 failing against
+the previous code).
+
+Not changed, next tier: **the DATEV export contains no credit notes at all**
+(it exports paid INV / PI only), so refunds and Skonti never reach the
+Berater's books; and its payment row books the invoice total, not the cash
+received.
+
 ### Verzugszinsen were a flat 9 %, on the invoice total (Tier 421)
 
 § 288 BGB: Basiszinssatz + 9 percentage points between businesses (Abs. 2),
@@ -2495,7 +2535,8 @@ surcharge, capped at 5 for a consumer (a company may charge less, not more).
 last entry 1.7.2026 = 1,52 %) and computes day by day, so a period across a
 1 January / 1 July change uses both rates. **The table must be extended every
 half year** — past its last entry it keeps using the last value. The open
-balance is total − payments − credit notes; interest runs on today's open
+balance is total − payments (Tier 422: this said "− credit notes" too, which
+subtracted them twice — they are already among the payments); interest runs on today's open
 balance for the whole period, which under-charges when a part payment fell
 inside the overdue period (never over-charges). The letter shows the invoice
 total, the deduction and the open amount, and its legal note cites Abs. 1 or

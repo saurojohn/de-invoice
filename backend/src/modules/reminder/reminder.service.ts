@@ -933,19 +933,17 @@ Mit freundlichen Grüßen,
 
   /**
    * Tier 421: what the customer still owes on an invoice — total minus
-   * payments minus credit notes against it. Dunning charged interest on, and
-   * demanded, the invoice total even after a part payment.
+   * payments. Dunning charged interest on, and demanded, the invoice total
+   * even after a part payment.
+   *
+   * Tier 422: credit notes are already among the payments — createCreditNote
+   * books a synthetic 'Gutschrift' payment for each — so they must not be
+   * subtracted again. Tier 421 did, and dunned 810 € on a 1 190 € invoice
+   * with a 190 € credit note (1 000 € open).
    */
   async openBalance(invoiceId: string, total: number): Promise<number> {
-    const [paid, credited] = await Promise.all([
-      this.prisma.payment.aggregate({ where: { invoiceId }, _sum: { amount: true } }),
-      this.prisma.invoice.aggregate({
-        where: { referenceInvoiceId: invoiceId, type: 'CN', status: { not: 'cancelled' } },
-        _sum: { total: true },
-      }),
-    ]);
-    const open =
-      total - Number(paid._sum.amount ?? 0) - Math.abs(Number(credited._sum.total ?? 0));
+    const paid = await this.prisma.payment.aggregate({ where: { invoiceId }, _sum: { amount: true } });
+    const open = total - Number(paid._sum.amount ?? 0);
     return Math.max(0, Math.round(open * 100) / 100);
   }
 

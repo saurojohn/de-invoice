@@ -1270,6 +1270,8 @@ export class InvoiceService {
         vatRate?: number
       }>
       reason?: string
+      /** Tier 422: the date the reduction happened (a Skonto: the payment date) */
+      issueDate?: Date
     },
   ) {
     const original = await this.prisma.invoice.findFirst({
@@ -1411,7 +1413,7 @@ export class InvoiceService {
     // number sequence. CNs use the same year/month
     // numbering as the original — the prefix
     // differentiates (CN-2026-001).
-    const now = new Date()
+    const now = opts.issueDate ? new Date(opts.issueDate) : new Date()
     const month = now.getMonth() + 1
     // Tier 174: same SEQUENCE-based allocation as create().
     // The old `cnCount + 1` was racy under concurrent CN creates

@@ -10,8 +10,10 @@
 #        - invoice has skontoPercent + skontoDays
 #        - bank txn.valueDate <= issueDate + skontoDays
 #        - applied amount = invoice.total * (1 - skonto/100)
-#      and books an extra 8730 (Erlösminderung) line
-#      on the Voucher.
+#      Tier 422: and settles the Skonto with a credit note split over the
+#      invoice's rates (Erlösminderung + USt correction, § 17 UStG). The
+#      voucher books the cash; the extra 8730 line it used to carry took the
+#      gross Skonto off revenue without correcting the VAT.
 #   3. Edge cases: outside the Skonto window the
 #      difference is treated as a normal partial
 #      payment (no Skonto line); half-Skonto (mismatch
@@ -189,8 +191,10 @@ pass "seeded bank statement + txn + recon"
 api_post "/api/v1/bank-statements/reconciliations/$RECON_ID/confirm?companyId=$COMPANY_ID" '{}'
 assert_status "201" "confirm Skonto recon"
 
-# The Voucher should now have 3 lines: Bank debit 1166.20,
-# 8730 Erlösminderung debit 23.80, Forderung credit 1190.00.
+# Tier 422: the voucher books the cash received (Bank 1166.20 / Forderung
+# 1166.20); the Skonto is a credit note — net 20.00 + USt 3.80 — which DATEV
+# and the UStVA read. It used to be a third voucher line, 8730 debit 23.80
+# gross, with the Forderung credited 1190.00 and no VAT correction.
 VOUCHER_ID=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT \"voucherRefId\" FROM \"Invoice\" WHERE id = '$INV_ID'")
 [[ -n "$VOUCHER_ID" ]] || (echo "FATAL: voucherRefId not set on invoice" && exit 1)
@@ -198,36 +202,27 @@ pass "voucher: $VOUCHER_ID"
 
 LINE_COUNT=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT COUNT(*) FROM \"VoucherLine\" WHERE \"voucherId\" = '$VOUCHER_ID'")
-assert_eq "Voucher line count (Skonto split = 3 lines)" "$LINE_COUNT" "3"
+assert_eq "Voucher line count (cash only: Bank + Forderung)" "$LINE_COUNT" "2"
 
-# Sum of debits = sum of credits
-SUM_DEBIT=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
-  "SELECT ROUND(SUM(debit)::numeric, 2) FROM \"VoucherLine\" WHERE \"voucherId\" = '$VOUCHER_ID'")
-SUM_CREDIT=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
-  "SELECT ROUND(SUM(credit)::numeric, 2) FROM \"VoucherLine\" WHERE \"voucherId\" = '$VOUCHER_ID'")
-assert_eq "voucher balanced (debit)" "$SUM_DEBIT" "1190.00"
-assert_eq "voucher balanced (credit)" "$SUM_CREDIT" "1190.00"
-
-# 8730 line exists with 23.80 (2% of 1190 = 23.80)
-SKONTO_LINE=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
-  "SELECT ROUND(debit::numeric, 2) FROM \"VoucherLine\" vl
-   JOIN \"Account\" a ON a.id = vl.\"accountId\"
-   WHERE vl.\"voucherId\" = '$VOUCHER_ID' AND a.\"accountNumber\" = '8730'")
-assert_eq "Skonto 8730 debit" "$SKONTO_LINE" "23.80"
-
-# Bank 1200 line = 1166.20
 BANK_LINE=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT ROUND(debit::numeric, 2) FROM \"VoucherLine\" vl
    JOIN \"Account\" a ON a.id = vl.\"accountId\"
    WHERE vl.\"voucherId\" = '$VOUCHER_ID' AND a.\"accountNumber\" = '1200'")
 assert_eq "Bank 1200 debit" "$BANK_LINE" "1166.20"
 
-# Forderung 1406 line credit = 1190 (full original)
 RECV_LINE=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT ROUND(credit::numeric, 2) FROM \"VoucherLine\" vl
    JOIN \"Account\" a ON a.id = vl.\"accountId\"
    WHERE vl.\"voucherId\" = '$VOUCHER_ID' AND a.\"accountNumber\" = '1406'")
-assert_eq "Forderung 1406 credit (full GROSS)" "$RECV_LINE" "1190.00"
+assert_eq "Forderung 1406 credit (cash received)" "$RECV_LINE" "1166.20"
+
+SKONTO_CN=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -F '|' -c \
+  "SELECT ROUND(subtotal::numeric, 2), ROUND(\"totalVat\"::numeric, 2), ROUND(total::numeric, 2) FROM \"Invoice\"
+   WHERE \"referenceInvoiceId\" = '$INV_ID' AND type = 'CN'")
+assert_eq "Skonto credit note: net / USt / total" "$SKONTO_CN" "-20.00|-3.80|-23.80"
+INV_STATUS=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
+  "SELECT status FROM \"Invoice\" WHERE id = '$INV_ID'")
+assert_eq "invoice paid" "$INV_STATUS" "paid"
 
 # ───── 6. Outside Skonto window — no 8730 line ─────
 echo

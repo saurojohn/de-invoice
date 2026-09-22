@@ -1,3 +1,4 @@
+import { InvoiceService } from './invoice.service';
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -26,6 +27,8 @@ export class PaymentService {
     private reminders: ReminderService,
     // Tier 58: see class-level comment above.
     private creditBalance: CreditBalanceService,
+    // Tier 422: a Skonto is settled with a credit note (createCreditNote).
+    private invoices: InvoiceService,
   ) {}
 
   /**
@@ -97,11 +100,23 @@ export class PaymentService {
       },
     });
 
+    // Tier 422: a payment inside the Skonto window that leaves exactly the
+    // Skonto open settles the invoice. Measured before: 1 166,20 € paid on a
+    // 1 190 € invoice with 2 % Skonto left it "sent" with 23,80 € open — the
+    // dunning run then chased the discount the customer was entitled to — and
+    // the output tax stayed 190 €. A Skonto is a reduction of the price (§ 17
+    // UStG); it is booked as a credit note dated the payment day, split over
+    // the invoice's rates like a refund by amount (Tier 416), so the UStVA,
+    // DATEV, the open balance and the dunning all see it.
+    const skonto = await this.settleSkonto(invoice, companyId, new Date(data.paymentDate));
+
     // Auto-update invoice status if fully paid
     const payments = await this.prisma.payment.findMany({
       where: { invoiceId },
       select: { amount: true },
     });
+    // (A credit note is already among the payments: createCreditNote books a
+    // synthetic 'Gutschrift' payment for it.)
     const totalPaid = payments.reduce(
       (s, p) => s.plus(p.amount ?? new Prisma.Decimal(0)),
       new Prisma.Decimal(0),
@@ -234,7 +249,38 @@ export class PaymentService {
       })
       .catch((err) => console.error('webhook emit(payment.received) failed:', err))
 
-    return payment;
+    return skonto ? { ...payment, skonto } : payment;
+  }
+
+  /**
+   * Tier 422: settle a Skonto when this payment brings the open balance down
+   * to exactly the offered discount inside the window (issue date +
+   * skontoDays, end of day). Returns the credit note's amount, or null.
+   */
+  private async settleSkonto(
+    invoice: { id: string; type: string; status: string; total: any; issueDate: Date; skontoPercent: any; skontoDays: number | null },
+    companyId: string,
+    paymentDate: Date,
+  ): Promise<{ amount: number; creditNoteId: string } | null> {
+    const pct = Number(invoice.skontoPercent ?? 0);
+    if (invoice.type !== 'INV' || !(pct > 0) || invoice.skontoDays == null) return null;
+    const windowEnd = new Date(invoice.issueDate);
+    windowEnd.setDate(windowEnd.getDate() + invoice.skontoDays);
+    windowEnd.setHours(23, 59, 59, 999);
+    if (paymentDate > windowEnd) return null;
+    const total = Number(invoice.total);
+    // Credit notes are among the payments (createCreditNote's synthetic
+    // 'Gutschrift' payment), so the open balance is total − payments.
+    const paid = await this.prisma.payment.aggregate({ where: { invoiceId: invoice.id }, _sum: { amount: true } });
+    const open = Math.round((total - Number(paid._sum.amount ?? 0)) * 100) / 100;
+    const discount = Math.round(total * pct) / 100;
+    if (open < 0.01 || Math.abs(open - discount) > 0.011) return null;
+    const cn = await this.invoices.createCreditNote(invoice.id, companyId, {
+      amount: open,
+      reason: `Skonto ${pct.toLocaleString('de-DE', { maximumFractionDigits: 2 })} %`,
+      issueDate: paymentDate,
+    });
+    return { amount: open, creditNoteId: (cn as any).id };
   }
 
   /**
