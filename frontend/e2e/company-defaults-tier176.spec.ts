@@ -185,6 +185,9 @@ test.describe("Tier 176 — Company.defaultVatMode + defaultPaymentDays pre-fill
     expect(badRes.status(), "invalid defaultVatMode should 400").toBe(400)
   })
 
+  // Tier 428: the company default applies to a customer WITHOUT an own
+  // Zahlungsziel (the seeded BWA customer has none); a customer with one
+  // wins over it — see backend e2e/217.
   test("2. dueDate pre-fills from defaultPaymentDays when caller omits it", async ({
     request,
   }) => {

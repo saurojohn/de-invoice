@@ -431,15 +431,13 @@ function CreateInvoicePageInner() {
           // is already populated (e.g. clone mode where
           // prefillFromInvoice ran first).
           if (prev.dueDate) return prev
-          if (co.defaultPaymentDays && co.defaultPaymentDays > 0) {
-            const issue = prev.issueDate
-              ? new Date(prev.issueDate)
-              : new Date()
-            const due = new Date(issue.getTime() + co.defaultPaymentDays * 86400_000)
-            // Skip pre-fill in clone mode: prefillFromInvoice
-            // already sets dueDate to the cloned source's.
-            if (!prev.dueDate) {
-              return { ...prev, dueDate: due.toISOString().split("T")[0] }
+          if (co.defaultPaymentDays != null && co.defaultPaymentDays >= 0) {
+            // Tier 428: the Zahlungsziel select starts on the company
+            // default too, so changing it recomputes from the same basis.
+            return {
+              ...prev,
+              paymentTerms: co.defaultPaymentDays,
+              dueDate: dueFrom(prev.issueDate, co.defaultPaymentDays),
             }
           }
           return prev
@@ -568,8 +566,23 @@ function CreateInvoicePageInner() {
     inv.invoiceNumber.toLowerCase().includes(invoiceSearch.toLowerCase())
   )
 
+  // Tier 428: the due date follows the Zahlungsziel — the invoice's own, or
+  // the customer's when it is picked. The select used to change nothing: the
+  // backend had no column for it and read only the company default.
+  const dueFrom = (issueDate: string, terms: number) => {
+    const issue = issueDate ? new Date(issueDate) : new Date()
+    if (isNaN(issue.getTime())) return ""
+    return new Date(issue.getTime() + terms * 86400_000).toISOString().split("T")[0]
+  }
+
   const selectCustomer = (customer: Customer) => {
-    setForm({ ...form, customerId: customer.id })
+    const terms = customer.paymentTerms ?? form.paymentTerms
+    setForm({
+      ...form,
+      customerId: customer.id,
+      paymentTerms: terms,
+      dueDate: dueFrom(form.issueDate, terms),
+    })
     setCustomerSearch(customer.name)
     setShowCustomerDropdown(false)
     // Tier 62: fetch the USt-Behandlung auto-suggestion
@@ -1400,7 +1413,13 @@ function CreateInvoicePageInner() {
                   <Input
                     type="date"
                     value={form.issueDate}
-                    onChange={(e) => setForm({ ...form, issueDate: e.target.value })}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        issueDate: e.target.value,
+                        dueDate: dueFrom(e.target.value, form.paymentTerms),
+                      })
+                    }
                     required
                     data-testid="invoice-issue-date"
                   />
@@ -1410,7 +1429,10 @@ function CreateInvoicePageInner() {
                   <select
                     className="w-full h-10 border rounded-md px-3"
                     value={form.paymentTerms}
-                    onChange={(e) => setForm({ ...form, paymentTerms: Number(e.target.value) })}
+                    onChange={(e) => {
+                      const terms = Number(e.target.value)
+                      setForm({ ...form, paymentTerms: terms, dueDate: dueFrom(form.issueDate, terms) })
+                    }}
                     data-testid="invoice-payment-terms"
                   >
                     <option value={0}>{t("paymentTerm.immediate")}</option>

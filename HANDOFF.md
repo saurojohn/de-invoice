@@ -2478,6 +2478,44 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### The Zahlungsziel decided nothing, and a monthly contract skipped February (Tier 428)
+
+Measured with a company default of 30 days:
+
+| | Before | Now |
+|---|---|---|
+| invoice for a customer on 14 days, issued 01.09. | due 01.10. — the company default | 15.09. |
+| customer on 0 days ("sofort fällig") | 01.10. | 01.09. |
+| the invoice form's own "Zahlungsziel" select | changed nothing: the DTO accepted `paymentTerms`, the service dropped it (there is no such column), and the form never touched the due-date field either | the invoice's own term wins, and the form recomputes the due date when the term, the issue date or the customer changes |
+| recurring invoice | due = issue + 30, hard-coded | the customer's term, else the company default (preview included) |
+| monthly template from 31.01., billed on the 31st | first run **28.03.**: `setMonth(+1)` on 31 January is 3 March, so February was skipped, and the day was then clamped to 28 forever (the cap was 28, not the month's length) | 28.02., 31.03., 30.04., 31.05. |
+| the stored run date | the server's local midnight — in Berlin the date in the database was the day before the one the user picked, and it moved with the server's time zone | UTC dates |
+
+`src/modules/invoice/due-date.ts` resolves the term once (invoice → customer
+→ company; 0 is a term, not a missing value, and with nothing set an invoice
+still gets no due date). `InvoiceService.create`, the recurring run and its
+preview use it. The recurring date arithmetic adds whole months in UTC and
+clamps to the target month's last day.
+
+`Customer.paymentTerms` is nullable now (migration
+`20260922000003_customer_payment_terms_nullable`): it was NOT NULL with a
+default of 30, so every customer silently overrode the company's setting and
+a company default of 21 days could never apply. Rows still carrying the old
+default of 30 were set to NULL — nothing could tell them apart from a
+deliberate 30, and they land on the company default anyway.
+
+A new customer's Zahlungsziel starts at the company's default payment days
+instead of 0 — with the term driving the due date, 0 would mean every invoice
+of theirs is due on the day it is issued and dunned the day after.
+
+Spec `e2e/217-tier428-zahlungsziel.sh` (9 assertions, 7 failing against the
+previous code). `ci-seed.sh` gives its BWA customer no own term, so
+`company-defaults-tier176` keeps testing the company default.
+
+Local runs: backend **215 / 1 / 1**, 0 × 500 (`50-webhooks.sh` again, whose
+SSRF check needs to resolve nip.io — this machine's DNS cannot); Playwright
+**930**, no flaky.
+
 ### AfA was counted by day of the month, in two implementations (Tier 427)
 
 § 7 Abs. 1 EStG: AfA runs pro rata temporis by month — the month of

@@ -331,7 +331,10 @@ model Customer {
   taxExempt      Boolean  @default(false)
   address        Json
   contact        Json?
-  paymentTerms   Int      @default(30)
+  // Tier 428: the customer's own Zahlungsziel in days, or NULL when they
+  // have none and the company default applies. It used to be NOT NULL with a
+  // default of 30, so every customer overrode the company's setting.
+  paymentTerms   Int?
   creditLimit    Decimal? @db.Decimal(12, 2)
   tags           String[]
   metadata       Json?

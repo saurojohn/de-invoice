@@ -10,6 +10,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { InvoiceEmailService } from '../invoice/invoice-email.service';
 import { ExchangeRateService } from '../exchange-rate/exchange-rate.service';
 import { nextInvoiceNumber } from '../invoice/invoice-number'
+import { resolveDueDate } from '../invoice/due-date';
 
 /**
  * Recurring invoice (Abo-Rechnung) service.
@@ -126,7 +127,11 @@ export class RecurringService {
    */
   private computeFirstNextRun(input: RecurringInput): Date {
     const d = new Date(input.startDate)
-    d.setHours(0, 0, 0, 0)
+    // Tier 428: in UTC. A date-only startDate parses to UTC midnight, and
+    // `setHours(0,0,0,0)` then moved it to the local midnight — on a server
+    // in Berlin the stored run date was the day before the one the user
+    // picked, and it changed with the server's time zone.
+    d.setUTCHours(0, 0, 0, 0)
     return this.advanceTo(d, input.interval, input.intervalCount ?? 1, input.dayOfMonth ?? 1)
   }
 
@@ -138,42 +143,51 @@ export class RecurringService {
    */
   private advanceTo(from: Date, interval: RecurringInterval, count: number, dayOfMonth: number): Date {
     const d = new Date(from)
+    d.setUTCHours(0, 0, 0, 0)
     switch (interval) {
       case 'monthly': {
-        d.setMonth(d.getMonth() + count)
-        this.setDayClamped(d, dayOfMonth)
+        this.addMonths(d, count, dayOfMonth)
         break
       }
       case 'quarterly': {
-        d.setMonth(d.getMonth() + 3 * count)
-        this.setDayClamped(d, dayOfMonth)
+        this.addMonths(d, 3 * count, dayOfMonth)
         break
       }
       case 'yearly': {
-        d.setFullYear(d.getFullYear() + count)
-        // For yearly we use the calendar day of the start,
-        // ignoring dayOfMonth (Feb 29 still works in leap
-        // years).
-        d.setMonth(from.getMonth())
-        d.setDate(from.getDate())
+        // The calendar day of the start, ignoring dayOfMonth. 29 February
+        // lands on 1 March in a non-leap year (setUTCDate normalises).
+        d.setUTCDate(1)
+        d.setUTCFullYear(d.getUTCFullYear() + count)
+        d.setUTCMonth(from.getUTCMonth())
+        d.setUTCDate(from.getUTCDate())
         break
       }
       case 'weekly': {
-        d.setDate(d.getDate() + 7 * count)
+        d.setUTCDate(d.getUTCDate() + 7 * count)
         break
       }
     }
     return d
   }
 
-  private setDayClamped(d: Date, day: number) {
-    // Clamp 1..28 to be safe — never go beyond 28 because
-    // Feb has 28 (or 29) days. If the user wants "last day
-    // of month" semantics, they can pick 28 + a day-1 in
-    // post-processing; for now 28 is the conservative cap.
-    const target = Math.max(1, Math.min(28, day))
-    const monthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()
-    d.setDate(Math.min(target, monthEnd))
+  /**
+   * Tier 428: add whole calendar months and land on `day` of the target
+   * month, or on its last day when the month is shorter.
+   *
+   * `d.setMonth(d.getMonth() + n)` keeps the day-of-month, so 31 January
+   * plus one month was 3 March — February was skipped entirely, and a
+   * monthly contract billed eleven times a year. The day was then clamped to
+   * 28, so a contract billed on the 30th or 31st silently moved to the 28th
+   * and stayed there.
+   */
+  private addMonths(d: Date, months: number, dayOfMonth: number) {
+    const day = Math.max(1, Math.min(31, Math.round(dayOfMonth || 1)))
+    // Day 1 first: no month has fewer days, so the month step cannot
+    // overflow into the next one.
+    d.setUTCDate(1)
+    d.setUTCMonth(d.getUTCMonth() + months)
+    const monthEnd = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate()
+    d.setUTCDate(Math.min(day, monthEnd))
   }
 
   async list(companyId: string) {
@@ -849,11 +863,25 @@ export class RecurringService {
         currentYear,
       )
 
-      // Create the invoice. issueDate = today; dueDate = issueDate + 30d
-      // by default (the user can edit per-invoice later).
+      // Create the invoice. Tier 428: the due date follows the customer's
+      // Zahlungsziel, else the company default (due-date.ts) — it was a
+      // hard-coded 30 days, whatever either of them said.
       const issueDate = new Date(now)
-      const dueDate = new Date(issueDate)
-      dueDate.setDate(dueDate.getDate() + 30)
+      const terms = await tx.customer.findUnique({
+        where: { id: tpl.customerId },
+        select: { paymentTerms: true },
+      })
+      const companyDefaults = await tx.company.findUnique({
+        where: { id: companyId },
+        select: { defaultPaymentDays: true },
+      })
+      const dueDate = resolveDueDate(
+        issueDate,
+        null,
+        null,
+        terms?.paymentTerms,
+        companyDefaults?.defaultPaymentDays,
+      )
 
       // Tier 362: EUR equivalents, by the same rule as InvoiceService.create —
       // EUR invoices mirror their amounts at rate 1; other currencies divide by
@@ -1144,9 +1172,22 @@ export class RecurringService {
   async previewNext(companyId: string, templateId: string) {
     const tpl = await this.prisma.recurringInvoice.findFirst({
       where: { id: templateId, companyId },
-      include: { items: { orderBy: { position: 'asc' } } },
+      include: {
+        items: { orderBy: { position: 'asc' } },
+        // Tier 428: the preview shows the due date the run will use.
+        customer: { select: { paymentTerms: true } },
+        company: { select: { defaultPaymentDays: true } },
+      },
     })
     if (!tpl) throw new BadRequestException('Recurring invoice not found')
+    const previewIssueDate = new Date()
+    const previewDueDate = resolveDueDate(
+      previewIssueDate,
+      null,
+      null,
+      tpl.customer?.paymentTerms,
+      tpl.company?.defaultPaymentDays,
+    )
 
     const periodStart = new Date(tpl.nextRunAt)
     const periodEnd = this.advanceTo(periodStart, tpl.interval as RecurringInterval, tpl.intervalCount, tpl.dayOfMonth)
@@ -1163,8 +1204,10 @@ export class RecurringService {
     return {
       periodStart: periodStart.toISOString(),
       periodEnd: periodEnd.toISOString(),
-      issueDate: new Date().toISOString(),
-      dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      issueDate: previewIssueDate.toISOString(),
+      // Tier 428: as the run does — the customer's Zahlungsziel, else the
+      // company default (it showed a hard-coded 30 days).
+      dueDate: (previewDueDate ?? previewIssueDate).toISOString(),
       items: tpl.items.map((it, idx) => ({
         description: it.description,
         productNumber: it.productNumber,

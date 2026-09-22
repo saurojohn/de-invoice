@@ -23,7 +23,7 @@ interface Customer {
   type: string
   address: { street?: string; city?: string; postalCode?: string; country?: string }
   contact?: { email?: string; phone?: string }
-  paymentTerms: number
+  paymentTerms: number | null
   // "active" = usable, anything else = deactivated by admin.
   // Match against the literal value, not truthiness, so an
   // accidentally-set "inactive" / "suspended" string renders
@@ -216,12 +216,12 @@ export default function CustomersPage() {
     country: "DE",
     email: "",
     phone: "",
-    // New customers default to "Sofort fällig" (paymentTerms = 0).
-    // Most B2B customers that go through manual approval / Net-30
-    // terms can be changed at create-time; defaulting to 0 avoids
-    // silently creating a customer with a 30-day window the user
-    // didn't ask for.
-    paymentTerms: 0,
+    // Tier 428: the customer's Zahlungsziel now decides the due date of
+    // their invoices, so a new customer starts on the company's default
+    // payment days (loaded below, 30 until it arrives) instead of "sofort
+    // fällig" — 0 would have meant every invoice is due on the day it is
+    // issued and dunned the day after.
+    paymentTerms: 30,
     taxExempt: false,
     // Tier 426: the Kreditlimit the credit-utilisation report reads. It had
     // no field and no endpoint accepted it, so it was always NULL.
@@ -265,7 +265,8 @@ export default function CustomersPage() {
         country: customer.address?.country || "DE",
         email: customer.contact?.email || "",
         phone: customer.contact?.phone || "",
-        paymentTerms: customer.paymentTerms,
+        // Tier 428: NULL means "the company's default" — show that value.
+        paymentTerms: customer.paymentTerms ?? defaultPaymentTerms,
         taxExempt: !!customer.taxExempt,
         creditLimit: customer.creditLimit != null ? String(customer.creditLimit) : "",
       })
@@ -281,10 +282,8 @@ export default function CustomersPage() {
         country: "DE",
         email: "",
         phone: "",
-        // Reset path also defaults to 0 (Sofort fällig) so reopening
-        // the "+ Neuer Kunde" modal after cancelling gives the same
-        // fresh state as the first open.
-        paymentTerms: 0,
+        // Reopening the modal gives the same fresh state as the first open.
+        paymentTerms: defaultPaymentTerms,
         taxExempt: false,
         creditLimit: "",
       })
@@ -305,6 +304,22 @@ export default function CustomersPage() {
     }
     setShowModal(true)
   }
+
+  // Tier 428: the company's default payment days pre-fill a new customer's
+  // Zahlungsziel.
+  const [defaultPaymentTerms, setDefaultPaymentTerms] = useState(30)
+  useEffect(() => {
+    const companyId = typeof window !== "undefined" ? localStorage.getItem("companyId") : null
+    if (!companyId) return
+    apiGet<{ defaultPaymentDays?: number | null }>(`/api/v1/companies/${companyId}`)
+      .then((co) => {
+        if (co?.defaultPaymentDays != null && co.defaultPaymentDays >= 0) {
+          setDefaultPaymentTerms(co.defaultPaymentDays)
+          setForm((prev) => (prev.name ? prev : { ...prev, paymentTerms: co.defaultPaymentDays as number }))
+        }
+      })
+      .catch(() => { /* non-fatal: keep 30 */ })
+  }, [])
 
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)

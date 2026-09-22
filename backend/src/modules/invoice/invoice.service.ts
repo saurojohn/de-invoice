@@ -12,6 +12,7 @@ import { CreateInvoiceDto, UpdateInvoiceDto } from './dto/invoice.dto';
 // (so the USt-Voranmeldung sees the right number) and a
 // separate ledger entry books the overage.
 import { CreditBalanceService } from '../customer/credit-balance.service';
+import { resolveDueDate } from './due-date';
 // Tier 118: multi-currency. For non-EUR invoices, the create
 // flow looks up the cached ECB rate and stores the EUR
 // equivalent on the row (eurSubtotal / eurTotalVat / eurTotal).
@@ -446,7 +447,8 @@ export class InvoiceService {
     const customer = customerId
       ? await this.prisma.customer.findFirst({
           where: { id: customerId, companyId },
-          select: { id: true, name: true },
+          // Tier 428: the customer's Zahlungsziel decides the due date.
+          select: { id: true, name: true, paymentTerms: true },
         })
       : null
     if (customerId && !customer) {
@@ -519,9 +521,17 @@ export class InvoiceService {
         where: { id: companyId },
         select: { defaultPaymentDays: true, defaultVatMode: true },
       });
-      if (co?.defaultPaymentDays && co.defaultPaymentDays > 0) {
-        dueDate = new Date(issueDate.getTime() + co.defaultPaymentDays * 86400_000);
-      }
+      // Tier 428: the invoice's own Zahlungsziel wins, then the customer's,
+      // then the company default (due-date.ts). `dto.paymentTerms` was
+      // accepted by the DTO and then dropped, and the customer's term was
+      // never read — every invoice got the company's default.
+      dueDate = resolveDueDate(
+        issueDate,
+        null,
+        dto.paymentTerms,
+        customer?.paymentTerms,
+        co?.defaultPaymentDays,
+      );
       // Tier 176: stash the company's defaultVatMode so
       // the USt-Behandlung branch below can apply it.
       // Kept as a local (not a `let` outside this block)
