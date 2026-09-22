@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { createHash } from 'crypto';
+import { PaymentService } from '../invoice/payment.service';
 
 // Tier 194 — GoBD § 146 AO integrity hash for the
 // Tagesabschluss. We sign over a stable, sorted
@@ -92,7 +93,10 @@ const VALID_TYPES: CashBookEntryType[] = ['einnahme', 'ausgabe', 'umbuchung', 'e
 export class KassenbuchService {
   private readonly logger = new Logger(KassenbuchService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private payments: PaymentService,
+  ) {}
 
   /**
    * Throw if any of the days the caller wants to write
@@ -329,15 +333,44 @@ export class KassenbuchService {
     if (data.invoiceId) {
       const inv = await this.prisma.invoice.findFirst({ where: { id: data.invoiceId, companyId }, select: { id: true } })
       if (!inv) throw new BadRequestException('Rechnung nicht gefunden')
+      if (data.type !== 'einnahme') {
+        throw new BadRequestException('Nur eine Einnahme kann einer Rechnung zugeordnet werden')
+      }
     }
     if (data.expenseId) {
       const exp = await this.prisma.expense.findFirst({ where: { id: data.expenseId, companyId }, select: { id: true } })
       if (!exp) throw new BadRequestException('Ausgabe nicht gefunden')
+      if (data.type !== 'ausgabe') {
+        throw new BadRequestException('Nur eine Ausgabe kann einer Eingangsrechnung zugeordnet werden')
+      }
     }
     // Normalise the date to midnight UTC so the DB @db.Date
     // column gets a clean value.
     const bd = new Date(data.businessDate)
     bd.setUTCHours(0, 0, 0, 0)
+    // Tier 425: a cash receipt for an invoice is a payment of it — recorded
+    // as one (status, Skonto, dunning, DATEV). Before, the invoice stayed
+    // "sent" and was dunned although paid at the counter. The payment goes
+    // first: PaymentService validates it, and a rejected payment leaves no
+    // cash-book entry behind.
+    let paymentId: string | null = null
+    if (data.invoiceId) {
+      const payment = await this.payments.create(data.invoiceId, companyId, {
+        amount: data.amount,
+        paymentDate: bd,
+        paymentMethod: 'cash',
+        reference: data.belegNumber || undefined,
+        notes: 'Kassenbuch',
+      })
+      paymentId = payment.id
+    }
+    // A cash payment of a recorded expense dates its Abfluss.
+    if (data.expenseId) {
+      await this.prisma.expense.updateMany({
+        where: { id: data.expenseId, companyId, paidAt: null },
+        data: { paidAt: bd },
+      })
+    }
     return this.prisma.cashBookEntry.create({
       data: {
         companyId,
@@ -350,10 +383,24 @@ export class KassenbuchService {
         belegNumber: data.belegNumber || null,
         expenseId: data.expenseId || null,
         invoiceId: data.invoiceId || null,
+        paymentId,
         notes: data.notes || null,
         createdById,
       },
     })
+  }
+
+  /** Tier 425: undo what a linked entry did outside the cash book. */
+  private async unlink(companyId: string, entry: { paymentId: string | null; expenseId: string | null; businessDate: Date }) {
+    if (entry.paymentId) {
+      await this.payments.delete(entry.paymentId, companyId)
+    }
+    if (entry.expenseId) {
+      await this.prisma.expense.updateMany({
+        where: { id: entry.expenseId, companyId, paidAt: entry.businessDate },
+        data: { paidAt: null },
+      })
+    }
   }
 
   async updateEntry(companyId: string, id: string, patch: {
@@ -367,6 +414,11 @@ export class KassenbuchService {
     const existing = await this.prisma.cashBookEntry.findFirst({ where: { id, companyId } })
     if (!existing) throw new NotFoundException('Entry not found')
     await this.assertDaysOpen(companyId, [existing.businessDate])
+    if (existing.paymentId && patch.amount !== undefined && patch.amount !== Number(existing.amount)) {
+      throw new BadRequestException(
+        'Der Betrag einer Rechnungszahlung kann nicht geändert werden — Buchung stornieren und neu erfassen.',
+      )
+    }
     return this.prisma.cashBookEntry.update({
       where: { id },
       data: {
@@ -384,6 +436,7 @@ export class KassenbuchService {
     const existing = await this.prisma.cashBookEntry.findFirst({ where: { id, companyId } })
     if (!existing) throw new NotFoundException('Entry not found')
     await this.assertDaysOpen(companyId, [existing.businessDate])
+    await this.unlink(companyId, existing)
     await this.prisma.cashBookEntry.delete({ where: { id } })
     return { ok: true }
   }
@@ -433,6 +486,9 @@ export class KassenbuchService {
     // test 03-storno-net-zero.sh.
     const originalAmount = Number(original.amount)
     const reversalAmount = -originalAmount
+    // Tier 425: the Storno also takes back the payment the entry recorded
+    // (or the expense's payment date).
+    await this.unlink(companyId, original)
     const reversal = await this.prisma.cashBookEntry.create({
       data: {
         companyId,
@@ -443,6 +499,10 @@ export class KassenbuchService {
         vatRate: original.vatRate,
         counterparty: original.counterparty,
         belegNumber: original.belegNumber,
+        // Tier 425: the Storno of a linked entry stays linked, so the reports
+        // treat both alike (the invoice / expense is what they count).
+        invoiceId: original.invoiceId,
+        expenseId: original.expenseId,
         notes: reason,
         createdById,
         reversesId: original.id,

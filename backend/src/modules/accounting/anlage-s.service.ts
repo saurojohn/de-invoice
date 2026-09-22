@@ -5,6 +5,8 @@ import { Response } from 'express'
 import PDFDocument from 'pdfkit'
 import { invoiceNetRevenue } from '../invoice/tax-breakdown';
 import { SALES_TYPES } from '../invoice/document-scope'
+import { cashBookings } from '../cashbook/cash-bookings'
+import { expenseCost } from './expense-cost'
 
 /**
  * Tier 80: Anlage S — Einkünfte aus
@@ -246,10 +248,13 @@ export class AnlageSService {
         // this exclusion they would fall
         // through to the 4720 "Übrige"
         // fallback and double-count.
-        category: { not: 'AfA' },
+        // Tier 425: `not: 'AfA'` alone is `category <> 'AfA'` in SQL, which drops every
+        // expense WITHOUT a category (NULL) — the usual case.
+        OR: [{ category: null }, { category: { not: 'AfA' } }],
       },
       select: {
         netAmount: true,
+        grossAmount: true,
         category: true,
       },
     })
@@ -304,7 +309,18 @@ export class AnlageSService {
     for (const exp of expenses) {
       const matched = EXPENSE_LINES.find((d) => d.matcher(exp))
       const kz = matched?.kz || '4720'
-      ausgabenBuckets.set(kz, (ausgabenBuckets.get(kz) || 0) + Number(exp.netAmount))
+      // Tier 425: gross for a Kleinunternehmer (expense-cost.ts), as the EÜR.
+      ausgabenBuckets.set(kz, (ausgabenBuckets.get(kz) || 0) + expenseCost(exp, revenueCtx.kleinunternehmer))
+    }
+    // Tier 425: cash sales / purchases from the Kassenbuch (cash-bookings.ts).
+    for (const c of await cashBookings(this.prisma, companyId, yearStart, yearEnd)) {
+      const amount = revenueCtx.kleinunternehmer ? c.gross : c.net
+      if (c.direction === 'in') {
+        const kz = revenueCtx.kleinunternehmer ? '4120' : c.rate > 0 ? '4100' : '4170'
+        einnahmenBuckets.set(kz, (einnahmenBuckets.get(kz) || 0) + amount)
+      } else {
+        ausgabenBuckets.set('4720', (ausgabenBuckets.get('4720') || 0) + amount)
+      }
     }
 
     // Build the final lines in the order the

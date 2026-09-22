@@ -930,6 +930,7 @@ model Payment {
   notes         String?
   receiptNumber String?
   createdAt     DateTime @default(now())
+  cashBookEntry CashBookEntry?
 
   @@index([invoiceId])
   @@index([paymentDate])
@@ -2137,6 +2138,10 @@ model CashBookEntry {
   // invoice payment (Barzahlung at the counter).
   invoiceId    String?
   invoice      Invoice?       @relation(fields: [invoiceId], references: [id])
+  // Tier 425: the Payment this cash receipt recorded on `invoiceId`. Before,
+  // a Barzahlung entered here left the invoice "sent" and unpaid (dunned).
+  paymentId    String?        @unique
+  payment      Payment?       @relation(fields: [paymentId], references: [id], onDelete: SetNull)
   // ISO 4217 — EUR for the German market. The column
   // is here so multi-currency can be added later.
   currency     String         @default("EUR")

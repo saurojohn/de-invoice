@@ -226,7 +226,9 @@ export class AnlageVService {
         companyId,
         invoiceDate: { gte: yearStart, lte: yearEnd },
         status: { in: ['booked', 'deductible'] },
-        category: { not: 'AfA' },
+        // Tier 425: `not: 'AfA'` alone is `category <> 'AfA'` in SQL, which drops every
+        // expense WITHOUT a category (NULL) — the usual case.
+        OR: [{ category: null }, { category: { not: 'AfA' } }],
       },
       select: {
         netAmount: true,

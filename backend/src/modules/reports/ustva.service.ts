@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client';
 import type { Response } from 'express';
 import { invoiceTaxBreakdown } from '../invoice/tax-breakdown';
 import { normaliseCountry } from '../invoice/ust-behandlung-detector';
+import { cashBookings } from '../cashbook/cash-bookings';
 import { KzEntry, ustvaKennzahlen } from './ust-kennzahlen';
 
 /**
@@ -256,6 +257,15 @@ export class UstvaService {
       }
     }
 
+    // Tier 425: cash sales and purchases from the Kassenbuch (cash-bookings.ts).
+    // They were in no return: a 119 € cash sale's 19 € went undeclared.
+    const cash = await cashBookings(this.prisma, companyId, start, end);
+    for (const c of cash.filter((x) => x.direction === 'in')) {
+      if (c.rate > 0) addToRate(c.rate, c.net, c.vat);
+      else addZeroRated({}, '', '', c.net);
+      invoiceCount++;
+    }
+
     // ── INPUT SIDE ────────────────────────────────────────────────
     const expenses = await this.prisma.expense.findMany({
       where: {
@@ -321,6 +331,13 @@ export class UstvaService {
       } else {
         // 0% (e.g. Kleinunternehmer supplier) — no input tax
       }
+    }
+
+    for (const c of cash.filter((x) => x.direction === 'out')) {
+      if (Math.abs(c.rate - 0.19) < 1e-6) vorsteuer19 += c.vat;
+      else if (Math.abs(c.rate - 0.07) < 1e-6) vorsteuer7 += c.vat;
+      else if (c.rate > 0) vorsteuerOther += c.vat;
+      expenseCount++;
     }
 
     const vorsteuerTotal = vorsteuer19 + vorsteuer7 + vorsteuerOther + vorsteuerIgE + vorsteuerReverseCharge;

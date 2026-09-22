@@ -47,6 +47,7 @@ import { vatRateToUstSchluessel } from './datev-ust-schluessel';
 import { invoiceTaxBreakdown } from '../invoice/tax-breakdown';
 import { normaliseCountry } from '../invoice/ust-behandlung-detector';
 import { ensurePersonenkonten, DIVERSE_KREDITOREN } from './datev-personenkonten';
+import { cashBookings } from '../cashbook/cash-bookings';
 import { SALES_TYPES } from '../invoice/document-scope'
 
 const DELIM = ';'
@@ -58,6 +59,7 @@ const QUOTE = '"'
  *  `resolveDatevAccounts()`. */
 export interface DatevAccountMap {
   bank: string
+  cash: string
   receivable: string
   payable: string
   revenue19: string
@@ -88,6 +90,7 @@ export interface DatevAccountMap {
  *  these accounts itself; here they only label the Buchungsliste. */
 export const SKR03_DEFAULTS: DatevAccountMap = {
   bank: '1200',                 // Bank
+  cash: '1000',                 // Kasse (Tier 425)
   receivable: '1406',           // Forderungen aus L+L (the bank import's vouchers use it too)
   payable: '1600',              // Verbindlichkeiten aus L+L (Sammelkonto der Kreditoren)
   revenue19: '8400',            // Erlöse 19 % USt (Automatikkonto)
@@ -490,7 +493,8 @@ export async function buildBuchungenFromDb(
       belegdatum: p.paymentDate,
       belegfeld1: p.receiptNumber || p.invoice.invoiceNumber,
       belegfeld2: p.invoice.invoiceNumber,
-      konto: a.bank,
+      // Tier 425: a Barzahlung (e.g. entered in the Kassenbuch) is Kasse.
+      konto: p.paymentMethod === 'cash' ? a.cash : a.bank,
       gegenkonto: debitor(p.invoice.customerId),
       // A payment on a credit note is a refund: negative, so H on the bank.
       betrag: amount,
@@ -531,9 +535,20 @@ export async function buildBuchungenFromDb(
     })
     : []
 
+  const cashPaidExpenses = await prisma.cashBookEntry.findMany({
+    where: {
+      companyId,
+      businessDate: { gte: startDate, lte: endDate },
+      type: 'ausgabe',
+      expenseId: { not: null },
+    },
+    include: { expense: { select: { supplierId: true, invoiceNumber: true } } },
+    orderBy: { businessDate: 'asc' },
+  })
   const kreditoren = await ensurePersonenkonten(prisma, 'supplier', companyId, [
     ...expenses.map((e) => e.supplierId || ''),
     ...voucherExpenses.map((e) => e.supplierId || ''),
+    ...cashPaidExpenses.map((e) => e.expense?.supplierId || ''),
   ])
   const kreditor = (supplierId?: string | null) =>
     String((supplierId && kreditoren.get(supplierId)) || DIVERSE_KREDITOREN)
@@ -581,6 +596,50 @@ export async function buildBuchungenFromDb(
       // No input tax: a Kleinunternehmer cannot deduct it, or there is none.
       out.push({ ...base, betrag: r2(gross) })
     }
+  }
+
+  // ── 2b. Kassenbuch (Tier 425) ─────────────────────────────────────
+  // Cash sales and purchases of their own (cash-bookings.ts) — in no export
+  // before — and the cash payment of a recorded expense (Kreditor an Kasse).
+  for (const c of await cashBookings(prisma, companyId, startDate, endDate)) {
+    const inbound = c.direction === 'in'
+    let gegenkonto: string
+    let key = ''
+    if (inbound) {
+      gegenkonto = kleinunternehmer ? a.revenueKleinunternehmer
+        : c.rate === 0 ? a.revenueExempt
+        : same(c.rate, 0.07) ? a.revenue7 : a.revenue19
+      if (!kleinunternehmer && c.rate > 0) key = vatRateToUstSchluessel(c.rate, 'output')?.key ?? ''
+    } else {
+      gegenkonto = a.expenseDefault
+      if (!kleinunternehmer && c.rate > 0) key = vatRateToUstSchluessel(c.rate, 'input')?.key ?? ''
+    }
+    out.push({
+      belegdatum: c.date,
+      belegfeld1: c.belegNumber || `KB-${c.id.substring(0, 8)}`,
+      konto: a.cash,
+      gegenkonto,
+      betrag: c.gross,
+      shVz: inbound ? 'S' : 'H',
+      buchungstext: c.description.substring(0, 60),
+      ustSchluessel: key,
+      ustBetrag: key ? c.vat : 0,
+      steuerKonto: key
+        ? (inbound ? (same(c.rate, 0.07) ? a.vatPayable7 : a.vatPayable19) : (same(c.rate, 0.07) ? a.inputVat7 : a.inputVat19))
+        : undefined,
+    })
+  }
+  for (const e of cashPaidExpenses) {
+    out.push({
+      belegdatum: e.businessDate,
+      belegfeld1: e.belegNumber || e.expense?.invoiceNumber || `KB-${e.id.substring(0, 8)}`,
+      belegfeld2: e.expense?.invoiceNumber ?? undefined,
+      konto: a.cash,
+      gegenkonto: kreditor(e.expense?.supplierId),
+      betrag: Number(e.amount),
+      shVz: 'H',
+      buchungstext: e.description.substring(0, 60),
+    })
   }
 
   // ── 3. Vouchers ────────────────────────────────────────────────────

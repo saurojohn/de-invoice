@@ -2476,6 +2476,60 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### The Kassenbuch never reached the books; uncategorised expenses were dropped (Tier 425)
+
+Measured in one month with a 119 € cash sale at 19 %, a 59,50 € cash
+purchase at 19 %, a 50 € Privateinlage (no VAT rate), an invoice of 119 €
+paid in cash at the counter (entered in the Kassenbuch, invoice linked) and
+a 119 € expense without a category, paid in cash (linked):
+
+| | Before | Now |
+|---|---|---|
+| invoice paid at the counter | still "sent", no payment — dunned | paid, a `cash` payment; a Storno of the entry takes it back |
+| expense paid in cash | no payment date | `paidAt` = the entry's date |
+| UStVA 19 % | 100 / 19 (cash sale's 19 € undeclared) | 200 / 38 |
+| Vorsteuer 19 % | 19 (9,50 € not claimed) | 28,50 |
+| EÜR Einnahmen / Ausgaben | 100 / **0** | 200 / 150 |
+| GuV, BWA revenue / sonstige Aufwendungen | 100 / **0** | 200 / 150 |
+| P&L revenue / other expenses | 100 / 100 | 200 / 150 |
+| Anlage S 4100 | 100 | 200 |
+| DATEV | nothing from the Kassenbuch; every payment on Bank | Kasse 1000: an 8400 119,00 S key 3; an 4900 59,50 H key 9; the invoice's payment Kasse an Debitor; the expense's Kasse an Kreditor |
+
+- **Kassenbuch rule** (`src/modules/cashbook/cash-bookings.ts`): an entry
+  linked to an invoice records a Payment (method `cash`,
+  `CashBookEntry.paymentId`, migration `20260922000002_cashbook_payment`);
+  linked to an expense it sets the expense's `paidAt` (the field existed for
+  SEPA payments; a bank-import match to an expense now sets it too); an unlinked einnahme / ausgabe **with a VAT rate** (0
+  included) is a cash sale / purchase and counts in UStVA, EÜR, Anlage S,
+  GuV, BWA, P&L and DATEV; one **without** a rate is money moving without
+  being income (Privateinlage / -entnahme, Geldtransit) and counts nowhere.
+  A Storno copies the links, deletes the payment / clears `paidAt`; deleting
+  an entry on an open day does the same; the amount of a linked receipt can
+  no longer be edited. Only an einnahme can be linked to an invoice, only an
+  ausgabe to an expense (400).
+- **NULL categories** (found writing the spec): EÜR, GuV, BWA, Anlage S and
+  V filtered expenses with `category: { not: 'AfA' }`, which is
+  `category <> 'AfA'` in SQL — false for NULL — so **every expense without
+  a category was missing** from those five reports. Now
+  `OR: [{ category: null }, { category: { not: 'AfA' } }]`.
+- The **EÜR and Anlage S** took expenses net also for a Kleinunternehmer
+  (Tier 419 fixed GuV / BWA only); now `expenseCost` (gross for them).
+- The **P&L** summed `eurSubtotal ?? subtotal` — before the invoice discount
+  (Tier 411 fixed the other reports); now `invoiceNetRevenue`.
+- DATEV: new account `cash` (SKR03 1000), labelled in the settings.
+
+Spec `e2e/214-tier425-kassenbuch.sh` (18 assertions, 14 failing against the
+previous code). No existing spec needed a change. Local runs: backend
+**213 / 0 / 1**, 0 × 500; Playwright **930**, no flaky; the bank-import
+change (paidAt on a match) came after the full run and was re-checked with
+08, 32, 36, 79, 212, 214.
+
+Not done (§ 9): the EÜR still counts invoices and expenses at their
+document date, not when paid (§ 11 EStG); the payment dates are now there
+for invoices (Payment), cash and SEPA-paid expenses, but not for expenses
+paid by plain bank transfer without a bank-import match. Kassenbuch
+`umbuchung` (Bank ↔ Kasse) is not exported to DATEV.
+
 ### Proformas counted as revenue, Quittungen did not reach the UStVA (Tier 424)
 
 The invoice table holds four document types — INV Rechnung, RCV Quittung (a
@@ -4603,6 +4657,16 @@ These are **not in the repo** — only the user can do them:
     also issue a Quittung to confirm the payment of an existing invoice, that
     payment would be counted twice; the app has no link from an RCV to an
     invoice. Either confirm "RCV = cash sale" or add that link.
+
+20. **EÜR on a cash basis (§ 11 EStG)** (found Tier 425). The EÜR and
+    Anlage S / V count invoices at their issue date and expenses at their
+    invoice date — a December invoice paid in January lands in the wrong
+    year. Payment dates now exist for invoices, cash-, SEPA- and
+    bank-matched expenses, but not for an expense paid by a transfer that
+    was never matched. Switching needs a decision on those (fall back to the
+    invoice date and say so?) — and whether Anlage G, which may belong to a
+    bookkeeping business, follows. Also: a Kassenbuch entry without a VAT
+    rate is treated as Privateinlage / -entnahme (no income) — confirm.
 
 When the Hetzner items are available, the deploy is:
 

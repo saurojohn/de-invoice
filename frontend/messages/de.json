@@ -1646,6 +1646,7 @@
     "datevSubtitle": "SKR03-Sachkonten für den DATEV-Export an den Steuerberater",
     "datevDefaultsHint": "Leer = SKR03-Standard verwenden. Nur abweichende Konten eintragen.",
     "datevAccount_bank": "Bank (1200)",
+    "datevAccount_cash": "Kasse (1000)",
     "datevAccount_receivable": "Forderungen (1406)",
     "datevAccount_payable": "Verbindlichkeiten (1600)",
     "datevAccount_revenue19": "Erlöse 19% USt (8400)",

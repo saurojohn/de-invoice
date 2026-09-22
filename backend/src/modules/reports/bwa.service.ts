@@ -7,6 +7,7 @@ import { Response } from 'express'
 import PDFDocument from 'pdfkit'
 import { invoiceNetRevenue } from '../invoice/tax-breakdown';
 import { SALES_TYPES } from '../invoice/document-scope'
+import { cashBookings, CashBooking } from '../cashbook/cash-bookings'
 
 /**
  * Tier 86 + 93: BWA (Betriebswirtschaftliche
@@ -316,7 +317,9 @@ export class BwaService {
           // They are picked up separately
           // via `bookedAfaRows` and feed into
           // 3100 only — not 3600 Sonstige.
-          category: { not: 'AfA' },
+          // Tier 425: `not: 'AfA'` alone is `category <> 'AfA'` in SQL, which drops every
+          // expense WITHOUT a category (NULL) — the usual case.
+          OR: [{ category: null }, { category: { not: 'AfA' } }],
           invoiceDate: { gte: yearStart, lte: monthEnd },
         },
         select: { netAmount: true, grossAmount: true, category: true, invoiceDate: true },
@@ -344,21 +347,19 @@ export class BwaService {
     // Tier 411: net after the invoice discount (was eurSubtotal ?? subtotal,
     // the amount before it). The helper keeps its name for the callers below.
     const eurSubtotal = (i: Parameters<typeof invoiceNetRevenue>[0]) => invoiceNetRevenue(i)
-    const invoiceMonat = sumInMonth(
-      invoices.map((i) => ({ date: i.issueDate, amount: eurSubtotal(i) })),
-      monthStart,
-      monthEnd,
+    // Tier 425: cash sales / purchases from the Kassenbuch (cash-bookings.ts),
+    // net (gross for a Kleinunternehmer) — in no report before.
+    const cashCost = (c: CashBooking) => (kleinunternehmer ? c.gross : c.net)
+    const cash = await cashBookings(
+      this.prisma, companyId, vormonatStart < yearStart ? vormonatStart : yearStart, monthEnd,
     )
-    const invoiceVormonat = sumInMonth(
-      invoices.map((i) => ({ date: i.issueDate, amount: eurSubtotal(i) })),
-      vormonatStart,
-      vormonatEnd,
-    )
-    const invoiceYtd = sumInMonth(
-      invoices.map((i) => ({ date: i.issueDate, amount: eurSubtotal(i) })),
-      yearStart,
-      monthEnd,
-    )
+    const revenueItems = [
+      ...invoices.map((i) => ({ date: i.issueDate, amount: eurSubtotal(i) })),
+      ...cash.filter((c) => c.direction === 'in').map((c) => ({ date: c.date, amount: cashCost(c) })),
+    ]
+    const invoiceMonat = sumInMonth(revenueItems, monthStart, monthEnd)
+    const invoiceVormonat = sumInMonth(revenueItems, vormonatStart, vormonatEnd)
+    const invoiceYtd = sumInMonth(revenueItems, yearStart, monthEnd)
 
     // Tier 93: bucket every expense ONCE by its
     // category. The matchers in BWA_BUCKET_MATCHERS
@@ -386,11 +387,14 @@ export class BwaService {
     // Tier 419: net for a business that deducts input tax, gross for a
     // Kleinunternehmer (expense-cost.ts). This took grossAmount: every expense
     // was overstated by its VAT, next to revenue counted net (Tier 411).
-    const bucketedExpenses = expenses.map((e) => ({
-      date: e.invoiceDate,
-      amount: Math.abs(expenseCost(e, kleinunternehmer)),
-      bucket: bucketFor(e.category),
-    }))
+    const bucketedExpenses = [
+      ...expenses.map((e) => ({
+        date: e.invoiceDate,
+        amount: Math.abs(expenseCost(e, kleinunternehmer)),
+        bucket: bucketFor(e.category),
+      })),
+      ...cash.filter((c) => c.direction === 'out').map((c) => ({ date: c.date, amount: cashCost(c), bucket: '3600' })),
+    ]
 
     // Helper: sum entries in a date window for a
     // specific bucket. Negative amounts (which
@@ -504,7 +508,9 @@ export class BwaService {
           status: { in: ['booked', 'deductible'] },
           // Tier 87: exclude booked AfA from
           // the regular Sonstige filter.
-          category: { not: 'AfA' },
+          // Tier 425: `not: 'AfA'` alone is `category <> 'AfA'` in SQL, which drops every
+          // expense WITHOUT a category (NULL) — the usual case.
+          OR: [{ category: null }, { category: { not: 'AfA' } }],
           invoiceDate: { gte: vorjahresYtdStart, lte: vorjahresYtdEnd },
         },
         select: { netAmount: true, grossAmount: true, category: true },
@@ -521,7 +527,9 @@ export class BwaService {
     ])
 
     // Tier 411: after the invoice discount, as for the current year.
+    const cashVorjahr = await cashBookings(this.prisma, companyId, vorjahresYtdStart, vorjahresYtdEnd)
     const vorjahresYtdInvoice = vorjahresInvoices.reduce((s, i) => s + invoiceNetRevenue(i), 0)
+      + cashVorjahr.filter((c) => c.direction === 'in').reduce((s, c) => s + cashCost(c), 0)
     // Tier 93: bucket the prior-year expenses the
     // same way as the current year (one filter
     // pass per expense, one sum per bucket). The
@@ -529,10 +537,13 @@ export class BwaService {
     // % change column in the new lines. Same
     // Math.abs() convention as the current year
     // (line values are positive).
-    const vorjahresBucketed = vorjahresExpenses.map((e) => ({
-      amount: Math.abs(expenseCost(e, kleinunternehmer)),
-      bucket: bucketFor(e.category),
-    }))
+    const vorjahresBucketed = [
+      ...vorjahresExpenses.map((e) => ({
+        amount: Math.abs(expenseCost(e, kleinunternehmer)),
+        bucket: bucketFor(e.category),
+      })),
+      ...cashVorjahr.filter((c) => c.direction === 'out').map((c) => ({ amount: cashCost(c), bucket: '3600' })),
+    ]
     const vorjahresYtdByBucket = (bucket: string) =>
       vorjahresBucketed.filter((e) => e.bucket === bucket).reduce((s, e) => s + e.amount, 0)
 

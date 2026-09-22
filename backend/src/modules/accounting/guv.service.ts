@@ -1,4 +1,5 @@
 import { expenseCost } from './expense-cost'
+import { cashBookings } from '../cashbook/cash-bookings'
 import { Injectable } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
@@ -189,7 +190,7 @@ export class GuVService {
     // subtotal for legacy rows where the EUR
     // columns are still null.
     // Tier 411: after the invoice discount (was eurSubtotal ?? subtotal).
-    const umsatzerloese = invoices.reduce((s, inv) => s + invoiceNetRevenue(inv), 0)
+    let umsatzerloese = invoices.reduce((s, inv) => s + invoiceNetRevenue(inv), 0)
 
     // ===== EXPENSES =====
     // Pull every booked/deductible expense in
@@ -218,7 +219,9 @@ export class GuVService {
         companyId,
         invoiceDate: { gte: yearStart, lte: yearEnd },
         status: { in: ['booked', 'deductible'] },
-        category: { not: 'AfA' },
+        // Tier 425: `not: 'AfA'` alone is `category <> 'AfA'` in SQL, which drops every
+        // expense WITHOUT a category (NULL) — the usual case.
+        OR: [{ category: null }, { category: { not: 'AfA' } }],
       },
       select: {
         netAmount: true,
@@ -285,10 +288,16 @@ export class GuVService {
       (s, e) => s.plus(new Prisma.Decimal(expenseCost(e, kleinunternehmer))),
       new Prisma.Decimal(0),
     ).toNumber()
-    const sonstigeAufwendungen = sonstigeExpenses.reduce(
+    let sonstigeAufwendungen = sonstigeExpenses.reduce(
       (s, e) => s.plus(new Prisma.Decimal(expenseCost(e, kleinunternehmer))),
       new Prisma.Decimal(0),
     ).toNumber()
+    // Tier 425: cash sales / purchases from the Kassenbuch (cash-bookings.ts).
+    for (const c of await cashBookings(this.prisma, companyId, yearStart, yearEnd)) {
+      const amount = kleinunternehmer ? c.gross : c.net
+      if (c.direction === 'in') umsatzerloese += amount
+      else sonstigeAufwendungen += amount
+    }
     const zinsaufwendungen = zinsExpenses.reduce(
       (s, e) => s.plus(new Prisma.Decimal(expenseCost(e, kleinunternehmer))),
       new Prisma.Decimal(0),

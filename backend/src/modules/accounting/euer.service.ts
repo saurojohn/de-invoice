@@ -4,6 +4,8 @@ import { Response } from 'express';
 import PDFDocument from 'pdfkit';
 import { invoiceNetRevenue } from '../invoice/tax-breakdown';
 import { SALES_TYPES } from '../invoice/document-scope'
+import { cashBookings } from '../cashbook/cash-bookings'
+import { expenseCost } from './expense-cost'
 
 /**
  * Tier 76: Anlage EÜR (Einnahmen-Überschuss-Rechnung).
@@ -225,10 +227,13 @@ export class EuerService {
         companyId,
         invoiceDate: { gte: yearStart, lte: yearEnd },
         status: { in: ['booked', 'deductible'] },
-        category: { not: 'AfA' },
+        // Tier 425: `not: 'AfA'` alone is `category <> 'AfA'` in SQL, which drops every
+        // expense WITHOUT a category (NULL) — the usual case.
+        OR: [{ category: null }, { category: { not: 'AfA' } }],
       },
       select: {
         netAmount: true,
+        grossAmount: true,
         category: true,
       },
     })
@@ -285,7 +290,23 @@ export class EuerService {
       if (/^AfA/i.test(exp.category || '')) continue
       const matched = EXPENSE_LINES.find((d) => d.matcher(exp))
       const kz = matched?.kz || '5900'
-      ausgabenBuckets.set(kz, (ausgabenBuckets.get(kz) || 0) + Number(exp.netAmount))
+      // Tier 425: a Kleinunternehmer cannot deduct input tax — the expense
+      // costs gross (expense-cost.ts, as GuV / BWA since Tier 419). The EÜR,
+      // the form a Kleinunternehmer actually files, still took net.
+      ausgabenBuckets.set(kz, (ausgabenBuckets.get(kz) || 0) + expenseCost(exp, revenueCtx.kleinunternehmer))
+    }
+
+    // Tier 425: cash sales and purchases from the Kassenbuch (cash-bookings.ts)
+    // — in no report before. Net, gross for a Kleinunternehmer (as expenseCost).
+    const cash = await cashBookings(this.prisma, companyId, yearStart, yearEnd)
+    for (const c of cash) {
+      const amount = revenueCtx.kleinunternehmer ? c.gross : c.net
+      if (c.direction === 'in') {
+        const kz = revenueCtx.kleinunternehmer ? '4120' : c.rate > 0 ? '4100' : '4170'
+        einnahmenBuckets.set(kz, (einnahmenBuckets.get(kz) || 0) + amount)
+      } else {
+        ausgabenBuckets.set('5900', (ausgabenBuckets.get('5900') || 0) + amount)
+      }
     }
 
     // Build the final lines in the order the BMF

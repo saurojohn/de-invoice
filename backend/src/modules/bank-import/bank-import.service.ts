@@ -1237,6 +1237,11 @@ export class BankImportService {
         where: { id: opts.expenseId, companyId },
         data: { status: 'booked' },
       });
+      // Tier 425: the bank transaction is the expense's payment (Abfluss).
+      await this.prisma.expense.updateMany({
+        where: { id: opts.expenseId, companyId, paidAt: null },
+        data: { paidAt: txn.valueDate },
+      });
     }
 
     this.logger.log(

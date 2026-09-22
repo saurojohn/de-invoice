@@ -2,6 +2,8 @@ import { Prisma } from '@prisma/client';
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ISSUED_STATUSES, SALES_TYPES } from '../invoice/document-scope'
+import { cashBookings } from '../cashbook/cash-bookings'
+import { invoiceNetRevenue } from '../invoice/tax-breakdown'
 
 /**
  * Tier 75: P&L (Gewinn- und Verlustrechnung).
@@ -112,8 +114,10 @@ export class PnlService {
     const invoiceSelect = {
       issueDate: true,
       subtotal: true,
+      total: true,
       totalVat: true,
       eurSubtotal: true,
+      eurTotal: true,
       eurTotalVat: true,
     } as const
     const [cyInvoices, pyInvoices] = await Promise.all([
@@ -131,6 +135,7 @@ export class PnlService {
         select: invoiceSelect,
       }),
     ]);
+    const cash = await cashBookings(this.prisma, companyId, new Date(year - 1, 0, 1), yearEnd)
     // EUR amount per row, falling back to the original-currency amount when
     // the EUR column is NULL. Summed as Decimal (Tier 216/245 convention).
     const sumInvoices = (rows: typeof cyInvoices, from: Date, to: Date) => {
@@ -138,11 +143,21 @@ export class PnlService {
       let vat = new Prisma.Decimal(0)
       for (const r of rows) {
         if (r.issueDate < from || r.issueDate > to) continue
-        revenue = revenue.plus(r.eurSubtotal ?? r.subtotal ?? 0)
+        // Tier 425: net after the invoice discount (invoiceNetRevenue, as
+        // GuV / BWA / EÜR since Tier 411) — this took the subtotal before it.
+        revenue = revenue.plus(invoiceNetRevenue(r))
         vat = vat.plus(r.eurTotalVat ?? r.totalVat ?? 0)
+      }
+      // Tier 425: cash sales from the Kassenbuch (cash-bookings.ts).
+      for (const c of cash) {
+        if (c.direction !== 'in' || c.date < from || c.date > to) continue
+        revenue = revenue.plus(c.net)
+        vat = vat.plus(c.vat)
       }
       return { revenue: revenue.toNumber(), vat: vat.toNumber() }
     }
+    const cashOut = (from: Date, to: Date) =>
+      cash.filter((c) => c.direction === 'out' && c.date >= from && c.date <= to).reduce((s, c) => s + c.net, 0)
 
     const monthlyResults = await Promise.all(
       months.flatMap((m) => [
@@ -211,13 +226,13 @@ export class PnlService {
       const s = byMonth.get(m.idx) || {};
       const { revenue, vat } = sumInvoices(cyInvoices, m.mStart, m.mEnd)
       const mat = Number(s.cyMat?._sum?.netAmount || 0);
-      const totalExp = Number(s.cyExp?._sum?.netAmount || 0);
+      const totalExp = Number(s.cyExp?._sum?.netAmount || 0) + cashOut(m.mStart, m.mEnd);
       const otherExp = Math.max(0, totalExp - mat);
       const operatingResult = revenue - mat - otherExp;
       // Prior year
       const pRev = sumInvoices(pyInvoices, m.pStart, m.pEnd).revenue
       const pMat = Number(s.pyMat?._sum?.netAmount || 0);
-      const pTotal = Number(s.pyExp?._sum?.netAmount || 0);
+      const pTotal = Number(s.pyExp?._sum?.netAmount || 0) + cashOut(m.pStart, m.pEnd);
       const pOther = Math.max(0, pTotal - pMat);
       const pOp = pRev - pMat - pOther;
       // % change. Guard against div by zero.
