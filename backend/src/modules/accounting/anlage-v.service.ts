@@ -5,6 +5,7 @@ import { Response } from 'express'
 import PDFDocument from 'pdfkit'
 import { invoiceNetRevenue } from '../invoice/tax-breakdown';
 import { SALES_TYPES } from '../invoice/document-scope'
+import { computeAfaSummary } from '../assets/afa'
 
 /**
  * Tier 92: Anlage V — Einkünfte aus Vermietung
@@ -491,6 +492,12 @@ export class AnlageVService {
    * number directly so the Anlage V Werbungs-
    * kosten sum works the same as for booked.
    */
+  /**
+   * The AfA of one asset for a year, as a negative amount (Werbungskosten is
+   * a positive line in the report but is stored as a negative Expense).
+   * Tier 427: this had a second copy of the calculation which disagreed with
+   * the asset register's in an asset's last year — both call afa.ts now.
+   */
   private computeAfaForYear(
     asset: {
       anschaffungsKosten: any
@@ -501,47 +508,8 @@ export class AnlageVService {
     },
     year: number,
   ): number {
-    const ak = Number(asset.anschaffungsKosten)
-    const restwert = Number(asset.restwert)
-    const nd = asset.nutzungsdauerMonate
-    if (nd <= 0) return 0
-    const depreciable = Math.max(0, ak - restwert)
-    const monthlyAfA = depreciable / nd
-
-    // Snapshot = Dec 31 of the year
     const yearEnd = new Date(year, 11, 31, 23, 59, 59, 999)
-    // Effective end: disposal if before year-end
-    const effectiveEnd =
-      asset.verkauftAm && asset.verkauftAm <= yearEnd
-        ? asset.verkauftAm
-        : yearEnd
-
-    // Year-to-charge window: max(asset
-    // acquisition, year start) → min(asset
-    // disposal, year end). Months in window
-    // are the count of full months the asset
-    // was held in the year.
-    const yearStart = new Date(year, 0, 1)
-    const start = asset.anschaffungsDatum > yearStart ? asset.anschaffungsDatum : yearStart
-    const end = effectiveEnd
-    if (start > end) return 0
-
-    // Full months in window
-    const months = this.diffMonths(start, end)
-    // Cap at remaining ND
-    const monthsAlreadyAtStart = this.diffMonths(asset.anschaffungsDatum, yearStart)
-    const remainingNd = Math.max(0, nd - monthsAlreadyAtStart)
-    const monthsInYear = Math.min(months, remainingNd)
-    return round2(-Math.abs(monthsInYear * monthlyAfA))
-  }
-
-  private diffMonths(from: Date, to: Date): number {
-    if (to < from) return 0
-    const y = to.getFullYear() - from.getFullYear()
-    const m = to.getMonth() - from.getMonth()
-    let total = y * 12 + m
-    if (to.getDate() >= from.getDate()) total += 1
-    return Math.max(0, total)
+    return -Math.abs(computeAfaSummary(asset, yearEnd).annualAfA)
   }
 
   private renderTable(

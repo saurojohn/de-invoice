@@ -7,6 +7,7 @@ import {
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
 import { AuditService } from '../audit/audit.service'
+import { computeAfaSummary } from './afa'
 
 /**
  * Tier 83+87: Anlagenverzeichnis (Asset Register)
@@ -158,18 +159,6 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100
 }
 
-function diffMonths(from: Date, to: Date): number {
-  // Floor of the months between `from` (inclusive)
-  // and `to` (inclusive). Matches the § 7 Abs. 1
-  // EStG "AfA pro rata" convention — a December
-  // acquisition counts as 1 month in December.
-  if (to < from) return 0
-  const y = to.getFullYear() - from.getFullYear()
-  const m = to.getMonth() - from.getMonth()
-  let total = y * 12 + m
-  if (to.getDate() >= from.getDate()) total += 1
-  return Math.max(0, total)
-}
 
 @Injectable()
 export class AssetsService {
@@ -903,6 +892,7 @@ export class AssetsService {
    * for a partial year (acquisition year /
    * disposal year) it's prorated.
    */
+  /** Tier 427: the calculation lives in afa.ts — see there for what changed. */
   computeAfA(
     asset: {
       id: string
@@ -914,78 +904,6 @@ export class AssetsService {
     },
     snapshot: Date,
   ): AssetAfaSummary {
-    const ak = Number(asset.anschaffungsKosten)
-    const restwert = Number(asset.restwert)
-    const nd = asset.nutzungsdauerMonate
-    const depreciable = Math.max(0, ak - restwert)
-    const monthlyAfA = nd > 0 ? depreciable / nd : 0
-
-    // If the asset is disposed before snapshot,
-    // treat snapshot as the disposal date for
-    // Buchwert purposes (the asset is no longer
-    // in the pool at snapshot).
-    const effectiveEnd =
-      asset.verkauftAm && asset.verkauftAm <= snapshot
-        ? asset.verkauftAm
-        : snapshot
-
-    // Full months from acquisition to snapshot
-    // (capped at ND — an asset is fully
-    // depreciated after ND months).
-    const monthsHeld = Math.min(diffMonths(asset.anschaffungsDatum, effectiveEnd), nd)
-    const accumulatedAfA = round2(monthsHeld * monthlyAfA)
-    // Floor at restwert: if the computation
-    // would depreciate below the residual, clamp
-    // to (AK - Restwert) and we're done.
-    const cappedAccumulated = Math.min(accumulatedAfA, depreciable)
-    const buchwert = round2(ak - cappedAccumulated)
-
-    // Annual AfA: months held within the snapshot's
-    // calendar year, capped at the REMAINING
-    // Nutzungsdauer at the start of the year. If
-    // the asset was fully depreciated before the
-    // year started, the remaining ND is 0 and the
-    // annual AfA is 0.
-    const year = snapshot.getFullYear()
-    const yearStart = new Date(year, 0, 1)
-    const yearEnd = new Date(year, 11, 31, 23, 59, 59, 999)
-    const assetStart = asset.anschaffungsDatum
-    const assetEnd =
-      asset.verkauftAm && asset.verkauftAm < yearEnd
-        ? asset.verkauftAm
-        : yearEnd
-    // Year-to-charge window: max(asset acquisition,
-    // year start) → min(asset disposal, year end).
-    const start =
-      assetStart > yearStart ? assetStart : yearStart
-    const end = assetEnd < yearEnd ? assetEnd : yearEnd
-    // Remaining ND at yearStart: how many months of
-    // AfA are still due. monthsAlreadyHeldAtYearStart
-    // is the months the asset was in the pool up to
-    // yearStart (capped at ND). remainingNd is the
-    // unfilled ND, capped at 12 (we only care about
-    // one year here).
-    const monthsAlreadyHeldAtYearStart = Math.min(
-      Math.max(0, diffMonths(assetStart, yearStart) - 1),
-      nd,
-    )
-    const remainingNd = Math.max(0, nd - monthsAlreadyHeldAtYearStart)
-    const monthsInYearSimple =
-      start <= end
-        ? Math.min(diffMonths(start, end), remainingNd)
-        : 0
-    const annualAfA = round2(monthsInYearSimple * monthlyAfA)
-
-    return {
-      assetId: asset.id,
-      anschaffungsKosten: round2(ak),
-      restwert: round2(restwert),
-      monthlyAfA: round2(monthlyAfA),
-      monthsHeld,
-      accumulatedAfA: round2(cappedAccumulated),
-      buchwert,
-      annualAfA,
-      disposed: !!asset.verkauftAm,
-    }
+    return computeAfaSummary(asset, snapshot)
   }
 }

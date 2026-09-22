@@ -273,12 +273,16 @@ export class BeraterPackagerService {
       this.renderToBuffer((sink) =>
         this.bwa.renderPdf(companyId, year, 12, sink),
       ),
+      // Tier 427: an asset sold during the year belongs in the year's
+      // Anlagenverzeichnis as an Abgang — with its book value at the sale and
+      // the AfA up to it. It used to disappear from the list the moment it
+      // was sold, so the Berater saw neither the disposal nor its AfA.
       this.prisma.asset.findMany({
         where: {
           companyId,
           OR: [
             { verkauftAm: null },
-            { verkauftAm: { gte: yearEndSnapshot } },
+            { verkauftAm: { gte: new Date(yearEndSnapshot.getFullYear(), 0, 1) } },
           ],
         },
         orderBy: { anschaffungsDatum: 'asc' },

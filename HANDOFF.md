@@ -2478,6 +2478,39 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### AfA was counted by day of the month, in two implementations (Tier 427)
+
+§ 7 Abs. 1 EStG: AfA runs pro rata temporis by month — the month of
+acquisition counts in full, and so does the month of a disposal. The day of
+the month does not matter. The month count did: "the months between the two
+dates, plus one if the later date's day-of-month is at least the earlier
+one's". Measured, with two assets of 100 €/month:
+
+| | Before | Now |
+|---|---|---|
+| A: 6 000 € / 60 months, bought 10.01.2025, sold 05.06.2026 — book value at the sale | 4 300 € (17 months of AfA) | 4 200 € (18: Jan 2025 – Jun 2026) |
+| B: 3 600 € / 36 months, bought 31.03.2026 — AfA 2029 | 300 €, although only January and February were left of its life | 200 € |
+| B in Anlage V's own copy of the calculation | 200 € — the two implementations disagreed on the same asset | 200 €, from the same code |
+| the year's Anlagenverzeichnis (Berater package) | an asset sold during the year vanished from it: no Abgang, no book value, no AfA | listed, with its book value at the sale |
+
+`src/modules/assets/afa.ts` holds the calculation now (`afaMonths`,
+`computeAfaSummary`); `AssetsService.computeAfA` and Anlage V's
+`computeAfaForYear` both call it. Everything that depends on it follows: the
+Bilanz book values, GuV 7a, BWA 3100, EÜR / Anlage S 4600 via the booked AfA
+rows, the e-Bilanz and the Berater package.
+
+Spec `e2e/216-tier427-afa-monate.sh` (13 assertions, 3 failing against the
+previous code — the others pin the cases that were already right). No
+existing spec needed a change. Local runs: backend **214 / 1 / 1**, 0 × 500
+(the one failure is `50-webhooks.sh`, whose SSRF check needs to resolve
+nip.io — this machine's DNS still cannot; CI passes it); Playwright **930**,
+no flaky.
+
+Not changed: a disposal books nothing (no Anlagenabgang: proceeds against
+book value, gain or loss to 4855 / 2315); GWG (§ 6 Abs. 2 EStG, ≤ 800 € net)
+is a label on the asset, not a rule — the user sets a one-month useful life
+by hand; degressive AfA does not exist.
+
 ### The balance sheet ignored payments, and no customer could have a credit limit (Tier 426)
 
 Measured on a 1 190 € invoice with 500 € paid, a second invoice paid only
