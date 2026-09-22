@@ -6,6 +6,7 @@ import { AssetsService } from '../assets/assets.service'
 import { Response } from 'express'
 import PDFDocument from 'pdfkit'
 import { invoiceNetRevenue } from '../invoice/tax-breakdown';
+import { SALES_TYPES } from '../invoice/document-scope'
 
 /**
  * Tier 86 + 93: BWA (Betriebswirtschaftliche
@@ -285,6 +286,7 @@ export class BwaService {
         where: {
           companyId,
           status: { in: ['paid', 'sent', 'overdue'] },
+          type: { in: SALES_TYPES }, // Tier 424: not a Proforma
           issueDate: { gte: yearStart, lte: monthEnd },
         },
         // Tier 118.5: BWA is a German BWA (Betriebswirtschaftliche
@@ -481,6 +483,7 @@ export class BwaService {
         where: {
           companyId,
           status: { in: ['paid', 'sent', 'overdue'] },
+          type: { in: SALES_TYPES }, // Tier 424: not a Proforma
           issueDate: { gte: vorjahresYtdStart, lte: vorjahresYtdEnd },
         },
         // Tier 118.5: prior-year aggregation in EUR.

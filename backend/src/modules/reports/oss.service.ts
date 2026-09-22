@@ -203,7 +203,8 @@ export class OssService {
         status: { in: ['paid', 'sent', 'overdue', 'draft'] },
         // Only INV — Gutschrift (CN) gets its own
         // bucket on the UStVA / Anlage EÜR, not OSS.
-        type: 'INV',
+        // Tier 424: a Quittung is a sale as well.
+        type: { in: ['INV', 'RCV'] },
       },
       include: {
         customer: {

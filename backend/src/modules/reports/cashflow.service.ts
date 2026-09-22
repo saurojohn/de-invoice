@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { CLAIM_TYPES } from '../invoice/document-scope'
 
 /**
  * Tier 74: Cash Flow Forecast (Liquiditätsplanung).
@@ -117,6 +118,7 @@ export class CashFlowService {
       where: {
         companyId: params.companyId,
         status: { in: ['sent', 'overdue'] },
+        type: { in: CLAIM_TYPES }, // Tier 424: not a Proforma
         dueDate: { gte: anchor, lt: end },
       },
       include: { payments: { select: { amount: true } } },

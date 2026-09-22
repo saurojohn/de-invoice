@@ -34,6 +34,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
+import { ISSUED_STATUSES, CLAIM_TYPES } from '../invoice/document-scope'
+
+const STATEMENT_TYPES = [...CLAIM_TYPES, 'CN']
 
 export interface StatementLine {
   /** Date for sorting / display. For invoices = issueDate,
@@ -166,9 +169,10 @@ export class CustomerStatementService {
         where: {
           customerId,
           companyId,
-          // Exclude draft invoices — they haven't been sent yet
-          // and shouldn't appear on the statement.
-          status: { not: 'draft' },
+          // Tier 424: issued documents a customer owes or is credited —
+          // not drafts, not cancelled documents, not Proformas.
+          status: { in: ISSUED_STATUSES },
+          type: { in: STATEMENT_TYPES },
           issueDate: { lt: from },
         },
         _sum: { total: true },
@@ -177,6 +181,7 @@ export class CustomerStatementService {
         where: {
           invoice: { customerId, companyId },
           paymentDate: { lt: from },
+          paymentMethod: { not: 'Gutschrift' },
         },
         _sum: { amount: true },
       }),
@@ -192,7 +197,8 @@ export class CustomerStatementService {
         where: {
           customerId,
           companyId,
-          status: { not: 'draft' },
+          status: { in: ISSUED_STATUSES },
+          type: { in: STATEMENT_TYPES },
           issueDate: { gte: from, lte: to },
         },
         select: {
@@ -208,6 +214,11 @@ export class CustomerStatementService {
         where: {
           invoice: { customerId, companyId },
           paymentDate: { gte: from, lte: to },
+          // Tier 424: a credit note books a synthetic 'Gutschrift' payment on
+          // the invoice it corrects; the statement shows the credit note
+          // itself, so that payment is not a second line (the balance of a
+          // 1 190 € invoice with a 190 € credit note was 810 €).
+          paymentMethod: { not: 'Gutschrift' },
         },
         select: {
           id: true,

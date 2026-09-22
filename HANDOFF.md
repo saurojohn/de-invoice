@@ -9,17 +9,18 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–423 are
-  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 422.)
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–424 are
+  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 423.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 35697060686 / commit `1e92fbf`, Tier 422):**
-  - Backend e2e: **210 passed / 0 failed / 1 skipped** of 211 specs — 100
-    two-digit + 111 three-digit (Tier 422 added `211-tier422-skonto-settlement.sh`,
+- **Test counts (last green CI, run 35705970443 / commit `afcb9a6`, Tier 423):**
+  - Backend e2e: **211 passed / 0 failed / 1 skipped** of 212 specs — 100
+    two-digit + 112 three-digit (Tier 423 added `212-tier423-datev-buchungsstapel.sh`,
+    Tier 422 `211-tier422-skonto-settlement.sh`,
     Tier 421 `210-tier421-verzugszinsen.sh`,
     Tier 420 `209-tier420-gobd-archive-issued.sh`,
     Tier 419 `208-tier419-expense-net-cost.sh`,
@@ -2474,6 +2475,50 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Proformas counted as revenue, Quittungen did not reach the UStVA (Tier 424)
+
+The invoice table holds four document types — INV Rechnung, RCV Quittung (a
+sale with its own lines and VAT), CN Gutschrift, PI Proforma-Rechnung (a
+request for advance payment; no invoice under § 14 UStG: no revenue, no tax,
+nothing owed) — and each report picked its own subset. Measured on one sent
+PI (1 000 net, 19 %), one sent RCV (100 net, 7 %), one sent INV (500 net,
+19 %) and one draft:
+
+| | Before | Now |
+|---|---|---|
+| UStVA | 19 %: 1 500 / 285 (the PI declared), 7 %: nothing (the RCV missed) | 19 %: 500 / 95, 7 %: 100 / 7 |
+| GuV, BWA, Anlage S | revenue 1 600 | 600 |
+| P&L (`/reports/pnl`) | 1 900 — the draft as well | 600 |
+| ageing | 1 785 open (the PI, not the RCV) | 702 |
+| dashboard, this month | gross 2 249, VAT 359.08403361344534 (drafts, cancelled, PI; VAT = total × 19/119) | 702 / 102 (the documents' VAT), 2 documents |
+| DATEV | the RCV missing | Debitor an 8300 107,00 key 2 |
+| customer statement, 1 190 € invoice + 190 € credit note | **810** owed — the credit note counted twice (its own line and the synthetic "Gutschrift" payment it books on the invoice) | 1 000 |
+
+`src/modules/invoice/document-scope.ts` defines it once: `ISSUED_STATUSES`
+(sent, paid, overdue), `SALES_TYPES` (INV, RCV, CN — revenue and VAT, a
+credit note negatively), `CLAIM_TYPES` (INV, RCV — what a customer can owe).
+Applied to UStVA, OSS, DATEV, GuV, BWA, EÜR, Anlage S / G / V, P&L, the
+sales / VAT reports (`reports.service`), the GoBD archive totals, ageing,
+cash-flow forecast, Bilanz receivables, customer open balances (the list's
+open sum also counted drafts), the customer statement, the dashboard and the
+cost-centre reports (which counted drafts and cancelled documents and left
+credit notes out). The GoBD archive still archives every issued document,
+Proformas included — they are business letters.
+
+Spec `e2e/213-tier424-document-scope.sh` (12 assertions, 10 failing against
+the previous code). `e2e/72` computed its baseline with the old query (any
+status, no credit notes) and now uses the new scope. Local runs: backend
+**212 / 0 / 1**, 0 × 500; Playwright **930**, no flaky.
+
+On Tier 423's `203` mystery: this run had no leftover frontend on :3100
+(`16-dark-mode.sh` skipped) and 203 passed, as in CI — both failing runs had
+one. Likely load (a Next dev server compiling next to KoSIT's JVM), not a
+product fault; the spec's new diagnostics will say if it recurs.
+
+Open (§ 9): whether a Quittung may also be issued for the payment of an
+existing invoice — then it would be counted twice; the app has no link from
+an RCV to an invoice, and this tier treats it as a sale of its own.
+
 ### The DATEV export could not be imported, and booked the wrong things (Tier 423)
 
 User decisions for this tier: **Soll-Versteuerung** (invoices booked at their
@@ -2559,7 +2604,8 @@ ZUGFeRD PDF", in both full runs — never on its own (five times), and not
 after replaying every spec before it in order on a fresh stack. No 500 was
 logged, so the endpoint answered; the spec now prints the HTTP status and
 the start of the body when this happens. Nothing in this tier touches the
-ZUGFeRD path; CI (no frontend in the e2e job) decides — watch it.
+ZUGFeRD path. CI run 35705970443 passed it (`igl: ACCEPTABLE`): backend
+211 / 0 / 1, Playwright 930, no flaky.
 
 Spec `e2e/212-tier423-datev-buchungsstapel.sh` (17 assertions, 15 failing
 against the previous code).
@@ -4550,6 +4596,12 @@ These are **not in the repo** — only the user can do them:
     § 13b, 8336 EU services, 8338 third-country services, 8100 other exempt,
     8195 Kleinunternehmer), and whether the Berater wants foreign-currency
     documents with WKZ / Kurs instead of in EUR.
+
+19. **What is a Quittung (RCV) used for?** (found Tier 424) Since Tier 424 it
+    counts as a sale of its own (revenue, UStVA, DATEV, ageing). If users
+    also issue a Quittung to confirm the payment of an existing invoice, that
+    payment would be counted twice; the app has no link from an RCV to an
+    invoice. Either confirm "RCV = cash sale" or add that link.
 
 When the Hetzner items are available, the deploy is:
 

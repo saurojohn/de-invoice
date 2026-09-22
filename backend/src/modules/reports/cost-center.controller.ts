@@ -43,6 +43,7 @@ import {
 import { Auth, Require } from '../../auth/roles.decorator';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { ISSUED_STATUSES, SALES_TYPES } from '../invoice/document-scope'
 
 @Auth()
 @Controller('reports')
@@ -92,7 +93,9 @@ export class CostCenterController {
         where: {
           companyId,
           issueDate: { gte: yearStart, lt: yearEnd },
-          type: { in: ['INV', 'RCV'] },
+          // Tier 424: issued documents only; credit notes reduce
+          status: { in: ISSUED_STATUSES },
+          type: { in: SALES_TYPES },
         },
         _sum: { total: true, totalVat: true },
         _count: { _all: true },
@@ -125,7 +128,9 @@ export class CostCenterController {
         where: {
           companyId,
           issueDate: { gte: yearStart, lt: yearEnd },
-          type: { in: ['INV', 'RCV'] },
+          // Tier 424: issued documents only; credit notes reduce
+          status: { in: ISSUED_STATUSES },
+          type: { in: SALES_TYPES },
         },
         select: {
           costCenter: true,
@@ -323,7 +328,9 @@ export class CostCenterController {
         where: {
           companyId,
           issueDate: { gte: monthStart, lt: monthEnd },
-          type: { in: ['INV', 'RCV'] },
+          // Tier 424: issued documents only; credit notes reduce
+          status: { in: ISSUED_STATUSES },
+          type: { in: SALES_TYPES },
         },
         select: {
           costCenter: true,
@@ -526,7 +533,9 @@ export class CostCenterController {
           companyId,
           costCenter: ccFilter, // null matches costCenter IS NULL
           issueDate: { gte: monthStart, lt: monthEnd },
-          type: { in: ['INV', 'RCV'] },
+          // Tier 424: issued documents only; credit notes reduce
+          status: { in: ISSUED_STATUSES },
+          type: { in: SALES_TYPES },
         },
         select: {
           id: true,
@@ -569,7 +578,9 @@ export class CostCenterController {
           companyId,
           costCenter: ccFilter,
           issueDate: { gte: monthStart, lt: monthEnd },
-          type: { in: ['INV', 'RCV'] },
+          // Tier 424: issued documents only; credit notes reduce
+          status: { in: ISSUED_STATUSES },
+          type: { in: SALES_TYPES },
         },
       }),
       this.prisma.expense.count({
@@ -909,7 +920,9 @@ export class CostCenterController {
         where: {
           companyId,
           issueDate: { gte: yearStart, lt: yearEnd },
-          type: { in: ['INV', 'RCV'] },
+          // Tier 424: issued documents only; credit notes reduce
+          status: { in: ISSUED_STATUSES },
+          type: { in: SALES_TYPES },
         },
         select: { costCenter: true, total: true, issueDate: true },
       }),

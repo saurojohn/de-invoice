@@ -40,6 +40,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { CLAIM_TYPES } from '../invoice/document-scope'
 
 export type AgingBucket = 'current' | '1-30' | '31-60' | '61-90' | '90+';
 
@@ -102,7 +103,7 @@ export class AgingService {
       where: {
         companyId,
         status: { in: ['sent', 'overdue'] },
-        type: { in: ['INV', 'PI'] }, // skip CN, RCV
+        type: { in: CLAIM_TYPES }, // Tier 424: a Proforma is owed by nobody; a Quittung may be
       },
       include: {
         customer: { select: { id: true, name: true, customerNumber: true } },

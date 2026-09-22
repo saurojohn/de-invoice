@@ -4,6 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service'
 import { Response } from 'express'
 import PDFDocument from 'pdfkit'
 import { invoiceNetRevenue } from '../invoice/tax-breakdown';
+import { SALES_TYPES } from '../invoice/document-scope'
 
 /**
  * Tier 92: Anlage V — Einkünfte aus Vermietung
@@ -203,6 +204,7 @@ export class AnlageVService {
         companyId,
         issueDate: { gte: yearStart, lte: yearEnd },
         status: { in: ['paid', 'sent', 'overdue'] },
+        type: { in: SALES_TYPES }, // Tier 424: not a Proforma
       },
       select: {
         subtotal: true,

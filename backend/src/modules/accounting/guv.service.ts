@@ -6,6 +6,7 @@ import { AssetsService } from '../assets/assets.service'
 import { Response } from 'express'
 import PDFDocument from 'pdfkit'
 import { invoiceNetRevenue } from '../invoice/tax-breakdown';
+import { SALES_TYPES } from '../invoice/document-scope'
 
 /**
  * Tier 82: Anlage G+V (Gewinn- und Verlustrechnung).
@@ -165,6 +166,7 @@ export class GuVService {
         companyId,
         issueDate: { gte: yearStart, lte: yearEnd },
         status: { in: ['paid', 'sent', 'overdue'] },
+        type: { in: SALES_TYPES }, // Tier 424: not a Proforma
       },
       // Tier 118.5: G+V is a German BWA-style form
       // that sums everything in EUR. Pull the

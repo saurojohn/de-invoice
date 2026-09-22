@@ -3,6 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service'
 import { Response } from 'express'
 import PDFDocument from 'pdfkit'
 import { invoiceEurFactor, invoiceNetRevenue, invoiceTaxBreakdown } from '../invoice/tax-breakdown'
+import { SALES_TYPES } from '../invoice/document-scope'
 
 /**
  * Tier 100: Anlage G — Einkünfte aus
@@ -325,6 +326,7 @@ export class AnlageGService {
         companyId,
         issueDate: { gte: yearStart, lte: yearEnd },
         status: { in: ['paid', 'sent', 'overdue'] },
+        type: { in: SALES_TYPES }, // Tier 424: not a Proforma
       },
       select: {
         subtotal: true,

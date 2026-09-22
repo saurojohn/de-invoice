@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { VatValidationService } from '../vat-validation/vat-validation.service';
 import { WebhookService } from '../webhook/webhook.service';
+import { CLAIM_TYPES } from '../invoice/document-scope'
 
 // Tier 397: shared by the DTO (interactive create) and the importer.
 export const CUSTOMER_NAME_MAX = 200
@@ -248,7 +249,7 @@ export class CustomerService {
           companyId,
           customerId: id,
           status: { in: ['sent', 'overdue'] },
-          type: { in: ['INV', 'PI'] },
+          type: { in: CLAIM_TYPES }, // Tier 424: not a Proforma
         },
         select: {
           id: true,
@@ -446,7 +447,9 @@ export class CustomerService {
       where: {
         companyId,
         customerId: { in: ids },
-        status: { notIn: ['paid', 'cancelled'] },
+        // Tier 424: issued claims only (drafts and Proformas were counted)
+        status: { in: ['sent', 'overdue'] },
+        type: { in: CLAIM_TYPES },
       },
       _sum: { total: true },
     })
@@ -651,7 +654,7 @@ export class CustomerService {
         companyId,
         customerId,
         status: { in: ['sent', 'overdue'] },
-        type: { in: ['INV', 'PI'] },
+        type: { in: CLAIM_TYPES }, // Tier 424: not a Proforma
       },
       include: {
         payments: { select: { amount: true } },

@@ -120,7 +120,9 @@ export class UstvaService {
         companyId,
         issueDate: { gte: start, lte: end },
         status: { in: ['paid', 'sent', 'overdue'] }, // finalized
-        type: { in: ['INV', 'PI'] },                  // standard sales only; CN subtracts
+        // Tier 424: invoices and Quittungen. A Proforma is no invoice and owes
+        // no tax — it was declared, while a Quittung's VAT was not.
+        type: { in: ['INV', 'RCV'] },                 // CN subtracts, below
       },
       // Tier 118.5: pull `subtotal` + `eurSubtotal` so we
       // can convert line-level amounts to EUR for the

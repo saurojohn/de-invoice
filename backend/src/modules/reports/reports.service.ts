@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import { invoiceTaxBreakdown } from '../invoice/tax-breakdown';
+import { SALES_TYPES } from '../invoice/document-scope'
 
 export interface SalesReportParams {
   companyId: string;
@@ -92,6 +93,7 @@ export class ReportsService {
           lte: endDate,
         },
         status: { in: ['paid', 'sent', 'overdue'] },
+        type: { in: SALES_TYPES }, // Tier 424: not a Proforma
       },
       include: {
         customer: { select: { id: true, name: true } },
@@ -170,6 +172,7 @@ export class ReportsService {
           companyId,
           issueDate: { gte: yearStart, lte: yearEnd },
           status: { in: ['paid', 'sent', 'overdue'] },
+        type: { in: SALES_TYPES }, // Tier 424: not a Proforma
         },
         _sum: { total: true },
         _count: true,
@@ -188,6 +191,7 @@ export class ReportsService {
               lte: new Date(year - 1, 11, 31),
             },
             status: { in: ['paid', 'sent', 'overdue'] },
+        type: { in: SALES_TYPES }, // Tier 424: not a Proforma
           },
           _sum: { total: true },
         });
@@ -236,6 +240,7 @@ export class ReportsService {
         // Tier 409: drafts are not issued and owe nothing — UStVA already
         // excluded them; this report counted them.
         status: { in: ['paid', 'sent', 'overdue'] },
+        type: { in: SALES_TYPES }, // Tier 424: not a Proforma
       },
       include: { items: true },
     });

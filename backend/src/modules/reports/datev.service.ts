@@ -47,6 +47,7 @@ import { vatRateToUstSchluessel } from './datev-ust-schluessel';
 import { invoiceTaxBreakdown } from '../invoice/tax-breakdown';
 import { normaliseCountry } from '../invoice/ust-behandlung-detector';
 import { ensurePersonenkonten, DIVERSE_KREDITOREN } from './datev-personenkonten';
+import { SALES_TYPES } from '../invoice/document-scope'
 
 const DELIM = ';'
 const QUOTE = '"'
@@ -383,7 +384,7 @@ export async function buildBuchungenFromDb(
       companyId,
       issueDate: { gte: startDate, lte: endDate },
       status: { in: ['sent', 'paid', 'overdue'] }, // as the UStVA
-      type: { in: ['INV', 'CN'] },
+      type: { in: SALES_TYPES }, // Tier 424: Quittungen too
     },
     include: {
       items: { select: { quantity: true, unitPrice: true, vatRate: true } },

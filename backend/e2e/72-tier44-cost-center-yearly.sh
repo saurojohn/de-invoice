@@ -69,6 +69,8 @@ api_post "/api/v1/customers?companyId=$COMPANY_ID" \
 assert_status 201 "seed Tier44 customer"
 
 # ───── 1. Capture baseline (BEFORE seed) ─────
+# Tier 424: the report counts issued sales documents (sent/paid/overdue;
+# INV, RCV and credit notes) — drafts and cancelled documents were counted.
 # Pre-existing test rows from prior tier e2es inflate
 # the null-cc bucket (19/28/29/38/39/41 etc.). We
 # snapshot the relevant aggregates BEFORE the seed
@@ -80,15 +82,15 @@ BEFORE_NULL_EC=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice
 BEFORE_NULL_GROSS=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT COALESCE(SUM(\"grossAmount\"),0) FROM \"Expense\" WHERE \"companyId\" = '$COMPANY_ID' AND \"costCenter\" IS NULL AND \"invoiceDate\" >= '2026-01-01' AND \"invoiceDate\" < '2027-01-01' AND \"status\" IN ('booked','deductible');")
 BEFORE_NULL_INV=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
-  "SELECT COUNT(*) FROM \"Invoice\" WHERE \"companyId\" = '$COMPANY_ID' AND \"costCenter\" IS NULL AND \"issueDate\" >= '2026-01-01' AND \"issueDate\" < '2027-01-01' AND \"type\" IN ('INV','RCV');")
+  "SELECT COUNT(*) FROM \"Invoice\" WHERE \"companyId\" = '$COMPANY_ID' AND \"costCenter\" IS NULL AND \"issueDate\" >= '2026-01-01' AND \"issueDate\" < '2027-01-01' AND \"type\" IN ('INV','RCV','CN') AND \"status\" IN ('sent','paid','overdue');")
 BEFORE_NULL_REV=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
-  "SELECT COALESCE(SUM(\"total\"),0) FROM \"Invoice\" WHERE \"companyId\" = '$COMPANY_ID' AND \"costCenter\" IS NULL AND \"issueDate\" >= '2026-01-01' AND \"issueDate\" < '2027-01-01' AND \"type\" IN ('INV','RCV');")
+  "SELECT COALESCE(SUM(\"total\"),0) FROM \"Invoice\" WHERE \"companyId\" = '$COMPANY_ID' AND \"costCenter\" IS NULL AND \"issueDate\" >= '2026-01-01' AND \"issueDate\" < '2027-01-01' AND \"type\" IN ('INV','RCV','CN') AND \"status\" IN ('sent','paid','overdue');")
 BEFORE_TOT_REV=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
-  "SELECT COALESCE(SUM(\"total\"),0) FROM \"Invoice\" WHERE \"companyId\" = '$COMPANY_ID' AND \"issueDate\" >= '2026-01-01' AND \"issueDate\" < '2027-01-01' AND \"type\" IN ('INV','RCV');")
+  "SELECT COALESCE(SUM(\"total\"),0) FROM \"Invoice\" WHERE \"companyId\" = '$COMPANY_ID' AND \"issueDate\" >= '2026-01-01' AND \"issueDate\" < '2027-01-01' AND \"type\" IN ('INV','RCV','CN') AND \"status\" IN ('sent','paid','overdue');")
 BEFORE_TOT_GROSS=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT COALESCE(SUM(\"grossAmount\"),0) FROM \"Expense\" WHERE \"companyId\" = '$COMPANY_ID' AND \"invoiceDate\" >= '2026-01-01' AND \"invoiceDate\" < '2027-01-01' AND \"status\" IN ('booked','deductible');")
 BEFORE_TOT_INV=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
-  "SELECT COUNT(*) FROM \"Invoice\" WHERE \"companyId\" = '$COMPANY_ID' AND \"issueDate\" >= '2026-01-01' AND \"issueDate\" < '2027-01-01' AND \"type\" IN ('INV','RCV');")
+  "SELECT COUNT(*) FROM \"Invoice\" WHERE \"companyId\" = '$COMPANY_ID' AND \"issueDate\" >= '2026-01-01' AND \"issueDate\" < '2027-01-01' AND \"type\" IN ('INV','RCV','CN') AND \"status\" IN ('sent','paid','overdue');")
 BEFORE_TOT_EXP=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT COUNT(*) FROM \"Expense\" WHERE \"companyId\" = '$COMPANY_ID' AND \"invoiceDate\" >= '2026-01-01' AND \"invoiceDate\" < '2027-01-01' AND \"status\" IN ('booked','deductible');")
 

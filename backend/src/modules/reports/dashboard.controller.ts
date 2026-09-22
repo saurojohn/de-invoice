@@ -30,6 +30,7 @@ import { BadRequestException, Controller, Get, Query } from '@nestjs/common';
 import { Auth, Require } from '../../auth/roles.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AgingService } from './aging.service';
+import { ISSUED_STATUSES, SALES_TYPES, CLAIM_TYPES } from '../invoice/document-scope'
 
 @Auth()
 @Controller('reports')
@@ -60,18 +61,21 @@ export class DashboardController {
     // this drops the dashboard endpoint from
     // ~600ms to ~25ms.
     const aggregateInvoices = async (start: Date, end: Date) => {
+      // Tier 424: issued sales documents only — drafts, cancelled documents
+      // and Proformas were counted — and the documents' own VAT instead of
+      // total × 19/119 (wrong for 7 % and 0 %, and unrounded: 379.99999…).
       const agg = await this.prisma.invoice.aggregate({
-        where: { companyId, issueDate: { gte: start, lte: end } },
-        _sum: { total: true },
+        where: {
+          companyId,
+          issueDate: { gte: start, lte: end },
+          status: { in: ISSUED_STATUSES },
+          type: { in: SALES_TYPES },
+        },
+        _sum: { total: true, totalVat: true },
         _count: { _all: true },
       })
       const revenue = Number(agg._sum.total || 0)
-      // USt approximation: total * 19/119
-      // for the standard 19% case. The
-      // dashboard tile only shows magnitude;
-      // mixed-rate sales are slightly off
-      // but still in the right ballpark.
-      const ust = revenue * (19 / 119)
+      const ust = Math.round(Number(agg._sum.totalVat || 0) * 100) / 100
       return { revenue, ust, count: agg._count._all }
     }
     const aggregateExpenses = async (start: Date, end: Date) => {
@@ -99,7 +103,7 @@ export class DashboardController {
     // all sent/overdue invoices (no date
     // range — they accumulate until paid).
     const openRecvAgg = await this.prisma.invoice.aggregate({
-      where: { companyId, status: { in: ['sent', 'overdue'] } },
+      where: { companyId, status: { in: ['sent', 'overdue'] }, type: { in: CLAIM_TYPES } },
       _sum: { total: true },
     })
     const [ytdInv, ytdExp, lastInv, lastExp, thisInv, thisExp] = await Promise.all([
@@ -235,7 +239,7 @@ export class DashboardController {
         // GROUP BY customer, ORDER BY sum DESC, LIMIT 5.
         this.prisma.invoice.groupBy({
           by: ['customerId'],
-          where: { companyId, issueDate: { gte: yearStart } },
+          where: { companyId, issueDate: { gte: yearStart }, status: { in: ISSUED_STATUSES }, type: { in: SALES_TYPES } },
           _sum: { total: true },
           _count: { _all: true },
           orderBy: { _sum: { total: 'desc' } },
@@ -261,7 +265,8 @@ export class DashboardController {
           where: {
             companyId,
             issueDate: { gte: yearStart },
-            type: { in: ['INV', 'RCV'] },
+            status: { in: ISSUED_STATUSES },
+            type: { in: SALES_TYPES },
           },
           _sum: { total: true, totalVat: true },
           _count: { _all: true },

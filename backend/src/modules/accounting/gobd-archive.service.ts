@@ -8,6 +8,7 @@ import { generateDatevBuchungsstapel, buildBuchungenFromDb, encodeDatevCsv } fro
 import * as archiver from 'archiver'
 import * as fs from 'fs'
 import * as path from 'path'
+import { SALES_TYPES } from '../invoice/document-scope'
 
 /**
  * Tier 77: GoBD-compliant Document Archive (§ 147 AO).
@@ -278,6 +279,7 @@ export class GobdArchiveService {
             issueDate: { gte: yearStart, lte: yearEnd },
             // Tier 420: a draft is not revenue (it was counted).
             status: { in: ['paid', 'sent', 'overdue'] },
+            type: { in: SALES_TYPES }, // Tier 424: nor a Proforma
           },
           // Tier 411: net revenue = total − totalVat (after the discount).
           _sum: { total: true, totalVat: true },
@@ -296,6 +298,7 @@ export class GobdArchiveService {
             issueDate: { gte: yearStart, lte: yearEnd },
             // Tier 420: a draft is not revenue (it was counted).
             status: { in: ['paid', 'sent', 'overdue'] },
+            type: { in: SALES_TYPES }, // Tier 424: nor a Proforma
           },
           _sum: { totalVat: true },
         }),

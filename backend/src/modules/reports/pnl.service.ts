@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { ISSUED_STATUSES, SALES_TYPES } from '../invoice/document-scope'
 
 /**
  * Tier 75: P&L (Gewinn- und Verlustrechnung).
@@ -105,7 +106,9 @@ export class PnlService {
     // (e2e/142 measured a 2.97 EUR "delta" for two 1000-unit invoices). NULL is
     // not only legacy data: until Tier 362 recurring.service.ts never set the
     // EUR columns. BWA, GuV and EÜR already fall back per row; this now matches.
-    const invoiceStatuses = ['paid', 'sent', 'overdue', 'draft']
+    // Tier 424: issued sales documents — drafts and Proformas are no revenue
+    // (drafts were counted here, unlike BWA / GuV / EÜR).
+    const invoiceStatuses = ISSUED_STATUSES
     const invoiceSelect = {
       issueDate: true,
       subtotal: true,
@@ -115,7 +118,7 @@ export class PnlService {
     } as const
     const [cyInvoices, pyInvoices] = await Promise.all([
       this.prisma.invoice.findMany({
-        where: { companyId, issueDate: { gte: yearStart, lte: yearEnd }, status: { in: invoiceStatuses } },
+        where: { companyId, issueDate: { gte: yearStart, lte: yearEnd }, status: { in: invoiceStatuses }, type: { in: SALES_TYPES } },
         select: invoiceSelect,
       }),
       this.prisma.invoice.findMany({
@@ -123,6 +126,7 @@ export class PnlService {
           companyId,
           issueDate: { gte: new Date(year - 1, 0, 1), lte: new Date(year - 1, 11, 31, 23, 59, 59, 999) },
           status: { in: invoiceStatuses },
+          type: { in: SALES_TYPES },
         },
         select: invoiceSelect,
       }),

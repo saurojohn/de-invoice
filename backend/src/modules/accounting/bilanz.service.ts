@@ -4,6 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service'
 import { AssetsService, DEFAULT_BILANZ_KONTO } from '../assets/assets.service'
 import { Response } from 'express'
 import PDFDocument from 'pdfkit'
+import { CLAIM_TYPES } from '../invoice/document-scope'
 
 /**
  * Tier 81: Bilanz (Balance Sheet) — VORSCHAU.
@@ -180,6 +181,7 @@ export class BilanzService {
       where: {
         companyId,
         status: { in: ['sent', 'overdue'] },
+        type: { in: CLAIM_TYPES }, // Tier 424: not a Proforma
         issueDate: { lte: snapshot },
       },
       select: { total: true },
