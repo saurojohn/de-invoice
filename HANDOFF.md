@@ -9,17 +9,18 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–425 are
-  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 425.)
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–426 are
+  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 426.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 35738737920 / commit `88ee246`, Tier 425):**
-  - Backend e2e: **213 passed / 0 failed / 1 skipped** of 214 specs — 100
-    two-digit + 114 three-digit (Tier 425 added `214-tier425-kassenbuch.sh`,
+- **Test counts (last green CI, run 35765712311 / commit `5912035`, Tier 426):**
+  - Backend e2e: **214 passed / 0 failed / 1 skipped** of 215 specs — 100
+    two-digit + 115 three-digit (Tier 426 added
+    `215-tier426-bilanz-open-amounts.sh`, Tier 425 `214-tier425-kassenbuch.sh`,
     Tier 424 `213-tier424-document-scope.sh`,
     Tier 423 `212-tier423-datev-buchungsstapel.sh`,
     Tier 422 `211-tier422-skonto-settlement.sh`,
@@ -2519,7 +2520,7 @@ Local runs: backend **213 / 1 / 1**, 0 × 500; Playwright **930**, no flaky.
 The one failure is `50-webhooks.sh`: its SSRF check registers
 `http://127.0.0.1.nip.io/`, and this machine's DNS could not resolve nip.io
 at the time (it passed in the Tier 425 run a few hours earlier). Nothing in
-this tier touches webhooks; CI resolves the name.
+this tier touches webhooks; CI resolved it: `50-webhooks: all assertions passed`.
 
 ### The Kassenbuch never reached the books; uncategorised expenses were dropped (Tier 425)
 
