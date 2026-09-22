@@ -10,16 +10,17 @@ exact commands + docs you need to be productive.
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
 - **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–424 are
-  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 423.)
+  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 424.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 35705970443 / commit `afcb9a6`, Tier 423):**
-  - Backend e2e: **211 passed / 0 failed / 1 skipped** of 212 specs — 100
-    two-digit + 112 three-digit (Tier 423 added `212-tier423-datev-buchungsstapel.sh`,
+- **Test counts (last green CI, run 35711115749 / commit `618ac1b`, Tier 424):**
+  - Backend e2e: **212 passed / 0 failed / 1 skipped** of 213 specs — 100
+    two-digit + 113 three-digit (Tier 424 added `213-tier424-document-scope.sh`,
+    Tier 423 `212-tier423-datev-buchungsstapel.sh`,
     Tier 422 `211-tier422-skonto-settlement.sh`,
     Tier 421 `210-tier421-verzugszinsen.sh`,
     Tier 420 `209-tier420-gobd-archive-issued.sh`,
