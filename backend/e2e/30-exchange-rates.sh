@@ -1,27 +1,17 @@
 #!/bin/bash
 # Test 30: Tier 5d — ECB exchange rates in DATEV export
 #
-# Verifies the per-company exchangeRate snapshot
-# is read by buildBuchungenFromDb and emitted
-# in DATEV column 17 (Kurs) for every non-EUR
-# row. The cron @ 02:00 Berlin is not exercised
-# here — we seed the rate snapshot directly via
-# SQL (the controller's manual refresh just
-# forwards to the same service, so unit-testing
-# the SQL read path covers the full integration).
+# Verifies the per-company exchangeRate snapshot is read by
+# buildBuchungenFromDb. Since Tier 423 the DATEV amounts are in EUR: a
+# non-EUR document without a stored EUR amount is converted at the snapshot
+# rate. The cron @ 02:00 Berlin is not exercised here — the snapshot is
+# seeded via SQL.
 #
 # Coverage:
-#   1. With no snapshot set, a CHF invoice falls
-#      back to "1,0000" (the prior default)
-#   2. After setting a snapshot, the same invoice
-#      shows the configured rate on every line
-#      (Zahlungseingang + Erlöse + USt)
-#   3. EUR invoices keep the 1,0000 default
-#      (the formatter always emits 4dp; EUR
-#      doesn't need a real rate but DATEV
-#      imports "1,0000" cleanly)
-#   4. Currency not in the snapshot also falls
-#      back to "1,0000"
+#   1. No snapshot: a CHF invoice is booked 1:1
+#   2. With a snapshot: invoice and payment converted at its rate
+#   3. EUR invoices unchanged; no row carries a foreign currency code
+#   4. A currency not in the snapshot: 1:1
 #   5. The /api/v1/exchange-rates GET endpoint
 #      returns the cached snapshot
 #   6. The POST /api/v1/exchange-rates/refresh
@@ -86,22 +76,13 @@ curl -sS -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
   "http://localhost:3001/api/v1/reports/datev-export?companyId=$COMPANY_ID&startDate=2026-01-01&endDate=2026-12-31" \
   -o /tmp/csv-no-snap.csv
 
-CHF_RATE_NO_SNAP=$(LC_ALL=C grep "E2E-T5D-CHF" /tmp/csv-no-snap.csv | head -1 | python3 -c "
-import sys
-cols = sys.stdin.read().strip().split(';')
-print(cols[16] if len(cols) > 16 else '')
-")
-# The Kurs column uses German decimal
-# (1,0000) — same as test 25's existing
-# assertion for the no-snapshot default.
-assert_eq "no snapshot: CHF rate defaults to 1,0000" "$CHF_RATE_NO_SNAP" "1,0000"
-
-NOK_RATE_NO_SNAP=$(LC_ALL=C grep "E2E-T5D-NOK" /tmp/csv-no-snap.csv | head -1 | python3 -c "
-import sys
-cols = sys.stdin.read().strip().split(';')
-print(cols[16] if len(cols) > 16 else '')
-")
-assert_eq "no snapshot: NOK rate defaults to 1,0000" "$NOK_RATE_NO_SNAP" "1,0000"
+# Tier 423: the DATEV amount is in EUR. A document without a stored EUR
+# amount is converted at the company's ECB snapshot; without one, 1:1. (The
+# export used to write the CHF amount unconverted, with the rate in a
+# "Kurs" column at a position of its own layout.)
+amt() { datev_rows "$1" | awk -F'\t' -v a="$2" 'index($8, a) {print $5}' | sort -u | tr '\n' ' ' | sed 's/ $//'; }
+assert_eq "no snapshot: CHF invoice and payment 1:1" "$(amt /tmp/csv-no-snap.csv E2E-T5D-CHF)" "1190.00"
+assert_eq "no snapshot: NOK 1:1" "$(amt /tmp/csv-no-snap.csv E2E-T5D-NOK)" "1250.00"
 
 # ===== 2) Set a snapshot, re-export =====
 docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
@@ -126,61 +107,19 @@ curl -sS -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
   "http://localhost:3001/api/v1/reports/datev-export?companyId=$COMPANY_ID&startDate=2026-01-01&endDate=2026-12-31" \
   -o /tmp/csv-with-snap.csv
 
-# All 3 lines of the CHF invoice (Zahlungseingang +
-# Erlöse + USt) should have rate 0,9248 (German
-# decimal — see format note above).
-ALL_CHF_RATES=$(LC_ALL=C grep "E2E-T5D-CHF" /tmp/csv-with-snap.csv | python3 -c "
-import sys
-for line in sys.stdin:
-    cols = line.strip().split(';')
-    if len(cols) > 16:
-        print(cols[16])
-" | sort -u)
-if [[ "$ALL_CHF_RATES" == "0,9248" ]]; then
-  pass "snapshot: all 3 CHF lines show 0,9248"
-else
-  fail "snapshot: CHF rates not consistent: $ALL_CHF_RATES"
-fi
-
-# The rate is 4-decimal (per DATEV spec)
-PREC=$(LC_ALL=C grep "E2E-T5D-CHF" /tmp/csv-with-snap.csv | head -1 | python3 -c "
-import sys
-cols = sys.stdin.read().strip().split(';')
-r = cols[16] if len(cols) > 16 else ''
-# Count decimals after the ,
-if ',' in r:
-    print(len(r.split(',')[1]))
-else:
-    print(0)
-")
-assert_eq "rate has 4 decimals" "$PREC" "4"
-
-# ===== 3) EUR invoices: rate stays 1,0000 (the
-# formatter always emits 4dp; EUR doesn't need
-# an actual rate but DATEV still imports "1,0000"
-# cleanly, so the system keeps it for consistency) =====
-EUR_LINE=$(LC_ALL=C grep "E2E-T5D-EUR" /tmp/csv-with-snap.csv | head -1 | python3 -c "
-import sys
-cols = sys.stdin.read().strip().split(';')
-print(repr(cols[15]) if len(cols) > 15 else '')
-")
-# col 15 (0-indexed) = col 16 in DATEV = Währung. Expect 'EUR'.
-assert_eq "EUR line currency col" "$EUR_LINE" "'EUR'"
-
-EUR_KURS=$(LC_ALL=C grep "E2E-T5D-EUR" /tmp/csv-with-snap.csv | head -1 | python3 -c "
-import sys
-cols = sys.stdin.read().strip().split(';')
-print(cols[16] if len(cols) > 16 else 'MISSING')
-")
-assert_eq "EUR line: Kurs stays 1,0000" "$EUR_KURS" "1,0000"
-
-# ===== 4) Currency not in snapshot: 1,0000 =====
-NOK_RATE_WITH_SNAP=$(LC_ALL=C grep "E2E-T5D-NOK" /tmp/csv-with-snap.csv | head -1 | python3 -c "
-import sys
-cols = sys.stdin.read().strip().split(';')
-print(cols[16] if len(cols) > 16 else '')
-")
-assert_eq "NOK (not in snapshot) rate defaults to 1,0000" "$NOK_RATE_WITH_SNAP" "1,0000"
+# CHF 1 190 at 0.9248 CHF per EUR = 1 286.76 EUR, on the invoice row and
+# the payment row alike.
+assert_eq "snapshot: CHF invoice and payment converted at 0.9248" "$(amt /tmp/csv-with-snap.csv E2E-T5D-CHF)" "1286.76"
+assert_eq "no foreign-currency code on a row booked in EUR" \
+  "$(python3 - /tmp/csv-with-snap.csv <<'PY'
+import csv, io, sys
+rows = list(csv.reader(io.StringIO(open(sys.argv[1],'rb').read().decode('cp1252')), delimiter=';'))
+i = rows[1].index('WKZ Umsatz')
+print(sorted(set(r[i] for r in rows[2:] if r)))
+PY
+)" "['']"
+assert_eq "EUR invoice unchanged" "$(amt /tmp/csv-with-snap.csv E2E-T5D-EUR)" "1190.00"
+assert_eq "NOK (not in snapshot): 1:1" "$(amt /tmp/csv-with-snap.csv E2E-T5D-NOK)" "1250.00"
 
 # ===== 5) GET /api/v1/exchange-rates returns the snapshot =====
 # GET uses ?companyId= query param (no body) so

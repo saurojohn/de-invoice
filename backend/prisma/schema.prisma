@@ -1,7 +1,7 @@
 // German Invoice System - Database Schema
 
 generator client {
-  provider = "prisma-client-js"
+  provider   = "prisma-client-js"
   // Tier 11: binary engine. The default
   // (library) engine is a prebuilt .node
   // that links against libssl 1.1.x;
@@ -26,81 +26,81 @@ datasource db {
 // ==================== 组织与用户 ====================
 
 model Company {
-  id                String   @id @default(uuid())
-  name              String
-  legalName         String?
-  taxId             String?
-  vatId             String?
-  email             String?
-  phone             String?
-  fax               String?
-  website           String?
-  registerEntry     String?  // e.g. "HRB 12345 Amtsgericht Offenbach am Main"
-  managingDirector  String?  // Geschäftsführer / Inhaber
-  otherInfo         String?  // misc. Impressum / footer info: WEEE number,
-                             // Kleinunternehmer §19 UStG disclaimer, etc.
-  address           Json
-  bankInfo          Json?
-  settings          Json?
-  logoPath          String?
-  invoicePrefix     String?
+  id                 String   @id @default(uuid())
+  name               String
+  legalName          String?
+  taxId              String?
+  vatId              String?
+  email              String?
+  phone              String?
+  fax                String?
+  website            String?
+  registerEntry      String? // e.g. "HRB 12345 Amtsgericht Offenbach am Main"
+  managingDirector   String? // Geschäftsführer / Inhaber
+  otherInfo          String? // misc. Impressum / footer info: WEEE number,
+  // Kleinunternehmer §19 UStG disclaimer, etc.
+  address            Json
+  bankInfo           Json?
+  settings           Json?
+  logoPath           String?
+  invoicePrefix      String?
   // Tier 176: default payment terms in days (already existed).
   // Pre-fills the invoice create form's `dueDate` field
   // (= issueDate + defaultPaymentDays) and is the source
   // of truth for "Zahlbar binnen X Tagen" on the PDF.
-  defaultPaymentDays Int     @default(30)
+  defaultPaymentDays Int      @default(30)
   // Tier 176: default VAT treatment. NULL = "ask every time"
   // (the old behaviour). Set to "standard" / "reverseCharge"
   // / "igL" to auto-pick that radio button on invoice create
   // and pre-stamp the USt-Behandlung on the PDF.
-  defaultVatMode    String?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  defaultVatMode     String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
-  users       User[]
-  customers   Customer[]
-  suppliers   Supplier[]
-  products    Product[]
-  categories  Category[]
-  invoices    Invoice[]
-  recurringInvoices RecurringInvoice[]
-  recurringRuns RecurringRun[]
-  cashBookEntries CashBookEntry[]
-  sepaBatches SepaBatch[]
+  users                      User[]
+  customers                  Customer[]
+  suppliers                  Supplier[]
+  products                   Product[]
+  categories                 Category[]
+  invoices                   Invoice[]
+  recurringInvoices          RecurringInvoice[]
+  recurringRuns              RecurringRun[]
+  cashBookEntries            CashBookEntry[]
+  sepaBatches                SepaBatch[]
   // Tier 112: SEPA pain.008 (Lastschrift / direct
   // debit) — mandates, batches, and the per-line
   // collections within each batch.
-  sepaDirectDebitMandates   SepaDirectDebitMandate[]
-  sepaDirectDebitBatches    SepaDirectDebitBatch[]
+  sepaDirectDebitMandates    SepaDirectDebitMandate[]
+  sepaDirectDebitBatches     SepaDirectDebitBatch[]
   sepaDirectDebitCollections SepaDirectDebitCollection[]
-  cashBookDailyCloses CashBookDailyClose[]
-  accounts    Account[]
-  vouchers    Voucher[]
+  cashBookDailyCloses        CashBookDailyClose[]
+  accounts                   Account[]
+  vouchers                   Voucher[]
   // Tier 368: AuditLog.companyId is a snapshot, not a relation (see AuditLog).
-  errorEvents ErrorEvent[]
-  emailSends   EmailSend[]
-  mahnungspausen Mahnungspause[]
-  bankStatements BankStatement[]
-  fintsConnections FinTSConnection[]
-  invoiceTemplates InvoiceTemplate[]
+  errorEvents                ErrorEvent[]
+  emailSends                 EmailSend[]
+  mahnungspausen             Mahnungspause[]
+  bankStatements             BankStatement[]
+  fintsConnections           FinTSConnection[]
+  invoiceTemplates           InvoiceTemplate[]
   // Tier 130: customer-portal sessions. All
   // CustomerPortalSession rows for a company
   // are listed here (used by the nightly cleanup
   // job that purges expired tokens).
-  portalSessions CustomerPortalSession[]
-  webhooks      Webhook[]
-  mailConfig  MailConfig?
-  expenses    Expense[]
-  ustvaFilings UStvaFiling[]
-  reminderTemplates ReminderTemplate[]
-  noteTemplates     NoteTemplate[]
-  mahnungen        Mahnung[] 
-  vatRates    VatRate[]
-  vatRateHistories VatRateHistory[]
-  invitations UserInvitation[]
+  portalSessions             CustomerPortalSession[]
+  webhooks                   Webhook[]
+  mailConfig                 MailConfig?
+  expenses                   Expense[]
+  ustvaFilings               UStvaFiling[]
+  reminderTemplates          ReminderTemplate[]
+  noteTemplates              NoteTemplate[]
+  mahnungen                  Mahnung[]
+  vatRates                   VatRate[]
+  vatRateHistories           VatRateHistory[]
+  invitations                UserInvitation[]
   // Tier 66: users who have access to this Mandant
   // (back-relation of UserCompany).
-  userCompanies UserCompany[]
+  userCompanies              UserCompany[]
   // Per-company Voucher templates — a saved
   // pre-filled Buchungssatz that the Berater can
   // re-use to create a new Voucher in one click
@@ -110,11 +110,11 @@ model Company {
   // is used (otherwise the same template would
   // always create the same booking, which is not
   // the intent).
-  voucherTemplates VoucherTemplate[]
+  voucherTemplates           VoucherTemplate[]
   // Tier 48: per-(year, costCenter) budget targets.
-  costCenterBudgets CostCenterBudget[]
+  costCenterBudgets          CostCenterBudget[]
   // Tier 51: all Ratenpläne for this company.
-  installmentPlans InstallmentPlan[]
+  installmentPlans           InstallmentPlan[]
   // Tier 58: all customer credit-balance ledger rows
   // (overpayment, Gutschrift-overage, Auszahlung, apply).
   customerCreditTransactions CustomerCreditTransaction[]
@@ -123,12 +123,12 @@ model Company {
   // by entityType + entityId. Required for GoBD
   // §146 AO: every booking must have the original
   // Beleg attached.
-  attachments    Attachment[]
+  attachments                Attachment[]
   // VIES (EU VAT) validation history — every check
   // is recorded for the GoBD audit trail so the
   // user can prove the VAT ID was verified at the
   // time of the booking.
-  vatValidations VatValidationLog[]
+  vatValidations             VatValidationLog[]
 
   // Tier 79: Berater Document Exchange notes
   // targeted at this Mandant. Each row is a
@@ -160,7 +160,7 @@ model Company {
 }
 
 model User {
-  id                String    @id @default(uuid())
+  id                   String        @id @default(uuid())
   // Tier 66: User.companyId is now the "default
   // login Mandant" — the company the user lands on
   // immediately after login. The actual access
@@ -168,25 +168,25 @@ model User {
   // which can grant access to multiple companies
   // for a Berater (Steuerberater) who manages
   // several Mandanten.
-  companyId        String?
-  company          Company?  @relation(fields: [companyId], references: [id])
+  companyId            String?
+  company              Company?      @relation(fields: [companyId], references: [id])
   // UserCompany back-relation (Tier 66).
-  userCompanies    UserCompany[]
+  userCompanies        UserCompany[]
   // Tier 400: browser sessions (the cookie credential). See UserSession.
-  sessions         UserSession[]
-  email            String    @unique
-  passwordHash     String
+  sessions             UserSession[]
+  email                String        @unique
+  passwordHash         String
   // Role within the company: "admin" | "accountant" | "viewer"
   // The first user of a company is always "admin". Admins can change roles.
-  role             String    @default("viewer")
-  status           String    @default("active")  // "active" | "inactive"
-  profile          Json?
-  preferences      Json?
-  createdAt        DateTime  @default(now())
-  lastLogin        DateTime?
+  role                 String        @default("viewer")
+  status               String        @default("active") // "active" | "inactive"
+  profile              Json?
+  preferences          Json?
+  createdAt            DateTime      @default(now())
+  lastLogin            DateTime?
   // Password reset — token is stored hashed, expires 1h after issue
-  passwordResetToken       String?
-  passwordResetExpires     DateTime?
+  passwordResetToken   String?
+  passwordResetExpires DateTime?
 
   // ─── Two-Factor Authentication (TOTP / RFC 6238) ───
   // 2FA is opt-in per user. When enabled, login requires
@@ -209,44 +209,44 @@ model User {
   //                        hand the user 10 plain codes at
   //                        setup; only the hashes live in
   //                        the DB.
-  twoFactorEnabled       Boolean   @default(false)
-  twoFactorSecret        String?
-  twoFactorConfirmedAt   DateTime?
-  recoveryCodes          Json?
+  twoFactorEnabled     Boolean   @default(false)
+  twoFactorSecret      String?
+  twoFactorConfirmedAt DateTime?
+  recoveryCodes        Json?
 
   // Tier 246: per-User signing key (Berater
   // personal cert). One row per user.
   userSigningKey UserSigningKey? @relation("UserSigningKeyOwner")
 
-   createdInvoices  Invoice[] @relation("CreatedBy")
-   createdVouchers  Voucher[] @relation("CreatedBy")
-   // Tier 368: AuditLog.userId is a snapshot, not a relation (see AuditLog).
-   errorEvents      ErrorEvent[]
-   emailSends       EmailSend[]
-   createdVatRates   VatRate[] @relation("VatRateCreator")
-   changedVatRates   VatRateHistory[] @relation("VatRateChanger")
-   sentInvitations  UserInvitation[] @relation("InvitedBy")
-   createdWebhooks  Webhook[] @relation("WebhookCreator")
-  createdRecurringInvoices RecurringInvoice[] @relation("RecurringCreator")
-  createdCashBookEntries CashBookEntry[] @relation("CashBookEntryCreator")
-  closedCashBookDays CashBookDailyClose[] @relation("CashBookDayCloser")
-  bankStatements   BankStatement[]   @relation("BankStatementUploader")
-  uploadedAttachments Attachment[] @relation("UploadedAttachments")
+  createdInvoices           Invoice[]                   @relation("CreatedBy")
+  createdVouchers           Voucher[]                   @relation("CreatedBy")
+  // Tier 368: AuditLog.userId is a snapshot, not a relation (see AuditLog).
+  errorEvents               ErrorEvent[]
+  emailSends                EmailSend[]
+  createdVatRates           VatRate[]                   @relation("VatRateCreator")
+  changedVatRates           VatRateHistory[]            @relation("VatRateChanger")
+  sentInvitations           UserInvitation[]            @relation("InvitedBy")
+  createdWebhooks           Webhook[]                   @relation("WebhookCreator")
+  createdRecurringInvoices  RecurringInvoice[]          @relation("RecurringCreator")
+  createdCashBookEntries    CashBookEntry[]             @relation("CashBookEntryCreator")
+  closedCashBookDays        CashBookDailyClose[]        @relation("CashBookDayCloser")
+  bankStatements            BankStatement[]             @relation("BankStatementUploader")
+  uploadedAttachments       Attachment[]                @relation("UploadedAttachments")
   // Tier 58: credit-balance ledger entries this user
   // created (Auszahlung, apply, manual adjustments).
   createdCreditTransactions CustomerCreditTransaction[]
   // Tier 64: Mahnungspausen this user created.
-  createdMahnungspausen Mahnungspause[]
+  createdMahnungspausen     Mahnungspause[]
   // Tier 66: companies this user has access to
   // (a Berater/Steuerberater typically has multiple
   // rows here; a single-Mandant user has exactly one).
-  grantedCompanies UserCompany[] @relation("GrantedBy")
+  grantedCompanies          UserCompany[]               @relation("GrantedBy")
   // Tier 79: Berater Document Exchange — notes this
   // user created (the Berater), acknowledged
   // (the Mandant), or dismissed (the Mandant).
-  createdBeraterNotes     BeraterNote[] @relation("BeraterNoteCreatedBy")
-  acknowledgedBeraterNotes BeraterNote[] @relation("BeraterNoteAcknowledgedBy")
-  dismissedBeraterNotes   BeraterNote[] @relation("BeraterNoteDismissedBy")
+  createdBeraterNotes       BeraterNote[]               @relation("BeraterNoteCreatedBy")
+  acknowledgedBeraterNotes  BeraterNote[]               @relation("BeraterNoteAcknowledgedBy")
+  dismissedBeraterNotes     BeraterNote[]               @relation("BeraterNoteDismissedBy")
 }
 
 /// Tier 66: Multi-Mandanten-Berater (many-to-many).
@@ -299,18 +299,18 @@ model UserCompany {
 
 // Pending invitations — admin invites employee by email, employee clicks link to register
 model UserInvitation {
-  id          String   @id @default(uuid())
+  id          String    @id @default(uuid())
   companyId   String
-  company     Company  @relation(fields: [companyId], references: [id])
+  company     Company   @relation(fields: [companyId], references: [id])
   email       String
-  role        String   @default("accountant")  // "admin" | "accountant" | "viewer"
+  role        String    @default("accountant") // "admin" | "accountant" | "viewer"
   // Token — random URL-safe string, also stored hashed (bcrypt) in tokenHash
   tokenHash   String
   expiresAt   DateTime
   acceptedAt  DateTime?
   createdById String
-  createdBy   User     @relation("InvitedBy", fields: [createdById], references: [id])
-  createdAt   DateTime @default(now())
+  createdBy   User      @relation("InvitedBy", fields: [createdById], references: [id])
+  createdAt   DateTime  @default(now())
 
   @@index([companyId, email])
   @@index([expiresAt])
@@ -326,12 +326,13 @@ model Customer {
   // assigned by the service on create if not provided. Unique per
   // company so importers can keep their own numbering scheme.
   customerNumber String?
+  datevAccount   Int?
   vatId          String?
   taxExempt      Boolean  @default(false)
   address        Json
   contact        Json?
   paymentTerms   Int      @default(30)
-  creditLimit    Decimal? @db.Decimal(12,2)
+  creditLimit    Decimal? @db.Decimal(12, 2)
   tags           String[]
   metadata       Json?
   createdAt      DateTime @default(now())
@@ -358,23 +359,23 @@ model Customer {
   // which makes the tsvector @@ tsquery contract explicit.
   // so they live in raw SQL — `prisma db pull` would otherwise drop
   // them.
-  cityText           String? @map("city_text")
-  postalCodeText     String? @map("postal_code_text")
+  cityText       String? @map("city_text")
+  postalCodeText String? @map("postal_code_text")
 
-  invoices     Invoice[]
-  recurringInvoices RecurringInvoice[]
+  invoices                Invoice[]
+  recurringInvoices       RecurringInvoice[]
   // Tier 51: all Ratenpläne for this customer.
-  installmentPlans InstallmentPlan[]
+  installmentPlans        InstallmentPlan[]
   // Tier 58: immutable ledger of every credit-balance movement
   // (overpayment, Gutschrift-overage, Auszahlung, applied to
   // invoice, manual adjustment). Customer's current credit balance
   // is the SUM(amount) over the rows.
-  creditTransactions CustomerCreditTransaction[]
+  creditTransactions      CustomerCreditTransaction[]
   // Tier 64: Mahnungspausen attached to this customer.
   // (A pause can be customer-level — for all invoices of
   // this customer — or invoice-level — for one specific
   // invoice; the latter is recorded on Invoice.mahnungspausen.)
-  mahnungspausen Mahnungspause[]
+  mahnungspausen          Mahnungspause[]
   // Tier 112: SEPA pain.008 mandates signed by this
   // customer. One customer can sign multiple mandates
   // (e.g. one per subscription, one per product line).
@@ -387,18 +388,22 @@ model Customer {
   // (e.g. one per device, one per shared family
   // email). Expired sessions are deleted by the
   // nightly cleanup job.
-  portalSessions CustomerPortalSession[]
+  portalSessions          CustomerPortalSession[]
   // Tier 145: internal Berater-Notizen on the
   // customer. NOT visible to the customer via
   // the portal or any PDF / email — same
   // visibility rules as InvoiceInternalNote
   // (Tier 138). GoBD § 146 Abs. 4 AO.
-  internalNotes CustomerInternalNote[]
+  internalNotes           CustomerInternalNote[]
 
+  @@unique([companyId, customerNumber])
+  // Tier 423: the customer's DATEV Personenkonto (Debitor, 10000–69999),
+  // assigned on the first DATEV export and kept, so every export books the
+  // customer on the same account.
+  @@unique([companyId, datevAccount])
   @@index([companyId, name])
   @@index([companyId, vatId])
   @@index([companyId, customerNumber])
-  @@unique([companyId, customerNumber])
 }
 
 /// Tier 58: customer credit balance (Kundenguthaben) ledger.
@@ -444,6 +449,8 @@ model Supplier {
   name         String
   vatId        String?
   address      Json
+  // Tier 423: the supplier's DATEV Personenkonto (Kreditor, 70001–99999)
+  datevAccount Int?
   contact      Json?
   bankInfo     Json?
   paymentTerms Int      @default(30)
@@ -451,27 +458,28 @@ model Supplier {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  expenses     Expense[]
+  expenses Expense[]
 
+  @@unique([companyId, datevAccount])
   @@index([companyId, name])
 }
 
 // Eingangsrechnung / Expense — for input tax (Vorsteuer) calculation
 // Used to compute UStVA: payables (Umsatzsteuer) minus input tax (Vorsteuerabzug)
 model Expense {
-  id              String   @id @default(uuid())
-  companyId       String
-  company         Company  @relation(fields: [companyId], references: [id])
-  supplierId      String?
-  supplier        Supplier? @relation(fields: [supplierId], references: [id])
-  invoiceNumber   String?
-  description     String
-  invoiceDate     DateTime
-  netAmount       Decimal  @db.Decimal(12,4)
-  vatRate         Decimal  @db.Decimal(5,4)    // 0.19, 0.07, 0
-  vatAmount       Decimal  @db.Decimal(12,4)
-  grossAmount     Decimal  @db.Decimal(12,4)
-  category        String?  // e.g. "Material", "Miete", "Bürobedarf"
+  id                String     @id @default(uuid())
+  companyId         String
+  company           Company    @relation(fields: [companyId], references: [id])
+  supplierId        String?
+  supplier          Supplier?  @relation(fields: [supplierId], references: [id])
+  invoiceNumber     String?
+  description       String
+  invoiceDate       DateTime
+  netAmount         Decimal    @db.Decimal(12, 4)
+  vatRate           Decimal    @db.Decimal(5, 4) // 0.19, 0.07, 0
+  vatAmount         Decimal    @db.Decimal(12, 4)
+  grossAmount       Decimal    @db.Decimal(12, 4)
+  category          String? // e.g. "Material", "Miete", "Bürobedarf"
   // Tier 179: SKR03 Sachkonto for this expense (e.g.
   // "4400" = Wareneingang, "6300" = Miete). The
   // Voucher model has lines with an accountId FK to
@@ -482,20 +490,20 @@ model Expense {
   // create + list response so the frontend can
   // display the raw account number in the Beleg
   // table.
-  accountNumber    String?
-  isIntraEU       Boolean  @default(false)      // igE — reverse charge
-  isReverseCharge Boolean  @default(false)      // §13b UStG
-  status          String   @default("booked")  // booked|deductible|blocked
-  notes           String?
-  attachmentPath  String?
+  accountNumber     String?
+  isIntraEU         Boolean    @default(false) // igE — reverse charge
+  isReverseCharge   Boolean    @default(false) // §13b UStG
+  status            String     @default("booked") // booked|deductible|blocked
+  notes             String?
+  attachmentPath    String?
   // DATEV Kostenstelle 1 + Kostenträger. Same purpose
   // as on Invoice: per-expense cost-center stamp for
   // DATEV columns 12 + 13. Typically the user maps
   // Expense.category → costCenter once in the DATEV
   // account-map settings, but per-expense override is
   // supported when an expense doesn't fit the default.
-  costCenter     String?   // DATEV Kostenstelle 1
-  costObject     String?   // DATEV Kostenträger
+  costCenter        String? // DATEV Kostenstelle 1
+  costObject        String? // DATEV Kostenträger
   // Tier 87: when this Expense was auto-posted
   // by the Anlagenverzeichnis "AfA buchen" flow
   // (one row per Asset per Year), these two
@@ -505,8 +513,8 @@ model Expense {
   // dedup key for re-running the booking
   // (idempotent: "AfA buchen" twice for the
   // same year = no double booking).
-  relatedAssetId String?
-  afaYear        Int?
+  relatedAssetId    String?
+  afaYear           Int?
   // Tier 89: 1-12 for the monthly-booking
   // mode (12 rows per asset per year), NULL
   // for the annual-booking mode (1 row per
@@ -519,7 +527,7 @@ model Expense {
   // afaMonth IS NULL for all existing rows
   // for the (asset, year) pair, else it
   // fails with "AfA already booked (annual)".
-  afaMonth       Int?
+  afaMonth          Int?
   // Tier 108: SEPA pain.001 batch payment tracking.
   // paidAt is set when the user runs a SEPA export
   // and marks the expense as paid (the date is
@@ -532,11 +540,11 @@ model Expense {
   // via SEPA yet. The (status='booked', paidAt IS NULL)
   // query is the "unpaid expenses" set the Berater
   // sees on /dashboard/payments.
-  paidAt         DateTime?
+  paidAt            DateTime?
   paidBySepaBatchId String?
   paidBySepaBatch   SepaBatch? @relation("ExpensePaidByBatch", fields: [paidBySepaBatchId], references: [id])
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
 
   cashBookEntries CashBookEntry[]
 
@@ -550,49 +558,49 @@ model Expense {
 
 // UStVA filing record — track submitted VAT returns
 model UStvaFiling {
-  id              String   @id @default(uuid())
+  id              String    @id @default(uuid())
   companyId       String
-  company         Company  @relation(fields: [companyId], references: [id])
+  company         Company   @relation(fields: [companyId], references: [id])
   year            Int
-  quarter         Int?     // 1-4, or null for monthly (Dauerfristverlängerung)
-  month           Int?     // 1-12
-  periodLabel     String   // e.g. "2026 Q1" or "2026-03"
-  outputVat       Decimal  @db.Decimal(12,4)   // Umsatzsteuer (from sales)
-  inputVat        Decimal  @db.Decimal(12,4)   // Vorsteuer (from expenses)
-  payableVat      Decimal  @db.Decimal(12,4)   // Differenzbetrag (positive = owe, negative = refund)
-  intraEUSales    Decimal  @db.Decimal(12,4) @default(0)   // igL
-  intraEUPurchase Decimal  @db.Decimal(12,4) @default(0)   // igE
-  status          String   @default("draft")    // draft|submitted|accepted|rejected
+  quarter         Int? // 1-4, or null for monthly (Dauerfristverlängerung)
+  month           Int? // 1-12
+  periodLabel     String // e.g. "2026 Q1" or "2026-03"
+  outputVat       Decimal   @db.Decimal(12, 4) // Umsatzsteuer (from sales)
+  inputVat        Decimal   @db.Decimal(12, 4) // Vorsteuer (from expenses)
+  payableVat      Decimal   @db.Decimal(12, 4) // Differenzbetrag (positive = owe, negative = refund)
+  intraEUSales    Decimal   @default(0) @db.Decimal(12, 4) // igL
+  intraEUPurchase Decimal   @default(0) @db.Decimal(12, 4) // igE
+  status          String    @default("draft") // draft|submitted|accepted|rejected
   submittedAt     DateTime?
-  taxNumber       String?                       // Steuernummer
+  taxNumber       String? // Steuernummer
   notes           String?
   pdfPath         String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   @@unique([companyId, year, quarter, month])
   @@index([companyId, year])
 }
 
 model Category {
-  id           String   @id @default(uuid())
-  companyId    String
-  company      Company  @relation(fields: [companyId], references: [id])
-  parentId     String?
-  parent       Category? @relation("CategoryHierarchy", fields: [parentId], references: [id])
-  children     Category[] @relation("CategoryHierarchy")
-  name         String
-  description  String?
-  sortOrder    Int      @default(0)
-  createdAt    DateTime @default(now())
+  id          String     @id @default(uuid())
+  companyId   String
+  company     Company    @relation(fields: [companyId], references: [id])
+  parentId    String?
+  parent      Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children    Category[] @relation("CategoryHierarchy")
+  name        String
+  description String?
+  sortOrder   Int        @default(0)
+  createdAt   DateTime   @default(now())
 
-  products     Product[]
+  products Product[]
 
   @@index([companyId])
 }
 
 model Product {
-  id                 String    @id @default(uuid())
+  id                String    @id @default(uuid())
   companyId         String
   company           Company   @relation(fields: [companyId], references: [id])
   categoryId        String?
@@ -602,19 +610,19 @@ model Product {
   description       String?
   type              String    @default("good")
   unit              String    @default("piece")
-  basePrice         Decimal   @db.Decimal(12,4)
-  purchasePrice     Decimal?  @db.Decimal(12,4)
-  vatRate           Decimal   @db.Decimal(5,4) @default(0.19)
-  stockQuantity     Decimal   @db.Decimal(12,4) @default(0)
-  lowStockThreshold Decimal?  @db.Decimal(12,4)
+  basePrice         Decimal   @db.Decimal(12, 4)
+  purchasePrice     Decimal?  @db.Decimal(12, 4)
+  vatRate           Decimal   @default(0.19) @db.Decimal(5, 4)
+  stockQuantity     Decimal   @default(0) @db.Decimal(12, 4)
+  lowStockThreshold Decimal?  @db.Decimal(12, 4)
   trackInventory    Boolean   @default(false)
   active            Boolean   @default(true)
   metadata          Json?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
-  invoiceItems      InvoiceItem[]
-  stockHistory     ProductStockHistory[]
+  invoiceItems InvoiceItem[]
+  stockHistory ProductStockHistory[]
 
   // Tier 28: denormalised category name for full-text
   // search. Postgres STORED generated columns can't
@@ -622,46 +630,46 @@ model Product {
   // service on every Product write (see product.service.ts
   // create / update). The matching migration adds the
   // column with a DEFAULT '' for existing rows.
-  categoryName     String    @default("")
+  categoryName String @default("")
 
   @@index([companyId, sku])
   @@index([companyId, name])
 }
 
 model ProductStockHistory {
-  id           String    @id @default(uuid())
-  productId    String
-  product      Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
-  changeType   String    // 'sale', 'purchase', 'adjustment', 'return', 'initial'
-  quantity     Decimal   @db.Decimal(12,4)
-  previousQty  Decimal   @db.Decimal(12,4) @default(0)
-  newQty       Decimal   @db.Decimal(12,4)
-  reference    String?   // invoiceId, purchaseOrderId, etc.
-  referenceType String?  // 'invoice', 'purchase', 'manual'
-  notes        String?
-  createdAt    DateTime  @default(now())
+  id            String   @id @default(uuid())
+  productId     String
+  product       Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  changeType    String // 'sale', 'purchase', 'adjustment', 'return', 'initial'
+  quantity      Decimal  @db.Decimal(12, 4)
+  previousQty   Decimal  @default(0) @db.Decimal(12, 4)
+  newQty        Decimal  @db.Decimal(12, 4)
+  reference     String? // invoiceId, purchaseOrderId, etc.
+  referenceType String? // 'invoice', 'purchase', 'manual'
+  notes         String?
+  createdAt     DateTime @default(now())
 
   @@index([productId, createdAt])
 }
 
 model Invoice {
-  id              String    @id @default(uuid())
-  companyId       String
-  company         Company   @relation(fields: [companyId], references: [id])
-  customerId      String
-  customer        Customer  @relation(fields: [customerId], references: [id])
+  id         String   @id @default(uuid())
+  companyId  String
+  company    Company  @relation(fields: [companyId], references: [id])
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id])
 
-  invoiceNumber   String
+  invoiceNumber  String
   sequencePrefix String?
   sequenceYear   Int?
   sequenceMonth  Int?
   sequenceNumber Int?
 
-  type           String    @default("INV")
-  status         String    @default("draft")
+  type   String @default("INV")
+  status String @default("draft")
 
-  issueDate      DateTime
-  dueDate        DateTime?
+  issueDate    DateTime
+  dueDate      DateTime?
   // Liefertermin / delivery date — optional. Shown on the
   // PDF next to issueDate when set. §14 UStG doesn't
   // require it, but it's a common B2B practice to put
@@ -669,12 +677,12 @@ model Invoice {
   // relevant for §13b reverse-charge / §25 UStG
   // time-of-supply rules). Left as optional so existing
   // rows don't need a value.
-  deliveryDate   DateTime?
+  deliveryDate DateTime?
 
-  subtotal       Decimal   @db.Decimal(12,4) @default(0)
-  totalVat       Decimal   @db.Decimal(12,4) @default(0)
-  total          Decimal   @db.Decimal(12,4) @default(0)
-  discountPercent Decimal?  @db.Decimal(5,2)
+  subtotal        Decimal  @default(0) @db.Decimal(12, 4)
+  totalVat        Decimal  @default(0) @db.Decimal(12, 4)
+  total           Decimal  @default(0) @db.Decimal(12, 4)
+  discountPercent Decimal? @db.Decimal(5, 2)
   // Tier 52: Skonto (cash discount for early payment).
   // `skontoPercent` is the discount rate (e.g. 2.00 for 2%)
   // and `skontoDays` is the number of days from issueDate
@@ -687,12 +695,12 @@ model Invoice {
   // PDF adds the standard "Zahlbar bis DD.MM. mit X%
   // Skonto, bis DD.MM. ohne Abzug" line when
   // either column is set.
-  skontoPercent  Decimal?  @db.Decimal(5,2)
-  skontoDays     Int?
-  discountAmount Decimal?   @db.Decimal(12,4)
+  skontoPercent   Decimal? @db.Decimal(5, 2)
+  skontoDays      Int?
+  discountAmount  Decimal? @db.Decimal(12, 4)
 
-  currency       String    @default("EUR")
-  language       String    @default("de-DE")
+  currency String @default("EUR")
+  language String @default("de-DE")
 
   // Tier 118: multi-currency support.
   // ECB daily reference rates (fetched by
@@ -713,14 +721,14 @@ model Invoice {
   //
   // Nullable for backward compat: legacy EUR invoices
   // without a rate are treated as rate=1.
-  exchangeRate   Decimal?  @db.Decimal(12,6)
-  eurSubtotal    Decimal?  @db.Decimal(12,4)
-  eurTotalVat    Decimal?  @db.Decimal(12,4)
-  eurTotal       Decimal?  @db.Decimal(12,4)
+  exchangeRate Decimal? @db.Decimal(12, 6)
+  eurSubtotal  Decimal? @db.Decimal(12, 4)
+  eurTotalVat  Decimal? @db.Decimal(12, 4)
+  eurTotal     Decimal? @db.Decimal(12, 4)
 
-  vatBreakdown   Json?
-  reverseCharge  Boolean   @default(false)
-  euTransaction  Boolean   @default(false)
+  vatBreakdown  Json?
+  reverseCharge Boolean @default(false)
+  euTransaction Boolean @default(false)
 
   // Tier 28: denormalised customer name snapshot for
   // full-text search. The invoice keeps a copy of the
@@ -737,15 +745,15 @@ model Invoice {
   // on every Invoice create (see invoice.service.ts).
   // The migration adds the column with a backfill from
   // Customer.name for existing rows.
-  customerName   String    @default("")
+  customerName String @default("")
 
-  notes          String?
-  internalNotes  String?
+  notes            String?
+  internalNotes    String?
   // Tier 138: internal team notes. Never shown
   // to the customer, in the PDF, or in the
   // customer portal — purely internal.
-  internalNotesRel  InvoiceInternalNote[]
-  templateType   String    @default("standard")
+  internalNotesRel InvoiceInternalNote[]
+  templateType     String                @default("standard")
   // DATEV Kostenstelle 1 + Kostenträger. Optional. The
   // user can stamp each invoice with a cost center
   // (e.g. "100" = Vertrieb, "200" = Werkstatt) and an
@@ -753,46 +761,46 @@ model Invoice {
   // code). When set, the DATEV export populates
   // columns 12 + 13 so the Berater can roll up the
   // Buchungsstapel into a Kostenrechnung.
-  costCenter     String?   // DATEV Kostenstelle 1 (column 12)
-  costObject     String?   // DATEV Kostenträger   (column 13)
+  costCenter       String? // DATEV Kostenstelle 1 (column 12)
+  costObject       String? // DATEV Kostenträger   (column 13)
 
-  pdfPath        String?
-  attachments    Json?
+  pdfPath     String?
+  attachments Json?
 
-  createdById    String?
-  createdBy      User?     @relation("CreatedBy", fields: [createdById], references: [id])
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  createdById String?
+  createdBy   User?    @relation("CreatedBy", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  items          InvoiceItem[]
-  payments       Payment[]
-  emailSends    EmailSend[]
-  paymentLinks   PaymentLink[]
+  items                     InvoiceItem[]
+  payments                  Payment[]
+  emailSends                EmailSend[]
+  paymentLinks              PaymentLink[]
   // Tier 37: explicit Mahnung audit trail. The old
   // EmailSend rows carried the reminder_* templateType,
   // but didn't expose level-wise totals or late-interest
   // calculations for the dashboard. This new table makes
   // "what Mahnungen went out for this invoice and what
   // did they charge" answerable in one query.
-  mahnungen     Mahnung[]
-  reconciliations BankReconciliation[] 
-  voucherRef     Voucher?  @relation(fields: [voucherRefId], references: [id])
-  voucherRefId   String?   @unique
-  referenceInvoiceId String?
-  referenceInvoice Invoice? @relation("InvoiceReferences", fields: [referenceInvoiceId], references: [id])
-  creditNotes    Invoice[] @relation("InvoiceReferences")
-  recurringInvoiceId String?
-  recurringInvoice   RecurringInvoice? @relation(fields: [recurringInvoiceId], references: [id], onDelete: SetNull)
-  recurringRuns  RecurringRun[]
-  cashBookEntries CashBookEntry[]
+  mahnungen                 Mahnung[]
+  reconciliations           BankReconciliation[]
+  voucherRef                Voucher?                   @relation(fields: [voucherRefId], references: [id])
+  voucherRefId              String?                    @unique
+  referenceInvoiceId        String?
+  referenceInvoice          Invoice?                   @relation("InvoiceReferences", fields: [referenceInvoiceId], references: [id])
+  creditNotes               Invoice[]                  @relation("InvoiceReferences")
+  recurringInvoiceId        String?
+  recurringInvoice          RecurringInvoice?          @relation(fields: [recurringInvoiceId], references: [id], onDelete: SetNull)
+  recurringRuns             RecurringRun[]
+  cashBookEntries           CashBookEntry[]
   // Tier 64: invoice-level Mahnungspausen (a pause
   // can be tied to a single invoice, not the whole
   // customer).
-  mahnungspausen Mahnungspause[]
+  mahnungspausen            Mahnungspause[]
   // Tier 51: 1:1 back-relation to the (optional) Ratenplan
   // attached to this invoice. Null when no Ratenplan was
   // set up — the invoice is paid in one lump.
-  installmentPlan InstallmentPlan?
+  installmentPlan           InstallmentPlan?
   // Tier 112: when this Invoice was collected via a
   // SEPA pain.008 direct-debit batch, this column
   // points to the SepaDirectDebitBatch row. Null when
@@ -803,8 +811,8 @@ model Invoice {
   // here because direct debits target the customer's
   // account (and the customer owns the invoice), not
   // the supplier.
-  collectedBySepaBatchId String?
-  collectedBySepaBatch   SepaDirectDebitBatch? @relation("InvoiceCollectedByBatch", fields: [collectedBySepaBatchId], references: [id])
+  collectedBySepaBatchId    String?
+  collectedBySepaBatch      SepaDirectDebitBatch?      @relation("InvoiceCollectedByBatch", fields: [collectedBySepaBatchId], references: [id])
   // Tier 112: 1:1 back-relation to the (optional)
   // SepaDirectDebitCollection row that targets this
   // invoice. Mirrors the installmentPlan pattern —
@@ -843,7 +851,7 @@ model InvoiceInternalNote {
   invoiceId String
   invoice   Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   userId    String?
-  userEmail String?  // denormalised so deleted users don't blank the display
+  userEmail String? // denormalised so deleted users don't blank the display
   body      String
   createdAt DateTime @default(now())
 
@@ -865,24 +873,24 @@ model InvoiceInternalNote {
 /// Cascade on Customer so a hard-deleted
 /// customer doesn't leave orphan notes.
 model CustomerInternalNote {
-  id        String   @id @default(uuid())
-  companyId String
+  id         String   @id @default(uuid())
+  companyId  String
   customerId String
   customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  userId    String?
-  userEmail String?  // denormalised so deleted users don't blank the display
-  body      String
-  createdAt DateTime @default(now())
+  userId     String?
+  userEmail  String? // denormalised so deleted users don't blank the display
+  body       String
+  createdAt  DateTime @default(now())
 
   @@index([companyId, customerId, createdAt])
 }
 
 model InvoiceItem {
-  id              String    @id @default(uuid())
-  invoiceId       String
-  invoice         Invoice   @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  productId       String?
-  product         Product?  @relation(fields: [productId], references: [id])
+  id        String   @id @default(uuid())
+  invoiceId String
+  invoice   Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  productId String?
+  product   Product? @relation(fields: [productId], references: [id])
 
   // Produktnummer / SKU as it appears on this specific invoice
   // line. Distinct from Product.sku (the master article
@@ -892,36 +900,36 @@ model InvoiceItem {
   // — the user can override what the product picker auto-
   // filled. Optional because not every line item carries a
   // SKU (e.g. "Beratungsleistungen" on a service invoice).
-  productNumber   String?
+  productNumber String?
 
-  description     String
-  quantity        Decimal   @db.Decimal(12,4) @default(1)
-  unit            String?
-  unitPrice       Decimal   @db.Decimal(12,4)
-  vatRate         Decimal   @db.Decimal(5,4) @default(0.19)
+  description String
+  quantity    Decimal @default(1) @db.Decimal(12, 4)
+  unit        String?
+  unitPrice   Decimal @db.Decimal(12, 4)
+  vatRate     Decimal @default(0.19) @db.Decimal(5, 4)
 
-  netAmount       Decimal   @db.Decimal(12,4)
-  vatAmount      Decimal   @db.Decimal(12,4)
-  grossAmount    Decimal   @db.Decimal(12,4)
+  netAmount   Decimal @db.Decimal(12, 4)
+  vatAmount   Decimal @db.Decimal(12, 4)
+  grossAmount Decimal @db.Decimal(12, 4)
 
-  sortOrder      Int       @default(0)
-  createdAt      DateTime  @default(now())
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
 
   @@index([invoiceId])
 }
 
 model Payment {
-  id              String    @id @default(uuid())
-  invoiceId       String
-  invoice         Invoice   @relation(fields: [invoiceId], references: [id])
-  amount          Decimal   @db.Decimal(12,4)
-  currency        String    @default("EUR")
-  paymentDate     DateTime
-  paymentMethod   String
-  reference       String?
-  notes           String?
-  receiptNumber   String?
-  createdAt       DateTime  @default(now())
+  id            String   @id @default(uuid())
+  invoiceId     String
+  invoice       Invoice  @relation(fields: [invoiceId], references: [id])
+  amount        Decimal  @db.Decimal(12, 4)
+  currency      String   @default("EUR")
+  paymentDate   DateTime
+  paymentMethod String
+  reference     String?
+  notes         String?
+  receiptNumber String?
+  createdAt     DateTime @default(now())
 
   @@index([invoiceId])
   @@index([paymentDate])
@@ -943,31 +951,31 @@ model Payment {
 /// See migration 20260703000001_payment_link for the
 /// exact DDL.
 model PaymentLink {
-  id          String    @id @default(uuid())
-  invoiceId   String
-  invoice     Invoice   @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  id        String    @id @default(uuid())
+  invoiceId String
+  invoice   Invoice   @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   // Opaque token, 32 bytes (16 random bytes hex-encoded
   // = 32 chars). Looked up by GET /portal/:token. The
   // UNIQUE constraint implies a btree index — the
   // portal route hits Postgres with a single equality.
-  token       String    @unique
+  token     String    @unique
   // expiresAt default +30d set in the service layer.
   // The portal controller returns 404 once expired
   // (so the customer sees "Link abgelaufen" rather
   // than a stale "sie sind bezahlt").
-  expiresAt   DateTime
+  expiresAt DateTime
   // Set by POST /portal/:token/mark-paid. After this
   // timestamp, the link is consumed — subsequent hits
   // see the existing Payment instead of letting them
   // re-mark. The audit trail stays (we never delete
   // PaymentLink rows).
-  usedAt      DateTime?
+  usedAt    DateTime?
   // Admin explicit revoke. Distinct from expiresAt —
   // a revoked link is gone NOW, an expired link is
   // dead past expiresAt. Both return 404 to keep the
   // customer-facing error UX consistent.
-  revokedAt   DateTime?
-  createdAt   DateTime  @default(now())
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
 
   @@index([invoiceId])
 }
@@ -1024,11 +1032,11 @@ model UserSession {
 }
 
 model CustomerPortalSession {
-  id          String   @id @default(uuid())
-  companyId   String
-  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  customerId  String
-  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  id            String    @id @default(uuid())
+  companyId     String
+  company       Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customerId    String
+  customer      Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
   // The email the customer typed on the login page.
   // Stored (not just on Customer) so we can audit
   // "who requested this session" later — and so a
@@ -1036,71 +1044,71 @@ model CustomerPortalSession {
   // contact record doesn't lose their existing
   // sessions (the token is bound to the email they
   // typed, not the current contact.email).
-  email       String
+  email         String
   // 32 random bytes hex-encoded = 64 chars.
-  token       String   @unique
-  expiresAt   DateTime
+  token         String    @unique
+  expiresAt     DateTime
   // Updated every time the customer hits an
   // authenticated portal route. The expiry is
   // sliding — each request extends expiresAt by
   // another 30 days. Idle sessions (> 30 days no
   // activity) auto-expire. The cleanup job runs
   // nightly and deletes expired rows.
-  lastUsedAt  DateTime?
+  lastUsedAt    DateTime?
   // The IP that requested the session. Stored for
   // the audit log + rate limiting; not enforced
   // (we don't block on IP mismatch — that would
   // break mobile customers who switch networks).
   createdFromIp String?
-  createdAt   DateTime @default(now())
+  createdAt     DateTime  @default(now())
 
   @@index([customerId])
   @@index([expiresAt])
 }
 
 model Account {
-  id            String    @id @default(uuid())
+  id            String   @id @default(uuid())
   companyId     String
-  company       Company   @relation(fields: [companyId], references: [id])
+  company       Company  @relation(fields: [companyId], references: [id])
   accountNumber String
   name          String
   type          String
   category      String?
   parentId      String?
-  isVatAccount  Boolean   @default(false)
-  active        Boolean   @default(true)
+  isVatAccount  Boolean  @default(false)
+  active        Boolean  @default(true)
   sortOrder     Int?
-  createdAt     DateTime  @default(now())
+  createdAt     DateTime @default(now())
 
-  voucherLines  VoucherLine[]
+  voucherLines VoucherLine[]
 
   @@unique([companyId, accountNumber])
   @@index([companyId, type])
 }
 
 model Voucher {
-  id            String    @id @default(uuid())
+  id            String   @id @default(uuid())
   companyId     String
-  company       Company   @relation(fields: [companyId], references: [id])
+  company       Company  @relation(fields: [companyId], references: [id])
   voucherNumber String
   date          DateTime
   description   String?
   referenceType String?
-  status        String    @default("draft")
+  status        String   @default("draft")
   createdById   String?
-  createdBy     User?     @relation("CreatedBy", fields: [createdById], references: [id])
-  createdAt     DateTime  @default(now())
+  createdBy     User?    @relation("CreatedBy", fields: [createdById], references: [id])
+  createdAt     DateTime @default(now())
 
-  lines         VoucherLine[]
-  invoiceRef    Invoice?
+  lines               VoucherLine[]
+  invoiceRef          Invoice?
   bankReconciliations BankReconciliation[]
-  bankTransactions BankTransaction[]
+  bankTransactions    BankTransaction[]
   // Recon rows that named THIS voucher as the Storno
   // (reversalVoucherId on BankReconciliation). When
   // the user reopens a confirmed match, the Storno
   // voucher links back to the recon via this relation
   // — symmetric to bankReconciliations.
-  reversalOf BankReconciliation[] @relation("ReconReversal")
+  reversalOf          BankReconciliation[] @relation("ReconReversal")
   // GoBD self-relation for Storno-Buchung on Vouchers.
   // When a Voucher is corrected (Berater creates a
   // manual Storno), the new "Korrekturbeleg" Voucher
@@ -1109,18 +1117,18 @@ model Voucher {
   // "S<seq>" Voucher with negated lines is added.
   // The original's `reversals` back-relation surfaces
   // all Storno vouchers that point at it.
-  reversedBy    Voucher?  @relation("VoucherReversal", fields: [reversedById], references: [id])
-  reversedById  String?
-  reversals     Voucher[] @relation("VoucherReversal")
+  reversedBy          Voucher?             @relation("VoucherReversal", fields: [reversedById], references: [id])
+  reversedById        String?
+  reversals           Voucher[]            @relation("VoucherReversal")
 
   @@unique([companyId, voucherNumber])
   @@index([companyId, date])
 }
 
 model VoucherLine {
-  id           String    @id @default(uuid())
-  voucherId    String
-  voucher      Voucher   @relation(fields: [voucherId], references: [id], onDelete: Cascade)
+  id          String   @id @default(uuid())
+  voucherId   String
+  voucher     Voucher  @relation(fields: [voucherId], references: [id], onDelete: Cascade)
   // Tier 26: nullable so the Sachkonten auto-inference
   // (datev-sachkonto-inference.ts) can populate it
   // after the user creates the line. Pre-Tier 26 this
@@ -1131,14 +1139,14 @@ model VoucherLine {
   // 20260630000002_voucherline_accountid_nullable
   // drops the NOT NULL constraint; existing rows are
   // unaffected (their accountId stays).
-  accountId    String?
-  account      Account?  @relation(fields: [accountId], references: [id])
-  description  String?
-  debit        Decimal   @db.Decimal(12,4) @default(0)
-  credit       Decimal   @db.Decimal(12,4) @default(0)
-  vatRate      Decimal? @db.Decimal(5,4)
-  vatAmount    Decimal?   @db.Decimal(12,4)
-  sortOrder    Int       @default(0)
+  accountId   String?
+  account     Account? @relation(fields: [accountId], references: [id])
+  description String?
+  debit       Decimal  @default(0) @db.Decimal(12, 4)
+  credit      Decimal  @default(0) @db.Decimal(12, 4)
+  vatRate     Decimal? @db.Decimal(5, 4)
+  vatAmount   Decimal? @db.Decimal(12, 4)
+  sortOrder   Int      @default(0)
 
   // Tier 41: DATEV Kostenstelle 1 + Kostenträger stamps
   // per line. Mirrors Invoice.costCenter / Expense.costCenter.
@@ -1146,8 +1154,8 @@ model VoucherLine {
   // that pre-fills these from the most-recent usage on the
   // same Sachkonto. Free-form strings (not FK-restricted),
   // matching the Invoice / Expense columns.
-  costCenter   String?
-  costObject   String?
+  costCenter String?
+  costObject String?
 
   @@index([voucherId])
   @@index([accountId])
@@ -1159,41 +1167,41 @@ model VoucherLine {
 }
 
 model VatRate {
-  id           String    @id @default(uuid())
-  companyId    String?
-  company      Company?  @relation(fields: [companyId], references: [id])
-  countryCode  String
-  rate         Decimal   @db.Decimal(5,4)
-  rateType     String
-  name         String?
+  id            String    @id @default(uuid())
+  companyId     String?
+  company       Company?  @relation(fields: [companyId], references: [id])
+  countryCode   String
+  rate          Decimal   @db.Decimal(5, 4)
+  rateType      String
+  name          String?
   effectiveFrom DateTime
-  effectiveTo  DateTime?
-  description  String?
-  createdById  String?
-  createdBy    User?     @relation("VatRateCreator", fields: [createdById], references: [id])
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  effectiveTo   DateTime?
+  description   String?
+  createdById   String?
+  createdBy     User?     @relation("VatRateCreator", fields: [createdById], references: [id])
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
-  history      VatRateHistory[]
+  history VatRateHistory[]
 
   @@index([countryCode, effectiveFrom])
 }
 
 model VatRateHistory {
-  id              String    @id @default(uuid())
-  vatRateId       String
-  vatRate         VatRate   @relation(fields: [vatRateId], references: [id])
-  companyId       String
-  company         Company   @relation(fields: [companyId], references: [id])
-  countryCode     String
-  rate            Decimal   @db.Decimal(5,4)
-  rateType        String
-  effectiveFrom   DateTime
-  effectiveTo    DateTime?
-  changedById     String?
-  changedBy      User?     @relation("VatRateChanger", fields: [changedById], references: [id])
-  changedAt       DateTime  @default(now())
-  changeReason    String?
+  id            String    @id @default(uuid())
+  vatRateId     String
+  vatRate       VatRate   @relation(fields: [vatRateId], references: [id])
+  companyId     String
+  company       Company   @relation(fields: [companyId], references: [id])
+  countryCode   String
+  rate          Decimal   @db.Decimal(5, 4)
+  rateType      String
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+  changedById   String?
+  changedBy     User?     @relation("VatRateChanger", fields: [changedById], references: [id])
+  changedAt     DateTime  @default(now())
+  changeReason  String?
 
   @@index([vatRateId])
 }
@@ -1214,33 +1222,33 @@ model VatRateHistory {
 // log can hold both Customer and Supplier checks
 // (and Invoice-level re-checks at booking time).
 model VatValidationLog {
-  id            String   @id @default(uuid())
-  companyId     String
-  company       Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  id        String  @id @default(uuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   // 'customer' or 'supplier' (extensible).
   // The (entityType, entityId) pair is the
   // "who got validated" pointer.
-  entityType    String
-  entityId      String
+  entityType  String
+  entityId    String
   // The VAT ID we asked VIES to verify. Stored
   // alongside the result because the underlying
   // entity's vatId might change later — we want
   // to know "on 2026-06-15, customer X was
   // validated as DE123456789" even if the customer
   // has since been edited.
-  vatId         String
+  vatId       String
   // ISO 3166-1 alpha-2 country code extracted
   // from the VAT ID prefix (e.g. "DE" from
   // "DE123456789"). VIES requires both pieces.
-  countryCode   String
+  countryCode String
 
   // 'valid' | 'invalid' | 'unreachable' | 'pending'.
   // pending = queued but not yet hit VIES (we
   // usually store this only for in-flight calls
   // and never persist it; the row is replaced
   // when the call completes).
-  status        String
+  status String
 
   // VIES returns the company name + address as
   // part of a valid response. Storing them lets
@@ -1248,8 +1256,8 @@ model VatValidationLog {
   // customer/supplier data — discrepancies are
   // a common red flag (typing error in the
   // customer record).
-  viesName      String?
-  viesAddress   String?
+  viesName    String?
+  viesAddress String?
 
   // Error detail for 'invalid' / 'unreachable'.
   // 'invalid' → "MS_UNAVAILABLE" (member-state
@@ -1257,21 +1265,21 @@ model VatValidationLog {
   // "UNKNOWN_VAT" (VIES says no such VAT ID
   // exists). 'unreachable' → network / timeout
   // to ec.europa.eu.
-  errorCode     String?
-  errorMessage  String?
+  errorCode    String?
+  errorMessage String?
 
   // When the call completed. NULL while pending.
   // We use this to decide cache validity — a
   // valid result older than 30 days is
   // considered stale and re-checked on the next
   // user action.
-  checkedAt     DateTime?
+  checkedAt DateTime?
 
   // Latency for the VIES call. Useful for
   // diagnosing VIES outages / slowness.
-  durationMs    Int?
+  durationMs Int?
 
-  createdAt     DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@index([companyId, entityType, entityId])
   @@index([vatId])
@@ -1280,19 +1288,19 @@ model VatValidationLog {
 
 // Per-company mail (SMTP) configuration. If no row exists, falls back to env vars.
 model MailConfig {
-  id            String   @id @default(uuid())
-  companyId     String   @unique
-  company       Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  smtpHost      String
-  smtpPort      Int      @default(587)
-  smtpSecure    Boolean  @default(false)
-  smtpUser      String
-  smtpPassword  String   // stored as-is; not encrypted at this layer (TODO: KMS)
-  fromName      String
-  fromEmail     String
-  enabled       Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id           String   @id @default(uuid())
+  companyId    String   @unique
+  company      Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  smtpHost     String
+  smtpPort     Int      @default(587)
+  smtpSecure   Boolean  @default(false)
+  smtpUser     String
+  smtpPassword String // stored as-is; not encrypted at this layer (TODO: KMS)
+  fromName     String
+  fromEmail    String
+  enabled      Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 model EmailSend {
@@ -1303,7 +1311,7 @@ model EmailSend {
   invoice         Invoice?  @relation(fields: [invoiceId], references: [id])
   templateType    String?
   recipientEmail  String
-  recipientName  String?
+  recipientName   String?
   subject         String?
   bodyPreview     String?
   attachmentPaths Json?
@@ -1344,11 +1352,11 @@ model EmailSend {
 // create (the user is told "save this
 // somewhere — we won't show it again").
 model Webhook {
-  id            String    @id @default(uuid())
-  companyId     String
-  company       Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  name          String    // human-readable, e.g. "DATEV connector"
-  url           String    // the receiver endpoint
+  id          String   @id @default(uuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name        String // human-readable, e.g. "DATEV connector"
+  url         String // the receiver endpoint
   // Secret used to sign the request body
   // (X-Signature: sha256=<hex>). The receiver
   // recomputes the HMAC over the raw body and
@@ -1356,23 +1364,23 @@ model Webhook {
   // server (32 random bytes, base64url) and
   // shown to the user ONCE on create. It is
   // never returned by GET endpoints.
-  secret        String
+  secret      String
   // List of event types this webhook
   // subscribes to. JSON array stored as
   // string for portability. Example:
   //   ["invoice.created", "invoice.paid",
   //    "payment.received"]
-  events        String
+  events      String
   // active | paused | disabled
-  status        String    @default("active")
+  status      String   @default("active")
   // Optional description / notes
-  description   String?
-  createdById   String?
-  createdBy     User?     @relation("WebhookCreator", fields: [createdById], references: [id])
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  description String?
+  createdById String?
+  createdBy   User?    @relation("WebhookCreator", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  deliveries    WebhookDelivery[]
+  deliveries WebhookDelivery[]
 
   @@index([companyId, status])
   @@index([createdAt])
@@ -1394,33 +1402,33 @@ model Webhook {
 // last Tuesday at 14:32?" — the receiver
 // may have had an outage.
 model WebhookDelivery {
-  id            String    @id @default(uuid())
-  webhookId     String
-  webhook       Webhook   @relation(fields: [webhookId], references: [id], onDelete: Cascade)
-  companyId     String
-  eventType     String    // e.g. "invoice.created"
-  eventId       String    // e.g. "inv_8c6a9669-..." — a stable id the receiver can dedupe on
-  payload       Json      // the exact body that was POSTed (or attempted to)
+  id           String    @id @default(uuid())
+  webhookId    String
+  webhook      Webhook   @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+  companyId    String
+  eventType    String // e.g. "invoice.created"
+  eventId      String // e.g. "inv_8c6a9669-..." — a stable id the receiver can dedupe on
+  payload      Json // the exact body that was POSTed (or attempted to)
   // HTTP response from the receiver.
   // statusCode=null means we never got
   // a response (network error or timeout).
-  statusCode    Int?
-  responseBody  String?   // truncated to 4KB
+  statusCode   Int?
+  responseBody String? // truncated to 4KB
   // Latency in ms (from POST send to
   // response receive / timeout).
-  durationMs    Int?
+  durationMs   Int?
   // One of: pending | success | failed |
   // exhausted (all retries failed). A
   // failed delivery may be retried (see
   // retryCount).
-  status        String    @default("pending")
-  retryCount    Int       @default(0)
-  errorMessage  String?
-  attemptedAt   DateTime  @default(now())
-  nextRetryAt   DateTime? // set when status='failed' and a retry is scheduled
+  status       String    @default("pending")
+  retryCount   Int       @default(0)
+  errorMessage String?
+  attemptedAt  DateTime  @default(now())
+  nextRetryAt  DateTime? // set when status='failed' and a retry is scheduled
 
   @@index([webhookId, attemptedAt])
-  @@index([eventType, eventId])  // dedupe
+  @@index([eventType, eventId]) // dedupe
   @@index([status, nextRetryAt]) // for the retry worker
 }
 
@@ -1437,35 +1445,35 @@ model WebhookDelivery {
 // proper typing and so a JOIN can fetch attachments
 // in a single round-trip.
 model Attachment {
-  id            String   @id @default(uuid())
-  companyId     String
-  company       Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  id        String  @id @default(uuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   // 'expense' or 'voucher' (extensible to 'invoice' later
   // for outbound invoices — the Belegfluss / audit
   // requirement applies to all bookkeeping-relevant
   // documents, not just incoming ones).
-  entityType    String
-  entityId      String
+  entityType String
+  entityId   String
 
   // Original filename as uploaded (used for download
   // Content-Disposition). NOT the storage path —
   // see `storagePath` for that.
-  originalName  String
+  originalName String
   // MIME type — used for Content-Type on download and
   // for the icon in the UI. Detected server-side from
   // the magic bytes (see storage.service.ts), not
   // trusted from the client.
-  mimeType      String
+  mimeType     String
   // File size in bytes — surfaced in the list and
   // used to enforce the 10MB upload limit.
-  size          Int
+  size         Int
   // Path on disk, relative to the storage base dir.
   // Format: "<companyId>/<uuid>.<ext>". The
   // StorageService joins with the base path to get
   // the absolute path. We don't store the absolute
   // path because the base dir is configurable.
-  storagePath   String
+  storagePath  String
 
   // OCR text — extracted automatically for PDFs
   // (via pdf-parse) and for JPEG/PNG (a future
@@ -1473,19 +1481,19 @@ model Attachment {
   // now it stays null for images). Max 200k chars
   // to keep the row small — longer files get
   // truncated with a trailing "…[truncated]" marker.
-  ocrText       String?
+  ocrText     String?
   // Hash of the file content (SHA-256, hex) — used
   // to detect duplicates and to bind the audit
   // trail to the exact bytes that were stored. GoBD
   // §147 AO requires the integrity of the original
   // document to be provable.
-  contentHash   String
+  contentHash String
 
   // Optional: who uploaded. Stamped by the controller
   // from x-user-id. Null for system-attached files
   // (e.g. the PDF generated by the invoice module).
-  uploadedById  String?
-  uploadedBy    User?   @relation("UploadedAttachments", fields: [uploadedById], references: [id])
+  uploadedById String?
+  uploadedBy   User?   @relation("UploadedAttachments", fields: [uploadedById], references: [id])
 
   // Tier 79: back-relation from BeraterNote. An
   // Attachment used as a Berater note's supporting
@@ -1495,16 +1503,16 @@ model Attachment {
   // can back multiple BeraterNotes (one Beleg
   // could be referenced by two notes on the same
   // record), so the back-relation is many-to-one.
-  beraterNotes  BeraterNote[]
+  beraterNotes BeraterNote[]
 
-  createdAt     DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@index([companyId, entityType, entityId])
   @@index([contentHash])
 }
 
 model AuditLog {
-  id          String    @id @default(uuid())
+  id            String   @id @default(uuid())
   // Tier 368: no relation to Company/User any more. Both FKs were
   // ON DELETE SET NULL, so deleting a user made PostgreSQL silently rewrite
   // `userId` on rows that were already SIGNED — the stored hash then described
@@ -1513,16 +1521,16 @@ model AuditLog {
   // describes is deleted. These are now plain snapshots of who acted and may
   // point at ids that no longer resolve; audit.service resolves the e-mail with
   // a batched lookup instead (attachUserEmails).
-  companyId   String?
-  userId      String?
-  action      String
-  entityType  String?
-  entityId    String?
-  oldData     Json?
-  newData     Json?
-  ipAddress   String?
-  userAgent   String?
-  createdAt   DateTime @default(now())
+  companyId     String?
+  userId        String?
+  action        String
+  entityType    String?
+  entityId      String?
+  oldData       Json?
+  newData       Json?
+  ipAddress     String?
+  userAgent     String?
+  createdAt     DateTime @default(now())
   // Tier 196 — tamper-evident hash chain.
   // `hash` is the SHA-256 of a canonical string of
   // the row's content plus `previousHash`. The
@@ -1551,7 +1559,7 @@ model AuditLog {
   // seeded DB had 15 rows in one second and reported previous_hash_mismatch.
   // `seq` is DB-assigned and monotonic, and the writer, the verify walk and
   // scripts/audit-rehash.ts all use it — nothing orders by createdAt any more.
-  seq           BigInt   @default(autoincrement()) @unique
+  seq           BigInt   @unique @default(autoincrement())
 
   @@index([companyId, createdAt])
   @@index([companyId, seq])
@@ -1611,9 +1619,9 @@ model AuditLog {
 /// saw it and chose not to act" — important
 /// for the audit trail.
 model BeraterNote {
-  id           String   @id @default(uuid())
-  companyId    String
-  company      Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  id               String      @id @default(uuid())
+  companyId        String
+  company          Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
   // The record the note is about. No DB-level
   // FK because the entityType vocabulary spans
   // many tables (invoice / expense / voucher /
@@ -1621,8 +1629,8 @@ model BeraterNote {
   // frontend surface (entityType, entityId) so
   // the Mandant can click through to the
   // referenced record.
-  entityType   String
-  entityId     String
+  entityType       String
+  entityId         String
   // Optional attachment (a corrected Beleg, a
   // signed letter, a screenshot of the FA
   // reply). Reuses the Attachment model so the
@@ -1631,35 +1639,35 @@ model BeraterNote {
   // DELETE SET NULL: deleting the file row
   // preserves the note (the text survives, the
   // attachment just disappears from it).
-  attachmentId String?
-  attachment   Attachment? @relation(fields: [attachmentId], references: [id], onDelete: SetNull)
+  attachmentId     String?
+  attachment       Attachment? @relation(fields: [attachmentId], references: [id], onDelete: SetNull)
   // Free-form text. Required. The controller
   // enforces min 1 char + max 4 KB (a long
   // explanation should be its own doc).
-  message      String
+  message          String
   // 'open' (new, Mandant hasn't acted) |
   // 'acknowledged' (Mandant saw + confirmed) |
   // 'dismissed' (Mandant saw + chose not to act)
-  status       String   @default("open")
+  status           String      @default("open")
   // The Berater who wrote the note. Must have
   // role='berater' on the UserCompany for this
   // companyId (enforced at the controller, not
   // here — the model doesn't know about roles).
-  createdById  String
-  createdBy    User     @relation("BeraterNoteCreatedBy", fields: [createdById], references: [id])
-  createdAt    DateTime @default(now())
+  createdById      String
+  createdBy        User        @relation("BeraterNoteCreatedBy", fields: [createdById], references: [id])
+  createdAt        DateTime    @default(now())
   // Acknowledgement — the Mandant (or any user
   // with non-berater role on the same
   // UserCompany) confirms they've seen the note.
   // We capture who + when for audit.
   acknowledgedById String?
-  acknowledgedBy   User?   @relation("BeraterNoteAcknowledgedBy", fields: [acknowledgedById], references: [id])
+  acknowledgedBy   User?       @relation("BeraterNoteAcknowledgedBy", fields: [acknowledgedById], references: [id])
   acknowledgedAt   DateTime?
   // Dismissal — the Mandant saw the note but
   // chose not to act. Same capture pattern.
-  dismissedById String?
-  dismissedBy   User?   @relation("BeraterNoteDismissedBy", fields: [dismissedById], references: [id])
-  dismissedAt   DateTime?
+  dismissedById    String?
+  dismissedBy      User?       @relation("BeraterNoteDismissedBy", fields: [dismissedById], references: [id])
+  dismissedAt      DateTime?
 
   @@index([companyId, status, createdAt])
   @@index([entityType, entityId])
@@ -1681,7 +1689,7 @@ model BeraterNote {
 ///   - dashboard table at /dashboard/system-errors
 ///   - retention: 30 days (admin can prune via /prune)
 model ErrorEvent {
-  id          String   @id @default(uuid())
+  id          String    @id @default(uuid())
   /// 'backend' = unhandled NestJS exception OR service.logError()
   /// 'frontend' = window.onerror / unhandledrejection / ErrorBoundary
   source      String
@@ -1696,17 +1704,17 @@ model ErrorEvent {
   /// grow without migrations.
   context     Json?
   /// 'unhandled' | 'boundary' | 'manual' | 'api'
-  kind        String   @default("unhandled")
+  kind        String    @default("unhandled")
   /// Same event from same source within 5 min = dedupe,
   /// incremented instead of inserting a new row. Lets the
   /// /dashboard/system-errors view show "1 error × 42 times"
   /// rather than 42 rows.
-  occurrences Int      @default(1)
+  occurrences Int       @default(1)
   /// 'open' = needs attention. 'resolved' = admin marked
   /// it. 'muted' = filtered noise (e.g. a noisy script
   /// 404 we want to ignore). Filtered in /system-errors
   /// view by default.
-  status      String   @default("open")
+  status      String    @default("open")
   /// SHA-256 of (source + message + first stack frame) for
   /// dedupe. Indexed.
   fingerprint String
@@ -1715,9 +1723,9 @@ model ErrorEvent {
   /// pre-auth errors (login, registration) and for any
   /// uncaught startup exception.
   userId      String?
-  user        User?    @relation(fields: [userId], references: [id])
+  user        User?     @relation(fields: [userId], references: [id])
   companyId   String?
-  company     Company? @relation(fields: [companyId], references: [id])
+  company     Company?  @relation(fields: [companyId], references: [id])
   /// URL of the API route that threw (backend) or the
   /// page the user was on (frontend).
   url         String?
@@ -1725,8 +1733,8 @@ model ErrorEvent {
   method      String?
   /// HTTP status code for backend API errors; null for frontend.
   statusCode  Int?
-  firstSeenAt DateTime @default(now())
-  lastSeenAt  DateTime @default(now())
+  firstSeenAt DateTime  @default(now())
+  lastSeenAt  DateTime  @default(now())
   resolvedAt  DateTime?
   resolvedBy  String?
 
@@ -1742,15 +1750,15 @@ model ErrorEvent {
 /// resolved at send time — see reminder.service.renderTemplate().
 /// Defaults are seeded on first request via getOrCreateDefaults().
 model ReminderTemplate {
-  id         String   @id @default(uuid())
-  companyId  String
-  company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  level      String   // "first" | "second" | "final"
-  subject    String   @db.Text
-  body       String   @db.Text
-  isDefault  Boolean  @default(false)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id        String   @id @default(uuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  level     String // "first" | "second" | "final"
+  subject   String   @db.Text
+  body      String   @db.Text
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([companyId, level])
   @@index([companyId])
@@ -1776,15 +1784,15 @@ model ReminderTemplate {
 ///      Bestellnummer on every invoice), the FK is already
 ///      in the right shape.
 model NoteTemplate {
-  id         String   @id @default(uuid())
-  companyId  String
-  company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  label      String   // short button label, e.g. "Skonto 2%"
-  text       String   @db.Text
-  sortOrder  Int      @default(0)
-  isDefault  Boolean  @default(false)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id        String   @id @default(uuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  label     String // short button label, e.g. "Skonto 2%"
+  text      String   @db.Text
+  sortOrder Int      @default(0)
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([companyId, sortOrder])
 }
@@ -1821,11 +1829,11 @@ model NoteTemplate {
 ///   A cancelled Mahnung remains in the table — it's an
 ///   audit row, not a wishlist.
 model Mahnung {
-  id          String   @id @default(uuid())
-  companyId   String
-  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  invoiceId   String
-  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  id        String  @id @default(uuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  invoiceId String
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
   /// "first" | "second" | "final" — same vocabulary as
   /// ReminderTemplate.level so the two tables don't drift.
@@ -1840,16 +1848,16 @@ model Mahnung {
   /// The Mahngebühr charged on this Mahnung (in EUR).
   /// Level-driven (0 / 2.50 / 5.00 typically) — see
   /// getOrCreateFeeConfig().
-  mahngebuehr Decimal  @db.Decimal(12,4) @default(0)
+  mahngebuehr Decimal  @default(0) @db.Decimal(12, 4)
   /// Verzugszins charged on this Mahnung (in EUR, computed
   /// from invoice total * (verzugszinsPct/100) * (days/
   /// 365)). The percentage is company-level — see
   /// Company.bankInfo.lateInterestPct (default 9.0 per
   /// §288 Abs. 2 BGB for B2B).
-  verzugszins Decimal  @db.Decimal(12,4) @default(0)
+  verzugszins Decimal  @default(0) @db.Decimal(12, 4)
   /// The total amount NOW DUE on this Mahnung = invoice
   /// open balance + mahngebuehr + verzugszins. Snapshot.
-  totalDue    Decimal  @db.Decimal(12,4)
+  totalDue    Decimal  @db.Decimal(12, 4)
 
   /// Snapshot of the recipient — already on EmailSend but
   /// duplicated here so the list view doesn't need a join.
@@ -1871,11 +1879,11 @@ model Mahnung {
   /// longer active (either by admin action or because the
   /// invoice was paid). The PDF stays accessible for the
   /// audit trail — we don't delete anything.
-  cancelledAt    DateTime?
-  cancelledById  String?
-  cancelReason   String?
+  cancelledAt   DateTime?
+  cancelledById String?
+  cancelReason  String?
 
-  createdAt   DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@index([companyId, invoiceId])
   @@index([companyId, sentAt])
@@ -1890,21 +1898,21 @@ model Mahnung {
 /// `RecurringInvoiceItem` so editing the template doesn't
 /// retroactively rewrite already-sent invoices.
 model RecurringInvoice {
-  id            String   @id @default(uuid())
+  id            String    @id @default(uuid())
   companyId     String
-  company       Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company       Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
   customerId    String
-  customer      Customer @relation(fields: [customerId], references: [id])
+  customer      Customer  @relation(fields: [customerId], references: [id])
   // human label for the subscription, e.g. "Wartungsvertrag 2026"
   name          String
   // monthly / quarterly / yearly / weekly
   interval      String
   // interval count: 1 = every month, 2 = every 2 months, etc.
-  intervalCount Int      @default(1)
+  intervalCount Int       @default(1)
   // The day-of-month the invoice should be issued. For
   // monthly: 1-28 (clamped at 28 to avoid 31st-on-30th-month
   // surprises). Ignored for weekly.
-  dayOfMonth    Int      @default(1)
+  dayOfMonth    Int       @default(1)
   // First day this template is allowed to generate. The
   // scheduler uses max(startDate, lastRunAt + interval).
   startDate     DateTime
@@ -1917,16 +1925,16 @@ model RecurringInvoice {
   lastRunAt     DateTime?
   // Currency + language snapshot. (Most templates stick
   // to EUR / de-DE; the field is here for completeness.)
-  currency      String   @default("EUR")
-  language      String   @default("de-DE")
+  currency      String    @default("EUR")
+  language      String    @default("de-DE")
   // Free-text notes copied to every generated invoice.
   notes         String?
   // Default status of generated invoices. "draft" leaves
   // the user to review; "sent" marks them ready immediately.
-  invoiceStatus String   @default("draft")
+  invoiceStatus String    @default("draft")
   // Paused templates don't fire. UI toggles this when the
   // customer pays ahead, the contract is on hold, etc.
-  isActive      Boolean  @default(true)
+  isActive      Boolean   @default(true)
   // Tier 153: time-bounded pause. The scheduler
   // skips templates where today < pausedUntil.
   // The UI resumes the template automatically
@@ -1945,14 +1953,14 @@ model RecurringInvoice {
   // Operators can disable per-template for "internal
   // draft" use cases (e.g. a subscription that the
   // billing team reviews before sending).
-  sendEmail     Boolean  @default(true)
+  sendEmail     Boolean   @default(true)
   createdById   String?
-  createdBy     User?    @relation("RecurringCreator", fields: [createdById], references: [id])
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdBy     User?     @relation("RecurringCreator", fields: [createdById], references: [id])
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
-  items   RecurringInvoiceItem[]
-  runs    RecurringRun[]
+  items    RecurringInvoiceItem[]
+  runs     RecurringRun[]
   invoices Invoice[]
 
   @@index([companyId, isActive, nextRunAt])
@@ -1964,19 +1972,19 @@ model RecurringInvoice {
 /// generation time — so later edits to the template only
 /// affect future invoices, not already-issued ones.
 model RecurringInvoiceItem {
-  id                String   @id @default(uuid())
+  id                 String           @id @default(uuid())
   recurringInvoiceId String
-  recurringInvoice  RecurringInvoice @relation(fields: [recurringInvoiceId], references: [id], onDelete: Cascade)
-  description       String
-  productNumber     String?
-  quantity          Decimal  @db.Decimal(12, 4)
-  unit              String?  @default("Stück")
-  unitPrice         Decimal  @db.Decimal(12, 4)
-  vatRate           Decimal  @db.Decimal(5, 4)
+  recurringInvoice   RecurringInvoice @relation(fields: [recurringInvoiceId], references: [id], onDelete: Cascade)
+  description        String
+  productNumber      String?
+  quantity           Decimal          @db.Decimal(12, 4)
+  unit               String?          @default("Stück")
+  unitPrice          Decimal          @db.Decimal(12, 4)
+  vatRate            Decimal          @db.Decimal(5, 4)
   // Sort order so reordering the UI rows works without
   // relying on insert-order (Postgres doesn't guarantee
   // that for ties).
-  position          Int      @default(0)
+  position           Int              @default(0)
 
   @@index([recurringInvoiceId])
 }
@@ -1985,32 +1993,32 @@ model RecurringInvoiceItem {
 /// trigger) executed. `success=false` rows record the
 /// error message so the user can see WHY a run failed.
 model RecurringRun {
-  id                String   @id @default(uuid())
+  id                 String           @id @default(uuid())
   recurringInvoiceId String
-  recurringInvoice  RecurringInvoice @relation(fields: [recurringInvoiceId], references: [id], onDelete: Cascade)
-  companyId         String
-  company           Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  recurringInvoice   RecurringInvoice @relation(fields: [recurringInvoiceId], references: [id], onDelete: Cascade)
+  companyId          String
+  company            Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
   // "scheduled" (cron) or "manual" (button on the UI)
-  trigger           String
+  trigger            String
   // The intended period start. For monthly: 1st of the
   // month; for quarterly: 1st of the quarter month, etc.
-  periodStart       DateTime
-  periodEnd         DateTime
+  periodStart        DateTime
+  periodEnd          DateTime
   // The invoice this run materialised. NULL on failure.
-  invoiceId         String?
-  invoice           Invoice? @relation(fields: [invoiceId], references: [id])
+  invoiceId          String?
+  invoice            Invoice?         @relation(fields: [invoiceId], references: [id])
   // "success" | "failed" | "skipped" (e.g. endDate in past)
-  status            String
-  errorMessage      String?
-  createdAt         DateTime @default(now())
+  status             String
+  errorMessage       String?
+  createdAt          DateTime         @default(now())
 
-  @@index([recurringInvoiceId, periodStart])
-  @@index([companyId, status])
   // Idempotency: the same template can never have two
   // runs for the same periodStart. A duplicate insert
   // (from a parallel cron tick) raises a P2002, which
   // the service catches and treats as "already ran".
   @@unique([recurringInvoiceId, periodStart])
+  @@index([recurringInvoiceId, periodStart])
+  @@index([companyId, status])
 }
 
 /// Tier 64: Mahnungspause (reminder pause).
@@ -2043,29 +2051,29 @@ model RecurringRun {
 /// do `WHERE customerId IN (...) AND active=true`
 /// in O(1) without a table scan.
 model Mahnungspause {
-  id           String   @id @default(uuid())
-  companyId    String
-  company      Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  customerId   String?
-  customer     Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  invoiceId    String?
-  invoice      Invoice? @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  id          String    @id @default(uuid())
+  companyId   String
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customerId  String?
+  customer    Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  invoiceId   String?
+  invoice     Invoice?  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   /// Free-text reason: "Ratenplan läuft bis 2026-12",
   /// "Kunde bestreitet Forderung", "Manuell".
-  reason       String
+  reason      String
   /// Start of the pause (inclusive). Defaults to "now"
   /// at create time. User can backdate if the dispute
   /// started last week.
-  pausedFrom   DateTime
+  pausedFrom  DateTime
   /// End of the pause (inclusive). NULL = open-ended.
-  pausedUntil  DateTime?
+  pausedUntil DateTime?
   /// Soft-cancel stamp. When the user "ends" a pause
   /// early, we set this and keep the row for audit.
-  cancelledAt  DateTime?
-  createdById  String?
-  createdBy    User?    @relation(fields: [createdById], references: [id])
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  cancelledAt DateTime?
+  createdById String?
+  createdBy   User?     @relation(fields: [createdById], references: [id])
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   @@index([companyId, customerId])
   @@index([companyId, invoiceId])
@@ -2088,15 +2096,15 @@ model Mahnungspause {
 /// is the value the Berater / auditor compares against
 /// the physical cash count (Kassensturz).
 model CashBookEntry {
-  id           String   @id @default(uuid())
+  id           String         @id @default(uuid())
   companyId    String
-  company      Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company      Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
   // The business date the entry belongs to, not the
   // timestamp of when the row was written. Cash book
   // entries are dated by transaction date (Belegdatum)
   // — a receipt dated 28.01 still lands in the 28.01
   // daily close, even if you type it in on 02.02.
-  businessDate DateTime @db.Date
+  businessDate DateTime       @db.Date
   // "einnahme" | "ausgabe" | "umbuchung" | "eroeffnung"
   // (Anfangsbestand, one per cash book lifetime).
   type         String
@@ -2105,11 +2113,11 @@ model CashBookEntry {
   // Gross amount in EUR, always positive. The type
   // column decides whether the cash balance increases
   // or decreases.
-  amount       Decimal  @db.Decimal(12, 4)
+  amount       Decimal        @db.Decimal(12, 4)
   // Optional VAT rate (0 / 0.07 / 0.19). When non-zero
   // the entry counts as a taxable movement for the
   // UStVA. Net amount is derived: amount / (1 + rate).
-  vatRate      Decimal? @db.Decimal(5, 4)
+  vatRate      Decimal?       @db.Decimal(5, 4)
   // Counterparty: customer or supplier, optional. We
   // don't FK-restrict (cash from anonymous walk-ins is
   // perfectly legal) but the field is denormalised for
@@ -2124,28 +2132,28 @@ model CashBookEntry {
   // expense bookkeeping (optional). For an Ausgabe the
   // user can promote the entry to a booked Expense.
   expenseId    String?
-  expense      Expense? @relation(fields: [expenseId], references: [id])
+  expense      Expense?       @relation(fields: [expenseId], references: [id])
   // FK to Invoice when this entry was created from an
   // invoice payment (Barzahlung at the counter).
   invoiceId    String?
-  invoice      Invoice? @relation(fields: [invoiceId], references: [id])
+  invoice      Invoice?       @relation(fields: [invoiceId], references: [id])
   // ISO 4217 — EUR for the German market. The column
   // is here so multi-currency can be added later.
-  currency     String   @default("EUR")
+  currency     String         @default("EUR")
   // Set when this entry is a Storno / reversal of
   // another entry. The original stays in the book;
   // the Storno just nets the effect to zero. Reversal
   // is the only way to "edit" a closed day.
-  reversesId   String?  @unique
+  reversesId   String?        @unique
   reverses     CashBookEntry? @relation("CashBookReversal", fields: [reversesId], references: [id])
   reversedBy   CashBookEntry? @relation("CashBookReversal")
   // Free-form notes (1-2 lines), e.g. reason for
   // a correction, receipt scan reference, etc.
   notes        String?
   createdById  String?
-  createdBy    User?    @relation("CashBookEntryCreator", fields: [createdById], references: [id])
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdBy    User?          @relation("CashBookEntryCreator", fields: [createdById], references: [id])
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
 
   @@index([companyId, businessDate])
   @@index([companyId, type])
@@ -2160,48 +2168,48 @@ model CashBookEntry {
 /// the SUM aggregate (which would be wrong if any
 /// Storno on the closed day has been added since).
 model CashBookDailyClose {
-  id              String   @id @default(uuid())
-  companyId       String
-  company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  id                 String    @id @default(uuid())
+  companyId          String
+  company            Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
   // The day being closed. Unique per company — a day
   // can only be closed once. (Re-open = delete this
   // row, which the service does explicitly with audit
   // logging.)
-  businessDate    DateTime @db.Date @unique
+  businessDate       DateTime  @unique @db.Date
   // Cached aggregates at close-time. Re-computed on
   // read by the service if the snapshot looks stale.
-  anfangsbestand  Decimal  @db.Decimal(12, 4)
-  einnahmenSum    Decimal  @db.Decimal(12, 4)
-  ausgabenSum     Decimal  @db.Decimal(12, 4)
-  umbuchungenSum  Decimal  @db.Decimal(12, 4)
-  endbestand      Decimal  @db.Decimal(12, 4)
+  anfangsbestand     Decimal   @db.Decimal(12, 4)
+  einnahmenSum       Decimal   @db.Decimal(12, 4)
+  ausgabenSum        Decimal   @db.Decimal(12, 4)
+  umbuchungenSum     Decimal   @db.Decimal(12, 4)
+  endbestand         Decimal   @db.Decimal(12, 4)
   // The physical count of cash in the till. The user
   // types this in at Z-Bericht time. Diff vs.
   // endbestand is the "Differenz" (Kassensturz-
   // Differenz) — usually 0.00, but a small positive
   // means Mehrbestand (over) and negative means
   // Fehlbestand (shortage / Diebstahl).
-  physicalCount   Decimal  @db.Decimal(12, 4)
-  differenz       Decimal  @db.Decimal(12, 4)
+  physicalCount      Decimal   @db.Decimal(12, 4)
+  differenz          Decimal   @db.Decimal(12, 4)
   // Free-text note for non-zero differs ("Differenz
   // aufgeklärt: Bon vergessen, Beleg folgt").
-  differenzNote   String?
+  differenzNote      String?
   // Snapshot of all entry ids on this date at close
   // time. Format: { entries: [{id, type, amount, vatRate,
   // description}], totalCount: N }. Used for audit
   // replay — even after Storno entries are added, the
   // close still shows the original (pre-Storno) state.
-  entriesSnapshot Json
+  entriesSnapshot    Json
   // Set when a Storno / reversal entry has been added
   // AFTER close-time. The close itself stays valid;
   // this flag tells the UI to surface "this day has
   // been amended since close" instead of treating the
   // numbers as final.
-  amendedAt       DateTime?
+  amendedAt          DateTime?
   // User who closed the day + their comment, if any.
-  closedById      String?
-  closedBy        User?    @relation("CashBookDayCloser", fields: [closedById], references: [id])
-  closedAt        DateTime @default(now())
+  closedById         String?
+  closedBy           User?     @relation("CashBookDayCloser", fields: [closedById], references: [id])
+  closedAt           DateTime  @default(now())
   // ─── Tier 194 — GoBD § 146 AO integrity signature ───
   // SHA-256 hash of the close record's critical fields
   // (companyId|businessDate|anfangsbestand|einnahmenSum|
@@ -2219,11 +2227,11 @@ model CashBookDailyClose {
   // eIDAS/PKI signature could be added later in
   // the same field (extending the algorithm
   // string) without breaking existing data.
-  signatureHash       String?
-  signatureAlgorithm  String?
-  signatureTimestamp  DateTime?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  signatureHash      String?
+  signatureAlgorithm String?
+  signatureTimestamp DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   @@index([companyId, businessDate])
 }
@@ -2236,29 +2244,29 @@ model CashBookDailyClose {
 // opening / closing balance).
 
 model BankStatement {
-  id              String   @id @default(uuid())
-  companyId       String
-  company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  id             String    @id @default(uuid())
+  companyId      String
+  company        Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
   // 'mt940' (SWIFT) or 'camt053' (SEPA XML)
-  format          String
-  fileName        String
-  fileSize        Int
+  format         String
+  fileName       String
+  fileSize       Int
   // Optional IBAN of the account this statement is for
-  accountIban     String?
+  accountIban    String?
   // The bank the statement came from (parsed from the
   // header — :25: in MT940 / BkToCstmrStmt/BkNm in CAMT).
-  bankName        String?
+  bankName       String?
   // Statement period (start..end dates).
-  periodFrom      DateTime?
-  periodTo        DateTime?
+  periodFrom     DateTime?
+  periodTo       DateTime?
   // Opening + closing balance in EUR.
-  openingBalance  Decimal? @db.Decimal(12, 4)
-  closingBalance  Decimal? @db.Decimal(12, 4)
+  openingBalance Decimal?  @db.Decimal(12, 4)
+  closingBalance Decimal?  @db.Decimal(12, 4)
   // Raw text of the file, kept for audit / re-parse.
-  rawContent      String
-  uploadedById    String?
-  uploadedBy      User?    @relation("BankStatementUploader", fields: [uploadedById], references: [id])
-  createdAt       DateTime @default(now())
+  rawContent     String
+  uploadedById   String?
+  uploadedBy     User?     @relation("BankStatementUploader", fields: [uploadedById], references: [id])
+  createdAt      DateTime  @default(now())
 
   transactions BankTransaction[]
 
@@ -2275,18 +2283,18 @@ model BankStatement {
 // (partial payments).
 
 model BankTransaction {
-  id              String   @id @default(uuid())
-  statementId     String
-  statement       BankStatement @relation(fields: [statementId], references: [id], onDelete: Cascade)
-  companyId       String
+  id               String        @id @default(uuid())
+  statementId      String
+  statement        BankStatement @relation(fields: [statementId], references: [id], onDelete: Cascade)
+  companyId        String
   // The line's value date (Buchungsdatum) — when the
   // money actually moved. Distinct from the entry date
   // (Wertstellung), which we also keep.
-  valueDate       DateTime
-  entryDate       DateTime?
+  valueDate        DateTime
+  entryDate        DateTime?
   // Amount in EUR. Positive = incoming, negative = outgoing.
-  amount          Decimal  @db.Decimal(12, 4)
-  currency        String   @default("EUR")
+  amount           Decimal       @db.Decimal(12, 4)
+  currency         String        @default("EUR")
   // Counterparty info: name + IBAN if present in the
   // raw line (MT940 :59:, CAMT.053 PmtInf/CdtTrxTxInf).
   counterpartyName String?
@@ -2295,21 +2303,21 @@ model BankTransaction {
   // contains the invoice number / Kunden-Nr. We keep
   // the raw text so the matching logic can do its own
   // regex / fuzzy match.
-  purpose         String?
+  purpose          String?
   // End-to-end reference (MT940 :20:, CAMT.053
   // PmtInf/PmtId) — usually a unique bank reference.
-  endToEndId      String?
+  endToEndId       String?
   // Notes the user added after import.
-  notes           String?
+  notes            String?
   // Auto-generated Voucher for an expense booking on
   // this transaction (e.g. debit txn with no matching
   // invoice → book as Aufwand). NULL when the txn
   // either has no booking yet, or the booking is via
   // a BankReconciliation (in which case the voucherId
   // is on the recon row, not on the txn).
-  voucherId       String?
-  voucher         Voucher? @relation(fields: [voucherId], references: [id])
-  createdAt       DateTime @default(now())
+  voucherId        String?
+  voucher          Voucher?      @relation(fields: [voucherId], references: [id])
+  createdAt        DateTime      @default(now())
 
   matches BankReconciliation[]
 
@@ -2330,21 +2338,21 @@ model BankTransaction {
 // the user picks the candidate manually.
 
 model BankReconciliation {
-  id              String   @id @default(uuid())
+  id                String          @id @default(uuid())
   bankTransactionId String
-  bankTransaction BankTransaction @relation(fields: [bankTransactionId], references: [id], onDelete: Cascade)
-  invoiceId       String
-  invoice         Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  companyId       String
+  bankTransaction   BankTransaction @relation(fields: [bankTransactionId], references: [id], onDelete: Cascade)
+  invoiceId         String
+  invoice           Invoice         @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  companyId         String
   // How much of the transaction was applied to this invoice
-  appliedAmount    Decimal  @db.Decimal(12, 4)
+  appliedAmount     Decimal         @db.Decimal(12, 4)
   // 'suggested' (auto-matched, not yet confirmed) /
   // 'confirmed' (user accepted) / 'rejected' (user
   // dismissed)
-  status          String   @default("suggested")
-  confidence      Int      // 0-100
+  status            String          @default("suggested")
+  confidence        Int // 0-100
   // Free-text reason: "amount exact + invoice# in purpose"
-  matchReason     String?
+  matchReason       String?
   // Auto-generated Voucher for this recon. NULL until
   // the user confirms the match (the confirm flow
   //  books a Bank→Forderung posting so the cash ledger
@@ -2352,8 +2360,8 @@ model BankReconciliation {
   // GoBD audit trail — the original raw file is on
   // BankStatement, the parsed transactions on
   // BankTransaction, and the booking on Voucher.
-  voucherId       String?
-  voucher         Voucher? @relation(fields: [voucherId], references: [id])
+  voucherId         String?
+  voucher           Voucher?        @relation(fields: [voucherId], references: [id])
   // If the user reopens the match, the original
   // voucherId stays (the original is preserved for
   // GoBD immutability) and a new Storno voucher is
@@ -2361,9 +2369,9 @@ model BankReconciliation {
   // can show "BK-XXXX reverted by BK-YYYY" without
   // re-querying the Voucher table.
   reversalVoucherId String?
-  reversalVoucher   Voucher? @relation("ReconReversal", fields: [reversalVoucherId], references: [id])
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  reversalVoucher   Voucher?        @relation("ReconReversal", fields: [reversalVoucherId], references: [id])
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
 
   @@unique([bankTransactionId, invoiceId])
   @@index([invoiceId, status])
@@ -2379,11 +2387,11 @@ model BankReconciliation {
 // description pattern so the new Voucher's description
 // can be auto-filled (e.g. "Bankgebühren <Monat>").
 model VoucherTemplate {
-  id          String    @id @default(uuid())
-  companyId   String
-  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  name        String    // Berater-visible label, e.g. "Bankgebühren"
-  description String?   // optional hint
+  id                 String   @id @default(uuid())
+  companyId          String
+  company            Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name               String // Berater-visible label, e.g. "Bankgebühren"
+  description        String? // optional hint
   // The body of the new Voucher, if the user picks
   // "apply template" without overriding. Stored as
   // a JSON list of {accountNumber, debit|credit, vatRate}
@@ -2391,16 +2399,16 @@ model VoucherTemplate {
   // re-numbers or replaces its Account rows
   // (templates point at accountNumber, not accountId).
   // We resolve accountNumber → accountId at apply time.
-  linesJson   String
+  linesJson          String
   // The description pattern to pre-fill the Voucher
   // modal with. Use {month} and {year} placeholders
   // the modal substitutes at apply time.
   descriptionPattern String?
   // Per-company ordering — Berater can drag to
   // re-order; smaller numbers first.
-  sortOrder   Int       @default(0)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  sortOrder          Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   @@index([companyId, sortOrder])
 }
@@ -2423,14 +2431,14 @@ model VoucherTemplate {
 // Berater enter uniform monthly targets, so 12 floats
 // is ~250 bytes per row.
 model CostCenterBudget {
-  id            String   @id @default(uuid())
-  companyId     String
-  company       Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  id             String   @id @default(uuid())
+  companyId      String
+  company        Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   // Cost-center stamp — same convention as
   // Invoice.costCenter. NULL on the column maps to
   // the "Nicht zugewiesen" pseudo-bucket.
-  costCenter    String?
-  year          Int      // 2000..2100
+  costCenter     String?
+  year           Int // 2000..2100
   // 12-element array of monthly target amounts
   // (gross). Index 0 = Jan, ..., 11 = Dec.
   // Stored as JSON so we don't need a separate
@@ -2440,9 +2448,9 @@ model CostCenterBudget {
   // Optional human label so the Berater can name
   // a budget ("FY2026 Marketing plan") without
   // depending on the costCenter string.
-  label         String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  label          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   // One budget per (company, cc, year). NULL cc
   // + same year = unique; "VERTRIEB" + same year =
@@ -2469,39 +2477,39 @@ model CostCenterBudget {
 // + dueDate vs today) but cached so we can
 // index/filter on it for the Mahnung integration.
 model InstallmentPlan {
-  id                String        @id @default(uuid())
-  companyId         String
-  company           Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  customerId        String
-  customer          Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  invoiceId         String        @unique
-  invoice           Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  id         String   @id @default(uuid())
+  companyId  String
+  company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  invoiceId  String   @unique
+  invoice    Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
   // The Invoice.total that the plan splits up.
-  totalAmount       Decimal       @db.Decimal(12,4)
+  totalAmount      Decimal  @db.Decimal(12, 4)
   // Number of Raten — must be >= 2 (single-installment
   // plans are not Raten, they're just a single payment).
-  installmentCount  Int
+  installmentCount Int
   // Days between Raten. 30 = monthly, 7 = weekly,
   // 90 = quarterly. The service validates the
   // dueDate arithmetic on create.
-  intervalDays      Int           @default(30)
+  intervalDays     Int      @default(30)
   // The first Rate's due date. Subsequent Raten
   // land at firstDueDate + N*intervalDays.
-  firstDueDate      DateTime      @db.Date
+  firstDueDate     DateTime @db.Date
 
   // Lifecycle: 'active' (in progress), 'completed'
   // (all Raten paid), 'cancelled' (Ratenplan aborted
   // — Berater voided it). GoBD: we keep cancelled
   // rows for audit, just filter them out of active
   // views.
-  status            String        @default("active")
-  notes             String?
+  status String  @default("active")
+  notes  String?
 
-  installments      Installment[]
+  installments Installment[]
 
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([companyId, status])
   @@index([customerId, status])
@@ -2517,18 +2525,18 @@ model InstallmentPlan {
 // "open installments due this week" dashboard
 // query a simple index hit.
 model Installment {
-  id              String          @id @default(uuid())
-  planId          String
-  plan            InstallmentPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  id     String          @id @default(uuid())
+  planId String
+  plan   InstallmentPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
 
   // 1-based sequence number within the plan. 1st
   // Rate = 1, 2nd = 2, etc. Stable identifier the
   // user can talk about ("die dritte Rate").
-  sequenceNumber  Int
-  dueDate         DateTime        @db.Date
-  amount          Decimal         @db.Decimal(12,4)
-  paidAmount      Decimal         @db.Decimal(12,4) @default(0)
-  paidAt          DateTime?
+  sequenceNumber Int
+  dueDate        DateTime  @db.Date
+  amount         Decimal   @db.Decimal(12, 4)
+  paidAmount     Decimal   @default(0) @db.Decimal(12, 4)
+  paidAt         DateTime?
 
   // Cached lifecycle: 'open' (unpaid and not yet
   // due), 'overdue' (unpaid but dueDate < today),
@@ -2537,10 +2545,10 @@ model Installment {
   // recomputes this on every paidAmount change
   // AND on a daily cron (tier-36 dashboard) so
   // 'overdue' updates even when no payment lands.
-  status          String          @default("open")
+  status String @default("open")
 
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([planId, sequenceNumber])
   @@index([status, dueDate])
@@ -2565,33 +2573,33 @@ model Installment {
 // the resulting system-id + dialog-id for the
 // next sync.
 model FinTSConnection {
-  id              String    @id @default(uuid())
-  companyId       String
-  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  id           String    @id @default(uuid())
+  companyId    String
+  company      Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
   // 8-digit German Bankleitzahl (e.g. '50050201'
   // for Sparkasse Frankfurt). Stored as text so we
   // don't lose leading zeros.
-  blz             String
+  blz          String
   // The online-banking user ID (varies per bank:
   // Sparkasse = the VR-NetKey, DKB = the
   // Anmeldename, comdirect = Zugangsnummer).
-  userId          String
+  userId       String
   // Display label the Berater chose, e.g.
   // "Sparkasse Dreieich — Geschäftskonto".
-  label           String
+  label        String
   // The FinTS server URL. Most banks publish
   // their URL via the BPD (Bank Parameter Daten)
   // during dialog init, but for many
   // (Sparkasse, Volksbank) the URL is a static
   // https://banking.s-fints-*.de/PinTanServlet
   // that we resolve from BLZ via lookup.
-  endpointUrl     String
+  endpointUrl  String
   // 0 = real, 1 = mock-mode (returns canned
   // data without touching the bank). Mock is
   // the default for new connections in dev/test
   // environments. Set FINTS_MOCK=0 to opt out
   // of mock globally.
-  mockMode        Int       @default(0)
+  mockMode     Int       @default(0)
   // sha256 of the user's PIN. Stored so a
   // repeated bad-PIN attempt can be detected
   // before we re-open the dialog (banks
@@ -2600,7 +2608,7 @@ model FinTSConnection {
   // call the real dialog just to learn the
   // PIN is wrong). Used in mock-mode only.
   // For real banks, see encryptedPin below.
-  pinHash         String?
+  pinHash      String?
   // Tier 22: real banks need the PLAINTEXT
   // PIN for the DIALOG INIT's HNVSK envelope
   // (HMAC needs the actual key, not a hash).
@@ -2611,39 +2619,39 @@ model FinTSConnection {
   // the field stays NULL and real-mode is
   // unavailable for this connection (the
   // user gets a 400 explaining what to set).
-  encryptedPin    String?
-  pinIv           String?
-  pinTag          String?
+  encryptedPin String?
+  pinIv        String?
+  pinTag       String?
   // PSD2 strong-customer-authentication. The
   // bank assigns the mechanism at first
   // dialog-init; we just remember the chosen one.
-  tanMethod       String?
+  tanMethod    String?
   // System-Id assigned by the bank at first
   // successful dialog (HKSYN response). Used
   // to resume the dialog without re-sending
   // the customer-id. Required for
   // PIN/TAN persistence.
-  systemId        String?
+  systemId     String?
   // Last dialog-id we used. The bank ties
   // multiple message exchanges inside one
   // dialog; the next sync continues the
   // numbering.
-  lastDialogId    String?
+  lastDialogId String?
   // Last time we successfully opened a
   // dialog. Banks often auto-expire inactive
   // accounts — if this is older than e.g. 30
   // days, the next sync will need a fresh TAN.
-  lastSyncAt      DateTime?
+  lastSyncAt   DateTime?
   // 'pending' (init not completed),
   // 'active' (init done, ready to sync),
   // 'error' (last sync failed — see
   // lastError).
-  status          String    @default("pending")
-  lastError       String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  status       String    @default("pending")
+  lastError    String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
-  syncRuns FinTSSyncRun[]
+  syncRuns  FinTSSyncRun[]
   transfers FinTsTransfer[]
 
   @@index([companyId, status])
@@ -2655,28 +2663,28 @@ model FinTSConnection {
 // and whether the user had to enter a TAN
 // (some banks require a TAN even for HKKAZ).
 model FinTSSyncRun {
-  id              String    @id @default(uuid())
-  connectionId    String
-  connection      FinTSConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
-  companyId       String
+  id           String          @id @default(uuid())
+  connectionId String
+  connection   FinTSConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  companyId    String
   // 'ok' / 'needs_tan' / 'failed'
-  status          String
+  status       String
   // Number of transactions actually persisted
   // (after dedupe by endToEndId).
-  txCount         Int       @default(0)
+  txCount      Int             @default(0)
   // The TAN challenge text the bank returned
   // (HITAN:hn_challenge) — when status =
   // 'needs_tan', the UI shows this in the
   // modal. NULL when no TAN was required.
-  tanChallenge    String?
+  tanChallenge String?
   // The German error code (HIRMG/HIRMS:rc) and
   // the human-readable text. Most useful for
   // 'failed' status, e.g. "PIN gesperrt" or
   // "TAN ungültig".
-  errorCode       String?
-  errorMessage    String?
-  startedAt       DateTime  @default(now())
-  finishedAt      DateTime?
+  errorCode    String?
+  errorMessage String?
+  startedAt    DateTime        @default(now())
+  finishedAt   DateTime?
 
   @@index([connectionId, startedAt])
   @@index([companyId, status])
@@ -2714,35 +2722,35 @@ model FinTSSyncRun {
 // expose it via the API and pass it through
 // unchanged to pain.001/PmtId.
 model FinTsTransfer {
-  id              String    @id @default(uuid())
-  companyId       String
-  connectionId    String
-  connection      FinTSConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  id           String          @id @default(uuid())
+  companyId    String
+  connectionId String
+  connection   FinTSConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
   // 'credit_transfer' (Überweisung) | 'direct_debit' (Lastschrift)
-  kind            String
-  debtorName      String
-  debtorIban      String
-  debtorBic       String?
-  creditorName    String
-  creditorIban    String
-  creditorBic     String?
-  amount          Decimal   @db.Decimal(12, 2)
-  currency        String    @default("EUR")
-  purpose         String?
+  kind         String
+  debtorName   String
+  debtorIban   String
+  debtorBic    String?
+  creditorName String
+  creditorIban String
+  creditorBic  String?
+  amount       Decimal         @db.Decimal(12, 2)
+  currency     String          @default("EUR")
+  purpose      String?
   // SEPA End-to-End ID; max 35 chars.
-  endToEndId      String
-  status          String    // draft | needs_tan | ok | failed
+  endToEndId   String
+  status       String // draft | needs_tan | ok | failed
   // Set when status='needs_tan' — the
   // HITAN:hn_challenge the bank sent, shown
   // verbatim in the modal.
-  tanChallenge    String?
+  tanChallenge String?
   // Set when status='failed' — the
   // HIRMS:rc code (e.g. '9210') and the
   // human-readable text the bank returned.
-  errorCode       String?
-  errorMessage    String?
-  startedAt       DateTime  @default(now())
-  finishedAt      DateTime?
+  errorCode    String?
+  errorMessage String?
+  startedAt    DateTime        @default(now())
+  finishedAt   DateTime?
 
   @@index([companyId, status, startedAt])
   @@index([connectionId, startedAt])
@@ -2778,12 +2786,12 @@ model FinTsTransfer {
 //     kleineUnternehmerNote: "Gemäß §19 UStG wird keine USt berechnet."
 //   }
 model InvoiceTemplate {
-  id          String   @id @default(uuid())
-  companyId   String
-  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  id           String   @id @default(uuid())
+  companyId    String
+  company      Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   // Human-readable name, e.g. "Standard (SH Leder)",
   // "Kleinunternehmer (§19)", "B2B Reverse Charge".
-  name        String
+  name         String
   // The TypeScript templateType this template
   // maps to. Custom templates use 'custom' here
   // and the renderer reads configJson. The
@@ -2794,14 +2802,14 @@ model InvoiceTemplate {
   templateType String   @default("custom")
   // The styling + content config (see
   // comment above for full schema).
-  configJson  Json
+  configJson   Json
   // At most one template per company can
   // be the default. The renderer falls
   // back to the default when an Invoice
   // doesn't have a templateId set.
-  isDefault   Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  isDefault    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   @@index([companyId, isDefault])
   @@index([companyId, templateType])
@@ -2846,22 +2854,22 @@ model InvoiceTemplate {
 ///   - AfA-Buch (separate journal) for partial-
 ///     year disposals
 model Asset {
-  id            String   @id @default(uuid())
-  companyId     String
-  company       Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  id                  String    @id @default(uuid())
+  companyId           String
+  company             Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
   // 'Grundstueck' | 'Gebaeude' | 'Maschine' |
   // 'Fahrzeug' | 'Betriebsausstattung' | 'GWG' |
   // 'Software' | 'Sonstiges'
-  type          String
+  type                String
   // Human-readable description, e.g. "Büro-Stuhl
   // ergonomisch", "Firmenwagen VW Caddy".
-  bezeichnung   String
+  bezeichnung         String
   // Acquisition date. The AfA clock starts here.
-  anschaffungsDatum DateTime
+  anschaffungsDatum   DateTime
   // AHK (Anschaffungs-/Herstellungskosten). The
   // gross cost basis; AfA is computed against
   // (AHK - restwert).
-  anschaffungsKosten Decimal  @db.Decimal(14, 4)
+  anschaffungsKosten  Decimal   @db.Decimal(14, 4)
   // Nutzungsdauer in months per AfA-Tabelle
   // (BMF, § 7 Abs. 1 EStG). Common: 36 months
   // (Büroausstattung), 60 (Maschine), 96 (Fahrzeug),
@@ -2869,28 +2877,28 @@ model Asset {
   nutzungsdauerMonate Int
   // Residual value (Restwert) at end of ND. Most
   // business assets have Restwert = 0.
-  restwert      Decimal  @db.Decimal(14, 4) @default(0)
+  restwert            Decimal   @default(0) @db.Decimal(14, 4)
   // AfA method. v1 supports 'linear' only. v2
   // would add 'geometric' (degressive) for § 7
   // Abs. 2 EStG assets.
-  afaMethode    String   @default("linear")
+  afaMethode          String    @default("linear")
   // Optional override: which Bilanz position this
   // asset maps to. NULL = automatic mapping from
   // `type`. Useful when a user wants a Maschine
   // mapped to 0400 instead of 0300 (e.g. a
   // piece of Betriebsausstattung that happens
   // to be technical in nature).
-  bilanzKonto   String?
-  notiz         String?
+  bilanzKonto         String?
+  notiz               String?
   // When the asset is sold / disposed. After
   // verkauftAm is set, the asset no longer
   // contributes to the Bilanz pool (the
   // disposal event is the cutoff).
-  verkauftAm    DateTime?
+  verkauftAm          DateTime?
   // Sale price at disposal. NULL for write-offs.
-  verkaufsPreis Decimal? @db.Decimal(14, 4)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  verkaufsPreis       Decimal?  @db.Decimal(14, 4)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   @@index([companyId])
   @@index([companyId, type])
@@ -2914,38 +2922,38 @@ model Asset {
 // the bank and updates the status to "submitted"
 // (v2: auto-detect via bank statement import).
 model SepaBatch {
-  id              String   @id @default(uuid())
-  companyId       String
-  company         Company  @relation(fields: [companyId], references: [id])
+  id            String   @id @default(uuid())
+  companyId     String
+  company       Company  @relation(fields: [companyId], references: [id])
   // The pain.001 XML content (UTF-8). Stored
   // inline because the file is small + the user
   // expects to re-download it from the UI later.
-  xmlContent      String   @db.Text
+  xmlContent    String   @db.Text
   // Aggregated for fast list rendering.
-  paymentCount    Int
-  totalAmount     Decimal  @db.Decimal(14, 4)
+  paymentCount  Int
+  totalAmount   Decimal  @db.Decimal(14, 4)
   // IBAN of the debtor (the company's own bank
   // account). Defaults to Company.bankInfo.iban
   // but can be overridden per batch (e.g. the
   // Berater pays one batch from the main account,
   // another from a sub-account).
-  debtorIban      String
-  debtorBic       String?
-  debtorName      String
+  debtorIban    String
+  debtorBic     String?
+  debtorName    String
   // The planned execution date (SettlementDate
   // in pain.001 parlance). NOT the actual bank
   // settlement date — the bank statement
   // reconciles days later via auto-import.
-  executionDate   DateTime
+  executionDate DateTime
   // The user's optional note (e.g. "März-
   // Lieferantenrunde" / "March vendor run").
-  notes           String?
+  notes         String?
   // Status: draft | generated | submitted | confirmed | failed
-  status          String   @default("generated")
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  status        String   @default("generated")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  expenses        Expense[] @relation("ExpensePaidByBatch")
+  expenses Expense[] @relation("ExpensePaidByBatch")
 
   @@index([companyId, executionDate])
   @@index([companyId, status])
@@ -2976,11 +2984,11 @@ model SepaBatch {
 // (R-Transaction / Rücklast) — that lives on the
 // SepaDirectDebitReturn table, not here.
 model SepaDirectDebitMandate {
-  id                String   @id @default(uuid())
-  companyId         String
-  company           Company  @relation(fields: [companyId], references: [id])
-  customerId        String
-  customer          Customer @relation(fields: [customerId], references: [id])
+  id         String   @id @default(uuid())
+  companyId  String
+  company    Company  @relation(fields: [companyId], references: [id])
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id])
 
   // Mandatsreferenz. Unique per company (the
   // Bundesbank convention) but not per customer —
@@ -2988,11 +2996,11 @@ model SepaDirectDebitMandate {
   // mandates for different purposes (e.g. one for
   // membership fees, one for shop purchases). We
   // generate this on create if not provided.
-  mandateReference  String
+  mandateReference String
   // Datum der Unterschrift. The ISO date the customer
   // signed the mandate. Required by §5.2 of the
   // Scheme Rulebook.
-  dateOfSignature   DateTime
+  dateOfSignature  DateTime
   // 'CORE' = SEPA Core Direct Debit (B2C, default,
   //   8-week Widerrufsrecht for the debtor, 14-day
   //   Vorabankündigung required) or 'B2B' =
@@ -3001,36 +3009,36 @@ model SepaDirectDebitMandate {
   //   The type determines the `<LclInstrm><Cd>` in
   //   the pain.008 XML and the pre-notification
   //   deadline logic.
-  type              String   @default("CORE")
+  type             String    @default("CORE")
   // The debtor's account that's being debited.
-  iban              String
-  bic               String?
+  iban             String
+  bic              String?
   // The Kontoinhaber (account holder). We capture
   // it because it may differ from Customer.name
   // (e.g. third-party payer).
-  debitorName       String
+  debitorName      String
   // Optional description (e.g. "Mitgliedsbeitrag
   // 2026" or "Strom-Abo DE123456789"). Free-form.
-  description       String?
+  description      String?
   // 'active' | 'revoked'. Default 'active'. A
   // revoked mandate can no longer be used for new
   // collections, but historical collections still
   // reference it.
-  status            String   @default("active")
+  status           String    @default("active")
   // Optional timestamp of when the mandate was
   // revoked (NULL when still active).
-  revokedAt         DateTime?
+  revokedAt        DateTime?
   // Optional reason for the revocation (free-form,
   // e.g. "Kunde hat Vertrag gekündigt").
-  revokedReason     String?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  revokedReason    String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   // Back-relation to the direct-debit batches that
   // used this mandate. A single mandate can power
   // many collections (recurring subscriptions) or
   // just one (single-shot ad-hoc).
-  collections       SepaDirectDebitCollection[]
+  collections SepaDirectDebitCollection[]
 
   @@unique([companyId, mandateReference])
   @@index([companyId, customerId])
@@ -3049,30 +3057,30 @@ model SepaDirectDebitMandate {
 // the customer, and the deadline (T-minus 14 for
 // CORE, T-minus 1 for B2B).
 model SepaDirectDebitCollection {
-  id                  String   @id @default(uuid())
-  companyId           String
-  company             Company  @relation(fields: [companyId], references: [id])
-  batchId             String
-  batch               SepaDirectDebitBatch @relation("BatchCollections", fields: [batchId], references: [id], onDelete: Cascade)
-  mandateId           String
-  mandate             SepaDirectDebitMandate @relation(fields: [mandateId], references: [id])
+  id                      String                 @id @default(uuid())
+  companyId               String
+  company                 Company                @relation(fields: [companyId], references: [id])
+  batchId                 String
+  batch                   SepaDirectDebitBatch   @relation("BatchCollections", fields: [batchId], references: [id], onDelete: Cascade)
+  mandateId               String
+  mandate                 SepaDirectDebitMandate @relation(fields: [mandateId], references: [id])
   // The Invoice that's being collected. 1:1 — a
   // single collection targets a single invoice.
   // (For a customer that wants to pay multiple
   // invoices in one debit, the user creates one
   // collection per invoice and the pain.008 PmtInf
   // groups them under one <PmtInf>.)
-  invoiceId           String   @unique
-  invoice             Invoice  @relation("InvoiceDirectDebit", fields: [invoiceId], references: [id])
+  invoiceId               String                 @unique
+  invoice                 Invoice                @relation("InvoiceDirectDebit", fields: [invoiceId], references: [id])
   // The amount to collect in EUR. May differ from
   // Invoice.total if the user wants to split the
   // invoice across multiple debits (rare; v1 just
   // requires total == invoice.total).
-  amount              Decimal  @db.Decimal(14, 4)
+  amount                  Decimal                @db.Decimal(14, 4)
   // The pre-notification (Vorabankündigung) tracking:
   // when we sent the advance notice + the deadline
   // (T-minus 14 for CORE, T-minus 1 for B2B).
-  preNotificationSentAt DateTime?
+  preNotificationSentAt   DateTime?
   preNotificationDeadline DateTime?
   // 'pending' | 'pre_notified' | 'collected' | 'failed' | 'returned'
   //   pending:       created, not yet due
@@ -3085,9 +3093,9 @@ model SepaDirectDebitCollection {
   // pre-notification — the user is expected to email
   // the customer themselves; v2 wires up an actual
   // email send).
-  status              String   @default("pre_notified")
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  status                  String                 @default("pre_notified")
+  createdAt               DateTime               @default(now())
+  updatedAt               DateTime               @updatedAt
 
   @@index([companyId, batchId])
   @@index([companyId, mandateId])
@@ -3103,21 +3111,21 @@ model SepaDirectDebitCollection {
 // suppliers. The two are symmetric on the XML side
 // but opposite on the accounting side.
 model SepaDirectDebitBatch {
-  id                  String   @id @default(uuid())
-  companyId           String
-  company             Company  @relation(fields: [companyId], references: [id])
+  id                 String   @id @default(uuid())
+  companyId          String
+  company            Company  @relation(fields: [companyId], references: [id])
   // The pain.008 XML content. UTF-8 inline.
-  xmlContent          String   @db.Text
+  xmlContent         String   @db.Text
   // Aggregated for fast list rendering.
-  collectionCount     Int
-  totalAmount         Decimal  @db.Decimal(14, 4)
+  collectionCount    Int
+  totalAmount        Decimal  @db.Decimal(14, 4)
   // The creditor (we, the company) is on the receiving
   // side. We default to Company.bankInfo.iban etc.
   // but allow per-batch override (e.g. a separate
   // Gläubiger-ID per brand).
-  creditorIban        String
-  creditorBic         String?
-  creditorName        String
+  creditorIban       String
+  creditorBic        String?
+  creditorName       String
   // The Gläubiger-Identifikationsnummer (creditor
   // identifier) assigned by the Bundesbank to the
   // company. Required for all SEPA Core / B2B
@@ -3126,35 +3134,35 @@ model SepaDirectDebitBatch {
   // digits + 8-char Geschäftsbereich + 5-char
   // Register-Nr + 1 filler). Defaults to a
   // company-level setting; can be overridden.
-  creditorIdentifier  String
+  creditorIdentifier String
   // The planned collection date (SettlementDate for
   // the creditor; EarliestSettlementDate for the
   // debtor). The bank settles T+1 for B2C CORE,
   // T+1 for B2B.
-  executionDate       DateTime
+  executionDate      DateTime
   // 'CORE' | 'B2B' — affects the `<LclInstrm><Cd>`,
   // the pre-notification deadline logic, and the
   //   acceptance window. The whole batch has ONE
   //   type (per §2.2 of the Rulebook, a PmtInf
   //   can only carry transactions of a single
   //   type).
-  type                String   @default("CORE")
+  type               String   @default("CORE")
   // The user's optional note (e.g. "Monats-
   // Beiträge" / "Monthly fees").
-  notes               String?
+  notes              String?
   // Status: draft | generated | submitted | confirmed | failed
-  status              String   @default("generated")
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  status             String   @default("generated")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   // Back-relations
-  collections         SepaDirectDebitCollection[] @relation("BatchCollections")
+  collections SepaDirectDebitCollection[] @relation("BatchCollections")
   // The invoices that were collected by this batch.
   // Symmetric to the ExpensePaidByBatch pattern on
   // SepaBatch (pain.001), but for invoices (not
   // expenses) since direct debits target the
   // customer's invoice.
-  invoices            Invoice[] @relation("InvoiceCollectedByBatch")
+  invoices    Invoice[]                   @relation("InvoiceCollectedByBatch")
 
   @@index([companyId, executionDate])
   @@index([companyId, status])
@@ -3177,20 +3185,20 @@ model SepaDirectDebitBatch {
 /// "latest run" lookup is a single index range
 /// scan.
 model CronHealth {
-  id          String   @id @default(uuid())
+  id           String   @id @default(uuid())
   // Stable scheduler identifier (matches the
   // @Cron `name:` option in each scheduler).
   // Examples: 'webhook-retry-worker',
   // 'recurring-invoices-daily'.
-  name        String
+  name         String
   // 'success' | 'failed' | 'skipped' (env-disabled
   // or no work to do)
-  status      String
+  status       String
   // Wall-clock time the scheduler method was
   // entered. The duration column lets the
   // admin spot slow runs without scraping logs.
-  startedAt   DateTime @default(now())
-  durationMs  Int?
+  startedAt    DateTime @default(now())
+  durationMs   Int?
   // Free-text error message (truncated to 1000
   // chars by the service to keep the table small).
   errorMessage String?
@@ -3198,7 +3206,7 @@ model CronHealth {
   // 38 succeeded, 4 failed"). For success runs
   // the admin can see at a glance what the cron
   // did without grepping logs.
-  summary     String?
+  summary      String?
 
   @@index([name, startedAt])
 }
@@ -3215,23 +3223,23 @@ model CronHealth {
 // + unique index and route lookups by
 // event.companyId.
 model NotificationConfig {
-  id                        String   @id @default(uuid())
+  id                         String   @id @default(uuid())
   /// Minimum number of occurrences of a
   /// fingerprint within the window before
   /// the notification fires. Default 5
   /// (= 1 burst + 4 follow-ups, so a true
   /// one-off doesn't wake anyone up at 3am).
-  rateThresholdCount        Int      @default(5)
+  rateThresholdCount         Int      @default(5)
   /// Sliding window in minutes for the
   /// count above. Default 60 (1 hour).
   /// At max config (1440) the threshold
   /// means "in the last 24 hours".
-  rateThresholdWindowMinutes Int     @default(60)
-  updatedAt                 DateTime @updatedAt
+  rateThresholdWindowMinutes Int      @default(60)
+  updatedAt                  DateTime @updatedAt
   /// Free-text operator note for the audit
   /// trail (e.g. "lowered from 5 to 3 after
   /// the false alarm on Aug 12").
-  note                      String?
+  note                       String?
 }
 
 // Tier 208 — separate table for the company

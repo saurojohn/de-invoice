@@ -231,7 +231,7 @@ test.describe('Tier 167 — DATEV Buchungsliste', () => {
     // is genuinely empty.
   })
 
-  test('backend: Kontenplan.csv starts with the SKR03 default header', async () => {
+  test('backend: Kontenplan.csv starts with the company account mapping', async () => {
     const { body } = await fetchBuchungsliste(2026)
     const zipPath = saveZipToTmp(body, 'kontenplan')
     const csv = readZipEntry(zipPath, 'Kontenplan.csv')
@@ -239,15 +239,14 @@ test.describe('Tier 167 — DATEV Buchungsliste', () => {
     // SKR03 default mapping (always present
     // for the Berater's reference) and the
     // active accounts in this period.
-    expect(csv).toMatch(/^# SKR03 Standard-Mapping/)
-    expect(csv).toContain('8400;Erlöse 19% USt;Betriebsertrag')
-    expect(csv).toContain('8120;Erlöse §13b UStG (Reverse Charge / Ausfuhr);Betriebsertrag')
-    // The Tier 167 addition — the §13b /
-    // Reverse-Charge / Ausfuhr Erlöskonto
-    // that the previous DATEV default
-    // mapping didn't have explicitly. The
-    // Berater needs this for the
-    // Buchungsliste vs UStVA reconciliation.
+    // Tier 423: the section lists the accounts this company books on
+    // (Konto;Bezeichnung;Verwendung) — it was a fixed list that labelled
+    // 8120 as § 13b and 1760 / 1577 as USt / Vorsteuer 7 %.
+    expect(csv).toMatch(/^# Kontenzuordnung/)
+    expect(csv).toContain('8400;Erlöse 19% USt;Erlöse 19 %')
+    expect(csv).toContain('8120;Steuerfreie Umsätze § 4 Nr. 1a UStG (Ausfuhr);Ausfuhrlieferungen')
+    expect(csv).toContain('8337;Erlöse aus Leistungen nach § 13b UStG;Leistungen nach § 13b UStG')
+    expect(csv).toContain('10000-69999;Debitoren;ein Personenkonto je Kunde')
     expect(csv).toContain('# Aktive Konten in diesem Zeitraum')
   })
 

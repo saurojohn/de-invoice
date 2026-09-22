@@ -4,7 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service'
 import { StorageService } from '../storage/storage.service'
 import { generateZUGFeRD } from '../../invoices/zugferd.service'
 import { InvoiceTemplateService } from '../invoice-template/invoice-template.service'
-import { generateDatevBuchungsstapel, buildBuchungenFromDb } from '../reports/datev.service'
+import { generateDatevBuchungsstapel, buildBuchungenFromDb, encodeDatevCsv } from '../reports/datev.service'
 import * as archiver from 'archiver'
 import * as fs from 'fs'
 import * as path from 'path'
@@ -191,7 +191,7 @@ export class GobdArchiveService {
       totalVorsteuer += exp.vorsteuer
     }
 
-    archive.append(datevCsv, { name: 'Buchungsstapel.csv' })
+    archive.append(encodeDatevCsv(datevCsv), { name: 'Buchungsstapel.csv' })
     archive.append(auditCsv, { name: 'Audit-Log.csv' })
 
     // The manifest is the human-readable summary

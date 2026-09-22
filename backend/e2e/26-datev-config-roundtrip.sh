@@ -32,8 +32,9 @@ docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
 api_get "/api/v1/companies/$COMPANY_ID/datev-config"
 assert_eq "default config.bank"  "$(json_field "$BODY" config.bank)"  "1200"
 assert_eq "default config.revenue19"  "$(json_field "$BODY" config.revenue19)"  "8400"
-# inputVatIgE is the canonical 1782 (fixed in Tier 5c)
-assert_eq "default config.inputVatIgE = 1782"  "$(json_field "$BODY" config.inputVatIgE)"  "1782"
+# Tier 423: SKR03 Vorsteuer aus igE 19 % is 1574 (1782 is an
+# Umsatzsteuer-Vorauszahlung account).
+assert_eq "default config.inputVatIgE = 1574"  "$(json_field "$BODY" config.inputVatIgE)"  "1574"
 # openingBalances + laufNr are present (even if empty)
 assert_eq "default openingBalances empty"  "$(json_field "$BODY" openingBalances)" "[]"
 assert_eq "default laufNr empty"  "$(json_field "$BODY" laufNr)"  "{}"
@@ -195,10 +196,12 @@ curl -sS -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
 LAUF_HDR=$(python3 -c "
 import sys
 with open('/tmp/datev-roundtrip.csv', 'rb') as f:
-    line = f.readline().decode('latin-1').rstrip()
-print(line.split(';')[4])
+    line = f.readline().decode('cp1252').rstrip()
+print(line.split(';')[30].strip('\"'))
 ")
-assert_eq "export header field 5 = laufNr 7" "$LAUF_HDR" "Lauf 007"
+# Tier 423: DATEV header field 31 (Anwendungsinformation); field 5 is the
+# format version.
+assert_eq "export header field 31 = laufNr 7" "$LAUF_HDR" "Lauf 007"
 
 # Filename has the same laufNr (L007)
 if LC_ALL=C grep -qi 'filename="EXTF_Buchungsstapel_2026-01-01_L007.csv"' /tmp/datev-roundtrip-hdr.txt; then
@@ -215,7 +218,7 @@ if LC_ALL=C grep -q "EB Bank" /tmp/datev-roundtrip.csv; then
 else
   pass "old EB-Werte (EB Bank) replaced by new (Keep)"
 fi
-if LC_ALL=C grep -q ";Keep" /tmp/datev-roundtrip.csv; then
+if LC_ALL=C grep -q ';"Keep"' /tmp/datev-roundtrip.csv; then
   pass "new EB-Werte (Keep) present in export"
 else
   fail "new EB-Werte (Keep) missing from export"

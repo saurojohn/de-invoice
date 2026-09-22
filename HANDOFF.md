@@ -9,17 +9,18 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–421 are
-  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 421.)
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–423 are
+  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 422.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 35658942460 / commit `f22fe38`, Tier 421):**
-  - Backend e2e: **209 passed / 0 failed / 1 skipped** of 210 specs — 100
-    two-digit + 110 three-digit (Tier 421 added `210-tier421-verzugszinsen.sh`,
+- **Test counts (last green CI, run 35697060686 / commit `1e92fbf`, Tier 422):**
+  - Backend e2e: **210 passed / 0 failed / 1 skipped** of 211 specs — 100
+    two-digit + 111 three-digit (Tier 422 added `211-tier422-skonto-settlement.sh`,
+    Tier 421 `210-tier421-verzugszinsen.sh`,
     Tier 420 `209-tier420-gobd-archive-issued.sh`,
     Tier 419 `208-tier419-expense-net-cost.sh`,
     Tier 418 `207-tier418-pdf-pagination.sh`,
@@ -161,8 +162,9 @@ Operational scripts:
 
 ## 6. Schema + migrations
 
-- **22 migrations** in `backend/prisma/migrations/` (oldest:
-  `20240101000000_baseline`, newest: `20260905000001_invoice_eur_aggregation`).
+- **25 migrations** in `backend/prisma/migrations/` (oldest:
+  `20240101000000_baseline`, newest: `20260922000001_datev_personenkonten`,
+  Tier 423: `Customer.datevAccount` / `Supplier.datevAccount`).
 - **62 models** in `backend/prisma/schema.prisma`. CI workflow enforces
   `TABLE_COUNT >= 62` after `db push` (`.github/workflows/ci.yml:254`).
 - **Raw-SQL migrations:** 1 — `20260701000001_search_tsv/migration.sql`
@@ -2472,6 +2474,103 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### The DATEV export could not be imported, and booked the wrong things (Tier 423)
+
+User decisions for this tier: **Soll-Versteuerung** (invoices booked at their
+issue date) and **one Personenkonto per customer / supplier**.
+
+Measured on one month with an unpaid 19 % + 7 % invoice, an igL invoice, a
+part payment, a credit note, two expenses and a manual voucher:
+
+| | Before | Now |
+|---|---|---|
+| header | 25 fields of its own design, `"EXTF";"Buchungsstapel";"15";…` | DATEV-Format: `"EXTF";700;21;"Buchungsstapel";13;…`, 31 fields, Berater / Mandant / WJ-Beginn / Sachkontenlänge / period in their places |
+| column headings | none | DATEV's 125 headings on line 2 |
+| data rows | began with `EXTF`, amount in column 9, decimal point | amount in column 1 with a decimal comma, S/H, Konto, Gegenkonto, BU-Schlüssel, Belegdatum TTMM, … — DATEV reads by position |
+| encoding | Buffer `latin1` (the controller) or UTF-8 (Buchungsliste, GoBD archive) | Windows-1252 everywhere (`encodeDatevCsv`; "–" of the headings and "€" are in 0x80–0x9F) |
+| unpaid invoice | not exported (only status `paid`) | Debitor 10000 an 8400 1 190,00 S key 3, an 8300 107,00 S key 2 |
+| paid invoice | on the payment date, 1406 an 8400 net + a second row for the tax, + a row for the payment of the *invoice total* | at the issue date; each payment on its own date and amount, Bank an Debitor |
+| igL | 8125 key "0" | 8125 without key, customer's VAT id in "EU-Land u. USt-IdNr." (ZM) |
+| credit note | missing | Debitor an 8400 / 8300, H, split over the rates |
+| expense | "Bank an Aufwand" at the invoice date (paid or not) + a Vorsteuer row, key "1" | Kreditor 70001 an Aufwand, gross, key 9; § 13b net key 94, igE key 19 |
+| manual voucher 4900 + VSt 1576 an Bank | 3 rows (every line against the first opposite line) | 1 row: Bank an 4900 119,00 H key 9 |
+
+The tax keys were invented (19 % USt "1" — DATEV's key 1 is *steuerfrei mit
+Vorsteuerabzug*; Vorsteuer "20"/"21"; igE "14"/"15"; § 13b "12"/"13", which
+are intra-EU supplies to buyers *without* a VAT id). Now DATEV's: 2/3 USt,
+8/9 Vorsteuer, 5/7 the 16 % of 2020, 18/19 igE, 91/94 § 13b; tax-free
+bookings carry no key (the account says what they are). Rows carry the gross
+amount; 8400/8300 are Automatikkonten and DATEV splits the tax itself.
+
+- **Personenkonten** (`datev-personenkonten.ts`, migration
+  `20260922000001_datev_personenkonten`): `Customer.datevAccount` /
+  `Supplier.datevAccount`, unique per company, assigned on the first export
+  that needs one (Debitoren from 10000, Kreditoren from 70001, 70000 =
+  "Diverse Kreditoren" for expenses without a supplier) and kept.
+- **Zero-rated revenue** is classified as in the UStVA: igL 8125, Ausfuhr
+  8120, § 13b domestic 8337, EU services 8336, third-country services 8338,
+  other exempt 8100, Kleinunternehmer 8195. New configurable fields in the
+  DATEV settings, labelled in de/en/zh.
+- **SKR03 defaults corrected**: USt 7 % 1771 (was 1760 "USt nicht fällig"),
+  Vorsteuer 7 % 1571 (was 1577 = Vorsteuer § 13b), Vorsteuer igE 1574 and
+  § 13b 1577 (were 1782 / 1780, the Umsatzsteuer-Vorauszahlungen); new
+  USt igE 1774, USt § 13b 1787. `receivable` stays 1406: the bank import's
+  vouchers book on it, and existing companies' vouchers already do. The bank
+  import's 7 % Vorsteuer line now books 1571 (it booked the § 13b account
+  1577); vouchers already posted stay as they are. With keys DATEV picks
+  the tax accounts itself; these label the Buchungsliste. Stored per-company
+  overrides are kept as they are.
+- **Vouchers**: skipped when the booking is exported elsewhere — `invoice`,
+  `BankReconciliation` (the match records a Payment) and its reopening, and
+  Storno vouchers of those. A bank payment of a recorded expense (`Expense`)
+  is Bank an Kreditor (it exported the Aufwand and Vorsteuer lines again). The
+  rest: one row per booking, a tax line folded into its base line with the
+  key; an N:M voucher goes line by line against 1590 (Durchlaufende Posten).
+- **Proforma invoices (PI)** are no longer exported (they were, when paid).
+- **Buchungsliste / USt-Verprobung / Kontenplan** follow: the gross row is
+  split into Sachkonto net + tax account; the Verprobung groups by the real
+  keys; the Kontenplan lists the company's actual mapping.
+- `PUT /companies/:id/datev-config` saved Berater-/Mandantennummer only when
+  `accounts` was in the same body; now always, Beraternummer up to 7 digits.
+- Preview endpoint: a negative amount (credit note) is no longer a warning.
+
+Unit test `datev-ust-schluessel.test.ts` rewritten on DATEV's keys (it
+asserted the invented ones). `_lib.sh` gains `datev_rows` / `datev_balance`,
+which read a Buchungsstapel by column heading. Specs updated, each asserted
+the old layout by column position: 07 (Vorsteuer 7 % 1571; the
+reconciliation voucher is not exported), 11 (a Storno is one row, sides
+swapped), 25 (header fields, KOST1/2, igL / § 13b accounts and keys, CHF in
+EUR, payment rows — the currency / Kurs / ISO3 / payment-method columns it
+checked do not exist in DATEV's layout), 26 (igE 1574, Lauf in header field
+31), 30 (amounts converted at the ECB snapshot instead of a "Kurs" column),
+58 (key 3), 198 (gross rows with keys; the customer's account clears);
+Playwright `datev-buchungsliste-tier167` (the Kontenplan section).
+
+Non-EUR documents: booked in EUR at the document's stored EUR amount, else
+at the company's ECB snapshot (foreign units per EUR), else 1:1.
+
+Local runs: backend **211 passed / 1 failed** (212 specs; `16-dark-mode.sh`
+ran instead of skipping because a frontend from an earlier Playwright run was
+still up on :3100), 0 × 500; Playwright **929 passed, 1 flaky**
+(`legal-pages-tier170` test 4, the cookie banner still visible after
+"accept" on two attempts, passed on the third — nothing here touches it).
+The failure: `203-tier414-zugferd-cii.sh`, "igl: no CII found in the
+ZUGFeRD PDF", in both full runs — never on its own (five times), and not
+after replaying every spec before it in order on a fresh stack. No 500 was
+logged, so the endpoint answered; the spec now prints the HTTP status and
+the start of the body when this happens. Nothing in this tier touches the
+ZUGFeRD path; CI (no frontend in the e2e job) decides — watch it.
+
+Spec `e2e/212-tier423-datev-buchungsstapel.sh` (17 assertions, 15 failing
+against the previous code).
+
+Not done / to confirm with a Berater (§ 9): the SKR03 accounts for the
+zero-rated cases; foreign-currency documents are booked in EUR (no WKZ /
+Kurs columns); expenses without a bank match have no
+payment row (the app records no payment date for expenses); the UStVA and the
+aging report still count proforma invoices (next tier); a Debitoren /
+Kreditoren master-data file (EXTF category 16) is not exported yet.
+
 ### A Skonto payment left the invoice open and the VAT unreduced (Tier 422)
 
 Measured on a 1 190 € invoice with 2 % Skonto (14 days), paid 1 166,20 € on
@@ -4441,6 +4540,16 @@ These are **not in the repo** — only the user can do them:
     against consumers. Between businesses § 288 Abs. 5 allows a 40 € flat fee
     per claim, which the app does not offer. Which defaults to ship is a legal
     / business decision; nothing was changed.
+
+18. **Have a Steuerberater import one DATEV Buchungsstapel** (found Tier 423).
+    The export now follows DATEV's published format (EXTF 700, Formatversion
+    13, DATEV's own sample file as reference) and DATEV's standard tax keys,
+    but it has never been imported into DATEV Rechnungswesen — only DATEV
+    software can prove it. Worth confirming at the same time: the SKR03
+    accounts chosen for zero-rated revenue (8125 igL, 8120 Ausfuhr, 8337
+    § 13b, 8336 EU services, 8338 third-country services, 8100 other exempt,
+    8195 Kleinunternehmer), and whether the Berater wants foreign-currency
+    documents with WKZ / Kurs instead of in EUR.
 
 When the Hetzner items are available, the deploy is:
 

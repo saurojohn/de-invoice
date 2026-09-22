@@ -3,6 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service'
 import {
   buildBuchungenFromDb,
   generateDatevBuchungsstapel,
+  encodeDatevCsv,
   resolveDatevAccounts,
   DatevExportInput,
   BuchungsSatz,
@@ -268,7 +269,7 @@ export class DatevBuchungslisteService {
     //    self-hash pattern as Tier 166).
     const crypto = require('crypto') as typeof import('crypto')
     const buchungslisteBytes = Buffer.from(buchungslisteCsv, 'utf-8')
-    const buchungsstapelBytes = Buffer.from(buchungsstapelCsv, 'utf-8')
+    const buchungsstapelBytes = encodeDatevCsv(buchungsstapelCsv)
     const ustVerprobungBytes = Buffer.from(ustVerprobungCsv, 'utf-8')
     const kontenplanBytes = Buffer.from(kontenplanCsv, 'utf-8')
     const manifestPre = {
@@ -439,7 +440,8 @@ export class DatevBuchungslisteService {
       } else {
         map.set(konto, {
           konto,
-          kontoName: SKR03_NAMES[konto] ?? '',
+          kontoName: SKR03_NAMES[konto]
+            ?? (/^\d{5}$/.test(konto) ? (Number(konto) >= 70000 ? 'Kreditor' : 'Debitor') : ''),
           count: 1,
           sumSoll: side === 'S' ? betrag : 0,
           sumHaben: side === 'H' ? betrag : 0,
@@ -447,15 +449,21 @@ export class DatevBuchungslisteService {
         })
       }
     }
+    // Tier 423: a row with a tax key carries the gross amount — DATEV splits
+    // the tax off the Gegenkonto onto the tax account. Do the same here, so
+    // the list shows 8400 net and 1776 with the tax, as in DATEV.
     for (const b of buchungen) {
-      const betrag = Math.abs(Number(b.betrag) || 0)
-      // The Soll/Haben side can be flipped via
-      // shVz. Default 'S' = konto is Soll
-      // (gegenkonto is Haben). 'H' = flipped.
-      const kontoSide: 'S' | 'H' = b.shVz === 'H' ? 'H' : 'S'
+      const raw = Number(b.betrag) || 0
+      if (raw === 0) continue
+      const betrag = Math.abs(raw)
+      const flip = raw < 0
+      const declared: 'S' | 'H' = b.shVz === 'H' ? 'H' : 'S'
+      const kontoSide: 'S' | 'H' = flip ? (declared === 'S' ? 'H' : 'S') : declared
       const gegenSide: 'S' | 'H' = kontoSide === 'S' ? 'H' : 'S'
+      const tax = b.steuerKonto ? Math.abs(Number(b.ustBetrag) || 0) : 0
       add(b.konto, betrag, kontoSide)
-      add(b.gegenkonto, betrag, gegenSide)
+      add(b.gegenkonto, Math.round((betrag - tax) * 100) / 100, gegenSide)
+      if (tax > 0) add(b.steuerKonto!, tax, gegenSide)
     }
     for (const s of map.values()) {
       s.saldo = s.sumSoll - s.sumHaben
@@ -514,59 +522,42 @@ export class DatevBuchungslisteService {
   }
 
   private buildUstVerprobung(buchungen: BuchungsSatz[]): UstVerprobungRow[] {
-    // Group by ustSchluessel. We compute Net
-    // (= betrag without USt), USt (the USt
-    // portion), and Brutto (Net + USt) per
-    // Schlüssel. The USt-Schlüssel determines
-    // the rate (0=steuerfrei, 1=igL, 2/3=7%/19%,
-    // 8/9=Anlage N/V, 11-13=§13b, 14-16=IgE,
-    // 20/21=Vorsteuer).
+    // One row per DATEV tax key. Tier 423: a row's amount is gross and its
+    // ustBetrag the tax in it (they used to be separate net and tax rows,
+    // told apart by invented keys). A credit note is negative and subtracts.
+    // For igE / § 13b (18/19, 91/94) the row is net and the tax owed — equal
+    // to the input tax — is derived from the rate.
     const map = new Map<string, UstVerprobungRow>()
     for (const b of buchungen) {
+      if (b.ustSchluessel === undefined) continue // bank, payments, EB
       const key = b.ustSchluessel || '0'
-      const betrag = Math.abs(Number(b.betrag) || 0)
-      // For revenue rows (ustSchluessel 0/1/2/3)
-      // the betrag IS the net amount. For USt
-      // rows (ustSchluessel 8/9/20/21) the
-      // betrag IS the USt amount. We classify
-      // by which side the row touches.
-      const isUstRow =
-        key === '8' || key === '9' || key === '20' || key === '21'
-      const existing = map.get(key)
-      if (existing) {
-        existing.count++
-        if (isUstRow) {
-          existing.sumUst += betrag
-        } else {
-          existing.sumNet += betrag
-        }
-      } else {
-        map.set(key, {
-          ustSchluessel: key,
-          description: UST_DESCRIPTION[key] ?? `Schlüssel ${key}`,
-          count: 1,
-          sumNet: isUstRow ? 0 : betrag,
-          sumUst: isUstRow ? betrag : 0,
-          sumBrutto: 0,
-        })
+      const sign = Number(b.betrag) < 0 ? -1 : 1
+      const gross = Math.abs(Number(b.betrag) || 0) * sign
+      const tax = Math.abs(Number(b.ustBetrag) || 0) * sign
+      const row = map.get(key) ?? {
+        ustSchluessel: key,
+        description: UST_DESCRIPTION[key] ?? `Schlüssel ${key}`,
+        count: 0,
+        sumNet: 0,
+        sumUst: 0,
+        sumBrutto: 0,
       }
+      row.count++
+      row.sumNet += gross - tax
+      row.sumUst += tax
+      map.set(key, row)
     }
     for (const row of map.values()) {
-      // For revenue (Net-only) rows, the USt
-      // is implied by the Schlüssel. We
-      // back-compute it from the rate so the
-      // Berater can reconcile against their
-      // UStVA.
-      const rowRate = UST_RATE[row.ustSchluessel] ?? 0
-      if (row.sumUst === 0 && row.sumNet > 0 && rowRate > 0) {
-        row.sumUst = Math.round((row.sumNet * rowRate) * 100) / 100
+      const rate = UST_RATE[row.ustSchluessel] ?? 0
+      if (row.sumUst === 0 && rate > 0 && SELF_ASSESSED.has(row.ustSchluessel)) {
+        row.sumUst = row.sumNet * rate
       }
       row.sumNet = Math.round(row.sumNet * 100) / 100
       row.sumUst = Math.round(row.sumUst * 100) / 100
       row.sumBrutto = Math.round((row.sumNet + row.sumUst) * 100) / 100
     }
     return Array.from(map.values()).sort((a, b) =>
-      a.ustSchluessel.localeCompare(b.ustSchluessel),
+      Number(a.ustSchluessel) - Number(b.ustSchluessel),
     )
   }
 
@@ -611,22 +602,17 @@ export class DatevBuchungslisteService {
     // anything" and Section 2 for the actual
     // Buchungsliste.
     const lines: string[] = []
-    lines.push('# SKR03 Standard-Mapping (Default)')
-    lines.push('Konto;KontoBezeichnung;Bereich')
-    lines.push(`1200;Bank;Betriebsvermögen`)
-    lines.push(`1406;Forderungen aus Lieferungen und Leistungen;Umlaufvermögen`)
-    lines.push(`1600;Verbindlichkeiten aus Lieferungen und Leistungen;Fremdkapital`)
-    lines.push(`1776;Umsatzsteuer 19% (Verbindlichkeit);Fremdkapital`)
-    lines.push(`1760;Umsatzsteuer 7% (Verbindlichkeit);Fremdkapital`)
-    lines.push(`1576;Vorsteuer 19%;Umlaufvermögen`)
-    lines.push(`1577;Vorsteuer 7%;Umlaufvermögen`)
-    lines.push(`1780;USt-Vorauszahlungen (§13b UStG);Fremdkapital`)
-    lines.push(`1782;Vorsteuer aus innergemeinschaftlichem Erwerb;Umlaufvermögen`)
-    lines.push(`4900;Sonstige betriebliche Aufwendungen;Betriebsaufwand`)
-    lines.push(`8400;Erlöse 19% USt;Betriebsertrag`)
-    lines.push(`8300;Erlöse 7% USt;Betriebsertrag`)
-    lines.push(`8125;Erlöse 0% USt (innergemeinschaftliche Lieferung);Betriebsertrag`)
-    lines.push(`8120;Erlöse §13b UStG (Reverse Charge / Ausfuhr);Betriebsertrag`)
+    // Tier 423: the accounts this company actually books on (its overrides
+    // included), not a fixed list that disagreed with SKR03.
+    lines.push('# Kontenzuordnung (SKR03-Standard, ggf. überschrieben)')
+    lines.push('Konto;KontoBezeichnung;Verwendung')
+    for (const [field, label] of ACCOUNT_USAGE) {
+      const konto = (_accounts as any)[field]
+      if (konto) lines.push([konto, SKR03_NAMES[konto] ?? '', label].join(';'))
+    }
+    lines.push('10000-69999;Debitoren;ein Personenkonto je Kunde')
+    lines.push('70000;Diverse Kreditoren;Ausgaben ohne Lieferant')
+    lines.push('70001-99999;Kreditoren;ein Personenkonto je Lieferant')
     lines.push('')
     lines.push('# Aktive Konten in diesem Zeitraum')
     lines.push('Konto;KontoBezeichnung;Saldo')
@@ -652,65 +638,85 @@ export class DatevBuchungslisteService {
  * (the Berater recognises the account by
  * number, not by name).
  */
+const ACCOUNT_USAGE: [string, string][] = [
+  ['bank', 'Bank'],
+  ['receivable', 'Forderungen (Sammelkonto)'],
+  ['payable', 'Verbindlichkeiten (Sammelkonto)'],
+  ['revenue19', 'Erlöse 19 %'],
+  ['revenue7', 'Erlöse 7 %'],
+  ['revenue0', 'innergemeinschaftliche Lieferungen'],
+  ['revenueExport', 'Ausfuhrlieferungen'],
+  ['revenueExempt', 'sonstige steuerfreie Umsätze'],
+  ['revenue13b', 'Leistungen nach § 13b UStG'],
+  ['revenueEuServices', 'Leistungen im übrigen EU-Gebiet (§ 13b)'],
+  ['revenueThirdCountryServices', 'Leistungen im Drittland'],
+  ['revenueKleinunternehmer', 'Erlöse Kleinunternehmer'],
+  ['vatPayable19', 'Umsatzsteuer 19 %'],
+  ['vatPayable7', 'Umsatzsteuer 7 %'],
+  ['outputVatIgE', 'Umsatzsteuer igE'],
+  ['outputVat13b', 'Umsatzsteuer § 13b'],
+  ['inputVat19', 'Vorsteuer 19 %'],
+  ['inputVat7', 'Vorsteuer 7 %'],
+  ['inputVatIgE', 'Vorsteuer igE'],
+  ['inputVatReverseCharge', 'Vorsteuer § 13b'],
+  ['expenseDefault', 'Aufwand ohne eigenes Konto'],
+]
+
 const SKR03_NAMES: Record<string, string> = {
   '1200': 'Bank',
-  '1406': 'Forderungen aus Lieferungen und Leistungen',
   '1600': 'Verbindlichkeiten aus Lieferungen und Leistungen',
-  '1776': 'Umsatzsteuer 19%',
-  '1760': 'Umsatzsteuer 7%',
-  '1576': 'Vorsteuer 19%',
-  '1577': 'Vorsteuer 7%',
-  '1780': 'Umsatzsteuer-Vorauszahlungen (§13b UStG)',
-  '1782': 'Vorsteuer aus innergemeinschaftlichem Erwerb',
+  '1406': 'Forderungen aus Lieferungen und Leistungen',
+  '1571': 'Abziehbare Vorsteuer 7 %',
+  '1574': 'Abziehbare Vorsteuer aus innergemeinschaftlichem Erwerb 19 %',
+  '1576': 'Abziehbare Vorsteuer 19 %',
+  '1577': 'Abziehbare Vorsteuer nach § 13b UStG 19 %',
+  '1590': 'Durchlaufende Posten',
+  '1771': 'Umsatzsteuer 7 %',
+  '1774': 'Umsatzsteuer aus innergemeinschaftlichem Erwerb 19 %',
+  '1776': 'Umsatzsteuer 19 %',
+  '1787': 'Umsatzsteuer nach § 13b UStG 19 %',
+  '8100': 'Steuerfreie Umsätze § 4 Nr. 8 ff. UStG',
+  '8195': 'Erlöse als Kleinunternehmer (§ 19 UStG)',
+  '8336': 'Erlöse aus im anderen EU-Land steuerpflichtigen Leistungen (§ 13b)',
+  '8337': 'Erlöse aus Leistungen nach § 13b UStG',
+  '8338': 'Erlöse aus im Drittland steuerbaren Leistungen',
   '4900': 'Sonstige betriebliche Aufwendungen',
   '8400': 'Erlöse 19% USt',
   '8300': 'Erlöse 7% USt',
   '8125': 'Erlöse 0% USt (innergemeinschaftliche Lieferung)',
-  '8120': 'Erlöse §13b UStG (Reverse Charge / Ausfuhr)',
+  '8120': 'Steuerfreie Umsätze § 4 Nr. 1a UStG (Ausfuhr)',
+  '9000': 'Saldenvorträge Sachkonten',
 }
 
 /**
- * USt-Schlüssel → USt-Satz mapping (the
- * numeric factor, e.g. 19% = 0.19).
- * Source: DATEV USt-Schlüsseltabelle.
+ * DATEV tax key → rate and description (Tier 423: DATEV's standard keys; see
+ * datev-ust-schluessel.ts).
  */
 const UST_RATE: Record<string, number> = {
-  '0': 0,    // Steuerfrei (ohne §-Verweis)
-  '1': 0,    // §4 Nr. 1a UStG (innergem. Lieferung)
-  '2': 0.07, // 7% USt
-  '3': 0.19, // 19% USt
-  '8': 0.19, // 19% Vorsteuer (§15 UStG)
-  '9': 0.07, // 7% Vorsteuer
-  '11': 0.19, // §13b 19% (Leistungsempfänger schuldet)
-  '12': 0.07, // §13b 7%
-  '13': 0,    // §13b 0% (steuerfrei)
-  '14': 0.19, // IgE Erwerb 19%
-  '15': 0.07, // IgE Erwerb 7%
-  '16': 0,    // IgE Erwerb 0%
-  '20': 0.19, // Vorsteuer 19% (§15)
-  '21': 0.07, // Vorsteuer 7%
-  '22': 0,    // Vorsteuer 0% (igL)
+  '0': 0,
+  '2': 0.07,
+  '3': 0.19,
+  '5': 0.16,
+  '7': 0.16,
+  '8': 0.07,
+  '9': 0.19,
+  '18': 0.07,
+  '19': 0.19,
+  '91': 0.07,
+  '94': 0.19,
 }
+const SELF_ASSESSED = new Set(['18', '19', '91', '94'])
 
-/**
- * USt-Schlüssel → human description for the
- * CSV. German names so the Berater can read
- * the file without a lookup table.
- */
 const UST_DESCRIPTION: Record<string, string> = {
-  '0': 'Steuerfrei (ohne §-Verweis)',
-  '1': 'Innergemeinschaftliche Lieferung (§4 Nr. 1a UStG)',
-  '2': 'Umsatzsteuer 7%',
-  '3': 'Umsatzsteuer 19%',
-  '8': 'Vorsteuer 19% (§15 UStG)',
-  '9': 'Vorsteuer 7%',
-  '11': 'Steuerschuldnerschaft §13b UStG 19%',
-  '12': 'Steuerschuldnerschaft §13b UStG 7%',
-  '13': 'Steuerschuldnerschaft §13b UStG steuerfrei',
-  '14': 'Innergemeinschaftlicher Erwerb 19%',
-  '15': 'Innergemeinschaftlicher Erwerb 7%',
-  '16': 'Innergemeinschaftlicher Erwerb steuerfrei',
-  '20': 'Vorsteuer 19% (§15 UStG)',
-  '21': 'Vorsteuer 7%',
-  '22': 'Vorsteuer igL',
+  '0': 'ohne Steuerschlüssel (steuerfrei / nicht steuerbar / ohne Vorsteuer)',
+  '2': 'Umsatzsteuer 7 %',
+  '3': 'Umsatzsteuer 19 %',
+  '5': 'Umsatzsteuer 16 %',
+  '7': 'Vorsteuer 16 %',
+  '8': 'Vorsteuer 7 %',
+  '9': 'Vorsteuer 19 %',
+  '18': 'innergemeinschaftlicher Erwerb 7 % (USt = Vorsteuer)',
+  '19': 'innergemeinschaftlicher Erwerb 19 % (USt = Vorsteuer)',
+  '91': '§ 13b UStG 7 %, Leistungsempfänger schuldet (USt = Vorsteuer)',
+  '94': '§ 13b UStG 19 %, Leistungsempfänger schuldet (USt = Vorsteuer)',
 }

@@ -167,225 +167,70 @@ else
   grep -i "filename" /tmp/datev-t5-headers.txt | head -1
 fi
 
-# Header columns via Python (Latin-1 safe)
-read_header() {
-  python3 -c "
+# Tier 423: the export is a real DATEV Buchungsstapel now (EXTF 700,
+# Formatversion 13), read here by column heading. The columns this spec
+# checked by position (currency, Kurs, ISO3 country, payment method in
+# columns 14–21) belonged to a layout of the app's own; DATEV has no such
+# columns in those places. Amounts are in EUR (a CHF invoice at its stored
+# rate); the ZM needs the customer's VAT id, which is in "EU-Land u. USt-IdNr.".
+hdr() { python3 -c "
 import sys
-with open('/tmp/datev-t5.csv', 'rb') as f:
-    line = f.readline().decode('latin-1').rstrip('\r\n')
-cols = line.split(';')
-n = int(sys.argv[1])
-print(cols[n-1] if n <= len(cols) else '')
-" "$1"
+line = open('/tmp/datev-t5.csv','rb').readline().decode('cp1252').rstrip('\r\n')
+print(line.split(';')[int(sys.argv[1])-1].strip('\"'))" "$1"; }
+# The value in column HEADING of the first row whose Buchungstext contains ANCHOR.
+col() { python3 - "$1" "$2" <<'PY'
+import csv, io, sys
+rows = list(csv.reader(io.StringIO(open('/tmp/datev-t5.csv','rb').read().decode('cp1252')), delimiter=';'))
+cols = rows[1]
+m = [r for r in rows[2:] if r and sys.argv[1] in r[cols.index('Buchungstext')]]
+print(m[0][cols.index(sys.argv[2])] if m else '<no row>')
+PY
 }
+count() { datev_rows /tmp/datev-t5.csv | awk -F'\t' -v a="$1" 'index($8, a) {n++} END {print n+0}'; }
 
-assert_eq "5a: header field 5 (Buchungslauf)" \
-  "$(read_header 5)" "Lauf 001"
-assert_eq "5a: header field 6 (Berater-Nr)" \
-  "$(read_header 6)" "11111"
-assert_eq "5a: header field 7 (Mandanten-Nr)" \
-  "$(read_header 7)" "22222"
-assert_eq "5a: header field 20 (Kontenplan)" \
-  "$(read_header 20)" "SKR03"
+assert_eq "5a: header: EXTF 700 Buchungsstapel v13" "$(hdr 1) $(hdr 2) $(hdr 4) $(hdr 5)" "EXTF 700 Buchungsstapel 13"
+assert_eq "5a: header field 11 (Berater-Nr)" "$(hdr 11)" "11111"
+assert_eq "5a: header field 12 (Mandanten-Nr)" "$(hdr 12)" "22222"
+assert_eq "5a: header field 14 (Sachkontenlänge)" "$(hdr 14)" "4"
+assert_eq "5a: header field 31 (Anwendungsinformation: Buchungslauf)" "$(hdr 31)" "Lauf 001"
 
-# EB-Werte lines present (Buchungstext "EB Bank" / "EB Forderungen")
-# Match on buchungstext, not the EB- prefix, because the
-# Belegfeld 1 already contains "EB-1200" / "EB-1400".
-if LC_ALL=C grep -q "EB Bank" /tmp/datev-t5.csv; then
-  pass "5a: EB Bank line present (Buchungslauf 0)"
-else
-  fail "5a: EB Bank line missing"
-fi
-if LC_ALL=C grep -q "EB Forderungen" /tmp/datev-t5.csv; then
-  pass "5a: EB Forderungen line present"
-else
-  fail "5a: EB Forderungen line missing"
-fi
+if LC_ALL=C grep -q "EB Bank" /tmp/datev-t5.csv; then pass "5a: EB Bank line present"; else fail "5a: EB Bank line missing"; fi
+if LC_ALL=C grep -q "EB Forderungen" /tmp/datev-t5.csv; then pass "5a: EB Forderungen line present"; else fail "5a: EB Forderungen line missing"; fi
+assert_eq "5a: EB Bank gegenkonto 9000" "$(col 'EB Bank' 'Gegenkonto (ohne BU-Schlüssel)')" "9000"
+assert_eq "5a: EB date = 1 January (TTMM)" "$(col 'EB Bank' 'Belegdatum')" "0101"
+FIRST_DATA_BF1=$(datev_rows /tmp/datev-t5.csv | head -1 | cut -f1)
+[[ "$FIRST_DATA_BF1" == EB-* ]] && pass "5a: EB-Werte precede regular Buchungen" || fail "5a: first data line is not EB-: $FIRST_DATA_BF1"
 
-# EB-Werte use 9000 (Eröffnungsbilanzkonto) as Gegenkonto.
-# Find the EB-1200 row and read col 8.
-EB_GEGEN=$(python3 -c "
-with open('/tmp/datev-t5.csv', 'rb') as f:
-    for line in f.read().decode('latin-1').splitlines():
-        if 'EB Bank' in line:
-            cols = line.split(';')
-            print(cols[7])
-            break
-")
-assert_eq "5a: EB Bank gegenkonto 9000" "$EB_GEGEN" "9000"
+K1='KOST1 – Kostenstelle'; K2='KOST2 – Kostenstelle'
+assert_eq "5b: IgE invoice KOST1" "$(col 'Rechnung E2E-T5-IGE-01' "$K1")" "100"
+assert_eq "5b: IgE invoice KOST2" "$(col 'Rechnung E2E-T5-IGE-01' "$K2")" "PROJ-2026-IGE"
+assert_eq "5b: RC invoice KOST1" "$(col 'Rechnung E2E-T5-RC-01' "$K1")" "200"
+assert_eq "5b: RC invoice KOST2" "$(col 'Rechnung E2E-T5-RC-01' "$K2")" "PROJ-2026-RC"
+assert_eq "5b: CHF invoice KOST1" "$(col 'Rechnung E2E-T5-CHF-01' "$K1")" "300"
+assert_eq "5b: CHF invoice KOST2 empty" "$(col 'Rechnung E2E-T5-CHF-01' "$K2")" ""
+assert_eq "5b: RC expense KOST1" "$(col 'UK-Bauleistung 13b' "$K1")" "400"
+assert_eq "5b: RC expense KOST2" "$(col 'UK-Bauleistung 13b' "$K2")" "PROJ-EXP-2026"
+assert_eq "5b: IgE expense KOST1" "$(col 'EU-Waren IgE' "$K1")" "500"
+assert_eq "5b: IgE expense KOST2 empty" "$(col 'EU-Waren IgE' "$K2")" ""
 
-# EB-Werte dated 01.01 of start year.
-EB_DATE=$(python3 -c "
-with open('/tmp/datev-t5.csv', 'rb') as f:
-    for line in f.read().decode('latin-1').splitlines():
-        if 'EB Bank' in line:
-            cols = line.split(';')
-            print(cols[1])
-            break
-")
-assert_eq "5a: EB date = 2026 1 1" "$EB_DATE" "2026 1 1"
+assert_eq "5c: igL revenue on 8125" "$(col 'Rechnung E2E-T5-IGE-01' 'Gegenkonto (ohne BU-Schlüssel)')" "8125"
+assert_eq "5c: igL without tax key (was an invented '0')" "$(col 'Rechnung E2E-T5-IGE-01' 'BU-Schlüssel')" ""
+assert_eq "5c: igL: invoice + payment rows only (no USt row), gross = net" "$(count 'E2E-T5-IGE-01' ) $(col 'Rechnung E2E-T5-IGE-01' 'Umsatz (ohne Soll/Haben-Kz)')" "2 1000,00"
+assert_eq "5c: § 13b outgoing (domestic customer) on 8337, no key" \
+  "$(col 'Rechnung E2E-T5-RC-01' 'Gegenkonto (ohne BU-Schlüssel)')/$(col 'Rechnung E2E-T5-RC-01' 'BU-Schlüssel')" "8337/"
+assert_eq "5c: § 13b expense: net 2000, key 94 (was a Vorsteuer row on 1780)" \
+  "$(col 'UK-Bauleistung 13b' 'Umsatz (ohne Soll/Haben-Kz)')/$(col 'UK-Bauleistung 13b' 'BU-Schlüssel')" "2000,00/94"
+assert_eq "5c: igE expense: net 1500, key 19 (was a Vorsteuer row on 1782)" \
+  "$(col 'EU-Waren IgE' 'Umsatz (ohne Soll/Haben-Kz)')/$(col 'EU-Waren IgE' 'BU-Schlüssel')" "1500,00/19"
+assert_eq "5c: both expenses on the supplier's Kreditor, H" \
+  "$(datev_rows /tmp/datev-t5.csv | awk -F'\t' '$1 ~ /^E2E-T5-EXP/ {print substr($3,1,1) length($3) $6}' | sort -u)" "75H"
 
-# EB-Werte are the FIRST data rows (Buchungslauf 0
-# precedes Buchungslauf 1+).
-FIRST_DATA_BF1=$(python3 -c "
-import sys
-with open('/tmp/datev-t5.csv', 'rb') as f:
-    f.readline()  # skip header
-    line = f.readline().decode('latin-1').rstrip('\r\n')
-print(line.split(';')[2])
-")
-if [[ "$FIRST_DATA_BF1" == EB-* ]]; then
-  pass "5a: EB-Werte precede regular Buchungen"
-else
-  fail "5a: first data line is not EB-: $FIRST_DATA_BF1"
-fi
+assert_eq "5d: CHF invoice in EUR (no stored rate → 1:1), 19 % key 3" \
+  "$(col 'Rechnung E2E-T5-CHF-01' 'Umsatz (ohne Soll/Haben-Kz)')/$(col 'Rechnung E2E-T5-CHF-01' 'WKZ Umsatz')/$(col 'Rechnung E2E-T5-CHF-01' 'BU-Schlüssel')" "952,00//3"
 
-# Helper: parse a single CSV line by content match and
-# return column N (1-based). Reads the entire file and
-# returns the first match. Returns "" if not found.
-csv_col() {
-  local anchor="$1" col="$2"
-  python3 -c "
-import sys
-anchor, col = sys.argv[1], int(sys.argv[2])
-with open('/tmp/datev-t5.csv', 'rb') as f:
-    for line in f.read().decode('latin-1').splitlines():
-        if anchor in line:
-            cells = line.split(';')
-            print(cells[col-1] if col <= len(cells) else '')
-            break
-    else:
-        print('')
-" "$anchor" "$col"
-}
-
-# ===== 5b: Kostenstelle 1 + Kostenträger (cols 18 + 19) =====
-
-# IgE invoice Erlöse line
-assert_eq "5b: IgE Erlöse kost1 (col 18)" \
-  "$(csv_col 'Erlöse E2E-T5-IGE-01' 18)" "100"
-assert_eq "5b: IgE Erlöse kost2 (col 19)" \
-  "$(csv_col 'Erlöse E2E-T5-IGE-01' 19)" "PROJ-2026-IGE"
-
-# RC invoice Erlöse line
-assert_eq "5b: RC Erlöse kost1 (col 18)" \
-  "$(csv_col 'Erlöse E2E-T5-RC-01' 18)" "200"
-assert_eq "5b: RC Erlöse kost2 (col 19)" \
-  "$(csv_col 'Erlöse E2E-T5-RC-01' 19)" "PROJ-2026-RC"
-
-# CHF invoice Erlöse line — kost1=300, kost2 empty
-assert_eq "5b: CHF Erlöse kost1 (col 18)" \
-  "$(csv_col 'Erlöse E2E-T5-CHF-01' 18)" "300"
-assert_eq "5b: CHF Erlöse kost2 (col 19) empty" \
-  "$(csv_col 'Erlöse E2E-T5-CHF-01' 19)" ""
-
-# §13b RC expense Bank→Aufwand line: kost1=400
-assert_eq "5b: RC expense kost1 (col 18)" \
-  "$(csv_col 'E2E-T5-EXP-RC' 18)" "400"
-assert_eq "5b: RC expense kost2 (col 19)" \
-  "$(csv_col 'E2E-T5-EXP-RC' 19)" "PROJ-EXP-2026"
-
-# IgE expense — kost1=500, kost2 empty
-assert_eq "5b: IgE expense kost1 (col 18)" \
-  "$(csv_col 'E2E-T5-EXP-IGE' 18)" "500"
-assert_eq "5b: IgE expense kost2 (col 19) empty" \
-  "$(csv_col 'E2E-T5-EXP-IGE' 19)" ""
-
-# ===== 5c: IgE + §13b account flow =====
-
-# IgE: revenue on 8125 (Erlöse igL)
-assert_eq "5c: IgE revenue on 8125" \
-  "$(csv_col 'Erlöse E2E-T5-IGE-01' 8)" "8125"
-
-# IgE: USt-Schlüssel = 0 (col 12)
-assert_eq "5c: IgE USt-Schlüssel = 0" \
-  "$(csv_col 'Erlöse E2E-T5-IGE-01' 12)" "0"
-
-# IgE: ustBetrag = 0.00 (col 13)
-assert_eq "5c: IgE ustBetrag = 0.00" \
-  "$(csv_col 'Erlöse E2E-T5-IGE-01' 13)" "0.00"
-
-# IgE: NO separate USt line for this invoice.
-# Look for any "USt E2E-T5-IGE-01" line. Should not exist.
-IGE_UST_COUNT=$(python3 -c "
-import sys
-with open('/tmp/datev-t5.csv', 'rb') as f:
-    n = 0
-    for line in f.read().decode('latin-1').splitlines():
-        if 'USt E2E-T5-IGE-01' in line:
-            n += 1
-print(n)
-")
-assert_eq "5c: IgE has no separate USt line" "$IGE_UST_COUNT" "0"
-
-# §13b outgoing invoice: same path
-assert_eq "5c: 13b outgoing USt-Schlüssel = 0" \
-  "$(csv_col 'Erlöse E2E-T5-RC-01' 12)" "0"
-RC_UST_COUNT=$(python3 -c "
-import sys
-with open('/tmp/datev-t5.csv', 'rb') as f:
-    n = 0
-    for line in f.read().decode('latin-1').splitlines():
-        if 'USt E2E-T5-RC-01' in line:
-            n += 1
-print(n)
-")
-assert_eq "5c: 13b outgoing has no separate USt line" "$RC_UST_COUNT" "0"
-
-# §13b RC expense: inputVat 1780 (Vorsteuer §13b, col 7 = Soll-Konto)
-assert_eq "5c: 13b RC expense inputVat = 1780" \
-  "$(csv_col 'Vorsteuer E2E-T5-EXP-RC' 7)" "1780"
-
-# IgE expense: inputVat 1782 (Vorsteuer IgE, fixed from wrong 1578)
-assert_eq "5c: IgE expense inputVat = 1782" \
-  "$(csv_col 'Vorsteuer E2E-T5-EXP-IGE' 7)" "1782"
-
-# ===== 5d: currency + payment method (cols 14, 16) =====
-
-# CHF invoice: currency CHF (col 16) on all its lines
-assert_eq "5d: CHF invoice currency = CHF" \
-  "$(csv_col 'Zahlungseingang E2E-T5-CHF-01' 16)" "CHF"
-# And exchangeRate 1.0000 default (col 17)
-assert_eq "5d: CHF Kurs = 1,0000" \
-  "$(csv_col 'Zahlungseingang E2E-T5-CHF-01' 17)" "1,0000"
-
-# EUR invoice: currency EUR, Kurs 1,0000
-assert_eq "5d: EUR invoice currency = EUR" \
-  "$(csv_col 'Zahlungseingang E2E-T5-IGE-01' 16)" "EUR"
-
-# CHF invoice: USt-Schlüssel = 1 (19% USt, Regelsatz) — col 12
-#
-# Tier 26.4: the USt-Schlüssel is now the 2024+ DATEV
-# code "1" (19% Regelsatz) instead of the legacy "3".
-# Both are valid DATEV keys; the modern export uses
-# "1" as the default for new 19% bookings. For
-# backwards compat with existing Berater imports the
-# legacy "3" is still accepted by the DATEV client.
-assert_eq "5d: CHF invoice USt-Schlüssel = 1" \
-  "$(csv_col 'Erlöse E2E-T5-CHF-01' 12)" "1"
-
-# ===== 5e: country code (col 21) =====
-
-# AT customer (IgE) → "AUT" on the IgE line
-assert_eq "5e: AT customer → AUT" \
-  "$(csv_col 'Erlöse E2E-T5-IGE-01' 21)" "AUT"
-
-# DE customer (RC outgoing) → "DEU"
-assert_eq "5e: DE customer → DEU" \
-  "$(csv_col 'Zahlungseingang E2E-T5-RC-01' 21)" "DEU"
-
-# US customer (CHF) → "USA"
-assert_eq "5e: US customer → USA" \
-  "$(csv_col 'Zahlungseingang E2E-T5-CHF-01' 21)" "USA"
-
-# ===== 5e: payment method (col 14) =====
-
-assert_eq "5e: IgE Erlöse paymentMethod = bank_transfer" \
-  "$(csv_col 'Erlöse E2E-T5-IGE-01' 14)" "bank_transfer"
-assert_eq "5e: RC Erlöse paymentMethod = sepa" \
-  "$(csv_col 'Erlöse E2E-T5-RC-01' 14)" "sepa"
-assert_eq "5e: CHF Erlöse paymentMethod = bank_transfer" \
-  "$(csv_col 'Erlöse E2E-T5-CHF-01' 14)" "bank_transfer"
+assert_eq "5e: the payments: Bank 1200 an the customer's Debitor, S" \
+  "$(datev_rows /tmp/datev-t5.csv | awk -F'\t' 'index($8, "Zahlung E2E-T5") {print $3, substr($4,1,1) length($4), $5, $6}' | sort -u | tr '\n' '|')" \
+  "1200 15 1000.00 S|1200 15 500.00 S|1200 15 952.00 S|"
 
 # ----- Cleanup -----
 docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "

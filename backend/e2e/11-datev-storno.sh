@@ -31,7 +31,7 @@ docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
 curl -sS -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
   "http://localhost:3001/api/v1/reports/datev-export?companyId=$COMPANY_ID&startDate=2026-01-01&endDate=2026-12-31" \
   -o /tmp/datev-vnd-dt-before.csv
-NET_4900_BEFORE=$(awk -F';' 'NR>1 && $7 == 4900 {if ($6 == "S") sum += $8; else sum -= $8} END {printf "%.2f\n", sum}' /tmp/datev-vnd-dt-before.csv)
+NET_4900_BEFORE=$(datev_balance /tmp/datev-vnd-dt-before.csv 4900)
 note "baseline sum account 4900 = $NET_4900_BEFORE (before test)"
 
 echo "=== Test: Storno in DATEV export ==="
@@ -95,38 +95,17 @@ fi
 # Test 3: Storno Belegfeld 2 (column 4) = original voucher
 # number. Pre-fix it was the enum "VoucherReversal" —
 # useless to the Berater.
-STO_BF2=$(awk -F';' -v sn="$STO_NUM" 'NR>1 {sub(/ +$/, "", $3); if ($3 == sn) {sub(/ +$/, "", $4); print $4; exit}}' /tmp/datev-vnd-dt.csv)
-assert_eq "Storno Belegfeld 2 = original voucher number" "$STO_BF2" "$ORIG_NUM"
-
-# Test 4: original Belegfeld 2 (column 4) = "Manual"
-# (the referenceType — distinct from the Storno pivot)
-ORIG_BF2=$(awk -F';' -v on="$ORIG_NUM" 'NR>1 {sub(/ +$/, "", $3); if ($3 == on) {sub(/ +$/, "", $4); print $4; exit}}' /tmp/datev-vnd-dt.csv)
-assert_eq "original Belegfeld 2 = Manual" "$ORIG_BF2" "Manual"
-
-# Test 5: 2 DATEV rows for the Storno
-STO_ROW_COUNT=$(awk -F';' -v sn="$STO_NUM" 'NR>1 {sub(/ +$/, "", $3); if ($3 == sn) print}' /tmp/datev-vnd-dt.csv | wc -l)
-assert_eq "Storno has 2 DATEV rows" "$(echo "$STO_ROW_COUNT" | tr -d ' ')" "2"
-
-# Test 6: Storno's Soll/Haben are SWAPPED vs original
-STO_SOLLS=$(awk -F';' -v sn="$STO_NUM" 'NR>1 {sub(/ +$/, "", $3); if ($3 == sn && $6 == "S") print $7}' /tmp/datev-vnd-dt.csv | sort -u | tr '\n' ',' | sed 's/,$//')
-STO_HABENS=$(awk -F';' -v sn="$STO_NUM" 'NR>1 {sub(/ +$/, "", $3); if ($3 == sn && $6 == "H") print $7}' /tmp/datev-vnd-dt.csv | sort -u | tr '\n' ',' | sed 's/,$//')
-assert_eq "Storno Soll accounts" "$STO_SOLLS" "1200"
-assert_eq "Storno Haben accounts" "$STO_HABENS" "4900"
-
-# Test 7: amounts equal between Storno and original
-ORIG_AMT=$(awk -F';' -v on="$ORIG_NUM" 'NR>1 {sub(/ +$/, "", $3); if ($3 == on) {print $8; exit}}' /tmp/datev-vnd-dt.csv)
-STO_AMT=$(awk -F';' -v sn="$STO_NUM" 'NR>1 {sub(/ +$/, "", $3); if ($3 == sn) {print $8; exit}}' /tmp/datev-vnd-dt.csv)
-assert_eq "Storno amount = original amount" "$STO_AMT" "$ORIG_AMT"
-
-# Test 8: net effect on 4900 across the year is zero
-# Sum Storno's debit rows on 4900 (which is Haben in our
-# Soll/Haben semantics since Storno swapped). The shared
-# DB has accumulated 4900 entries from prior tests —
-# we use baseline-snapshot: capture the SUM before the
-# test creates its own data, then assert the SUM-after
-# equals SUM-before (the Storno fully reverses the
-# original, net contribution = 0).
-NET_4900=$(awk -F';' 'NR>1 && $7 == 4900 {if ($6 == "S") sum += $8; else sum -= $8} END {printf "%.2f\n", sum}' /tmp/datev-vnd-dt.csv)
+# Tier 423: parsed by DATEV column heading (datev_rows, _lib.sh) — the file
+# is a real EXTF Buchungsstapel now — and a voucher is ONE booking (it used to
+# be one row per voucher line, each against the first opposite line).
+STO_ROW=$(datev_rows /tmp/datev-vnd-dt.csv | awk -F'\t' -v sn="$STO_NUM" '$1 == sn')
+ORIG_ROW=$(datev_rows /tmp/datev-vnd-dt.csv | awk -F'\t' -v on="$ORIG_NUM" '$1 == on')
+assert_eq "Storno Belegfeld 2 = original voucher number" "$(cut -f2 <<<"$STO_ROW")" "$ORIG_NUM"
+assert_eq "original Belegfeld 2 = Manual" "$(cut -f2 <<<"$ORIG_ROW")" "Manual"
+assert_eq "Storno is one DATEV row (was 2)" "$(grep -c . <<<"$STO_ROW")" "1"
+assert_eq "original: 4900 an 1200, 400.00 S" "$(cut -f3-6 <<<"$ORIG_ROW")" "$(printf '4900\t1200\t400.00\tS')"
+assert_eq "Storno: 1200 an 4900, 400.00 S (sides swapped)" "$(cut -f3-6 <<<"$STO_ROW")" "$(printf '1200\t4900\t400.00\tS')"
+NET_4900=$(datev_balance /tmp/datev-vnd-dt.csv 4900)
 # Captured earlier as NET_4900_BEFORE (after cleaning
 # the test's previous runs, before creating new data)
 [ "$NET_4900" = "$NET_4900_BEFORE" ] && echo "✓ net effect on 4900 across year = $NET_4900 (Storno fully reverses original, baseline-snapshot)" || { echo "✗ net 4900 expected=$NET_4900_BEFORE actual=$NET_4900"; exit 1; }

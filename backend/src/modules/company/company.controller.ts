@@ -150,16 +150,18 @@ export class CompanyController {
         delete (next.datev as any)[k]
       }
       Object.assign(next.datev, sanitized)
-      if (typeof body.beraterNr === 'string' && /^\d{1,5}$/.test(body.beraterNr)) {
-        next.datev.beraterNr = body.beraterNr.padStart(5, '0')
-      } else if (typeof body.beraterNr === 'string') {
-        delete next.datev.beraterNr
-      }
-      if (typeof body.mandantenNr === 'string' && /^\d{1,5}$/.test(body.mandantenNr)) {
-        next.datev.mandantenNr = body.mandantenNr.padStart(5, '0')
-      } else if (typeof body.mandantenNr === 'string') {
-        delete next.datev.mandantenNr
-      }
+    }
+    // Tier 423: saved whether or not `accounts` is in the body (they were only
+    // saved together with it). A DATEV Beraternummer has up to 7 digits.
+    if (typeof body.beraterNr === 'string' && /^\d{1,7}$/.test(body.beraterNr)) {
+      next.datev.beraterNr = body.beraterNr.padStart(5, '0')
+    } else if (typeof body.beraterNr === 'string') {
+      delete next.datev.beraterNr
+    }
+    if (typeof body.mandantenNr === 'string' && /^\d{1,5}$/.test(body.mandantenNr)) {
+      next.datev.mandantenNr = body.mandantenNr.padStart(5, '0')
+    } else if (typeof body.mandantenNr === 'string') {
+      delete next.datev.mandantenNr
     }
     // Opening balances — validate each entry's
     // shape, drop anything malformed. The Berater

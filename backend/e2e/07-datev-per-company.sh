@@ -142,8 +142,9 @@ fi
 api_get "/api/v1/companies/$COMPANY_ID/datev-config"
 assert_eq "default config.inputVat19 unchanged" \
   "$(json_field "$BODY" config.inputVat19)" "1576"
+# Tier 423: SKR03 Vorsteuer 7 % is 1571 (1577 is Vorsteuer § 13b).
 assert_eq "default config.inputVat7 unchanged" \
-  "$(json_field "$BODY" config.inputVat7)" "1577"
+  "$(json_field "$BODY" config.inputVat7)" "1571"
 assert_eq "default config.revenue7 unchanged" \
   "$(json_field "$BODY" config.revenue7)" "8300"
 
@@ -169,13 +170,9 @@ else
   fail "Invalid revenue19 '99' should be rejected, got: $OVER_REV"
 fi
 
-# === Voucher pass: DATEV export picks up Vouchers directly ===
-# This is the audit-trail integration: a posted Voucher
-# (mimicking what bank-import.confirmMatch writes) shows
-# up in the DATEV CSV with its VoucherNumber as
-# Belegfeld 1, and the Erlöse/USt lines on the linked
-# invoice carry the VoucherNumber as Belegfeld 2 so the
-# Berater can pivot.
+# === Voucher pass: a bank-reconciliation voucher is not exported ===
+# A posted Voucher mimicking what bank-import.confirmMatch writes. Until
+# Tier 423 it was exported next to the invoice's own payment row.
 #
 # Reset the per-company DATEV config to defaults so the
 # Voucher accounting paths (1200 Bank, 1406 Forderung)
@@ -224,37 +221,20 @@ docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
 curl -sS -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
   "http://localhost:3001/api/v1/reports/datev-export?companyId=$COMPANY_ID&startDate=2026-01-01&endDate=2026-12-31" -o /tmp/datev-e2e2.csv
 
-# The Voucher line should appear
+# Tier 423: a bank-reconciliation voucher is NOT exported. The match also
+# records a Payment, and the export books every payment (Bank an Debitor);
+# exporting the voucher as well booked the cash twice. The invoice itself
+# is still there, on its issue date.
 if file_contains "BK-E2E-0001" /tmp/datev-e2e2.csv; then
-  pass "Voucher BK-E2E-0001 appears in DATEV export"
+  fail "BankReconciliation voucher BK-E2E-0001 exported (cash booked twice)"
 else
-  fail "Voucher BK-E2E-0001 missing from DATEV export"
+  pass "BankReconciliation voucher not exported — the payment books the cash"
 fi
-
-# The Erlöse line on the voucher-linked invoice should
-# carry the voucher number as Belegfeld 2 — Berater can
-# pivot from the revenue line to the Belegnummer.
-VCH_BR_LINK=$(LC_ALL=C grep -c "BK-E2E-0001.*Erl.*$PAID_INV_NO" /tmp/datev-e2e2.csv || true)
-# The voucher pass emits Belegfeld 2 = "BankReconciliation"
-# on the cash line; the Invoice pass copies the
-# voucher# into Belegfeld 2 on the revenue lines. Either
-# way, BK-E2E-0001 should be present.
-if [[ "$VCH_BR_LINK" -ge 1 ]]; then
-  pass "Erlöse line carries voucher BK-E2E-0001 (audit pivot)"
+if file_contains "Rechnung $PAID_INV_NO" /tmp/datev-e2e2.csv; then
+  pass "the invoice is still in the export"
 else
-  fail "Erlöse line missing voucher number pivot"
+  fail "invoice $PAID_INV_NO missing from the export"
 fi
-
-# The Invoice pass should have SKIPPED the 1200/1406
-# cash line for this invoice (now on the Voucher). The
-# only Zahlungseingang line in the export for our test
-# invoice should be the Voucher's, not the Invoice's.
-# (Hard to filter precisely without grep+context, so
-# we just count: there should be exactly ONE
-# 1200;1406 S line for the voucher — 1 because the
-# Invoice path skipped it, +1 from the Voucher = 1.)
-LINES_1200_1406=$(LC_ALL=C grep -c "^[A-Z]*;.*;.*;.*;.*;S;1200;1406" /tmp/datev-e2e2.csv || true)
-note "1200/1406 S lines in export: $LINES_1200_1406 (≥1 expected — from Voucher)"
 
 # Cleanup the test Voucher
 docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \

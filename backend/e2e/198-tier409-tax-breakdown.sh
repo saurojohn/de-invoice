@@ -61,34 +61,18 @@ assert_eq "7 %" "$(VR 0.07)" "100/7"
 note "=== 3. DATEV books each rate on its own account, and each invoice balances ==="
 curl -sS -o "$SCRIPT_DIR/../.t198.csv" "$API/api/v1/reports/datev-export?companyId=$C&startDate=2026-08-01&endDate=2026-08-31" \
   -H "x-user-id: $U" -H "x-company-id: $C"
-DATEV() { python3 - "$SCRIPT_DIR/../.t198.csv" "$1" <<'PY'
-import csv, io, sys
-from collections import defaultdict
-rows = list(csv.reader(io.StringIO(open(sys.argv[1], 'rb').read().decode('latin-1')), delimiter=';'))[1:]
-rows = [r for r in rows if len(r) > 12]
-q = sys.argv[2]
-if q == 'accounts':
-    print(' '.join(sorted({f"{r[2].strip()}:{r[7]}:{float(r[8]):.2f}:{r[11] or '-'}" for r in rows if r[5] == 'H'})))
-elif q == 'balance':
-    per = defaultdict(float)
-    for r in rows:
-        per[r[2].strip()] += float(r[8]) if r[5] == 'S' else -float(r[8])
-    print(' '.join(f"{k}:{v:.2f}" for k, v in sorted(per.items())))
-elif q == '8125':
-    print(sum(1 for r in rows if r[7] == '8125'))
-PY
-}
-ACC=$(DATEV accounts)
-note "revenue/VAT rows: $ACC"
-[[ "$ACC" == *"INV-2026-000001:8400:900.00:1"* ]] && pass "A: 900 revenue on 8400 (19 %), key 1 (was 1 000 on 8125, key 0)" || fail "A revenue row: $ACC"
-[[ "$ACC" == *"INV-2026-000001:1776:171.00:1"* ]] && pass "A: 171 VAT on 1776 (19 %)" || fail "A VAT row: $ACC"
-[[ "$ACC" == *"INV-2026-000002:8400:100.00:1"* && "$ACC" == *"INV-2026-000002:1776:19.00:1"* ]] \
-  && pass "B: the 19 % part on 8400 / 1776, key 1" || fail "B 19 % rows: $ACC"
-[[ "$ACC" == *"INV-2026-000002:8300:100.00:2"* && "$ACC" == *"INV-2026-000002:1760:7.00:2"* ]] \
-  && pass "B: the 7 % part on 8300 / 1760, key 2 (was: all on 8125, key 0)" || fail "B 7 % rows: $ACC"
-assert_eq "nothing domestic lands on the tax-free intra-EU account 8125" "$(DATEV 8125)" "0"
-assert_eq "each invoice balances: payment in = revenue + VAT (A was 100 short)" \
-  "$(DATEV balance)" "INV-2026-000001:0.00 INV-2026-000002:0.00"
+# Tier 423: a DATEV Buchungsstapel (EXTF 700) now — one row per rate, gross,
+# with DATEV's tax key (3 = 19 %, 2 = 7 %); DATEV splits the tax off itself.
+ROWS=$(datev_rows "$SCRIPT_DIR/../.t198.csv" | awk -F'\t' 'index($8, "Rechnung ") {print $1":"$4":"$5":"($7==""?"-":$7)}' | sort | tr '\n' ' ')
+note "invoice rows: $ROWS"
+[[ "$ROWS" == *"INV-2026-000001:8400:1071.00:3"* ]] && pass "A: 1 071 gross on 8400, key 3 — after the discount (was 1 000 on 8125, key 0)" || fail "A row: $ROWS"
+[[ "$ROWS" == *"INV-2026-000002:8400:119.00:3"* && "$ROWS" == *"INV-2026-000002:8300:107.00:2"* ]] \
+  && pass "B: 19 % part on 8400 key 3, 7 % part on 8300 key 2 (was: all on 8125, key 0)" || fail "B rows: $ROWS"
+assert_eq "nothing domestic lands on the tax-free intra-EU account 8125" \
+  "$(datev_rows "$SCRIPT_DIR/../.t198.csv" | awk -F'\t' '$4=="8125"' | wc -l | tr -d ' ')" "0"
+DEB=$(datev_rows "$SCRIPT_DIR/../.t198.csv" | awk -F'\t' 'index($8, "Rechnung ") {print $3}' | sort -u)
+assert_eq "the customer's account clears: invoices = payments (A was 100 short)" \
+  "$(for d in $DEB; do datev_balance "$SCRIPT_DIR/../.t198.csv" "$d"; done | tr '\n' ' ')" "0.00 "
 rm -f "$SCRIPT_DIR/../.t198.csv"
 
 note "=== 4. OSS uses the discounted amounts ==="

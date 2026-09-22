@@ -152,10 +152,10 @@ if [[ -n "$ACCOUNT_4400" ]]; then
   api_get "/api/v1/reports/datev-export?companyId=$COMPANY_ID&startDate=2026-06-01&endDate=2026-06-30" 2>/dev/null
 echo "$BODY" > /tmp/t58_datev.csv
   if [[ -s /tmp/t58_datev.csv ]]; then
-    # Look for a row with USt-Schlüssel = 1 (any
-    # 19% booking in the test period).
-    DATEV_HAS_1=$(awk -F';' 'NR>1 && $12=="1" { found=1 } END { print found+0 }' /tmp/t58_datev.csv)
-    assert_eq "DATEV export has USt-Schlüssel 1 entries" "$DATEV_HAS_1" "1"
+    # A row with DATEV tax key 3 (19 % USt) in the test period. Tier 423:
+    # it was key "1", which in DATEV means "steuerfrei mit Vorsteuerabzug".
+    DATEV_HAS_3=$(datev_rows /tmp/t58_datev.csv | awk -F'\t' '$7=="3" { found=1 } END { print found+0 }')
+    assert_eq "DATEV export has tax key 3 (19 % USt) entries" "$DATEV_HAS_3" "1"
   else
     echo "  SKIP: DATEV export empty (no posted invoices in period)"
   fi
@@ -167,7 +167,7 @@ echo "=== 4. IgE / §13b USt-Schlüssel ==="
 # The IgE / RC USt-Schlüssel mapping is exercised
 # by e2e 25 (5c/5d blocks). The unit-test version
 # of vatRateToUstSchluessel is in
-# datev-ust-schluessel.test.ts (40 tests). This
+# datev-ust-schluessel.test.ts. This
 # block is a smoke test that the Vorsteuer
 # accounts exist (or the SKR03 fallback applies).
 if [[ -n "$ACCOUNT_1600" ]]; then

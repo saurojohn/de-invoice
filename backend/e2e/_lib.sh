@@ -273,3 +273,34 @@ text = b''.join(bytes.fromhex(h.decode()) for h in hex_chunks).decode('latin-1',
 sys.exit(0 if pattern in text else 1)
 PY
 }
+
+# Tier 423: the rows of a DATEV Buchungsstapel (EXTF 700), read by column
+# heading, one per line, tab-separated:
+#   Belegfeld1  Belegfeld2  Konto  Gegenkonto  Umsatz(dot decimal)  S/H  BU  Buchungstext  Belegdatum(TTMM)
+# Usage: datev_rows FILE | awk -F'\t' '…'
+datev_rows() {
+  python3 - "$1" <<'PY'
+import csv, io, sys
+raw = open(sys.argv[1], 'rb').read().decode('cp1252')
+rows = list(csv.reader(io.StringIO(raw), delimiter=';', quotechar='"'))
+if len(rows) < 2 or rows[0][:1] != ['EXTF']:
+    sys.exit(0)
+cols = rows[1]
+g = lambda r, n: r[cols.index(n)] if cols.index(n) < len(r) else ''
+for r in rows[2:]:
+    if not r: continue
+    print('\t'.join([g(r, 'Belegfeld 1'), g(r, 'Belegfeld 2'), g(r, 'Konto'), g(r, 'Gegenkonto (ohne BU-Schlüssel)'),
+                     g(r, 'Umsatz (ohne Soll/Haben-Kz)').replace(',', '.'), g(r, 'Soll/Haben-Kennzeichen'),
+                     g(r, 'BU-Schlüssel'), g(r, 'Buchungstext'), g(r, 'Belegdatum')]))
+PY
+}
+
+# Tier 423: the balance of one account in a DATEV Buchungsstapel (Soll − Haben;
+# the S/H sign refers to Konto, the Gegenkonto takes the other side).
+datev_balance() { # FILE ACCOUNT
+  datev_rows "$1" | awk -F'\t' -v a="$2" '
+    { s = ($6 == "S") ? $5 : -$5
+      if ($3 == a) sum += s
+      if ($4 == a) sum -= s }
+    END { printf "%.2f\n", sum }'
+}

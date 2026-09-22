@@ -58,7 +58,8 @@ RC=$(invoice "$K" "\"reverseCharge\":true,\"items\":[$L0]")
 
 WORK=$(mktemp -d)
 cii() { # id label → $WORK/label.xml (the CII inside the ZUGFeRD PDF)
-  curl -sS -o "$WORK/$2.pdf" -H "x-user-id: $U" -H "x-company-id: $C" "$API/api/v1/invoices/$1/zugferd?companyId=$C"
+  curl -sS -o "$WORK/$2.pdf" -w "%{http_code}" -H "x-user-id: $U" -H "x-company-id: $C" \
+    "$API/api/v1/invoices/$1/zugferd?companyId=$C" > "$WORK/$2.http"
   python3 - "$WORK/$2.pdf" "$WORK/$2.xml" <<'PY'
 import re, sys, zlib
 d = open(sys.argv[1], 'rb').read()
@@ -96,7 +97,9 @@ for pair in "plain:$PLAIN" "discount:$DISC" "mixdisc:$MIXDISC" "skonto:$SKONTO" 
   if cii "$id" "$label"; then
     assert_eq "$label: ACCEPTABLE" "$(kosit "$label")" "ACCEPTABLE"
   else
-    fail "$label: no CII found in the ZUGFeRD PDF"
+    # Tier 423: say what came back — this failed twice in local full runs
+    # (never alone, never in CI) and the file was gone by the time anyone looked.
+    fail "$label: no CII found in the ZUGFeRD PDF (HTTP $(cat "$WORK/$label.http"), $(wc -c < "$WORK/$label.pdf") bytes: $(head -c 120 "$WORK/$label.pdf" | tr -c '[:print:]' '.'))"
   fi
 done
 

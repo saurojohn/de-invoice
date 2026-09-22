@@ -46,6 +46,7 @@ import {
   buildBuchungenFromDb,
   collectBelegbilder,
   generateDatevBuchungsstapel,
+  encodeDatevCsv,
 } from './datev.service';
 
 /**
@@ -177,7 +178,7 @@ export class DatevExportController {
     // because that's what DATEV 5.0 expects.
     res.setHeader('Content-Type', 'text/csv; charset=windows-1252');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    res.end(Buffer.from(csv, 'latin1'));
+    res.end(encodeDatevCsv(csv));
   }
 
   /**
@@ -336,7 +337,7 @@ export class DatevExportController {
 
     // 1) The CSV. Same Latin-1 encoding as the
     // standalone endpoint.
-    archive.append(Buffer.from(csv, 'latin1'), { name: 'Buchungsstapel.csv' })
+    archive.append(encodeDatevCsv(csv), { name: 'Buchungsstapel.csv' })
 
     // 2) The index.json — a small audit trail.
     // The Berater can open it in any editor and
@@ -548,7 +549,7 @@ export class DatevExportController {
       // MANIFEST only — no folder. Keeps the
       // Berater's import dialog uncluttered.
       if (buchungen.length > 0 || belegbilder.length > 0) {
-        archive.append(csv, { name: `${monthKey}/${csvFilename}` })
+        archive.append(encodeDatevCsv(csv), { name: `${monthKey}/${csvFilename}` })
         for (const b of belegbilder) {
           const fullPath = path.join(storageRoot, b.relativePath)
           if (!fs.existsSync(fullPath)) {
@@ -571,7 +572,7 @@ export class DatevExportController {
         buchungenCount: buchungen.length,
         belegbilderIncluded: includedCount,
         belegbilderMissing: missingCount,
-        csvBytes: Buffer.byteLength(csv, 'latin1'),
+        csvBytes: encodeDatevCsv(csv).length,
       })
 
       // Advance to next month.
@@ -724,20 +725,14 @@ export class DatevExportController {
           message: `Buchung ohne Konto: ${b.belegfeld1}`,
         })
       }
-      if (b.betrag <= 0) {
+      // Tier 423: a credit note or refund is negative (DATEV gets it with
+      // S/H swapped) — only a zero amount is suspicious. The check that a
+      // revenue *Konto* carried a key is gone: revenue is the Gegenkonto now,
+      // and 8400/8300 are Automatikkonten that need none.
+      if (b.betrag === 0) {
         issues.push({
           severity: 'warning',
-          message: `Betrag ≤ 0 in Buchung ${b.belegfeld1}`,
-        })
-      }
-      // Revenue lines (Soll on 8400/Erlöse) should
-      // carry a USt-Schlüssel. Empty Schlüssel
-      // means the export will fail DATEV's import
-      // validator.
-      if (/^8(4|0)00$/.test(b.konto) && !b.ustSchluessel) {
-        issues.push({
-          severity: 'warning',
-          message: `Erlöskonto ${b.konto} ohne USt-Schlüssel in Buchung ${b.belegfeld1}`,
+          message: `Betrag 0 in Buchung ${b.belegfeld1}`,
         })
       }
     }
