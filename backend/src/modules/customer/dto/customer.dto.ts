@@ -4,6 +4,7 @@ import {
   IsEmail,
   IsIn,
   IsInt,
+  IsNumber,
   Min,
   Max,
   ValidateNested,
@@ -106,6 +107,13 @@ export class CreateCustomerDto {
   @IsString({ each: true })
   @IsOptional()
   tags?: string[];
+
+  // Tier 426: the Kreditlimit (Tier 159) could be read and was used by the
+  // credit-utilisation report, but no endpoint accepted it — the whitelist
+  // rejected it with 400 and the form had no field, so no customer could
+  // ever have one.
+  @IsNumber() @Min(0) @IsOptional()
+  creditLimit?: number
 }
 
 /**
@@ -151,4 +159,11 @@ export class UpdateCustomerDto {
 
   @IsObject() @IsOptional()
   metadata?: Record<string, unknown>
+
+  // Tier 426: the Kreditlimit (Tier 159) could be read and was used by the
+  // credit-utilisation report, but no endpoint accepted it — the whitelist
+  // rejected it with 400 and the form had no field, so no customer could
+  // ever have one.
+  @IsNumber() @Min(0) @IsOptional()
+  creditLimit?: number
 }

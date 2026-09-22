@@ -177,19 +177,40 @@ export class BilanzService {
     // 'sent' and 'overdue' — 'paid' is excluded
     // (the money is in the bank). 'draft' is
     // excluded (not yet billable).
+    // Tier 426: what was still open ON the snapshot day — the invoice's total
+    // less the payments received up to then (a credit note is among them).
+    // This summed the totals of every invoice that is "sent" or "overdue"
+    // *today*: a 1 190 € invoice with 500 € paid stood at 1 190, an invoice
+    // paid after the snapshot was missing altogether, and an overpaid one
+    // would have turned negative.
     const openInvoices = await this.prisma.invoice.findMany({
       where: {
         companyId,
-        status: { in: ['sent', 'overdue'] },
+        status: { notIn: ['draft', 'cancelled'] },
         type: { in: CLAIM_TYPES }, // Tier 424: not a Proforma
         issueDate: { lte: snapshot },
       },
-      select: { total: true },
+      select: {
+        total: true,
+        status: true,
+        _count: { select: { payments: true } },
+        payments: { where: { paymentDate: { lte: snapshot } }, select: { amount: true } },
+      },
     })
-    const forderungenLUL = openInvoices.reduce(
-      (s, inv) => s.plus(inv.total),
-      new Prisma.Decimal(0),
-    ).toNumber()
+    const forderungenLUL = openInvoices.reduce((s, inv) => {
+      const paid = inv.payments.reduce(
+        (p, x) => p.plus(x.amount ?? new Prisma.Decimal(0)),
+        new Prisma.Decimal(0),
+      )
+      // An invoice whose status was set to "paid" by hand, without a payment
+      // ever being recorded, is settled — we have no date for it, so it is
+      // not a receivable at any snapshot.
+      if (inv.status === 'paid' && inv._count.payments === 0) return s
+      const open = new Prisma.Decimal(inv.total).minus(paid)
+      // An overpayment is a liability, not a negative receivable — it is on
+      // 4500 through the credit ledger.
+      return open.greaterThan(0) ? s.plus(open) : s
+    }, new Prisma.Decimal(0)).toNumber()
 
     // 1600/1700 Liquide Mittel: cash book
     // balance at snapshot. The cash book is
@@ -202,12 +223,34 @@ export class BilanzService {
       where: { companyId, businessDate: { lte: snapshot } },
       select: { type: true, amount: true },
     })
-    const liquideMittel = cashEntries.reduce((s, e) => {
+    const kassenbestand = cashEntries.reduce((s, e) => {
       const amt = Number(e.amount)
       if (e.type === 'einnahme' || e.type === 'eroeffnung') return s + amt
       if (e.type === 'ausgabe' || e.type === 'umbuchung') return s - amt
       return s
     }, 0)
+
+    // Tier 426: 1700 Bank — the closing balance of the last imported
+    // statement per account, up to the snapshot. Without an imported
+    // statement the app does not know the bank balance: the line says "nicht
+    // ausgewiesen" instead of claiming 0 (the cash book alone used to be the
+    // whole of "Kassenbestand, Guthaben bei Kreditinstituten").
+    const statements = await this.prisma.bankStatement.findMany({
+      where: {
+        companyId,
+        closingBalance: { not: null },
+        periodTo: { not: null, lte: snapshot },
+      },
+      select: { accountIban: true, periodTo: true, closingBalance: true, createdAt: true },
+      orderBy: [{ periodTo: 'asc' }, { createdAt: 'asc' }],
+    })
+    const latestPerAccount = new Map<string, number>()
+    for (const st of statements) {
+      latestPerAccount.set(st.accountIban || '', Number(st.closingBalance))
+    }
+    const bankGuthaben = statements.length
+      ? [...latestPerAccount.values()].reduce((s, v) => s + v, 0)
+      : null
 
     // 1800 Sonstige Forderungen: we don't
     // currently track "Angestellten-Darlehen"
@@ -222,11 +265,15 @@ export class BilanzService {
     // (= the company still owes the supplier).
     // The "deductible" status is for the input
     // tax side, not payment — same treatment.
+    // Tier 426: only what was still unpaid on the snapshot day. Every booked
+    // expense counted, paid or not (`paidAt` is set by the SEPA run, the cash
+    // book and a bank-import match).
     const openExpenses = await this.prisma.expense.findMany({
       where: {
         companyId,
         status: { in: ['booked', 'deductible'] },
         invoiceDate: { lte: snapshot },
+        OR: [{ paidAt: null }, { paidAt: { gt: snapshot } }],
       },
       select: { grossAmount: true },
     })
@@ -242,14 +289,19 @@ export class BilanzService {
     // customer (e.g. overpayment, Gutschrift-
     // overage). We sum the positive balances
     // here as a liability.
+    // Tier 426: the ledger's balance up to the snapshot — a credit that has
+    // since been used is no liability. Only the positive rows were summed, so
+    // a credit granted and spent stayed on the balance sheet forever. Per
+    // customer, because one customer's debt does not pay another's credit.
     const creditLedger = await this.prisma.customerCreditTransaction.findMany({
-      where: { companyId },
-      select: { amount: true },
+      where: { companyId, createdAt: { lte: snapshot } },
+      select: { customerId: true, amount: true },
     })
-    const kundenguthaben = creditLedger.reduce(
-      (s, t) => s + (Number(t.amount) > 0 ? Number(t.amount) : 0),
-      0,
-    )
+    const perCustomer = new Map<string, number>()
+    for (const t of creditLedger) {
+      perCustomer.set(t.customerId, (perCustomer.get(t.customerId) || 0) + Number(t.amount))
+    }
+    const kundenguthaben = [...perCustomer.values()].reduce((s, v) => s + (v > 0 ? v : 0), 0)
 
     // ===== BUILD SECTIONS =====
 
@@ -337,10 +389,18 @@ export class BilanzService {
           amount: round2(forderungenLUL),
         },
         {
-          position: '1600+1700',
-          label: 'Kassenbestand, Guthaben bei Kreditinstituten',
-          amount: round2(liquideMittel),
-          note: 'Kasse und Bank werden zusammengefasst — Differenzierung in v2 möglich.',
+          position: '1600',
+          label: 'Kassenbestand',
+          amount: round2(kassenbestand),
+          note: 'Saldo des Kassenbuchs zum Stichtag.',
+        },
+        {
+          position: '1700',
+          label: 'Guthaben bei Kreditinstituten',
+          amount: bankGuthaben === null ? null : round2(bankGuthaben),
+          note: bankGuthaben === null
+            ? 'Kein Kontoauszug importiert — Saldo nicht bekannt.'
+            : 'Schlusssaldo des letzten importierten Kontoauszugs je Konto.',
         },
         {
           position: '1800',
@@ -348,8 +408,8 @@ export class BilanzService {
           amount: null,
         },
       ],
-      subtotal: round2(forderungenLUL + liquideMittel),
-      nichtAusgewiesen: 2,
+      subtotal: round2(forderungenLUL + kassenbestand + (bankGuthaben ?? 0)),
+      nichtAusgewiesen: bankGuthaben === null ? 3 : 2,
     }
 
     // Aktiva / C. RAP — nicht ausgewiesen.

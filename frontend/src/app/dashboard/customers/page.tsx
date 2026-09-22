@@ -19,6 +19,7 @@ interface Customer {
   name: string
   vatId?: string | null
   taxExempt?: boolean
+  creditLimit?: number | null
   type: string
   address: { street?: string; city?: string; postalCode?: string; country?: string }
   contact?: { email?: string; phone?: string }
@@ -222,6 +223,9 @@ export default function CustomersPage() {
     // didn't ask for.
     paymentTerms: 0,
     taxExempt: false,
+    // Tier 426: the Kreditlimit the credit-utilisation report reads. It had
+    // no field and no endpoint accepted it, so it was always NULL.
+    creditLimit: "",
   })
 
   // Import state
@@ -263,6 +267,7 @@ export default function CustomersPage() {
         phone: customer.contact?.phone || "",
         paymentTerms: customer.paymentTerms,
         taxExempt: !!customer.taxExempt,
+        creditLimit: customer.creditLimit != null ? String(customer.creditLimit) : "",
       })
     } else {
       setEditingCustomer(null)
@@ -281,6 +286,7 @@ export default function CustomersPage() {
         // fresh state as the first open.
         paymentTerms: 0,
         taxExempt: false,
+        creditLimit: "",
       })
       // Fetch the next K-NNNNN from the server so the user can
       // see what the auto-generated number will be. Best-effort:
@@ -326,6 +332,7 @@ export default function CustomersPage() {
         phone: form.phone,
       },
       paymentTerms: form.paymentTerms,
+      ...(form.creditLimit.trim() !== "" ? { creditLimit: Number(form.creditLimit) } : {}),
     }
 
     try {
@@ -1274,6 +1281,23 @@ export default function CustomersPage() {
                       <option value={30}>{t("paymentTerm.days30")}</option>
                       <option value={60}>{t("paymentTerm.days60")}</option>
                     </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1" htmlFor="customer-credit-limit">
+                      {t("customer.creditLimit")}
+                    </label>
+                    <Input
+                      id="customer-credit-limit"
+                      data-testid="customer-credit-limit"
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={form.creditLimit}
+                      onChange={(e) => setForm({ ...form, creditLimit: e.target.value })}
+                      placeholder={t("customer.creditLimitPlaceholder")}
+                    />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">

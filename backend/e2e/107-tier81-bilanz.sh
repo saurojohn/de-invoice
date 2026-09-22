@@ -15,7 +15,7 @@
 #   2. Aktiva / B. Umlaufvermögen: 1500 Forderungen
 #      aus L+L = sum of open (sent/overdue) invoices
 #      at snapshot.
-#   3. Aktiva / B. Umlaufvermögen: 1600+1700 Liquide
+#   3. Aktiva / B. Umlaufvermögen: 1600 Kassenbestand (Tier 426 split 1700 Bank off)
 #      Mittel = sum of cash book entries (Einnahme +
 #      Eröffnung − Ausgabe − Umbuchung) at snapshot.
 #   4. Passiva / C. Verb.: 4000 Verb. aus L+L = sum
@@ -104,7 +104,7 @@ import json,sys
 d = json.load(sys.stdin)
 for sec in d['aktiva']:
   for l in sec['lines']:
-    if l['position'] == '1600+1700':
+    if l['position'] == '1600':
       print(l['amount'] or 0)
       break
 ")
@@ -178,13 +178,16 @@ VALUES
   (gen_random_uuid()::text, '$COMPANY_ID', 'BIL-${TS}-EXP-1', 'Büromaterial',  '2026-04-10'::date, 252.10, 0.19, 47.90, 300, 'Material',         'booked', now(), now());
 EOF
 
-# Add a PAID expense: 200 gross → NOT in 4000 (excluded)
+# Add a PAID expense: 200 gross → NOT in 4000 (excluded). Tier 426: "paid"
+# is `paidAt`, not a status of its own — 'paid' is not an Expense status and
+# only fell outside the old filter by accident.
 docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<EOF >/dev/null
 INSERT INTO "Expense" (id, "companyId", "invoiceNumber", description, "invoiceDate",
                        "netAmount", "vatRate", "vatAmount", "grossAmount", category, status,
                        "createdAt", "updatedAt")
 VALUES
-  (gen_random_uuid()::text, '$COMPANY_ID', 'BIL-${TS}-EXP-2', 'Bewirtung',  '2026-05-05'::date, 168.07, 0.19, 31.93, 200, 'Sonstiges',         'paid', now(), now());
+  (gen_random_uuid()::text, '$COMPANY_ID', 'BIL-${TS}-EXP-2', 'Bewirtung',  '2026-05-05'::date, 168.07, 0.19, 31.93, 200, 'Sonstiges',         'booked', now(), now());
+UPDATE "Expense" SET "paidAt" = '2026-05-20' WHERE "invoiceNumber" = 'BIL-${TS}-EXP-2';
 EOF
 
 # Add a customer credit transaction: +150 → 4500 Kundenguthaben
@@ -274,21 +277,21 @@ for sec in d['aktiva']:
 D1500=$(python3 -c "print(round(float('$NEW_1500') - float('$BASE_1500')))")
 assert_eq "1500 delta = +1190 (SENT only)" "$D1500" "1190"
 
-# ── 3. 1600+1700 Liquide Mittel: derived from cash book ──
+# ── 3. 1600 Kassenbestand: derived from cash book ──
 echo
-note "=== 3. 1600+1700 Liquide Mittel still in delta (cash book has prior seed) ==="
+note "=== 3. 1600 Kassenbestand still in delta (cash book has prior seed) ==="
 NEW_1600_1700=$(python3 -c "
 import json
 d = json.load(open('$TMP'))
 for sec in d['aktiva']:
   for l in sec['lines']:
-    if l['position'] == '1600+1700':
+    if l['position'] == '1600':
       print(l['amount'] or 0)
       break
 ")
 # We didn't add cash book entries — delta should be 0.
 D1600=$(python3 -c "print(round(float('$NEW_1600_1700') - float('$BASE_1600_1700')))")
-assert_eq "1600+1700 delta = 0 (no new cash entries)" "$D1600" "0"
+assert_eq "1600 Kassenbestand delta = 0 (no new cash entries)" "$D1600" "0"
 
 # ── 4. 4000 Verb. aus L+L: BOOKED only ──
 echo

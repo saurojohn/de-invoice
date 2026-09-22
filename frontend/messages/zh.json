@@ -717,6 +717,8 @@
     "email": "邮箱",
     "phone": "电话",
     "paymentTerms": "付款期限(天)",
+    "creditLimit": "信用额度 (€)",
+    "creditLimitPlaceholder": "例如 5000",
     "type": "客户类型",
     "typeBusiness": "企业客户",
     "typePrivate": "私人客户",

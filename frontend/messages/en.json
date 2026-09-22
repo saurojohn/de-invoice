@@ -717,6 +717,8 @@
     "email": "Email",
     "phone": "Phone",
     "paymentTerms": "Payment Terms (days)",
+    "creditLimit": "Credit limit (€)",
+    "creditLimitPlaceholder": "e.g. 5000",
     "type": "Customer Type",
     "typeBusiness": "Business Customer",
     "typePrivate": "Private Customer",

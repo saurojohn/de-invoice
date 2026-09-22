@@ -442,8 +442,11 @@ export class CustomerService {
     if (customers.length === 0) return []
 
     const ids = customers.map((c) => c.id)
-    const openSums = await this.prisma.invoice.groupBy({
-      by: ['customerId'],
+    // Tier 426: what is still open — the total less the payments received
+    // (a credit note is one of them). This summed the totals, so a customer
+    // who had paid half of an invoice still used the full amount of their
+    // credit limit.
+    const openInvoices = await this.prisma.invoice.findMany({
       where: {
         companyId,
         customerId: { in: ids },
@@ -451,11 +454,15 @@ export class CustomerService {
         status: { in: ['sent', 'overdue'] },
         type: { in: CLAIM_TYPES },
       },
-      _sum: { total: true },
+      select: { customerId: true, total: true, payments: { select: { amount: true } } },
     })
-    const openByCustomer = new Map<string, number>(
-      openSums.map((row) => [row.customerId, Number(row._sum.total || 0)]),
-    )
+    const openByCustomer = new Map<string, number>()
+    for (const inv of openInvoices) {
+      const paid = inv.payments.reduce((s2, p) => s2 + Number(p.amount ?? 0), 0)
+      const open = Number(inv.total) - paid
+      if (open <= 0) continue
+      openByCustomer.set(inv.customerId, (openByCustomer.get(inv.customerId) || 0) + open)
+    }
 
     const rows = customers.map((c) => {
       const limit = Number(c.creditLimit)

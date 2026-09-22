@@ -2477,6 +2477,50 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### The balance sheet ignored payments, and no customer could have a credit limit (Tier 426)
+
+Measured on a 1 190 € invoice with 500 € paid, a second invoice paid only
+*after* the snapshot, one paid and one unpaid 119 € expense, a 200 € cash
+receipt, an imported statement with a 1 700 € closing balance and a customer
+credit of 150 € that had been used up:
+
+| | Before | Now |
+|---|---|---|
+| 1500 Forderungen | 1 190 — the totals of the invoices that are "sent" *today*: the part payment ignored, the invoice paid later missing | 809 = (1 190 − 500) + 119 |
+| liquide Mittel | one line "Kassenbestand, Guthaben bei Kreditinstituten" = 200, the cash book alone — a bank balance never appeared in it | 1600 Kassenbestand 200 and 1700 Guthaben bei Kreditinstituten: the last imported statement's closing balance per account, "nicht ausgewiesen" when none was imported |
+| 4000 Verbindlichkeiten | 238 — every booked expense, paid or not | 119 |
+| 4500 Kundenguthaben | 150 — only the positive ledger rows were summed, so a credit that had been used stayed forever | 0 (the ledger's balance per customer up to the snapshot) |
+| dashboard "offene Forderungen" | 1 190 | 690 |
+| credit utilisation | 1 190 of a 1 000 limit → 119 %, "over" | 690 → 69 %, "ok" |
+
+The balance sheet is taken *at* a snapshot now: invoices issued up to it that
+are not drafts or cancelled, less the payments received up to it (an
+overpayment is a liability on 4500, not a negative receivable); expenses
+booked up to it whose `paidAt` is empty or later.
+
+**No customer could have a credit limit.** `Customer.creditLimit` feeds the
+credit-utilisation report (Tier 159) and the customer detail card, but
+neither `POST` nor `PUT /customers` accepted it — the whitelist answered
+`400 "property creditLimit should not exist"` — and the form had no field.
+Both DTOs take it now and the customer form has "Kreditlimit (€)"
+(`data-testid="customer-credit-limit"`, labelled in de/en/zh).
+
+Spec `e2e/215-tier426-bilanz-open-amounts.sh` (11 assertions, 10 failing
+against the previous code). `e2e/107` asserted the old line ("1600+1700")
+and marked its "paid" expense with a status `paid` that the Expense model
+does not have — it only fell outside the old filter by accident; it now sets
+`paidAt`.
+
+An invoice whose status was flipped to "paid" by hand, without a payment ever
+being recorded, counts as settled (spec 107 has such rows): there is no date
+to place it at, and the alternative is a receivable that never goes away.
+
+Local runs: backend **213 / 1 / 1**, 0 × 500; Playwright **930**, no flaky.
+The one failure is `50-webhooks.sh`: its SSRF check registers
+`http://127.0.0.1.nip.io/`, and this machine's DNS could not resolve nip.io
+at the time (it passed in the Tier 425 run a few hours earlier). Nothing in
+this tier touches webhooks; CI resolves the name.
+
 ### The Kassenbuch never reached the books; uncategorised expenses were dropped (Tier 425)
 
 Measured in one month with a 119 € cash sale at 19 %, a 59,50 € cash

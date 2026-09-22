@@ -102,10 +102,17 @@ export class DashboardController {
     // Open receivables: single aggregate over
     // all sent/overdue invoices (no date
     // range — they accumulate until paid).
-    const openRecvAgg = await this.prisma.invoice.aggregate({
+    // Tier 426: less the payments received — this summed the invoice totals,
+    // so a part-paid invoice was shown as fully open.
+    const openRecvInvoices = await this.prisma.invoice.findMany({
       where: { companyId, status: { in: ['sent', 'overdue'] }, type: { in: CLAIM_TYPES } },
-      _sum: { total: true },
+      select: { total: true, payments: { select: { amount: true } } },
     })
+    const openReceivables = openRecvInvoices.reduce((s, inv) => {
+      const paid = inv.payments.reduce((p, x) => p + Number(x.amount ?? 0), 0)
+      const open = Number(inv.total) - paid
+      return open > 0 ? s + open : s
+    }, 0)
     const [ytdInv, ytdExp, lastInv, lastExp, thisInv, thisExp] = await Promise.all([
       aggregateInvoices(yearStart, now),
       aggregateExpenses(yearStart, now),
@@ -114,7 +121,7 @@ export class DashboardController {
       aggregateInvoices(thisMonthStart, now),
       aggregateExpenses(thisMonthStart, now),
     ]);
-    const openReceivables = Number(openRecvAgg._sum.total || 0);
+
     // 12-month series for the trend chart. All
     // 24 queries (12 inv + 12 exp) now run in
     // parallel via Promise.all. Was a serial
