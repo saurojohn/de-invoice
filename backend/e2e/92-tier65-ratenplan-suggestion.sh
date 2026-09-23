@@ -15,11 +15,11 @@
 #   5. A customer with an active plan returns eligible=false
 #      with "customer has active plan" reason.
 #   6. POST .../from-invoice creates a Ratenplan AND
-#      a customer-level Mahnungspause in one shot.
+#      a Mahnungspause on the invoice in one shot (customer-level until Tier 429).
 #   7. The created plan is linked to the invoice
 #      (1:1 via invoiceId).
 #   8. The created Mahnungspause has reason "Ratenplan aktiv",
-#      customerId set, pausedUntil=null (open-ended).
+#      invoiceId set, pausedUntil=null while the plan runs.
 #   9. After create, the same invoice's suggestion returns
 #      eligible=false ("already has plan").
 #  10. Cleanup.
@@ -118,15 +118,18 @@ rm -f "$TMP3"
 # Verify the Mahnungspause was created
 PAUSE_ROWS=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
   SELECT count(*) FROM \"Mahnungspause\" WHERE \"companyId\" = '$COMPANY_ID'
-  AND reason = 'Ratenplan aktiv' AND \"customerId\" = '$CUST_ID';" 2>&1 | tr -d ' ')
-assert_eq "auto-pause created" "$PAUSE_ROWS" "1"
+  AND reason = 'Ratenplan aktiv' AND \"invoiceId\" = '$HIGH_INV' AND \"customerId\" IS NULL;" 2>&1 | tr -d ' ')
+# Tier 429: the pause covers the plan's invoice, not the whole customer (their
+# other invoices were not dunned either), and ends when the plan completes or
+# is cancelled.
+assert_eq "auto-pause created on the invoice" "$PAUSE_ROWS" "1"
 
 # Verify the pause is open-ended (pausedUntil IS NULL)
 PAUSE_ENDED=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
   SELECT CASE WHEN \"pausedUntil\" IS NULL THEN 'null' ELSE 'set' END
   FROM \"Mahnungspause\" WHERE \"companyId\" = '$COMPANY_ID'
-  AND reason = 'Ratenplan aktiv' AND \"customerId\" = '$CUST_ID' LIMIT 1;" 2>&1 | tr -d ' ')
-assert_eq "pause is open-ended" "$PAUSE_ENDED" "null"
+  AND reason = 'Ratenplan aktiv' AND \"invoiceId\" = '$HIGH_INV' LIMIT 1;" 2>&1 | tr -d ' ')
+assert_eq "pause runs while the plan is active" "$PAUSE_ENDED" "null"
 
 # ───── 4. After create, suggestion says "already has plan" ─────
 echo

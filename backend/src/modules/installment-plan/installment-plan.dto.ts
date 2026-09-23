@@ -42,6 +42,10 @@ export class PayInstallmentDto {
 
   @IsOptional() @IsDateString()
   paidAt?: string
+
+  // Tier 429: the payment is recorded on the invoice; default bank transfer.
+  @IsOptional() @IsString() @MaxLength(40)
+  paymentMethod?: string
 }
 
 /**

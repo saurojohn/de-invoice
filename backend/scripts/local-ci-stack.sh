@@ -270,7 +270,13 @@ up() {
 
 case "${1:-}" in
   up)   up ;;
-  run)  up; cd "$BACKEND_DIR/e2e"; SEGMENT_SIZE=20 SEGMENT_SLEEP=10 bash run-all.sh ;;
+  run)  up; cd "$BACKEND_DIR/e2e"; SEGMENT_SIZE=20 SEGMENT_SLEEP=10 bash run-all.sh; rc=$?
+        # Tier 429: keep the backend log of this run — the next `up` (e.g. a
+        # run-playwright right after) truncates /tmp/backend.log, and a 500
+        # seen in the e2e run could no longer be traced to its stack trace.
+        cp /tmp/backend.log /tmp/backend-e2e-run.log 2>/dev/null || true
+        echo "  backend log of this run: /tmp/backend-e2e-run.log"
+        exit $rc ;;
   run-playwright)
         # CI playwright job gives the backend this CORS origin.
         export FRONTEND_URL=http://localhost:3100

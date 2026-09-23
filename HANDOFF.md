@@ -2484,6 +2484,42 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### A Ratenplan was paid past its invoice (Tier 429)
+
+Measured on a 1 190 € invoice with 190 € already paid:
+
+| | Before | Now |
+|---|---|---|
+| the plan | split over the full 1 190 (2 × 595) — the paid 190 asked for again | the open 1 000 (2 × 500); a plan above the open amount is refused |
+| paying both Raten | the plan "completed", the invoice stayed **sent** with only the 190 on it — the money paid through the plan reached no payment, so UStVA, DATEV, balance sheet, ageing and dunning never saw it | each Rate is a payment of the invoice (PaymentService: status, Skonto, overpayment credit); plan completed, invoice paid |
+| a payment booked on the invoice (bank import, manual) | the Raten stayed open, then overdue | settles the Raten in order |
+| removing a payment | — | reopens the Rate; the plan goes back to active |
+| a Rate paid above its amount | cut off silently at the Rate | covers the next Rate |
+| the plan's dunning pause | on the whole customer, open-ended until someone deleted it | on this invoice only; ends when the plan completes or is cancelled |
+| an overdue invoice | refused ("Status overdue, nicht sent") — the usual case for a plan | eligible |
+
+The invoice's payments are the truth and the Raten a view of them:
+`installment-plan/installment-sync.ts` spreads every payment recorded since
+the plan was created over the Raten (paid / partial / overdue / open) and
+completes or reactivates the plan; `PaymentService.create` and `.delete` call
+it, and "Rate bezahlt" records a payment (optional `paymentMethod`, default
+bank transfer) instead of writing the Rate.
+
+Spec `e2e/218-tier429-ratenplan.sh` (13 assertions, 10 failing against the
+previous code). Updated: `e2e/78` seeded a 1 190 € invoice and put a
+1 200 € plan on it — 10 € more than was owed, now refused; its invoice is
+1 200 €. `e2e/92` expected the pause on the customer and open-ended; it now
+expects it on the invoice while the plan runs.
+
+Local runs: backend **217 / 0 / 1**, 0 × 500 (second run); Playwright
+**930**, no flaky. The first backend run had one 500 in
+`64-tier36-dashboard.sh` (`GET /reports/dashboard-v2`) — it did not recur
+in the second full run nor when replaying specs 01–64 in order on a fresh
+stack, and its stack trace was gone: `run-playwright` had restarted the stack
+and truncated `/tmp/backend.log`. `local-ci-stack.sh run` now copies the
+log to `/tmp/backend-e2e-run.log` at the end, so the next one can be traced.
+Nothing in this tier touches the dashboard; watch for it.
+
 ### The Zahlungsziel decided nothing, and a monthly contract skipped February (Tier 428)
 
 Measured with a company default of 30 days:

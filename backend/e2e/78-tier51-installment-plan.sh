@@ -69,13 +69,15 @@ INSERT INTO "Invoice" (id, "companyId", "customerId", "invoiceNumber", "sequence
   "createdAt", "updatedAt")
 VALUES ('$INVOICE_ID', '$COMPANY_ID', '$CUST_ID', 'Tier51-001', 9951,
   'INV', 'sent', '2026-06-01', '2026-06-15',
-  1000.00, 190.00, 1190.00, 'EUR', 'de-DE',
-  '[{"rate":0.19,"net":1000,"vat":190}]'::jsonb,
+  1008.40, 191.60, 1200.00, 'EUR', 'de-DE',
+  '[{"rate":0.19,"net":1008.40,"vat":191.60}]'::jsonb,
   false, false, 'standard', '[]',
   now(), now());
 SQL
-pass "seeded invoice: $INVOICE_ID (total=1190.00)"
-INVOICE_TOTAL="1190.00"
+# Tier 429: the plan (1 200) may not exceed what the invoice leaves open; the
+# invoice was 1 190, so the spec's plan asked for 10 € more than was owed.
+pass "seeded invoice: $INVOICE_ID (total=1200.00)"
+INVOICE_TOTAL="1200.00"
 
 # ───── 2. Create a Ratenplan — 3 Raten × 400 € monthly ─────
 echo

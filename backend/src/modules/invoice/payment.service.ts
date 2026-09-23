@@ -11,6 +11,7 @@ import { ReminderService } from '../reminder/reminder.service';
 // audit is exact) and asks CreditBalanceService to book the
 // overage.
 import { CreditBalanceService } from '../customer/credit-balance.service';
+import { syncInstallments } from '../installment-plan/installment-sync';
 
 @Injectable()
 export class PaymentService {
@@ -249,6 +250,9 @@ export class PaymentService {
       })
       .catch((err) => console.error('webhook emit(payment.received) failed:', err))
 
+    // Tier 429: a Ratenplan on this invoice follows its payments.
+    await syncInstallments(this.prisma, invoiceId);
+
     return skonto ? { ...payment, skonto } : payment;
   }
 
@@ -315,6 +319,8 @@ export class PaymentService {
         });
       }
     }
+    // Tier 429: …and loses a Rate again when its payment is removed.
+    await syncInstallments(this.prisma, payment.invoiceId);
     return { ok: true };
   }
 }

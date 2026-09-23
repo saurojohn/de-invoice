@@ -4,6 +4,8 @@ import {
   NotFoundException,
 } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
+import { PaymentService } from '../invoice/payment.service'
+import { syncInstallments, endPlanPause } from './installment-sync'
 import {
   CreateInstallmentPlanDto,
   PayInstallmentDto,
@@ -32,7 +34,11 @@ import {
  */
 @Injectable()
 export class InstallmentPlanService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    // Tier 429: a paid Rate is a payment of the invoice.
+    private payments: PaymentService,
+  ) {}
 
   /**
    * List every Ratenplan for the company. Used by
@@ -116,6 +122,7 @@ export class InstallmentPlanService {
       where: { id: invoiceId, companyId },
       include: {
         customer: { select: { id: true, name: true } },
+        payments: { select: { amount: true } },
       },
     })
     if (!invoice) {
@@ -137,9 +144,17 @@ export class InstallmentPlanService {
           select: { id: true },
         })
       : null
-    const total = Number(invoice.total)
+    // Tier 429: the plan covers what is still open — the total less the
+    // payments and credit notes so far (a part-paid invoice was split over
+    // its full total, so the customer was asked for the paid part again).
+    // An overdue invoice qualifies too; it is the usual case for a plan, and
+    // it was refused ("Status overdue, nicht sent").
+    const total = Math.round(
+      (Number(invoice.total) - invoice.payments.reduce((s, p) => s + Number(p.amount ?? 0), 0)) * 100,
+    ) / 100
+    const payable = invoice.status === 'sent' || invoice.status === 'overdue'
     const eligible =
-      invoice.status === 'sent' &&
+      payable &&
       !existingPlan &&
       !customerPlan &&
       total >= THRESHOLD
@@ -163,8 +178,8 @@ export class InstallmentPlanService {
       reason: !eligible
         ? !invoice.customerId
           ? 'Rechnung hat keinen Kunden'
-          : invoice.status !== 'sent'
-          ? `Rechnung ist im Status "${invoice.status}", nicht "sent"`
+          : !payable
+          ? `Rechnung ist im Status "${invoice.status}" — ein Ratenplan braucht eine offene Rechnung`
           : existingPlan
           ? 'Für diese Rechnung existiert bereits ein Ratenplan'
           : customerPlan
@@ -253,22 +268,16 @@ export class InstallmentPlanService {
     })
     if (options.autoPause !== false) {
       try {
+        // Tier 429: the pause covers this invoice only — it was put on the
+        // whole customer, so their other invoices were not dunned either —
+        // and it ends by itself when the plan completes or is cancelled
+        // (installment-sync.ts); it was open-ended until someone deleted it.
         await this.prisma.mahnungspause.create({
           data: {
             companyId,
-            customerId: suggestion.invoiceId
-              ? (
-                  await this.prisma.invoice.findUnique({
-                    where: { id: suggestion.invoiceId },
-                    select: { customerId: true },
-                  })
-                )?.customerId ?? null
-              : null,
-            invoiceId: null,
+            customerId: null,
+            invoiceId: suggestion.invoiceId,
             reason: options.pauseReason ?? 'Ratenplan aktiv',
-            // Open-ended — when the plan completes
-            // or is cancelled, the Berater ends the
-            // pause via DELETE /mahnungspausen/:id.
             pausedFrom: new Date(),
             pausedUntil: null,
             createdById: createdById ?? null,
@@ -341,7 +350,7 @@ export class InstallmentPlanService {
     // Customer) is consistent.
     const invoice = await this.prisma.invoice.findFirst({
       where: { id: dto.invoiceId, companyId },
-      include: { customer: { select: { id: true } } },
+      include: { customer: { select: { id: true } }, payments: { select: { amount: true } } },
     })
     if (!invoice) {
       throw new NotFoundException('Rechnung nicht gefunden')
@@ -362,6 +371,17 @@ export class InstallmentPlanService {
     }
     if (dto.installmentCount < 2) {
       throw new BadRequestException('Mindestens 2 Raten erforderlich')
+    }
+    // Tier 429: a plan cannot ask for more than is still open.
+    const openCents = Math.round(Number(invoice.total) * 100)
+      - invoice.payments.reduce((s, p) => s + Math.round(Number(p.amount ?? 0) * 100), 0)
+    if (openCents <= 0) {
+      throw new BadRequestException('Die Rechnung ist bereits vollständig bezahlt')
+    }
+    if (Math.round(dto.totalAmount * 100) > openCents) {
+      throw new BadRequestException(
+        `Der Ratenplan (${dto.totalAmount.toFixed(2)}) übersteigt den offenen Betrag der Rechnung (${(openCents / 100).toFixed(2)})`,
+      )
     }
     const firstDue = new Date(dto.firstDueDate)
     const today = new Date()
@@ -449,10 +469,9 @@ export class InstallmentPlanService {
     companyId: string,
     dto: PayInstallmentDto,
   ) {
-    // Resolve plan + installment in one query.
     const inst = await this.prisma.installment.findFirst({
       where: { id: installmentId, planId, plan: { companyId } },
-      include: { plan: { select: { id: true, totalAmount: true } } },
+      include: { plan: { select: { id: true, invoiceId: true, status: true } } },
     })
     if (!inst) {
       throw new NotFoundException('Rate nicht gefunden')
@@ -460,49 +479,24 @@ export class InstallmentPlanService {
     if (inst.status === 'paid') {
       throw new BadRequestException('Rate ist bereits vollständig bezahlt')
     }
-    if (inst.status === 'cancelled') {
+    if (inst.status === 'cancelled' || inst.plan.status === 'cancelled') {
       throw new BadRequestException('Rate wurde storniert')
     }
-    // Bump paidAmount but cap at amount (overpaying
-    // is a bank-import mis-attribution, not the
-    // Ratenplan's problem).
-    const newPaid = Math.min(
-      Number(inst.amount),
-      Number(inst.paidAmount) + dto.amount,
-    )
-    const newStatus =
-      newPaid >= Number(inst.amount)
-        ? 'paid'
-        : newPaid > 0
-        ? 'partial'
-        : inst.status
-
-    return this.prisma.$transaction(async (tx) => {
-      await tx.installment.update({
-        where: { id: inst.id },
-        data: {
-          paidAmount: newPaid,
-          paidAt: newStatus === 'paid' ? new Date(dto.paidAt || new Date().toISOString()) : inst.paidAt,
-          status: newStatus,
-        },
-      })
-      // Are all installments of this plan paid? If
-      // yes, flip the plan to 'completed'.
-      const allInsts = await tx.installment.findMany({
-        where: { planId },
-        select: { status: true },
-      })
-      const allPaid = allInsts.every((i) => i.status === 'paid')
-      if (allPaid) {
-        await tx.installmentPlan.update({
-          where: { id: planId },
-          data: { status: 'completed' },
-        })
-      }
-      return tx.installmentPlan.findUniqueOrThrow({
-        where: { id: planId },
-        include: { installments: { orderBy: { sequenceNumber: 'asc' } } },
-      })
+    // Tier 429: the money is a payment of the invoice — recorded there, by
+    // the same service as any other payment (status, Skonto, overpayment
+    // credit), and the Raten are recomputed from the invoice's payments
+    // (installment-sync.ts). An amount above the Rate covers the next ones
+    // instead of being cut off.
+    await this.payments.create(inst.plan.invoiceId, companyId, {
+      amount: dto.amount,
+      paymentDate: dto.paidAt ? new Date(dto.paidAt) : new Date(),
+      paymentMethod: dto.paymentMethod || 'bank_transfer',
+      reference: `Rate ${inst.sequenceNumber}`,
+    })
+    await syncInstallments(this.prisma, inst.plan.invoiceId)
+    return this.prisma.installmentPlan.findUniqueOrThrow({
+      where: { id: planId },
+      include: { installments: { orderBy: { sequenceNumber: 'asc' } } },
     })
   }
 
@@ -525,6 +519,8 @@ export class InstallmentPlanService {
         where: { planId: plan.id, status: { in: ['open', 'partial', 'overdue'] } },
         data: { status: 'cancelled' },
       })
+      // Tier 429: dunning resumes for the invoice.
+      await endPlanPause(tx, companyId, plan.invoiceId, plan.createdAt)
       return tx.installmentPlan.findUniqueOrThrow({
         where: { id: plan.id },
         include: { installments: { orderBy: { sequenceNumber: 'asc' } } },
