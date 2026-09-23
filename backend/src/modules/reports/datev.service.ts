@@ -47,6 +47,7 @@ import { vatRateToUstSchluessel } from './datev-ust-schluessel';
 import { invoiceTaxBreakdown } from '../invoice/tax-breakdown';
 import { normaliseCountry } from '../invoice/ust-behandlung-detector';
 import { ensurePersonenkonten, DIVERSE_KREDITOREN } from './datev-personenkonten';
+import { NON_CASH_PAYMENT_METHODS } from '../invoice/document-scope';
 import { cashBookings } from '../cashbook/cash-bookings';
 import { SALES_TYPES } from '../invoice/document-scope'
 
@@ -368,6 +369,16 @@ export async function buildBuchungenFromDb(
   startDate: Date,
   endDate: Date,
 ): Promise<BuchungsSatz[]> {
+  // Tier 431: an end date given as a day ("2026-09-30", parsed to 00:00 UTC)
+  // covers that whole day. A payment recorded at 14:00 on the last day of
+  // the period fell outside it — and the next period starts the day after,
+  // so it was in no export at all.
+  if (
+    endDate.getUTCHours() === 0 && endDate.getUTCMinutes() === 0 &&
+    endDate.getUTCSeconds() === 0 && endDate.getUTCMilliseconds() === 0
+  ) {
+    endDate = new Date(endDate.getTime() + 86_400_000 - 1)
+  }
   const company = await prisma.company.findUnique({
     where: { id: companyId },
     select: { settings: true, defaultVatMode: true },
@@ -402,8 +413,9 @@ export async function buildBuchungenFromDb(
     where: {
       paymentDate: { gte: startDate, lte: endDate },
       // Credit notes (and the Skonto) are booked as credit notes above; the
-      // synthetic payment that records them on the original is not cash.
-      paymentMethod: { not: 'Gutschrift' },
+      // synthetic payment that records them on the original is not cash —
+      // nor is a customer credit applied to an invoice (Tier 431).
+      paymentMethod: { notIn: NON_CASH_PAYMENT_METHODS },
       invoice: { companyId, type: { in: ['INV', 'CN'] }, status: { notIn: ['draft', 'cancelled'] } },
     },
     include: {

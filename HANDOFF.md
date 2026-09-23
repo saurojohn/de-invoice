@@ -2485,6 +2485,33 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Money that went missing between the payment paths (Tier 431)
+
+Tier 430 found two ways of writing payments that bypassed PaymentService.
+Measured:
+
+| | Before | Now |
+|---|---|---|
+| Sammelzahlung 2 000 € over two open invoices (1 190 + 595) | 1 785 € applied, **215 € on no account** — the customer's credit stayed 0, the payments summed to 1 785 | every share through PaymentService (status, Skonto, Ratenplan, webhook); the remainder rides on the last share and becomes the customer's credit — payments sum to the 2 000 received |
+| customer credit of 110 € applied to an invoice | written directly; the customer statement deducted it twice: closing balance 279,80 instead of 389,80, printed as `279.79999999999995` | through PaymentService; the statement counts it once, to the cent |
+| that credit in DATEV | a bank receipt of its own whenever it fell inside the period — the money came in once, as the overpayment | not a receipt |
+| a payment recorded at 14:30 on the last day of a DATEV period (`endDate=2026-09-30` → 00:00) | in **no** export: cut off by that one, before the start of the next | the end date covers the whole day |
+
+- `NON_CASH_PAYMENT_METHODS` (`document-scope.ts`): 'Gutschrift' (the
+  synthetic payment a credit note books) and 'Guthaben' (a credit applied)
+  reduce what is open but are no receipt of money. DATEV and the customer
+  statement use it.
+- `CustomerService.allocatePayment` and `CreditBalanceService.applyToInvoice`
+  get PaymentService through `ModuleRef` (InvoiceModule imports
+  CustomerModule, so it cannot be injected). A failure takes back what was
+  booked: the earlier shares, or the credit usage.
+- `buildBuchungenFromDb` treats a date-only end date as the whole day.
+
+Spec `e2e/220-tier431-zahlungen-ohne-umweg.sh` (8 assertions, 4 failing
+against the previous code — the others pin the parts that were right). No
+existing spec needed a change. Local runs: backend **219 / 0 / 1**, 0 × 500;
+Playwright **930**, no flaky.
+
 ### A customer could mark their own invoice paid — for 1 € (Tier 430)
 
 Measured on a sent 1 190 € invoice:

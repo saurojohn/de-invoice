@@ -4,6 +4,8 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { VatValidationService } from '../vat-validation/vat-validation.service';
 import { WebhookService } from '../webhook/webhook.service';
 import { CLAIM_TYPES } from '../invoice/document-scope'
+import { ModuleRef } from '@nestjs/core'
+import { PaymentService } from '../invoice/payment.service'
 
 // Tier 397: shared by the DTO (interactive create) and the importer.
 export const CUSTOMER_NAME_MAX = 200
@@ -39,6 +41,9 @@ export class CustomerService {
     private prisma: PrismaService,
     private vatValidation: VatValidationService,
     private webhooks: WebhookService,
+    // Tier 431: PaymentService lives in InvoiceModule, which imports this
+    // module — resolved at call time instead of injected.
+    private moduleRef: ModuleRef,
   ) {}
 
   /**
@@ -767,40 +772,42 @@ export class CustomerService {
       args.amount,
     )
 
-    // Walk the same allocation, writing Payment
-    // rows. We use a Prisma transaction so that
-    // either every Payment row + invoice status
-    // change lands, or none does — no half-paid
-    // state on a crash.
+    // Tier 431: each share is an ordinary payment of its invoice, through
+    // PaymentService (status, Skonto, Ratenplan, webhook), and a remainder
+    // beyond everything open rides on the last share — PaymentService books
+    // the overage as the customer's credit. These rows were written directly,
+    // and the remainder was dropped: 2 000 € paid against 1 785 € open left
+    // 215 € on no account at all.
+    const shares = preview.invoices.filter((a) => a.applied > 0)
+    if (shares.length === 0) {
+      throw new BadRequestException('Der Kunde hat keine offenen Rechnungen, auf die die Zahlung verteilt werden kann')
+    }
+    const payments = this.moduleRef.get(PaymentService, { strict: false })
+    const created: string[] = []
     const appliedInvoices: typeof preview.invoices = []
-    await this.prisma.$transaction(async (tx) => {
-      for (const alloc of preview.invoices) {
-        if (alloc.applied <= 0) continue
-        await tx.payment.create({
-          data: {
-            invoiceId: alloc.invoiceId,
-            amount: alloc.applied,
-            paymentDate: args.paymentDate,
-            paymentMethod: args.paymentMethod,
-            reference: args.reference || null,
-            notes: args.notes || null,
-          },
+    try {
+      for (const [i, alloc] of shares.entries()) {
+        const last = i === shares.length - 1
+        const amount = last
+          ? Math.round((alloc.applied + preview.unallocatedAmount) * 100) / 100
+          : alloc.applied
+        const payment = await payments.create(alloc.invoiceId, companyId, {
+          amount,
+          paymentDate: args.paymentDate,
+          paymentMethod: args.paymentMethod,
+          reference: args.reference || undefined,
+          notes: args.notes || undefined,
         })
-        // Bump the invoice to 'paid' when fully
-        // settled (total - alreadyPaid - applied <= 0).
-        // The Tier 32 / Prisma audit-log extension
-        // will pick this up automatically — no
-        // manual write to AuditLog here.
-        if (alloc.applied >= alloc.remaining) {
-          await tx.invoice.update({
-            where: { id: alloc.invoiceId },
-            data: { status: 'paid' },
-          })
-        }
+        created.push(payment.id)
         appliedInvoices.push(alloc)
       }
-    })
-
+    } catch (e) {
+      // All or nothing, as before: take back what was booked.
+      for (const id of created.reverse()) {
+        await payments.delete(id, companyId).catch(() => undefined)
+      }
+      throw e
+    }
     const appliedTotal = appliedInvoices.reduce(
       (s, a) => s + a.applied,
       0,
@@ -809,6 +816,8 @@ export class CustomerService {
       appliedCount: appliedInvoices.length,
       appliedTotal,
       unallocatedAmount: preview.unallocatedAmount,
+      // Tier 431: where the remainder went.
+      creditedAmount: preview.unallocatedAmount,
       totalOutstanding: preview.totalOutstanding,
       applied: appliedInvoices,
     }

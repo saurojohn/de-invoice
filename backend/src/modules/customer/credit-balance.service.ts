@@ -6,6 +6,8 @@ import {
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { VoucherService } from '../accounting/voucher.service';
+import { ModuleRef } from '@nestjs/core';
+import { PaymentService } from '../invoice/payment.service';
 
 /**
  * Tier 58: customer credit balance (Kundenguthaben) + Auszahlung.
@@ -43,6 +45,8 @@ export class CreditBalanceService {
   constructor(
     private prisma: PrismaService,
     private voucherService: VoucherService,
+    // Tier 431: PaymentService (InvoiceModule imports this module).
+    private moduleRef: ModuleRef,
   ) {}
 
   /**
@@ -464,34 +468,23 @@ export class CreditBalanceService {
       createdById: userId,
     });
 
-    // Add a synthetic payment row so the invoice payment
-    // list + customer statement + aging report all see the
-    // reduction. Marked with paymentMethod='Guthaben' so
-    // the Berater can identify these rows on a bank-rec.
-    await this.prisma.payment.create({
-      data: {
-        invoiceId,
+    // The invoice's open balance drops by the credit used: a payment with
+    // paymentMethod 'Guthaben' — not cash (see NON_CASH_PAYMENT_METHODS). Tier
+    // 431: recorded through PaymentService (status, Skonto, Ratenplan,
+    // webhook) instead of written directly; if that fails, the credit usage
+    // is taken back.
+    const paymentService = this.moduleRef.get(PaymentService, { strict: false });
+    try {
+      await paymentService.create(invoiceId, companyId, {
         amount: apply,
         paymentDate: new Date(),
         paymentMethod: 'Guthaben',
         reference: `Credit ${ledger.id}`,
         notes: `Auto-verrechnet aus Kundenguthaben`,
-      },
-    });
-
-    // Re-evaluate invoice status: if apply closed the
-    // open balance, flip to 'paid'. Mirror the same
-    // status transition PaymentService.create() does.
-    const newPaid = paid + apply;
-    if (
-      invoice.type === 'INV' &&
-      newPaid >= Number(invoice.total) - 0.01 &&
-      invoice.status !== 'paid'
-    ) {
-      await this.prisma.invoice.update({
-        where: { id: invoiceId },
-        data: { status: 'paid' },
       });
+    } catch (e) {
+      await this.prisma.customerCreditTransaction.delete({ where: { id: ledger.id } }).catch(() => undefined);
+      throw e;
     }
 
     return {

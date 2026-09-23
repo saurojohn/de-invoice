@@ -23,3 +23,13 @@ export const SALES_TYPES = ['INV', 'RCV', 'CN']
 
 /** Documents a customer can owe money on. */
 export const CLAIM_TYPES = ['INV', 'RCV']
+
+/**
+ * Tier 431 — payments that are not money arriving: a credit note settling
+ * its invoice ('Gutschrift', booked by createCreditNote) and a customer
+ * credit applied to an invoice ('Guthaben' — the cash came in once, as the
+ * overpayment that created the credit). They reduce what is open; they are
+ * no bank or cash receipt. DATEV exported 'Guthaben' as a second receipt of
+ * the same money, and the customer statement deducted the credit twice.
+ */
+export const NON_CASH_PAYMENT_METHODS = ['Gutschrift', 'Guthaben']

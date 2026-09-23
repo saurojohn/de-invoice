@@ -34,7 +34,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
-import { ISSUED_STATUSES, CLAIM_TYPES } from '../invoice/document-scope'
+import { ISSUED_STATUSES, CLAIM_TYPES, NON_CASH_PAYMENT_METHODS } from '../invoice/document-scope'
 
 const STATEMENT_TYPES = [...CLAIM_TYPES, 'CN']
 
@@ -181,7 +181,7 @@ export class CustomerStatementService {
         where: {
           invoice: { customerId, companyId },
           paymentDate: { lt: from },
-          paymentMethod: { not: 'Gutschrift' },
+          paymentMethod: { notIn: NON_CASH_PAYMENT_METHODS }, // Tier 431: nor a credit applied
         },
         _sum: { amount: true },
       }),
@@ -218,7 +218,7 @@ export class CustomerStatementService {
           // the invoice it corrects; the statement shows the credit note
           // itself, so that payment is not a second line (the balance of a
           // 1 190 € invoice with a 190 € credit note was 810 €).
-          paymentMethod: { not: 'Gutschrift' },
+          paymentMethod: { notIn: NON_CASH_PAYMENT_METHODS }, // Tier 431: nor a credit applied
         },
         select: {
           id: true,
@@ -301,8 +301,11 @@ export class CustomerStatementService {
       return a.type.localeCompare(b.type)  // credit < invoice < payment
     }
     const sortedForBalance = [...lines].sort(byChronoAsc)
+    // Tier 431: to the cent — a float sum showed 279.79999999999995.
+    const r2 = (n: number) => Math.round(n * 100) / 100
+    running = r2(running)
     for (const line of sortedForBalance) {
-      running += line.amount
+      running = r2(running + line.amount)
       line.balance = running
       if (line.type === 'invoice') {
         invoicesCount++
