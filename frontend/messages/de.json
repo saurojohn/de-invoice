@@ -3155,7 +3155,9 @@
     "fromSupplier": "von",
     "cardPaymentsTitle": "SEPA-Sammelzahlung",
     "cardPaymentsDesc": "Sammelt offene Eingangsrechnungen in einer pain.001-XML für den Bank-Upload.",
-    "unpaidExpenses": "Unbezahlte Auslagen"
+    "unpaidExpenses": "Unbezahlte Auslagen",
+    "cancelBatch": "Stornieren",
+    "cancelBatchConfirm": "Batch stornieren? Die Bank hat ihn nicht ausgeführt — die Ausgaben gelten wieder als unbezahlt."
   },
   "directDebit": {
     "title": "SEPA-Lastschriften (pain.008)",

@@ -370,4 +370,59 @@ export class PaymentsService {
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&apos;')
   }
+
+  /**
+   * Tier 433: cancel a SEPA batch the bank did not execute (rejected file,
+   * wrong account, never uploaded). Its expenses become unpaid again. There
+   * was no way to do this: once generated, a batch's expenses stayed "paid"
+   * — in the balance sheet, the payments page and DATEV — whatever the bank
+   * did with the file.
+   *
+   * Refused when the bank import has already matched one of its expenses to
+   * a debit: then that payment did happen.
+   */
+  async cancelBatch(companyId: string, batchId: string, reason?: string) {
+    const batch = await this.prisma.sepaBatch.findFirst({
+      where: { id: batchId, companyId },
+      include: { expenses: { select: { id: true, invoiceNumber: true } } },
+    })
+    if (!batch) throw new NotFoundException('Batch nicht gefunden')
+    if (batch.status === 'cancelled') {
+      throw new BadRequestException('Der Batch ist bereits storniert')
+    }
+    const ids = batch.expenses.map((e) => e.id)
+    const matched = ids.length
+      ? await this.prisma.voucher.findMany({
+        where: {
+          companyId,
+          referenceType: 'Expense',
+          OR: ids.map((id) => ({ description: { contains: `[expense:${id}]` } })),
+        },
+        select: { description: true },
+      })
+      : []
+    if (matched.length) {
+      const numbers = batch.expenses
+        .filter((e) => matched.some((v) => (v.description || '').includes(`[expense:${e.id}]`)))
+        .map((e) => e.invoiceNumber || e.id)
+      throw new BadRequestException(
+        `Der Batch kann nicht storniert werden: die Zahlung von ${numbers.join(', ')} ist bereits im Kontoauszug gebucht`,
+      )
+    }
+    await this.prisma.$transaction([
+      this.prisma.expense.updateMany({
+        where: { companyId, paidBySepaBatchId: batch.id },
+        data: { paidAt: null, paidBySepaBatchId: null },
+      }),
+      this.prisma.sepaBatch.update({
+        where: { id: batch.id },
+        data: {
+          status: 'cancelled',
+          notes: [batch.notes, `Storniert${reason ? `: ${reason}` : ''}`].filter(Boolean).join(' — '),
+        },
+      }),
+    ])
+    return { id: batch.id, status: 'cancelled', expensesReopened: ids.length }
+  }
+
 }

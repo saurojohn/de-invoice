@@ -9,17 +9,18 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–431 are
-  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 431.)
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–433 are
+  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 432.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 35845057134 / commit `55d6191`, Tier 431):**
-  - Backend e2e: **219 passed / 0 failed / 1 skipped** of 220 specs — 100
-    two-digit + 120 three-digit (Tier 431 added `220-tier431-zahlungen-ohne-umweg.sh`,
+- **Test counts (last green CI, run 35854661681 / commit `a585803`, Tier 432):**
+  - Backend e2e: **220 passed / 0 failed / 1 skipped** of 221 specs — 100
+    two-digit + 121 three-digit (Tier 432 added `221-tier432-sepa-datev.sh`,
+    Tier 431 `220-tier431-zahlungen-ohne-umweg.sh`,
     Tier 430 `219-tier430-zahlungsmeldung.sh`,
     Tier 429 `218-tier429-ratenplan.sh`,
     Tier 428 `217-tier428-zahlungsziel.sh`,
@@ -2485,6 +2486,32 @@ Tier 401 run 35123354210 **failed** on backend lint — a warning
 runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
+
+### A SEPA batch the bank did not execute can be cancelled (Tier 433)
+
+Measured before: there was no way to. Once generated, a batch's expenses
+stayed "paid" (`paidAt`, `paidBySepaBatchId`) — in the balance sheet (4000 at
+0), on the payments page (gone from the unpaid list) and, since Tier 432, in
+DATEV — whatever the bank did with the file.
+
+`POST /payments/batches/:id/cancel` (optional `reason`, permission
+`expense.write`): the batch becomes `cancelled`, its expenses unpaid again
+(back in the unpaid list, owed in 4000, no payment in DATEV). Refused (400)
+when the bank import has already matched one of its expenses to a debit —
+then that payment did happen — and for a batch already cancelled. The
+payments page has a "Stornieren" button per batch (de/en/zh).
+
+Spec `e2e/222-tier433-sepa-storno.sh` (9 assertions, 7 failing against the
+previous code). No existing spec needed a change. Local runs: backend
+**221 / 0 / 1**, 0 × 500; Playwright **930**, no flaky.
+
+**The flaky cookie-banner test** (`legal-pages-tier170`, test 4; Tier 423 and
+432 runs) had a bug of its own: its `addInitScript` wiped the stored consent
+on every navigation — the `page.reload()` included — so the "banner must not
+reappear" check passed only when it ran before the banner's mount effect. It
+now clears the consent on the tab's first load only (a sessionStorage flag),
+waits for the reloaded page to settle and checks the consent is still stored.
+Repeated 15 times without retries: the old version failed 2, the new one 0.
 
 ### A SEPA-paid expense stayed owed in DATEV (Tier 432)
 

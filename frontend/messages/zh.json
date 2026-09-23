@@ -3155,7 +3155,9 @@
     "fromSupplier": "来自",
     "cardPaymentsTitle": "SEPA 批量付款",
     "cardPaymentsDesc": "把待付 Eingangsrechnungen 打包成 pain.001 XML 上传银行。",
-    "unpaidExpenses": "未付支出"
+    "unpaidExpenses": "未付支出",
+    "cancelBatch": "撤销",
+    "cancelBatchConfirm": "撤销此批次？银行未执行该文件——其中的支出将恢复为未付。"
   },
   "directDebit": {
     "title": "SEPA 直接借记 (pain.008)",

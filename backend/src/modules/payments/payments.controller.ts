@@ -77,6 +77,20 @@ export class PaymentsController {
     return batch
   }
 
+  // Tier 433: the bank did not execute the file — its expenses are unpaid again.
+  @Post('batches/:id/cancel')
+  @Require('expense.write')
+  async cancelBatch(
+    @Param('id') id: string,
+    @Headers('x-company-id') companyId: string,
+    @Body() body: { reason?: string },
+  ) {
+    if (!companyId) {
+      throw new BadRequestException('companyId ist erforderlich')
+    }
+    return this.payments.cancelBatch(companyId, id, typeof body?.reason === 'string' ? body.reason.slice(0, 200) : undefined)
+  }
+
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @Get('batches/:id/xml')
   @Require('expense.read')

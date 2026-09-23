@@ -119,8 +119,18 @@ test.describe('Tier 170 — Impressum + Datenschutz + CookieBanner', () => {
     // storageState so subsequent tests don't see
     // the banner — but this test specifically
     // verifies the banner's first-visit UX.
+    //
+    // Tier 432: only on the tab's FIRST load. An init script runs on every
+    // navigation, the reload below included — it wiped the consent again, so
+    // the "banner must not reappear" check passed only when it ran before the
+    // banner's mount effect (flaky: Tier 423 and 432 runs).
     await page.addInitScript(() => {
-      try { localStorage.removeItem('cookie-consent') } catch {}
+      try {
+        if (!sessionStorage.getItem('t170-cleared')) {
+          localStorage.removeItem('cookie-consent')
+          sessionStorage.setItem('t170-cleared', '1')
+        }
+      } catch {}
     })
     await page.goto('/login')
     // First visit — banner must appear.
@@ -148,8 +158,11 @@ test.describe('Tier 170 — Impressum + Datenschutz + CookieBanner', () => {
     expect(typeof parsed.savedAt).toBe('string')
 
     // Reload — banner must NOT reappear (consent is
-    // already on record).
+    // already on record). Wait until the page has settled so the banner's
+    // mount effect has run — a "not visible" checked before it proves nothing.
     await page.reload()
+    await page.waitForLoadState('networkidle')
+    expect(await page.evaluate(() => localStorage.getItem('cookie-consent'))).not.toBeNull()
     await expect(page.getByTestId('cookie-banner')).not.toBeVisible()
   })
 

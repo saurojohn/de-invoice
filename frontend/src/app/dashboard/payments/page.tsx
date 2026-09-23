@@ -222,6 +222,18 @@ export default function PaymentsPage() {
     }
   }
 
+  // Tier 433: the bank did not execute the file — its expenses are unpaid
+  // again (they stayed "paid" whatever happened to the file).
+  const handleCancelBatch = async (batchId: string) => {
+    if (!confirm(t("payments.cancelBatchConfirm") || "Batch stornieren? Die Ausgaben gelten wieder als unbezahlt.")) return
+    try {
+      await apiPost(`/api/v1/payments/batches/${batchId}/cancel`, {})
+      await load()
+    } catch (err: any) {
+      toastRef.current.error(err?.message || tRef.current("payments.loadError"))
+    }
+  }
+
   const handleDownloadXml = async (batchId: string) => {
     try {
       const url = `/api/v1/payments/batches/${batchId}/xml?companyId=${companyId}`
@@ -513,7 +525,7 @@ export default function PaymentsPage() {
                             {b.status}
                           </span>
                         </td>
-                        <td className="py-2 pr-3">
+                        <td className="py-2 pr-3 whitespace-nowrap">
                           <Button
                             size="sm"
                             variant="outline"
@@ -522,6 +534,17 @@ export default function PaymentsPage() {
                           >
                             {t("payments.downloadXml")}
                           </Button>
+                          {b.status !== "cancelled" && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="ml-2"
+                              onClick={() => handleCancelBatch(b.id)}
+                              data-testid={`cancel-batch-${b.id}`}
+                            >
+                              {t("payments.cancelBatch") || "Stornieren"}
+                            </Button>
+                          )}
                         </td>
                       </tr>
                     ))}

@@ -3155,7 +3155,9 @@
     "fromSupplier": "from",
     "cardPaymentsTitle": "SEPA batch payment",
     "cardPaymentsDesc": "Bundles open Eingangsrechnungen into a pain.001 XML for bank upload.",
-    "unpaidExpenses": "Unpaid expenses"
+    "unpaidExpenses": "Unpaid expenses",
+    "cancelBatch": "Cancel",
+    "cancelBatchConfirm": "Cancel this batch? The bank did not execute it — its expenses become unpaid again."
   },
   "directDebit": {
     "title": "SEPA Direct Debits (pain.008)",
