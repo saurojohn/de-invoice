@@ -557,10 +557,41 @@ export async function buildBuchungenFromDb(
     include: { expense: { select: { supplierId: true, invoiceNumber: true } } },
     orderBy: { businessDate: 'asc' },
   })
+  // Tier 432: expenses paid by other means than the bank import or the cash
+  // book — the SEPA credit-transfer run sets `paidAt` — got no payment row,
+  // so in DATEV the Kreditor stayed owed while the app (balance sheet, 4000)
+  // had it paid. Booked from `paidAt`, unless a bank-import voucher or a
+  // cash-book entry already books that payment (below / 2b).
+  const paidExpenses = await prisma.expense.findMany({
+    where: {
+      companyId,
+      paidAt: { gte: startDate, lte: endDate },
+      status: { in: ['booked', 'deductible'] },
+      cashBookEntries: { none: {} },
+    },
+    select: {
+      id: true, supplierId: true, invoiceNumber: true, description: true,
+      grossAmount: true, paidAt: true, paidBySepaBatchId: true,
+    },
+  })
+  const bankMatched = paidExpenses.length
+    ? await prisma.voucher.findMany({
+      where: {
+        companyId,
+        referenceType: 'Expense',
+        OR: paidExpenses.map((e) => ({ description: { contains: `[expense:${e.id}]` } })),
+      },
+      select: { description: true },
+    })
+    : []
+  const matchedIds = new Set(bankMatched.map((v) => expenseTag(v.description)).filter(Boolean))
+  const otherwisePaid = paidExpenses.filter((e) => !matchedIds.has(e.id))
+
   const kreditoren = await ensurePersonenkonten(prisma, 'supplier', companyId, [
     ...expenses.map((e) => e.supplierId || ''),
     ...voucherExpenses.map((e) => e.supplierId || ''),
     ...cashPaidExpenses.map((e) => e.expense?.supplierId || ''),
+    ...otherwisePaid.map((e) => e.supplierId || ''),
   ])
   const kreditor = (supplierId?: string | null) =>
     String((supplierId && kreditoren.get(supplierId)) || DIVERSE_KREDITOREN)
@@ -608,6 +639,18 @@ export async function buildBuchungenFromDb(
       // No input tax: a Kleinunternehmer cannot deduct it, or there is none.
       out.push({ ...base, betrag: r2(gross) })
     }
+  }
+
+  for (const e of otherwisePaid) {
+    out.push({
+      belegdatum: e.paidAt!,
+      belegfeld1: e.invoiceNumber || `EXP-${e.id.substring(0, 8)}`,
+      konto: a.bank,
+      gegenkonto: kreditor(e.supplierId),
+      betrag: r2(Number(e.grossAmount)),
+      shVz: 'H',
+      buchungstext: `Zahlung ${e.paidBySepaBatchId ? 'SEPA ' : ''}${e.description}`.substring(0, 60),
+    })
   }
 
   // ── 2b. Kassenbuch (Tier 425) ─────────────────────────────────────

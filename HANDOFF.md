@@ -2486,6 +2486,30 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### A SEPA-paid expense stayed owed in DATEV (Tier 432)
+
+Measured: an expense of 119 € paid through the SEPA credit-transfer run
+(`paidAt` set; the app's balance sheet had 4000 at 0) exported to DATEV as
+"Kreditor 70001 an 4900 119,00 H" and nothing else. The export booked an
+expense's payment only from a bank-import voucher (Tier 423) or a cash-book
+entry (Tier 425), so the supplier stayed owed 119 € in the Berater's books.
+
+`buildBuchungenFromDb` now books "Bank an Kreditor" from `paidAt` for every
+expense paid in the period that has neither a cash-book entry nor a
+bank-import voucher (those book the payment already — no second row).
+Buchungstext "Zahlung SEPA …" when the SEPA run paid it.
+
+Spec `e2e/221-tier432-sepa-datev.sh` (5 assertions, 2 failing against the
+previous code). No existing spec needed a change. Local runs: backend
+**220 / 0 / 1**, 0 × 500; Playwright **929 + 1 flaky** — the cookie-banner
+test of `legal-pages-tier170` again (as in Tier 423), passing on the third
+attempt; nothing here touches it.
+
+Found on the way, not changed: a SEPA batch cannot be cancelled. If the bank
+rejects the file, its expenses stay "paid" (`paidAt`, `paidBySepaBatchId`) —
+in the balance sheet, the payments page and now DATEV — until someone clears
+them in the database.
+
 ### Money that went missing between the payment paths (Tier 431)
 
 Tier 430 found two ways of writing payments that bypassed PaymentService.
