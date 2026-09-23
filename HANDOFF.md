@@ -9,17 +9,18 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–430 are
-  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 430.)
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–431 are
+  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 431.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 35837305152 / commit `a4c8ed7`, Tier 430):**
-  - Backend e2e: **218 passed / 0 failed / 1 skipped** of 219 specs — 100
-    two-digit + 119 three-digit (Tier 430 added `219-tier430-zahlungsmeldung.sh`,
+- **Test counts (last green CI, run 35845057134 / commit `55d6191`, Tier 431):**
+  - Backend e2e: **219 passed / 0 failed / 1 skipped** of 220 specs — 100
+    two-digit + 120 three-digit (Tier 431 added `220-tier431-zahlungen-ohne-umweg.sh`,
+    Tier 430 `219-tier430-zahlungsmeldung.sh`,
     Tier 429 `218-tier429-ratenplan.sh`,
     Tier 428 `217-tier428-zahlungsziel.sh`,
     Tier 427 `216-tier427-afa-monate.sh`,
