@@ -17,10 +17,10 @@ exact commands + docs you need to be productive.
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 35916192531 / commit `d861d05`, Tier 438):**
-  - Backend e2e: **226 passed / 0 failed / 1 skipped** of 227 specs — 100
-    two-digit + 127 three-digit (Tier 439 adds `228-tier439-kst-ohne-anrechnung.sh`
-    on top — 228 specs from then on; Tier 438 added `227-tier438-anlage-g-gewerbesteuer.sh`,
+- **Test counts (last green CI, run 35920709870 / commit `d802d85`, Tier 439):**
+  - Backend e2e: **227 passed / 0 failed / 1 skipped** of 228 specs — 100
+    two-digit + 128 three-digit (Tier 439 added `228-tier439-kst-ohne-anrechnung.sh`,
+    Tier 438 added `227-tier438-anlage-g-gewerbesteuer.sh`,
     Tier 437 added `226-tier437-afa-keine-rechnung.sh`,
     Tier 436 added `225-tier436-afa-im-gewinn.sh`,
     Tier 435 added `224-tier435-kasse-nie-negativ.sh`,
@@ -2515,6 +2515,12 @@ unrounded Messbetrag; Playwright `kst1` looked for "3,8 × Messbetrag" — both
 corrected.
 Local runs: backend **227 / 0 / 1** (50-webhooks local-only nip.io failure
 aside), 0 × 500; Playwright **930**, no flaky.
+CI run 35920709870: backend 227/0/1, Playwright 929 + **1 flaky** —
+`cashflow.spec.ts` "changing startingBalance updates endBalance" read the end
+balance right after clicking "update" and got the old value back (a race with
+the refetch; the server side is not involved). Tier 439b makes it wait for the
+text to change. Not reproducible locally: 15 repeats without retries passed
+with the old and the new version alike.
 
 Still open (§ 9): there is no `Company.rechtsform` (KSt 1 and the packager
 read one that does not exist and assume GmbH), so the GewSt 1A report applies

@@ -126,9 +126,11 @@ test.describe("Cash flow forecast — /dashboard/cashflow", () => {
     await page.getByTestId("cashflow-starting-balance").fill("50.000,00")
     await page.getByTestId("cashflow-update").click()
     // After update, endBalance must have increased
-    // by exactly 50.000,00.
+    // by exactly 50.000,00. Tier 439b: wait for the reload — reading the
+    // text right after the click raced the refetch (flaky in CI run
+    // 35920709870: the old value was read back).
+    await expect(endBalance).not.toHaveText(before || "", { timeout: 10_000 })
     const after = await endBalance.textContent()
-    expect(before).not.toBe(after)
     // Strip the currency symbol + spaces + dots,
     // convert comma to dot, parse to number. The
     // difference should be ~50000.
