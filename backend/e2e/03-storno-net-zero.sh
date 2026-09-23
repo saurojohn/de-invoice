@@ -45,12 +45,13 @@ E_AFTER=$(json_field "$BODY" einnahmen)
 assert_eq "balance after storno (net zero)" "$B_AFTER" "0"
 assert_eq "einnahmen after storno (net zero)" "$E_AFTER" "0"
 
-# Storno without reason must be rejected
+# Storno without reason must be rejected. (Tier 435: an Einnahme — an
+# Ausgabe of 50 from the till the Storno just emptied is refused now.)
 api_post "/api/v1/cashbook/entries?companyId=$COMPANY_ID" "{
   \"createdById\":\"$USER_ID\",
   \"businessDate\":\"2026-06-09\",
-  \"type\":\"ausgabe\",
-  \"description\":\"Ausgabe 50\",
+  \"type\":\"einnahme\",
+  \"description\":\"Einnahme 50\",
   \"amount\":50
 }"
 EID2=$(json_field "$BODY" id)

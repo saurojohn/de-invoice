@@ -89,6 +89,9 @@ export type CashBookEntryType = 'einnahme' | 'ausgabe' | 'umbuchung' | 'eroeffnu
 
 const VALID_TYPES: CashBookEntryType[] = ['einnahme', 'ausgabe', 'umbuchung', 'eroeffnung'];
 
+/** Cash effect of an entry type: into the till (+1) or out of it (−1). */
+const cashSign = (type: string) => (type === 'ausgabe' || type === 'umbuchung' ? -1 : 1);
+
 @Injectable()
 export class KassenbuchService {
   private readonly logger = new Logger(KassenbuchService.name);
@@ -139,6 +142,46 @@ export class KassenbuchService {
         'Es existiert bereits ein Eröffnungs-Eintrag. ' +
         'Für eine Korrektur buchen Sie eine Storno-Buchung.',
       )
+    }
+  }
+
+  /**
+   * Tier 435 — a till cannot hold less than nothing. A Kassenbuch whose
+   * balance falls below zero on any day (Kassenminusbestand) records more
+   * cash leaving than there was; the tax office treats the books as not
+   * orderly and may estimate (§ 158 AO). Measured before: an Ausgabe of 80 €
+   * into an empty till → 201, balance −80.
+   *
+   * A change that takes cash out (`delta` < 0 on `date`) is refused when the
+   * end-of-day balance of that day or of any later day would fall below
+   * zero. A change that adds cash is always allowed, so a book that is
+   * already negative can be repaired (e.g. with the missing Privateinlage).
+   */
+  private async assertCashNotNegative(companyId: string, date: Date, delta: number) {
+    if (delta >= 0) return
+    const rows = await this.prisma.cashBookEntry.groupBy({
+      by: ['businessDate', 'type'],
+      where: { companyId },
+      _sum: { amount: true },
+    })
+    const dayKey = (d: Date) => d.toISOString().slice(0, 10)
+    const byDay = new Map<string, number>()
+    for (const r of rows) {
+      const k = dayKey(r.businessDate)
+      byDay.set(k, (byDay.get(k) ?? 0) + cashSign(r.type) * Math.round(Number(r._sum.amount ?? 0) * 100))
+    }
+    const at = dayKey(date)
+    byDay.set(at, (byDay.get(at) ?? 0) + Math.round(delta * 100))
+    let balance = 0
+    for (const k of [...byDay.keys()].sort()) {
+      balance += byDay.get(k)!
+      if (k >= at && balance < 0) {
+        const [y, m, d] = k.split('-')
+        throw new BadRequestException(
+          `Der Kassenbestand würde am ${d}.${m}.${y} negativ (${(balance / 100).toFixed(2).replace('.', ',')} €). ` +
+          'Eine Kasse kann nicht weniger als nichts enthalten — fehlt eine Einnahme oder Privateinlage?',
+        )
+      }
     }
   }
 
@@ -324,6 +367,11 @@ export class KassenbuchService {
       throw new BadRequestException('Betrag muss > 0 sein')
     }
     await this.assertDaysOpen(companyId, [data.businessDate])
+    // Normalise the date to midnight UTC so the DB @db.Date
+    // column gets a clean value.
+    const bd = new Date(data.businessDate)
+    bd.setUTCHours(0, 0, 0, 0)
+    await this.assertCashNotNegative(companyId, bd, cashSign(data.type) * data.amount)
     if (data.type === 'eroeffnung') {
       await this.assertEroeffnung(companyId)
     }
@@ -344,10 +392,6 @@ export class KassenbuchService {
         throw new BadRequestException('Nur eine Ausgabe kann einer Eingangsrechnung zugeordnet werden')
       }
     }
-    // Normalise the date to midnight UTC so the DB @db.Date
-    // column gets a clean value.
-    const bd = new Date(data.businessDate)
-    bd.setUTCHours(0, 0, 0, 0)
     // Tier 425: a cash receipt for an invoice is a payment of it — recorded
     // as one (status, Skonto, dunning, DATEV). Before, the invoice stayed
     // "sent" and was dunned although paid at the counter. The payment goes
@@ -419,6 +463,11 @@ export class KassenbuchService {
         'Der Betrag einer Rechnungszahlung kann nicht geändert werden — Buchung stornieren und neu erfassen.',
       )
     }
+    if (patch.amount !== undefined) {
+      await this.assertCashNotNegative(
+        companyId, existing.businessDate, cashSign(existing.type) * (patch.amount - Number(existing.amount)),
+      )
+    }
     return this.prisma.cashBookEntry.update({
       where: { id },
       data: {
@@ -436,6 +485,7 @@ export class KassenbuchService {
     const existing = await this.prisma.cashBookEntry.findFirst({ where: { id, companyId } })
     if (!existing) throw new NotFoundException('Entry not found')
     await this.assertDaysOpen(companyId, [existing.businessDate])
+    await this.assertCashNotNegative(companyId, existing.businessDate, -cashSign(existing.type) * Number(existing.amount))
     await this.unlink(companyId, existing)
     await this.prisma.cashBookEntry.delete({ where: { id } })
     return { ok: true }
@@ -486,6 +536,10 @@ export class KassenbuchService {
     // test 03-storno-net-zero.sh.
     const originalAmount = Number(original.amount)
     const reversalAmount = -originalAmount
+    // Tier 435: a Storno is not checked against a negative Kassenbestand. It
+    // corrects a booking that was wrong, often on a closed day where nothing
+    // else can be entered; refusing it would keep the wrong booking. If the
+    // corrected book goes negative, the missing receipt must be booked too.
     // Tier 425: the Storno also takes back the payment the entry recorded
     // (or the expense's payment date).
     await this.unlink(companyId, original)

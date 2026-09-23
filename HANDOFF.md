@@ -9,17 +9,18 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–433 are
-  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 433.)
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–435 are
+  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 435.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 35859409496 / commit `dc0dcc8`, Tier 433):**
-  - Backend e2e: **221 passed / 0 failed / 1 skipped** of 222 specs — 100
-    two-digit + 122 three-digit (Tier 433 added `222-tier433-sepa-storno.sh`,
+- **Test counts (last green CI, run 35887074784 / commit `c09b487`, Tier 434):**
+  - Backend e2e: **222 passed / 0 failed / 1 skipped** of 223 specs — 100
+    two-digit + 123 three-digit (Tier 435 adds `224-tier435-kasse-nie-negativ.sh`
+    on top — 224 specs from then on; Tier 434 added `223-tier434-kasse-umbuchung.sh`, Tier 433 `222-tier433-sepa-storno.sh`,
     Tier 432 `221-tier432-sepa-datev.sh`,
     Tier 431 `220-tier431-zahlungen-ohne-umweg.sh`,
     Tier 430 `219-tier430-zahlungsmeldung.sh`,
@@ -2487,6 +2488,31 @@ Tier 401 run 35123354210 **failed** on backend lint — a warning
 runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
+
+### The Kassenbestand never goes below zero (Tier 435)
+
+Measured before: an Ausgabe of 80 € into an empty till → 201, balance −80;
+a backdated Ausgabe could empty an earlier day while today's balance stayed
+positive; raising an Ausgabe or deleting the Anfangsbestand did the same.
+A Kassenminusbestand shows more cash leaving the till than there was — the
+tax office treats such a Kassenbuch as not orderly and estimates (§ 158 AO).
+
+`KassenbuchService.assertCashNotNegative`: a create, amount change or delete
+that takes cash out is refused (400, "Der Kassenbestand würde am TT.MM.JJJJ
+negativ …") when the end-of-day balance of its day or of any later day would
+fall below zero. Changes that add cash are always allowed, so a book that is
+already negative can be repaired with the missing Einnahme / Privateinlage.
+A **Storno is not checked**: it corrects a wrong booking, often on a closed
+day where nothing else can be entered, and refusing it would keep the wrong
+booking. Not guarded against two concurrent requests (no lock) — the same as
+the other cash-book checks.
+
+Spec `e2e/224-tier435-kasse-nie-negativ.sh` (15 assertions, 8 failing against
+the previous code). Spec 03 needed a change: it posted an Ausgabe of 50 into
+the till its own Storno had just emptied (it only tests that a Storno needs a
+reason; it posts an Einnahme now).
+Local runs: backend **223 / 0 / 1** (50-webhooks locally only, as in Tier
+434), 0 × 500; Playwright **930**, no flaky.
 
 ### Cash taken to the bank reaches DATEV (Tier 434)
 
