@@ -9,17 +9,18 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–429 are
-  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 429.)
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–430 are
+  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 430.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 35826299498 / commit `884a41e`, Tier 429):**
-  - Backend e2e: **217 passed / 0 failed / 1 skipped** of 218 specs — 100
-    two-digit + 118 three-digit (Tier 429 added `218-tier429-ratenplan.sh`,
+- **Test counts (last green CI, run 35837305152 / commit `a4c8ed7`, Tier 430):**
+  - Backend e2e: **218 passed / 0 failed / 1 skipped** of 219 specs — 100
+    two-digit + 119 three-digit (Tier 430 added `219-tier430-zahlungsmeldung.sh`,
+    Tier 429 `218-tier429-ratenplan.sh`,
     Tier 428 `217-tier428-zahlungsziel.sh`,
     Tier 427 `216-tier427-afa-monate.sh`,
     Tier 426 `215-tier426-bilanz-open-amounts.sh`, Tier 425 `214-tier425-kassenbuch.sh`,
@@ -170,9 +171,9 @@ Operational scripts:
 
 ## 6. Schema + migrations
 
-- **27 migrations** in `backend/prisma/migrations/` (oldest:
-  `20240101000000_baseline`, newest:
-  `20260922000003_customer_payment_terms_nullable` (Tier 428);
+- **28 migrations** in `backend/prisma/migrations/` (oldest:
+  `20240101000000_baseline`, newest: `20260923000001_payment_notices`
+  (Tier 430); Tier 428 `20260922000003_customer_payment_terms_nullable`;
   Tier 425 `20260922000002_cashbook_payment`, Tier 423
   `20260922000001_datev_personenkonten`).
 - **62 models** in `backend/prisma/schema.prisma`. CI workflow enforces
