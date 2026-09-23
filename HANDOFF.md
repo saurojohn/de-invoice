@@ -2484,6 +2484,39 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### A customer could mark their own invoice paid — for 1 € (Tier 430)
+
+Measured on a sent 1 190 € invoice:
+
+| | Before | Now |
+|---|---|---|
+| customer portal "als bezahlt markieren" with amount 1 | a 1,00 € Payment, invoice **paid** — dunning stopped; UStVA, DATEV, balance sheet counted money that never arrived | a **payment report** (`PaymentNotice`, open); the invoice stays open, nothing booked |
+| payment link "bezahlt" on a part-paid invoice (190 € paid) | a second Payment of the full 1 190 on top, invoice paid | a report of the open 1 000 |
+| a report above the open amount | booked | 400 |
+| a second click | — | returns the open report (`alreadyReported` on the link) |
+| the company | never asked | sees the report on the invoice ("Zahlungsmeldung des Kunden — erst buchen, wenn das Geld eingegangen ist") and books it (a real payment through PaymentService: status, Skonto, Raten, overpayment credit) or dismisses it |
+
+A customer's click is a Zahlungsavis, not a receipt of money.
+`src/modules/invoice/payment-notice.ts` records it (amount defaults to the
+open balance, may not exceed it, one open report per invoice);
+`GET /invoices/:id/payment-notices`, `POST …/:noticeId/book` (optional
+amount, paymentDate, paymentMethod) and `POST …/:noticeId/dismiss`. The
+model is new (migration `20260923000001_payment_notices`) and audited. The
+portal list shows "Zahlung gemeldet", its button and the payment-link page
+say "Zahlung melden".
+
+Spec `e2e/219-tier430-zahlungsmeldung.sh` (14 assertions, 12 failing against
+the previous code). `e2e/63` asserted a booked `portal-mock` payment; it now
+asserts no payment, one open report, and `alreadyReported` on the second
+click. Local runs: backend **218 / 0 / 1**, 0 × 500; Playwright **930**, no
+flaky.
+
+Not changed, found on the way: the customer detail's "Sammelzahlung" (one
+amount over several invoices, `customer.service`) and the credit-balance
+"Guthaben verrechnen" write payments directly instead of through
+PaymentService, so they skip the Skonto check, the Ratenplan sync and the
+payment webhook.
+
 ### A Ratenplan was paid past its invoice (Tier 429)
 
 Measured on a 1 190 € invoice with 190 € already paid:

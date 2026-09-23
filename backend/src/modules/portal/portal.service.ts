@@ -27,12 +27,11 @@
 //   - The invoice header + totals + line items
 
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common'
-import { Prisma } from '@prisma/client'
 import { randomBytes } from 'crypto'
 import { PrismaService } from '../../prisma/prisma.service'
+import { recordPaymentNotice } from '../invoice/payment-notice'
 
 const DEFAULT_EXPIRY_DAYS = 30
-const PAYMENT_METHOD = 'portal-mock'
 
 @Injectable()
 export class PortalService {
@@ -238,69 +237,53 @@ export class PortalService {
     if (link.expiresAt <= new Date()) {
       throw new BadRequestException('Link ist abgelaufen')
     }
-    if (link.usedAt) {
-      // Idempotent success — already paid.
-      const existingPayment = await this.prisma.payment.findFirst({
-        where: { invoiceId: link.invoiceId, paymentMethod: PAYMENT_METHOD },
-      })
+    // Tier 430: the customer REPORTS a payment (PaymentNotice); the company
+    // books it when the money is there. This minted a Payment of the full
+    // invoice total — even on a part-paid invoice — and set it to "paid" on
+    // the customer's click alone.
+    const invoice = await this.prisma.invoice.findUnique({
+      where: { id: link.invoiceId },
+      include: { payments: { select: { amount: true } } },
+    })
+    if (!invoice) throw new NotFoundException('Rechnung nicht gefunden')
+    if (invoice.status === 'paid') {
       return {
         alreadyPaid: true,
-        paidAt: link.usedAt,
-        paymentId: existingPayment?.id ?? null,
+        reported: false,
         invoiceId: link.invoiceId,
-        invoiceNumber: link.invoice.invoiceNumber,
-        amount: existingPayment?.amount?.toString() ?? link.invoice.total.toString(),
+        invoiceNumber: invoice.invoiceNumber,
+        amount: invoice.total.toString(),
       }
     }
-    // Use a transaction so we don't mint a Payment
-    // row without flipping the link to used.
-    const result = await this.prisma.$transaction(async (tx) => {
-      const payment = await tx.payment.create({
-        data: {
-          invoiceId: link.invoiceId,
-          amount: link.invoice.total,
-          currency: link.invoice.currency,
-          paymentDate: new Date(),
-          paymentMethod: PAYMENT_METHOD,
-          reference: 'portal-mock-self-service',
-          notes: 'Marked as paid by the customer via the Kundenportal link.',
-        },
-      })
-      await tx.paymentLink.update({
+    const earlier = await this.prisma.paymentNotice.findFirst({
+      where: { invoiceId: invoice.id, status: 'open' },
+      select: { id: true },
+    })
+    const notice = await recordPaymentNotice(this.prisma, {
+      companyId: invoice.companyId,
+      invoice,
+      source: 'payment-link',
+      note: 'Zahlungslink',
+    })
+    if (!link.usedAt) {
+      await this.prisma.paymentLink.update({
         where: { id: link.id },
         data: { usedAt: new Date() },
       })
-      return payment
-    })
-    // Auto-bump invoice to 'paid' when fully covered.
-    // Mirror the PaymentService logic — the invoice
-    // controller's POST /payments does this, so we
-    // do it here too. CN excluded (same rule).
-    const payments = await this.prisma.payment.findMany({
-      where: { invoiceId: link.invoiceId },
-      select: { amount: true },
-    })
-    const totalPaid = payments.reduce(
-      (s, p) => s.plus(p.amount ?? new Prisma.Decimal(0)),
-      new Prisma.Decimal(0),
-    ).toNumber()
-    const invoiceTotal = Number(link.invoice.total)
-    if (link.invoice.type === 'INV' && totalPaid >= invoiceTotal - 0.01) {
-      await this.prisma.invoice.update({
-        where: { id: link.invoiceId },
-        data: { status: 'paid' },
-      })
     }
     this.logger.log(
-      `PaymentLink used: token=${token.slice(0, 8)}… invoice=${link.invoice.invoiceNumber}`,
+      `PaymentLink used (payment reported): token=${token.slice(0, 8)}… invoice=${invoice.invoiceNumber}`,
     )
     return {
       alreadyPaid: false,
-      paidAt: result.paymentDate ?? new Date(),
-      paymentId: result.id,
+      reported: true,
+      // a second click finds the report already there
+      alreadyReported: !!earlier,
+      noticeId: notice.id,
+      reportedAt: notice.reportedAt,
       invoiceId: link.invoiceId,
-      invoiceNumber: link.invoice.invoiceNumber,
-      amount: result.amount.toString(),
+      invoiceNumber: invoice.invoiceNumber,
+      amount: notice.amount.toString(),
     }
   }
 

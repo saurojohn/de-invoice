@@ -80,6 +80,7 @@ model Company {
   errorEvents                ErrorEvent[]
   emailSends                 EmailSend[]
   mahnungspausen             Mahnungspause[]
+  paymentNotices             PaymentNotice[]
   bankStatements             BankStatement[]
   fintsConnections           FinTSConnection[]
   invoiceTemplates           InvoiceTemplate[]
@@ -777,6 +778,9 @@ model Invoice {
 
   items                     InvoiceItem[]
   payments                  Payment[]
+  // Tier 430: payments the customer reported (portal / payment link), to be
+  // booked by the company once the money is there.
+  paymentNotices            PaymentNotice[]
   emailSends                EmailSend[]
   paymentLinks              PaymentLink[]
   // Tier 37: explicit Mahnung audit trail. The old
@@ -3334,4 +3338,35 @@ model UserSigningKey {
   rotatedAt   DateTime @default(now())
 
   @@index([userId])
+}
+
+
+/// Tier 430 — a payment the customer says they made (Zahlungsavis).
+///
+/// The customer portal's "als bezahlt markieren" and the payment link's
+/// "bezahlt" button used to book a Payment for whatever amount the customer
+/// typed and set the invoice to paid: a customer claiming 1 € closed a
+/// 1 190 € invoice, dunning stopped, and the UStVA, DATEV and the balance sheet
+/// counted money that never arrived. A report is not a receipt; it is kept
+/// here until the company books it (as a real Payment) or dismisses it.
+model PaymentNotice {
+  id           String    @id @default(uuid())
+  companyId    String
+  company      Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  invoiceId    String
+  invoice      Invoice   @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  amount       Decimal   @db.Decimal(12, 4)
+  // 'customer-portal' | 'payment-link'
+  source       String
+  note         String?
+  reportedAt   DateTime  @default(now())
+  // 'open' | 'booked' | 'dismissed'
+  status       String    @default("open")
+  // the Payment it was booked as
+  paymentId    String?   @unique
+  resolvedAt   DateTime?
+  resolvedById String?
+
+  @@index([companyId, status])
+  @@index([invoiceId])
 }

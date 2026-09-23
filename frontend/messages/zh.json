@@ -3465,8 +3465,8 @@
     "colStatus": "状态",
     "colActions": "操作",
     "pdf": "PDF",
-    "markPaid": "已付",
-    "markPaidConfirm": "将此发票标记为已付款？",
+    "markPaid": "报告付款",
+    "markPaidConfirm": "为此发票报告付款？开票方确认收款后才会入账。",
     "statusPaid": "已付",
     "statusCancelled": "已取消",
     "statusOverdue": "逾期",
@@ -3518,7 +3518,9 @@
     "dueDate": "到期日",
     "daysOverdue": "天逾期",
     "backToOverview": "返回概览",
-    "invoiceNotFound": "此发票不属于您的账户。"
+    "invoiceNotFound": "此发票不属于您的账户。",
+    "paymentReported": "已报告付款",
+    "paymentReportedLong": "已报告付款——开票方确认收款后入账。"
   },
   "invoiceNotes": {
     "insertTemplate": "+ 插入模板",

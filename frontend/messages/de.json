@@ -3465,8 +3465,8 @@
     "colStatus": "Status",
     "colActions": "Aktionen",
     "pdf": "PDF",
-    "markPaid": "Bezahlt",
-    "markPaidConfirm": "Diese Rechnung als bezahlt markieren?",
+    "markPaid": "Zahlung melden",
+    "markPaidConfirm": "Zahlung für diese Rechnung melden? Der Rechnungssteller bestätigt den Eingang.",
     "statusPaid": "Bezahlt",
     "statusCancelled": "Storniert",
     "statusOverdue": "Überfällig",
@@ -3518,7 +3518,9 @@
     "dueDate": "Fällig",
     "daysOverdue": "Tage überfällig",
     "backToOverview": "Zurück zur Übersicht",
-    "invoiceNotFound": "Diese Rechnung gehört nicht zu Ihrem Konto."
+    "invoiceNotFound": "Diese Rechnung gehört nicht zu Ihrem Konto.",
+    "paymentReported": "Zahlung gemeldet",
+    "paymentReportedLong": "Zahlung gemeldet — der Rechnungssteller bestätigt den Eingang."
   },
   "invoiceNotes": {
     "insertTemplate": "+ Vorlage einfügen",

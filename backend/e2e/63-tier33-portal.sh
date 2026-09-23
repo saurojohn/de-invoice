@@ -8,9 +8,9 @@
 #   3. GET /portal/:token (no auth) → invoice +
 #      company summary.
 #   4. GET /portal/<bad-token> → 404.
-#   5. POST /portal/:token/mark-paid → 201,
-#      creates Payment row, sets usedAt.
-#   6. Same mark-paid again → alreadyPaid=true.
+#   5. POST /portal/:token/mark-paid → 201, a payment REPORT (Tier 430),
+#      no Payment row (it created one until then), sets usedAt.
+#   6. Same mark-paid again → alreadyReported=true.
 #   7. POST /invoices/:id/revoke-payment-links
 #      → 201, revokes all active links.
 #   8. GET /portal/<revoked token> → 404.
@@ -100,27 +100,25 @@ echo
 echo "=== 5. POST /portal/:token/mark-paid (first time) ==="
 api_post "/api/v1/portal/$TOKEN/mark-paid" '{}'
 assert_status "201" "mark-paid returns 201"
-ALREADY=$(echo "$BODY" | python3 -c "import json,sys; print(json.load(sys.stdin)['alreadyPaid'])")
-PAYMENT_ID=$(echo "$BODY" | python3 -c "import json,sys; print(json.load(sys.stdin).get('paymentId',''))")
-assert_eq "alreadyPaid=false (first time)" "$ALREADY" "False"
-if [[ -n "$PAYMENT_ID" ]]; then pass "Payment row created (id=$PAYMENT_ID)"; else fail "no Payment id"; fi
-
-# Verify a Payment row actually exists in DB.
+# Tier 430: the customer's click REPORTS a payment (PaymentNotice); the company
+# books it when the money is there. It used to book a Payment ('portal-mock')
+# of the full total and set the invoice to paid on the click alone.
+REPORTED=$(echo "$BODY" | python3 -c "import json,sys; print(json.load(sys.stdin).get('reported'))")
+assert_eq "reported=true (first time)" "$REPORTED" "True"
 P_COUNT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
-  SELECT COUNT(*) FROM \"Payment\" WHERE \"invoiceId\" = '$INV_ID' AND \"paymentMethod\" = 'portal-mock';" 2>/dev/null | tr -d ' ')
-if [[ "$P_COUNT" == "1" ]]; then
-  pass "Payment row persisted (count=1)"
-else
-  fail "Payment row count=$P_COUNT (expected 1)"
-fi
+  SELECT COUNT(*) FROM \"Payment\" WHERE \"invoiceId\" = '$INV_ID';" 2>/dev/null | tr -d ' ')
+assert_eq "no Payment booked on the customer's word" "$P_COUNT" "0"
+N_COUNT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
+  SELECT COUNT(*) FROM \"PaymentNotice\" WHERE \"invoiceId\" = '$INV_ID' AND status = 'open' AND source = 'payment-link';" 2>/dev/null | tr -d ' ')
+assert_eq "a payment report is waiting for the company" "$N_COUNT" "1"
 
 # ---- 6. mark-paid again (idempotent) ----
 echo
 echo "=== 6. POST /portal/:token/mark-paid (already used) ==="
 api_post "/api/v1/portal/$TOKEN/mark-paid" '{}'
 assert_status "201" "mark-paid again returns 201"
-ALREADY2=$(echo "$BODY" | python3 -c "import json,sys; print(json.load(sys.stdin)['alreadyPaid'])")
-assert_eq "alreadyPaid=true (second time)" "$ALREADY2" "True"
+AGAIN=$(echo "$BODY" | python3 -c "import json,sys; print(json.load(sys.stdin).get('alreadyReported'))")
+assert_eq "alreadyReported=true (second time), still one report" "$AGAIN/$N_COUNT" "True/1"
 
 # ---- 7. After mark-paid, link is consumed → view 404 ----
 echo

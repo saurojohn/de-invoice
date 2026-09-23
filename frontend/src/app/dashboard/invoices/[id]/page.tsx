@@ -74,6 +74,11 @@ export default function InvoiceDetailPage() {
   const toast = useToast()
   const [invoice, setInvoice] = useState<Invoice | null>(null)
   const [payments, setPayments] = useState<Payment[]>([])
+  // Tier 430: payments the customer reported in the portal / via the payment
+  // link. They are booked here once the money has arrived.
+  const [paymentNotices, setPaymentNotices] = useState<
+    Array<{ id: string; amount: string; source: string; reportedAt: string; status: string }>
+  >([])
   // Tier 51: the (optional) Ratenplan attached to
   // this invoice. `null` = invoice is paid in one
   // lump, no plan. The plan carries per-Rate
@@ -322,6 +327,44 @@ export default function InvoiceDetailPage() {
       toast.error(msg)
     } finally {
       setPaySaving(false)
+    }
+  }
+
+  // Tier 430: loaded on its own (not in the Promise.all above — its
+  // destructure order has bitten before, Tier 351).
+  const loadPaymentNotices = async () => {
+    const companyId = localStorage.getItem("companyId")
+    if (!companyId || !params.id) return
+    try {
+      const rows = await apiGet<any[]>(`/api/v1/invoices/${params.id}/payment-notices?companyId=${companyId}`)
+      setPaymentNotices(Array.isArray(rows) ? rows.filter((r) => r.status === "open") : [])
+    } catch {
+      setPaymentNotices([])
+    }
+  }
+  useEffect(() => {
+    loadPaymentNotices()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.id])
+
+  const resolveNotice = async (noticeId: string, action: "book" | "dismiss") => {
+    if (!invoice) return
+    if (action === "dismiss" && !confirm("Zahlungsmeldung verwerfen? Die Rechnung bleibt offen.")) return
+    try {
+      const companyId = localStorage.getItem("companyId")
+      await apiPost(
+        `/api/v1/invoices/${invoice.id}/payment-notices/${noticeId}/${action}?companyId=${companyId}`,
+        action === "book" ? { paymentDate: new Date().toISOString().split("T")[0] } : {},
+      )
+      const [inv, pmts] = await Promise.all([
+        apiGet<any>(`/api/v1/invoices/${invoice.id}?companyId=${companyId}`),
+        apiGet<any[]>(`/api/v1/invoices/${invoice.id}/payments?companyId=${companyId}`),
+      ])
+      setInvoice(inv)
+      setPayments(Array.isArray(pmts) ? pmts : [])
+      await loadPaymentNotices()
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : `Netzwerkfehler: ${err}`)
     }
   }
 
@@ -1687,6 +1730,44 @@ export default function InvoiceDetailPage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Tier 430: payments the customer reported, not booked yet */}
+        {paymentNotices.length > 0 && (
+          <div
+            className="mt-6 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-700 p-4"
+            data-testid="payment-notices"
+          >
+            <p className="font-medium text-amber-900 dark:text-amber-200 mb-2">
+              Zahlungsmeldung des Kunden — erst buchen, wenn das Geld eingegangen ist
+            </p>
+            {paymentNotices.map((n) => (
+              <div
+                key={n.id}
+                className="flex flex-wrap items-center justify-between gap-2 py-1 text-sm"
+                data-testid={`payment-notice-${n.id}`}
+              >
+                <span className="text-amber-900 dark:text-amber-100">
+                  €{Number(n.amount).toFixed(2)} gemeldet am{" "}
+                  {new Date(n.reportedAt).toLocaleDateString("de-DE")} (
+                  {n.source === "payment-link" ? "Zahlungslink" : "Kundenportal"})
+                </span>
+                <span className="flex gap-2">
+                  <Button size="sm" onClick={() => resolveNotice(n.id, "book")} data-testid="payment-notice-book">
+                    Zahlung buchen
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => resolveNotice(n.id, "dismiss")}
+                    data-testid="payment-notice-dismiss"
+                  >
+                    Verwerfen
+                  </Button>
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Payments */}
         <Card className="mt-6">

@@ -102,3 +102,19 @@ export class CreateCreditNoteDto {
   @IsOptional() @IsString() @MaxLength(1000)
   reason?: string
 }
+
+
+/** Tier 430: booking a payment the customer reported — every field optional. */
+export class BookPaymentNoticeDto {
+  @IsOptional()
+  @IsNumber({}, { message: 'Betrag muss eine Zahl sein' })
+  @Max(DECIMAL_12_4_MAX, { message: 'Betrag darf höchstens 99999999.9999 sein' })
+  amount?: number
+
+  @IsOptional()
+  @IsDateString({ strict: true }, { message: 'Zahldatum muss ein gültiges Datum sein (JJJJ-MM-TT)' })
+  paymentDate?: string
+
+  @IsOptional() @IsString() @MaxLength(100)
+  paymentMethod?: string
+}

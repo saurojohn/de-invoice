@@ -52,6 +52,8 @@ interface PortalInvoiceDetail {
     vatAmount: string | number
     grossAmount: string | number
   }>
+  // Tier 430: payments the customer reported that are not booked yet.
+  paymentNotices?: Array<{ id: string; amount: string | number; reportedAt: string }>
   payments: Array<{
     id: string
     amount: string | number
@@ -146,7 +148,7 @@ function PortalInvoiceDetailInner() {
 
   const markPaid = async () => {
     if (!token || !invoiceId || busy) return
-    if (!confirm(t("portal.markPaidConfirm") || "Diese Rechnung als bezahlt markieren?")) return
+    if (!confirm(t("portal.markPaidConfirm") || "Zahlung für diese Rechnung melden?")) return
     setBusy(true)
     try {
       await apiPost(
@@ -393,7 +395,15 @@ function PortalInvoiceDetailInner() {
           >
             📄 {t("portal.pdf") || "PDF herunterladen"}
           </button>
-          {inv.status !== "paid" && inv.status !== "cancelled" && (
+          {inv.status !== "paid" && (inv.paymentNotices?.length ?? 0) > 0 && (
+            <span
+              className="text-sm text-amber-700 dark:text-amber-300 self-center"
+              data-testid="portal-invoice-payment-reported"
+            >
+              ⏳ {t("portal.paymentReportedLong") || "Zahlung gemeldet — der Rechnungssteller bestätigt den Eingang."}
+            </span>
+          )}
+          {inv.status !== "paid" && inv.status !== "cancelled" && !(inv.paymentNotices?.length) && (
             <button
               onClick={markPaid}
               disabled={busy}

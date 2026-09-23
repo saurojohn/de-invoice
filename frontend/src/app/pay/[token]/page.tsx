@@ -2,7 +2,8 @@
 
 // Tier 33: customer self-service payment page.
 // NO authentication — the URL token IS the auth. Anyone
-// with the link can mark the invoice as paid. That's the
+// with the link can report a payment (Tier 430: a report, booked by the
+// company once the money arrives — it used to mark the invoice paid). That's the
 // whole point of a self-service portal: the customer
 // doesn't need to log in.
 //
@@ -112,9 +113,9 @@ const LABEL: Record<string, Record<string, string>> = {
     quantity: "Menge",
     unitPrice: "Einzelpreis",
     bankInfo: "Bankverbindung",
-    markPaid: "Als bezahlt markieren",
-    marked: "✓ Vielen Dank! Wir haben Ihre Zahlung registriert.",
-    paidAmount: "Gezahlter Betrag",
+    markPaid: "Zahlung melden",
+    marked: "✓ Vielen Dank! Ihre Zahlungsmeldung ist eingegangen — wir bestätigen den Eingang, sobald das Geld da ist.",
+    paidAmount: "Gemeldeter Betrag",
     linkExpires: "Dieser Link ist gültig bis",
     expired: "Dieser Link ist abgelaufen.",
     invalid: "Dieser Link ist nicht (mehr) gültig.",
@@ -136,9 +137,9 @@ const LABEL: Record<string, Record<string, string>> = {
     quantity: "Quantity",
     unitPrice: "Unit price",
     bankInfo: "Bank details",
-    markPaid: "Mark as paid",
-    marked: "✓ Thank you! We have recorded your payment.",
-    paidAmount: "Paid amount",
+    markPaid: "Report payment",
+    marked: "✓ Thank you! We have received your payment report and will confirm once the money arrives.",
+    paidAmount: "Reported amount",
     linkExpires: "This link is valid until",
     expired: "This link has expired.",
     invalid: "This link is no longer valid.",
@@ -160,9 +161,9 @@ const LABEL: Record<string, Record<string, string>> = {
     quantity: "数量",
     unitPrice: "单价",
     bankInfo: "银行信息",
-    markPaid: "标记已支付",
-    marked: "✓ 感谢您的支付,我们已登记。",
-    paidAmount: "已付金额",
+    markPaid: "报告付款",
+    marked: "✓ 感谢！我们已收到您的付款报告，款项到账后会确认。",
+    paidAmount: "报告金额",
     linkExpires: "本链接有效期至",
     expired: "本链接已过期。",
     invalid: "本链接已失效。",

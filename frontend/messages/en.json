@@ -3465,8 +3465,8 @@
     "colStatus": "Status",
     "colActions": "Actions",
     "pdf": "PDF",
-    "markPaid": "Paid",
-    "markPaidConfirm": "Mark this invoice as paid?",
+    "markPaid": "Report payment",
+    "markPaidConfirm": "Report a payment for this invoice? The issuer will confirm receipt.",
     "statusPaid": "Paid",
     "statusCancelled": "Cancelled",
     "statusOverdue": "Overdue",
@@ -3518,7 +3518,9 @@
     "dueDate": "Due date",
     "daysOverdue": "days overdue",
     "backToOverview": "Back to overview",
-    "invoiceNotFound": "This invoice is not associated with your account."
+    "invoiceNotFound": "This invoice is not associated with your account.",
+    "paymentReported": "Payment reported",
+    "paymentReportedLong": "Payment reported — the issuer will confirm receipt."
   },
   "invoiceNotes": {
     "insertTemplate": "+ Insert template",

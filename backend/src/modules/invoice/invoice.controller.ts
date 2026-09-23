@@ -1,12 +1,12 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Query, Res, Header, BadRequestException, HttpCode, Req, NotFoundException, HttpException } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import { Response } from 'express';
+import { Response, Request } from 'express';
 import { Prisma } from '@prisma/client';
  
 const archiverLib: any = require('archiver');
 import { InvoiceService } from './invoice.service';
 import { PaymentService } from './payment.service';
-import { CreatePaymentDto, CreateCreditNoteDto } from './dto/payment-credit-note.dto';
+import { CreatePaymentDto, CreateCreditNoteDto, BookPaymentNoticeDto } from './dto/payment-credit-note.dto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { MailService } from '../mail/mail.service';
@@ -1597,6 +1597,44 @@ export class InvoiceController {
       companyId,
       body || {},
     )
+  }
+
+  // Tier 430: payments the customer reported (portal / payment link). They
+  // are booked here once the money has arrived — the customer's click used
+  // to book them directly, for any amount.
+  @Get(':id/payment-notices')
+  @Require('invoice.read')
+  async listPaymentNotices(
+    @Param('id') id: string,
+    @Query('companyId') companyId: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich');
+    return this.paymentService.listNotices(companyId, id);
+  }
+
+  @Post(':id/payment-notices/:noticeId/book')
+  @Require('invoice.update')
+  async bookPaymentNotice(
+    @Param('id') id: string,
+    @Param('noticeId') noticeId: string,
+    @Query('companyId') companyId: string,
+    @Body() body: BookPaymentNoticeDto,
+    @Req() req: Request,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich');
+    return this.paymentService.bookNotice(companyId, id, noticeId, body || {}, (req.headers['x-user-id'] as string) || undefined);
+  }
+
+  @Post(':id/payment-notices/:noticeId/dismiss')
+  @Require('invoice.update')
+  async dismissPaymentNotice(
+    @Param('id') id: string,
+    @Param('noticeId') noticeId: string,
+    @Query('companyId') companyId: string,
+    @Req() req: Request,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich');
+    return this.paymentService.dismissNotice(companyId, id, noticeId, (req.headers['x-user-id'] as string) || undefined);
   }
 
   // Remove a recorded payment. Used to fix mistakes. May transition

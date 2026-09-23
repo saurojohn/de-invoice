@@ -75,9 +75,9 @@ import { PrismaService } from '../../prisma/prisma.service';
 // the last digit. Passing the Decimal
 // straight through to Prisma is
 // lossless.
-import { Prisma } from '@prisma/client';
 import { generateInvoicePDF } from '../../invoices/invoice-pdf.service';
 import { MailService } from '../mail/mail.service';
+import { recordPaymentNotice } from '../invoice/payment-notice'
 
 const SESSION_TTL_DAYS = 30;
 const RATE_LIMIT_WINDOW_MIN = 5;
@@ -94,6 +94,9 @@ export interface PortalInvoiceRow {
   type: string;
   // Days past due (0 if not overdue, positive if overdue)
   daysOverdue: number;
+  // Tier 430: the payment the customer reported and the company has not
+  // booked yet, if any.
+  paymentReported: { amount: string; reportedAt: string } | null;
 }
 
 export interface PortalCustomerSummary {
@@ -320,6 +323,12 @@ export class CustomerPortalService {
         currency: true,
         status: true,
         type: true,
+        paymentNotices: {
+          where: { status: 'open' },
+          orderBy: { reportedAt: 'desc' },
+          take: 1,
+          select: { amount: true, reportedAt: true },
+        },
       },
     })
 
@@ -366,6 +375,12 @@ export class CustomerPortalService {
         status: inv.status,
         type: inv.type,
         daysOverdue,
+        paymentReported: inv.paymentNotices[0]
+          ? {
+              amount: inv.paymentNotices[0].amount.toString(),
+              reportedAt: inv.paymentNotices[0].reportedAt.toISOString(),
+            }
+          : null,
       }
     })
 
@@ -431,6 +446,12 @@ export class CustomerPortalService {
       include: {
         items: true,
         payments: { orderBy: { paymentDate: 'desc' } },
+        // Tier 430: reported, not yet booked.
+        paymentNotices: {
+          where: { status: 'open' },
+          orderBy: { reportedAt: 'desc' },
+          select: { id: true, amount: true, reportedAt: true },
+        },
       },
     })
     if (!invoice) {
@@ -495,6 +516,7 @@ export class CustomerPortalService {
         customerId: session.customerId,
         companyId: session.companyId,
       },
+      include: { payments: { select: { amount: true } } },
     })
     if (!invoice) {
       throw new NotFoundException('Rechnung nicht gefunden')
@@ -503,38 +525,19 @@ export class CustomerPortalService {
       // Idempotent — already paid
       return { ok: true, alreadyPaid: true, invoiceId }
     }
-    // Tier 208 — MED-003: pass the Decimal
-    // straight through to Prisma. Pre-fix
-    // was `Number(invoice.total)` which
-    // is float64 and can lose precision
-    // for amounts > 2^53 cents (EUR 90
-    // trillion) or fractional-cents
-    // currencies. The `amount?: number`
-    // param (if present) is the override
-    // the customer typed — we still
-    //    need to convert THAT to Decimal
-    // because the DB column expects it.
-    const paymentAmount = amount !== undefined
-      ? new Prisma.Decimal(amount)
-      : (invoice.total as Prisma.Decimal)
-    await this.prisma.$transaction([
-      this.prisma.payment.create({
-        data: {
-          invoiceId: invoice.id,
-          amount: paymentAmount,
-          currency: invoice.currency,
-          paymentMethod: 'bank-transfer',
-          paymentDate: new Date(),
-          reference: 'marked-paid via customer portal',
-          notes: `Auto-recorded by customer (session ${session.id})`,
-        },
-      }),
-      this.prisma.invoice.update({
-        where: { id: invoice.id },
-        data: { status: 'paid' },
-      }),
-    ])
-    return { ok: true, invoiceId }
+    // Tier 430: the customer REPORTS a payment; the company books it when the
+    // money is there (PaymentNotice). This booked a Payment for whatever
+    // amount the customer typed and set the invoice to "paid": a customer
+    // claiming 1 € closed a 1 190 € invoice, the dunning stopped, and UStVA,
+    // DATEV and the balance sheet counted money that never arrived.
+    const notice = await recordPaymentNotice(this.prisma, {
+      companyId: session.companyId,
+      invoice,
+      amount,
+      source: 'customer-portal',
+      note: `Kundenportal (Sitzung ${session.id})`,
+    })
+    return { ok: true, reported: true, invoiceId, noticeId: notice.id, amount: notice.amount.toString() }
   }
 
   /**

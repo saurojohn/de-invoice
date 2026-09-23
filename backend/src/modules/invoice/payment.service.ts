@@ -323,4 +323,65 @@ export class PaymentService {
     await syncInstallments(this.prisma, payment.invoiceId);
     return { ok: true };
   }
+
+  /** Tier 430: the payments a customer reported, newest first. */
+  async listNotices(companyId: string, invoiceId?: string, status?: string) {
+    return this.prisma.paymentNotice.findMany({
+      where: {
+        companyId,
+        ...(invoiceId ? { invoiceId } : {}),
+        ...(status ? { status } : {}),
+      },
+      include: { invoice: { select: { invoiceNumber: true, customer: { select: { name: true } } } } },
+      orderBy: { reportedAt: 'desc' },
+    });
+  }
+
+  /**
+   * Tier 430: book a reported payment once the money is there — as an
+   * ordinary payment (status, Skonto, Raten, overpayment credit).
+   */
+  async bookNotice(
+    companyId: string,
+    invoiceId: string,
+    noticeId: string,
+    data: { paymentDate?: string; amount?: number; paymentMethod?: string },
+    userId?: string,
+  ) {
+    const notice = await this.prisma.paymentNotice.findFirst({
+      where: { id: noticeId, invoiceId, companyId },
+    });
+    if (!notice) throw new NotFoundException('Zahlungsmeldung nicht gefunden');
+    if (notice.status !== 'open') {
+      throw new BadRequestException('Die Zahlungsmeldung ist bereits erledigt');
+    }
+    const payment = await this.create(invoiceId, companyId, {
+      amount: data.amount ?? Number(notice.amount),
+      paymentDate: data.paymentDate ? new Date(data.paymentDate) : new Date(),
+      paymentMethod: data.paymentMethod || 'bank_transfer',
+      reference: `Zahlungsmeldung ${notice.source}`,
+      notes: notice.note ?? undefined,
+    });
+    await this.prisma.paymentNotice.update({
+      where: { id: notice.id },
+      data: { status: 'booked', paymentId: payment.id, resolvedAt: new Date(), resolvedById: userId ?? null },
+    });
+    return payment;
+  }
+
+  /** Tier 430: the money did not arrive — the report is dismissed. */
+  async dismissNotice(companyId: string, invoiceId: string, noticeId: string, userId?: string) {
+    const notice = await this.prisma.paymentNotice.findFirst({
+      where: { id: noticeId, invoiceId, companyId },
+    });
+    if (!notice) throw new NotFoundException('Zahlungsmeldung nicht gefunden');
+    if (notice.status !== 'open') {
+      throw new BadRequestException('Die Zahlungsmeldung ist bereits erledigt');
+    }
+    return this.prisma.paymentNotice.update({
+      where: { id: notice.id },
+      data: { status: 'dismissed', resolvedAt: new Date(), resolvedById: userId ?? null },
+    });
+  }
+
 }

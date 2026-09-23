@@ -200,6 +200,8 @@ const AUDITED_MODELS = new Set<string>([
   'Mahnungspause',
   'InstallmentPlan',
   'Installment',
+  // Tier 430: a payment the customer reported, and who booked or dismissed it.
+  'PaymentNotice',
   'CustomerCreditTransaction',
   'CashBookDailyClose',
   'UStvaFiling',
