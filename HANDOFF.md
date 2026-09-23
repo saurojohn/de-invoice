@@ -10,16 +10,17 @@ exact commands + docs you need to be productive.
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
 - **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–433 are
-  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 432.)
+  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 433.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 35854661681 / commit `a585803`, Tier 432):**
-  - Backend e2e: **220 passed / 0 failed / 1 skipped** of 221 specs — 100
-    two-digit + 121 three-digit (Tier 432 added `221-tier432-sepa-datev.sh`,
+- **Test counts (last green CI, run 35859409496 / commit `dc0dcc8`, Tier 433):**
+  - Backend e2e: **221 passed / 0 failed / 1 skipped** of 222 specs — 100
+    two-digit + 122 three-digit (Tier 433 added `222-tier433-sepa-storno.sh`,
+    Tier 432 `221-tier432-sepa-datev.sh`,
     Tier 431 `220-tier431-zahlungen-ohne-umweg.sh`,
     Tier 430 `219-tier430-zahlungsmeldung.sh`,
     Tier 429 `218-tier429-ratenplan.sh`,
