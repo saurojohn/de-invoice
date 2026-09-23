@@ -1,3 +1,4 @@
+import { NOT_AFA_BOOKING } from './booked-afa'
 import { Injectable } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
@@ -274,6 +275,7 @@ export class BilanzService {
         status: { in: ['booked', 'deductible'] },
         invoiceDate: { lte: snapshot },
         OR: [{ paidAt: null }, { paidAt: { gt: snapshot } }],
+        ...NOT_AFA_BOOKING, // Tier 437: an AfA row is no debt to a supplier
       },
       select: { grossAmount: true },
     })

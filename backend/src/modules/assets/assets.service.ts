@@ -370,7 +370,9 @@ export class AssetsService {
       where: { companyId },
     })
     const yearEnd = new Date(year, 11, 31, 23, 59, 59, 999)
-    const yearEndDate = new Date(year, 11, 31)
+    // Tier 437: noon, as the monthly rows — local midnight of 31.12 is
+    // 30.12 in UTC, and the DATEV export dated the AfA 30.12.
+    const yearEndDate = new Date(year, 11, 31, 12, 0, 0, 0)
 
     // Pre-fetch existing bookings for this year so
     // we can skip them in the loop (cheaper than a

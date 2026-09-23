@@ -26,3 +26,16 @@ export async function bookedAfaCost(db: Db, companyId: string, year: number): Pr
   const cents = rows.reduce((s, r) => s + Math.round(Number(r.netAmount ?? 0) * 100), 0)
   return { amount: -cents / 100, count: rows.length }
 }
+
+/**
+ * Tier 437 — an AfA row is a booking, not a supplier invoice.
+ *
+ * `relatedAssetId` is set on the rows "AfA buchen" creates and nowhere else.
+ * Reports about bills and money — payables, cash flow, the dashboard, cost
+ * centres, the DATEV Kreditor rows — took them for a supplier invoice with a
+ * negative amount. Measured with 1 200 € of AfA booked and nothing else: the
+ * balance sheet owed suppliers −1 200 €, the cash-flow forecast showed
+ * +1 200 € coming in, the dashboard's open payables were −1 200 €, and DATEV
+ * got "Kreditor 70000 an 4900" — a supplier credit reducing expenses.
+ */
+export const NOT_AFA_BOOKING = { relatedAssetId: null } as const

@@ -1,3 +1,4 @@
+import { NOT_AFA_BOOKING } from '../accounting/booked-afa'
 /**
  * CostCenterController — Tier 173 split.
  *
@@ -106,6 +107,7 @@ export class CostCenterController {
           companyId,
           invoiceDate: { gte: yearStart, lt: yearEnd },
           status: { in: ['booked', 'deductible'] },
+          ...NOT_AFA_BOOKING, // Tier 437: an AfA row is no bill
         },
         _sum: { grossAmount: true, vatAmount: true },
         _count: { _all: true },
@@ -143,6 +145,7 @@ export class CostCenterController {
           companyId,
           invoiceDate: { gte: yearStart, lt: yearEnd },
           status: { in: ['booked', 'deductible'] },
+          ...NOT_AFA_BOOKING, // Tier 437: an AfA row is no bill
         },
         select: {
           costCenter: true,
@@ -343,6 +346,7 @@ export class CostCenterController {
           companyId,
           invoiceDate: { gte: monthStart, lt: monthEnd },
           status: { in: ['booked', 'deductible'] },
+          ...NOT_AFA_BOOKING, // Tier 437: an AfA row is no bill
         },
         select: {
           costCenter: true,
@@ -556,6 +560,7 @@ export class CostCenterController {
           costCenter: ccFilter,
           invoiceDate: { gte: monthStart, lt: monthEnd },
           status: { in: ['booked', 'deductible'] },
+          ...NOT_AFA_BOOKING, // Tier 437: an AfA row is no bill
         },
         select: {
           id: true,
@@ -931,6 +936,7 @@ export class CostCenterController {
           companyId,
           invoiceDate: { gte: yearStart, lt: yearEnd },
           status: { in: ['booked', 'deductible'] },
+          ...NOT_AFA_BOOKING, // Tier 437: an AfA row is no bill
         },
         select: {
           costCenter: true,

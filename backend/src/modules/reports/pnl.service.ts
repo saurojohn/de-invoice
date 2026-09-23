@@ -4,6 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { ISSUED_STATUSES, SALES_TYPES } from '../invoice/document-scope'
 import { cashBookings } from '../cashbook/cash-bookings'
 import { invoiceNetRevenue } from '../invoice/tax-breakdown'
+import { NOT_AFA_BOOKING } from '../accounting/booked-afa'
 
 /**
  * Tier 75: P&L (Gewinn- und Verlustrechnung).
@@ -185,10 +186,18 @@ export class PnlService {
             companyId,
             invoiceDate: { gte: m.mStart, lte: m.mEnd },
             status: { in: ['booked', 'deductible'] },
+            ...NOT_AFA_BOOKING,
           },
           _sum: { netAmount: true },
           _count: { _all: true },
         }).then((r) => ({ kind: 'cyExp' as const, idx: m.idx, value: r })),
+        // Tier 437: the booked AfA, stored as negative rows — summed in with
+        // the expenses it lowered them (in a month with nothing else the
+        // max(0, …) below hid it).
+        this.prisma.expense.aggregate({
+          where: { companyId, invoiceDate: { gte: m.mStart, lte: m.mEnd }, relatedAssetId: { not: null } },
+          _sum: { netAmount: true },
+        }).then((r) => ({ kind: 'cyAfa' as const, idx: m.idx, value: r })),
         // Prior-year expense aggregates
         this.prisma.expense.aggregate({
           where: {
@@ -207,9 +216,14 @@ export class PnlService {
             companyId,
             invoiceDate: { gte: m.pStart, lte: m.pEnd },
             status: { in: ['booked', 'deductible'] },
+            ...NOT_AFA_BOOKING,
           },
           _sum: { netAmount: true },
         }).then((r) => ({ kind: 'pyExp' as const, idx: m.idx, value: r })),
+        this.prisma.expense.aggregate({
+          where: { companyId, invoiceDate: { gte: m.pStart, lte: m.pEnd }, relatedAssetId: { not: null } },
+          _sum: { netAmount: true },
+        }).then((r) => ({ kind: 'pyAfa' as const, idx: m.idx, value: r })),
       ]),
     );
 
@@ -226,13 +240,15 @@ export class PnlService {
       const s = byMonth.get(m.idx) || {};
       const { revenue, vat } = sumInvoices(cyInvoices, m.mStart, m.mEnd)
       const mat = Number(s.cyMat?._sum?.netAmount || 0);
-      const totalExp = Number(s.cyExp?._sum?.netAmount || 0) + cashOut(m.mStart, m.mEnd);
+      const totalExp = Number(s.cyExp?._sum?.netAmount || 0) + cashOut(m.mStart, m.mEnd)
+        - Number(s.cyAfa?._sum?.netAmount || 0);
       const otherExp = Math.max(0, totalExp - mat);
       const operatingResult = revenue - mat - otherExp;
       // Prior year
       const pRev = sumInvoices(pyInvoices, m.pStart, m.pEnd).revenue
       const pMat = Number(s.pyMat?._sum?.netAmount || 0);
-      const pTotal = Number(s.pyExp?._sum?.netAmount || 0) + cashOut(m.pStart, m.pEnd);
+      const pTotal = Number(s.pyExp?._sum?.netAmount || 0) + cashOut(m.pStart, m.pEnd)
+        - Number(s.pyAfa?._sum?.netAmount || 0);
       const pOther = Math.max(0, pTotal - pMat);
       const pOp = pRev - pMat - pOther;
       // % change. Guard against div by zero.

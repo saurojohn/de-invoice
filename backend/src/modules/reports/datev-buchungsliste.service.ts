@@ -1,3 +1,4 @@
+import { SKR03_ANLAGEN_NAMES } from './datev-anlagen'
 import { Injectable, Logger, BadRequestException } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import {
@@ -690,6 +691,7 @@ const SKR03_NAMES: Record<string, string> = {
   '8125': 'Erlöse 0% USt (innergemeinschaftliche Lieferung)',
   '8120': 'Steuerfreie Umsätze § 4 Nr. 1a UStG (Ausfuhr)',
   '9000': 'Saldenvorträge Sachkonten',
+  ...SKR03_ANLAGEN_NAMES, // Tier 437
 }
 
 /**

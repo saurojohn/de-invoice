@@ -50,6 +50,7 @@ import { ensurePersonenkonten, DIVERSE_KREDITOREN } from './datev-personenkonten
 import { NON_CASH_PAYMENT_METHODS } from '../invoice/document-scope';
 import { cashBookings } from '../cashbook/cash-bookings';
 import { SALES_TYPES } from '../invoice/document-scope'
+import { anlagenKonten } from './datev-anlagen'
 
 const DELIM = ';'
 const QUOTE = '"'
@@ -598,7 +599,35 @@ export async function buildBuchungenFromDb(
   const kreditor = (supplierId?: string | null) =>
     String((supplierId && kreditoren.get(supplierId)) || DIVERSE_KREDITOREN)
 
+  // Tier 437: the rows "AfA buchen" creates are no supplier invoice — they
+  // went out as "Kreditor 70000 an 4900" with the (negative) amount, i.e. a
+  // supplier credit that lowered the expenses. Booked "AfA-Konto an
+  // Anlagekonto" now, by the asset's type (datev-anlagen.ts).
+  const afaAssetIds = [...new Set(expenses.map((e) => e.relatedAssetId).filter((x): x is string => !!x))]
+  const afaAssetType = new Map(
+    (afaAssetIds.length
+      ? await prisma.asset.findMany({ where: { id: { in: afaAssetIds } }, select: { id: true, type: true } })
+      : []
+    ).map((x) => [x.id, x.type]),
+  )
+
   for (const exp of expenses) {
+    if (exp.relatedAssetId) {
+      const k = anlagenKonten(afaAssetType.get(exp.relatedAssetId))
+      // The last day of the AfA month / year. Annual rows were stored at local
+      // midnight of 31.12 — 30.12 23:00 UTC — and exported as 30.12.
+      const y = exp.afaYear ?? exp.invoiceDate.getFullYear()
+      out.push({
+        belegdatum: new Date(Date.UTC(y, exp.afaMonth ?? 12, 0)),
+        belegfeld1: `AFA-${y}${exp.afaMonth ? '-' + String(exp.afaMonth).padStart(2, '0') : ''}`,
+        konto: k.afa,
+        gegenkonto: k.anlage,
+        betrag: r2(Math.abs(Number(exp.netAmount))),
+        shVz: 'S',
+        buchungstext: exp.description.substring(0, 60),
+      })
+      continue
+    }
     const net = Number(exp.netAmount)
     const vat = Number(exp.vatAmount)
     const gross = Number(exp.grossAmount)

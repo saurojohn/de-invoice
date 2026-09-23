@@ -9,17 +9,19 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–435 are
-  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 435.)
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–437 are
+  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 437.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 35891026495 / commit `1629a2d`, Tier 435):**
-  - Backend e2e: **223 passed / 0 failed / 1 skipped** of 224 specs — 100
-    two-digit + 124 three-digit (Tier 435 added `224-tier435-kasse-nie-negativ.sh`,
+- **Test counts (last green CI, run 35906829897 / commit `faf26c1`, Tier 436):**
+  - Backend e2e: **224 passed / 0 failed / 1 skipped** of 225 specs — 100
+    two-digit + 125 three-digit (Tier 437 adds `226-tier437-afa-keine-rechnung.sh`
+    on top — 226 specs from then on; Tier 436 added `225-tier436-afa-im-gewinn.sh`,
+    Tier 435 added `224-tier435-kasse-nie-negativ.sh`,
     Tier 434 `223-tier434-kasse-umbuchung.sh`, Tier 433 `222-tier433-sepa-storno.sh`,
     Tier 432 `221-tier432-sepa-datev.sh`,
     Tier 431 `220-tier431-zahlungen-ohne-umweg.sh`,
@@ -2488,6 +2490,43 @@ Tier 401 run 35123354210 **failed** on backend lint — a warning
 runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
+
+### An AfA booking is no supplier invoice (Tier 437)
+
+The AfA rows "AfA buchen" creates (Expense, `category='AfA'`,
+`relatedAssetId`, negative amount) were taken for supplier invoices by every
+report about bills and money. Measured with a machine (6 000 € / 60 months,
+1 200 € AfA a year) and one unpaid supplier invoice of 119 €:
+
+| where | before | now |
+|---|---|---|
+| Bilanz 4000 Verbindlichkeiten L+L | −1 081 (119 − 1 200) | 119 |
+| DATEV | "Kreditor 70000 an 4900, 1 200 S", dated 30.12 | "4830 an 0210, 1 200 S", 31.12, Belegfeld1 `AFA-2025` |
+| P&L other expenses (year) | 100 (AfA subtracted; `max(0, …)` hid it in December) | 1 300 |
+| Cash-flow forecast | −1 200 outgoing in December | 0 |
+| Dashboard monthly expenses / open payables | −1 200 | 0 |
+| Cost-centre reports | 119 − 1 200 | 119 |
+
+`NOT_AFA_BOOKING` (`{ relatedAssetId: null }`, booked-afa.ts — the field is
+set on AfA rows only) keeps them out of payables, cash flow, dashboard and
+cost centres. The P&L adds the AfA as a cost. DATEV books "AfA-Konto an
+Anlagekonto" by asset type from the new SKR03 table `datev-anlagen.ts`
+(Software 0027/4822, Gebäude 0090/4831, Maschine 0210/4830, Fahrzeug
+0320/4832, Betriebsausstattung 0400/4830, GWG 0480/4860) — `Asset.bilanzKonto`
+is the app's balance-sheet position (0100–0500), not a DATEV account. The
+annual AfA row is now stored at noon of 31.12 (local midnight was 30.12 in
+UTC); the export dates AfA rows from `afaYear`/`afaMonth`, so rows already
+stored come out as 31.12 too.
+
+Not done: the table is SKR03 only and not in the DATEV account settings (an
+SKR04 company gets SKR03 asset accounts); DATEV still has no booking of the
+asset's acquisition (the supplier invoice for it goes to 4900) — the Berater
+has to reclassify it. Assets have no DATEV Anlagenbuchhaltung export.
+
+Spec `e2e/226-tier437-afa-keine-rechnung.sh` (14 assertions, 7 failing against
+the previous code).
+No existing spec needed a change. Local runs: backend **225 / 0 / 1**, 0 × 500;
+Playwright **930**, no flaky.
 
 ### Booked AfA lowers the profit in every report (Tier 436)
 

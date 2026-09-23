@@ -1,3 +1,4 @@
+import { NOT_AFA_BOOKING } from '../accounting/booked-afa'
 /**
  * DashboardController — Tier 173 split.
  *
@@ -80,7 +81,8 @@ export class DashboardController {
     }
     const aggregateExpenses = async (start: Date, end: Date) => {
       const agg = await this.prisma.expense.aggregate({
-        where: { companyId, invoiceDate: { gte: start, lte: end } },
+        // Tier 437: supplier invoices, not the AfA rows (booked-afa.ts).
+        where: { companyId, invoiceDate: { gte: start, lte: end }, ...NOT_AFA_BOOKING },
         _sum: { netAmount: true, vatAmount: true, grossAmount: true },
         _count: { _all: true },
       })
@@ -89,7 +91,7 @@ export class DashboardController {
       // separate aggregate for the booked
       // subset; the count is the same.
       const openAgg = await this.prisma.expense.aggregate({
-        where: { companyId, invoiceDate: { gte: start, lte: end }, status: 'booked' },
+        where: { companyId, invoiceDate: { gte: start, lte: end }, status: 'booked', ...NOT_AFA_BOOKING },
         _sum: { grossAmount: true },
       })
       return {
@@ -287,6 +289,7 @@ export class DashboardController {
             companyId,
             invoiceDate: { gte: yearStart },
             status: { in: ['booked', 'deductible'] },
+            ...NOT_AFA_BOOKING, // Tier 437
           },
           _sum: { grossAmount: true, vatAmount: true },
           _count: { _all: true },
