@@ -17,10 +17,10 @@ exact commands + docs you need to be productive.
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 35887074784 / commit `c09b487`, Tier 434):**
-  - Backend e2e: **222 passed / 0 failed / 1 skipped** of 223 specs — 100
-    two-digit + 123 three-digit (Tier 435 adds `224-tier435-kasse-nie-negativ.sh`
-    on top — 224 specs from then on; Tier 434 added `223-tier434-kasse-umbuchung.sh`, Tier 433 `222-tier433-sepa-storno.sh`,
+- **Test counts (last green CI, run 35891026495 / commit `1629a2d`, Tier 435):**
+  - Backend e2e: **223 passed / 0 failed / 1 skipped** of 224 specs — 100
+    two-digit + 124 three-digit (Tier 435 added `224-tier435-kasse-nie-negativ.sh`,
+    Tier 434 `223-tier434-kasse-umbuchung.sh`, Tier 433 `222-tier433-sepa-storno.sh`,
     Tier 432 `221-tier432-sepa-datev.sh`,
     Tier 431 `220-tier431-zahlungen-ohne-umweg.sh`,
     Tier 430 `219-tier430-zahlungsmeldung.sh`,
