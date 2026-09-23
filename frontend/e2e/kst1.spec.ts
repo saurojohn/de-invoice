@@ -91,7 +91,9 @@ test.describe("KSt 1 — /dashboard/accounting", () => {
     ).toBeVisible({ timeout: 10_000 })
   })
 
-  test("KSt-Anrechnung block shows 3.8 × Messbetrag cap", async ({ page }) => {
+  // Tier 439: the block used to show a "3,8 × Messbetrag" credit of the GewSt
+  // against the KSt — § 35 EStG, which a GmbH does not get. It says so now.
+  test("the Anrechnung block says there is no GewSt credit against the KSt", async ({ page }) => {
     await injectAuth(page)
     await page.goto("/dashboard/accounting")
     await expect(
@@ -103,8 +105,8 @@ test.describe("KSt 1 — /dashboard/accounting", () => {
     const text = (await page
       .getByTestId("kst1-anrechnung-block")
       .textContent()) || ""
-    // Expect "3,8 × Messbetrag" in the text
-    expect(text).toMatch(/3[,.]8/)
+    expect(text).toMatch(/§ 35 EStG/)
+    expect(text).not.toMatch(/3[,.]8/)
   })
 
   test("Zu zahlen pill shows the bottom-line amount", async ({ page }) => {

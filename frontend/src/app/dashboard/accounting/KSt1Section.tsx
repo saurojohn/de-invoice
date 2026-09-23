@@ -30,8 +30,6 @@ interface KSt1Result {
     gewstMessbetrag: number
     hebesatz: number
     gewst: number
-    kstAnrechnung: number
-    kstNachAnrechnung: number
     zuZahlen: number
   }
   counts: {
@@ -55,8 +53,9 @@ interface KSt1Result {
  * = G+V Jahresüberschuss + KSt-Korrekturen
  * (placeholder for v1). KSt 15% + Soli 5.5%
  * + GewSt (default Hebesatz 400%, kein 24.500 €
- * Freibetrag für GmbH) + KSt-Anrechnung auf
- * GewSt (§ 35 EStG / § 26 KStG).
+ * Freibetrag für GmbH); no credit of the GewSt
+ * against the KSt (Tier 439 — § 35 EStG is for
+ * natural persons).
  */
 export function KSt1Section() {
   const { t } = useI18n()
@@ -310,20 +309,12 @@ export function KSt1Section() {
                 </div>
               </div>
 
-              {/* KSt-Anrechnung */}
+              {/* Tier 439: no credit of the GewSt against the KSt (§ 35 EStG is for natural persons) */}
               <div
-                className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded text-xs"
+                className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded text-xs text-blue-700 dark:text-blue-300"
                 data-testid="kst1-anrechnung-block"
               >
-                <div className="font-semibold mb-1 text-blue-800 dark:text-blue-200">
-                  {tRef.current("kst1.kstAnrechnung")}
-                </div>
-                <div className="text-blue-700 dark:text-blue-300">
-                  anrechenbare KSt = min({fmt(data.totals.kst)}, 3,8 × Messbetrag = {fmt(3.8 * data.totals.gewstMessbetrag)}) = <b>{fmt(data.totals.kstAnrechnung)}</b>
-                </div>
-                <div className="text-blue-700 dark:text-blue-300">
-                  {tRef.current("kst1.kstNachAnrechnung")}: <b>{fmt(data.totals.kstNachAnrechnung)}</b>
-                </div>
+                {tRef.current("kst1.keineAnrechnung")}
               </div>
 
               {/* Zu zahlen */}

@@ -35,7 +35,7 @@ assert_eq "corrections count == 8" "$K" "8"
 SHAPE=$(python3 -c "
 import json, sys
 d = json.load(sys.stdin)
-required = ['jahresueberschuss', 'zve', 'kst', 'soli', 'gewstMessbetrag', 'hebesatz', 'gewst', 'kstAnrechnung', 'kstNachAnrechnung', 'zuZahlen']
+required = ['jahresueberschuss', 'zve', 'kst', 'soli', 'gewstMessbetrag', 'hebesatz', 'gewst', 'zuZahlen']
 missing = [k for k in required if k not in d['totals']]
 print('OK' if not missing else f'MISSING: {missing}')
 " < "$TMP")
@@ -87,7 +87,7 @@ messbetrag = d['totals']['gewstMessbetrag']
 hebesatz = d['totals']['hebesatz']
 expected_kst = round(max(0, zve) * 0.15, 2)
 expected_soli = round(expected_kst * 0.055, 2)
-expected_messbetrag = round(max(0, zve) * 0.035, 2)
+expected_messbetrag = round(max(0, zve // 100 * 100) * 0.035, 2)  # Tier 439: § 11 GewStG, rounded down to 100
 expected_gewst = round(expected_messbetrag * hebesatz / 100, 2)
 print(f'{abs(kst - expected_kst) < 0.01}|{abs(soli - expected_soli) < 0.01}|{abs(messbetrag - expected_messbetrag) < 0.01}|{abs(gewst - expected_gewst) < 0.01}|{kst}|{soli}|{messbetrag}|{gewst}|{expected_kst}|{expected_soli}|{expected_messbetrag}|{expected_gewst}')
 " < "$TMP")
@@ -98,44 +98,18 @@ assert_eq "GewSt identity" "$(echo "$MATH" | cut -d'|' -f4)" "True"
 pass "KSt=$(echo "$MATH" | cut -d'|' -f5) (expected $(echo "$MATH" | cut -d'|' -f9))"
 rm -f "$TMP"
 
-# ===== 5. KSt-Anrechnung = min(KSt, 3.8 × Messbetrag) =====
+# ===== 5./6. Zu zahlen = KSt + Soli + GewSt =====
+# Tier 439: there was a "KSt-Anrechnung" of min(KSt, 3.8 × Messbetrag) —
+# § 35 EStG, an income-tax relief a GmbH does not get. Numbers: spec 228.
 echo
-note "=== 5. KSt-Anrechnung = min(KSt, 3.8 × Messbetrag) ==="
+note "=== 5. Zu zahlen = KSt + Soli + GewSt, no Anrechnung ==="
 api_get "/api/v1/accounting/kst1?companyId=$COMPANY_ID&year=2026"
-TMP=$(mktemp); printf '%s' "$BODY" > "$TMP"
-
-ANR=$(python3 -c "
+ZZ=$(echo "$BODY" | python3 -c "
 import json, sys
-d = json.load(sys.stdin)
-kst = d['totals']['kst']
-messbetrag = d['totals']['gewstMessbetrag']
-anr = d['totals']['kstAnrechnung']
-expected = min(kst, 3.8 * messbetrag)
-print(f'{abs(anr - expected) < 0.01}|{anr}|{expected}|{kst}|{3.8 * messbetrag}')
-" < "$TMP")
-assert_eq "KSt-Anrechnung identity" "$(echo "$ANR" | cut -d'|' -f1)" "True"
-pass "KSt-Anrechnung=$(echo "$ANR" | cut -d'|' -f2) (expected $(echo "$ANR" | cut -d'|' -f3), cap=3.8×Mb=$(echo "$ANR" | cut -d'|' -f5))"
-rm -f "$TMP"
-
-# ===== 6. Zu zahlen = KSt nach Anrechnung + Soli + GewSt =====
-echo
-note "=== 6. Zu zahlen = KSt nach Anrechnung + Soli + GewSt ==="
-api_get "/api/v1/accounting/kst1?companyId=$COMPANY_ID&year=2026"
-TMP=$(mktemp); printf '%s' "$BODY" > "$TMP"
-
-ZZ=$(python3 -c "
-import json, sys
-d = json.load(sys.stdin)
-kst_nach = d['totals']['kstNachAnrechnung']
-soli = d['totals']['soli']
-gewst = d['totals']['gewst']
-zz = d['totals']['zuZahlen']
-expected = kst_nach + soli + gewst
-print(f'{abs(zz - expected) < 0.01}|{zz}|{expected}|{kst_nach}|{soli}|{gewst}')
-" < "$TMP")
-assert_eq "Zu zahlen identity" "$(echo "$ZZ" | cut -d'|' -f1)" "True"
-pass "Zu zahlen=$(echo "$ZZ" | cut -d'|' -f2) (expected $(echo "$ZZ" | cut -d'|' -f3))"
-rm -f "$TMP"
+t = json.load(sys.stdin)['totals']
+print(abs(t['zuZahlen'] - (t['kst'] + t['soli'] + t['gewst'])) < 0.01 and 'kstAnrechnung' not in t)
+")
+assert_eq "Zu zahlen identity, no Anrechnung field" "$ZZ" "True"
 
 # ===== 7. /kst1.pdf returns valid PDF =====
 echo

@@ -9,18 +9,19 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–438 are
-  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 438.)
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–439 are
+  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 439.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 35911544460 / commit `c21d995`, Tier 437):**
-  - Backend e2e: **225 passed / 0 failed / 1 skipped** of 226 specs — 100
-    two-digit + 126 three-digit (Tier 438 adds `227-tier438-anlage-g-gewerbesteuer.sh`
-    on top — 227 specs from then on; Tier 437 added `226-tier437-afa-keine-rechnung.sh`,
+- **Test counts (last green CI, run 35916192531 / commit `d861d05`, Tier 438):**
+  - Backend e2e: **226 passed / 0 failed / 1 skipped** of 227 specs — 100
+    two-digit + 127 three-digit (Tier 439 adds `228-tier439-kst-ohne-anrechnung.sh`
+    on top — 228 specs from then on; Tier 438 added `227-tier438-anlage-g-gewerbesteuer.sh`,
+    Tier 437 added `226-tier437-afa-keine-rechnung.sh`,
     Tier 436 added `225-tier436-afa-im-gewinn.sh`,
     Tier 435 added `224-tier435-kasse-nie-negativ.sh`,
     Tier 434 `223-tier434-kasse-umbuchung.sh`, Tier 433 `222-tier433-sepa-storno.sh`,
@@ -2491,6 +2492,33 @@ Tier 401 run 35123354210 **failed** on backend lint — a warning
 runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
+
+### KSt 1: no credit of the Gewerbesteuer against the KSt (Tier 439)
+
+KSt 1 subtracted min(KSt, 3,8 × GewSt-Messbetrag) from the
+Körperschaftsteuer and called it "KSt-Anrechnung auf GewSt (§ 35 EStG / § 26
+KStG)". § 35 EStG reduces the *income* tax of natural persons with Gewerbe
+income (Einzelunternehmer, Mitunternehmer); a Kapitalgesellschaft gets
+nothing of the kind (§ 26 KStG is the credit for foreign taxes). Measured at
+100 050 € profit, Hebesatz 400: KSt 15 007,50 € "after Anrechnung" 1 700,85 €,
+zu zahlen **16 533,26 €** instead of **29 832,91 €** (KSt 15 007,50 + Soli
+825,41 + GewSt 14 000) — the tax burden shown at ~16,5 % instead of ~29,8 %.
+
+The totals `kstAnrechnung` / `kstNachAnrechnung` are gone from the API, the
+UI block and the PDF; the block (same test id) says there is no credit. The
+GewSt-Messbetrag rounds the Gewerbeertrag down to full 100 € (§ 11 Abs. 1
+GewStG). Texts de/en/zh and the packager README follow.
+
+Spec `e2e/228-tier439-kst-ohne-anrechnung.sh` (10 assertions, 4 failing
+against the previous code). Spec 128 asserted the Anrechnung identity and an
+unrounded Messbetrag; Playwright `kst1` looked for "3,8 × Messbetrag" — both
+corrected.
+Local runs: backend **227 / 0 / 1** (50-webhooks local-only nip.io failure
+aside), 0 × 500; Playwright **930**, no flaky.
+
+Still open (§ 9): there is no `Company.rechtsform` (KSt 1 and the packager
+read one that does not exist and assume GmbH), so the GewSt 1A report applies
+the 24 500 € Freibetrag of Anlage G to every company, a GmbH included.
 
 ### Anlage G counted costs as profit; the GewSt estimate was off (Tier 438)
 

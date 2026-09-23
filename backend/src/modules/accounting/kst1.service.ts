@@ -34,25 +34,24 @@ import PDFDocument from 'pdfkit'
  *      with NO 24 500 € Freibetrag (Freibetrag
  *      gilt nur für Einzelunternehmen +
  *      Personengesellschaften). Formula:
- *        Steuermessbetrag = ZvE × 3.5% (Steuermesszahl)
+ *        Steuermessbetrag = ZvE, rounded down to
+ *          full 100 € (§ 11 Abs. 1 GewStG), × 3.5 %
  *        GewSt = Messbetrag × Hebesatz / 100
  *
- *   4. **KSt-Anrechnung auf GewSt (§ 35 EStG,
- *      applied to KSt via § 26 KStG)** — the
- *      KSt that counts as Betriebsausgabe is
- *      capped at 3.8 × GewSt-Messbetrag. So
- *      the effective KSt paid = KSt - min(KSt,
- *      3.8 × GewSt-Messbetrag).
- *      Result: at typical Hebesätze (400-500%),
- *      the KSt is fully credited against GewSt,
- *      leaving 0 net KSt burden. The Soli on
- *      the un-anrechenbare portion is what the
- *      GmbH actually pays.
+ * Tier 439: there is no credit of the GewSt against
+ * the KSt. This report subtracted min(KSt, 3.8 ×
+ * Messbetrag) — the Steuerermäßigung of § 35 EStG,
+ * which reduces the INCOME tax of natural persons
+ * with Gewerbe income (Einzelunternehmer,
+ * Mitunternehmer) and does not apply to a
+ * Kapitalgesellschaft (§ 26 KStG is the credit for
+ * foreign taxes). Measured at 100 050 € profit and
+ * Hebesatz 400: KSt 15 007,50 € reduced to 1 700,85 €,
+ * "zu zahlen" 16 533,26 € instead of 29 832,91 €.
  *
  * v1 heuristic: read the G+V Jahresüberschuss
  * (= Zu versteuerndes Einkommen pre-Korrekturen)
- * from the existing GuVService. Apply the
- * standard KSt-GewSt-Anrechnung formula. The
+ * from the existing GuVService. The
  * Berater adjusts:
  *   - Hebesatz der Gemeinde (Company.settings.hebesatz, default 400)
  *   - Verdeckte Gewinnausschüttungen (§ 8 Abs. 3 KStG) — placeholder
@@ -95,9 +94,7 @@ export interface KSt1Result {
     gewstMessbetrag: number // 3.5% × ZvE
     hebesatz: number // default 400
     gewst: number // Messbetrag × Hebesatz / 100
-    kstAnrechnung: number // min(KSt, 3.8 × GewSt-Messbetrag)
-    kstNachAnrechnung: number // KSt - Anrechnung
-    zuZahlen: number // KSt (nach Anrechnung) + Soli + GewSt
+    zuZahlen: number // KSt + Soli + GewSt (Tier 439: no § 35 EStG credit)
   }
   counts: {
     invoices: number
@@ -110,8 +107,8 @@ export interface KSt1Result {
 
 // Tier 102: KSt 1 Korrekturen Kz 30-90 (internal namespace).
 // Most are placeholder for the Berater — v1
-// only auto-applies the standard KSt + GewSt +
-// Anrechnung. The Berater adds the company-
+// only auto-applies the standard KSt + GewSt.
+// The Berater adds the company-
 // specific adjustments.
 const KORREKTUREN_LINES: Array<{
   kz: string
@@ -178,8 +175,7 @@ export class KSt1Service {
    * in the year-defaults + auth handling.
    *
    * v1: read the GuV Jahresüberschuss + apply
-   * the standard KSt + GewSt + Anrechnung
-   * formula. Most Korrekturen (vGA, Spenden,
+   * the standard KSt + GewSt formulas. Most Korrekturen (vGA, Spenden,
    * Verlustabzug) are placeholder for the
    * Berater.
    */
@@ -255,33 +251,17 @@ export class KSt1Service {
     const soli = round2(kst * 0.055)
 
     // Gewerbesteuer:
-    //   Steuermessbetrag = max(0, ZvE) × 3.5%
+    //   Steuermessbetrag = max(0, ZvE) rounded down to 100 € × 3.5%
     //   GewSt = Messbetrag × Hebesatz / 100
     // For GmbH: NO 24 500 € Freibetrag (Freibetrag gilt
     // nur für Einzelunternehmen / Personengesell-
     // schaften per § 11 Abs. 1 GewStG).
-    const gewstMessbetrag = round2(Math.max(0, zve) * 0.035)
+    const gewstMessbetrag = round2(Math.max(0, Math.floor(zve / 100) * 100) * 0.035)
     const gewst = round2(gewstMessbetrag * hebesatz / 100)
 
-    // KSt-Anrechnung auf GewSt (§ 35 EStG / § 26 KStG):
-    //   KSt-anrechenbar = min(KSt, 3.8 × GewSt-Messbetrag)
-    // This means at typical Hebesätze (400-500%),
-    // the KSt is fully credited against GewSt:
-    //   KSt = 0.15 × ZvE
-    //   3.8 × GewSt-Messbetrag = 3.8 × 0.035 × ZvE = 0.133 × ZvE
-    //   min(0.15 × ZvE, 0.133 × ZvE) = 0.133 × ZvE
-    //   Anrechnung = 0.133 × ZvE
-    //   KSt - Anrechnung = (0.15 - 0.133) × ZvE = 0.017 × ZvE
-    //   Soli auf 0.017 × ZvE = 0.00094 × ZvE
-    // That's a small effective KSt + Soli burden.
-    const kstAnrechnung = round2(Math.min(kst, 3.8 * gewstMessbetrag))
-    const kstNachAnrechnung = round2(kst - kstAnrechnung)
-
-    // Zu zahlen = KSt (nach Anrechnung) + Soli + GewSt
-    // Note: Soli is computed on the FULL KSt (not
-    // the post-Anrechnung KSt) — § 3 SolzG is
-    // explicit on this. The Berater confirms.
-    const zuZahlen = round2(kstNachAnrechnung + soli + gewst)
+    // Zu zahlen = KSt + Soli + GewSt. Tier 439: no credit of the GewSt
+    // against the KSt — § 35 EStG is for natural persons (see the header).
+    const zuZahlen = round2(kst + soli + gewst)
 
     return {
       year,
@@ -298,8 +278,6 @@ export class KSt1Service {
         gewstMessbetrag,
         hebesatz,
         gewst,
-        kstAnrechnung,
-        kstNachAnrechnung,
         zuZahlen,
       },
       counts: {
@@ -312,8 +290,8 @@ export class KSt1Service {
         'Diese Vorschau wurde automatisch aus dem G+V Jahresüberschuss + den KSt-/GewSt-' +
         'Standardformeln generiert. KSt 1 ist für Körperschaften (GmbH, AG, KGaA, etc.) per ' +
         '§ 1 Abs. 1 KStG. KSt 15% + Soli 5.5% (auf KSt) + GewSt (default Hebesatz 400 % — bitte ' +
-        'an die Gemeinde anpassen). KSt-Anrechnung auf GewSt: 3.8 × GewSt-Messbetrag (§ 35 EStG / ' +
-        '§ 26 KStG). Im Gegensatz zur Einkommensteuer KEIN Freibetrag für GmbH/AG. Die KSt-Korrekturen ' +
+        'an die Gemeinde anpassen). Die Gewerbesteuer wird NICHT auf die KSt angerechnet (die ' +
+        'Steuerermäßigung des § 35 EStG gilt nur für natürliche Personen). Im Gegensatz zur Einkommensteuer KEIN Freibetrag für GmbH/AG. Die KSt-Korrekturen ' +
         '(vGAs, Spendenabzug, Verlustabzug, ausländische Steuern, § 8b KStG) sind als Platzhalter ' +
         'markiert — der Steuerberater ergänzt sie aus dem Anlagenverzeichnis, den Verträgen und ' +
         'den Steuerbescheiden. v2: Korrekturen werden aus Company.settings.kst1Korrekturen[year] gelesen.',
@@ -324,7 +302,7 @@ export class KSt1Service {
    * Render the KSt 1 as a GoBD-style A4 PDF.
    * Layout: header + Jahresüberschuss summary
    * + Korrekturen table + ZvE + KSt + Soli +
-   * GewSt breakdown + KSt-Anrechnung + Zu zahlen
+   * GewSt breakdown + Zu zahlen
    * + disclaimer + footer.
    */
   async renderPdf(companyId: string, year: number, res: Response): Promise<void> {
@@ -420,16 +398,6 @@ export class KSt1Service {
     )
     doc.moveDown(0.8)
 
-    // KSt-Anrechnung
-    doc.fontSize(12).font('Helvetica-Bold').text('KSt-Anrechnung auf GewSt')
-    doc.moveDown(0.3)
-    doc.fontSize(10).font('Helvetica')
-    doc.text(
-      `Anrechenbare KSt = min(KSt, 3,8 × GewSt-Messbetrag) = min(${this.fmtEur(data.totals.kst)} €, ${this.fmtEur(3.8 * data.totals.gewstMessbetrag)} €)`,
-    )
-    doc.text(`= ${this.fmtEur(data.totals.kstAnrechnung)} €`)
-    doc.text(`KSt nach Anrechnung: ${this.fmtEur(data.totals.kstNachAnrechnung)} €`)
-    doc.moveDown(0.8)
 
     // Zu zahlen
     doc.fontSize(14).font('Helvetica-Bold')
@@ -445,7 +413,7 @@ export class KSt1Service {
       .font('Helvetica-Oblique')
       .fillColor('#666')
       .text(
-        '= KSt (nach Anrechnung) + Soli + GewSt. KSt-Vorauszahlungen / GewSt-Vorauszahlungen (Kz 60) sind hier NICHT berücksichtigt — der Berater subtrahiert die bereits gezahlten Vorauszahlungen in der Festsetzung.',
+        '= KSt + Soli + GewSt (keine Anrechnung der GewSt auf die KSt — § 35 EStG gilt nur für natürliche Personen). KSt-Vorauszahlungen / GewSt-Vorauszahlungen (Kz 60) sind hier NICHT berücksichtigt — der Berater subtrahiert die bereits gezahlten Vorauszahlungen in der Festsetzung.',
         { width: 515 },
       )
       .fillColor('#000')
