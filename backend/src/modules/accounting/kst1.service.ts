@@ -31,7 +31,7 @@ import PDFDocument from 'pdfkit'
  *   2. **Solidaritätszuschlag (Soli)** — 5.5%
  *      on the KSt (not on the ZvE directly).
  *   3. **Gewerbesteuer (GewSt)** — for GmbH
- *      with NO 100k Freibetrag (Freibetrag
+ *      with NO 24 500 € Freibetrag (Freibetrag
  *      gilt nur für Einzelunternehmen +
  *      Personengesellschaften). Formula:
  *        Steuermessbetrag = ZvE × 3.5% (Steuermesszahl)
@@ -257,7 +257,7 @@ export class KSt1Service {
     // Gewerbesteuer:
     //   Steuermessbetrag = max(0, ZvE) × 3.5%
     //   GewSt = Messbetrag × Hebesatz / 100
-    // For GmbH: NO 100k Freibetrag (Freibetrag gilt
+    // For GmbH: NO 24 500 € Freibetrag (Freibetrag gilt
     // nur für Einzelunternehmen / Personengesell-
     // schaften per § 11 Abs. 1 GewStG).
     const gewstMessbetrag = round2(Math.max(0, zve) * 0.035)

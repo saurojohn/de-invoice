@@ -2710,8 +2710,8 @@
     "freibetrag": "Freibetrag § 11 Abs. 1 GewStG (Einzelunternehmen / PersG)",
     "hebesatz": "Hebesatz (default 400 %)",
     "hebesatzHint": "Hebesatz der Gemeinde anpassen — z.B. 470 % in Köln, 490 % in München. Company.settings.hebesatz",
-    "hinzuHint": "Nur Kz 4100 (25% Miete/Pacht) wird automatisch aus den Buchungen abgeleitet. Die übrigen Hinzurechnungen (Schuldzinsen, Mitunternehmer-Verlustanteile, stille Einlagen) muss der Steuerberater aus dem Gewerbesteuergesetz und den Verträgen ergänzen.",
-    "kurzungHint": "Nur Kz 5100 (50% Kfz-Nutzungsanteil) wird automatisch aus den Buchungen abgeleitet. Die übrigen Kürzungen (Grundstückserträge 1,2% Einheitswert, Mitunternehmer-Gewinnanteile) muss der Steuerberater aus den Verträgen ergänzen.",
+    "hinzuHint": "Nur Kz 4100 wird automatisch aus den Buchungen abgeleitet: ¼ der Finanzierungsanteile (Schuldzinsen 100 %, Miete/Pacht 50 %, Leasing 20 %), soweit sie 200.000 € übersteigen (§ 8 Nr. 1 GewStG). Die Zuordnung Miete = unbeweglich / Leasing = beweglich prüft der Steuerberater; die übrigen Hinzurechnungen ergänzt er aus den Verträgen.",
+    "kurzungHint": "Keine Kürzung wird automatisch abgeleitet. Die Kürzungen nach § 9 GewStG (Grundbesitz 1,2 % des Einheitswerts, Gewinnanteile aus Beteiligungen, ausländische Betriebsstätten) ergänzt der Steuerberater aus den Unterlagen.",
     "matchedMiete": "Miete/Pacht-Buchungen",
     "generatedAt": "Erstellt"
   },
@@ -2750,7 +2750,7 @@
   },
   "kst1": {
     "title": "KSt 1 (Vorschau)",
-    "subtitle": "Körperschaftsteuererklärung (§ 1 Abs. 1 KStG) — die PRIMÄRE Steuererklärung für Kapitalgesellschaften (GmbH, AG, KGaA). Anlage G ist hier NICHT zutreffend — KSt 1 ersetzt es. Liest den G+V Jahresüberschuss + berechnet KSt 15 % + Soli 5,5 % + GewSt (kein 100k Freibetrag für GmbH, default Hebesatz 400 %) + KSt-Anrechnung auf GewSt (§ 35 EStG / § 26 KStG). KSt-Korrekturen (verdeckte Gewinnausschüttungen, Spenden, Verlustabzug) sind Platzhalter — der Steuerberater ergänzt sie. Vor der Einreichung durch den Steuerberater prüfen lassen.",
+    "subtitle": "Körperschaftsteuererklärung (§ 1 Abs. 1 KStG) — die PRIMÄRE Steuererklärung für Kapitalgesellschaften (GmbH, AG, KGaA). Anlage G ist hier NICHT zutreffend — KSt 1 ersetzt es. Liest den G+V Jahresüberschuss + berechnet KSt 15 % + Soli 5,5 % + GewSt (kein Freibetrag für GmbH, default Hebesatz 400 %) + KSt-Anrechnung auf GewSt (§ 35 EStG / § 26 KStG). KSt-Korrekturen (verdeckte Gewinnausschüttungen, Spenden, Verlustabzug) sind Platzhalter — der Steuerberater ergänzt sie. Vor der Einreichung durch den Steuerberater prüfen lassen.",
     "year": "Geschäftsjahr",
     "recompute": "Berechnen",
     "downloadPdf": "PDF herunterladen",

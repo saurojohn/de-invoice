@@ -54,7 +54,7 @@ interface KSt1Result {
  * Bottom line: Zu versteuerndes Einkommen (ZvE)
  * = G+V Jahresüberschuss + KSt-Korrekturen
  * (placeholder for v1). KSt 15% + Soli 5.5%
- * + GewSt (default Hebesatz 400%, kein 100k
+ * + GewSt (default Hebesatz 400%, kein 24.500 €
  * Freibetrag für GmbH) + KSt-Anrechnung auf
  * GewSt (§ 35 EStG / § 26 KStG).
  */

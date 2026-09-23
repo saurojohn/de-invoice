@@ -72,33 +72,21 @@ print(f'{abs(g - expected) < 0.01}|{e}|{ba}|{g}')
 assert_eq "gewinnVorKorrektur identity" "$(echo "$GEW" | cut -d'|' -f1)" "True"
 pass "einnahmen=$(echo "$GEW" | cut -d'|' -f2), ausgaben=$(echo "$GEW" | cut -d'|' -f3), gewinn=$(echo "$GEW" | cut -d'|' -f4)"
 
-# ===== 4. Hinzu 4100 = 25% of Miete/Pacht (2200) =====
+# ===== 4. Hinzu 4100 and Kürzung 5100 =====
+# Tier 438: 4100 was "25 % of 2200" and 5100 "50 % of the car costs" — the
+# first is a quarter of the financing shares above 200 000 € (§ 8 Nr. 1
+# GewStG), the second no Kürzung at all. Their arithmetic is in spec 227;
+# here: 4100 is computed, 5100 is a placeholder now.
 echo
-note "=== 4. Hinzu 4100 = 25% of Betriebsausgaben 2200 ==="
-HINZU_4100=$(python3 -c "
+note "=== 4. 4100 computed, 5100 placeholder ==="
+SRC=$(python3 -c "
 import json, sys
 d = json.load(sys.stdin)
-miete = next((l['amount'] for l in d['betriebsausgaben'] if l['kennziffer'] == '2200'), 0)
-hinzu = next((l['amount'] for l in d['hinzurechnungen'] if l['kennziffer'] == '4100'), 0)
-expected = miete * 0.25
-print(f'{abs(hinzu - expected) < 0.01}|{miete}|{hinzu}|{expected}')
+h = next(l for l in d['hinzurechnungen'] if l['kennziffer'] == '4100')
+k = next(l for l in d['kurzungen'] if l['kennziffer'] == '5100')
+print(h['source'] + '|' + k['source'] + '|' + str(k['amount']))
 " < "$TMP")
-assert_eq "Hinzu 4100 == 25% of 2200" "$(echo "$HINZU_4100" | cut -d'|' -f1)" "True"
-pass "2200=$(echo "$HINZU_4100" | cut -d'|' -f2), 4100=$(echo "$HINZU_4100" | cut -d'|' -f3), expected=$(echo "$HINZU_4100" | cut -d'|' -f4)"
-
-# ===== 5. Kürzung 5100 = 50% of Kfz (2600) =====
-echo
-note "=== 5. Kürzung 5100 = 50% of Betriebsausgaben 2600 ==="
-KURZ_5100=$(python3 -c "
-import json, sys
-d = json.load(sys.stdin)
-kfz = next((l['amount'] for l in d['betriebsausgaben'] if l['kennziffer'] == '2600'), 0)
-kurz = next((l['amount'] for l in d['kurzungen'] if l['kennziffer'] == '5100'), 0)
-expected = kfz * 0.5
-print(f'{abs(kurz - expected) < 0.01}|{kfz}|{kurz}|{expected}')
-" < "$TMP")
-assert_eq "Kürzung 5100 == 50% of 2600" "$(echo "$KURZ_5100" | cut -d'|' -f1)" "True"
-pass "2600=$(echo "$KURZ_5100" | cut -d'|' -f2), 5100=$(echo "$KURZ_5100" | cut -d'|' -f3), expected=$(echo "$KURZ_5100" | cut -d'|' -f4)"
+assert_eq "4100 computed, 5100 placeholder at 0" "$SRC" "computed|placeholder|0"
 
 # ===== 6. Gewerbeertrag = gewinn + hinzu - kurzungen =====
 echo
@@ -117,16 +105,17 @@ assert_eq "Gewerbeertrag identity" "$(echo "$GE" | cut -d'|' -f1)" "True"
 pass "gewerbeertrag=$(echo "$GE" | cut -d'|' -f5) (expected $(echo "$GE" | cut -d'|' -f6))"
 rm -f "$TMP"
 
-# ===== 7. Freibetrag 100k EUR + Hebesatz default 400% =====
+# ===== 7. Freibetrag 24 500 EUR + Hebesatz default 400% =====
+# Tier 438: was 100 000 (§ 11 Abs. 1 Nr. 1 GewStG: 24 500).
 echo
-note "=== 7. Freibetrag 100k + Hebesatz default 400% ==="
+note "=== 7. Freibetrag 24 500 + Hebesatz default 400% ==="
 api_get "/api/v1/accounting/anlage-g?companyId=$COMPANY_ID&year=2026"
 TMP=$(mktemp); printf '%s' "$BODY" > "$TMP"
 
 FB=$(python3 -c "import json,sys; print(json.load(sys.stdin)['totals']['freibetrag'])" < "$TMP")
 HEB=$(python3 -c "import json,sys; print(json.load(sys.stdin)['totals']['hebesatz'])" < "$TMP")
 SMZ=$(python3 -c "import json,sys; print(json.load(sys.stdin)['totals']['gewerbesteuerMesszahl'])" < "$TMP")
-assert_eq "freibetrag == 100000" "$FB" "100000"
+assert_eq "freibetrag == 24500" "$FB" "24500"
 assert_eq "hebesatz == 400" "$HEB" "400"
 assert_eq "steuermesszahl == 0.035" "$SMZ" "0.035"
 rm -f "$TMP"

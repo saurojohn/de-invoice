@@ -2710,8 +2710,8 @@
     "freibetrag": "免税额 § 11 Abs. 1 GewStG（个体户/人合公司）",
     "hebesatz": "Hebesatz 税率乘数（默认 400 %）",
     "hebesatzHint": "请根据所在市镇调整 — 如 Köln 470 %，München 490 %。Company.settings.hebesatz",
-    "hinzuHint": "仅 Kz 4100（25% 租金/租赁）从账目自动推导。其他加回项目（股东贷款利息、亏损分配、隐性存款）需税务师根据《工商税法》与合同补充。",
-    "kurzungHint": "仅 Kz 5100（50% 私用车辆部分）自动推导。其他扣除（1.2% 不动产收益从单位价值、人合公司利润分配）需根据合同补充。",
+    "hinzuHint": "仅 Kz 4100 从账目自动推导：融资部分（利息 100%、租金/租赁不动产 50%、融资租赁 20%）超过 200,000 € 部分的四分之一（§ 8 Nr. 1 GewStG）。租金视为不动产、租赁视为动产的划分由税务师核对；其他加回项目由税务师根据合同补充。",
+    "kurzungHint": "不自动推导任何扣除。§ 9 GewStG 的扣除（不动产按单位价值 1.2%、参股利润份额、境外常设机构）由税务师补充。",
     "matchedMiete": "租金/租赁账目",
     "generatedAt": "生成时间"
   },
@@ -2750,7 +2750,7 @@
   },
   "kst1": {
     "title": "KSt 1 公司所得税申报（预览）",
-    "subtitle": "Körperschaftsteuererklärung（§ 1 Abs. 1 KStG）— 资合公司（GmbH、AG、KGaA）的核心报税表。Anlage G 不适用 — KSt 1 替代。读取 G+V 年度利润 + 计算 KSt 15% + Soli 5.5% + 工商税（GmbH 无 100k 免税额，默认 Hebesatz 400%）+ KSt 在工商税上的抵扣（§ 35 EStG / § 26 KStG）。KSt 修正（隐性利润分配、捐赠、亏损结转）为占位 — 税务师补充。提交前请税务师审核。",
+    "subtitle": "Körperschaftsteuererklärung（§ 1 Abs. 1 KStG）— 资合公司（GmbH、AG、KGaA）的核心报税表。Anlage G 不适用 — KSt 1 替代。读取 G+V 年度利润 + 计算 KSt 15% + Soli 5.5% + 工商税（GmbH 无免税额，默认 Hebesatz 400%）+ KSt 在工商税上的抵扣（§ 35 EStG / § 26 KStG）。KSt 修正（隐性利润分配、捐赠、亏损结转）为占位 — 税务师补充。提交前请税务师审核。",
     "year": "财年",
     "recompute": "计算",
     "downloadPdf": "下载 PDF",

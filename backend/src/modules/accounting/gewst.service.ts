@@ -15,7 +15,7 @@ import PDFDocument from 'pdfkit'
  * v1 architecture: delegates the gewerbeertrag
  * computation to the existing AnlageGService
  * (which already computes § 8/9 GewStG hinzu/
- * kürzungen, the 100k EUR Freibetrag § 11 Abs. 1
+ * kürzungen, the 24 500 EUR Freibetrag § 11 Abs. 1
  * GewStG, and the gewerbeertragNachFreibetrag).
  * We then add the BMF Vordruck GewSt 1A fields:
  *
@@ -104,7 +104,7 @@ export class GewstService {
     // gewerbeertrag, gewerbeertragNachFreibetrag,
     // hebesatz, etc. The AnlageGService already
     // applies the § 8/9 GewStG hinzu/kürzungen +
-    // the 100k EUR Freibetrag.
+    // the 24 500 EUR Freibetrag.
     const anlageG = await this.anlageG.compute(companyId, year)
 
     // Read the Vorauszahlungen from settings
@@ -219,7 +219,7 @@ export class GewstService {
         'Münster 400 %, Stuttgart 420 %, etc.); (b) die tatsächlichen ' +
         'Vorauszahlungen aus den 4 Quartalsbescheiden — diese werden NICHT ' +
         'vom System geschätzt; (c) die § 11 Abs. 1 GewStG Freibetrag-Logik ' +
-        '(100k EUR für Einzelunternehmen + PersG; 0 für KapG); (d) bei KapG: ' +
+        '(24.500 EUR für Einzelunternehmen + PersG; 0 für KapG); (d) bei KapG: ' +
         'die KSt-Anrechnung auf die GewSt im Rahmen von KSt 1 (3.8 × ' +
         'Steuermessbetrag, § 35 EStG / § 26 KStG). v2: native ELSTER-XML-' +
         'Übermittlung ähnlich dem UStJA-Pfad (tier 105).',

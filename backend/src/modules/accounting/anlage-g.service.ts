@@ -4,6 +4,30 @@ import { Response } from 'express'
 import PDFDocument from 'pdfkit'
 import { invoiceEurFactor, invoiceNetRevenue, invoiceTaxBreakdown } from '../invoice/tax-breakdown'
 import { SALES_TYPES } from '../invoice/document-scope'
+import { expenseCost } from './expense-cost'
+import { bookedAfaCost, NOT_AFA_BOOKING } from './booked-afa'
+
+/**
+ * Tier 438 — Anlage G counted costs as profit.
+ *
+ * This report shows Betriebsausgaben as negative amounts and adds them to the
+ * revenue. It took the expenses' netAmount as it was — positive for every
+ * real expense (only the AfA rows are stored negative) — so each expense
+ * RAISED the Gewinn and the Gewerbeertrag. And the fallback line 2890 counted
+ * only the first expense of each category: of three uncategorised expenses of
+ * 100 €, one. Measured: no revenue, three such expenses → Betriebsausgaben
+ * 100, Gewinn +100 (right: −300). The Gewerbesteuer estimate had three errors
+ * of its own: a Freibetrag of 100 000 € (§ 11 Abs. 1 Nr. 1 GewStG: 24 500 €),
+ * the Hebesatz taken as a factor, not a percentage (Messbetrag × 400 instead
+ * of × 4 — 100 times the tax), and a Hinzurechnung of 25 % of every rent
+ * (§ 8 Nr. 1 GewStG: a quarter of the financing shares — interest 100 %,
+ * rent of immovable property 50 %, of movable goods 20 % — as far as their
+ * sum exceeds 200 000 €). The "Kürzung" of half the car costs has no basis in
+ * § 9 GewStG (private use is a withdrawal, in the Gewinn).
+ */
+const FREIBETRAG_NATUERLICHE_PERSON = 24500
+const HINZURECHNUNG_FREIBETRAG = 200000
+interface FinanzierungsAnteile { zinsen: number; mieteImmobil: number; leasingMobil: number }
 
 /**
  * Tier 100: Anlage G — Einkünfte aus
@@ -24,15 +48,15 @@ import { SALES_TYPES } from '../invoice/document-scope'
  *      mechanism that derives the gewerbesteuer-
  *      pflichtige Gewerbeertrag. A typical
  *      Handwerker has lots of "Aufwendungen
- *      für dauerhafte Miete" — 25% of those
- *      are HINZU gerechnet, then the 100.000 EUR
- *      Freibetrag is KÜRZT, then × Steuermesszahl
- *      3.5% × Hebesatz 400% = ~Gewerbesteuer.
+ *      für dauerhafte Miete" — their financing
+ *      share is HINZU gerechnet (§ 8 Nr. 1, above
+ *      200 000 €), the 24 500 € Freibetrag is
+ *      KÜRZT, then × Steuermesszahl 3.5 % × Hebesatz
+ *      400 % = ~Gewerbesteuer (Tier 438).
  *   2. Kz 4100-4900 are gewerbesteuer-spezifische
- *      Hinzurechnungen / Kürzungen. v1 only
- *      computes the 25% Hinzurechnung on Miete /
- *      Pacht / Leasing (4100) — the rest is
- *      placeholder ("Berater ergänzt aus Verträgen").
+ *      Hinzurechnungen / Kürzungen. Only 4100 (§ 8
+ *      Nr. 1) is computed — the rest is placeholder
+ *      ("Berater ergänzt aus Verträgen").
  *   3. The Kennziffern 2100-2900 are an internal
  *      namespace (not BMF's actual Zeile numbers
  *      in the printable Anlage G form). The Berater
@@ -91,7 +115,7 @@ export interface AnlageGResult {
     hinzurechnungenTotal: number
     kurzungenTotal: number
     gewerbeertrag: number // gewinnVorKorrektur + hinzu - kurzungen
-    freibetrag: number // § 11 Abs. 1 GewStG: 100.000 EUR
+    freibetrag: number // § 11 Abs. 1 Nr. 1 GewStG: 24 500 EUR (Tier 438)
     gewerbeertragNachFreibetrag: number
     gewerbesteuerMesszahl: number // 0.035 (3.5%)
     hebesatz: number // default 400 (Münster, etc.)
@@ -128,7 +152,7 @@ const EINNAHMEN_LINES: Array<{ kz: string; label: string }> = [
 // Tier 100: Anlage G Betriebsausgaben 2200-2890.
 // Mirrors the Anlage S / EÜR categorization but with
 // additional § 8/9 GewStG-relevant lines (Miete/Pacht
-// 2200 — these are HINZU gerechnet at 25% in 4100).
+// 2200 — their financing share feeds 4100).
 const BETRIEBSAUSGABEN_LINES: Array<{ kz: string; label: string; matcher: (exp: any) => boolean }> = [
   {
     kz: '2200',
@@ -195,30 +219,28 @@ const BETRIEBSAUSGABEN_LINES: Array<{ kz: string; label: string; matcher: (exp: 
 ]
 
 // Tier 100: Anlage G Hinzurechnungen § 8 GewStG 4100-4900.
-// v1 only computes 4100 (25% Hinzurechnung der
-// Finanzierungsanteile von Miet-/Pacht-/Leasing-
-// aufwendungen). The other Hinzurechnungen
-// (z.B. Verlustanteile aus Beteiligungen, 50%
-// Schuldzinsen-Hinzurechnung) are placeholders.
+// Only 4100 (§ 8 Nr. 1, Tier 438) is computed; the
+// other Hinzurechnungen are placeholders.
 const HINZURECHNUNGEN_LINES: Array<{
   kz: string
   label: string
-  matcher?: (betriebsausgaben: AnlageGLine[]) => number
+  matcher?: (betriebsausgaben: AnlageGLine[], f: FinanzierungsAnteile) => number
   note?: string
 }> = [
   {
     kz: '4100',
     label:
-      'Hinzurechnung 25% der Miet-/Pacht-/Leasing-Aufwendungen (§ 8 Nr. 7 GewStG — Finanzierungsanteil)',
-    matcher: (ba) => {
-      const miete = ba.find((l) => l.kennziffer === '2200')?.amount || 0
-      return miete * 0.25
-    },
+      '¼ der Finanzierungsanteile über 200.000 € (§ 8 Nr. 1 GewStG: Schuldzinsen 100 %, Miete/Pacht 50 %, Leasing 20 %)',
+    // Tier 438: rent and lease are told apart by category only — Miete/Pacht
+    // is taken as immovable property (50 %), Leasing as movable goods (20 %).
+    matcher: (_ba, f) =>
+      Math.max(0, f.zinsen + f.mieteImmobil * 0.5 + f.leasingMobil * 0.2 - HINZURECHNUNG_FREIBETRAG) * 0.25,
+    note: 'Miete/Pacht als unbewegliche (50 %), Leasing als bewegliche Wirtschaftsgüter (20 %) angesetzt — Berater prüft die Zuordnung.',
   },
   {
     kz: '4200',
-    label: 'Hinzurechnung 50% der Schuldzinsen bei Gesellschafter-Darlehen (§ 8 Nr. 1a GewStG)',
-    note: 'Schuldzinsen-Hinzurechnung — in de-invoice nicht erfasst. Berater ergänzt aus Darlehensverträgen.',
+    label: 'Hinzurechnung Gewinnminderungen aus Anteilen an Körperschaften (§ 8 Nr. 10 GewStG)',
+    note: 'In de-invoice nicht erfasst. Berater ergänzt.',
   },
   {
     kz: '4300',
@@ -250,16 +272,15 @@ const HINZURECHNUNGEN_LINES: Array<{
 const KURZUNGEN_LINES: Array<{
   kz: string
   label: string
-  matcher?: (betriebsausgaben: AnlageGLine[]) => number
+  matcher?: (betriebsausgaben: AnlageGLine[], f: FinanzierungsAnteile) => number
   note?: string
 }> = [
   {
     kz: '5100',
-    label: 'Kürzung Kfz-Nutzungsanteil 50% der laufenden Kfz-Kosten (privater Anteil)',
-    matcher: (ba) => {
-      const kfz = ba.find((l) => l.kennziffer === '2600')?.amount || 0
-      return kfz * 0.5
-    },
+    // Tier 438: was "Kürzung Kfz-Nutzungsanteil 50 %" — no Kürzung of § 9
+    // GewStG; the private use of a car is a withdrawal in the Gewinn.
+    label: 'Kürzung Gewinnanteile aus Kapitalgesellschaftsbeteiligungen (§ 9 Nr. 2a GewStG)',
+    note: 'In de-invoice nicht erfasst. Berater ergänzt.',
   },
   {
     kz: '5200',
@@ -300,9 +321,8 @@ export class AnlageGService {
    * year are gewerbliche Umsatzerlöse. Expense
    * categorization follows the Anlage S / EÜR
    * pattern. § 8/9 GewStG Korrekturen: only
-   * 4100 (25% Hinzurechnung Miete/Pacht) and
-   * 5100 (50% Kürzung Kfz-Nutzungsanteil) are
-   * computed; the rest is placeholder.
+   * 4100 (§ 8 Nr. 1 GewStG) is computed; the
+   * rest is placeholder.
    */
   async compute(companyId: string, year: number): Promise<AnlageGResult> {
     if (!companyId) {
@@ -355,9 +375,11 @@ export class AnlageGService {
         companyId,
         invoiceDate: { gte: yearStart, lte: yearEnd },
         status: { in: ['booked', 'deductible'] },
+        ...NOT_AFA_BOOKING, // Tier 438: the booked AfA is line 2500, below
       },
       select: {
         netAmount: true,
+        grossAmount: true,
         category: true,
       },
     })
@@ -399,34 +421,26 @@ export class AnlageGService {
     // matched above because it's a true fallback.
     // (In Anlage S, the Sonstige was true-fallback
     // too.)
-    const matchedKz = new Set<string>()
     const betriebsausgabenBuckets = new Map<string, number>()
     for (const def of BETRIEBSAUSGABEN_LINES) betriebsausgabenBuckets.set(def.kz, 0)
+    const addCost = (kz: string, cost: number) =>
+      betriebsausgabenBuckets.set(kz, (betriebsausgabenBuckets.get(kz) || 0) - cost)
+    const finanzierung: FinanzierungsAnteile = { zinsen: 0, mieteImmobil: 0, leasingMobil: 0 }
     for (const exp of expenses) {
-      // Try to match a specific Kz (2200-2880) first.
-      const matched = BETRIEBSAUSGABEN_LINES.slice(0, -1).find((d) =>
-        d.matcher(exp),
-      )
-      let kz: string
-      if (matched) {
-        kz = matched.kz
-      } else {
-        // 2890 fallback — only if not already counted
-        if (matchedKz.has(exp.category || '')) continue
-        kz = '2890'
-        matchedKz.add(exp.category || '')
-      }
-      betriebsausgabenBuckets.set(
-        kz,
-        (betriebsausgabenBuckets.get(kz) || 0) + Number(exp.netAmount),
-      )
+      // Tier 438: a cost, shown negative; the first matching line wins and
+      // 2890 takes the rest (it used to take one expense per category).
+      const cost = expenseCost(exp, kleinunternehmer)
+      const kz = BETRIEBSAUSGABEN_LINES.find((d) => d.matcher(exp))!.kz
+      addCost(kz, cost)
+      const cat = exp.category || ''
+      if (/^(Schuldzins|Zins)/i.test(cat)) finanzierung.zinsen += cost
+      else if (/^(Miete|Pacht)/i.test(cat)) finanzierung.mieteImmobil += cost
+      else if (/^Leasing/i.test(cat)) finanzierung.leasingMobil += cost
     }
+    addCost('2500', (await bookedAfaCost(this.prisma, companyId, year)).amount)
 
     // Build the einnahmen + betriebsausgaben lines
-    // in BMF order. Net amount for expenses is
-    // typically negative (e.g. -119.00 for a 19%
-    // USt invoice with subtotal 100), so the
-    // per-line amount stays negative.
+    // in BMF order; Betriebsausgaben are negative.
     const einnahmen: AnlageGLine[] = EINNAHMEN_LINES.map((d) => ({
       kennziffer: d.kz,
       label: d.label,
@@ -450,7 +464,7 @@ export class AnlageGService {
     // from the betriebsausgaben totals; the rest
     // is placeholder for the Berater.
     const hinzurechnungen: AnlageGLine[] = HINZURECHNUNGEN_LINES.map((d) => {
-      const amount = d.matcher ? round2(d.matcher(betriebsausgaben)) : 0
+      const amount = d.matcher ? round2(d.matcher(betriebsausgaben, finanzierung)) : 0
       return {
         kennziffer: d.kz,
         label: d.label,
@@ -460,7 +474,7 @@ export class AnlageGService {
       }
     })
     const kurzungen: AnlageGLine[] = KURZUNGEN_LINES.map((d) => {
-      const amount = d.matcher ? round2(d.matcher(betriebsausgaben)) : 0
+      const amount = d.matcher ? round2(d.matcher(betriebsausgaben, finanzierung)) : 0
       return {
         kennziffer: d.kz,
         label: d.label,
@@ -475,18 +489,18 @@ export class AnlageGService {
     // Gewerbeertrag = Gewinn/Verlust + Hinzu −
     // Kürzungen. Per § 7 GewStG ist der Gewerbeertrag
     // der Ausgangspunkt für die Gewerbesteuer.
-    // Freibetrag 100.000 EUR (§ 11 Abs. 1 GewStG)
-    // gilt NUR für Einzelunternehmen und
-    // Personengesellschaften — Kapitalgesellschaften
-    // (GmbH/AG) haben KEINEN Freibetrag. v1: assume
-    // Einzelunternehmen / Personengesellschaft
-    // (100k EUR Freibetrag).
+    // Tier 438: § 11 Abs. 1 GewStG — rounded down to
+    // full 100 €, less a Freibetrag of 24 500 € for
+    // natural persons and Personengesellschaften
+    // (Anlage G is their form; a Kapitalgesellschaft
+    // has none). Was 100 000 € and not rounded.
     const gewerbeertrag = round2(
       gewinnVorKorrektur + hinzurechnungenTotal - kurzungenTotal,
     )
-    const freibetrag = 100000
-    const gewerbeertragNachFreibetrag = round2(
-      Math.max(0, gewerbeertrag - freibetrag),
+    const freibetrag = FREIBETRAG_NATUERLICHE_PERSON
+    const gewerbeertragNachFreibetrag = Math.max(
+      0,
+      Math.floor(gewerbeertrag / 100) * 100 - freibetrag,
     )
 
     // Gewerbesteuer-Schätzung:
@@ -505,8 +519,9 @@ export class AnlageGService {
         ? settings.hebesatz
         : 400
     const gewerbesteuerMesszahl = 0.035
+    // Tier 438: the Hebesatz is a percentage (was × 400).
     const gewerbesteuerSchaetzung = round2(
-      gewerbeertragNachFreibetrag * gewerbesteuerMesszahl * hebesatz,
+      gewerbeertragNachFreibetrag * gewerbesteuerMesszahl * (hebesatz / 100),
     )
 
     // Diagnostics: count of Miete / Pacht / Leasing

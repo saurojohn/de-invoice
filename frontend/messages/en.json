@@ -2710,8 +2710,8 @@
     "freibetrag": "Allowance § 11 Abs. 1 GewStG (sole proprietor / partnership)",
     "hebesatz": "Hebesatz (default 400 %)",
     "hebesatzHint": "Adjust to your municipality — e.g. 470 % in Köln, 490 % in München. Company.settings.hebesatz",
-    "hinzuHint": "Only Kz 4100 (25% rent/lease) is auto-derived from bookings. Other add-backs (interest on shareholder loans, loss allocations, silent deposits) need to be added by the tax advisor from the Gewerbesteuergesetz and the contracts.",
-    "kurzungHint": "Only Kz 5100 (50% private-use share of vehicle expenses) is auto-derived. Other deductions (1.2% Grundstückserträge from the unit value, partnership profit allocations) need to be added from the contracts.",
+    "hinzuHint": "Only Kz 4100 is derived from the bookings: a quarter of the financing shares (interest 100 %, rent/lease of property 50 %, leasing 20 %) above 200,000 € (§ 8 Nr. 1 GewStG). The tax advisor checks rent = immovable / leasing = movable and adds the other add-backs from the contracts.",
+    "kurzungHint": "No deduction is derived automatically. The § 9 GewStG deductions (real estate 1.2 % of the unit value, profit shares from participations, foreign permanent establishments) are added by the tax advisor.",
     "matchedMiete": "Rent/lease bookings",
     "generatedAt": "Generated"
   },
@@ -2750,7 +2750,7 @@
   },
   "kst1": {
     "title": "KSt 1 (preview)",
-    "subtitle": "Corporate tax return (§ 1 Abs. 1 KStG) — the PRIMARY tax form for capital companies (GmbH, AG, KGaA). Anlage G is NOT applicable — KSt 1 replaces it. Reads the G+V Jahresüberschuss + computes KSt 15% + Soli 5.5% + GewSt (no 100k allowance for GmbH, default Hebesatz 400%) + KSt-Anrechnung auf GewSt (§ 35 EStG / § 26 KStG). KSt corrections (hidden profit distributions, donations, loss carryforward) are placeholder — the tax advisor adds them. Have your tax advisor review before filing.",
+    "subtitle": "Corporate tax return (§ 1 Abs. 1 KStG) — the PRIMARY tax form for capital companies (GmbH, AG, KGaA). Anlage G is NOT applicable — KSt 1 replaces it. Reads the G+V Jahresüberschuss + computes KSt 15% + Soli 5.5% + GewSt (no allowance for GmbH, default Hebesatz 400%) + KSt-Anrechnung auf GewSt (§ 35 EStG / § 26 KStG). KSt corrections (hidden profit distributions, donations, loss carryforward) are placeholder — the tax advisor adds them. Have your tax advisor review before filing.",
     "year": "Fiscal year",
     "recompute": "Compute",
     "downloadPdf": "Download PDF",

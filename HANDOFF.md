@@ -9,18 +9,19 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–437 are
-  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 437.)
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–438 are
+  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 438.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 35906829897 / commit `faf26c1`, Tier 436):**
-  - Backend e2e: **224 passed / 0 failed / 1 skipped** of 225 specs — 100
-    two-digit + 125 three-digit (Tier 437 adds `226-tier437-afa-keine-rechnung.sh`
-    on top — 226 specs from then on; Tier 436 added `225-tier436-afa-im-gewinn.sh`,
+- **Test counts (last green CI, run 35911544460 / commit `c21d995`, Tier 437):**
+  - Backend e2e: **225 passed / 0 failed / 1 skipped** of 226 specs — 100
+    two-digit + 126 three-digit (Tier 438 adds `227-tier438-anlage-g-gewerbesteuer.sh`
+    on top — 227 specs from then on; Tier 437 added `226-tier437-afa-keine-rechnung.sh`,
+    Tier 436 added `225-tier436-afa-im-gewinn.sh`,
     Tier 435 added `224-tier435-kasse-nie-negativ.sh`,
     Tier 434 `223-tier434-kasse-umbuchung.sh`, Tier 433 `222-tier433-sepa-storno.sh`,
     Tier 432 `221-tier432-sepa-datev.sh`,
@@ -2490,6 +2491,50 @@ Tier 401 run 35123354210 **failed** on backend lint — a warning
 runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
+
+### Anlage G counted costs as profit; the GewSt estimate was off (Tier 438)
+
+Anlage G shows Betriebsausgaben negative and adds them to the revenue, but
+took each expense's netAmount as it was — positive for every real expense
+(only AfA rows are stored negative). Measured with 50 050 € revenue, three
+uncategorised expenses of 100 €, rent 12 000 €, car costs 2 000 € and 1 200 €
+AfA booked (right Gewinn: 34 550 €, as GuV / EÜR):
+
+| | before | now |
+|---|---|---|
+| 2890 Sonstige | +100 (one expense per category — `matchedKz` skipped the rest) | −300 |
+| Betriebsausgaben | +12 900 | −15 500 |
+| Gewinn | **62 950** | 34 550 |
+| 4100 Hinzurechnung | 3 000 (25 % of rent) | 0 |
+| 5100 Kürzung | 1 000 (50 % of car costs) | 0 (placeholder) |
+| Freibetrag | 100 000 | 24 500 |
+| Gewerbeertrag nach Freibetrag | 0 | 10 000 (rounded down to 100 €) |
+| GewSt estimate | Messbetrag × 400 (100× too high once above the Freibetrag) | 1 400 |
+
+Law applied: § 8 Nr. 1 GewStG — a quarter of the financing shares (interest
+100 %, rent/lease of immovable property 50 %, of movable goods 20 %, licences
+25 %) as far as their sum exceeds 200 000 €; the app tells them apart by
+category only (Schuldzins/Zins 100 %, Miete/Pacht 50 %, Leasing 20 %) and says
+so in the line's note. § 9 GewStG has no car-cost Kürzung (private use is a
+withdrawal in the Gewinn); 5100 is now the § 9 Nr. 2a placeholder, 4200 the
+§ 8 Nr. 10 one (was a non-existent "50 % Schuldzinsen Gesellschafter-Darlehen"
+rule). § 11 Abs. 1: rounded down to full 100 €, Freibetrag 24 500 € for
+natural persons and Personengesellschaften — Anlage G's filers. The
+GewSt 1A report (gewst.service) reads these totals and was right in its own
+formula (÷ 100). The booked AfA goes to 2500 via `bookedAfaCost`; a
+Kleinunternehmer's expenses count gross (`expenseCost`), as elsewhere.
+Texts (packager README, hints de/en/zh, KSt 1 subtitle) no longer say 100k.
+
+Spec `e2e/227-tier438-anlage-g-gewerbesteuer.sh` (16 assertions, 12 failing
+against the previous code). Spec 126 asserted the old rules (4100 = 25 % of
+2200, 5100 = 50 % of 2600, Freibetrag 100 000) and is corrected.
+Local runs: backend **226 / 0 / 1** (50-webhooks local-only nip.io failure
+aside), 0 × 500; Playwright **930**, no flaky.
+
+Found, not changed: `Company.rechtsform` is read by KSt 1 and the packager
+but does not exist in the schema — every company counts as a GmbH there. KSt 1
+credits 3,8 × the GewSt-Messbetrag against the Körperschaftsteuer (§ 35 EStG
+is an income-tax relief for natural persons; a GmbH gets none) — to measure.
 
 ### An AfA booking is no supplier invoice (Tier 437)
 
