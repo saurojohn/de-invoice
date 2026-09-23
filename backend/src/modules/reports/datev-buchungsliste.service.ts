@@ -641,6 +641,7 @@ export class DatevBuchungslisteService {
 const ACCOUNT_USAGE: [string, string][] = [
   ['bank', 'Bank'],
   ['cash', 'Kasse'],
+  ['transit', 'Geldtransit'],
   ['receivable', 'Forderungen (Sammelkonto)'],
   ['payable', 'Verbindlichkeiten (Sammelkonto)'],
   ['revenue19', 'Erlöse 19 %'],
@@ -665,6 +666,7 @@ const ACCOUNT_USAGE: [string, string][] = [
 
 const SKR03_NAMES: Record<string, string> = {
   '1000': 'Kasse',
+  '1360': 'Geldtransit',
   '1200': 'Bank',
   '1600': 'Verbindlichkeiten aus Lieferungen und Leistungen',
   '1406': 'Forderungen aus Lieferungen und Leistungen',

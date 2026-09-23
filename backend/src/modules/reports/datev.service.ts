@@ -61,6 +61,7 @@ const QUOTE = '"'
 export interface DatevAccountMap {
   bank: string
   cash: string
+  transit: string
   receivable: string
   payable: string
   revenue19: string
@@ -92,6 +93,7 @@ export interface DatevAccountMap {
 export const SKR03_DEFAULTS: DatevAccountMap = {
   bank: '1200',                 // Bank
   cash: '1000',                 // Kasse (Tier 425)
+  transit: '1360',              // Geldtransit (Tier 434)
   receivable: '1406',           // Forderungen aus L+L (the bank import's vouchers use it too)
   payable: '1600',              // Verbindlichkeiten aus L+L (Sammelkonto der Kreditoren)
   revenue19: '8400',            // Erlöse 19 % USt (Automatikkonto)
@@ -682,6 +684,25 @@ export async function buildBuchungenFromDb(
       steuerKonto: key
         ? (inbound ? (same(c.rate, 0.07) ? a.vatPayable7 : a.vatPayable19) : (same(c.rate, 0.07) ? a.inputVat7 : a.inputVat19))
         : undefined,
+    })
+  }
+  // Tier 434: a Kassenbuch "Umbuchung" takes cash to the bank. It reached
+  // no export. Booked Geldtransit an Kasse (SKR03 1360): the bank side
+  // arrives with the bank statement (Bank an Geldtransit), so the deposit is
+  // not counted twice when the statement is imported too.
+  const transfers = await prisma.cashBookEntry.findMany({
+    where: { companyId, businessDate: { gte: startDate, lte: endDate }, type: 'umbuchung' },
+    orderBy: [{ businessDate: 'asc' }, { createdAt: 'asc' }],
+  })
+  for (const t of transfers) {
+    out.push({
+      belegdatum: t.businessDate,
+      belegfeld1: t.belegNumber || `KB-${t.id.substring(0, 8)}`,
+      konto: a.cash,
+      gegenkonto: a.transit,
+      betrag: r2(Number(t.amount)),
+      shVz: 'H',
+      buchungstext: t.description.substring(0, 60),
     })
   }
   for (const e of cashPaidExpenses) {

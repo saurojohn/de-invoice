@@ -1649,6 +1649,7 @@
     "datevDefaultsHint": "Empty = use SKR03 default. Only override the accounts that differ.",
     "datevAccount_bank": "Bank (1200)",
     "datevAccount_cash": "Cash (1000)",
+    "datevAccount_transit": "Money in transit (1360)",
     "datevAccount_receivable": "Receivables (1406)",
     "datevAccount_payable": "Payables (1600)",
     "datevAccount_revenue19": "Revenue 19% VAT (8400)",

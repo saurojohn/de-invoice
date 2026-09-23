@@ -1649,6 +1649,7 @@
     "datevDefaultsHint": "留空 = 使用 SKR03 默认值。仅填写不同的科目。",
     "datevAccount_bank": "银行 (1200)",
     "datevAccount_cash": "现金 (1000)",
+    "datevAccount_transit": "在途资金 (1360)",
     "datevAccount_receivable": "应收账款 (1406)",
     "datevAccount_payable": "应付账款 (1600)",
     "datevAccount_revenue19": "收入 19% 增值税 (8400)",

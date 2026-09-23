@@ -2488,6 +2488,27 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Cash taken to the bank reaches DATEV (Tier 434)
+
+Measured before: a Kassenbuch "Umbuchung" (cash paid in at the bank, 300 €)
+was in no DATEV export. Opening 500 + a cash sale of 595 − the 300 taken to
+the bank leaves 795 in the Kassenbuch, but Kasse 1000 in the Berater's books
+ended the month at 595 from the export alone instead of 295 — the Kasse was
+300 € too high for good.
+
+`buildBuchungenFromDb` now books every Umbuchung of the period as
+"Kasse 1000 an Geldtransit 1360" (H), Belegfeld1 = the entry's Belegnummer.
+The bank side comes with the bank statement (Bank an Geldtransit), so 1360
+nets to zero once both are booked. A Storno of the Umbuchung (a negative
+counter-entry) books the reverse and leaves 1360 at 0. New account slot
+`transit` (SKR03 1360 "Geldtransit") in the DATEV account settings and the
+Buchungsliste, labelled de/en/zh.
+
+Spec `e2e/223-tier434-kasse-umbuchung.sh` (5 assertions, 2 failing against
+the previous code). No existing spec needed a change.
+Local runs: backend **222 / 0 / 1** (50-webhooks fails locally only — nip.io
+does not resolve here; green in CI), 0 × 500; Playwright **930**, no flaky.
+
 ### A SEPA batch the bank did not execute can be cancelled (Tier 433)
 
 Measured before: there was no way to. Once generated, a batch's expenses
