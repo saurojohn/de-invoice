@@ -2489,6 +2489,43 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Booked AfA lowers the profit in every report (Tier 436)
+
+"AfA buchen" (Tier 87) stores each asset's AfA as an Expense row with category
+`AfA` and a **negative** netAmount/grossAmount. Only BWA and Anlage G handled
+that sign. Measured with 5 000 € revenue and one machine with 1 200 € AfA
+booked for the year (right answer 3 800 €):
+
+| report | before | now |
+|---|---|---|
+| GuV 7a / Jahresüberschuss | −1 200 / **6 200** | 1 200 / 3 800 |
+| EÜR | no AfA line, Gewinn **5 000** | 4600 AfA 1 200, Gewinn 3 800 |
+| Anlage S 4600 / Gewinn | −1 200 / **6 200** | 1 200 / 3 800 |
+| Anlage V 8600 | **−1 200** (a machine) | 0 |
+| BWA, Anlage G | 3 800 | 3 800 |
+
+GuV's cost lines are positive and subtracted — the booked 7a was negative
+(while its computed fallback was positive), so the AfA was *added* to the
+result; KSt 1 and the E-Bilanz take the GuV and inherited it. The EÜR skipped
+AfA rows ("AfA lives in Anlage AVEÜR" — AVEÜR lists the assets; the AfA is a
+Betriebsausgabe of the EÜR itself). Anlage V made both of its 8600 paths
+negative on purpose; spec 118 made that add up by seeding its expenses with
+negative amounts, which the app never stores, and asserted an Überschuss of
+3 500 − (−8 300) = 11 800 for 3 500 € rent against 8 300 € of costs.
+
+New `accounting/booked-afa.ts` (`bookedAfaCost`): the year's booked AfA as a
+positive cost, used by GuV, EÜR (new line 4600 "Absetzung für Abnutzung",
+between 5800 and 5900) and Anlage S. Anlage V's 8600 is positive on both paths
+and takes booked AfA of the rental pool (Grundstück/Gebäude) only, as its
+computed path always did. The frontend already rendered every expense total
+as "−{amount}", i.e. expected positives.
+
+Spec `e2e/225-tier436-afa-im-gewinn.sh` (16 assertions, 7 failing against the
+previous code). Specs changed: 113 (GuV 7a and Anlage S 4600 are +1000, not
+−1000), 118 (positive expense fixtures; 8600 = 6000; Überschuss −4 800),
+102 and Playwright `anlage-eur` (7 expense lines).
+Local runs: backend **224 / 0 / 1**, 0 × 500; Playwright **930**, no flaky.
+
 ### The Kassenbestand never goes below zero (Tier 435)
 
 Measured before: an Ausgabe of 80 € into an empty till → 201, balance −80;

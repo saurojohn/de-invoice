@@ -248,7 +248,14 @@ export class AnlageVService {
         invoiceDate: { gte: yearStart, lte: yearEnd },
         category: 'AfA',
         afaYear: year,
-        relatedAssetId: { not: null },
+        // Tier 436: the rental pool only, as the computed fallback below — a
+        // machine's AfA is no Werbungskosten of a rental.
+        relatedAssetId: {
+          in: (await this.prisma.asset.findMany({
+            where: { companyId, type: { in: ['Grundstueck', 'Gebaeude'] } },
+            select: { id: true },
+          })).map((x) => x.id),
+        },
       },
       select: { netAmount: true, relatedAssetId: true },
     })
@@ -332,13 +339,17 @@ export class AnlageVService {
           return {
             kennziffer: d.kz,
             label: d.label,
-            amount: round2(bookedAfaSum),
+            // Tier 436: a cost, positive like every other Werbungskosten
+            // line (the rows store it negative). Both 8600 paths were
+            // negative, so the Überschuss (Einnahmen − Werbungskosten)
+            // grew by the AfA instead of shrinking.
+            amount: round2(-bookedAfaSum),
           }
         }
         return {
           kennziffer: d.kz,
           label: d.label,
-          amount: round2(-Math.abs(computedAfaSum)),
+          amount: round2(Math.abs(computedAfaSum)),
         }
       }
       return {

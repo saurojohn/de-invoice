@@ -1,4 +1,5 @@
 import { expenseCost } from './expense-cost'
+import { bookedAfaCost } from './booked-afa'
 import { cashBookings } from '../cashbook/cash-bookings'
 import { Injectable } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
@@ -237,20 +238,12 @@ export class GuVService {
     // (and only when present — the in-memory
     // computed value is the fallback when no
     // booking has been made).
-    const bookedAfa = await this.prisma.expense.findMany({
-      where: {
-        companyId,
-        invoiceDate: { gte: yearStart, lte: yearEnd },
-        category: 'AfA',
-        afaYear: year,
-        relatedAssetId: { not: null },
-      },
-      select: { grossAmount: true },
-    })
-    const bookedAfASum = bookedAfa.reduce(
-      (s, e) => s.plus(e.grossAmount ?? new Prisma.Decimal(0)),
-      new Prisma.Decimal(0),
-    ).toNumber()
+    // Tier 436: as a cost (booked-afa.ts). The rows' amount is negative and
+    // 7a took it as it was — while the computed fallback and every other
+    // cost line are positive — so the Betriebsergebnis came out as revenue
+    // PLUS the AfA.
+    const bookedAfa = await bookedAfaCost(this.prisma, companyId, year)
+    const bookedAfASum = bookedAfa.amount
     const useBookedAfA = bookedAfASum !== 0
 
     // Bucket the expenses using Anlage S / EÜR
@@ -542,7 +535,7 @@ export class GuVService {
         // the in-memory computed value; >0 =
         // 7a line uses real booked AfA Expense
         // rows.
-        afaBookings: bookedAfa.length,
+        afaBookings: bookedAfa.count,
         assets: yearAssets.length,
       },
       // Tier 87: expose to the UI which mode

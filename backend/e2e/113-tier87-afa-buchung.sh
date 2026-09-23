@@ -190,7 +190,9 @@ for l in d['cost']['lines']:
 ")
 GUV_AFA_SOURCE=$(echo "$GUV" | python3 -c "import json,sys; print(json.load(sys.stdin)['afaSource'])")
 GUV_AFA_BOOKINGS=$(echo "$GUV" | python3 -c "import json,sys; print(json.load(sys.stdin)['counts']['afaBookings'])")
-assert_eq "G+V 7a = -1000" "$GUV_7A" "-1000"
+# Tier 436: a cost, positive like the other cost lines (and the computed
+# fallback); -1000 was subtracted from the revenue and raised the result.
+assert_eq "G+V 7a = 1000" "$GUV_7A" "1000"
 assert_eq "G+V afaSource = booked" "$GUV_AFA_SOURCE" "booked"
 assert_eq "G+V afaBookings = 1" "$GUV_AFA_BOOKINGS" "1"
 
@@ -210,7 +212,9 @@ for l in d['ausgaben']:
 ")
 ANS_AFA_SOURCE=$(echo "$ANS" | python3 -c "import json,sys; print(json.load(sys.stdin)['afaSource'])")
 ANS_AFA_BOOKINGS=$(echo "$ANS" | python3 -c "import json,sys; print(json.load(sys.stdin)['counts']['afaBookings'])")
-assert_eq "Anlage S 4600 = -1000" "$ANS_4600" "-1000"
+# Tier 436: an expense line of Anlage S is a positive cost (it is subtracted
+# from the revenue); -1000 made the AfA raise the Gewinn.
+assert_eq "Anlage S 4600 = 1000" "$ANS_4600" "1000"
 assert_eq "Anlage S afaSource = booked" "$ANS_AFA_SOURCE" "booked"
 assert_eq "Anlage S afaBookings = 1" "$ANS_AFA_BOOKINGS" "1"
 

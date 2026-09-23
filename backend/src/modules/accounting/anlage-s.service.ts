@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common'
-import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
 import { Response } from 'express'
 import PDFDocument from 'pdfkit'
@@ -7,6 +6,7 @@ import { invoiceNetRevenue } from '../invoice/tax-breakdown';
 import { SALES_TYPES } from '../invoice/document-scope'
 import { cashBookings } from '../cashbook/cash-bookings'
 import { expenseCost } from './expense-cost'
+import { bookedAfaCost } from './booked-afa'
 
 /**
  * Tier 80: Anlage S — Einkünfte aus
@@ -259,26 +259,10 @@ export class AnlageSService {
       },
     })
 
-    // Tier 87: AfA-Buchung rows for 4600. Pulled
-    // separately because the EXPENSE_LINES matcher
-    // for 4600 is a stub (returns false) — the
-    // booked AfA is a SIGNAL not a category match.
-    // We sum the netAmount (= -annualAfA, negative
-    // reduces profit) and write it to 4600 below.
-    const bookedAfa = await this.prisma.expense.findMany({
-      where: {
-        companyId,
-        invoiceDate: { gte: yearStart, lte: yearEnd },
-        category: 'AfA',
-        afaYear: year,
-        relatedAssetId: { not: null },
-      },
-      select: { netAmount: true },
-    })
-    const bookedAfaSum = bookedAfa.reduce(
-      (s, e) => s.plus(e.netAmount ?? new Prisma.Decimal(0)),
-      new Prisma.Decimal(0),
-    ).toNumber()
+    // Tier 87: AfA-Buchung rows for 4600 (the 4600 matcher is a stub).
+    // Tier 436: as a cost — the rows' netAmount is negative, and the line
+    // took it as it was, so the AfA raised the Gewinn (booked-afa.ts).
+    const bookedAfa = await bookedAfaCost(this.prisma, companyId, year)
 
     // Bucket revenues by Kennziffer. The
     // matchers are evaluated in order; the first
@@ -331,8 +315,8 @@ export class AnlageSService {
       amount: round2(einnahmenBuckets.get(d.kz) || 0),
     }))
     const ausgaben: AnlageSLine[] = EXPENSE_LINES.map((d) => {
-      // Tier 87: 4600 AfA gets the booked AfA sum
-      // (negative netAmount). If no booking exists
+      // Tier 87: 4600 AfA gets the booked AfA
+      // (a cost, Tier 436). If no booking exists
       // for this year, 4600 stays at 0 (the
       // computed-fallback path would require an
       // AssetsService import here; we keep v1
@@ -342,7 +326,7 @@ export class AnlageSService {
         return {
           kennziffer: d.kz,
           label: d.label,
-          amount: round2(bookedAfaSum),
+          amount: round2(bookedAfa.amount),
         }
       }
       return {
@@ -371,11 +355,11 @@ export class AnlageSService {
         expenses: expenses.length,
         // Tier 87: how many AfA bookings exist
         // for this year.
-        afaBookings: bookedAfa.length,
+        afaBookings: bookedAfa.count,
       },
       // Tier 87: 4600 is "gebucht" if a booking
       // exists, else "nicht gebucht" (0).
-      afaSource: bookedAfa.length > 0 ? 'booked' : 'nicht_gebucht',
+      afaSource: bookedAfa.count > 0 ? 'booked' : 'nicht_gebucht',
       generatedAt: new Date().toISOString(),
       disclaimer:
         'Diese Vorschau wurde automatisch aus Ihren Buchungen generiert. ' +

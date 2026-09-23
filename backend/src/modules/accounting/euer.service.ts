@@ -6,6 +6,7 @@ import { invoiceNetRevenue } from '../invoice/tax-breakdown';
 import { SALES_TYPES } from '../invoice/document-scope'
 import { cashBookings } from '../cashbook/cash-bookings'
 import { expenseCost } from './expense-cost'
+import { bookedAfaCost } from './booked-afa'
 
 /**
  * Tier 76: Anlage EÜR (Einnahmen-Überschuss-Rechnung).
@@ -39,6 +40,7 @@ import { expenseCost } from './expense-cost'
  *     5400  Raumkosten
  *     5600  Werbe-/Reisekosten
  *     5800  Instandhaltung / EDV
+ *     4600  AfA (booked by "AfA buchen", Tier 436)
  *     5900  Sonstige Aufwendungen
  *
  *   RESULT:
@@ -151,6 +153,14 @@ const EXPENSE_LINES: Array<{ kz: string; label: string; matcher: (exp: any) => b
     matcher: (exp) => /^(EDV|Instandhaltung|Werkzeug|Reparatur)/i.test(exp.category || ''),
   },
   {
+    // Tier 436: the AfA booked for the year (booked-afa.ts). The EÜR left it
+    // out — "it lives in Anlage AVEÜR" — but AVEÜR only lists the assets;
+    // the AfA itself is a Betriebsausgabe of the EÜR (§ 4 Abs. 3 Satz 3 EStG).
+    kz: '4600',
+    label: 'Absetzung für Abnutzung (AfA)',
+    matcher: () => false,
+  },
+  {
     kz: '5900',
     label: 'Sonstige Aufwendungen (Büro, Porto, Versicherung)',
     matcher: () => false, // fallback
@@ -219,9 +229,8 @@ export class EuerService {
       },
     })
     // Same approach for expenses. Tier 87:
-    // exclude booked AfA rows (category='AfA')
-    // — AfA doesn't have a Kennziffer in EÜR
-    // (it lives in Anlage AVEINV).
+    // exclude booked AfA rows (category='AfA');
+    // Tier 436: they go to the 4600 line below.
     const expenses = await this.prisma.expense.findMany({
       where: {
         companyId,
@@ -280,13 +289,8 @@ export class EuerService {
     const ausgabenBuckets = new Map<string, number>()
     for (const def of EXPENSE_LINES) ausgabenBuckets.set(def.kz, 0)
     for (const exp of expenses) {
-      // Tier 87: skip booked AfA rows. The EÜR
-      // (§ 4 Abs. 3 EStG) doesn't have a Kennziffer
-      // for AfA — AfA lives in Anlage AVEINV. If we
-      // let the row fall through to the 5900 fallback
-      // here, it would double-count (the AfA is
-      // already accounted for in Anlage S 4600 and
-      // G+V 7a / BWA 3100).
+      // Tier 87: skip booked AfA rows — they are
+      // the 4600 line (Tier 436), not a 5900 fallback.
       if (/^AfA/i.test(exp.category || '')) continue
       const matched = EXPENSE_LINES.find((d) => d.matcher(exp))
       const kz = matched?.kz || '5900'
@@ -308,6 +312,8 @@ export class EuerService {
         ausgabenBuckets.set('5900', (ausgabenBuckets.get('5900') || 0) + amount)
       }
     }
+
+    ausgabenBuckets.set('4600', (await bookedAfaCost(this.prisma, companyId, year)).amount)
 
     // Build the final lines in the order the BMF
     // uses (so the PDF/UI reads top-to-bottom in

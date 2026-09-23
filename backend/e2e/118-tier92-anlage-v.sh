@@ -88,8 +88,8 @@ VALUES (gen_random_uuid()::text, '$COMPANY_ID', 'Gebaeude', 'T92-${TS}-Gebaeude-
 
 INSERT INTO "Expense" (id, "companyId", "supplierId", "invoiceNumber", description, "invoiceDate", "netAmount", "vatRate", "vatAmount", "grossAmount", category, "isIntraEU", "isReverseCharge", status, notes, "createdAt", "updatedAt")
 VALUES
-  (gen_random_uuid()::text, '$COMPANY_ID', NULL, NULL, 'T92-${TS}-Schuldzinsen Q1', '${TEST_YEAR}-03-15', -1500, 0, 0, -1500, 'Schuldzinsen', false, false, 'booked', 'T92-${TS}-schuldzins test fixture', now(), now()),
-  (gen_random_uuid()::text, '$COMPANY_ID', NULL, NULL, 'T92-${TS}-Grundsteuer Q1', '${TEST_YEAR}-04-15', -800, 0, 0, -800, 'Grundsteuer', false, false, 'booked', 'T92-${TS}-grundsteuer test fixture', now(), now());
+  (gen_random_uuid()::text, '$COMPANY_ID', NULL, NULL, 'T92-${TS}-Schuldzinsen Q1', '${TEST_YEAR}-03-15', 1500, 0, 0, 1500, 'Schuldzinsen', false, false, 'booked', 'T92-${TS}-schuldzins test fixture', now(), now()),
+  (gen_random_uuid()::text, '$COMPANY_ID', NULL, NULL, 'T92-${TS}-Grundsteuer Q1', '${TEST_YEAR}-04-15', 800, 0, 0, 800, 'Grundsteuer', false, false, 'booked', 'T92-${TS}-grundsteuer test fixture', now(), now());
 EOF
 docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice < "$TMP_SQL"
 rm -f "$TMP_SQL"
@@ -163,13 +163,16 @@ E8120=$(echo "$RESP2" | python3 -c "import json,sys; d=json.load(sys.stdin); [pr
 assert_eq "8100 (USt-pflichtig) = 2000" "$E8100" "2000.00"
 assert_eq "8120 (§19 UStG) = 1500" "$E8120" "1500.00"
 
-# ===== 3. 8620 Schuldzinsen = -1500 =====
-# We have 1 Schuldzins expense of -1500.
+# ===== 3. 8620 Schuldzinsen = 1500 =====
+# Tier 436: the fixture used to seed the expenses with NEGATIVE amounts, which
+# the app never stores (an expense of 1 500 € has netAmount 1500) — and only
+# with them did the negative AfA line add up. Werbungskosten are costs now,
+# positive, and the Überschuss is Einnahmen − Werbungskosten.
 E8620=$(echo "$RESP2" | python3 -c "import json,sys; d=json.load(sys.stdin); [print('{:.2f}'.format(l['amount'])) for l in d['werbungskosten'] if l['kennziffer']=='8620']")
-assert_eq "8620 Schuldzinsen = -1500" "$E8620" "-1500.00"
-# 8630 Grundsteuer = -800
+assert_eq "8620 Schuldzinsen = 1500" "$E8620" "1500.00"
+# 8630 Grundsteuer = 800
 E8630=$(echo "$RESP2" | python3 -c "import json,sys; d=json.load(sys.stdin); [print('{:.2f}'.format(l['amount'])) for l in d['werbungskosten'] if l['kennziffer']=='8630']")
-assert_eq "8630 Grundsteuer = -800" "$E8630" "-800.00"
+assert_eq "8630 Grundsteuer = 800" "$E8630" "800.00"
 
 # ===== 4. 8600 Gebäude-AfA = computed (no booking) =====
 # No booking exists yet for the test year →
@@ -184,11 +187,9 @@ assert_eq "afaSource = computed (no booking)" "$AFA_SOURCE" "computed"
 # 2028 - 2020 = 8y held. 600 months ND
 # means fully depreciated at year 50.
 # 2028 still in the ND window, so annualAfA
-# = 12 * 500 = 6000. Sign: should be
-# negative (it's an expense).
-# 6000.00
-EXPECTED_8600="-6000.00"
-assert_eq "8600 computed AfA = -6000" "$E8600_RAW" "$EXPECTED_8600"
+# = 12 * 500 = 6000, a cost like the other lines (Tier 436).
+EXPECTED_8600="6000.00"
+assert_eq "8600 computed AfA = 6000" "$E8600_RAW" "$EXPECTED_8600"
 
 # ===== 4b. After booking, afaSource = 'booked' =====
 # Book the AfA for the asset (annual mode)
@@ -206,24 +207,14 @@ RESP3=$(curl -sS \
 E8600_BOOKED=$(echo "$RESP3" | python3 -c "import json,sys; d=json.load(sys.stdin); [print('{:.2f}'.format(l['amount'])) for l in d['werbungskosten'] if l['kennziffer']=='8600']")
 AFA_SOURCE_BOOKED=$(echo "$RESP3" | python3 -c "import json,sys; print(json.load(sys.stdin)['afaSource'])")
 assert_eq "afaSource = booked (after booking)" "$AFA_SOURCE_BOOKED" "booked"
-assert_eq "8600 booked AfA = -6000" "$E8600_BOOKED" "-6000.00"
+assert_eq "8600 booked AfA = 6000" "$E8600_BOOKED" "6000.00"
 
 # ===== 5. Überschuss = einnahmen - werbungskosten =====
-# einnahmen = 2000 + 1500 = 3500
-# werbungskosten = -6000 - 1500 - 800 = -8300
-# (the 8600 AfA is -6000 even though
-#  werbungskostenTotal is computed as
-#  the absolute sum |wait no| — the service
-#  computes werbungskostenTotal as the
-#  literal sum of all werbungskosten
-#  amounts, which are negative).
-# ueberschuss = 3500 - (-8300) = 11800
-# Actually: the totals.werbungskostenTotal
-# is the literal sum of the negative
-# amounts = -8300. einnahmenTotal is 3500.
-# ueberschuss = 3500 - (-8300) = 11800.
+# einnahmen 2000 + 1500 = 3500; werbungskosten 6000 + 1500 + 800 = 8300.
+# Tier 436: was asserted as 3500 - (-8300) = 11800 — the AfA and the costs
+# raising the Überschuss.
 UEBERSCHUSS=$(echo "$RESP3" | python3 -c "import json,sys; print('{:.2f}'.format(json.load(sys.stdin)['totals']['ueberschuss']))")
-assert_eq "ueberschuss = 3500 - (-8300) = 11800" "$UEBERSCHUSS" "11800.00"
+assert_eq "ueberschuss = 3500 - 8300 = -4800" "$UEBERSCHUSS" "-4800.00"
 
 # ===== 6. /anlage-v.pdf returns valid PDF =====
 echo
