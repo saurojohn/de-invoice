@@ -17,10 +17,10 @@ exact commands + docs you need to be productive.
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 35975456075 / commit `51cf653`, Tier 440):**
-  - Backend e2e: **228 passed / 0 failed / 1 skipped** of 229 specs — 100
-    two-digit + 129 three-digit (Tier 441 adds `230-tier441-rechtsform.sh` on top —
-    230 specs from then on; Tier 440 added `229-tier440-anlagenabgang.sh`,
+- **Test counts (last green CI, run 35980058793 / commit `c666738`, Tier 441):**
+  - Backend e2e: **229 passed / 0 failed / 1 skipped** of 230 specs — 100
+    two-digit + 130 three-digit (Tier 441 added `230-tier441-rechtsform.sh`,
+    Tier 440 added `229-tier440-anlagenabgang.sh`,
     Tier 439 added `228-tier439-kst-ohne-anrechnung.sh`,
     Tier 438 added `227-tier438-anlage-g-gewerbesteuer.sh`,
     Tier 437 added `226-tier437-afa-keine-rechnung.sh`,
