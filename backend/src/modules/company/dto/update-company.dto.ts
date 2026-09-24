@@ -1,3 +1,4 @@
+import { RECHTSFORMEN } from '../rechtsform';
 import {
   IsString,
   IsOptional,
@@ -197,4 +198,10 @@ export class UpdateCompanyDto {
   @IsIn(['standard', 'reverseCharge', 'igL', 'kleinunternehmer'])
   @IsOptional()
   defaultVatMode?: string;
+
+  // Tier 441: the legal form (company/rechtsform.ts); null clears it.
+  @IsString()
+  @IsIn(RECHTSFORMEN as unknown as string[], { message: `rechtsform muss eine von ${RECHTSFORMEN.join(', ')} sein` })
+  @IsOptional()
+  rechtsform?: string | null;
 }

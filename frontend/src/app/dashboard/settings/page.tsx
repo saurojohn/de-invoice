@@ -83,7 +83,16 @@ interface CompanySettings {
   // Allowed values: "standard" | "reverseCharge" |
   // "igL" | "kleinunternehmer".
   defaultVatMode: "standard" | "reverseCharge" | "igL" | "kleinunternehmer" | null
+  // Tier 441: legal form; null = derived from the company name by the
+  // backend (company/rechtsform.ts).
+  rechtsform: string | null
 }
+
+// Tier 441: the values the backend accepts (company/rechtsform.ts).
+const RECHTSFORMEN = [
+  "Einzelunternehmen", "Freiberufler", "GbR", "PartG", "OHG", "KG",
+  "GmbH & Co. KG", "GmbH", "UG (haftungsbeschränkt)", "AG", "KGaA",
+]
 
 export default function SettingsPage() {
   const router = useRouter()
@@ -215,6 +224,7 @@ export default function SettingsPage() {
     invoicePrefix: "INV",
     defaultPaymentDays: 30,
     defaultVatMode: null,
+    rechtsform: null,
   })
 
   const [storageForm, setStorageForm] = useState<StorageSettings>({
@@ -308,6 +318,7 @@ export default function SettingsPage() {
               // form will show the radio group without
               // a pre-selected option.
               defaultVatMode: data.defaultVatMode ?? null,
+              rechtsform: data.rechtsform ?? null,
             })
 
             if (data.logoPath) {
@@ -554,6 +565,7 @@ export default function SettingsPage() {
           // every time" — the radio is unselected on
           // invoice create.
           defaultVatMode: fresh.defaultVatMode ?? null,
+          rechtsform: fresh.rechtsform ?? null,
         })
       }
       toast.error(t("settings.saved"))
@@ -1166,6 +1178,25 @@ export default function SettingsPage() {
                   </select>
                   <p className="text-xs text-gray-600 mt-1">
                     {t("settings.defaultVatModeHelp")}
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    {t("settings.rechtsform")}
+                  </label>
+                  <select
+                    className="w-full h-10 border rounded-md px-3"
+                    value={form.rechtsform ?? ""}
+                    onChange={(e) => setForm({ ...form, rechtsform: e.target.value || null })}
+                    data-testid="settings-rechtsform"
+                  >
+                    <option value="">{t("settings.rechtsformNone")}</option>
+                    {RECHTSFORMEN.map((r) => (
+                      <option key={r} value={r}>{r}</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-600 mt-1">
+                    {t("settings.rechtsformHelp")}
                   </p>
                 </div>
                 <div>

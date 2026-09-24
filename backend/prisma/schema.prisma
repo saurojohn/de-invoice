@@ -54,6 +54,10 @@ model Company {
   // / "igL" to auto-pick that radio button on invoice create
   // and pre-stamp the USt-Behandlung on the PDF.
   defaultVatMode     String?
+  // Tier 441: legal form (company/rechtsform.ts). NULL = derived from the
+  // name ("… GmbH") where possible. Decides KSt 1 vs Anlage G and the
+  // GewSt Freibetrag.
+  rechtsform         String?
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 

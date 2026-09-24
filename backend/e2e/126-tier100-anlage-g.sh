@@ -105,8 +105,10 @@ assert_eq "Gewerbeertrag identity" "$(echo "$GE" | cut -d'|' -f1)" "True"
 pass "gewerbeertrag=$(echo "$GE" | cut -d'|' -f5) (expected $(echo "$GE" | cut -d'|' -f6))"
 rm -f "$TMP"
 
-# ===== 7. Freibetrag 24 500 EUR + Hebesatz default 400% =====
-# Tier 438: was 100 000 (§ 11 Abs. 1 Nr. 1 GewStG: 24 500).
+# ===== 7. Freibetrag + Hebesatz default 400% =====
+# Tier 438: was 100 000 (§ 11 Abs. 1 Nr. 1 GewStG: 24 500 for natural persons
+# and partnerships). Tier 441: the seeded company, SH Leder GmbH, is a
+# corporation — no Freibetrag (spec 230 covers both).
 echo
 note "=== 7. Freibetrag 24 500 + Hebesatz default 400% ==="
 api_get "/api/v1/accounting/anlage-g?companyId=$COMPANY_ID&year=2026"
@@ -115,7 +117,7 @@ TMP=$(mktemp); printf '%s' "$BODY" > "$TMP"
 FB=$(python3 -c "import json,sys; print(json.load(sys.stdin)['totals']['freibetrag'])" < "$TMP")
 HEB=$(python3 -c "import json,sys; print(json.load(sys.stdin)['totals']['hebesatz'])" < "$TMP")
 SMZ=$(python3 -c "import json,sys; print(json.load(sys.stdin)['totals']['gewerbesteuerMesszahl'])" < "$TMP")
-assert_eq "freibetrag == 24500" "$FB" "24500"
+assert_eq "freibetrag == 0 (a GmbH)" "$FB" "0"
 assert_eq "hebesatz == 400" "$HEB" "400"
 assert_eq "steuermesszahl == 0.035" "$SMZ" "0.035"
 rm -f "$TMP"

@@ -20,9 +20,13 @@ TAG="e2e-227-$(date +%s%N | cut -c1-13)"
 Y=2025
 
 company() {
+  # Tier 441: a sole trader — Anlage G is their form, and a GmbH has no
+  # Freibetrag (spec 230).
   read -r U C < <(curl -sS -X POST "$API/api/v1/auth/register" -H "Content-Type: application/json" \
-    -d "{\"email\":\"$1@example.test\",\"password\":\"Tier438-e2e\",\"companyName\":\"$1 GmbH\"}" \
+    -d "{\"email\":\"$1@example.test\",\"password\":\"Tier438-e2e\",\"companyName\":\"$1 Handel\"}" \
     | python3 -c "import sys,json;d=json.load(sys.stdin);print(d['user']['id'], d['user'].get('companyId') or d['company']['id'])" 2>/dev/null)
+  curl -sS -o /dev/null -X PUT "$API/api/v1/companies/$C" -H "x-user-id: $U" -H "x-company-id: $C" \
+    -H "Content-Type: application/json" -d '{"rechtsform":"Einzelunternehmen"}'
 }
 AS() { # method path [body]
   local resp

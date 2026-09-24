@@ -1,3 +1,4 @@
+import { resolveRechtsform, isKapitalgesellschaft } from '../company/rechtsform'
 import { Injectable, BadRequestException } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import { Response } from 'express'
@@ -257,15 +258,15 @@ export class AnlageAUSService {
 
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
-      select: { settings: true, legalName: true },
+      select: { settings: true, legalName: true, name: true, rechtsform: true },
     })
     const settings = (company?.settings as any) || {}
-    // Rechtsform isn't a top-level Company column —
-    // it's stored in settings.rechtsform. Fall back
-    // to legalName heuristic if not in settings.
-    const rechtsform =
-      String(settings.rechtsform || company?.legalName || '')
-    const isKapg = /^(GmbH|AG|KGaA|UG)/i.test(rechtsform)
+    // Tier 441: the company's legal form (company/rechtsform.ts). Was the
+    // settings value or the legal name tested with /^(GmbH|…)/ — "Muster
+    // GmbH" does not START with GmbH, so no GmbH got the § 8b KStG rule.
+    const resolved = company ? resolveRechtsform(company) : { rechtsform: null }
+    const rechtsform = resolved.rechtsform ?? ''
+    const isKapg = isKapitalgesellschaft(resolved.rechtsform)
 
     const anlageAusAll = (settings.anlageAUS as any) || {}
     const yearData = anlageAusAll[year] || {}

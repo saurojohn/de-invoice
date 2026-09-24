@@ -9,17 +9,19 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–439 are
-  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 439.)
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–441 are
+  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 441.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 35920709870 / commit `d802d85`, Tier 439):**
-  - Backend e2e: **227 passed / 0 failed / 1 skipped** of 228 specs — 100
-    two-digit + 128 three-digit (Tier 439 added `228-tier439-kst-ohne-anrechnung.sh`,
+- **Test counts (last green CI, run 35975456075 / commit `51cf653`, Tier 440):**
+  - Backend e2e: **228 passed / 0 failed / 1 skipped** of 229 specs — 100
+    two-digit + 129 three-digit (Tier 441 adds `230-tier441-rechtsform.sh` on top —
+    230 specs from then on; Tier 440 added `229-tier440-anlagenabgang.sh`,
+    Tier 439 added `228-tier439-kst-ohne-anrechnung.sh`,
     Tier 438 added `227-tier438-anlage-g-gewerbesteuer.sh`,
     Tier 437 added `226-tier437-afa-keine-rechnung.sh`,
     Tier 436 added `225-tier436-afa-im-gewinn.sh`,
@@ -2492,6 +2494,34 @@ Tier 401 run 35123354210 **failed** on backend lint — a warning
 runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
+
+### The company's legal form (Tier 441)
+
+There was no `Company.rechtsform`. KSt 1 and the Berater packager read one
+anyway and fell back to "GmbH": every company was a corporation — KSt 1 in
+the package, Anlage G left out — and KSt 1 counted a GmbH & Co. KG (a
+partnership) as one too. Anlage AUS looked in `settings.rechtsform` and the
+legal name, testing `/^(GmbH|AG|KGaA|UG)/` — anchored, so "SH Leder GmbH" was
+not a GmbH (the open question spec 136 recorded in Tier 361). And the GewSt
+Freibetrag of 24 500 € (Tier 438) went to every company: a GmbH with 50 050 €
+profit was shown 3 570 € GewSt instead of 7 000 €.
+
+New column `Company.rechtsform` (migration `20260924000001_company_rechtsform`),
+settable through `PUT /companies/:id` (one of Einzelunternehmen, Freiberufler,
+GbR, PartG, OHG, KG, GmbH & Co. KG, GmbH, UG (haftungsbeschränkt), AG, KGaA;
+null clears) and a select on the settings page (de/en/zh). `company/
+rechtsform.ts` resolves it: the column, else an old `settings.rechtsform`, else
+the suffix of the legal name / name ("… GmbH", "… GmbH & Co. KG"), else unknown.
+Corporations are GmbH, UG, AG, KGaA. Used by KSt 1 (unknown shows "nicht
+angegeben", not a corporation), the packager (KSt 1 vs Anlage G), Anlage AUS
+(§ 8b KStG) and Anlage G / GewSt 1A (no Freibetrag for a corporation).
+
+Spec `e2e/230-tier441-rechtsform.sh` (16 assertions, 9 failing against the
+previous code). Specs changed: 126 (the seeded SH Leder GmbH has Freibetrag 0),
+132 (its Kz 12 identity no longer assumes Kz 10 = 0), 227 (its companies are
+sole traders now, as Anlage G assumes).
+Local runs: backend **229 / 0 / 1**, 0 × 500; Playwright **930**, no flaky.
+The migration must be applied to a `db push` stack by hand (psql < migration.sql).
 
 ### An asset sold or scrapped leaves with its book value (Tier 440)
 

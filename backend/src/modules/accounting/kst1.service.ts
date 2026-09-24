@@ -1,3 +1,4 @@
+import { resolveRechtsform, isKapitalgesellschaft as isKapitalgesellschaftFn } from '../company/rechtsform'
 import { Injectable, BadRequestException } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import { GuVService } from './guv.service'
@@ -193,14 +194,12 @@ export class KSt1Service {
     if (!company) {
       throw new BadRequestException('Firma nicht gefunden')
     }
-    const rechtsform = (company as any).rechtsform || 'GmbH'
-    const isKapitalgesellschaft = [
-      'GmbH',
-      'AG',
-      'KGaA',
-      'UG',
-      'GmbH & Co. KG', // only the Komplementär-GmbH, not the KG itself
-    ].includes(rechtsform)
+    // Tier 441: the company's legal form (was a column that did not exist,
+    // defaulting to GmbH; and a GmbH & Co. KG — a partnership — counted as a
+    // corporation).
+    const resolved = resolveRechtsform(company)
+    const rechtsform = resolved.rechtsform ?? 'nicht angegeben'
+    const isKapitalgesellschaft = isKapitalgesellschaftFn(resolved.rechtsform)
 
     // Pull the G+V Jahresüberschuss (the
     // accounting profit, pre-KSt-corrections).

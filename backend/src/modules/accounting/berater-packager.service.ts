@@ -1,3 +1,4 @@
+import { resolveRechtsform, isKapitalgesellschaft as isKapG } from '../company/rechtsform'
 import { Injectable, Logger } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import { EuerService } from './euer.service'
@@ -353,13 +354,10 @@ export class BeraterPackagerService {
     // Read rechtsform early (also used for KSt 1
     // below) — repeat the look-up only if needed.
     const companyForRechtsform = company
-    const rechtsformEarly = (companyForRechtsform as any)?.rechtsform || 'GmbH'
-    const isKapitalgesellschaftEarly = [
-      'GmbH',
-      'AG',
-      'KGaA',
-      'UG',
-    ].includes(rechtsformEarly)
+    // Tier 441: resolved from the column / the name (was: always GmbH).
+    const isKapitalgesellschaftEarly = companyForRechtsform
+      ? isKapG(resolveRechtsform(companyForRechtsform).rechtsform)
+      : false
     const includeAnlageG = anlageGOptIn || (invoiceCount > 0 && !isKapitalgesellschaftEarly)
 
     // Tier 101: Anlage N is conditional on

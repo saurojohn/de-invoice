@@ -122,9 +122,14 @@ assert_eq "Vorauszahlungen total == 6000" "$VQ_TOTAL" "6000"
 HAS_VQ=$(python3 -c "import json,sys; print(json.load(sys.stdin)['counts']['hasVorauszahlungen'])" < "$TMP")
 assert_eq "hasVorauszahlungen == True" "$HAS_VQ" "True"
 
-# Kz 12 should now reflect -6000 (negative = Erstattung)
-KZ12=$(python3 -c "import json,sys; print(next(l for l in json.load(sys.stdin)['lines'] if l['kennziffer'] == '12')['amount'])" < "$TMP")
-assert_eq "Kz 12 = Kz 10 - 6000" "$KZ12" "-6000"
+# Kz 12 = Kz 10 - 6000 (negative = Erstattung). Tier 441: the seeded
+# company is a GmbH — no Freibetrag, so Kz 10 is no longer 0 here.
+KZ12=$(python3 -c "
+import json,sys
+lines = json.load(sys.stdin)['lines']
+kz = lambda k: next(l for l in lines if l['kennziffer'] == k)['amount']
+print(abs(kz('12') - (kz('10') - 6000)) < 0.01)" < "$TMP")
+assert_eq "Kz 12 = Kz 10 - 6000" "$KZ12" "True"
 rm -f "$TMP"
 
 # ===== 5. Kz 7 (Hebesatz) comes from settings OR default 400 =====

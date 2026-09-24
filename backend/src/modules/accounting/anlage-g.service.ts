@@ -1,3 +1,4 @@
+import { resolveRechtsform, isKapitalgesellschaft } from '../company/rechtsform'
 import { assetDisposals, sumRestbuchwert } from '../assets/disposals'
 import { Injectable, BadRequestException } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
@@ -500,7 +501,14 @@ export class AnlageGService {
     const gewerbeertrag = round2(
       gewinnVorKorrektur + hinzurechnungenTotal - kurzungenTotal,
     )
-    const freibetrag = FREIBETRAG_NATUERLICHE_PERSON
+    // Tier 441: a Kapitalgesellschaft has none. The GewSt 1A report
+    // takes this for every company (Anlage G itself is the partnership /
+    // sole-trader form).
+    const rf = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { rechtsform: true, settings: true, legalName: true, name: true },
+    })
+    const freibetrag = rf && isKapitalgesellschaft(resolveRechtsform(rf).rechtsform) ? 0 : FREIBETRAG_NATUERLICHE_PERSON
     const gewerbeertragNachFreibetrag = Math.max(
       0,
       Math.floor(gewerbeertrag / 100) * 100 - freibetrag,
