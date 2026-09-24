@@ -386,8 +386,13 @@ export class KassenbuchService {
       }
     }
     if (data.expenseId) {
-      const exp = await this.prisma.expense.findFirst({ where: { id: data.expenseId, companyId }, select: { id: true } })
+      const exp = await this.prisma.expense.findFirst({ where: { id: data.expenseId, companyId }, select: { id: true, grossAmount: true } })
       if (!exp) throw new BadRequestException('Ausgabe nicht gefunden')
+      // Tier 442: a supplier credit note is owed TO the company — no cash
+      // leaves the till for it.
+      if (Number(exp.grossAmount) < 0) {
+        throw new BadRequestException('Eine Lieferantengutschrift wird nicht aus der Kasse bezahlt')
+      }
       if (data.type !== 'ausgabe') {
         throw new BadRequestException('Nur eine Ausgabe kann einer Eingangsrechnung zugeordnet werden')
       }

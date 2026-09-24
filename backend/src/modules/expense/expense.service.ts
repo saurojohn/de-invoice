@@ -1,3 +1,4 @@
+import { signedExpenseAmounts } from './credit-note';
 /**
  * Expense (Eingangsrechnung) — vendor bills received.
  *
@@ -135,9 +136,12 @@ export class ExpenseService {
       const sup = await this.prisma.supplier.findFirst({ where: { id: data.supplierId, companyId } });
       if (!sup) throw new BadRequestException('Lieferant nicht gefunden');
     }
-    const net = Number(data.netAmount ?? 0);
-    const vat = Number(data.vatAmount ?? 0);
-    const gross = Number(data.grossAmount ?? net + vat);
+    // Tier 442: a supplier credit note is stored with negative amounts.
+    const { net, vat, gross } = signedExpenseAmounts(data.creditNote, {
+      net: Number(data.netAmount ?? 0),
+      vat: Number(data.vatAmount ?? 0),
+      gross: Number(data.grossAmount ?? Number(data.netAmount ?? 0) + Number(data.vatAmount ?? 0)),
+    });
     return this.prisma.expense.create({
       data: {
         companyId,
@@ -277,7 +281,9 @@ export class ExpenseService {
         const netAmount = parseFloat(
           String(row.netAmount ?? '').trim().replace(',', '.'),
         )
-        if (Number.isNaN(netAmount) || netAmount < 0) {
+        // Tier 442: a negative row is a supplier credit note — all its amounts
+        // are negative (expense/credit-note.ts). It used to be refused.
+        if (Number.isNaN(netAmount)) {
           result.errors.push({
             row: rowNum,
             error: `Ungültiger Nettobetrag: ${row.netAmount || '(leer)'}`,
@@ -295,11 +301,19 @@ export class ExpenseService {
           row.vatAmount !== undefined && row.vatAmount !== ''
             ? parseFloat(String(row.vatAmount).trim().replace(',', '.'))
             : Math.round(netAmount * vatRate * 10000) / 10000
-        const vatAmount = Number.isNaN(vatAmountRaw) ? 0 : vatAmountRaw
-        const grossAmount =
-          row.grossAmount !== undefined && row.grossAmount !== ''
-            ? parseFloat(String(row.grossAmount).trim().replace(',', '.'))
-            : Math.round((netAmount + vatAmount) * 10000) / 10000
+        // Tier 442: a credit note's VAT is negative too, whichever sign the
+        // row gave it — before the gross is derived from net + VAT.
+        const vatAmount = signedExpenseAmounts(netAmount < 0, {
+          net: netAmount, vat: Number.isNaN(vatAmountRaw) ? 0 : vatAmountRaw, gross: 0,
+        }).vat
+        const grossAmount = signedExpenseAmounts(netAmount < 0, {
+          net: netAmount,
+          vat: vatAmount,
+          gross:
+            row.grossAmount !== undefined && row.grossAmount !== ''
+              ? parseFloat(String(row.grossAmount).trim().replace(',', '.'))
+              : Math.round((netAmount + vatAmount) * 10000) / 10000,
+        }).gross
 
         await this.prisma.expense.create({
           data: {

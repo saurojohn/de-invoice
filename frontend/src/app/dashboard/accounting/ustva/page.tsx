@@ -138,6 +138,8 @@ function UstvaPageInner() {
     category: "",
     isIntraEU: false,
     isReverseCharge: false,
+    // Tier 442: a supplier credit note — entered positive, stored negative.
+    creditNote: false,
   })
 
   // Tier 161: prefill year + period from the URL
@@ -270,6 +272,7 @@ function UstvaPageInner() {
         category: "",
         isIntraEU: false,
         isReverseCharge: false,
+        creditNote: false,
       })
       await loadAll(companyId)
     } catch (err) {
@@ -860,6 +863,17 @@ function UstvaPageInner() {
                             }
                           />
                           Reverse Charge (§13b UStG)
+                        </label>
+                        <label className="flex items-center gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={exForm.creditNote}
+                            onChange={(e) =>
+                              setExForm({ ...exForm, creditNote: e.target.checked })
+                            }
+                            data-testid="ustva-expense-credit-note"
+                          />
+                          {t("ustva.creditNote")}
                         </label>
                       </div>
                     </div>

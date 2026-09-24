@@ -141,12 +141,11 @@ test.describe("Suppliers list", () => {
       .locator('[data-testid="supplier-search-input"]')
       .fill("zzzzz-no-such-supplier-zzzzz")
     await page.press('[data-testid="supplier-search-input"]', "Enter")
-    await page.waitForTimeout(500)
-
-    const filteredCount = await page
-      .locator('[data-testid="supplier-row"]')
-      .count()
-    expect(filteredCount).toBeLessThan(baselineCount)
+    // Tier 442: poll until the reload has rendered — a fixed 500 ms wait
+    // counted the old rows once (local run, 2 of 2 still shown).
+    await expect
+      .poll(() => page.locator('[data-testid="supplier-row"]').count(), { timeout: 10_000 })
+      .toBeLessThan(baselineCount)
   })
 })
 

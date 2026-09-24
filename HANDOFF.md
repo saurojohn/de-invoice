@@ -2495,6 +2495,44 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Supplier credit notes (Tier 442)
+
+A supplier's credit note (Lieferantengutschrift: goods returned, a price
+reduction, a refund) could not be recorded: `POST /ustva/expenses` and
+`POST /expenses` required amounts ≥ 0 and rejected any other field (400), the
+CSV import skipped negative rows. The input tax claimed on the original
+invoice stayed claimed in full (§ 17 Abs. 1 UStG requires the correction),
+the cost too. Two reports would have got one wrong anyway: the UStVA took
+`Math.abs()` of every expense's net and VAT, the BWA of every cost — a
+negative row would have ADDED input tax and cost.
+
+Now: `creditNote: true` on either endpoint (amounts entered positive) stores
+the expense with negative amounts (`expense/credit-note.ts`); a negative CSV
+row is a credit note (its VAT and gross negative too, whatever sign they came
+with). The UStVA and the BWA use the signed amounts; everything else already
+summed them (GuV, EÜR, Anlage S/G, P&L, balance-sheet payables, DATEV —
+a negative amount flips S/H, the Buchungsliste is sign-aware). It is no bill:
+the SEPA payment run lists and pays only `grossAmount > 0`, and the cash book
+refuses to link an Ausgabe to a credit note. The UStVA page's expense form has
+a "Gutschrift des Lieferanten" checkbox (de/en/zh).
+
+Measured with an invoice of 1 000 € + 19 %, a credit note of 200 € + 19 % and
+a CSV credit note of 10 € + 1,90 €: before, only the invoice got in — input
+tax 190, Gewinn −1 000, payables 1 190; now input tax 150,10, Gewinn −790 in
+every report, payables 940,10, DATEV Kreditor −940,10.
+
+Spec `e2e/231-tier442-lieferantengutschrift.sh` (19 assertions, 13 failing
+against the previous code). Spec 119
+seeded its BWA expenses with negative amounts — which only added up through
+the BWA's Math.abs() — and now seeds them positive, as the app stores them.
+
+Not done: the bank import does not match an incoming refund to a credit note;
+there is still no way to edit an expense (only create / delete).
+Local runs: backend **230 / 0 / 1**, 0 × 500; Playwright 929 + **1 flaky** —
+`list-pages-2` "search filters the supplier list" counted the rows a fixed
+500 ms after Enter, before the reload had rendered (unrelated to this tier).
+It polls now; 10 repeats without retries passed.
+
 ### The company's legal form (Tier 441)
 
 There was no `Company.rechtsform`. KSt 1 and the Berater packager read one

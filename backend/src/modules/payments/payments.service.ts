@@ -65,6 +65,9 @@ export class PaymentsService {
         companyId,
         status: 'booked',
         paidAt: null,
+        // Tier 442: a supplier credit note (negative) is owed to the company,
+        // not paid by it.
+        grossAmount: { gt: 0 },
         // We need a supplier with IBAN. Expenses
         // without a supplier OR with a supplier
         // without bankInfo can't be paid via SEPA.
@@ -139,6 +142,7 @@ export class PaymentsService {
         companyId,
         status: 'booked',
         paidAt: null,
+        grossAmount: { gt: 0 }, // Tier 442: no credit notes in a transfer
       },
       include: { supplier: true },
     })

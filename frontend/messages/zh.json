@@ -2098,6 +2098,7 @@
     "delete": "删除",
     "confirmDelete": "确认删除此进项发票？",
     "noExpenses": "此期间无进项发票",
+    "creditNote": "供应商贷项通知单（冲减费用和进项税，§ 17 UStG）",
     "saveSuccess": "UStVA 已保存",
     "submitSuccess": "UStVA 已提交",
     "prevFilings": "历史申报",

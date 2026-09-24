@@ -303,31 +303,34 @@ export class UstvaService {
         // produced 380 € to pay and 0 € to deduct. A rate of 0 on such an
         // expense means "not entered"; 19 % is assumed, as before.
         const r = rate > 0 ? rate : 0.19;
-        const owed = Math.round(Math.abs(net) * r * 100) / 100;
-        reverseCharge += Math.abs(net);
+        // Tier 442: signed — a supplier credit note (negative amounts,
+        // expense/credit-note.ts) reduces the tax and the input tax (§ 17 UStG);
+        // Math.abs() here made it add to them.
+        const owed = Math.round(net * r * 100) / 100;
+        reverseCharge += net;
         if (exp.isIntraEU) {
-          igE.net += Math.abs(net);
+          igE.net += net;
           igE.vat += owed;
           vorsteuerIgE += owed;
           const b = igEByRate.get(r) ?? { net: 0, vat: 0 };
-          b.net += Math.abs(net);
+          b.net += net;
           b.vat += owed;
           igEByRate.set(r, b);
         } else {
           const supplierCountry = normaliseCountry((exp.supplier as any)?.address?.country) || '';
           const bucket = supplierCountry && supplierCountry !== 'DE' && this.isEUCountry(supplierCountry) ? rcEu : rcOther;
-          bucket.net += Math.abs(net);
+          bucket.net += net;
           bucket.vat += owed;
           vorsteuerReverseCharge += owed;
         }
       } else if (rate === 0.19) {
-        vorsteuer19 += Math.abs(vat);
+        vorsteuer19 += vat; // Tier 442: signed (a credit note reduces it)
       } else if (rate === 0.07) {
-        vorsteuer7 += Math.abs(vat);
+        vorsteuer7 += vat;
       } else if (rate > 0) {
         // Tier 417: e.g. a 16 % or 5 % invoice from 2020 — deductible like
         // any other; it used to be dropped.
-        vorsteuerOther += Math.abs(vat);
+        vorsteuerOther += vat;
       } else {
         // 0% (e.g. Kleinunternehmer supplier) — no input tax
       }

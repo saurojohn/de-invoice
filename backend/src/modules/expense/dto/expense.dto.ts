@@ -18,8 +18,9 @@ import {
   MaxLength,
   Min,
   Max,
+  IsBoolean,
 } from "class-validator"
-import { Type } from "class-transformer"
+import { Type, Transform } from "class-transformer"
 
 /**
  * POST /expenses
@@ -67,6 +68,14 @@ export class CreateExpenseDto {
 
   @IsString() @IsOptional() @MaxLength(100)
   category?: string
+
+  // Tier 442: a supplier credit note — amounts entered positive, stored negative
+  // (expense/credit-note.ts).
+  @IsOptional()
+  @Transform(({ value }) => (typeof value === "string" ? value === "true" || value === "1" : value))
+  @IsBoolean()
+  creditNote?: boolean
+
 
   @IsString() @IsOptional() @MaxLength(20)
   accountNumber?: string

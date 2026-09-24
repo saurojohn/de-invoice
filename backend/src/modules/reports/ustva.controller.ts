@@ -1,3 +1,4 @@
+import { signedExpenseAmounts } from '../expense/credit-note'
 import { Controller, Get, Post, Delete, Body, Query, Param, BadRequestException, Header, Res } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
@@ -165,15 +166,17 @@ export class UstvaController {
     const grossAmount = body.grossAmount !== undefined
       ? Number(body.grossAmount)
       : Number(net) + Number(vatAmount)
+    // Tier 442: a supplier credit note is stored with negative amounts.
+    const signed = signedExpenseAmounts(body.creditNote, { net, vat: vatAmount, gross: grossAmount })
     return this.ustva.createExpense(companyId, {
       supplierId: body.supplierId,
       invoiceNumber: body.invoiceNumber,
       description: body.description,
       invoiceDate: new Date(body.invoiceDate),
-      netAmount: net,
+      netAmount: signed.net,
       vatRate,
-      vatAmount,
-      grossAmount,
+      vatAmount: signed.vat,
+      grossAmount: signed.gross,
       category: body.category,
       isIntraEU: body.isIntraEU ?? false,
       isReverseCharge: body.isReverseCharge ?? false,

@@ -93,6 +93,13 @@ export class CreateUstvaExpenseDto {
   @IsBoolean()
   isReverseCharge?: boolean
 
+  // Tier 442: a supplier credit note — amounts entered positive, stored negative
+  // (expense/credit-note.ts).
+  @IsOptional()
+  @Transform(({ value }) => (typeof value === "string" ? value === "true" || value === "1" : value))
+  @IsBoolean()
+  creditNote?: boolean
+
   @IsString() @IsOptional() @MaxLength(2000)
   notes?: string
 }

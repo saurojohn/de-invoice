@@ -377,21 +377,18 @@ export class BwaService {
     // "Aufwand" / "Aufwendungen" / "Steuern", and
     // the formula `erloese - material - ...` treats
     // the positive line value as a deduction).
-    // We Math.abs() the amount so the BWA
-    // accepts both:
-    //   - legacy dev seed data with positive
-    //     grossAmount (e.g. the existing Material
-    //     rows)
-    //   - "correct" accounting sign with negative
-    //     grossAmount (= outflow, matches the
-    //     signing used in Anlage S / EÜR)
+    // Tier 442: signed. Expenses are stored
+    // positive (the API refuses anything else);
+    // the negative ones are supplier credit notes
+    // (expense/credit-note.ts), which lower the
+    // cost — Math.abs() made them add to it.
     // Tier 419: net for a business that deducts input tax, gross for a
     // Kleinunternehmer (expense-cost.ts). This took grossAmount: every expense
     // was overstated by its VAT, next to revenue counted net (Tier 411).
     const bucketedExpenses = [
       ...expenses.map((e) => ({
         date: e.invoiceDate,
-        amount: Math.abs(expenseCost(e, kleinunternehmer)),
+        amount: expenseCost(e, kleinunternehmer),
         bucket: bucketFor(e.category),
       })),
       ...cash.filter((c) => c.direction === 'out').map((c) => ({ date: c.date, amount: cashCost(c), bucket: '3600' })),
@@ -543,7 +540,7 @@ export class BwaService {
     // (line values are positive).
     const vorjahresBucketed = [
       ...vorjahresExpenses.map((e) => ({
-        amount: Math.abs(expenseCost(e, kleinunternehmer)),
+        amount: expenseCost(e, kleinunternehmer),
         bucket: bucketFor(e.category),
       })),
       ...cashVorjahr.filter((c) => c.direction === 'out').map((c) => ({ amount: cashCost(c), bucket: '3600' })),

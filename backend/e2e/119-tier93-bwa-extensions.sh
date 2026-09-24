@@ -77,18 +77,21 @@ trap cleanup EXIT
 #   Schuldzins   → 4200 Zinsaufwendungen   (180)
 # Plus one "Sonstiges" expense that should
 # fall through to 3600 catchall (250).
+# Tier 442: seeded with positive amounts, as the app stores an expense — the
+# fixture used negative ones, which only added up because the BWA took
+# Math.abs(); a negative expense is a supplier credit note now.
 TMP_SQL=$(mktemp -t bwa-ext-seed.XXXXXX)
 cat > "$TMP_SQL" <<EOF
 INSERT INTO "Expense" (id, "companyId", "supplierId", "invoiceNumber", description, "invoiceDate", "netAmount", "vatRate", "vatAmount", "grossAmount", category, "isIntraEU", "isReverseCharge", status, notes, "createdAt", "updatedAt")
 VALUES
-  (gen_random_uuid()::text, '$COMPANY_ID', NULL, NULL, 'T93-${TS}-Miete',         '${TEST_YEAR}-${TEST_MONTH}-05', -1500, 0, 0, -1500, 'Miete',         false, false, 'booked', 'T93-${TS}-miete fixture',         now(), now()),
-  (gen_random_uuid()::text, '$COMPANY_ID', NULL, NULL, 'T93-${TS}-Versicherung',  '${TEST_YEAR}-${TEST_MONTH}-10', -300,  0, 0, -300,  'Versicherung',  false, false, 'booked', 'T93-${TS}-versicherung fixture',  now(), now()),
-  (gen_random_uuid()::text, '$COMPANY_ID', NULL, NULL, 'T93-${TS}-Werbung',       '${TEST_YEAR}-${TEST_MONTH}-12', -200,  0, 0, -200,  'Werbung',       false, false, 'booked', 'T93-${TS}-werbung fixture',       now(), now()),
-  (gen_random_uuid()::text, '$COMPANY_ID', NULL, NULL, 'T93-${TS}-Reparatur',      '${TEST_YEAR}-${TEST_MONTH}-15', -400,  0, 0, -400,  'Reparatur',     false, false, 'booked', 'T93-${TS}-reparatur fixture',     now(), now()),
-  (gen_random_uuid()::text, '$COMPANY_ID', NULL, NULL, 'T93-${TS}-Gewerbesteuer',  '${TEST_YEAR}-${TEST_MONTH}-20', -2500, 0, 0, -2500, 'Gewerbesteuer', false, false, 'booked', 'T93-${TS}-gewerbesteuer fixture', now(), now()),
-  (gen_random_uuid()::text, '$COMPANY_ID', NULL, NULL, 'T93-${TS}-Grundsteuer',    '${TEST_YEAR}-${TEST_MONTH}-22', -800,  0, 0, -800,  'Grundsteuer',   false, false, 'booked', 'T93-${TS}-grundsteuer fixture',   now(), now()),
-  (gen_random_uuid()::text, '$COMPANY_ID', NULL, NULL, 'T93-${TS}-Schuldzins',     '${TEST_YEAR}-${TEST_MONTH}-25', -180,  0, 0, -180,  'Schuldzins',    false, false, 'booked', 'T93-${TS}-schuldzins fixture',    now(), now()),
-  (gen_random_uuid()::text, '$COMPANY_ID', NULL, NULL, 'T93-${TS}-Sonstiges',      '${TEST_YEAR}-${TEST_MONTH}-28', -250,  0, 0, -250,  'Sonstiges',     false, false, 'booked', 'T93-${TS}-sonstiges fixture',     now(), now());
+  (gen_random_uuid()::text, '$COMPANY_ID', NULL, NULL, 'T93-${TS}-Miete',         '${TEST_YEAR}-${TEST_MONTH}-05', 1500,  0, 0, 1500,  'Miete',         false, false, 'booked', 'T93-${TS}-miete fixture',         now(), now()),
+  (gen_random_uuid()::text, '$COMPANY_ID', NULL, NULL, 'T93-${TS}-Versicherung',  '${TEST_YEAR}-${TEST_MONTH}-10', 300,   0, 0, 300,   'Versicherung',  false, false, 'booked', 'T93-${TS}-versicherung fixture',  now(), now()),
+  (gen_random_uuid()::text, '$COMPANY_ID', NULL, NULL, 'T93-${TS}-Werbung',       '${TEST_YEAR}-${TEST_MONTH}-12', 200,   0, 0, 200,   'Werbung',       false, false, 'booked', 'T93-${TS}-werbung fixture',       now(), now()),
+  (gen_random_uuid()::text, '$COMPANY_ID', NULL, NULL, 'T93-${TS}-Reparatur',      '${TEST_YEAR}-${TEST_MONTH}-15', 400,   0, 0, 400,   'Reparatur',     false, false, 'booked', 'T93-${TS}-reparatur fixture',     now(), now()),
+  (gen_random_uuid()::text, '$COMPANY_ID', NULL, NULL, 'T93-${TS}-Gewerbesteuer',  '${TEST_YEAR}-${TEST_MONTH}-20', 2500,  0, 0, 2500,  'Gewerbesteuer', false, false, 'booked', 'T93-${TS}-gewerbesteuer fixture', now(), now()),
+  (gen_random_uuid()::text, '$COMPANY_ID', NULL, NULL, 'T93-${TS}-Grundsteuer',    '${TEST_YEAR}-${TEST_MONTH}-22', 800,   0, 0, 800,   'Grundsteuer',   false, false, 'booked', 'T93-${TS}-grundsteuer fixture',   now(), now()),
+  (gen_random_uuid()::text, '$COMPANY_ID', NULL, NULL, 'T93-${TS}-Schuldzins',     '${TEST_YEAR}-${TEST_MONTH}-25', 180,   0, 0, 180,   'Schuldzins',    false, false, 'booked', 'T93-${TS}-schuldzins fixture',    now(), now()),
+  (gen_random_uuid()::text, '$COMPANY_ID', NULL, NULL, 'T93-${TS}-Sonstiges',      '${TEST_YEAR}-${TEST_MONTH}-28', 250,   0, 0, 250,   'Sonstiges',     false, false, 'booked', 'T93-${TS}-sonstiges fixture',     now(), now());
 EOF
 docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice < "$TMP_SQL"
 rm -f "$TMP_SQL"
