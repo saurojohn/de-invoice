@@ -9,7 +9,7 @@ import { readFileSync } from "fs"
  * GET /api/v1/accounting/euer. Renders:
  *   - year input + "Berechnen" button
  *   - einnahmen table (Kz 4100-4190)
- *   - ausgaben table (Kz 4300-5900, 4600 AfA)
+ *   - ausgaben table (Kz 4300-5900, 4600 AfA, 4610 Restbuchwert)
  *   - Gewinn/Verlust total
  *   - "Vom Steuerberater prüfen lassen" disclaimer
  *   - PDF download link
@@ -97,9 +97,9 @@ test.describe("Anlage EÜR — /dashboard/accounting", () => {
     // 4 revenue Kennziffern
     const revRows = page.locator("[data-testid^='euer-rev-']")
     await expect(revRows).toHaveCount(4)
-    // 7 expense Kennziffern (Tier 436 added 4600 AfA)
+    // 8 expense Kennziffern (Tier 436 added 4600 AfA, Tier 440 4610 Restbuchwert)
     const expRows = page.locator("[data-testid^='euer-exp-']")
-    await expect(expRows).toHaveCount(7)
+    await expect(expRows).toHaveCount(8)
   })
 
   test("Gewinn/Verlust total = einnahmenTotal − ausgabenTotal", async ({

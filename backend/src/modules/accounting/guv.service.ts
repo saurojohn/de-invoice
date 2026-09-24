@@ -1,3 +1,4 @@
+import { assetDisposals, sumRestbuchwert } from '../assets/disposals'
 import { expenseCost } from './expense-cost'
 import { bookedAfaCost } from './booked-afa'
 import { cashBookings } from '../cashbook/cash-bookings'
@@ -291,6 +292,9 @@ export class GuVService {
       if (c.direction === 'in') umsatzerloese += amount
       else sonstigeAufwendungen += amount
     }
+    // Tier 440: the book value of assets sold or scrapped in the year
+    // (Aufwand aus Anlagenabgang; disposals.ts).
+    sonstigeAufwendungen += sumRestbuchwert(await assetDisposals(this.prisma, companyId, yearStart, yearEnd))
     const zinsaufwendungen = zinsExpenses.reduce(
       (s, e) => s.plus(new Prisma.Decimal(expenseCost(e, kleinunternehmer))),
       new Prisma.Decimal(0),

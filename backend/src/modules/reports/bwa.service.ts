@@ -1,3 +1,4 @@
+import { assetDisposals } from '../assets/disposals'
 import { expenseCost } from '../accounting/expense-cost'
 import { Injectable } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
@@ -394,6 +395,9 @@ export class BwaService {
         bucket: bucketFor(e.category),
       })),
       ...cash.filter((c) => c.direction === 'out').map((c) => ({ date: c.date, amount: cashCost(c), bucket: '3600' })),
+      // Tier 440: book value of assets sold or scrapped (disposals.ts).
+      ...(await assetDisposals(this.prisma, companyId, vormonatStart < yearStart ? vormonatStart : yearStart, monthEnd))
+        .map((d) => ({ date: d.date, amount: d.restbuchwert, bucket: '3600' })),
     ]
 
     // Helper: sum entries in a date window for a
@@ -543,6 +547,8 @@ export class BwaService {
         bucket: bucketFor(e.category),
       })),
       ...cashVorjahr.filter((c) => c.direction === 'out').map((c) => ({ amount: cashCost(c), bucket: '3600' })),
+      ...(await assetDisposals(this.prisma, companyId, vorjahresYtdStart, vorjahresYtdEnd))
+        .map((d) => ({ amount: d.restbuchwert, bucket: '3600' })),
     ]
     const vorjahresYtdByBucket = (bucket: string) =>
       vorjahresBucketed.filter((e) => e.bucket === bucket).reduce((s, e) => s + e.amount, 0)

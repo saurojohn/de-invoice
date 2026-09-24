@@ -1,3 +1,4 @@
+import { assetDisposals, sumRestbuchwert } from '../assets/disposals'
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Response } from 'express';
@@ -41,6 +42,7 @@ import { bookedAfaCost } from './booked-afa'
  *     5600  Werbe-/Reisekosten
  *     5800  Instandhaltung / EDV
  *     4600  AfA (booked by "AfA buchen", Tier 436)
+ *     4610  Restbuchwert ausgeschiedener Anlagegüter (Tier 440)
  *     5900  Sonstige Aufwendungen
  *
  *   RESULT:
@@ -158,6 +160,13 @@ const EXPENSE_LINES: Array<{ kz: string; label: string; matcher: (exp: any) => b
     // the AfA itself is a Betriebsausgabe of the EÜR (§ 4 Abs. 3 Satz 3 EStG).
     kz: '4600',
     label: 'Absetzung für Abnutzung (AfA)',
+    matcher: () => false,
+  },
+  {
+    // Tier 440: the book value of assets sold or scrapped (§ 4 Abs. 3 Satz 4
+    // EStG) — nowhere before; the asset just left the register.
+    kz: '4610',
+    label: 'Restbuchwert ausgeschiedener Anlagegüter',
     matcher: () => false,
   },
   {
@@ -314,6 +323,7 @@ export class EuerService {
     }
 
     ausgabenBuckets.set('4600', (await bookedAfaCost(this.prisma, companyId, year)).amount)
+    ausgabenBuckets.set('4610', sumRestbuchwert(await assetDisposals(this.prisma, companyId, yearStart, yearEnd)))
 
     // Build the final lines in the order the BMF
     // uses (so the PDF/UI reads top-to-bottom in

@@ -30,6 +30,7 @@ export const SKR03_ANLAGEN_NAMES: Record<string, string> = {
   '0320': 'Pkw',
   '0400': 'Betriebsausstattung',
   '0480': 'Geringwertige Wirtschaftsgüter',
+  '2310': 'Anlagenabgänge Sachanlagen (Restbuchwert bei Buchverlust)', // Tier 440
   '4822': 'Abschreibungen auf immaterielle Vermögensgegenstände',
   '4830': 'Abschreibungen auf Sachanlagen',
   '4831': 'Abschreibungen auf Gebäude',

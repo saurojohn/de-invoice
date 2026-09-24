@@ -51,6 +51,7 @@ import { NON_CASH_PAYMENT_METHODS } from '../invoice/document-scope';
 import { cashBookings } from '../cashbook/cash-bookings';
 import { SALES_TYPES } from '../invoice/document-scope'
 import { anlagenKonten } from './datev-anlagen'
+import { assetDisposals } from '../assets/disposals'
 
 const DELIM = ';'
 const QUOTE = '"'
@@ -670,6 +671,22 @@ export async function buildBuchungenFromDb(
       // No input tax: a Kleinunternehmer cannot deduct it, or there is none.
       out.push({ ...base, betrag: r2(gross) })
     }
+  }
+
+  // Tier 440: an asset sold or scrapped leaves with its book value —
+  // "Anlagenabgang 2310 an Anlagekonto" (SKR03; disposals.ts). The sale
+  // itself is revenue on its invoice.
+  for (const d of await assetDisposals(prisma, companyId, startDate, endDate)) {
+    if (d.restbuchwert <= 0) continue
+    out.push({
+      belegdatum: d.date,
+      belegfeld1: `ABG-${d.assetId.substring(0, 8)}`,
+      konto: '2310',
+      gegenkonto: anlagenKonten(d.type).anlage,
+      betrag: r2(d.restbuchwert),
+      shVz: 'S',
+      buchungstext: `Anlagenabgang ${d.bezeichnung}`.substring(0, 60),
+    })
   }
 
   for (const e of otherwisePaid) {

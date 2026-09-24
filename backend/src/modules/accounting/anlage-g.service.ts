@@ -1,3 +1,4 @@
+import { assetDisposals, sumRestbuchwert } from '../assets/disposals'
 import { Injectable, BadRequestException } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import { Response } from 'express'
@@ -438,6 +439,8 @@ export class AnlageGService {
       else if (/^Leasing/i.test(cat)) finanzierung.leasingMobil += cost
     }
     addCost('2500', (await bookedAfaCost(this.prisma, companyId, year)).amount)
+    // Tier 440: book value of assets sold or scrapped (disposals.ts).
+    addCost('2890', sumRestbuchwert(await assetDisposals(this.prisma, companyId, yearStart, yearEnd)))
 
     // Build the einnahmen + betriebsausgaben lines
     // in BMF order; Betriebsausgaben are negative.

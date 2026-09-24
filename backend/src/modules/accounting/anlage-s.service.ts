@@ -1,3 +1,4 @@
+import { assetDisposals, sumRestbuchwert } from '../assets/disposals'
 import { Injectable } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import { Response } from 'express'
@@ -306,6 +307,9 @@ export class AnlageSService {
         ausgabenBuckets.set('4720', (ausgabenBuckets.get('4720') || 0) + amount)
       }
     }
+    // Tier 440: book value of assets sold or scrapped (disposals.ts).
+    ausgabenBuckets.set('4720', (ausgabenBuckets.get('4720') || 0) +
+      sumRestbuchwert(await assetDisposals(this.prisma, companyId, yearStart, yearEnd)))
 
     // Build the final lines in the order the
     // BMF uses.

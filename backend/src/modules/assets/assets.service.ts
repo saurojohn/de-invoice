@@ -286,6 +286,32 @@ export class AssetsService {
         'Verkaufsdatum liegt vor dem Anschaffungsdatum',
       )
     }
+    // Tier 438: AfA booked beyond the sale. The sale ends the AfA in its
+    // month, and the book value that goes out with the asset (disposals.ts)
+    // assumes exactly that AfA; an AfA booked for the whole year before the
+    // sale stayed booked in full. Measured: 1 200 € booked for 2026, sold in
+    // June — 600 € too much AfA, with nothing to take it back.
+    const saleDate = new Date(dto.verkauftAm)
+    const saleYear = saleDate.getFullYear()
+    const booked = await this.prisma.expense.findMany({
+      where: { companyId, relatedAssetId: id, category: 'AfA', afaYear: { gte: saleYear } },
+      select: { afaYear: true, netAmount: true },
+    })
+    const bookedCents = (y: number) =>
+      booked.filter((e) => e.afaYear === y).reduce((s2, e) => s2 - Math.round(Number(e.netAmount) * 100), 0)
+    const dueCents = Math.round(
+      computeAfaSummary({ ...existing, verkauftAm: saleDate }, new Date(saleYear, 11, 31, 12)).annualAfA * 100,
+    )
+    const later = [...new Set(booked.map((e) => e.afaYear!).filter((y) => y > saleYear))]
+    if (bookedCents(saleYear) > dueCents || later.length) {
+      const eur = (c: number) => (c / 100).toFixed(2).replace('.', ',')
+      const years = [saleYear, ...later].filter((y) => bookedCents(y) > 0).sort().join(', ')
+      throw new BadRequestException(
+        `Für diese Anlage ist bereits AfA über den Verkauf hinaus gebucht (${saleYear}: ${eur(bookedCents(saleYear))} €, ` +
+        `bis zum Verkauf stehen ihr ${eur(dueCents)} € zu). Stornieren Sie zuerst die AfA ${years}, ` +
+        'erfassen Sie dann den Verkauf und buchen Sie die AfA neu.',
+      )
+    }
     return this.prisma.asset.update({
       where: { id },
       data: {

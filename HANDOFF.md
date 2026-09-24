@@ -2493,6 +2493,51 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### An asset sold or scrapped leaves with its book value (Tier 440)
+
+Measured with two machines (6 000 € each, 60 months, bought January 2025,
+AfA 2025 booked), sold on 5 June 2026 — book value 4 200 € each:
+
+- `dispose` set `verkauftAm` and booked nothing else. The balance sheet lost
+  the machine; no report had the Restbuchwert as an expense (GuV 2026:
+  −1 800 AfA only; right −6 000 for one machine). 8 400 € disappeared into
+  the equity balancing item.
+- A machine whose AfA 2026 was booked in full before the sale could still be
+  sold: 1 200 € booked for six months (600 € due), nothing to take it back.
+
+New `assets/disposals.ts` (`assetDisposals`, `sumRestbuchwert`): the book
+value at the disposal month from the asset register (`computeAfaSummary`),
+computed per report like the cash-book bookings — no stored row. It is a
+Betriebsausgabe of the disposal year (§ 4 Abs. 3 Satz 4 EStG): GuV 8
+(sonstige betriebliche Aufwendungen), EÜR new line **4610 "Restbuchwert
+ausgeschiedener Anlagegüter"**, Anlage S 4720, Anlage G 2890, BWA 3600, P&L
+other expenses, DATEV "2310 Anlagenabgänge an Anlagekonto" (SKR03 table of
+Tier 437; Belegfeld1 `ABG-…`, dated the disposal day).
+
+`dispose` is refused (400) when AfA is booked for the asset beyond the sale
+(the disposal year above the months due, or any later year); the message
+says to storno the AfA, record the sale and book the AfA again — the
+AfA storno is per company and year (`storno-afa`), so the other assets are
+re-booked unchanged.
+
+The sale price (`verkaufsPreis`) is not booked: the sale is revenue like any
+other and belongs on an invoice (with USt). DATEV always uses 2310 (Buch-
+verlust); a Buchgewinn would be 2315 — the app does not know the proceeds.
+
+Spec `e2e/229-tier440-anlagenabgang.sh` (23 assertions, 14 failing against
+the previous code). Spec 102 and Playwright `anlage-eur` count 8 EÜR expense
+lines now.
+Local runs: backend **228 / 0 / 0** (16-dark-mode failed instead of skipping:
+a frontend left on :3100 by an earlier `run-playwright <spec>`; skips once it
+is stopped), 0 × 500; Playwright **930**, no flaky. `run-playwright` leaves
+its backend (:3001) and frontend (:3100) running — stop them before a
+backend run.
+
+Found, not changed: a supplier credit note (Lieferantengutschrift) cannot be
+recorded — the expense DTOs require amounts ≥ 0 — so a refund from a supplier
+has no place in the books (the BWA's `Math.abs()` on expenses would turn one
+into a cost if it ever got in).
+
 ### KSt 1: no credit of the Gewerbesteuer against the KSt (Tier 439)
 
 KSt 1 subtracted min(KSt, 3,8 × GewSt-Messbetrag) from the

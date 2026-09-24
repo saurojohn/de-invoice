@@ -12,8 +12,8 @@
 #      counts, disclaimer).
 #   2. All 4 BMF revenue Kennziffern are present
 #      (4100/4120/4170/4190).
-#   3. All 7 expense Kennziffern are present
-#      (4300/5100/5400/5600/5800/4600 AfA/5900).
+#   3. All 8 expense Kennziffern are present
+#      (4300/5100/5400/5600/5800/4600 AfA/4610 Restbuchwert/5900).
 #   4. totals.einnahmenTotal = sum of einnahmen[].amount.
 #   5. totals.ausgabenTotal = sum of ausgaben[].amount.
 #   6. totals.gewinn = einnahmenTotal - ausgabenTotal.
@@ -68,14 +68,14 @@ assert_eq "all 4 revenue Kennziffern" "$REV_KZS" "true"
 
 # ── 3. Expense Kennziffern ──
 echo
-note "=== 3. expense Kennziffern 4300/5100/5400/5600/5800/4600/5900 present (4600 AfA: Tier 436) ==="
+note "=== 3. expense Kennziffern 4300/5100/5400/5600/5800/4600/4610/5900 present (4600: Tier 436, 4610: Tier 440) ==="
 EXP_KZS=$(python3 -c "
 import json
 d = json.load(open('$TMP'))
 kzs = [l['kennziffer'] for l in d['ausgaben']]
-print('true' if set(kzs) == {'4300', '5100', '5400', '5600', '5800', '4600', '5900'} else f'got: {sorted(kzs)}')
+print('true' if set(kzs) == {'4300', '5100', '5400', '5600', '5800', '4600', '4610', '5900'} else f'got: {sorted(kzs)}')
 ")
-assert_eq "all 7 expense Kennziffern" "$EXP_KZS" "true"
+assert_eq "all 8 expense Kennziffern" "$EXP_KZS" "true"
 
 # ── 4. einnahmenTotal = sum ──
 echo

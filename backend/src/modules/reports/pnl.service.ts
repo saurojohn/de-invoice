@@ -1,3 +1,4 @@
+import { assetDisposals } from '../assets/disposals'
 import { Prisma } from '@prisma/client';
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -157,8 +158,12 @@ export class PnlService {
       }
       return { revenue: revenue.toNumber(), vat: vat.toNumber() }
     }
+    // Tier 440: the book value of assets sold or scrapped counts with the
+    // cash purchases as an other expense (disposals.ts).
+    const disposals = await assetDisposals(this.prisma, companyId, new Date(year - 1, 0, 1), yearEnd)
     const cashOut = (from: Date, to: Date) =>
       cash.filter((c) => c.direction === 'out' && c.date >= from && c.date <= to).reduce((s, c) => s + c.net, 0)
+      + disposals.filter((d) => d.date >= from && d.date <= to).reduce((s, d) => s + d.restbuchwert, 0)
 
     const monthlyResults = await Promise.all(
       months.flatMap((m) => [
