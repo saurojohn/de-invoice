@@ -9,17 +9,18 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–441 are
-  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 441.)
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–442 are
+  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 442.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 35980058793 / commit `c666738`, Tier 441):**
-  - Backend e2e: **229 passed / 0 failed / 1 skipped** of 230 specs — 100
-    two-digit + 130 three-digit (Tier 441 added `230-tier441-rechtsform.sh`,
+- **Test counts (last green CI, run 35987275741 / commit `174f332`, Tier 442):**
+  - Backend e2e: **230 passed / 0 failed / 1 skipped** of 231 specs — 100
+    two-digit + 131 three-digit (Tier 442 added `231-tier442-lieferantengutschrift.sh`,
+    Tier 441 added `230-tier441-rechtsform.sh`,
     Tier 440 added `229-tier440-anlagenabgang.sh`,
     Tier 439 added `228-tier439-kst-ohne-anrechnung.sh`,
     Tier 438 added `227-tier438-anlage-g-gewerbesteuer.sh`,
