@@ -2106,6 +2106,8 @@
     "noExpenses": "No incoming invoices for this period",
     "creditNote": "Supplier credit note (reduces cost and input tax, § 17 UStG)",
     "confirmBerichtigt": "Submit as a corrected return (berichtigte Voranmeldung)?",
+    "berichtigungNoetig": "Correction needed",
+    "berichtigungHint": "The bookings of this period changed after submission (Zahllast {diff}). Submit a corrected return (§ 153 AO).",
     "editExpense": "Edit",
     "editingExpense": "Edit incoming invoice",
     "saveExpense": "Save",

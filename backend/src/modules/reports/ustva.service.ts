@@ -793,10 +793,28 @@ export class UstvaService {
   }
 
   async listFilings(companyId: string) {
-    return this.prisma.uStvaFiling.findMany({
+    const filings = await this.prisma.uStvaFiling.findMany({
       where: { companyId },
       orderBy: [{ year: 'desc' }, { quarter: 'asc' }, { month: 'asc' }],
     });
+    // Tier 449: a submitted return that no longer matches the books needs a
+    // corrected one (§ 153 AO) — an expense or invoice of the period entered
+    // or corrected after submission. The list said nothing. `abweichung` is
+    // live minus submitted; a draft is recomputed when saved, so not compared.
+    const cent = (n: number) => Math.round(n * 100) / 100;
+    return Promise.all(filings.map(async (f) => {
+      if (f.status !== 'submitted' && f.status !== 'accepted') {
+        return { ...f, abweichung: null, berichtigungNoetig: null };
+      }
+      const live = await this.compute(companyId, f.year, f.quarter ?? undefined, f.month ?? undefined);
+      const abweichung = {
+        outputVat: cent(live.umsatzsteuer - Number(f.outputVat)),
+        inputVat: cent(live.vorsteuerSum - Number(f.inputVat)),
+        payableVat: cent(live.differenzbetrag - Number(f.payableVat)),
+      };
+      const berichtigungNoetig = Object.values(abweichung).some((d) => Math.abs(d) >= 0.01);
+      return { ...f, abweichung, berichtigungNoetig };
+    }));
   }
 
   async getFiling(companyId: string, filingId: string) {

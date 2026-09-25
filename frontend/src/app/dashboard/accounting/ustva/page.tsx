@@ -55,6 +55,9 @@ interface UstvaFiling {
   taxNumber: string | null
   notes: string | null
   createdAt: string
+  // Tier 449: a submitted return the books no longer match (live − submitted).
+  abweichung?: { outputVat: number; inputVat: number; payableVat: number } | null
+  berichtigungNoetig?: boolean | null
 }
 
 interface Expense {
@@ -1128,6 +1131,18 @@ function UstvaPageInner() {
                                       ? t("ustva.statusAccepted")
                                       : t("ustva.statusRejected")}
                               </span>
+                              {f.berichtigungNoetig && f.abweichung && (
+                                <span
+                                  className="ml-2 text-xs px-2 py-0.5 rounded bg-amber-100 text-amber-900 dark:bg-amber-900/30 dark:text-amber-200 cursor-help"
+                                  title={t("ustva.berichtigungHint").replace(
+                                    "{diff}",
+                                    formatCurrency(f.abweichung.payableVat),
+                                  )}
+                                  data-testid={`ustva-berichtigung-${f.id}`}
+                                >
+                                  ⚠ {t("ustva.berichtigungNoetig")}
+                                </span>
+                              )}
                             </td>
                             <td className="py-2 text-gray-600 dark:text-gray-300">{f.taxNumber || "—"}</td>
                             <td className="py-2 text-right">

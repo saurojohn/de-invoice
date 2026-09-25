@@ -9,7 +9,7 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–448 are
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–449 are
   in `git log`; §8 records what each learned. (Snapshot refreshed Tier 448.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
@@ -2503,6 +2503,28 @@ Tier 401 run 35123354210 **failed** on backend lint — a warning
 runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
+
+### A submitted UStVA the books no longer match is flagged (Tier 449)
+
+Tier 448 kept a submitted filing's figures; the books of its period could
+still change afterwards (an expense entered late, an open one corrected —
+Tier 443). `GET /ustva/filings` kept showing the submitted figures with
+nothing to say they were now wrong, although § 153 AO requires a corrected
+return once the error is known.
+
+Now a submitted or accepted filing carries `abweichung` (live compute() minus
+submitted, for Umsatzsteuer, Vorsteuer and Zahllast) and `berichtigungNoetig`
+(any difference ≥ 1 cent); a draft carries null for both (it is recomputed
+when saved). The filings table shows "⚠ Berichtigung nötig" with the Zahllast
+difference and § 153 AO in its tooltip (de/en/zh); submitting the period again
+(the Tier 448 confirm) clears it.
+
+This is a notice, not a lock: whether a submitted period should refuse new or
+changed bookings (Festschreibung) is still a product decision (§ 9).
+
+Spec `e2e/238-tier449-berichtigung-noetig.sh` (10 assertions, 4 failing
+against the previous code). Playwright `ustva-berichtigung-noetig-tier449.spec.ts`.
+`listFilings` now runs compute() once per submitted filing.
 
 ### A submitted UStVA stays what was submitted (Tier 448)
 

@@ -2106,6 +2106,8 @@
     "noExpenses": "Keine Eingangsrechnungen für diesen Zeitraum",
     "creditNote": "Gutschrift des Lieferanten (mindert Aufwand und Vorsteuer, § 17 UStG)",
     "confirmBerichtigt": "Als berichtigte Voranmeldung übermitteln?",
+    "berichtigungNoetig": "Berichtigung nötig",
+    "berichtigungHint": "Die Buchungen dieses Zeitraums haben sich seit der Übermittlung geändert (Zahllast {diff}). Übermitteln Sie eine berichtigte Voranmeldung (§ 153 AO).",
     "editExpense": "Bearbeiten",
     "editingExpense": "Eingangsrechnung bearbeiten",
     "saveExpense": "Speichern",
