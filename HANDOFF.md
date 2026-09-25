@@ -10,16 +10,18 @@ exact commands + docs you need to be productive.
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
 - **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–448 are
-  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 446.)
+  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 448.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 36115104620 / commit `5f5950d`, Tier 446):**
-  - Backend e2e: **234 passed / 0 failed / 1 skipped** of 235 specs — 100
-    two-digit + 135 three-digit (Tier 446 added `235-tier446-zuordnung-storno.sh`,
+- **Test counts (last green CI, run 36124436416 / commit `f0edd99`, Tier 448):**
+  - Backend e2e: **236 passed / 0 failed / 1 skipped** of 237 specs — 100
+    two-digit + 137 three-digit (Tier 448 added `237-tier448-ustva-uebermittelt.sh`,
+    Tier 447 added `236-tier447-ausgaben-status.sh`,
+    Tier 446 added `235-tier446-zuordnung-storno.sh`,
     Tier 445 added `234-tier445-docker-exec-stdin.sh`,
     Tier 444 added `233-tier444-bankbeleg-storno.sh`,
     Tier 443 added `232-tier443-ausgabe-korrigieren.sh`,
@@ -75,13 +77,14 @@ exact commands + docs you need to be productive.
     and survives concurrent writes (Tier 367); spec 171 (new in Tier 368) asserts
     the auth audit rows exist at all and are signed — nothing had ever asserted
     on them, which is how a failed login for an unknown e-mail went unaudited.
-  - Playwright: **933 passed / 0 failed / 0 skipped / 0 flaky** (Tier 428's
+  - Playwright: **936 passed / 0 failed / 0 skipped / 0 flaky** (Tier 428's
     run had one flaky — `list-pages.spec.ts` "Invoices list renders without
     console errors" expected the empty state and saw a populated list, then
-    passed on retry). 933 tests (922 since Tier 390's
+    passed on retry). 936 tests (922 since Tier 390's
     page tests; +4 in Tier 401's session-cookie spec; +2 in Tier 413's
     invoice-discount-row spec; +2 in Tier 415's invoice-form-totals spec; +3 in
-    Tier 443's ustva-expense-edit spec). Tier 365 turned the last 4 skips into real
+    Tier 443's ustva-expense-edit spec; +2 in Tier 447's expense-edit spec; +1 in
+    Tier 448's ustva-berichtigt spec). Tier 365 turned the last 4 skips into real
     tests; Tier 365b fixed the one flaky test (`bwa-quarterly-tier163`).
     Tier 369 removed 28 silent-skip call sites — three intentional ones remained
     (two since Tier 381, which turned the webhook replay skip into a real wait),
