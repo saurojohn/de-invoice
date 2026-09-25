@@ -9,7 +9,7 @@ import LanguageSwitcher from "@/components/LanguageSwitcher"
 import DunningConfigCard from "@/components/DunningConfigCard"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
-import { API_BASE, apiGet, apiPost, apiPut, apiDelete, apiFetch, ApiError } from "@/lib/api"
+import { apiGet, apiGetBlob, apiPost, apiPut, apiDelete, apiFetch, ApiError } from "@/lib/api"
 // Tier 94: feature flags card (autoBookAfa + anlageV).
 import { FeatureFlagsCard } from "./FeatureFlagsCard"
 
@@ -1728,16 +1728,25 @@ export default function SettingsPage() {
                             </td>
                             <td className="px-3 py-2 text-right space-x-2">
                               <button
-                                onClick={() => {
-                                  const a = document.createElement("a")
-                                  a.href = `${API_BASE}${f.url}`
-                                  a.target = "_blank"
-                                  a.rel = "noopener noreferrer"
-                                  a.download = f.originalName
-                                  document.body.appendChild(a)
-                                  a.click()
-                                  document.body.removeChild(a)
+                                onClick={async () => {
+                                  // Tier 453: a plain navigation sends no auth
+                                  // headers — the backend answered 401. Fetch
+                                  // it with them and save the blob.
+                                  try {
+                                    const { blob } = await apiGetBlob(f.url)
+                                    const href = URL.createObjectURL(blob)
+                                    const a = document.createElement("a")
+                                    a.href = href
+                                    a.download = f.originalName
+                                    document.body.appendChild(a)
+                                    a.click()
+                                    document.body.removeChild(a)
+                                    setTimeout(() => URL.revokeObjectURL(href), 1000)
+                                  } catch (err: any) {
+                                    toast.error(err?.message || "Download fehlgeschlagen")
+                                  }
                                 }}
+                                data-testid={`storage-download-${f.filename}`}
                                 className="text-blue-600 dark:text-blue-400 hover:underline text-xs"
                               >
                                 {t("storage.fileDownload")}

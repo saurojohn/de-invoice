@@ -9,7 +9,7 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–452 are
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–453 are
   in `git log`; §8 records what each learned. (Snapshot refreshed Tier 452.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
@@ -2158,7 +2158,7 @@ Fix:
   settable by any company admin and still process-wide; nothing reads them yet
   ("coming soon") — part of §9 item 11.
 
-Still open: the settings page's file **Download** button is a plain navigation
+~~Still open~~ (closed in Tier 453): the settings page's file **Download** button is a plain navigation
 to `${API_BASE}${f.url}` without auth headers — the same class as Tier 377's
 "backend URLs not passed to an `api*` helper", though built from response data
 so that scan does not count it. It answers 401, as before this change.
@@ -2507,6 +2507,23 @@ Tier 401 run 35123354210 **failed** on backend lint — a warning
 runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
+
+### A stored file's URL opens it (Tier 453)
+
+Measured: `POST /storage/upload` answered with url `/api/v1/storage/<path>` —
+no such route, GET was 404 (the file route is `files/*splat` with the path's
+slashes as commas, which `GET /storage/list` returned). And the settings
+page's file "Download" (left open by Tier 385) navigated to the list URL
+without the auth headers: 401, the browser saved an error page.
+
+Now `storageFileUrl()` builds the URL for both routes, and the button fetches
+the file with the headers (`apiGetBlob`) and saves the blob under its original
+name. Nothing else read the upload's url (attachments keep `path`).
+
+Spec `e2e/242-tier453-storage-url.sh` (7 assertions, 4 failing against the
+previous code; the Tier 385 isolation — 404 for another company — still
+holds). Playwright `storage-download-tier453.spec.ts` checks the saved file's
+name and bytes.
 
 ### A supplier bill paid less its Skonto (Tier 452)
 
