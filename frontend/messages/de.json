@@ -1718,7 +1718,11 @@
     "logoLargeWarning": "Hinweis: Das Logo ist {w}×{h} px groß. Empfohlen werden max. 1500 px, sonst wird die PDF-Datei unnötig groß.",
     "removeLogoConfirm": "Logo wirklich entfernen?",
     "logoRemoved": "Logo entfernt",
-    "removeLogoError": "Logo konnte nicht entfernt werden"
+    "removeLogoError": "Logo konnte nicht entfernt werden",
+    "besteuerungsart": "Besteuerungsart (Umsatzsteuer)",
+    "besteuerungsartSoll": "Soll-Versteuerung (nach Rechnungsdatum)",
+    "besteuerungsartIst": "Ist-Versteuerung (nach Zahlungseingang, § 20 UStG)",
+    "besteuerungsartHelp": "Nur mit Genehmigung des Finanzamts. Bei Ist-Versteuerung zählt die Umsatzsteuer in der Voranmeldung des Monats, in dem das Geld eingeht; steuerfreie Umsätze und die Vorsteuer bleiben beim Rechnungsdatum."
   },
   "statement": {
     "title": "Kontoauszug",
@@ -2130,7 +2134,8 @@
     "exportCsv": "CSV exportieren",
     "hintVoranmeldung": "Hinweis: Bei Abgabe nach dem 10. des Folgemonats kann Verspätungszuschlag erhoben werden (§ 152 AO).",
     "downloadElster": "ELSTER XML",
-    "elsterTooltip": "ELSTER-XML für Mein-ELSTER-Upload herunterladen"
+    "elsterTooltip": "ELSTER-XML für Mein-ELSTER-Upload herunterladen",
+    "istVersteuerung": "Ist-Versteuerung (§ 20 UStG): steuerpflichtige Umsätze im Zeitraum des Zahlungseingangs."
   },
   "voucher": {
     "title": "Buchungsbeleg",

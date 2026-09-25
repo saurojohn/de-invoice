@@ -1718,7 +1718,11 @@
     "logoLargeWarning": "提示：logo 是 {w}×{h} px，建议不超过 1500 px，否则 PDF 文件会过大。",
     "removeLogoConfirm": "确认要删除 logo 吗？",
     "logoRemoved": "Logo 已删除",
-    "removeLogoError": "无法删除 logo"
+    "removeLogoError": "无法删除 logo",
+    "besteuerungsart": "增值税计税方式",
+    "besteuerungsartSoll": "应计制（按发票日期）",
+    "besteuerungsartIst": "收付实现制（按收款，§ 20 UStG）",
+    "besteuerungsartHelp": "须经税务局批准。收付实现制下，销项税在收到款项的月份申报；免税销售和进项税仍按发票日期。"
   },
   "statement": {
     "title": "客户对账单",
@@ -2130,7 +2134,8 @@
     "exportCsv": "导出 CSV",
     "hintVoranmeldung": "提示：超过下月10日提交可能产生滞纳金 (§ 152 AO)。",
     "downloadElster": "ELSTER XML",
-    "elsterTooltip": "下载 ELSTER XML 以上传到 Mein-ELSTER"
+    "elsterTooltip": "下载 ELSTER XML 以上传到 Mein-ELSTER",
+    "istVersteuerung": "收付实现制（§ 20 UStG）：应税销售按收款期间计入。"
   },
   "voucher": {
     "title": "记账凭证",

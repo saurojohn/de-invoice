@@ -1718,7 +1718,11 @@
     "logoLargeWarning": "Note: the logo is {w}×{h} px. Recommended: max. 1500 px, otherwise the PDF file becomes unnecessarily large.",
     "removeLogoConfirm": "Really remove the logo?",
     "logoRemoved": "Logo removed",
-    "removeLogoError": "Could not remove the logo"
+    "removeLogoError": "Could not remove the logo",
+    "besteuerungsart": "VAT accounting basis",
+    "besteuerungsartSoll": "Accrual (by invoice date)",
+    "besteuerungsartIst": "Cash basis (on receipt, § 20 UStG)",
+    "besteuerungsartHelp": "Only with the tax office's approval. On the cash basis the output VAT is declared in the month the money arrives; exempt sales and input VAT stay at the invoice date."
   },
   "statement": {
     "title": "Customer Statement",
@@ -2130,7 +2134,8 @@
     "exportCsv": "Export CSV",
     "hintVoranmeldung": "Note: Late filing (after the 10th of the following month) may incur late surcharges (§ 152 AO).",
     "downloadElster": "ELSTER XML",
-    "elsterTooltip": "Download ELSTER XML for Mein-ELSTER upload"
+    "elsterTooltip": "Download ELSTER XML for Mein-ELSTER upload",
+    "istVersteuerung": "Cash basis (§ 20 UStG): taxable sales in the period the payment arrived."
   },
   "voucher": {
     "title": "Voucher",

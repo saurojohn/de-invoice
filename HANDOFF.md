@@ -9,7 +9,7 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–456 are
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–457 are
   in `git log`; §8 records what each learned. (Snapshot refreshed Tier 456.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
@@ -2512,6 +2512,32 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Ist-Versteuerung: output tax when the money comes in (Tier 457)
+
+The app knew only the Soll-Versteuerung. A business allowed the
+Ist-Versteuerung (§ 20 UStG — below the turnover threshold, or a freelancer)
+owes the output tax in the period the payment arrives (§ 13 Abs. 1 Nr. 1 b).
+Measured: there was no setting (PUT `besteuerungsart` → 400), and the March
+UStVA declared 190 € on an invoice paid in April and the full 7 € on a
+half-paid one.
+
+Now `Company.besteuerungsart` ('soll' default / NULL, or 'ist'; migration
+`20260925000001_company_besteuerungsart`, settings page select). With 'ist'
+the UStVA takes taxed sales from `istPaidDocuments` (`reports/ustva-ist.ts`):
+the EÜR's payment walk (`euerInflows`, which now also returns the paid
+`fraction` of each document) applied per rate. Zero-rated sales (§ 4, igL,
+§ 13b, export) stay at the invoice date, and so does the input tax (§ 15).
+The response carries `besteuerungsart`; the UStVA page says so; the UStJA
+sums the monthly results, so it follows. The filing DTO accepts the echoed
+field (it was refused as unknown — specs 206 / 237 / 238 caught it).
+
+Spec `e2e/246-tier457-ist-versteuerung.sh` (10 assertions, 5 failing against
+the previous code). Playwright `ist-versteuerung-tier457.spec.ts`.
+
+Not changed: the DATEV export books the same either way — DATEV handles the
+Ist-Versteuerung through the Mandant's own setting (the Berater sets it
+there); the ELSTER XML has no field for it.
+
 ### Paying out a customer's credit books money leaving the bank (Tier 456)
 
 Found while reading the credit code for Tier 454. Measured (invoice 119 €,
@@ -2935,11 +2961,11 @@ against the previous code). Playwright `ustva-expense-edit-tier443.spec.ts`
 
 Not done: a filed UStVA period (`UStvaFiling.status = submitted`) locks
 nothing — invoices and expenses of that period can still change, nowhere in
-the app is a period closed (that is a Festschreibung feature of its own). A
-voucher storno of a bank-import expense booking does not clear the
-expense's `paidAt`, so such an expense stays locked as "bezahlt". The
-expenses page (`/dashboard/expenses`) has no edit button; the API route is
-there.
+the app is a period closed (that is a Festschreibung feature of its own;
+Tiers 448 / 449 flag a filing that needs a Berichtigung instead).
+~~A voucher storno of a bank-import expense booking does not clear the
+expense's `paidAt`~~ (Tier 444). ~~The expenses page has no edit button~~
+(Tier 447).
 
 ### Supplier credit notes (Tier 442)
 
@@ -2972,8 +2998,8 @@ against the previous code). Spec 119
 seeded its BWA expenses with negative amounts — which only added up through
 the BWA's Math.abs() — and now seeds them positive, as the app stores them.
 
-Not done: the bank import does not match an incoming refund to a credit note;
-there is still no way to edit an expense (only create / delete).
+~~Not done: the bank import does not match an incoming refund to a credit
+note~~ (Tier 450); ~~there is still no way to edit an expense~~ (Tier 443).
 Local runs: backend **230 / 0 / 1**, 0 × 500; Playwright 929 + **1 flaky** —
 `list-pages-2` "search filters the supplier list" counted the rows a fixed
 500 ms after Enter, before the reload had rendered (unrelated to this tier).
@@ -3353,11 +3379,10 @@ asserts no payment, one open report, and `alreadyReported` on the second
 click. Local runs: backend **218 / 0 / 1**, 0 × 500; Playwright **930**, no
 flaky.
 
-Not changed, found on the way: the customer detail's "Sammelzahlung" (one
+~~Not changed, found on the way: the customer detail's "Sammelzahlung" (one
 amount over several invoices, `customer.service`) and the credit-balance
 "Guthaben verrechnen" write payments directly instead of through
-PaymentService, so they skip the Skonto check, the Ratenplan sync and the
-payment webhook.
+PaymentService~~ — both go through PaymentService since Tier 431.
 
 ### A Ratenplan was paid past its invoice (Tier 429)
 

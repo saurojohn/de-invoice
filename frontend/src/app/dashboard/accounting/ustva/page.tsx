@@ -15,6 +15,8 @@ interface UstvaData {
   quarter?: number | null
   month?: number | null
   periodLabel: string
+  // Tier 457: 'ist' — taxed sales in the period of their payment (§ 20 UStG)
+  besteuerungsart?: "soll" | "ist"
   salesByRate: Array<{ rate: number; label: string; net: number; vat: number }>
   igL: number
   export: number
@@ -609,6 +611,11 @@ function UstvaPageInner() {
             <Card className="mb-6">
               <CardHeader>
                 <CardTitle>{t("ustva.taxableSales")}</CardTitle>
+                {data.besteuerungsart === "ist" && (
+                  <p className="text-xs text-gray-600 dark:text-gray-300" data-testid="ustva-ist">
+                    {t("ustva.istVersteuerung")}
+                  </p>
+                )}
               </CardHeader>
               <CardContent>
                 {data.salesByRate.length === 0 ? (

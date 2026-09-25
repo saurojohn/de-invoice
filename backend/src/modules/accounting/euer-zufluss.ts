@@ -34,6 +34,11 @@ export interface Inflow<T> {
   invoice: T
   /** net income in EUR, negative for a credit note's refund */
   amount: number
+  /**
+   * Tier 457: the part of the document counted in the period (0–1), to apply
+   * to its own amounts — per VAT rate for the Ist-Versteuerung (ustva-ist.ts).
+   */
+  fraction: number
 }
 
 const INVOICE_FIELDS = {
@@ -83,22 +88,22 @@ export async function euerInflows(prisma: PrismaService, companyId: string, star
       // A correction entered as a negative invoice: paid out when it says
       // "paid" — no payment row records a refund, so at its issue date.
       if (inv.status === 'paid' && inYear(inv.issueDate, start, end)) {
-        inflows.push({ invoice: inv, amount: invoiceNetRevenue(inv) })
+        inflows.push({ invoice: inv, amount: invoiceNetRevenue(inv), fraction: 1 })
       }
       continue
     }
     if (total === 0) continue
     const share = invoiceNetRevenue(inv) / total
     let open = total
-    let amount = 0
+    let counted = 0
     for (const p of inv.payments) {
       const part = Math.min(Number(p.amount), open)
       if (part <= 0) break
       open -= part
-      if (p.paymentMethod !== 'Gutschrift' && inYear(p.paymentDate, start, end)) amount += part * share
+      if (p.paymentMethod !== 'Gutschrift' && inYear(p.paymentDate, start, end)) counted += part
     }
-    if (inv.status === 'paid' && open > CENT && inYear(inv.issueDate, start, end)) amount += open * share
-    if (Math.abs(amount) > 1e-9) inflows.push({ invoice: inv, amount })
+    if (inv.status === 'paid' && open > CENT && inYear(inv.issueDate, start, end)) counted += open
+    if (counted > 1e-9) inflows.push({ invoice: inv, amount: counted * share, fraction: counted / total })
   }
 
   // Credit notes of the year: the part beyond what they settled on their invoice.
@@ -128,7 +133,9 @@ export async function euerInflows(prisma: PrismaService, companyId: string, star
       .filter((p) => p.reference === `CN ${cn.invoiceNumber}` && p.invoiceId === cn.referenceInvoiceId)
       .reduce((s, p) => s + Number(p.amount), 0)
     const beyond = gross - offset
-    if (beyond > CENT) inflows.push({ invoice: cn, amount: (invoiceNetRevenue(cn) / gross) * beyond })
+    if (beyond > CENT) {
+      inflows.push({ invoice: cn, amount: (invoiceNetRevenue(cn) / gross) * beyond, fraction: beyond / gross })
+    }
   }
 
   // Issued in the year and not (fully) paid yet — counted when they are.

@@ -204,4 +204,10 @@ export class UpdateCompanyDto {
   @IsIn(RECHTSFORMEN as unknown as string[], { message: `rechtsform muss eine von ${RECHTSFORMEN.join(', ')} sein` })
   @IsOptional()
   rechtsform?: string | null;
+
+  // Tier 457: Soll- or Ist-Versteuerung (§ 20 UStG); null = 'soll'.
+  @IsString()
+  @IsIn(['soll', 'ist'], { message: "besteuerungsart muss 'soll' oder 'ist' sein" })
+  @IsOptional()
+  besteuerungsart?: string | null;
 }

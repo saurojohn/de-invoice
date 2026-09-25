@@ -5,6 +5,7 @@ import type { Response } from 'express';
 import { invoiceTaxBreakdown } from '../invoice/tax-breakdown';
 import { normaliseCountry } from '../invoice/ust-behandlung-detector';
 import { cashBookings } from '../cashbook/cash-bookings';
+import { besteuerungsart, istPaidDocuments } from './ustva-ist';
 import { expenseLockReason, expenseLockReasons } from '../expense/expense-lock';
 import { KzEntry, ustvaKennzahlen } from './ust-kennzahlen';
 
@@ -24,6 +25,8 @@ export interface UstvaData {
   quarter?: number;
   month?: number;
   periodLabel: string;
+  /** Tier 457: 'ist' — taxed sales counted when paid (§ 20 UStG) */
+  besteuerungsart: 'soll' | 'ist';
 
   // Lines 20-23: taxable sales by rate (Steuerpflichtige Umsätze)
   salesByRate: Array<{
@@ -114,6 +117,8 @@ export class UstvaService {
     if (month !== undefined && (month < 1 || month > 12)) throw new BadRequestException('Monat 1-12');
 
     const { start, end } = this.getDateRange(year, quarter, month);
+    // Tier 457: Soll- or Ist-Versteuerung (ustva-ist.ts).
+    const art = await besteuerungsart(this.prisma, companyId);
 
     // ── OUTPUT SIDE ───────────────────────────────────────────────
     // Sales invoices (excl. cancelled, finalized only — draft is not part of Voranmeldung)
@@ -228,7 +233,8 @@ export class UstvaService {
         const vat = bucket.vat * f;
 
         if (rate > 0) {
-          addToRate(rate, net, vat);
+          // Tier 457: an Ist-Versteuerer owes it when paid (below).
+          if (art === 'soll') addToRate(rate, net, vat);
         } else {
           // Zero-rated — the invoice's own igL / § 13b flags are the user's
           // explicit statement and win over any inference.
@@ -246,7 +252,7 @@ export class UstvaService {
         const net = bucket.net * f;
         const vat = bucket.vat * f;
         if (rate > 0) {
-          addToRate(rate, net, vat); // CN is already negative
+          if (art === 'soll') addToRate(rate, net, vat); // CN is already negative
         } else {
           addZeroRated(
             (cn as any).referenceInvoice ?? {},
@@ -254,6 +260,18 @@ export class UstvaService {
             (cn.customer as any)?.vatId || '',
             net,
           );
+        }
+      }
+    }
+
+    // Tier 457: Ist-Versteuerung — taxed sales in the period of their payment,
+    // each document with the part of it paid (or, a credit note, refunded) in
+    // the period.
+    if (art === 'ist') {
+      for (const { doc, fraction } of await istPaidDocuments(this.prisma, companyId, start, end)) {
+        const f = eurFactor(doc)
+        for (const bucket of invoiceTaxBreakdown(doc).byRate) {
+          if (bucket.rate > 0) addToRate(bucket.rate, bucket.net * f * fraction, bucket.vat * f * fraction)
         }
       }
     }
@@ -369,6 +387,7 @@ export class UstvaService {
       quarter,
       month,
       periodLabel,
+      besteuerungsart: art,
       salesByRate: Array.from(salesByRateMap.entries())
         .map(([rate, v]) => ({
           rate,

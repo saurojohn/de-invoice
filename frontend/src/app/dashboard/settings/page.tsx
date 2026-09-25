@@ -86,6 +86,8 @@ interface CompanySettings {
   // Tier 441: legal form; null = derived from the company name by the
   // backend (company/rechtsform.ts).
   rechtsform: string | null
+  // Tier 457: Soll- or Ist-Versteuerung (§ 20 UStG); null = soll.
+  besteuerungsart: "soll" | "ist" | null
 }
 
 // Tier 441: the values the backend accepts (company/rechtsform.ts).
@@ -225,6 +227,7 @@ export default function SettingsPage() {
     defaultPaymentDays: 30,
     defaultVatMode: null,
     rechtsform: null,
+    besteuerungsart: null,
   })
 
   const [storageForm, setStorageForm] = useState<StorageSettings>({
@@ -319,6 +322,7 @@ export default function SettingsPage() {
               // a pre-selected option.
               defaultVatMode: data.defaultVatMode ?? null,
               rechtsform: data.rechtsform ?? null,
+              besteuerungsart: data.besteuerungsart ?? null,
             })
 
             if (data.logoPath) {
@@ -566,6 +570,7 @@ export default function SettingsPage() {
           // invoice create.
           defaultVatMode: fresh.defaultVatMode ?? null,
           rechtsform: fresh.rechtsform ?? null,
+          besteuerungsart: fresh.besteuerungsart ?? null,
         })
       }
       toast.error(t("settings.saved"))
@@ -1197,6 +1202,23 @@ export default function SettingsPage() {
                   </select>
                   <p className="text-xs text-gray-600 mt-1">
                     {t("settings.rechtsformHelp")}
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    {t("settings.besteuerungsart")}
+                  </label>
+                  <select
+                    className="w-full h-10 border rounded-md px-3"
+                    value={form.besteuerungsart ?? "soll"}
+                    onChange={(e) => setForm({ ...form, besteuerungsart: e.target.value as "soll" | "ist" })}
+                    data-testid="settings-besteuerungsart"
+                  >
+                    <option value="soll">{t("settings.besteuerungsartSoll")}</option>
+                    <option value="ist">{t("settings.besteuerungsartIst")}</option>
+                  </select>
+                  <p className="text-xs text-gray-600 mt-1">
+                    {t("settings.besteuerungsartHelp")}
                   </p>
                 </div>
                 <div>

@@ -121,6 +121,10 @@ export class UstvaDataDto {
   @IsString() @MinLength(1) @MaxLength(50)
   periodLabel!: string
 
+  // Tier 457: echoed back from compute; the save recomputes (Tier 448).
+  @IsString() @IsOptional() @IsIn(['soll', 'ist'])
+  besteuerungsart?: string
+
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => UstvaSalesByRateDto)
