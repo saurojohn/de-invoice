@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import type { Response } from 'express';
@@ -717,30 +717,63 @@ export class UstvaService {
     })
   }
 
+  /**
+   * Tier 448 — save a UStVA filing (draft or submitted).
+   *
+   * The figures come from compute() for the period, not from the request:
+   * the page posts the computed data back, but the endpoint stored whatever
+   * it was sent — measured: Umsatzsteuer 999 saved for a month whose computed
+   * Umsatzsteuer was 0. And a filing marked "submitted" was overwritten by
+   * the next save, a draft included (status back to draft, submittedAt
+   * cleared, figures replaced): the record of what went to the Finanzamt was
+   * gone. A submitted filing is now replaced only by a corrected return
+   * (`berichtigt: true`, § 153 AO / Kz 10 in ELSTER), which keeps the first
+   * submission's date in the notes; the audit log keeps the before-image.
+   */
   async saveFiling(
     companyId: string,
-    data: Pick<
-      UstvaData,
-      'year' | 'quarter' | 'month' | 'periodLabel' | 'umsatzsteuer' | 'vorsteuerSum' | 'differenzbetrag' | 'igL' | 'reverseCharge'
-    > & { taxNumber?: string; notes?: string; status?: 'draft' | 'submitted' },
+    data: Pick<UstvaData, 'year' | 'quarter' | 'month'> & {
+      taxNumber?: string;
+      notes?: string;
+      status?: 'draft' | 'submitted';
+      berichtigt?: boolean;
+    },
   ) {
     const quarter = data.quarter ?? null;
     const month = data.month ?? null;
+    const live = await this.compute(companyId, data.year, quarter ?? undefined, month ?? undefined);
+    const status = data.status ?? 'draft';
 
     const existing = await this.prisma.uStvaFiling.findFirst({
       where: { companyId, year: data.year, quarter, month },
     });
+    let notes = data.notes;
+    if (existing?.status === 'submitted') {
+      const when = existing.submittedAt ? existing.submittedAt.toISOString().slice(0, 10) : '?';
+      if (status !== 'submitted') {
+        throw new ConflictException(
+          `Die UStVA ${existing.periodLabel} wurde am ${when} übermittelt und kann nicht mehr als Entwurf gespeichert werden. Eine Korrektur ist eine berichtigte Voranmeldung.`,
+        );
+      }
+      if (!data.berichtigt) {
+        throw new ConflictException(
+          `Die UStVA ${existing.periodLabel} wurde am ${when} bereits übermittelt. Übermitteln Sie sie erneut als berichtigte Voranmeldung.`,
+        );
+      }
+      notes = [`Berichtigte Voranmeldung (erste Übermittlung ${when}, Zahllast damals ${Number(existing.payableVat).toFixed(2)} €)`, data.notes]
+        .filter(Boolean).join(' — ');
+    }
 
     const payload = {
-      outputVat: data.umsatzsteuer,
-      inputVat: data.vorsteuerSum,
-      payableVat: data.differenzbetrag,
-      intraEUSales: data.igL,
-      intraEUPurchase: data.reverseCharge,
+      outputVat: live.umsatzsteuer,
+      inputVat: live.vorsteuerSum,
+      payableVat: live.differenzbetrag,
+      intraEUSales: live.igL,
+      intraEUPurchase: live.reverseCharge,
       taxNumber: data.taxNumber,
-      notes: data.notes,
-      status: data.status ?? 'draft',
-      submittedAt: data.status === 'submitted' ? new Date() : null,
+      notes,
+      status,
+      submittedAt: status === 'submitted' ? new Date() : null,
     };
 
     if (existing) {
@@ -753,7 +786,7 @@ export class UstvaService {
         year: data.year,
         quarter,
         month,
-        periodLabel: data.periodLabel,
+        periodLabel: live.periodLabel,
         ...payload,
       },
     });

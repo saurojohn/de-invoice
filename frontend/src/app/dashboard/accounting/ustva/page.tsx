@@ -328,14 +328,25 @@ function UstvaPageInner() {
     if (!companyId) return
     setSaving(true)
     setSavedMsg(null)
-    try {
-      // Tier 390: was a raw fetch without the auth headers (401).
-      await apiPost(`/api/v1/ustva/filings?companyId=${companyId}`, {
+    const post = (berichtigt: boolean) =>
+      apiPost(`/api/v1/ustva/filings?companyId=${companyId}`, {
         ...data,
         taxNumber: taxNumber || null,
         notes: notes || null,
         status,
+        ...(berichtigt ? { berichtigt: true } : {}),
       })
+    try {
+      // Tier 390: was a raw fetch without the auth headers (401).
+      try {
+        await post(false)
+      } catch (err) {
+        // Tier 448: the period was already submitted — only a corrected
+        // return (berichtigte Voranmeldung) may replace it.
+        if (!(err instanceof ApiError && err.status === 409 && status === "submitted")) throw err
+        if (!confirm(`${err.message}\n\n${t("ustva.confirmBerichtigt")}`)) return
+        await post(true)
+      }
       setSavedMsg(
         status === "submitted" ? t("ustva.submitSuccess") : t("ustva.saveSuccess")
       )
@@ -1034,7 +1045,7 @@ function UstvaPageInner() {
                   <Button variant="outline" onClick={() => saveFiling("draft")} disabled={saving} data-testid="ustva-save-draft">
                     {t("ustva.saveDraft")}
                   </Button>
-                  <Button onClick={() => saveFiling("submitted")} disabled={saving}>
+                  <Button onClick={() => saveFiling("submitted")} disabled={saving} data-testid="ustva-submit">
                     {t("ustva.submit")}
                   </Button>
                   {savedMsg && (

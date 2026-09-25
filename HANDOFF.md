@@ -9,7 +9,7 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–447 are
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–448 are
   in `git log`; §8 records what each learned. (Snapshot refreshed Tier 446.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
@@ -2500,6 +2500,35 @@ Tier 401 run 35123354210 **failed** on backend lint — a warning
 runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
+
+### A submitted UStVA stays what was submitted (Tier 448)
+
+`POST /ustva/filings` (the UStVA page's "Als Entwurf speichern" / "An
+Finanzamt übermitteln") upserted by period. Measured:
+
+- the stored figures were the request's: Umsatzsteuer **999** saved for a
+  month whose computed Umsatzsteuer was 0 (the page posts compute()'s data
+  back, but nothing checked it);
+- a filing marked "submitted" was overwritten by the next save — a draft save
+  set it back to "draft", cleared `submittedAt` and replaced the figures. The
+  record of what went to the Finanzamt was gone.
+
+Now `saveFiling` stores compute()'s figures for the period, whatever the body
+says. A submitted filing cannot be saved as a draft (409); submitting it again
+is refused (409) unless `berichtigt: true` — a corrected return (§ 153 AO),
+whose notes record the first submission's date and Zahllast; the audit log
+(UStvaFiling is audited) keeps the before-image. The page catches the 409 on
+"übermitteln", asks "Als berichtigte Voranmeldung übermitteln?" (de/en/zh) and
+only then resends with `berichtigt`.
+
+Spec `e2e/237-tier448-ustva-uebermittelt.sh` (13 assertions, 8 failing
+against the previous code). Playwright `ustva-berichtigt-tier448.spec.ts`
+(against the previous backend the second submission answered 201).
+
+Not done: the ELSTER XML (§9 item 9 — its format is unverified anyway) does
+not mark a corrected return (Kz 10 "Berichtigte Anmeldung"); the user has to
+tick it in Mein ELSTER. There is still only one filing row per period, so the
+first submission's figures survive only in the notes and the audit log.
 
 ### The expenses page shows how an expense was paid, and corrects open ones (Tier 447)
 

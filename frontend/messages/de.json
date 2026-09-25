@@ -2105,6 +2105,7 @@
     "confirmDelete": "Eingangsrechnung wirklich löschen?",
     "noExpenses": "Keine Eingangsrechnungen für diesen Zeitraum",
     "creditNote": "Gutschrift des Lieferanten (mindert Aufwand und Vorsteuer, § 17 UStG)",
+    "confirmBerichtigt": "Als berichtigte Voranmeldung übermitteln?",
     "editExpense": "Bearbeiten",
     "editingExpense": "Eingangsrechnung bearbeiten",
     "saveExpense": "Speichern",

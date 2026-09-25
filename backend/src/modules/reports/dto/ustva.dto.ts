@@ -25,6 +25,7 @@ import {
   Min,
   Max,
   ValidateNested,
+  IsBoolean,
 } from "class-validator"
 import { Type } from "class-transformer"
 
@@ -199,4 +200,9 @@ export class SaveUstvaFilingDto extends UstvaDataDto {
 
   @IsString() @IsOptional() @IsIn(['draft', 'submitted'])
   status?: 'draft' | 'submitted'
+
+  // Tier 448: a filing already submitted is replaced only by a corrected
+  // return (berichtigte Voranmeldung), and only when the caller says so.
+  @IsOptional() @IsBoolean()
+  berichtigt?: boolean
 }

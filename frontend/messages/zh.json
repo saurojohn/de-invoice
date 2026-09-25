@@ -2105,6 +2105,7 @@
     "confirmDelete": "确认删除此进项发票？",
     "noExpenses": "此期间无进项发票",
     "creditNote": "供应商贷项通知单（冲减费用和进项税，§ 17 UStG）",
+    "confirmBerichtigt": "作为更正申报（berichtigte Voranmeldung）重新提交？",
     "editExpense": "编辑",
     "editingExpense": "编辑进项发票",
     "saveExpense": "保存",
