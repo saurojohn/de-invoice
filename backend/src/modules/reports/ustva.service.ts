@@ -5,6 +5,7 @@ import type { Response } from 'express';
 import { invoiceTaxBreakdown } from '../invoice/tax-breakdown';
 import { normaliseCountry } from '../invoice/ust-behandlung-detector';
 import { cashBookings } from '../cashbook/cash-bookings';
+import { expenseLockReason, expenseLockReasons } from '../expense/expense-lock';
 import { KzEntry, ustvaKennzahlen } from './ust-kennzahlen';
 
 /**
@@ -775,11 +776,14 @@ export class UstvaService {
       const { start, end } = this.getDateRange(year, quarter, month);
       where.invoiceDate = { gte: start, lte: end };
     }
-    return this.prisma.expense.findMany({
+    const expenses = await this.prisma.expense.findMany({
       where,
       include: { supplier: true },
       orderBy: { invoiceDate: 'desc' },
     });
+    // Tier 443: the page offers edit / delete only where they are allowed.
+    const locks = await expenseLockReasons(this.prisma, companyId, expenses);
+    return expenses.map((e) => ({ ...e, lockReason: locks.get(e.id) ?? null }));
   }
 
   async createExpense(companyId: string, data: {
@@ -829,6 +833,10 @@ export class UstvaService {
   async deleteExpense(companyId: string, expenseId: string) {
     const exp = await this.prisma.expense.findFirst({ where: { id: expenseId, companyId } });
     if (!exp) throw new BadRequestException('Ausgabe nicht gefunden');
+    // Tier 443: a paid expense or an AfA row took its cost, input tax and
+    // payment out of the books with it (the cash-book entry's link set to NULL).
+    const reason = await expenseLockReason(this.prisma, companyId, exp);
+    if (reason) throw new BadRequestException(reason);
     await this.prisma.expense.delete({ where: { id: expenseId } });
   }
 }

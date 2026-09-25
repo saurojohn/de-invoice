@@ -1,10 +1,12 @@
 import { signedExpenseAmounts } from '../expense/credit-note'
-import { Controller, Get, Post, Delete, Body, Query, Param, BadRequestException, Header, Res } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Query, Param, BadRequestException, Header, Res } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { UstvaService } from './ustva.service';
 import { SaveUstvaFilingDto } from './dto/ustva.dto';
 import { CreateUstvaExpenseDto } from './dto/ustva-expense.dto';
+import { UpdateExpenseDto } from '../expense/dto/expense.dto';
+import { updateExpense } from '../expense/update-expense';
 import { UstjaService } from './ustja.service';
 import {
   generateUstvaElsterXml,
@@ -182,6 +184,18 @@ export class UstvaController {
       isReverseCharge: body.isReverseCharge ?? false,
       notes: body.notes,
     });
+  }
+
+  // Tier 443: correct an open expense (expense/update-expense.ts).
+  @Put('expenses/:id')
+  @Require('accounting.update')
+  async updateExpense(
+    @Query('companyId') companyId: string,
+    @Param('id') id: string,
+    @Body() body: UpdateExpenseDto,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId is required');
+    return updateExpense(this.prisma, companyId, id, body);
   }
 
   @Delete('expenses/:id')

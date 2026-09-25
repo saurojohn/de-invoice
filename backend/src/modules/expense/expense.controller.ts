@@ -1,12 +1,14 @@
-import { Controller, Get, Post, Body, Param, Query, BadRequestException, Header } from '@nestjs/common';
+import { Controller, Get, Post, Put, Body, Param, Query, BadRequestException, Header } from '@nestjs/common';
 import { ExpenseService, ImportExpenseRow } from './expense.service';
-import { CreateExpenseDto } from './dto/expense.dto';
+import { CreateExpenseDto, UpdateExpenseDto } from './dto/expense.dto';
+import { updateExpense } from './update-expense';
+import { PrismaService } from '../../prisma/prisma.service';
 import { Auth, Require } from '../../auth/roles.decorator';
 
 @Auth()
 @Controller('expenses')
 export class ExpenseController {
-  constructor(private expenseService: ExpenseService) {}
+  constructor(private expenseService: ExpenseService, private prisma: PrismaService) {}
 
   @Get()
   @Require('invoice.read')
@@ -35,6 +37,18 @@ export class ExpenseController {
   ) {
     this.assertCompanyId(companyId);
     return this.expenseService.create(companyId, data);
+  }
+
+  // Tier 443: correct an open expense (update-expense.ts); a paid one is refused.
+  @Put(':id')
+  @Require('invoice.update')
+  async update(
+    @Param('id') id: string,
+    @Query('companyId') companyId: string,
+    @Body() data: UpdateExpenseDto,
+  ) {
+    this.assertCompanyId(companyId);
+    return updateExpense(this.prisma, companyId, id, data);
   }
 
   /**

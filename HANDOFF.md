@@ -9,7 +9,7 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–442 are
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–443 are
   in `git log`; §8 records what each learned. (Snapshot refreshed Tier 442.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
@@ -2495,6 +2495,57 @@ Tier 401 run 35123354210 **failed** on backend lint — a warning
 runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
+
+### An open expense can be corrected; a paid one is not deleted (Tier 443)
+
+Tier 442 left it open: an expense (Eingangsrechnung) could be created and
+deleted, never corrected. Measured on the delete, which checked nothing:
+
+- An expense paid by a SEPA batch was deleted (200). The money had left the
+  bank and the batch still listed the payment; the cost, the input tax and the
+  DATEV payment row were gone.
+- An expense paid from the cash book was deleted too (200) — not a 500: the
+  cash-book entry's `expenseId` is an optional relation, so Postgres set it
+  to NULL and the Ausgabe stayed in the Kassenbuch as an unexplained payment.
+- An AfA row of the asset register was deleted by hand (200), past the AfA
+  storno; the register still said "AfA gebucht" for that year.
+
+And on the UStVA page's expense form (Chromium):
+
+- Typing the net amount key by key saved the VAT and gross computed for the
+  **first digit**: 1000 € net → VAT 0,19, gross 1,19, and the UStVA took
+  0,19 € Vorsteuer. The effect kept `f.vatAmount || …`; every Playwright test
+  used `fill()`, which sets the whole value at once.
+- The "Lieferant" select listed the company's **customers**; saving with one
+  chosen answered 400 "Lieferant nicht gefunden" (the Tier 390 check).
+
+Now: `PUT /expenses/:id` (`invoice.update`) and `PUT /ustva/expenses/:id`
+(`accounting.update`) share `expense/update-expense.ts`. Amounts are entered
+positive as on create; a changed net or rate without a VAT derives VAT (to
+cents) and gross; a credit note keeps its sign unless `creditNote: false`.
+Unknown fields (`paidAt`, …) are 400. `expense/expense-lock.ts` says when an
+expense is no longer open — an AfA row, paid by SEPA (`paidBySepaBatchId`),
+an unreversed cash-book Ausgabe, an unreversed bank-import voucher tagged
+`[expense:<id>]`, or any other `paidAt` — with the way out in the message
+(AfA storno, SEPA storno, cash-book / voucher storno, or a supplier credit
+note). Such an expense cannot be deleted, and a PUT may change only its
+notes. After a SEPA storno it is open again. `GET /ustva/expenses` carries
+`lockReason`; the page shows "Bearbeiten" / "Löschen" only on open rows, a
+🔒 "Gesperrt" with the reason as tooltip on the others, edits in the same
+form (de/en/zh), loads `/suppliers`, and always recomputes VAT and gross.
+
+Spec `e2e/232-tier443-ausgabe-korrigieren.sh` (22 assertions, 18 failing
+against the previous code). Playwright `ustva-expense-edit-tier443.spec.ts`
+(3 tests, all failing against the previous page; the VAT one types with
+`pressSequentially`).
+
+Not done: a filed UStVA period (`UStvaFiling.status = submitted`) locks
+nothing — invoices and expenses of that period can still change, nowhere in
+the app is a period closed (that is a Festschreibung feature of its own). A
+voucher storno of a bank-import expense booking does not clear the
+expense's `paidAt`, so such an expense stays locked as "bezahlt". The
+expenses page (`/dashboard/expenses`) has no edit button; the API route is
+there.
 
 ### Supplier credit notes (Tier 442)
 

@@ -80,3 +80,59 @@ export class CreateExpenseDto {
   @IsString() @IsOptional() @MaxLength(20)
   accountNumber?: string
 }
+
+/**
+ * Tier 443 — PUT /expenses/:id and PUT /ustva/expenses/:id.
+ * Every field optional; amounts are entered positive as on create, a credit
+ * note keeps its sign unless `creditNote` says otherwise.
+ */
+export class UpdateExpenseDto {
+  @IsOptional() @IsString() @MinLength(1, { message: "Beschreibung ist erforderlich" }) @MaxLength(500)
+  description?: string
+
+  @IsOptional() @IsDateString({}, { message: "Rechnungsdatum muss ein Datum sein (ISO date)" })
+  invoiceDate?: string
+
+  @IsString() @IsOptional() @MaxLength(50)
+  invoiceNumber?: string
+
+  // "" clears the supplier (the UStVA page's empty select).
+  @IsString() @IsOptional()
+  supplierId?: string
+
+  @IsOptional() @Type(() => Number) @IsNumber() @Min(0)
+  netAmount?: number
+
+  @IsOptional() @Type(() => Number) @IsNumber() @Min(0)
+  vatAmount?: number
+
+  @IsOptional() @Type(() => Number) @IsNumber() @Min(0)
+  grossAmount?: number
+
+  @IsOptional() @Type(() => Number) @IsNumber() @Min(0) @Max(1)
+  vatRate?: number
+
+  @IsString() @IsOptional() @MaxLength(100)
+  category?: string
+
+  @IsString() @IsOptional() @MaxLength(20)
+  accountNumber?: string
+
+  @IsOptional()
+  @Transform(({ value }) => (typeof value === "string" ? value === "true" || value === "1" : value))
+  @IsBoolean()
+  isIntraEU?: boolean
+
+  @IsOptional()
+  @Transform(({ value }) => (typeof value === "string" ? value === "true" || value === "1" : value))
+  @IsBoolean()
+  isReverseCharge?: boolean
+
+  @IsOptional()
+  @Transform(({ value }) => (typeof value === "string" ? value === "true" || value === "1" : value))
+  @IsBoolean()
+  creditNote?: boolean
+
+  @IsString() @IsOptional() @MaxLength(2000)
+  notes?: string
+}
