@@ -9,7 +9,7 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–446 are
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–447 are
   in `git log`; §8 records what each learned. (Snapshot refreshed Tier 446.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
@@ -2500,6 +2500,38 @@ Tier 401 run 35123354210 **failed** on backend lint — a warning
 runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
+
+### The expenses page shows how an expense was paid, and corrects open ones (Tier 447)
+
+`GET /expenses` (the `/dashboard/expenses` list) derived each row's
+`paymentState` from bank-import vouchers alone (`[expense:<id>]` in the
+description). Measured:
+
+- an expense paid by SEPA or from the cash book showed **"Offen"** — the
+  page's "Offen" filter and counter listed bills that were paid;
+- "Storniert" could never appear: `createReversal` writes "Storno: <number> …"
+  without the tag. A reversed bank booking showed **"Bezahlt"**, linked to
+  the reversed voucher. Spec 12 had hand-crafted a tagged `VoucherReversal`
+  to test a path its own comment said did not exist.
+- the list carried no `lockReason`, and the page's modal (opened from the 📎
+  badge) only listed receipts: Tier 443's correction was reachable from the
+  UStVA page only.
+
+Now `paymentState` is "bezahlt" when `paidAt` is set (bank, SEPA, cash) or an
+unreversed bank booking exists (bookings before Tier 425 set no `paidAt`),
+"storniert" when it is open again after its bank booking was reversed
+(Tier 444), else "offen". `linkedVoucher` is the paying booking, else the
+reversed one. `lockReason` comes from `expense-lock.ts`. The modal shows
+`ExpenseEditForm` (date, number, supplier, description, category, net, rate →
+`PUT /expenses/:id`) above the receipts, or the lock reason instead (de/en/zh).
+
+Spec 12 now reverses through the real route and expects the reversed booking
+as link; its cleanup no longer deletes every company's `[expense:` vouchers
+(one referenced by a bank transaction made the whole statement fail) — only
+its own, Stornos first. Spec `e2e/236-tier447-ausgaben-status.sh` (12
+assertions, 5 failing against the previous code). Playwright
+`expense-edit-tier447.spec.ts` (2 tests, both failing against the previous
+page).
 
 ### A bank reconciliation is undone as a whole (Tier 446)
 
