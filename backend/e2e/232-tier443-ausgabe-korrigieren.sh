@@ -39,6 +39,7 @@ AS() { # method path [body]
   STATUS=$(echo "$resp" | tail -n1); BODY=$(echo "$resp" | sed '$d')
 }
 py() { echo "$BODY" | python3 -c "import sys,json;d=json.load(sys.stdin);$1"; }
+says() { grep -qF "$1" <<<"$BODY" && echo yes || echo "no: $BODY"; }
 
 AS POST "/api/v1/suppliers?companyId=$C" '{"name":"'$TAG' Lieferant","address":{"street":"a","city":"b","postalCode":"1","country":"DE"},"bankInfo":{"iban":"DE89370400440532013000","bic":"COBADEFFXXX"}}'
 S=$(json_field "$BODY" id)
@@ -83,7 +84,7 @@ AS POST "/api/v1/payments/batches" '{"companyId":"'$C'","expenseIds":["'$SEPA'"]
 BATCH=$(json_field "$BODY" id)
 AS DELETE "/api/v1/ustva/expenses/$SEPA?companyId=$C"
 assert_eq "delete refused (was 200: paid, and gone from the books)" "$STATUS" "400"
-assert_contains "the message names the SEPA storno" "$BODY" "SEPA"
+assert_eq "the message names the SEPA storno" "$(says "SEPA")" "yes"
 AS PUT "/api/v1/expenses/$SEPA?companyId=$C" '{"netAmount":90}'
 assert_eq "amount change refused" "$STATUS" "400"
 AS PUT "/api/v1/expenses/$SEPA?companyId=$C" '{"notes":"Skonto nachgefragt"}'
@@ -100,7 +101,7 @@ AS POST "/api/v1/cashbook/entries?companyId=$C" '{"businessDate":"'$TODAY'","typ
 AS POST "/api/v1/cashbook/entries?companyId=$C" '{"businessDate":"'$TODAY'","type":"ausgabe","description":"Bar ER-BAR","amount":119,"vatRate":0.19,"expenseId":"'$BAR'"}'
 AS DELETE "/api/v1/ustva/expenses/$BAR?companyId=$C"
 assert_eq "delete refused (was 200, the cash-book entry lost its link)" "$STATUS" "400"
-assert_contains "the message names the cash book" "$BODY" "Kassenbuch"
+assert_eq "the message names the cash book" "$(says "Kassenbuch")" "yes"
 
 note "=== an AfA row belongs to the asset register ==="
 AS POST "/api/v1/assets?companyId=$C" '{"type":"Maschine","bezeichnung":"Maschine","anschaffungsDatum":"'$Y'-01-10","anschaffungsKosten":6000,"nutzungsdauerMonate":60}'
@@ -108,7 +109,7 @@ AS POST "/api/v1/assets/book-afa?companyId=$C&year=$Y"
 AFA=$(AS GET "/api/v1/ustva/expenses?companyId=$C&year=$Y"; py 'print([e["id"] for e in d if e.get("relatedAssetId")][0])')
 AS DELETE "/api/v1/ustva/expenses/$AFA?companyId=$C"
 assert_eq "an AfA row is not deleted by hand (was 200)" "$STATUS" "400"
-assert_contains "the message names the AfA storno" "$BODY" "AfA"
+assert_eq "the message names the AfA storno" "$(says "AfA")" "yes"
 AS PUT "/api/v1/expenses/$AFA?companyId=$C" '{"netAmount":1}'
 assert_eq "nor changed" "$STATUS" "400"
 

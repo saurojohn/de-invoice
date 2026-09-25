@@ -2534,7 +2534,7 @@ notes. After a SEPA storno it is open again. `GET /ustva/expenses` carries
 🔒 "Gesperrt" with the reason as tooltip on the others, edits in the same
 form (de/en/zh), loads `/suppliers`, and always recomputes VAT and gross.
 
-Spec `e2e/232-tier443-ausgabe-korrigieren.sh` (22 assertions, 18 failing
+Spec `e2e/232-tier443-ausgabe-korrigieren.sh` (24 assertions, 21 failing
 against the previous code). Playwright `ustva-expense-edit-tier443.spec.ts`
 (3 tests, all failing against the previous page; the VAT one types with
 `pressSequentially`).
