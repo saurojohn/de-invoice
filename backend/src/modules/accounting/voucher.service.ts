@@ -285,6 +285,14 @@ export class VoucherService {
         'Bereits ein Korrekturbeleg — Storno nur vom Originalbeleg aus möglich',
       );
     }
+    // Tier 446: a bank reconciliation also recorded a Payment and linked the
+    // invoice (voucherRefId). A Storno of the voucher alone left the invoice
+    // paid in the app and unpaid in DATEV. Its undo takes back all three.
+    if (original.referenceType === 'BankReconciliation') {
+      throw new BadRequestException(
+        'Dieser Beleg gehört zu einer Bankzuordnung. Nehmen Sie die Zuordnung im Bankimport mit „Rückgängig“ zurück — das storniert den Beleg und löscht die Zahlung.',
+      );
+    }
     // Idempotency: if there's already a reversal
     // for this Voucher, return it instead of
     // creating a duplicate. The list view + the

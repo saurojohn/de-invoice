@@ -9,7 +9,7 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–444 are
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–446 are
   in `git log`; §8 records what each learned. (Snapshot refreshed Tier 444.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
@@ -2498,6 +2498,31 @@ Tier 401 run 35123354210 **failed** on backend lint — a warning
 runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
+
+### A bank reconciliation is undone as a whole (Tier 446)
+
+Tier 444's twin on the invoice side. A customer payment matched from the bank
+statement (confirm / manual match) books a voucher (`referenceType`
+`BankReconciliation`, 1200 an 1406), records a Payment and sets the invoice's
+`voucherRefId`. Its undo exists: "Rückgängig" in the bank import
+(`reconciliations/:id/reopen`) reverses the voucher, deletes the Payment,
+clears `voucherRefId` and puts the match back to "suggested". But the voucher
+page's plain Storno (`POST /accounting/vouchers/:id/reversal`) also accepted it
+(201) and took back only the journal lines: the invoice stayed paid (never
+dunned), the match stayed confirmed — and a later "Rückgängig" reversed the
+same voucher a second time (measured: three vouchers where two belong).
+DATEV was not affected: since Tier 423 reconciliation vouchers and their
+reopening are not exported, the payment comes from the Payment row.
+
+Now `createReversal` refuses a `BankReconciliation` voucher (400, the message
+names "Rückgängig" in the bank import; the voucher page shows it as a toast).
+`reopenMatch` reuses an existing Storno of the voucher instead of writing a
+second one, so matches reversed by hand before this tier can still be undone
+cleanly. `/correct` stays allowed — the payment happened, only its accounts
+change.
+
+Spec `e2e/235-tier446-zuordnung-storno.sh` (22 assertions, 5 failing against
+the previous code; the legacy case seeds the by-hand Storno with SQL).
 
 ### Seven cleanups that never ran; spec 114 lived on their residue (Tier 445)
 

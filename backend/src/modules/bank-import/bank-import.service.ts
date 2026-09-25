@@ -873,7 +873,14 @@ export class BankImportService {
         credit: Number(l.debit),   // swap
     }));
 
-    const stornoVoucher = await this.voucherService.create({
+    // Tier 446: until then a plain voucher Storno could already have reversed
+    // it (and left the payment); reversing it again would take the cash off
+    // the bank account twice. Keep that Storno and undo the rest.
+    const earlierStorno = await this.prisma.voucher.findFirst({
+      where: { companyId, reversedById: recon.voucher.id },
+      select: { id: true },
+    });
+    const stornoVoucher = earlierStorno ?? await this.voucherService.create({
       companyId,
       date: recon.bankTransaction.valueDate,
       description: `Storno ${recon.voucher.voucherNumber} — ${recon.invoiceId ? 'Zuordnung rückgängig' : ''}`,
