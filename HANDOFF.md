@@ -9,7 +9,7 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–455 are
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–456 are
   in `git log`; §8 records what each learned. (Snapshot refreshed Tier 452.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
@@ -2507,6 +2507,37 @@ Tier 401 run 35123354210 **failed** on backend lint — a warning
 runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
+
+### Paying out a customer's credit books money leaving the bank (Tier 456)
+
+Found while reading the credit code for Tier 454. Measured (invoice 119 €,
+paid 150 €, the 31 € credit paid out):
+- the payout voucher was Bank **Soll** 31 / Forderungen Haben 31 — money
+  coming in. DATEV exported "1200 an 1400 S 31": the bank at 181 € instead of
+  119 €, the customer's Debitor left at −31 (the credit never settled), and a
+  direct posting on the collective account 1400.
+- a payout above the credit was refused (400) only after its bank voucher had
+  been posted; the voucher stayed.
+- a Storno of the payout voucher put the money back in the books, but the
+  credit ledger kept the payout: balance 0 € while the Debitor owed 31 €.
+
+Now `CreditBalanceService.payout` checks the balance first, books
+Forderungen Soll / Bank Haben, and reverses its voucher if the ledger write
+still fails (a concurrent use of the credit). DATEV exports a payout as
+"Bank an Debitor H" (a Storno "S"), taking the customer from the payout's
+ledger row and the amount from the bank line's size — so payouts booked the
+old way export right as well. `VoucherService.createReversal` restores the
+credit (a 'manual' ledger row) when the original is a payout.
+
+Spec `e2e/245-tier456-guthaben-auszahlung.sh` (14 assertions, 6 failing
+against the previous code; the credit-after-Storno check was added with the
+fix). No UI change — `credit-balance.spec.ts` (8 tests) still passes.
+
+Not changed: payout vouchers already posted keep their reversed lines in the
+voucher list / account sheets (DATEV reads them right); a data fix would
+reverse and re-post them. A fresh company has no Sachkonten until
+`accounting/accounts/seed` runs, so the payout form stays disabled until then
+(covered by `credit-balance.spec.ts`).
 
 ### Anlage S and Anlage V count payments too (Tier 455)
 

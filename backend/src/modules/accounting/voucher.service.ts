@@ -267,6 +267,39 @@ export class VoucherService {
    *   of the original. This pattern matches the
    *   existing bank-import reopenMatch behavior.
    */
+  /**
+   * Tier 456 — the Storno of a payout of a customer's credit
+   * (CreditBalanceService.payout): the money is back in the books, so the
+   * credit is too. Without it the ledger said "paid out" while the Debitor
+   * owed the customer the amount again.
+   */
+  private async restoreCreditPayout(companyId: string, voucherId: string, stornoNumber: string) {
+    const payout = await this.prisma.customerCreditTransaction.findFirst({
+      where: { companyId, type: 'payout', referenceType: 'Voucher', referenceId: voucherId },
+    });
+    if (!payout) return;
+    const amount = Math.abs(Number(payout.amount));
+    await this.prisma.$transaction(async (tx) => {
+      const sum = await tx.customerCreditTransaction.aggregate({
+        where: { companyId, customerId: payout.customerId },
+        _sum: { amount: true },
+      });
+      await tx.customerCreditTransaction.create({
+        data: {
+          companyId,
+          customerId: payout.customerId,
+          amount,
+          currency: payout.currency,
+          type: 'manual',
+          referenceType: 'Voucher',
+          referenceId: voucherId,
+          balanceAfter: Number(sum._sum.amount ?? 0) + amount,
+          description: `Storno der Auszahlung (${stornoNumber})`,
+        },
+      });
+    });
+  }
+
   async createReversal(
     originalId: string,
     companyId: string,
@@ -361,6 +394,8 @@ export class VoucherService {
 
     // Tier 444: a Storno of a bank booking takes the payment back too.
     await this.releaseBankBooking(companyId, original);
+    // Tier 456: a Storno of a credit payout gives the customer the credit back.
+    await this.restoreCreditPayout(companyId, original.id, newVoucherNumber);
 
     // Fire voucher.reversed. The
     // eventId embeds the original

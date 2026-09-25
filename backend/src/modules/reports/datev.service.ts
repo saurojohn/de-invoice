@@ -536,10 +536,23 @@ export async function buildBuchungenFromDb(
     where: { companyId, date: { gte: startDate, lte: endDate }, status: 'posted' },
     include: {
       reversedBy: { select: { voucherNumber: true, referenceType: true, description: true } },
-      lines: { include: { account: { select: { accountNumber: true } } }, orderBy: { sortOrder: 'asc' } },
+      lines: { include: { account: { select: { accountNumber: true, category: true } } }, orderBy: { sortOrder: 'asc' } },
     },
     orderBy: [{ date: 'asc' }, { voucherNumber: 'asc' }],
   })
+  // Tier 456: a payout of a customer's credit settles the customer's Debitor
+  // (below) — the voucher does not name the customer, its ledger row does.
+  const payoutVoucherIds = vouchers
+    .map((v) => (v.referenceType === 'VoucherReversal' ? v.reversedById : v.id))
+    .filter((id): id is string => !!id)
+  const payoutRows = payoutVoucherIds.length
+    ? await prisma.customerCreditTransaction.findMany({
+      where: { companyId, type: 'payout', referenceType: 'Voucher', referenceId: { in: payoutVoucherIds } },
+      select: { referenceId: true, customerId: true },
+    })
+    : []
+  const payoutCustomer = new Map(payoutRows.map((r) => [r.referenceId as string, r.customerId]))
+  const payoutDebitoren = await ensurePersonenkonten(prisma, 'customer', companyId, payoutRows.map((r) => r.customerId))
   const expenseTag = (d?: string | null) => /\[expense:([0-9a-f-]{36})\]/.exec(d || '')?.[1]
   const voucherExpenseIds = vouchers
     .map((v) => expenseTag(v.description) ?? expenseTag(v.reversedBy?.description))
@@ -806,6 +819,32 @@ export async function buildBuchungenFromDb(
         buchungstext: (v.description || '').replace(/\s*\[expense:[^\]]*\]/, '').substring(0, 60),
       })
       continue
+    }
+
+    // Tier 456: a payout of a customer's credit — the money leaves the bank
+    // and settles the credit on the customer's Debitor: Debitor S an Bank.
+    // The voucher booked it the other way round (Bank S an 1400), so DATEV
+    // had the bank twice the payout too high and the Debitor never settled.
+    // Read by amount, not by side, so payouts booked before Tier 456 export
+    // right as well; a Storno the other way.
+    if (origin === 'CustomerCreditTransaction') {
+      const payoutId = v.referenceType === 'VoucherReversal' ? v.reversedById : v.id
+      const customerId = payoutId ? payoutCustomer.get(payoutId) : undefined
+      const bankLine = v.lines.find((l) => l.account?.category === 'liquidity')
+      const amount = r2(Math.abs(Number(bankLine?.debit ?? 0) - Number(bankLine?.credit ?? 0)))
+      if (customerId && amount > 0) {
+        out.push({
+          belegdatum: v.date,
+          belegfeld1: v.voucherNumber,
+          belegfeld2: belegfeld2 ?? undefined,
+          konto: bankLine?.account?.accountNumber || a.bank,
+          gegenkonto: String(payoutDebitoren.get(customerId) ?? a.receivable),
+          betrag: amount,
+          shVz: v.referenceType === 'VoucherReversal' ? 'S' : 'H',
+          buchungstext: (v.description || '').substring(0, 60),
+        })
+        continue
+      }
     }
 
     // Resolve accounts (Tier 26.3 inference for lines without one).
