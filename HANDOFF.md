@@ -9,7 +9,7 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–443 are
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–444 are
   in `git log`; §8 records what each learned. (Snapshot refreshed Tier 443.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
@@ -2497,6 +2497,36 @@ Tier 401 run 35123354210 **failed** on backend lint — a warning
 runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
+
+### A reversed bank booking no longer pays the expense (Tier 444)
+
+Left open by Tier 443. A bank debit booked against an expense (`book-expense`
+with `expenseId`) sets the expense's `paidAt`; a Storno of that voucher
+(`POST /accounting/vouchers/:id/reversal`) took the journal booking back and
+nothing else. Measured with two expenses of 119 € and one debit of 119 €
+booked against the wrong one, then reversed:
+
+- the wrong expense stayed paid: the balance sheet owed 119 instead of 238,
+  the SEPA run did not offer it, and — through Tier 443's lock — it could be
+  neither corrected nor deleted ("bereits bezahlt");
+- the bank transaction kept `voucherId` → the reversed voucher, so it could
+  never be booked again (400 "bereits als Aufwand gebucht"), although the
+  money had left the account. The right expense could not be marked paid.
+
+Now `VoucherService.createReversal` calls `releaseBankBooking` for bank-import
+expense vouchers (`referenceType` `Expense` / `BankTransaction`): the
+transaction's `voucherId` is cleared, and the tagged expense's `paidAt` is
+cleared when it is the booking's value date and nothing else pays it (no SEPA
+batch, no unreversed cash-book Ausgabe). A correction (`/correct`, Storno + new
+booking in one transaction) does not come through here: the payment happened,
+the expense stays paid.
+
+Spec `e2e/233-tier444-bankbeleg-storno.sh` (20 assertions, 10 failing against
+the previous code — the rest of the re-booking path could not run at all).
+
+Not done: the invoice side has its own route (`reconciliations/:id/reopen`),
+which already deletes the payment; a plain voucher Storno of a *reconciliation*
+voucher (referenceType `BankReconciliation`) is untouched here.
 
 ### An open expense can be corrected; a paid one is not deleted (Tier 443)
 

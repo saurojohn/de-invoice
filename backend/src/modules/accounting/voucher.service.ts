@@ -351,6 +351,9 @@ export class VoucherService {
       },
     });
 
+    // Tier 444: a Storno of a bank booking takes the payment back too.
+    await this.releaseBankBooking(companyId, original);
+
     // Fire voucher.reversed. The
     // eventId embeds the original
     // voucher id + the reversal id,
@@ -379,6 +382,40 @@ export class VoucherService {
        .catch((err) => console.error('webhook emit(voucher.reversed) failed:', err))
 
     return reversal;
+  }
+
+  /**
+   * Tier 444 — a Storno of a bank-import expense booking (book-expense) took
+   * the booking back but not what it did outside the journal: the bank
+   * transaction kept `voucherId` → the reversed voucher, so it could never be
+   * booked again ("bereits als Aufwand gebucht"), and the expense tagged
+   * `[expense:<id>]` stayed paid — owed nothing in the balance sheet, not in
+   * the SEPA run, paid in DATEV from `paidAt`, and locked (Tier 443).
+   *
+   * Only this payment is taken back: `paidAt` is cleared when it is the
+   * booking's value date and nothing else pays the expense (a SEPA batch,
+   * an unreversed cash-book Ausgabe). A correction (/correct) is not a Storno
+   * of the payment and does not come here.
+   */
+  private async releaseBankBooking(
+    companyId: string,
+    original: { id: string; date: Date; description: string | null; referenceType: string | null },
+  ) {
+    if (original.referenceType !== 'Expense' && original.referenceType !== 'BankTransaction') return;
+    await this.prisma.bankTransaction.updateMany({
+      where: { companyId, voucherId: original.id },
+      data: { voucherId: null },
+    });
+    const expenseId = /\[expense:([0-9a-f-]{36})\]/.exec(original.description || '')?.[1];
+    if (!expenseId) return;
+    const paidInCash = await this.prisma.cashBookEntry.count({
+      where: { companyId, expenseId, reversesId: null, reversedBy: null },
+    });
+    if (paidInCash > 0) return;
+    await this.prisma.expense.updateMany({
+      where: { id: expenseId, companyId, paidBySepaBatchId: null, paidAt: original.date },
+      data: { paidAt: null },
+    });
   }
 
   // ──────────────────────────────────────────────────────────────────
