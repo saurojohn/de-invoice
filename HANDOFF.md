@@ -10,16 +10,17 @@ exact commands + docs you need to be productive.
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
 - **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–443 are
-  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 442.)
+  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 443.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 35987275741 / commit `174f332`, Tier 442):**
-  - Backend e2e: **230 passed / 0 failed / 1 skipped** of 231 specs — 100
-    two-digit + 131 three-digit (Tier 442 added `231-tier442-lieferantengutschrift.sh`,
+- **Test counts (last green CI, run 36106650958 / commit `3260d7d`, Tier 443):**
+  - Backend e2e: **231 passed / 0 failed / 1 skipped** of 232 specs — 100
+    two-digit + 132 three-digit (Tier 443 added `232-tier443-ausgabe-korrigieren.sh`,
+    Tier 442 added `231-tier442-lieferantengutschrift.sh`,
     Tier 441 added `230-tier441-rechtsform.sh`,
     Tier 440 added `229-tier440-anlagenabgang.sh`,
     Tier 439 added `228-tier439-kst-ohne-anrechnung.sh`,
@@ -71,12 +72,13 @@ exact commands + docs you need to be productive.
     and survives concurrent writes (Tier 367); spec 171 (new in Tier 368) asserts
     the auth audit rows exist at all and are signed — nothing had ever asserted
     on them, which is how a failed login for an unknown e-mail went unaudited.
-  - Playwright: **930 passed / 0 failed / 0 skipped / 0 flaky** (Tier 428's
+  - Playwright: **933 passed / 0 failed / 0 skipped / 0 flaky** (Tier 428's
     run had one flaky — `list-pages.spec.ts` "Invoices list renders without
     console errors" expected the empty state and saw a populated list, then
-    passed on retry). 930 tests (922 since Tier 390's
+    passed on retry). 933 tests (922 since Tier 390's
     page tests; +4 in Tier 401's session-cookie spec; +2 in Tier 413's
-    invoice-discount-row spec; +2 in Tier 415's invoice-form-totals spec). Tier 365 turned the last 4 skips into real
+    invoice-discount-row spec; +2 in Tier 415's invoice-form-totals spec; +3 in
+    Tier 443's ustva-expense-edit spec). Tier 365 turned the last 4 skips into real
     tests; Tier 365b fixed the one flaky test (`bwa-quarterly-tier163`).
     Tier 369 removed 28 silent-skip call sites — three intentional ones remained
     (two since Tier 381, which turned the webhook replay skip into a real wait),
