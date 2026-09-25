@@ -46,7 +46,7 @@ echo "=== Test: Anlage S (test tag: $TEST_TAG) ==="
 # only catches the current $TS; older runs
 # accumulate over time and break the
 # delta-snapshot assertion).
-docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null 2>&1
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null 2>&1
 DELETE FROM "InvoiceItem" WHERE "invoiceId" IN (SELECT id FROM "Invoice" WHERE "invoiceNumber" LIKE 'ANS-%');
 DELETE FROM "Invoice" WHERE "invoiceNumber" LIKE 'ANS-%';
 DELETE FROM "Expense" WHERE "invoiceNumber" LIKE 'ANS-%';
@@ -55,7 +55,7 @@ SQL
 
 # Cleanup hook
 cleanup() {
-  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null 2>&1
+  docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null 2>&1
 DELETE FROM "InvoiceItem" WHERE "invoiceId" IN (SELECT id FROM "Invoice" WHERE "invoiceNumber" LIKE 'ANS-${TS}-%');
 DELETE FROM "Invoice" WHERE "invoiceNumber" LIKE 'ANS-${TS}-%';
 DELETE FROM "Expense" WHERE "invoiceNumber" LIKE 'ANS-${TS}-%';

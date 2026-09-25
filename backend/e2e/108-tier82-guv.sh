@@ -58,7 +58,7 @@ echo "=== Test: G+V Vorschau (test tag: $TEST_TAG) ==="
 # only catches the current $TS; older runs
 # accumulate over time and break the
 # delta-snapshot assertion).
-docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null 2>&1
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null 2>&1
 DELETE FROM "InvoiceItem" WHERE "invoiceId" IN (SELECT id FROM "Invoice" WHERE "invoiceNumber" LIKE 'GUV-%');
 DELETE FROM "Invoice" WHERE "invoiceNumber" LIKE 'GUV-%';
 DELETE FROM "Expense" WHERE "invoiceNumber" LIKE 'GUV-%';

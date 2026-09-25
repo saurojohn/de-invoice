@@ -2499,6 +2499,30 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Seven cleanups that never ran; spec 114 lived on their residue (Tier 445)
+
+`docker exec` attaches stdin only with `-i`. Seven calls fed SQL to
+`docker exec "$PG_CONTAINER" psql` by heredoc without it — psql got an empty
+stdin, ran nothing, exited 0, and each sent its output to /dev/null:
+105 (the Berater test user), 106 (ANS-* pre-clean and cleanup), 107 (BIL-*
+pre-clean and cleanup), 108 (the GUV-* pre-clean; its trap cleanup was already
+one `-c` per statement since an earlier tier, which is why that one worked),
+91 (Mahnungspause). On CI none of them ever ran.
+
+Found in Tier 443 with a local `docker` shim that passed stdin regardless:
+there 114-tier88-ebilanz failed "Materialaufwand > 0" — it only ever passed on
+CI because 106 / 107 left their Material expenses behind in the shared
+company. With the shim made to behave like docker (no stdin without -i),
+114 passed again.
+
+Now all seven have `-i`; 114 seeds its own Material expense (T88-*-MAT, removed
+by its trap) like the Personal one of Tier 361. Spec
+`e2e/234-tier445-docker-exec-stdin.sh` scans every spec, `_lib.sh`,
+`ci-seed.sh` and `run-all.sh` for a stdin-fed `docker exec` without -i
+(continuation lines joined, quoted SQL ignored) and proves on a probe file that
+it flags a heredoc, a pipe and a continued heredoc but not `-i` or `-c "… < …"`.
+Against the previous tree it lists exactly the seven.
+
 ### A reversed bank booking no longer pays the expense (Tier 444)
 
 Left open by Tier 443. A bank debit booked against an expense (`book-expense`
