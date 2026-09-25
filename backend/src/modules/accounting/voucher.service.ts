@@ -414,6 +414,10 @@ export class VoucherService {
       where: { companyId, voucherId: original.id },
       data: { voucherId: null },
     });
+    // Tier 452: a Skonto credit note written with this payment goes with it.
+    await this.prisma.expense.deleteMany({
+      where: { companyId, notes: { contains: `[skonto-voucher:${original.id}]` } },
+    });
     const expenseId = /\[expense:([0-9a-f-]{36})\]/.exec(original.description || '')?.[1];
     if (!expenseId) return;
     const paidInCash = await this.prisma.cashBookEntry.count({

@@ -259,6 +259,7 @@
     "bookExpense": "Als Aufwand buchen",
     "bookRefund": "Erstattung Gutschrift {number}",
     "bookPayment": "Zahlung {number}",
+    "bookPaymentSkonto": "Zahlung {number} mit Skonto {skonto} €",
     "expenseAccountPrompt": "Aufwandskonto (SKR03):",
     "autoConfirmThreshold": "Auto-Bestätigen ab",
     "reopenCandidate": "Rückgängig",

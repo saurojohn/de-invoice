@@ -9,7 +9,7 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–451 are
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–452 are
   in `git log`; §8 records what each learned. (Snapshot refreshed Tier 451.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
@@ -2507,6 +2507,31 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### A supplier bill paid less its Skonto (Tier 452)
+
+Left open by Tier 451. A bill of 1 190 € paid within its Skonto period with
+1 166,20 € (2 %) could not be booked against the bill — Tier 451 refuses a
+debit that is not the bill's amount; before Tier 451 it was booked and the
+bill marked paid with the Skonto nowhere (cost 1 000, Vorsteuer 190 although
+23,80 € were never paid). The way out was a supplier credit note entered by
+hand first.
+
+Now `book-expense` takes `skonto: true`: when the debit is less than the bill
+by at most 10 %, the difference becomes a supplier credit note
+("<number>-SKONTO", split at the bill's rate — § 17 UStG: net −20, VAT −3,80),
+settled with the payment (paidAt, notes `[skonto-voucher:<id>]`), and the bill
+is paid; the voucher carries the VAT of what was paid. Cost 980, Vorsteuer
+186,20, nothing owed in the balance sheet or DATEV. Without the flag the 400
+says to book it with Skonto. DATEV's "otherwise paid" rows (Tier 432) skip the
+Skonto credit note — no money moved for it (the filter keeps NULL notes: NOT
+LIKE on NULL would have dropped every other expense, which spec 221 caught).
+A Storno of the payment voucher deletes its Skonto credit note
+(`releaseBankBooking`). The bank import page offers "Zahlung <nr> mit Skonto
+<x> €" on a debit 0–10 % below an open bill when no bill matches exactly.
+
+Spec `e2e/241-tier452-lieferantenskonto.sh` (18 assertions, 9 failing
+against the previous code). Playwright `bank-skonto-tier452.spec.ts`.
+
 ### A bank debit pays a recorded expense once, and only its amount (Tier 451)
 
 `book-expense` with an `expenseId` checked only that the expense was the
@@ -2532,8 +2557,7 @@ Spec `e2e/240-tier451-zahlung-eingangsrechnung.sh` (13 assertions, 6 failing
 against the previous code); spec 239 gained "not refunded twice". Playwright
 `bank-payment-tier451.spec.ts`.
 
-Not done: a supplier Skonto (paying less than the bill) still needs a credit
-note for the difference before the debit matches.
+(A supplier Skonto — paying less than the bill — is Tier 452.)
 
 ### A supplier's refund is booked against its credit note (Tier 450)
 

@@ -336,7 +336,7 @@ export default function BankImportPage() {
 
   /** Tier 450/451: book a transaction against a recorded expense — a debit
    *  as its payment, an incoming payment as the refund of a credit note. */
-  const bookAgainstExpense = async (txnId: string, cn: PayableExpense) => {
+  const bookAgainstExpense = async (txnId: string, cn: PayableExpense, skonto = false) => {
     if (!openId) return
     const companyId = localStorage.getItem("companyId")!
     setBusyRecon(txnId)
@@ -350,6 +350,8 @@ export default function BankImportPage() {
           // Tier 451: the expense's own Sachkonto and supplier.
           ...(cn.accountNumber ? { expenseAccountNumber: cn.accountNumber } : {}),
           ...(cn.supplier?.id ? { supplierId: cn.supplier.id } : {}),
+          // Tier 452: paid less its Skonto — the server writes the credit note.
+          ...(skonto ? { skonto: true } : {}),
         },
       )
       const detail = await apiGet<{ transactions: BankTransaction[] }>(
@@ -786,9 +788,19 @@ export default function BankImportPage() {
                                   </Button>
                                 )}
                                 {isDebit && !txn.voucher && (() => {
-                                  const ex = openExpenses.find(
-                                    (c) => Math.abs(Number(c.grossAmount) + amt) < 0.005,
+                                  const paidAmt = -amt
+                                  const exact = openExpenses.find(
+                                    (c) => Math.abs(Number(c.grossAmount) - paidAmt) < 0.005,
                                   )
+                                  // Tier 452: less than the bill, within 10 % — a Skonto.
+                                  const withSkonto = exact
+                                    ? undefined
+                                    : openExpenses.find((c) => {
+                                      const g = Number(c.grossAmount)
+                                      return paidAmt < g - 0.005 && g - paidAmt <= g * 0.1 + 0.005
+                                    })
+                                  const ex = exact ?? withSkonto
+                                  const skontoAmt = withSkonto ? Number(withSkonto.grossAmount) - paidAmt : 0
                                   return ex ? (
                                     <Button
                                       size="sm"
@@ -797,10 +809,14 @@ export default function BankImportPage() {
                                       data-testid={`book-payment-${txn.id}`}
                                       onClick={(e) => {
                                         e.stopPropagation()
-                                        bookAgainstExpense(txn.id, ex)
+                                        bookAgainstExpense(txn.id, ex, !!withSkonto)
                                       }}
                                     >
-                                      {t("bankImport.bookPayment").replace("{number}", ex.invoiceNumber || "")}
+                                      {withSkonto
+                                        ? t("bankImport.bookPaymentSkonto")
+                                          .replace("{number}", ex.invoiceNumber || "")
+                                          .replace("{skonto}", fmtMoney(skontoAmt))
+                                        : t("bankImport.bookPayment").replace("{number}", ex.invoiceNumber || "")}
                                     </Button>
                                   ) : null
                                 })()}

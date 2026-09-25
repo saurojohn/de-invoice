@@ -572,6 +572,10 @@ export async function buildBuchungenFromDb(
       paidAt: { gte: startDate, lte: endDate },
       status: { in: ['booked', 'deductible'] },
       cashBookEntries: { none: {} },
+      // Tier 452: a Skonto credit note is settled against its bill's payment,
+      // not paid — no money moved for it.
+      // (notes is mostly NULL, and NOT LIKE on NULL excludes the row)
+      OR: [{ notes: null }, { NOT: { notes: { contains: '[skonto-voucher:' } } }],
     },
     select: {
       id: true, supplierId: true, invoiceNumber: true, description: true,
