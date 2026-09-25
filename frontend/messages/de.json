@@ -257,6 +257,7 @@
     "reconStatus": "Status",
     "tableAction": "Aktion",
     "bookExpense": "Als Aufwand buchen",
+    "bookRefund": "Erstattung Gutschrift {number}",
     "expenseAccountPrompt": "Aufwandskonto (SKR03):",
     "autoConfirmThreshold": "Auto-Bestätigen ab",
     "reopenCandidate": "Rückgängig",

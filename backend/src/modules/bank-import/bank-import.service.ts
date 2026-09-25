@@ -1058,10 +1058,28 @@ export class BankImportService {
     if (!txn) throw new NotFoundException('Transaktion nicht gefunden');
 
     const amount = Number(txn.amount);
+    // Tier 450: an incoming payment is booked here only as the refund of a
+    // supplier credit note (Tier 442) of the same amount — before, nothing
+    // could book it and the credit note stayed open for good.
+    let refund = false;
     if (amount >= 0) {
-      throw new BadRequestException(
-        'Diese Funktion ist nur für Ausgänge (negative Beträge). Eingänge bitte als Zuordnung zu einer Rechnung buchen.',
-      );
+      const creditNote = opts.expenseId
+        ? await this.prisma.expense.findFirst({
+          where: { id: opts.expenseId, companyId },
+          select: { grossAmount: true },
+        })
+        : null;
+      if (!creditNote || Number(creditNote.grossAmount) >= 0) {
+        throw new BadRequestException(
+          'Diese Funktion ist nur für Ausgänge (negative Beträge) und für die Erstattung einer Lieferanten-Gutschrift. Eingänge bitte als Zuordnung zu einer Rechnung buchen.',
+        );
+      }
+      if (Math.abs(Math.abs(Number(creditNote.grossAmount)) - amount) > 0.005) {
+        throw new BadRequestException(
+          `Die Erstattung (${amount.toFixed(2)}) entspricht nicht dem Betrag der Gutschrift (${Math.abs(Number(creditNote.grossAmount)).toFixed(2)})`,
+        );
+      }
+      refund = true;
     }
 
     // Refuse if a reconciliation already exists —
@@ -1219,6 +1237,10 @@ export class BankImportService {
     // pivot back to the originating Eingangsrechnung.
     // Hidden in the PDF / DATEV but visible in the UI
     // audit trail — cheap linkage, no schema change.
+    // Tier 450: a refund is the payment reversed — Bank an Aufwand / Vorsteuer.
+    if (refund) {
+      for (const l of lines) [l.debit, l.credit] = [l.credit, l.debit];
+    }
     const expenseTag = opts.expenseId ? ` [expense:${opts.expenseId}]` : ''
     const voucher = await this.voucherService.create({
       companyId,

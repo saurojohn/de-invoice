@@ -167,6 +167,26 @@ export default function BankImportPage() {
   // the status badge next to each candidate.
   const [reconciliations, setReconciliations] = useState<Reconciliation[]>([])
   const [busyRecon, setBusyRecon] = useState<string | null>(null)
+  // Tier 450: open supplier credit notes — an incoming payment of the same
+  // amount can be booked as their refund.
+  const [openCreditNotes, setOpenCreditNotes] = useState<
+    Array<{ id: string; invoiceNumber: string | null; grossAmount: string; vatRate: string; vatAmount: string }>
+  >([])
+  const loadCreditNotes = async () => {
+    const companyId = localStorage.getItem("companyId")
+    if (!companyId) return
+    try {
+      const res = await apiGet<{ data: any[] }>(`/api/v1/expenses?companyId=${companyId}`)
+      setOpenCreditNotes(
+        (res.data || []).filter((e) => Number(e.grossAmount) < 0 && e.paymentState !== "bezahlt"),
+      )
+    } catch {
+      setOpenCreditNotes([])
+    }
+  }
+  useEffect(() => {
+    if (openId) loadCreditNotes()
+  }, [openId])
 
   /** Map of (txnId, invoiceId) → reconciliation. Used
    *  to look up the recon for a given candidate card. */
@@ -295,6 +315,28 @@ export default function BankImportPage() {
       // empty for debit txns anyway).
       setSelectedTxn(null)
       setCandidates([])
+    } catch (err: any) {
+      toast.error(err?.message || "Buchen fehlgeschlagen")
+    } finally {
+      setBusyRecon(null)
+    }
+  }
+
+  /** Tier 450: book an incoming payment as the refund of a credit note. */
+  const bookRefund = async (txnId: string, cn: { id: string; vatRate: string; vatAmount: string }) => {
+    if (!openId) return
+    const companyId = localStorage.getItem("companyId")!
+    setBusyRecon(txnId)
+    try {
+      await apiPost(
+        `/api/v1/bank-statements/${openId}/transactions/${txnId}/book-expense?companyId=${companyId}`,
+        { expenseId: cn.id, vatRate: Number(cn.vatRate), vatAmount: Math.abs(Number(cn.vatAmount)) },
+      )
+      const detail = await apiGet<{ transactions: BankTransaction[] }>(
+        `/api/v1/bank-statements/${openId}?companyId=${companyId}`
+      )
+      setTransactions(detail.transactions || [])
+      await loadCreditNotes()
     } catch (err: any) {
       toast.error(err?.message || "Buchen fehlgeschlagen")
     } finally {
@@ -723,6 +765,25 @@ export default function BankImportPage() {
                                       : t("bankImport.bookExpense")}
                                   </Button>
                                 )}
+                                {!isDebit && !txn.voucher && (() => {
+                                  const cn = openCreditNotes.find(
+                                    (c) => Math.abs(Math.abs(Number(c.grossAmount)) - amt) < 0.005,
+                                  )
+                                  return cn ? (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      disabled={busyRecon === txn.id}
+                                      data-testid={`book-refund-${txn.id}`}
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        bookRefund(txn.id, cn)
+                                      }}
+                                    >
+                                      {t("bankImport.bookRefund").replace("{number}", cn.invoiceNumber || "")}
+                                    </Button>
+                                  ) : null
+                                })()}
                                 {/* Expense already booked:
                                     show the voucher number as
                                     the audit-trail reference. */}

@@ -9,7 +9,7 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–449 are
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–450 are
   in `git log`; §8 records what each learned. (Snapshot refreshed Tier 448.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
@@ -2503,6 +2503,34 @@ Tier 401 run 35123354210 **failed** on backend lint — a warning
 runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
+
+### A supplier's refund is booked against its credit note (Tier 450)
+
+Left open by Tier 442: a supplier credit note (negative expense) could be
+recorded, but the refund it promises could not be booked when it arrived.
+`book-expense` refused every incoming transaction ("nur für Ausgänge"),
+nothing else links an incoming payment to an expense, and the bank import page
+offered no action on a credit row. Measured: after the 238 € refund was on the
+bank account the balance sheet still showed the supplier owing us the credit
+note (4000: −297.50 with a second, smaller one), DATEV's Kreditor too.
+
+Now `book-expense` takes an incoming transaction when `expenseId` names a
+credit note of the same amount (±½ cent): the lines of a payment reversed —
+Bank an Aufwand / Vorsteuer — and the credit note paid on the value date. An
+incoming payment without a credit note, against an invoice, or of another
+amount is refused as before. The UStVA counts the credit note once (the
+bank voucher adds nothing to it); DATEV books the refund on the Kreditor (a
+negative amount flips S/H); a Storno of the refund voucher takes it back
+(Tier 444) and the transaction can be booked again. The bank import page
+shows "Erstattung Gutschrift <number>" on an unbooked credit row when an open
+credit note has its amount (de/en/zh).
+
+Spec `e2e/239-tier450-gutschrift-erstattung.sh` (19 assertions, 5 failing
+against the previous code). Playwright `bank-refund-tier450.spec.ts`.
+
+Not done: the page's "Als Aufwand buchen" on a debit row still books to an
+account only and never links an expense (`expenseId` is API-only) — paying a
+recorded Eingangsrechnung from the bank import page is not possible yet.
 
 ### A submitted UStVA the books no longer match is flagged (Tier 449)
 
