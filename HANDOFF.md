@@ -9,7 +9,7 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–453 are
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–454 are
   in `git log`; §8 records what each learned. (Snapshot refreshed Tier 452.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
@@ -2508,6 +2508,50 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### The EÜR counts payments, when they were made (Tier 454)
+
+Item 20 of §9, decided by the user: cash basis (Zufluss-/Abflussprinzip,
+§ 11 EStG). Measured with a fresh company: an invoice of November 2025 paid
+in January 2026 was 2025 income; the 2026 EÜR showed an unpaid invoice (200),
+a half-paid one in full (500), an unpaid bill (400), and not the invoice paid
+in 2026. An expense paid outside the bank import / SEPA / cash book (card,
+private account) had no way to record its payment date — `paidAt` was an
+unknown field (400).
+
+Now (`accounting/euer-zufluss.ts`):
+- income = each payment's net share of its invoice (payment × net / gross,
+  in EUR via the invoice's own net), in date order up to the invoice total.
+  A 'Gutschrift' payment (credit note settling the invoice, also the Tier 422
+  Skonto) takes up its part and is no income; an overpayment beyond the total
+  is no income of that invoice — it counts when the credit pays another
+  invoice ('Guthaben' payment). An invoice set "paid" without its payments
+  recorded counts the uncovered part at its issue date.
+- a credit note's amount beyond what it settled on its invoice (the invoice
+  was already paid) lowers the income at the credit note's date — strictly
+  that is the day the money goes back, but a payout (`credit-balance
+  payout`) is not linked to the credit note.
+- expenses count at `paidAt`. `paidAt` can be entered on create and changed
+  / cleared on update (both expense routes, "Bezahlt am" in the UStVA form
+  and the expenses modal). A manual `paidAt` no longer locks the expense
+  (Tier 443 locked any `paidAt`); bank, SEPA, cash-book and AfA locks stay,
+  and a Skonto credit note (Tier 452) stays locked to its bank payment.
+- the response says `prinzip: 'zufluss'` and `counts.unbezahlt` (invoices /
+  expenses of the year not paid yet); the page and the PDF say so.
+
+Specs adapted (they built revenue from sent-but-unpaid invoices or unpaid
+expenses): 141 (baseline from the EÜR itself, then the three invoices paid),
+199, 200, 208, 225, 227 (payments / `paidAt` added), 231 (nothing paid → 0,
+4 open), 232 (`paidAt` is now a field; a SEPA-paid expense's `paidAt` cannot
+be cleared).
+
+Spec `e2e/243-tier454-euer-zufluss.sh` (15 assertions; its first version
+failed 12 against the previous code). Playwright `euer-zufluss-tier454.spec.ts`: an unpaid bill is
+listed as open, its paid date entered in the modal puts it on 4300.
+
+Still open: Anlage S / V / G, GuV and BWA stay on the document date (GuV and
+BWA are accrual by nature; Anlage S / V follow the EÜR in law — next step);
+a customer-credit payout is not linked to the credit note that created it.
+
 ### A stored file's URL opens it (Tier 453)
 
 Measured: `POST /storage/upload` answered with url `/api/v1/storage/<path>` —
@@ -3450,8 +3494,8 @@ previous code). No existing spec needed a change. Local runs: backend
 change (paidAt on a match) came after the full run and was re-checked with
 08, 32, 36, 79, 212, 214.
 
-Not done (§ 9): the EÜR still counts invoices and expenses at their
-document date, not when paid (§ 11 EStG); the payment dates are now there
+~~Not done (§ 9): the EÜR still counts invoices and expenses at their
+document date, not when paid (§ 11 EStG)~~ — done in Tier 454; the payment dates are now there
 for invoices (Payment), cash and SEPA-paid expenses, but not for expenses
 paid by plain bank transfer without a bank-import match. Kassenbuch
 `umbuchung` (Bank ↔ Kasse) is not exported to DATEV.
@@ -5584,7 +5628,9 @@ These are **not in the repo** — only the user can do them:
     payment would be counted twice; the app has no link from an RCV to an
     invoice. Either confirm "RCV = cash sale" or add that link.
 
-20. **EÜR on a cash basis (§ 11 EStG)** (found Tier 425). The EÜR and
+20. ~~**EÜR on a cash basis (§ 11 EStG)**~~ — done in Tier 454 (the user
+    chose the cash basis; manual "Bezahlt am" for unmatched payments). Anlage
+    S / V still count document dates. (found Tier 425) The EÜR and
     Anlage S / V count invoices at their issue date and expenses at their
     invoice date — a December invoice paid in January lands in the wrong
     year. Payment dates now exist for invoices, cash-, SEPA- and

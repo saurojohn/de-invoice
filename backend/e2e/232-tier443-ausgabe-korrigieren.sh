@@ -61,8 +61,8 @@ AS GET "/api/v1/ustva/compute?companyId=$C&year=$Y"
 assert_eq "the UStVA follows: Vorsteuer 7 % only" "$(py 'print(round(d["vorsteuer"]["from19"],2), round(d["vorsteuer"]["from7"],2))')" "0 14"
 AS PUT "/api/v1/expenses/$OPEN?companyId=$C" '{"netAmount":-5}'
 assert_eq "a negative amount is refused (a credit note says so)" "$STATUS" "400"
-AS PUT "/api/v1/expenses/$OPEN?companyId=$C" '{"paidAt":"'$Y'-01-01"}'
-assert_eq "paidAt is not a field (an unknown field is refused)" "$STATUS" "400"
+AS PUT "/api/v1/expenses/$OPEN?companyId=$C" '{"paidBySepaBatchId":"x"}'
+assert_eq "an unknown field is refused" "$STATUS" "400"
 
 GS=$(AS POST "/api/v1/ustva/expenses?companyId=$C" '{"supplierId":"'$S'","invoiceNumber":"GS-1","description":"Gutschrift","invoiceDate":"'$Y'-05-01","netAmount":50,"vatRate":0.19,"vatAmount":9.5,"grossAmount":59.5,"creditNote":true}'; json_field "$BODY" id)
 AS PUT "/api/v1/ustva/expenses/$GS?companyId=$C" '{"netAmount":40}'
@@ -87,6 +87,8 @@ assert_eq "delete refused (was 200: paid, and gone from the books)" "$STATUS" "4
 assert_eq "the message names the SEPA storno" "$(says "SEPA")" "yes"
 AS PUT "/api/v1/expenses/$SEPA?companyId=$C" '{"netAmount":90}'
 assert_eq "amount change refused" "$STATUS" "400"
+AS PUT "/api/v1/expenses/$SEPA?companyId=$C" '{"paidAt":null}'
+assert_eq "…nor its payment date taken out (Tier 454: the storno does that)" "$STATUS" "400"
 AS PUT "/api/v1/expenses/$SEPA?companyId=$C" '{"notes":"Skonto nachgefragt"}'
 assert_eq "the notes can still change" "$(py 'print(d.get("notes"), d["netAmount"])')" "Skonto nachgefragt 100"
 AS GET "/api/v1/expenses/$SEPA?companyId=$C"

@@ -972,7 +972,9 @@
     "ocrVat": "税率 %",
     "ocrShowRawText": "查看原始 OCR 文本",
     "ocrConfirm": "创建 Expense",
-    "ocrSaving": "正在保存 Expense…"
+    "ocrSaving": "正在保存 Expense…",
+    "paidAt": "付款日期",
+    "paidAtHint": "仅用于银行导入、SEPA 和现金簿之外的付款（信用卡、私人账户）。EÜR 按此日期计入该支出。"
   },
   "home": {
     "heroTitle": "专业的德国发票管理解决方案",
@@ -2582,7 +2584,9 @@
     "invoices": "发票",
     "expenses": "支出",
     "generatedAt": "生成时间",
-    "previewHint": "预览 — 所有数值自动计算。提交前请税务师审核。"
+    "previewHint": "预览 — 所有数值自动计算。提交前请税务师审核。",
+    "zufluss": "按收付日期计入（收付实现制，§ 11 EStG）。",
+    "offen": "{year} 年尚未付款：{invoices} 张发票、{expenses} 笔支出 —— 将计入实际付款的年度。"
   },
   "gobd": {
     "title": "GoBD 档案 (§ 147 AO)",

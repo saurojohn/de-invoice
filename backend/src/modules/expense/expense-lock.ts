@@ -11,6 +11,11 @@
  * Each reason names the way out: a correction of a paid bill is a supplier
  * credit note (Tier 442), a payment is taken back where it was made (SEPA
  * storno, cash-book storno, voucher storno), AfA through the AfA storno.
+ *
+ * Tier 454: a payment date entered by hand (card, private account) locks
+ * nothing — it is corrected or taken out like any other field. The one
+ * `paidAt` without a booking behind it that stays locked is a Skonto credit
+ * note (Tier 452): it goes with its bank payment's Storno.
  */
 import { PrismaService } from '../../prisma/prisma.service'
 
@@ -19,6 +24,7 @@ type LockableExpense = {
   paidAt: Date | null
   paidBySepaBatchId: string | null
   relatedAssetId: string | null
+  notes?: string | null
 }
 
 /** Reasons keyed by expense id; an expense without an entry is open. */
@@ -63,8 +69,8 @@ export async function expenseLockReasons(
       reasons.set(e.id, 'Die Eingangsrechnung ist aus dem Kassenbuch bezahlt. Stornieren Sie zuerst die Kassenbuchung, oder korrigieren Sie sie mit einer Gutschrift des Lieferanten.')
     } else if (voucher) {
       reasons.set(e.id, `Die Eingangsrechnung ist über die Bank bezahlt (Beleg ${voucher.voucherNumber}). Stornieren Sie zuerst den Beleg, oder korrigieren Sie sie mit einer Gutschrift des Lieferanten.`)
-    } else if (e.paidAt) {
-      reasons.set(e.id, 'Die Eingangsrechnung ist bereits bezahlt. Korrigieren Sie sie mit einer Gutschrift des Lieferanten.')
+    } else if (e.paidAt && (e.notes || '').includes('[skonto-voucher:')) {
+      reasons.set(e.id, 'Der Skonto gehört zu einer Bankzahlung. Er wird mit dem Storno dieses Belegs zurückgenommen.')
     }
   }
   return reasons

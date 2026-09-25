@@ -23,7 +23,8 @@ interface EuerResult {
     ausgabenTotal: number
     gewinn: number
   }
-  counts: { invoices: number; expenses: number }
+  // Tier 454: unbezahlt — issued / dated in the year, counted when paid
+  counts: { invoices: number; expenses: number; unbezahlt?: { invoices: number; expenses: number } }
   generatedAt: string
   disclaimer: string
 }
@@ -234,6 +235,21 @@ export function EuerSection() {
                 {data.totals.gewinn >= 0
                   ? `${tRef.current("euer.gewinn")}: ${fmt(data.totals.gewinn)}`
                   : `${tRef.current("euer.verlust")}: ${fmt(Math.abs(data.totals.gewinn))}`}
+              </div>
+
+              {/* Tier 454: the EÜR counts payments (§ 11 EStG) */}
+              <div className="mt-3 text-xs text-gray-600 dark:text-gray-300" data-testid="euer-zufluss">
+                {tRef.current("euer.zufluss")}
+                {data.counts.unbezahlt && (data.counts.unbezahlt.invoices > 0 || data.counts.unbezahlt.expenses > 0) && (
+                  <>
+                    {" "}
+                    {tRef.current("euer.offen", {
+                      year: data.year,
+                      invoices: data.counts.unbezahlt.invoices,
+                      expenses: data.counts.unbezahlt.expenses,
+                    })}
+                  </>
+                )}
               </div>
 
               {/* Disclaimer */}

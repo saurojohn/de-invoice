@@ -36,6 +36,8 @@ CUST=$(json_field "$BODY" id)
 AS POST "/api/v1/invoices?companyId=$C" '{"customerId":"'$CUST'","issueDate":"'$Y'-03-01","items":[{"description":"Leistung","quantity":1,"unit":"Stk","unitPrice":5000,"vatRate":0.19}]}'
 INV=$(json_field "$BODY" id)
 AS PUT "/api/v1/invoices/$INV/status?companyId=$C" '{"status":"sent"}'
+# Tier 454: paid — the EÜR counts payments
+AS POST "/api/v1/invoices/$INV/payments?companyId=$C" '{"amount":5950,"paymentDate":"'$Y'-03-15","paymentMethod":"bank_transfer"}'
 
 note "=== the same Gewinn everywhere: 5000 - 1200 = 3800 ==="
 AS GET "/api/v1/accounting/guv?companyId=$C&year=$Y"

@@ -12,6 +12,10 @@
  *
  * A paid or otherwise booked expense (expense-lock.ts) keeps everything but
  * its notes; the request is refused with the reason, which names the way out.
+ *
+ * Tier 454: `paidAt` — the payment date entered by hand (null takes it out).
+ * Where the bank, SEPA or the cash book paid the expense, the lock refuses it
+ * like any other change.
  */
 import { BadRequestException, NotFoundException } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
@@ -57,6 +61,10 @@ export async function updateExpense(
     set('accountNumber', acc, acc !== exp.accountNumber)
   }
   if (data.isIntraEU !== undefined) set('isIntraEU', data.isIntraEU, data.isIntraEU !== exp.isIntraEU)
+  if (data.paidAt !== undefined) {
+    const d = data.paidAt ? new Date(data.paidAt) : null
+    set('paidAt', d, (d?.getTime() ?? null) !== (exp.paidAt?.getTime() ?? null))
+  }
   if (data.isReverseCharge !== undefined) set('isReverseCharge', data.isReverseCharge, data.isReverseCharge !== exp.isReverseCharge)
 
   // Amounts: work with magnitudes, then apply the sign.

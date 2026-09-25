@@ -19,6 +19,7 @@ import {
   Min,
   Max,
   IsBoolean,
+  ValidateIf,
 } from "class-validator"
 import { Type, Transform } from "class-transformer"
 
@@ -76,6 +77,11 @@ export class CreateExpenseDto {
   @IsBoolean()
   creditNote?: boolean
 
+  // Tier 454: the day it was paid, when that was not through the bank import,
+  // the SEPA run or the cash book (card, private account) — the EÜR counts an
+  // expense when it is paid (§ 11 EStG).
+  @IsOptional() @IsDateString({}, { message: "Bezahlt am muss ein Datum sein (ISO date)" })
+  paidAt?: string
 
   @IsString() @IsOptional() @MaxLength(20)
   accountNumber?: string
@@ -135,4 +141,10 @@ export class UpdateExpenseDto {
 
   @IsString() @IsOptional() @MaxLength(2000)
   notes?: string
+
+  // Tier 454: the payment date entered by hand; null takes it out. A payment
+  // through the bank, SEPA or the cash book is taken back there instead.
+  @ValidateIf((o) => o.paidAt !== null && o.paidAt !== undefined)
+  @IsDateString({}, { message: "Bezahlt am muss ein Datum sein (ISO date)" })
+  paidAt?: string | null
 }

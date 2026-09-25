@@ -850,6 +850,7 @@ export class UstvaService {
     isIntraEU?: boolean;
     isReverseCharge?: boolean;
     notes?: string;
+    paidAt?: Date | null;
   }) {
     // Tier 390: the supplier must be this company's — the same check
     // ExpenseService.create makes. Measured: company B's expense with company
@@ -876,6 +877,7 @@ export class UstvaService {
         isIntraEU: data.isIntraEU ?? false,
         isReverseCharge: data.isReverseCharge ?? false,
         notes: data.notes,
+        paidAt: data.paidAt ?? null,
       },
       include: { supplier: true },
     });

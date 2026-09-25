@@ -20,6 +20,7 @@ export interface EditableExpense {
   category: string | null
   supplier: { id: string; name: string } | null
   lockReason?: string | null
+  paidAt?: string | null
 }
 
 export function ExpenseEditForm({
@@ -41,6 +42,7 @@ export function ExpenseEditForm({
     category: expense.category || "",
     netAmount: String(Math.abs(Number(expense.netAmount))),
     vatRate: String(Number(expense.vatRate)),
+    paidAt: expense.paidAt ? String(expense.paidAt).slice(0, 10) : "",
   })
   const [form, setForm] = useState(initial)
   const [saving, setSaving] = useState(false)
@@ -72,6 +74,8 @@ export function ExpenseEditForm({
         category: form.category,
         netAmount: parseFloat(form.netAmount || "0"),
         vatRate: parseFloat(form.vatRate),
+        // Tier 454: paid by card / privately — the EÜR counts it on this day
+        paidAt: form.paidAt || null,
       })
       toast.success(t("expenses.editSaved"))
       onSaved()
@@ -133,7 +137,12 @@ export function ExpenseEditForm({
             <option value="0">0%</option>
           </select>
         </div>
-        <div className="flex items-end justify-end">
+        <div>
+          <label className={label}>{t("expenses.paidAt")}</label>
+          <input type="date" className={input} value={form.paidAt} data-testid="expense-edit-paid-at"
+            onChange={(e) => setForm({ ...form, paidAt: e.target.value })} />
+        </div>
+        <div className="flex items-end justify-end md:col-span-3">
           <Button size="sm" onClick={save} disabled={saving || !form.description} data-testid="expense-edit-save">
             ✓ {saving ? "…" : t("expenses.editSave")}
           </Button>

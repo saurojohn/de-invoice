@@ -972,7 +972,9 @@
     "ocrVat": "USt %",
     "ocrShowRawText": "OCR Rohtext anzeigen",
     "ocrConfirm": "Expense anlegen",
-    "ocrSaving": "Expense wird gespeichert…"
+    "ocrSaving": "Expense wird gespeichert…",
+    "paidAt": "Bezahlt am",
+    "paidAtHint": "Nur bei Zahlung außerhalb von Bankimport, SEPA und Kassenbuch (Karte, Privatkonto). Die EÜR zählt die Ausgabe an diesem Tag."
   },
   "home": {
     "heroTitle": "Professionelle deutsche Rechnungsverwaltung",
@@ -2582,7 +2584,9 @@
     "invoices": "Rechnungen",
     "expenses": "Ausgaben",
     "generatedAt": "Erstellt",
-    "previewHint": "Vorschau — alle Werte automatisch berechnet. Vor der Einreichung durch den Steuerberater prüfen lassen."
+    "previewHint": "Vorschau — alle Werte automatisch berechnet. Vor der Einreichung durch den Steuerberater prüfen lassen.",
+    "zufluss": "Gezählt nach Zahlungsdatum (Zufluss-/Abflussprinzip, § 11 EStG).",
+    "offen": "Aus {year} noch nicht bezahlt: {invoices} Rechnungen, {expenses} Ausgaben — sie zählen im Jahr der Zahlung."
   },
   "gobd": {
     "title": "GoBD-Archiv (§ 147 AO)",

@@ -183,6 +183,7 @@ export class UstvaController {
       isIntraEU: body.isIntraEU ?? false,
       isReverseCharge: body.isReverseCharge ?? false,
       notes: body.notes,
+      paidAt: body.paidAt ? new Date(body.paidAt) : null,
     });
   }
 

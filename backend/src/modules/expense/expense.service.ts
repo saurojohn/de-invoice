@@ -147,6 +147,8 @@ export class ExpenseService {
         isReverseCharge: !!data.isReverseCharge,
         status: data.status || 'booked',
         notes: data.notes || null,
+        // Tier 454: paid by card / privately (CreateExpenseDto.paidAt).
+        paidAt: data.paidAt ? new Date(data.paidAt) : null,
       },
     });
   }

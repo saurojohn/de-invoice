@@ -972,7 +972,9 @@
     "ocrVat": "VAT %",
     "ocrShowRawText": "Show OCR raw text",
     "ocrConfirm": "Create Expense",
-    "ocrSaving": "Saving Expense…"
+    "ocrSaving": "Saving Expense…",
+    "paidAt": "Paid on",
+    "paidAtHint": "Only for payments outside the bank import, SEPA and the cash book (card, private account). The EÜR counts the expense on this day."
   },
   "home": {
     "heroTitle": "Professional German Invoice Management",
@@ -2582,7 +2584,9 @@
     "invoices": "Invoices",
     "expenses": "Expenses",
     "generatedAt": "Generated",
-    "previewHint": "Preview — all values computed automatically. Have your tax advisor verify before filing."
+    "previewHint": "Preview — all values computed automatically. Have your tax advisor verify before filing.",
+    "zufluss": "Counted by payment date (cash principle, § 11 EStG).",
+    "offen": "Not yet paid from {year}: {invoices} invoices, {expenses} expenses — they count in the year they are paid."
   },
   "gobd": {
     "title": "GoBD archive (§ 147 AO)",

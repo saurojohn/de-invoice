@@ -76,6 +76,7 @@ interface Expense {
   supplier?: { id: string; name: string } | null
   // Tier 443: set when the expense is paid or an AfA row — no edit / delete.
   lockReason?: string | null
+  paidAt?: string | null
 }
 
 interface Supplier { id: string; name: string }
@@ -146,6 +147,8 @@ function UstvaPageInner() {
     isReverseCharge: false,
     // Tier 442: a supplier credit note — entered positive, stored negative.
     creditNote: false,
+    // Tier 454: paid by card / privately — the EÜR counts it on this day
+    paidAt: "",
   })
   const [exForm, setExForm] = useState(emptyExpenseForm)
   // Tier 443: the expense being corrected (PUT), null when adding one.
@@ -276,6 +279,7 @@ function UstvaPageInner() {
       isIntraEU: !!ex.isIntraEU,
       isReverseCharge: !!ex.isReverseCharge,
       creditNote: Number(ex.grossAmount) < 0,
+      paidAt: ex.paidAt ? String(ex.paidAt).slice(0, 10) : "",
     })
     setShowAdd(true)
   }
@@ -295,6 +299,7 @@ function UstvaPageInner() {
         vatRate: parseFloat(exForm.vatRate),
         vatAmount: parseFloat(exForm.vatAmount || "0"),
         grossAmount: parseFloat(exForm.grossAmount || "0"),
+        paidAt: exForm.paidAt || null,
       }
       // Tier 390: was a raw fetch without the auth headers (401).
       if (editingId) {
@@ -848,6 +853,19 @@ function UstvaPageInner() {
                           value={exForm.category}
                           onChange={(e) => setExForm({ ...exForm, category: e.target.value })}
                           placeholder="z.B. Material, Miete"
+                          className="w-full px-2 py-1.5 border rounded text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
+                          {t("expenses.paidAt")}
+                        </label>
+                        <input
+                          type="date"
+                          value={exForm.paidAt}
+                          onChange={(e) => setExForm({ ...exForm, paidAt: e.target.value })}
+                          data-testid="ustva-expense-paid-at"
+                          title={t("expenses.paidAtHint")}
                           className="w-full px-2 py-1.5 border rounded text-sm"
                         />
                       </div>
