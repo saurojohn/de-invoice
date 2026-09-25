@@ -2526,6 +2526,15 @@ Spec `e2e/238-tier449-berichtigung-noetig.sh` (10 assertions, 4 failing
 against the previous code). Playwright `ustva-berichtigung-noetig-tier449.spec.ts`.
 `listFilings` now runs compute() once per submitted filing.
 
+Spec 210's letter checks failed a second time in CI (run 36131518196), again
+all four at once with the text empty. The spec extracted the text with a regex
+over the raw PDF streams; one way that yields nothing is shown with a
+synthetic stream (a FlateDecode stream whose last compressed byte is 0x0D
+loses it to the `\r?\n endstream` match and zlib refuses it — the error was
+swallowed). It now uses pypdf (CI's "Install Python pdf deps" step) and, if
+the text is still empty, prints the PDF request's status, the Mahnung id and
+the file's head. Not proven to be CI's cause; the next failure will say.
+
 ### A submitted UStVA stays what was submitted (Tier 448)
 
 `POST /ustva/filings` (the UStVA page's "Als Entwurf speichern" / "An
