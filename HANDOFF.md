@@ -10,16 +10,17 @@ exact commands + docs you need to be productive.
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
 - **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–444 are
-  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 443.)
+  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 444.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 36106650958 / commit `3260d7d`, Tier 443):**
-  - Backend e2e: **231 passed / 0 failed / 1 skipped** of 232 specs — 100
-    two-digit + 132 three-digit (Tier 443 added `232-tier443-ausgabe-korrigieren.sh`,
+- **Test counts (last green CI, run 36109905697 attempt 2 / commit `898ce60`, Tier 444):**
+  - Backend e2e: **232 passed / 0 failed / 1 skipped** of 233 specs — 100
+    two-digit + 133 three-digit (Tier 444 added `233-tier444-bankbeleg-storno.sh`,
+    Tier 443 added `232-tier443-ausgabe-korrigieren.sh`,
     Tier 442 added `231-tier442-lieferantengutschrift.sh`,
     Tier 441 added `230-tier441-rechtsform.sh`,
     Tier 440 added `229-tier440-anlagenabgang.sh`,
@@ -2523,6 +2524,12 @@ the expense stays paid.
 
 Spec `e2e/233-tier444-bankbeleg-storno.sh` (20 assertions, 10 failing against
 the previous code — the rest of the re-booking path could not run at all).
+
+CI run 36109905697: attempt 1 failed one spec not touched here —
+`210-tier421-verzugszinsen.sh` section 3, all four checks on the Mahnung
+letter text empty (the interest figures before it passed); attempt 2 passed
+it, as did 10 local runs. Cause unknown: the spec throws away the PDF
+request's status and body. If it recurs, make it print them first.
 
 Not done: the invoice side has its own route (`reconciliations/:id/reopen`),
 which already deletes the payment; a plain voucher Storno of a *reconciliation*
