@@ -99,4 +99,13 @@ assert_eq "the credit note is open again" "$(paid "$GS")/$(owed)" "-/-297.5"
 AS POST "/api/v1/bank-statements/$SID/transactions/$TIN/book-expense?companyId=$C" '{"expenseId":"'$GS'","vatRate":0.19,"vatAmount":38}'
 assert_eq "…and the refund can be booked again" "$STATUS/$(paid "$GS")" "201/$Y-06-10"
 
+note "=== a second incoming payment of the same amount (Tier 451) ==="
+sed 's/ST450/ST450B/; s/2606100610C238/2606120612C238/' "$MT" > "$MT.b"
+UP=$(curl -sS -X POST -H "x-user-id: $U" -H "x-company-id: $C" "$API/api/v1/bank-statements/import?companyId=$C" \
+  -F "file=@$MT.b;type=text/plain" -F "companyId=$C" -F "userId=$U")
+SID2=$(json_field "$UP" id)
+TIN2=$(echo "$UP" | python3 -c "import sys,json;d=json.load(sys.stdin);print([x['id'] for x in d['transactions'] if float(x['amount'])==238][0])")
+AS POST "/api/v1/bank-statements/$SID2/transactions/$TIN2/book-expense?companyId=$C" '{"expenseId":"'$GS'","vatRate":0.19,"vatAmount":38}'
+assert_eq "the credit note is not refunded twice" "$STATUS" "400"
+
 summary

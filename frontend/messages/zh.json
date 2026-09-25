@@ -258,6 +258,7 @@
     "tableAction": "操作",
     "bookExpense": "记为费用",
     "bookRefund": "贷项通知单 {number} 退款",
+    "bookPayment": "支付 {number}",
     "expenseAccountPrompt": "费用科目 (SKR03):",
     "autoConfirmThreshold": "自动确认阈值",
     "reopenCandidate": "撤销",

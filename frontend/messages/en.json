@@ -258,6 +258,7 @@
     "tableAction": "Action",
     "bookExpense": "Book as expense",
     "bookRefund": "Refund of credit note {number}",
+    "bookPayment": "Payment of {number}",
     "expenseAccountPrompt": "Expense account (SKR03):",
     "autoConfirmThreshold": "Auto-confirm at",
     "reopenCandidate": "Reopen",

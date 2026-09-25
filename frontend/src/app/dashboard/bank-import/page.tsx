@@ -168,20 +168,32 @@ export default function BankImportPage() {
   const [reconciliations, setReconciliations] = useState<Reconciliation[]>([])
   const [busyRecon, setBusyRecon] = useState<string | null>(null)
   // Tier 450: open supplier credit notes — an incoming payment of the same
-  // amount can be booked as their refund.
-  const [openCreditNotes, setOpenCreditNotes] = useState<
-    Array<{ id: string; invoiceNumber: string | null; grossAmount: string; vatRate: string; vatAmount: string }>
-  >([])
+  // amount can be booked as their refund. Tier 451: likewise open expenses
+  // (or SEPA-paid ones the bank has not booked yet) for a debit.
+  type PayableExpense = {
+    id: string; invoiceNumber: string | null; grossAmount: string; vatRate: string; vatAmount: string
+    accountNumber?: string | null; supplier?: { id: string } | null
+  }
+  const [openCreditNotes, setOpenCreditNotes] = useState<PayableExpense[]>([])
+  const [openExpenses, setOpenExpenses] = useState<PayableExpense[]>([])
   const loadCreditNotes = async () => {
     const companyId = localStorage.getItem("companyId")
     if (!companyId) return
     try {
       const res = await apiGet<{ data: any[] }>(`/api/v1/expenses?companyId=${companyId}`)
-      setOpenCreditNotes(
-        (res.data || []).filter((e) => Number(e.grossAmount) < 0 && e.paymentState !== "bezahlt"),
+      const rows = res.data || []
+      setOpenCreditNotes(rows.filter((e) => Number(e.grossAmount) < 0 && e.paymentState !== "bezahlt"))
+      setOpenExpenses(
+        rows.filter(
+          (e) =>
+            Number(e.grossAmount) > 0 &&
+            !e.relatedAssetId &&
+            (e.paymentState !== "bezahlt" || (e.paidBySepaBatchId && !e.linkedVoucher)),
+        ),
       )
     } catch {
       setOpenCreditNotes([])
+      setOpenExpenses([])
     }
   }
   useEffect(() => {
@@ -322,15 +334,23 @@ export default function BankImportPage() {
     }
   }
 
-  /** Tier 450: book an incoming payment as the refund of a credit note. */
-  const bookRefund = async (txnId: string, cn: { id: string; vatRate: string; vatAmount: string }) => {
+  /** Tier 450/451: book a transaction against a recorded expense — a debit
+   *  as its payment, an incoming payment as the refund of a credit note. */
+  const bookAgainstExpense = async (txnId: string, cn: PayableExpense) => {
     if (!openId) return
     const companyId = localStorage.getItem("companyId")!
     setBusyRecon(txnId)
     try {
       await apiPost(
         `/api/v1/bank-statements/${openId}/transactions/${txnId}/book-expense?companyId=${companyId}`,
-        { expenseId: cn.id, vatRate: Number(cn.vatRate), vatAmount: Math.abs(Number(cn.vatAmount)) },
+        {
+          expenseId: cn.id,
+          vatRate: Number(cn.vatRate),
+          vatAmount: Math.abs(Number(cn.vatAmount)),
+          // Tier 451: the expense's own Sachkonto and supplier.
+          ...(cn.accountNumber ? { expenseAccountNumber: cn.accountNumber } : {}),
+          ...(cn.supplier?.id ? { supplierId: cn.supplier.id } : {}),
+        },
       )
       const detail = await apiGet<{ transactions: BankTransaction[] }>(
         `/api/v1/bank-statements/${openId}?companyId=${companyId}`
@@ -765,6 +785,25 @@ export default function BankImportPage() {
                                       : t("bankImport.bookExpense")}
                                   </Button>
                                 )}
+                                {isDebit && !txn.voucher && (() => {
+                                  const ex = openExpenses.find(
+                                    (c) => Math.abs(Number(c.grossAmount) + amt) < 0.005,
+                                  )
+                                  return ex ? (
+                                    <Button
+                                      size="sm"
+                                      disabled={busyRecon === txn.id}
+                                      className="mr-2"
+                                      data-testid={`book-payment-${txn.id}`}
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        bookAgainstExpense(txn.id, ex)
+                                      }}
+                                    >
+                                      {t("bankImport.bookPayment").replace("{number}", ex.invoiceNumber || "")}
+                                    </Button>
+                                  ) : null
+                                })()}
                                 {!isDebit && !txn.voucher && (() => {
                                   const cn = openCreditNotes.find(
                                     (c) => Math.abs(Math.abs(Number(c.grossAmount)) - amt) < 0.005,
@@ -777,7 +816,7 @@ export default function BankImportPage() {
                                       data-testid={`book-refund-${txn.id}`}
                                       onClick={(e) => {
                                         e.stopPropagation()
-                                        bookRefund(txn.id, cn)
+                                        bookAgainstExpense(txn.id, cn)
                                       }}
                                     >
                                       {t("bankImport.bookRefund").replace("{number}", cn.invoiceNumber || "")}

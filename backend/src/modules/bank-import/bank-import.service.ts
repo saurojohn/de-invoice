@@ -1108,9 +1108,52 @@ export class BankImportService {
     if (opts.expenseId) {
       const exp = await this.prisma.expense.findFirst({
         where: { id: opts.expenseId, companyId },
-        select: { id: true },
+        select: { id: true, grossAmount: true, relatedAssetId: true },
       });
       if (!exp) throw new NotFoundException('Ausgabe nicht gefunden');
+      // Tier 451: a debit pays the expense once and in full. Before, any debit
+      // was booked against any expense: 119 against an invoice of 1 190, a
+      // second time after the cash book or the bank had paid it, a credit note
+      // "paid". A SEPA-paid expense is accepted — the debit is the batch's
+      // execution (Tier 432/433).
+      if (!refund) {
+        const gross = Number(exp.grossAmount);
+        if (gross <= 0 || exp.relatedAssetId) {
+          throw new BadRequestException(
+            gross <= 0
+              ? 'Eine Gutschrift wird nicht mit einer Abbuchung bezahlt — ihre Erstattung ist ein Zahlungseingang.'
+              : 'Eine AfA-Buchung wird nicht über die Bank bezahlt.',
+          );
+        }
+        if (Math.abs(gross - Math.abs(amount)) > 0.005) {
+          throw new BadRequestException(
+            `Die Abbuchung (${Math.abs(amount).toFixed(2)}) entspricht nicht dem Betrag der Eingangsrechnung (${gross.toFixed(2)}). Buchen Sie sie auf ein Aufwandskonto, oder erfassen Sie die Differenz als Gutschrift des Lieferanten.`,
+          );
+        }
+      }
+      {
+        // Paid or refunded once — by the cash book or another bank booking.
+        const [cash, bank] = await Promise.all([
+          this.prisma.cashBookEntry.count({
+            where: { companyId, expenseId: exp.id, reversesId: null, reversedBy: null },
+          }),
+          this.prisma.voucher.count({
+            where: {
+              companyId,
+              referenceType: 'Expense',
+              description: { contains: `[expense:${exp.id}]` },
+              reversals: { none: {} },
+            },
+          }),
+        ]);
+        if (cash > 0 || bank > 0) {
+          throw new BadRequestException(
+            refund
+              ? 'Die Erstattung dieser Gutschrift ist bereits gebucht.'
+              : `Die Eingangsrechnung ist bereits ${cash > 0 ? 'aus dem Kassenbuch' : 'über die Bank'} bezahlt.`,
+          );
+        }
+      }
     }
     if (opts.supplierId) {
       const sup = await this.prisma.supplier.findFirst({

@@ -9,7 +9,7 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–450 are
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–451 are
   in `git log`; §8 records what each learned. (Snapshot refreshed Tier 450.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
@@ -2506,6 +2506,34 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### A bank debit pays a recorded expense once, and only its amount (Tier 451)
+
+`book-expense` with an `expenseId` checked only that the expense was the
+company's. Measured with six debits of 119 €: one was booked against an
+invoice of 1 190 and marked it paid; an expense paid from the cash book was
+paid again; one paid by an earlier bank booking was paid again; a supplier
+credit note was "paid" by a debit — four vouchers where none belonged. And the
+bank import page could not link an expense at all: a debit row offered only
+"Als Aufwand buchen" (an account), so paying a recorded Eingangsrechnung left
+it open.
+
+Now a debit against an expense needs its gross amount (±½ cent; the message
+suggests a supplier credit note for a difference such as a Skonto), refuses a
+credit note (its refund is an incoming payment, Tier 450) and an AfA row, and
+refuses an expense already paid — or a credit note already refunded — by the
+cash book or another unreversed bank booking. A SEPA-paid expense is accepted:
+the debit is the batch's execution, and `paidAt` keeps the batch date. The
+page shows "Zahlung <number>" on an unbooked debit row when an open expense
+(or a SEPA-paid one without a bank booking) has its amount, booking it with
+the expense's VAT, Sachkonto and supplier (de/en/zh).
+
+Spec `e2e/240-tier451-zahlung-eingangsrechnung.sh` (13 assertions, 6 failing
+against the previous code); spec 239 gained "not refunded twice". Playwright
+`bank-payment-tier451.spec.ts`.
+
+Not done: a supplier Skonto (paying less than the bill) still needs a credit
+note for the difference before the debit matches.
+
 ### A supplier's refund is booked against its credit note (Tier 450)
 
 Left open by Tier 442: a supplier credit note (negative expense) could be
@@ -2530,9 +2558,7 @@ credit note has its amount (de/en/zh).
 Spec `e2e/239-tier450-gutschrift-erstattung.sh` (19 assertions, 5 failing
 against the previous code). Playwright `bank-refund-tier450.spec.ts`.
 
-Not done: the page's "Als Aufwand buchen" on a debit row still books to an
-account only and never links an expense (`expenseId` is API-only) — paying a
-recorded Eingangsrechnung from the bank import page is not possible yet.
+(Tier 451 adds the same for a debit: "Zahlung <number>".)
 
 ### A submitted UStVA the books no longer match is flagged (Tier 449)
 

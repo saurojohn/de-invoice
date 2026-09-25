@@ -258,6 +258,7 @@
     "tableAction": "Aktion",
     "bookExpense": "Als Aufwand buchen",
     "bookRefund": "Erstattung Gutschrift {number}",
+    "bookPayment": "Zahlung {number}",
     "expenseAccountPrompt": "Aufwandskonto (SKR03):",
     "autoConfirmThreshold": "Auto-Bestätigen ab",
     "reopenCandidate": "Rückgängig",
