@@ -10,16 +10,18 @@ exact commands + docs you need to be productive.
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
 - **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–446 are
-  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 444.)
+  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 446.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 36109905697 attempt 2 / commit `898ce60`, Tier 444):**
-  - Backend e2e: **232 passed / 0 failed / 1 skipped** of 233 specs — 100
-    two-digit + 133 three-digit (Tier 444 added `233-tier444-bankbeleg-storno.sh`,
+- **Test counts (last green CI, run 36115104620 / commit `5f5950d`, Tier 446):**
+  - Backend e2e: **234 passed / 0 failed / 1 skipped** of 235 specs — 100
+    two-digit + 135 three-digit (Tier 446 added `235-tier446-zuordnung-storno.sh`,
+    Tier 445 added `234-tier445-docker-exec-stdin.sh`,
+    Tier 444 added `233-tier444-bankbeleg-storno.sh`,
     Tier 443 added `232-tier443-ausgabe-korrigieren.sh`,
     Tier 442 added `231-tier442-lieferantengutschrift.sh`,
     Tier 441 added `230-tier441-rechtsform.sh`,
