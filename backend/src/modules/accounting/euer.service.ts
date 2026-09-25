@@ -3,7 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Response } from 'express';
 import PDFDocument from 'pdfkit';
-import { euerInflows } from './euer-zufluss'
+import { euerExpenses, euerInflows } from './euer-zufluss'
 import { cashBookings } from '../cashbook/cash-bookings'
 import { expenseCost } from './expense-cost'
 import { bookedAfaCost } from './booked-afa'
@@ -204,24 +204,7 @@ export class EuerService {
     // (Tier 410) come with the invoice, as before.
     const { inflows, unpaidInvoices } = await euerInflows(this.prisma, companyId, yearStart, yearEnd)
     // Tier 87 / 436: booked AfA rows are the 4600 line below, not an expense.
-    const expenseScope = {
-      companyId,
-      status: { in: ['booked', 'deductible'] },
-      // Tier 425: `not: 'AfA'` alone is `category <> 'AfA'` in SQL, which drops every
-      // expense WITHOUT a category (NULL) — the usual case.
-      OR: [{ category: null }, { category: { not: 'AfA' } }],
-    }
-    const expenses = await this.prisma.expense.findMany({
-      where: { ...expenseScope, paidAt: { gte: yearStart, lte: yearEnd } },
-      select: {
-        netAmount: true,
-        grossAmount: true,
-        category: true,
-      },
-    })
-    const unpaidExpenses = await this.prisma.expense.count({
-      where: { ...expenseScope, paidAt: null, invoiceDate: { gte: yearStart, lte: yearEnd } },
-    })
+    const { expenses, unpaidExpenses } = await euerExpenses(this.prisma, companyId, yearStart, yearEnd)
 
     // Bucket revenues by Kennziffer. The matchers
     // are evaluated in order; the first match wins.

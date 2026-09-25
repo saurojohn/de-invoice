@@ -3,8 +3,7 @@ import { Injectable } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import { Response } from 'express'
 import PDFDocument from 'pdfkit'
-import { invoiceNetRevenue } from '../invoice/tax-breakdown';
-import { SALES_TYPES } from '../invoice/document-scope'
+import { euerExpenses, euerInflows } from './euer-zufluss'
 import { cashBookings } from '../cashbook/cash-bookings'
 import { expenseCost } from './expense-cost'
 import { bookedAfaCost } from './booked-afa'
@@ -63,9 +62,13 @@ export interface AnlageSResult {
     ausgabenTotal: number
     gewinn: number // einnahmen - ausgaben (positive = profit, negative = loss)
   }
+  /** Tier 455: § 11 EStG — counted when paid (as the EÜR) */
+  prinzip: 'zufluss'
   counts: {
     invoices: number
     expenses: number
+    /** issued / dated in the year and not paid yet */
+    unbezahlt: { invoices: number; expenses: number }
     // Tier 87: how many AfA-Buchung rows
     // for this year (one per Asset that
     // was booked into 4600).
@@ -215,50 +218,10 @@ export class AnlageSService {
     const yearStart = new Date(year, 0, 1)
     const yearEnd = new Date(year, 11, 31, 23, 59, 59, 999)
 
-    // Pull every invoice in the year (any status
-    // that contributed to revenue). Drafts are
-    // excluded — they're not billable yet.
-    const invoices = await this.prisma.invoice.findMany({
-      where: {
-        companyId,
-        issueDate: { gte: yearStart, lte: yearEnd },
-        status: { in: ['paid', 'sent', 'overdue'] },
-        type: { in: SALES_TYPES }, // Tier 424: not a Proforma
-      },
-      select: {
-        subtotal: true,
-        totalVat: true,
-        // Tier 411: revenue is total − totalVat (after the discount), in EUR.
-        total: true,
-        eurTotal: true,
-        eurTotalVat: true,
-        reverseCharge: true,
-        // Tier 410: the igL flag is separate from reverseCharge.
-        euTransaction: true,
-      },
-    })
-    const expenses = await this.prisma.expense.findMany({
-      where: {
-        companyId,
-        invoiceDate: { gte: yearStart, lte: yearEnd },
-        status: { in: ['booked', 'deductible'] },
-        // Tier 87: booked AfA rows are
-        // excluded here and surfaced in
-        // the 4600 line via the explicit
-        // AfA-Buchung query below. Without
-        // this exclusion they would fall
-        // through to the 4720 "Übrige"
-        // fallback and double-count.
-        // Tier 425: `not: 'AfA'` alone is `category <> 'AfA'` in SQL, which drops every
-        // expense WITHOUT a category (NULL) — the usual case.
-        OR: [{ category: null }, { category: { not: 'AfA' } }],
-      },
-      select: {
-        netAmount: true,
-        grossAmount: true,
-        category: true,
-      },
-    })
+    // Tier 455: counted when paid, as the EÜR it is (§ 4 Abs. 3, § 11 EStG;
+    // euer-zufluss.ts) — was issue date / invoice date.
+    const { inflows, unpaidInvoices } = await euerInflows(this.prisma, companyId, yearStart, yearEnd)
+    const { expenses, unpaidExpenses } = await euerExpenses(this.prisma, companyId, yearStart, yearEnd)
 
     // Tier 87: AfA-Buchung rows for 4600 (the 4600 matcher is a stub).
     // Tier 436: as a cost — the rows' netAmount is negative, and the line
@@ -271,11 +234,9 @@ export class AnlageSService {
     // is the fallback.
     const einnahmenBuckets = new Map<string, number>()
     for (const def of REVENUE_LINES) einnahmenBuckets.set(def.kz, 0)
-    for (const inv of invoices) {
-      // Tier 411: after the invoice discount, in EUR (was subtotal — before
-      // the discount, and in the invoice currency).
-      const subtotal = invoiceNetRevenue(inv)
-      if (subtotal < 0) {
+    for (const { invoice: inv, amount: subtotal } of inflows) {
+      // Tier 455: the payment's net share (Tier 411: after the discount, in EUR).
+      if (subtotal < 0 || inv.type === 'CN') {
         // Gutschrift (CN) — same convention as
         // tier 76 EÜR: offset Kz 4100 directly.
         // The BMF Anlage S is symmetric to EÜR
@@ -354,9 +315,11 @@ export class AnlageSService {
         ausgabenTotal: round2(ausgabenTotal),
         gewinn,
       },
+      prinzip: 'zufluss',
       counts: {
-        invoices: invoices.length,
+        invoices: new Set(inflows.map((f) => f.invoice.id)).size,
         expenses: expenses.length,
+        unbezahlt: { invoices: unpaidInvoices, expenses: unpaidExpenses },
         // Tier 87: how many AfA bookings exist
         // for this year.
         afaBookings: bookedAfa.count,
@@ -406,6 +369,8 @@ export class AnlageSService {
       .text(
         `Einkünfte aus selbständiger Arbeit (§ 18 EStG) — ${company?.name || companyId}`,
       )
+      // Tier 455
+      .text('Gezählt nach Zahlungsdatum (Zufluss-/Abflussprinzip, § 11 EStG)')
       .moveDown(1)
 
     // Einnahmen block

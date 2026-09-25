@@ -16,7 +16,8 @@
  *     becomes the customer's credit, and counts when that credit pays an
  *     invoice ('Guthaben' payment)
  *   - an invoice set "paid" without its payments recorded counts the part
- *     no payment covers at its issue date (the only date there is)
+ *     no payment covers at its issue date (the only date there is); so does
+ *     a paid negative invoice (a correction entered as INV), negatively
  * A credit note's amount beyond what it settled on its invoice (the invoice
  * was already paid: the customer gets money or credit back) lowers the income
  * at the credit note's date.
@@ -78,7 +79,15 @@ export async function euerInflows(prisma: PrismaService, companyId: string, star
   const inflows: Inflow<EuerInvoice>[] = []
   for (const inv of invoices) {
     const total = Number(inv.total)
-    if (!(total > 0)) continue
+    if (total < 0) {
+      // A correction entered as a negative invoice: paid out when it says
+      // "paid" — no payment row records a refund, so at its issue date.
+      if (inv.status === 'paid' && inYear(inv.issueDate, start, end)) {
+        inflows.push({ invoice: inv, amount: invoiceNetRevenue(inv) })
+      }
+      continue
+    }
+    if (total === 0) continue
     const share = invoiceNetRevenue(inv) / total
     let open = total
     let amount = 0
@@ -132,4 +141,29 @@ export async function euerInflows(prisma: PrismaService, companyId: string, star
     },
   })
   return { inflows, unpaidInvoices }
+}
+
+/**
+ * Expenses paid in the year (Abfluss), and those dated in the year not paid
+ * yet. Booked AfA rows are no expense here — the annexes have their own AfA
+ * line (Tier 87 / 436).
+ */
+export async function euerExpenses(prisma: PrismaService, companyId: string, start: Date, end: Date) {
+  const scope = {
+    companyId,
+    status: { in: ['booked', 'deductible'] },
+    // Tier 425: `not: 'AfA'` alone is `category <> 'AfA'` in SQL, which drops every
+    // expense WITHOUT a category (NULL) — the usual case.
+    OR: [{ category: null }, { category: { not: 'AfA' } }],
+  }
+  const [expenses, unpaidExpenses] = await Promise.all([
+    prisma.expense.findMany({
+      where: { ...scope, paidAt: { gte: start, lte: end } },
+      select: { netAmount: true, grossAmount: true, category: true },
+    }),
+    prisma.expense.count({
+      where: { ...scope, paidAt: null, invoiceDate: { gte: start, lte: end } },
+    }),
+  ])
+  return { expenses, unpaidExpenses }
 }

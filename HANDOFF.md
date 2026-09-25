@@ -9,7 +9,7 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–454 are
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–455 are
   in `git log`; §8 records what each learned. (Snapshot refreshed Tier 452.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
@@ -2508,6 +2508,35 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Anlage S and Anlage V count payments too (Tier 455)
+
+Left open by Tier 454. A freelancer's Anlage S is the EÜR (§ 18 income,
+§ 4 Abs. 3 EStG) and rent is income when received (§ 21 / § 11), but both
+annexes still took invoices at their issue date and expenses at their
+invoice date. Measured with 243's fixtures: 2025 showed 1 000 income for an
+invoice paid in 2026 and the bill paid in 2026; 2026 showed the unpaid
+invoice and bill — Anlage S Gewinn −200 where its EÜR said 700.
+
+Now EÜR, Anlage S and Anlage V share `euerInflows` / `euerExpenses`
+(`euer-zufluss.ts`), return `prinzip: 'zufluss'` and `counts.unbezahlt`, and
+the page sections and PDFs say so. One addition to the selection: a *paid*
+negative invoice (a correction entered as INV, as spec 106 seeds it) lowers
+the income at its issue date — the walk over payments skipped it.
+
+Specs adapted: 106, 118 (SQL-seeded expenses get `paidAt`), 213 (the
+Quittung and the invoice are paid before the Anlage S check, moved to the end
+so the ageing / DATEV checks still see them open).
+
+Spec `e2e/244-tier455-anlage-s-v-zufluss.sh` (8 assertions, 7 failing against
+the previous code). Playwright `anlage-s-v-zufluss-tier455.spec.ts`.
+
+Still open: Anlage G stays on the document date — a Gewerbe that keeps books
+(§ 140 AO / § 141 AO) accrues, one that does not files the EÜR; the app does
+not know which (a company setting would decide it). Money received on a
+Proforma (an Anzahlung) is income under § 11, but PI payments are not
+counted — the final invoice's payment would then count it twice; that needs
+the PI → invoice link.
+
 ### The EÜR counts payments, when they were made (Tier 454)
 
 Item 20 of §9, decided by the user: cash basis (Zufluss-/Abflussprinzip,
@@ -2548,8 +2577,8 @@ Spec `e2e/243-tier454-euer-zufluss.sh` (15 assertions; its first version
 failed 12 against the previous code). Playwright `euer-zufluss-tier454.spec.ts`: an unpaid bill is
 listed as open, its paid date entered in the modal puts it on 4300.
 
-Still open: Anlage S / V / G, GuV and BWA stay on the document date (GuV and
-BWA are accrual by nature; Anlage S / V follow the EÜR in law — next step);
+Still open: Anlage G, GuV and BWA stay on the document date (GuV and BWA are
+accrual by nature; Anlage S / V followed in Tier 455);
 a customer-credit payout is not linked to the credit note that created it.
 
 ### A stored file's URL opens it (Tier 453)
@@ -5629,8 +5658,9 @@ These are **not in the repo** — only the user can do them:
     invoice. Either confirm "RCV = cash sale" or add that link.
 
 20. ~~**EÜR on a cash basis (§ 11 EStG)**~~ — done in Tier 454 (the user
-    chose the cash basis; manual "Bezahlt am" for unmatched payments). Anlage
-    S / V still count document dates. (found Tier 425) The EÜR and
+    chose the cash basis; manual "Bezahlt am" for unmatched payments), Anlage
+    S / V in Tier 455. Open: does Anlage G follow (only for a Gewerbe that
+    keeps no books — needs a company setting)? (found Tier 425) The EÜR and
     Anlage S / V count invoices at their issue date and expenses at their
     invoice date — a December invoice paid in January lands in the wrong
     year. Payment dates now exist for invoices, cash-, SEPA- and
