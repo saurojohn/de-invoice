@@ -1,6 +1,7 @@
 import { InvoiceService } from './invoice.service';
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { CLAIM_TYPES } from './document-scope';
 import { PrismaService } from '../../prisma/prisma.service';
 import { WebhookService } from '../webhook/webhook.service';
 import { ReminderService } from '../reminder/reminder.service';
@@ -171,9 +172,10 @@ export class PaymentService {
       }
     }
 
-    // Only INV/PI/RCV get status updates; PI is non-binding so we keep
-    // it as "sent" even after payment.
-    if (invoice.type === 'INV' && totalPaid >= invoiceTotal - 0.01) {
+    // Only claims (INV, RCV) get status updates; PI is non-binding so we keep
+    // it as "sent" even after payment. Tier 459: a Quittung stayed "sent" when
+    // paid in full — the comment said RCV, the check said INV only.
+    if (CLAIM_TYPES.includes(invoice.type) && totalPaid >= invoiceTotal - 0.01) {
       // Tier 37: before flipping the status, cancel any
       // open Mahnungen so the dashboard / Mahnhistorie no
       // longer lists them as "open" once the customer
@@ -245,7 +247,7 @@ export class PaymentService {
           currency: payment.currency,
           paymentDate: payment.paymentDate,
           paymentMethod: payment.paymentMethod,
-          fullyPaid: invoice.type === 'INV' && totalPaid >= invoiceTotal - 0.01,
+          fullyPaid: CLAIM_TYPES.includes(invoice.type) && totalPaid >= invoiceTotal - 0.01,
         },
       })
       .catch((err) => console.error('webhook emit(payment.received) failed:', err))
@@ -302,8 +304,8 @@ export class PaymentService {
     }
     await this.prisma.payment.delete({ where: { id: paymentId } });
 
-    // Recompute status
-    if (payment.invoice.type === 'INV') {
+    // Recompute status (Tier 459: a Quittung too)
+    if (CLAIM_TYPES.includes(payment.invoice.type)) {
       const remaining = await this.prisma.payment.findMany({
         where: { invoiceId: payment.invoiceId },
         select: { amount: true },

@@ -9,7 +9,7 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–458 are
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–459 are
   in `git log`; §8 records what each learned. (Snapshot refreshed Tier 458.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
@@ -2514,6 +2514,24 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### A paid Quittung: settled in the app and in DATEV (Tier 459)
+
+Since Tier 424 a Quittung (RCV) is a sale of its own and DATEV books it on
+the customer's Debitor. Measured, a Quittung over 119 € paid 119 € by bank:
+- the app left it "sent": PaymentService set only an INV to paid (its
+  comment said INV / RCV), and only an INV back to open when a payment was
+  deleted — so a paid Quittung counted as unpaid (EÜR `counts.unbezahlt`,
+  the invoice list's status filter);
+- DATEV: the payments query took INV / CN only — the Debitor stayed at 119 €
+  owed and the bank at 0.
+
+Now both status paths use `CLAIM_TYPES` (INV, RCV), and the DATEV payments
+query takes INV, RCV and CN. The Skonto stays INV-only (a Quittung has no
+payment terms).
+
+Spec `e2e/248-tier459-quittung-datev.sh` (8 assertions, 3 failing against the
+previous code).
+
 ### Privateinlage / Privatentnahme in the Kassenbuch (Tier 458)
 
 A Kassenbuch entry without a VAT rate is the owner's money (Tier 425: no
@@ -3793,10 +3811,11 @@ the credit note (−20,00 net / −3,80 USt) and the paid status.
 Spec `e2e/211-tier422-skonto-settlement.sh` (15 assertions, 8 failing against
 the previous code).
 
-Not changed, next tier: **the DATEV export contains no credit notes at all**
+~~Not changed, next tier: **the DATEV export contains no credit notes at all**
 (it exports paid INV / PI only), so refunds and Skonti never reach the
 Berater's books; and its payment row books the invoice total, not the cash
-received.
+received.~~ Done since (credit notes and payments are exported on their own
+rows; Tier 459 added the Quittung's payments).
 
 ### Verzugszinsen were a flat 9 %, on the invoice total (Tier 421)
 

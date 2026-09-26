@@ -47,7 +47,7 @@ import { vatRateToUstSchluessel } from './datev-ust-schluessel';
 import { invoiceTaxBreakdown } from '../invoice/tax-breakdown';
 import { normaliseCountry } from '../invoice/ust-behandlung-detector';
 import { ensurePersonenkonten, DIVERSE_KREDITOREN } from './datev-personenkonten';
-import { NON_CASH_PAYMENT_METHODS } from '../invoice/document-scope';
+import { CLAIM_TYPES, NON_CASH_PAYMENT_METHODS } from '../invoice/document-scope';
 import { cashBookings } from '../cashbook/cash-bookings';
 import { SALES_TYPES } from '../invoice/document-scope'
 import { anlagenKonten } from './datev-anlagen'
@@ -425,7 +425,9 @@ export async function buildBuchungenFromDb(
       // synthetic payment that records them on the original is not cash —
       // nor is a customer credit applied to an invoice (Tier 431).
       paymentMethod: { notIn: NON_CASH_PAYMENT_METHODS },
-      invoice: { companyId, type: { in: ['INV', 'CN'] }, status: { notIn: ['draft', 'cancelled'] } },
+      // Tier 459: a Quittung's payment too — it is booked on the Debitor like
+      // an invoice (Tier 424), and its payment was left out.
+      invoice: { companyId, type: { in: [...CLAIM_TYPES, 'CN'] }, status: { notIn: ['draft', 'cancelled'] } },
     },
     include: {
       invoice: {
