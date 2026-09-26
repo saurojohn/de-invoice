@@ -9,7 +9,7 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–460 are
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–461 are
   in `git log`; §8 records what each learned. (Snapshot refreshed Tier 459.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
@@ -2514,6 +2514,27 @@ Tier 401 run 35123354210 **failed** on backend lint — a warning
 runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
+
+### A paid invoice is not simply cancelled (Tier 461)
+
+`PUT /invoices/:id/status` checked no transition, and "cancelled" takes a
+document out of every return (UStVA, EÜR, DATEV — with its payments).
+Measured, a 1 190 € invoice paid in full, then cancelled (200): its 190 €
+output tax, its 1 000 € income and the 1 190 € on the bank left the books,
+and the customer's money was nowhere (no credit, no refund). An invoice with
+a credit note against it, cancelled: the invoice left the returns, the
+credit note stayed subtracted. The delete route's own message pointed there
+("Bitte stornieren oder eine Gutschrift erstellen").
+
+Now `updateStatus` refuses 'cancelled' while the document has payments
+(credit-note offsets included) or an active credit note, and refuses it for a
+credit note already settled against its invoice — the correction is a credit
+note (and refunding what was paid). An unpaid invoice can still be
+cancelled. The delete message names the credit note only.
+
+Spec `e2e/250-tier461-storno-bezahlt.sh` (10 assertions, 6 failing against
+the previous code). No UI change: the invoice page shows the refusal as a
+toast.
 
 ### Deleting a payment takes back what it caused (Tier 460)
 
