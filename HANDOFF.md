@@ -10,17 +10,17 @@ exact commands + docs you need to be productive.
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
 - **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–462 are
-  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 461.)
+  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 462.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 36231779527 / commit `84fe8b9`, Tier 461 —
-  covering 460, whose own run the push cancelled):**
-  - Backend e2e: **249 passed / 0 failed / 1 skipped** of 250 specs — 100
-    two-digit + 150 three-digit (Tier 461 added `250-tier461-storno-bezahlt.sh`,
+- **Test counts (last green CI, run 36233216659 / commit `b952423`, Tier 462):**
+  - Backend e2e: **250 passed / 0 failed / 1 skipped** of 251 specs — 100
+    two-digit + 151 three-digit (Tier 462 added `251-tier462-zahlung-status.sh`,
+    Tier 461 added `250-tier461-storno-bezahlt.sh`,
     Tier 460 added `249-tier460-zahlung-loeschen.sh`,
     Tier 459 added `248-tier459-quittung-datev.sh`,
     Tier 458 added `247-tier458-privat-kasse.sh`,
@@ -91,12 +91,10 @@ exact commands + docs you need to be productive.
     and survives concurrent writes (Tier 367); spec 171 (new in Tier 368) asserts
     the auth audit rows exist at all and are signed — nothing had ever asserted
     on them, which is how a failed login for an unknown e-mail went unaudited.
-  - Playwright: **944 passed + 1 flaky / 0 failed / 0 skipped** of 945 in
-    run 36231779527 — `list-pages.spec.ts` "Invoices list renders the list
-    page without console errors" counted the rows right after networkidle,
-    before the list had rendered (0 rows and no empty-state text); fixed in
-    Tier 462 (waits for a row or the empty state). Before that: 945 passed
-    (Tier 428's
+  - Playwright: **945 passed / 0 failed / 0 skipped / 0 flaky** (run
+    36231779527 on Tier 461 had 1 flaky — `list-pages.spec.ts` "Invoices
+    list" counted the rows before the list had rendered; fixed in Tier 462,
+    which waits for a row or the empty state. Tier 428's
     run had one flaky — `list-pages.spec.ts` "Invoices list renders without
     console errors" expected the empty state and saw a populated list, then
     passed on retry). 945 tests (922 since Tier 390's
