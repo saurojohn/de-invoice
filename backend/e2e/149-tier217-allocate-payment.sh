@@ -44,7 +44,10 @@ make_invoice() {
     \"items\":[{\"description\":\"Tier217 line\",\"quantity\":1,\"unitPrice\":$net,\"vatRate\":0.19}],
     \"language\":\"de\"
   }" >/dev/null
-  echo "$BODY" | python3 -c "import sys,json;d=json.load(sys.stdin);print(d.get('id',''))"
+  local id; id=$(echo "$BODY" | python3 -c "import sys,json;d=json.load(sys.stdin);print(d.get('id',''))")
+  # Tier 462: a payment needs an issued invoice
+  api_put "/api/v1/invoices/$id/status?companyId=$COMPANY_ID" '{"status":"sent"}' >/dev/null
+  echo "$id"
 }
 
 # Helper: get invoice total (net × 1.19 due to 19% VAT)

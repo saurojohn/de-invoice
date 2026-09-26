@@ -91,6 +91,7 @@ api_post "/api/v1/invoices?companyId=$COMPANY_ID" \
 assert_status "201" "create invoice with Skonto"
 
 INV_ID=$(json_field "$BODY" id)
+api_put "/api/v1/invoices/$INV_ID/status?companyId=$COMPANY_ID" '{"status":"sent"}' >/dev/null  # Tier 462: a payment needs an issued invoice
 INV_TOTAL=$(json_field "$BODY" total)
 SK_PCT=$(json_field "$BODY" skontoPercent)
 SK_DAYS=$(json_field "$BODY" skontoDays)
@@ -232,6 +233,7 @@ api_post "/api/v1/invoices?companyId=$COMPANY_ID" \
   "{\"customerId\":\"$CUST_ID\",\"issueDate\":\"2026-07-01T00:00:00.000Z\",\"dueDate\":\"2026-07-28T00:00:00.000Z\",\"items\":[{\"description\":\"Service\",\"quantity\":1,\"unitPrice\":1000,\"vatRate\":0.19}]}"
 assert_status "201" "create no-Skonto invoice"
 INV2_ID=$(json_field "$BODY" id)
+api_put "/api/v1/invoices/$INV2_ID/status?companyId=$COMPANY_ID" '{"status":"sent"}' >/dev/null  # Tier 462: a payment needs an issued invoice
 
 STATEMENT2="e2e00052-0000-0000-0001-000000000002"
 TXN2="e2e00052-0000-0000-0002-000000000002"
@@ -270,6 +272,7 @@ api_post "/api/v1/invoices?companyId=$COMPANY_ID" \
   "{\"customerId\":\"$CUST_ID\",\"issueDate\":\"2026-07-01T00:00:00.000Z\",\"dueDate\":\"2026-07-28T00:00:00.000Z\",\"skontoPercent\":2,\"skontoDays\":14,\"items\":[{\"description\":\"Service\",\"quantity\":1,\"unitPrice\":1000,\"vatRate\":0.19}]}"
 assert_status "201" "create late-Skonto invoice"
 INV3_ID=$(json_field "$BODY" id)
+api_put "/api/v1/invoices/$INV3_ID/status?companyId=$COMPANY_ID" '{"status":"sent"}' >/dev/null  # Tier 462: a payment needs an issued invoice
 
 STATEMENT3="e2e00052-0000-0000-0001-000000000003"
 TXN3="e2e00052-0000-0000-0002-000000000003"

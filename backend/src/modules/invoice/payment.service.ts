@@ -80,6 +80,21 @@ export class PaymentService {
         'Gutschriften können nicht direkt bezahlt werden — sie werden mit dem offenen Saldo der Originalrechnung verrechnet.'
       );
     }
+    // Tier 462: only an issued document takes a payment. A cancelled invoice
+    // turned "paid" (the Storno undone, back in the UStVA), a draft went
+    // straight to "paid" without ever being issued. Every way a payment is
+    // booked comes through here.
+    if (invoice.status === 'draft') {
+      throw new BadRequestException(
+        'Die Rechnung ist noch ein Entwurf. Stellen Sie sie zuerst aus (Status „gesendet“), dann kann die Zahlung gebucht werden.',
+      );
+    }
+    if (invoice.status === 'cancelled') {
+      throw new BadRequestException(
+        'Die Rechnung ist storniert und nimmt keine Zahlung mehr an. Geld, das der Kunde trotzdem gezahlt hat, ' +
+        'buchen Sie als sein Guthaben (Kunde → Guthaben) und zahlen es aus oder verrechnen es.',
+      );
+    }
     if (!data.amount || data.amount <= 0) {
       throw new BadRequestException('Betrag muss größer als 0 sein');
     }

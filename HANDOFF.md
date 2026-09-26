@@ -9,7 +9,7 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–461 are
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–462 are
   in `git log`; §8 records what each learned. (Snapshot refreshed Tier 461.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
@@ -2522,6 +2522,32 @@ Tier 401 run 35123354210 **failed** on backend lint — a warning
 runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
+
+### A payment belongs to an issued invoice (Tier 462)
+
+The mirror of Tier 461. `PaymentService.create` checked the type (no credit
+note) and the amount, not the status — and every way a payment is booked
+(invoice page, bank import, cash book, Raten, Sammelzahlung, customer credit,
+payment notices) goes through it. Measured:
+- a cancelled invoice took 1 190 € (201) and turned "paid": the Storno
+  undone, its 190 € back in the UStVA;
+- a draft took a payment and went straight to "paid" — never issued, but
+  counted in the UStVA (380 € for the two) and the EÜR.
+
+Now a draft is refused ("zuerst ausstellen") and so is a cancelled document
+(the message points to booking the money as the customer's credit). The
+invoice page hides "Zahlung erfassen" on drafts (it already did on cancelled
+invoices).
+
+Specs that paid drafts in their fixtures now issue them first: 50, 52, 79,
+149, 175, 189 (a PUT status 'sent' before the payment, nothing else).
+
+Also here — Tier 461a: `list-pages.spec.ts` "Invoices list" (flaky in run
+36231779527) counted the rows right after networkidle; it waits for a row or
+the empty state now (HANDOFF §10 lesson 13). 10 repeats passed.
+
+Spec `e2e/251-tier462-zahlung-status.sh` (11 assertions, 7 failing against
+the previous code).
 
 ### A paid invoice is not simply cancelled (Tier 461)
 
