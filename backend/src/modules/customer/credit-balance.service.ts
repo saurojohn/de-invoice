@@ -243,6 +243,61 @@ export class CreditBalanceService {
   }
 
   /**
+   * Tier 460 — a payment is deleted: its overpayment credit leaves with it,
+   * a credit it applied comes back. `check` runs before the delete and
+   * refuses when the overpayment's credit has been used meanwhile (the
+   * payment stays); `apply` writes the ledger rows after it.
+   */
+  async paymentDeletion(
+    companyId: string,
+    payment: { id: string; amount: unknown; paymentMethod: string; invoice: { customerId: string; invoiceNumber: string } },
+  ) {
+    const customerId = payment.invoice.customerId
+    const overpaid = await this.prisma.customerCreditTransaction.aggregate({
+      where: { companyId, customerId, type: 'overpayment', referenceType: 'Payment', referenceId: payment.id },
+      _sum: { amount: true },
+    })
+    const overage = Number(overpaid._sum.amount ?? 0)
+    const restore = payment.paymentMethod === 'Guthaben' ? Number(payment.amount) : 0
+    return {
+      check: async () => {
+        if (overage <= 0.005) return
+        const sum = await this.prisma.customerCreditTransaction.aggregate({
+          where: { companyId, customerId },
+          _sum: { amount: true },
+        })
+        const balance = Number(sum._sum.amount ?? 0)
+        if (balance < overage - 0.005) {
+          throw new BadRequestException(
+            `Die Zahlung hat ${overage.toFixed(2)} € Guthaben erzeugt, davon sind nur noch ${Math.max(balance, 0).toFixed(2)} € vorhanden — ` +
+            'das Guthaben wurde bereits verrechnet oder ausgezahlt. Nehmen Sie das zuerst zurück.',
+          )
+        }
+      },
+      apply: async () => {
+        if (overage > 0.005) {
+          await this.recordUsage(companyId, customerId, {
+            type: 'manual',
+            amount: overage,
+            referenceType: 'Payment',
+            referenceId: payment.id,
+            description: `Zahlung gelöscht — Überzahlung ${payment.invoice.invoiceNumber} zurückgenommen`,
+          })
+        }
+        if (restore > 0.005) {
+          await this.recordCredit(companyId, customerId, {
+            type: 'manual',
+            amount: restore,
+            referenceType: 'Payment',
+            referenceId: payment.id,
+            description: `Zahlung gelöscht — verrechnetes Guthaben zu ${payment.invoice.invoiceNumber} zurück`,
+          })
+        }
+      },
+    }
+  }
+
+  /**
    * Record a Gutschrift overage. Called from
    * InvoiceService.createCreditNote() when the CN amount exceeds
    * the original invoice's remaining open balance. The overage

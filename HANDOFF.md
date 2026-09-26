@@ -9,7 +9,7 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–459 are
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–460 are
   in `git log`; §8 records what each learned. (Snapshot refreshed Tier 459.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
@@ -2514,6 +2514,34 @@ Tier 401 run 35123354210 **failed** on backend lint — a warning
 runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
+
+### Deleting a payment takes back what it caused (Tier 460)
+
+`DELETE /invoices/:id/payments/:paymentId` removed only the payment row.
+Measured:
+- 1 300 € paid on 1 190 €, deleted: the customer kept the 110 € credit
+  (Tier 58) for money that never arrived — it could be paid out;
+- 1 166,20 € paid within 2 % Skonto, deleted: the Skonto credit note
+  (Tier 422) stayed — 1 166,20 € open instead of 1 190 €, UStVA 3,80 € short;
+- a credit applied to an invoice (a 'Guthaben' payment, Tier 431), the
+  payment deleted: the credit was gone.
+
+Now `CreditBalanceService.paymentDeletion` refuses the delete when the
+overpayment's credit has been used meanwhile (400, the payment stays), and
+afterwards takes the overpayment back / gives an applied credit back (ledger
+rows 'manual', referenceType Payment). `PaymentService.cancelSkontoOf`
+cancels the Skonto credit note the payment booked — found by its reason,
+the payment day and its creation in the same request (≤ 60 s) — and removes
+its offset on the invoice; paying again books a new one.
+
+Spec `e2e/249-tier460-zahlung-loeschen.sh` (17 assertions, 7 failing against
+the previous code). No UI change: the invoice page shows the refusal's
+message.
+
+Not changed: the Skonto credit note carries no explicit link to its payment
+(the match is by reason, day and creation time); a payment booked by the bank
+import or the cash book is taken back there (Tiers 444 / 446 / 425), not by
+this route.
 
 ### A paid Quittung: settled in the app and in DATEV (Tier 459)
 
