@@ -3,8 +3,7 @@ import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
 import { Response } from 'express'
 import PDFDocument from 'pdfkit'
-import { invoiceNetRevenue } from '../invoice/tax-breakdown';
-import { SALES_TYPES } from '../invoice/document-scope'
+import { euerExpenses, euerInflows } from './euer-zufluss'
 import { computeAfaSummary } from '../assets/afa'
 
 /**
@@ -75,9 +74,13 @@ export interface AnlageVResult {
     werbungskostenTotal: number
     ueberschuss: number // einnahmen - werbungskosten (positive = profit, negative = Verlust)
   }
+  /** Tier 455: § 11 EStG — counted when paid */
+  prinzip: 'zufluss'
   counts: {
     invoices: number
     expenses: number
+    /** issued / dated in the year and not paid yet */
+    unbezahlt: { invoices: number; expenses: number }
     afaBookings: number
     buildingAssets: number
   }
@@ -193,49 +196,11 @@ export class AnlageVService {
     const yearStart = new Date(year, 0, 1)
     const yearEnd = new Date(year, 11, 31, 23, 59, 59, 999)
 
-    // Pull every invoice in the year (any status
-    // that contributed to revenue). Drafts are
-    // excluded — they're not billable yet.
-    // v1: no per-customer filtering. The user
-    // opts in via Company.settings.anlageV ===
-    // true on the controller side, which gates
-    // whether the report is generated at all.
-    const invoices = await this.prisma.invoice.findMany({
-      where: {
-        companyId,
-        issueDate: { gte: yearStart, lte: yearEnd },
-        status: { in: ['paid', 'sent', 'overdue'] },
-        type: { in: SALES_TYPES }, // Tier 424: not a Proforma
-      },
-      select: {
-        subtotal: true,
-        totalVat: true,
-        // Tier 411: revenue is total − totalVat (after the discount), in EUR.
-        total: true,
-        eurTotal: true,
-        eurTotalVat: true,
-        reverseCharge: true,
-      },
-    })
-
-    // Werbungskosten (Expense rows). Tier 87/89:
-    // exclude booked AfA rows from the Sonstige
-    // fallback — they go to 8600 via the explicit
-    // AfA booking query below.
-    const expenses = await this.prisma.expense.findMany({
-      where: {
-        companyId,
-        invoiceDate: { gte: yearStart, lte: yearEnd },
-        status: { in: ['booked', 'deductible'] },
-        // Tier 425: `not: 'AfA'` alone is `category <> 'AfA'` in SQL, which drops every
-        // expense WITHOUT a category (NULL) — the usual case.
-        OR: [{ category: null }, { category: { not: 'AfA' } }],
-      },
-      select: {
-        netAmount: true,
-        category: true,
-      },
-    })
+    // Tier 455: rent is income when received, a Werbungskosten when paid
+    // (§ 11 EStG; euer-zufluss.ts) — was issue date / invoice date.
+    // v1: no per-customer filtering — every payment is Mieteinnahme.
+    const { inflows, unpaidInvoices } = await euerInflows(this.prisma, companyId, yearStart, yearEnd)
+    const { expenses, unpaidExpenses } = await euerExpenses(this.prisma, companyId, yearStart, yearEnd)
 
     // Booked AfA for 8600. Pulled separately
     // because 8600's matcher is a stub — the
@@ -295,16 +260,12 @@ export class AnlageVService {
     // Bucket revenues by Kennziffer.
     const einnahmenBuckets = new Map<string, number>()
     for (const def of REVENUE_LINES) einnahmenBuckets.set(def.kz, 0)
-    for (const inv of invoices) {
-      // Tier 411: after the invoice discount, in EUR (see anlage-s).
-      const subtotal = invoiceNetRevenue(inv)
-      if (subtotal < 0) {
+    for (const { invoice: inv, amount: subtotal } of inflows) {
+      // Tier 455: the payment's net share (Tier 411: after the discount, in EUR).
+      if (subtotal < 0 || inv.type === 'CN') {
         // Gutschrift (CN) — same convention as
         // tier 76 EÜR / tier 80 Anlage S: offset
-        // Kz 8100 directly. The BMF Anlage V is
-        // symmetric to Anlage S here — the
-        // original revenue line is reduced, not
-        // a "sonstige" entry.
+        // Kz 8100 directly.
         einnahmenBuckets.set('8100', (einnahmenBuckets.get('8100') || 0) + subtotal)
         continue
       }
@@ -373,9 +334,11 @@ export class AnlageVService {
         werbungskostenTotal: round2(werbungskostenTotal),
         ueberschuss,
       },
+      prinzip: 'zufluss',
       counts: {
-        invoices: invoices.length,
+        invoices: new Set(inflows.map((f) => f.invoice.id)).size,
         expenses: expenses.length,
+        unbezahlt: { invoices: unpaidInvoices, expenses: unpaidExpenses },
         afaBookings: bookedAfa.length,
         buildingAssets: buildingAssets.length,
       },
@@ -431,6 +394,8 @@ export class AnlageVService {
       .text(
         `Einkünfte aus Vermietung und Verpachtung (§ 21 EStG) — ${company?.name || companyId}`,
       )
+      // Tier 455
+      .text('Gezählt nach Zahlungsdatum (Zufluss-/Abflussprinzip, § 11 EStG)')
       .moveDown(1)
 
     // Einnahmen block

@@ -7,7 +7,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
-import { ApiError, apiDelete, apiFetch, apiGet, apiPost } from "@/lib/api"
+import { ApiError, apiDelete, apiFetch, apiGet, apiPost, apiPut } from "@/lib/api"
 
 interface UstvaData {
   companyId: string
@@ -15,6 +15,8 @@ interface UstvaData {
   quarter?: number | null
   month?: number | null
   periodLabel: string
+  // Tier 457: 'ist' — taxed sales in the period of their payment (§ 20 UStG)
+  besteuerungsart?: "soll" | "ist"
   salesByRate: Array<{ rate: number; label: string; net: number; vat: number }>
   igL: number
   export: number
@@ -55,6 +57,9 @@ interface UstvaFiling {
   taxNumber: string | null
   notes: string | null
   createdAt: string
+  // Tier 449: a submitted return the books no longer match (live − submitted).
+  abweichung?: { outputVat: number; inputVat: number; payableVat: number } | null
+  berichtigungNoetig?: boolean | null
 }
 
 interface Expense {
@@ -69,7 +74,11 @@ interface Expense {
   category: string | null
   isIntraEU: boolean
   isReverseCharge: boolean
+  supplierId?: string | null
   supplier?: { id: string; name: string } | null
+  // Tier 443: set when the expense is paid or an AfA row — no edit / delete.
+  lockReason?: string | null
+  paidAt?: string | null
 }
 
 interface Supplier { id: string; name: string }
@@ -126,7 +135,7 @@ function UstvaPageInner() {
   const [savedMsg, setSavedMsg] = useState<string | null>(null)
 
   const [showAdd, setShowAdd] = useState(false)
-  const [exForm, setExForm] = useState({
+  const emptyExpenseForm = () => ({
     invoiceDate: new Date().toISOString().split("T")[0],
     invoiceNumber: "",
     supplierId: "",
@@ -140,7 +149,12 @@ function UstvaPageInner() {
     isReverseCharge: false,
     // Tier 442: a supplier credit note — entered positive, stored negative.
     creditNote: false,
+    // Tier 454: paid by card / privately — the EÜR counts it on this day
+    paidAt: "",
   })
+  const [exForm, setExForm] = useState(emptyExpenseForm)
+  // Tier 443: the expense being corrected (PUT), null when adding one.
+  const [editingId, setEditingId] = useState<string | null>(null)
 
   // Tier 161: prefill year + period from the URL
   // (deep-link from the dashboard Monatsvergleich
@@ -204,18 +218,19 @@ function UstvaPageInner() {
       // which crashed the entire page via the
       // error boundary. apiGet injects x-user-id
       // + x-company-id from localStorage.
-      const [compute, filingList, expList, custList] = await Promise.all([
+      const [compute, filingList, expList, supList] = await Promise.all([
         apiGet<any>(`/api/v1/ustva/compute?companyId=${companyId}&${q}`).catch(() => null),
         apiGet<any[]>(`/api/v1/ustva/filings?companyId=${companyId}`).catch(() => []),
         apiGet<any[]>(`/api/v1/ustva/expenses?companyId=${companyId}&${q}`).catch(() => []),
-        apiGet<any[]>(`/api/v1/customers?companyId=${companyId}`).catch(() => []),
+        // Tier 443: the "Lieferant" select listed customers — the backend then
+        // refused every chosen one ("Lieferant nicht gefunden").
+        apiGet<any>(`/api/v1/suppliers?companyId=${companyId}`).catch(() => []),
       ])
       setData(compute)
       setFilings(Array.isArray(filingList) ? filingList : [])
       setExpenses(Array.isArray(expList) ? expList : [])
-      setSuppliers(
-        Array.isArray(custList) ? custList.map((c: any) => ({ id: c.id, name: c.name })) : []
-      )
+      const supplierRows = Array.isArray(supList) ? supList : supList?.data ?? []
+      setSuppliers(supplierRows.map((c: any) => ({ id: c.id, name: c.name })))
     } catch (err) {
       console.error("UStVA load error:", err)
     } finally {
@@ -228,7 +243,9 @@ function UstvaPageInner() {
 
   const formatDate = (s: string) => new Date(s).toLocaleDateString("de-DE")
 
-  // Auto-compute vat/gross when net + rate change
+  // Auto-compute vat/gross when net + rate change. Tier 443: it kept the first
+  // value (`f.vatAmount || …`), so typing 1000 digit by digit saved VAT 0.19
+  // and gross 1.19 — the VAT field is read-only, it always follows.
   useEffect(() => {
     const net = parseFloat(exForm.netAmount || "0")
     const rate = parseFloat(exForm.vatRate || "0")
@@ -236,11 +253,38 @@ function UstvaPageInner() {
     const gross = Math.round((net + vat) * 100) / 100
     setExForm((f) => ({
       ...f,
-      vatAmount: f.vatAmount || (vat ? String(vat) : ""),
-      grossAmount: f.grossAmount || (gross ? String(gross) : ""),
+      vatAmount: net ? String(vat) : "",
+      grossAmount: net ? String(gross) : "",
     }))
-     
   }, [exForm.netAmount, exForm.vatRate])
+
+  const closeExpenseForm = () => {
+    setShowAdd(false)
+    setEditingId(null)
+    setExForm(emptyExpenseForm())
+  }
+
+  // Tier 443: correct an open expense in the same form. Amounts are shown
+  // positive; a credit note keeps its checkbox.
+  const startEditExpense = (ex: Expense) => {
+    setEditingId(ex.id)
+    setExForm({
+      invoiceDate: String(ex.invoiceDate).slice(0, 10),
+      invoiceNumber: ex.invoiceNumber || "",
+      supplierId: ex.supplierId || "",
+      description: ex.description || "",
+      netAmount: String(Math.abs(Number(ex.netAmount))),
+      vatRate: String(Number(ex.vatRate)),
+      vatAmount: String(Math.abs(Number(ex.vatAmount))),
+      grossAmount: String(Math.abs(Number(ex.grossAmount))),
+      category: ex.category || "",
+      isIntraEU: !!ex.isIntraEU,
+      isReverseCharge: !!ex.isReverseCharge,
+      creditNote: Number(ex.grossAmount) < 0,
+      paidAt: ex.paidAt ? String(ex.paidAt).slice(0, 10) : "",
+    })
+    setShowAdd(true)
+  }
 
   const submitExpense = async () => {
     const companyId = localStorage.getItem("companyId")
@@ -251,29 +295,21 @@ function UstvaPageInner() {
     }
     setSaving(true)
     try {
-      // Tier 390: was a raw fetch without the auth headers (401).
-      await apiPost(`/api/v1/ustva/expenses?companyId=${companyId}`, {
+      const body = {
         ...exForm,
         netAmount: parseFloat(exForm.netAmount),
         vatRate: parseFloat(exForm.vatRate),
         vatAmount: parseFloat(exForm.vatAmount || "0"),
         grossAmount: parseFloat(exForm.grossAmount || "0"),
-      })
-      setShowAdd(false)
-      setExForm({
-        invoiceDate: new Date().toISOString().split("T")[0],
-        invoiceNumber: "",
-        supplierId: "",
-        description: "",
-        netAmount: "",
-        vatRate: "0.19",
-        vatAmount: "",
-        grossAmount: "",
-        category: "",
-        isIntraEU: false,
-        isReverseCharge: false,
-        creditNote: false,
-      })
+        paidAt: exForm.paidAt || null,
+      }
+      // Tier 390: was a raw fetch without the auth headers (401).
+      if (editingId) {
+        await apiPut(`/api/v1/ustva/expenses/${editingId}?companyId=${companyId}`, body)
+      } else {
+        await apiPost(`/api/v1/ustva/expenses?companyId=${companyId}`, body)
+      }
+      closeExpenseForm()
       await loadAll(companyId)
     } catch (err) {
       console.error("Add expense failed:", err)
@@ -302,14 +338,25 @@ function UstvaPageInner() {
     if (!companyId) return
     setSaving(true)
     setSavedMsg(null)
-    try {
-      // Tier 390: was a raw fetch without the auth headers (401).
-      await apiPost(`/api/v1/ustva/filings?companyId=${companyId}`, {
+    const post = (berichtigt: boolean) =>
+      apiPost(`/api/v1/ustva/filings?companyId=${companyId}`, {
         ...data,
         taxNumber: taxNumber || null,
         notes: notes || null,
         status,
+        ...(berichtigt ? { berichtigt: true } : {}),
       })
+    try {
+      // Tier 390: was a raw fetch without the auth headers (401).
+      try {
+        await post(false)
+      } catch (err) {
+        // Tier 448: the period was already submitted — only a corrected
+        // return (berichtigte Voranmeldung) may replace it.
+        if (!(err instanceof ApiError && err.status === 409 && status === "submitted")) throw err
+        if (!confirm(`${err.message}\n\n${t("ustva.confirmBerichtigt")}`)) return
+        await post(true)
+      }
       setSavedMsg(
         status === "submitted" ? t("ustva.submitSuccess") : t("ustva.saveSuccess")
       )
@@ -564,6 +611,11 @@ function UstvaPageInner() {
             <Card className="mb-6">
               <CardHeader>
                 <CardTitle>{t("ustva.taxableSales")}</CardTitle>
+                {data.besteuerungsart === "ist" && (
+                  <p className="text-xs text-gray-600 dark:text-gray-300" data-testid="ustva-ist">
+                    {t("ustva.istVersteuerung")}
+                  </p>
+                )}
               </CardHeader>
               <CardContent>
                 {data.salesByRate.length === 0 ? (
@@ -737,7 +789,7 @@ function UstvaPageInner() {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle>{t("ustva.expenses")}</CardTitle>
-                  <Button size="sm" onClick={() => setShowAdd(!showAdd)} data-testid="ustva-add-expense-toggle">
+                  <Button size="sm" onClick={() => (showAdd ? closeExpenseForm() : setShowAdd(true))} data-testid="ustva-add-expense-toggle">
                     {showAdd ? "×" : `+ ${t("ustva.addExpense")}`}
                   </Button>
                 </div>
@@ -745,6 +797,11 @@ function UstvaPageInner() {
               <CardContent>
                 {showAdd && (
                   <div className="mb-4 p-4 bg-gray-50 dark:bg-gray-900 border rounded-lg">
+                    {editingId && (
+                      <p className="mb-3 text-sm font-medium" data-testid="ustva-expense-editing">
+                        {t("ustva.editingExpense")}
+                      </p>
+                    )}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                       <div>
                         <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
@@ -803,6 +860,19 @@ function UstvaPageInner() {
                           value={exForm.category}
                           onChange={(e) => setExForm({ ...exForm, category: e.target.value })}
                           placeholder="z.B. Material, Miete"
+                          className="w-full px-2 py-1.5 border rounded text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
+                          {t("expenses.paidAt")}
+                        </label>
+                        <input
+                          type="date"
+                          value={exForm.paidAt}
+                          onChange={(e) => setExForm({ ...exForm, paidAt: e.target.value })}
+                          data-testid="ustva-expense-paid-at"
+                          title={t("expenses.paidAtHint")}
                           className="w-full px-2 py-1.5 border rounded text-sm"
                         />
                       </div>
@@ -878,11 +948,11 @@ function UstvaPageInner() {
                       </div>
                     </div>
                     <div className="mt-3 flex justify-end gap-2">
-                      <Button variant="outline" size="sm" onClick={() => setShowAdd(false)}>
+                      <Button variant="outline" size="sm" onClick={closeExpenseForm}>
                         ×
                       </Button>
                       <Button size="sm" onClick={submitExpense} disabled={saving} data-testid="ustva-expense-submit">
-                        ✓ {saving ? "…" : t("ustva.saveDraft")}
+                        ✓ {saving ? "…" : t(editingId ? "ustva.saveExpense" : "ustva.saveDraft")}
                       </Button>
                     </div>
                   </div>
@@ -930,12 +1000,33 @@ function UstvaPageInner() {
                               {formatCurrency(Number(ex.grossAmount))}
                             </td>
                             <td className="py-2 text-center">
-                              <button
-                                onClick={() => deleteExpense(ex.id)}
-                                className="text-red-600 dark:text-red-400 hover:underline text-xs"
-                              >
-                                {t("ustva.delete")}
-                              </button>
+                              {/* Tier 443: a paid expense or an AfA row is corrected
+                                  elsewhere — the reason says where. */}
+                              {ex.lockReason ? (
+                                <span
+                                  title={ex.lockReason}
+                                  className="text-xs text-gray-500 dark:text-gray-400 cursor-help"
+                                  data-testid={`ustva-expense-locked-${ex.id}`}
+                                >
+                                  🔒 {t("ustva.lockedExpense")}
+                                </span>
+                              ) : (
+                                <span className="inline-flex gap-3">
+                                  <button
+                                    onClick={() => startEditExpense(ex)}
+                                    className="text-blue-600 dark:text-blue-400 hover:underline text-xs"
+                                    data-testid={`ustva-expense-edit-${ex.id}`}
+                                  >
+                                    {t("ustva.editExpense")}
+                                  </button>
+                                  <button
+                                    onClick={() => deleteExpense(ex.id)}
+                                    className="text-red-600 dark:text-red-400 hover:underline text-xs"
+                                  >
+                                    {t("ustva.delete")}
+                                  </button>
+                                </span>
+                              )}
                             </td>
                           </tr>
                         ))}
@@ -982,7 +1073,7 @@ function UstvaPageInner() {
                   <Button variant="outline" onClick={() => saveFiling("draft")} disabled={saving} data-testid="ustva-save-draft">
                     {t("ustva.saveDraft")}
                   </Button>
-                  <Button onClick={() => saveFiling("submitted")} disabled={saving}>
+                  <Button onClick={() => saveFiling("submitted")} disabled={saving} data-testid="ustva-submit">
                     {t("ustva.submit")}
                   </Button>
                   {savedMsg && (
@@ -1065,6 +1156,18 @@ function UstvaPageInner() {
                                       ? t("ustva.statusAccepted")
                                       : t("ustva.statusRejected")}
                               </span>
+                              {f.berichtigungNoetig && f.abweichung && (
+                                <span
+                                  className="ml-2 text-xs px-2 py-0.5 rounded bg-amber-100 text-amber-900 dark:bg-amber-900/30 dark:text-amber-200 cursor-help"
+                                  title={t("ustva.berichtigungHint").replace(
+                                    "{diff}",
+                                    formatCurrency(f.abweichung.payableVat),
+                                  )}
+                                  data-testid={`ustva-berichtigung-${f.id}`}
+                                >
+                                  ⚠ {t("ustva.berichtigungNoetig")}
+                                </span>
+                              )}
                             </td>
                             <td className="py-2 text-gray-600 dark:text-gray-300">{f.taxNumber || "—"}</td>
                             <td className="py-2 text-right">

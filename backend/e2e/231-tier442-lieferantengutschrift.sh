@@ -47,7 +47,9 @@ note "=== the reports: cost 1000 - 200 - 10, input tax 190 - 38 - 1.90 ==="
 AS GET "/api/v1/ustva/compute?companyId=$C&year=$Y"
 assert_eq "UStVA Vorsteuer 19 % (was 190: no credit note could be recorded)" "$(py 'print(round(d["vorsteuer"]["from19"],2))')" "150.1"
 AS GET "/api/v1/accounting/euer?companyId=$C&year=$Y"
-assert_eq "EÜR Gewinn" "$(py 'print(d["totals"]["gewinn"])')" "-790"
+# Tier 454: the EÜR counts payments — none of the four is paid (243 covers a
+# paid credit note).
+assert_eq "EÜR: nothing paid, nothing counted yet" "$(py 'print(d["totals"]["gewinn"], d["counts"]["unbezahlt"]["expenses"])')" "0 4"
 AS GET "/api/v1/accounting/guv?companyId=$C&year=$Y"
 assert_eq "GuV" "$(py 'print(d["totals"]["jahresueberschuss"])')" "-790"
 AS GET "/api/v1/reports/bwa?companyId=$C&year=$Y&month=12"

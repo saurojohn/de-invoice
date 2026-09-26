@@ -243,6 +243,61 @@ export class CreditBalanceService {
   }
 
   /**
+   * Tier 460 — a payment is deleted: its overpayment credit leaves with it,
+   * a credit it applied comes back. `check` runs before the delete and
+   * refuses when the overpayment's credit has been used meanwhile (the
+   * payment stays); `apply` writes the ledger rows after it.
+   */
+  async paymentDeletion(
+    companyId: string,
+    payment: { id: string; amount: unknown; paymentMethod: string; invoice: { customerId: string; invoiceNumber: string } },
+  ) {
+    const customerId = payment.invoice.customerId
+    const overpaid = await this.prisma.customerCreditTransaction.aggregate({
+      where: { companyId, customerId, type: 'overpayment', referenceType: 'Payment', referenceId: payment.id },
+      _sum: { amount: true },
+    })
+    const overage = Number(overpaid._sum.amount ?? 0)
+    const restore = payment.paymentMethod === 'Guthaben' ? Number(payment.amount) : 0
+    return {
+      check: async () => {
+        if (overage <= 0.005) return
+        const sum = await this.prisma.customerCreditTransaction.aggregate({
+          where: { companyId, customerId },
+          _sum: { amount: true },
+        })
+        const balance = Number(sum._sum.amount ?? 0)
+        if (balance < overage - 0.005) {
+          throw new BadRequestException(
+            `Die Zahlung hat ${overage.toFixed(2)} € Guthaben erzeugt, davon sind nur noch ${Math.max(balance, 0).toFixed(2)} € vorhanden — ` +
+            'das Guthaben wurde bereits verrechnet oder ausgezahlt. Nehmen Sie das zuerst zurück.',
+          )
+        }
+      },
+      apply: async () => {
+        if (overage > 0.005) {
+          await this.recordUsage(companyId, customerId, {
+            type: 'manual',
+            amount: overage,
+            referenceType: 'Payment',
+            referenceId: payment.id,
+            description: `Zahlung gelöscht — Überzahlung ${payment.invoice.invoiceNumber} zurückgenommen`,
+          })
+        }
+        if (restore > 0.005) {
+          await this.recordCredit(companyId, customerId, {
+            type: 'manual',
+            amount: restore,
+            referenceType: 'Payment',
+            referenceId: payment.id,
+            description: `Zahlung gelöscht — verrechnetes Guthaben zu ${payment.invoice.invoiceNumber} zurück`,
+          })
+        }
+      },
+    }
+  }
+
+  /**
    * Record a Gutschrift overage. Called from
    * InvoiceService.createCreditNote() when the CN amount exceeds
    * the original invoice's remaining open balance. The overage
@@ -270,12 +325,15 @@ export class CreditBalanceService {
   /**
    * Issue an Auszahlung (refund) to the customer. Posts a
    * double-entry Voucher + a ledger entry that reduces the
-   * credit balance. The Voucher has the SKR03 standard
-   * configuration for "Geldtransit aus Kundenguthaben":
+   * credit balance:
    *
-   *   1800 Bank       Soll  amount
-   *   1210 Forderungen Haben amount   (reducing the
-   *                                   receivable)
+   *   1210 Forderungen Soll  amount   (the customer's credit
+   *                                   is settled)
+   *   1200 Bank        Haben amount   (the money leaves)
+   *
+   * Tier 456: the sides were the other way round — Bank Soll,
+   * i.e. money coming in. DATEV showed the bank 2 × the payout
+   * too high and the customer's credit never settled.
    *
    * Why 1210 and not 1300/1400: Forderungen aus L+L (1210)
    * already carries the historical open balance for this
@@ -330,7 +388,21 @@ export class CreditBalanceService {
       );
     }
 
-    // 1) Create the Voucher (Soll 1800 Bank / Haben 1210 Forderungen)
+    // Tier 456: the balance is checked before the voucher is posted — the
+    // ledger's own check (recordUsage) came after it, so a payout above the
+    // credit was refused with its bank voucher left posted.
+    const available = await this.prisma.customerCreditTransaction.aggregate({
+      where: { customerId, companyId },
+      _sum: { amount: true },
+    });
+    const current = Number(available._sum.amount ?? 0);
+    if (current < params.amount - 0.005) {
+      throw new BadRequestException(
+        `Guthaben reicht nicht aus: ${current.toFixed(2)} € vorhanden, ${params.amount.toFixed(2)} € angefordert`,
+      );
+    }
+
+    // 1) Create the Voucher (Soll Forderungen / Haben Bank — Tier 456)
     const voucher = await this.voucherService.create({
       companyId,
       date: params.paymentDate,
@@ -341,14 +413,14 @@ export class CreditBalanceService {
       createdById: params.createdById,
       lines: [
         {
-          accountId: bankAccount.id,
-          description: `Auszahlung an ${customer.name}`,
+          accountId: forderungenAccount.id,
+          description: `Guthaben-Auszahlung ${customer.name}`,
           debit: params.amount,
           credit: 0,
         },
         {
-          accountId: forderungenAccount.id,
-          description: `Guthaben-Auszahlung ${customer.name}`,
+          accountId: bankAccount.id,
+          description: `Auszahlung an ${customer.name}`,
           debit: 0,
           credit: params.amount,
         },
@@ -360,16 +432,26 @@ export class CreditBalanceService {
     //    outcome (caller can rollback by deleting the
     //    voucher manually — but at that point the user has
     //    seen the balance error and can correct).
-    const ledger = await this.recordUsage(companyId, customerId, {
-      type: 'payout',
-      amount: params.amount,
-      referenceType: 'Voucher',
-      referenceId: voucher.id,
-      description:
-        params.description ||
-        `Auszahlung (Beleg ${voucher.voucherNumber})`,
-      createdById: params.createdById,
-    });
+    //    A concurrent use of the credit can still make it fail: the
+    //    voucher is then reversed (Tier 456), not left posted.
+    let ledger: { id: string; balanceAfter: number };
+    try {
+      ledger = await this.recordUsage(companyId, customerId, {
+        type: 'payout',
+        amount: params.amount,
+        referenceType: 'Voucher',
+        referenceId: voucher.id,
+        description:
+          params.description ||
+          `Auszahlung (Beleg ${voucher.voucherNumber})`,
+        createdById: params.createdById,
+      });
+    } catch (e) {
+      await this.voucherService
+        .createReversal(voucher.id, companyId, 'Guthaben reicht nicht aus')
+        .catch(() => undefined);
+      throw e;
+    }
 
     return {
       voucherId: voucher.id,

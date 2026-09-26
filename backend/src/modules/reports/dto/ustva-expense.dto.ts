@@ -100,6 +100,12 @@ export class CreateUstvaExpenseDto {
   @IsBoolean()
   creditNote?: boolean
 
+  // Tier 454: the day it was paid, when that was not through the bank import,
+  // the SEPA run or the cash book (card, private account) — the EÜR counts an
+  // expense when it is paid (§ 11 EStG).
+  @IsOptional() @IsDateString({}, { message: "Bezahlt am muss ein Datum sein (ISO date)" })
+  paidAt?: string
+
   @IsString() @IsOptional() @MaxLength(2000)
   notes?: string
 }

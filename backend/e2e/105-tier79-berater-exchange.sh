@@ -42,7 +42,7 @@ echo "=== Test: Berater Document Exchange (berater: $TEST_BERATER_EMAIL) ==="
 
 # Cleanup hook (run on exit)
 cleanup() {
-  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null 2>&1
+  docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null 2>&1
 DELETE FROM "BeraterNote" WHERE "companyId" = '$COMPANY_ID' AND "createdById" = '$TEST_BERATER_ID';
 DELETE FROM "Attachment"  WHERE "companyId" = '$COMPANY_ID' AND "uploadedById" = '$TEST_BERATER_ID';
 DELETE FROM "UserCompany" WHERE "companyId" = '$COMPANY_ID' AND "userId" = '$TEST_BERATER_ID';

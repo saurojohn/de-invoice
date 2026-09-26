@@ -257,6 +257,9 @@
     "reconStatus": "状态",
     "tableAction": "操作",
     "bookExpense": "记为费用",
+    "bookRefund": "贷项通知单 {number} 退款",
+    "bookPayment": "支付 {number}",
+    "bookPaymentSkonto": "支付 {number}（扣除 Skonto {skonto} €）",
     "expenseAccountPrompt": "费用科目 (SKR03):",
     "autoConfirmThreshold": "自动确认阈值",
     "reopenCandidate": "撤销",
@@ -433,7 +436,10 @@
     "errClosedDay": "本日已结账,只能使用冲销。",
     "noEroeffnungYet": "尚未录入期初余额。",
     "createEroeffnung": "录入期初余额",
-    "tooltip": "钱箱中的现金。首次日结时会作为起始值。"
+    "tooltip": "钱箱中的现金。首次日结时会作为起始值。",
+    "privatEinlage": "业主存入（非收入）",
+    "privatEntnahme": "业主提取（非支出）",
+    "privatHint": "业主个人资金：不计入 EÜR 和增值税。DATEV 记入业主提取/存入账户。"
   },
   "credit": {
     "title": "客户余额",
@@ -921,6 +927,12 @@
     "invoiceDate": "发票日期",
     "net": "净额",
     "vat": "税额",
+    "editTitle": "更正进项发票",
+    "editSave": "保存",
+    "editSaved": "进项发票已保存",
+    "editDescription": "描述",
+    "editVatRate": "税率",
+    "lockedTitle": "已不可修改",
     "gross": "总额",
     "linkedVoucher": "凭证",
     "noVoucher": "—",
@@ -963,7 +975,9 @@
     "ocrVat": "税率 %",
     "ocrShowRawText": "查看原始 OCR 文本",
     "ocrConfirm": "创建 Expense",
-    "ocrSaving": "正在保存 Expense…"
+    "ocrSaving": "正在保存 Expense…",
+    "paidAt": "付款日期",
+    "paidAtHint": "仅用于银行导入、SEPA 和现金簿之外的付款（信用卡、私人账户）。EÜR 按此日期计入该支出。"
   },
   "home": {
     "heroTitle": "专业的德国发票管理解决方案",
@@ -1707,7 +1721,13 @@
     "logoLargeWarning": "提示：logo 是 {w}×{h} px，建议不超过 1500 px，否则 PDF 文件会过大。",
     "removeLogoConfirm": "确认要删除 logo 吗？",
     "logoRemoved": "Logo 已删除",
-    "removeLogoError": "无法删除 logo"
+    "removeLogoError": "无法删除 logo",
+    "besteuerungsart": "增值税计税方式",
+    "besteuerungsartSoll": "应计制（按发票日期）",
+    "besteuerungsartIst": "收付实现制（按收款，§ 20 UStG）",
+    "besteuerungsartHelp": "须经税务局批准。收付实现制下，销项税在收到款项的月份申报；免税销售和进项税仍按发票日期。",
+    "datevAccount_privateWithdrawal": "业主提取 (1800)",
+    "datevAccount_privateDeposit": "业主存入 (1890)"
   },
   "statement": {
     "title": "客户对账单",
@@ -2099,6 +2119,13 @@
     "confirmDelete": "确认删除此进项发票？",
     "noExpenses": "此期间无进项发票",
     "creditNote": "供应商贷项通知单（冲减费用和进项税，§ 17 UStG）",
+    "confirmBerichtigt": "作为更正申报（berichtigte Voranmeldung）重新提交？",
+    "berichtigungNoetig": "需要更正",
+    "berichtigungHint": "该期间的账目在提交后已变更（应缴税额差额 {diff}）。请提交更正申报（§ 153 AO）。",
+    "editExpense": "编辑",
+    "editingExpense": "编辑进项发票",
+    "saveExpense": "保存",
+    "lockedExpense": "已锁定",
     "saveSuccess": "UStVA 已保存",
     "submitSuccess": "UStVA 已提交",
     "prevFilings": "历史申报",
@@ -2112,7 +2139,8 @@
     "exportCsv": "导出 CSV",
     "hintVoranmeldung": "提示：超过下月10日提交可能产生滞纳金 (§ 152 AO)。",
     "downloadElster": "ELSTER XML",
-    "elsterTooltip": "下载 ELSTER XML 以上传到 Mein-ELSTER"
+    "elsterTooltip": "下载 ELSTER XML 以上传到 Mein-ELSTER",
+    "istVersteuerung": "收付实现制（§ 20 UStG）：应税销售按收款期间计入。"
   },
   "voucher": {
     "title": "记账凭证",
@@ -2566,7 +2594,9 @@
     "invoices": "发票",
     "expenses": "支出",
     "generatedAt": "生成时间",
-    "previewHint": "预览 — 所有数值自动计算。提交前请税务师审核。"
+    "previewHint": "预览 — 所有数值自动计算。提交前请税务师审核。",
+    "zufluss": "按收付日期计入（收付实现制，§ 11 EStG）。",
+    "offen": "{year} 年尚未付款：{invoices} 张发票、{expenses} 笔支出 —— 将计入实际付款的年度。"
   },
   "gobd": {
     "title": "GoBD 档案 (§ 147 AO)",

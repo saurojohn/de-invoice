@@ -267,6 +267,39 @@ export class VoucherService {
    *   of the original. This pattern matches the
    *   existing bank-import reopenMatch behavior.
    */
+  /**
+   * Tier 456 — the Storno of a payout of a customer's credit
+   * (CreditBalanceService.payout): the money is back in the books, so the
+   * credit is too. Without it the ledger said "paid out" while the Debitor
+   * owed the customer the amount again.
+   */
+  private async restoreCreditPayout(companyId: string, voucherId: string, stornoNumber: string) {
+    const payout = await this.prisma.customerCreditTransaction.findFirst({
+      where: { companyId, type: 'payout', referenceType: 'Voucher', referenceId: voucherId },
+    });
+    if (!payout) return;
+    const amount = Math.abs(Number(payout.amount));
+    await this.prisma.$transaction(async (tx) => {
+      const sum = await tx.customerCreditTransaction.aggregate({
+        where: { companyId, customerId: payout.customerId },
+        _sum: { amount: true },
+      });
+      await tx.customerCreditTransaction.create({
+        data: {
+          companyId,
+          customerId: payout.customerId,
+          amount,
+          currency: payout.currency,
+          type: 'manual',
+          referenceType: 'Voucher',
+          referenceId: voucherId,
+          balanceAfter: Number(sum._sum.amount ?? 0) + amount,
+          description: `Storno der Auszahlung (${stornoNumber})`,
+        },
+      });
+    });
+  }
+
   async createReversal(
     originalId: string,
     companyId: string,
@@ -283,6 +316,14 @@ export class VoucherService {
     if (original.reversedById) {
       throw new BadRequestException(
         'Bereits ein Korrekturbeleg — Storno nur vom Originalbeleg aus möglich',
+      );
+    }
+    // Tier 446: a bank reconciliation also recorded a Payment and linked the
+    // invoice (voucherRefId). A Storno of the voucher alone left the invoice
+    // paid in the app and unpaid in DATEV. Its undo takes back all three.
+    if (original.referenceType === 'BankReconciliation') {
+      throw new BadRequestException(
+        'Dieser Beleg gehört zu einer Bankzuordnung. Nehmen Sie die Zuordnung im Bankimport mit „Rückgängig“ zurück — das storniert den Beleg und löscht die Zahlung.',
       );
     }
     // Idempotency: if there's already a reversal
@@ -351,6 +392,11 @@ export class VoucherService {
       },
     });
 
+    // Tier 444: a Storno of a bank booking takes the payment back too.
+    await this.releaseBankBooking(companyId, original);
+    // Tier 456: a Storno of a credit payout gives the customer the credit back.
+    await this.restoreCreditPayout(companyId, original.id, newVoucherNumber);
+
     // Fire voucher.reversed. The
     // eventId embeds the original
     // voucher id + the reversal id,
@@ -379,6 +425,44 @@ export class VoucherService {
        .catch((err) => console.error('webhook emit(voucher.reversed) failed:', err))
 
     return reversal;
+  }
+
+  /**
+   * Tier 444 — a Storno of a bank-import expense booking (book-expense) took
+   * the booking back but not what it did outside the journal: the bank
+   * transaction kept `voucherId` → the reversed voucher, so it could never be
+   * booked again ("bereits als Aufwand gebucht"), and the expense tagged
+   * `[expense:<id>]` stayed paid — owed nothing in the balance sheet, not in
+   * the SEPA run, paid in DATEV from `paidAt`, and locked (Tier 443).
+   *
+   * Only this payment is taken back: `paidAt` is cleared when it is the
+   * booking's value date and nothing else pays the expense (a SEPA batch,
+   * an unreversed cash-book Ausgabe). A correction (/correct) is not a Storno
+   * of the payment and does not come here.
+   */
+  private async releaseBankBooking(
+    companyId: string,
+    original: { id: string; date: Date; description: string | null; referenceType: string | null },
+  ) {
+    if (original.referenceType !== 'Expense' && original.referenceType !== 'BankTransaction') return;
+    await this.prisma.bankTransaction.updateMany({
+      where: { companyId, voucherId: original.id },
+      data: { voucherId: null },
+    });
+    // Tier 452: a Skonto credit note written with this payment goes with it.
+    await this.prisma.expense.deleteMany({
+      where: { companyId, notes: { contains: `[skonto-voucher:${original.id}]` } },
+    });
+    const expenseId = /\[expense:([0-9a-f-]{36})\]/.exec(original.description || '')?.[1];
+    if (!expenseId) return;
+    const paidInCash = await this.prisma.cashBookEntry.count({
+      where: { companyId, expenseId, reversesId: null, reversedBy: null },
+    });
+    if (paidInCash > 0) return;
+    await this.prisma.expense.updateMany({
+      where: { id: expenseId, companyId, paidBySepaBatchId: null, paidAt: original.date },
+      data: { paidAt: null },
+    });
   }
 
   // ──────────────────────────────────────────────────────────────────

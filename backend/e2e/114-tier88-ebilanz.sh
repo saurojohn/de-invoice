@@ -46,8 +46,8 @@ echo "=== Test: E-Bilanz (test tag: $TEST_TAG) ==="
 
 cleanup() {
   docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -q -c \
-    "DELETE FROM \"Expense\" WHERE \"invoiceNumber\" = 'T88-${TS}-PERS';" >/dev/null 2>&1
-  echo "  cleanup: removed T88-${TS}-PERS expense"
+    "DELETE FROM \"Expense\" WHERE \"invoiceNumber\" IN ('T88-${TS}-PERS', 'T88-${TS}-MAT');" >/dev/null 2>&1
+  echo "  cleanup: removed T88-${TS}-PERS / -MAT expenses"
 }
 trap cleanup EXIT
 
@@ -59,6 +59,12 @@ trap cleanup EXIT
 docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -q -c \
   "INSERT INTO \"Expense\" (id, \"companyId\", \"invoiceNumber\", description, \"invoiceDate\", \"netAmount\", \"vatRate\", \"vatAmount\", \"grossAmount\", category, status, \"createdAt\", \"updatedAt\") VALUES (gen_random_uuid()::text, '$COMPANY_ID', 'T88-${TS}-PERS', 'Lohn', '2026-04-20'::date, 400, 0, 0, 400, 'Personal', 'booked', now(), now());" >/dev/null
 pass "seeded Personal expense T88-${TS}-PERS (400 EUR, 2026)"
+# Tier 445: likewise Materialaufwand > 0. It passed on CI only because 106 / 107
+# fed their cleanup SQL to `docker exec` without -i, so it never ran and their
+# Material fixtures stayed behind for this spec.
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -q -c \
+  "INSERT INTO \"Expense\" (id, \"companyId\", \"invoiceNumber\", description, \"invoiceDate\", \"netAmount\", \"vatRate\", \"vatAmount\", \"grossAmount\", category, status, \"createdAt\", \"updatedAt\") VALUES (gen_random_uuid()::text, '$COMPANY_ID', 'T88-${TS}-MAT', 'Rohstoffe', '2026-04-20'::date, 300, 0.19, 57, 357, 'Material', 'booked', now(), now());" >/dev/null
+pass "seeded Material expense T88-${TS}-MAT (300 EUR net, 2026)"
 
 # ===== 1. /ebilanz reachable + shape =====
 echo

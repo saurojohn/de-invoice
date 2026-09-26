@@ -257,6 +257,9 @@
     "reconStatus": "Status",
     "tableAction": "Action",
     "bookExpense": "Book as expense",
+    "bookRefund": "Refund of credit note {number}",
+    "bookPayment": "Payment of {number}",
+    "bookPaymentSkonto": "Payment of {number} less Skonto {skonto} €",
     "expenseAccountPrompt": "Expense account (SKR03):",
     "autoConfirmThreshold": "Auto-confirm at",
     "reopenCandidate": "Reopen",
@@ -433,7 +436,10 @@
     "errClosedDay": "This day is closed. Use a reversal (Storno) to make changes.",
     "noEroeffnungYet": "No opening balance recorded yet.",
     "createEroeffnung": "Create opening balance",
-    "tooltip": "Cash in the till. Used as the starting value for the first daily close."
+    "tooltip": "Cash in the till. Used as the starting value for the first daily close.",
+    "privatEinlage": "Owner deposit (no income)",
+    "privatEntnahme": "Owner withdrawal (no expense)",
+    "privatHint": "The owner's money: not counted in the EÜR or VAT. DATEV books it to the owner's drawings / contributions accounts."
   },
   "credit": {
     "title": "Customer credit",
@@ -921,6 +927,12 @@
     "invoiceDate": "Invoice date",
     "net": "Net",
     "vat": "VAT",
+    "editTitle": "Correct incoming invoice",
+    "editSave": "Save",
+    "editSaved": "Incoming invoice saved",
+    "editDescription": "Description",
+    "editVatRate": "VAT rate",
+    "lockedTitle": "No longer editable",
     "gross": "Gross",
     "linkedVoucher": "Voucher",
     "noVoucher": "—",
@@ -963,7 +975,9 @@
     "ocrVat": "VAT %",
     "ocrShowRawText": "Show OCR raw text",
     "ocrConfirm": "Create Expense",
-    "ocrSaving": "Saving Expense…"
+    "ocrSaving": "Saving Expense…",
+    "paidAt": "Paid on",
+    "paidAtHint": "Only for payments outside the bank import, SEPA and the cash book (card, private account). The EÜR counts the expense on this day."
   },
   "home": {
     "heroTitle": "Professional German Invoice Management",
@@ -1707,7 +1721,13 @@
     "logoLargeWarning": "Note: the logo is {w}×{h} px. Recommended: max. 1500 px, otherwise the PDF file becomes unnecessarily large.",
     "removeLogoConfirm": "Really remove the logo?",
     "logoRemoved": "Logo removed",
-    "removeLogoError": "Could not remove the logo"
+    "removeLogoError": "Could not remove the logo",
+    "besteuerungsart": "VAT accounting basis",
+    "besteuerungsartSoll": "Accrual (by invoice date)",
+    "besteuerungsartIst": "Cash basis (on receipt, § 20 UStG)",
+    "besteuerungsartHelp": "Only with the tax office's approval. On the cash basis the output VAT is declared in the month the money arrives; exempt sales and input VAT stay at the invoice date.",
+    "datevAccount_privateWithdrawal": "Owner withdrawals (1800)",
+    "datevAccount_privateDeposit": "Owner contributions (1890)"
   },
   "statement": {
     "title": "Customer Statement",
@@ -2099,6 +2119,13 @@
     "confirmDelete": "Really delete this expense?",
     "noExpenses": "No incoming invoices for this period",
     "creditNote": "Supplier credit note (reduces cost and input tax, § 17 UStG)",
+    "confirmBerichtigt": "Submit as a corrected return (berichtigte Voranmeldung)?",
+    "berichtigungNoetig": "Correction needed",
+    "berichtigungHint": "The bookings of this period changed after submission (Zahllast {diff}). Submit a corrected return (§ 153 AO).",
+    "editExpense": "Edit",
+    "editingExpense": "Edit incoming invoice",
+    "saveExpense": "Save",
+    "lockedExpense": "Locked",
     "saveSuccess": "UStVA saved",
     "submitSuccess": "UStVA submitted successfully",
     "prevFilings": "Past filings",
@@ -2112,7 +2139,8 @@
     "exportCsv": "Export CSV",
     "hintVoranmeldung": "Note: Late filing (after the 10th of the following month) may incur late surcharges (§ 152 AO).",
     "downloadElster": "ELSTER XML",
-    "elsterTooltip": "Download ELSTER XML for Mein-ELSTER upload"
+    "elsterTooltip": "Download ELSTER XML for Mein-ELSTER upload",
+    "istVersteuerung": "Cash basis (§ 20 UStG): taxable sales in the period the payment arrived."
   },
   "voucher": {
     "title": "Voucher",
@@ -2566,7 +2594,9 @@
     "invoices": "Invoices",
     "expenses": "Expenses",
     "generatedAt": "Generated",
-    "previewHint": "Preview — all values computed automatically. Have your tax advisor verify before filing."
+    "previewHint": "Preview — all values computed automatically. Have your tax advisor verify before filing.",
+    "zufluss": "Counted by payment date (cash principle, § 11 EStG).",
+    "offen": "Not yet paid from {year}: {invoices} invoices, {expenses} expenses — they count in the year they are paid."
   },
   "gobd": {
     "title": "GoBD archive (§ 147 AO)",

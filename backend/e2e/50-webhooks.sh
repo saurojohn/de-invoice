@@ -329,6 +329,9 @@ INV_RESP=$(curl -s -X POST "http://localhost:3001/api/v1/invoices?companyId=$COM
     \"items\":[{\"description\":\"Test item\",\"quantity\":1,\"unitPrice\":\"100.00\",\"vatRate\":0.19}]
   }")
 INV_ID=$(echo "$INV_RESP" | python3 -c "import sys,json;print(json.load(sys.stdin).get('id',''))")
+# Tier 462: a payment needs an issued invoice
+[[ -n "$INV_ID" ]] && curl -s -o /dev/null -X PUT "http://localhost:3001/api/v1/invoices/$INV_ID/status?companyId=$COMPANY_ID" \
+  -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" -H "Content-Type: application/json" -d '{"status":"sent"}'
 if [[ -n "$INV_ID" ]]; then
   pass "test invoice created: $INV_ID"
 else

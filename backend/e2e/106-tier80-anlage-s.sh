@@ -46,7 +46,7 @@ echo "=== Test: Anlage S (test tag: $TEST_TAG) ==="
 # only catches the current $TS; older runs
 # accumulate over time and break the
 # delta-snapshot assertion).
-docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null 2>&1
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null 2>&1
 DELETE FROM "InvoiceItem" WHERE "invoiceId" IN (SELECT id FROM "Invoice" WHERE "invoiceNumber" LIKE 'ANS-%');
 DELETE FROM "Invoice" WHERE "invoiceNumber" LIKE 'ANS-%';
 DELETE FROM "Expense" WHERE "invoiceNumber" LIKE 'ANS-%';
@@ -55,7 +55,7 @@ SQL
 
 # Cleanup hook
 cleanup() {
-  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null 2>&1
+  docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null 2>&1
 DELETE FROM "InvoiceItem" WHERE "invoiceId" IN (SELECT id FROM "Invoice" WHERE "invoiceNumber" LIKE 'ANS-${TS}-%');
 DELETE FROM "Invoice" WHERE "invoiceNumber" LIKE 'ANS-${TS}-%';
 DELETE FROM "Expense" WHERE "invoiceNumber" LIKE 'ANS-${TS}-%';
@@ -127,7 +127,8 @@ INSERT INTO "InvoiceItem" (id, "invoiceId", description, quantity, "unitPrice", 
 VALUES (gen_random_uuid()::text, '$INV2_ID', 'Storno', 1, -200, 0.19, -200, -38, -238, 0, now());
 EOF
 
-# Expenses (4 categories, 1 fallback):
+# Expenses (4 categories, 1 fallback) — paid on their invoice date (Tier 455:
+# Anlage S counts expenses when paid):
 #  Material (4620)        300
 #  Kfz (4660)            150
 #  Steuerberatung (4700) 200
@@ -135,12 +136,12 @@ EOF
 docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<EOF >/dev/null
 INSERT INTO "Expense" (id, "companyId", "invoiceNumber", description, "invoiceDate",
                        "netAmount", "vatRate", "vatAmount", "grossAmount", category, status,
-                       "createdAt", "updatedAt")
+                       "paidAt", "createdAt", "updatedAt")
 VALUES
-  (gen_random_uuid()::text, '$COMPANY_ID', 'ANS-${TS}-EXP-1', 'Material',  '2026-04-10'::date, 300, 0.19, 57, 357, 'Material',         'booked', now(), now()),
-  (gen_random_uuid()::text, '$COMPANY_ID', 'ANS-${TS}-EXP-2', 'Benzin',   '2026-05-05'::date, 150, 0.19, 28.5, 178.5, 'Kfz',              'booked', now(), now()),
-  (gen_random_uuid()::text, '$COMPANY_ID', 'ANS-${TS}-EXP-3', 'Berater',  '2026-04-20'::date, 200, 0.19, 38, 238, 'Steuerberatung',   'booked', now(), now()),
-  (gen_random_uuid()::text, '$COMPANY_ID', 'ANS-${TS}-EXP-4', 'Sonstiges','2026-06-01'::date, 100, 0.19, 19, 119, 'Quatsch',          'booked', now(), now());
+  (gen_random_uuid()::text, '$COMPANY_ID', 'ANS-${TS}-EXP-1', 'Material',  '2026-04-10'::date, 300, 0.19, 57, 357, 'Material',         'booked', '2026-04-10', now(), now()),
+  (gen_random_uuid()::text, '$COMPANY_ID', 'ANS-${TS}-EXP-2', 'Benzin',   '2026-05-05'::date, 150, 0.19, 28.5, 178.5, 'Kfz',              'booked', '2026-05-05', now(), now()),
+  (gen_random_uuid()::text, '$COMPANY_ID', 'ANS-${TS}-EXP-3', 'Berater',  '2026-04-20'::date, 200, 0.19, 38, 238, 'Steuerberatung',   'booked', '2026-04-20', now(), now()),
+  (gen_random_uuid()::text, '$COMPANY_ID', 'ANS-${TS}-EXP-4', 'Sonstiges','2026-06-01'::date, 100, 0.19, 19, 119, 'Quatsch',          'booked', '2026-06-01', now(), now());
 EOF
 
 # ── 1. JSON shape ──

@@ -69,6 +69,8 @@ api_post "/api/v1/invoices?companyId=$COMPANY_ID" '{
 [[ "$STATUS" == "201" ]] || { fail "create invoice 1 failed (status=$STATUS): $BODY"; exit 1; }
 INV1_ID=$(echo "$BODY" | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
 INV1_TOTAL=$(echo "$BODY" | python3 -c "import sys,json; print(json.load(sys.stdin)['total'])")
+# Tier 462: a payment needs an issued invoice
+api_put "/api/v1/invoices/$INV1_ID/status?companyId=$COMPANY_ID" '{"status":"sent"}'
 pass "invoice 1 created: € $INV1_TOTAL (2026-03-15)"
 
 # Invoice 2: 2026-04-20, 238.00 EUR (200 net + 38 VAT)
@@ -116,6 +118,8 @@ api_post "/api/v1/invoices/$INV1_ID/payments?companyId=$COMPANY_ID" '{
 pass "payment 1 created: € 119.00 (2026-04-01)"
 
 # Payment 2: 2026-05-15, € 100.00 (partial payment of INV2)
+# Tier 462: a payment needs an issued invoice
+api_put "/api/v1/invoices/$INV2_ID/status?companyId=$COMPANY_ID" '{"status":"sent"}'
 api_post "/api/v1/invoices/$INV2_ID/payments?companyId=$COMPANY_ID" '{
   "amount": 100.00,
   "paymentDate": "2026-05-15T00:00:00.000Z",

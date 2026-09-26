@@ -77,6 +77,9 @@ note "=== 4b. EÜR files zero-VAT revenue by what it is ==="
 # Before this tier the §19 (Kleinunternehmer) line took every zero-VAT invoice
 # and ran first, so an igL sale — once it really was 0 % — would have been
 # reported as Kleinunternehmer revenue.
+# Tier 454: the EÜR counts what was paid — the customers pay.
+AS POST "/api/v1/invoices/$IGL/payments?companyId=$C" '{"amount":1000,"paymentDate":"'$TODAY'","paymentMethod":"bank_transfer"}'
+assert_status 201 "fixture: the igL invoice paid"
 EUR_LINE() { python3 -c "import sys,json;d=json.loads(sys.argv[1]);print(next((l['amount'] for l in d['einnahmen'] if l['kennziffer']==sys.argv[2]),'-'))" "$BODY" "$1"; }
 AS GET "/api/v1/accounting/euer?companyId=$C&year=2026"
 assert_eq "igL revenue on the tax-free line 4170" "$(EUR_LINE 4170)" "1000"
@@ -93,6 +96,7 @@ KU POST "/api/v1/invoices?companyId=$CK" "{\"customerId\":\"$KK\",\"issueDate\":
 KINV=$(json_field "$BODY" id)
 assert_eq "…its invoice carries no VAT" "$(json_field "$BODY" totalVat)" "0"
 KU PUT "/api/v1/invoices/$KINV/status?companyId=$CK" '{"status":"sent"}'
+KU POST "/api/v1/invoices/$KINV/payments?companyId=$CK" '{"amount":300,"paymentDate":"2026-08-20","paymentMethod":"cash"}'
 KU GET "/api/v1/accounting/euer?companyId=$CK&year=2026"
 assert_eq "…and its revenue is on the §19 line 4120" "$(EUR_LINE 4120)" "300"
 assert_eq "…not on the tax-free line" "$(EUR_LINE 4170)" "0"
