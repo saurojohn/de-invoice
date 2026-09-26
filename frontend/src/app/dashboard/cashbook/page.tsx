@@ -186,7 +186,8 @@ export default function CashbookPage() {
     setFormDate(e.businessDate.split("T")[0])
     setFormDescription(e.description)
     setFormAmount(e.amount)
-    setFormVat(e.vatRate ? String(Number(e.vatRate)) : "0")
+    // Tier 458: no rate on an Einnahme / Ausgabe = the owner's money
+    setFormVat(e.vatRate != null ? String(Number(e.vatRate)) : "privat")
     setFormCounterparty(e.counterparty || "")
     setFormBeleg(e.belegNumber || "")
     setFormNotes(e.notes || "")
@@ -213,7 +214,7 @@ export default function CashbookPage() {
         type: formType,
         description: formDescription.trim(),
         amount,
-        vatRate: formType === "eroeffnung" || formType === "umbuchung" ? null : parseFloat(formVat),
+        vatRate: formType === "eroeffnung" || formType === "umbuchung" || formVat === "privat" ? null : parseFloat(formVat),
         counterparty: formCounterparty.trim() || null,
         belegNumber: formBeleg.trim() || null,
         notes: formNotes.trim() || null,
@@ -469,7 +470,7 @@ export default function CashbookPage() {
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button size="sm" onClick={() => openCreate("einnahme")}>+ {t("cashbook.type_einnahme")}</Button>
-                  <Button size="sm" variant="outline" onClick={() => openCreate("ausgabe")}>+ {t("cashbook.type_ausgabe")}</Button>
+                  <Button size="sm" variant="outline" onClick={() => openCreate("ausgabe")} data-testid="cashbook-new-ausgabe">+ {t("cashbook.type_ausgabe")}</Button>
                   <Button size="sm" variant="outline" onClick={() => openCreate("umbuchung")}>+ {t("cashbook.type_umbuchung")}</Button>
                   {todayClose ? (
                     <Button size="sm" variant="ghost" onClick={() => reopenDay(todayISO())}>
@@ -727,6 +728,7 @@ export default function CashbookPage() {
                     type="text"
                     value={formDescription}
                     onChange={(e) => setFormDescription(e.target.value)}
+                    data-testid="cashbook-description"
                     placeholder={
                       formType === "einnahme" ? "z.B. Barverkauf" :
                       formType === "ausgabe" ? "z.B. Porto, Büromaterial" :
@@ -746,6 +748,7 @@ export default function CashbookPage() {
                       min="0.01"
                       value={formAmount}
                       onChange={(e) => setFormAmount(e.target.value)}
+                      data-testid="cashbook-amount"
                       placeholder="0,00"
                       className="w-full border rounded px-3 py-2 text-sm font-mono"
                     />
@@ -756,12 +759,18 @@ export default function CashbookPage() {
                       <select
                         value={formVat}
                         onChange={(e) => setFormVat(e.target.value)}
+                        data-testid="cashbook-vat"
                         className="w-full border rounded px-3 py-2 text-sm"
                       >
                         <option value="0.19">19%</option>
                         <option value="0.07">7%</option>
                         <option value="0">0%</option>
+                        {/* Tier 458: Privateinlage / Privatentnahme — no income, no expense */}
+                        <option value="privat">{t(formType === "einnahme" ? "cashbook.privatEinlage" : "cashbook.privatEntnahme")}</option>
                       </select>
+                      {formVat === "privat" && (
+                        <p className="text-xs text-gray-600 mt-1" data-testid="cashbook-privat-hint">{t("cashbook.privatHint")}</p>
+                      )}
                     </div>
                   )}
                   <div>
@@ -800,7 +809,7 @@ export default function CashbookPage() {
                 </div>
 
                 <div className="flex gap-2 pt-4 border-t">
-                  <Button onClick={save} disabled={saving}>
+                  <Button onClick={save} disabled={saving} data-testid="cashbook-save">
                     {saving ? (t("common.saving") || "...") : (t("common.save") || "Speichern")}
                   </Button>
                   <Button variant="outline" onClick={() => { setShowForm(false); setEditing(null) }}>

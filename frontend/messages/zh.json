@@ -436,7 +436,10 @@
     "errClosedDay": "本日已结账,只能使用冲销。",
     "noEroeffnungYet": "尚未录入期初余额。",
     "createEroeffnung": "录入期初余额",
-    "tooltip": "钱箱中的现金。首次日结时会作为起始值。"
+    "tooltip": "钱箱中的现金。首次日结时会作为起始值。",
+    "privatEinlage": "业主存入（非收入）",
+    "privatEntnahme": "业主提取（非支出）",
+    "privatHint": "业主个人资金：不计入 EÜR 和增值税。DATEV 记入业主提取/存入账户。"
   },
   "credit": {
     "title": "客户余额",
@@ -1722,7 +1725,9 @@
     "besteuerungsart": "增值税计税方式",
     "besteuerungsartSoll": "应计制（按发票日期）",
     "besteuerungsartIst": "收付实现制（按收款，§ 20 UStG）",
-    "besteuerungsartHelp": "须经税务局批准。收付实现制下，销项税在收到款项的月份申报；免税销售和进项税仍按发票日期。"
+    "besteuerungsartHelp": "须经税务局批准。收付实现制下，销项税在收到款项的月份申报；免税销售和进项税仍按发票日期。",
+    "datevAccount_privateWithdrawal": "业主提取 (1800)",
+    "datevAccount_privateDeposit": "业主存入 (1890)"
   },
   "statement": {
     "title": "客户对账单",

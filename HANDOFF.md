@@ -9,7 +9,7 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–457 are
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–458 are
   in `git log`; §8 records what each learned. (Snapshot refreshed Tier 457.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
@@ -2513,6 +2513,31 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Privateinlage / Privatentnahme in the Kassenbuch (Tier 458)
+
+A Kassenbuch entry without a VAT rate is the owner's money (Tier 425: no
+EÜR / UStVA / GuV). Measured:
+- DATEV exported nothing for it: 500 € put in and 200 € taken out moved the
+  Kassenbuch to 419 € (with a 119 € cash sale) and DATEV's Kasse 1000 to
+  119 €.
+- the Kassenbuch page offered 19 %, 7 % or 0 % only — a withdrawal entered
+  there at 0 % became a business expense (EÜR 5900), a deposit tax-free
+  revenue (EÜR 4170, UStVA Kz 44 "sonstige steuerfreie Umsätze").
+
+Now the VAT select has "Privateinlage" / "Privatentnahme" (saved with
+`vatRate: null`, a hint says what it means), and DATEV books "Kasse an
+Privateinlagen 1890" / "Privatentnahmen 1800 an Kasse" — two new keys in the
+per-company account map (`privateDeposit`, `privateWithdrawal`, labelled in
+the settings page and the Buchungsliste).
+
+Spec `e2e/247-tier458-privat-kasse.sh` (7 assertions, 4 failing against the
+previous code); spec 214 now expects the Privateinlage row. Playwright
+`cashbook-privat-tier458.spec.ts`.
+
+Not changed: the Sachkonten seed (`accounting/accounts/seed`) names 1800
+"Sonstige Vermögensgegenstände" — in SKR03 1800 is Privatentnahmen; the seed
+is not used by the DATEV export, but its labels are off.
+
 ### Ist-Versteuerung: output tax when the money comes in (Tier 457)
 
 The app knew only the Soll-Versteuerung. A business allowed the
@@ -3587,8 +3612,8 @@ change (paidAt on a match) came after the full run and was re-checked with
 ~~Not done (§ 9): the EÜR still counts invoices and expenses at their
 document date, not when paid (§ 11 EStG)~~ — done in Tier 454; the payment dates are now there
 for invoices (Payment), cash and SEPA-paid expenses, but not for expenses
-paid by plain bank transfer without a bank-import match. Kassenbuch
-`umbuchung` (Bank ↔ Kasse) is not exported to DATEV.
+paid by plain bank transfer without a bank-import match. ~~Kassenbuch
+`umbuchung` (Bank ↔ Kasse) is not exported to DATEV~~ (Tier 434).
 
 ### Proformas counted as revenue, Quittungen did not reach the UStVA (Tier 424)
 
@@ -5729,7 +5754,9 @@ These are **not in the repo** — only the user can do them:
     was never matched. Switching needs a decision on those (fall back to the
     invoice date and say so?) — and whether Anlage G, which may belong to a
     bookkeeping business, follows. Also: a Kassenbuch entry without a VAT
-    rate is treated as Privateinlage / -entnahme (no income) — confirm.
+    rate is treated as Privateinlage / -entnahme (no income) — confirm
+    (since Tier 458 the page offers it as such and DATEV books it on
+    1890 / 1800).
 
 When the Hetzner items are available, the deploy is:
 

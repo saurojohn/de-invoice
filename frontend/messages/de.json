@@ -436,7 +436,10 @@
     "errClosedDay": "Dieser Tag ist abgeschlossen. Änderungen nur per Storno möglich.",
     "noEroeffnungYet": "Noch kein Anfangsbestand erfasst.",
     "createEroeffnung": "Anfangsbestand anlegen",
-    "tooltip": "Bargeld in der Kasse. Wird beim ersten Tagesabschluss als Startwert verwendet."
+    "tooltip": "Bargeld in der Kasse. Wird beim ersten Tagesabschluss als Startwert verwendet.",
+    "privatEinlage": "Privateinlage (keine Einnahme)",
+    "privatEntnahme": "Privatentnahme (keine Ausgabe)",
+    "privatHint": "Geld des Inhabers: zählt nicht in EÜR und Umsatzsteuer. DATEV bucht es auf Privateinlagen / Privatentnahmen."
   },
   "credit": {
     "title": "Kundenguthaben",
@@ -1722,7 +1725,9 @@
     "besteuerungsart": "Besteuerungsart (Umsatzsteuer)",
     "besteuerungsartSoll": "Soll-Versteuerung (nach Rechnungsdatum)",
     "besteuerungsartIst": "Ist-Versteuerung (nach Zahlungseingang, § 20 UStG)",
-    "besteuerungsartHelp": "Nur mit Genehmigung des Finanzamts. Bei Ist-Versteuerung zählt die Umsatzsteuer in der Voranmeldung des Monats, in dem das Geld eingeht; steuerfreie Umsätze und die Vorsteuer bleiben beim Rechnungsdatum."
+    "besteuerungsartHelp": "Nur mit Genehmigung des Finanzamts. Bei Ist-Versteuerung zählt die Umsatzsteuer in der Voranmeldung des Monats, in dem das Geld eingeht; steuerfreie Umsätze und die Vorsteuer bleiben beim Rechnungsdatum.",
+    "datevAccount_privateWithdrawal": "Privatentnahmen (1800)",
+    "datevAccount_privateDeposit": "Privateinlagen (1890)"
   },
   "statement": {
     "title": "Kontoauszug",

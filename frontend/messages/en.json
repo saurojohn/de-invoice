@@ -436,7 +436,10 @@
     "errClosedDay": "This day is closed. Use a reversal (Storno) to make changes.",
     "noEroeffnungYet": "No opening balance recorded yet.",
     "createEroeffnung": "Create opening balance",
-    "tooltip": "Cash in the till. Used as the starting value for the first daily close."
+    "tooltip": "Cash in the till. Used as the starting value for the first daily close.",
+    "privatEinlage": "Owner deposit (no income)",
+    "privatEntnahme": "Owner withdrawal (no expense)",
+    "privatHint": "The owner's money: not counted in the EÜR or VAT. DATEV books it to the owner's drawings / contributions accounts."
   },
   "credit": {
     "title": "Customer credit",
@@ -1722,7 +1725,9 @@
     "besteuerungsart": "VAT accounting basis",
     "besteuerungsartSoll": "Accrual (by invoice date)",
     "besteuerungsartIst": "Cash basis (on receipt, § 20 UStG)",
-    "besteuerungsartHelp": "Only with the tax office's approval. On the cash basis the output VAT is declared in the month the money arrives; exempt sales and input VAT stay at the invoice date."
+    "besteuerungsartHelp": "Only with the tax office's approval. On the cash basis the output VAT is declared in the month the money arrives; exempt sales and input VAT stay at the invoice date.",
+    "datevAccount_privateWithdrawal": "Owner withdrawals (1800)",
+    "datevAccount_privateDeposit": "Owner contributions (1890)"
   },
   "statement": {
     "title": "Customer Statement",

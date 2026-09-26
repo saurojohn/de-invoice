@@ -64,6 +64,9 @@ export interface DatevAccountMap {
   bank: string
   cash: string
   transit: string
+  /** Tier 458: Privatentnahmen / Privateinlagen (a Kassenbuch entry without a VAT rate) */
+  privateWithdrawal: string
+  privateDeposit: string
   receivable: string
   payable: string
   revenue19: string
@@ -96,6 +99,8 @@ export const SKR03_DEFAULTS: DatevAccountMap = {
   bank: '1200',                 // Bank
   cash: '1000',                 // Kasse (Tier 425)
   transit: '1360',              // Geldtransit (Tier 434)
+  privateWithdrawal: '1800',    // Privatentnahmen allgemein (Tier 458)
+  privateDeposit: '1890',       // Privateinlagen (Tier 458)
   receivable: '1406',           // Forderungen aus L+L (the bank import's vouchers use it too)
   payable: '1600',              // Verbindlichkeiten aus L+L (Sammelkonto der Kreditoren)
   revenue19: '8400',            // Erlöse 19 % USt (Automatikkonto)
@@ -766,6 +771,33 @@ export async function buildBuchungenFromDb(
       betrag: r2(Number(t.amount)),
       shVz: 'H',
       buchungstext: t.description.substring(0, 60),
+    })
+  }
+  // Tier 458: an entry without a VAT rate that pays no invoice or expense is
+  // the owner's money (cash-bookings.ts): Kasse an Privateinlagen, or
+  // Privatentnahmen an Kasse. It reached no export — DATEV's Kasse differed
+  // from the Kassenbuch by every such entry. A Storno is negative and nets out.
+  const privateMoves = await prisma.cashBookEntry.findMany({
+    where: {
+      companyId,
+      businessDate: { gte: startDate, lte: endDate },
+      type: { in: ['einnahme', 'ausgabe'] },
+      vatRate: null,
+      invoiceId: null,
+      expenseId: null,
+    },
+    orderBy: [{ businessDate: 'asc' }, { createdAt: 'asc' }],
+  })
+  for (const p of privateMoves) {
+    const deposit = p.type === 'einnahme'
+    out.push({
+      belegdatum: p.businessDate,
+      belegfeld1: p.belegNumber || `KB-${p.id.substring(0, 8)}`,
+      konto: a.cash,
+      gegenkonto: deposit ? a.privateDeposit : a.privateWithdrawal,
+      betrag: r2(Number(p.amount)),
+      shVz: deposit ? 'S' : 'H',
+      buchungstext: p.description.substring(0, 60),
     })
   }
   for (const e of cashPaidExpenses) {
