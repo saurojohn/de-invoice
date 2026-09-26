@@ -10,16 +10,17 @@ exact commands + docs you need to be productive.
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
 - **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–459 are
-  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 458.)
+  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 459.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 36228577225 / commit `71d561b`, Tier 458):**
-  - Backend e2e: **246 passed / 0 failed / 1 skipped** of 247 specs — 100
-    two-digit + 147 three-digit (Tier 458 added `247-tier458-privat-kasse.sh`,
+- **Test counts (last green CI, run 36229977754 / commit `5ba5540`, Tier 459):**
+  - Backend e2e: **247 passed / 0 failed / 1 skipped** of 248 specs — 100
+    two-digit + 148 three-digit (Tier 459 added `248-tier459-quittung-datev.sh`,
+    Tier 458 added `247-tier458-privat-kasse.sh`,
     Tier 457 added `246-tier457-ist-versteuerung.sh`,
     Tier 456 added `245-tier456-guthaben-auszahlung.sh`,
     Tier 455 added `244-tier455-anlage-s-v-zufluss.sh`,
