@@ -311,15 +311,16 @@ test("Tier 89: after POST book-afa-monthly the page shows monthly mode chip", as
   // Switch to the year we booked for.
   const yearInput = page.getByTestId("assets-year")
   await yearInput.fill(String(MONTHLY_YEAR))
-  await page.waitForTimeout(2500)
   const statusCell = page.getByTestId(`assets-afa-status-${created.id}`)
   await expect(statusCell).toBeVisible({ timeout: 10_000 })
-  const text = (await statusCell.textContent()) || ""
+  // Tier 443: wait for the status of the new year — a fixed 2,5 s wait read
+  // the default year's "nicht gebucht" once (local run).
   // The cell should contain both the
   // booked label and the monthly mode
   // chip (assets.afaBookedMonthly key).
+  await expect(statusCell).toContainText(/monatlich|monthly|按月/, { timeout: 15_000 })
+  const text = (await statusCell.textContent()) || ""
   expect(text).toMatch(/gebucht|booked|已簿记/)
-  expect(text).toMatch(/monatlich|monthly|按月/)
 })
 
 test("Tier 90: storno button visible when booking exists, opens confirm modal", async ({ page }) => {

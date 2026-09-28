@@ -777,7 +777,8 @@ export class UstvaService {
     }
     return this.prisma.expense.findMany({
       where,
-      include: { supplier: true },
+      // Tier 443: stornoBy tells the list which expenses are cancelled.
+      include: { supplier: true, stornoBy: { select: { id: true } } },
       orderBy: { invoiceDate: 'desc' },
     });
   }
@@ -826,9 +827,93 @@ export class UstvaService {
     });
   }
 
+  /**
+   * Tier 443 — why a booked expense may not simply disappear. Measured: every
+   * expense could be deleted — one whose input tax was already declared in a
+   * submitted UStVA (the books then no longer backed the declaration), one
+   * paid by SEPA or through the cash book (the cash-book payment lost its
+   * link and turned into a cash purchase of its own), and the rows "AfA
+   * buchen" creates. § 146 Abs. 4 AO: a record may not be changed so that its
+   * original content can no longer be seen — such an expense is cancelled by
+   * a Storno (a counter-entry), see stornoExpense.
+   */
+  private async deleteBlocker(companyId: string, exp: {
+    id: string; invoiceDate: Date; paidAt: Date | null; paidBySepaBatchId: string | null
+    relatedAssetId: string | null; stornoOfId: string | null
+  }): Promise<string | null> {
+    if (exp.relatedAssetId) return 'Eine AfA-Buchung wird über „AfA stornieren“ im Anlagenverzeichnis zurückgenommen.';
+    if (exp.stornoOfId) return 'Eine Storno-Buchung kann nicht gelöscht werden.';
+    const stornoBy = await this.prisma.expense.count({ where: { stornoOfId: exp.id } });
+    if (stornoBy) return 'Die Eingangsrechnung wurde bereits storniert.';
+    if (exp.paidAt || exp.paidBySepaBatchId) return 'Die Eingangsrechnung ist bereits bezahlt.';
+    const cash = await this.prisma.cashBookEntry.count({ where: { companyId, expenseId: exp.id } });
+    if (cash) return 'Die Eingangsrechnung ist im Kassenbuch bezahlt.';
+    const d = exp.invoiceDate;
+    const year = d.getFullYear();
+    const month = d.getMonth() + 1;
+    const filed = await this.prisma.uStvaFiling.findFirst({
+      where: {
+        companyId, year, status: 'submitted',
+        OR: [{ month }, { month: null, quarter: Math.ceil(month / 3) }, { month: null, quarter: null }],
+      },
+      select: { periodLabel: true },
+    });
+    if (filed) return `Die Vorsteuer ist in der übermittelten UStVA ${filed.periodLabel} erklärt.`;
+    return null;
+  }
+
   async deleteExpense(companyId: string, expenseId: string) {
     const exp = await this.prisma.expense.findFirst({ where: { id: expenseId, companyId } });
     if (!exp) throw new BadRequestException('Ausgabe nicht gefunden');
+    const blocker = await this.deleteBlocker(companyId, exp);
+    if (blocker) {
+      throw new BadRequestException(`${blocker} Löschen ist nicht möglich — stornieren Sie die Eingangsrechnung stattdessen.`);
+    }
     await this.prisma.expense.delete({ where: { id: expenseId } });
+  }
+
+  /**
+   * Tier 443 — cancel a booked expense with a counter-entry: the same
+   * supplier, rates and account with negated amounts (as a supplier credit
+   * note, Tier 442), dated the Storno day (default today — the correction
+   * belongs to the period in which it is made) and linked through stornoOfId.
+   * The original stays as it was.
+   */
+  async stornoExpense(companyId: string, expenseId: string, body: { reason: string; date?: string }) {
+    if (!body?.reason?.trim()) throw new BadRequestException('Begründung ist erforderlich für eine Storno-Buchung');
+    const exp = await this.prisma.expense.findFirst({ where: { id: expenseId, companyId } });
+    if (!exp) throw new BadRequestException('Ausgabe nicht gefunden');
+    if (exp.relatedAssetId) throw new BadRequestException('Eine AfA-Buchung wird über „AfA stornieren“ im Anlagenverzeichnis zurückgenommen.');
+    if (exp.stornoOfId) throw new BadRequestException('Eine Storno-Buchung kann nicht selbst storniert werden.');
+    if (await this.prisma.expense.count({ where: { stornoOfId: exp.id } })) {
+      throw new BadRequestException('Die Eingangsrechnung wurde bereits storniert.');
+    }
+    const date = body.date ? new Date(body.date) : new Date();
+    if (Number.isNaN(date.getTime())) throw new BadRequestException('Ungültiges Storno-Datum');
+    if (date < exp.invoiceDate) throw new BadRequestException('Das Storno-Datum liegt vor dem Rechnungsdatum');
+    const neg = (v: unknown) => (-Number(v ?? 0)).toFixed(4);
+    return this.prisma.expense.create({
+      data: {
+        companyId,
+        supplierId: exp.supplierId,
+        invoiceNumber: exp.invoiceNumber,
+        description: `STORNO: ${exp.description}`.substring(0, 500),
+        invoiceDate: date,
+        netAmount: neg(exp.netAmount),
+        vatRate: exp.vatRate,
+        vatAmount: neg(exp.vatAmount),
+        grossAmount: neg(exp.grossAmount),
+        category: exp.category,
+        accountNumber: exp.accountNumber,
+        costCenter: exp.costCenter,
+        costObject: exp.costObject,
+        isIntraEU: exp.isIntraEU,
+        isReverseCharge: exp.isReverseCharge,
+        status: exp.status,
+        notes: body.reason.trim(),
+        stornoOfId: exp.id,
+      },
+      include: { supplier: true },
+    });
   }
 }

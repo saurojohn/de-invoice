@@ -551,6 +551,11 @@ model Expense {
   paidAt            DateTime?
   paidBySepaBatchId String?
   paidBySepaBatch   SepaBatch? @relation("ExpensePaidByBatch", fields: [paidBySepaBatchId], references: [id])
+  // Tier 443: a Storno is a negative counter-entry pointing at the expense it
+  // cancels (one per expense).
+  stornoOfId        String?    @unique
+  stornoOf          Expense?   @relation("ExpenseStorno", fields: [stornoOfId], references: [id], onDelete: Restrict)
+  stornoBy          Expense?   @relation("ExpenseStorno")
   createdAt         DateTime   @default(now())
   updatedAt         DateTime   @updatedAt
 

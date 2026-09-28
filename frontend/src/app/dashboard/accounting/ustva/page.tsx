@@ -70,6 +70,10 @@ interface Expense {
   isIntraEU: boolean
   isReverseCharge: boolean
   supplier?: { id: string; name: string } | null
+  // Tier 443
+  stornoOfId?: string | null
+  stornoBy?: { id: string } | null
+  relatedAssetId?: string | null
 }
 
 interface Supplier { id: string; name: string }
@@ -292,6 +296,21 @@ function UstvaPageInner() {
       await apiDelete(`/api/v1/ustva/expenses/${id}?companyId=${companyId}`)
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Löschen fehlgeschlagen")
+    }
+    await loadAll(companyId)
+  }
+
+  // Tier 443: a booked expense is cancelled by a counter-entry, not deleted.
+  const stornoExpense = async (id: string) => {
+    const reason = prompt(t("ustva.stornoReason"))
+    if (!reason || !reason.trim()) return
+    const companyId = localStorage.getItem("companyId")
+    if (!companyId) return
+    try {
+      await apiPost(`/api/v1/ustva/expenses/${id}/storno?companyId=${companyId}`, { reason: reason.trim() })
+      toast.success(t("ustva.stornoDone"))
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Storno fehlgeschlagen")
     }
     await loadAll(companyId)
   }
@@ -929,7 +948,19 @@ function UstvaPageInner() {
                             <td className="py-2 text-right font-medium">
                               {formatCurrency(Number(ex.grossAmount))}
                             </td>
-                            <td className="py-2 text-center">
+                            <td className="py-2 text-center whitespace-nowrap">
+                              {!ex.stornoOfId && !ex.stornoBy && !ex.relatedAssetId && (
+                                <button
+                                  onClick={() => stornoExpense(ex.id)}
+                                  className="text-amber-700 dark:text-amber-400 hover:underline text-xs mr-2"
+                                  data-testid="ustva-expense-storno"
+                                >
+                                  {t("ustva.storno")}
+                                </button>
+                              )}
+                              {ex.stornoBy && (
+                                <span className="text-xs text-gray-500 mr-2">{t("ustva.storniert")}</span>
+                              )}
                               <button
                                 onClick={() => deleteExpense(ex.id)}
                                 className="text-red-600 dark:text-red-400 hover:underline text-xs"
