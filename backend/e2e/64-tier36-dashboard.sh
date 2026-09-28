@@ -42,6 +42,11 @@ assert_eq "dashboard-v2 returns 200" "$STATUS" "200"
 if [ "$STATUS" != "200" ]; then
   echo "  body: $(head -c 2000 /tmp/t64_dash.json)"
   echo "  backend log tail:"; tail -40 /tmp/backend.log 2>/dev/null | sed 's/^/    /'
+  # Tier 464: the request of the last occurrence was in no backend log at all —
+  # show who is listening on :3001 and what ErrorEvent recorded.
+  echo "  listening on :3001:"; lsof -nP -iTCP:3001 -sTCP:LISTEN 2>/dev/null | sed 's/^/    /'
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
+    "SELECT message, left(stack, 1500) FROM \"ErrorEvent\" WHERE message LIKE '%dashboard-v2%' ORDER BY \"lastSeenAt\" DESC LIMIT 1" 2>/dev/null | sed 's/^/    /'
 fi
 
 # Top-level keys — check that the required

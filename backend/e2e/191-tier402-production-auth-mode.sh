@@ -28,7 +28,7 @@ sql() { docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "$1"
 # finished wiring the modules.
 restart_backend() { # extra env assignments, e.g. "ALLOW_HEADER_AUTH=0"
   local extra="$1" i DEEP
-  lsof -ti:3001 | xargs kill -9 2>/dev/null
+  kill_backend # Tier 464: was kill -9, which orphaned Prisma's query engine
   sleep 1
   cd "$SCRIPT_DIR/.."
   # shellcheck disable=SC2086

@@ -88,6 +88,8 @@ interface CompanySettings {
   rechtsform: string | null
   // Tier 457: Soll- or Ist-Versteuerung (§ 20 UStG); null = soll.
   besteuerungsart: "soll" | "ist" | null
+  // Tier 464: null = derived from the legal form
+  gewinnermittlung: "euer" | "bilanz" | null
 }
 
 // Tier 441: the values the backend accepts (company/rechtsform.ts).
@@ -228,6 +230,7 @@ export default function SettingsPage() {
     defaultVatMode: null,
     rechtsform: null,
     besteuerungsart: null,
+    gewinnermittlung: null,
   })
 
   const [storageForm, setStorageForm] = useState<StorageSettings>({
@@ -323,6 +326,7 @@ export default function SettingsPage() {
               defaultVatMode: data.defaultVatMode ?? null,
               rechtsform: data.rechtsform ?? null,
               besteuerungsart: data.besteuerungsart ?? null,
+              gewinnermittlung: data.gewinnermittlung ?? null,
             })
 
             if (data.logoPath) {
@@ -571,6 +575,7 @@ export default function SettingsPage() {
           defaultVatMode: fresh.defaultVatMode ?? null,
           rechtsform: fresh.rechtsform ?? null,
           besteuerungsart: fresh.besteuerungsart ?? null,
+          gewinnermittlung: fresh.gewinnermittlung ?? null,
         })
       }
       toast.error(t("settings.saved"))
@@ -1219,6 +1224,26 @@ export default function SettingsPage() {
                   </select>
                   <p className="text-xs text-gray-600 mt-1">
                     {t("settings.besteuerungsartHelp")}
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    {t("settings.gewinnermittlung")}
+                  </label>
+                  <select
+                    className="w-full h-10 border rounded-md px-3"
+                    value={form.gewinnermittlung ?? ""}
+                    onChange={(e) =>
+                      setForm({ ...form, gewinnermittlung: (e.target.value || null) as "euer" | "bilanz" | null })
+                    }
+                    data-testid="settings-gewinnermittlung"
+                  >
+                    <option value="">{t("settings.gewinnermittlungAuto")}</option>
+                    <option value="euer">{t("settings.gewinnermittlungEuer")}</option>
+                    <option value="bilanz">{t("settings.gewinnermittlungBilanz")}</option>
+                  </select>
+                  <p className="text-xs text-gray-600 mt-1">
+                    {t("settings.gewinnermittlungHelp")}
                   </p>
                 </div>
                 <div>

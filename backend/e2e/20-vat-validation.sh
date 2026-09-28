@@ -82,7 +82,7 @@ fi
 
 if [[ "$NEEDS_RESTART" == "1" ]]; then
   echo "Backend not running with VIES_MOCK=1, restarting..."
-  lsof -ti:3001 | xargs -r kill -9 2>/dev/null
+  kill_backend # Tier 464: was kill -9, which orphaned Prisma's query engine
   sleep 1
   # Tier 328: this was hardcoded to the dev
   # machine path (/Users/shledergmbh/...). On

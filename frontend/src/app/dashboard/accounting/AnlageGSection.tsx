@@ -40,6 +40,8 @@ interface AnlageGResult {
     expenses: number
     matchedMieteExpenses: number
   }
+  // Tier 464
+  gewinnermittlung?: "euer" | "bilanz"
   generatedAt: string
   disclaimer: string
 }
@@ -213,6 +215,12 @@ export function AnlageGSection() {
 
           {data && (
             <>
+              {/* Tier 464: counted when paid (EÜR) or by document date (Bilanz) */}
+              {data.gewinnermittlung && (
+                <p className="text-xs text-gray-600 dark:text-gray-300 mb-3" data-testid="anlage-g-gewinnermittlung">
+                  {tRef.current(data.gewinnermittlung === "euer" ? "anlageG.nachZahlung" : "anlageG.nachRechnungsdatum")}
+                </p>
+              )}
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
                   <h3 className="text-sm font-semibold mb-2 text-emerald-700 dark:text-emerald-400">

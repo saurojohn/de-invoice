@@ -210,4 +210,10 @@ export class UpdateCompanyDto {
   @IsIn(['soll', 'ist'], { message: "besteuerungsart muss 'soll' oder 'ist' sein" })
   @IsOptional()
   besteuerungsart?: string | null;
+
+  // Tier 464: 'euer' | 'bilanz'; null = derived from the legal form.
+  @IsString()
+  @IsIn(['euer', 'bilanz'], { message: "gewinnermittlung muss 'euer' oder 'bilanz' sein" })
+  @IsOptional()
+  gewinnermittlung?: string | null;
 }

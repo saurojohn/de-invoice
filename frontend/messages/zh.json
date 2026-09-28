@@ -1726,6 +1726,11 @@
     "besteuerungsartSoll": "应计制（按发票日期）",
     "besteuerungsartIst": "收付实现制（按收款，§ 20 UStG）",
     "besteuerungsartHelp": "须经税务局批准。收付实现制下，销项税在收到款项的月份申报；免税销售和进项税仍按发票日期。",
+    "gewinnermittlung": "利润计算方式",
+    "gewinnermittlungAuto": "根据法律形式推断",
+    "gewinnermittlungEuer": "收支盈余计算（EÜR，§ 4 Abs. 3 EStG，按付款日）",
+    "gewinnermittlungBilanz": "资产负债表法（§ 4 Abs. 1 / § 5 EStG，按发票日期）",
+    "gewinnermittlungHelp": "决定 Anlage G 按付款日还是按发票日期计入收入和支出。未填写时：OHG、KG、GmbH & Co. KG 及资合公司为资产负债表法，其余为 EÜR。超过 § 141 AO 门槛的个体户或注册商人请选择资产负债表法。",
     "datevAccount_privateWithdrawal": "业主提取 (1800)",
     "datevAccount_privateDeposit": "业主存入 (1890)"
   },
@@ -2746,6 +2751,8 @@
     "hebesatzHint": "请根据所在市镇调整 — 如 Köln 470 %，München 490 %。Company.settings.hebesatz",
     "hinzuHint": "仅 Kz 4100 从账目自动推导：融资部分（利息 100%、租金/租赁不动产 50%、融资租赁 20%）超过 200,000 € 部分的四分之一（§ 8 Nr. 1 GewStG）。租金视为不动产、租赁视为动产的划分由税务师核对；其他加回项目由税务师根据合同补充。",
     "kurzungHint": "不自动推导任何扣除。§ 9 GewStG 的扣除（不动产按单位价值 1.2%、参股利润份额、境外常设机构）由税务师补充。",
+    "nachZahlung": "按付款日计入（收支盈余计算，§ 11 EStG）——利润计算方式见设置。",
+    "nachRechnungsdatum": "按发票日期计入（资产负债表法）——利润计算方式见设置。",
     "matchedMiete": "租金/租赁账目",
     "generatedAt": "生成时间"
   },

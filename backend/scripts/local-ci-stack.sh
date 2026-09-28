@@ -217,6 +217,10 @@ run_playwright() {
 up() {
   # Refuse before touching anything if :3001 belongs to someone else.
   guard_port 3001 is_own_backend backend || exit 2
+  # Tier 464: Prisma query engines orphaned by earlier kill -9 restarts keep
+  # their connections open — clear them before a new database / backend.
+  # shellcheck source=/dev/null
+  ( source "$BACKEND_DIR/e2e/_lib.sh" >/dev/null 2>&1; reap_orphan_engines ) || true
   echo "▶ fresh postgres:16 as '$PG_CONTAINER' on :$PG_PORT"
   docker rm -f "$PG_CONTAINER" >/dev/null 2>&1 || true
   docker run -d --name "$PG_CONTAINER" \
@@ -270,12 +274,24 @@ up() {
 
 case "${1:-}" in
   up)   up ;;
-  run)  up; cd "$BACKEND_DIR/e2e"; SEGMENT_SIZE=20 SEGMENT_SLEEP=10 bash run-all.sh; rc=$?
+  run)  up; cd "$BACKEND_DIR/e2e"
+        # Tier 464: `set -e` ended the script right here whenever a spec
+        # failed, so the log copy and the error dump below only ever ran for
+        # a green run — a failing run left the previous run's copy behind.
+        rc=0; SEGMENT_SIZE=20 SEGMENT_SLEEP=10 bash run-all.sh || rc=$?
         # Tier 429: keep the backend log of this run — the next `up` (e.g. a
         # run-playwright right after) truncates /tmp/backend.log, and a 500
         # seen in the e2e run could no longer be traced to its stack trace.
         cp /tmp/backend.log /tmp/backend-e2e-run.log 2>/dev/null || true
         echo "  backend log of this run: /tmp/backend-e2e-run.log"
+        # Tier 464: every 5xx is also stored in ErrorEvent (system.filter),
+        # with message and stack — independent of the log. A one-off
+        # dashboard-v2 500 had no log line twice; keep the table of this run
+        # before the next `up` recreates the database.
+        docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -F '|' -c \
+          "SELECT \"lastSeenAt\", \"statusCode\", occurrences, message, left(coalesce(stack,''), 2000) FROM \"ErrorEvent\" WHERE source = 'backend' AND coalesce(\"statusCode\", 500) >= 500 ORDER BY \"lastSeenAt\"" \
+          > /tmp/backend-e2e-errors.txt 2>/dev/null || true
+        echo "  5xx captured in ErrorEvent: $(awk 'END{print NR}' /tmp/backend-e2e-errors.txt 2>/dev/null) (/tmp/backend-e2e-errors.txt)"
         exit $rc ;;
   run-playwright)
         # CI playwright job gives the backend this CORS origin.

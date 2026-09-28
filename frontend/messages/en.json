@@ -1726,6 +1726,11 @@
     "besteuerungsartSoll": "Accrual (by invoice date)",
     "besteuerungsartIst": "Cash basis (on receipt, § 20 UStG)",
     "besteuerungsartHelp": "Only with the tax office's approval. On the cash basis the output VAT is declared in the month the money arrives; exempt sales and input VAT stay at the invoice date.",
+    "gewinnermittlung": "Profit determination",
+    "gewinnermittlungAuto": "Derive from the legal form",
+    "gewinnermittlungEuer": "Cash-basis accounting (EÜR, § 4 Abs. 3 EStG, when paid)",
+    "gewinnermittlungBilanz": "Balance sheet (§ 4 Abs. 1 / § 5 EStG, by invoice date)",
+    "gewinnermittlungHelp": "Decides whether Anlage G counts income and expenses by payment date or by invoice date. If empty: balance sheet for OHG, KG, GmbH & Co. KG and corporations, otherwise EÜR. Sole traders above the § 141 AO thresholds or registered merchants choose balance sheet.",
     "datevAccount_privateWithdrawal": "Owner withdrawals (1800)",
     "datevAccount_privateDeposit": "Owner contributions (1890)"
   },
@@ -2746,6 +2751,8 @@
     "hebesatzHint": "Adjust to your municipality — e.g. 470 % in Köln, 490 % in München. Company.settings.hebesatz",
     "hinzuHint": "Only Kz 4100 is derived from the bookings: a quarter of the financing shares (interest 100 %, rent/lease of property 50 %, leasing 20 %) above 200,000 € (§ 8 Nr. 1 GewStG). The tax advisor checks rent = immovable / leasing = movable and adds the other add-backs from the contracts.",
     "kurzungHint": "No deduction is derived automatically. The § 9 GewStG deductions (real estate 1.2 % of the unit value, profit shares from participations, foreign permanent establishments) are added by the tax advisor.",
+    "nachZahlung": "Counted by payment date (cash basis, § 11 EStG) — profit determination in the settings.",
+    "nachRechnungsdatum": "Counted by invoice date (balance sheet) — profit determination in the settings.",
     "matchedMiete": "Rent/lease bookings",
     "generatedAt": "Generated"
   },

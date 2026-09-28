@@ -304,3 +304,34 @@ datev_balance() { # FILE ACCOUNT
       if ($4 == a) sum -= s }
     END { printf "%.2f\n", sum }'
 }
+
+# Tier 464: stop the backend on :3001 and what it leaves behind. Prisma runs
+# its query engine as a child process; `kill -9` on the node process orphaned
+# it (parent pid 1) with its pool of database connections. Specs 20 and 191
+# did that on every run, as did manual restarts — 479 orphans had piled up
+# and Postgres answered "too many clients", so no backend could start.
+# TERM first (node stops its engine), KILL only what is still there, then
+# remove engines of this checkout that no longer have a parent.
+kill_backend() {
+  local pids
+  pids=$(lsof -ti:3001 2>/dev/null || true)
+  if [ -n "$pids" ]; then
+    # shellcheck disable=SC2086
+    kill $pids 2>/dev/null || true
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
+      lsof -ti:3001 >/dev/null 2>&1 || break
+      sleep 0.5
+    done
+    pids=$(lsof -ti:3001 2>/dev/null || true)
+    # shellcheck disable=SC2086
+    [ -n "$pids" ] && kill -9 $pids 2>/dev/null || true
+  fi
+  reap_orphan_engines
+}
+
+reap_orphan_engines() {
+  local root
+  root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/node_modules/.prisma/client/query-engine"
+  ps -eo pid=,ppid=,command= | awk -v e="$root" '$2 == 1 && index($0, e) > 0 {print $1}' \
+    | xargs kill 2>/dev/null || true
+}

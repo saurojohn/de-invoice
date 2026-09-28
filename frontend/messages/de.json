@@ -1726,6 +1726,11 @@
     "besteuerungsartSoll": "Soll-Versteuerung (nach Rechnungsdatum)",
     "besteuerungsartIst": "Ist-Versteuerung (nach Zahlungseingang, § 20 UStG)",
     "besteuerungsartHelp": "Nur mit Genehmigung des Finanzamts. Bei Ist-Versteuerung zählt die Umsatzsteuer in der Voranmeldung des Monats, in dem das Geld eingeht; steuerfreie Umsätze und die Vorsteuer bleiben beim Rechnungsdatum.",
+    "gewinnermittlung": "Gewinnermittlung",
+    "gewinnermittlungAuto": "Aus der Rechtsform ableiten",
+    "gewinnermittlungEuer": "Einnahmen-Überschuss-Rechnung (§ 4 Abs. 3 EStG, nach Zahlung)",
+    "gewinnermittlungBilanz": "Bilanzierung (§ 4 Abs. 1 / § 5 EStG, nach Rechnungsdatum)",
+    "gewinnermittlungHelp": "Bestimmt, ob Anlage G Einnahmen und Ausgaben nach Zahlungsdatum oder nach Rechnungsdatum zählt. Ohne Angabe: Bilanzierung für OHG, KG, GmbH & Co. KG und Kapitalgesellschaften, sonst EÜR. Einzelunternehmer über den Grenzen des § 141 AO oder eingetragene Kaufleute wählen Bilanzierung.",
     "datevAccount_privateWithdrawal": "Privatentnahmen (1800)",
     "datevAccount_privateDeposit": "Privateinlagen (1890)"
   },
@@ -2746,6 +2751,8 @@
     "hebesatzHint": "Hebesatz der Gemeinde anpassen — z.B. 470 % in Köln, 490 % in München. Company.settings.hebesatz",
     "hinzuHint": "Nur Kz 4100 wird automatisch aus den Buchungen abgeleitet: ¼ der Finanzierungsanteile (Schuldzinsen 100 %, Miete/Pacht 50 %, Leasing 20 %), soweit sie 200.000 € übersteigen (§ 8 Nr. 1 GewStG). Die Zuordnung Miete = unbeweglich / Leasing = beweglich prüft der Steuerberater; die übrigen Hinzurechnungen ergänzt er aus den Verträgen.",
     "kurzungHint": "Keine Kürzung wird automatisch abgeleitet. Die Kürzungen nach § 9 GewStG (Grundbesitz 1,2 % des Einheitswerts, Gewinnanteile aus Beteiligungen, ausländische Betriebsstätten) ergänzt der Steuerberater aus den Unterlagen.",
+    "nachZahlung": "Gezählt nach Zahlungsdatum (Einnahmen-Überschuss-Rechnung, § 11 EStG) — Gewinnermittlung in den Einstellungen.",
+    "nachRechnungsdatum": "Gezählt nach Rechnungsdatum (Bilanzierung) — Gewinnermittlung in den Einstellungen.",
     "matchedMiete": "Miete/Pacht-Buchungen",
     "generatedAt": "Erstellt"
   },

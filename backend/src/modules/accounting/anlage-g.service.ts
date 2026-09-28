@@ -1,10 +1,13 @@
 import { resolveRechtsform, isKapitalgesellschaft } from '../company/rechtsform'
+import { resolveGewinnermittlung } from '../company/gewinnermittlung'
+import { euerExpenses, euerInflows } from './euer-zufluss'
+import { cashBookings } from '../cashbook/cash-bookings'
 import { assetDisposals, sumRestbuchwert } from '../assets/disposals'
 import { Injectable, BadRequestException } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import { Response } from 'express'
 import PDFDocument from 'pdfkit'
-import { invoiceEurFactor, invoiceNetRevenue, invoiceTaxBreakdown } from '../invoice/tax-breakdown'
+import { invoiceNetRevenue, invoiceTaxBreakdown } from '../invoice/tax-breakdown'
 import { SALES_TYPES } from '../invoice/document-scope'
 import { expenseCost } from './expense-cost'
 import { bookedAfaCost, NOT_AFA_BOOKING } from './booked-afa'
@@ -128,6 +131,9 @@ export interface AnlageGResult {
     expenses: number
     matchedMieteExpenses: number
   }
+  /** Tier 464: 'euer' = counted when paid (§ 11 EStG), 'bilanz' = by document date */
+  gewinnermittlung: 'euer' | 'bilanz'
+  gewinnermittlungQuelle: 'gesetzt' | 'rechtsform'
   generatedAt: string
   disclaimer: string
 }
@@ -337,54 +343,73 @@ export class AnlageGService {
     const yearStart = new Date(year, 0, 1)
     const yearEnd = new Date(year, 11, 31, 23, 59, 59, 999)
 
-    // Pull every invoice in the year (any status
-    // that contributed to revenue). Drafts are
-    // excluded — they're not billable yet. v1: no
-    // per-customer filtering. The user opts in via
-    // Company.settings.anlageG === true on the
-    // controller side.
-    const invoices = await this.prisma.invoice.findMany({
-      where: {
-        companyId,
-        issueDate: { gte: yearStart, lte: yearEnd },
-        status: { in: ['paid', 'sent', 'overdue'] },
-        type: { in: SALES_TYPES }, // Tier 424: not a Proforma
-      },
-      select: {
-        subtotal: true,
-        totalVat: true,
-        reverseCharge: true,
-        // Tier 411: revenue after the discount, in EUR, split per rate.
-        total: true,
-        eurTotal: true,
-        eurTotalVat: true,
-        euTransaction: true,
-        items: { select: { quantity: true, unitPrice: true, vatRate: true } },
-      },
-    })
-    const vatModeRow = await this.prisma.company.findUnique({
+    const companyRow = await this.prisma.company.findUnique({
       where: { id: companyId },
-      select: { defaultVatMode: true },
+      select: { defaultVatMode: true, gewinnermittlung: true, rechtsform: true, settings: true, legalName: true, name: true },
     })
-    const kleinunternehmer = vatModeRow?.defaultVatMode === 'kleinunternehmer'
+    const kleinunternehmer = companyRow?.defaultVatMode === 'kleinunternehmer'
+    // Tier 464: an EÜR company counts income and expenses when paid (§ 11
+    // EStG, as its EÜR — euer-zufluss.ts); a balance-sheet company by
+    // document date. Anlage G used the document date for both.
+    const gewinnermittlung = resolveGewinnermittlung(companyRow ?? {})
+    const zufluss = gewinnermittlung.art === 'euer'
 
-    // Betriebsausgaben (Expense rows). Exclude
-    // Storno / 'voided' — those go to negative
-    // operating expenses but in v1 we keep the
-    // book entries clean.
-    const expenses = await this.prisma.expense.findMany({
-      where: {
-        companyId,
-        invoiceDate: { gte: yearStart, lte: yearEnd },
-        status: { in: ['booked', 'deductible'] },
-        ...NOT_AFA_BOOKING, // Tier 438: the booked AfA is line 2500, below
-      },
-      select: {
-        netAmount: true,
-        grossAmount: true,
-        category: true,
-      },
-    })
+    // Revenue: the document (Bilanz) or the payments' net share (EÜR), each
+    // with the invoice it belongs to.
+    type RevenueInvoice = {
+      id: string; type: string; subtotal: unknown; totalVat: unknown; total: unknown
+      eurTotal: unknown; eurTotalVat: unknown; reverseCharge: boolean; euTransaction: boolean
+    }
+    let revenueRows: Array<{ invoice: RevenueInvoice; amount: number }>
+    let invoiceCount: number
+    if (zufluss) {
+      const { inflows } = await euerInflows(this.prisma, companyId, yearStart, yearEnd)
+      revenueRows = inflows.map((f) => ({ invoice: f.invoice as unknown as RevenueInvoice, amount: f.amount }))
+      invoiceCount = new Set(inflows.map((f) => (f.invoice as { id: string }).id)).size
+    } else {
+      const invoices = await this.prisma.invoice.findMany({
+        where: {
+          companyId,
+          issueDate: { gte: yearStart, lte: yearEnd },
+          status: { in: ['paid', 'sent', 'overdue'] },
+          type: { in: SALES_TYPES }, // Tier 424: not a Proforma
+        },
+        select: {
+          id: true, type: true, subtotal: true, totalVat: true, total: true,
+          eurTotal: true, eurTotalVat: true, reverseCharge: true, euTransaction: true,
+        },
+      })
+      // Tier 411: revenue after the discount and in EUR (was subtotal).
+      revenueRows = invoices.map((inv) => ({ invoice: inv, amount: invoiceNetRevenue(inv) }))
+      invoiceCount = invoices.length
+    }
+    // The line items give the split per VAT rate.
+    const itemsByInvoice = new Map(
+      (revenueRows.length
+        ? await this.prisma.invoice.findMany({
+          where: { id: { in: [...new Set(revenueRows.map((r) => r.invoice.id))] } },
+          select: {
+            id: true, subtotal: true, totalVat: true, total: true, eurTotal: true, eurTotalVat: true,
+            items: { select: { quantity: true, unitPrice: true, vatRate: true } },
+          },
+        })
+        : []
+      ).map((x) => [x.id, x]),
+    )
+
+    // Betriebsausgaben (Expense rows): paid in the year (EÜR) or dated in it
+    // (Bilanz).
+    const expenses = zufluss
+      ? (await euerExpenses(this.prisma, companyId, yearStart, yearEnd)).expenses
+      : await this.prisma.expense.findMany({
+        where: {
+          companyId,
+          invoiceDate: { gte: yearStart, lte: yearEnd },
+          status: { in: ['booked', 'deductible'] },
+          ...NOT_AFA_BOOKING, // Tier 438: the booked AfA is line 2500, below
+        },
+        select: { netAmount: true, grossAmount: true, category: true },
+      })
 
     // Bucket revenues by Kennziffer. First match
     // wins. Gutschriften (negative subtotal) reduce
@@ -394,26 +419,37 @@ export class AnlageGService {
     for (const def of EINNAHMEN_LINES) einnahmenBuckets.set(def.kz, 0)
     const addTo = (kz: string, amount: number) =>
       einnahmenBuckets.set(kz, (einnahmenBuckets.get(kz) || 0) + amount)
-    for (const inv of invoices) {
-      // Tier 411: after the invoice discount and in EUR (was subtotal).
-      const revenue = invoiceNetRevenue(inv)
-      if (revenue < 0) {
+    const rateKz = (rate: number) =>
+      rate === 0 ? (kleinunternehmer ? '2130' : '2190')
+      : Math.abs(rate - 0.07) < 0.001 ? '2120'
+      : '2110'
+    for (const { invoice: inv, amount } of revenueRows) {
+      if (amount < 0 || inv.type === 'CN') {
         // Gutschrift (CN) — reduce Kz 2110 directly
-        addTo('2110', revenue)
+        addTo('2110', amount)
         continue
       }
       if (inv.reverseCharge === true || inv.euTransaction === true) {
-        addTo('2150', revenue)
+        addTo('2150', amount)
         continue
       }
-      const f = invoiceEurFactor(inv)
-      for (const bucket of invoiceTaxBreakdown(inv).byRate) {
-        const kz =
-          bucket.rate === 0 ? (kleinunternehmer ? '2130' : '2190')
-          : Math.abs(bucket.rate - 0.07) < 0.001 ? '2120'
-          : '2110'
-        addTo(kz, bucket.net * f)
+      // Split the amount (the whole document, or a payment's share of it) in
+      // the proportions of the invoice's net per rate.
+      const full = itemsByInvoice.get(inv.id)
+      const buckets = full ? invoiceTaxBreakdown(full).byRate.filter((b) => b.net !== 0) : []
+      const totalNet = buckets.reduce((sum, b) => sum + b.net, 0)
+      if (!buckets.length || totalNet === 0) {
+        addTo('2110', amount)
+        continue
       }
+      for (const b of buckets) addTo(rateKz(b.rate), amount * (b.net / totalNet))
+    }
+    // Tier 464: cash sales from the Kassenbuch (cash-bookings.ts) — in the
+    // EÜR, GuV, BWA since Tier 425, never in Anlage G. Net (gross for a
+    // Kleinunternehmer); paid on the day, so the same for both methods.
+    const cash = await cashBookings(this.prisma, companyId, yearStart, yearEnd)
+    for (const c of cash.filter((x) => x.direction === 'in')) {
+      addTo(rateKz(c.rate), kleinunternehmer ? c.gross : c.net)
     }
 
     // Bucket expenses. The Sonstige 2890 is the
@@ -442,6 +478,8 @@ export class AnlageGService {
     addCost('2500', (await bookedAfaCost(this.prisma, companyId, year)).amount)
     // Tier 440: book value of assets sold or scrapped (disposals.ts).
     addCost('2890', sumRestbuchwert(await assetDisposals(this.prisma, companyId, yearStart, yearEnd)))
+    // Tier 464: cash purchases from the Kassenbuch (cash-bookings.ts).
+    for (const c of cash.filter((x) => x.direction === 'out')) addCost('2890', kleinunternehmer ? c.gross : c.net)
 
     // Build the einnahmen + betriebsausgaben lines
     // in BMF order; Betriebsausgaben are negative.
@@ -562,10 +600,13 @@ export class AnlageGService {
         gewerbesteuerSchaetzung,
       },
       counts: {
-        invoices: invoices.length,
+        invoices: invoiceCount,
         expenses: expenses.length,
         matchedMieteExpenses,
       },
+      // Tier 464: which method the figures follow, and where it came from.
+      gewinnermittlung: gewinnermittlung.art,
+      gewinnermittlungQuelle: gewinnermittlung.source,
       generatedAt: new Date().toISOString(),
       disclaimer:
         'Diese Vorschau wurde automatisch aus Ihren Buchungen generiert. ' +

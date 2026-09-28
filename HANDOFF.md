@@ -2523,6 +2523,54 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Anlage G follows the Gewinnermittlung; test stack hygiene (Tier 464)
+
+Anlage G counted by document date for every company — the "still open" of
+Tiers 454/455. Measured, a sole trader with an invoice of November 2025
+(1 000 € net) paid in January 2026 and a cash sale in December 2025 (100 €):
+Anlage G 2025 income 1 000 (the EÜR 100), 2026 income 0 (the EÜR 1 000); and
+the Kassenbuch's cash sales and purchases were in no Anlage G at all (Tier 425
+covered EÜR, GuV, BWA, not G).
+
+New `Company.gewinnermittlung` ('euer' | 'bilanz', NULL = derived; migration
+`20260928000001_company_gewinnermittlung`), `PUT /companies/:id`, a select on the
+settings page (de/en/zh). `company/gewinnermittlung.ts`: not set, it follows the
+legal form (Tier 441) — OHG, KG, GmbH & Co. KG and corporations keep books
+(§ 238 HGB, § 140 AO) → 'bilanz'; sole trader, freelancer, GbR, PartG and an
+unknown form → 'euer' (a sole trader above § 141 AO or an e. K. sets 'bilanz').
+Anlage G for 'euer' takes the EÜR's inflows and paid expenses
+(`euer-zufluss.ts`), each payment split over the invoice's VAT rates in the
+proportions of its net; for 'bilanz' the documents of the year. Both add the
+cash book (`cash-bookings.ts`). The response carries `gewinnermittlung` /
+`gewinnermittlungQuelle`; the page says which basis the figures follow. GewSt
+1A reads Anlage G and follows along. GuV / BWA stay accrual (they are accrual
+statements); the EÜR stays cash.
+
+**Test stack hygiene, found on the way:**
+- Postgres refused every new backend ("too many clients"): 479 Prisma query
+  engines were running without a parent. Prisma starts its engine as a child
+  process; `kill -9` on the node process (specs 20 and 191 on every run, and
+  manual restarts) orphaned it with its connection pool. New `kill_backend` /
+  `reap_orphan_engines` in `e2e/_lib.sh` (TERM first, KILL what is left, then
+  reap engines of this checkout with parent 1); specs 20 and 191 use it, `up`
+  reaps before starting.
+- `local-ci-stack.sh run` ran under `set -e`: when a spec failed it ended right
+  after `run-all.sh`, so the Tier 429 log copy (`/tmp/backend-e2e-run.log`)
+  only ever happened for green runs — a failing run left the previous run's
+  copy behind. That is why the Tier 463 dashboard-v2 500 "was in no log": the
+  file read was another run's. Fixed (`rc=0; … || rc=$?`); the run now also
+  dumps the 5xx rows of `ErrorEvent` (message and stack, written by
+  `system.filter`) to `/tmp/backend-e2e-errors.txt`. Spec 64 prints the body,
+  the :3001 listener and the ErrorEvent row on a non-200. The dashboard-v2 500
+  itself is still unexplained; the next one will leave its stack.
+
+Spec `e2e/253-tier464-anlage-g-gewinnermittlung.sh` (16 assertions, 8 failing
+against the previous code).
+Spec 231 changed: its company is a sole trader, so its Anlage G follows the
+EÜR (nothing paid → 0), as the EÜR assertion above it already did. Local runs:
+backend 250 / 2 / 1 before that change (231, and 240 — `mapfile`, macOS bash
+3.2 only), 0 × 5xx in ErrorEvent; Playwright **945**, no flaky.
+
 ### A UStVA with negative input tax can be filed (Tier 463)
 
 Merged history first: Tiers 443–462 were built on the cloud branch

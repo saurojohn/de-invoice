@@ -55,7 +55,8 @@ assert_eq "GuV" "$(py 'print(d["totals"]["jahresueberschuss"])')" "-790"
 AS GET "/api/v1/reports/bwa?companyId=$C&year=$Y&month=12"
 assert_eq "BWA (was -1000)" "$(py 'print(d["totals"]["jahresergebnisYtd"])')" "-790"
 AS GET "/api/v1/accounting/anlage-g?companyId=$C&year=$Y"
-assert_eq "Anlage G" "$(py 'print(d["totals"]["gewinnVorKorrektur"])')" "-790"
+# Tier 464: a sole trader's Anlage G counts payments, as its EÜR — nothing paid.
+assert_eq "Anlage G (EÜR company: as the EÜR)" "$(py 'print(d["totals"]["gewinnVorKorrektur"])')" "0"
 AS GET "/api/v1/accounting/bilanz?companyId=$C&year=$Y"
 assert_eq "Bilanz 4000: 1190 - 238 - 11.90 owed" \
   "$(py 'print([l["amount"] for s in d["passiva"] for l in s["lines"] if l.get("position")=="4000"][0])')" "940.1"
