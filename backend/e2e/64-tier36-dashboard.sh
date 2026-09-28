@@ -36,6 +36,13 @@ STATUS=$(curl -sS -o /tmp/t64_dash.json -w "%{http_code}" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
   "$API/api/v1/reports/dashboard-v2?companyId=$COMPANY_ID")
 assert_eq "dashboard-v2 returns 200" "$STATUS" "200"
+# Tier 463: a one-off 500 here (Tier 429, and again in a local run after the
+# PR #1 merge) was never captured — the body was deleted unread and the backend
+# log had no entry. Print the body and the log tail when it happens.
+if [ "$STATUS" != "200" ]; then
+  echo "  body: $(head -c 2000 /tmp/t64_dash.json)"
+  echo "  backend log tail:"; tail -40 /tmp/backend.log 2>/dev/null | sed 's/^/    /'
+fi
 
 # Top-level keys — check that the required
 # keys are present (set-based). Tier 66+ added

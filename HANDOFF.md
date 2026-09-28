@@ -2521,6 +2521,45 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### A UStVA with negative input tax can be filed (Tier 463)
+
+Merged history first: Tiers 443–462 were built on the cloud branch
+`claude/eloquent-hopper-qbea72` (PR #1). A second, local Tier 443 (delete
+guard + an expense Storno endpoint, `d5a8016`) was pushed to main from the same
+base in parallel; it was reverted (`028ce09`) and PR #1 merged (`ba31e7f`) —
+the cloud Tier 443/447/449 cover the same ground more completely (lock
+reasons, editing of open expenses, "Berichtigung nötig" for a submitted UStVA
+the books no longer match). Checked on the merged code: an unpaid expense of a
+submitted month can still be edited or deleted, and the filing is then flagged
+`berichtigungNoetig` with the deviation (Tier 449) — a corrected return, not a
+refusal. That is kept.
+
+The one part of the reverted work the branch lacked: `UstvaVorsteuerDto` and
+`vorsteuerSum` still had `Min(0)`. A month with only a supplier credit note
+(Tier 442) has Vorsteuer −19 €, and `POST /ustva/filings` answered 400 — the
+month could not be declared. A negative Kz 66 is legitimate (§ 17 UStG) and
+ELSTER writes it signed (`B-Kz066=-000000001900`, Kz 83 +19 to pay back). The
+constraints are gone, as Tier 417 did for the sales side.
+
+Spec `e2e/252-tier463-ustva-negative-vorsteuer.sh` (6 assertions, 3 failing
+against the previous code).
+Merge CI (run 36456999242, `ba31e7f`): backend 250/0/1, Playwright 945.
+Local backend run after the change: 248 passed / 3 failed / 1 skipped —
+50-webhooks (local nip.io, as always), **240** (uses `mapfile`, which macOS's
+bash 3.2 lacks — passes in CI's bash 5; local-only) and **64**: one
+`GET /reports/dashboard-v2` answered **500** and passed on the rerun. That is
+the second unexplained dashboard-v2 500 (the first in Tier 429) and again the
+cause is lost: the spec deleted the body unread and the backend log has no
+entry for it. Spec 64 now prints the body and the log tail on a non-200.
+Playwright: 944 + **1 flaky** — `assets-afa` "storno button visible" (Tier 90).
+Cause in the page, not the test: every change of the year starts a load, and
+`fill("2028")` clears the field first (→ current year) — whichever answer came
+last was shown, sometimes the wrong year's. The assets page now applies only
+the latest load's answer (a user typing a year hit the same). The Tier 89 and
+90 tests wait for the text instead of a fixed 2,5 s (the Tier 89 fix of the
+reverted local Tier 443 is re-applied here). assets-afa 5 × without retries:
+50/50.
+
 ### A payment belongs to an issued invoice (Tier 462)
 
 The mirror of Tier 461. `PaymentService.create` checked the type (no credit

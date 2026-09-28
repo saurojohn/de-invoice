@@ -311,15 +311,13 @@ test("Tier 89: after POST book-afa-monthly the page shows monthly mode chip", as
   // Switch to the year we booked for.
   const yearInput = page.getByTestId("assets-year")
   await yearInput.fill(String(MONTHLY_YEAR))
-  await page.waitForTimeout(2500)
   const statusCell = page.getByTestId(`assets-afa-status-${created.id}`)
   await expect(statusCell).toBeVisible({ timeout: 10_000 })
-  const text = (await statusCell.textContent()) || ""
-  // The cell should contain both the
-  // booked label and the monthly mode
-  // chip (assets.afaBookedMonthly key).
-  expect(text).toMatch(/gebucht|booked|已簿记/)
-  expect(text).toMatch(/monatlich|monthly|按月/)
+  // Tier 463: wait for the new year's status instead of a fixed 2,5 s (read
+  // the default year's "nicht gebucht" once). The cell should contain both
+  // the booked label and the monthly mode chip (assets.afaBookedMonthly key).
+  await expect(statusCell).toContainText(/monatlich|monthly|按月/, { timeout: 15_000 })
+  expect((await statusCell.textContent()) || "").toMatch(/gebucht|booked|已簿记/)
 })
 
 test("Tier 90: storno button visible when booking exists, opens confirm modal", async ({ page }) => {
@@ -348,9 +346,10 @@ test("Tier 90: storno button visible when booking exists, opens confirm modal", 
   await expect(page.getByTestId("assets-year")).toBeVisible({ timeout: 30_000 })
   const yearInput = page.getByTestId("assets-year")
   await yearInput.fill(String(STORNO_YEAR))
-  await page.waitForTimeout(2500)
+  // Tier 463: the page applies only the latest year's answer now; wait for
+  // the button instead of a fixed 2,5 s.
   const stornoBtn = page.getByTestId("assets-storno-afa")
-  await expect(stornoBtn).toBeVisible({ timeout: 10_000 })
+  await expect(stornoBtn).toBeVisible({ timeout: 15_000 })
   // Click opens the confirm modal
   await stornoBtn.click()
   await expect(page.getByTestId("assets-storno-confirm")).toBeVisible({ timeout: 5_000 })

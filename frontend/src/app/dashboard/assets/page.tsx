@@ -180,9 +180,16 @@ export default function AssetsPage() {
   const [stornoConfirm, setStornoConfirm] = useState(false)
   const [stornoSaving, setStornoSaving] = useState(false)
 
+  // Tier 463: every change of the year starts a load; typing "2028" (or a
+  // field cleared and refilled) starts several, and the one answering last
+  // won — the booking status of an earlier year could stay on screen (flaky
+  // Playwright "storno button visible", and the same for a user typing).
+  // Only the latest load's answer is applied.
+  const loadSeq = useRef(0)
   const load = useCallback(async () => {
     const companyId = typeof window !== "undefined" ? localStorage.getItem("companyId") : null
     if (!companyId) return
+    const seq = ++loadSeq.current
     setLoading(true)
     try {
       const [data, status] = await Promise.all([
@@ -191,6 +198,7 @@ export default function AssetsPage() {
           `/api/v1/assets/booking-status?companyId=${companyId}&year=${year}`,
         ),
       ])
+      if (seq !== loadSeq.current) return
       setAssets(data || [])
       setBookingStatus(status || [])
     } catch (e) {
