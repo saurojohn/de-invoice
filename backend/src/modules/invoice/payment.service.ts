@@ -1,6 +1,7 @@
 import { InvoiceService } from './invoice.service';
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { CLAIM_TYPES } from './document-scope';
 import { PrismaService } from '../../prisma/prisma.service';
 import { WebhookService } from '../webhook/webhook.service';
 import { ReminderService } from '../reminder/reminder.service';
@@ -77,6 +78,21 @@ export class PaymentService {
     if (invoice.type === 'CN') {
       throw new BadRequestException(
         'Gutschriften können nicht direkt bezahlt werden — sie werden mit dem offenen Saldo der Originalrechnung verrechnet.'
+      );
+    }
+    // Tier 462: only an issued document takes a payment. A cancelled invoice
+    // turned "paid" (the Storno undone, back in the UStVA), a draft went
+    // straight to "paid" without ever being issued. Every way a payment is
+    // booked comes through here.
+    if (invoice.status === 'draft') {
+      throw new BadRequestException(
+        'Die Rechnung ist noch ein Entwurf. Stellen Sie sie zuerst aus (Status „gesendet“), dann kann die Zahlung gebucht werden.',
+      );
+    }
+    if (invoice.status === 'cancelled') {
+      throw new BadRequestException(
+        'Die Rechnung ist storniert und nimmt keine Zahlung mehr an. Geld, das der Kunde trotzdem gezahlt hat, ' +
+        'buchen Sie als sein Guthaben (Kunde → Guthaben) und zahlen es aus oder verrechnen es.',
       );
     }
     if (!data.amount || data.amount <= 0) {
@@ -171,9 +187,10 @@ export class PaymentService {
       }
     }
 
-    // Only INV/PI/RCV get status updates; PI is non-binding so we keep
-    // it as "sent" even after payment.
-    if (invoice.type === 'INV' && totalPaid >= invoiceTotal - 0.01) {
+    // Only claims (INV, RCV) get status updates; PI is non-binding so we keep
+    // it as "sent" even after payment. Tier 459: a Quittung stayed "sent" when
+    // paid in full — the comment said RCV, the check said INV only.
+    if (CLAIM_TYPES.includes(invoice.type) && totalPaid >= invoiceTotal - 0.01) {
       // Tier 37: before flipping the status, cancel any
       // open Mahnungen so the dashboard / Mahnhistorie no
       // longer lists them as "open" once the customer
@@ -245,7 +262,7 @@ export class PaymentService {
           currency: payment.currency,
           paymentDate: payment.paymentDate,
           paymentMethod: payment.paymentMethod,
-          fullyPaid: invoice.type === 'INV' && totalPaid >= invoiceTotal - 0.01,
+          fullyPaid: CLAIM_TYPES.includes(invoice.type) && totalPaid >= invoiceTotal - 0.01,
         },
       })
       .catch((err) => console.error('webhook emit(payment.received) failed:', err))
@@ -288,6 +305,39 @@ export class PaymentService {
   }
 
   /**
+   * Tier 460 — the Skonto credit note a payment booked (settleSkonto, in the
+   * same request: dated the payment day, created right after it) is
+   * cancelled with the payment, and its offset on the invoice removed. It
+   * stayed: the invoice showed the Skonto open-balance and the UStVA the
+   * reduced tax although the payment that earned the Skonto was gone.
+   */
+  private async cancelSkontoOf(
+    payment: { invoiceId: string; paymentDate: Date; createdAt: Date },
+    companyId: string,
+  ) {
+    const from = payment.createdAt
+    const to = new Date(from.getTime() + 60_000)
+    const day = (d: Date) => d.toISOString().slice(0, 10)
+    const cns = await this.prisma.invoice.findMany({
+      where: {
+        companyId,
+        type: 'CN',
+        referenceInvoiceId: payment.invoiceId,
+        status: { not: 'cancelled' },
+        notes: { contains: '— Skonto ' },
+        createdAt: { gte: from, lte: to },
+      },
+      select: { id: true, invoiceNumber: true, issueDate: true },
+    });
+    for (const cn of cns.filter((c) => day(c.issueDate) === day(payment.paymentDate))) {
+      await this.prisma.payment.deleteMany({
+        where: { invoiceId: payment.invoiceId, paymentMethod: 'Gutschrift', reference: `CN ${cn.invoiceNumber}` },
+      });
+      await this.prisma.invoice.update({ where: { id: cn.id }, data: { status: 'cancelled' } });
+    }
+  }
+
+  /**
    * Remove a payment. Used to correct mistakes. We re-evaluate the
    * invoice status afterwards — if the remaining total drops below the
    * invoice total, status goes back to "sent".
@@ -295,15 +345,21 @@ export class PaymentService {
   async delete(paymentId: string, companyId: string) {
     const payment = await this.prisma.payment.findUnique({
       where: { id: paymentId },
-      include: { invoice: { select: { companyId: true, total: true, type: true } } },
+      include: { invoice: { select: { companyId: true, total: true, type: true, customerId: true, invoiceNumber: true } } },
     });
     if (!payment || payment.invoice.companyId !== companyId) {
       throw new NotFoundException('Zahlung nicht gefunden');
     }
+    // Tier 460: what the payment caused goes with it — its overpayment credit
+    // (refused if already used), a credit it applied, its Skonto credit note.
+    const credit = await this.creditBalance.paymentDeletion(companyId, payment);
+    await credit.check();
     await this.prisma.payment.delete({ where: { id: paymentId } });
+    await credit.apply();
+    await this.cancelSkontoOf(payment, companyId);
 
-    // Recompute status
-    if (payment.invoice.type === 'INV') {
+    // Recompute status (Tier 459: a Quittung too)
+    if (CLAIM_TYPES.includes(payment.invoice.type)) {
       const remaining = await this.prisma.payment.findMany({
         where: { invoiceId: payment.invoiceId },
         select: { amount: true },

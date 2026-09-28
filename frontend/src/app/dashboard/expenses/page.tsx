@@ -9,6 +9,7 @@ import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
 import { apiGet } from "@/lib/api"
 import { ReceiptsPanel } from "@/components/ReceiptsPanel"
+import { ExpenseEditForm } from "@/components/ExpenseEditForm"
 
 // Expense = Eingangsrechnung (vendor bill). The list
 // page is the Berater's overview of all incoming
@@ -41,6 +42,8 @@ interface Expense {
     voucherNumber: string
     referenceType: string
   } | null
+  // Tier 447: why a paid expense / AfA row can no longer be changed.
+  lockReason?: string | null
 }
 
 interface Supplier {
@@ -658,6 +661,7 @@ export default function ExpensesPage() {
                             return (
                               <button
                                 onClick={() => setDetailExpense(e)}
+                                data-testid={`expense-open-${e.id}`}
                                 className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs ${
                                   count > 0
                                     ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-900/50"
@@ -703,6 +707,14 @@ export default function ExpensesPage() {
               </div>
             </CardHeader>
             <CardContent>
+              <ExpenseEditForm
+                expense={detailExpense}
+                suppliers={suppliers}
+                onSaved={() => {
+                  setDetailExpense(null)
+                  load()
+                }}
+              />
               <ReceiptsPanel
                 companyId={localStorage.getItem("companyId") || ""}
                 entityType="expense"

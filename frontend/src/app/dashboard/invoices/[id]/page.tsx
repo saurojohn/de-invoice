@@ -1891,8 +1891,10 @@ export default function InvoiceDetailPage() {
                   {convertError}
                 </span>
               )}
+              {/* Tier 462: a draft takes no payment either — it is issued first */}
               {invoice.type !== "CN" &&
-                invoice.status !== "cancelled" && (
+                invoice.status !== "cancelled" &&
+                invoice.status !== "draft" && (
                   <Button
                     size="sm"
                     onClick={() => setShowPayForm(!showPayForm)}

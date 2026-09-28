@@ -9,17 +9,37 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–442 are
-  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 442.)
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–462 are
+  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 462.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 35987275741 / commit `174f332`, Tier 442):**
-  - Backend e2e: **230 passed / 0 failed / 1 skipped** of 231 specs — 100
-    two-digit + 131 three-digit (Tier 442 added `231-tier442-lieferantengutschrift.sh`,
+- **Test counts (last green CI, run 36233216659 / commit `b952423`, Tier 462):**
+  - Backend e2e: **250 passed / 0 failed / 1 skipped** of 251 specs — 100
+    two-digit + 151 three-digit (Tier 462 added `251-tier462-zahlung-status.sh`,
+    Tier 461 added `250-tier461-storno-bezahlt.sh`,
+    Tier 460 added `249-tier460-zahlung-loeschen.sh`,
+    Tier 459 added `248-tier459-quittung-datev.sh`,
+    Tier 458 added `247-tier458-privat-kasse.sh`,
+    Tier 457 added `246-tier457-ist-versteuerung.sh`,
+    Tier 456 added `245-tier456-guthaben-auszahlung.sh`,
+    Tier 455 added `244-tier455-anlage-s-v-zufluss.sh`,
+    Tier 454 added `243-tier454-euer-zufluss.sh`,
+    Tier 453 added `242-tier453-storage-url.sh`,
+    Tier 452 added `241-tier452-lieferantenskonto.sh`,
+    Tier 451 added `240-tier451-zahlung-eingangsrechnung.sh`,
+    Tier 450 added `239-tier450-gutschrift-erstattung.sh`,
+    Tier 449 added `238-tier449-berichtigung-noetig.sh`,
+    Tier 448 added `237-tier448-ustva-uebermittelt.sh`,
+    Tier 447 added `236-tier447-ausgaben-status.sh`,
+    Tier 446 added `235-tier446-zuordnung-storno.sh`,
+    Tier 445 added `234-tier445-docker-exec-stdin.sh`,
+    Tier 444 added `233-tier444-bankbeleg-storno.sh`,
+    Tier 443 added `232-tier443-ausgabe-korrigieren.sh`,
+    Tier 442 added `231-tier442-lieferantengutschrift.sh`,
     Tier 441 added `230-tier441-rechtsform.sh`,
     Tier 440 added `229-tier440-anlagenabgang.sh`,
     Tier 439 added `228-tier439-kst-ohne-anrechnung.sh`,
@@ -71,12 +91,17 @@ exact commands + docs you need to be productive.
     and survives concurrent writes (Tier 367); spec 171 (new in Tier 368) asserts
     the auth audit rows exist at all and are signed — nothing had ever asserted
     on them, which is how a failed login for an unknown e-mail went unaudited.
-  - Playwright: **930 passed / 0 failed / 0 skipped / 0 flaky** (Tier 428's
+  - Playwright: **945 passed / 0 failed / 0 skipped / 0 flaky** (run
+    36231779527 on Tier 461 had 1 flaky — `list-pages.spec.ts` "Invoices
+    list" counted the rows before the list had rendered; fixed in Tier 462,
+    which waits for a row or the empty state. Tier 428's
     run had one flaky — `list-pages.spec.ts` "Invoices list renders without
     console errors" expected the empty state and saw a populated list, then
-    passed on retry). 930 tests (922 since Tier 390's
+    passed on retry). 945 tests (922 since Tier 390's
     page tests; +4 in Tier 401's session-cookie spec; +2 in Tier 413's
-    invoice-discount-row spec; +2 in Tier 415's invoice-form-totals spec). Tier 365 turned the last 4 skips into real
+    invoice-discount-row spec; +2 in Tier 415's invoice-form-totals spec; +3 in
+    Tier 443's ustva-expense-edit spec; +2 in Tier 447's expense-edit spec; +1 in
+    Tier 448's ustva-berichtigt spec; +1 each in Tiers 449, 450, 451, 452, 453, 454, 455, 457 and 458). Tier 365 turned the last 4 skips into real
     tests; Tier 365b fixed the one flaky test (`bwa-quarterly-tier163`).
     Tier 369 removed 28 silent-skip call sites — three intentional ones remained
     (two since Tier 381, which turned the webhook replay skip into a real wait),
@@ -2146,7 +2171,7 @@ Fix:
   settable by any company admin and still process-wide; nothing reads them yet
   ("coming soon") — part of §9 item 11.
 
-Still open: the settings page's file **Download** button is a plain navigation
+~~Still open~~ (closed in Tier 453): the settings page's file **Download** button is a plain navigation
 to `${API_BASE}${f.url}` without auth headers — the same class as Tier 377's
 "backend URLs not passed to an `api*` helper", though built from response data
 so that scan does not count it. It answers 401, as before this change.
@@ -2496,6 +2521,579 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### A payment belongs to an issued invoice (Tier 462)
+
+The mirror of Tier 461. `PaymentService.create` checked the type (no credit
+note) and the amount, not the status — and every way a payment is booked
+(invoice page, bank import, cash book, Raten, Sammelzahlung, customer credit,
+payment notices) goes through it. Measured:
+- a cancelled invoice took 1 190 € (201) and turned "paid": the Storno
+  undone, its 190 € back in the UStVA;
+- a draft took a payment and went straight to "paid" — never issued, but
+  counted in the UStVA (380 € for the two) and the EÜR.
+
+Now a draft is refused ("zuerst ausstellen") and so is a cancelled document
+(the message points to booking the money as the customer's credit). The
+invoice page hides "Zahlung erfassen" on drafts (it already did on cancelled
+invoices).
+
+Specs that paid drafts in their fixtures now issue them first: 50, 52, 79,
+149, 175, 189 (a PUT status 'sent' before the payment, nothing else).
+
+Also here — Tier 461a: `list-pages.spec.ts` "Invoices list" (flaky in run
+36231779527) counted the rows right after networkidle; it waits for a row or
+the empty state now (HANDOFF §10 lesson 13). 10 repeats passed.
+
+Spec `e2e/251-tier462-zahlung-status.sh` (11 assertions, 7 failing against
+the previous code).
+
+### A paid invoice is not simply cancelled (Tier 461)
+
+`PUT /invoices/:id/status` checked no transition, and "cancelled" takes a
+document out of every return (UStVA, EÜR, DATEV — with its payments).
+Measured, a 1 190 € invoice paid in full, then cancelled (200): its 190 €
+output tax, its 1 000 € income and the 1 190 € on the bank left the books,
+and the customer's money was nowhere (no credit, no refund). An invoice with
+a credit note against it, cancelled: the invoice left the returns, the
+credit note stayed subtracted. The delete route's own message pointed there
+("Bitte stornieren oder eine Gutschrift erstellen").
+
+Now `updateStatus` refuses 'cancelled' while the document has payments
+(credit-note offsets included) or an active credit note, and refuses it for a
+credit note already settled against its invoice — the correction is a credit
+note (and refunding what was paid). An unpaid invoice can still be
+cancelled. The delete message names the credit note only.
+
+Spec `e2e/250-tier461-storno-bezahlt.sh` (10 assertions, 6 failing against
+the previous code). No UI change: the invoice page shows the refusal as a
+toast.
+
+### Deleting a payment takes back what it caused (Tier 460)
+
+`DELETE /invoices/:id/payments/:paymentId` removed only the payment row.
+Measured:
+- 1 300 € paid on 1 190 €, deleted: the customer kept the 110 € credit
+  (Tier 58) for money that never arrived — it could be paid out;
+- 1 166,20 € paid within 2 % Skonto, deleted: the Skonto credit note
+  (Tier 422) stayed — 1 166,20 € open instead of 1 190 €, UStVA 3,80 € short;
+- a credit applied to an invoice (a 'Guthaben' payment, Tier 431), the
+  payment deleted: the credit was gone.
+
+Now `CreditBalanceService.paymentDeletion` refuses the delete when the
+overpayment's credit has been used meanwhile (400, the payment stays), and
+afterwards takes the overpayment back / gives an applied credit back (ledger
+rows 'manual', referenceType Payment). `PaymentService.cancelSkontoOf`
+cancels the Skonto credit note the payment booked — found by its reason,
+the payment day and its creation in the same request (≤ 60 s) — and removes
+its offset on the invoice; paying again books a new one.
+
+Spec `e2e/249-tier460-zahlung-loeschen.sh` (17 assertions, 7 failing against
+the previous code). No UI change: the invoice page shows the refusal's
+message.
+
+Not changed: the Skonto credit note carries no explicit link to its payment
+(the match is by reason, day and creation time); a payment booked by the bank
+import or the cash book is taken back there (Tiers 444 / 446 / 425), not by
+this route.
+
+### A paid Quittung: settled in the app and in DATEV (Tier 459)
+
+Since Tier 424 a Quittung (RCV) is a sale of its own and DATEV books it on
+the customer's Debitor. Measured, a Quittung over 119 € paid 119 € by bank:
+- the app left it "sent": PaymentService set only an INV to paid (its
+  comment said INV / RCV), and only an INV back to open when a payment was
+  deleted — so a paid Quittung counted as unpaid (EÜR `counts.unbezahlt`,
+  the invoice list's status filter);
+- DATEV: the payments query took INV / CN only — the Debitor stayed at 119 €
+  owed and the bank at 0.
+
+Now both status paths use `CLAIM_TYPES` (INV, RCV), and the DATEV payments
+query takes INV, RCV and CN. The Skonto stays INV-only (a Quittung has no
+payment terms).
+
+Spec `e2e/248-tier459-quittung-datev.sh` (8 assertions, 3 failing against the
+previous code).
+
+### Privateinlage / Privatentnahme in the Kassenbuch (Tier 458)
+
+A Kassenbuch entry without a VAT rate is the owner's money (Tier 425: no
+EÜR / UStVA / GuV). Measured:
+- DATEV exported nothing for it: 500 € put in and 200 € taken out moved the
+  Kassenbuch to 419 € (with a 119 € cash sale) and DATEV's Kasse 1000 to
+  119 €.
+- the Kassenbuch page offered 19 %, 7 % or 0 % only — a withdrawal entered
+  there at 0 % became a business expense (EÜR 5900), a deposit tax-free
+  revenue (EÜR 4170, UStVA Kz 44 "sonstige steuerfreie Umsätze").
+
+Now the VAT select has "Privateinlage" / "Privatentnahme" (saved with
+`vatRate: null`, a hint says what it means), and DATEV books "Kasse an
+Privateinlagen 1890" / "Privatentnahmen 1800 an Kasse" — two new keys in the
+per-company account map (`privateDeposit`, `privateWithdrawal`, labelled in
+the settings page and the Buchungsliste).
+
+Spec `e2e/247-tier458-privat-kasse.sh` (7 assertions, 4 failing against the
+previous code); spec 214 now expects the Privateinlage row. Playwright
+`cashbook-privat-tier458.spec.ts`.
+
+Not changed: the Sachkonten seed (`accounting/accounts/seed`) names 1800
+"Sonstige Vermögensgegenstände" — in SKR03 1800 is Privatentnahmen; the seed
+is not used by the DATEV export, but its labels are off.
+
+### Ist-Versteuerung: output tax when the money comes in (Tier 457)
+
+The app knew only the Soll-Versteuerung. A business allowed the
+Ist-Versteuerung (§ 20 UStG — below the turnover threshold, or a freelancer)
+owes the output tax in the period the payment arrives (§ 13 Abs. 1 Nr. 1 b).
+Measured: there was no setting (PUT `besteuerungsart` → 400), and the March
+UStVA declared 190 € on an invoice paid in April and the full 7 € on a
+half-paid one.
+
+Now `Company.besteuerungsart` ('soll' default / NULL, or 'ist'; migration
+`20260925000001_company_besteuerungsart`, settings page select). With 'ist'
+the UStVA takes taxed sales from `istPaidDocuments` (`reports/ustva-ist.ts`):
+the EÜR's payment walk (`euerInflows`, which now also returns the paid
+`fraction` of each document) applied per rate. Zero-rated sales (§ 4, igL,
+§ 13b, export) stay at the invoice date, and so does the input tax (§ 15).
+The response carries `besteuerungsart`; the UStVA page says so; the UStJA
+sums the monthly results, so it follows. The filing DTO accepts the echoed
+field (it was refused as unknown — specs 206 / 237 / 238 caught it).
+
+Spec `e2e/246-tier457-ist-versteuerung.sh` (10 assertions, 5 failing against
+the previous code). Playwright `ist-versteuerung-tier457.spec.ts`.
+
+Not changed: the DATEV export books the same either way — DATEV handles the
+Ist-Versteuerung through the Mandant's own setting (the Berater sets it
+there); the ELSTER XML has no field for it.
+
+### Paying out a customer's credit books money leaving the bank (Tier 456)
+
+Found while reading the credit code for Tier 454. Measured (invoice 119 €,
+paid 150 €, the 31 € credit paid out):
+- the payout voucher was Bank **Soll** 31 / Forderungen Haben 31 — money
+  coming in. DATEV exported "1200 an 1400 S 31": the bank at 181 € instead of
+  119 €, the customer's Debitor left at −31 (the credit never settled), and a
+  direct posting on the collective account 1400.
+- a payout above the credit was refused (400) only after its bank voucher had
+  been posted; the voucher stayed.
+- a Storno of the payout voucher put the money back in the books, but the
+  credit ledger kept the payout: balance 0 € while the Debitor owed 31 €.
+
+Now `CreditBalanceService.payout` checks the balance first, books
+Forderungen Soll / Bank Haben, and reverses its voucher if the ledger write
+still fails (a concurrent use of the credit). DATEV exports a payout as
+"Bank an Debitor H" (a Storno "S"), taking the customer from the payout's
+ledger row and the amount from the bank line's size — so payouts booked the
+old way export right as well. `VoucherService.createReversal` restores the
+credit (a 'manual' ledger row) when the original is a payout.
+
+Spec `e2e/245-tier456-guthaben-auszahlung.sh` (14 assertions, 6 failing
+against the previous code; the credit-after-Storno check was added with the
+fix). No UI change — `credit-balance.spec.ts` (8 tests) still passes.
+
+Not changed: payout vouchers already posted keep their reversed lines in the
+voucher list / account sheets (DATEV reads them right); a data fix would
+reverse and re-post them. A fresh company has no Sachkonten until
+`accounting/accounts/seed` runs, so the payout form stays disabled until then
+(covered by `credit-balance.spec.ts`).
+
+### Anlage S and Anlage V count payments too (Tier 455)
+
+Left open by Tier 454. A freelancer's Anlage S is the EÜR (§ 18 income,
+§ 4 Abs. 3 EStG) and rent is income when received (§ 21 / § 11), but both
+annexes still took invoices at their issue date and expenses at their
+invoice date. Measured with 243's fixtures: 2025 showed 1 000 income for an
+invoice paid in 2026 and the bill paid in 2026; 2026 showed the unpaid
+invoice and bill — Anlage S Gewinn −200 where its EÜR said 700.
+
+Now EÜR, Anlage S and Anlage V share `euerInflows` / `euerExpenses`
+(`euer-zufluss.ts`), return `prinzip: 'zufluss'` and `counts.unbezahlt`, and
+the page sections and PDFs say so. One addition to the selection: a *paid*
+negative invoice (a correction entered as INV, as spec 106 seeds it) lowers
+the income at its issue date — the walk over payments skipped it.
+
+Specs adapted: 106, 118 (SQL-seeded expenses get `paidAt`), 213 (the
+Quittung and the invoice are paid before the Anlage S check, moved to the end
+so the ageing / DATEV checks still see them open).
+
+Spec `e2e/244-tier455-anlage-s-v-zufluss.sh` (8 assertions, 7 failing against
+the previous code). Playwright `anlage-s-v-zufluss-tier455.spec.ts`.
+
+Still open: Anlage G stays on the document date — a Gewerbe that keeps books
+(§ 140 AO / § 141 AO) accrues, one that does not files the EÜR; the app does
+not know which (a company setting would decide it). Money received on a
+Proforma (an Anzahlung) is income under § 11, but PI payments are not
+counted — the final invoice's payment would then count it twice; that needs
+the PI → invoice link.
+
+### The EÜR counts payments, when they were made (Tier 454)
+
+Item 20 of §9, decided by the user: cash basis (Zufluss-/Abflussprinzip,
+§ 11 EStG). Measured with a fresh company: an invoice of November 2025 paid
+in January 2026 was 2025 income; the 2026 EÜR showed an unpaid invoice (200),
+a half-paid one in full (500), an unpaid bill (400), and not the invoice paid
+in 2026. An expense paid outside the bank import / SEPA / cash book (card,
+private account) had no way to record its payment date — `paidAt` was an
+unknown field (400).
+
+Now (`accounting/euer-zufluss.ts`):
+- income = each payment's net share of its invoice (payment × net / gross,
+  in EUR via the invoice's own net), in date order up to the invoice total.
+  A 'Gutschrift' payment (credit note settling the invoice, also the Tier 422
+  Skonto) takes up its part and is no income; an overpayment beyond the total
+  is no income of that invoice — it counts when the credit pays another
+  invoice ('Guthaben' payment). An invoice set "paid" without its payments
+  recorded counts the uncovered part at its issue date.
+- a credit note's amount beyond what it settled on its invoice (the invoice
+  was already paid) lowers the income at the credit note's date — strictly
+  that is the day the money goes back, but a payout (`credit-balance
+  payout`) is not linked to the credit note.
+- expenses count at `paidAt`. `paidAt` can be entered on create and changed
+  / cleared on update (both expense routes, "Bezahlt am" in the UStVA form
+  and the expenses modal). A manual `paidAt` no longer locks the expense
+  (Tier 443 locked any `paidAt`); bank, SEPA, cash-book and AfA locks stay,
+  and a Skonto credit note (Tier 452) stays locked to its bank payment.
+- the response says `prinzip: 'zufluss'` and `counts.unbezahlt` (invoices /
+  expenses of the year not paid yet); the page and the PDF say so.
+
+Specs adapted (they built revenue from sent-but-unpaid invoices or unpaid
+expenses): 141 (baseline from the EÜR itself, then the three invoices paid),
+199, 200, 208, 225, 227 (payments / `paidAt` added), 231 (nothing paid → 0,
+4 open), 232 (`paidAt` is now a field; a SEPA-paid expense's `paidAt` cannot
+be cleared).
+
+Spec `e2e/243-tier454-euer-zufluss.sh` (15 assertions; its first version
+failed 12 against the previous code). Playwright `euer-zufluss-tier454.spec.ts`: an unpaid bill is
+listed as open, its paid date entered in the modal puts it on 4300.
+
+Still open: Anlage G, GuV and BWA stay on the document date (GuV and BWA are
+accrual by nature; Anlage S / V followed in Tier 455);
+a customer-credit payout is not linked to the credit note that created it.
+
+### A stored file's URL opens it (Tier 453)
+
+Measured: `POST /storage/upload` answered with url `/api/v1/storage/<path>` —
+no such route, GET was 404 (the file route is `files/*splat` with the path's
+slashes as commas, which `GET /storage/list` returned). And the settings
+page's file "Download" (left open by Tier 385) navigated to the list URL
+without the auth headers: 401, the browser saved an error page.
+
+Now `storageFileUrl()` builds the URL for both routes, and the button fetches
+the file with the headers (`apiGetBlob`) and saves the blob under its original
+name. Nothing else read the upload's url (attachments keep `path`).
+
+Spec `e2e/242-tier453-storage-url.sh` (7 assertions, 4 failing against the
+previous code; the Tier 385 isolation — 404 for another company — still
+holds). Playwright `storage-download-tier453.spec.ts` checks the saved file's
+name and bytes.
+
+### A supplier bill paid less its Skonto (Tier 452)
+
+Left open by Tier 451. A bill of 1 190 € paid within its Skonto period with
+1 166,20 € (2 %) could not be booked against the bill — Tier 451 refuses a
+debit that is not the bill's amount; before Tier 451 it was booked and the
+bill marked paid with the Skonto nowhere (cost 1 000, Vorsteuer 190 although
+23,80 € were never paid). The way out was a supplier credit note entered by
+hand first.
+
+Now `book-expense` takes `skonto: true`: when the debit is less than the bill
+by at most 10 %, the difference becomes a supplier credit note
+("<number>-SKONTO", split at the bill's rate — § 17 UStG: net −20, VAT −3,80),
+settled with the payment (paidAt, notes `[skonto-voucher:<id>]`), and the bill
+is paid; the voucher carries the VAT of what was paid. Cost 980, Vorsteuer
+186,20, nothing owed in the balance sheet or DATEV. Without the flag the 400
+says to book it with Skonto. DATEV's "otherwise paid" rows (Tier 432) skip the
+Skonto credit note — no money moved for it (the filter keeps NULL notes: NOT
+LIKE on NULL would have dropped every other expense, which spec 221 caught).
+A Storno of the payment voucher deletes its Skonto credit note
+(`releaseBankBooking`). The bank import page offers "Zahlung <nr> mit Skonto
+<x> €" on a debit 0–10 % below an open bill when no bill matches exactly.
+
+Spec `e2e/241-tier452-lieferantenskonto.sh` (20 assertions, 9 failing
+against the previous code). Playwright `bank-skonto-tier452.spec.ts`.
+
+### A bank debit pays a recorded expense once, and only its amount (Tier 451)
+
+`book-expense` with an `expenseId` checked only that the expense was the
+company's. Measured with six debits of 119 €: one was booked against an
+invoice of 1 190 and marked it paid; an expense paid from the cash book was
+paid again; one paid by an earlier bank booking was paid again; a supplier
+credit note was "paid" by a debit — four vouchers where none belonged. And the
+bank import page could not link an expense at all: a debit row offered only
+"Als Aufwand buchen" (an account), so paying a recorded Eingangsrechnung left
+it open.
+
+Now a debit against an expense needs its gross amount (±½ cent; the message
+suggests a supplier credit note for a difference such as a Skonto), refuses a
+credit note (its refund is an incoming payment, Tier 450) and an AfA row, and
+refuses an expense already paid — or a credit note already refunded — by the
+cash book or another unreversed bank booking. A SEPA-paid expense is accepted:
+the debit is the batch's execution, and `paidAt` keeps the batch date. The
+page shows "Zahlung <number>" on an unbooked debit row when an open expense
+(or a SEPA-paid one without a bank booking) has its amount, booking it with
+the expense's VAT, Sachkonto and supplier (de/en/zh).
+
+Spec `e2e/240-tier451-zahlung-eingangsrechnung.sh` (13 assertions, 6 failing
+against the previous code); spec 239 gained "not refunded twice". Playwright
+`bank-payment-tier451.spec.ts`.
+
+(A supplier Skonto — paying less than the bill — is Tier 452.)
+
+### A supplier's refund is booked against its credit note (Tier 450)
+
+Left open by Tier 442: a supplier credit note (negative expense) could be
+recorded, but the refund it promises could not be booked when it arrived.
+`book-expense` refused every incoming transaction ("nur für Ausgänge"),
+nothing else links an incoming payment to an expense, and the bank import page
+offered no action on a credit row. Measured: after the 238 € refund was on the
+bank account the balance sheet still showed the supplier owing us the credit
+note (4000: −297.50 with a second, smaller one), DATEV's Kreditor too.
+
+Now `book-expense` takes an incoming transaction when `expenseId` names a
+credit note of the same amount (±½ cent): the lines of a payment reversed —
+Bank an Aufwand / Vorsteuer — and the credit note paid on the value date. An
+incoming payment without a credit note, against an invoice, or of another
+amount is refused as before. The UStVA counts the credit note once (the
+bank voucher adds nothing to it); DATEV books the refund on the Kreditor (a
+negative amount flips S/H); a Storno of the refund voucher takes it back
+(Tier 444) and the transaction can be booked again. The bank import page
+shows "Erstattung Gutschrift <number>" on an unbooked credit row when an open
+credit note has its amount (de/en/zh).
+
+Spec `e2e/239-tier450-gutschrift-erstattung.sh` (19 assertions, 5 failing
+against the previous code). Playwright `bank-refund-tier450.spec.ts`.
+
+(Tier 451 adds the same for a debit: "Zahlung <number>".)
+
+### A submitted UStVA the books no longer match is flagged (Tier 449)
+
+Tier 448 kept a submitted filing's figures; the books of its period could
+still change afterwards (an expense entered late, an open one corrected —
+Tier 443). `GET /ustva/filings` kept showing the submitted figures with
+nothing to say they were now wrong, although § 153 AO requires a corrected
+return once the error is known.
+
+Now a submitted or accepted filing carries `abweichung` (live compute() minus
+submitted, for Umsatzsteuer, Vorsteuer and Zahllast) and `berichtigungNoetig`
+(any difference ≥ 1 cent); a draft carries null for both (it is recomputed
+when saved). The filings table shows "⚠ Berichtigung nötig" with the Zahllast
+difference and § 153 AO in its tooltip (de/en/zh); submitting the period again
+(the Tier 448 confirm) clears it.
+
+This is a notice, not a lock: whether a submitted period should refuse new or
+changed bookings (Festschreibung) is still a product decision (§ 9).
+
+Spec `e2e/238-tier449-berichtigung-noetig.sh` (10 assertions, 4 failing
+against the previous code). Playwright `ustva-berichtigung-noetig-tier449.spec.ts`.
+`listFilings` now runs compute() once per submitted filing.
+
+Spec 210's letter checks failed a second time in CI (run 36131518196), again
+all four at once with the text empty. The spec extracted the text with a regex
+over the raw PDF streams; one way that yields nothing is shown with a
+synthetic stream (a FlateDecode stream whose last compressed byte is 0x0D
+loses it to the `\r?\n endstream` match and zlib refuses it — the error was
+swallowed). It now uses pypdf (CI's "Install Python pdf deps" step) and, if
+the text is still empty, prints the PDF request's status, the Mahnung id and
+the file's head. Not proven to be CI's cause; the next failure will say.
+The first three CI runs with pypdf (36133257386, 36135918279, 36139143262)
+passed it.
+
+### A submitted UStVA stays what was submitted (Tier 448)
+
+`POST /ustva/filings` (the UStVA page's "Als Entwurf speichern" / "An
+Finanzamt übermitteln") upserted by period. Measured:
+
+- the stored figures were the request's: Umsatzsteuer **999** saved for a
+  month whose computed Umsatzsteuer was 0 (the page posts compute()'s data
+  back, but nothing checked it);
+- a filing marked "submitted" was overwritten by the next save — a draft save
+  set it back to "draft", cleared `submittedAt` and replaced the figures. The
+  record of what went to the Finanzamt was gone.
+
+Now `saveFiling` stores compute()'s figures for the period, whatever the body
+says. A submitted filing cannot be saved as a draft (409); submitting it again
+is refused (409) unless `berichtigt: true` — a corrected return (§ 153 AO),
+whose notes record the first submission's date and Zahllast; the audit log
+(UStvaFiling is audited) keeps the before-image. The page catches the 409 on
+"übermitteln", asks "Als berichtigte Voranmeldung übermitteln?" (de/en/zh) and
+only then resends with `berichtigt`.
+
+Spec `e2e/237-tier448-ustva-uebermittelt.sh` (13 assertions, 8 failing
+against the previous code). Playwright `ustva-berichtigt-tier448.spec.ts`
+(against the previous backend the second submission answered 201).
+
+Not done: the ELSTER XML (§9 item 9 — its format is unverified anyway) does
+not mark a corrected return (Kz 10 "Berichtigte Anmeldung"); the user has to
+tick it in Mein ELSTER. There is still only one filing row per period, so the
+first submission's figures survive only in the notes and the audit log.
+
+### The expenses page shows how an expense was paid, and corrects open ones (Tier 447)
+
+`GET /expenses` (the `/dashboard/expenses` list) derived each row's
+`paymentState` from bank-import vouchers alone (`[expense:<id>]` in the
+description). Measured:
+
+- an expense paid by SEPA or from the cash book showed **"Offen"** — the
+  page's "Offen" filter and counter listed bills that were paid;
+- "Storniert" could never appear: `createReversal` writes "Storno: <number> …"
+  without the tag. A reversed bank booking showed **"Bezahlt"**, linked to
+  the reversed voucher. Spec 12 had hand-crafted a tagged `VoucherReversal`
+  to test a path its own comment said did not exist.
+- the list carried no `lockReason`, and the page's modal (opened from the 📎
+  badge) only listed receipts: Tier 443's correction was reachable from the
+  UStVA page only.
+
+Now `paymentState` is "bezahlt" when `paidAt` is set (bank, SEPA, cash) or an
+unreversed bank booking exists (bookings before Tier 425 set no `paidAt`),
+"storniert" when it is open again after its bank booking was reversed
+(Tier 444), else "offen". `linkedVoucher` is the paying booking, else the
+reversed one. `lockReason` comes from `expense-lock.ts`. The modal shows
+`ExpenseEditForm` (date, number, supplier, description, category, net, rate →
+`PUT /expenses/:id`) above the receipts, or the lock reason instead (de/en/zh).
+
+Spec 12 now reverses through the real route and expects the reversed booking
+as link; its cleanup no longer deletes every company's `[expense:` vouchers
+(one referenced by a bank transaction made the whole statement fail) — only
+its own, Stornos first. Spec `e2e/236-tier447-ausgaben-status.sh` (12
+assertions, 5 failing against the previous code). Playwright
+`expense-edit-tier447.spec.ts` (2 tests, both failing against the previous
+page).
+
+### A bank reconciliation is undone as a whole (Tier 446)
+
+Tier 444's twin on the invoice side. A customer payment matched from the bank
+statement (confirm / manual match) books a voucher (`referenceType`
+`BankReconciliation`, 1200 an 1406), records a Payment and sets the invoice's
+`voucherRefId`. Its undo exists: "Rückgängig" in the bank import
+(`reconciliations/:id/reopen`) reverses the voucher, deletes the Payment,
+clears `voucherRefId` and puts the match back to "suggested". But the voucher
+page's plain Storno (`POST /accounting/vouchers/:id/reversal`) also accepted it
+(201) and took back only the journal lines: the invoice stayed paid (never
+dunned), the match stayed confirmed — and a later "Rückgängig" reversed the
+same voucher a second time (measured: three vouchers where two belong).
+DATEV was not affected: since Tier 423 reconciliation vouchers and their
+reopening are not exported, the payment comes from the Payment row.
+
+Now `createReversal` refuses a `BankReconciliation` voucher (400, the message
+names "Rückgängig" in the bank import; the voucher page shows it as a toast).
+`reopenMatch` reuses an existing Storno of the voucher instead of writing a
+second one, so matches reversed by hand before this tier can still be undone
+cleanly. `/correct` stays allowed — the payment happened, only its accounts
+change.
+
+Spec `e2e/235-tier446-zuordnung-storno.sh` (22 assertions, 5 failing against
+the previous code; the legacy case seeds the by-hand Storno with SQL).
+
+### Seven cleanups that never ran; spec 114 lived on their residue (Tier 445)
+
+`docker exec` attaches stdin only with `-i`. Seven calls fed SQL to
+`docker exec "$PG_CONTAINER" psql` by heredoc without it — psql got an empty
+stdin, ran nothing, exited 0, and each sent its output to /dev/null:
+105 (the Berater test user), 106 (ANS-* pre-clean and cleanup), 107 (BIL-*
+pre-clean and cleanup), 108 (the GUV-* pre-clean; its trap cleanup was already
+one `-c` per statement since an earlier tier, which is why that one worked),
+91 (Mahnungspause). On CI none of them ever ran.
+
+Found in Tier 443 with a local `docker` shim that passed stdin regardless:
+there 114-tier88-ebilanz failed "Materialaufwand > 0" — it only ever passed on
+CI because 106 / 107 left their Material expenses behind in the shared
+company. With the shim made to behave like docker (no stdin without -i),
+114 passed again.
+
+Now all seven have `-i`; 114 seeds its own Material expense (T88-*-MAT, removed
+by its trap) like the Personal one of Tier 361. Spec
+`e2e/234-tier445-docker-exec-stdin.sh` scans every spec, `_lib.sh`,
+`ci-seed.sh` and `run-all.sh` for a stdin-fed `docker exec` without -i
+(continuation lines joined, quoted SQL ignored) and proves on a probe file that
+it flags a heredoc, a pipe and a continued heredoc but not `-i` or `-c "… < …"`.
+Against the previous tree it lists exactly the seven.
+
+### A reversed bank booking no longer pays the expense (Tier 444)
+
+Left open by Tier 443. A bank debit booked against an expense (`book-expense`
+with `expenseId`) sets the expense's `paidAt`; a Storno of that voucher
+(`POST /accounting/vouchers/:id/reversal`) took the journal booking back and
+nothing else. Measured with two expenses of 119 € and one debit of 119 €
+booked against the wrong one, then reversed:
+
+- the wrong expense stayed paid: the balance sheet owed 119 instead of 238,
+  the SEPA run did not offer it, and — through Tier 443's lock — it could be
+  neither corrected nor deleted ("bereits bezahlt");
+- the bank transaction kept `voucherId` → the reversed voucher, so it could
+  never be booked again (400 "bereits als Aufwand gebucht"), although the
+  money had left the account. The right expense could not be marked paid.
+
+Now `VoucherService.createReversal` calls `releaseBankBooking` for bank-import
+expense vouchers (`referenceType` `Expense` / `BankTransaction`): the
+transaction's `voucherId` is cleared, and the tagged expense's `paidAt` is
+cleared when it is the booking's value date and nothing else pays it (no SEPA
+batch, no unreversed cash-book Ausgabe). A correction (`/correct`, Storno + new
+booking in one transaction) does not come through here: the payment happened,
+the expense stays paid.
+
+Spec `e2e/233-tier444-bankbeleg-storno.sh` (20 assertions, 10 failing against
+the previous code — the rest of the re-booking path could not run at all).
+
+CI run 36109905697: attempt 1 failed one spec not touched here —
+`210-tier421-verzugszinsen.sh` section 3, all four checks on the Mahnung
+letter text empty (the interest figures before it passed); attempt 2 passed
+it, as did 10 local runs. Cause unknown: the spec throws away the PDF
+request's status and body. If it recurs, make it print them first.
+
+Not done: the invoice side has its own route (`reconciliations/:id/reopen`),
+which already deletes the payment; a plain voucher Storno of a *reconciliation*
+voucher (referenceType `BankReconciliation`) is untouched here.
+
+### An open expense can be corrected; a paid one is not deleted (Tier 443)
+
+Tier 442 left it open: an expense (Eingangsrechnung) could be created and
+deleted, never corrected. Measured on the delete, which checked nothing:
+
+- An expense paid by a SEPA batch was deleted (200). The money had left the
+  bank and the batch still listed the payment; the cost, the input tax and the
+  DATEV payment row were gone.
+- An expense paid from the cash book was deleted too (200) — not a 500: the
+  cash-book entry's `expenseId` is an optional relation, so Postgres set it
+  to NULL and the Ausgabe stayed in the Kassenbuch as an unexplained payment.
+- An AfA row of the asset register was deleted by hand (200), past the AfA
+  storno; the register still said "AfA gebucht" for that year.
+
+And on the UStVA page's expense form (Chromium):
+
+- Typing the net amount key by key saved the VAT and gross computed for the
+  **first digit**: 1000 € net → VAT 0,19, gross 1,19, and the UStVA took
+  0,19 € Vorsteuer. The effect kept `f.vatAmount || …`; every Playwright test
+  used `fill()`, which sets the whole value at once.
+- The "Lieferant" select listed the company's **customers**; saving with one
+  chosen answered 400 "Lieferant nicht gefunden" (the Tier 390 check).
+
+Now: `PUT /expenses/:id` (`invoice.update`) and `PUT /ustva/expenses/:id`
+(`accounting.update`) share `expense/update-expense.ts`. Amounts are entered
+positive as on create; a changed net or rate without a VAT derives VAT (to
+cents) and gross; a credit note keeps its sign unless `creditNote: false`.
+Unknown fields (`paidAt`, …) are 400. `expense/expense-lock.ts` says when an
+expense is no longer open — an AfA row, paid by SEPA (`paidBySepaBatchId`),
+an unreversed cash-book Ausgabe, an unreversed bank-import voucher tagged
+`[expense:<id>]`, or any other `paidAt` — with the way out in the message
+(AfA storno, SEPA storno, cash-book / voucher storno, or a supplier credit
+note). Such an expense cannot be deleted, and a PUT may change only its
+notes. After a SEPA storno it is open again. `GET /ustva/expenses` carries
+`lockReason`; the page shows "Bearbeiten" / "Löschen" only on open rows, a
+🔒 "Gesperrt" with the reason as tooltip on the others, edits in the same
+form (de/en/zh), loads `/suppliers`, and always recomputes VAT and gross.
+
+Spec `e2e/232-tier443-ausgabe-korrigieren.sh` (24 assertions, 21 failing
+against the previous code). Playwright `ustva-expense-edit-tier443.spec.ts`
+(3 tests, all failing against the previous page; the VAT one types with
+`pressSequentially`).
+
+Not done: a filed UStVA period (`UStvaFiling.status = submitted`) locks
+nothing — invoices and expenses of that period can still change, nowhere in
+the app is a period closed (that is a Festschreibung feature of its own;
+Tiers 448 / 449 flag a filing that needs a Berichtigung instead).
+~~A voucher storno of a bank-import expense booking does not clear the
+expense's `paidAt`~~ (Tier 444). ~~The expenses page has no edit button~~
+(Tier 447).
+
 ### Supplier credit notes (Tier 442)
 
 A supplier's credit note (Lieferantengutschrift: goods returned, a price
@@ -2527,8 +3125,8 @@ against the previous code). Spec 119
 seeded its BWA expenses with negative amounts — which only added up through
 the BWA's Math.abs() — and now seeds them positive, as the app stores them.
 
-Not done: the bank import does not match an incoming refund to a credit note;
-there is still no way to edit an expense (only create / delete).
+~~Not done: the bank import does not match an incoming refund to a credit
+note~~ (Tier 450); ~~there is still no way to edit an expense~~ (Tier 443).
 Local runs: backend **230 / 0 / 1**, 0 × 500; Playwright 929 + **1 flaky** —
 `list-pages-2` "search filters the supplier list" counted the rows a fixed
 500 ms after Enter, before the reload had rendered (unrelated to this tier).
@@ -2908,11 +3506,10 @@ asserts no payment, one open report, and `alreadyReported` on the second
 click. Local runs: backend **218 / 0 / 1**, 0 × 500; Playwright **930**, no
 flaky.
 
-Not changed, found on the way: the customer detail's "Sammelzahlung" (one
+~~Not changed, found on the way: the customer detail's "Sammelzahlung" (one
 amount over several invoices, `customer.service`) and the credit-balance
 "Guthaben verrechnen" write payments directly instead of through
-PaymentService, so they skip the Skonto check, the Ratenplan sync and the
-payment webhook.
+PaymentService~~ — both go through PaymentService since Tier 431.
 
 ### A Ratenplan was paid past its invoice (Tier 429)
 
@@ -3113,11 +3710,11 @@ previous code). No existing spec needed a change. Local runs: backend
 change (paidAt on a match) came after the full run and was re-checked with
 08, 32, 36, 79, 212, 214.
 
-Not done (§ 9): the EÜR still counts invoices and expenses at their
-document date, not when paid (§ 11 EStG); the payment dates are now there
+~~Not done (§ 9): the EÜR still counts invoices and expenses at their
+document date, not when paid (§ 11 EStG)~~ — done in Tier 454; the payment dates are now there
 for invoices (Payment), cash and SEPA-paid expenses, but not for expenses
-paid by plain bank transfer without a bank-import match. Kassenbuch
-`umbuchung` (Bank ↔ Kasse) is not exported to DATEV.
+paid by plain bank transfer without a bank-import match. ~~Kassenbuch
+`umbuchung` (Bank ↔ Kasse) is not exported to DATEV~~ (Tier 434).
 
 ### Proformas counted as revenue, Quittungen did not reach the UStVA (Tier 424)
 
@@ -3296,10 +3893,11 @@ the credit note (−20,00 net / −3,80 USt) and the paid status.
 Spec `e2e/211-tier422-skonto-settlement.sh` (15 assertions, 8 failing against
 the previous code).
 
-Not changed, next tier: **the DATEV export contains no credit notes at all**
+~~Not changed, next tier: **the DATEV export contains no credit notes at all**
 (it exports paid INV / PI only), so refunds and Skonti never reach the
 Berater's books; and its payment row books the invoice total, not the cash
-received.
+received.~~ Done since (credit notes and payments are exported on their own
+rows; Tier 459 added the Quittung's payments).
 
 ### Verzugszinsen were a flat 9 %, on the invoice total (Tier 421)
 
@@ -5247,7 +5845,10 @@ These are **not in the repo** — only the user can do them:
     payment would be counted twice; the app has no link from an RCV to an
     invoice. Either confirm "RCV = cash sale" or add that link.
 
-20. **EÜR on a cash basis (§ 11 EStG)** (found Tier 425). The EÜR and
+20. ~~**EÜR on a cash basis (§ 11 EStG)**~~ — done in Tier 454 (the user
+    chose the cash basis; manual "Bezahlt am" for unmatched payments), Anlage
+    S / V in Tier 455. Open: does Anlage G follow (only for a Gewerbe that
+    keeps no books — needs a company setting)? (found Tier 425) The EÜR and
     Anlage S / V count invoices at their issue date and expenses at their
     invoice date — a December invoice paid in January lands in the wrong
     year. Payment dates now exist for invoices, cash-, SEPA- and
@@ -5255,7 +5856,9 @@ These are **not in the repo** — only the user can do them:
     was never matched. Switching needs a decision on those (fall back to the
     invoice date and say so?) — and whether Anlage G, which may belong to a
     bookkeeping business, follows. Also: a Kassenbuch entry without a VAT
-    rate is treated as Privateinlage / -entnahme (no income) — confirm.
+    rate is treated as Privateinlage / -entnahme (no income) — confirm
+    (since Tier 458 the page offers it as such and DATEV books it on
+    1890 / 1800).
 
 When the Hetzner items are available, the deploy is:
 

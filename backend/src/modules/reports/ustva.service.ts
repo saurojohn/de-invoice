@@ -1,10 +1,12 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import type { Response } from 'express';
 import { invoiceTaxBreakdown } from '../invoice/tax-breakdown';
 import { normaliseCountry } from '../invoice/ust-behandlung-detector';
 import { cashBookings } from '../cashbook/cash-bookings';
+import { besteuerungsart, istPaidDocuments } from './ustva-ist';
+import { expenseLockReason, expenseLockReasons } from '../expense/expense-lock';
 import { KzEntry, ustvaKennzahlen } from './ust-kennzahlen';
 
 /**
@@ -23,6 +25,8 @@ export interface UstvaData {
   quarter?: number;
   month?: number;
   periodLabel: string;
+  /** Tier 457: 'ist' — taxed sales counted when paid (§ 20 UStG) */
+  besteuerungsart: 'soll' | 'ist';
 
   // Lines 20-23: taxable sales by rate (Steuerpflichtige Umsätze)
   salesByRate: Array<{
@@ -113,6 +117,8 @@ export class UstvaService {
     if (month !== undefined && (month < 1 || month > 12)) throw new BadRequestException('Monat 1-12');
 
     const { start, end } = this.getDateRange(year, quarter, month);
+    // Tier 457: Soll- or Ist-Versteuerung (ustva-ist.ts).
+    const art = await besteuerungsart(this.prisma, companyId);
 
     // ── OUTPUT SIDE ───────────────────────────────────────────────
     // Sales invoices (excl. cancelled, finalized only — draft is not part of Voranmeldung)
@@ -227,7 +233,8 @@ export class UstvaService {
         const vat = bucket.vat * f;
 
         if (rate > 0) {
-          addToRate(rate, net, vat);
+          // Tier 457: an Ist-Versteuerer owes it when paid (below).
+          if (art === 'soll') addToRate(rate, net, vat);
         } else {
           // Zero-rated — the invoice's own igL / § 13b flags are the user's
           // explicit statement and win over any inference.
@@ -245,7 +252,7 @@ export class UstvaService {
         const net = bucket.net * f;
         const vat = bucket.vat * f;
         if (rate > 0) {
-          addToRate(rate, net, vat); // CN is already negative
+          if (art === 'soll') addToRate(rate, net, vat); // CN is already negative
         } else {
           addZeroRated(
             (cn as any).referenceInvoice ?? {},
@@ -253,6 +260,18 @@ export class UstvaService {
             (cn.customer as any)?.vatId || '',
             net,
           );
+        }
+      }
+    }
+
+    // Tier 457: Ist-Versteuerung — taxed sales in the period of their payment,
+    // each document with the part of it paid (or, a credit note, refunded) in
+    // the period.
+    if (art === 'ist') {
+      for (const { doc, fraction } of await istPaidDocuments(this.prisma, companyId, start, end)) {
+        const f = eurFactor(doc)
+        for (const bucket of invoiceTaxBreakdown(doc).byRate) {
+          if (bucket.rate > 0) addToRate(bucket.rate, bucket.net * f * fraction, bucket.vat * f * fraction)
         }
       }
     }
@@ -368,6 +387,7 @@ export class UstvaService {
       quarter,
       month,
       periodLabel,
+      besteuerungsart: art,
       salesByRate: Array.from(salesByRateMap.entries())
         .map(([rate, v]) => ({
           rate,
@@ -716,30 +736,63 @@ export class UstvaService {
     })
   }
 
+  /**
+   * Tier 448 — save a UStVA filing (draft or submitted).
+   *
+   * The figures come from compute() for the period, not from the request:
+   * the page posts the computed data back, but the endpoint stored whatever
+   * it was sent — measured: Umsatzsteuer 999 saved for a month whose computed
+   * Umsatzsteuer was 0. And a filing marked "submitted" was overwritten by
+   * the next save, a draft included (status back to draft, submittedAt
+   * cleared, figures replaced): the record of what went to the Finanzamt was
+   * gone. A submitted filing is now replaced only by a corrected return
+   * (`berichtigt: true`, § 153 AO / Kz 10 in ELSTER), which keeps the first
+   * submission's date in the notes; the audit log keeps the before-image.
+   */
   async saveFiling(
     companyId: string,
-    data: Pick<
-      UstvaData,
-      'year' | 'quarter' | 'month' | 'periodLabel' | 'umsatzsteuer' | 'vorsteuerSum' | 'differenzbetrag' | 'igL' | 'reverseCharge'
-    > & { taxNumber?: string; notes?: string; status?: 'draft' | 'submitted' },
+    data: Pick<UstvaData, 'year' | 'quarter' | 'month'> & {
+      taxNumber?: string;
+      notes?: string;
+      status?: 'draft' | 'submitted';
+      berichtigt?: boolean;
+    },
   ) {
     const quarter = data.quarter ?? null;
     const month = data.month ?? null;
+    const live = await this.compute(companyId, data.year, quarter ?? undefined, month ?? undefined);
+    const status = data.status ?? 'draft';
 
     const existing = await this.prisma.uStvaFiling.findFirst({
       where: { companyId, year: data.year, quarter, month },
     });
+    let notes = data.notes;
+    if (existing?.status === 'submitted') {
+      const when = existing.submittedAt ? existing.submittedAt.toISOString().slice(0, 10) : '?';
+      if (status !== 'submitted') {
+        throw new ConflictException(
+          `Die UStVA ${existing.periodLabel} wurde am ${when} übermittelt und kann nicht mehr als Entwurf gespeichert werden. Eine Korrektur ist eine berichtigte Voranmeldung.`,
+        );
+      }
+      if (!data.berichtigt) {
+        throw new ConflictException(
+          `Die UStVA ${existing.periodLabel} wurde am ${when} bereits übermittelt. Übermitteln Sie sie erneut als berichtigte Voranmeldung.`,
+        );
+      }
+      notes = [`Berichtigte Voranmeldung (erste Übermittlung ${when}, Zahllast damals ${Number(existing.payableVat).toFixed(2)} €)`, data.notes]
+        .filter(Boolean).join(' — ');
+    }
 
     const payload = {
-      outputVat: data.umsatzsteuer,
-      inputVat: data.vorsteuerSum,
-      payableVat: data.differenzbetrag,
-      intraEUSales: data.igL,
-      intraEUPurchase: data.reverseCharge,
+      outputVat: live.umsatzsteuer,
+      inputVat: live.vorsteuerSum,
+      payableVat: live.differenzbetrag,
+      intraEUSales: live.igL,
+      intraEUPurchase: live.reverseCharge,
       taxNumber: data.taxNumber,
-      notes: data.notes,
-      status: data.status ?? 'draft',
-      submittedAt: data.status === 'submitted' ? new Date() : null,
+      notes,
+      status,
+      submittedAt: status === 'submitted' ? new Date() : null,
     };
 
     if (existing) {
@@ -752,17 +805,35 @@ export class UstvaService {
         year: data.year,
         quarter,
         month,
-        periodLabel: data.periodLabel,
+        periodLabel: live.periodLabel,
         ...payload,
       },
     });
   }
 
   async listFilings(companyId: string) {
-    return this.prisma.uStvaFiling.findMany({
+    const filings = await this.prisma.uStvaFiling.findMany({
       where: { companyId },
       orderBy: [{ year: 'desc' }, { quarter: 'asc' }, { month: 'asc' }],
     });
+    // Tier 449: a submitted return that no longer matches the books needs a
+    // corrected one (§ 153 AO) — an expense or invoice of the period entered
+    // or corrected after submission. The list said nothing. `abweichung` is
+    // live minus submitted; a draft is recomputed when saved, so not compared.
+    const cent = (n: number) => Math.round(n * 100) / 100;
+    return Promise.all(filings.map(async (f) => {
+      if (f.status !== 'submitted' && f.status !== 'accepted') {
+        return { ...f, abweichung: null, berichtigungNoetig: null };
+      }
+      const live = await this.compute(companyId, f.year, f.quarter ?? undefined, f.month ?? undefined);
+      const abweichung = {
+        outputVat: cent(live.umsatzsteuer - Number(f.outputVat)),
+        inputVat: cent(live.vorsteuerSum - Number(f.inputVat)),
+        payableVat: cent(live.differenzbetrag - Number(f.payableVat)),
+      };
+      const berichtigungNoetig = Object.values(abweichung).some((d) => Math.abs(d) >= 0.01);
+      return { ...f, abweichung, berichtigungNoetig };
+    }));
   }
 
   async getFiling(companyId: string, filingId: string) {
@@ -775,11 +846,14 @@ export class UstvaService {
       const { start, end } = this.getDateRange(year, quarter, month);
       where.invoiceDate = { gte: start, lte: end };
     }
-    return this.prisma.expense.findMany({
+    const expenses = await this.prisma.expense.findMany({
       where,
       include: { supplier: true },
       orderBy: { invoiceDate: 'desc' },
     });
+    // Tier 443: the page offers edit / delete only where they are allowed.
+    const locks = await expenseLockReasons(this.prisma, companyId, expenses);
+    return expenses.map((e) => ({ ...e, lockReason: locks.get(e.id) ?? null }));
   }
 
   async createExpense(companyId: string, data: {
@@ -795,6 +869,7 @@ export class UstvaService {
     isIntraEU?: boolean;
     isReverseCharge?: boolean;
     notes?: string;
+    paidAt?: Date | null;
   }) {
     // Tier 390: the supplier must be this company's — the same check
     // ExpenseService.create makes. Measured: company B's expense with company
@@ -821,6 +896,7 @@ export class UstvaService {
         isIntraEU: data.isIntraEU ?? false,
         isReverseCharge: data.isReverseCharge ?? false,
         notes: data.notes,
+        paidAt: data.paidAt ?? null,
       },
       include: { supplier: true },
     });
@@ -829,6 +905,10 @@ export class UstvaService {
   async deleteExpense(companyId: string, expenseId: string) {
     const exp = await this.prisma.expense.findFirst({ where: { id: expenseId, companyId } });
     if (!exp) throw new BadRequestException('Ausgabe nicht gefunden');
+    // Tier 443: a paid expense or an AfA row took its cost, input tax and
+    // payment out of the books with it (the cash-book entry's link set to NULL).
+    const reason = await expenseLockReason(this.prisma, companyId, exp);
+    if (reason) throw new BadRequestException(reason);
     await this.prisma.expense.delete({ where: { id: expenseId } });
   }
 }

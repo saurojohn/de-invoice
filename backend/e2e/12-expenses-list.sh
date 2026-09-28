@@ -20,11 +20,18 @@ source "$SCRIPT_DIR/_lib.sh"
 
 login
 
+# Tier 447: only this spec's vouchers — the pattern '%[expense:%' hit every
+# company's bank bookings, and one referenced by a bank transaction made the
+# whole statement fail. Storno vouchers (no tag, reversedById) go first.
+T6_VOUCHERS="SELECT v.id FROM \"Voucher\" v JOIN \"Expense\" e ON v.description LIKE '%[expense:' || e.id || ']%' WHERE e.\"invoiceNumber\" LIKE 'EXP-T6-%'"
+CLEANUP_SQL="DELETE FROM \"VoucherLine\" WHERE \"voucherId\" IN (SELECT id FROM \"Voucher\" WHERE \"reversedById\" IN ($T6_VOUCHERS));
+   DELETE FROM \"Voucher\" WHERE \"reversedById\" IN ($T6_VOUCHERS);
+   DELETE FROM \"VoucherLine\" WHERE \"voucherId\" IN ($T6_VOUCHERS);
+   DELETE FROM \"Voucher\" WHERE id IN ($T6_VOUCHERS);
+   DELETE FROM \"Expense\" WHERE \"invoiceNumber\" LIKE 'EXP-T6-%';"
 # Cleanup any prior test data
 docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
-  "DELETE FROM \"VoucherLine\" WHERE \"voucherId\" IN (SELECT id FROM \"Voucher\" WHERE \"description\" LIKE '%[expense:%');
-   DELETE FROM \"Voucher\" WHERE \"description\" LIKE '%[expense:%';
-   DELETE FROM \"Expense\" WHERE \"invoiceNumber\" LIKE 'EXP-T6-%';" >/dev/null 2>&1
+  "$CLEANUP_SQL" >/dev/null 2>&1
 
 echo "=== Test: expenses list enrichment ==="
 
@@ -115,30 +122,14 @@ api_post "/api/v1/accounting/vouchers" "{
 assert_eq "create Voucher for expense 3 HTTP" "$STATUS" "201"
 EXP3_VCH_ID=$(json_field "$BODY" id)
 
-# Now Storno it — the Storno voucher description must
-# carry the [expense:tag] too so the list endpoint picks
-# it up as the "linked voucher" for the paymentState.
-# We do this by hand-crafting a VoucherReversal (the
-# service createReversal overwrites description with
-# "Storno: <originalNumber> Grund: <reason>" — no tag).
-# So instead we issue a direct POST with the tag
-# preserved, mimicking what bank-import.bookExpense would
-# emit on a real Storno path (which currently doesn't
-# exist, but the list endpoint is permissive).
-api_post "/api/v1/accounting/vouchers" "{
-  \"companyId\": \"$COMPANY_ID\",
-  \"date\": \"2026-06-11\",
-  \"description\": \"Storno Beratung [expense:$EXP3_ID]\",
-  \"referenceType\": \"VoucherReversal\",
-  \"lines\": [
-    { \"accountId\": \"$A4900\", \"debit\": 0, \"credit\": 200 },
-    { \"accountId\": \"$A1576\", \"debit\": 0, \"credit\": 38 },
-    { \"accountId\": \"$A1200\", \"debit\": 238, \"credit\": 0 }
-  ]
-}" >/dev/null
+# Now Storno it through the real route. Until Tier 447 the list only
+# recognised a Storno whose own description carried the tag, which
+# createReversal never writes ("Storno: <number> Grund: …"), so this spec
+# hand-crafted one; the list now sees the original as reversed.
+EXP3_VCH_NUM=$(json_field "$BODY" voucherNumber)
+api_post "/api/v1/accounting/vouchers/$EXP3_VCH_ID/reversal?companyId=$COMPANY_ID" '{"reason":"Test"}'
 assert_eq "create Storno Voucher HTTP" "$STATUS" "201"
 EXP3_STO_ID=$(json_field "$BODY" id)
-EXP3_STO_NUM=$(json_field "$BODY" voucherNumber)
 
 # Now query the list endpoint and check the paymentState
 # of each test expense.
@@ -175,7 +166,7 @@ assert_eq "EXP-T6-003 paymentState=storniert" \
   "$(echo "$PY" | python3 -c "import json,sys; print(json.loads(sys.stdin.read())['EXP-T6-003']['paymentState'])")" \
   "storniert"
 EXP3_LV_NUM=$(echo "$PY" | python3 -c "import json,sys; print(json.loads(sys.stdin.read())['EXP-T6-003']['linkedVoucher']['voucherNumber'])")
-assert_eq "EXP-T6-003 linkedVoucher is the Storno" "$EXP3_LV_NUM" "$EXP3_STO_NUM"
+assert_eq "EXP-T6-003 linkedVoucher is the reversed booking" "$EXP3_LV_NUM" "$EXP3_VCH_NUM"
 
 # supplierId filter
 api_get "/api/v1/expenses?companyId=$COMPANY_ID&supplierId=$SUP_ID&search=EXP-T6"
@@ -188,9 +179,7 @@ assert_eq "supplierId filter returns 3 EXP-T6" "$SUP_HITS" "3"
 
 # Cleanup
 docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
-  "DELETE FROM \"VoucherLine\" WHERE \"voucherId\" IN (SELECT id FROM \"Voucher\" WHERE \"description\" LIKE '%[expense:%');
-   DELETE FROM \"Voucher\" WHERE \"description\" LIKE '%[expense:%';
-   DELETE FROM \"Expense\" WHERE \"invoiceNumber\" LIKE 'EXP-T6-%';" >/dev/null 2>&1
+  "$CLEANUP_SQL" >/dev/null 2>&1
 
 echo
 summary

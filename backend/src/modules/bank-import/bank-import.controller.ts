@@ -279,7 +279,7 @@ export class BankImportController {
     @Param('txnId') txnId: string,
     @Body() body: BookExpenseDto,
   ) {
-    const { expenseAccountNumber, description, supplierId, expenseId, vatRate, vatAmount } = body;
+    const { expenseAccountNumber, description, supplierId, expenseId, vatRate, vatAmount, skonto } = body;
     if (!companyId) throw new BadRequestException('companyId is required');
     const stmt = await this.svc.getStatement(companyId, id);
     if (!stmt) throw new BadRequestException('Kontoauszug nicht gefunden');
@@ -294,6 +294,7 @@ export class BankImportController {
       expenseId,
       vatRate: typeof vatRate === 'number' ? vatRate : undefined,
       vatAmount: typeof vatAmount === 'number' ? vatAmount : undefined,
+      skonto: skonto === true,
     });
   }
 }

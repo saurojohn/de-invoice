@@ -34,7 +34,10 @@ sql() { docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "$1"
 
 new_invoice() { # label → echoes id (gross 119)
   api_post "/api/v1/invoices?companyId=$COMPANY_ID" "{\"customerId\":\"$MUELLER\",\"issueDate\":\"$TODAY\",\"items\":[{\"description\":\"e2e-175 $1\",\"quantity\":1,\"unit\":\"Stk\",\"unitPrice\":100,\"vatRate\":0.19}]}"
-  json_field "$BODY" id
+  local id; id=$(json_field "$BODY" id)
+  # Tier 462: a payment needs an issued invoice
+  api_put "/api/v1/invoices/$id/status?companyId=$COMPANY_ID" '{"status":"sent"}'
+  echo "$id"
 }
 cn_count() { sql "SELECT count(*) FROM \"Invoice\" WHERE \"referenceInvoiceId\" = '$1';"; }
 entry_count() { sql "SELECT count(*) FROM \"CashBookEntry\" WHERE \"companyId\" = '$COMPANY_ID' AND \"businessDate\" = '$DAY';"; }

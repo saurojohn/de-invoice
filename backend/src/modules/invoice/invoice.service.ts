@@ -1104,7 +1104,8 @@ export class InvoiceService {
     const paymentCount = await this.prisma.payment.count({ where: { invoiceId: id } });
     if (paymentCount > 0) {
       throw new ForbiddenException(
-        'Rechnung mit erfassten Zahlungen kann nicht gelöscht werden. Bitte stornieren oder eine Gutschrift erstellen.',
+        // Tier 461: a paid invoice cannot be cancelled either — the credit note is the way.
+        'Rechnung mit erfassten Zahlungen kann nicht gelöscht werden. Bitte eine Gutschrift erstellen.',
       );
     }
     const deleted = await this.prisma.$transaction(async (tx) => {
@@ -1150,6 +1151,36 @@ export class InvoiceService {
     // landed under B's company (measured).
     const before = await this.prisma.invoice.findFirst({ where: { id, companyId } });
     if (!before) throw new NotFoundException('Rechnung nicht gefunden');
+
+    // Tier 461: a cancelled document leaves every return (UStVA, EÜR, DATEV —
+    // with its payments). An invoice that was paid, or that a credit note
+    // corrects, cannot just leave: measured, a paid 1 190 € invoice cancelled
+    // took its 190 € output tax, its income and the 1 190 € on the bank out
+    // of the books, and the credit note of another stayed subtracted. The
+    // correction is a credit note (and refunding what was paid). A credit
+    // note already settled against its invoice is the same case.
+    if (status === 'cancelled' && before.status !== 'cancelled') {
+      const [payments, creditNotes, settles] = await Promise.all([
+        this.prisma.payment.count({ where: { invoiceId: id } }),
+        this.prisma.invoice.count({ where: { companyId, referenceInvoiceId: id, type: 'CN', status: { not: 'cancelled' } } }),
+        before.type === 'CN' && before.referenceInvoiceId
+          ? this.prisma.payment.count({
+            where: { invoiceId: before.referenceInvoiceId, paymentMethod: 'Gutschrift', reference: `CN ${before.invoiceNumber}` },
+          })
+          : Promise.resolve(0),
+      ]);
+      if (payments > 0 || creditNotes > 0) {
+        throw new BadRequestException(
+          'Die Rechnung hat bereits Zahlungen oder Gutschriften und kann nicht storniert werden. ' +
+          'Erstellen Sie eine Gutschrift über den Betrag (und erstatten Sie, was bezahlt wurde).',
+        );
+      }
+      if (settles > 0) {
+        throw new BadRequestException(
+          'Die Gutschrift ist bereits mit ihrer Rechnung verrechnet und kann nicht storniert werden.',
+        );
+      }
+    }
 
     const updated = await this.prisma.invoice.update({
       where: { id },

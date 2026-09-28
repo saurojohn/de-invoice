@@ -113,13 +113,17 @@ test.describe("Invoices list", () => {
     // SH Leder test company has 100+
     // invoices from prior e2e runs, so we
     // expect at least 1 row.
-    const rowCount = await page
-      .locator('[data-testid="invoice-row"]')
-      .count()
+    // Tier 461a: wait for either before counting — the count right after
+    // networkidle raced the list's render (0 rows, and `body`, read before,
+    // had no empty-state text yet: CI run 36231779527, flaky on retry).
+    const rows = page.locator('[data-testid="invoice-row"]')
+    await expect(rows.first().or(page.getByText(/Keine|empty|nothing/i).first()))
+      .toBeVisible({ timeout: 15_000 })
+    const rowCount = await rows.count()
     if (rowCount === 0) {
       // Empty state — fine, but verify
       // the table didn't crash.
-      expect(body).toMatch(/Keine|empty|nothing/i)
+      expect(await page.locator("body").innerText()).toMatch(/Keine|empty|nothing/i)
     } else {
       // At least one row visible.
       expect(rowCount).toBeGreaterThan(0)

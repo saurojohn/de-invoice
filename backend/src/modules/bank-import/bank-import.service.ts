@@ -873,7 +873,14 @@ export class BankImportService {
         credit: Number(l.debit),   // swap
     }));
 
-    const stornoVoucher = await this.voucherService.create({
+    // Tier 446: until then a plain voucher Storno could already have reversed
+    // it (and left the payment); reversing it again would take the cash off
+    // the bank account twice. Keep that Storno and undo the rest.
+    const earlierStorno = await this.prisma.voucher.findFirst({
+      where: { companyId, reversedById: recon.voucher.id },
+      select: { id: true },
+    });
+    const stornoVoucher = earlierStorno ?? await this.voucherService.create({
       companyId,
       date: recon.bankTransaction.valueDate,
       description: `Storno ${recon.voucher.voucherNumber} — ${recon.invoiceId ? 'Zuordnung rückgängig' : ''}`,
@@ -1043,6 +1050,7 @@ export class BankImportService {
       expenseId?: string
       vatRate?: number
       vatAmount?: number
+      skonto?: boolean
     } = {},
   ) {
     const txn = await this.prisma.bankTransaction.findFirst({
@@ -1051,10 +1059,33 @@ export class BankImportService {
     if (!txn) throw new NotFoundException('Transaktion nicht gefunden');
 
     const amount = Number(txn.amount);
+    // Tier 450: an incoming payment is booked here only as the refund of a
+    // supplier credit note (Tier 442) of the same amount — before, nothing
+    // could book it and the credit note stayed open for good.
+    let refund = false;
+    let skontoAmount = 0;
+    let skontoOf: {
+      id: string; supplierId: string | null; invoiceNumber: string | null; vatRate: unknown; category: string | null
+      accountNumber: string | null; isIntraEU: boolean; isReverseCharge: boolean
+    } | null = null;
     if (amount >= 0) {
-      throw new BadRequestException(
-        'Diese Funktion ist nur für Ausgänge (negative Beträge). Eingänge bitte als Zuordnung zu einer Rechnung buchen.',
-      );
+      const creditNote = opts.expenseId
+        ? await this.prisma.expense.findFirst({
+          where: { id: opts.expenseId, companyId },
+          select: { grossAmount: true },
+        })
+        : null;
+      if (!creditNote || Number(creditNote.grossAmount) >= 0) {
+        throw new BadRequestException(
+          'Diese Funktion ist nur für Ausgänge (negative Beträge) und für die Erstattung einer Lieferanten-Gutschrift. Eingänge bitte als Zuordnung zu einer Rechnung buchen.',
+        );
+      }
+      if (Math.abs(Math.abs(Number(creditNote.grossAmount)) - amount) > 0.005) {
+        throw new BadRequestException(
+          `Die Erstattung (${amount.toFixed(2)}) entspricht nicht dem Betrag der Gutschrift (${Math.abs(Number(creditNote.grossAmount)).toFixed(2)})`,
+        );
+      }
+      refund = true;
     }
 
     // Refuse if a reconciliation already exists —
@@ -1083,9 +1114,64 @@ export class BankImportService {
     if (opts.expenseId) {
       const exp = await this.prisma.expense.findFirst({
         where: { id: opts.expenseId, companyId },
-        select: { id: true },
+        select: {
+          id: true, grossAmount: true, relatedAssetId: true, supplierId: true, invoiceNumber: true,
+          vatRate: true, category: true, accountNumber: true, isIntraEU: true, isReverseCharge: true,
+        },
       });
       if (!exp) throw new NotFoundException('Ausgabe nicht gefunden');
+      skontoOf = exp;
+      // Tier 451: a debit pays the expense once and in full. Before, any debit
+      // was booked against any expense: 119 against an invoice of 1 190, a
+      // second time after the cash book or the bank had paid it, a credit note
+      // "paid". A SEPA-paid expense is accepted — the debit is the batch's
+      // execution (Tier 432/433).
+      if (!refund) {
+        const gross = Number(exp.grossAmount);
+        if (gross <= 0 || exp.relatedAssetId) {
+          throw new BadRequestException(
+            gross <= 0
+              ? 'Eine Gutschrift wird nicht mit einer Abbuchung bezahlt — ihre Erstattung ist ein Zahlungseingang.'
+              : 'Eine AfA-Buchung wird nicht über die Bank bezahlt.',
+          );
+        }
+        const diff = Math.round((gross - Math.abs(amount)) * 100) / 100;
+        // Tier 452: paid less its Skonto — the difference, at most 10 % of
+        // the bill, becomes a supplier credit note after the booking.
+        if (opts.skonto && diff > 0 && diff <= gross * 0.1 + 0.005) {
+          skontoAmount = diff;
+        } else if (Math.abs(diff) > 0.005) {
+          throw new BadRequestException(
+            `Die Abbuchung (${Math.abs(amount).toFixed(2)}) entspricht nicht dem Betrag der Eingangsrechnung (${gross.toFixed(2)}).` +
+            (diff > 0 && diff <= gross * 0.1 + 0.005
+              ? ' Wurde Skonto abgezogen, buchen Sie die Zahlung mit Skonto.'
+              : ' Buchen Sie sie auf ein Aufwandskonto, oder erfassen Sie die Differenz als Gutschrift des Lieferanten.'),
+          );
+        }
+      }
+      {
+        // Paid or refunded once — by the cash book or another bank booking.
+        const [cash, bank] = await Promise.all([
+          this.prisma.cashBookEntry.count({
+            where: { companyId, expenseId: exp.id, reversesId: null, reversedBy: null },
+          }),
+          this.prisma.voucher.count({
+            where: {
+              companyId,
+              referenceType: 'Expense',
+              description: { contains: `[expense:${exp.id}]` },
+              reversals: { none: {} },
+            },
+          }),
+        ]);
+        if (cash > 0 || bank > 0) {
+          throw new BadRequestException(
+            refund
+              ? 'Die Erstattung dieser Gutschrift ist bereits gebucht.'
+              : `Die Eingangsrechnung ist bereits ${cash > 0 ? 'aus dem Kassenbuch' : 'über die Bank'} bezahlt.`,
+          );
+        }
+      }
     }
     if (opts.supplierId) {
       const sup = await this.prisma.supplier.findFirst({
@@ -1142,6 +1228,11 @@ export class BankImportService {
     // VAT line (Vorsteuer) — only when the user
     // supplies a positive vatAmount. 0% VAT books
     // the legacy 2-line voucher.
+    // Tier 452: with a Skonto the payment carries the VAT of what was paid.
+    if (skontoAmount > 0 && skontoOf) {
+      const r = Number(skontoOf.vatRate);
+      opts = { ...opts, vatRate: r, vatAmount: r > 0 ? Math.round(absAmount * r / (1 + r) * 100) / 100 : 0 };
+    }
     const vatAmount = Math.max(0, Number(opts.vatAmount ?? 0));
     // Tier 393: more VAT than the payment made the voucher unbalanced, which
     // surfaced as "Soll und Haben müssen ausgeglichen sein" from the voucher
@@ -1212,6 +1303,10 @@ export class BankImportService {
     // pivot back to the originating Eingangsrechnung.
     // Hidden in the PDF / DATEV but visible in the UI
     // audit trail — cheap linkage, no schema change.
+    // Tier 450: a refund is the payment reversed — Bank an Aufwand / Vorsteuer.
+    if (refund) {
+      for (const l of lines) [l.debit, l.credit] = [l.credit, l.debit];
+    }
     const expenseTag = opts.expenseId ? ` [expense:${opts.expenseId}]` : ''
     const voucher = await this.voucherService.create({
       companyId,
@@ -1241,6 +1336,34 @@ export class BankImportService {
       await this.prisma.expense.updateMany({
         where: { id: opts.expenseId, companyId, paidAt: null },
         data: { paidAt: txn.valueDate },
+      });
+    }
+
+    // Tier 452: the Skonto taken — a supplier credit note of the difference at
+    // the bill's rate (§ 17 UStG: cost and Vorsteuer go down), settled with
+    // this payment. Tagged with the voucher so its Storno removes it again.
+    if (skontoAmount > 0 && skontoOf) {
+      const r = Number(skontoOf.vatRate);
+      const net = Math.round(skontoAmount / (1 + r) * 100) / 100;
+      await this.prisma.expense.create({
+        data: {
+          companyId,
+          supplierId: skontoOf.supplierId,
+          invoiceNumber: `${skontoOf.invoiceNumber || 'ER'}-SKONTO`.slice(0, 50),
+          description: `Skonto ${skontoOf.invoiceNumber || ''}`.trim(),
+          invoiceDate: txn.valueDate,
+          netAmount: (-net).toFixed(4),
+          vatRate: r,
+          vatAmount: (-(skontoAmount - net)).toFixed(4),
+          grossAmount: (-skontoAmount).toFixed(4),
+          category: skontoOf.category,
+          accountNumber: skontoOf.accountNumber,
+          isIntraEU: skontoOf.isIntraEU,
+          isReverseCharge: skontoOf.isReverseCharge,
+          status: 'booked',
+          paidAt: txn.valueDate,
+          notes: `Skonto [skonto-voucher:${voucher.id}]`,
+        },
       });
     }
 

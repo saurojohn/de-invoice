@@ -52,6 +52,7 @@ AS_B() { # method path body
 QB="companyId=$CB"
 AS_B POST "/api/v1/customers?$QB" "{\"name\":\"$TAG B Kunde\",\"type\":\"business\"}"; B_CUST=$(json_field "$BODY" id)
 AS_B POST "/api/v1/invoices?$QB" "{\"customerId\":\"$B_CUST\",\"issueDate\":\"2026-09-01\",\"items\":[{\"description\":\"$TAG\",\"quantity\":1,\"unit\":\"Stk\",\"unitPrice\":10,\"vatRate\":0.19}]}"; B_INV=$(json_field "$BODY" id)
+AS_B PUT "/api/v1/invoices/$B_INV/status?$QB" '{"status":"sent"}'  # Tier 462: a payment needs an issued invoice
 AS_B POST "/api/v1/cashbook/entries?$QB" '{"businessDate":"2026-09-01","type":"eroeffnung","description":"Eröffnung","amount":100}'
 assert_status 201 "B: opening balance"
 # the "other" company for the links: a third fresh company, so the shared seed company keeps no stray invoice

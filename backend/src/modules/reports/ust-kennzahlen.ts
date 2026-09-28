@@ -117,6 +117,8 @@ export function sumUstva(months: UstvaData[], base: Pick<UstvaData, 'companyId' 
   const z = { net: 0, vat: 0 }
   const acc: UstvaData = {
     ...base,
+    // Tier 457: the months were computed with the company's Besteuerungsart
+    besteuerungsart: months[0]?.besteuerungsart ?? 'soll',
     salesByRate: [],
     igL: 0, export: 0, otherExempt: 0,
     reverseChargeSales: 0, euServicesSales: 0, nonTaxableOther: 0,

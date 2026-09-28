@@ -83,22 +83,29 @@ note "=== 3. the letter ==="
 AS POST "/api/v1/reminders/send" "{\"companyId\":\"$C\",\"invoiceId\":\"$I\",\"level\":\"final\"}"
 [[ "$STATUS" == 201 || "$STATUS" == 200 ]] && pass "Mahnung sent" || fail "send: $STATUS $BODY"
 MID=$(json_field "$BODY" mahnungId)
-curl -sS -o /tmp/t421-m.pdf -H "x-user-id: $U" -H "x-company-id: $C" "$API/api/v1/reminders/mahnungen/$MID/pdf?companyId=$C"
+PDF_STATUS=$(curl -sS -o /tmp/t421-m.pdf -w "%{http_code} %{content_type} %{size_download}" \
+  -H "x-user-id: $U" -H "x-company-id: $C" "$API/api/v1/reminders/mahnungen/$MID/pdf?companyId=$C")
+# Tier 449: pypdf, not a regex over the raw streams. In CI runs 36109905697
+# and 36131518196 the text came back empty and all four letter checks failed
+# together (never in local runs). One way the regex does that, shown with a
+# synthetic stream: it cut each FlateDecode stream at `\r?\n endstream`, so a
+# stream whose last compressed byte is 0x0D lost that byte and zlib refused it
+# (the error was swallowed). Whether that was CI's cause is not proven — if
+# the text is empty again, the note below prints the HTTP status and the
+# file's head. Whitespace is collapsed: pypdf breaks lines.
 TXT=$(python3 - /tmp/t421-m.pdf <<'PY'
-import re, sys, zlib
-d = open(sys.argv[1], 'rb').read(); out = []
-for m in re.finditer(rb'/Filter /FlateDecode[^>]*>>\s*stream\r?\n(.*?)\r?\nendstream', d, re.DOTALL):
-    try: dec = zlib.decompress(m.group(1))
-    except Exception: continue
-    for line in dec.split(b'\n'):
-        hx = re.findall(rb'<([0-9A-Fa-f]+)>', line)
-        if hx: out.append(b''.join(bytes.fromhex(h.decode()) for h in hx).decode('latin-1', 'ignore'))
-print(' '.join(out))
+import re, sys, pypdf
+try:
+    r = pypdf.PdfReader(sys.argv[1])
+    print(re.sub(r'\s+', ' ', ' '.join(p.extract_text() or '' for p in r.pages)))
+except Exception as e:
+    print(f'PDF-ERROR {e}')
 PY
 )
+[[ -n "$TXT" && "$TXT" != PDF-ERROR* ]] || note "letter PDF: HTTP $PDF_STATUS, mahnungId '$MID', extract: ${TXT:0:120}, head: $(head -c 120 /tmp/t421-m.pdf | tr -c '[:print:]' '.')"
 grep -q "Offener Betrag: 690,00" <<<"$TXT" && pass "letter: Offener Betrag 690,00 (was 1.190,00)" || fail "letter open amount"
 grep -q "abzüglich Zahlungen und Gutschriften: 500,00" <<<"$TXT" && pass "letter: states the payment deducted" || fail "letter payment line"
 grep -q "5,00 Prozentpunkte, § 288 Abs. 1 BGB" <<<"$TXT" && pass "letter: Basiszinssatz + 5 points, § 288 Abs. 1" || fail "letter interest basis"
-tr -s " " <<<"$TXT" | grep -q "5 Prozentpunkten über dem Basiszinssatz (§ 288 Abs. 1 BGB)" && pass "letter: the consumer's legal note (was '9 Prozentpunkten … Abs. 2')" || fail "letter legal note"
+grep -q "5 Prozentpunkten über dem Basiszinssatz (§ 288 Abs. 1 BGB)" <<<"$TXT" && pass "letter: the consumer's legal note (was '9 Prozentpunkten … Abs. 2')" || fail "letter legal note"
 
 summary; exit $?

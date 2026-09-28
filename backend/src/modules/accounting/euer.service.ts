@@ -3,8 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Response } from 'express';
 import PDFDocument from 'pdfkit';
-import { invoiceNetRevenue } from '../invoice/tax-breakdown';
-import { SALES_TYPES } from '../invoice/document-scope'
+import { euerExpenses, euerInflows } from './euer-zufluss'
 import { cashBookings } from '../cashbook/cash-bookings'
 import { expenseCost } from './expense-cost'
 import { bookedAfaCost } from './booked-afa'
@@ -69,9 +68,15 @@ export interface EuerResult {
     ausgabenTotal: number;
     gewinn: number; // einnahmenTotal - ausgabenTotal (positive = profit, negative = loss)
   };
+  /** Tier 454: § 11 EStG — counted when paid */
+  prinzip: 'zufluss';
   counts: {
+    /** invoices with income in the year */
     invoices: number;
+    /** expenses paid in the year */
     expenses: number;
+    /** issued / dated in the year and not paid yet: counted in the year they are */
+    unbezahlt: { invoices: number; expenses: number };
   };
   generatedAt: string;
   disclaimer: string;
@@ -193,68 +198,13 @@ export class EuerService {
     const yearStart = new Date(year, 0, 1)
     const yearEnd = new Date(year, 11, 31, 23, 59, 59, 999)
 
-    // Pull every invoice in the year (any status
-    // that contributed to revenue). Drafts are
-    // excluded — they're not billable yet.
-    const invoices = await this.prisma.invoice.findMany({
-      where: {
-        companyId,
-        issueDate: { gte: yearStart, lte: yearEnd },
-        status: { in: ['paid', 'sent', 'overdue'] },
-        type: { in: SALES_TYPES }, // Tier 424: not a Proforma
-      },
-      select: {
-        subtotal: true,
-        totalVat: true,
-        // Tier 411: revenue is total − totalVat (after the discount), in EUR
-        // (eurTotal / eurTotalVat are selected below).
-        total: true,
-        // Tier 118: cross-currency aggregation.
-        // EÜR is a German Finanzamt form that adds
-        // everything up in EUR. Pre-invoice amounts
-        // stay in the original currency on the PDF
-        // and XRechnung; the EÜR service uses
-        // `eurTotal` / `eurSubtotal` / `eurTotalVat`
-        // (pre-computed at issue time from the ECB
-        // rate) so a USD invoice + a EUR invoice
-        // land on the same revenue line in €.
-        //
-        // `eurSubtotal` / `eurTotalVat` may be null
-        // for legacy invoices issued before Tier
-        // 118; the Prisma `Decimal?` column
-        // serialises to null in those cases. We
-        // `?? 0` to fall back to the legacy
-        // behaviour (treat as EUR, no conversion).
-        eurSubtotal: true,
-        eurTotalVat: true,
-        eurTotal: true,
-        // Invoice has a single `reverseCharge`
-        // boolean (the seller-side flag — true for
-        // igL + §13b cases). intra-EU purchases on
-        // the buyer's side (igE) live on Expense.
-        reverseCharge: true,
-        // Tier 410: the igL flag is separate from reverseCharge.
-        euTransaction: true,
-      },
-    })
-    // Same approach for expenses. Tier 87:
-    // exclude booked AfA rows (category='AfA');
-    // Tier 436: they go to the 4600 line below.
-    const expenses = await this.prisma.expense.findMany({
-      where: {
-        companyId,
-        invoiceDate: { gte: yearStart, lte: yearEnd },
-        status: { in: ['booked', 'deductible'] },
-        // Tier 425: `not: 'AfA'` alone is `category <> 'AfA'` in SQL, which drops every
-        // expense WITHOUT a category (NULL) — the usual case.
-        OR: [{ category: null }, { category: { not: 'AfA' } }],
-      },
-      select: {
-        netAmount: true,
-        grossAmount: true,
-        category: true,
-      },
-    })
+    // Tier 454: income by the day it was received, expenses by the day they
+    // were paid (euer-zufluss.ts) — was issue date / invoice date. The EUR
+    // amounts (Tier 118), the discount (Tier 411) and the igL / §13b flags
+    // (Tier 410) come with the invoice, as before.
+    const { inflows, unpaidInvoices } = await euerInflows(this.prisma, companyId, yearStart, yearEnd)
+    // Tier 87 / 436: booked AfA rows are the 4600 line below, not an expense.
+    const { expenses, unpaidExpenses } = await euerExpenses(this.prisma, companyId, yearStart, yearEnd)
 
     // Bucket revenues by Kennziffer. The matchers
     // are evaluated in order; the first match wins.
@@ -276,16 +226,10 @@ export class EuerService {
     // review.
     const einnahmenBuckets = new Map<string, number>()
     for (const def of REVENUE_LINES) einnahmenBuckets.set(def.kz, 0)
-    for (const inv of invoices) {
-      // Tier 118: aggregate in EUR. Prefer the
-      // pre-computed eurSubtotal; fall back to the
-      // original subtotal if the column is null
-      // (legacy invoices, manual DB rows).
-      // Tier 411: after the invoice discount (was eurSubtotal ?? subtotal —
-      // the amount before it). The name stays: every use below is the
-      // invoice's revenue, and its sign still marks a credit note.
-      const subtotal = invoiceNetRevenue(inv)
-      if (subtotal < 0) {
+    for (const { invoice: inv, amount: subtotal } of inflows) {
+      // Tier 454: the income is the payment's net share, not the invoice's net;
+      // its sign still marks a credit note.
+      if (subtotal < 0 || inv.type === 'CN') {
         // Gutschrift — offset Kz 4100 (negative)
         einnahmenBuckets.set('4100', (einnahmenBuckets.get('4100') || 0) + subtotal)
         continue
@@ -353,9 +297,11 @@ export class EuerService {
         ausgabenTotal: Math.round(ausgabenTotal * 100) / 100,
         gewinn,
       },
+      prinzip: 'zufluss',
       counts: {
-        invoices: invoices.length,
+        invoices: new Set(inflows.map((f) => f.invoice.id)).size,
         expenses: expenses.length,
+        unbezahlt: { invoices: unpaidInvoices, expenses: unpaidExpenses },
       },
       generatedAt: new Date().toISOString(),
       disclaimer:
@@ -431,6 +377,8 @@ export class EuerService {
       .font('Helvetica')
       .text(`Einnahmen-Überschuss-Rechnung ${data.year}`)
       .text(`${company?.name || ''}`)
+      // Tier 454
+      .text('Gezählt nach Zahlungsdatum (Zufluss-/Abflussprinzip, § 11 EStG)')
       .moveDown(0.5)
 
     // Einnahmen

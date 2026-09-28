@@ -39,11 +39,13 @@ revenue() { # net
   AS POST "/api/v1/customers?companyId=$C" '{"name":"'$TAG' Kunde","type":"business"}'
   local cust inv; cust=$(json_field "$BODY" id)
   AS POST "/api/v1/invoices?companyId=$C" '{"customerId":"'$cust'","issueDate":"'$Y'-03-01","items":[{"description":"Leistung","quantity":1,"unit":"Stk","unitPrice":'$1',"vatRate":0.19}]}'
-  inv=$(json_field "$BODY" id)
+  local total; inv=$(json_field "$BODY" id); total=$(json_field "$BODY" total)
   AS PUT "/api/v1/invoices/$inv/status?companyId=$C" '{"status":"sent"}'
+  # Tier 454: paid, as the expenses below — the EÜR counts payments
+  AS POST "/api/v1/invoices/$inv/payments?companyId=$C" '{"amount":'$total',"paymentDate":"'$Y'-03-15","paymentMethod":"bank_transfer"}'
 }
 expense() { # net category
-  AS POST "/api/v1/ustva/expenses?companyId=$C" '{"supplierId":"'$S'","invoiceNumber":"ER-'$RANDOM'","description":"Beleg","invoiceDate":"'$Y'-04-01","netAmount":'$1',"vatRate":0,"vatAmount":0,"grossAmount":'$1${2:+,\"category\":\"$2\"}'}'
+  AS POST "/api/v1/ustva/expenses?companyId=$C" '{"supplierId":"'$S'","invoiceNumber":"ER-'$RANDOM'","description":"Beleg","invoiceDate":"'$Y'-04-01","paidAt":"'$Y'-04-10","netAmount":'$1',"vatRate":0,"vatAmount":0,"grossAmount":'$1${2:+,\"category\":\"$2\"}'}'
   [[ "$STATUS" == "201" ]] || fail "expense $1 $2: $STATUS $BODY"
 }
 supplier() {

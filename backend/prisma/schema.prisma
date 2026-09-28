@@ -58,6 +58,9 @@ model Company {
   // name ("… GmbH") where possible. Decides KSt 1 vs Anlage G and the
   // GewSt Freibetrag.
   rechtsform         String?
+  // Tier 457: 'soll' (default, NULL) or 'ist' — Ist-Versteuerung (§ 20 UStG):
+  // the UStVA owes output tax when the payment arrives (reports/ustva-ist.ts).
+  besteuerungsart    String?
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 

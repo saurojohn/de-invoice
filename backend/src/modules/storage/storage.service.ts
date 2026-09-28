@@ -31,6 +31,11 @@ export interface StorageStats {
   usageByType: Record<string, { count: number; size: number }>;
 }
 
+/** GET /api/v1/storage/files/<path, "/" and "\\" as ","> — one spelling for every caller. */
+export function storageFileUrl(relativePath: string): string {
+  return `/api/v1/storage/files/${relativePath.replace(/[\\/]/g, ',')}`;
+}
+
 @Injectable()
 export class StorageService {
   private config: StorageConfig = {
@@ -150,7 +155,9 @@ export class StorageService {
 
     // Calculate relative path for storage
     const relativePath = path.join(year, month, type, companyId, newFilename);
-    const url = `/api/v1/storage/${relativePath.replace(/\\/g, '/')}`;
+    // Tier 453: the route is `files/*splat` with the path's slashes as commas
+    // (what list() returns); this said `/api/v1/storage/<path>` — a 404.
+    const url = storageFileUrl(relativePath);
 
     return {
       path: relativePath,
@@ -328,7 +335,7 @@ export class StorageService {
           type,
           size: st.size,
           uploadedAt: st.mtime,
-          url: `/api/v1/storage/files/${rel.replace(/\//g, ',')}`,
+          url: storageFileUrl(rel),
         })
       }
     }

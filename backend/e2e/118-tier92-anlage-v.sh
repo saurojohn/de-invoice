@@ -86,10 +86,10 @@ cat > "$TMP_SQL" <<EOF
 INSERT INTO "Asset" (id, "companyId", type, bezeichnung, "anschaffungsDatum", "anschaffungsKosten", "nutzungsdauerMonate", restwert, "afaMethode", "bilanzKonto", notiz, "createdAt", "updatedAt")
 VALUES (gen_random_uuid()::text, '$COMPANY_ID', 'Gebaeude', 'T92-${TS}-Gebaeude-1', '2020-01-01', 300000, 600, 0, 'linear', '0200', NULL, now(), now());
 
-INSERT INTO "Expense" (id, "companyId", "supplierId", "invoiceNumber", description, "invoiceDate", "netAmount", "vatRate", "vatAmount", "grossAmount", category, "isIntraEU", "isReverseCharge", status, notes, "createdAt", "updatedAt")
+INSERT INTO "Expense" (id, "companyId", "supplierId", "invoiceNumber", description, "invoiceDate", "netAmount", "vatRate", "vatAmount", "grossAmount", category, "isIntraEU", "isReverseCharge", status, notes, "paidAt", "createdAt", "updatedAt")
 VALUES
-  (gen_random_uuid()::text, '$COMPANY_ID', NULL, NULL, 'T92-${TS}-Schuldzinsen Q1', '${TEST_YEAR}-03-15', 1500, 0, 0, 1500, 'Schuldzinsen', false, false, 'booked', 'T92-${TS}-schuldzins test fixture', now(), now()),
-  (gen_random_uuid()::text, '$COMPANY_ID', NULL, NULL, 'T92-${TS}-Grundsteuer Q1', '${TEST_YEAR}-04-15', 800, 0, 0, 800, 'Grundsteuer', false, false, 'booked', 'T92-${TS}-grundsteuer test fixture', now(), now());
+  (gen_random_uuid()::text, '$COMPANY_ID', NULL, NULL, 'T92-${TS}-Schuldzinsen Q1', '${TEST_YEAR}-03-15', 1500, 0, 0, 1500, 'Schuldzinsen', false, false, 'booked', 'T92-${TS}-schuldzins test fixture', '${TEST_YEAR}-03-15', now(), now()),
+  (gen_random_uuid()::text, '$COMPANY_ID', NULL, NULL, 'T92-${TS}-Grundsteuer Q1', '${TEST_YEAR}-04-15', 800, 0, 0, 800, 'Grundsteuer', false, false, 'booked', 'T92-${TS}-grundsteuer test fixture', '${TEST_YEAR}-04-15', now(), now());
 EOF
 docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice < "$TMP_SQL"
 rm -f "$TMP_SQL"

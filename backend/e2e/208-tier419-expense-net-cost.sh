@@ -27,10 +27,12 @@ AS() { # method path body
 fixture() { # vatRate-of-sale
   AS POST "/api/v1/customers?companyId=$C" '{"name":"Kunde AG","type":"business"}'; local k; k=$(json_field "$BODY" id)
   AS POST "/api/v1/invoices?companyId=$C" "{\"customerId\":\"$k\",\"issueDate\":\"$YEAR-08-10\",\"items\":[{\"description\":\"a\",\"quantity\":1,\"unit\":\"Stk\",\"unitPrice\":1000,\"vatRate\":$1}]}"
-  local id; id=$(json_field "$BODY" id)
+  local id total; id=$(json_field "$BODY" id); total=$(json_field "$BODY" total)
   AS PUT "/api/v1/invoices/$id/status?companyId=$C" '{"status":"sent"}'
+  # Tier 454: paid, both ways — the EÜR counts payments
+  AS POST "/api/v1/invoices/$id/payments?companyId=$C" '{"amount":'$total',"paymentDate":"'$YEAR'-08-15","paymentMethod":"bank_transfer"}'
   for cat in Material Miete Sonstiges; do
-    AS POST "/api/v1/ustva/expenses?companyId=$C" "{\"description\":\"$cat\",\"category\":\"$cat\",\"invoiceDate\":\"$YEAR-08-12\",\"netAmount\":100,\"vatRate\":0.19,\"vatAmount\":19,\"grossAmount\":119}"
+    AS POST "/api/v1/ustva/expenses?companyId=$C" "{\"description\":\"$cat\",\"category\":\"$cat\",\"invoiceDate\":\"$YEAR-08-12\",\"netAmount\":100,\"vatRate\":0.19,\"vatAmount\":19,\"grossAmount\":119,\"paidAt\":\"$YEAR-08-14\"}"
   done
 }
 guv() { AS GET "/api/v1/accounting/guv?companyId=$C&year=$YEAR"; python3 -c "import sys,json;print(json.loads(sys.argv[1])['totals']['jahresueberschuss'])" "$BODY"; }

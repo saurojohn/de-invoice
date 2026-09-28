@@ -1,4 +1,4 @@
-import { IsInt, IsNumber, IsOptional, IsString, IsNotEmpty, Matches, Max, MaxLength, Min } from 'class-validator'
+import { IsBoolean, IsInt, IsNumber, IsOptional, IsString, IsNotEmpty, Matches, Max, MaxLength, Min } from 'class-validator'
 
 /**
  * Tier 393 — bodies for the bank-import money routes. They were single
@@ -46,6 +46,11 @@ export class BookExpenseDto {
   @IsOptional() @IsNumber({}, { message: 'vatAmount muss eine Zahl sein' })
   @Min(0, { message: 'vatAmount darf nicht negativ sein' })
   vatAmount?: number
+
+  // Tier 452: the debit is the expense less a Skonto (at most 10 %); the
+  // difference becomes a supplier credit note split at the expense's rate.
+  @IsOptional() @IsBoolean()
+  skonto?: boolean
 }
 
 export class SuggestMatchesDto {

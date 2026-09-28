@@ -25,6 +25,7 @@ import {
   Min,
   Max,
   ValidateNested,
+  IsBoolean,
 } from "class-validator"
 import { Type } from "class-transformer"
 
@@ -120,6 +121,10 @@ export class UstvaDataDto {
   @IsString() @MinLength(1) @MaxLength(50)
   periodLabel!: string
 
+  // Tier 457: echoed back from compute; the save recomputes (Tier 448).
+  @IsString() @IsOptional() @IsIn(['soll', 'ist'])
+  besteuerungsart?: string
+
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => UstvaSalesByRateDto)
@@ -199,4 +204,9 @@ export class SaveUstvaFilingDto extends UstvaDataDto {
 
   @IsString() @IsOptional() @IsIn(['draft', 'submitted'])
   status?: 'draft' | 'submitted'
+
+  // Tier 448: a filing already submitted is replaced only by a corrected
+  // return (berichtigte Voranmeldung), and only when the caller says so.
+  @IsOptional() @IsBoolean()
+  berichtigt?: boolean
 }

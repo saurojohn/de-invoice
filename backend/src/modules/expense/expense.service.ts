@@ -1,4 +1,5 @@
 import { signedExpenseAmounts } from './credit-note';
+import { expenseLockReasons } from './expense-lock';
 /**
  * Expense (Eingangsrechnung) — vendor bills received.
  *
@@ -40,26 +41,20 @@ export class ExpenseService {
       take: 500,
     });
     if (items.length === 0) return { data: [], total: 0 };
-    // Augment each Expense with the most recent linked
-    // Voucher (for the list page to show a "Buchungsbeleg"
-    // link + a "Storniert" badge if the Voucher is a
-    // reversal). The bank-import bookExpense flow links
-    // Expense → Voucher by writing a Voucher with
-    // referenceType='Expense' and the expenseId in
-    // description — we resolve the link here by querying
-    // for Vouchers whose description carries the expenseId.
-    // The cheaper alternative would be a column on
-    // Voucher, but we kept the Voucher self-contained.
+    // Tier 447: the payment state comes from the expense itself (paidAt —
+    // bank, SEPA, cash book), not from bank vouchers alone. The voucher search
+    // said "offen" for an expense paid by SEPA or in cash, and "bezahlt" for
+    // one whose bank booking had been reversed: the Storno's description
+    // carries no "[expense:<id>]" tag, so "storniert" never matched.
+    // linkedVoucher is the bank-import booking tagged with the expense id
+    // (bank-import.service.ts bookExpense) — the one that pays it, else the
+    // latest reversed one.
     const expenseIds = items.map((e) => e.id);
-    // Quick text-search for the most-recent Voucher per
-    // expense. Patterns look like "... [expense:<id>] ..."
-    // — see bank-import.service.ts bookExpense.
     const vouchers = await this.prisma.voucher.findMany({
       where: {
         companyId,
-        referenceType: { in: ['Expense', 'VoucherReversal'] },
-        description: { contains: 'expense:' },
-        OR: expenseIds.map((id) => ({ description: { contains: id } })),
+        referenceType: 'Expense',
+        OR: expenseIds.map((id) => ({ description: { contains: `[expense:${id}]` } })),
       },
       orderBy: { createdAt: 'desc' },
       select: {
@@ -67,19 +62,10 @@ export class ExpenseService {
         voucherNumber: true,
         referenceType: true,
         description: true,
-        status: true,
+        _count: { select: { reversals: true } },
       },
     });
-    // Build a map of expenseId → most recent voucher
-    const voucherByExpense: Record<string, typeof vouchers[number]> = {};
-    for (const v of vouchers) {
-      for (const eid of expenseIds) {
-        if (v.description && v.description.includes(eid)) {
-          if (!voucherByExpense[eid]) voucherByExpense[eid] = v;
-          break;
-        }
-      }
-    }
+    const locks = await expenseLockReasons(this.prisma, companyId, items);
     return {
       // Tier 178: wrap the array in {data, total} so
       // the list page can paginate and show a count,
@@ -87,25 +73,19 @@ export class ExpenseService {
       // /products. Phase 3 Berater-Walkthrough flagged
       // this as a consistency gap.
       data: items.map((e) => {
-        const v = voucherByExpense[e.id];
+        const own = vouchers.filter((v) => (v.description || '').includes(`[expense:${e.id}]`));
+        const active = own.find((v) => v._count.reversals === 0);
+        const reversed = own.find((v) => v._count.reversals > 0);
+        const v = active ?? reversed;
         return {
           ...e,
-          // Cheap UI hint: "Storniert" if the linked
-          // voucher is itself a VoucherReversal, "Bezahlt"
-          // if there's any linked voucher, "Offen" otherwise.
-          // This drives the colored badge in the list.
-          paymentState: v
-            ? v.referenceType === 'VoucherReversal'
-              ? 'storniert'
-              : 'bezahlt'
-            : 'offen',
+          // An unreversed bank booking pays it too: bookings before Tier 425
+          // set no paidAt (expense-lock.ts treats them alike).
+          paymentState: e.paidAt || active ? 'bezahlt' : reversed ? 'storniert' : 'offen',
           linkedVoucher: v
-            ? {
-                id: v.id,
-                voucherNumber: v.voucherNumber,
-                referenceType: v.referenceType,
-              }
+            ? { id: v.id, voucherNumber: v.voucherNumber, referenceType: v.referenceType }
             : null,
+          lockReason: locks.get(e.id) ?? null,
         };
       }),
       // Tier 178: total = total rows the list page
@@ -167,6 +147,8 @@ export class ExpenseService {
         isReverseCharge: !!data.isReverseCharge,
         status: data.status || 'booked',
         notes: data.notes || null,
+        // Tier 454: paid by card / privately (CreateExpenseDto.paidAt).
+        paidAt: data.paidAt ? new Date(data.paidAt) : null,
       },
     });
   }

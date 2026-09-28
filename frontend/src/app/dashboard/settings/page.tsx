@@ -9,7 +9,7 @@ import LanguageSwitcher from "@/components/LanguageSwitcher"
 import DunningConfigCard from "@/components/DunningConfigCard"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
-import { API_BASE, apiGet, apiPost, apiPut, apiDelete, apiFetch, ApiError } from "@/lib/api"
+import { apiGet, apiGetBlob, apiPost, apiPut, apiDelete, apiFetch, ApiError } from "@/lib/api"
 // Tier 94: feature flags card (autoBookAfa + anlageV).
 import { FeatureFlagsCard } from "./FeatureFlagsCard"
 
@@ -86,6 +86,8 @@ interface CompanySettings {
   // Tier 441: legal form; null = derived from the company name by the
   // backend (company/rechtsform.ts).
   rechtsform: string | null
+  // Tier 457: Soll- or Ist-Versteuerung (§ 20 UStG); null = soll.
+  besteuerungsart: "soll" | "ist" | null
 }
 
 // Tier 441: the values the backend accepts (company/rechtsform.ts).
@@ -225,6 +227,7 @@ export default function SettingsPage() {
     defaultPaymentDays: 30,
     defaultVatMode: null,
     rechtsform: null,
+    besteuerungsart: null,
   })
 
   const [storageForm, setStorageForm] = useState<StorageSettings>({
@@ -319,6 +322,7 @@ export default function SettingsPage() {
               // a pre-selected option.
               defaultVatMode: data.defaultVatMode ?? null,
               rechtsform: data.rechtsform ?? null,
+              besteuerungsart: data.besteuerungsart ?? null,
             })
 
             if (data.logoPath) {
@@ -566,6 +570,7 @@ export default function SettingsPage() {
           // invoice create.
           defaultVatMode: fresh.defaultVatMode ?? null,
           rechtsform: fresh.rechtsform ?? null,
+          besteuerungsart: fresh.besteuerungsart ?? null,
         })
       }
       toast.error(t("settings.saved"))
@@ -1201,6 +1206,23 @@ export default function SettingsPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">
+                    {t("settings.besteuerungsart")}
+                  </label>
+                  <select
+                    className="w-full h-10 border rounded-md px-3"
+                    value={form.besteuerungsart ?? "soll"}
+                    onChange={(e) => setForm({ ...form, besteuerungsart: e.target.value as "soll" | "ist" })}
+                    data-testid="settings-besteuerungsart"
+                  >
+                    <option value="soll">{t("settings.besteuerungsartSoll")}</option>
+                    <option value="ist">{t("settings.besteuerungsartIst")}</option>
+                  </select>
+                  <p className="text-xs text-gray-600 mt-1">
+                    {t("settings.besteuerungsartHelp")}
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">
                     {t("settings.defaultCurrency")}
                   </label>
                   <select
@@ -1728,16 +1750,25 @@ export default function SettingsPage() {
                             </td>
                             <td className="px-3 py-2 text-right space-x-2">
                               <button
-                                onClick={() => {
-                                  const a = document.createElement("a")
-                                  a.href = `${API_BASE}${f.url}`
-                                  a.target = "_blank"
-                                  a.rel = "noopener noreferrer"
-                                  a.download = f.originalName
-                                  document.body.appendChild(a)
-                                  a.click()
-                                  document.body.removeChild(a)
+                                onClick={async () => {
+                                  // Tier 453: a plain navigation sends no auth
+                                  // headers — the backend answered 401. Fetch
+                                  // it with them and save the blob.
+                                  try {
+                                    const { blob } = await apiGetBlob(f.url)
+                                    const href = URL.createObjectURL(blob)
+                                    const a = document.createElement("a")
+                                    a.href = href
+                                    a.download = f.originalName
+                                    document.body.appendChild(a)
+                                    a.click()
+                                    document.body.removeChild(a)
+                                    setTimeout(() => URL.revokeObjectURL(href), 1000)
+                                  } catch (err: any) {
+                                    toast.error(err?.message || "Download fehlgeschlagen")
+                                  }
                                 }}
+                                data-testid={`storage-download-${f.filename}`}
                                 className="text-blue-600 dark:text-blue-400 hover:underline text-xs"
                               >
                                 {t("storage.fileDownload")}

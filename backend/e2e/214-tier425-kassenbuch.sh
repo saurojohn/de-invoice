@@ -79,8 +79,9 @@ note "=== 3. DATEV: Kasse 1000 ==="
 export_csv() { curl -sS -o "$1" -H "x-user-id: $U" -H "x-company-id: $C" "$API/api/v1/reports/datev-export?companyId=$C&startDate=$FROM&endDate=$TO"; }
 export_csv /tmp/t425.csv
 ROWS=$(datev_rows /tmp/t425.csv | awk -F'\t' '$3=="1000" {print $4":"$5":"$6":"$7}' | sort | tr '\n' ' ')
-assert_eq "cash sale, cash purchase, the invoice paid in cash, the expense paid in cash" \
-  "$ROWS" "10000:119.00:S: 4900:59.50:H:9 70001:119.00:H: 8400:119.00:S:3 "
+# (Tier 458: the Privateinlage too — Kasse an Privateinlagen 1890)
+assert_eq "cash sale, cash purchase, the invoice paid in cash, the expense paid in cash, the Privateinlage" \
+  "$ROWS" "10000:119.00:S: 1890:50.00:S: 4900:59.50:H:9 70001:119.00:H: 8400:119.00:S:3 "
 
 note "=== 4. a Storno of the cash receipt takes the payment back ==="
 AS POST "/api/v1/cashbook/entries/$BAR/reverse?companyId=$C" '{"reason":"falsche Rechnung"}'

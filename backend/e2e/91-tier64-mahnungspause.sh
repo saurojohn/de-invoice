@@ -284,7 +284,7 @@ assert_eq "pause row preserved with cancelledAt set" "$SOFT_COUNT" "1"
 # ───── 15. Cleanup ─────
 echo
 note "=== 15. cleanup ==="
-docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 DELETE FROM "Mahnungspause" WHERE "companyId" = '$COMPANY_ID';
 SQL
 pass "cleanup complete"

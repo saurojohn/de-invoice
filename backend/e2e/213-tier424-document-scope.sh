@@ -55,8 +55,6 @@ AS GET "/api/v1/reports/bwa?companyId=$C&year=$YEAR&month=$MONTH"
 assert_eq "BWA Umsatzerlöse 600 (was 1 600)" "$(P "[l['monat'] for l in d['lines'] if l['bucket']=='1000'][0]")" "600"
 AS GET "/api/v1/reports/pnl?companyId=$C&year=$YEAR"
 assert_eq "P&L revenue 600 (was 1 900 — the draft too)" "$(P "d['ytd']['revenue']")" "600"
-AS GET "/api/v1/accounting/anlage-s?companyId=$C&year=$YEAR"
-assert_eq "Anlage S 4100: 600 (was 1 600)" "$(P "[e['amount'] for e in d['einnahmen'] if e['kennziffer']=='4100'][0]")" "600"
 
 note "=== 3. what is owed ==="
 AS GET "/api/v1/reports/aging?companyId=$C"
@@ -78,5 +76,12 @@ AS POST "/api/v1/invoices/$S/credit-note?companyId=$C" '{"amount":190}'
 AS GET "/api/v1/customers/$K/statement?companyId=$C&from=$YEAR-01-01&to=$TODAY"
 assert_eq "closing balance 1 000 (was 810)" "$(P "d['closingBalance']")" "1000"
 assert_eq "…lines: the invoice and the credit note, no synthetic payment" "$(P "sorted(l['type'] for l in d['lines'])")" "['credit', 'invoice']"
+
+note "=== the income-tax annex ==="
+# Tier 455: Anlage S counts payments — the Quittung and the invoice are paid.
+AS POST "/api/v1/invoices/$RCV/payments?companyId=$C" '{"amount":107,"paymentDate":"'$TODAY'","paymentMethod":"cash"}'
+AS POST "/api/v1/invoices/$INV/payments?companyId=$C" '{"amount":595,"paymentDate":"'$TODAY'","paymentMethod":"bank_transfer"}'
+AS GET "/api/v1/accounting/anlage-s?companyId=$C&year=$YEAR"
+assert_eq "Anlage S 4100: 600 (was 1 600)" "$(P "[e['amount'] for e in d['einnahmen'] if e['kennziffer']=='4100'][0]")" "600"
 
 summary; exit $?

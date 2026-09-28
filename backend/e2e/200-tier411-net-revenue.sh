@@ -27,8 +27,11 @@ AS() { # method path body
 AS POST "/api/v1/customers?companyId=$C" "{\"name\":\"$TAG Kunde\",\"type\":\"business\"}"; K=$(json_field "$BODY" id)
 issue() { # body-fragment
   AS POST "/api/v1/invoices?companyId=$C" "{\"customerId\":\"$K\",\"issueDate\":\"2026-08-15\",$1}"
-  local id; id=$(json_field "$BODY" id)
+  local id total; id=$(json_field "$BODY" id); total=$(json_field "$BODY" total)
   AS PUT "/api/v1/invoices/$id/status?companyId=$C" '{"status":"sent"}'
+  # Tier 454: paid in full — the EÜR counts payments
+  AS POST "/api/v1/invoices/$id/payments?companyId=$C" '{"amount":'$total',"paymentDate":"2026-08-20","paymentMethod":"bank_transfer"}'
+  [[ "$STATUS" == 201 ]] || fail "payment: $STATUS $BODY"
 }
 issue '"discountPercent":10,"items":[{"description":"Beratung","quantity":1,"unit":"Stk","unitPrice":1000,"vatRate":0.19}]'
 issue '"items":[{"description":"Leistung","quantity":1,"unit":"Stk","unitPrice":100,"vatRate":0.19},{"description":"Buch","quantity":1,"unit":"Stk","unitPrice":100,"vatRate":0.07}]'
