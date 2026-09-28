@@ -103,12 +103,3 @@ export class CreateUstvaExpenseDto {
   @IsString() @IsOptional() @MaxLength(2000)
   notes?: string
 }
-
-/** Tier 443: POST /ustva/expenses/:id/storno */
-export class StornoExpenseDto {
-  @IsString() @MinLength(1) @MaxLength(2000)
-  reason!: string
-
-  @IsOptional() @IsDateString()
-  date?: string
-}

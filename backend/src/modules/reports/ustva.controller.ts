@@ -4,7 +4,7 @@ import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { UstvaService } from './ustva.service';
 import { SaveUstvaFilingDto } from './dto/ustva.dto';
-import { CreateUstvaExpenseDto, StornoExpenseDto } from './dto/ustva-expense.dto';
+import { CreateUstvaExpenseDto } from './dto/ustva-expense.dto';
 import { UstjaService } from './ustja.service';
 import {
   generateUstvaElsterXml,
@@ -182,18 +182,6 @@ export class UstvaController {
       isReverseCharge: body.isReverseCharge ?? false,
       notes: body.notes,
     });
-  }
-
-  // Tier 443: cancel a booked expense by a counter-entry.
-  @Post('expenses/:id/storno')
-  @Require('accounting.create')
-  async stornoExpense(
-    @Query('companyId') companyId: string,
-    @Param('id') id: string,
-    @Body() body: StornoExpenseDto,
-  ) {
-    if (!companyId) throw new BadRequestException('companyId is required');
-    return this.ustva.stornoExpense(companyId, id, body);
   }
 
   @Delete('expenses/:id')

@@ -67,26 +67,23 @@ export class UstvaRateNetVatDto extends UstvaNetVatDto {
  * Vorsteuer breakdown (input tax). Lines 50-66 of
  * the UStVa form.
  */
-// Tier 443: input tax can be negative — a period whose supplier credit notes
-// (Tier 442) exceed its invoices declares a negative Kz 66 (§ 17 UStG). The
-// Min(0) here refused to save that UStVA.
 export class UstvaVorsteuerDto {
-  @IsNumber()
+  @IsNumber() @Min(0)
   from19!: number
 
-  @IsNumber()
+  @IsNumber() @Min(0)
   from7!: number
 
-  @IsNumber()
+  @IsNumber() @Min(0)
   fromIgE!: number
 
-  @IsNumber()
+  @IsNumber() @Min(0)
   fromReverseCharge!: number
 
   @IsNumber() @IsOptional()
   fromOther?: number
 
-  @IsNumber()
+  @IsNumber() @Min(0)
   total!: number
 }
 
@@ -175,7 +172,7 @@ export class UstvaDataDto {
   @IsNumber()
   umsatzsteuer!: number
 
-  @IsNumber() // Tier 443: negative with credit notes
+  @IsNumber() @Min(0)
   vorsteuerSum!: number
 
   /** Zahllast (positive) / Erstattung (negative). */

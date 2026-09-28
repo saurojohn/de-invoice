@@ -9,18 +9,17 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–443 are
-  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 443.)
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–442 are
+  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 442.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 36453568764 / commit `d5a8016`, Tier 443):**
-  - Backend e2e: **231 passed / 0 failed / 1 skipped** of 232 specs — 100
-    two-digit + 132 three-digit (Tier 443 added `232-tier443-eingangsrechnung-storno.sh`,
-    Tier 442 added `231-tier442-lieferantengutschrift.sh`,
+- **Test counts (last green CI, run 35987275741 / commit `174f332`, Tier 442):**
+  - Backend e2e: **230 passed / 0 failed / 1 skipped** of 231 specs — 100
+    two-digit + 131 three-digit (Tier 442 added `231-tier442-lieferantengutschrift.sh`,
     Tier 441 added `230-tier441-rechtsform.sh`,
     Tier 440 added `229-tier440-anlagenabgang.sh`,
     Tier 439 added `228-tier439-kst-ohne-anrechnung.sh`,
@@ -2496,44 +2495,6 @@ Tier 401 run 35123354210 **failed** on backend lint — a warning
 runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
-
-### A booked supplier invoice is cancelled, not deleted (Tier 443)
-
-Measured: `DELETE /ustva/expenses/:id` removed any expense (200) — one whose
-input tax a submitted UStVA had declared (the period then computed 0 € against
-19 € declared), one paid by SEPA, one paid through the cash book (the cash
-payment lost its link and, having a VAT rate, turned into a cash purchase of
-its own), and the rows "AfA buchen" creates. There was no Storno. The deletes
-were in the audit log, but the books no longer showed the record (§ 146
-Abs. 4 AO).
-
-Delete is refused (400, "… stornieren Sie die Eingangsrechnung stattdessen")
-when the expense is paid (`paidAt`, a SEPA batch), linked to a cash-book entry,
-an AfA row (→ "AfA stornieren"), a Storno or already cancelled, or when a
-submitted UStVA covers its month (monthly, quarterly or annual filing). An
-unpaid expense of an open period can still be deleted.
-
-New `POST /ustva/expenses/:id/storno` {reason, date?}: a counter-entry with the
-same supplier, rates, account and cost centre and negated amounts, dated the
-Storno day (default today — the correction belongs to the period it is made
-in), linked by the new `Expense.stornoOfId` (unique; migration
-`20260928000001_expense_storno`). The original stays; the declared period
-stays as declared, the Storno period carries the correction. Not for AfA rows,
-not twice, not of a Storno. The UStVA page lists a "Stornieren" button and
-marks cancelled expenses (de/en/zh).
-
-Found with it (Tier 442 follow-up): the UStVA filing DTO had `Min(0)` on the
-input tax, so a month whose supplier credit notes exceed its invoices could not
-be saved (400). A negative Kz 66 is legitimate (§ 17 UStG); the constraint is
-gone.
-
-Spec `e2e/232-tier443-eingangsrechnung-storno.sh` (25 assertions, 18 failing
-against the previous code).
-No existing spec needed a change. Local runs: backend **231 / 0 / 1**, 0 × 500;
-Playwright 929 + **1 flaky** — `assets-afa` "after POST book-afa-monthly the
-page shows monthly mode chip" read the status cell a fixed 2,5 s after
-switching the year and got the default year's "nicht gebucht". It waits for
-the text now; the spec file passed 5 × without retries (50/50).
 
 ### Supplier credit notes (Tier 442)
 
