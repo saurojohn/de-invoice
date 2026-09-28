@@ -9,17 +9,19 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–462 are
-  in `git log`; §8 records what each learned. (Snapshot refreshed Tier 462.)
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–463 are
+  in `git log`; §8 records what each learned. Tiers 443–462 came from the
+  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 463.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 36233216659 / commit `b952423`, Tier 462):**
-  - Backend e2e: **250 passed / 0 failed / 1 skipped** of 251 specs — 100
-    two-digit + 151 three-digit (Tier 462 added `251-tier462-zahlung-status.sh`,
+- **Test counts (last green CI, run 36463549670 / commit `cc38144`, Tier 463):**
+  - Backend e2e: **251 passed / 0 failed / 1 skipped** of 252 specs — 100
+    two-digit + 152 three-digit (Tier 463 added `252-tier463-ustva-negative-vorsteuer.sh`,
+    Tier 462 added `251-tier462-zahlung-status.sh`,
     Tier 461 added `250-tier461-storno-bezahlt.sh`,
     Tier 460 added `249-tier460-zahlung-loeschen.sh`,
     Tier 459 added `248-tier459-quittung-datev.sh`,
