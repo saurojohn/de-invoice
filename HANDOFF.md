@@ -9,16 +9,16 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–468 are
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–469 are
   in `git log`; §8 records what each learned. Tiers 443–462 came from the
-  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 468.)
+  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 469.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 36559286557 / commit `396c580`, Tier 468):**
+- **Test counts (last green CI, run 36568485525 / commit `05d3266`, Tier 469):**
   - Backend e2e: **254 passed / 0 failed / 1 skipped** of 255 specs — 100
     two-digit + 155 three-digit (Tier 467 added `255-tier467-skr03-sachkonten.sh`,
     Tier 465 added `254-tier465-ustva-kz10.sh`,
