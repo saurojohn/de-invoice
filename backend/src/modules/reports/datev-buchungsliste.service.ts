@@ -643,6 +643,9 @@ const ACCOUNT_USAGE: [string, string][] = [
   ['bank', 'Bank'],
   ['cash', 'Kasse'],
   ['transit', 'Geldtransit'],
+  ['advanceReceived19', 'Erhaltene, versteuerte Anzahlungen 19 %'],
+  ['advanceReceived7', 'Erhaltene, versteuerte Anzahlungen 7 %'],
+  ['advanceReceived0', 'Erhaltene Anzahlungen (ohne USt)'],
   ['privateWithdrawal', 'Privatentnahmen'],
   ['privateDeposit', 'Privateinlagen'],
   ['receivable', 'Forderungen (Sammelkonto)'],
@@ -670,6 +673,8 @@ const ACCOUNT_USAGE: [string, string][] = [
 const SKR03_NAMES: Record<string, string> = {
   '1000': 'Kasse',
   '1360': 'Geldtransit',
+  '1711': 'Erhaltene, versteuerte Anzahlungen 7 % USt',
+  '1718': 'Erhaltene, versteuerte Anzahlungen 19 % USt',
   '1800': 'Privatentnahmen allgemein',
   '1890': 'Privateinlagen',
   '1200': 'Bank',

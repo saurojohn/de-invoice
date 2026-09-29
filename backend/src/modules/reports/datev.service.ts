@@ -64,6 +64,9 @@ export interface DatevAccountMap {
   bank: string
   cash: string
   transit: string
+  advanceReceived19: string
+  advanceReceived7: string
+  advanceReceived0: string
   /** Tier 458: Privatentnahmen / Privateinlagen (a Kassenbuch entry without a VAT rate) */
   privateWithdrawal: string
   privateDeposit: string
@@ -99,6 +102,11 @@ export const SKR03_DEFAULTS: DatevAccountMap = {
   bank: '1200',                 // Bank
   cash: '1000',                 // Kasse (Tier 425)
   transit: '1360',              // Geldtransit (Tier 434)
+  // Tier 470: erhaltene, versteuerte Anzahlungen (Automatikkonten: DATEV
+  // splits the output tax off the gross amount) / ohne USt
+  advanceReceived19: '1718',
+  advanceReceived7: '1711',
+  advanceReceived0: '1710',
   privateWithdrawal: '1800',    // Privatentnahmen allgemein (Tier 458)
   privateDeposit: '1890',       // Privateinlagen (Tier 458)
   receivable: '1406',           // Forderungen aus L+L (the bank import's vouchers use it too)
@@ -525,6 +533,44 @@ export async function buildBuchungenFromDb(
       buchungstext: `Zahlung ${p.invoice.invoiceNumber}`,
       paymentMethod: p.paymentMethod,
     })
+  }
+
+  // Tier 470: a payment on a Proforma is an advance payment — money in the
+  // bank, owed to the customer until the final invoice, output tax due now.
+  // "Bank an erhaltene, versteuerte Anzahlungen" per rate of the Proforma
+  // (gross; the Automatikkonto splits the tax). It was in no export — the
+  // Proforma is no invoice (Tier 424) and its payments were left out with it.
+  const advances = await prisma.payment.findMany({
+    where: {
+      paymentDate: { gte: startDate, lte: endDate },
+      paymentMethod: { notIn: NON_CASH_PAYMENT_METHODS },
+      invoice: { companyId, type: 'PI', status: { notIn: ['draft', 'cancelled'] } },
+    },
+    include: { invoice: { include: { items: true } } },
+    orderBy: [{ paymentDate: 'asc' }, { createdAt: 'asc' }],
+  })
+  for (const p of advances) {
+    const pi = p.invoice
+    const total = Number(pi.total)
+    if (!(total > 0)) continue
+    const f = eurFactor(pi)
+    const share = Number(p.amount) / total
+    for (const bucket of invoiceTaxBreakdown(pi).byRate) {
+      const gross = r2((bucket.net + bucket.vat) * share * f)
+      if (gross === 0) continue
+      out.push({
+        belegdatum: p.paymentDate,
+        belegfeld1: p.receiptNumber || pi.invoiceNumber,
+        belegfeld2: pi.invoiceNumber,
+        konto: p.paymentMethod === 'cash' ? a.cash : a.bank,
+        gegenkonto: bucket.rate === 0 ? a.advanceReceived0
+          : Math.abs(bucket.rate - 0.07) < 0.001 ? a.advanceReceived7 : a.advanceReceived19,
+        betrag: gross,
+        shVz: 'S',
+        buchungstext: `Anzahlung ${pi.invoiceNumber}`.substring(0, 60),
+        paymentMethod: p.paymentMethod,
+      })
+    }
   }
 
   // ── 2. Expenses (Eingangsrechnungen), at their invoice date ──────────

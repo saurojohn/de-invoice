@@ -2526,6 +2526,44 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### A payment on a Proforma is an advance payment (Tier 470)
+
+Since Tier 424 the Proforma (PI) is no invoice — no revenue, no tax — and its
+payments were left out with it. Measured: a PI of 1 000 + 19 % paid in full
+(1 190) on 10.12.2025 appeared nowhere — UStVA 12/2025 0, EÜR 2025 no income,
+no DATEV row, no Bilanz liability. The money arrived and no report knew of it.
+User decision: treat it fully as an advance payment.
+
+- **UStVA:** taxed in the month received (§ 13 Abs. 1 Nr. 1a Satz 4 UStG),
+  pro rata per rate of the Proforma. Soll: an extra block
+  (`advancePayments` in `euer-zufluss.ts`); Ist: already via `euerInflows`,
+  which now includes PI payments — taxed once either way.
+- **EÜR / Anlage S / V / G (EÜR):** income when received (§ 11 EStG), via
+  `euerInflows`. Open Proformas are still no receivable (`unpaidInvoices`
+  counts CLAIM_TYPES only).
+- **DATEV:** "Bank an 1718 erhaltene, versteuerte Anzahlungen 19 %" (1711 at
+  7 %, 1710 without tax), gross, per rate — the Automatikkonto splits the tax.
+  New account slots `advanceReceived19/7/0` in the account map, Buchungsliste
+  and settings labels.
+- **Bilanz:** 4200 "Erhaltene Anzahlungen auf Bestellungen" = gross PI
+  payments up to the Stichtag (was null).
+
+Not yet: the final invoice that settles the advance (§ 14 Abs. 5 UStG — the
+advance and its tax deducted, the liability released). Until then an advance
+followed by a normal invoice for the same delivery is taxed and counted twice;
+the user has to leave the Proforma unpaid or cancel it. That is Tier 471.
+
+Spec 256: on the old code all four report assertions failed (UStVA, EÜR, DATEV,
+Bilanz); the Ist-Versteuerung check was added after that run.
+
+Local runs: Playwright **945**; backend 254 / 1 / 1, 0 × 5xx — the failure was spec 193's eight
+parallel invoice creates (6 of 8), 5 × green alone. The run log shows why: the
+auth guard's `user.findUnique` got Prisma's "Can't reach database server" and
+**answered 401 "Authentifizierung fehlgeschlagen"** — the same connection
+failure as Tier 466, but hidden as a 4xx, so the ErrorEvent dump stayed empty
+and a user would have been sent to the login page by a database hiccup.
+Next tier: the guard lets non-auth errors through (5xx, visible).
+
 ### The UStJA no longer drops a month that fails (Tier 469)
 
 Looking for more of the Tier 466 / 468 fan-outs: `UstjaService.compute` ran the

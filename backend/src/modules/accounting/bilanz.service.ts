@@ -5,7 +5,7 @@ import { PrismaService } from '../../prisma/prisma.service'
 import { AssetsService, DEFAULT_BILANZ_KONTO } from '../assets/assets.service'
 import { Response } from 'express'
 import PDFDocument from 'pdfkit'
-import { CLAIM_TYPES } from '../invoice/document-scope'
+import { CLAIM_TYPES, NON_CASH_PAYMENT_METHODS } from '../invoice/document-scope'
 
 /**
  * Tier 81: Bilanz (Balance Sheet) — VORSCHAU.
@@ -305,6 +305,23 @@ export class BilanzService {
     }
     const kundenguthaben = [...perCustomer.values()].reduce((s, v) => s + (v > 0 ? v : 0), 0)
 
+    // Tier 470: payments received on a Proforma are advance payments — owed
+    // to the customer (goods or services still to deliver) until the final
+    // invoice settles them. Gross, as received; in EUR per the Proforma's rate.
+    const advanceRows = await this.prisma.payment.findMany({
+      where: {
+        paymentDate: { lte: snapshot },
+        paymentMethod: { notIn: NON_CASH_PAYMENT_METHODS },
+        invoice: { companyId, type: 'PI', status: { notIn: ['draft', 'cancelled'] } },
+      },
+      select: { amount: true, invoice: { select: { total: true, eurTotal: true } } },
+    })
+    const erhalteneAnzahlungen = advanceRows.reduce((s, p) => {
+      const total = Number(p.invoice.total)
+      const f = p.invoice.eurTotal != null && total > 0 ? Number(p.invoice.eurTotal) / total : 1
+      return s + Number(p.amount) * f
+    }, 0)
+
     // ===== BUILD SECTIONS =====
 
     // Aktiva / A. Anlagevermögen — partially
@@ -431,7 +448,7 @@ export class BilanzService {
     // system. v1 exposes a single "Saldoposten"
     // line so the Bilanzgleichung balances.
     const aktivaTotal = aktivaAV.subtotal! + aktivaUV.subtotal! + aktivaRAP.subtotal!
-    const passivaKnown = verbLUL + kundenguthaben
+    const passivaKnown = verbLUL + kundenguthaben + erhalteneAnzahlungen
     const eigenkapitalSaldoposten = aktivaTotal - passivaKnown
 
     const passivaEK: BilanzSection = {
@@ -504,7 +521,8 @@ export class BilanzService {
         {
           position: '4200',
           label: 'Erhaltene Anzahlungen auf Bestellungen',
-          amount: null,
+          amount: round2(erhalteneAnzahlungen),
+          note: 'Zahlungen auf Proforma-Rechnungen (Tier 470), brutto.',
         },
         {
           position: '4500',
@@ -518,8 +536,8 @@ export class BilanzService {
           amount: null,
         },
       ],
-      subtotal: round2(verbLUL + kundenguthaben),
-      nichtAusgewiesen: 3,
+      subtotal: round2(verbLUL + kundenguthaben + erhalteneAnzahlungen),
+      nichtAusgewiesen: 2,
     }
 
     // Passiva / D. RAP — nicht ausgewiesen.

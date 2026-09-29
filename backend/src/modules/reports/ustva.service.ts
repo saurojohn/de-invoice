@@ -6,6 +6,7 @@ import { invoiceTaxBreakdown } from '../invoice/tax-breakdown';
 import { normaliseCountry } from '../invoice/ust-behandlung-detector';
 import { cashBookings } from '../cashbook/cash-bookings';
 import { besteuerungsart, istPaidDocuments } from './ustva-ist';
+import { advancePayments } from '../accounting/euer-zufluss';
 import { expenseLockReason, expenseLockReasons } from '../expense/expense-lock';
 import { KzEntry, ustvaKennzahlen } from './ust-kennzahlen';
 
@@ -260,6 +261,19 @@ export class UstvaService {
             (cn.customer as any)?.vatId || '',
             net,
           );
+        }
+      }
+    }
+
+    // Tier 470: advance payments on a Proforma owe their output tax in the
+    // period received, for a Soll-Versteuerer too (§ 13 Abs. 1 Nr. 1a Satz 4
+    // UStG — Mindest-Ist-Versteuerung). An Ist-Versteuerer has them below:
+    // his payments include the Proforma's.
+    if (art === 'soll') {
+      for (const { doc, fraction } of await advancePayments(this.prisma, companyId, start, end)) {
+        const f = eurFactor(doc)
+        for (const bucket of invoiceTaxBreakdown(doc).byRate) {
+          if (bucket.rate > 0) addToRate(bucket.rate, bucket.net * f * fraction, bucket.vat * f * fraction)
         }
       }
     }

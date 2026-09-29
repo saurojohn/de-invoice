@@ -65,7 +65,11 @@ export async function euerInflows(prisma: PrismaService, companyId: string, star
   const invoices = await prisma.invoice.findMany({
     where: {
       companyId,
-      type: { in: CLAIM_TYPES },
+      // Tier 470: a payment on a Proforma is an advance payment (Anzahlung) —
+      // income when received (§ 11 EStG), and its output tax is due then
+      // (§ 13 Abs. 1 Nr. 1a Satz 4 UStG; the UStVA adds it via
+      // advancePayments below). It counted nowhere.
+      type: { in: [...CLAIM_TYPES, 'PI'] },
       status: { in: ISSUED_STATUSES },
       OR: [
         { payments: { some: { paymentDate: { gte: start, lte: end } } } },
@@ -173,4 +177,21 @@ export async function euerExpenses(prisma: PrismaService, companyId: string, sta
     }),
   ])
   return { expenses, unpaidExpenses }
+}
+
+/**
+ * Tier 470 — advance payments: the payments received on a Proforma in the
+ * period, as the part of the Proforma they pay (for the UStVA of a
+ * Soll-Versteuerer; an Ist-Versteuerer gets them through euerInflows).
+ */
+export async function advancePayments(prisma: PrismaService, companyId: string, start: Date, end: Date) {
+  const { inflows } = await euerInflows(prisma, companyId, start, end)
+  const pis = inflows.filter((f) => f.invoice.type === 'PI')
+  if (pis.length === 0) return []
+  const docs = await prisma.invoice.findMany({
+    where: { companyId, id: { in: pis.map((f) => f.invoice.id) } },
+    include: { items: true },
+  })
+  const byId = new Map(docs.map((d) => [d.id, d]))
+  return pis.map((f) => ({ doc: byId.get(f.invoice.id)!, fraction: f.fraction })).filter((x) => !!x.doc)
 }
