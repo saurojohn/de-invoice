@@ -2525,6 +2525,43 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### The default Sachkonten are SKR03 accounts (Tier 467)
+
+`GET /accounting/accounts/seed` created an invented numbering: "1600 Vorsteuer",
+"1800 Sonstige Vermögensgegenstände", "2000 Verbindlichkeiten", "2200
+Umsatzsteuer", "2800 Erhaltene Anzahlungen", "4200 / 4300 Umsatzerlöse",
+"4400 Wareneinsatz", "6000 Aufwendungen für Waren", "8000 Sonstige Erträge".
+The DATEV export writes a voucher line's account number as it is: measured, a
+manual voucher Bank 119 an "Umsatzerlöse 19%" 100 / "Umsatzsteuer" 19 went to
+DATEV as 1200 an **4200** (SKR03: Raumkosten) and 1200 an **2200** (SKR03:
+Körperschaftsteuer).
+
+The seed is now SKR03: 1000 Kasse, 1200 Bank, 1400 Forderungen, 1571 / 1576
+Vorsteuer 7 / 19 %, 1600 Verbindlichkeiten L+L, 1710 Erhaltene Anzahlungen,
+1771 / 1776 USt 7 / 19 %, 1800 Privatentnahmen, 1890 Privateinlagen (type
+`equity`), 2700 Sonstige Erträge, 3200 Wareneingang, 4900 Sonstige betriebliche
+Aufwendungen, 4980 Betriebsbedarf (Tier 256 inference), 8200 Erlöse. Revenue
+and purchases are the accounts **without** automatic tax: a manual voucher books
+net plus its own tax line; on the Automatikkonten 8400 / 3400 DATEV would
+compute the tax a second time. The Buchungsliste knows the new names.
+
+Found with it: a voucher line with `accountId: ""` skipped the tenant check (it
+is falsy) and then failed as a foreign key — **500** "Related resource not
+found". "" is "no account yet" now, like null (the inference fills it in).
+
+**Not changed — a decision (§ 9):** companies that already ran the old seed keep
+their rows (seeding only adds numbers that are missing), and vouchers posted to
+the old accounts stay as they are; their DATEV export still shows 4200 / 2200 /
+1600 with the old meaning. Correcting them means re-posting (Storno + new
+voucher) or renumbering accounts — a Berater's call.
+
+Spec `e2e/255-tier467-skr03-sachkonten.sh` (9 assertions, 7 failing against the
+previous code — the empty-account case added after). Spec 58 looks for 3200 /
+1776 / 1576 instead of the invented 4400 / 2200 / 1600; `ci-seed.sh` comments
+follow.
+Local runs: backend **254 / 0 / 1** — the first local run without a local-only
+failure — 0 × 5xx; Playwright **945**, no flaky.
+
 ### The P&L asks the database twice, not 72 times (Tier 466)
 
 The first run with the Tier 464 ErrorEvent dump caught a 5xx at once: spec 213
@@ -6007,6 +6044,16 @@ bash infra/prod/smoke-test.sh      # 17-check post-deploy verification
 ```
 Set `FRONTEND_URL` in `infra/prod/.env` first: since Tier 363 it is the
 frontend's build arg, and the frontend image refuses to build without it.
+
+21. **Accounts from the old Sachkonten seed** (found Tier 467). Until Tier 467
+   `accounts/seed` created an invented numbering (4200 "Umsatzerlöse 19%",
+   2200 "Umsatzsteuer", 1600 "Vorsteuer", 2000, 2800, 4300, 4400, 6000, 8000,
+   1800 "Sonstige Vermögensgegenstände"). A company that ran it keeps those
+   rows, and any voucher posted to them reaches DATEV with the SKR03 meaning of
+   the number (4200 Raumkosten, 2200 Körperschaftsteuer, 1600 Verbindlichkeiten).
+   Check which companies used them (`VoucherLine` → `Account.accountNumber`)
+   and decide with the Berater: re-post (Storno + new voucher on 8200 / 1776 /
+   1576 …) or renumber — the app does neither on its own.
 
 ## 10. Critical patterns / lessons (must read)
 

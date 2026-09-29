@@ -103,7 +103,11 @@ export class VoucherService {
         createdById: dto.createdById,
         lines: {
           create: dto.lines.map((line, idx) => ({
-            accountId: line.accountId,
+            // Tier 467: "" is "no account yet" like null (the Sachkonten
+            // inference fills it in) — it skipped the tenant check above as
+            // falsy and then failed as a foreign key: 500 "Related resource
+            // not found".
+            accountId: line.accountId || null,
             description: line.description,
             debit: line.debit || 0,
             credit: line.credit || 0,

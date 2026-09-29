@@ -49,9 +49,9 @@ api_get "/api/v1/accounting/accounts?companyId=$COMPANY_ID"
 echo "$BODY" > /tmp/t58_accounts.json
 ACCOUNT_4900=$(echo "$BODY" | jq -r '.[] | select(.accountNumber=="4900") | .id')
 ACCOUNT_1200=$(echo "$BODY" | jq -r '.[] | select(.accountNumber=="1200") | .id')
-ACCOUNT_4400=$(echo "$BODY" | jq -r '.[] | select(.accountNumber=="4400") | .id')   # Wareneinsatz
-ACCOUNT_2200=$(echo "$BODY" | jq -r '.[] | select(.accountNumber=="2200") | .id')   # USt 19% (existing)
-ACCOUNT_1600=$(echo "$BODY" | jq -r '.[] | select(.accountNumber=="1600") | .id')   # Vorsteuer 19% (existing)
+ACCOUNT_4400=$(echo "$BODY" | jq -r '.[] | select(.accountNumber=="3200") | .id')   # Wareneingang (Tier 467: SKR03 3200, was an invented 4400)
+ACCOUNT_2200=$(echo "$BODY" | jq -r '.[] | select(.accountNumber=="1776") | .id')   # USt 19% (Tier 467: SKR03 1776, was 2200)
+ACCOUNT_1600=$(echo "$BODY" | jq -r '.[] | select(.accountNumber=="1576") | .id')   # Vorsteuer 19% (Tier 467: SKR03 1576 — 1600 is Verbindlichkeiten)
 
 if [[ -z "$ACCOUNT_4900" || -z "$ACCOUNT_1200" ]]; then
   echo "FATAL: required accounts (4900/1200) not found" >&2
@@ -171,7 +171,7 @@ echo "=== 4. IgE / §13b USt-Schlüssel ==="
 # block is a smoke test that the Vorsteuer
 # accounts exist (or the SKR03 fallback applies).
 if [[ -n "$ACCOUNT_1600" ]]; then
-  pass "1600 (Vorsteuer 19%) account exists"
+  pass "1576 (Vorsteuer 19%) account exists"
 fi
 
 # ---- Cleanup ----

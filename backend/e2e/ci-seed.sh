@@ -144,11 +144,11 @@ psql_test -c "
 ok "company seeded"
 
 # 4b. Tier 256: trigger the default-account seed
-#     so 4400 (Wareneinsatz) + 4980 (Adobe)
+#     so the SKR03 Sachkonten incl. 4980 (Adobe)
 #     exist for the Tier 26 Sachkonten
 #     auto-inference spec. The endpoint is
 #     idempotent (skips existing accounts).
-note "seeding default SKR03 accounts (4400, 4980) ..."
+note "seeding default SKR03 accounts (incl. 4980 for the Sachkonten inference) ..."
 curl -sS "$API/api/v1/accounting/accounts/seed?companyId=$COMPANY_ID" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" >/dev/null
 ok "default accounts seeded"
@@ -327,9 +327,9 @@ INSERT INTO "Voucher" (id, "companyId", "voucherNumber", date, description, stat
 VALUES ('BK-HIST-001', '$COMPANY_ID', 'BK-HIST-001', '2026-01-15', 'Tier 49 VERTRIEB fixture', 'posted', NOW())
 ON CONFLICT (id) DO UPDATE SET status = 'posted';
 
--- Tier 347: 4960 is NOT in seedDefaultAccounts() (which creates 1000,
--- 1200, 1400, 1600, 1800, 2000, 2200, 2800, 4200, 4300, 4400, 4980,
--- 6000, 8000), so create it here. Reference it by a subquery on
+-- Tier 347: 4960 is NOT in seedDefaultAccounts() (Tier 467: SKR03 —
+-- 1000, 1200, 1400, 1571, 1576, 1600, 1710, 1771, 1776, 1800, 1890, 2700,
+-- 3200, 4900, 4980, 8200), so create it here. Reference it by a subquery on
 -- accountNumber rather than a literal id: the default accounts are
 -- created through the API with backend-generated UUIDs, so ANY
 -- hard-coded account id in this file is guaranteed wrong on a fresh DB.

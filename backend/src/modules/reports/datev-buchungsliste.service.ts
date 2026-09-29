@@ -695,6 +695,13 @@ const SKR03_NAMES: Record<string, string> = {
   '8125': 'Erlöse 0% USt (innergemeinschaftliche Lieferung)',
   '8120': 'Steuerfreie Umsätze § 4 Nr. 1a UStG (Ausfuhr)',
   '9000': 'Saldenvorträge Sachkonten',
+  // Tier 467: the rest of the default Sachkonten (account.service seed)
+  '1400': 'Forderungen aus Lieferungen und Leistungen',
+  '1710': 'Erhaltene Anzahlungen',
+  '2700': 'Sonstige Erträge',
+  '3200': 'Wareneingang',
+  '4980': 'Sonstiger Betriebsbedarf',
+  '8200': 'Erlöse',
   ...SKR03_ANLAGEN_NAMES, // Tier 437
 }
 
