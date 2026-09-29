@@ -1813,7 +1813,9 @@ export default function InvoiceDetailPage() {
                   backend creates a CN with negative
                   total + a synthetic Payment on this
                   invoice. */}
+              {/* Tier 474: not on a Proforma — it declares no tax to correct. */}
               {invoice.type !== "CN" &&
+                invoice.type !== "PI" &&
                 invoice.status !== "cancelled" && (
                   <Button
                     size="sm"

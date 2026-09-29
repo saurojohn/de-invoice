@@ -2532,6 +2532,25 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### No credit note on a Proforma (Tier 474)
+
+The invoice page offered "Gutschrift" on every document but a credit note,
+Proformas included, and the API took it. A Proforma declares no tax (only
+what is paid on it, Tier 470), so the credit note took off tax that was never
+declared — measured (spec 260): an unpaid 1 000 + 19 % Proforma credited in
+full → 201, UStVA of the month 19 %: -1 000 / -190. `createCreditNote` now
+refuses a Proforma (400: cancel it when unpaid; a paid one is settled by its
+final invoice, which can be credited); the button is hidden on a PI.
+
+Open: a **paid** Proforma whose order falls through has no clean path yet —
+it cannot be cancelled (it has a payment, Tier 461) and its payment can be
+deleted, which takes the advance and its tax out of the month it was
+received (possibly already filed). The correct booking is a refund dated
+when it is paid back (§ 17 Abs. 2 Nr. 2 UStG) — next tier.
+
+Spec 260 (3 assertions fail on the old code). Local runs: backend **259 / 0 / 1**,
+0 × 5xx; Playwright **946**.
+
 ### The final invoice in the UI and in the e-invoice (Tier 473)
 
 Completes Tier 472. Measured before on a fully prepaid final invoice (spec

@@ -1454,6 +1454,17 @@ export class InvoiceService {
         'Gutschriften können nicht aus weiteren Gutschriften erzeugt werden — bitte die Originalrechnung (Typ INV) auswählen.',
       )
     }
+    // Tier 474: a Proforma declares no tax (only what is paid on it, Tier
+    // 470), so a credit note on it took off tax that was never declared —
+    // measured: an unpaid 1 190 € Proforma credited in full gave the UStVA
+    // -1 000 / -190. An unpaid Proforma is cancelled; a paid one is settled
+    // by its final invoice (Tier 472), which a credit note can then correct.
+    if (original.type === 'PI') {
+      throw new BadRequestException(
+        'Zu einer Proforma-Rechnung gibt es keine Gutschrift. Ohne Zahlung stornieren Sie sie; ' +
+        'eine bezahlte wird mit der Schlussrechnung abgerechnet, die Sie bei Bedarf gutschreiben.',
+      )
+    }
     if (original.status === 'cancelled') {
       throw new BadRequestException(
         'Gutschrift kann nicht zu einer stornierten Rechnung erstellt werden',
