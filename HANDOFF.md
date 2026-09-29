@@ -2526,6 +2526,25 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### The dashboard reads its rows once (Tier 468)
+
+The same shape as Tier 466, applied to the other endpoint with an unexplained
+500 (dashboard-v2, Tiers 429 and 463): `getDashboardKpis` ran 6 aggregates for
+YTD / this / last month and 12 × 3 for the trend chart in parallel, and
+dashboard-v2 ran that next to the aging report and four more queries — about
+45 queries at once. It now reads the issued invoices and the non-AfA expenses of
+the whole span (the earlier of 1 January and 12 months back) in two queries and
+takes every sum in memory with the aggregates' definitions (invoices: issued
+sales documents, total / totalVat; expenses: all statuses, net / VAT / gross,
+open payables = gross of `booked`).
+
+Verified by output, not by a new spec: `/reports/dashboard` and
+`/reports/dashboard-v2` for the seeded company were byte-identical old vs new
+(apart from the aging report's timestamp); specs 15, 64, 66, 213, 215, 226
+pass. Like Tier 466 a mitigation — the 500 was never reproduced on demand; the
+ErrorEvent dump of every local run (Tier 464) will show whether it recurs.
+Local runs: backend **254 / 0 / 1**, 0 × 5xx; Playwright **945**, no flaky.
+
 ### The default Sachkonten are SKR03 accounts (Tier 467)
 
 `GET /accounting/accounts/seed` created an invented numbering: "1600 Vorsteuer",

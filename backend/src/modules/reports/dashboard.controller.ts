@@ -53,53 +53,59 @@ export class DashboardController {
     const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
-    // Tier 12 perf: Prisma aggregate — uses
-    // SUM/COUNT in Postgres directly, returns
-    // a single row instead of N+1 application-
-    // side accumulation. Was 1 roundtrip +
-    // N rows in memory; now 1 roundtrip + 1
-    // row. For a customer with 50K invoices
-    // this drops the dashboard endpoint from
-    // ~600ms to ~25ms.
-    const aggregateInvoices = async (start: Date, end: Date) => {
-      // Tier 424: issued sales documents only — drafts, cancelled documents
-      // and Proformas were counted — and the documents' own VAT instead of
-      // total × 19/119 (wrong for 7 % and 0 %, and unrounded: 379.99999…).
-      const agg = await this.prisma.invoice.aggregate({
+    // 12 months for the trend chart, oldest first.
+    const months = Array.from({ length: 12 }, (_, idx) => {
+      const i = 11 - idx
+      const mStart = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      const mEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0, 23, 59, 59)
+      return {
+        key: `${mStart.getFullYear()}-${String(mStart.getMonth() + 1).padStart(2, '0')}`,
+        mStart,
+        mEnd,
+      }
+    })
+    // Tier 468: the rows of the whole span read once, the sums taken here.
+    // This ran 6 aggregates for YTD / this / last month and 12 × 3 for the
+    // chart in parallel — ~45 queries at once in dashboard-v2, next to the
+    // aging report: the shape of the P&L's "Can't reach database server"
+    // 500 (Tier 466) and of the dashboard-v2 500 seen in Tiers 429 / 463.
+    // Same definitions as the aggregates:
+    //   invoices — issued sales documents (Tier 424), total / totalVat
+    //   expenses — no AfA rows (Tier 437), net / VAT / gross;
+    //              open payables = gross of status 'booked'
+    const spanStart = months[0].mStart < yearStart ? months[0].mStart : yearStart
+    const [invRows, expRows] = await Promise.all([
+      this.prisma.invoice.findMany({
         where: {
           companyId,
-          issueDate: { gte: start, lte: end },
+          issueDate: { gte: spanStart, lte: now },
           status: { in: ISSUED_STATUSES },
           type: { in: SALES_TYPES },
         },
-        _sum: { total: true, totalVat: true },
-        _count: { _all: true },
-      })
-      const revenue = Number(agg._sum.total || 0)
-      const ust = Math.round(Number(agg._sum.totalVat || 0) * 100) / 100
-      return { revenue, ust, count: agg._count._all }
-    }
-    const aggregateExpenses = async (start: Date, end: Date) => {
-      const agg = await this.prisma.expense.aggregate({
-        // Tier 437: supplier invoices, not the AfA rows (booked-afa.ts).
-        where: { companyId, invoiceDate: { gte: start, lte: end }, ...NOT_AFA_BOOKING },
-        _sum: { netAmount: true, vatAmount: true, grossAmount: true },
-        _count: { _all: true },
-      })
-      // Open payables: sum of grossAmount for
-      // booked expenses in the range. We do a
-      // separate aggregate for the booked
-      // subset; the count is the same.
-      const openAgg = await this.prisma.expense.aggregate({
-        where: { companyId, invoiceDate: { gte: start, lte: end }, status: 'booked', ...NOT_AFA_BOOKING },
-        _sum: { grossAmount: true },
-      })
-      return {
-        expenses: Number(agg._sum.netAmount || 0),
-        vorsteuer: Number(agg._sum.vatAmount || 0),
-        count: agg._count._all,
-        openPayables: Number(openAgg._sum.grossAmount || 0),
+        select: { issueDate: true, total: true, totalVat: true },
+      }),
+      this.prisma.expense.findMany({
+        where: { companyId, invoiceDate: { gte: spanStart, lte: now }, ...NOT_AFA_BOOKING },
+        select: { invoiceDate: true, netAmount: true, vatAmount: true, grossAmount: true, status: true },
+      }),
+    ])
+    const cents = (v: unknown) => Math.round(Number(v ?? 0) * 100)
+    const aggregateInvoices = (start: Date, end: Date) => {
+      let total = 0, vat = 0, count = 0
+      for (const r of invRows) {
+        if (r.issueDate < start || r.issueDate > end) continue
+        total += cents(r.total); vat += cents(r.totalVat); count++
       }
+      return { revenue: total / 100, ust: vat / 100, count }
+    }
+    const aggregateExpenses = (start: Date, end: Date) => {
+      let net = 0, vat = 0, open = 0, count = 0
+      for (const r of expRows) {
+        if (r.invoiceDate < start || r.invoiceDate > end) continue
+        net += cents(r.netAmount); vat += cents(r.vatAmount); count++
+        if (r.status === 'booked') open += cents(r.grossAmount)
+      }
+      return { expenses: net / 100, vorsteuer: vat / 100, count, openPayables: open / 100 }
     }
     // Open receivables: single aggregate over
     // all sent/overdue invoices (no date
@@ -115,45 +121,18 @@ export class DashboardController {
       const open = Number(inv.total) - paid
       return open > 0 ? s + open : s
     }, 0)
-    const [ytdInv, ytdExp, lastInv, lastExp, thisInv, thisExp] = await Promise.all([
-      aggregateInvoices(yearStart, now),
-      aggregateExpenses(yearStart, now),
-      aggregateInvoices(lastMonthStart, lastMonthEnd),
-      aggregateExpenses(lastMonthStart, lastMonthEnd),
-      aggregateInvoices(thisMonthStart, now),
-      aggregateExpenses(thisMonthStart, now),
-    ]);
-
-    // 12-month series for the trend chart. All
-    // 24 queries (12 inv + 12 exp) now run in
-    // parallel via Promise.all. Was a serial
-    // for-loop — for 50K-row tables that was
-    // 12*50ms = 600ms of cumulative query
-    // time. Now ~50ms wall-clock (one
-    // network roundtrip vs twelve).
-    const months = Array.from({ length: 12 }, (_, idx) => {
-      const i = 11 - idx; // oldest-first
-      const mStart = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const mEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0, 23, 59, 59);
-      return {
-        key: `${mStart.getFullYear()}-${String(mStart.getMonth() + 1).padStart(2, '0')}`,
-        mStart,
-        mEnd,
-      };
-    });
-    const monthlyResults = await Promise.all(
-      months.flatMap((m) => [
-        aggregateInvoices(m.mStart, m.mEnd).then((inv) => ({ kind: 'inv' as const, key: m.key, value: inv })),
-        aggregateExpenses(m.mStart, m.mEnd).then((exp) => ({ kind: 'exp' as const, key: m.key, value: exp })),
-      ]),
-    );
-    const byMonthMap = new Map<string, { revenue: number; expenses: number }>();
-    for (const m of months) byMonthMap.set(m.key, { revenue: 0, expenses: 0 });
-    for (const r of monthlyResults) {
-      const slot = byMonthMap.get(r.key);
-      if (!slot) continue;
-      if (r.kind === 'inv') slot.revenue = r.value.revenue;
-      else slot.expenses = r.value.expenses;
+    const ytdInv = aggregateInvoices(yearStart, now)
+    const ytdExp = aggregateExpenses(yearStart, now)
+    const lastInv = aggregateInvoices(lastMonthStart, lastMonthEnd)
+    const lastExp = aggregateExpenses(lastMonthStart, lastMonthEnd)
+    const thisInv = aggregateInvoices(thisMonthStart, now)
+    const thisExp = aggregateExpenses(thisMonthStart, now)
+    const byMonthMap = new Map<string, { revenue: number; expenses: number }>()
+    for (const m of months) {
+      byMonthMap.set(m.key, {
+        revenue: aggregateInvoices(m.mStart, m.mEnd).revenue,
+        expenses: aggregateExpenses(m.mStart, m.mEnd).expenses,
+      })
     }
     const byMonth = months.map((m) => ({
       month: m.key,
