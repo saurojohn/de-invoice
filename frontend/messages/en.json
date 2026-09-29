@@ -1133,6 +1133,8 @@
     "finalInvoiceTitle": "Invoice the delivery; the advance received is deducted when it is issued (§ 14(5) UStG)",
     "finalInvoiceFailed": "Could not create the final invoice",
     "finalInvoiceOf": "Final invoice for",
+    "lockedByPayments": "Locked (payments booked)",
+    "lockedByPaymentsTitle": "Payments or credit notes are booked on this invoice — correct it with a credit note.",
     "advanceRefund": "Refund advance",
     "advanceRefundTitle": "The order is cancelled: the advance is refunded as of today (tax and income are corrected in this period)",
     "advanceRefundPrompt": "Amount to refund:",

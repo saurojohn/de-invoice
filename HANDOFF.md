@@ -2535,6 +2535,24 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### No editing once money or a correction is booked (Tier 477)
+
+HANDOFF §9 item 14, **decided by the user (2026-09-29): a sent invoice stays
+editable on its issue day, but not once a payment or credit note is booked
+on it.** Measured before (spec 263, same-day invoices): a paid 1 190 €
+invoice edited to 2 000 net → 200, total 2 380, still "paid" with 1 190 €
+received; an invoice with a 119 € credit note edited down to 59,50 €.
+`update()` now refuses (403) when the invoice has a payment or a
+non-cancelled credit note (delete already refused since Tier 406: a credit
+note books a 'Gutschrift' payment). The detail page shows "Gesperrt
+(Zahlungen gebucht)" instead of Bearbeiten / Löschen. 3 assertions fail on
+the old code.
+Local runs: Playwright **947**; backend 260 / 2 / 1, 0 × 5xx — the run crossed
+midnight into 30.09. and specs 212 / 213 failed on the business-day bug
+fixed in Tier 478 (a credit note written after midnight dated the day
+before; the dashboard's "this month" without today's invoices). Neither
+touches Tier 477's change.
+
 ### No Mahnung for a Proforma (Tier 476)
 
 A Proforma asks for an advance and creates no claim, so the customer cannot
@@ -6195,7 +6213,9 @@ These are **not in the repo** — only the user can do them:
     e-mails. Options: refuse (400 "Mahnungspause aktiv"), or allow with a
     warning in the modal. Not changed.
 
-14. **May a sent invoice be edited or deleted on its issue day?** (found
+14. ~~**May a sent invoice be edited or deleted on its issue day?**~~
+    **Decided 2026-09-29 (Tier 477): same day, but not once a payment or
+    credit note is booked on it.** Original question (found
     Tier 406) Both `update` and `delete` check only that the issue date is
     today, not the status: a `sent` invoice can have its amounts changed or be
     removed until midnight, although the customer may already hold the PDF (the

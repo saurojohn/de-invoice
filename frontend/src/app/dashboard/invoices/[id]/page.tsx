@@ -1533,7 +1533,19 @@ export default function InvoiceDetailPage() {
                 issueDate. For past-date invoices the backend returns
                 403 — we hide the buttons and show a hint pointing
                 the user at "Stornieren" via the status dropdown. */}
-            {isToday && (
+            {/* Tier 477: not once a payment or credit note is booked on it
+                (a credit note books a 'Gutschrift' payment, so payments
+                covers both) — the backend refuses the edit. */}
+            {isToday && payments.length > 0 && (
+              <span
+                className="text-xs text-gray-500 dark:text-gray-400"
+                data-testid="invoice-locked-by-payments"
+                title={t("invoice.lockedByPaymentsTitle")}
+              >
+                {t("invoice.lockedByPayments")}
+              </span>
+            )}
+            {isToday && payments.length === 0 && (
               <>
                 <Button
                   variant="outline"

@@ -937,6 +937,20 @@ export class InvoiceService {
         'Rechnung kann nur am Ausstellungstag bearbeitet werden. Ältere Rechnungen sind eingefroren — stattdessen eine Gutschrift (CN) erstellen.',
       );
     }
+    // Tier 477 (HANDOFF §9 item 14, user decision: same day, but not once
+    // money or a correction is booked on it). Measured: a paid 1 190 €
+    // invoice edited to 2 380 € stayed "paid" with 1 190 € received; an
+    // invoice with a 119 € credit note was edited down to 59,50 €.
+    const [paymentCount, creditNoteCount] = await Promise.all([
+      this.prisma.payment.count({ where: { invoiceId: id } }),
+      this.prisma.invoice.count({ where: { companyId, referenceInvoiceId: id, type: 'CN', status: { not: 'cancelled' } } }),
+    ]);
+    if (paymentCount > 0 || creditNoteCount > 0) {
+      throw new ForbiddenException(
+        'Auf diese Rechnung sind bereits Zahlungen oder Gutschriften gebucht — sie kann nicht mehr bearbeitet werden. ' +
+        'Korrigieren Sie mit einer Gutschrift.',
+      );
+    }
 
     // Tier 27: same §13b/§1a contradiction
     // guard as on create. The user can switch

@@ -1133,6 +1133,8 @@
     "finalInvoiceTitle": "Rechnung über die Lieferung erstellen; die erhaltene Anzahlung wird beim Ausstellen abgezogen (§ 14 Abs. 5 UStG)",
     "finalInvoiceFailed": "Schlussrechnung konnte nicht erstellt werden",
     "finalInvoiceOf": "Schlussrechnung zu",
+    "lockedByPayments": "Gesperrt (Zahlungen gebucht)",
+    "lockedByPaymentsTitle": "Auf diese Rechnung sind Zahlungen oder Gutschriften gebucht — korrigieren Sie mit einer Gutschrift.",
     "advanceRefund": "Anzahlung zurückzahlen",
     "advanceRefundTitle": "Der Auftrag entfällt: die Anzahlung wird mit heutigem Datum zurückgezahlt (Steuer und Einnahme werden in diesem Zeitraum korrigiert)",
     "advanceRefundPrompt": "Zurückzuzahlender Betrag:",
