@@ -825,7 +825,11 @@ export class UstvaService {
     // or corrected after submission. The list said nothing. `abweichung` is
     // live minus submitted; a draft is recomputed when saved, so not compared.
     const cent = (n: number) => Math.round(n * 100) / 100;
-    return Promise.all(filings.map(async (f) => {
+    // Tier 469: one filing after the other — every submitted filing is
+    // recomputed, and a company with a year of monthly returns fanned out a
+    // dozen UStVA computations at once (see Tier 466).
+    const out = [];
+    for (const f of filings) out.push(await (async () => {
       if (f.status !== 'submitted' && f.status !== 'accepted') {
         return { ...f, abweichung: null, berichtigungNoetig: null };
       }
@@ -837,7 +841,8 @@ export class UstvaService {
       };
       const berichtigungNoetig = Object.values(abweichung).some((d) => Math.abs(d) >= 0.01);
       return { ...f, abweichung, berichtigungNoetig };
-    }));
+    })());
+    return out;
   }
 
   async getFiling(companyId: string, filingId: string) {

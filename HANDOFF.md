@@ -2526,6 +2526,22 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### The UStJA no longer drops a month that fails (Tier 469)
+
+Looking for more of the Tier 466 / 468 fan-outs: `UstjaService.compute` ran the
+twelve monthly `UstvaService.compute` calls in parallel (each several queries)
+and **replaced a month that threw by zeros** — only a `console.warn`. A
+connection hiccup like Tier 466's would have produced an annual VAT return
+(and its ELSTER XML / PDF) with a month missing and no error anywhere. The
+months now run one after the other and an error fails the request.
+`UstvaService.listFilings` recomputed every submitted filing in parallel
+(Tier 449) — also sequential now.
+
+Verified by output: UStJA 2025 and 2026 and the filing list of the seeded
+company byte-identical old vs new; specs 49, 131, 133, 142, 206, 237, 238, 252,
+254 pass. No new spec — a failing month cannot be provoked through the API.
+Local runs: backend **254 / 0 / 1**, 0 × 5xx; Playwright **945**, no flaky.
+
 ### The dashboard reads its rows once (Tier 468)
 
 The same shape as Tier 466, applied to the other endpoint with an unexplained

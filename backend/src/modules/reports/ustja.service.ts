@@ -117,23 +117,15 @@ export class UstjaService {
     // returns the same shape (salesByRate, vorsteuer,
     // differenzbetrag, etc.) we already expose on
     // /api/v1/reports/ustva/compute.
-    const monthlyResults = await Promise.all(
-      MONTH_LABELS.map((_, idx) =>
-        this.ustva
-          .compute(companyId, year, undefined, idx + 1)
-          .catch((e) => {
-            // Defensive: never let one bad month
-            // crash the year aggregation. Fall back
-            // to a zero-filled month so the totals
-            // still compute.
-            console.warn(
-              `UStJA ${year}/${idx + 1} compute failed:`,
-              (e as Error).message,
-            )
-            return null
-          }),
-      ),
-    )
+    // Tier 469: one month after the other, and an error fails the request.
+    // The twelve computations ran in parallel (each several queries — the
+    // fan-out behind the P&L's "Can't reach database server", Tier 466), and
+    // a month that failed was replaced by zeros with only a console.warn:
+    // an annual VAT return with a month silently missing.
+    const monthlyResults: Array<UstvaData | null> = []
+    for (let idx = 0; idx < MONTH_LABELS.length; idx++) {
+      monthlyResults.push(await this.ustva.compute(companyId, year, undefined, idx + 1))
+    }
 
     // ── Aggregate ──────────────────────────────────
     // Tier 417: the months are summed into one UstvaData and mapped onto the
