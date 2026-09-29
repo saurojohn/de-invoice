@@ -9,18 +9,19 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–466 are
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–467 are
   in `git log`; §8 records what each learned. Tiers 443–462 came from the
-  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 466.)
+  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 467.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 36540462869 / commit `c54a8a9`, Tier 466):**
-  - Backend e2e: **253 passed / 0 failed / 1 skipped** of 254 specs — 100
-    two-digit + 154 three-digit (Tier 465 added `254-tier465-ustva-kz10.sh`,
+- **Test counts (last green CI, run 36548186733 / commit `7f40213`, Tier 467):**
+  - Backend e2e: **254 passed / 0 failed / 1 skipped** of 255 specs — 100
+    two-digit + 155 three-digit (Tier 467 added `255-tier467-skr03-sachkonten.sh`,
+    Tier 465 added `254-tier465-ustva-kz10.sh`,
     Tier 464 added `253-tier464-anlage-g-gewinnermittlung.sh`,
     Tier 463 added `252-tier463-ustva-negative-vorsteuer.sh`,
     Tier 462 added `251-tier462-zahlung-status.sh`,
