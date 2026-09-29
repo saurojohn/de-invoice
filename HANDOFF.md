@@ -9,18 +9,19 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–473 are
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–474 are
   in `git log`; §8 records what each learned. Tiers 443–462 came from the
-  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 473.)
+  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 474.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 36604648850 / commit `ef29e26`, Tier 473):**
-  - Backend e2e: **258 passed / 0 failed / 1 skipped** of 259 specs — 100
-    two-digit + 159 three-digit (Tier 473 added `259-tier473-schlussrechnung-xml.sh`,
+- **Test counts (last green CI, run 36612984488 / commit `43ba8c0`, Tier 474):**
+  - Backend e2e: **259 passed / 0 failed / 1 skipped** of 260 specs — 100
+    two-digit + 160 three-digit (Tier 474 added `260-tier474-keine-gutschrift-proforma.sh`,
+    Tier 473 added `259-tier473-schlussrechnung-xml.sh`,
     Tier 472 added `258-tier472-schlussrechnung.sh`,
     Tier 471 added `257-tier471-db-down-not-401.sh`,
     which stops the database container — CI only, or a throwaway PG_CONTAINER;
