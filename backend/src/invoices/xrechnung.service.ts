@@ -137,6 +137,11 @@ export interface XRechnungData {
   reverseCharge?: boolean
   hasDocumentDiscount?: boolean
   taxBreakdown?: Array<{ rate: number; net: number; vat: number }>
+  /**
+   * Tier 473: BT-113 Vorauszahlung — the advance a final invoice deducts
+   * (Tier 472, its 'Anzahlung' payment). PayableAmount = total − prepaid.
+   */
+  prepaid?: number
 }
 
 /**
@@ -263,6 +268,7 @@ export function generateXRechnung(data: XRechnungData): string {
     <cbc:TaxExclusiveAmount currencyID="${escapeXml(data.currency)}">${formatCents(t.taxExclusive)}</cbc:TaxExclusiveAmount>
     <cbc:TaxInclusiveAmount currencyID="${escapeXml(data.currency)}">${formatCents(t.taxInclusive)}</cbc:TaxInclusiveAmount>
     ${t.allowanceTotal !== 0 ? `<cbc:AllowanceTotalAmount currencyID="${escapeXml(data.currency)}">${formatCents(t.allowanceTotal)}</cbc:AllowanceTotalAmount>` : ''}
+    ${t.prepaid !== 0 ? `<cbc:PrepaidAmount currencyID="${escapeXml(data.currency)}">${formatCents(t.prepaid)}</cbc:PrepaidAmount>` : ''}
     <cbc:PayableAmount currencyID="${escapeXml(data.currency)}">${formatCents(t.payable)}</cbc:PayableAmount>
   </cac:LegalMonetaryTotal>
 
@@ -547,6 +553,8 @@ export interface XRechnungTotals {
   subtotals: Array<{ rate: number; category: TaxCategoryCode; taxable: number; tax: number }>
   taxTotal: number
   taxInclusive: number
+  /** Tier 473: BT-113, in cents */
+  prepaid: number
   payable: number
   categories: TaxCategoryCode[]
   categoryOf: (rate: number) => TaxCategoryCode
@@ -622,6 +630,7 @@ export function computeXRechnungTotals(data: XRechnungData): XRechnungTotals {
   })
   const taxTotal = subtotals.reduce((a, b) => a + b.tax, 0)
   const taxInclusive = taxExclusive + taxTotal
+  const prepaid = cents(data.prepaid ?? 0)
   return {
     lineNets,
     lineExtension,
@@ -631,7 +640,9 @@ export function computeXRechnungTotals(data: XRechnungData): XRechnungTotals {
     subtotals,
     taxTotal,
     taxInclusive,
-    payable: taxInclusive,
+    prepaid,
+    // BR-CO-16: Zahlbetrag = Gesamtbetrag − Vorauszahlung
+    payable: taxInclusive - prepaid,
     categories: [...new Set(subtotals.map((x) => x.category))],
     categoryOf,
   }
@@ -912,12 +923,12 @@ export function validateXRechnung(data: XRechnungData): XRechnungValidation {
   // (computeXRechnungTotals); what can still go wrong is the XML disagreeing
   // with the document the customer received.
   const computed = computeXRechnungTotals(data)
-  if (Math.abs(computed.payable - Math.round(data.total * 100)) > 1) {
+  if (Math.abs(computed.taxInclusive - Math.round(data.total * 100)) > 1) {
     errors.push({
       rule: 'BR-CO-15',
       severity: 'error',
-      message: `XRechnung-Zahlbetrag (${(computed.payable / 100).toFixed(2)}) ≠ Rechnungsbetrag (${data.total.toFixed(2)}) (BR-CO-15)`,
-      location: 'cac:LegalMonetaryTotal/cbc:PayableAmount',
+      message: `XRechnung-Gesamtbetrag (${(computed.taxInclusive / 100).toFixed(2)}) ≠ Rechnungsbetrag (${data.total.toFixed(2)}) (BR-CO-15)`,
+      location: 'cac:LegalMonetaryTotal/cbc:TaxInclusiveAmount',
     })
   }
   if (Math.abs(computed.taxTotal - Math.round(data.totalVat * 100)) > 1) {
@@ -928,9 +939,8 @@ export function validateXRechnung(data: XRechnungData): XRechnungValidation {
       location: 'cac:TaxTotal/cbc:TaxAmount',
     })
   }
-  // BR-CO-15: payable amount = total (no prepaid amount for v1)
-  // Note: we don't subtract prepaid here — it's always
-  // equal in v1.
+  // BR-CO-16: the payable amount is the total less the prepaid amount (Tier
+  // 473) — computeXRechnungTotals derives it, so it holds by construction.
   // Warnings (not errors)
   if (data.items.length === 0) {
     warnings.push({
@@ -989,6 +999,8 @@ export function transformToXRechnungData(
     reverseCharge?: boolean | null
     discountPercent?: any
     discountAmount?: any
+    /** Tier 473: the payments — a final invoice's 'Anzahlung' is BT-113 */
+    payments?: Array<{ amount: any; paymentMethod: string }> | null
     customer: {
       name: string
       vatId?: string | null
@@ -1117,6 +1129,10 @@ export function transformToXRechnungData(
       totalVat: invoice.totalVat,
       items: invoice.items,
     }).byRate,
+    // Tier 473: the advance a final invoice deducted (Tier 472)
+    prepaid: round2((invoice.payments ?? [])
+      .filter((p) => p.paymentMethod === 'Anzahlung')
+      .reduce((a, p) => a + Number(p.amount), 0)) || undefined,
   }
 }
 

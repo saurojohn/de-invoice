@@ -53,6 +53,8 @@ interface Invoice {
   }
   items: InvoiceItem[]
   payments: { amount: string; paymentDate: string; paymentMethod: string }[]
+  // Tier 473: a final invoice's Proforma (Tier 472)
+  advanceInvoice?: { id: string; invoiceNumber: string } | null
 }
 
 interface Payment {
@@ -1066,6 +1068,27 @@ export default function InvoiceDetailPage() {
     }
   }
 
+  // Tier 473: the final invoice (Schlussrechnung) of a Proforma — a draft
+  // with its lines; issuing it deducts the advance received (Tier 472).
+  const [creatingFinal, setCreatingFinal] = useState(false)
+  const createFinalInvoice = async () => {
+    if (!invoice) return
+    setConvertError(null)
+    setCreatingFinal(true)
+    try {
+      const companyId = localStorage.getItem("companyId")
+      const created = await apiPost<{ id: string }>(
+        `/api/v1/invoices/${invoice.id}/final-invoice?companyId=${companyId}`,
+        {},
+      )
+      router.push(`/dashboard/invoices/${created.id}`)
+    } catch (e: any) {
+      setConvertError(e?.message || t("invoice.finalInvoiceFailed"))
+    } finally {
+      setCreatingFinal(false)
+    }
+  }
+
   const convertToRecurring = async () => {
     if (!invoice) return
     setConvertError(null)
@@ -1396,6 +1419,15 @@ export default function InvoiceDetailPage() {
           <div className="flex flex-wrap items-center gap-2 sm:gap-4">
             <Button size="sm" variant="outline" onClick={() => router.push("/dashboard/invoices")}>Zurück</Button>
             <h1 className="text-xl sm:text-2xl font-bold text-blue-600 dark:text-blue-400">{invoice.invoiceNumber}</h1>
+            {invoice.advanceInvoice && (
+              <a
+                href={`/dashboard/invoices/${invoice.advanceInvoice.id}`}
+                className="text-sm text-gray-600 dark:text-gray-300 underline"
+                data-testid="final-invoice-of"
+              >
+                {t("invoice.finalInvoiceOf")} {invoice.advanceInvoice.invoiceNumber}
+              </a>
+            )}
             {/* Status as a quick-change dropdown — invoice state moves
                 through draft → sent → paid (or overdue/cancelled). */}
             <select
@@ -1805,6 +1837,20 @@ export default function InvoiceDetailPage() {
                     className="border-orange-300 dark:border-orange-700 text-orange-700 dark:text-orange-300"
                   >
                     {t("invoice.creditNote") || "Gutschrift"}
+                  </Button>
+                )}
+              {invoice.type === "PI" &&
+                invoice.status !== "draft" &&
+                invoice.status !== "cancelled" && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    data-testid="final-invoice-button"
+                    onClick={createFinalInvoice}
+                    disabled={creatingFinal}
+                    title={t("invoice.finalInvoiceTitle")}
+                  >
+                    {t("invoice.finalInvoice")}
                   </Button>
                 )}
               {/* Tier 63: "Wiederkehrend" button. Converts

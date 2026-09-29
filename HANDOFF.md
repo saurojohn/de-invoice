@@ -2530,6 +2530,37 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### The final invoice in the UI and in the e-invoice (Tier 473)
+
+Completes Tier 472. Measured before on a fully prepaid final invoice (spec
+259): the XRechnung said PayableAmount 1190.00 with no PrepaidAmount — an
+e-invoice asking for money already paid; GET …/zugferd rendered the PDF
+without the deduction (only the paths patched in Tier 472 attached it); the
+invoice API did not name the Proforma; the UI had no way to create a final
+invoice.
+
+- **XRechnung / ZUGFeRD:** BT-113 from the invoice's 'Anzahlung' payments
+  (`transformToXRechnungData`): UBL `cbc:PrepaidAmount`, CII
+  `ram:TotalPrepaidAmount`, PayableAmount / DuePayableAmount = total −
+  prepaid (BR-CO-16). The validator's BR-CO-15 check now compares the
+  TaxInclusiveAmount with the invoice total (it compared the payable).
+- **`InvoiceService.findOne`** includes `advanceInvoice {id, invoiceNumber}`
+  and attaches `advanceDeduction`, so every PDF / ZUGFeRD path that loads
+  through it states the deduction (bulk download, GET …/zugferd); the GoBD
+  archive attaches it itself (and now loads payments).
+- **UI:** "Schlussrechnung erstellen" on an issued Proforma
+  (`final-invoice-button`) creates the draft and opens it; a final invoice
+  shows "Schlussrechnung zu PI-…" linking back. i18n de / en / zh.
+
+Specs: backend 259 (5 assertions fail on the old code), Playwright
+`final-invoice-tier473.spec.ts` (3 × green with --repeat-each).
+Local runs: Playwright **946**; backend 258 / 1 / 0, 0 × 5xx — the failure
+was spec 50's SSRF check of `127.0.0.1.nip.io`, which needs public DNS: the
+name did not resolve on this machine during the run (it did again minutes
+later, and spec 50 passed alone). An unresolvable name is allowed at create
+time by design, so spec 50 now asserts that case only when the name resolves.
+(0 skipped: spec 16 found the frontend of the previous Playwright run up.)
+
 ### The final invoice of a Proforma (Tier 472)
 
 Tier 470 made a payment on a Proforma an advance payment; there was no way to

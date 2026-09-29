@@ -298,6 +298,7 @@ export function generateZUGFeRDXml(
         <ram:TaxBasisTotalAmount>${formatCents(t.taxExclusive)}</ram:TaxBasisTotalAmount>
         <ram:TaxTotalAmount currencyID="${cur}">${formatCents(t.taxTotal)}</ram:TaxTotalAmount>
         <ram:GrandTotalAmount>${formatCents(t.taxInclusive)}</ram:GrandTotalAmount>
+        ${t.prepaid !== 0 ? `<ram:TotalPrepaidAmount>${formatCents(t.prepaid)}</ram:TotalPrepaidAmount>` : ''}
         <ram:DuePayableAmount>${formatCents(t.payable)}</ram:DuePayableAmount>
       </ram:SpecifiedTradeSettlementHeaderMonetarySummation>
     </ram:ApplicableHeaderTradeSettlement>

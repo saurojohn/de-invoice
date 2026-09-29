@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common'
+import { advanceDeductionFor } from '../invoice/advance'
 import { Response } from 'express'
 import { PrismaService } from '../../prisma/prisma.service'
 import { StorageService } from '../storage/storage.service'
@@ -379,7 +380,8 @@ export class GobdArchiveService {
         issueDate: { gte: yearStart, lte: yearEnd },
         status: { not: 'draft' },
       },
-      include: { items: true, customer: true, referenceInvoice: true },
+      // Tier 473: payments for a final invoice's prepaid amount (BT-113)
+      include: { items: true, customer: true, referenceInvoice: true, payments: true },
       orderBy: { issueDate: 'asc' },
     })
     const result = []
@@ -402,6 +404,8 @@ export class GobdArchiveService {
           } catch {
             templateConfig = undefined
           }
+          // Tier 473: a final invoice states the advance it deducts (Tier 472).
+          ;(inv as any).advanceDeduction = await advanceDeductionFor(this.prisma, inv)
           pdfBuffer = await generateZUGFeRD(inv as any, this.companyContext(company, templateConfig), { templateConfig })
         }
         result.push({

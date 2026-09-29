@@ -189,9 +189,16 @@ api_post "/api/v1/webhooks?companyId=$COMPANY_ID" \
 assert_status 400 "POST /webhooks SSRF credentials in URL (was 400 for parse, now explicit)"
 # nip.io resolves *.<ip>.nip.io to <ip> — a DNS name that lands on 127.0.0.1.
 # The create-time DNS check (lenient) catches it because it resolves here.
-api_post "/api/v1/webhooks?companyId=$COMPANY_ID" \
-  '{"name":"ssrf dns","url":"http://127.0.0.1.nip.io/","events":["invoice.created"]}'
-assert_status 400 "POST /webhooks SSRF DNS name resolving to 127.0.0.1 (was 201)"
+# It depends on public DNS: an unresolvable name is allowed at create time
+# by design (checked again at delivery), so without DNS there is nothing to
+# assert (Tier 473's local run: nip.io did not resolve, spec failed).
+if python3 -c "import socket;socket.gethostbyname('127.0.0.1.nip.io')" 2>/dev/null; then
+  api_post "/api/v1/webhooks?companyId=$COMPANY_ID" \
+    '{"name":"ssrf dns","url":"http://127.0.0.1.nip.io/","events":["invoice.created"]}'
+  assert_status 400 "POST /webhooks SSRF DNS name resolving to 127.0.0.1 (was 201)"
+else
+  note "127.0.0.1.nip.io does not resolve here — SSRF DNS check not exercised"
+fi
 
 # 11. Update — change status to paused
 api_post "/api/v1/webhooks/$WH_ID/test?companyId=$COMPANY_ID" ""

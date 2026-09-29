@@ -23,7 +23,7 @@ import { ExchangeRateService } from '../exchange-rate/exchange-rate.service';
 import { nextInvoiceNumber, releaseInvoiceNumber } from './invoice-number';
 import { ModuleRef } from '@nestjs/core';
 import { PaymentService } from './payment.service';
-import { ADVANCE_SETTLEMENT_METHOD, advanceReceived } from './advance';
+import { ADVANCE_SETTLEMENT_METHOD, advanceReceived, advanceDeductionFor } from './advance';
 
 /**
  * Tier 410 — a line's VAT rate, defaulting only when none was given.
@@ -323,10 +323,15 @@ export class InvoiceService {
         items: { include: { product: { select: { sku: true, name: true } } } },
         payments: true,
         referenceInvoice: true,
+        // Tier 473: a final invoice's Proforma (Tier 472)
+        advanceInvoice: { select: { id: true, invoiceNumber: true } },
       },
     });
     if (!invoice) throw new NotFoundException('Invoice not found');
-    return invoice;
+    // Tier 473: what a final invoice deducts, for every PDF / ZUGFeRD path
+    // that loads the invoice here (the bulk export and GET …/zugferd did not
+    // attach it).
+    return { ...invoice, advanceDeduction: await advanceDeductionFor(this.prisma, invoice) };
   }
 
   async checkStockForItems(items: { productId?: string; quantity: number }[]): Promise<StockWarning[]> {
