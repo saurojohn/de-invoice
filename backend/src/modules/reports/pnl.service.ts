@@ -5,7 +5,6 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { ISSUED_STATUSES, SALES_TYPES } from '../invoice/document-scope'
 import { cashBookings } from '../cashbook/cash-bookings'
 import { invoiceNetRevenue } from '../invoice/tax-breakdown'
-import { NOT_AFA_BOOKING } from '../accounting/booked-afa'
 
 /**
  * Tier 75: P&L (Gewinn- und Verlustrechnung).
@@ -165,95 +164,55 @@ export class PnlService {
       cash.filter((c) => c.direction === 'out' && c.date >= from && c.date <= to).reduce((s, c) => s + c.net, 0)
       + disposals.filter((d) => d.date >= from && d.date <= to).reduce((s, d) => s + d.restbuchwert, 0)
 
-    const monthlyResults = await Promise.all(
-      months.flatMap((m) => [
-        // Material expenses for the current year.
-        // Categorise: category starts with "Material"
-        // or "Waren" → Material; everything else →
-        // Sonstige. The Material bucket is the sum,
-        // the Sonstige bucket is the sum minus the
-        // Material bucket.
-        this.prisma.expense.aggregate({
-          where: {
-            companyId,
-            invoiceDate: { gte: m.mStart, lte: m.mEnd },
-            status: { in: ['booked', 'deductible'] },
-            OR: [
-              { category: { startsWith: 'Material' } },
-              { category: { startsWith: 'Waren' } },
-            ],
-          },
-          _sum: { netAmount: true },
-          _count: { _all: true },
-        }).then((r) => ({ kind: 'cyMat' as const, idx: m.idx, value: r })),
-        this.prisma.expense.aggregate({
-          where: {
-            companyId,
-            invoiceDate: { gte: m.mStart, lte: m.mEnd },
-            status: { in: ['booked', 'deductible'] },
-            ...NOT_AFA_BOOKING,
-          },
-          _sum: { netAmount: true },
-          _count: { _all: true },
-        }).then((r) => ({ kind: 'cyExp' as const, idx: m.idx, value: r })),
-        // Tier 437: the booked AfA, stored as negative rows — summed in with
-        // the expenses it lowered them (in a month with nothing else the
-        // max(0, …) below hid it).
-        this.prisma.expense.aggregate({
-          where: { companyId, invoiceDate: { gte: m.mStart, lte: m.mEnd }, relatedAssetId: { not: null } },
-          _sum: { netAmount: true },
-        }).then((r) => ({ kind: 'cyAfa' as const, idx: m.idx, value: r })),
-        // Prior-year expense aggregates
-        this.prisma.expense.aggregate({
-          where: {
-            companyId,
-            invoiceDate: { gte: m.pStart, lte: m.pEnd },
-            status: { in: ['booked', 'deductible'] },
-            OR: [
-              { category: { startsWith: 'Material' } },
-              { category: { startsWith: 'Waren' } },
-            ],
-          },
-          _sum: { netAmount: true },
-        }).then((r) => ({ kind: 'pyMat' as const, idx: m.idx, value: r })),
-        this.prisma.expense.aggregate({
-          where: {
-            companyId,
-            invoiceDate: { gte: m.pStart, lte: m.pEnd },
-            status: { in: ['booked', 'deductible'] },
-            ...NOT_AFA_BOOKING,
-          },
-          _sum: { netAmount: true },
-        }).then((r) => ({ kind: 'pyExp' as const, idx: m.idx, value: r })),
-        this.prisma.expense.aggregate({
-          where: { companyId, invoiceDate: { gte: m.pStart, lte: m.pEnd }, relatedAssetId: { not: null } },
-          _sum: { netAmount: true },
-        }).then((r) => ({ kind: 'pyAfa' as const, idx: m.idx, value: r })),
-      ]),
-    );
-
-    // Group by month index.
-    type AggRow = { _sum: Record<string, any>; _count?: { _all: number } };
-    const byMonth = new Map<number, Record<string, AggRow>>();
-    for (const r of monthlyResults) {
-      const slot = byMonth.get(r.idx) || {};
-      slot[r.kind] = r.value as any;
-      byMonth.set(r.idx, slot);
+    // Tier 466: the expenses of both years in two queries, bucketed per month
+    // here. This fired 12 months × 6 `aggregate` calls at once (72 parallel
+    // queries): under load the pool's connection setup failed and the P&L
+    // answered 500 "Can't reach database server" (ErrorEvent of a local e2e
+    // run, spec 213). Same buckets as before:
+    //   mat — booked/deductible, category Material… / Waren…
+    //   exp — booked/deductible, no AfA row (NOT_AFA_BOOKING)
+    //   afa — the rows "AfA buchen" created (relatedAssetId), any status;
+    //         negative, so subtracting them adds the AfA as a cost (Tier 437)
+    const expenseRows = (start: Date, end: Date) =>
+      this.prisma.expense.findMany({
+        where: { companyId, invoiceDate: { gte: start, lte: end } },
+        select: { invoiceDate: true, netAmount: true, category: true, status: true, relatedAssetId: true },
+      })
+    const [cyExpenses, pyExpenses] = await Promise.all([
+      expenseRows(yearStart, yearEnd),
+      expenseRows(new Date(year - 1, 0, 1), new Date(year - 1, 11, 31, 23, 59, 59, 999)),
+    ])
+    type Buckets = { mat: number; exp: number; afa: number }
+    const bucketByMonth = (rows: typeof cyExpenses) => {
+      const out = new Map<number, Buckets>()
+      for (const e of rows) {
+        const idx = e.invoiceDate.getMonth()
+        const b = out.get(idx) ?? { mat: 0, exp: 0, afa: 0 }
+        const cents = Math.round(Number(e.netAmount ?? 0) * 100)
+        const booked = e.status === 'booked' || e.status === 'deductible'
+        if (booked && /^(Material|Waren)/.test(e.category ?? '')) b.mat += cents
+        if (booked && e.relatedAssetId == null) b.exp += cents
+        if (e.relatedAssetId != null) b.afa += cents
+        out.set(idx, b)
+      }
+      return out
     }
+    const cyBuckets = bucketByMonth(cyExpenses)
+    const pyBuckets = bucketByMonth(pyExpenses)
+    const eur = (cents: number | undefined) => (cents ?? 0) / 100
 
     const result: PnlMonth[] = months.map((m) => {
-      const s = byMonth.get(m.idx) || {};
+      const cy = cyBuckets.get(m.idx)
+      const py = pyBuckets.get(m.idx)
       const { revenue, vat } = sumInvoices(cyInvoices, m.mStart, m.mEnd)
-      const mat = Number(s.cyMat?._sum?.netAmount || 0);
-      const totalExp = Number(s.cyExp?._sum?.netAmount || 0) + cashOut(m.mStart, m.mEnd)
-        - Number(s.cyAfa?._sum?.netAmount || 0);
+      const mat = eur(cy?.mat);
+      const totalExp = eur(cy?.exp) + cashOut(m.mStart, m.mEnd) - eur(cy?.afa);
       const otherExp = Math.max(0, totalExp - mat);
       const operatingResult = revenue - mat - otherExp;
       // Prior year
       const pRev = sumInvoices(pyInvoices, m.pStart, m.pEnd).revenue
-      const pMat = Number(s.pyMat?._sum?.netAmount || 0);
-      const pTotal = Number(s.pyExp?._sum?.netAmount || 0) + cashOut(m.pStart, m.pEnd)
-        - Number(s.pyAfa?._sum?.netAmount || 0);
+      const pMat = eur(py?.mat);
+      const pTotal = eur(py?.exp) + cashOut(m.pStart, m.pEnd) - eur(py?.afa);
       const pOther = Math.max(0, pTotal - pMat);
       const pOp = pRev - pMat - pOther;
       // % change. Guard against div by zero.

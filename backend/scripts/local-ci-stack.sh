@@ -291,7 +291,8 @@ case "${1:-}" in
         docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -F '|' -c \
           "SELECT \"lastSeenAt\", \"statusCode\", occurrences, message, left(coalesce(stack,''), 2000) FROM \"ErrorEvent\" WHERE source = 'backend' AND coalesce(\"statusCode\", 500) >= 500 ORDER BY \"lastSeenAt\"" \
           > /tmp/backend-e2e-errors.txt 2>/dev/null || true
-        echo "  5xx captured in ErrorEvent: $(awk 'END{print NR}' /tmp/backend-e2e-errors.txt 2>/dev/null) (/tmp/backend-e2e-errors.txt)"
+        # rows, not lines — a stack spans many lines of the dump
+        echo "  5xx captured in ErrorEvent: $(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "SELECT count(*) FROM \"ErrorEvent\" WHERE source = 'backend' AND coalesce(\"statusCode\", 500) >= 500" 2>/dev/null) (/tmp/backend-e2e-errors.txt)"
         exit $rc ;;
   run-playwright)
         # CI playwright job gives the backend this CORS origin.

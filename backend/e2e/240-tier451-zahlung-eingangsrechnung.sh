@@ -60,7 +60,8 @@ MT=/tmp/t451-$TAG.mt940
 UP=$(curl -sS -X POST -H "x-user-id: $U" -H "x-company-id: $C" "$API/api/v1/bank-statements/import?companyId=$C" \
   -F "file=@$MT;type=text/plain" -F "companyId=$C" -F "userId=$U")
 SID=$(json_field "$UP" id)
-mapfile -t T < <(echo "$UP" | python3 -c "import sys,json;d=json.load(sys.stdin);[print(t['id']) for t in sorted(d['transactions'],key=lambda t:t['valueDate']) if float(t['amount'])==-119]")
+# Tier 466: a read loop, not mapfile — macOS ships bash 3.2 without it.
+T=(); while IFS= read -r line; do T+=("$line"); done < <(echo "$UP" | python3 -c "import sys,json;d=json.load(sys.stdin);[print(t['id']) for t in sorted(d['transactions'],key=lambda t:t['valueDate']) if float(t['amount'])==-119]")
 [[ ${#T[@]} -eq 6 ]] && pass "fixture: six debits imported" || fail "import: ${#T[@]} debits"
 book() { AS POST "/api/v1/bank-statements/$SID/transactions/$1/book-expense?companyId=$C" '{"expenseId":"'$2'","vatRate":0.19,"vatAmount":19}'; }
 

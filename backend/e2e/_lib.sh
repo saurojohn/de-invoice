@@ -331,7 +331,7 @@ kill_backend() {
 
 reap_orphan_engines() {
   local root
-  root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/node_modules/.prisma/client/query-engine"
+  root="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/.." && pwd)/node_modules/.prisma/client/query-engine"
   ps -eo pid=,ppid=,command= | awk -v e="$root" '$2 == 1 && index($0, e) > 0 {print $1}' \
     | xargs kill 2>/dev/null || true
 }
