@@ -2527,6 +2527,27 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### A database outage is no failed login (Tier 471)
+
+Found in Tier 470's local run (spec 193): `HeaderAuthGuard` wrapped the user
+lookup in `try { … } catch { throw 401 "Authentifizierung fehlgeschlagen" }`.
+Any error — here Prisma's "Can't reach database server" during eight parallel
+creates — became a failed authentication: the frontend (`api.ts`) clears the
+session on 401 and sends the user to the login page, and as a 4xx it never
+reached ErrorEvent, which is why the Tier 466 connection failures looked rarer
+than they are. `User.id` is plain text, so the catch guarded nothing else.
+
+The catch is gone; `system.filter.ts` answers **503 "Service temporarily
+unavailable"** for Prisma P1001 / P1002 / P1017 (`code` or `errorCode`) —
+still a 5xx, so ErrorEvent stores it whenever its own write gets through.
+
+Spec 257 stops and starts the database container, so it runs only with
+`CI=true` or a `PG_CONTAINER` other than `de-invoice-postgres` (otherwise exit
+77) — it must never stop the dev database. Old code: 401; new: 503, and the
+same credentials work again once the database is back.
+Local runs: backend **256 / 0 / 1** (257 ran against tmp-ci-pg), 0 × 5xx;
+Playwright **945**.
+
 ### A payment on a Proforma is an advance payment (Tier 470)
 
 Since Tier 424 the Proforma (PI) is no invoice — no revenue, no tax — and its
@@ -2552,7 +2573,7 @@ User decision: treat it fully as an advance payment.
 Not yet: the final invoice that settles the advance (§ 14 Abs. 5 UStG — the
 advance and its tax deducted, the liability released). Until then an advance
 followed by a normal invoice for the same delivery is taxed and counted twice;
-the user has to leave the Proforma unpaid or cancel it. That is Tier 471.
+the user has to leave the Proforma unpaid or cancel it. That is Tier 472.
 
 Spec 256: on the old code all four report assertions failed (UStVA, EÜR, DATEV,
 Bilanz); the Ist-Versteuerung check was added after that run.
@@ -2563,7 +2584,7 @@ auth guard's `user.findUnique` got Prisma's "Can't reach database server" and
 **answered 401 "Authentifizierung fehlgeschlagen"** — the same connection
 failure as Tier 466, but hidden as a 4xx, so the ErrorEvent dump stayed empty
 and a user would have been sent to the login page by a database hiccup.
-Next tier: the guard lets non-auth errors through (5xx, visible).
+Fixed in Tier 471.
 
 ### The UStJA no longer drops a month that fails (Tier 469)
 

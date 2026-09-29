@@ -89,8 +89,10 @@ When working with `backend/src/invoices/invoice-pdf.service.ts`:
 
 ## HeaderAuthGuard — DENY by default, NEVER return true on failure — discovered 2026-06-06
 - The guard at `backend/src/auth/header-auth.guard.ts` MUST be DENY-default.
-  Every failure path (no header / unknown user / cross-tenant / inactive /
-  DB exception) must throw `UnauthorizedException`. A `return true` on
+  Every failure path (no header / unknown user / cross-tenant / inactive)
+  must throw `UnauthorizedException`. A DB exception is let through
+  (Tier 471) — it still denies the request, as 503 via `system.filter.ts`,
+  but is no 401: the frontend logs the user out on 401. A `return true` on
   any failure path is a CRITICAL security bug — it lets an attacker
   with a single valid `x-user-id` UUID dump the entire company, or
   read cross-tenant data.

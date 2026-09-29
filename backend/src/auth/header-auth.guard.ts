@@ -79,15 +79,16 @@ export class HeaderAuthGuard implements CanActivate {
       )
     }
 
-    let user
-    try {
-      user = await this.prisma.user.findUnique({
-        where: { id: userId },
-        select: { id: true, email: true, companyId: true, role: true, status: true },
-      })
-    } catch (e) {
-      throw new UnauthorizedException('Authentifizierung fehlgeschlagen')
-    }
+    // Tier 471: a failing lookup is no failed authentication. This caught
+    // every error as 401 "Authentifizierung fehlgeschlagen": a database
+    // hiccup ("Can't reach database server", e2e spec 193) logged the user
+    // out (api.ts clears the session on 401) and never reached ErrorEvent.
+    // It now answers 503 (system.filter.ts), which ErrorEvent stores whenever
+    // its own write gets through (a connection burst, not a full outage).
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true, companyId: true, role: true, status: true },
+    })
 
     if (!user) {
       throw new UnauthorizedException('Ungültiger Benutzer')

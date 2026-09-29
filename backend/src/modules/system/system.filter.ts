@@ -60,11 +60,16 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     // they also come from server-side races (Tier 174's invoice numbers).
     const isPrismaNotFound =
       !isHttp && (exception as { code?: unknown })?.code === "P2025"
+    // Tier 471: the database is unreachable — a temporary outage, not a bug
+    // in the request. Still a 5xx, so still persisted below.
+    const isDbUnavailable = !isHttp && this.isDbUnavailable(exception)
     const status = isHttp
       ? (exception as HttpException).getStatus()
       : isPrismaNotFound
         ? HttpStatus.NOT_FOUND
-        : HttpStatus.INTERNAL_SERVER_ERROR
+        : isDbUnavailable
+          ? HttpStatus.SERVICE_UNAVAILABLE
+          : HttpStatus.INTERNAL_SERVER_ERROR
 
     // The message we expose to the client (sanitized for 5xx).
     const publicMessage = isHttp
@@ -144,9 +149,22 @@ export class GlobalExceptionFilter implements ExceptionFilter {
    * details. The full original message is still persisted
    * to ErrorEvent for operator diagnosis.
    */
+  /** Prisma's "can't reach / timed out / closed connection" (P1001, P1002,
+   *  P1017 — `code` on a known request error, `errorCode` on an
+   *  initialization error). */
+  private isDbUnavailable(exception: unknown): boolean {
+    if (!exception || typeof exception !== "object") return false
+    const e = exception as { code?: unknown; errorCode?: unknown }
+    const code = typeof e.code === "string" ? e.code : e.errorCode
+    return code === "P1001" || code === "P1002" || code === "P1017"
+  }
+
   private sanitizeUnknownMessage(exception: unknown): string {
     if (!exception || typeof exception !== "object") {
       return "Internal server error"
+    }
+    if (this.isDbUnavailable(exception)) {
+      return "Service temporarily unavailable"
     }
     const e = exception as any
     // PrismaClientKnownRequestError has a `code` field
