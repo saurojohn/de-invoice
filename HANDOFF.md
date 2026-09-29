@@ -9,18 +9,19 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–474 are
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–475 are
   in `git log`; §8 records what each learned. Tiers 443–462 came from the
-  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 474.)
+  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 475.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 36612984488 / commit `43ba8c0`, Tier 474):**
-  - Backend e2e: **259 passed / 0 failed / 1 skipped** of 260 specs — 100
-    two-digit + 160 three-digit (Tier 474 added `260-tier474-keine-gutschrift-proforma.sh`,
+- **Test counts (last green CI, run 36617419997 / commit `02c25ac`, Tier 475):**
+  - Backend e2e: **260 passed / 0 failed / 1 skipped** of 261 specs — 100
+    two-digit + 161 three-digit (Tier 475 added `261-tier475-anzahlung-rueckzahlung.sh`,
+    Tier 474 added `260-tier474-keine-gutschrift-proforma.sh`,
     Tier 473 added `259-tier473-schlussrechnung-xml.sh`,
     Tier 472 added `258-tier472-schlussrechnung.sh`,
     Tier 471 added `257-tier471-db-down-not-401.sh`,
@@ -102,8 +103,8 @@ exact commands + docs you need to be productive.
     and survives concurrent writes (Tier 367); spec 171 (new in Tier 368) asserts
     the auth audit rows exist at all and are signed — nothing had ever asserted
     on them, which is how a failed login for an unknown e-mail went unaudited.
-  - Playwright: **946 passed / 0 failed / 0 skipped / 0 flaky** (Tier 473
-    added `final-invoice-tier473.spec.ts`; run
+  - Playwright: **947 passed / 0 failed / 0 skipped / 0 flaky** (Tier 473
+    added `final-invoice-tier473.spec.ts`, Tier 475 a second test in it; run
     36231779527 on Tier 461 had 1 flaky — `list-pages.spec.ts` "Invoices
     list" counted the rows before the list had rendered; fixed in Tier 462,
     which waits for a row or the empty state. Tier 428's
