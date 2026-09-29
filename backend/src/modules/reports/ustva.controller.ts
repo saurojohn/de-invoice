@@ -268,6 +268,7 @@ export class UstvaController {
         taxNumber: company.taxId,
         companyName: company.name,
         filingId: filing.id,
+        berichtigt: filing.berichtigt,
       });
     }
 
@@ -276,6 +277,7 @@ export class UstvaController {
       taxNumber: company.taxId,
       companyName: company.name,
       filingId: filing.id,
+      berichtigt: filing.berichtigt,
     });
   }
 

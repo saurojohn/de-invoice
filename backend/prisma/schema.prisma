@@ -586,6 +586,8 @@ model UStvaFiling {
   intraEUPurchase Decimal   @default(0) @db.Decimal(12, 4) // igE
   status          String    @default("draft") // draft|submitted|accepted|rejected
   submittedAt     DateTime?
+  // Tier 465: a corrected return (§ 153 AO) — Kz 10 in the ELSTER export
+  berichtigt      Boolean   @default(false)
   taxNumber       String? // Steuernummer
   notes           String?
   pdfPath         String?

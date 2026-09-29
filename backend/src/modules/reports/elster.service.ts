@@ -31,7 +31,12 @@ export interface ElsterUstvaExportInput {
   companyName: string;
   /** Optional filing identifier (used in <Vorgang> for traceability) */
   filingId?: string;
+  /** Tier 465: a corrected return (§ 153 AO) — Kz 10 = 1 */
+  berichtigt?: boolean;
 }
+
+/** Tier 465: Kz 10 "Berichtigte Anmeldung" — a flag, "1" when set. */
+const KZ10_LINE = 'B-Kz010=1';
 
 /**
  * Tier 107: UStJA ELSTER export input. The annual
@@ -117,7 +122,10 @@ export function generateUstvaElsterXml(input: ElsterUstvaExportInput): string {
 
   // Tier 417: the official USt 1 A 2026 Kennzahlen (ust-kennzahlen.ts);
   // Kz 83 (verbleibende Vorauszahlung / Überschuss) is always written.
-  const kzBlock = kzLines(ustvaKennzahlen(data), ['83']).join('\n        ');
+  // Tier 465: a corrected return carries Kz 10 = 1 (was left to the user
+  // to tick in Mein ELSTER).
+  const kzBlock = [...(input.berichtigt ? [KZ10_LINE] : []), ...kzLines(ustvaKennzahlen(data), ['83'])]
+    .join('\n        ');
 
   // Transfer header — the "Transferticket" identifies the data
   // packet to the ELSTER backend. Vorgang = "UStVA", Anlage = 1.
@@ -174,9 +182,13 @@ export function generateUstvaElsterXml(input: ElsterUstvaExportInput): string {
 export function generateUstvaAsciiPreview(input: ElsterUstvaExportInput): string {
   const { data, taxNumber, companyName } = input;
   const steuernummer = normaliseSteuernummer(taxNumber);
-  return fillInList('UStVA', 'USt 1 A 2026', companyName, steuernummer, data.periodLabel, ustvaKennzahlen(data), ['83'], [
+  const text = fillInList('UStVA', 'USt 1 A 2026', companyName, steuernummer, data.periodLabel, ustvaKennzahlen(data), ['83'], [
     `# ${data.counts.invoices} Rechnungen, ${data.counts.expenses} Ausgaben zugrundegelegt.`,
   ]);
+  // Tier 465: a corrected return — Kz 10 above the amounts.
+  return input.berichtigt
+    ? text.replace(/\n\n/, `\n\n${KZ10_LINE}   # Berichtigte Anmeldung (§ 153 AO)\n`)
+    : text;
 }
 
 /**

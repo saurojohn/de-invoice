@@ -783,7 +783,11 @@ export class UstvaService {
         .filter(Boolean).join(' — ');
     }
 
+    // Tier 465: the corrected return is a flag (Kz 10 in the ELSTER export),
+    // and stays one for the period — was a notes prefix only.
+    const berichtigt = existing?.berichtigt === true || (existing?.status === 'submitted' && status === 'submitted');
     const payload = {
+      berichtigt,
       outputVat: live.umsatzsteuer,
       inputVat: live.vorsteuerSum,
       payableVat: live.differenzbetrag,

@@ -2524,6 +2524,52 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### The P&L asks the database twice, not 72 times (Tier 466)
+
+The first run with the Tier 464 ErrorEvent dump caught a 5xx at once: spec 213
+failed because `GET /reports/pnl` answered 500 — `PrismaClientKnownRequestError
+… Can't reach database server at localhost:55460`, raised inside
+`PnlService.compute`'s `Promise.all` of 12 months × 6 `expense.aggregate`
+calls (72 queries fired together; the stack shows index 23). "Can't reach"
+is a failed connection, not a pool timeout: most likely the burst of new
+connections of a cold pool, dropped by Docker Desktop's port forwarding.
+Not reproduced on demand — 30 concurrent P&L requests against a warm pool
+passed with the old and the new code alike — so this is a mitigation, not a
+proven root cause; the intermittent dashboard-v2 500 (Tiers 429, 463) had the
+same shape (a wide `Promise.all`) and may be the same thing.
+
+`PnlService` now reads each year's expenses in one `findMany` (invoice date,
+net, category, status, relatedAssetId) and buckets them per month in memory —
+the same three buckets (Material/Waren; booked non-AfA; AfA rows) with the
+same arithmetic. Specs 101, 142, 213, 225, 226, 229, 214 pass unchanged.
+
+The harness's "5xx captured" counted lines of the dump (a stack spans many);
+it counts rows now.
+Spec 240 used `mapfile` (bash 4) and failed in every local run on macOS's bash
+3.2; it reads with a loop now.
+
+Local runs (Tiers 465 + 466 together): backend **252 passed / 1 failed / 1
+skipped** — 240 before its fix (passes alone with /bin/bash 3.2 after), 0 ×
+5xx in ErrorEvent; Playwright **945**, no flaky.
+
+### A corrected UStVA carries Kz 10 in its export (Tier 465)
+
+The "Not done" of Tier 448: after a UStVA was submitted again as a corrected
+return (`berichtigt: true`), its ELSTER XML and text preview were those of a
+first return — no Kz 10 "Berichtigte Anmeldung", left to the user to tick in
+Mein ELSTER; the filing knew it only from a notes prefix.
+
+New `UStvaFiling.berichtigt` (migration `20260929000001_ustva_filing_berichtigt`,
+filled for existing rows from the notes prefix), set on a corrected
+resubmission and kept. The XML writes `B-Kz010=1` before the amounts, the text
+preview the same line with its label. (The XML container format is still the
+unverified one of §9 item 9.)
+
+Spec `e2e/254-tier465-ustva-kz10.sh` (9 assertions, 3 failing against the
+previous code).
+
+`reap_orphan_engines` (Tier 464) also works when `_lib.sh` is sourced from zsh.
+
 ### Anlage G follows the Gewinnermittlung; test stack hygiene (Tier 464)
 
 Anlage G counted by document date for every company — the "still open" of
