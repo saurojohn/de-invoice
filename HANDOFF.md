@@ -2536,6 +2536,31 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Today is the business's calendar day (Tier 478)
+
+Found when Tier 477's run crossed midnight (specs 212 / 213 failed at 00:11
+on 30.09.). Date-only fields are stored as midnight UTC of their day; three
+places compared them with the server's instant instead:
+
+- **Dashboard** "this month" / YTD ended at `now` — on a German server an
+  invoice dated today is 02:00 local, so after midnight today's invoices were
+  missing (measured 0 / 0 / 0 instead of 119 / 19 / 1).
+- **Credit notes** (and `create()` without an issue date) took the instant as
+  their date: written at 00:15 on 30.09., dated 29.09. (22:15 UTC) — in
+  DATEV, and on the 1st of a month in the previous month's UStVA.
+- **Customer summary** counted an invoice as overdue once `dueDate > now`
+  failed — on a UTC server from 00:00 of its due day, on a German one from
+  02:00 (the Mahnung run uses dueDate < today).
+
+`src/common/business-date.ts`: today in Europe/Berlin and day bounds as
+midnight-UTC values; the three places use it. Spec 264: on the old code the
+dashboard and credit-note assertions failed (run at 00:15 CEST); the overdue
+assertion fails on the old code only after 02:00 CEST or on a UTC server, so
+it could not be shown failing here. Caveat: specs that take "today" from the
+runner's UTC date can disagree with the German day between 22:00 and 24:00
+UTC — relevant only across a month end.
+Local runs (after midnight CEST): backend **263 / 0 / 1**, 0 × 5xx; Playwright **947**.
+
 ### No editing once money or a correction is booked (Tier 477)
 
 HANDOFF §9 item 14, **decided by the user (2026-09-29): a sent invoice stays

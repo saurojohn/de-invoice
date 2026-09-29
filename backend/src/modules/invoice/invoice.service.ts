@@ -22,6 +22,7 @@ import { resolveDueDate } from './due-date';
 import { ExchangeRateService } from '../exchange-rate/exchange-rate.service';
 import { nextInvoiceNumber, releaseInvoiceNumber } from './invoice-number';
 import { ModuleRef } from '@nestjs/core';
+import { businessToday, dayStart } from '../../common/business-date';
 import { PaymentService } from './payment.service';
 import { ADVANCE_SETTLEMENT_METHOD, advanceReceived, advanceDeductionFor } from './advance';
 
@@ -514,7 +515,9 @@ export class InvoiceService {
     const finalTotal = isCN ? -total : total;
 
     // Parse dates safely
-    const issueDate = dto.issueDate ? new Date(dto.issueDate) : new Date();
+    // Tier 478: without a date, today's business day (as a date-only value).
+    const today = businessToday()
+    const issueDate = dto.issueDate ? new Date(dto.issueDate) : dayStart(today.y, today.m, today.d);
 
     // Tier 176: pre-fill dueDate from Company.defaultPaymentDays
     // if the caller didn't provide one. The user can still
@@ -1591,8 +1594,13 @@ export class InvoiceService {
     // number sequence. CNs use the same year/month
     // numbering as the original — the prefix
     // differentiates (CN-2026-001).
-    const now = opts.issueDate ? new Date(opts.issueDate) : new Date()
-    const month = now.getMonth() + 1
+    // Tier 478: the business day, stored as date-only values are (midnight
+    // UTC). This took the instant: a credit note written at 00:15 on 30.09.
+    // got 29.09. (22:15 UTC) — in DATEV, and at a month end in the previous
+    // month's UStVA.
+    const bt = businessToday()
+    const now = opts.issueDate ? new Date(opts.issueDate) : dayStart(bt.y, bt.m, bt.d)
+    const month = now.getUTCMonth() + 1
     // Tier 174: same SEQUENCE-based allocation as create().
     // The old `cnCount + 1` was racy under concurrent CN creates
     // (same P2002 hazard as the INV create path).

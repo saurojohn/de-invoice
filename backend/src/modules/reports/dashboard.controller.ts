@@ -26,6 +26,7 @@ import { NOT_AFA_BOOKING } from '../accounting/booked-afa'
  * The URL paths are preserved so the frontend
  * /dashboard page doesn't change.
  */
+import { businessToday, dayEnd, dayStart } from '../../common/business-date';
 import { BadRequestException, Controller, Get, Query } from '@nestjs/common';
 
 import { Auth, Require } from '../../auth/roles.decorator';
@@ -45,21 +46,25 @@ export class DashboardController {
   @Require('reports.read')
   async getDashboardKpis(@Query('companyId') companyId: string) {
     if (!companyId) throw new BadRequestException('companyId ist erforderlich');
-    const now = new Date();
-    const yearStart = new Date(now.getFullYear(), 0, 1);
+    // Tier 478: calendar days of the business, as the date-only fields are
+    // stored (midnight UTC, business-date.ts). The upper bound was `now` (new Date()): on
+    // a German server an invoice dated today is 02:00 local, so after
+    // midnight "this month" and YTD left out today's invoices (spec 213 at
+    // 00:11 on 30.09.: 0 € this month).
+    const { y, m, d } = businessToday()
+    const todayEnd = dayEnd(y, m, d)
+    const yearStart = dayStart(y, 0, 1);
     // Last calendar month: previous month's full range.
-    // 1st of current month is the day AFTER last
-    // month's last day.
-    const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+    const thisMonthStart = dayStart(y, m, 1);
+    const lastMonthStart = dayStart(y, m - 1, 1);
+    const lastMonthEnd = dayEnd(y, m, 0);
     // 12 months for the trend chart, oldest first.
     const months = Array.from({ length: 12 }, (_, idx) => {
       const i = 11 - idx
-      const mStart = new Date(now.getFullYear(), now.getMonth() - i, 1)
-      const mEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0, 23, 59, 59)
+      const mStart = dayStart(y, m - i, 1)
+      const mEnd = dayEnd(y, m - i + 1, 0)
       return {
-        key: `${mStart.getFullYear()}-${String(mStart.getMonth() + 1).padStart(2, '0')}`,
+        key: `${mStart.getUTCFullYear()}-${String(mStart.getUTCMonth() + 1).padStart(2, '0')}`,
         mStart,
         mEnd,
       }
@@ -78,14 +83,14 @@ export class DashboardController {
       this.prisma.invoice.findMany({
         where: {
           companyId,
-          issueDate: { gte: spanStart, lte: now },
+          issueDate: { gte: spanStart, lte: todayEnd },
           status: { in: ISSUED_STATUSES },
           type: { in: SALES_TYPES },
         },
         select: { issueDate: true, total: true, totalVat: true },
       }),
       this.prisma.expense.findMany({
-        where: { companyId, invoiceDate: { gte: spanStart, lte: now }, ...NOT_AFA_BOOKING },
+        where: { companyId, invoiceDate: { gte: spanStart, lte: todayEnd }, ...NOT_AFA_BOOKING },
         select: { invoiceDate: true, netAmount: true, vatAmount: true, grossAmount: true, status: true },
       }),
     ])
@@ -121,12 +126,12 @@ export class DashboardController {
       const open = Number(inv.total) - paid
       return open > 0 ? s + open : s
     }, 0)
-    const ytdInv = aggregateInvoices(yearStart, now)
-    const ytdExp = aggregateExpenses(yearStart, now)
+    const ytdInv = aggregateInvoices(yearStart, todayEnd)
+    const ytdExp = aggregateExpenses(yearStart, todayEnd)
     const lastInv = aggregateInvoices(lastMonthStart, lastMonthEnd)
     const lastExp = aggregateExpenses(lastMonthStart, lastMonthEnd)
-    const thisInv = aggregateInvoices(thisMonthStart, now)
-    const thisExp = aggregateExpenses(thisMonthStart, now)
+    const thisInv = aggregateInvoices(thisMonthStart, todayEnd)
+    const thisExp = aggregateExpenses(thisMonthStart, todayEnd)
     const byMonthMap = new Map<string, { revenue: number; expenses: number }>()
     for (const m of months) {
       byMonthMap.set(m.key, {
@@ -179,7 +184,7 @@ export class DashboardController {
       openReceivables,
       openPayables: ytdExp.openPayables,
       byMonth,
-      generatedAt: now.toISOString(),
+      generatedAt: new Date().toISOString(),
     };
   }
 
