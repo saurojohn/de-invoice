@@ -1952,7 +1952,9 @@ export default function InvoiceDetailPage() {
                   (status sent/overdue + dueDate in
                   the past). Drafts / cancelled /
                   credit notes are excluded. */}
-              {(invoice.status === "sent" || invoice.status === "overdue") &&
+              {/* Tier 476: claims only — not a Proforma or credit note. */}
+              {(invoice.type === "INV" || invoice.type === "RCV") &&
+                (invoice.status === "sent" || invoice.status === "overdue") &&
                 invoice.dueDate &&
                 new Date(invoice.dueDate).getTime() < Date.now() && (
                   <Button

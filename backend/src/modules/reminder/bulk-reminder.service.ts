@@ -25,6 +25,7 @@
  * operator can see what happened.
  */
 import { isConsumer } from './reminder.service'
+import { CLAIM_TYPES } from "../invoice/document-scope"
 import { Injectable, Logger } from "@nestjs/common"
 import { PrismaService } from "../../prisma/prisma.service"
 import { MailService } from "../mail/mail.service"
@@ -193,7 +194,11 @@ export class BulkReminderService {
     // Tier 388: only an open invoice can be dunned — the cron already selects
     // status 'sent' and type INV. Measured: a paid and a draft invoice each got
     // a Mahnung with fees (bulk also e-mailed the customer).
-    if (!["sent", "overdue"].includes(invoice.status) || invoice.type === "CN") {
+    // Tier 476: only a claim (INV / RCV) — a Proforma asks for an advance
+    // and creates no claim, so there is no default (Verzug) to charge fees
+    // and interest for. Measured: a Proforma got a level-2 Mahnung with
+    // 5,00 € fee and 36,23 € interest, e-mailed to the customer.
+    if (!["sent", "overdue"].includes(invoice.status) || !CLAIM_TYPES.includes(invoice.type)) {
       return {
         invoiceId,
         invoiceNumber: invoice.invoiceNumber,
@@ -203,7 +208,9 @@ export class BulkReminderService {
         error:
           invoice.type === "CN"
             ? "Gutschriften werden nicht gemahnt"
-            : `Rechnung ist nicht offen (Status: ${invoice.status})`,
+            : invoice.type === "PI"
+              ? "Proforma-Rechnungen werden nicht gemahnt — sie begründen keine Forderung"
+              : `Rechnung ist nicht offen (Status: ${invoice.status})`,
       }
     }
 

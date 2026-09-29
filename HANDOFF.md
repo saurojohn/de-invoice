@@ -2534,6 +2534,17 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### No Mahnung for a Proforma (Tier 476)
+
+A Proforma asks for an advance and creates no claim, so the customer cannot
+be in default. The cron took only invoices, but the manual and bulk send
+checked only "not a credit note" — measured (spec 262): POST /reminders/send
+for a sent Proforma past its due date → 201, a level-2 Mahnung with 5,00 €
+fee and 36,23 € interest (1 231,23 € demanded), e-mailed. `sendOne` now takes
+claims only (CLAIM_TYPES: INV, RCV); the "Mahnung senden" button shows only
+on those. 3 assertions fail on the old code.
+Local runs: backend **261 / 0 / 1**, 0 × 5xx; Playwright **947**.
+
 ### An advance paid back (Tier 475)
 
 Closes the gap Tier 474 left. The order behind a paid Proforma falls through.
