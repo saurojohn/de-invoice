@@ -2533,6 +2533,34 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### An advance paid back (Tier 475)
+
+Closes the gap Tier 474 left. The order behind a paid Proforma falls through.
+Measured before (spec 261): cancelling the Proforma 400 (it has a payment),
+a negative payment 400, no refund endpoint — the only way out was deleting
+the payment, which took the advance and its 190 € tax out of 12/2025, the
+month it was received and possibly filed.
+
+- **`POST /invoices/:proforma/advance-refund`** `{amount, paymentDate,
+  paymentMethod}` books a **negative payment** on the Proforma dated the day
+  the money goes back (refused above what was received, and once a final
+  invoice settled the Proforma — then the correction is a credit note on
+  the final invoice).
+- `euerInflows` counts a negative payment as negative income in its period,
+  capped at what was received — so the EÜR, the Ist- and (via
+  `advancePayments`) the Soll-UStVA correct the tax in the refund month
+  (§ 17 Abs. 2 Nr. 2 UStG); the month received stays as filed. DATEV writes
+  "1718 an Bank" (the negative amount flips to H); Bilanz 4200 goes back to 0.
+  A fully refunded Proforma stays issued (cancelling it would take the
+  original advance out of its month again).
+- UI: "Anzahlung zurückzahlen" on a Proforma with money received (asks the
+  amount, dated today). i18n de / en / zh.
+
+Spec 261 (9 assertions fail on the old code); Playwright
+`final-invoice-tier473.spec.ts` gained the refund test.
+Local runs: backend **261 / 0 / 0** (spec 16 ran: a frontend was up), 0 × 5xx;
+Playwright **947**.
+
 ### No credit note on a Proforma (Tier 474)
 
 The invoice page offered "Gutschrift" on every document but a credit note,
@@ -2547,7 +2575,7 @@ Open: a **paid** Proforma whose order falls through has no clean path yet —
 it cannot be cancelled (it has a payment, Tier 461) and its payment can be
 deleted, which takes the advance and its tax out of the month it was
 received (possibly already filed). The correct booking is a refund dated
-when it is paid back (§ 17 Abs. 2 Nr. 2 UStG) — next tier.
+when it is paid back (§ 17 Abs. 2 Nr. 2 UStG) — done in Tier 475.
 
 Spec 260 (3 assertions fail on the old code). Local runs: backend **259 / 0 / 1**,
 0 × 5xx; Playwright **946**.

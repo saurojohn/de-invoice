@@ -1566,6 +1566,24 @@ export class InvoiceController {
     });
   }
 
+  // Tier 475: an advance paid back to the customer (the order behind a
+  // Proforma fell through) — a negative payment on the Proforma.
+  @Post(':id/advance-refund')
+  @Require('invoice.update')
+  async refundAdvance(
+    @Param('id') id: string,
+    @Query('companyId') companyId: string,
+    @Body() body: CreatePaymentDto,
+  ) {
+    return this.paymentService.refundAdvance(id, companyId, {
+      amount: Number(body.amount),
+      paymentDate: new Date(body.paymentDate),
+      paymentMethod: body.paymentMethod,
+      reference: body.reference,
+      notes: body.notes,
+    });
+  }
+
   // Tier 53: Gutschrift (credit note) — generate a CN
   // (Invoice with type='CN') from an existing invoice.
   // The CN carries NEGATIVE line amounts (= the refund)

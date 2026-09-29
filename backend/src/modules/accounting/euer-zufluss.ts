@@ -102,15 +102,19 @@ export async function euerInflows(prisma: PrismaService, companyId: string, star
     let open = total
     let counted = 0
     for (const p of inv.payments) {
-      const part = Math.min(Number(p.amount), open)
-      if (part <= 0) break
+      // Tier 475: a refund (negative payment — an advance paid back) is
+      // negative income in its period, up to what had been received.
+      const part = Number(p.amount) < 0
+        ? Math.max(Number(p.amount), open - total)
+        : Math.min(Number(p.amount), open)
+      if (part === 0) continue
       open -= part
       // Tier 472: the advance a final invoice deducts ('Anzahlung') was
       // income when it was received on the Proforma.
       if (p.paymentMethod !== 'Gutschrift' && p.paymentMethod !== ADVANCE_SETTLEMENT_METHOD && inYear(p.paymentDate, start, end)) counted += part
     }
     if (inv.status === 'paid' && open > CENT && inYear(inv.issueDate, start, end)) counted += open
-    if (counted > 1e-9) inflows.push({ invoice: inv, amount: counted * share, fraction: counted / total })
+    if (Math.abs(counted) > 1e-9) inflows.push({ invoice: inv, amount: counted * share, fraction: counted / total })
   }
 
   // Credit notes of the year: the part beyond what they settled on their invoice.

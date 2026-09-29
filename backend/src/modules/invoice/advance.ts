@@ -65,7 +65,8 @@ export async function advanceDeductionFor(
   const r2 = (n: number) => Math.round(n * 100) / 100
   return {
     proformaNumber: pi.invoiceNumber,
-    receivedOn: cash.length ? cash[cash.length - 1].paymentDate : null,
+    // the last money received, not a refund (Tier 475)
+    receivedOn: cash.filter((p) => Number(p.amount) > 0).pop()?.paymentDate ?? null,
     gross: r2(gross),
     byRate: invoiceTaxBreakdown(pi).byRate.map((b) => ({ rate: b.rate, net: r2(b.net * fraction), vat: r2(b.vat * fraction) })),
   }

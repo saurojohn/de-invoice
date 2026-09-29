@@ -2,7 +2,7 @@ import { InvoiceService } from './invoice.service';
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { CLAIM_TYPES } from './document-scope';
-import { ADVANCE_SETTLEMENT_METHOD, settlingInvoice } from './advance';
+import { ADVANCE_SETTLEMENT_METHOD, advanceReceived, settlingInvoice } from './advance';
 import { PrismaService } from '../../prisma/prisma.service';
 import { WebhookService } from '../webhook/webhook.service';
 import { ReminderService } from '../reminder/reminder.service';
@@ -366,6 +366,54 @@ export class PaymentService {
    * invoice status afterwards — if the remaining total drops below the
    * invoice total, status goes back to "sent".
    */
+  /**
+   * Tier 475: an advance paid back — the order behind a Proforma fell
+   * through. Booked as a negative payment on the Proforma dated the day the
+   * money goes back: its tax and income come off in that period (§ 17 Abs. 2
+   * Nr. 2 UStG, § 11 EStG), the period the advance was received stays as
+   * filed. Deleting the payment instead took the advance out of the month it
+   * arrived in.
+   */
+  async refundAdvance(
+    proformaId: string,
+    companyId: string,
+    data: { amount: number; paymentDate: Date; paymentMethod: string; reference?: string; notes?: string },
+  ) {
+    const pi = await this.prisma.invoice.findFirst({ where: { id: proformaId, companyId } });
+    if (!pi) throw new NotFoundException('Rechnung nicht gefunden');
+    if (pi.type !== 'PI') {
+      throw new BadRequestException('Eine Anzahlung wird nur auf einer Proforma-Rechnung zurückgezahlt.');
+    }
+    const final = await settlingInvoice(this.prisma, companyId, proformaId);
+    if (final) {
+      throw new BadRequestException(
+        `Die Anzahlung ist mit der Schlussrechnung ${final.invoiceNumber} verrechnet — korrigieren Sie mit einer Gutschrift zur Schlussrechnung.`,
+      );
+    }
+    if (!data.amount || data.amount <= 0) {
+      throw new BadRequestException('Betrag muss größer als 0 sein');
+    }
+    if (!data.paymentDate || !data.paymentMethod) {
+      throw new BadRequestException('Datum und Zahlungsweg sind erforderlich');
+    }
+    const received = await advanceReceived(this.prisma, proformaId);
+    if (data.amount > received + 0.005) {
+      throw new BadRequestException(
+        `Es können höchstens ${received.toFixed(2)} zurückgezahlt werden (erhaltene Anzahlung).`,
+      );
+    }
+    return this.prisma.payment.create({
+      data: {
+        invoiceId: proformaId,
+        amount: -Math.round(data.amount * 100) / 100,
+        paymentDate: new Date(data.paymentDate),
+        paymentMethod: data.paymentMethod,
+        reference: data.reference,
+        notes: data.notes ?? `Rückzahlung der Anzahlung ${pi.invoiceNumber}`,
+      },
+    });
+  }
+
   async delete(paymentId: string, companyId: string) {
     const payment = await this.prisma.payment.findUnique({
       where: { id: paymentId },

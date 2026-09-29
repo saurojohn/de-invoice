@@ -57,3 +57,43 @@ test('a paid Proforma gets its final invoice from the detail page', async ({ pag
   expect(final.advanceInvoiceId).toBe(pi.id)
   await api.dispose()
 })
+
+/** Tier 475 — "Anzahlung zurückzahlen" on a paid Proforma. */
+test('a paid Proforma pays its advance back from the detail page', async ({ page }) => {
+  const api = await playwrightRequest.newContext({ extraHTTPHeaders: HEADERS })
+  const tag = `pw-475-${Date.now()}`
+  const customer = await (await api.post(`${API}/api/v1/customers?companyId=${COMPANY_ID}`, {
+    data: { name: `${tag} Kunde`, type: 'business' },
+  })).json()
+  const pi = await (await api.post(`${API}/api/v1/invoices?companyId=${COMPANY_ID}`, {
+    data: {
+      customerId: customer.id,
+      type: 'PI',
+      issueDate: new Date().toISOString().slice(0, 10),
+      items: [{ description: `${tag} Maschine`, quantity: 1, unit: 'Stk', unitPrice: 100, vatRate: 0.19 }],
+    },
+  })).json()
+  await api.put(`${API}/api/v1/invoices/${pi.id}/status?companyId=${COMPANY_ID}`, { data: { status: 'sent' } })
+  await api.post(`${API}/api/v1/invoices/${pi.id}/payments?companyId=${COMPANY_ID}`, {
+    data: { amount: 119, paymentDate: new Date().toISOString().slice(0, 10), paymentMethod: 'bank_transfer' },
+  })
+
+  await page.context().addCookies([
+    { name: 'x-user-id', value: USER_ID, domain: 'localhost', path: '/', sameSite: 'Lax' },
+    { name: 'x-company-id', value: COMPANY_ID, domain: 'localhost', path: '/', sameSite: 'Lax' },
+  ])
+  await page.addInitScript(({ userId, companyId }) => {
+    localStorage.setItem('userId', userId)
+    localStorage.setItem('companyId', companyId)
+  }, { userId: USER_ID, companyId: COMPANY_ID })
+  await page.goto(`/dashboard/invoices/${pi.id}`)
+  page.once('dialog', (d) => d.accept('119.00'))
+  await page.getByTestId('advance-refund-button').click({ timeout: 15_000 })
+  // everything paid back: the button goes away
+  await expect(page.getByTestId('advance-refund-button')).toHaveCount(0, { timeout: 15_000 })
+
+  const payments = await (await api.get(`${API}/api/v1/invoices/${pi.id}/payments?companyId=${COMPANY_ID}`)).json()
+  const list = Array.isArray(payments) ? payments : payments.data
+  expect(list.map((p: any) => Number(p.amount)).sort()).toEqual([-119, 119])
+  await api.dispose()
+})

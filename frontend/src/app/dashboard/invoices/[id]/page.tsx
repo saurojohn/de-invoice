@@ -1089,6 +1089,30 @@ export default function InvoiceDetailPage() {
     }
   }
 
+  // Tier 475: the order behind a Proforma fell through — pay the advance
+  // back (a negative payment dated today; the month it arrived stays as filed).
+  const refundAdvance = async () => {
+    if (!invoice) return
+    const received = payments.reduce((s, p) => s + Number(p.amount), 0)
+    const input = window.prompt(t("invoice.advanceRefundPrompt"), received.toFixed(2))
+    if (input == null) return
+    const amount = Number(input.replace(",", "."))
+    if (!(amount > 0)) return
+    setConvertError(null)
+    try {
+      const companyId = localStorage.getItem("companyId")
+      await apiPost(`/api/v1/invoices/${invoice.id}/advance-refund?companyId=${companyId}`, {
+        amount,
+        paymentDate: new Date().toISOString().slice(0, 10),
+        paymentMethod: "bank_transfer",
+      })
+      const pmts = await apiGet<any[]>(`/api/v1/invoices/${invoice.id}/payments?companyId=${companyId}`)
+      setPayments(Array.isArray(pmts) ? pmts : [])
+    } catch (e: any) {
+      setConvertError(e?.message || t("invoice.advanceRefundFailed"))
+    }
+  }
+
   const convertToRecurring = async () => {
     if (!invoice) return
     setConvertError(null)
@@ -1853,6 +1877,19 @@ export default function InvoiceDetailPage() {
                     title={t("invoice.finalInvoiceTitle")}
                   >
                     {t("invoice.finalInvoice")}
+                  </Button>
+                )}
+              {invoice.type === "PI" &&
+                invoice.status !== "cancelled" &&
+                payments.reduce((s, p) => s + Number(p.amount), 0) > 0.005 && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    data-testid="advance-refund-button"
+                    onClick={refundAdvance}
+                    title={t("invoice.advanceRefundTitle")}
+                  >
+                    {t("invoice.advanceRefund")}
                   </Button>
                 )}
               {/* Tier 63: "Wiederkehrend" button. Converts
