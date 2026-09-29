@@ -48,6 +48,7 @@ import { invoiceTaxBreakdown } from '../invoice/tax-breakdown';
 import { normaliseCountry } from '../invoice/ust-behandlung-detector';
 import { ensurePersonenkonten, DIVERSE_KREDITOREN } from './datev-personenkonten';
 import { CLAIM_TYPES, NON_CASH_PAYMENT_METHODS } from '../invoice/document-scope';
+import { advanceSettlements } from '../accounting/euer-zufluss';
 import { cashBookings } from '../cashbook/cash-bookings';
 import { SALES_TYPES } from '../invoice/document-scope'
 import { anlagenKonten } from './datev-anlagen'
@@ -569,6 +570,33 @@ export async function buildBuchungenFromDb(
         shVz: 'S',
         buchungstext: `Anzahlung ${pi.invoiceNumber}`.substring(0, 60),
         paymentMethod: p.paymentMethod,
+      })
+    }
+  }
+
+  // Tier 472: the final invoice deducts the advance — "erhaltene Anzahlungen
+  // an Debitor", per rate of the Proforma. The invoice row above books the
+  // whole delivery on the Debitor with its tax; releasing the Automatikkonto
+  // takes the advance's tax back out, so it is owed once.
+  const settlements = await advanceSettlements(prisma, companyId, startDate, endDate)
+  const settlementDebitoren = await ensurePersonenkonten(prisma, 'customer', companyId,
+    settlements.map((s) => s.finalInvoice.customerId))
+  for (const { payment, finalInvoice, proforma, fraction } of settlements) {
+    const f = eurFactor(proforma)
+    for (const bucket of invoiceTaxBreakdown(proforma).byRate) {
+      const gross = r2((bucket.net + bucket.vat) * fraction * f)
+      if (gross === 0) continue
+      out.push({
+        belegdatum: payment.paymentDate,
+        belegfeld1: finalInvoice.invoiceNumber,
+        belegfeld2: proforma.invoiceNumber,
+        konto: bucket.rate === 0 ? a.advanceReceived0
+          : Math.abs(bucket.rate - 0.07) < 0.001 ? a.advanceReceived7 : a.advanceReceived19,
+        gegenkonto: String(settlementDebitoren.get(finalInvoice.customerId) ?? a.receivable),
+        betrag: gross,
+        shVz: 'S',
+        buchungstext: `Anzahlung ${proforma.invoiceNumber} verrechnet`.substring(0, 60),
+        paymentMethod: payment.paymentMethod,
       })
     }
   }

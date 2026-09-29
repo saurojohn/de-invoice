@@ -808,6 +808,11 @@ model Invoice {
   referenceInvoiceId        String?
   referenceInvoice          Invoice?                   @relation("InvoiceReferences", fields: [referenceInvoiceId], references: [id])
   creditNotes               Invoice[]                  @relation("InvoiceReferences")
+  // Tier 472: the final invoice (Schlussrechnung) settles the advance paid on
+  // this Proforma (§ 14 Abs. 5 UStG). Set on the final invoice.
+  advanceInvoiceId          String?
+  advanceInvoice            Invoice?                   @relation("AdvanceSettlement", fields: [advanceInvoiceId], references: [id])
+  finalInvoices             Invoice[]                  @relation("AdvanceSettlement")
   recurringInvoiceId        String?
   recurringInvoice          RecurringInvoice?          @relation(fields: [recurringInvoiceId], references: [id], onDelete: SetNull)
   recurringRuns             RecurringRun[]
@@ -843,6 +848,7 @@ model Invoice {
   @@index([companyId, issueDate])
   @@index([companyId, customerId])
   @@index([companyId, status])
+  @@index([advanceInvoiceId])
   @@index([companyId, type])
   @@index([dueDate])
 }

@@ -47,6 +47,14 @@ interface Invoice {
   type?: string
   referenceInvoiceId?: string | null
   referenceInvoice?: { invoiceNumber: string } | null
+  // Tier 472: a final invoice deducts the advance paid on its Proforma
+  // (advanceDeductionFor in modules/invoice/advance.ts).
+  advanceDeduction?: {
+    proformaNumber: string
+    receivedOn: any
+    gross: number
+    byRate: Array<{ rate: number; net: number; vat: number }>
+  } | null
 }
 
 interface CompanyInfo {
@@ -709,7 +717,22 @@ export async function generateInvoicePDF(
     // its own — the footer is drawn on the page the writing ends on, and an
     // overflowing block used to push it onto a second page by itself.
     const notesHeightPre = invoice.notes ? (isCompact ? 12 : 20) + 40 : 0
-    const blockHeight = 5 + rows.length * totalsLineHeightPre + gesamtHeightPre + notesHeightPre
+    // Tier 472: a final invoice states the advance it deducts, with its net
+    // and tax per rate (§ 14 Abs. 5 Satz 2 UStG), and what is left to pay.
+    const advance = invoice.advanceDeduction && invoice.advanceDeduction.gross > 0 ? invoice.advanceDeduction : null
+    const advanceRows: Array<{ label: string; amount: number }> = []
+    if (advance) {
+      const on = advance.receivedOn ? ` vom ${formatDate(advance.receivedOn)}` : ""
+      advanceRows.push({ label: `abzgl. Anzahlung ${advance.proformaNumber}${on}:`, amount: -advance.gross })
+      for (const b of advance.byRate) {
+        advanceRows.push({
+          label: `darin netto ${formatCurrency(b.net)}, USt ${formatVatRate(b.rate)}:`,
+          amount: -b.vat,
+        })
+      }
+    }
+    const advanceHeightPre = advance ? advanceRows.length * totalsLineHeightPre + 5 + gesamtHeightPre : 0
+    const blockHeight = 5 + rows.length * totalsLineHeightPre + gesamtHeightPre + advanceHeightPre + notesHeightPre
     if (y + (isCompact ? 15 : 20) + blockHeight > doc.page.height - 74 - 10) {
       doc.addPage()
       y = 50
@@ -745,9 +768,26 @@ export async function generateInvoicePDF(
     doc.text("Gesamtbetrag:", gesamtBoxX + 5, gesamtY + 6, { lineBreak: false })
     doc.text(formatCurrency(toFloat(invoice.total)), totalsAmountX, gesamtY + 6, { width: totalsAmountWidth, align: "right", lineBreak: false })
 
+    let blockEndY = gesamtY + gesamtHeight
+    if (advance) {
+      doc.font(fontFor('regular')).fontSize(totalsFontSize - 1).lineWidth(0.3)
+      advanceRows.forEach((row, i) => {
+        const rowY = blockEndY + 5 + i * totalsLineHeight
+        doc.text(row.label, totalsLabelX - 60, rowY, { lineBreak: false })
+        doc.text(formatCurrency(row.amount), totalsAmountX, rowY, { width: totalsAmountWidth, align: "right", lineBreak: false })
+      })
+      const zahlY = blockEndY + 5 + advanceRows.length * totalsLineHeight
+      doc.lineWidth(1.0)
+      doc.rect(gesamtBoxX, zahlY, gesamtBoxWidth, gesamtHeight).stroke()
+      doc.font(fontFor('bold')).fontSize(totalsFontSize + 2)
+      doc.text("Zahlbetrag:", gesamtBoxX + 5, zahlY + 6, { lineBreak: false })
+      doc.text(formatCurrency(round2(toFloat(invoice.total) - advance.gross)), totalsAmountX, zahlY + 6, { width: totalsAmountWidth, align: "right", lineBreak: false })
+      blockEndY = zahlY + gesamtHeight
+    }
+
     // Notes
     if (invoice.notes) {
-      const notesY = gesamtY + gesamtHeight + (isCompact ? 12 : 20)
+      const notesY = blockEndY + (isCompact ? 12 : 20)
       doc.fontSize(9).font(fontFor('bold')).text("Bemerkungen:", leftMargin, notesY, { lineBreak: false })
       doc.font(fontFor('regular')).text(invoice.notes, leftMargin, notesY + 15, { width: isCompact ? 300 : 400, lineBreak: true })
     }
@@ -1127,7 +1167,10 @@ export function buildEpcQrPayload(
   // Format amount per spec: 2 decimals, dot decimal
   // separator, NO thousands separator. Total may be a
   // string (Decimal from Prisma) or number.
-  const totalNum = toFloat(invoice.total as any)
+  // Tier 472: a final invoice asks only for what the advance left open —
+  // nothing at all when the advance covered it.
+  const totalNum = round2(toFloat(invoice.total as any) - (invoice.advanceDeduction?.gross ?? 0))
+  if (invoice.advanceDeduction && totalNum <= 0) return null
   const amountStr = totalNum.toFixed(2)
 
   // Use the invoice number as the Verwendungszweck

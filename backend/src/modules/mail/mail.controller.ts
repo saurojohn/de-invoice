@@ -1,3 +1,4 @@
+import { advanceDeductionFor } from '../invoice/advance';
 import {
   Controller,
   Get,
@@ -292,6 +293,8 @@ export class MailController {
     // PDF buffer (regenerated — same PDF the user gets from
     // the first send, but if the invoice was edited in the
     // meantime the resend reflects the current state).
+    // Tier 472: a final invoice states the advance it deducts.
+    ;(invoice as any).advanceDeduction = await advanceDeductionFor(this.prisma, invoice as any)
     const pdfBuffer = await generateInvoicePDF(
       invoice as any,
       {

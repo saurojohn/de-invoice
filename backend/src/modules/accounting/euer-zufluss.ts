@@ -29,6 +29,7 @@ import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
 import { CLAIM_TYPES, ISSUED_STATUSES } from '../invoice/document-scope'
 import { invoiceNetRevenue } from '../invoice/tax-breakdown'
+import { ADVANCE_SETTLEMENT_METHOD } from '../invoice/advance'
 
 export interface Inflow<T> {
   invoice: T
@@ -104,7 +105,9 @@ export async function euerInflows(prisma: PrismaService, companyId: string, star
       const part = Math.min(Number(p.amount), open)
       if (part <= 0) break
       open -= part
-      if (p.paymentMethod !== 'Gutschrift' && inYear(p.paymentDate, start, end)) counted += part
+      // Tier 472: the advance a final invoice deducts ('Anzahlung') was
+      // income when it was received on the Proforma.
+      if (p.paymentMethod !== 'Gutschrift' && p.paymentMethod !== ADVANCE_SETTLEMENT_METHOD && inYear(p.paymentDate, start, end)) counted += part
     }
     if (inv.status === 'paid' && open > CENT && inYear(inv.issueDate, start, end)) counted += open
     if (counted > 1e-9) inflows.push({ invoice: inv, amount: counted * share, fraction: counted / total })
@@ -194,4 +197,33 @@ export async function advancePayments(prisma: PrismaService, companyId: string, 
   })
   const byId = new Map(docs.map((d) => [d.id, d]))
   return pis.map((f) => ({ doc: byId.get(f.invoice.id)!, fraction: f.fraction })).filter((x) => !!x.doc)
+}
+
+/**
+ * Tier 472 — advances settled by a final invoice in the period: the
+ * 'Anzahlung' payment its issue books, with the Proforma (and its items) and
+ * the part of the Proforma it settles. The final invoice states the whole
+ * delivery with its tax; the tax already paid on the advance comes off again
+ * in the same period (§ 14 Abs. 5 Satz 2 UStG).
+ */
+export async function advanceSettlements(prisma: PrismaService, companyId: string, start: Date, end: Date) {
+  const rows = await prisma.payment.findMany({
+    where: {
+      paymentMethod: ADVANCE_SETTLEMENT_METHOD,
+      paymentDate: { gte: start, lte: end },
+      invoice: { companyId, status: { notIn: ['draft', 'cancelled'] }, advanceInvoiceId: { not: null } },
+    },
+    include: {
+      invoice: {
+        select: { id: true, invoiceNumber: true, customerId: true, advanceInvoice: { include: { items: true } } },
+      },
+    },
+    orderBy: [{ paymentDate: 'asc' }, { createdAt: 'asc' }],
+  })
+  return rows.flatMap((p) => {
+    const pi = p.invoice.advanceInvoice
+    const total = Number(pi?.total ?? 0)
+    if (!pi || !(total > 0)) return []
+    return [{ payment: p, finalInvoice: p.invoice, proforma: pi, fraction: Number(p.amount) / total }]
+  })
 }

@@ -56,6 +56,7 @@
  *     Idle sessions auto-expire (cleaned up by a
  *     nightly job — not in this tier).
  */
+import { advanceDeductionFor } from '../invoice/advance';
 import {
   BadRequestException,
   Injectable,
@@ -485,6 +486,8 @@ export class CustomerPortalService {
     if (!invoice) {
       throw new NotFoundException('Rechnung nicht gefunden')
     }
+    // Tier 472: a final invoice states the advance it deducts.
+    ;(invoice as any).advanceDeduction = await advanceDeductionFor(this.prisma, invoice as any)
     return generateInvoicePDF(
       invoice as any,
       {

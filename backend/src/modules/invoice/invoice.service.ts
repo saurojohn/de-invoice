@@ -21,6 +21,9 @@ import { resolveDueDate } from './due-date';
 // amounts are what EÜR / UStVA / BWA / GuV aggregate over.
 import { ExchangeRateService } from '../exchange-rate/exchange-rate.service';
 import { nextInvoiceNumber, releaseInvoiceNumber } from './invoice-number';
+import { ModuleRef } from '@nestjs/core';
+import { PaymentService } from './payment.service';
+import { ADVANCE_SETTLEMENT_METHOD, advanceReceived } from './advance';
 
 /**
  * Tier 410 — a line's VAT rate, defaulting only when none was given.
@@ -59,6 +62,9 @@ export class InvoiceService {
     private creditBalance: CreditBalanceService,
     // Tier 118: see class-level comment above.
     private exchangeRates: ExchangeRateService,
+    // Tier 472: PaymentService books the advance a final invoice deducts
+    // (resolved lazily — PaymentService imports this service).
+    private moduleRef: ModuleRef,
   ) {}
 
   /**
@@ -820,6 +826,95 @@ export class InvoiceService {
     }
   }
 
+  /**
+   * Tier 472: the final invoice (Schlussrechnung) for a Proforma — a draft
+   * invoice with the Proforma's lines, linked to it. Issuing it deducts the
+   * advance received (settleAdvance).
+   */
+  async createFinalInvoice(proformaId: string, companyId: string, dto: { issueDate?: string } = {}) {
+    const pi = await this.prisma.invoice.findFirst({
+      where: { id: proformaId, companyId },
+      include: { items: { orderBy: { sortOrder: 'asc' } } },
+    })
+    if (!pi) throw new NotFoundException('Proforma-Rechnung nicht gefunden')
+    if (pi.type !== 'PI') {
+      throw new BadRequestException('Eine Schlussrechnung wird aus einer Proforma-Rechnung erstellt.')
+    }
+    if (pi.status === 'draft' || pi.status === 'cancelled') {
+      throw new BadRequestException('Die Proforma-Rechnung ist nicht ausgestellt (Entwurf oder storniert).')
+    }
+    const existing = await this.prisma.invoice.findFirst({
+      where: { companyId, advanceInvoiceId: proformaId, status: { not: 'cancelled' } },
+      select: { invoiceNumber: true },
+    })
+    if (existing) {
+      throw new BadRequestException(`Für diese Proforma-Rechnung gibt es bereits die Schlussrechnung ${existing.invoiceNumber}.`)
+    }
+    const created = await this.create(companyId, {
+      type: 'INV',
+      customerId: pi.customerId,
+      issueDate: dto.issueDate ?? new Date().toISOString().slice(0, 10),
+      currency: pi.currency ?? undefined,
+      notes: pi.notes ?? undefined,
+      discountPercent: pi.discountPercent != null ? Number(pi.discountPercent) : undefined,
+      discountAmount: pi.discountAmount != null ? Number(pi.discountAmount) : undefined,
+      reverseCharge: pi.reverseCharge ?? undefined,
+      euTransaction: pi.euTransaction ?? undefined,
+      costCenter: pi.costCenter ?? undefined,
+      costObject: pi.costObject ?? undefined,
+      items: pi.items.map((i) => ({
+        description: i.description,
+        quantity: Number(i.quantity),
+        unit: i.unit ?? undefined,
+        unitPrice: Number(i.unitPrice),
+        vatRate: Number(i.vatRate),
+        productId: i.productId ?? undefined,
+      })),
+    } as CreateInvoiceDto)
+    await this.prisma.invoice.update({ where: { id: created.id }, data: { advanceInvoiceId: proformaId } })
+    return { ...created, advanceInvoiceId: proformaId }
+  }
+
+  /**
+   * Tier 472: what issuing a final invoice deducts — the advance received on
+   * its Proforma. Checked before the status changes (settleAdvance books it
+   * after: a payment needs an issued invoice).
+   */
+  private async advanceToSettle(inv: { id: string; advanceInvoiceId: string | null; total: any; currency: string | null }, companyId: string) {
+    if (!inv.advanceInvoiceId) return null
+    const pi = await this.prisma.invoice.findFirst({
+      where: { id: inv.advanceInvoiceId, companyId },
+      select: { id: true, invoiceNumber: true, currency: true },
+    })
+    if (!pi) return null
+    const amount = await advanceReceived(this.prisma, pi.id)
+    if (amount <= 0) return null
+    if ((pi.currency || 'EUR') !== (inv.currency || 'EUR')) {
+      throw new BadRequestException('Proforma- und Schlussrechnung haben verschiedene Währungen.')
+    }
+    if (amount > Number(inv.total) + 0.005) {
+      throw new BadRequestException(
+        `Die Anzahlung (${amount.toFixed(2)}) übersteigt den Betrag der Schlussrechnung (${Number(inv.total).toFixed(2)}).`,
+      )
+    }
+    return { pi, amount }
+  }
+
+  private async settleAdvance(
+    inv: { id: string; issueDate: Date },
+    companyId: string,
+    advance: { pi: { invoiceNumber: string }; amount: number },
+  ) {
+    const payments = this.moduleRef.get(PaymentService, { strict: false })
+    await payments.create(inv.id, companyId, {
+      amount: advance.amount,
+      paymentDate: inv.issueDate,
+      paymentMethod: ADVANCE_SETTLEMENT_METHOD,
+      reference: `PI ${advance.pi.invoiceNumber}`,
+      notes: `Anzahlung aus Proforma-Rechnung ${advance.pi.invoiceNumber} verrechnet (§ 14 Abs. 5 UStG)`,
+    })
+  }
+
   async update(id: string, companyId: string, dto: UpdateInvoiceDto) {
     // Same-day edit rule. Once the calendar flips, the invoice is
     // considered "frozen" — the user might have already sent the
@@ -1182,10 +1277,22 @@ export class InvoiceService {
       }
     }
 
+    // Tier 472: issuing a final invoice deducts the Proforma's advance.
+    const issuing = before.status === 'draft' && status !== 'draft' && status !== 'cancelled'
+    const advance = issuing ? await this.advanceToSettle(before, companyId) : null
+
     const updated = await this.prisma.invoice.update({
       where: { id },
       data: { status },
     });
+    if (advance) {
+      try {
+        await this.settleAdvance(before, companyId, advance)
+      } catch (e) {
+        await this.prisma.invoice.update({ where: { id }, data: { status: before.status } })
+        throw e
+      }
+    }
 
     // Fire invoice.paid ONLY on the draft → paid transition.
     // We don't fire it on every status change because that

@@ -6,7 +6,7 @@ import { invoiceTaxBreakdown } from '../invoice/tax-breakdown';
 import { normaliseCountry } from '../invoice/ust-behandlung-detector';
 import { cashBookings } from '../cashbook/cash-bookings';
 import { besteuerungsart, istPaidDocuments } from './ustva-ist';
-import { advancePayments } from '../accounting/euer-zufluss';
+import { advancePayments, advanceSettlements } from '../accounting/euer-zufluss';
 import { expenseLockReason, expenseLockReasons } from '../expense/expense-lock';
 import { KzEntry, ustvaKennzahlen } from './ust-kennzahlen';
 
@@ -274,6 +274,15 @@ export class UstvaService {
         const f = eurFactor(doc)
         for (const bucket of invoiceTaxBreakdown(doc).byRate) {
           if (bucket.rate > 0) addToRate(bucket.rate, bucket.net * f * fraction, bucket.vat * f * fraction)
+        }
+      }
+      // Tier 472: the final invoice above declares the whole delivery; the
+      // advance it deducts was declared when received, so it comes off here
+      // (issue date = settlement date, so the same period).
+      for (const { proforma, fraction } of await advanceSettlements(this.prisma, companyId, start, end)) {
+        const f = eurFactor(proforma)
+        for (const bucket of invoiceTaxBreakdown(proforma).byRate) {
+          if (bucket.rate > 0) addToRate(bucket.rate, -bucket.net * f * fraction, -bucket.vat * f * fraction)
         }
       }
     }

@@ -2,6 +2,7 @@ import { InvoiceService } from './invoice.service';
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { CLAIM_TYPES } from './document-scope';
+import { ADVANCE_SETTLEMENT_METHOD, settlingInvoice } from './advance';
 import { PrismaService } from '../../prisma/prisma.service';
 import { WebhookService } from '../webhook/webhook.service';
 import { ReminderService } from '../reminder/reminder.service';
@@ -103,6 +104,29 @@ export class PaymentService {
     }
     if (!data.paymentMethod) {
       throw new BadRequestException('Zahlungsweg ist erforderlich');
+    }
+    // Tier 472: a settled Proforma takes no more money — the final invoice
+    // has deducted what it had; later money is paid on the final invoice.
+    if (invoice.type === 'PI') {
+      const final = await settlingInvoice(this.prisma, companyId, invoiceId);
+      if (final) {
+        throw new BadRequestException(
+          `Die Proforma-Rechnung ist mit der Schlussrechnung ${final.invoiceNumber} abgerechnet — ` +
+          'buchen Sie weitere Zahlungen auf die Schlussrechnung.',
+        );
+      }
+    }
+    // 'Anzahlung' is the deduction issuing a final invoice books — once, and
+    // only there.
+    if (data.paymentMethod === ADVANCE_SETTLEMENT_METHOD) {
+      const already = invoice.advanceInvoiceId
+        ? await this.prisma.payment.count({ where: { invoiceId, paymentMethod: ADVANCE_SETTLEMENT_METHOD } })
+        : 1;
+      if (already > 0) {
+        throw new BadRequestException(
+          'Der Zahlungsweg „Anzahlung“ wird beim Ausstellen einer Schlussrechnung gebucht, nicht von Hand.',
+        );
+      }
     }
 
     const payment = await this.prisma.payment.create({
@@ -349,6 +373,21 @@ export class PaymentService {
     });
     if (!payment || payment.invoice.companyId !== companyId) {
       throw new NotFoundException('Zahlung nicht gefunden');
+    }
+    // Tier 472: the advance settled by a final invoice stays settled — the
+    // final invoice states the deduction; a correction is a credit note.
+    if (payment.paymentMethod === ADVANCE_SETTLEMENT_METHOD) {
+      throw new BadRequestException(
+        'Die verrechnete Anzahlung gehört zur Schlussrechnung und kann nicht gelöscht werden. Korrigieren Sie mit einer Gutschrift.',
+      );
+    }
+    if (payment.invoice.type === 'PI') {
+      const final = await settlingInvoice(this.prisma, companyId, payment.invoiceId);
+      if (final) {
+        throw new BadRequestException(
+          `Die Anzahlung ist mit der Schlussrechnung ${final.invoiceNumber} verrechnet und kann nicht gelöscht werden.`,
+        );
+      }
     }
     // Tier 460: what the payment caused goes with it — its overpayment credit
     // (refused if already used), a credit it applied, its Skonto credit note.

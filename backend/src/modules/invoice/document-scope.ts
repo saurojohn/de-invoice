@@ -31,5 +31,7 @@ export const CLAIM_TYPES = ['INV', 'RCV']
  * overpayment that created the credit). They reduce what is open; they are
  * no bank or cash receipt. DATEV exported 'Guthaben' as a second receipt of
  * the same money, and the customer statement deducted the credit twice.
+ * Tier 472: nor the advance a final invoice deducts ('Anzahlung', advance.ts)
+ * — the money arrived as the Proforma's payment.
  */
-export const NON_CASH_PAYMENT_METHODS = ['Gutschrift', 'Guthaben']
+export const NON_CASH_PAYMENT_METHODS = ['Gutschrift', 'Guthaben', 'Anzahlung']

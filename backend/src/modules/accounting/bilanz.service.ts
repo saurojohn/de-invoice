@@ -6,6 +6,7 @@ import { AssetsService, DEFAULT_BILANZ_KONTO } from '../assets/assets.service'
 import { Response } from 'express'
 import PDFDocument from 'pdfkit'
 import { CLAIM_TYPES, NON_CASH_PAYMENT_METHODS } from '../invoice/document-scope'
+import { ADVANCE_SETTLEMENT_METHOD } from '../invoice/advance'
 
 /**
  * Tier 81: Bilanz (Balance Sheet) — VORSCHAU.
@@ -316,11 +317,24 @@ export class BilanzService {
       },
       select: { amount: true, invoice: { select: { total: true, eurTotal: true } } },
     })
-    const erhalteneAnzahlungen = advanceRows.reduce((s, p) => {
-      const total = Number(p.invoice.total)
-      const f = p.invoice.eurTotal != null && total > 0 ? Number(p.invoice.eurTotal) / total : 1
-      return s + Number(p.amount) * f
-    }, 0)
+    // Tier 472: …less what a final invoice has deducted by then (its
+    // 'Anzahlung' payment; the receivable above is net of it).
+    const settledRows = await this.prisma.payment.findMany({
+      where: {
+        paymentMethod: ADVANCE_SETTLEMENT_METHOD,
+        paymentDate: { lte: snapshot },
+        invoice: { companyId, status: { notIn: ['draft', 'cancelled'] }, advanceInvoiceId: { not: null } },
+      },
+      select: { amount: true, invoice: { select: { advanceInvoice: { select: { total: true, eurTotal: true } } } } },
+    })
+    const toEur = (amount: unknown, doc: { total: unknown; eurTotal: unknown } | null | undefined) => {
+      const total = Number(doc?.total ?? 0)
+      const f = doc?.eurTotal != null && total > 0 ? Number(doc.eurTotal) / total : 1
+      return Number(amount) * f
+    }
+    const erhalteneAnzahlungen =
+      advanceRows.reduce((s, p) => s + toEur(p.amount, p.invoice), 0)
+      - settledRows.reduce((s, p) => s + toEur(p.amount, p.invoice.advanceInvoice), 0)
 
     // ===== BUILD SECTIONS =====
 
@@ -522,7 +536,7 @@ export class BilanzService {
           position: '4200',
           label: 'Erhaltene Anzahlungen auf Bestellungen',
           amount: round2(erhalteneAnzahlungen),
-          note: 'Zahlungen auf Proforma-Rechnungen (Tier 470), brutto.',
+          note: 'Zahlungen auf Proforma-Rechnungen, brutto, soweit noch nicht mit einer Schlussrechnung verrechnet.',
         },
         {
           position: '4500',

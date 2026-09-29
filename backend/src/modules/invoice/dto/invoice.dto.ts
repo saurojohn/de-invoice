@@ -261,3 +261,10 @@ export class UpdateInvoiceStatusDto {
   })
   status!: (typeof INVOICE_STATUSES)[number];
 }
+
+/** Tier 472: POST /invoices/:id/final-invoice — the Schlussrechnung of a Proforma. */
+export class CreateFinalInvoiceDto {
+  @IsDateString()
+  @IsOptional()
+  issueDate?: string;
+}

@@ -1,4 +1,5 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Query, Res, Header, BadRequestException, HttpCode, Req, NotFoundException, HttpException } from '@nestjs/common';
+import { advanceDeductionFor } from './advance';
 import { Throttle } from '@nestjs/throttler';
 import { Response, Request } from 'express';
 import { Prisma } from '@prisma/client';
@@ -26,7 +27,7 @@ import { generateZUGFeRD } from '../../invoices/zugferd.service';
 // Tier 62: USt-Behandlung auto-detector (pure function, no
 // DI — we just import and call suggestUstBehandlung()).
 import { suggestUstBehandlung, UstSuggestion } from './ust-behandlung-detector';
-import { CreateInvoiceDto, UpdateInvoiceDto, UpdateInvoiceStatusDto } from './dto/invoice.dto';
+import { CreateInvoiceDto, UpdateInvoiceDto, UpdateInvoiceStatusDto, CreateFinalInvoiceDto } from './dto/invoice.dto';
 import { Auth, Require } from '../../auth/roles.decorator';
 // Tier 129: renderInvoiceEmail + EmailLang moved to
 // InvoiceEmailService. The controller still has the
@@ -341,6 +342,8 @@ export class InvoiceController {
               invoice.templateType || 'standard',
               (invoice as any).templateId,
             )
+            // Tier 472: a final invoice states the advance it deducts.
+            ;(invoice as any).advanceDeduction = await advanceDeductionFor(this.prisma, invoice as any)
             buffer = await generateInvoicePDF(
               invoice,
               companyCtx as any,
@@ -768,6 +771,8 @@ export class InvoiceController {
       // text regardless of the InvoiceTemplate config —
       // 34-template-applied.sh asserts on the rendered
       // font and color, so this was a real bug.
+      // Tier 472: a final invoice states the advance it deducts.
+      ;(invoice as any).advanceDeduction = await advanceDeductionFor(this.prisma, invoice as any)
       const pdfBuffer = format === 'zugferd'
         ? await generateZUGFeRD(invoice as any, companyCtx as any, { templateConfig: templateConfig as any })
         : await generateInvoicePDF(invoice as any, companyCtx as any, invoice.templateType || 'standard', templateConfig as any)
@@ -1582,6 +1587,21 @@ export class InvoiceController {
   // GoBD: the CN is a NEW invoice (its own number
   // sequence, its own audit trail). We do NOT modify
   // the original.
+  // Tier 472: the final invoice (Schlussrechnung) of a Proforma — a draft
+  // with its lines; issuing it deducts the advance received.
+  @Post(':id/final-invoice')
+  @Require('invoice.write')
+  async createFinalInvoice(
+    @Param('id') id: string,
+    @Query('companyId') companyId: string,
+    @Body() body: CreateFinalInvoiceDto,
+  ) {
+    if (!companyId) {
+      throw new BadRequestException('companyId ist erforderlich')
+    }
+    return this.invoiceService.createFinalInvoice(id, companyId, body ?? {})
+  }
+
   @Post(':id/credit-note')
   @Require('invoice.write')
   async createCreditNote(

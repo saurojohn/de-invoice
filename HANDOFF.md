@@ -2529,6 +2529,47 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### The final invoice of a Proforma (Tier 472)
+
+Tier 470 made a payment on a Proforma an advance payment; there was no way to
+settle it (spec 258 on the old code: `POST …/final-invoice` 404, Bilanz 4200
+kept the advance for good, the Proforma still took payments and let its
+payment be deleted).
+
+- **`POST /invoices/:proforma/final-invoice`** `{issueDate?}` — a draft INV
+  with the Proforma's lines, currency, discount, USt treatment and cost
+  centre, linked by the new `Invoice.advanceInvoiceId` (migration
+  `20260930000001_invoice_advance_invoice`). One per Proforma (a cancelled
+  one does not count).
+- **Issuing it** (`updateStatus` draft → issued) books the cash received on
+  the Proforma as a payment with method **'Anzahlung'** dated the issue day
+  (`advance.ts`; refused when it exceeds the invoice or the currencies
+  differ; the status change is undone if the booking fails). 'Anzahlung' is
+  in `NON_CASH_PAYMENT_METHODS`: open balance, status and dunning see it; the
+  EÜR, the Ist-Versteuerung, the DATEV bank rows and the customer statement
+  (which shows the Proforma's real payment) do not.
+- **UStVA Soll:** the final invoice declares the whole delivery; the advance
+  comes off per rate of the Proforma in the same period
+  (`advanceSettlements`). 1 000 + 19 % prepaid in 12/2025, invoiced 01/2026:
+  12/2025 1 000 / 190, 01/2026 0 / 0. Ist: nothing in 01/2026.
+- **DATEV:** "1718 (1711 / 1710) an Debitor" per rate — releases the
+  Automatikkonto and its tax against the invoice's Debitor row.
+- **Bilanz 4200** less the settled advances up to the Stichtag.
+- **PDF:** below Gesamtbetrag "abzgl. Anzahlung PI-… vom <date>", "darin netto
+  …, USt 19 %" per rate and a boxed **Zahlbetrag** (§ 14 Abs. 5 Satz 2 UStG);
+  the GiroCode asks for the Zahlbetrag, none when it is 0. All five PDF call
+  sites (download, ZUGFeRD, e-mail, resend, portal) attach the deduction.
+- **Guards:** a settled Proforma takes no payment and its payments cannot be
+  deleted; 'Anzahlung' cannot be entered or deleted by hand (a correction is
+  a credit note on the final invoice, which — having a payment — cannot be
+  cancelled either, Tier 461).
+
+Not yet (Tier 473): the button in the UI, and the XRechnung / ZUGFeRD XML
+of a final invoice does not state the prepaid amount (BT-113).
+Proforma numbers take the year of creation, not of the issue date
+(PI-2026-… for a Proforma dated 2025 in spec 258) — as INV / CN do.
+Local runs: backend **257 / 0 / 1**, 0 × 5xx; Playwright **945**.
+
 ### A database outage is no failed login (Tier 471)
 
 Found in Tier 470's local run (spec 193): `HeaderAuthGuard` wrapped the user

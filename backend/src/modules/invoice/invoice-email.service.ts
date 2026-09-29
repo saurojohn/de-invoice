@@ -38,6 +38,7 @@
  *   - PDF render failure → propagates (caller wraps in
  *     try/catch and records a RecurringRun error).
  */
+import { advanceDeductionFor } from './advance';
 import {
   BadRequestException,
   Injectable,
@@ -197,6 +198,8 @@ export class InvoiceEmailService {
       invoice.templateType || 'standard',
       (invoice as any).templateId,
     );
+    // Tier 472: a final invoice states the advance it deducts.
+    ;(invoice as any).advanceDeduction = await advanceDeductionFor(this.prisma, invoice as any)
     const pdfBuffer = await generateInvoicePDF(
       invoice,
       {
