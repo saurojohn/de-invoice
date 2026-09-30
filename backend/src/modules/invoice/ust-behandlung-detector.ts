@@ -361,3 +361,19 @@ export function suggestUstBehandlung(input: {
     isEuB2b: false,
   }
 }
+
+/**
+ * Tier 486 — an innergemeinschaftliche Lieferung is tax-free only to a
+ * business with the USt-IdNr. of another EU member state (§ 4 Nr. 1b,
+ * § 6a Abs. 1 Nr. 4 UStG — since 2020 a material requirement). Returns why
+ * the customer does not qualify, or null. "EL" is Greece's VAT prefix.
+ */
+export function igLVatIdProblem(vatId: string | null | undefined): string | null {
+  const id = (vatId || '').replace(/\s/g, '')
+  if (!id) return 'Der Kunde hat keine USt-IdNr.'
+  const raw = extractVatCountry(id)
+  const cc = raw === 'EL' ? 'GR' : raw
+  if (!cc || !EU_COUNTRY_CODES.has(cc)) return `Die USt-IdNr. ${id} ist keine eines EU-Mitgliedstaats.`
+  if (cc === 'DE') return `Die USt-IdNr. ${id} ist eine deutsche — eine Lieferung im Inland ist steuerpflichtig.`
+  return null
+}

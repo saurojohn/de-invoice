@@ -2546,6 +2546,30 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### An igL needs the customer's foreign EU VAT ID (Tier 486)
+
+§ 4 Nr. 1b, § 6a Abs. 1 Nr. 4 UStG (since 2020 a material requirement): an
+innergemeinschaftliche Lieferung is tax-free only to a business with the
+USt-IdNr. of another EU member state. Measured (spec 272, 5 assertions fail
+on the old code): invoices marked igL — 0 %, the § 1a note — were issued to a
+French customer without an USt-IdNr., to a German one with a DE-IdNr. and to
+a Swiss number (201 each); all owe 19 %, and the UStVA quietly moved them to
+"sonstige steuerfreie Umsätze" (its own igL test did require an EU VAT ID).
+`create()` / `update()` (also when an igL invoice's customer changes, and
+when the igL comes from the company default `defaultVatMode: 'igL'` —
+the first version checked only an explicit flag, Playwright tier176 test 4
+showed it) now refuse with the reason (`igLVatIdProblem`, ust-behandlung-detector.ts; "EL"
+= Greece). An invoice without a customer answered 500 "Related resource not
+found" (the foreign key) — now 400 "Kunde ist erforderlich".
+
+Not checked here: whether the USt-IdNr. is valid (VIES — the qualified
+confirmation is the VIES check in `vat-validation.service.ts`, separate).
+Fixtures that issued igL invoices to a customer without a foreign EU VAT
+ID now create one: backend spec 59 (took "the seed's first customer"),
+Playwright `company-defaults-tier176` tests 4 / 5 (seed customer with a DE
+IdNr.).
+Local runs: backend **272 / 0 / 0**, 0 × 5xx; Playwright **949**.
+
 ### Entertainment is 70 % deductible (Tier 485)
 
 § 4 Abs. 5 Nr. 2 EStG: of an entertainment expense (category starting

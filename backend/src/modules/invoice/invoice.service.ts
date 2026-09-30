@@ -22,6 +22,7 @@ import { resolveDueDate } from './due-date';
 import { ExchangeRateService } from '../exchange-rate/exchange-rate.service';
 import { nextInvoiceNumber, releaseInvoiceNumber } from './invoice-number';
 import { ModuleRef } from '@nestjs/core';
+import { igLVatIdProblem } from './ust-behandlung-detector';
 import { businessDayIso, businessToday, businessTodayIso, dayStart } from '../../common/business-date';
 import { PaymentService } from './payment.service';
 import { ADVANCE_SETTLEMENT_METHOD, advanceReceived, advanceDeductionFor } from './advance';
@@ -470,6 +471,11 @@ export class InvoiceService {
     if (customerId && !customer) {
       throw new NotFoundException('Kunde nicht gefunden')
     }
+    // Tier 486: an invoice needs its customer — without one the create
+    // failed on the foreign key and answered 500 "Related resource not found".
+    if (!customer) {
+      throw new BadRequestException('Kunde ist erforderlich')
+    }
 
     // Tier 27 validation: §13b and §1a are
     // mutually exclusive. A sale can't be BOTH
@@ -565,6 +571,11 @@ export class InvoiceService {
         select: { defaultVatMode: true },
       });
       var companyDefaultVatMode: string | null | undefined = co2?.defaultVatMode;
+    }
+    // Tier 486: the igL the invoice ends up with — the caller's, else the
+    // company default (Tier 176) — needs a customer with a foreign EU VAT ID.
+    if (dto.euTransaction ?? (companyDefaultVatMode === 'igL')) {
+      await this.assertIgLCustomer(companyId, customer.id)
     }
     const deliveryDate = dto.deliveryDate ? new Date(dto.deliveryDate) : null;
 
@@ -928,6 +939,23 @@ export class InvoiceService {
   }
 
   /**
+   * Tier 486: an innergemeinschaftliche Lieferung only to a business with the
+   * USt-IdNr. of another EU state (§ 4 Nr. 1b, § 6a UStG). Measured: invoices
+   * marked igL — 0 % VAT, the § 1a note — went out to a French customer
+   * without an USt-IdNr. and to a German one with a DE-IdNr.; both owe 19 %.
+   */
+  private async assertIgLCustomer(companyId: string, customerId: string) {
+    const c = await this.prisma.customer.findFirst({ where: { id: customerId, companyId }, select: { vatId: true } })
+    const problem = igLVatIdProblem(c?.vatId)
+    if (problem) {
+      throw new BadRequestException(
+        `Innergemeinschaftliche Lieferung (steuerfrei, § 4 Nr. 1b / § 6a UStG) nur an Unternehmer mit der USt-IdNr. ` +
+        `eines anderen EU-Staats. ${problem} Ohne sie ist die Lieferung steuerpflichtig.`,
+      )
+    }
+  }
+
+  /**
    * Tier 480: a Kleinunternehmer (§ 19 UStG, Company.defaultVatMode
    * 'kleinunternehmer') charges no VAT — every line at 0 %. Measured: a
    * 1 000 € line at 19 % gave an invoice of 1 190 € with "USt 19 %: 190,00"
@@ -994,6 +1022,9 @@ export class InvoiceService {
       throw new BadRequestException(
         'Reverse-Charge (§13b UStG) und Innergemeinschaftliche Lieferung (§1a UStG) schließen sich gegenseitig aus — bitte nur eine USt-Behandlung wählen.',
       )
+    }
+    if (dto.euTransaction === true || (effectiveIgE && dto.customerId)) {
+      await this.assertIgLCustomer(companyId, dto.customerId ?? existing.customerId)
     }
 
     // Recompute totals from items if items were provided. The old

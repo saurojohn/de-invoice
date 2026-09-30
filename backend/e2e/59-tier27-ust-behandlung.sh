@@ -102,9 +102,13 @@ assert_eq "RC invoice persists reverseCharge" "$RC_FLAG_FETCH" "True"
 # ---- 2. Create IgE invoice ----
 echo
 echo "=== 2. euTransaction=true invoice ==="
+# Tier 486: an igL needs a customer with the USt-IdNr. of another EU state
+# (§ 6a UStG) — its own French customer, not the seed's first one.
+api_post "/api/v1/customers?companyId=$COMPANY_ID" '{"name":"E2E-T59 FR Kunde","type":"business","vatId":"FR12345678901","address":{"country":"FR"}}' > /dev/null
+IGE_CUSTOMER_ID=$(echo "$BODY" | python3 -c "import json,sys; print(json.load(sys.stdin).get('id',''))")
 IGE_BODY=$(cat <<EOF
 {
-  "customerId": "$CUSTOMER_ID",
+  "customerId": "$IGE_CUSTOMER_ID",
   "issueDate": "$(date +%Y-%m-%d)",
   "reverseCharge": false,
   "euTransaction": true,

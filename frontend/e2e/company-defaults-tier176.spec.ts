@@ -138,6 +138,28 @@ async function createInvoice(request: any, body: any) {
   return res
 }
 
+// Tier 486: an igL needs a customer with the USt-IdNr. of another EU state
+// (§ 6a UStG) — the seed customer has a German one. Created once.
+let euCustomerId: string | null = null
+async function euCustomer(request: any): Promise<string> {
+  if (euCustomerId) return euCustomerId
+  const res = await request.post(
+    `http://localhost:3001/api/v1/customers?companyId=${tokens!.companyId}`,
+    {
+      headers: {
+        "Content-Type": "application/json",
+        "x-user-id": tokens!.userId,
+        "x-company-id": tokens!.companyId,
+      },
+      data: { name: `Tier176 FR ${Date.now()}`, type: "business", vatId: "FR12345678901", address: { country: "FR" } },
+    },
+  )
+  const body = await res.json()
+  expect(res.status(), `EU customer: ${JSON.stringify(body)}`).toBe(201)
+  euCustomerId = body.id as string
+  return euCustomerId
+}
+
 function makeBody(customerId: string) {
   return {
     type: "INV",
@@ -242,7 +264,7 @@ test.describe("Tier 176 — Company.defaultVatMode + defaultPaymentDays pre-fill
 
     const r = await createInvoice(
       request,
-      makeBody("b3f7b274-7696-44b8-9345-8bfd460b3e47"),
+      makeBody(await euCustomer(request)),
     )
     expect(r.status()).toBe(201)
     const body = await r.json()
@@ -263,7 +285,7 @@ test.describe("Tier 176 — Company.defaultVatMode + defaultPaymentDays pre-fill
     // the company default, so this is what should be
     // stamped on the row).
     const r = await createInvoice(request, {
-      ...makeBody("b3f7b274-7696-44b8-9345-8bfd460b3e47"),
+      ...makeBody(await euCustomer(request)),
       issueDate: explicitIssue.toISOString(),
       dueDate: explicitIssue.toISOString(),
       reverseCharge: false,
