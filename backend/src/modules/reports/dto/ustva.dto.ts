@@ -26,6 +26,7 @@ import {
   Max,
   ValidateNested,
   IsBoolean,
+  IsDateString,
 } from "class-validator"
 import { Type } from "class-transformer"
 
@@ -213,4 +214,19 @@ export class SaveUstvaFilingDto extends UstvaDataDto {
   // return (berichtigte Voranmeldung), and only when the caller says so.
   @IsOptional() @IsBoolean()
   berichtigt?: boolean
+}
+
+/**
+ * Tier 483: the payment that settled a return — PUT /ustva/filings/:id/payment.
+ * `amount` positive = paid to the Finanzamt, negative = refunded by it;
+ * default: the return's Differenzbetrag. `paidAt: null` clears it.
+ */
+export class RecordUstvaPaymentDto {
+  @IsOptional()
+  @IsDateString()
+  paidAt?: string | null;
+
+  @IsOptional()
+  @IsNumber()
+  amount?: number;
 }

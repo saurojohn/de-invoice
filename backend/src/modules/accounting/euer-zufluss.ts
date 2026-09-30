@@ -177,7 +177,8 @@ export async function euerExpenses(prisma: PrismaService, companyId: string, sta
   const [expenses, unpaidExpenses] = await Promise.all([
     prisma.expense.findMany({
       where: { ...scope, paidAt: { gte: start, lte: end } },
-      select: { netAmount: true, grossAmount: true, category: true },
+      // Tier 483: the input tax paid is its own EÜR line (gezahlte Vorsteuer)
+      select: { netAmount: true, grossAmount: true, vatAmount: true, category: true },
     }),
     prisma.expense.count({
       where: { ...scope, paidAt: null, invoiceDate: { gte: start, lte: end } },
@@ -230,4 +231,52 @@ export async function advanceSettlements(prisma: PrismaService, companyId: strin
     if (!pi || !(total > 0)) return []
     return [{ payment: p, finalInvoice: p.invoice, proforma: pi, fraction: Number(p.amount) / total }]
   })
+}
+
+/**
+ * Tier 483 — the VAT settled with the Finanzamt in the period (Anlage EÜR
+ * Zeile 18: refunded, Zeile 58: paid), from the payments recorded on the
+ * UStVA filings (UStvaFiling.paidAt / paidAmount).
+ */
+export async function finanzamtVat(prisma: PrismaService, companyId: string, start: Date, end: Date) {
+  const rows = await prisma.uStvaFiling.findMany({
+    where: { companyId, paidAt: { gte: start, lte: end }, paidAmount: { not: null } },
+    select: { paidAmount: true },
+  })
+  let paid = 0
+  let refunded = 0
+  for (const r of rows) {
+    const a = Number(r.paidAmount)
+    if (a >= 0) paid += a
+    else refunded -= a
+  }
+  return { paid, refunded }
+}
+
+/**
+ * Tier 483 — the VAT in the cash flows of an EÜR (§ 4 Abs. 3 EStG): received
+ * with the income (the paid part of each document's tax, EUR; a refund
+ * negative) and paid with the expenses and cash purchases. A Kleinunternehmer
+ * has neither (he charges no VAT, his expenses cost gross). The EÜR and
+ * Anlage G (EÜR) take the same figures.
+ */
+export function euerVat(
+  inflows: Array<{ invoice: { eurTotalVat?: unknown; totalVat?: unknown }; fraction: number }>,
+  expenses: Array<{ vatAmount?: unknown; category?: string | null }>,
+  cash: Array<{ direction: string; vat: number }>,
+  kleinunternehmer: boolean,
+) {
+  if (kleinunternehmer) return { received: 0, vorsteuer: 0 }
+  let received = 0
+  let vorsteuer = 0
+  for (const f of inflows) received += f.fraction * Number(f.invoice.eurTotalVat ?? f.invoice.totalVat ?? 0)
+  for (const e of expenses) {
+    if (/^AfA/i.test(e.category || '')) continue
+    vorsteuer += Number(e.vatAmount ?? 0)
+  }
+  for (const c of cash) {
+    if (c.direction === 'in') received += c.vat
+    else vorsteuer += c.vat
+  }
+  return { received, vorsteuer }
 }

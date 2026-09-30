@@ -75,10 +75,12 @@ test.describe("Anlage V — /dashboard/accounting", () => {
     await expect(page.getByTestId("anlage-v-section")).toBeVisible({ timeout: 30_000 })
     // 4 Einnahmen Kennziffern (8100, 8120, 8135, 8190)
     const revRows = page.locator("[data-testid^='anlage-v-rev-']")
-    await expect(revRows).toHaveCount(4)
+    // Tier 483: + 8180 (VAT received / refunded)
+    await expect(revRows).toHaveCount(5)
     // 9 Werbungskosten Kennziffern (8600-8690)
     const expRows = page.locator("[data-testid^='anlage-v-exp-']")
-    await expect(expRows).toHaveCount(9)
+    // Tier 483: + 8680 (input tax / VAT paid to the Finanzamt)
+    await expect(expRows).toHaveCount(10)
   })
 
   test("Überschuss / Verlust pill is visible", async ({ page }) => {

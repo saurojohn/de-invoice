@@ -63,7 +63,10 @@ AS GET "/api/v1/ustva/compute?companyId=$C&year=$YEAR&month=$MONTH"
 assert_eq "UStVA 19 %: 200 / 38 (was 100 / 19)" "$(P "[(r['net'], r['vat']) for r in d['salesByRate'] if abs(r['rate']-0.19)<1e-6]")" "[(200, 38)]"
 assert_eq "UStVA Vorsteuer 19 %: 28.50 (was 19)" "$(P "d['vorsteuer']['from19']")" "28.5"
 AS GET "/api/v1/accounting/euer?companyId=$C&year=$YEAR"
-assert_eq "EÜR: Einnahmen 200, Ausgaben 150 (was 100 / 0)" "$(P "'%s/%s' % (d['totals']['einnahmenTotal'], d['totals']['ausgabenTotal'])")" "200/150"
+# Tier 483: the EÜR has VAT lines now (4140 / 4150 / 5850 / 5860); this spec
+# is about the net figures, so it sums the other lines.
+assert_eq "EÜR: Einnahmen 200, Ausgaben 150 (was 100 / 0)" "$(P "'%g/%g' % (round(sum(l['amount'] for l in d['einnahmen'] if l['kennziffer'] not in ('4140','4150','5850','5860')),2), round(sum(l['amount'] for l in d['ausgaben'] if l['kennziffer'] not in ('4140','4150','5850','5860')),2))")" "200/150"
+assert_eq "…and the cash book's VAT: received 38, input tax 28.5 (Tier 483)" "$(P "'%g/%g' % ([l['amount'] for l in d['einnahmen'] if l['kennziffer']=='4140'][0], [l['amount'] for l in d['ausgaben'] if l['kennziffer']=='5850'][0])")" "38/28.5"
 AS GET "/api/v1/accounting/guv?companyId=$C&year=$YEAR"
 assert_eq "GuV Umsatzerlöse 200 (was 100)" "$(P "[l['amount'] for l in d['revenue']['lines'] if l['position']=='1'][0]")" "200"
 assert_eq "GuV sonstige Aufwendungen 150 (was 0 — an expense without a category was dropped)" "$(P "[l['amount'] for l in d['cost']['lines'] if l['position']=='8'][0]")" "150"

@@ -72,10 +72,12 @@ test.describe("Anlage S — /dashboard/accounting", () => {
     await expect(page.getByTestId("anlage-s-section")).toBeVisible({ timeout: 30_000 })
     // 5 Einnahmen Kennziffern (4100, 4120, 4135, 4170, 4190)
     const revRows = page.locator("[data-testid^='anlage-s-rev-']")
-    await expect(revRows).toHaveCount(5)
+    // Tier 483: + 4140 (VAT received / refunded)
+    await expect(revRows).toHaveCount(6)
     // 13 Ausgaben Kennziffern (4600-4720)
     const expRows = page.locator("[data-testid^='anlage-s-exp-']")
-    await expect(expRows).toHaveCount(13)
+    // Tier 483: + 4715 (input tax / VAT paid to the Finanzamt)
+    await expect(expRows).toHaveCount(14)
   })
 
   test("Gewinn / Verlust pill is visible", async ({ page }) => {

@@ -28,8 +28,11 @@ AS() { # method path [body]
   STATUS=$(echo "$resp" | tail -n1); BODY=$(echo "$resp" | sed '$d')
 }
 py() { echo "$BODY" | python3 -c "import sys,json;d=json.load(sys.stdin);$1"; }
-g() { AS GET "/api/v1/accounting/anlage-g?companyId=$C&year=$1"; py "print(d['gewinnermittlung'], d['totals']['einnahmenTotal'], d['totals']['gewinnVorKorrektur'])"; }
-euer() { AS GET "/api/v1/accounting/euer?companyId=$C&year=$1"; py "print(d['totals']['gewinn'])"; }
+# Tier 483: with an EÜR, Anlage G and the EÜR add the VAT in the cash flows
+# (2195 / 2895, 4140 / 4150 / 5850 / 5860); this spec is about which revenue
+# and costs count, so it compares the net lines.
+g() { AS GET "/api/v1/accounting/anlage-g?companyId=$C&year=$1"; py "x=('2195','2895');i=sum(l['amount'] for l in d['einnahmen'] if l['kennziffer'] not in x);a=sum(l['amount'] for l in d['betriebsausgaben'] if l['kennziffer'] not in x);print(d['gewinnermittlung'], '%g' % round(i,2), '%g' % round(i+a,2))"; }
+euer() { AS GET "/api/v1/accounting/euer?companyId=$C&year=$1"; py "x=('4140','4150','5850','5860');print('%g' % round(sum(l['amount'] for l in d['einnahmen'] if l['kennziffer'] not in x)-sum(l['amount'] for l in d['ausgaben'] if l['kennziffer'] not in x),2))"; }
 
 company "$TAG Handel"
 [[ -n "${C:-}" ]] && pass "fixture: a sole trader" || { fail "register"; summary; exit 1; }

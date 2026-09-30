@@ -60,6 +60,9 @@ interface UstvaFiling {
   // Tier 449: a submitted return the books no longer match (live − submitted).
   abweichung?: { outputVat: number; inputVat: number; payableVat: number } | null
   berichtigungNoetig?: boolean | null
+  // Tier 483: the payment to / refund from the Finanzamt (EÜR Zeilen 18 / 58)
+  paidAt?: string | null
+  paidAmount?: string | null
 }
 
 interface Expense {
@@ -366,6 +369,21 @@ function UstvaPageInner() {
       toast.error(err instanceof ApiError ? err.message : "Fehler beim Speichern der UStVA")
     } finally {
       setSaving(false)
+    }
+  }
+
+  // Tier 483: the payment to / refund from the Finanzamt that settled a
+  // return — the EÜR counts it on that day (Zeilen 18 / 58).
+  const recordPayment = async (f: UstvaFiling) => {
+    const date = window.prompt(t("ustva.recordPaymentPrompt"), new Date().toISOString().slice(0, 10))
+    if (!date) return
+    const companyId = localStorage.getItem("companyId")
+    try {
+      await apiPut(`/api/v1/ustva/filings/${f.id}/payment?companyId=${companyId}`, { paidAt: date })
+      const list = await apiGet<any[]>(`/api/v1/ustva/filings?companyId=${companyId}`)
+      setFilings(Array.isArray(list) ? list : [])
+    } catch (e: any) {
+      setDownloadError(e?.message || t("ustva.recordPaymentFailed"))
     }
   }
 
@@ -1171,6 +1189,25 @@ function UstvaPageInner() {
                             </td>
                             <td className="py-2 text-gray-600 dark:text-gray-300">{f.taxNumber || "—"}</td>
                             <td className="py-2 text-right">
+                              {(f.status === "submitted" || f.status === "accepted") && (
+                                f.paidAt ? (
+                                  <span className="mr-2 text-xs text-gray-600 dark:text-gray-300" data-testid={`ustva-paid-${f.id}`}>
+                                    {Number(f.paidAmount) < 0 ? t("ustva.refundedOn") : t("ustva.paidOn")}{" "}
+                                    {new Date(f.paidAt).toLocaleDateString("de-DE")} ({formatCurrency(Math.abs(Number(f.paidAmount)))})
+                                  </span>
+                                ) : (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="mr-2"
+                                    data-testid={`ustva-record-payment-${f.id}`}
+                                    title={t("ustva.recordPaymentTitle")}
+                                    onClick={() => recordPayment(f)}
+                                  >
+                                    {t("ustva.recordPayment")}
+                                  </Button>
+                                )
+                              )}
                               <Button
                                 variant="outline"
                                 size="sm"

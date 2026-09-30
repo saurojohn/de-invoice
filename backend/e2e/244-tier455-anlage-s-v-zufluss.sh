@@ -45,8 +45,10 @@ sent 2026-04-01 200 >/dev/null
 bill 2025-12-20 300 2026-01-10
 bill 2026-06-01 400
 
-s_() { AS GET "/api/v1/accounting/anlage-s?companyId=$C&year=$1"; py 'e=d["totals"];print("%g/%g" % (e["einnahmenTotal"], e["ausgabenTotal"]))'; }
-v_() { AS GET "/api/v1/accounting/anlage-v?companyId=$C&year=$1"; py 'e=d["totals"];print("%g/%g" % (e["einnahmenTotal"], e["werbungskostenTotal"]))'; }
+# Tier 483: Anlage S / V add the VAT in the cash flows (4140 / 4715, 8180 /
+# 8680); this spec is about the net figures, so it sums the other lines.
+s_() { AS GET "/api/v1/accounting/anlage-s?companyId=$C&year=$1"; py 'x=("4140","4715");print("%g/%g" % (round(sum(l["amount"] for l in d["einnahmen"] if l["kennziffer"] not in x),2), round(sum(l["amount"] for l in d["ausgaben"] if l["kennziffer"] not in x),2)))'; }
+v_() { AS GET "/api/v1/accounting/anlage-v?companyId=$C&year=$1"; py 'x=("8180","8680");print("%g/%g" % (round(sum(l["amount"] for l in d["einnahmen"] if l["kennziffer"] not in x),2), round(sum(l["amount"] for l in d["werbungskosten"] if l["kennziffer"] not in x),2)))'; }
 g_() { AS GET "/api/v1/accounting/$1?companyId=$C&year=2026"; py 'print(d["totals"].get("gewinn", d["totals"].get("ueberschuss")))'; }
 
 note "=== Anlage S ==="

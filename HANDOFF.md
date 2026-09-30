@@ -2542,6 +2542,43 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### The VAT in the EÜR (Tier 483)
+
+User decision (2026-09-30): complete the EÜR's VAT lines. § 4 Abs. 3 EStG
+counts money — the VAT received with the income, the input tax paid, and the
+VAT paid to / refunded by the Finanzamt are Betriebseinnahmen / -ausgaben
+(Anlage EÜR Zeilen 17, 18, 57, 58). The EÜR, Anlage S, V and G (EÜR) were net
+only, and a UStVA's payment could not be recorded, so e.g. December's VAT
+paid in January could not move profit between years (spec 269: 11
+assertions fail on the old code).
+
+- **EÜR** lines 4140 Vereinnahmte USt, 4150 vom Finanzamt erstattete USt,
+  5850 gezahlte Vorsteuer, 5860 an das Finanzamt gezahlte USt. Received =
+  the paid part of each document's tax (EUR; a refund negative) plus cash
+  sales; Vorsteuer = the VAT of the expenses paid in the year plus cash
+  purchases (`euerVat`, euer-zufluss.ts). A Kleinunternehmer has neither
+  (Tier 480 / 481) but may pay § 13b tax, so the Finanzamt lines apply.
+- **Finanzamt payments**: `UStvaFiling.paidAt` / `paidAmount` (migration
+  `20260930000002_ustva_filing_payment`), `PUT /ustva/filings/:id/payment
+  {paidAt, amount?}` — submitted returns only, amount defaults to the
+  Differenzbetrag (positive paid, negative refunded), `paidAt: null`
+  clears. UI: "Zahlung erfassen" / "bezahlt am …" in the UStVA history.
+  `finanzamtVat` sums them by paidAt.
+- **Anlage S** 4140 / 4715, **Anlage V** 8180 / 8680 (and a Kleinunternehmer's
+  Werbungskosten gross, as EÜR / Anlage S), **Anlage G** 2195 / 2895 — the
+  same figures, only with Gewinnermittlung 'euer'. GuV / BWA / Bilanz stay
+  net (the VAT is a balance there).
+- 14 specs read EÜR / Anlage totals for other purposes; they now sum the net
+  lines (comment "Tier 483" in each) or, spec 227, record the March VAT
+  payment so the Gewerbesteuer arithmetic holds unchanged.
+
+Limits: Finanzamt payments are entered by hand (no bank-import matching);
+the payment / refund of the annual return (UStJA) and of Sondervorauszah-
+lungen has no field yet.
+Local runs: backend **269 / 0 / 0**, 0 × 5xx; Playwright 945 + 3 row counts
+(anlage-eur / -s / -v, the new lines) updated and green on re-run, + 1 new
+(`ustva-payment-tier483.spec.ts`) = **948**.
+
 ### § 19 in the e-invoice of a Kleinunternehmer (Tier 482)
 
 Tier 480 puts a Kleinunternehmer's lines at 0 %; the XRechnung of such an

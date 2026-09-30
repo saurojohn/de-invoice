@@ -47,7 +47,9 @@ assert_eq "…the withdrawal on Privatentnahmen 1800" "$(datev_balance /tmp/t458
 
 note "=== no business income or expense (as before) ==="
 AS GET "/api/v1/accounting/euer?companyId=$C&year=2026"
-assert_eq "EÜR: only the cash sale" "$(py 'print("%g/%g" % (d["totals"]["einnahmenTotal"], d["totals"]["ausgabenTotal"]))')" "100/0"
+# Tier 483: the EÜR has VAT lines now (4140 / 4150 / 5850 / 5860); this spec
+# is about the net figures, so it sums the other lines.
+assert_eq "EÜR: only the cash sale" "$(py 'x=("4140","4150","5850","5860");print("%g/%g" % (round(sum(l["amount"] for l in d["einnahmen"] if l["kennziffer"] not in x),2), round(sum(l["amount"] for l in d["ausgaben"] if l["kennziffer"] not in x),2)))')" "100/0"
 AS GET "/api/v1/ustva/compute?companyId=$C&year=2026&month=5"
 assert_eq "UStVA: 19 % on the sale, nothing exempt" "$(py 'print(d["umsatzsteuer"], d["otherExempt"])')" "19 0"
 

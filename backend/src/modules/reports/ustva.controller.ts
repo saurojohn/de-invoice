@@ -3,7 +3,7 @@ import { Controller, Get, Post, Put, Delete, Body, Query, Param, BadRequestExcep
 import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { UstvaService } from './ustva.service';
-import { SaveUstvaFilingDto } from './dto/ustva.dto';
+import { SaveUstvaFilingDto, RecordUstvaPaymentDto } from './dto/ustva.dto';
 import { CreateUstvaExpenseDto } from './dto/ustva-expense.dto';
 import { UpdateExpenseDto } from '../expense/dto/expense.dto';
 import { updateExpense } from '../expense/update-expense';
@@ -121,6 +121,18 @@ export class UstvaController {
   async listFilings(@Query('companyId') companyId: string) {
     if (!companyId) throw new BadRequestException('companyId is required');
     return this.ustva.listFilings(companyId);
+  }
+
+  // Tier 483: the payment to / refund from the Finanzamt for a return
+  @Put('filings/:id/payment')
+  @Require('ustva.submit')
+  async recordFilingPayment(
+    @Query('companyId') companyId: string,
+    @Param('id') id: string,
+    @Body() body: RecordUstvaPaymentDto,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId is required');
+    return this.ustva.recordFilingPayment(companyId, id, body);
   }
 
   // Get single filing

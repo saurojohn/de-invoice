@@ -45,10 +45,12 @@ assert_eq "GuV 7a (was -1200)" "$(py 'print([l["amount"] for l in d["cost"]["lin
 assert_eq "GuV Jahresüberschuss (was 6200)" "$(py 'print(d["totals"]["jahresueberschuss"])')" "3800"
 AS GET "/api/v1/accounting/euer?companyId=$C&year=$Y"
 assert_eq "EÜR 4600 AfA (was: no line)" "$(py 'print([l["amount"] for l in d["ausgaben"] if l["kennziffer"]=="4600"][0])')" "1200"
-assert_eq "EÜR Gewinn (was 5000)" "$(py 'print(d["totals"]["gewinn"])')" "3800"
+# Tier 483: EÜR and Anlage S add the VAT in the cash flows; the AfA question
+# is about the net profit, so compare that.
+assert_eq "EÜR Gewinn (was 5000)" "$(py 'x=("4140","4150","5850","5860");print(round(sum(l["amount"] for l in d["einnahmen"] if l["kennziffer"] not in x)-sum(l["amount"] for l in d["ausgaben"] if l["kennziffer"] not in x),2))')" "3800"
 AS GET "/api/v1/accounting/anlage-s?companyId=$C&year=$Y"
 assert_eq "Anlage S 4600 (was -1200)" "$(py 'print([l["amount"] for l in d["ausgaben"] if l["kennziffer"]=="4600"][0])')" "1200"
-assert_eq "Anlage S Gewinn (was 6200)" "$(py 'print(d["totals"]["gewinn"])')" "3800"
+assert_eq "Anlage S Gewinn (was 6200)" "$(py 'x=("4140","4715");print(round(sum(l["amount"] for l in d["einnahmen"] if l["kennziffer"] not in x)-sum(l["amount"] for l in d["ausgaben"] if l["kennziffer"] not in x),2))')" "3800"
 AS GET "/api/v1/accounting/anlage-g?companyId=$C&year=$Y"
 assert_eq "Anlage G Gewinn (unchanged)" "$(py 'print(d["totals"]["gewinnVorKorrektur"])')" "3800"
 AS GET "/api/v1/reports/bwa?companyId=$C&year=$Y&month=12"

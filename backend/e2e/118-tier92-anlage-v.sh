@@ -117,8 +117,8 @@ print('  disclaimer present:', bool(d.get('disclaimer')))
 "
 EINNAHMEN_COUNT=$(echo "$RESP" | python3 -c "import json,sys; print(len(json.load(sys.stdin)['einnahmen']))")
 WERBUNGSKOSTEN_COUNT=$(echo "$RESP" | python3 -c "import json,sys; print(len(json.load(sys.stdin)['werbungskosten']))")
-assert_eq "einnahmen lines = 4" "$EINNAHMEN_COUNT" "4"
-assert_eq "werbungskosten lines = 9" "$WERBUNGSKOSTEN_COUNT" "9"
+assert_eq "einnahmen lines = 5 (Tier 483: 8180 VAT)" "$EINNAHMEN_COUNT" "5"
+assert_eq "werbungskosten lines = 10 (Tier 483: 8680 VAT)" "$WERBUNGSKOSTEN_COUNT" "10"
 DISCLAIMER_PRESENT=$(echo "$RESP" | python3 -c "import json,sys; d=json.load(sys.stdin); print('yes' if d.get('disclaimer') else 'no')")
 assert_eq "disclaimer present" "$DISCLAIMER_PRESENT" "yes"
 
@@ -213,7 +213,9 @@ assert_eq "8600 booked AfA = 6000" "$E8600_BOOKED" "6000.00"
 # einnahmen 2000 + 1500 = 3500; werbungskosten 6000 + 1500 + 800 = 8300.
 # Tier 436: was asserted as 3500 - (-8300) = 11800 — the AfA and the costs
 # raising the Überschuss.
-UEBERSCHUSS=$(echo "$RESP3" | python3 -c "import json,sys; print('{:.2f}'.format(json.load(sys.stdin)['totals']['ueberschuss']))")
+# Tier 483: the net Überschuss — the VAT lines (8180 / 8680) are checked in
+# spec 269.
+UEBERSCHUSS=$(echo "$RESP3" | python3 -c "import json,sys; d=json.load(sys.stdin); x=('8180','8680'); print('{:.2f}'.format(sum(l['amount'] for l in d['einnahmen'] if l['kennziffer'] not in x)-sum(l['amount'] for l in d['werbungskosten'] if l['kennziffer'] not in x)))")
 assert_eq "ueberschuss = 3500 - 8300 = -4800" "$UEBERSCHUSS" "-4800.00"
 
 # ===== 6. /anlage-v.pdf returns valid PDF =====

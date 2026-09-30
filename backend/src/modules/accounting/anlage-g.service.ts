@@ -1,6 +1,6 @@
 import { resolveRechtsform, isKapitalgesellschaft } from '../company/rechtsform'
 import { resolveGewinnermittlung } from '../company/gewinnermittlung'
-import { euerExpenses, euerInflows } from './euer-zufluss'
+import { euerExpenses, euerInflows, euerVat, finanzamtVat } from './euer-zufluss'
 import { cashBookings } from '../cashbook/cash-bookings'
 import { assetDisposals, sumRestbuchwert } from '../assets/disposals'
 import { Injectable, BadRequestException } from '@nestjs/common'
@@ -155,6 +155,9 @@ const EINNAHMEN_LINES: Array<{ kz: string; label: string }> = [
     label: 'Innergemeinschaftliche Lieferungen / igLeistungen (§ 25b UStG, Reverse Charge)',
   },
   { kz: '2190', label: 'Sonstige Erlöse (Gutschriften, Nebenerlöse, Provisionen)' },
+  // Tier 483: with an EÜR (Gewinnermittlung 'euer') the VAT is part of the
+  // cash flows — received and refunded by the Finanzamt; 0 with a Bilanz.
+  { kz: '2195', label: 'Umsatzsteuer (vereinnahmt / vom Finanzamt erstattet, nur EÜR)' },
 ]
 
 // Tier 100: Anlage G Betriebsausgaben 2200-2890.
@@ -218,6 +221,13 @@ const BETRIEBSAUSGABEN_LINES: Array<{ kz: string; label: string; matcher: (exp: 
     kz: '2880',
     label: 'Fortbildung / Fachliteratur',
     matcher: (exp) => /^(Fortbildung|Fachliteratur)/i.test(exp.category || ''),
+  },
+  {
+    // Tier 483: with an EÜR, the input tax paid and the VAT paid to the
+    // Finanzamt; 0 with a Bilanz.
+    kz: '2895',
+    label: 'Umsatzsteuer (Vorsteuer / an das Finanzamt gezahlt, nur EÜR)',
+    matcher: () => false,
   },
   {
     kz: '2890',
@@ -362,8 +372,10 @@ export class AnlageGService {
     }
     let revenueRows: Array<{ invoice: RevenueInvoice; amount: number }>
     let invoiceCount: number
+    let euerInflowRows: Awaited<ReturnType<typeof euerInflows>>['inflows'] = []
     if (zufluss) {
       const { inflows } = await euerInflows(this.prisma, companyId, yearStart, yearEnd)
+      euerInflowRows = inflows
       revenueRows = inflows.map((f) => ({ invoice: f.invoice as unknown as RevenueInvoice, amount: f.amount }))
       invoiceCount = new Set(inflows.map((f) => (f.invoice as { id: string }).id)).size
     } else {
@@ -480,6 +492,15 @@ export class AnlageGService {
     addCost('2890', sumRestbuchwert(await assetDisposals(this.prisma, companyId, yearStart, yearEnd)))
     // Tier 464: cash purchases from the Kassenbuch (cash-bookings.ts).
     for (const c of cash.filter((x) => x.direction === 'out')) addCost('2890', kleinunternehmer ? c.gross : c.net)
+
+    // Tier 483: the VAT in the cash flows of an EÜR — the same figures as the
+    // EÜR's Zeilen 17 / 18 / 57 / 58 (euer-zufluss.ts).
+    if (zufluss) {
+      const vat = euerVat(euerInflowRows, expenses as any, cash, kleinunternehmer)
+      const fa = await finanzamtVat(this.prisma, companyId, yearStart, yearEnd)
+      addTo('2195', vat.received + fa.refunded)
+      addCost('2895', vat.vorsteuer + fa.paid)
+    }
 
     // Build the einnahmen + betriebsausgaben lines
     // in BMF order; Betriebsausgaben are negative.

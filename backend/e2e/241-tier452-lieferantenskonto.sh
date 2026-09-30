@@ -79,7 +79,9 @@ assert_eq "a Skonto credit note: net −20, VAT −3,80, settled" "$(skonti)" "[
 assert_eq "Vorsteuer 186,20 (§ 17 UStG)" "$(vorsteuer)" "186.20"
 assert_eq "nothing owed" "$(owed)" "0"
 AS GET "/api/v1/accounting/euer?companyId=$C&year=$Y"
-assert_eq "EÜR: cost 980" "$(py 'print(-d["totals"]["gewinn"])')" "980"
+# Tier 483: the EÜR has VAT lines now (4140 / 4150 / 5850 / 5860); this spec
+# is about the net figures, so it sums the other lines.
+assert_eq "EÜR: cost 980" "$(py 'x=("4140","4150","5850","5860");print(round(sum(l["amount"] for l in d["ausgaben"] if l["kennziffer"] not in x)-sum(l["amount"] for l in d["einnahmen"] if l["kennziffer"] not in x),2))')" "980"
 curl -sS -o /tmp/t452.csv -H "x-user-id: $U" -H "x-company-id: $C" \
   "$API/api/v1/reports/datev-export?companyId=$C&startDate=$Y-01-01&endDate=$Y-12-31"
 assert_eq "DATEV: the Kreditor is settled" "$(datev_balance /tmp/t452.csv 70001)" "0.00"

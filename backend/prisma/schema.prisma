@@ -588,6 +588,11 @@ model UStvaFiling {
   submittedAt     DateTime?
   // Tier 465: a corrected return (§ 153 AO) — Kz 10 in the ELSTER export
   berichtigt      Boolean   @default(false)
+  // Tier 483: the money that settled the return — paid to the Finanzamt
+  // (positive) or refunded by it (negative), on paidAt. The EÜR counts it
+  // then (Anlage EÜR Zeilen 18 / 58, § 11 EStG).
+  paidAt          DateTime?
+  paidAmount      Decimal?  @db.Decimal(12, 2)
   taxNumber       String? // Steuernummer
   notes           String?
   pdfPath         String?

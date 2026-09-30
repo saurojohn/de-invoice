@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, ConflictException } from '@nestjs/common';
+import { Injectable, BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import type { Response } from 'express';
@@ -882,6 +882,27 @@ export class UstvaService {
 
   async getFiling(companyId: string, filingId: string) {
     return this.prisma.uStvaFiling.findFirst({ where: { id: filingId, companyId } });
+  }
+
+  /**
+   * Tier 483: record the payment to / refund from the Finanzamt that settled
+   * a submitted return. The EÜR counts it on paidAt (Zeilen 18 / 58). The
+   * amount defaults to the return's Differenzbetrag (positive = paid).
+   */
+  async recordFilingPayment(companyId: string, filingId: string, data: { paidAt?: string | null; amount?: number }) {
+    const filing = await this.prisma.uStvaFiling.findFirst({ where: { id: filingId, companyId } });
+    if (!filing) throw new NotFoundException('Voranmeldung nicht gefunden');
+    if (!data.paidAt) {
+      return this.prisma.uStvaFiling.update({ where: { id: filingId }, data: { paidAt: null, paidAmount: null } });
+    }
+    if (filing.status !== 'submitted' && filing.status !== 'accepted') {
+      throw new BadRequestException('Eine Zahlung wird zu einer übermittelten Voranmeldung erfasst.');
+    }
+    const amount = data.amount ?? Number(filing.payableVat);
+    return this.prisma.uStvaFiling.update({
+      where: { id: filingId },
+      data: { paidAt: new Date(data.paidAt), paidAmount: Math.round(amount * 100) / 100 },
+    });
   }
 
   async listExpenses(companyId: string, year?: number, quarter?: number, month?: number) {

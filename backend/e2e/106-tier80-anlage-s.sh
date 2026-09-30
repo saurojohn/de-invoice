@@ -92,9 +92,11 @@ BASE_K4100=$(echo "$BASE" | python3 -c "import json,sys; d=json.load(sys.stdin);
 # revenue TOTAL against the 4100 baseline — both only held because a 0 % line
 # was billed at 19 % and so always landed on 4100. Other specs leave igL / §13b
 # invoices in this company, which now (correctly) sit on the tax-free line.
-BASE_OTHER_REV=$(echo "$BASE" | python3 -c "import json,sys; d=json.load(sys.stdin); print(json.dumps({l['kennziffer']: l['amount'] for l in d['einnahmen'] if l['kennziffer']!='4100'}))")
-BASE_REV_TOTAL=$(echo "$BASE" | python3 -c "import json,sys; print(json.load(sys.stdin)['totals']['einnahmenTotal'])")
-BASE_TOTAL=$(echo "$BASE" | python3 -c "import json,sys; print(json.load(sys.stdin)['totals']['ausgabenTotal'])")
+# Tier 483: the VAT lines (4140 / 4715) move with the 19 % fixtures by
+# design; this spec checks the net lines.
+BASE_OTHER_REV=$(echo "$BASE" | python3 -c "import json,sys; d=json.load(sys.stdin); print(json.dumps({l['kennziffer']: l['amount'] for l in d['einnahmen'] if l['kennziffer'] not in ('4100','4140')}))")
+BASE_REV_TOTAL=$(echo "$BASE" | python3 -c "import json,sys; d=json.load(sys.stdin); print(sum(l['amount'] for l in d['einnahmen'] if l['kennziffer']!='4140'))")
+BASE_TOTAL=$(echo "$BASE" | python3 -c "import json,sys; d=json.load(sys.stdin); print(sum(l['amount'] for l in d['ausgaben'] if l['kennziffer']!='4715'))")
 BASE_4620=$(echo "$BASE" | python3 -c "import json,sys; d=json.load(sys.stdin); print(next(l['amount'] for l in d['ausgaben'] if l['kennziffer']=='4620'))")
 BASE_4660=$(echo "$BASE" | python3 -c "import json,sys; d=json.load(sys.stdin); print(next(l['amount'] for l in d['ausgaben'] if l['kennziffer']=='4660'))")
 BASE_4700=$(echo "$BASE" | python3 -c "import json,sys; d=json.load(sys.stdin); print(next(l['amount'] for l in d['ausgaben'] if l['kennziffer']=='4700'))")
@@ -167,8 +169,8 @@ assert_eq "all top-level keys present" "$HAS_KEYS" "true"
 # 5 revenue + 13 expense lines
 EINN=$(python3 -c "import json; print(len(json.load(open('$TMP'))['einnahmen']))")
 AUSG=$(python3 -c "import json; print(len(json.load(open('$TMP'))['ausgaben']))")
-assert_eq "5 revenue lines" "$EINN" "5"
-assert_eq "13 expense lines" "$AUSG" "13"
+assert_eq "6 revenue lines (Tier 483: 4140 VAT)" "$EINN" "6"
+assert_eq "14 expense lines (Tier 483: 4715 VAT)" "$AUSG" "14"
 
 # ── 2. Kz 4100 delta = 1000 - 200 (CN) = 800 ──
 echo
@@ -184,7 +186,7 @@ ALL_ZERO=$(BASE_OTHER_REV="$BASE_OTHER_REV" python3 -c "
 import json, os
 d = json.load(open('$TMP'))
 base = json.loads(os.environ['BASE_OTHER_REV'])
-others = {l['kennziffer']: l['amount'] for l in d['einnahmen'] if l['kennziffer'] != '4100'}
+others = {l['kennziffer']: l['amount'] for l in d['einnahmen'] if l['kennziffer'] not in ('4100', '4140')}
 changed = {k: (base.get(k), v) for k, v in others.items() if abs(v - base.get(k, 0)) > 0.005}
 print('true' if not changed else f'changed: {changed}')
 ")
@@ -217,14 +219,16 @@ SUM_OK=$(python3 -c "
 import json
 d = json.load(open('$TMP'))
 # Delta from baseline.
-e_delta = d['totals']['einnahmenTotal'] - float('$BASE_REV_TOTAL')
-a_delta = d['totals']['ausgabenTotal'] - float('$BASE_TOTAL')
+e_net = sum(l['amount'] for l in d['einnahmen'] if l['kennziffer'] != '4140')
+a_net = sum(l['amount'] for l in d['ausgaben'] if l['kennziffer'] != '4715')
+e_delta = e_net - float('$BASE_REV_TOTAL')
+a_delta = a_net - float('$BASE_TOTAL')
 expected_rev_delta = 800.0  # 1000 - 200
 expected_exp_delta = 750.0  # 300 + 150 + 200 + 100
 # gewinn delta = rev delta - exp delta = 50
 expected_gewinn_delta = expected_rev_delta - expected_exp_delta
 base_gewinn = float('$BASE_REV_TOTAL') - float('$BASE_TOTAL')
-new_gewinn = d['totals']['gewinn']
+new_gewinn = e_net - a_net
 ok = (
   abs(e_delta - expected_rev_delta) < 0.01 and
   abs(a_delta - expected_exp_delta) < 0.01 and

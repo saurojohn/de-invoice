@@ -3,7 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Response } from 'express';
 import PDFDocument from 'pdfkit';
-import { euerExpenses, euerInflows } from './euer-zufluss'
+import { euerExpenses, euerInflows, euerVat, finanzamtVat } from './euer-zufluss'
 import { cashBookings } from '../cashbook/cash-bookings'
 import { expenseCost } from './expense-cost'
 import { bookedAfaCost } from './booked-afa'
@@ -32,6 +32,8 @@ import { bookedAfaCost } from './booked-afa'
  *     4100  Umsatzerlöse umsatzsteuerpflichtig
  *     4120  Umsatzerlöse nach §19 UStG (Kleinunternehmer)
  *     4170  Sonstige steuerfreie Umsätze
+ *     4140  Vereinnahmte Umsatzsteuer (Tier 483)
+ *     4150  Vom Finanzamt erstattete Umsatzsteuer (Tier 483)
  *     4190  Sonstige Betriebseinnahmen
  *
  *   EXPENSES (Betriebsausgaben):
@@ -42,6 +44,8 @@ import { bookedAfaCost } from './booked-afa'
  *     5800  Instandhaltung / EDV
  *     4600  AfA (booked by "AfA buchen", Tier 436)
  *     4610  Restbuchwert ausgeschiedener Anlagegüter (Tier 440)
+ *     5850  Gezahlte Vorsteuerbeträge (Tier 483)
+ *     5860  An das Finanzamt gezahlte Umsatzsteuer (Tier 483)
  *     5900  Sonstige Aufwendungen
  *
  *   RESULT:
@@ -125,6 +129,21 @@ const REVENUE_LINES: Array<{ kz: string; label: string; matcher: (inv: any, ctx:
       (!ctx.kleinunternehmer && Number(inv.totalVat) === 0 && Number(inv.subtotal) > 0),
   },
   {
+    // Tier 483: the VAT received with the income (Anlage EÜR Zeile 17). Under
+    // § 4 Abs. 3 EStG the VAT is part of the money received — the EÜR was
+    // net only, so e.g. December's VAT paid over in January moved profit
+    // between years without the report showing it.
+    kz: '4140',
+    label: 'Vereinnahmte Umsatzsteuer',
+    matcher: () => false,
+  },
+  {
+    // Tier 483: VAT the Finanzamt refunded (Anlage EÜR Zeile 18).
+    kz: '4150',
+    label: 'Vom Finanzamt erstattete Umsatzsteuer',
+    matcher: () => false,
+  },
+  {
     kz: '4190',
     label: 'Sonstige Betriebseinnahmen',
     // Anything with revenue that doesn't match
@@ -172,6 +191,19 @@ const EXPENSE_LINES: Array<{ kz: string; label: string; matcher: (exp: any) => b
     // EStG) — nowhere before; the asset just left the register.
     kz: '4610',
     label: 'Restbuchwert ausgeschiedener Anlagegüter',
+    matcher: () => false,
+  },
+  {
+    // Tier 483: the input tax paid with the expenses (Anlage EÜR Zeile 57).
+    kz: '5850',
+    label: 'Gezahlte Vorsteuerbeträge',
+    matcher: () => false,
+  },
+  {
+    // Tier 483: VAT paid to the Finanzamt (Anlage EÜR Zeile 58) — recorded
+    // on the UStVA filings (PUT /ustva/filings/:id/payment).
+    kz: '5860',
+    label: 'An das Finanzamt gezahlte Umsatzsteuer',
     matcher: () => false,
   },
   {
@@ -265,6 +297,14 @@ export class EuerService {
         ausgabenBuckets.set('5900', (ausgabenBuckets.get('5900') || 0) + amount)
       }
     }
+    // Tier 483: the VAT in the cash flows (euer-zufluss.ts, as Anlage G).
+    const vat = euerVat(inflows, expenses, cash, revenueCtx.kleinunternehmer)
+    einnahmenBuckets.set('4140', vat.received)
+    ausgabenBuckets.set('5850', vat.vorsteuer)
+    // A Kleinunternehmer too: the tax he owes on § 13b purchases is paid.
+    const fa = await finanzamtVat(this.prisma, companyId, yearStart, yearEnd)
+    einnahmenBuckets.set('4150', fa.refunded)
+    ausgabenBuckets.set('5860', fa.paid)
 
     ausgabenBuckets.set('4600', (await bookedAfaCost(this.prisma, companyId, year)).amount)
     ausgabenBuckets.set('4610', sumRestbuchwert(await assetDisposals(this.prisma, companyId, yearStart, yearEnd)))

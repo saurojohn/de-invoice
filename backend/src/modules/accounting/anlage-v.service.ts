@@ -3,7 +3,8 @@ import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
 import { Response } from 'express'
 import PDFDocument from 'pdfkit'
-import { euerExpenses, euerInflows } from './euer-zufluss'
+import { euerExpenses, euerInflows, euerVat, finanzamtVat } from './euer-zufluss'
+import { expenseCost } from './expense-cost'
 import { computeAfaSummary } from '../assets/afa'
 
 /**
@@ -111,6 +112,13 @@ const REVENUE_LINES: Array<{ kz: string; label: string; matcher: (inv: any) => b
     matcher: (inv) => inv.reverseCharge === true,
   },
   {
+    // Tier 483: the VAT in the cash flows (a landlord who opted for VAT,
+    // § 9 UStG), as the EÜR.
+    kz: '8180',
+    label: 'Vereinnahmte / vom Finanzamt erstattete Umsatzsteuer',
+    matcher: () => false,
+  },
+  {
     kz: '8190',
     label: 'Sonstige Mieteinnahmen (Umlagen, Kautionen-Zinsen)',
     matcher: () => false, // fallback
@@ -167,6 +175,12 @@ const EXPENSE_LINES: Array<{ kz: string; label: string; matcher: (exp: any) => b
     matcher: (exp) => /^(Nebenkosten|Müll|Schornstein|Treppenhaus|Aufzug)/i.test(exp.category || ''),
   },
   {
+    // Tier 483: the input tax paid and the VAT paid to the Finanzamt.
+    kz: '8680',
+    label: 'Gezahlte Vorsteuer / an das Finanzamt gezahlte Umsatzsteuer',
+    matcher: () => false,
+  },
+  {
     kz: '8690',
     label: 'Übrige Werbungskosten',
     matcher: () => false, // fallback
@@ -200,6 +214,8 @@ export class AnlageVService {
     // (§ 11 EStG; euer-zufluss.ts) — was issue date / invoice date.
     // v1: no per-customer filtering — every payment is Mieteinnahme.
     const { inflows, unpaidInvoices } = await euerInflows(this.prisma, companyId, yearStart, yearEnd)
+    const vatMode = await this.prisma.company.findUnique({ where: { id: companyId }, select: { defaultVatMode: true } })
+    const kleinunternehmer = vatMode?.defaultVatMode === 'kleinunternehmer'
     const { expenses, unpaidExpenses } = await euerExpenses(this.prisma, companyId, yearStart, yearEnd)
 
     // Booked AfA for 8600. Pulled separately
@@ -279,8 +295,14 @@ export class AnlageVService {
     for (const exp of expenses) {
       const matched = EXPENSE_LINES.find((d) => d.matcher(exp))
       const kz = matched?.kz || '8690'
-      werbungskostenBuckets.set(kz, (werbungskostenBuckets.get(kz) || 0) + Number(exp.netAmount))
+      // Tier 483: gross for a Kleinunternehmer (expense-cost.ts), as EÜR / Anlage S.
+      werbungskostenBuckets.set(kz, (werbungskostenBuckets.get(kz) || 0) + expenseCost(exp, kleinunternehmer))
     }
+    // Tier 483: the VAT in the cash flows, as the EÜR (euer-zufluss.ts).
+    const vat = euerVat(inflows, expenses, [], kleinunternehmer)
+    const fa = await finanzamtVat(this.prisma, companyId, yearStart, yearEnd)
+    einnahmenBuckets.set('8180', vat.received + fa.refunded)
+    werbungskostenBuckets.set('8680', vat.vorsteuer + fa.paid)
 
     // Build the final lines in the BMF order.
     const einnahmen: AnlageVLine[] = REVENUE_LINES.map((d) => ({

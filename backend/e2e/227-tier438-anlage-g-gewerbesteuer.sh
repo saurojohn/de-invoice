@@ -64,13 +64,23 @@ AS POST "/api/v1/assets?companyId=$C" '{"type":"Maschine","bezeichnung":"Maschin
 AS POST "/api/v1/assets/book-afa?companyId=$C&year=$Y"
 assert_eq "AfA booked" "$(py 'print(d["totalAnnualAfA"])')" "1200"
 
+# Tier 483: with an EÜR the VAT is part of the cash flows — 9 509,50 received
+# with the payment. Paid to the Finanzamt with the March return, it nets out
+# and the Gewerbeertrag is the net profit again.
+AS GET "/api/v1/ustva/compute?companyId=$C&year=$Y&month=3"
+AS POST "/api/v1/ustva/filings?companyId=$C" "$(python3 -c "import sys,json;d=json.loads(sys.argv[1]);d['status']='submitted';print(json.dumps(d))" "$BODY")"
+F=$(json_field "$BODY" id)
+AS PUT "/api/v1/ustva/filings/$F/payment?companyId=$C" '{"paidAt":"'$Y'-04-10"}'
+assert_eq "fixture: the March VAT paid to the Finanzamt" "$(py 'print(d["paidAmount"])')" "9509.5"
+
 AS GET "/api/v1/accounting/anlage-g?companyId=$C&year=$Y"
 T() { py "print(d['totals']['$1'])"; }
 L() { py "print([l['amount'] for l in d['$1'] if l['kennziffer']=='$2'][0])"; }
 assert_eq "2890 Sonstige: all three expenses, as a cost (was 100)" "$(L betriebsausgaben 2890)" "-300"
 assert_eq "2200 Miete (was 12000)" "$(L betriebsausgaben 2200)" "-12000"
 assert_eq "2500 AfA" "$(L betriebsausgaben 2500)" "-1200"
-assert_eq "Betriebsausgaben (was 12900)" "$(T betriebsausgabenTotal)" "-15500"
+assert_eq "Betriebsausgaben: 15500 and the VAT paid 9509.50 (Tier 483; was 12900)" "$(T betriebsausgabenTotal)" "-25009.5"
+assert_eq "…the VAT line: received 9509.50 in, paid 9509.50 out" "$(L einnahmen 2195)/$(L betriebsausgaben 2895)" "9509.5/-9509.5"
 assert_eq "Gewinn = 50050 - 15500 (was 62950)" "$(T gewinnVorKorrektur)" "34550"
 assert_eq "Gewinn as GuV / EÜR" "$(T gewinnVorKorrektur)" \
   "$(curl -sS -H "x-user-id: $U" -H "x-company-id: $C" "$API/api/v1/accounting/euer?companyId=$C&year=$Y" | python3 -c 'import sys,json;print(json.load(sys.stdin)["totals"]["gewinn"])')"

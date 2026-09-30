@@ -3,7 +3,7 @@ import { Injectable } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import { Response } from 'express'
 import PDFDocument from 'pdfkit'
-import { euerExpenses, euerInflows } from './euer-zufluss'
+import { euerExpenses, euerInflows, euerVat, finanzamtVat } from './euer-zufluss'
 import { cashBookings } from '../cashbook/cash-bookings'
 import { expenseCost } from './expense-cost'
 import { bookedAfaCost } from './booked-afa'
@@ -123,6 +123,12 @@ const REVENUE_LINES: Array<{ kz: string; label: string; matcher: (inv: any, ctx:
     matcher: () => false, // placeholder
   },
   {
+    // Tier 483: the VAT in the cash flows (§ 4 Abs. 3 EStG), as the EÜR.
+    kz: '4140',
+    label: 'Vereinnahmte / vom Finanzamt erstattete Umsatzsteuer',
+    matcher: () => false,
+  },
+  {
     kz: '4190',
     label: 'Sonstige Betriebseinnahmen',
     matcher: () => false, // fallback
@@ -189,6 +195,12 @@ const EXPENSE_LINES: Array<{ kz: string; label: string; matcher: (exp: any) => b
     kz: '4710',
     label: 'Schuldzinsen',
     matcher: (exp) => /^(Schuldzins|Zins)/i.test(exp.category || ''),
+  },
+  {
+    // Tier 483: the input tax paid and the VAT paid to the Finanzamt.
+    kz: '4715',
+    label: 'Gezahlte Vorsteuer / an das Finanzamt gezahlte Umsatzsteuer',
+    matcher: () => false,
   },
   {
     kz: '4720',
@@ -259,7 +271,8 @@ export class AnlageSService {
       ausgabenBuckets.set(kz, (ausgabenBuckets.get(kz) || 0) + expenseCost(exp, revenueCtx.kleinunternehmer))
     }
     // Tier 425: cash sales / purchases from the Kassenbuch (cash-bookings.ts).
-    for (const c of await cashBookings(this.prisma, companyId, yearStart, yearEnd)) {
+    const cash = await cashBookings(this.prisma, companyId, yearStart, yearEnd)
+    for (const c of cash) {
       const amount = revenueCtx.kleinunternehmer ? c.gross : c.net
       if (c.direction === 'in') {
         const kz = revenueCtx.kleinunternehmer ? '4120' : c.rate > 0 ? '4100' : '4170'
@@ -268,6 +281,11 @@ export class AnlageSService {
         ausgabenBuckets.set('4720', (ausgabenBuckets.get('4720') || 0) + amount)
       }
     }
+    // Tier 483: the VAT in the cash flows, as the EÜR (euer-zufluss.ts).
+    const vat = euerVat(inflows, expenses, cash, revenueCtx.kleinunternehmer)
+    const fa = await finanzamtVat(this.prisma, companyId, yearStart, yearEnd)
+    einnahmenBuckets.set('4140', vat.received + fa.refunded)
+    ausgabenBuckets.set('4715', vat.vorsteuer + fa.paid)
     // Tier 440: book value of assets sold or scrapped (disposals.ts).
     ausgabenBuckets.set('4720', (ausgabenBuckets.get('4720') || 0) +
       sumRestbuchwert(await assetDisposals(this.prisma, companyId, yearStart, yearEnd)))

@@ -37,7 +37,9 @@ fixture() { # vatRate-of-sale
 }
 guv() { AS GET "/api/v1/accounting/guv?companyId=$C&year=$YEAR"; python3 -c "import sys,json;print(json.loads(sys.argv[1])['totals']['jahresueberschuss'])" "$BODY"; }
 bwa() { AS GET "/api/v1/reports/bwa?companyId=$C&year=$YEAR&month=8"; python3 -c "import sys,json;t=json.loads(sys.argv[1])['totals'];print(t['materialaufwandMonat'], t['jahresergebnisYtd'])" "$BODY"; }
-euer() { AS GET "/api/v1/accounting/euer?companyId=$C&year=$YEAR"; python3 -c "import sys,json;print(json.loads(sys.argv[1])['totals']['gewinn'])" "$BODY"; }
+# Tier 483: the EÜR's own profit adds the VAT in the cash flows (Zeilen 17 /
+# 57 / 58); GuV and BWA are net — the comparison is on the net lines.
+euer() { AS GET "/api/v1/accounting/euer?companyId=$C&year=$YEAR"; python3 -c "import sys,json;d=json.loads(sys.argv[1]);x=('4140','4150','5850','5860');print(round(sum(l['amount'] for l in d['einnahmen'] if l['kennziffer'] not in x)-sum(l['amount'] for l in d['ausgaben'] if l['kennziffer'] not in x),2))" "$BODY"; }
 
 note "=== 1. a business that deducts input tax: expenses at net ==="
 read -r U C < <(company "e2e-208a-$(date +%s%N | cut -c1-13)")

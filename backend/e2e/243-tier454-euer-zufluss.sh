@@ -48,7 +48,9 @@ bill() { # invoiceDate net [paidAt] → id
   AS POST "/api/v1/ustva/expenses?companyId=$C" '{"supplierId":"'$S'","invoiceNumber":"ER-'$RANDOM'","description":"Ware","invoiceDate":"'$1'","netAmount":'$2',"vatRate":0.19,"vatAmount":'$(python3 -c "print(round($2*0.19,2))")',"grossAmount":'$(python3 -c "print(round($2*1.19,2))")',"category":"Material"'${3:+,\"paidAt\":\"$3\"}'}'
   echo "$STATUS $(json_field "$BODY" id)"
 }
-euer() { AS GET "/api/v1/accounting/euer?companyId=$C&year=$1"; py 'e=d["totals"];print("%g/%g" % (e["einnahmenTotal"], e["ausgabenTotal"]))'; }
+# Tier 483: the EÜR has VAT lines now (4140 / 4150 / 5850 / 5860); this spec
+# is about the net figures, so it sums the other lines.
+euer() { AS GET "/api/v1/accounting/euer?companyId=$C&year=$1"; py 'x=("4140","4150","5850","5860");i=sum(l["amount"] for l in d["einnahmen"] if l["kennziffer"] not in x);a=sum(l["amount"] for l in d["ausgaben"] if l["kennziffer"] not in x);print("%g/%g" % (round(i,2), round(a,2)))'; }
 
 note "=== fixtures ==="
 A=$(sent 2025-11-10 1000); pay "$A" 1190 2026-01-15           # 2025 invoice, paid 2026
