@@ -2538,6 +2538,26 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Dates the system sets itself are the German day (Tier 479)
+
+Follow-up to Tier 478: the same `new Date()` (the instant) was stored as the
+date of a voucher Storno / correction, of a customer credit applied to an
+invoice ('Guthaben' payment) and of the invoice a recurring template's run
+creates; the invoice number's year came from the server's local date.
+Between 00:00 and 02:00 in Germany the instant is the previous day — on the
+1st the previous month's UStVA / EÜR period, on 1 January the previous
+year. `businessTodayDate()` (business-date.ts) gives today's German day as a
+date-only value; the four places and the number year use it. Checked with
+fixed instants (ts-node): 2026-09-30T22:30Z was stored as 30.09., the German
+day is 01.10.; 2026-12-31T23:30Z → 31.12.2026 vs 01.01.2027.
+
+Spec 265 pins the dates to the German day. At 09:53 CEST only the recurring
+invoice fails on the old code (dated "2026-09-30T07:53:31Z" — a time where a
+date belongs); the Storno and credit-payment assertions fail on the old code
+only between 00:00 and 02:00 German time or on a UTC server from 22:00, so
+they could not be shown failing here.
+Local runs: backend **264 / 0 / 1**, 0 × 5xx; Playwright **947**.
+
 ### Today is the business's calendar day (Tier 478)
 
 Found when Tier 477's run crossed midnight (specs 212 / 213 failed at 00:11
