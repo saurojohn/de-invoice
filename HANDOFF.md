@@ -9,18 +9,19 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–484 are
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–485 are
   in `git log`; §8 records what each learned. Tiers 443–462 came from the
-  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 484.)
+  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 485.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 36755345723 / commit `2652781`, Tier 484):**
-  - Backend e2e: **269 passed / 0 failed / 1 skipped** of 270 specs — 100
-    two-digit + 170 three-digit (Tier 484 added `270-tier484-weitere-ust-zahlungen.sh`,
+- **Test counts (last green CI, run 36769645258 / commit `cf0a637`, Tier 485):**
+  - Backend e2e: **270 passed / 0 failed / 1 skipped** of 271 specs — 100
+    two-digit + 171 three-digit (Tier 485 added `271-tier485-bewirtung.sh`,
+    Tier 484 added `270-tier484-weitere-ust-zahlungen.sh`,
     Tier 483 added `269-tier483-euer-umsatzsteuer.sh`,
     Tier 482 added `268-tier482-kleinunternehmer-xrechnung.sh`,
     Tier 481 added `267-tier481-kleinunternehmer-vorsteuer.sh`,
