@@ -9,18 +9,19 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–478 are
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–479 are
   in `git log`; §8 records what each learned. Tiers 443–462 came from the
-  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 478.)
+  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 479.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 36650896859 / commit `d113738`, Tier 478a):**
-  - Backend e2e: **263 passed / 0 failed / 1 skipped** of 264 specs — 100
-    two-digit + 164 three-digit (Tier 478 added `264-tier478-kalendertag.sh`; the
+- **Test counts (last green CI, run 36690311866 / commit `cedc74e`, Tier 479):**
+  - Backend e2e: **264 passed / 0 failed / 1 skipped** of 265 specs — 100
+    two-digit + 165 three-digit (Tier 479 added `265-tier479-geschaeftstag-buchungen.sh`,
+    Tier 478 added `264-tier478-kalendertag.sh`; the
     backend e2e job runs with TZ=Europe/Berlin since Tier 478a,
     Tier 477 added `263-tier477-bearbeiten-nach-zahlung.sh`,
     Tier 476 added `262-tier476-keine-mahnung-proforma.sh`,
