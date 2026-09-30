@@ -385,6 +385,18 @@ export class UstvaService {
       expenseCount++;
     }
 
+    // Tier 481: a Kleinunternehmer deducts no input tax (§ 19 Abs. 1 Satz 4
+    // UStG) — the tax he owes on § 13b / igE purchases stays owed. Measured:
+    // a 1 190 € purchase gave "Vorsteuer 190, Differenz -190" — a refund
+    // claimed that the company is not entitled to.
+    const vatMode = await this.prisma.company.findUnique({ where: { id: companyId }, select: { defaultVatMode: true } });
+    if (vatMode?.defaultVatMode === 'kleinunternehmer') {
+      vorsteuer19 = 0;
+      vorsteuer7 = 0;
+      vorsteuerOther = 0;
+      vorsteuerIgE = 0;
+      vorsteuerReverseCharge = 0;
+    }
     const vorsteuerTotal = vorsteuer19 + vorsteuer7 + vorsteuerOther + vorsteuerIgE + vorsteuerReverseCharge;
 
     // ── TOTALS ────────────────────────────────────────────────────

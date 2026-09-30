@@ -2540,6 +2540,19 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### A Kleinunternehmer deducts no input tax (Tier 481)
+
+The purchase side of Tier 480 (§ 19 Abs. 1 Satz 4 UStG). Measured (spec 267)
+for a Kleinunternehmer: a purchase of 1 000 + 190 → UStVA Vorsteuer 190,
+Differenzbetrag -190 — a refund the company is not entitled to; with a
+§ 13b purchase of 500 as well: tax owed 95, Vorsteuer 285, still -190. The
+UStVA now zeroes every input-tax bucket for a Kleinunternehmer; the tax owed
+on § 13b / igE purchases stays owed (95 / 0 / 95). UStJA and the ELSTER XML
+are built from the same computation. The EÜR already counted the gross as
+cost and DATEV already booked no input tax for such a company.
+2 assertions fail on the old code. Local runs: backend **266 / 0 / 1**, 0 × 5xx;
+Playwright **947**.
+
 ### A Kleinunternehmer charges no VAT (Tier 480)
 
 `Company.defaultVatMode = 'kleinunternehmer'` (§ 19 UStG) changed nothing on
