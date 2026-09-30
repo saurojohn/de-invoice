@@ -2541,6 +2541,20 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### § 19 in the e-invoice of a Kleinunternehmer (Tier 482)
+
+Tier 480 puts a Kleinunternehmer's lines at 0 %; the XRechnung of such an
+invoice said category E with TaxExemptionReason (BT-120) "Steuerbefreite
+Leistung" — the generic text of any 0 % line, no ground — and ZUGFeRD's
+ExemptionReason the same (spec 268, 2 assertions fail on the old code).
+`exemptionFor(category, kleinunternehmer)` gives "Kleinunternehmer gemäß § 19
+UStG — keine Umsatzsteuer" for E; `transformToXRechnungData` reads
+`company.defaultVatMode`, which the ZUGFeRD company contexts (bulk
+download, GET …/pdf?format=zugferd, GET …/zugferd, GoBD archive) now pass. A
+regular company's 0 % invoice keeps the generic text; the KU invoice
+validates.
+Local runs: backend **267 / 0 / 1**, 0 × 5xx; Playwright **947**.
+
 ### A Kleinunternehmer deducts no input tax (Tier 481)
 
 The purchase side of Tier 480 (§ 19 Abs. 1 Satz 4 UStG). Measured (spec 267)

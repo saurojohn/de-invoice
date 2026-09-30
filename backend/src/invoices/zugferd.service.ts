@@ -1,6 +1,6 @@
 import {
   computeXRechnungTotals,
-  EXEMPTION,
+  exemptionFor,
   formatCents,
   generateXRechnung,
   mapUnitToUNECE,
@@ -75,6 +75,8 @@ export async function generateZUGFeRD(
   },
   company: {
     name: string;
+    /** Tier 482: 'kleinunternehmer' → § 19 as the exemption reason */
+    defaultVatMode?: string | null;
     legalName?: string;
     vatId?: string | null;
     taxId?: string | null;
@@ -185,7 +187,7 @@ export function generateZUGFeRDXml(
     </ram:IncludedSupplyChainTradeLineItem>`).join('');
 
   const taxBreakdown = t.subtotals.map((v) => {
-    const ex = v.category === 'S' ? undefined : EXEMPTION[v.category];
+    const ex = exemptionFor(v.category, data.kleinunternehmer);
     return `
       <ram:ApplicableTradeTax>
         <ram:CalculatedAmount>${formatCents(v.tax)}</ram:CalculatedAmount>

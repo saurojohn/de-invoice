@@ -348,6 +348,7 @@ export class GobdArchiveService {
   private companyContext(company: any, templateConfig: any) {
     return {
       name: company?.name || '',
+      defaultVatMode: company?.defaultVatMode ?? null, // Tier 482
       legalName: company?.legalName || undefined,
       address: company?.address || {},
       vatId: company?.vatId || undefined,

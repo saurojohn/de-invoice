@@ -295,6 +295,7 @@ export class InvoiceController {
       const company = await this.prisma.company.findUnique({ where: { id: companyId } })
       const companyCtx = {
         name: company?.name || '',
+      defaultVatMode: company?.defaultVatMode ?? null, // Tier 482
         address: company?.address || {},
         vatId: company?.vatId || undefined,
         taxId: company?.taxId || undefined,
@@ -739,6 +740,7 @@ export class InvoiceController {
       )
       const companyCtx = {
         name: company?.name || '',
+      defaultVatMode: company?.defaultVatMode ?? null, // Tier 482
         legalName: company?.legalName || undefined,
         address: company?.address || {},
         vatId: company?.vatId || undefined,
@@ -1052,6 +1054,7 @@ export class InvoiceController {
 
       const pdfBuffer = await generateZUGFeRD(invoice, {
         name: company.name,
+        defaultVatMode: company.defaultVatMode ?? null, // Tier 482
         legalName: company.legalName || undefined,
         address: company.address || {},
         vatId: company.vatId || undefined,

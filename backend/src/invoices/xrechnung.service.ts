@@ -142,6 +142,8 @@ export interface XRechnungData {
    * (Tier 472, its 'Anzahlung' payment). PayableAmount = total − prepaid.
    */
   prepaid?: number
+  /** Tier 482: the seller is a Kleinunternehmer (§ 19 UStG) */
+  kleinunternehmer?: boolean
 }
 
 /**
@@ -258,7 +260,7 @@ export function generateXRechnung(data: XRechnungData): string {
     <cac:TaxSubtotal>
       <cbc:TaxableAmount currencyID="${escapeXml(data.currency)}">${formatCents(v.taxable)}</cbc:TaxableAmount>
       <cbc:TaxAmount currencyID="${escapeXml(data.currency)}">${formatCents(v.tax)}</cbc:TaxAmount>
-      ${taxCategoryXml(v.category, v.rate, true)}
+      ${taxCategoryXml(v.category, v.rate, true, data.kleinunternehmer)}
     </cac:TaxSubtotal>`).join('')}
   </cac:TaxTotal>
 
@@ -483,8 +485,21 @@ export const EXEMPTION: Record<Exclude<TaxCategoryCode, 'S'>, { code?: string; t
   E: { text: 'Steuerbefreite Leistung' },
 }
 
-function taxCategoryXml(category: TaxCategoryCode, rate: number, withReason: boolean): string {
-  const ex = category === 'S' ? undefined : EXEMPTION[category]
+/**
+ * Tier 482: a Kleinunternehmer's invoice is category E with § 19 as the
+ * reason (BT-120) — "Steuerbefreite Leistung" named no ground at all.
+ */
+export const KLEINUNTERNEHMER_REASON = 'Kleinunternehmer gemäß § 19 UStG — keine Umsatzsteuer'
+
+/** The exemption of a category, § 19 for a Kleinunternehmer's E. */
+export function exemptionFor(category: TaxCategoryCode, kleinunternehmer?: boolean): { code?: string; text: string } | undefined {
+  if (category === 'S') return undefined
+  if (category === 'E' && kleinunternehmer) return { text: KLEINUNTERNEHMER_REASON }
+  return EXEMPTION[category]
+}
+
+function taxCategoryXml(category: TaxCategoryCode, rate: number, withReason: boolean, kleinunternehmer?: boolean): string {
+  const ex = exemptionFor(category, kleinunternehmer)
   return `<cac:TaxCategory>
         <cbc:ID>${category}</cbc:ID>
         <cbc:Percent>${formatPercent(rate)}</cbc:Percent>
@@ -1021,6 +1036,8 @@ export function transformToXRechnungData(
   },
   company: {
     name: string
+    /** Tier 482: 'kleinunternehmer' → § 19 as the exemption reason */
+    defaultVatMode?: string | null
     vatId?: string | null
     taxId?: string | null
     legalName?: string | null
@@ -1129,6 +1146,7 @@ export function transformToXRechnungData(
       totalVat: invoice.totalVat,
       items: invoice.items,
     }).byRate,
+    kleinunternehmer: company.defaultVatMode === 'kleinunternehmer',
     // Tier 473: the advance a final invoice deducted (Tier 472)
     prepaid: round2((invoice.payments ?? [])
       .filter((p) => p.paymentMethod === 'Anzahlung')
