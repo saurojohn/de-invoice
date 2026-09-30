@@ -696,7 +696,10 @@ export async function generateInvoicePDF(
       })
       rows.push({ label: "Nettobetrag:", amount: breakdown.net })
     }
-    for (const bucket of breakdown.byRate) {
+    // Tier 480: a Kleinunternehmer's invoice lists no VAT (the § 19 note
+    // below says why) — not even "USt 0 %: 0,00".
+    const noVatLines = !!renderConfig?.kleineUnternehmerNote && Math.abs(toFloat(invoice.totalVat)) < 0.005
+    for (const bucket of noVatLines ? [] : breakdown.byRate) {
       rows.push({
         label:
           breakdown.byRate.length > 1
@@ -912,11 +915,11 @@ export async function generateInvoicePDF(
       doc.font(fontFor('bold')).fontSize(8).fillColor(primaryColor)
         .text(renderConfig.euTransactionNote, leftMargin, footerY - 28, { lineBreak: false })
     }
-    if (renderConfig?.kleineUnternehmerNote && (invoice as any).euTransaction === false && (invoice as any).totalVat === '0' || (invoice as any).totalVat === 0) {
-      // Show §19 note when the invoice has
-      // no VAT at all (gross = net). The
-      // note tells the customer why
-      // there's no USt line.
+    // Tier 480: the note is resolved per company (resolveConfig leaves it
+    // only for a Kleinunternehmer) and shown on a document without VAT. The
+    // test compared a Prisma Decimal with '0' / 0 (never equal) and, by
+    // operator precedence, would have put "§ 19" on any 0 % invoice.
+    if (renderConfig?.kleineUnternehmerNote && Math.abs(toFloat(invoice.totalVat)) < 0.005) {
       doc.font(fontFor('bold')).fontSize(8).fillColor(primaryColor)
         .text(renderConfig!.kleineUnternehmerNote!, leftMargin, footerY - 14, { lineBreak: false })
     }

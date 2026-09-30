@@ -402,6 +402,8 @@ export class InvoiceService {
   async create(companyId: string, dto: CreateInvoiceDto) {
     try {
     const type = (dto.type as InvoiceType) || 'INV';
+    // Tier 480: a Kleinunternehmer (§ 19 UStG) charges no VAT.
+    dto = await this.withoutVatForKleinunternehmer(companyId, dto);
 
     // Check stock for tracked products and issue warnings
     const stockWarnings = await this.checkStockForItems(dto.items || []);
@@ -925,6 +927,24 @@ export class InvoiceService {
     })
   }
 
+  /**
+   * Tier 480: a Kleinunternehmer (§ 19 UStG, Company.defaultVatMode
+   * 'kleinunternehmer') charges no VAT — every line at 0 %. Measured: a
+   * 1 000 € line at 19 % gave an invoice of 1 190 € with "USt 19 %: 190,00"
+   * and no § 19 note, and the UStVA declared 190 € — VAT shown on an invoice
+   * is owed (§ 14c Abs. 2 UStG) although the company files none. The form
+   * sent 19 % (its comment said the backend handled it; it did not).
+   */
+  private async withoutVatForKleinunternehmer<T extends { items?: Array<{ vatRate?: number | null }> }>(
+    companyId: string,
+    dto: T,
+  ): Promise<T> {
+    if (!dto.items?.length) return dto
+    const co = await this.prisma.company.findUnique({ where: { id: companyId }, select: { defaultVatMode: true } })
+    if (co?.defaultVatMode !== 'kleinunternehmer') return dto
+    return { ...dto, items: dto.items.map((i) => ({ ...i, vatRate: 0 })) }
+  }
+
   async update(id: string, companyId: string, dto: UpdateInvoiceDto) {
     // Same-day edit rule. Once the calendar flips, the invoice is
     // considered "frozen" — the user might have already sent the
@@ -988,8 +1008,10 @@ export class InvoiceService {
       // Tier 415: a percentage discount is recomputed from the new lines; an
       // absolute one is kept. (With a percentage, the stored discountAmount
       // is the previous lines' — reusing it here was wrong.)
+      // Tier 480: a Kleinunternehmer (§ 19 UStG) charges no VAT.
+      dto = await this.withoutVatForKleinunternehmer(companyId, dto);
       const amounts = computeInvoiceAmounts(
-        dto.items.map((i) => ({ quantity: i.quantity, unitPrice: i.unitPrice, vatRate: vatRateOf(i) })),
+        dto.items!.map((i) => ({ quantity: i.quantity, unitPrice: i.unitPrice, vatRate: vatRateOf(i) })),
         discountPercent > 0
           ? { discountPercent }
           : { discountAmount: dto.discountAmount ?? Number(existing.discountAmount ?? 0) },
@@ -998,7 +1020,7 @@ export class InvoiceService {
 
       itemsData = {
         deleteMany: {},
-        create: dto.items.map((item, index) => ({
+        create: dto.items!.map((item, index) => ({
           description: item.description,
           productId: item.productId || null,
           productNumber: item.productNumber?.trim() || null,

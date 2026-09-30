@@ -224,6 +224,21 @@ export class InvoiceTemplateService {
     templateType: string,
     templateId?: string | null,
   ): Promise<{ config: Required<TemplateConfig>; templateId: string | null; isBuiltin: boolean }> {
+    // Tier 480: the § 19 UStG note belongs on a Kleinunternehmer's
+    // invoices only — every template carries its text.
+    const resolved = await this.resolveTemplateConfig(companyId, templateType, templateId)
+    const co = await this.prisma.company.findUnique({ where: { id: companyId }, select: { defaultVatMode: true } })
+    if (co?.defaultVatMode !== 'kleinunternehmer') {
+      resolved.config = { ...resolved.config, kleineUnternehmerNote: '' }
+    }
+    return resolved
+  }
+
+  private async resolveTemplateConfig(
+    companyId: string,
+    templateType: string,
+    templateId?: string | null,
+  ): Promise<{ config: Required<TemplateConfig>; templateId: string | null; isBuiltin: boolean }> {
     // 1. explicit templateId
     if (templateId) {
       const t = await this.prisma.invoiceTemplate.findFirst({

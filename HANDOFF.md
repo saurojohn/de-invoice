@@ -2539,6 +2539,28 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### A Kleinunternehmer charges no VAT (Tier 480)
+
+`Company.defaultVatMode = 'kleinunternehmer'` (§ 19 UStG) changed nothing on
+the invoice: the form sent its lines at 19 % (its comment claimed "Backend
+already recognises this") and the backend billed them. Measured (spec 266):
+a 1 000 € line → invoice 1 190 € with "USt 19 %: 190,00", no § 19 note, UStVA
+190 € output tax — VAT shown on an invoice is owed (§ 14c Abs. 2 UStG). The
+PDF's § 19 condition compared a Prisma Decimal with '0' / 0 (never true) and,
+by `&&` / `||` precedence, would have put the note on any 0 % invoice.
+
+- `create()` / `update()` put a Kleinunternehmer's lines at 0 %
+  (`withoutVatForKleinunternehmer`); the form does the same when it loads the
+  company.
+- `InvoiceTemplateService.resolveConfig` keeps the § 19 note only for a
+  Kleinunternehmer; the PDF shows it on a document without VAT and then lists
+  no VAT line at all.
+- Invoices issued before stay as issued (a § 14c case for the Berater if any
+  exist).
+
+4 assertions fail on the old code. Local runs: backend **265 / 0 / 1**, 0 × 5xx;
+Playwright **947**.
+
 ### Dates the system sets itself are the German day (Tier 479)
 
 Follow-up to Tier 478: the same `new Date()` (the instant) was stored as the

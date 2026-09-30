@@ -178,6 +178,8 @@ function CreateInvoicePageInner() {
   const [showInvoiceDropdown, setShowInvoiceDropdown] = useState(false)
   const [invoiceSearch, setInvoiceSearch] = useState("")
   const [templateType, setTemplateType] = useState<InvoiceTemplateType>('standard')
+  // Tier 480: the company is a Kleinunternehmer (§ 19 UStG) — no VAT.
+  const [kleinunternehmer, setKleinunternehmer] = useState(false)
   const [form, setForm] = useState({
     customerId: "",
     referenceInvoiceId: "",
@@ -452,11 +454,11 @@ function CreateInvoicePageInner() {
         } else if (co.defaultVatMode === "igL") {
           setForm((prev) => ({ ...prev, reverseCharge: false, euTransaction: true }))
         } else if (co.defaultVatMode === "kleinunternehmer") {
-          // Kleinunternehmer = no USt. Backend already
-          // recognises this. Frontend keeps the standard
-          // radio (both false) — the §19 disclaimer is
-          // added on the PDF via the company setting.
-          // No radio change needed.
+          // Tier 480: Kleinunternehmer (§ 19 UStG) = no USt — every line
+          // at 0 % (the backend enforces it; the form showed 19 % and the
+          // invoice charged it). The PDF carries the § 19 note.
+          setKleinunternehmer(true)
+          setForm((prev) => ({ ...prev, items: prev.items.map((i) => ({ ...i, vatRate: 0 })) }))
         }
         // 'standard' or null → both booleans stay false,
         // radio opens unselected. This is the existing
@@ -885,7 +887,7 @@ function CreateInvoicePageInner() {
       customerId: refCustomerId,
       items: refItems.length > 0
         ? refItems
-        : [{ description: "", productNumber: "", quantity: 1, unit: t("common2.unit"), unitPrice: 0, vatRate: 0.19 }],
+        : [{ description: "", productNumber: "", quantity: 1, unit: t("common2.unit"), unitPrice: 0, vatRate: kleinunternehmer ? 0 : 0.19 }],
     })
     setInvoiceSearch(invoice.invoiceNumber)
     setCustomerSearch(refCustomerName)
@@ -930,7 +932,7 @@ function CreateInvoicePageInner() {
       ...form,
       items: [
         ...form.items.slice(0, index + 1),
-        { description: "", productNumber: "", quantity: 1, unit: t("common2.unit"), unitPrice: 0, vatRate: 0.19 },
+        { description: "", productNumber: "", quantity: 1, unit: t("common2.unit"), unitPrice: 0, vatRate: kleinunternehmer ? 0 : 0.19 },
         ...form.items.slice(index + 1),
       ],
     })
