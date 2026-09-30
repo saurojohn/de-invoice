@@ -884,6 +884,38 @@ export class UstvaService {
     return this.prisma.uStvaFiling.findFirst({ where: { id: filingId, companyId } });
   }
 
+  /** Tier 484: VAT paid to / refunded by the Finanzamt outside a UStVA. */
+  async listUstPayments(companyId: string, year?: number) {
+    return this.prisma.ustPayment.findMany({
+      where: { companyId, ...(year ? { year } : {}) },
+      orderBy: [{ paidAt: 'asc' }, { createdAt: 'asc' }],
+    });
+  }
+
+  async createUstPayment(
+    companyId: string,
+    data: { kind: string; year: number; paidAt: string; amount: number; note?: string },
+  ) {
+    if (!data.amount) throw new BadRequestException('Betrag darf nicht 0 sein (positiv: gezahlt, negativ: erstattet).');
+    return this.prisma.ustPayment.create({
+      data: {
+        companyId,
+        kind: data.kind,
+        year: data.year,
+        paidAt: new Date(data.paidAt),
+        amount: Math.round(data.amount * 100) / 100,
+        note: data.note?.trim() || null,
+      },
+    });
+  }
+
+  async deleteUstPayment(companyId: string, id: string) {
+    const row = await this.prisma.ustPayment.findFirst({ where: { id, companyId } });
+    if (!row) throw new NotFoundException('Zahlung nicht gefunden');
+    await this.prisma.ustPayment.delete({ where: { id } });
+    return { ok: true };
+  }
+
   /**
    * Tier 483: record the payment to / refund from the Finanzamt that settled
    * a submitted return. The EÜR counts it on paidAt (Zeilen 18 / 58). The

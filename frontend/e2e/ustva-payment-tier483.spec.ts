@@ -58,3 +58,39 @@ test("a submitted return's payment is recorded from the filings list", async ({ 
   const saved = list.find((f: any) => f.id === filing.id)
   expect(Number(saved.paidAmount)).toBe(-19)
 })
+
+/** Tier 484 — UStJA / Sondervorauszahlung payments from the card below the history. */
+test("an annual-return refund is recorded in the Finanzamt payments card", async ({ page, request }) => {
+  const tag = `t484-${Date.now()}`
+  const reg = await (await request.post(`${API}/api/v1/auth/register`, {
+    data: { email: `${tag}@example.test`, password: "Tier484-e2e", companyName: `${tag} GmbH` },
+  })).json()
+  const userId: string = reg.user.id
+  const companyId: string = reg.user.companyId || reg.company.id
+  const H = { "x-user-id": userId, "x-company-id": companyId }
+
+  await page.context().addCookies([
+    { name: "x-user-id", value: userId, domain: "localhost", path: "/" },
+    { name: "x-company-id", value: companyId, domain: "localhost", path: "/" },
+  ])
+  await page.addInitScript(
+    ({ userId, companyId }: { userId: string; companyId: string }) => {
+      localStorage.setItem("userId", userId)
+      localStorage.setItem("companyId", companyId)
+    },
+    { userId, companyId },
+  )
+  await page.goto("/dashboard/accounting/ustva")
+  await expect(page.getByTestId("ust-payments-card")).toBeVisible({ timeout: 90_000 })
+  await page.waitForFunction(() => document.readyState === "complete")
+
+  await page.getByTestId("ust-payment-kind").selectOption("ustja")
+  await page.getByTestId("ust-payment-year").fill("2025")
+  await page.getByTestId("ust-payment-date").fill("2026-06-15")
+  await page.getByTestId("ust-payment-amount").fill("-120,00")
+  await page.getByTestId("ust-payment-add").click()
+  await expect(page.getByTestId("ust-payments-card")).toContainText("120,00", { timeout: 30_000 })
+
+  const list = await (await request.get(`${API}/api/v1/ustva/payments?companyId=${companyId}`, { headers: H })).json()
+  expect(list.map((p: any) => [p.kind, p.year, Number(p.amount)])).toEqual([["ustja", 2025, -120]])
+})

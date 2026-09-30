@@ -239,14 +239,20 @@ export async function advanceSettlements(prisma: PrismaService, companyId: strin
  * UStVA filings (UStvaFiling.paidAt / paidAmount).
  */
 export async function finanzamtVat(prisma: PrismaService, companyId: string, start: Date, end: Date) {
-  const rows = await prisma.uStvaFiling.findMany({
-    where: { companyId, paidAt: { gte: start, lte: end }, paidAmount: { not: null } },
-    select: { paidAmount: true },
-  })
+  const [filings, others] = await Promise.all([
+    prisma.uStvaFiling.findMany({
+      where: { companyId, paidAt: { gte: start, lte: end }, paidAmount: { not: null } },
+      select: { paidAmount: true },
+    }),
+    // Tier 484: UStJA Abschlusszahlung / Erstattung, Sondervorauszahlung, other
+    prisma.ustPayment.findMany({
+      where: { companyId, paidAt: { gte: start, lte: end } },
+      select: { amount: true },
+    }),
+  ])
   let paid = 0
   let refunded = 0
-  for (const r of rows) {
-    const a = Number(r.paidAmount)
+  for (const a of [...filings.map((r) => Number(r.paidAmount)), ...others.map((r) => Number(r.amount))]) {
     if (a >= 0) paid += a
     else refunded -= a
   }

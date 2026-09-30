@@ -3,7 +3,7 @@ import { Controller, Get, Post, Put, Delete, Body, Query, Param, BadRequestExcep
 import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { UstvaService } from './ustva.service';
-import { SaveUstvaFilingDto, RecordUstvaPaymentDto } from './dto/ustva.dto';
+import { SaveUstvaFilingDto, RecordUstvaPaymentDto, CreateUstPaymentDto } from './dto/ustva.dto';
 import { CreateUstvaExpenseDto } from './dto/ustva-expense.dto';
 import { UpdateExpenseDto } from '../expense/dto/expense.dto';
 import { updateExpense } from '../expense/update-expense';
@@ -121,6 +121,28 @@ export class UstvaController {
   async listFilings(@Query('companyId') companyId: string) {
     if (!companyId) throw new BadRequestException('companyId is required');
     return this.ustva.listFilings(companyId);
+  }
+
+  // Tier 484: VAT paid to / refunded by the Finanzamt outside a UStVA
+  @Get('payments')
+  @Require('ustva.read')
+  async listUstPayments(@Query('companyId') companyId: string, @Query('year') year?: string) {
+    if (!companyId) throw new BadRequestException('companyId is required');
+    return this.ustva.listUstPayments(companyId, year ? parseInt(year, 10) : undefined);
+  }
+
+  @Post('payments')
+  @Require('ustva.submit')
+  async createUstPayment(@Query('companyId') companyId: string, @Body() body: CreateUstPaymentDto) {
+    if (!companyId) throw new BadRequestException('companyId is required');
+    return this.ustva.createUstPayment(companyId, body);
+  }
+
+  @Delete('payments/:id')
+  @Require('ustva.submit')
+  async deleteUstPayment(@Query('companyId') companyId: string, @Param('id') id: string) {
+    if (!companyId) throw new BadRequestException('companyId is required');
+    return this.ustva.deleteUstPayment(companyId, id);
   }
 
   // Tier 483: the payment to / refund from the Finanzamt for a return

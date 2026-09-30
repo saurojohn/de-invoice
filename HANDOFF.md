@@ -2544,6 +2544,24 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### UStJA and Sondervorauszahlung payments (Tier 484)
+
+Closes Tier 483's limit. VAT money moved with the Finanzamt that is no
+UStVA's payment — the annual return's Abschlusszahlung / Erstattung, the
+Sondervorauszahlung under Dauerfristverlängerung, anything else — had no
+place (spec 270: `POST /ustva/payments` 404, 9 assertions fail on Tier 483).
+New model `UstPayment` {kind 'ustja' | 'sondervorauszahlung' | 'sonstige',
+year, paidAt, amount (positive paid, negative refunded), note} (migration
+`20260930000003_ust_payment`), `GET / POST / DELETE /ustva/payments`;
+`finanzamtVat` adds them to the filings' payments, so EÜR Zeilen 18 / 58 and
+Anlage S / V / G (EÜR) count them on paidAt. UI: card "Weitere Zahlungen ans
+/ Erstattungen vom Finanzamt" below the UStVA history
+(`UstPaymentsCard.tsx`); Playwright `ustva-payment-tier483.spec.ts` gained a
+test.
+`UstPayment` is an audited model (audit-log.extension.ts) — spec 196 caught
+it missing in the first local run. Local runs: backend 269 / 1 / 0 → 196 and
+270 green after that fix, 0 × 5xx; Playwright **949**.
+
 ### The VAT in the EÜR (Tier 483)
 
 User decision (2026-09-30): complete the EÜR's VAT lines. § 4 Abs. 3 EStG
@@ -2576,7 +2594,7 @@ assertions fail on the old code).
 
 Limits: Finanzamt payments are entered by hand (no bank-import matching);
 the payment / refund of the annual return (UStJA) and of Sondervorauszah-
-lungen has no field yet.
+lungen had no field — added in Tier 484.
 Local runs: backend **269 / 0 / 0**, 0 × 5xx; Playwright 945 + 3 row counts
 (anlage-eur / -s / -v, the new lines) updated and green on re-run, + 1 new
 (`ustva-payment-tier483.spec.ts`) = **948**.

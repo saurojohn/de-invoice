@@ -230,3 +230,25 @@ export class RecordUstvaPaymentDto {
   @IsNumber()
   amount?: number;
 }
+
+/**
+ * Tier 484: POST /ustva/payments — VAT paid to / refunded by the Finanzamt
+ * outside a UStVA (UStJA Abschlusszahlung, Sondervorauszahlung, other).
+ */
+export class CreateUstPaymentDto {
+  @IsIn(['ustja', 'sondervorauszahlung', 'sonstige'])
+  kind!: 'ustja' | 'sondervorauszahlung' | 'sonstige'
+
+  @IsInt() @Min(2000) @Max(2100)
+  year!: number
+
+  @IsDateString()
+  paidAt!: string
+
+  /** positive: paid to the Finanzamt, negative: refunded */
+  @IsNumber()
+  amount!: number
+
+  @IsOptional() @IsString() @MaxLength(500)
+  note?: string
+}

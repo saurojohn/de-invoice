@@ -205,6 +205,8 @@ const AUDITED_MODELS = new Set<string>([
   'CustomerCreditTransaction',
   'CashBookDailyClose',
   'UStvaFiling',
+  // Tier 484: VAT paid to / refunded by the Finanzamt outside a UStVA
+  'UstPayment',
   'VoucherLine',
   'BankReconciliation',
   'SepaBatch',

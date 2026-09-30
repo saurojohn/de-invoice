@@ -103,6 +103,8 @@ model Company {
   mailConfig                 MailConfig?
   expenses                   Expense[]
   ustvaFilings               UStvaFiling[]
+  // Tier 484: VAT paid to / refunded by the Finanzamt outside a UStVA
+  ustPayments                UstPayment[]
   reminderTemplates          ReminderTemplate[]
   noteTemplates              NoteTemplate[]
   mahnungen                  Mahnung[]
@@ -601,6 +603,28 @@ model UStvaFiling {
 
   @@unique([companyId, year, quarter, month])
   @@index([companyId, year])
+}
+
+/// Tier 484: VAT money moved with the Finanzamt that is no UStVA's payment
+/// (those are on UStvaFiling.paidAt, Tier 483): the annual return's
+/// Abschlusszahlung / Erstattung (UStJA), the Sondervorauszahlung under
+/// Dauerfristverlängerung, anything else. The EÜR counts it on paidAt
+/// (Anlage EÜR Zeilen 18 / 58).
+model UstPayment {
+  id        String   @id @default(uuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id])
+  /// 'ustja' | 'sondervorauszahlung' | 'sonstige'
+  kind      String
+  /// the tax year it belongs to
+  year      Int
+  paidAt    DateTime
+  /// positive: paid to the Finanzamt, negative: refunded by it
+  amount    Decimal  @db.Decimal(12, 2)
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@index([companyId, paidAt])
 }
 
 model Category {
