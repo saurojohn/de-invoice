@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException, ConflictException, Logger } from '@nestjs/common';
-import { businessTodayIso, isoDay } from '../../common/business-date'
+import { businessDayIso, businessTodayIso } from '../../common/business-date'
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { VatValidationService } from '../vat-validation/vat-validation.service';
@@ -343,7 +343,7 @@ export class CustomerService {
       // Tier 478: overdue from the day after the due date (as the Mahnung
       // run: dueDate < today) — `due > now` counted an invoice due today as
       // overdue on a UTC server, or from 02:00 on a German one.
-      if (isoDay(due) >= businessTodayIso(now)) continue // not yet overdue
+      if (businessDayIso(due) >= businessTodayIso(now)) continue // not yet overdue
       // Skonto window check (mirror of ReminderService)
       if (inv.skontoPercent && inv.skontoDays) {
         const issue = new Date(inv.issueDate)

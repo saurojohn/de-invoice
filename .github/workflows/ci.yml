@@ -165,6 +165,11 @@ jobs:
     env:
       DATABASE_URL: postgresql://de_invoice:de_invoice_pass@localhost:5432/de_invoice?schema=public
       NODE_ENV: test
+      # Tier 478: the business's clock, as in a German deployment and every
+      # local run. On UTC the specs' `date +%F` is a day behind the German
+      # business day between 22:00 and 24:00 UTC (run 36643329289: a credit
+      # note correctly dated 30.09. at 01:15 CEST, the spec expecting 29.09.).
+      TZ: Europe/Berlin
       # SMTP not configured in CI — the mail
       # service logs NO-SMTP warnings instead of
       # failing. The e2e suite asserts on the

@@ -34,13 +34,16 @@ export function dayEnd(y: number, m: number, d: number): Date {
   return new Date(Date.UTC(y, m, d, 23, 59, 59, 999))
 }
 
-/** "YYYY-MM-DD" of a stored date-only value. */
-export function isoDay(date: Date): string {
-  return date.toISOString().slice(0, 10)
+/**
+ * "YYYY-MM-DD" of the German calendar day a stored value falls on. Same as
+ * the UTC date for date-only values (midnight UTC is 01:00 / 02:00 in Germany);
+ * right for full instants too ("2026-09-29T23:40Z" is 30.09. in Germany).
+ */
+export function businessDayIso(date: Date): string {
+  return fmt.format(date)
 }
 
 /** "YYYY-MM-DD" of today in Germany. */
 export function businessTodayIso(now: Date = new Date()): string {
-  const { y, m, d } = businessToday(now)
-  return isoDay(dayStart(y, m, d))
+  return businessDayIso(now)
 }

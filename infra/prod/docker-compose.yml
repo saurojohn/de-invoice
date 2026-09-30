@@ -176,6 +176,10 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3001
+      # Tier 478: German business days (issue dates, "today", overdue) —
+      # the code pins Europe/Berlin where it matters; this keeps the rest
+      # (logs, schedulers' local time) on the same clock.
+      TZ: Europe/Berlin
       DATABASE_URL: postgresql://${POSTGRES_USER:-de_invoice}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-de_invoice}?schema=public&connection_limit=8
       FRONTEND_URL: ${FRONTEND_URL:?FRONTEND_URL is required, e.g. https://rechnung.shleder.de}
       # Production secrets — see README for rotation

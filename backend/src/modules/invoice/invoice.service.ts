@@ -22,7 +22,7 @@ import { resolveDueDate } from './due-date';
 import { ExchangeRateService } from '../exchange-rate/exchange-rate.service';
 import { nextInvoiceNumber, releaseInvoiceNumber } from './invoice-number';
 import { ModuleRef } from '@nestjs/core';
-import { businessToday, dayStart } from '../../common/business-date';
+import { businessDayIso, businessToday, businessTodayIso, dayStart } from '../../common/business-date';
 import { PaymentService } from './payment.service';
 import { ADVANCE_SETTLEMENT_METHOD, advanceReceived, advanceDeductionFor } from './advance';
 
@@ -1127,7 +1127,7 @@ export class InvoiceService {
   }
 
   /**
-   * Returns true if the given date is today (local server time).
+   * Returns true if the given date is today (the business day, Tier 478).
    * Used by the same-day edit gate in update() and by the frontend
    * "is the edit button visible" check — both compare against the
    * invoice's own issueDate, not creation timestamp.
@@ -1136,12 +1136,11 @@ export class InvoiceService {
     if (!d) return false
     const date = new Date(d)
     if (isNaN(date.getTime())) return false
-    const now = new Date()
-    return (
-      date.getFullYear() === now.getFullYear() &&
-      date.getMonth() === now.getMonth() &&
-      date.getDate() === now.getDate()
-    )
+    // Tier 478: the business day (Europe/Berlin), as the issue date is
+    // stored — the server's local date differs from it on a UTC server
+    // between 22:00 and 24:00, when a new invoice (dated with the German
+    // day) would count as "not today" and could not be edited.
+    return businessDayIso(date) === businessTodayIso()
   }
 
   /**

@@ -2561,6 +2561,20 @@ runner's UTC date can disagree with the German day between 22:00 and 24:00
 UTC — relevant only across a month end.
 Local runs (after midnight CEST): backend **263 / 0 / 1**, 0 × 5xx; Playwright **947**.
 
+**Tier 478a — CI failed on exactly the caveat above** (run 36643329289 at
+23:15 UTC = 01:15 CEST): specs 212 / 213 took "today" from the runner's UTC
+date (29.09.) while the credit note was — correctly — dated 30.09. It also
+showed a real gap: `isToday` (the same-day edit rule) still used the server's
+local date, so on a UTC server a new invoice dated with the German day could
+not be edited between 22:00 and 24:00 UTC. Fixes: `isToday` and the overdue
+check take the German calendar day of the stored value
+(`businessDayIso` — right for date-only values and for full instants: spec
+67 sends "…T23:40Z", which is the 30th in Germany); the backend e2e job runs
+with `TZ: Europe/Berlin` like every local run; the production backend gets
+`TZ: Europe/Berlin` (infra/prod/docker-compose.yml) for the rest (logs,
+schedulers). Local runs at 02:00 CEST: backend **263 / 0 / 1**, 0 × 5xx;
+Playwright **947**.
+
 ### No editing once money or a correction is booked (Tier 477)
 
 HANDOFF §9 item 14, **decided by the user (2026-09-29): a sent invoice stays
