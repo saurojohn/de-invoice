@@ -3,6 +3,7 @@ import {
   BadRequestException,
   NotFoundException,
 } from '@nestjs/common';
+import { businessTodayDate } from '../../common/business-date';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { VoucherService } from '../accounting/voucher.service';
@@ -559,7 +560,9 @@ export class CreditBalanceService {
     try {
       await paymentService.create(invoiceId, companyId, {
         amount: apply,
-        paymentDate: new Date(),
+        // Tier 479: today's German day, not the instant (00:30 on 1 Oct
+        // was stored as 30.09. — the previous month, on 1 Jan the previous year).
+        paymentDate: businessTodayDate(),
         paymentMethod: 'Guthaben',
         reference: `Credit ${ledger.id}`,
         notes: `Auto-verrechnet aus Kundenguthaben`,

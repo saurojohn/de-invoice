@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { businessTodayDate } from '../../common/business-date';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AccountService } from './account.service';
@@ -365,7 +366,9 @@ export class VoucherService {
       data: {
         companyId,
         voucherNumber: newVoucherNumber,
-        date: new Date(),
+        // Tier 479: the German day of the Storno (the instant was the
+        // previous day between 00:00 and 02:00).
+        date: businessTodayDate(),
         description: newDescription,
         referenceType: 'VoucherReversal',
         status: 'posted',
@@ -617,7 +620,7 @@ export class VoucherService {
         data: {
           companyId,
           voucherNumber: reversalNumber,
-          date: correction.date || new Date(),
+          date: correction.date || businessTodayDate(),
           description: stornoDescription,
           referenceType: 'VoucherReversal',
           status: 'posted',
@@ -645,7 +648,7 @@ export class VoucherService {
         data: {
           companyId,
           voucherNumber: correctionNumber,
-          date: correction.date || new Date(),
+          date: correction.date || businessTodayDate(),
           description: correctionDescription,
           // New enum-ish marker — webhooks can subscribe to it
           // separately if they want to notify on corrections.

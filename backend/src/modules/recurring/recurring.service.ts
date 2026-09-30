@@ -1,4 +1,5 @@
 import { Injectable, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
+import { businessTodayDate } from '../../common/business-date';
 import { computeInvoiceAmounts } from '../invoice/invoice-amounts';
 import { PrismaService } from '../../prisma/prisma.service';
 // Tier 129: send the generated invoice to the customer
@@ -866,7 +867,9 @@ export class RecurringService {
       // Create the invoice. Tier 428: the due date follows the customer's
       // Zahlungsziel, else the company default (due-date.ts) — it was a
       // hard-coded 30 days, whatever either of them said.
-      const issueDate = new Date(now)
+      // Tier 479: the German day of the run as a date-only value — the
+      // instant made a run at 00:30 on the 1st an invoice of the previous month.
+      const issueDate = businessTodayDate(now)
       const terms = await tx.customer.findUnique({
         where: { id: tpl.customerId },
         select: { paymentTerms: true },

@@ -214,7 +214,9 @@ export class InvoiceService {
     // wherever another company issued an invoice. That module also carries the
     // Tier 174 (atomic nextval) and Tier 318 (raw-SQL guards) reasoning, and is
     // now the only copy: recurring.service.ts had a second one.
-    const year = new Date().getFullYear();
+    // Tier 479: the German business year (on a UTC server 23:30 on 31.12.
+    // UTC is already the new year in Germany).
+    const year = businessToday().y;
     const run = (tx: Prisma.TransactionClient) =>
       nextInvoiceNumber(tx, companyId, type, year);
     return executor ? run(executor) : this.prisma.$transaction(run);

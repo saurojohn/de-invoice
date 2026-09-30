@@ -47,3 +47,14 @@ export function businessDayIso(date: Date): string {
 export function businessTodayIso(now: Date = new Date()): string {
   return businessDayIso(now)
 }
+
+/**
+ * Today's German calendar day as a date-only value (midnight UTC) — for a
+ * date the system sets itself ("booked today"). `new Date()` stored the
+ * instant: between 00:00 and 02:00 in Germany that is the previous day's
+ * date, and on the 1st the previous month's period.
+ */
+export function businessTodayDate(now: Date = new Date()): Date {
+  const { y, m, d } = businessToday(now)
+  return dayStart(y, m, d)
+}
