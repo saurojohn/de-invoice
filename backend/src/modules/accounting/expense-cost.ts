@@ -23,3 +23,30 @@ export function expenseCost(e: CostExpense, kleinunternehmer: boolean): number {
   const n = Number(v ?? 0)
   return Number.isFinite(n) ? n : 0
 }
+
+/**
+ * Tier 485 — entertainment (Bewirtung, category starting "Bewirtung"): only
+ * 70 % of the cost is a Betriebsausgabe for the tax profit (§ 4 Abs. 5 Nr. 2
+ * EStG; the input tax stays fully deductible). The commercial GuV / BWA keep
+ * 100 % — the 30 % is added back outside the books (EÜR, Anlage S / G, KSt 1).
+ */
+export const BEWIRTUNG_ABZIEHBAR = 0.7
+
+export function isBewirtung(e: { category?: string | null }): boolean {
+  return /^Bewirtung/i.test(e.category || '')
+}
+
+/** The cost that counts for the tax profit: 70 % of an entertainment expense. */
+export function deductibleCost(e: CostExpense & { category?: string | null }, kleinunternehmer: boolean): number {
+  const cost = expenseCost(e, kleinunternehmer)
+  return isBewirtung(e) ? Math.round(cost * BEWIRTUNG_ABZIEHBAR * 100) / 100 : cost
+}
+
+/** The non-deductible 30 % of the entertainment expenses. */
+export function nichtAbziehbareBewirtung(
+  expenses: Array<CostExpense & { category?: string | null }>,
+  kleinunternehmer: boolean,
+): number {
+  const sum = expenses.reduce((s, e) => s + (isBewirtung(e) ? expenseCost(e, kleinunternehmer) - deductibleCost(e, kleinunternehmer) : 0), 0)
+  return Math.round(sum * 100) / 100
+}

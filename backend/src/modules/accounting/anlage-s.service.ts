@@ -5,7 +5,7 @@ import { Response } from 'express'
 import PDFDocument from 'pdfkit'
 import { euerExpenses, euerInflows, euerVat, finanzamtVat } from './euer-zufluss'
 import { cashBookings } from '../cashbook/cash-bookings'
-import { expenseCost } from './expense-cost'
+import { deductibleCost, nichtAbziehbareBewirtung } from './expense-cost'
 import { bookedAfaCost } from './booked-afa'
 
 /**
@@ -61,6 +61,8 @@ export interface AnlageSResult {
     einnahmenTotal: number
     ausgabenTotal: number
     gewinn: number // einnahmen - ausgaben (positive = profit, negative = loss)
+    /** Tier 485: the non-deductible 30 % of entertainment (not in the Gewinn) */
+    nichtAbziehbareBewirtung: number
   }
   /** Tier 455: § 11 EStG — counted when paid (as the EÜR) */
   prinzip: 'zufluss'
@@ -268,7 +270,8 @@ export class AnlageSService {
       const matched = EXPENSE_LINES.find((d) => d.matcher(exp))
       const kz = matched?.kz || '4720'
       // Tier 425: gross for a Kleinunternehmer (expense-cost.ts), as the EÜR.
-      ausgabenBuckets.set(kz, (ausgabenBuckets.get(kz) || 0) + expenseCost(exp, revenueCtx.kleinunternehmer))
+      // Tier 485: 70 % of an entertainment expense (§ 4 Abs. 5 Nr. 2 EStG)
+      ausgabenBuckets.set(kz, (ausgabenBuckets.get(kz) || 0) + deductibleCost(exp, revenueCtx.kleinunternehmer))
     }
     // Tier 425: cash sales / purchases from the Kassenbuch (cash-bookings.ts).
     const cash = await cashBookings(this.prisma, companyId, yearStart, yearEnd)
@@ -332,6 +335,7 @@ export class AnlageSService {
         einnahmenTotal: round2(einnahmenTotal),
         ausgabenTotal: round2(ausgabenTotal),
         gewinn,
+        nichtAbziehbareBewirtung: nichtAbziehbareBewirtung(expenses, revenueCtx.kleinunternehmer),
       },
       prinzip: 'zufluss',
       counts: {

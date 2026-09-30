@@ -1,4 +1,5 @@
 import { resolveRechtsform, isKapitalgesellschaft as isKapitalgesellschaftFn } from '../company/rechtsform'
+import { nichtAbziehbareBewirtung } from './expense-cost'
 import { Injectable, BadRequestException } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import { GuVService } from './guv.service'
@@ -148,7 +149,7 @@ const KORREKTUREN_LINES: Array<{
   },
   {
     kz: '80',
-    label: 'Nicht abzugsfähige Aufwendungen (§ 8b KStG) — Hinzurechnung',
+    label: 'Nicht abzugsfähige Aufwendungen (§ 4 Abs. 5 EStG / § 10 KStG) — Hinzurechnung',
     note: 'z.B. 5% des Kfz-Sachbezugs (Gesellschafter-Geschäftsführer), 30% der Aufsichtsrats-Vergütungen. Vom Berater zu ergänzen.',
   },
   {
@@ -227,17 +228,39 @@ export class KSt1Service {
     // ergänzt aus den Verträgen / Verlustvorträgen
     // / Spendenbescheinigungen). v2: read from
     // Company.settings.kst1Korrekturen[year].
-    const corrections: KSt1Line[] = KORREKTUREN_LINES.map((d) => ({
-      kennziffer: d.kz,
-      label: d.label,
-      amount: 0,
-      source: 'placeholder',
-      note: d.note,
-    }))
+    // Tier 485: the non-deductible 30 % of the year's entertainment
+    // expenses (§ 4 Abs. 5 Nr. 2 EStG i.V.m. § 8 Abs. 1 KStG) — in the
+    // Jahresüberschuss at 100 %, added back here (Kz 80, the line for
+    // nicht abzugsfähige Aufwendungen). The rest stay the Berater's.
+    const bewirtung = await this.prisma.expense.findMany({
+      where: {
+        companyId,
+        invoiceDate: { gte: new Date(year, 0, 1), lte: new Date(year, 11, 31, 23, 59, 59, 999) },
+        status: { in: ['booked', 'deductible'] },
+        category: { startsWith: 'Bewirtung', mode: 'insensitive' },
+      },
+      select: { netAmount: true, grossAmount: true, category: true },
+    })
+    const bewirtungHinzu = nichtAbziehbareBewirtung(bewirtung, company.defaultVatMode === 'kleinunternehmer')
+    const corrections: KSt1Line[] = KORREKTUREN_LINES.map((d) =>
+      d.kz === '80' && bewirtungHinzu !== 0
+        ? {
+          kennziffer: d.kz,
+          label: d.label,
+          amount: bewirtungHinzu,
+          source: 'computed',
+          note: `30 % der Bewirtungsaufwendungen (${bewirtungHinzu.toFixed(2).replace('.', ',')} €, § 4 Abs. 5 Nr. 2 EStG) — automatisch. ` + d.note,
+        }
+        : {
+          kennziffer: d.kz,
+          label: d.label,
+          amount: 0,
+          source: 'placeholder',
+          note: d.note,
+        })
 
-    // Compute ZvE: For v1, ZvE = Jahresüberschuss.
-    // The Korrekturen are all 0 in v1 (placeholder).
-    // v2: ZvE = Jahresüberschuss + Σ Korrekturen.
+    // ZvE = Jahresüberschuss + Σ Korrekturen (Tier 485: Kz 80 computed, the
+    // others placeholders for the Berater).
     const korrekturenTotal = corrections.reduce((s, l) => s + l.amount, 0)
     const zve = round2(jahresueberschuss + korrekturenTotal)
 

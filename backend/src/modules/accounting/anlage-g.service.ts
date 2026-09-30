@@ -9,7 +9,7 @@ import { Response } from 'express'
 import PDFDocument from 'pdfkit'
 import { invoiceNetRevenue, invoiceTaxBreakdown } from '../invoice/tax-breakdown'
 import { SALES_TYPES } from '../invoice/document-scope'
-import { expenseCost } from './expense-cost'
+import { deductibleCost, nichtAbziehbareBewirtung } from './expense-cost'
 import { bookedAfaCost, NOT_AFA_BOOKING } from './booked-afa'
 
 /**
@@ -117,6 +117,8 @@ export interface AnlageGResult {
     einnahmenTotal: number
     betriebsausgabenTotal: number
     gewinnVorKorrektur: number // einnahmen - betriebsausgaben
+    /** Tier 485: the non-deductible 30 % of entertainment (not in the Gewinn) */
+    nichtAbziehbareBewirtung: number
     hinzurechnungenTotal: number
     kurzungenTotal: number
     gewerbeertrag: number // gewinnVorKorrektur + hinzu - kurzungen
@@ -479,7 +481,8 @@ export class AnlageGService {
     for (const exp of expenses) {
       // Tier 438: a cost, shown negative; the first matching line wins and
       // 2890 takes the rest (it used to take one expense per category).
-      const cost = expenseCost(exp, kleinunternehmer)
+      // Tier 485: 70 % of an entertainment expense (§ 4 Abs. 5 Nr. 2 EStG)
+      const cost = deductibleCost(exp, kleinunternehmer)
       const kz = BETRIEBSAUSGABEN_LINES.find((d) => d.matcher(exp))!.kz
       addCost(kz, cost)
       const cat = exp.category || ''
@@ -611,6 +614,7 @@ export class AnlageGService {
         einnahmenTotal: round2(einnahmenTotal),
         betriebsausgabenTotal: round2(betriebsausgabenTotal),
         gewinnVorKorrektur,
+        nichtAbziehbareBewirtung: nichtAbziehbareBewirtung(expenses, kleinunternehmer),
         hinzurechnungenTotal: round2(hinzurechnungenTotal),
         kurzungenTotal: round2(kurzungenTotal),
         gewerbeertrag,

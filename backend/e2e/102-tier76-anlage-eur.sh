@@ -73,9 +73,9 @@ EXP_KZS=$(python3 -c "
 import json
 d = json.load(open('$TMP'))
 kzs = [l['kennziffer'] for l in d['ausgaben']]
-print('true' if set(kzs) == {'4300', '5100', '5400', '5600', '5800', '4600', '4610', '5850', '5860', '5900'} else f'got: {sorted(kzs)}')
+print('true' if set(kzs) == {'4300', '5100', '5400', '5600', '5610', '5800', '4600', '4610', '5850', '5860', '5900'} else f'got: {sorted(kzs)}')
 ")
-assert_eq "all 10 expense Kennziffern (Tier 483: 5850 / 5860 VAT)" "$EXP_KZS" "true"
+assert_eq "all 11 expense Kennziffern (Tier 483: 5850 / 5860 VAT, Tier 485: 5610 Bewirtung)" "$EXP_KZS" "true"
 
 # ── 4. einnahmenTotal = sum ──
 echo

@@ -2545,6 +2545,30 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Entertainment is 70 % deductible (Tier 485)
+
+§ 4 Abs. 5 Nr. 2 EStG: of an entertainment expense (category starting
+"Bewirtung") only 70 % is a Betriebsausgabe for the tax profit; the input
+tax stays fully deductible. Measured (spec 271, 7 assertions fail on the old
+code): a sole trader's paid receipt of 100 + 19 was deducted at 100 in EÜR
+5600 (Gewinn -119), Anlage S and Anlage G; KSt 1 added nothing back (its
+Kz 80 a placeholder, labelled "§ 8b KStG" — the dividend exemption).
+
+- `expense-cost.ts`: `isBewirtung`, `deductibleCost` (70 %),
+  `nichtAbziehbareBewirtung` (the 30 %).
+- EÜR: new line **5610 Bewirtungsaufwendungen (70 % abziehbar)** (Anlage EÜR
+  Zeile 63), before 5600 whose matcher also took "Bewirtung"; the 30 % in
+  `nichtAbziehbareBewirtung` (not in the Gewinn). Anlage S / G: 70 % in the
+  line the expense belongs to, the 30 % in `totals.nichtAbziehbareBewirtung`.
+- KSt 1: Kz 80 (now "§ 4 Abs. 5 EStG / § 10 KStG") computed as the 30 % of the
+  year's Bewirtung — the Jahresüberschuss has it at 100 %; zvE follows.
+- GuV / BWA keep 100 % (commercial books; the add-back is outside them).
+
+Not covered: other § 4 Abs. 5 items (gifts over 50 €, Nr. 1; the
+non-deductible share of a home office) — no category convention exists yet.
+Local runs: backend **270 / 0 / 1**, 0 × 5xx; Playwright **949** (anlage-eur's row
+count +1 for 5610; backend spec 102's line list the same).
+
 ### UStJA and Sondervorauszahlung payments (Tier 484)
 
 Closes Tier 483's limit. VAT money moved with the Finanzamt that is no

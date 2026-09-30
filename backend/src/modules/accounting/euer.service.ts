@@ -5,7 +5,7 @@ import { Response } from 'express';
 import PDFDocument from 'pdfkit';
 import { euerExpenses, euerInflows, euerVat, finanzamtVat } from './euer-zufluss'
 import { cashBookings } from '../cashbook/cash-bookings'
-import { expenseCost } from './expense-cost'
+import { deductibleCost, isBewirtung, nichtAbziehbareBewirtung } from './expense-cost'
 import { bookedAfaCost } from './booked-afa'
 
 /**
@@ -74,6 +74,8 @@ export interface EuerResult {
   };
   /** Tier 454: § 11 EStG — counted when paid */
   prinzip: 'zufluss';
+  /** Tier 485: the non-deductible 30 % of the entertainment expenses (not in the Gewinn) */
+  nichtAbziehbareBewirtung: number;
   counts: {
     /** invoices with income in the year */
     invoices: number;
@@ -167,6 +169,14 @@ const EXPENSE_LINES: Array<{ kz: string; label: string; matcher: (exp: any) => b
     kz: '5400',
     label: 'Raumkosten (Miete, Nebenkosten, Heizung)',
     matcher: (exp) => /^(Miete|Raum|Heizung|Nebenkosten)/i.test(exp.category || ''),
+  },
+  {
+    // Tier 485: entertainment — 70 % is a Betriebsausgabe (§ 4 Abs. 5 Nr. 2
+    // EStG, Anlage EÜR Zeile 63); it sat in 5600 at 100 %. Before 5600,
+    // whose matcher also takes "Bewirtung".
+    kz: '5610',
+    label: 'Bewirtungsaufwendungen (70 % abziehbar, § 4 Abs. 5 Nr. 2 EStG)',
+    matcher: (exp) => isBewirtung(exp),
   },
   {
     kz: '5600',
@@ -282,7 +292,8 @@ export class EuerService {
       // Tier 425: a Kleinunternehmer cannot deduct input tax — the expense
       // costs gross (expense-cost.ts, as GuV / BWA since Tier 419). The EÜR,
       // the form a Kleinunternehmer actually files, still took net.
-      ausgabenBuckets.set(kz, (ausgabenBuckets.get(kz) || 0) + expenseCost(exp, revenueCtx.kleinunternehmer))
+      // Tier 485: 70 % of an entertainment expense (deductibleCost)
+      ausgabenBuckets.set(kz, (ausgabenBuckets.get(kz) || 0) + deductibleCost(exp, revenueCtx.kleinunternehmer))
     }
 
     // Tier 425: cash sales and purchases from the Kassenbuch (cash-bookings.ts)
@@ -338,6 +349,7 @@ export class EuerService {
         gewinn,
       },
       prinzip: 'zufluss',
+      nichtAbziehbareBewirtung: nichtAbziehbareBewirtung(expenses, revenueCtx.kleinunternehmer),
       counts: {
         invoices: new Set(inflows.map((f) => f.invoice.id)).size,
         expenses: expenses.length,
