@@ -9,18 +9,19 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–480 are
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–481 are
   in `git log`; §8 records what each learned. Tiers 443–462 came from the
-  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 480.)
+  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 481.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 36701358874 / commit `d2752f3`, Tier 480):**
-  - Backend e2e: **265 passed / 0 failed / 1 skipped** of 266 specs — 100
-    two-digit + 166 three-digit (Tier 480 added `266-tier480-kleinunternehmer.sh`,
+- **Test counts (last green CI, run 36708250531 / commit `9cb7d88`, Tier 481):**
+  - Backend e2e: **266 passed / 0 failed / 1 skipped** of 267 specs — 100
+    two-digit + 167 three-digit (Tier 481 added `267-tier481-kleinunternehmer-vorsteuer.sh`,
+    Tier 480 added `266-tier480-kleinunternehmer.sh`,
     Tier 479 added `265-tier479-geschaeftstag-buchungen.sh`,
     Tier 478 added `264-tier478-kalendertag.sh`; the
     backend e2e job runs with TZ=Europe/Berlin since Tier 478a,
