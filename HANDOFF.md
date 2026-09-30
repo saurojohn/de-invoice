@@ -9,18 +9,19 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–482 are
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–483 are
   in `git log`; §8 records what each learned. Tiers 443–462 came from the
-  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 482.)
+  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 483.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 36716962586 / commit `662985e`, Tier 482):**
-  - Backend e2e: **267 passed / 0 failed / 1 skipped** of 268 specs — 100
-    two-digit + 168 three-digit (Tier 482 added `268-tier482-kleinunternehmer-xrechnung.sh`,
+- **Test counts (last green CI, run 36728909417 / commit `1810308`, Tier 483):**
+  - Backend e2e: **268 passed / 0 failed / 1 skipped** of 269 specs — 100
+    two-digit + 169 three-digit (Tier 483 added `269-tier483-euer-umsatzsteuer.sh`,
+    Tier 482 added `268-tier482-kleinunternehmer-xrechnung.sh`,
     Tier 481 added `267-tier481-kleinunternehmer-vorsteuer.sh`,
     Tier 480 added `266-tier480-kleinunternehmer.sh`,
     Tier 479 added `265-tier479-geschaeftstag-buchungen.sh`,
@@ -111,7 +112,8 @@ exact commands + docs you need to be productive.
     and survives concurrent writes (Tier 367); spec 171 (new in Tier 368) asserts
     the auth audit rows exist at all and are signed — nothing had ever asserted
     on them, which is how a failed login for an unknown e-mail went unaudited.
-  - Playwright: **947 passed / 0 failed / 0 skipped / 0 flaky** (Tier 473
+  - Playwright: **948 passed / 0 failed / 0 skipped / 0 flaky** (Tier 483
+    added `ustva-payment-tier483.spec.ts`; Tier 473
     added `final-invoice-tier473.spec.ts`, Tier 475 a second test in it; run
     36231779527 on Tier 461 had 1 flaky — `list-pages.spec.ts` "Invoices
     list" counted the rows before the list had rendered; fixed in Tier 462,
