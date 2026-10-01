@@ -208,6 +208,7 @@
     "recoveryCodePlaceholder": "Recovery code"
   },
   "bankImport": {
+    "skippedDuplicates": "{n} transactions already imported were skipped",
     "title": "Bank Import",
     "subtitle": "Upload a bank statement (MT940 / CAMT.053) — auto-match to open invoices",
     "uploadTitle": "Upload statement",

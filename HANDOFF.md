@@ -2548,6 +2548,27 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### A bank transaction is imported once (Tier 488)
+
+Measured (spec 274, 5 assertions fail on the old code): the same CAMT file
+imported twice gave two statements and the 1 190 € receipt twice (201 both
+times); the copy stayed open, to be matched or booked as an expense a
+second time (matching it to the already-paid invoice was refused, but a
+debit could be booked twice). `importStatement` now skips transactions
+already imported — same account IBAN, value date, amount, end-to-end
+reference, purpose, counterparty IBAN — counted per key, so two genuinely
+identical bookings in one file both stay and only as many as already exist
+are skipped (overlapping daily / monthly statements work). A file with
+nothing new answers 409; the response carries `skippedDuplicates`, and the
+import page shows "{n} bereits importierte Umsätze übersprungen".
+Limit: two different payments with the same day and amount and no purpose,
+reference or counterparty IBAN, arriving in two *different* files, look the
+same — the second is skipped (within one file both stay).
+Spec 235 imported one 119 € receipt three times (only the statement's `:20:`
+changed) to stand for three payments — now duplicates; its fixture got a
+structured `:86:` purpose (`?20…`) that differs per payment. Local runs:
+backend 273 / 1 / 0 → 235 green after that, 0 × 5xx; Playwright **949**.
+
 ### An igL or § 13b invoice charges no VAT (Tier 487)
 
 Measured (spec 273, 6 assertions fail on the old code): an invoice marked

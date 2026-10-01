@@ -56,6 +56,7 @@ cat > "$MT" <<'EOF'
 :60F:C260601EUR1000,00
 :61:2606100610C119,00NTRFNONREF//Zahlung Kunde
 Kunde
+:86:166?00GUTSCHRIFT?20Zahlung Kunde
 :62F:C260610EUR1119,00
 -
 EOF
@@ -97,7 +98,9 @@ assert_eq "DATEV: the bank account is back to 0" "$(datev_balance /tmp/t446.csv 
 note "=== a correction of a reconciliation voucher still works ==="
 I2=$(invoice Zweite)
 MT2=/tmp/t446b-$TAG.mt940
-sed 's/ST446/ST446B/' "$MT" > "$MT2"
+# Tier 488: a payment of its own (an identical line would be a duplicate
+# of the first statement's and is skipped on import)
+sed 's/ST446/ST446B/; s/Zahlung Kunde/Zahlung Kunde B/' "$MT" > "$MT2"
 UP=$(curl -sS -X POST -H "x-user-id: $U" -H "x-company-id: $C" "$API/api/v1/bank-statements/import?companyId=$C" \
   -F "file=@$MT2;type=text/plain" -F "companyId=$C" -F "userId=$U")
 SID2=$(json_field "$UP" id)
@@ -113,7 +116,7 @@ assert_eq "…the invoice stays paid" "$(inv_status "$I2")" "paid"
 note "=== data from before this tier: the voucher was already reversed by hand ==="
 I3=$(invoice Dritte)
 MT3=/tmp/t446c-$TAG.mt940
-sed 's/ST446/ST446C/' "$MT" > "$MT3"
+sed 's/ST446/ST446C/; s/Zahlung Kunde/Zahlung Kunde C/' "$MT" > "$MT3"
 UP=$(curl -sS -X POST -H "x-user-id: $U" -H "x-company-id: $C" "$API/api/v1/bank-statements/import?companyId=$C" \
   -F "file=@$MT3;type=text/plain" -F "companyId=$C" -F "userId=$U")
 SID3=$(json_field "$UP" id)

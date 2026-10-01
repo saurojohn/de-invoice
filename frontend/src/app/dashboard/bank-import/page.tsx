@@ -442,10 +442,15 @@ export default function BankImportPage() {
       formData.append("file", pending.file)
       formData.append("companyId", companyId)
       if (userId) formData.append("userId", userId)
-      await apiFetch(
+      const res = await apiFetch(
         `/api/v1/bank-statements/import?companyId=${companyId}`,
         { method: "POST", body: formData },
       )
+      // Tier 488: transactions imported before are skipped
+      const imported = await res.json().catch(() => null)
+      if (imported?.skippedDuplicates > 0) {
+        toast.info(t("bankImport.skippedDuplicates").replace("{n}", String(imported.skippedDuplicates)))
+      }
       setPendingPreview(null)
       await reload()
     } catch (err: any) {

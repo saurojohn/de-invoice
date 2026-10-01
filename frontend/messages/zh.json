@@ -208,6 +208,7 @@
     "recoveryCodePlaceholder": "恢复代码"
   },
   "bankImport": {
+    "skippedDuplicates": "已跳过 {n} 笔已导入的交易",
     "title": "银行流水导入",
     "subtitle": "上传银行对账单 (MT940 / CAMT.053) — 自动匹配到未付发票",
     "uploadTitle": "上传对账单",

@@ -16,7 +16,7 @@
  * can then confirm which one(s) to pay.
  */
 
-import { Injectable, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
+import { Injectable, BadRequestException, ConflictException, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { parseMt940 } from './mt940';
 import { parseCamt053, detectFormat } from './camt053';
@@ -61,6 +61,53 @@ export class BankImportService {
     // thing internally — this is just a UX choice.
     const stmt = parsed[0];
 
+    // Tier 488: a transaction imported before (the same file again, or an
+    // overlapping statement — daily vs. monthly) is not imported twice.
+    // Measured: the same CAMT file imported twice gave two statements and the
+    // 1 190 € receipt twice — the copy stayed open, to be matched or booked
+    // as an expense a second time. Identity: account, value date, amount,
+    // end-to-end reference, purpose, counterparty IBAN. Counted per key, so
+    // two genuinely identical bookings (same day, same text, no reference)
+    // both stay: only as many as already exist are skipped.
+    const keyOf = (t: { valueDate: Date; amount: unknown; endToEndId?: string | null; purpose?: string | null; counterpartyIban?: string | null }) =>
+      [
+        new Date(t.valueDate).toISOString().slice(0, 10),
+        Number(t.amount).toFixed(2),
+        (t.endToEndId || '').trim(),
+        (t.purpose || '').replace(/\s+/g, ' ').trim(),
+        (t.counterpartyIban || '').replace(/\s/g, '').toUpperCase(),
+      ].join('|')
+    const existing = stmt.transactions.length
+      ? await this.prisma.bankTransaction.findMany({
+        where: {
+          companyId,
+          statement: { accountIban: stmt.accountIban ?? null },
+          valueDate: {
+            gte: new Date(Math.min(...stmt.transactions.map((t) => new Date(t.valueDate).getTime())) - 86_400_000),
+            lte: new Date(Math.max(...stmt.transactions.map((t) => new Date(t.valueDate).getTime())) + 86_400_000),
+          },
+        },
+        select: { valueDate: true, amount: true, endToEndId: true, purpose: true, counterpartyIban: true },
+      })
+      : []
+    const already = new Map<string, number>()
+    for (const t of existing) already.set(keyOf(t), (already.get(keyOf(t)) ?? 0) + 1)
+    const fresh = stmt.transactions.filter((t) => {
+      const k = keyOf(t)
+      const n = already.get(k) ?? 0
+      if (n > 0) {
+        already.set(k, n - 1)
+        return false
+      }
+      return true
+    })
+    const skippedDuplicates = stmt.transactions.length - fresh.length
+    if (stmt.transactions.length > 0 && fresh.length === 0) {
+      throw new ConflictException(
+        `Alle ${stmt.transactions.length} Umsätze dieses Kontoauszugs sind bereits importiert — nichts Neues.`,
+      )
+    }
+
     // Persist. Use the format-appropriate date for the
     // period. If we have an opening/closing balance, we
     // also write those (helpful for the audit trail).
@@ -79,7 +126,7 @@ export class BankImportService {
         rawContent: content,
         uploadedById,
         transactions: {
-          create: stmt.transactions.map((t) => ({
+          create: fresh.map((t) => ({
             companyId,
             valueDate: t.valueDate,
             entryDate: t.entryDate,
@@ -99,7 +146,7 @@ export class BankImportService {
     // it can contain literal newlines that break JSON
     // encoding in some transport layers.
     const { rawContent: _omit, ...rest } = created as any;
-    return rest;
+    return { ...rest, skippedDuplicates };
   }
 
   /**
