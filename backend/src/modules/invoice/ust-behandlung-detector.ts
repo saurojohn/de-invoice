@@ -1,3 +1,4 @@
+import { normalizeVatId, vatIdFormatProblem } from '../../common/vat-id'
 /**
  * Tier 62: USt-Behandlung auto-detector.
  *
@@ -369,8 +370,11 @@ export function suggestUstBehandlung(input: {
  * the customer does not qualify, or null. "EL" is Greece's VAT prefix.
  */
 export function igLVatIdProblem(vatId: string | null | undefined): string | null {
-  const id = (vatId || '').replace(/\s/g, '')
+  const id = normalizeVatId(vatId) || ''
   if (!id) return 'Der Kunde hat keine USt-IdNr.'
+  // Tier 490: the format too (a number stored before the check existed)
+  const format = vatIdFormatProblem(id)
+  if (format) return format
   const raw = extractVatCountry(id)
   const cc = raw === 'EL' ? 'GR' : raw
   if (!cc || !EU_COUNTRY_CODES.has(cc)) return `Die USt-IdNr. ${id} ist keine eines EU-Mitgliedstaats.`

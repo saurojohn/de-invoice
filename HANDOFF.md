@@ -2550,6 +2550,26 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### The USt-IdNr. is normalised and its EU format checked (Tier 490)
+
+Measured (spec 276, 9 assertions fail on the old code): a customer's
+USt-IdNr. was stored as typed — "fr 12 345 678 901", "CHE-123.456.789" —
+"FR1" and the Greek "GR123456789" (Greece's prefix is EL) were accepted, a
+supplier's "DE12" too, the company's own number lower case with spaces; and
+Tier 486's igL check, reading the prefix only, issued tax-free igL invoices to
+"FR1". `src/common/vat-id.ts`: `normalizeVatId` (upper case, no spaces /
+dots / dashes), `vatIdFormatProblem` (the VIES format of each member state +
+XI; GR → "use EL"; non-EU numbers left alone), `withCheckedVatId` for
+create / update payloads. Applied to customers (create, update, CSV import —
+the row is reported), suppliers, the company, and inside `igLVatIdProblem`
+(a number stored before this tier). Because the customer form sends the
+number with every save, a customer with an old malformed number can be saved
+again only once it is corrected (the message says why).
+Local runs: backend **275 / 0 / 1**; 1 × 5xx in ErrorEvent — the 503 of spec 257
+(Tier 471) probing `GET /customers` while it restarts the database ("Server
+has closed the connection"): the intended answer, recorded this time because
+the write got through after the restart. Playwright **949**.
+
 ### A supplier invoice is entered once (Tier 489)
 
 Measured: invoice RE-4711 of one supplier entered three times (twice via

@@ -16,6 +16,7 @@
  * path with VAT recovery.
  */
 
+import { withCheckedVatId } from '../../common/vat-id'
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { VatValidationService } from '../vat-validation/vat-validation.service';
@@ -72,6 +73,7 @@ export class SupplierService {
 
   async create(companyId: string, data: any) {
     if (!data.name) throw new BadRequestException('Name ist erforderlich');
+    data = withCheckedVatId(data); // Tier 490
     if (!data.address) data.address = {};
     const created = await this.prisma.supplier.create({
       data: {
@@ -119,6 +121,7 @@ export class SupplierService {
   async update(id: string, companyId: string, data: any) {
     const existing = await this.prisma.supplier.findFirst({ where: { id, companyId } });
     if (!existing) throw new NotFoundException('Lieferant nicht gefunden');
+    data = withCheckedVatId(data); // Tier 490
     const updated = await this.prisma.supplier.update({
       where: { id },
       data: {

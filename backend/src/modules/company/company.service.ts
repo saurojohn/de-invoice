@@ -1,3 +1,4 @@
+import { withCheckedVatId } from '../../common/vat-id';
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
@@ -10,6 +11,7 @@ export class CompanyService {
   }
 
   async update(id: string, data: any) {
-    return this.prisma.company.update({ where: { id }, data });
+    // Tier 490: the company's own USt-IdNr. (on every invoice) normalised and checked
+    return this.prisma.company.update({ where: { id }, data: withCheckedVatId(data) });
   }
 }

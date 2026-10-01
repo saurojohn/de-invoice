@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException, ConflictException, Logger } from '@nestjs/common';
+import { normalizeVatId, vatIdFormatProblem, withCheckedVatId } from '../../common/vat-id'
 import { businessDayIso, businessTodayIso } from '../../common/business-date'
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -926,6 +927,8 @@ export class CustomerService {
   }
 
   async create(companyId: string, data: any) {
+    // Tier 490: the USt-IdNr. normalised and checked (common/vat-id.ts)
+    data = withCheckedVatId(data)
     // Defensive: re-fetch by email to surface a 409 cleanly when the
     // frontend's pre-check missed (e.g. concurrent import).
     if (data.contact?.email) {
@@ -1083,6 +1086,8 @@ export class CustomerService {
   async update(id: string, companyId: string, data: any) {
     // Verify the customer belongs to this company before updating
     const existing = await this.findOne(id, companyId)
+    // Tier 490: the USt-IdNr. normalised and checked (common/vat-id.ts)
+    data = withCheckedVatId(data)
     const updated = await this.prisma.customer.update({
       where: { id: existing.id },
       data,
@@ -1560,7 +1565,13 @@ export class CustomerService {
             continue
           }
         }
-        const vatId = (row.vatId || '').trim() || null
+        // Tier 490: normalised; a malformed EU number is reported, not imported
+        const vatId = normalizeVatId(row.vatId)
+        const vatProblem = vatIdFormatProblem(vatId)
+        if (vatProblem) {
+          result.errors.push({ row: rowNum, error: vatProblem, name })
+          continue
+        }
         const type = (row.type || 'business').trim() === 'individual' ? 'individual' : 'business'
         const country = (row.country || 'DE').trim() || 'DE'
         const paymentTermsRaw = Number(row.paymentTerms)
