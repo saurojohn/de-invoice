@@ -185,11 +185,10 @@ function CreateInvoicePageInner() {
     referenceInvoiceId: "",
     issueDate: new Date().toISOString().split("T")[0],
     dueDate: "",
-    // Default the Liefertermin to today. Most invoices are
+    // Default the Leistungsdatum to today. Most invoices are
     // issued and delivered the same day, and a pre-filled date
-    // is easier to clear than to type. The PDF will show
-    // "Liefertermin: <today>" by default; the user can clear
-    // the input to hide the row on the PDF.
+    // is easier to change than to type. Cleared, the PDF states
+    // the issue date (Tier 492: § 14 Abs. 4 Nr. 6 UStG).
     deliveryDate: new Date().toISOString().split("T")[0],
     notes: "",
     discountPercent: 0,
@@ -1690,8 +1689,8 @@ function CreateInvoicePageInner() {
                 })()}
               </div>
 
-              {/* Liefertermin (delivery date) — optional, shown on
-                  the PDF when set. Fälligkeitsdatum is intentionally
+              {/* Leistungsdatum (date of supply) — the issue date
+                  stands in on the PDF when it is left empty. Fälligkeitsdatum is intentionally
                   not editable here: it is auto-computed from the
                   Zahlungsziel dropdown at the top of this section
                   and stored when the invoice is created. The user

@@ -483,14 +483,15 @@ export async function generateInvoicePDF(
     }
     doc.text("Ausstellungsdatum:", detailsLabelX, detailsY + detailsRow * 15, { width: 100, align: "right", lineBreak: false })
     detailsRow++
-    // Liefertermin / delivery date — optional. Only shown on
-    // the PDF (and on the invoice detail page) when set, so
-    // invoices without a delivery date look identical to
-    // before. §14 UStG doesn't mandate this; it's a
-    // common B2B request so the customer knows when to
-    // expect the goods/service.
-    if ((invoice as any).deliveryDate) {
-      doc.text("Liefertermin:", detailsLabelX, detailsY + detailsRow * 15, { width: 100, align: "right", lineBreak: false })
+    // Tier 492 — the Leistungsdatum is a mandatory invoice field (§ 14 Abs. 4
+    // Nr. 6 UStG), also when it equals the issue date. An invoice without a
+    // recorded one (API, recurring) showed none; it now states the issue date,
+    // as BT-72 in XRechnung / ZUGFeRD does. A Proforma (no supply yet) and a
+    // credit note (its invoice's date applies) show a set date only.
+    const leistungsdatum = (invoice as any).deliveryDate
+      ?? (["PI", "CN"].includes((invoice as any).type) ? null : invoice.issueDate)
+    if (leistungsdatum) {
+      doc.text("Leistungsdatum:", detailsLabelX, detailsY + detailsRow * 15, { width: 100, align: "right", lineBreak: false })
       detailsRow++
     }
     if (company.vatId) {
@@ -513,8 +514,8 @@ export async function generateInvoicePDF(
     }
     doc.text(formatDate(invoice.issueDate), detailsValueX, detailsY + detailsRow * 15, { width: detailsValueWidth, align: "right", lineBreak: false })
     detailsRow++
-    if ((invoice as any).deliveryDate) {
-      doc.text(formatDate((invoice as any).deliveryDate), detailsValueX, detailsY + detailsRow * 15, { width: detailsValueWidth, align: "right", lineBreak: false })
+    if (leistungsdatum) {
+      doc.text(formatDate(leistungsdatum), detailsValueX, detailsY + detailsRow * 15, { width: detailsValueWidth, align: "right", lineBreak: false })
       detailsRow++
     }
     if (company.vatId) {

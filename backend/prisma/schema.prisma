@@ -715,13 +715,10 @@ model Invoice {
 
   issueDate    DateTime
   dueDate      DateTime?
-  // Liefertermin / delivery date — optional. Shown on the
-  // PDF next to issueDate when set. §14 UStG doesn't
-  // require it, but it's a common B2B practice to put
-  // the service-delivery date on an invoice (and
-  // relevant for §13b reverse-charge / §25 UStG
-  // time-of-supply rules). Left as optional so existing
-  // rows don't need a value.
+  // Leistungsdatum / date of supply — a mandatory invoice
+  // field (§ 14 Abs. 4 Nr. 6 UStG). Optional here: when it
+  // is not recorded, the PDF and the e-invoice (BT-72) state
+  // the issue date (Tier 492).
   deliveryDate DateTime?
 
   subtotal        Decimal  @default(0) @db.Decimal(12, 4)

@@ -1722,8 +1722,9 @@ export default function InvoiceDetailPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div><div className="text-sm text-gray-500 dark:text-gray-400">Ausstellungsdatum</div><div>{formatDate(invoice.issueDate)}</div></div>
                 <div><div className="text-sm text-gray-500 dark:text-gray-400">Fälligkeitsdatum</div><div>{formatDate(invoice.dueDate)}</div></div>
-                {invoice.deliveryDate && (
-                  <div><div className="text-sm text-gray-500 dark:text-gray-400">Liefertermin</div><div>{formatDate(invoice.deliveryDate)}</div></div>
+                {/* Tier 492: the Leistungsdatum (§ 14 UStG) — the issue date when none is recorded, as on the PDF */}
+                {(invoice.deliveryDate || !["PI", "CN"].includes(invoice.type)) && (
+                  <div data-testid="leistungsdatum"><div className="text-sm text-gray-500 dark:text-gray-400">Leistungsdatum</div><div>{formatDate(invoice.deliveryDate || invoice.issueDate)}</div></div>
                 )}
                 <div><div className="text-sm text-gray-500 dark:text-gray-400">Rechnungsart</div><div>{invoice.type}</div></div>
                 <div><div className="text-sm text-gray-500 dark:text-gray-400">Währung</div><div>{invoice.currency}</div></div>

@@ -2553,6 +2553,25 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### The Leistungsdatum on the invoice PDF (Tier 492)
+
+§ 14 Abs. 4 Nr. 6 UStG: the date of supply is a mandatory invoice field,
+also when it equals the issue date. The create form pre-fills it, but an
+invoice created through the API or by a recurring schedule has no
+`deliveryDate` — its PDF stated no date of supply at all, and a recorded
+one was labelled "Liefertermin" (spec 278: 4 assertions fail on the old
+code). The schema comment even claimed § 14 did not require it.
+
+- PDF: "Leistungsdatum:" with the recorded date, or the issue date — as
+  BT-72 in XRechnung / ZUGFeRD (Tier 414) already did. A Proforma (no supply
+  yet) and a credit note show a recorded date only.
+- Invoice detail page: the same row and fallback; create form label
+  "Leistungsdatum (optional)" with the hint that the issue date stands in.
+
+A Leistungs*zeitraum* (monthly services) is not modelled; a recurring
+invoice for a past month states its issue date — enter the period in the
+line text until then.
+
 ### Zusammenfassende Meldung (Tier 491)
 
 § 18a UStG: a company with innergemeinschaftliche Lieferungen or B2B services
