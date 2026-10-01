@@ -9,18 +9,19 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–490 are
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–491 are
   in `git log`; §8 records what each learned. Tiers 443–462 came from the
-  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 490.)
+  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 491.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 36860848364 / commit `063de8e`, Tier 490):**
-  - Backend e2e: **275 passed / 0 failed / 1 skipped** of 276 specs — 100
-    two-digit + 176 three-digit (Tier 490 added `276-tier490-ustid-format.sh`,
+- **Test counts (last green CI, run 36873118610 / commit `48f5231`, Tier 491):**
+  - Backend e2e: **276 passed / 0 failed / 1 skipped** of 277 specs — 100
+    two-digit + 177 three-digit (Tier 491 added `277-tier491-zusammenfassende-meldung.sh`,
+    Tier 490 added `276-tier490-ustid-format.sh`,
     Tier 489 added `275-tier489-eingangsrechnung-doppelt.sh`,
     Tier 488 added `274-tier488-kontoauszug-doppelt.sh`,
     Tier 487 added `273-tier487-igl-13b-ohne-ust.sh`,
@@ -119,7 +120,8 @@ exact commands + docs you need to be productive.
     and survives concurrent writes (Tier 367); spec 171 (new in Tier 368) asserts
     the auth audit rows exist at all and are signed — nothing had ever asserted
     on them, which is how a failed login for an unknown e-mail went unaudited.
-  - Playwright: **949 passed / 0 failed / 0 skipped / 0 flaky** (Tier 483
+  - Playwright: **950 passed / 0 failed / 0 skipped / 0 flaky** (Tier 491
+    added `zm-tier491.spec.ts`; Tier 483
     added `ustva-payment-tier483.spec.ts`, Tier 484 a second test in it; Tier 473
     added `final-invoice-tier473.spec.ts`, Tier 475 a second test in it; run
     36231779527 on Tier 461 had 1 flaky — `list-pages.spec.ts` "Invoices
