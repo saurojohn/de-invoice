@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import UstPaymentsCard from "./UstPaymentsCard"
+import ZmCard from "./ZmCard"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { ApiError, apiDelete, apiFetch, apiGet, apiPost, apiPut } from "@/lib/api"
@@ -1236,6 +1237,8 @@ function UstvaPageInner() {
             </Card>
             {/* Tier 484: UStJA / Sondervorauszahlung / other Finanzamt payments */}
             <UstPaymentsCard />
+            {/* Tier 491: Zusammenfassende Meldung */}
+            <ZmCard />
           </>
         )}
         {downloadError && (

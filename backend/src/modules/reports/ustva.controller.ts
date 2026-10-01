@@ -82,6 +82,50 @@ export class UstvaController {
     await this.ustva.renderPdf(companyId, year, month, res)
   }
 
+  // Tier 491: Zusammenfassende Meldung (§ 18a UStG) — per month or quarter
+  @Get('zm')
+  @Require('ustva.read')
+  async getZm(
+    @Query('companyId') companyId: string,
+    @Query('year') yearRaw?: string,
+    @Query('quarter') quarterRaw?: string,
+    @Query('month') monthRaw?: string,
+  ) {
+    const { year, quarter, month } = this.zmPeriod(companyId, yearRaw, quarterRaw, monthRaw)
+    return this.ustva.computeZm(companyId, year, quarter, month)
+  }
+
+  @Get('zm.csv')
+  @Require('ustva.read')
+  async getZmCsv(
+    @Res() res: Response,
+    @Query('companyId') companyId: string,
+    @Query('year') yearRaw?: string,
+    @Query('quarter') quarterRaw?: string,
+    @Query('month') monthRaw?: string,
+  ) {
+    const { year, quarter, month } = this.zmPeriod(companyId, yearRaw, quarterRaw, monthRaw)
+    const zm = await this.ustva.computeZm(companyId, year, quarter, month)
+    const name = `ZM_${year}_${quarter ? `Q${quarter}` : String(month).padStart(2, '0')}.csv`
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8')
+    res.setHeader('Content-Disposition', `attachment; filename="${name}"`)
+    res.send(this.ustva.zmCsv(zm))
+  }
+
+  private zmPeriod(companyId: string, yearRaw?: string, quarterRaw?: string, monthRaw?: string) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const year = Number(yearRaw)
+    if (!Number.isInteger(year) || year < 2000 || year > 2100) throw new BadRequestException('year ist ungültig')
+    const quarter = quarterRaw ? Number(quarterRaw) : undefined
+    const month = monthRaw ? Number(monthRaw) : undefined
+    if ((quarter == null) === (month == null)) {
+      throw new BadRequestException('Genau einer von quarter (1–4) oder month (1–12) ist anzugeben')
+    }
+    if (quarter != null && !(Number.isInteger(quarter) && quarter >= 1 && quarter <= 4)) throw new BadRequestException('quarter muss 1–4 sein')
+    if (month != null && !(Number.isInteger(month) && month >= 1 && month <= 12)) throw new BadRequestException('month muss 1–12 sein')
+    return { year, quarter, month }
+  }
+
   // Tier 161: Monatsvergleich USt-Voranmeldung.
   // Returns the last `months` months (default 6) of
   // UStVA aggregates for the dashboard widget. The

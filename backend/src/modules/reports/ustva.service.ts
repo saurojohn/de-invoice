@@ -8,6 +8,7 @@ import { normaliseCountry } from '../invoice/ust-behandlung-detector';
 import { cashBookings } from '../cashbook/cash-bookings';
 import { besteuerungsart, istPaidDocuments } from './ustva-ist';
 import { advancePayments, advanceSettlements } from '../accounting/euer-zufluss';
+import { normalizeVatId } from '../../common/vat-id';
 import { expenseLockReason, expenseLockReasons } from '../expense/expense-lock';
 import { KzEntry, ustvaKennzahlen } from './ust-kennzahlen';
 
@@ -49,6 +50,8 @@ export interface UstvaData {
   reverseChargeSales: number;
   /** Kz 21 — nicht steuerbare sonstige Leistungen an Unternehmer im übrigen Gemeinschaftsgebiet (§ 18b) */
   euServicesSales: number;
+  /** Tier 491: what Kz 41 / Kz 21 hold, per customer USt-IdNr. — the ZM */
+  zm?: Array<{ vatId: string; art: 'L' | 'S'; amount: number }>;
   /** Kz 45 — übrige nicht steuerbare Umsätze (Leistungsort nicht im Inland, außerhalb der EU) */
   nonTaxableOther: number;
 
@@ -114,6 +117,14 @@ export class UstvaService {
   }
 
   async compute(companyId: string, year: number, quarter?: number, month?: number): Promise<UstvaData> {
+    // The ZM entries stay internal (computeZm): the UStVA figures are posted
+    // back to create a filing, whose DTO does not know them.
+    const data = await this.computeWithZm(companyId, year, quarter, month);
+    delete data.zm;
+    return data;
+  }
+
+  private async computeWithZm(companyId: string, year: number, quarter?: number, month?: number): Promise<UstvaData> {
     if (!year || year < 2010 || year > 2100) throw new BadRequestException('Ungültiges Jahr');
     if (quarter !== undefined && (quarter < 1 || quarter > 4)) throw new BadRequestException('Quartal 1-4');
     if (month !== undefined && (month < 1 || month > 12)) throw new BadRequestException('Monat 1-12');
@@ -160,6 +171,17 @@ export class UstvaService {
     let reverseChargeSales = 0;
     let euServicesSales = 0;
     let nonTaxableOther = 0;
+    // Tier 491: the Zusammenfassende Meldung reports what Kz 41 (igL, "L") and
+    // Kz 21 (B2B services in the EU, "S") hold, per customer USt-IdNr. — taken
+    // where those two are added up, so the two always agree.
+    const zm = new Map<string, { vatId: string; art: 'L' | 'S'; amount: number }>();
+    const addZm = (vatId: string, art: 'L' | 'S', net: number) => {
+      const id = normalizeVatId(vatId) || '';
+      const key = `${id}|${art}`;
+      const e = zm.get(key) ?? { vatId: id, art, amount: 0 };
+      e.amount += net;
+      zm.set(key, e);
+    };
     // Tier 417: one classification for zero-rated amounts, used for invoices
     // and — with the original's flags — for their credit notes, which used to
     // be skipped at 0 % (a refunded igL stayed in Kz 41). Signed: a credit
@@ -173,16 +195,21 @@ export class UstvaService {
       const isGermanVatId = vatId.startsWith('DE');
       if (flags.euTransaction === true) {
         igL += net;
+        addZm(vatId, 'L', net);
       } else if (flags.reverseCharge === true) {
         // The customer owes the tax. Abroad in the EU: a B2B service whose
         // place of supply is there (Kz 21); outside the EU: Kz 45; otherwise
         // a domestic § 13b supply (Kz 60). These used to land in "sonstige
         // steuerfreie Umsätze", or in igL for an EU customer with a VAT id.
-        if (country && country !== 'DE' && this.isEUCountry(country)) euServicesSales += net;
+        if (country && country !== 'DE' && this.isEUCountry(country)) {
+          euServicesSales += net;
+          addZm(vatId, 'S', net);
+        }
         else if (country && !this.isEUCountry(country)) nonTaxableOther += net;
         else reverseChargeSales += net;
       } else if (this.isIntraEU(country, vatId, isGermanVatId)) {
         igL += net;
+        addZm(vatId, 'L', net);
       } else if (country && !this.isEUCountry(country)) {
         exportThirdCountry += net;
       } else {
@@ -437,6 +464,7 @@ export class UstvaService {
       otherExempt: Math.round(otherExempt * 100) / 100,
       reverseChargeSales: Math.round(reverseChargeSales * 100) / 100,
       euServicesSales: Math.round(euServicesSales * 100) / 100,
+      zm: [...zm.values()].map((e) => ({ ...e, amount: Math.round(e.amount * 100) / 100 })),
       nonTaxableOther: Math.round(nonTaxableOther * 100) / 100,
       reverseCharge: Math.round(reverseCharge * 100) / 100,
       intraEuAcquisitions: { net: Math.round(igE.net * 100) / 100, vat: Math.round(igE.vat * 100) / 100 },
@@ -883,6 +911,58 @@ export class UstvaService {
 
   async getFiling(companyId: string, filingId: string) {
     return this.prisma.uStvaFiling.findFirst({ where: { id: filingId, companyId } });
+  }
+
+  /**
+   * Tier 491 — Zusammenfassende Meldung (§ 18a UStG), a preview like the
+   * UStJA: per customer USt-IdNr. and kind (L = innergemeinschaftliche
+   * Lieferung, S = sonstige Leistung im übrigen Gemeinschaftsgebiet) the sum
+   * in full euros, taken from the same classification as UStVA Kz 41 / Kz 21
+   * and reconciled with them. Credit notes reduce it in their own period.
+   */
+  async computeZm(companyId: string, year: number, quarter?: number, month?: number) {
+    const data = await this.computeWithZm(companyId, year, quarter, month);
+    const rows = (data.zm ?? [])
+      .filter((e) => Math.abs(e.amount) >= 0.005)
+      .map((e) => ({
+        land: e.vatId.slice(0, 2),
+        ustIdNr: e.vatId.slice(2),
+        art: e.art,
+        betrag: Math.round(e.amount),
+      }))
+      .sort((a, b) => (a.land + a.ustIdNr + a.art).localeCompare(b.land + b.ustIdNr + b.art));
+    const sum = (art: 'L' | 'S') => (data.zm ?? []).filter((e) => e.art === art).reduce((s, e) => s + e.amount, 0);
+    const summeL = Math.round(sum('L') * 100) / 100;
+    const summeS = Math.round(sum('S') * 100) / 100;
+    const hinweise: string[] = [];
+    if (rows.some((r) => !r.ustIdNr)) {
+      hinweise.push('Umsätze ohne USt-IdNr. des Kunden — in der ZM nicht meldefähig; die Rechnungen prüfen (Tier 486).');
+    }
+    return {
+      year,
+      quarter: quarter ?? null,
+      month: month ?? null,
+      periodLabel: data.periodLabel,
+      rows,
+      summen: { L: summeL, S: summeS },
+      abgleich: {
+        kz41: data.igL,
+        kz21: data.euServicesSales,
+        stimmt: Math.abs(summeL - data.igL) < 0.01 && Math.abs(summeS - data.euServicesSales) < 0.01,
+      },
+      hinweise,
+      disclaimer:
+        'Vorschau der Zusammenfassenden Meldung (§ 18a UStG) aus den ausgestellten Rechnungen und Gutschriften ' +
+        'des Zeitraums. Beträge in vollen Euro (Bemessungsgrundlage). Übermittlung an das BZSt über ELSTER / BZStOnline; ' +
+        'das Upload-Format ist vor der ersten Übermittlung zu prüfen. Berichtigungen früherer Zeiträume meldet der Berater.',
+    };
+  }
+
+  /** Tier 491: the ZM as CSV (Länderkennzeichen; USt-IdNr.; Betrag; Art). */
+  zmCsv(zm: Awaited<ReturnType<UstvaService['computeZm']>>): string {
+    const lines = ['Laenderkennzeichen;USt-IdNr;Betrag(EUR);Art der Leistung'];
+    for (const r of zm.rows) lines.push(`${r.land};${r.ustIdNr};${r.betrag};${r.art}`);
+    return lines.join('\r\n') + '\r\n';
   }
 
   /** Tier 484: VAT paid to / refunded by the Finanzamt outside a UStVA. */

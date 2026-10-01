@@ -2551,6 +2551,28 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Zusammenfassende Meldung (Tier 491)
+
+§ 18a UStG: a company with innergemeinschaftliche Lieferungen or B2B services
+in the EU reports them per customer USt-IdNr. The app issued such invoices
+(UStVA Kz 41 / Kz 21) but had no ZM (spec 277: `GET /ustva/zm` 404, 7
+assertions fail on the old code).
+
+- `UstvaService.compute` collects the ZM entries where it adds up Kz 41 (igL,
+  kind **L**) and Kz 21 (EU B2B services, kind **S**) — per normalised
+  USt-IdNr. (`zm` in the UStVA data) — so ZM and UStVA always agree.
+- `GET /ustva/zm?year&quarter|month` — rows {land, ustIdNr, art, betrag in
+  full euros}, sums, `abgleich` with Kz 41 / Kz 21 (`stimmt`), hints (an
+  entry without USt-IdNr.), disclaimer. `GET /ustva/zm.csv` —
+  Länderkennzeichen;USt-IdNr;Betrag;Art. A credit note counts in its own
+  period (a negative row); corrections of an earlier period are the
+  Berater's.
+- UI: card "Zusammenfassende Meldung — Vorschau" on the UStVA page (year,
+  quarter, table, reconciliation, CSV); Playwright `zm-tier491.spec.ts`.
+
+The CSV is a plain export — the BZSt upload format (BZStOnline / ELMA) is to
+be verified before the first submission (HANDOFF §9, with the ELSTER XML).
+
 ### The USt-IdNr. is normalised and its EU format checked (Tier 490)
 
 Measured (spec 276, 9 assertions fail on the old code): a customer's
@@ -6371,7 +6393,9 @@ These are **not in the repo** — only the user can do them:
    Anlage AUS uses for § 8b KStG; "GmbH & Co. KG" is no Kapitalgesellschaft.
 8. **Hetzner VPS IP + SSH key** — for `infra/prod/HETZNER-DEPLOY.sh`
    (DNS A record, deploy). `sudo` only for `scripts/fix-dev-pg.sh`.
-9. **Verify the ELSTER UStVA XML format against the official schema** (found
+9. **Verify the ELSTER UStVA XML format against the official schema** — and,
+   since Tier 491, the ZM CSV (`GET /ustva/zm.csv`) against the BZSt upload
+   format before the first Zusammenfassende Meldung is filed (found
    Tier 371). `src/modules/reports/elster.service.ts` says its output is "ERiC
    Datenlieferungs-XML … following the official ERiC 32.x schema" and "one
    upload away from being filed". What it actually writes is a `<Datenlieferung>`
