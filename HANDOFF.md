@@ -2557,6 +2557,23 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### E-mailing a draft issues it the regular way (Tier 495)
+
+`InvoiceEmailService.sendInvoiceByEmail` wrote `status: 'sent'` straight
+onto a draft after the mail had gone out. Measured (spec 281, 9 assertions
+fail on the old code): that skipped Tier 494 — an invoice without the
+mandatory details went out by e-mail —, Tier 472 — a final invoice e-mailed
+as a draft never booked the Proforma's advance, stayed open for the full
+amount and kept the advance in Bilanz 4200 —, and the `invoice.sent`
+webhook. A cancelled invoice could be e-mailed too.
+
+- A cancelled invoice: 400, nothing sent.
+- A draft (with a valid recipient) is issued through
+  `InvoiceService.updateStatus` before the PDF is rendered, then reloaded,
+  so the PDF carries the advance deduction. A refusal (missing details) is
+  a 400 and nothing goes out. Applies to the single send, the bulk sends and
+  a recurring template that e-mails its drafts.
+
 ### An invoice is issued only with its mandatory details (Tier 494)
 
 § 14 Abs. 4 UStG: name and address of supplier and recipient, the

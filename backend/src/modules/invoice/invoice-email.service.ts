@@ -118,7 +118,19 @@ export class InvoiceEmailService {
     companyId: string,
     options: SendInvoiceEmailOptions = {},
   ): Promise<SendInvoiceEmailResult> {
-    const invoice = await this.invoiceService.findOne(invoiceId, companyId);
+    let invoice = await this.invoiceService.findOne(invoiceId, companyId);
+    // Tier 495: a cancelled document is not sent to the customer; a draft is
+    // issued the regular way first (Tier 494 mandatory details, Tier 472
+    // advance settlement, the invoice.sent webhook) — this used to write
+    // 'sent' onto it directly, after the e-mail had gone out.
+    if (invoice.status === 'cancelled') {
+      throw new BadRequestException('Eine stornierte Rechnung wird nicht versendet.');
+    }
+    const recipientCheck = ((options.overrideTo || (invoice.customer?.contact as any)?.email || '') as string).trim();
+    if (invoice.status === 'draft' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientCheck)) {
+      await this.invoiceService.updateStatus(invoiceId, companyId, 'sent');
+      invoice = await this.invoiceService.findOne(invoiceId, companyId);
+    }
     const company = await this.prisma.company.findUnique({ where: { id: companyId } });
     const customer = invoice.customer;
 
@@ -238,15 +250,7 @@ export class InvoiceEmailService {
       ],
     });
 
-    // Mark invoice as sent (best-effort)
-    try {
-      await this.prisma.invoice.update({
-        where: { id: invoiceId },
-        data: { status: invoice.status === 'draft' ? 'sent' : invoice.status },
-      });
-    } catch (e) {
-      this.logger.warn(`could not mark invoice ${invoiceId} as 'sent': ${(e as Error).message}`);
-    }
+    // (Tier 495: a draft was issued above, before the PDF was rendered.)
 
     // Record email send
     const smtpConfigured = await this.mailService.isConfiguredFor(companyId);
