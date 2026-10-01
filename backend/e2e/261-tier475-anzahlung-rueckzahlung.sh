@@ -16,6 +16,7 @@ TAG="e2e-261-$(date +%s%N | cut -c1-13)"
 read -r U C < <(curl -sS -X POST "$API/api/v1/auth/register" -H "Content-Type: application/json" \
   -d "{\"email\":\"$TAG@example.test\",\"password\":\"Tier475-e2e\",\"companyName\":\"$TAG Handel\"}" \
   | python3 -c "import sys,json;d=json.load(sys.stdin);print(d['user']['id'], d['user'].get('companyId') or d['company']['id'])" 2>/dev/null)
+fixture_issuer "$C"
 [[ -n "${C:-}" ]] && pass "fixture: a fresh company" || { fail "register"; summary; exit 1; }
 AS() { # method path [body]
   local resp
@@ -25,7 +26,7 @@ AS() { # method path [body]
 }
 P() { python3 -c "import sys,json;d=json.loads(sys.argv[1]);print(eval(sys.argv[2]))" "$BODY" "$1"; }
 vat19() { AS GET "/api/v1/ustva/compute?companyId=$C&year=$1&month=$2"; P "[(r['net'], r['vat']) for r in d['salesByRate'] if abs(r['rate']-0.19)<1e-9] or [(0, 0)]"; }
-AS POST "/api/v1/customers?companyId=$C" "{\"name\":\"$TAG Kunde\",\"type\":\"business\"}"; K=$(json_field "$BODY" id)
+AS POST "/api/v1/customers?companyId=$C" "{\"name\":\"$TAG Kunde\",\"type\":\"business\",\"address\":{\"street\":\"Teststr. 9\",\"postalCode\":\"10115\",\"city\":\"Berlin\",\"country\":\"DE\"}}"; K=$(json_field "$BODY" id)
 AS POST "/api/v1/invoices?companyId=$C" "{\"customerId\":\"$K\",\"type\":\"PI\",\"issueDate\":\"2025-12-01\",\"items\":[{\"description\":\"Maschine\",\"quantity\":1,\"unit\":\"Stk\",\"unitPrice\":1000,\"vatRate\":0.19}]}"
 PI=$(json_field "$BODY" id)
 AS PUT "/api/v1/invoices/$PI/status?companyId=$C" '{"status":"sent"}'

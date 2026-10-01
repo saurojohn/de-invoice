@@ -25,7 +25,7 @@ AS() { # method path body
   STATUS=$(echo "$resp" | tail -n1); BODY=$(echo "$resp" | sed '$d')
 }
 fixture() { # vatRate-of-sale
-  AS POST "/api/v1/customers?companyId=$C" '{"name":"Kunde AG","type":"business"}'; local k; k=$(json_field "$BODY" id)
+  AS POST "/api/v1/customers?companyId=$C" '{"name":"Kunde AG","type":"business","address":{"street":"Teststr. 9","postalCode":"10115","city":"Berlin","country":"DE"}}'; local k; k=$(json_field "$BODY" id)
   AS POST "/api/v1/invoices?companyId=$C" "{\"customerId\":\"$k\",\"issueDate\":\"$YEAR-08-10\",\"items\":[{\"description\":\"a\",\"quantity\":1,\"unit\":\"Stk\",\"unitPrice\":1000,\"vatRate\":$1}]}"
   local id total; id=$(json_field "$BODY" id); total=$(json_field "$BODY" total)
   AS PUT "/api/v1/invoices/$id/status?companyId=$C" '{"status":"sent"}'
@@ -43,6 +43,7 @@ euer() { AS GET "/api/v1/accounting/euer?companyId=$C&year=$YEAR"; python3 -c "i
 
 note "=== 1. a business that deducts input tax: expenses at net ==="
 read -r U C < <(company "e2e-208a-$(date +%s%N | cut -c1-13)")
+fixture_issuer "$C"
 [[ -n "${C:-}" ]] && pass "fixture: a fresh company" || { fail "register"; summary; exit 1; }
 fixture 0.19
 assert_eq "GuV Jahresüberschuss 700 (was 643)" "$(guv)" "700"
@@ -53,6 +54,7 @@ assert_eq "EÜR Gewinn 700 — the three now agree" "$(euer)" "700"
 
 note "=== 2. a Kleinunternehmer: expenses at gross ==="
 read -r U C < <(company "e2e-208b-$(date +%s%N | cut -c1-13)")
+fixture_issuer "$C"
 AS PUT "/api/v1/companies/$C?companyId=$C" '{"defaultVatMode":"kleinunternehmer"}'
 assert_eq "company set to Kleinunternehmer" "$STATUS" "200"
 fixture 0

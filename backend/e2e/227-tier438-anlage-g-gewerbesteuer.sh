@@ -25,6 +25,7 @@ company() {
   read -r U C < <(curl -sS -X POST "$API/api/v1/auth/register" -H "Content-Type: application/json" \
     -d "{\"email\":\"$1@example.test\",\"password\":\"Tier438-e2e\",\"companyName\":\"$1 Handel\"}" \
     | python3 -c "import sys,json;d=json.load(sys.stdin);print(d['user']['id'], d['user'].get('companyId') or d['company']['id'])" 2>/dev/null)
+fixture_issuer "$C"
   curl -sS -o /dev/null -X PUT "$API/api/v1/companies/$C" -H "x-user-id: $U" -H "x-company-id: $C" \
     -H "Content-Type: application/json" -d '{"rechtsform":"Einzelunternehmen"}'
 }
@@ -36,7 +37,7 @@ AS() { # method path [body]
 }
 py() { echo "$BODY" | python3 -c "import sys,json;d=json.load(sys.stdin);$1"; }
 revenue() { # net
-  AS POST "/api/v1/customers?companyId=$C" '{"name":"'$TAG' Kunde","type":"business"}'
+  AS POST "/api/v1/customers?companyId=$C" '{"name":"'$TAG' Kunde","type":"business","address":{"street":"Teststr. 9","postalCode":"10115","city":"Berlin","country":"DE"}}'
   local cust inv; cust=$(json_field "$BODY" id)
   AS POST "/api/v1/invoices?companyId=$C" '{"customerId":"'$cust'","issueDate":"'$Y'-03-01","items":[{"description":"Leistung","quantity":1,"unit":"Stk","unitPrice":'$1',"vatRate":0.19}]}'
   local total; inv=$(json_field "$BODY" id); total=$(json_field "$BODY" total)

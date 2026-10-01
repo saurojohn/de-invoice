@@ -20,6 +20,7 @@ SUP=$(json_field "$BODY" id)
 REG=$(curl -s -X POST "$API/api/v1/auth/register" -H "Content-Type: application/json" \
   -d "{\"email\":\"$TAG@example.test\",\"password\":\"Tier390-e2e\",\"companyName\":\"$TAG other\"}")
 read -r UB CB < <(echo "$REG" | python3 -c "import sys,json;d=json.load(sys.stdin);print(d['user']['id'], d['user'].get('companyId') or d['company']['id'])" 2>/dev/null)
+fixture_issuer "$CB"
 [[ -n "$SUP" && -n "${CB:-}" ]] && pass "fixtures: a supplier of this company, another company" || { fail "fixtures"; summary; exit 1; }
 expense() { # extra-json
   printf '{"description":"%s","invoiceDate":"2026-09-01","netAmount":100,"vatRate":0.19%s}' "$TAG" "$1"
@@ -50,7 +51,7 @@ AS_B() { # method path body
   STATUS=$(echo "$resp" | tail -n1); BODY=$(echo "$resp" | sed '$d')
 }
 QB="companyId=$CB"
-AS_B POST "/api/v1/customers?$QB" "{\"name\":\"$TAG B Kunde\",\"type\":\"business\"}"; B_CUST=$(json_field "$BODY" id)
+AS_B POST "/api/v1/customers?$QB" "{\"name\":\"$TAG B Kunde\",\"type\":\"business\",\"address\":{\"street\":\"Teststr. 9\",\"postalCode\":\"10115\",\"city\":\"Berlin\",\"country\":\"DE\"}}"; B_CUST=$(json_field "$BODY" id)
 AS_B POST "/api/v1/invoices?$QB" "{\"customerId\":\"$B_CUST\",\"issueDate\":\"2026-09-01\",\"items\":[{\"description\":\"$TAG\",\"quantity\":1,\"unit\":\"Stk\",\"unitPrice\":10,\"vatRate\":0.19}]}"; B_INV=$(json_field "$BODY" id)
 AS_B PUT "/api/v1/invoices/$B_INV/status?$QB" '{"status":"sent"}'  # Tier 462: a payment needs an issued invoice
 AS_B POST "/api/v1/cashbook/entries?$QB" '{"businessDate":"2026-09-01","type":"eroeffnung","description":"Eröffnung","amount":100}'
@@ -59,8 +60,9 @@ assert_status 201 "B: opening balance"
 REG_C=$(curl -s -X POST "$API/api/v1/auth/register" -H "Content-Type: application/json" \
   -d "{\"email\":\"$TAG-c@example.test\",\"password\":\"Tier390-e2e\",\"companyName\":\"$TAG c\"}")
 read -r UC CC < <(echo "$REG_C" | python3 -c "import sys,json;d=json.load(sys.stdin);print(d['user']['id'], d['user'].get('companyId') or d['company']['id'])" 2>/dev/null)
+fixture_issuer "$CC"
 C_CUST=$(curl -s -X POST "$API/api/v1/customers?companyId=$CC" -H "x-user-id: $UC" -H "x-company-id: $CC" -H "Content-Type: application/json" \
-  -d "{\"name\":\"$TAG C Kunde\",\"type\":\"business\"}" | python3 -c "import sys,json;print(json.load(sys.stdin)['id'])" 2>/dev/null)
+  -d "{\"name\":\"$TAG C Kunde\",\"type\":\"business\",\"address\":{\"street\":\"Teststr. 9\",\"postalCode\":\"10115\",\"city\":\"Berlin\",\"country\":\"DE\"}}" | python3 -c "import sys,json;print(json.load(sys.stdin)['id'])" 2>/dev/null)
 A_INV=$(curl -s -X POST "$API/api/v1/invoices?companyId=$CC" -H "x-user-id: $UC" -H "x-company-id: $CC" -H "Content-Type: application/json" \
   -d "{\"customerId\":\"$C_CUST\",\"issueDate\":\"2026-09-01\",\"items\":[{\"description\":\"$TAG C\",\"quantity\":1,\"unit\":\"Stk\",\"unitPrice\":10,\"vatRate\":0.19}]}" | python3 -c "import sys,json;print(json.load(sys.stdin)['id'])" 2>/dev/null)
 [[ -n "$B_INV" && -n "$A_INV" ]] && pass "fixtures: an invoice in B and in a third company" || fail "invoice fixtures"

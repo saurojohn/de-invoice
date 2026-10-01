@@ -20,6 +20,7 @@ TODAY=$(python3 -c "import datetime, zoneinfo;print(datetime.datetime.now(zonein
 read -r U C < <(curl -sS -X POST "$API/api/v1/auth/register" -H "Content-Type: application/json" \
   -d "{\"email\":\"$TAG@example.test\",\"password\":\"Tier479-e2e\",\"companyName\":\"$TAG Handel\"}" \
   | python3 -c "import sys,json;d=json.load(sys.stdin);print(d['user']['id'], d['user'].get('companyId') or d['company']['id'])" 2>/dev/null)
+fixture_issuer "$C"
 [[ -n "${C:-}" ]] && pass "fixture: a fresh company (today in Germany: $TODAY)" || { fail "register"; summary; exit 1; }
 AS() { # method path [body]
   local resp
@@ -28,7 +29,7 @@ AS() { # method path [body]
   STATUS=$(echo "$resp" | tail -n1); BODY=$(echo "$resp" | sed '$d')
 }
 P() { python3 -c "import sys,json;d=json.loads(sys.argv[1]);print(eval(sys.argv[2]))" "$BODY" "$1"; }
-AS POST "/api/v1/customers?companyId=$C" "{\"name\":\"$TAG Kunde\",\"type\":\"business\"}"; K=$(json_field "$BODY" id)
+AS POST "/api/v1/customers?companyId=$C" "{\"name\":\"$TAG Kunde\",\"type\":\"business\",\"address\":{\"street\":\"Teststr. 9\",\"postalCode\":\"10115\",\"city\":\"Berlin\",\"country\":\"DE\"}}"; K=$(json_field "$BODY" id)
 
 note "=== voucher Storno ==="
 AS GET "/api/v1/accounting/accounts/seed?companyId=$C"

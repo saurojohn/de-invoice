@@ -25,7 +25,7 @@ login
 CUSTOMER_RESP=$(curl -sS -X POST "$API/api/v1/customers?companyId=$COMPANY_ID" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
   -H "Content-Type: application/json" \
-  -d '{"name":"Tier217 Customer","address":{"city":"Berlin","country":"DE"}}')
+  -d '{"name":"Tier217 Customer","address":{"street":"Teststr. 9","postalCode":"10115","city":"Berlin","country":"DE"}}')
 CUSTOMER_ID=$(echo "$CUSTOMER_RESP" | python3 -c "import sys,json;print(json.load(sys.stdin).get('id',''))")
 if [[ -z "$CUSTOMER_ID" ]]; then
   fail "could not create test customer: $CUSTOMER_RESP"

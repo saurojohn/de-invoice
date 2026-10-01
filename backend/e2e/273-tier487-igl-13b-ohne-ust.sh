@@ -17,6 +17,7 @@ TODAY=$(python3 -c "import datetime, zoneinfo;print(datetime.datetime.now(zonein
 read -r U C < <(curl -sS -X POST "$API/api/v1/auth/register" -H "Content-Type: application/json" \
   -d "{\"email\":\"$TAG@example.test\",\"password\":\"Tier487-e2e\",\"companyName\":\"$TAG Handel\"}" \
   | python3 -c "import sys,json;d=json.load(sys.stdin);print(d['user']['id'], d['user'].get('companyId') or d['company']['id'])" 2>/dev/null)
+fixture_issuer "$C"
 [[ -n "${C:-}" ]] && pass "fixture: a fresh company" || { fail "register"; summary; exit 1; }
 AS() { # method path [body]
   local resp
@@ -25,8 +26,8 @@ AS() { # method path [body]
   STATUS=$(echo "$resp" | tail -n1); BODY=$(echo "$resp" | sed '$d')
 }
 P() { python3 -c "import sys,json;d=json.loads(sys.argv[1]);print(eval(sys.argv[2]))" "$BODY" "$1"; }
-AS POST "/api/v1/customers?companyId=$C" '{"name":"FR Kunde","type":"business","vatId":"FR12345678901","address":{"country":"FR"}}'; FR=$(json_field "$BODY" id)
-AS POST "/api/v1/customers?companyId=$C" '{"name":"Bau GmbH","type":"business","vatId":"DE123456789","address":{"country":"DE"}}'; DE=$(json_field "$BODY" id)
+AS POST "/api/v1/customers?companyId=$C" '{"name":"FR Kunde","type":"business","vatId":"FR12345678901","address":{"street":"Rue 1","postalCode":"75001","city":"Paris","country":"FR"}}'; FR=$(json_field "$BODY" id)
+AS POST "/api/v1/customers?companyId=$C" '{"name":"Bau GmbH","type":"business","vatId":"DE123456789","address":{"street":"Bauweg 1","postalCode":"50667","city":"Köln","country":"DE"}}'; DE=$(json_field "$BODY" id)
 inv() { # customer flagjson date
   AS POST "/api/v1/invoices?companyId=$C" "{\"customerId\":\"$1\",\"issueDate\":\"$3\",$2\"items\":[{\"description\":\"Leistung\",\"quantity\":1,\"unit\":\"Stk\",\"unitPrice\":1000,\"vatRate\":0.19}]}"
 }

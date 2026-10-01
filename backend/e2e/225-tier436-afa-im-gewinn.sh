@@ -17,6 +17,7 @@ Y=2025
 read -r U C < <(curl -sS -X POST "$API/api/v1/auth/register" -H "Content-Type: application/json" \
   -d "{\"email\":\"$TAG@example.test\",\"password\":\"Tier436-e2e\",\"companyName\":\"$TAG GmbH\"}" \
   | python3 -c "import sys,json;d=json.load(sys.stdin);print(d['user']['id'], d['user'].get('companyId') or d['company']['id'])" 2>/dev/null)
+fixture_issuer "$C"
 [[ -n "${C:-}" ]] && pass "fixture: a fresh company" || { fail "register"; summary; exit 1; }
 AS() { # method path [body]
   local resp
@@ -31,7 +32,7 @@ AS POST "/api/v1/assets?companyId=$C" '{"type":"Maschine","bezeichnung":"Maschin
 assert_eq "asset created" "$STATUS" "201"
 AS POST "/api/v1/assets/book-afa?companyId=$C&year=$Y"
 assert_eq "AfA $Y booked: 1200" "$(py 'print(d["totalAnnualAfA"])')" "1200"
-AS POST "/api/v1/customers?companyId=$C" '{"name":"'$TAG' Kunde","type":"business"}'
+AS POST "/api/v1/customers?companyId=$C" '{"name":"'$TAG' Kunde","type":"business","address":{"street":"Teststr. 9","postalCode":"10115","city":"Berlin","country":"DE"}}'
 CUST=$(json_field "$BODY" id)
 AS POST "/api/v1/invoices?companyId=$C" '{"customerId":"'$CUST'","issueDate":"'$Y'-03-01","items":[{"description":"Leistung","quantity":1,"unit":"Stk","unitPrice":5000,"vatRate":0.19}]}'
 INV=$(json_field "$BODY" id)

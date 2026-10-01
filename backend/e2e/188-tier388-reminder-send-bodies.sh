@@ -22,6 +22,7 @@ sql() { docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "$1"
 REG=$(curl -s -X POST "$API/api/v1/auth/register" -H "Content-Type: application/json" \
   -d "{\"email\":\"$TAG@example.test\",\"password\":\"Tier388-e2e\",\"companyName\":\"$TAG\"}")
 read -r U C < <(echo "$REG" | python3 -c "import sys,json;d=json.load(sys.stdin);print(d['user']['id'], d['user'].get('companyId') or d['company']['id'])" 2>/dev/null)
+fixture_issuer "$C"
 [[ -n "${C:-}" ]] && pass "fresh company" || { fail "register failed"; summary; exit 1; }
 TMPD=$(mktemp -d)
 req() { # method path [body-file]
@@ -38,7 +39,7 @@ json() { local name="$1" fmt="$2"; shift 2; printf "$fmt" "$@" > "$TMPD/$name.js
 Q="companyId=$C"
 MAIL="kunde-$TAG@example.test"
 
-f=$(json cust '{"name":"%s Kunde","type":"business","contact":{"email":"%s"}}' "$TAG" "$MAIL")
+f=$(json cust '{"name":"%s Kunde","type":"business","contact":{"email":"%s"},"address":{"street":"Teststr. 9","postalCode":"10115","city":"Berlin","country":"DE"}}' "$TAG" "$MAIL")
 req POST "/api/v1/customers?$Q" "$f"; CUST=$(json_field "$BODY" id)
 invoice() { # status
   local f id

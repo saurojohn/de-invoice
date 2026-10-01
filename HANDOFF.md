@@ -2556,6 +2556,32 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### An invoice is issued only with its mandatory details (Tier 494)
+
+§ 14 Abs. 4 UStG: name and address of supplier and recipient, the
+supplier's Steuernummer or USt-IdNr. Measured: a freshly registered company
+(empty address, no tax number) issued a 1 190 € invoice to a customer
+without an address — `PUT …/status {"status":"sent"}` 200. The recipient of
+such an invoice loses the input-tax deduction. User decision: block.
+
+- `src/modules/invoice/mandatory-details.ts` (`missingInvoiceDetails`,
+  `assertInvoiceDetails`): the company's name and address (street, PLZ,
+  city); above 250 € gross also its Steuernummer or USt-IdNr. and the
+  customer's name and address. Kleinbetragsrechnung (≤ 250 €, § 33 UStDV):
+  name and address of the supplier only — not for igL / § 13b.
+- Checked on draft → issued in `updateStatus` (not for a credit note, which
+  is created from an issued invoice) and in a recurring run whose template
+  issues its invoices (`invoiceStatus: 'sent'`) — the run fails with the
+  list and is retried on the next tick. 400 names everything missing; the
+  UI shows it as the toast it already showed for status errors.
+- Test fixtures: `fixture_issuer "$C"` in `e2e/_lib.sh` fills the address
+  and tax number of a freshly registered company (only what is empty);
+  customers in the fixtures got addresses. Spec 280.
+
+Existing users without an address / tax number in their company profile
+must complete it before their next invoice; existing customers without an
+address too (above 250 €).
+
 ### The Leistungszeitraum (Tier 493)
 
 A recurring service or a project is supplied over a period (§ 14 Abs. 4

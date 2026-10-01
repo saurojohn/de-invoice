@@ -12,6 +12,7 @@ import { InvoiceEmailService } from '../invoice/invoice-email.service';
 import { ExchangeRateService } from '../exchange-rate/exchange-rate.service';
 import { nextInvoiceNumber } from '../invoice/invoice-number'
 import { resolveDueDate } from '../invoice/due-date';
+import { assertInvoiceDetails } from '../invoice/mandatory-details'
 
 /**
  * Recurring invoice (Abo-Rechnung) service.
@@ -933,6 +934,17 @@ export class RecurringService {
       }
       const toEur4 = (v: number) =>
         (invoiceCurrency === 'EUR' ? v : Math.round((v / exchangeRate) * 10000) / 10000).toFixed(4)
+
+      // Tier 494: a template that issues its invoices ('sent') needs the
+      // mandatory details as a manual issue does; the run fails with the
+      // list of what is missing (and is retried on the next tick).
+      if ((tpl.invoiceStatus || 'draft') !== 'draft') {
+        const [co, cu] = await Promise.all([
+          tx.company.findUnique({ where: { id: companyId } }),
+          tx.customer.findFirst({ where: { id: tpl.customerId, companyId } }),
+        ])
+        assertInvoiceDetails({ total: total4, eurTotal: toEur4(total4) }, co ?? {}, cu)
+      }
 
       const invoice = await tx.invoice.create({
         data: {

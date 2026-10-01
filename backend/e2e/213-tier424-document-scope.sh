@@ -25,6 +25,7 @@ TO=$(python3 -c "import datetime,calendar;d=datetime.date.today();print(d.replac
 read -r U C < <(curl -sS -X POST "$API/api/v1/auth/register" -H "Content-Type: application/json" \
   -d "{\"email\":\"$TAG@example.test\",\"password\":\"Tier424-e2e\",\"companyName\":\"$TAG GmbH\"}" \
   | python3 -c "import sys,json;d=json.load(sys.stdin);print(d['user']['id'], d['user'].get('companyId') or d['company']['id'])" 2>/dev/null)
+fixture_issuer "$C"
 [[ -n "${C:-}" ]] && pass "fixture: a fresh company" || { fail "register"; summary; exit 1; }
 AS() { # method path body
   local resp
@@ -33,7 +34,7 @@ AS() { # method path body
   STATUS=$(echo "$resp" | tail -n1); BODY=$(echo "$resp" | sed '$d')
 }
 P() { python3 -c "import sys,json;d=json.loads(sys.argv[1]);print(eval(sys.argv[2]))" "$BODY" "$1"; }
-AS POST "/api/v1/customers?companyId=$C" "{\"name\":\"$TAG Kunde\",\"type\":\"business\"}"; K=$(json_field "$BODY" id)
+AS POST "/api/v1/customers?companyId=$C" "{\"name\":\"$TAG Kunde\",\"type\":\"business\",\"address\":{\"street\":\"Teststr. 9\",\"postalCode\":\"10115\",\"city\":\"Berlin\",\"country\":\"DE\"}}"; K=$(json_field "$BODY" id)
 doc() { # type price rate status
   AS POST "/api/v1/invoices?companyId=$C" "{\"customerId\":\"$K\",\"type\":\"$1\",\"issueDate\":\"$TODAY\",\"items\":[{\"description\":\"$1\",\"quantity\":1,\"unit\":\"Stk\",\"unitPrice\":$2,\"vatRate\":$3}]}"
   local id; id=$(json_field "$BODY" id)
@@ -70,7 +71,7 @@ assert_eq "the Quittung on 8300 with key 2, no Proforma row" \
   "$(datev_rows /tmp/t424.csv | awk -F'\t' '{print substr($1,1,3) ":" $4 ":" $5 ":" $7}' | sort | tr '\n' ' ')" "INV:8400:595.00:3 RCV:8300:107.00:2 "
 
 note "=== 5. the customer statement counts a credit note once ==="
-AS POST "/api/v1/customers?companyId=$C" "{\"name\":\"$TAG Konto\",\"type\":\"business\"}"; K=$(json_field "$BODY" id)
+AS POST "/api/v1/customers?companyId=$C" "{\"name\":\"$TAG Konto\",\"type\":\"business\",\"address\":{\"street\":\"Teststr. 9\",\"postalCode\":\"10115\",\"city\":\"Berlin\",\"country\":\"DE\"}}"; K=$(json_field "$BODY" id)
 S=$(doc INV 1000 0.19 sent)
 AS POST "/api/v1/invoices/$S/credit-note?companyId=$C" '{"amount":190}'
 AS GET "/api/v1/customers/$K/statement?companyId=$C&from=$YEAR-01-01&to=$TODAY"

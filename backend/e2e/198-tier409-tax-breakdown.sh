@@ -23,6 +23,7 @@ sql() { docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "$1"
 read -r U C < <(curl -sS -X POST "$API/api/v1/auth/register" -H "Content-Type: application/json" \
   -d "{\"email\":\"$TAG@example.test\",\"password\":\"Tier409-e2e\",\"companyName\":\"$TAG GmbH\"}" \
   | python3 -c "import sys,json;d=json.load(sys.stdin);print(d['user']['id'], d['user'].get('companyId') or d['company']['id'])" 2>/dev/null)
+fixture_issuer "$C"
 [[ -n "${C:-}" ]] && pass "fixture: a fresh company" || { fail "register"; summary; exit 1; }
 AS() { # method path body
   local resp
@@ -30,7 +31,7 @@ AS() { # method path body
     -H "Content-Type: application/json" ${3:+-d "$3"})
   STATUS=$(echo "$resp" | tail -n1); BODY=$(echo "$resp" | sed '$d')
 }
-AS POST "/api/v1/customers?companyId=$C" "{\"name\":\"$TAG DE\",\"type\":\"business\"}"; K=$(json_field "$BODY" id)
+AS POST "/api/v1/customers?companyId=$C" "{\"name\":\"$TAG DE\",\"type\":\"business\",\"address\":{\"street\":\"Teststr. 9\",\"postalCode\":\"10115\",\"city\":\"Berlin\",\"country\":\"DE\"}}"; K=$(json_field "$BODY" id)
 paid() { # body-fragment → prints invoice id
   AS POST "/api/v1/invoices?companyId=$C" "{\"customerId\":\"$1\",\"issueDate\":\"2026-08-15\",$2}"
   local id total

@@ -20,6 +20,7 @@ TAG="e2e-248-$(date +%s%N | cut -c1-13)"
 read -r U C < <(curl -sS -X POST "$API/api/v1/auth/register" -H "Content-Type: application/json" \
   -d "{\"email\":\"$TAG@example.test\",\"password\":\"Tier459-e2e\",\"companyName\":\"$TAG GmbH\"}" \
   | python3 -c "import sys,json;d=json.load(sys.stdin);print(d['user']['id'], d['user'].get('companyId') or d['company']['id'])" 2>/dev/null)
+fixture_issuer "$C"
 [[ -n "${C:-}" ]] && pass "fixture: a fresh company" || { fail "register"; summary; exit 1; }
 AS() { # method path [body]
   local resp
@@ -27,7 +28,7 @@ AS() { # method path [body]
     -H "Content-Type: application/json" ${3:+-d "$3"})
   STATUS=$(echo "$resp" | tail -n1); BODY=$(echo "$resp" | sed '$d')
 }
-AS POST "/api/v1/customers?companyId=$C" "{\"name\":\"$TAG Kunde\",\"type\":\"business\"}"; K=$(json_field "$BODY" id)
+AS POST "/api/v1/customers?companyId=$C" "{\"name\":\"$TAG Kunde\",\"type\":\"business\",\"address\":{\"street\":\"Teststr. 9\",\"postalCode\":\"10115\",\"city\":\"Berlin\",\"country\":\"DE\"}}"; K=$(json_field "$BODY" id)
 AS POST "/api/v1/invoices?companyId=$C" "{\"customerId\":\"$K\",\"type\":\"RCV\",\"issueDate\":\"2026-06-10\",\"items\":[{\"description\":\"Verkauf\",\"quantity\":1,\"unit\":\"Stk\",\"unitPrice\":100,\"vatRate\":0.19}]}"
 R=$(json_field "$BODY" id)
 AS PUT "/api/v1/invoices/$R/status?companyId=$C" '{"status":"sent"}'

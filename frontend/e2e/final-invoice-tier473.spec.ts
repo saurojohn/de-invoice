@@ -17,7 +17,7 @@ test('a paid Proforma gets its final invoice from the detail page', async ({ pag
   const api = await playwrightRequest.newContext({ extraHTTPHeaders: HEADERS })
   const tag = `pw-473-${Date.now()}`
   const customer = await (await api.post(`${API}/api/v1/customers?companyId=${COMPANY_ID}`, {
-    data: { name: `${tag} Kunde`, type: 'business' },
+    data: { name: `${tag} Kunde`, type: 'business', address: { street: 'Teststr. 9', postalCode: '10115', city: 'Berlin', country: 'DE' } },
   })).json()
   const pi = await (await api.post(`${API}/api/v1/invoices?companyId=${COMPANY_ID}`, {
     data: {
@@ -63,7 +63,7 @@ test('a paid Proforma pays its advance back from the detail page', async ({ page
   const api = await playwrightRequest.newContext({ extraHTTPHeaders: HEADERS })
   const tag = `pw-475-${Date.now()}`
   const customer = await (await api.post(`${API}/api/v1/customers?companyId=${COMPANY_ID}`, {
-    data: { name: `${tag} Kunde`, type: 'business' },
+    data: { name: `${tag} Kunde`, type: 'business', address: { street: 'Teststr. 9', postalCode: '10115', city: 'Berlin', country: 'DE' } },
   })).json()
   const pi = await (await api.post(`${API}/api/v1/invoices?companyId=${COMPANY_ID}`, {
     data: {

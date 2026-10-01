@@ -47,7 +47,7 @@ pass "wiped prior tier-65 fixtures"
 # 188 passed / 1 skipped to 187 / 2. The spec now creates exactly the two
 # invoices it needs, so it cannot skip on ambient data.
 T396="e2e-92-$(date +%s%N | cut -c1-13)"
-api_post "/api/v1/customers?companyId=$COMPANY_ID" "{\"name\":\"$T396 Ratenplan\",\"type\":\"business\"}"
+api_post "/api/v1/customers?companyId=$COMPANY_ID" "{\"name\":\"$T396 Ratenplan\",\"type\":\"business\",\"address\":{\"street\":\"Teststr. 9\",\"postalCode\":\"10115\",\"city\":\"Berlin\",\"country\":\"DE\"}}"
 CUST_ID=$(json_field "$BODY" id)
 [[ -n "$CUST_ID" ]] && pass "created the test customer: $CUST_ID" || { fail "customer create failed: $BODY"; summary; exit 1; }
 

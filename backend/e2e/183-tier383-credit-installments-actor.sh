@@ -30,7 +30,7 @@ sql() { docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "$1"
 BANK=$(sql "SELECT id FROM \"Account\" WHERE \"companyId\" = '$COMPANY_ID' AND \"accountNumber\" = '1200';")
 FUTURE=$(python3 -c "import datetime;print((datetime.date.today()+datetime.timedelta(days=30)).isoformat())")
 
-customer() { api_post "/api/v1/customers?$Q" "{\"name\":\"$TAG $1\",\"type\":\"business\"}"; json_field "$BODY" id; }
+customer() { api_post "/api/v1/customers?$Q" "{\"name\":\"$TAG $1\",\"type\":\"business\",\"address\":{\"street\":\"Teststr. 9\",\"postalCode\":\"10115\",\"city\":\"Berlin\",\"country\":\"DE\"}}"; json_field "$BODY" id; }
 invoice() { # customer unitPrice
   api_post "/api/v1/invoices?$Q" "{\"customerId\":\"$1\",\"issueDate\":\"$(date +%Y-%m-%d)\",\"items\":[{\"description\":\"$TAG\",\"quantity\":1,\"unit\":\"Stk\",\"unitPrice\":$2,\"vatRate\":0.19}]}"
   local id; id=$(json_field "$BODY" id)

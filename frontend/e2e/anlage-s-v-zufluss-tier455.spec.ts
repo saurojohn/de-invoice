@@ -18,11 +18,15 @@ test("an unpaid invoice is listed as open in Anlage S and Anlage V", async ({ pa
   const companyId: string = reg.user.companyId || reg.company.id
   const H = { "x-user-id": userId, "x-company-id": companyId }
   const q = `companyId=${companyId}`
+  // Tier 494: issuing needs the company's address and tax number.
+  await request.put(`${API}/api/v1/companies/${companyId}?${q}`, {
+    headers: H, data: { address: { street: "Teststr. 1", postalCode: "10115", city: "Berlin", country: "DE" }, taxId: "12/345/67890" },
+  })
   // The sections open on the previous year.
   const year = new Date().getFullYear() - 1
 
   const cust = await (await request.post(`${API}/api/v1/customers?${q}`, {
-    headers: H, data: { name: `${tag} Kunde`, type: "business" },
+    headers: H, data: { name: `${tag} Kunde`, type: "business", address: { street: "Teststr. 9", postalCode: "10115", city: "Berlin", country: "DE" } },
   })).json()
   const inv = await (await request.post(`${API}/api/v1/invoices?${q}`, {
     headers: H,

@@ -24,6 +24,7 @@ Y=2026
 read -r U C < <(curl -sS -X POST "$API/api/v1/auth/register" -H "Content-Type: application/json" \
   -d "{\"email\":\"$TAG@example.test\",\"password\":\"Tier446-e2e\",\"companyName\":\"$TAG GmbH\"}" \
   | python3 -c "import sys,json;d=json.load(sys.stdin);print(d['user']['id'], d['user'].get('companyId') or d['company']['id'])" 2>/dev/null)
+fixture_issuer "$C"
 [[ -n "${C:-}" ]] && pass "fixture: a fresh company" || { fail "register"; summary; exit 1; }
 AS() { # method path [body]
   local resp
@@ -37,7 +38,7 @@ says() { grep -qF "$1" <<<"$BODY" && echo yes || echo "no: $BODY"; }
 inv_status() { AS GET "/api/v1/invoices/$1?companyId=$C"; py 'print(d["status"])'; }
 voucher_count() { AS GET "/api/v1/accounting/vouchers?companyId=$C"; py 'r=d if isinstance(d,list) else d.get("data",d.get("items",[]));print(len(r))'; }
 
-AS POST "/api/v1/customers?companyId=$C" '{"name":"'$TAG' Kunde","type":"business","contact":{"email":"'$TAG'@example.test"}}'
+AS POST "/api/v1/customers?companyId=$C" '{"name":"'$TAG' Kunde","type":"business","address":{"street":"Teststr. 9","postalCode":"10115","city":"Berlin","country":"DE"},"contact":{"email":"'$TAG'@example.test"}}'
 CU=$(json_field "$BODY" id)
 invoice() { # description
   AS POST "/api/v1/invoices?companyId=$C" '{"customerId":"'$CU'","issueDate":"'$Y'-06-01","dueDate":"'$Y'-06-15","items":[{"description":"'$1'","quantity":1,"unit":"Stk","unitPrice":100,"vatRate":0.19}]}'

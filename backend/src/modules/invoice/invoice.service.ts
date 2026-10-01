@@ -27,6 +27,7 @@ import { businessDayIso, businessToday, businessTodayIso, dayStart } from '../..
 import { PaymentService } from './payment.service';
 import { ADVANCE_SETTLEMENT_METHOD, advanceReceived, advanceDeductionFor } from './advance';
 import { servicePeriodOf } from './service-period';
+import { assertInvoiceDetails } from './mandatory-details';
 
 /**
  * Tier 410 — a line's VAT rate, defaulting only when none was given.
@@ -1372,6 +1373,15 @@ export class InvoiceService {
 
     // Tier 472: issuing a final invoice deducts the Proforma's advance.
     const issuing = before.status === 'draft' && status !== 'draft' && status !== 'cancelled'
+    // Tier 494: an invoice is issued only with its mandatory details. A credit
+    // note is created issued, from an invoice that had them.
+    if (issuing && before.type !== 'CN') {
+      const [company, customer] = await Promise.all([
+        this.prisma.company.findUnique({ where: { id: companyId } }),
+        this.prisma.customer.findFirst({ where: { id: before.customerId, companyId } }),
+      ]);
+      assertInvoiceDetails(before, company ?? {}, customer);
+    }
     const advance = issuing ? await this.advanceToSettle(before, companyId) : null
 
     const updated = await this.prisma.invoice.update({
