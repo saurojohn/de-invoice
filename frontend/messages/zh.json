@@ -2146,6 +2146,7 @@
     "recordPaymentTitle": "记录向税务局的付款或税务局的退款——EÜR 按该日期计入",
     "recordPaymentPrompt": "付款/退款日期（YYYY-MM-DD）：",
     "recordPaymentFailed": "无法记录付款",
+    "confirmDuplicateExpense": "仍要作为第二张发票录入吗？",
     "otherPayments": "其他向税务局的付款 / 税务局退款",
     "otherPaymentsHint": "增值税年度申报的补缴或退税、特别预缴（延期申报）、其他。月度申报的付款请在上方对应行记录。EÜR 均按付款日计入。",
     "otherPaymentsFailed": "无法加载或保存付款",

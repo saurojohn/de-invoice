@@ -1,4 +1,5 @@
 import { Injectable, BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import { assertNoDuplicateExpense } from '../expense/expense-duplicate';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import type { Response } from 'express';
@@ -967,6 +968,7 @@ export class UstvaService {
     isReverseCharge?: boolean;
     notes?: string;
     paidAt?: Date | null;
+    confirmDuplicate?: boolean;
   }) {
     // Tier 390: the supplier must be this company's — the same check
     // ExpenseService.create makes. Measured: company B's expense with company
@@ -978,6 +980,8 @@ export class UstvaService {
       const sup = await this.prisma.supplier.findFirst({ where: { id: supplierId, companyId } });
       if (!sup) throw new BadRequestException('Lieferant nicht gefunden');
     }
+    // Tier 489: the same supplier invoice twice is refused (409)
+    await assertNoDuplicateExpense(this.prisma, companyId, supplierId, data.invoiceNumber, Number(data.grossAmount) < 0, data.confirmDuplicate === true);
     return this.prisma.expense.create({
       data: {
         companyId,

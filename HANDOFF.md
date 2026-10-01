@@ -2549,6 +2549,23 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### A supplier invoice is entered once (Tier 489)
+
+Measured: invoice RE-4711 of one supplier entered three times (twice via
+`/ustva/expenses`, once via `/expenses`) — 201 each, the UStVA deducted 57 €
+input tax instead of 19 (spec 275: 7 assertions fail on the old code, with
+four entries 76). `expense-duplicate.ts`: the same supplier's invoice number
+(case and spaces ignored) is refused with 409 naming the bill already
+entered, unless `confirmDuplicate: true` (a genuinely second bill — the UStVA
+form asks); the CSV import reports such a row instead of importing it. Another
+supplier's number and the supplier's credit note under the same number are no
+duplicates. The OCR save shows the 409 message as its error.
+Local runs: backend **274 / 0 / 1**, 0 × 5xx; Playwright **949** — on the second
+attempt: in the first the backend process vanished during the heaviest test
+(ocr-upload "scanned PDF … raster+OCR fallback") with nothing in its log and
+the machine at ~150 MB free memory, and everything after it failed; the
+re-run passed all 949, that test included.
+
 ### A bank transaction is imported once (Tier 488)
 
 Measured (spec 274, 5 assertions fail on the old code): the same CAMT file

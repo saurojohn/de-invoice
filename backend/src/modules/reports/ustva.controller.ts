@@ -218,6 +218,7 @@ export class UstvaController {
       isReverseCharge: body.isReverseCharge ?? false,
       notes: body.notes,
       paidAt: body.paidAt ? new Date(body.paidAt) : null,
+      confirmDuplicate: body.confirmDuplicate === true,
     });
   }
 

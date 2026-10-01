@@ -77,6 +77,13 @@ export class CreateExpenseDto {
   @IsBoolean()
   creditNote?: boolean
 
+  // Tier 489: the same supplier's invoice number is refused as a duplicate
+  // (409) unless this confirms a genuinely second bill.
+  @IsOptional()
+  @Transform(({ value }) => (typeof value === "string" ? value === "true" || value === "1" : value))
+  @IsBoolean()
+  confirmDuplicate?: boolean
+
   // Tier 454: the day it was paid, when that was not through the bank import,
   // the SEPA run or the cash book (card, private account) — the EÜR counts an
   // expense when it is paid (§ 11 EStG).

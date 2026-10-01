@@ -1,4 +1,5 @@
 import { signedExpenseAmounts } from './credit-note';
+import { assertNoDuplicateExpense, duplicateExpenseMessage, findDuplicateExpense } from './expense-duplicate'
 import { expenseLockReasons } from './expense-lock';
 /**
  * Expense (Eingangsrechnung) — vendor bills received.
@@ -116,6 +117,8 @@ export class ExpenseService {
       const sup = await this.prisma.supplier.findFirst({ where: { id: data.supplierId, companyId } });
       if (!sup) throw new BadRequestException('Lieferant nicht gefunden');
     }
+    // Tier 489: the same supplier invoice twice is refused (409)
+    await assertNoDuplicateExpense(this.prisma, companyId, data.supplierId, data.invoiceNumber, !!data.creditNote, data.confirmDuplicate === true)
     // Tier 442: a supplier credit note is stored with negative amounts.
     const { net, vat, gross } = signedExpenseAmounts(data.creditNote, {
       net: Number(data.netAmount ?? 0),
@@ -297,6 +300,13 @@ export class ExpenseService {
               : Math.round((netAmount + vatAmount) * 10000) / 10000,
         }).gross
 
+        // Tier 489: a bill entered before (same supplier, same number) is
+        // not imported again — the row is reported instead.
+        const dup = await findDuplicateExpense(this.prisma, companyId, supplierId, row.invoiceNumber, netAmount < 0)
+        if (dup) {
+          result.errors.push({ row: rowNum, error: duplicateExpenseMessage(dup), description })
+          continue
+        }
         await this.prisma.expense.create({
           data: {
             companyId,

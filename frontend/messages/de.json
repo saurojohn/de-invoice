@@ -2146,6 +2146,7 @@
     "recordPaymentTitle": "Zahlung an das / Erstattung vom Finanzamt erfassen — die EÜR zählt sie an diesem Tag",
     "recordPaymentPrompt": "Datum der Zahlung / Erstattung (JJJJ-MM-TT):",
     "recordPaymentFailed": "Zahlung konnte nicht erfasst werden",
+    "confirmDuplicateExpense": "Trotzdem als zweite Rechnung erfassen?",
     "otherPayments": "Weitere Zahlungen ans / Erstattungen vom Finanzamt",
     "otherPaymentsHint": "Abschlusszahlung oder Erstattung der Umsatzsteuer-Jahreserklärung, Sondervorauszahlung (Dauerfristverlängerung), Sonstiges. Die Zahlung einer Voranmeldung erfassen Sie in ihrer Zeile oben. Die EÜR zählt beides am Zahlungstag.",
     "otherPaymentsFailed": "Zahlungen konnten nicht geladen oder gespeichert werden",

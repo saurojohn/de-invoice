@@ -311,7 +311,15 @@ function UstvaPageInner() {
       if (editingId) {
         await apiPut(`/api/v1/ustva/expenses/${editingId}?companyId=${companyId}`, body)
       } else {
-        await apiPost(`/api/v1/ustva/expenses?companyId=${companyId}`, body)
+        try {
+          await apiPost(`/api/v1/ustva/expenses?companyId=${companyId}`, body)
+        } catch (e) {
+          // Tier 489: the same supplier invoice number again — the backend
+          // refuses it as a duplicate; a genuinely second bill is confirmed.
+          if (!(e instanceof ApiError && e.status === 409)) throw e
+          if (!window.confirm(`${e.message}\n\n${t("ustva.confirmDuplicateExpense")}`)) return
+          await apiPost(`/api/v1/ustva/expenses?companyId=${companyId}`, { ...body, confirmDuplicate: true })
+        }
       }
       closeExpenseForm()
       await loadAll(companyId)
