@@ -403,8 +403,8 @@ export class InvoiceService {
   async create(companyId: string, dto: CreateInvoiceDto) {
     try {
     const type = (dto.type as InvoiceType) || 'INV';
-    // Tier 480: a Kleinunternehmer (§ 19 UStG) charges no VAT.
-    dto = await this.withoutVatForKleinunternehmer(companyId, dto);
+    // Tier 480 / 487: no VAT for a Kleinunternehmer (§ 19), an igL, § 13b.
+    dto = await this.withoutVatWhereNoneIsCharged(companyId, dto);
 
     // Check stock for tracked products and issue warnings
     const stockWarnings = await this.checkStockForItems(dto.items || []);
@@ -963,13 +963,26 @@ export class InvoiceService {
    * is owed (§ 14c Abs. 2 UStG) although the company files none. The form
    * sent 19 % (its comment said the backend handled it; it did not).
    */
-  private async withoutVatForKleinunternehmer<T extends { items?: Array<{ vatRate?: number | null }> }>(
+  //
+  // Tier 487: the same for an innergemeinschaftliche Lieferung (§ 4 Nr. 1b)
+  // and a § 13b invoice (the customer owes the tax) — the flag the invoice
+  // ends up with: the caller's, the existing invoice's on an update, else the
+  // company default. Measured: igL and § 13b invoices with a 19 % line went
+  // out at 1 190 € with "USt 19 %: 190,00" (owed under § 14c), and the UStVA
+  // declared 380 € for the two.
+  private async withoutVatWhereNoneIsCharged<
+    T extends { items?: Array<{ vatRate?: number | null }>; reverseCharge?: boolean; euTransaction?: boolean },
+  >(
     companyId: string,
     dto: T,
+    existing?: { reverseCharge: boolean | null; euTransaction: boolean | null },
   ): Promise<T> {
     if (!dto.items?.length) return dto
     const co = await this.prisma.company.findUnique({ where: { id: companyId }, select: { defaultVatMode: true } })
-    if (co?.defaultVatMode !== 'kleinunternehmer') return dto
+    const mode = co?.defaultVatMode
+    const rc = dto.reverseCharge ?? (existing ? !!existing.reverseCharge : mode === 'reverseCharge')
+    const igl = dto.euTransaction ?? (existing ? !!existing.euTransaction : mode === 'igL')
+    if (mode !== 'kleinunternehmer' && !rc && !igl) return dto
     return { ...dto, items: dto.items.map((i) => ({ ...i, vatRate: 0 })) }
   }
 
@@ -1039,8 +1052,8 @@ export class InvoiceService {
       // Tier 415: a percentage discount is recomputed from the new lines; an
       // absolute one is kept. (With a percentage, the stored discountAmount
       // is the previous lines' — reusing it here was wrong.)
-      // Tier 480: a Kleinunternehmer (§ 19 UStG) charges no VAT.
-      dto = await this.withoutVatForKleinunternehmer(companyId, dto);
+      // Tier 480 / 487: no VAT for a Kleinunternehmer (§ 19), an igL, § 13b.
+      dto = await this.withoutVatWhereNoneIsCharged(companyId, dto, existing);
       const amounts = computeInvoiceAmounts(
         dto.items!.map((i) => ({ quantity: i.quantity, unitPrice: i.unitPrice, vatRate: vatRateOf(i) })),
         discountPercent > 0

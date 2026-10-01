@@ -2547,6 +2547,23 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### An igL or § 13b invoice charges no VAT (Tier 487)
+
+Measured (spec 273, 6 assertions fail on the old code): an invoice marked
+igL and one marked § 13b, each with a 1 000 € line at 19 % — what an API
+caller or an import sends; the form sets 0 % itself — went out at 1 190 €
+with "USt 19 %: 190,00" (owed under § 14c UStG), and the UStVA declared 380 €
+output tax and 0 € in Kz 41. Tier 480's `withoutVatForKleinunternehmer` is
+now `withoutVatWhereNoneIsCharged`: the lines go to 0 % for a
+Kleinunternehmer, and for an igL / § 13b invoice — the flag the invoice ends
+up with: the caller's, the existing invoice's on an update, else the company
+default. A standard invoice keeps its rates.
+Local runs: backend **272 / 0 / 1**, 0 × 5xx; Playwright 948 + 1 —
+`cost-center-monthly` (Tier 45) failed on 1 October, unrelated to this tier:
+its beforeAll seeded a July invoice as a **draft** (the report counts issued
+documents only) and passed only while other seed data dated relative to
+today fell into July. The seed is now issued; green 2 × on re-run.
+
 ### An igL needs the customer's foreign EU VAT ID (Tier 486)
 
 § 4 Nr. 1b, § 6a Abs. 1 Nr. 4 UStG (since 2020 a material requirement): an

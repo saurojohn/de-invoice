@@ -103,7 +103,7 @@ test.beforeAll(async ({ request }) => {
   const day = 15
   const issueDate = new Date(Date.UTC(year, 6, day, 12, 0, 0)).toISOString()
   const dueDate = new Date(Date.UTC(year, 7, day, 12, 0, 0)).toISOString()
-  await request.post(
+  const inv = await request.post(
     `http://localhost:3001/api/v1/invoices?companyId=${companyId}`,
     {
       headers: {
@@ -126,6 +126,21 @@ test.beforeAll(async ({ request }) => {
           },
         ],
       },
+    },
+  )
+  // Issue it: the report counts issued documents only (a draft is no
+  // revenue, Tier 424). The draft passed while other seed data — dated
+  // relative to today — happened to fall into July; on 1 October it did not.
+  const created = await inv.json()
+  await request.put(
+    `http://localhost:3001/api/v1/invoices/${created.id}/status?companyId=${companyId}`,
+    {
+      headers: {
+        "Content-Type": "application/json",
+        "x-user-id": testTokens.userId,
+        "x-company-id": companyId,
+      },
+      data: { status: "sent" },
     },
   )
   // The single invoice is enough for the row assertion.
