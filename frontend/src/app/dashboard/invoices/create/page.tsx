@@ -190,6 +190,10 @@ function CreateInvoicePageInner() {
     // is easier to change than to type. Cleared, the PDF states
     // the issue date (Tier 492: § 14 Abs. 4 Nr. 6 UStG).
     deliveryDate: new Date().toISOString().split("T")[0],
+    // Tier 493: Leistungszeitraum — both dates or neither; stated on the
+    // invoice instead of the Leistungsdatum when set.
+    servicePeriodStart: "",
+    servicePeriodEnd: "",
     notes: "",
     discountPercent: 0,
     discountAmount: 0,
@@ -311,6 +315,8 @@ function CreateInvoicePageInner() {
         deliveryDate: inv.deliveryDate
           ? String(inv.deliveryDate).slice(0, 10)
           : new Date().toISOString().split("T")[0],
+        servicePeriodStart: inv.servicePeriodStart ? String(inv.servicePeriodStart).slice(0, 10) : "",
+        servicePeriodEnd: inv.servicePeriodEnd ? String(inv.servicePeriodEnd).slice(0, 10) : "",
         notes: inv.notes || '',
         discountPercent: Number(inv.discountPercent || 0),
         discountAmount: Number(inv.discountAmount || 0),
@@ -1035,6 +1041,8 @@ function CreateInvoicePageInner() {
         templateType,
         dueDate: form.dueDate || undefined,
         deliveryDate: form.deliveryDate || undefined,
+        servicePeriodStart: form.servicePeriodStart || undefined,
+        servicePeriodEnd: form.servicePeriodEnd || undefined,
         // Tier 39: drop empty-string costCenter/costObject so
         // the backend sees `undefined` (column→null) rather
         // than `""` (whitespace stored as truthy string).
@@ -1707,6 +1715,28 @@ function CreateInvoicePageInner() {
                     onChange={(e) => setForm({ ...form, deliveryDate: e.target.value })}
                     title={t("invoice.deliveryDateHint")}
                   />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    {t("invoice.servicePeriod")}
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="date"
+                      value={form.servicePeriodStart}
+                      onChange={(e) => setForm({ ...form, servicePeriodStart: e.target.value })}
+                      title={t("invoice.servicePeriodHint")}
+                      data-testid="service-period-start"
+                    />
+                    <span className="text-gray-500">–</span>
+                    <Input
+                      type="date"
+                      value={form.servicePeriodEnd}
+                      onChange={(e) => setForm({ ...form, servicePeriodEnd: e.target.value })}
+                      title={t("invoice.servicePeriodHint")}
+                      data-testid="service-period-end"
+                    />
+                  </div>
                 </div>
               </div>
             </CardContent>

@@ -65,6 +65,15 @@ export class CreateInvoiceDto {
   @IsDateString()
   @IsOptional()
   deliveryDate?: string;
+
+  // Tier 493: Leistungszeitraum — both or neither (checked in the service).
+  @IsDateString()
+  @IsOptional()
+  servicePeriodStart?: string;
+
+  @IsDateString()
+  @IsOptional()
+  servicePeriodEnd?: string;
   
   @IsString()
   @IsOptional()
@@ -195,6 +204,8 @@ export class UpdateInvoiceDto {
   @IsDateString() @IsOptional() issueDate?: string;
   @IsDateString() @IsOptional() dueDate?: string;
   @IsDateString() @IsOptional() deliveryDate?: string;
+  @IsDateString() @IsOptional() servicePeriodStart?: string;
+  @IsDateString() @IsOptional() servicePeriodEnd?: string;
   @IsString() @IsOptional() type?: string;
   @IsString() @IsOptional() referenceInvoiceId?: string;
   @IsString() @IsOptional() currency?: string;

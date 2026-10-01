@@ -114,6 +114,9 @@ export interface XRechnungData {
   dueDate?: string
   /** Tier 414: Leistungsdatum (BT-72); the issue date stands in when unset. */
   deliveryDate?: string
+  /** Tier 493: Leistungszeitraum (BT-73/74), both or neither. */
+  servicePeriodStart?: string
+  servicePeriodEnd?: string
   currency: string
   /** BR-1 v2: BuyerReference is now mandatory. */
   buyerReference: string
@@ -236,9 +239,10 @@ export function generateXRechnung(data: XRechnungData): string {
        Für Service-Rechnungen ohne separate Lieferperiode setzen
        wir den Leistungszeitraum auf das Rechnungsdatum. XSD-Position:
        nach BuyerReference, vor SupplierParty. -->
+  <!-- Tier 493: a recorded Leistungszeitraum (BT-73/74) takes precedence. -->
   <cac:InvoicePeriod>
-    <cbc:StartDate>${formatXRechnungDate(data.deliveryDate ?? data.issueDate)}</cbc:StartDate>
-    <cbc:EndDate>${formatXRechnungDate(data.deliveryDate ?? data.issueDate)}</cbc:EndDate>
+    <cbc:StartDate>${formatXRechnungDate(data.servicePeriodStart ?? data.deliveryDate ?? data.issueDate)}</cbc:StartDate>
+    <cbc:EndDate>${formatXRechnungDate(data.servicePeriodEnd ?? data.deliveryDate ?? data.issueDate)}</cbc:EndDate>
   </cac:InvoicePeriod>
 
   ${generateSupplierParty(data.supplier)}
@@ -999,6 +1003,8 @@ export function transformToXRechnungData(
     issueDate: Date | string
     dueDate?: Date | string | null
     deliveryDate?: Date | string | null
+    servicePeriodStart?: Date | string | null
+    servicePeriodEnd?: Date | string | null
     currency: string
     subtotal: any
     totalVat: any
@@ -1097,6 +1103,12 @@ export function transformToXRechnungData(
     deliveryDate: invoice.deliveryDate
       ? (invoice.deliveryDate instanceof Date ? invoice.deliveryDate.toISOString() : invoice.deliveryDate)
       : undefined,
+    ...(invoice.servicePeriodStart && invoice.servicePeriodEnd
+      ? {
+          servicePeriodStart: invoice.servicePeriodStart instanceof Date ? invoice.servicePeriodStart.toISOString() : invoice.servicePeriodStart,
+          servicePeriodEnd: invoice.servicePeriodEnd instanceof Date ? invoice.servicePeriodEnd.toISOString() : invoice.servicePeriodEnd,
+        }
+      : {}),
     currency: invoice.currency,
     buyerReference,
     supplier: {

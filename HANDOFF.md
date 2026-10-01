@@ -2554,6 +2554,29 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### The Leistungszeitraum (Tier 493)
+
+A recurring service or a project is supplied over a period (§ 14 Abs. 4
+Nr. 6 UStG: "Zeitpunkt der Lieferung … oder Zeitraum"). An invoice could only
+carry one date: `servicePeriodStart/End` were rejected, a monthly maintenance
+invoice stated its issue date, and XRechnung's InvoicePeriod was that one day
+(spec 279: 11 assertions fail on the old code).
+
+- `Invoice.servicePeriodStart/End` (migration 20261001000001), create and
+  update via `service-period.ts` (`servicePeriodOf`: both or neither, start ≤
+  end, else 400).
+- PDF: "Leistungszeitraum:" over two rows (one would run into the label
+  column) instead of the Leistungsdatum. XRechnung InvoicePeriod (BT-73/74)
+  and ZUGFeRD `BillingSpecifiedPeriod` (after the tax breakdown, CII order);
+  with a period, BT-72 only when a date was recorded.
+- `RecurringInvoice.servicePeriod`: 'none' (default for existing templates —
+  unchanged), 'current' (the interval starting on the run date, in advance)
+  or 'previous' (the one before, in arrears; `advanceTo` with a negative
+  count). Set on the run and shown in the preview; cloned with the template.
+- UI: period inputs on the invoice form, the period on the detail page, a
+  selector in the recurring form (default "laufender Zeitraum" for a new
+  template). Playwright `service-period-tier493.spec.ts`.
+
 ### The Leistungsdatum on the invoice PDF (Tier 492)
 
 § 14 Abs. 4 Nr. 6 UStG: the date of supply is a mandatory invoice field,
@@ -2569,9 +2592,7 @@ code). The schema comment even claimed § 14 did not require it.
 - Invoice detail page: the same row and fallback; create form label
   "Leistungsdatum (optional)" with the hint that the issue date stands in.
 
-A Leistungs*zeitraum* (monthly services) is not modelled; a recurring
-invoice for a past month states its issue date — enter the period in the
-line text until then.
+A Leistungs*zeitraum* (monthly services) followed in Tier 493.
 
 ### Zusammenfassende Meldung (Tier 491)
 

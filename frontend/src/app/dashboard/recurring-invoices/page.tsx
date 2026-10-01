@@ -13,6 +13,8 @@ import { apiGet, apiPost, apiPut, apiDelete, ApiError } from "@/lib/api"
 
 type Interval = "monthly" | "quarterly" | "yearly" | "weekly"
 
+
+type ServicePeriod = 'none' | 'current' | 'previous'
 interface RecurringItem {
   description: string
   productNumber?: string | null
@@ -38,6 +40,8 @@ interface RecurringTemplate {
   language: string
   notes: string | null
   invoiceStatus: 'draft' | 'sent'
+  // Tier 493: the Leistungszeitraum the generated invoices state.
+  servicePeriod?: ServicePeriod
   isActive: boolean
   // Tier 153: time-bounded pause. The scheduler
   // skips templates where today < pausedUntil.
@@ -183,6 +187,8 @@ export default function RecurringInvoicesPage() {
   const [startDate, setStartDate] = useState(new Date().toISOString().split("T")[0])
   const [endDate, setEndDate] = useState("")
   const [invoiceStatus, setInvoiceStatus] = useState<"draft" | "sent">("draft")
+  // Tier 493: a new template bills the interval it runs in (in advance).
+  const [servicePeriod, setServicePeriod] = useState<ServicePeriod>("current")
   // Tier 129: when true, the scheduler emails the
   // generated invoice to the customer. Default
   // true — the user opted into recurring generation,
@@ -236,6 +242,7 @@ export default function RecurringInvoicesPage() {
       setStartDate(p.startDate || new Date().toISOString().split("T")[0])
       setEndDate(p.endDate || "")
       setInvoiceStatus(p.invoiceStatus || "draft")
+      setServicePeriod("current")
       setItems(p.items || [{ description: "", quantity: 1, unit: "Stück", unitPrice: 0, vatRate: 0.19 }])
       setShowModal(true)
       // Clean up so a refresh on the same page doesn't
@@ -265,6 +272,7 @@ export default function RecurringInvoicesPage() {
     setStartDate(new Date().toISOString().split("T")[0])
     setEndDate("")
     setInvoiceStatus("draft")
+    setServicePeriod("current")
     // Tier 365: openEdit loads the template's sendEmail, so without this reset
     // a new template opened after editing a "no e-mail" one would silently
     // start unchecked. (It never mattered before: the backend ignored the flag.)
@@ -283,6 +291,7 @@ export default function RecurringInvoicesPage() {
     setStartDate(tpl.startDate.split("T")[0])
     setEndDate(tpl.endDate ? tpl.endDate.split("T")[0] : "")
     setInvoiceStatus(tpl.invoiceStatus)
+    setServicePeriod(tpl.servicePeriod ?? "none")
     // Tier 129: load the sendEmail flag too. Older
     // backend versions don't have this field — we
     // default to true (the safe default = "send the
@@ -456,6 +465,7 @@ export default function RecurringInvoicesPage() {
         startDate,
         endDate: endDate || null,
         invoiceStatus,
+        servicePeriod,
         // Tier 129: include the sendEmail flag so the
         // scheduler knows whether to auto-email. Old
         // backends ignore the unknown field.
@@ -1069,6 +1079,21 @@ export default function RecurringInvoicesPage() {
                     >
                       <option value="draft">{t("recurring.status_draft") || "Entwurf"}</option>
                       <option value="sent">{t("recurring.status_sent") || "Versendet"}</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">
+                      {t("recurring.servicePeriod")}
+                    </label>
+                    <select
+                      value={servicePeriod}
+                      onChange={(e) => setServicePeriod(e.target.value as ServicePeriod)}
+                      className="w-full border rounded px-3 py-2 text-sm"
+                      data-testid="recurring-form-service-period"
+                    >
+                      <option value="current">{t("recurring.servicePeriod_current")}</option>
+                      <option value="previous">{t("recurring.servicePeriod_previous")}</option>
+                      <option value="none">{t("recurring.servicePeriod_none")}</option>
                     </select>
                   </div>
                   {/* Tier 129: sendEmail checkbox. When

@@ -45,6 +45,7 @@ const DATE_ONLY_MSG = 'Datum im Format YYYY-MM-DD erwartet'
 // purpose — this only prevents the overflow, it does not rule on negatives.
 const DEC_12_4 = 99999999.9999
 const INTERVALS = ['monthly', 'quarterly', 'yearly', 'weekly'] // = VALID_INTERVALS
+const SERVICE_PERIODS = ['none', 'current', 'previous']
 
 export class RecurringItemDto {
   @IsString()
@@ -139,6 +140,11 @@ export class CreateRecurringInvoiceDto {
   @IsIn(['draft', 'sent'])
   invoiceStatus?: 'draft' | 'sent'
 
+  // Tier 493: the Leistungszeitraum the generated invoices state.
+  @IsOptional()
+  @IsIn(SERVICE_PERIODS)
+  servicePeriod?: 'none' | 'current' | 'previous'
+
   @IsOptional()
   @IsBoolean()
   sendEmail?: boolean
@@ -166,6 +172,7 @@ export class UpdateRecurringInvoiceDto {
   @IsOptional() @IsString() @MaxLength(10) language?: string
   @IsOptional() @IsString() notes?: string | null
   @IsOptional() @IsIn(['draft', 'sent']) invoiceStatus?: 'draft' | 'sent'
+  @IsOptional() @IsIn(SERVICE_PERIODS) servicePeriod?: 'none' | 'current' | 'previous'
   @IsOptional() @IsBoolean() sendEmail?: boolean
   @IsOptional() @IsBoolean() isActive?: boolean
 

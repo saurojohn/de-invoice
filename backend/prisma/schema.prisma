@@ -720,6 +720,10 @@ model Invoice {
   // is not recorded, the PDF and the e-invoice (BT-72) state
   // the issue date (Tier 492).
   deliveryDate DateTime?
+  // Tier 493: Leistungszeitraum (BT-73/74) — both or neither; stated
+  // instead of a single date when set (a recurring service, a project).
+  servicePeriodStart DateTime?
+  servicePeriodEnd   DateTime?
 
   subtotal        Decimal  @default(0) @db.Decimal(12, 4)
   totalVat        Decimal  @default(0) @db.Decimal(12, 4)
@@ -1965,6 +1969,11 @@ model RecurringInvoice {
   // monthly: 1-28 (clamped at 28 to avoid 31st-on-30th-month
   // surprises). Ignored for weekly.
   dayOfMonth    Int       @default(1)
+  // Tier 493: the Leistungszeitraum its invoices state — 'none' (the issue
+  // date is the Leistungsdatum), 'current' (the interval starting on the run
+  // date, billed in advance) or 'previous' (the interval before it, billed
+  // in arrears).
+  servicePeriod String    @default("none")
   // First day this template is allowed to generate. The
   // scheduler uses max(startDate, lastRunAt + interval).
   startDate     DateTime

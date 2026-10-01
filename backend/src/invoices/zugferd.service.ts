@@ -233,6 +233,26 @@ export function generateZUGFeRDXml(
         </ram:DueDateDateTime>` : ''}
       </ram:SpecifiedTradePaymentTerms>` : '';
 
+  // Tier 493: BG-14 Leistungszeitraum (BT-73/74) — after the tax breakdown,
+  // before the allowances (CII order). With it, BT-72 only when recorded.
+  const hasPeriod = !!(data.servicePeriodStart && data.servicePeriodEnd);
+  const billingPeriod = hasPeriod ? `
+      <ram:BillingSpecifiedPeriod>
+        <ram:StartDateTime>
+          <udt:DateTimeString format="102">${formatDate102(data.servicePeriodStart!)}</udt:DateTimeString>
+        </ram:StartDateTime>
+        <ram:EndDateTime>
+          <udt:DateTimeString format="102">${formatDate102(data.servicePeriodEnd!)}</udt:DateTimeString>
+        </ram:EndDateTime>
+      </ram:BillingSpecifiedPeriod>` : '';
+  const deliveryDay = data.deliveryDate ?? (hasPeriod ? null : data.issueDate);
+  const deliveryEvent = deliveryDay ? `
+      <ram:ActualDeliverySupplyChainEvent>
+        <ram:OccurrenceDateTime>
+          <udt:DateTimeString format="102">${formatDate102(deliveryDay)}</udt:DateTimeString>
+        </ram:OccurrenceDateTime>
+      </ram:ActualDeliverySupplyChainEvent>` : '';
+
   const iban = data.supplier.bankInfo?.iban?.replace(/\s+/g, '');
   const paymentMeans = iban ? `
       <ram:SpecifiedTradeSettlementPaymentMeans>
@@ -285,15 +305,11 @@ export function generateZUGFeRDXml(
     </ram:ApplicableHeaderTradeAgreement>
     <ram:ApplicableHeaderTradeDelivery>${shipTo}
       <!-- BT-72 Leistungsdatum; the issue date when none was recorded, as the
-           UBL's invoice period does. BR-IC-11 requires it for igL. -->
-      <ram:ActualDeliverySupplyChainEvent>
-        <ram:OccurrenceDateTime>
-          <udt:DateTimeString format="102">${formatDate102(data.deliveryDate ?? data.issueDate)}</udt:DateTimeString>
-        </ram:OccurrenceDateTime>
-      </ram:ActualDeliverySupplyChainEvent>
+           UBL's invoice period does. BR-IC-11 requires it (or BG-14) for igL.
+           Tier 493: with a Leistungszeitraum only a recorded date is stated. -->${deliveryEvent}
     </ram:ApplicableHeaderTradeDelivery>
     <ram:ApplicableHeaderTradeSettlement>
-      <ram:InvoiceCurrencyCode>${cur}</ram:InvoiceCurrencyCode>${paymentMeans}${taxBreakdown}${allowances}${paymentTerms}
+      <ram:InvoiceCurrencyCode>${cur}</ram:InvoiceCurrencyCode>${paymentMeans}${taxBreakdown}${billingPeriod}${allowances}${paymentTerms}
       <ram:SpecifiedTradeSettlementHeaderMonetarySummation>
         <ram:LineTotalAmount>${formatCents(t.lineExtension)}</ram:LineTotalAmount>
         ${t.allowanceTotal !== 0 ? `<ram:AllowanceTotalAmount>${formatCents(t.allowanceTotal)}</ram:AllowanceTotalAmount>` : ''}

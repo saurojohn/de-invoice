@@ -488,9 +488,17 @@ export async function generateInvoicePDF(
     // recorded one (API, recurring) showed none; it now states the issue date,
     // as BT-72 in XRechnung / ZUGFeRD does. A Proforma (no supply yet) and a
     // credit note (its invoice's date applies) show a set date only.
-    const leistungsdatum = (invoice as any).deliveryDate
+    // Tier 493: a recorded Leistungszeitraum is stated instead, over two
+    // rows ("von –" / "bis") — one row would run into the label column.
+    const periodStart = (invoice as any).servicePeriodStart
+    const periodEnd = (invoice as any).servicePeriodEnd
+    const hasPeriod = !!(periodStart && periodEnd)
+    const leistungsdatum = hasPeriod ? null : (invoice as any).deliveryDate
       ?? (["PI", "CN"].includes((invoice as any).type) ? null : invoice.issueDate)
-    if (leistungsdatum) {
+    if (hasPeriod) {
+      doc.text("Leistungszeitraum:", detailsLabelX, detailsY + detailsRow * 15, { width: 100, align: "right", lineBreak: false })
+      detailsRow += 2
+    } else if (leistungsdatum) {
       doc.text("Leistungsdatum:", detailsLabelX, detailsY + detailsRow * 15, { width: 100, align: "right", lineBreak: false })
       detailsRow++
     }
@@ -514,7 +522,12 @@ export async function generateInvoicePDF(
     }
     doc.text(formatDate(invoice.issueDate), detailsValueX, detailsY + detailsRow * 15, { width: detailsValueWidth, align: "right", lineBreak: false })
     detailsRow++
-    if (leistungsdatum) {
+    if (hasPeriod) {
+      doc.text(`${formatDate(periodStart)} –`, detailsValueX, detailsY + detailsRow * 15, { width: detailsValueWidth, align: "right", lineBreak: false })
+      detailsRow++
+      doc.text(formatDate(periodEnd), detailsValueX, detailsY + detailsRow * 15, { width: detailsValueWidth, align: "right", lineBreak: false })
+      detailsRow++
+    } else if (leistungsdatum) {
       doc.text(formatDate(leistungsdatum), detailsValueX, detailsY + detailsRow * 15, { width: detailsValueWidth, align: "right", lineBreak: false })
       detailsRow++
     }

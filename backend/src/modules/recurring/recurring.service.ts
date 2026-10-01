@@ -33,6 +33,7 @@ import { resolveDueDate } from '../invoice/due-date';
  * `recurring.scheduler.ts` and calls `runDueTemplates()`.
  */
 
+export type ServicePeriodMode = 'none' | 'current' | 'previous'
 export type RecurringInterval = 'monthly' | 'quarterly' | 'yearly' | 'weekly';
 
 const VALID_INTERVALS: RecurringInterval[] = ['monthly', 'quarterly', 'yearly', 'weekly'];
@@ -55,6 +56,8 @@ export interface RecurringInput {
   language?: string;
   notes?: string | null;
   invoiceStatus?: 'draft' | 'sent';
+  // Tier 493: the Leistungszeitraum the generated invoices state.
+  servicePeriod?: ServicePeriodMode;
   // Tier 365: e-mail the generated invoice to the customer. The form has
   // always sent this flag (Tier 129), but create() and update() never wrote
   // it, so the column's default `true` stood and unchecking the box did
@@ -134,6 +137,28 @@ export class RecurringService {
     // picked, and it changed with the server's time zone.
     d.setUTCHours(0, 0, 0, 0)
     return this.advanceTo(d, input.interval, input.intervalCount ?? 1, input.dayOfMonth ?? 1)
+  }
+
+  /**
+   * Tier 493: the Leistungszeitraum of the invoice a run creates — the
+   * interval starting on the run date ('current', billed in advance) or the
+   * one before it ('previous', billed in arrears); none for 'none'. The end
+   * is the day before the next interval starts.
+   */
+  private servicePeriodFor(
+    tpl: { servicePeriod?: string | null; interval: string; intervalCount: number; dayOfMonth: number },
+    periodStart: Date,
+    periodEnd: Date,
+  ): { servicePeriodStart?: Date; servicePeriodEnd?: Date } {
+    const dayBefore = (d: Date) => new Date(d.getTime() - 86400000)
+    if (tpl.servicePeriod === 'current') {
+      return { servicePeriodStart: new Date(periodStart), servicePeriodEnd: dayBefore(periodEnd) }
+    }
+    if (tpl.servicePeriod === 'previous') {
+      const start = this.advanceTo(periodStart, tpl.interval as RecurringInterval, -tpl.intervalCount, tpl.dayOfMonth)
+      return { servicePeriodStart: start, servicePeriodEnd: dayBefore(periodStart) }
+    }
+    return {}
   }
 
   /**
@@ -261,6 +286,7 @@ export class RecurringService {
         language: input.language ?? 'de-DE',
         notes: input.notes ?? null,
         invoiceStatus: input.invoiceStatus ?? 'draft',
+        servicePeriod: input.servicePeriod ?? 'none',
         sendEmail: input.sendEmail ?? true,
         // Tier 153: time-bounded pause. NULL by
         // default — the UI uses a separate "Pause
@@ -403,6 +429,7 @@ export class RecurringService {
           language: source.language,
           notes: source.notes,
           invoiceStatus: source.invoiceStatus,
+          servicePeriod: source.servicePeriod,
           isActive: true,
           pausedUntil: null,
           sendEmail: source.sendEmail,
@@ -465,6 +492,7 @@ export class RecurringService {
         language: patch.language ?? undefined,
         notes: patch.notes === undefined ? undefined : patch.notes,
         invoiceStatus: patch.invoiceStatus ?? undefined,
+        servicePeriod: patch.servicePeriod ?? undefined,
         sendEmail: patch.sendEmail ?? undefined,
         isActive: patch.isActive ?? undefined,
         // Tier 153: explicit null clears the
@@ -918,6 +946,7 @@ export class RecurringService {
           status: tpl.invoiceStatus || 'draft',
           issueDate,
           dueDate,
+          ...this.servicePeriodFor(tpl, periodStart, periodEnd),
           // Prisma Decimal columns reject plain `number`;
           // round to 4dp + string to match `@db.Decimal(12,4)`.
           subtotal: subtotal4.toFixed(4),
@@ -1204,9 +1233,12 @@ export class RecurringService {
       })),
     )
 
+    const servicePeriod = this.servicePeriodFor(tpl, periodStart, periodEnd)
     return {
       periodStart: periodStart.toISOString(),
       periodEnd: periodEnd.toISOString(),
+      servicePeriodStart: servicePeriod.servicePeriodStart?.toISOString() ?? null,
+      servicePeriodEnd: servicePeriod.servicePeriodEnd?.toISOString() ?? null,
       issueDate: previewIssueDate.toISOString(),
       // Tier 428: as the run does — the customer's Zahlungsziel, else the
       // company default (it showed a hard-coded 30 days).

@@ -30,6 +30,8 @@ interface Invoice {
   issueDate: string
   dueDate: string
   deliveryDate?: string
+  servicePeriodStart?: string | null
+  servicePeriodEnd?: string | null
   currency: string
   subtotal: string
   totalVat: string
@@ -1723,7 +1725,9 @@ export default function InvoiceDetailPage() {
                 <div><div className="text-sm text-gray-500 dark:text-gray-400">Ausstellungsdatum</div><div>{formatDate(invoice.issueDate)}</div></div>
                 <div><div className="text-sm text-gray-500 dark:text-gray-400">Fälligkeitsdatum</div><div>{formatDate(invoice.dueDate)}</div></div>
                 {/* Tier 492: the Leistungsdatum (§ 14 UStG) — the issue date when none is recorded, as on the PDF */}
-                {(invoice.deliveryDate || !["PI", "CN"].includes(invoice.type)) && (
+                {invoice.servicePeriodStart && invoice.servicePeriodEnd ? (
+                  <div data-testid="leistungszeitraum"><div className="text-sm text-gray-500 dark:text-gray-400">Leistungszeitraum</div><div>{formatDate(invoice.servicePeriodStart)} – {formatDate(invoice.servicePeriodEnd)}</div></div>
+                ) : (invoice.deliveryDate || !["PI", "CN"].includes(invoice.type)) && (
                   <div data-testid="leistungsdatum"><div className="text-sm text-gray-500 dark:text-gray-400">Leistungsdatum</div><div>{formatDate(invoice.deliveryDate || invoice.issueDate)}</div></div>
                 )}
                 <div><div className="text-sm text-gray-500 dark:text-gray-400">Rechnungsart</div><div>{invoice.type}</div></div>

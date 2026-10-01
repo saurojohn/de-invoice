@@ -26,6 +26,7 @@ import { igLVatIdProblem } from './ust-behandlung-detector';
 import { businessDayIso, businessToday, businessTodayIso, dayStart } from '../../common/business-date';
 import { PaymentService } from './payment.service';
 import { ADVANCE_SETTLEMENT_METHOD, advanceReceived, advanceDeductionFor } from './advance';
+import { servicePeriodOf } from './service-period';
 
 /**
  * Tier 410 — a line's VAT rate, defaulting only when none was given.
@@ -578,6 +579,7 @@ export class InvoiceService {
       await this.assertIgLCustomer(companyId, customer.id)
     }
     const deliveryDate = dto.deliveryDate ? new Date(dto.deliveryDate) : null;
+    const servicePeriod = servicePeriodOf(dto);
 
     // ──────────────────────────────────────────────────────
     // Tier 118: multi-currency. Look up the ECB rate
@@ -658,6 +660,7 @@ export class InvoiceService {
         issueDate,
         dueDate,
         deliveryDate,
+        ...servicePeriod,
         type: dto.type || 'INV',
         status: 'draft',
         currency: dto.currency || 'EUR',
@@ -1140,6 +1143,7 @@ export class InvoiceService {
         ...(dto.customerId ? { customer: { connect: { id: dto.customerId } } } : {}),
         dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined,
         deliveryDate: dto.deliveryDate ? new Date(dto.deliveryDate) : undefined,
+        ...servicePeriodOf(dto),
         notes: dto.notes ?? undefined,
         internalNotes: dto.internalNotes ?? undefined,
         currency: dto.currency ?? undefined,
