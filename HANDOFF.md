@@ -9,18 +9,19 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–503 are
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–504 are
   in `git log`; §8 records what each learned. Tiers 443–462 came from the
-  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 503.)
+  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 504.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 37035762309 / commit `54f5c33`, Tier 503):**
-  - Backend e2e: **288 passed / 0 failed / 1 skipped** of 289 specs — 100
-    two-digit + 189 three-digit (Tier 503 added `289-tier503-geschenke.sh`,
+- **Test counts (last green CI, run 37043594608 / commit `5c61386`, Tier 504):**
+  - Backend e2e: **289 passed / 0 failed / 1 skipped** of 290 specs — 100
+    two-digit + 190 three-digit (Tier 504 added `290-tier504-homeoffice.sh`,
+    Tier 503 added `289-tier503-geschenke.sh`,
     Tier 502 added `288-tier502-firmenwagen.sh`,
     Tier 501 added `287-tier501-sondervorauszahlung.sh`,
     Tier 500 added `286-tier500-ratenplan-keine-mahnung.sh`,
@@ -132,7 +133,8 @@ exact commands + docs you need to be productive.
     and survives concurrent writes (Tier 367); spec 171 (new in Tier 368) asserts
     the auth audit rows exist at all and are signed — nothing had ever asserted
     on them, which is how a failed login for an unknown e-mail went unaudited.
-  - Playwright: **953 passed / 0 failed / 0 skipped / 0 flaky** (Tier 502
+  - Playwright: **954 passed / 0 failed / 0 skipped / 0 flaky** (Tier 504
+    added `home-office-tier504.spec.ts`; Tier 502
     added `company-cars-tier502.spec.ts`; Tier 493
     added `service-period-tier493.spec.ts` (2 tests); Tier 491
     added `zm-tier491.spec.ts`; Tier 483
