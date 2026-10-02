@@ -9,18 +9,19 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–499 are
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–500 are
   in `git log`; §8 records what each learned. Tiers 443–462 came from the
-  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 499.)
+  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 500.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 36984812173 / commit `c5ac82a`, Tier 499):**
-  - Backend e2e: **284 passed / 0 failed / 1 skipped** of 285 specs — 100
-    two-digit + 185 three-digit (Tier 499 added `285-tier499-betrag-positiv.sh`,
+- **Test counts (last green CI, run 37003990346 / commit `8bef7d8`, Tier 500):**
+  - Backend e2e: **285 passed / 0 failed / 1 skipped** of 286 specs — 100
+    two-digit + 186 three-digit (Tier 500 added `286-tier500-ratenplan-keine-mahnung.sh`,
+    Tier 499 added `285-tier499-betrag-positiv.sh`,
     Tier 498 added `284-tier498-ustid-beider-seiten.sh`,
     Tier 497 added `283-tier497-archivkopie-erst-ab-ausstellung.sh`,
     Tier 496 added `282-tier496-entwuerfe-intern.sh`,
