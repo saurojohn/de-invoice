@@ -2558,6 +2558,23 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### A draft stays internal (Tier 496)
+
+A draft is not an invoice: not counted (UStVA, EÜR, OPOS), still editable
+and deletable. Measured (spec 282): the customer portal listed the
+customer's drafts with their amounts, opened them and served their PDF; a
+payment link could be minted for a draft (and a cancelled invoice); and a
+draft's PDF looked exactly like the issued invoice.
+
+- Customer portal (`customer-portal.service.ts`): list, detail, PDF and
+  mark-paid exclude drafts (a draft is 404 there).
+- `PortalService.generateLink`: 400 for a draft or a cancelled invoice; the
+  detail page hides "Zahlungslink anzeigen" for them.
+- PDF: a draft says "ENTWURF – keine gültige Rechnung" above the title and
+  carries a light "ENTWURF" watermark on every page.
+- Spec 63 now mints its payment link on an invoice it issues itself (it took
+  the seed's first draft); Playwright `portal.spec` opens an issued invoice.
+
 ### E-mailing a draft issues it the regular way (Tier 495)
 
 `InvoiceEmailService.sendInvoiceByEmail` wrote `status: 'sent'` straight

@@ -31,16 +31,18 @@ docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
     SELECT id FROM \"Invoice\" WHERE \"companyId\" = '$COMPANY_ID'
   );" >/dev/null 2>&1
 
-# Get the first draft invoice.
-LIST=$(curl -sS -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-  "$API/api/v1/invoices?companyId=$COMPANY_ID&status=draft")
-INV_ID=$(echo "$LIST" | python3 -c "
-import json,sys
-d = json.load(sys.stdin)
-items = d if isinstance(d, list) else d.get('items', d.get('data', []))
-print(items[0]['id'] if items else '')")
+# An issued invoice of its own (Tier 496: a draft has no payment link; the
+# seed's issued invoices may already be paid by earlier specs).
+H63=(-H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" -H "Content-Type: application/json")
+CUST63=$(curl -sS "${H63[@]}" -X POST "$API/api/v1/customers?companyId=$COMPANY_ID" \
+  -d '{"name":"Tier33 Portal Kunde","type":"business","address":{"street":"Teststr. 9","postalCode":"10115","city":"Berlin","country":"DE"}}' \
+  | python3 -c "import json,sys;print(json.load(sys.stdin).get('id',''))")
+INV_ID=$(curl -sS "${H63[@]}" -X POST "$API/api/v1/invoices?companyId=$COMPANY_ID" \
+  -d "{\"customerId\":\"$CUST63\",\"issueDate\":\"$(date +%Y-%m-%d)\",\"items\":[{\"description\":\"Portal\",\"quantity\":1,\"unit\":\"Stk\",\"unitPrice\":100,\"vatRate\":0.19}]}" \
+  | python3 -c "import json,sys;print(json.load(sys.stdin).get('id',''))")
+curl -sS "${H63[@]}" -X PUT "$API/api/v1/invoices/$INV_ID/status?companyId=$COMPANY_ID" -d '{"status":"sent"}' >/dev/null
 if [[ -z "$INV_ID" ]]; then
-  fail "no draft invoice to test with"
+  fail "no issued invoice to test with"
   exit 1
 fi
 note "Using invoice $INV_ID"
@@ -82,7 +84,7 @@ assert_status_view() {
 assert_status_view "200" "public view returns 200"
 INVOICE_NUM=$(jq -r '.invoice.invoiceNumber' /tmp/t63_view.json)
 COMPANY_NAME=$(jq -r '.company.name' /tmp/t63_view.json)
-assert_eq "public view: invoiceNumber" "$INVOICE_NUM" "$(echo "$LIST" | python3 -c "import json,sys; d=json.load(sys.stdin); items=d if isinstance(d,list) else d.get('items',d.get('data',[])); print(items[0]['invoiceNumber'])")"
+assert_eq "public view: invoiceNumber" "$INVOICE_NUM" "$(curl -sS "${H63[@]}" "$API/api/v1/invoices/$INV_ID?companyId=$COMPANY_ID" | python3 -c "import json,sys; print(json.load(sys.stdin)['invoiceNumber'])")"
 if [[ -n "$COMPANY_NAME" && "$COMPANY_NAME" != "null" ]]; then
   pass "public view: company.name = $COMPANY_NAME"
 else

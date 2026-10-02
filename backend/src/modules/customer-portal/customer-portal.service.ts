@@ -313,7 +313,8 @@ export class CustomerPortalService {
     // issueDate DESC (newest first) — the customer's
     // natural reading order on the portal.
     const rawInvoices = await this.prisma.invoice.findMany({
-      where: { customerId: session.customerId, companyId: session.companyId },
+      // Tier 496: a draft is internal — not shown to the customer.
+      where: { customerId: session.customerId, companyId: session.companyId, status: { not: 'draft' } },
       orderBy: { issueDate: 'desc' },
       select: {
         id: true,
@@ -443,6 +444,7 @@ export class CustomerPortalService {
         id: invoiceId,
         customerId: session.customerId,
         companyId: session.companyId,
+        status: { not: 'draft' }, // Tier 496
       },
       include: {
         items: true,
@@ -476,6 +478,7 @@ export class CustomerPortalService {
         id: invoiceId,
         customerId: session.customerId,
         companyId: session.companyId,
+        status: { not: 'draft' }, // Tier 496
       },
       include: {
         items: true,
@@ -518,6 +521,7 @@ export class CustomerPortalService {
         id: invoiceId,
         customerId: session.customerId,
         companyId: session.companyId,
+        status: { not: 'draft' }, // Tier 496
       },
       include: { payments: { select: { amount: true } } },
     })

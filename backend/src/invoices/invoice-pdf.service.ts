@@ -446,6 +446,14 @@ export async function generateInvoicePDF(
     const titleOffsetY = 42  // 3 rows down
     const titleY = middleRowY + titleOffsetY
     doc.fontSize(20).font(fontFor('bold')).text(invoiceTitle, leftMargin, titleY, { width: rightBlockWidth, align: "right", lineBreak: false })
+    // Tier 496: a draft is no invoice yet (not counted, still changeable) —
+    // its PDF says so above the title, and as a watermark on every page below.
+    const isDraft = (invoice as any).status === "draft"
+    if (isDraft) {
+      doc.fontSize(9).font(fontFor('bold')).fillColor("#b91c1c")
+        .text("ENTWURF – keine gültige Rechnung", leftMargin, titleY - 12, { width: rightBlockWidth, align: "right", lineBreak: false })
+      doc.fillColor(textColor).fontSize(20).font(fontFor('bold'))
+    }
     doc.fontSize(16).text(invoice.invoiceNumber, leftMargin, titleY + 24, { width: rightBlockWidth, align: "right", lineBreak: false })
 
     // Invoice details — right side, just below RECHNUNG title.
@@ -1058,6 +1066,16 @@ export async function generateInvoicePDF(
     const range = doc.bufferedPageRange()
     for (let i = range.start; i < range.start + range.count; i++) {
       doc.switchToPage(i)
+      if (isDraft) {
+        const cx = doc.page.width / 2
+        const cy = doc.page.height / 2
+        doc.save()
+        doc.rotate(-35, { origin: [cx, cy] })
+        doc.font(fontFor('bold')).fontSize(110).fillColor("#b91c1c").opacity(0.12)
+        doc.text("ENTWURF", 0, cy - 55, { width: doc.page.width, align: "center", lineBreak: false })
+        doc.restore()
+        doc.opacity(1)
+      }
       doc.font(fontFor('regular')).fontSize(8).fillColor(textColor)
       doc.text(
         `Seite ${i - range.start + 1} von ${range.count}`,

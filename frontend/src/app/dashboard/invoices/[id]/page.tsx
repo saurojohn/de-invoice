@@ -1478,17 +1478,20 @@ export default function InvoiceDetailPage() {
                 First click mints the link via the backend.
                 Subsequent clicks show the same URL (the
                 backend returns reused=true — same idem-
-                potent behaviour). */}
-            <Button
-              variant="outline"
-              onClick={generatePortalLink}
-              disabled={portalLinkGenerating}
-              data-testid="invoice-portal-link-button"
-            >
-              {portalLinkGenerating
-                ? "Erstelle Link..."
-                : "Zahlungslink anzeigen"}
-            </Button>
+                potent behaviour). Tier 496: not for a draft (no invoice
+                yet) or a cancelled one. */}
+            {!["draft", "cancelled"].includes(invoice.status) && (
+              <Button
+                variant="outline"
+                onClick={generatePortalLink}
+                disabled={portalLinkGenerating}
+                data-testid="invoice-portal-link-button"
+              >
+                {portalLinkGenerating
+                  ? "Erstelle Link..."
+                  : "Zahlungslink anzeigen"}
+              </Button>
+            )}
             {sendResult && (
               <span
                 className={`text-sm ${sendResult.ok ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}

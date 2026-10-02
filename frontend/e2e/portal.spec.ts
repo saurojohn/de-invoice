@@ -75,7 +75,8 @@ test.describe("Customer portal (Tier 33)", () => {
     await setupAuth(context, page)
     // We need an invoice id. The seed list returns
     // the 50 most-recent invoices — pick the first.
-    await page.goto("/dashboard/invoices", {
+    // Tier 496: an issued invoice — a draft has no payment link.
+    await page.goto("/dashboard/invoices?status=sent,overdue", {
       waitUntil: "domcontentloaded",
     })
     const firstRow = page.locator('[data-testid="invoice-row"]').first()

@@ -58,6 +58,14 @@ export class PortalService {
     if (!invoice) {
       throw new NotFoundException('Rechnung nicht gefunden')
     }
+    // Tier 496: a draft is not an invoice yet, a cancelled one no longer.
+    if (invoice.status === 'draft' || invoice.status === 'cancelled') {
+      throw new BadRequestException(
+        invoice.status === 'draft'
+          ? 'Ein Entwurf hat keinen Zahlungslink — bitte die Rechnung zuerst ausstellen.'
+          : 'Eine stornierte Rechnung hat keinen Zahlungslink.',
+      )
+    }
     // Idempotency: if an existing link is still
     // active, reuse it. The admin click was
     // probably "I lost the URL, send again".
