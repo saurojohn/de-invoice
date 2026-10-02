@@ -2559,6 +2559,26 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### The archive copy is the issued invoice (Tier 497)
+
+The first PDF download is stored (`Invoice.pdfPath`) and handed over "as
+issued" by the GoBD archive, the GoBD export and the DATEV bundle (Tier
+420). Measured (spec 283, 5 assertions fail on the old code): a draft's
+download was stored too — the draft was then edited and issued, and the
+archive held the old draft, with the old line and amount and (since Tier
+496) the ENTWURF watermark; a same-day edit of an issued invoice (Tier 477)
+kept the stale copy as well.
+
+- `GET /invoices/:id/pdf` stores nothing for a draft.
+- Issuing (draft → issued) and every `update()` clear `pdfPath`; the next
+  download stores the current document.
+
+Existing data: copies stored before this tier from a draft download cannot
+be told apart from a correct one. If an archive shows a document that
+differs from the invoice record, clear its `pdfPath` and download it once
+(only what the customer actually received belongs in the archive — check
+the EmailSend row / the customer's copy first).
+
 ### A draft stays internal (Tier 496)
 
 A draft is not an invoice: not counted (UStVA, EÜR, OPOS), still editable

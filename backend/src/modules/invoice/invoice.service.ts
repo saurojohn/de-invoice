@@ -1145,6 +1145,9 @@ export class InvoiceService {
         dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined,
         deliveryDate: dto.deliveryDate ? new Date(dto.deliveryDate) : undefined,
         ...servicePeriodOf(dto),
+        // Tier 497: the stored PDF showed the invoice before this edit; the
+        // next download stores the current one.
+        pdfPath: null,
         notes: dto.notes ?? undefined,
         internalNotes: dto.internalNotes ?? undefined,
         currency: dto.currency ?? undefined,
@@ -1386,7 +1389,9 @@ export class InvoiceService {
 
     const updated = await this.prisma.invoice.update({
       where: { id },
-      data: { status },
+      // Tier 497: a copy stored while it was a draft (before this tier) is
+      // not the issued invoice.
+      data: { status, ...(issuing ? { pdfPath: null } : {}) },
     });
     if (advance) {
       try {

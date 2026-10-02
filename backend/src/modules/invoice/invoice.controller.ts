@@ -785,7 +785,9 @@ export class InvoiceController {
       // column. The ZUGFeRD XML is embedded INTO the saved
       // PDF — reopening it shows the XML attachment, so
       // downstream re-downloads are still E-Invoice compliant.
-      if (!invoice.pdfPath) {
+      // Tier 497: the stored copy is the archive's "as issued" document
+      // (GoBD archive / export, DATEV bundle) — a draft's is not stored.
+      if (!invoice.pdfPath && invoice.status !== 'draft') {
         try {
           const savedFile = await this.storageService.saveInvoicePdf(
             pdfBuffer,
