@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
 import { businessTodayDate } from '../../common/business-date';
 import { computeInvoiceAmounts } from '../invoice/invoice-amounts';
+import { assertPositiveTotal } from '../invoice/positive-total';
 import { PrismaService } from '../../prisma/prisma.service';
 // Tier 129: send the generated invoice to the customer
 // after a successful template run. The service throws
@@ -857,6 +858,7 @@ export class RecurringService {
         })),
       )
       const { subtotal, totalVat, total } = amounts
+      assertPositiveTotal(total) // Tier 499
       const vatBreakdown = amounts.byRate.map((v) => ({
         rate: v.rate,
         netAmount: v.net,

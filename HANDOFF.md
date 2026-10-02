@@ -2561,6 +2561,20 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### An invoice's total is above 0 (Tier 499)
+
+Measured (spec 285, 9 assertions fail on the old code): `POST /invoices`
+took an INV of −595 € (one line of −500 €) and one of 0 €, an edit could
+turn an invoice negative, and both could be issued. A negative "invoice" is
+a credit note without the invoice it corrects (§ 31 Abs. 5 UStDV) and went
+into the UStVA and the EÜR as negative revenue; a 0 € one is no invoice.
+
+- `assertPositiveTotal` (invoice-amounts.ts): in `create`, `update`, on
+  issuing (a draft saved before) and in a recurring run — 400 pointing to
+  "Gutschrift". The check is on the total before a credit note's sign, so
+  credit notes are unaffected; a negative discount line in a positive
+  invoice stays allowed.
+
 ### An igL / EU reverse-charge invoice states both USt-IdNrn. (Tier 498)
 
 § 14a Abs. 1 / 3 UStG: an innergemeinschaftliche Lieferung, or a B2B

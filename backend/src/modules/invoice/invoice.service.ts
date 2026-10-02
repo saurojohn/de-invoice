@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { computeInvoiceAmounts, toCents } from './invoice-amounts';
+import { assertPositiveTotal } from './positive-total';
 import { invoiceTaxBreakdown } from './tax-breakdown';
 import { Prisma } from '@prisma/client';
 import { WebhookService } from '../webhook/webhook.service';
@@ -514,6 +515,7 @@ export class InvoiceService {
       { discountPercent: dto.discountPercent, discountAmount: dto.discountAmount },
     );
     const { subtotal, discountAmount, totalVat, total } = amounts;
+    assertPositiveTotal(total);
 
     // For Credit Notes, total / subtotal / totalVat are all negative
     // — the line items already get negated below. Apply the same sign
@@ -1065,6 +1067,7 @@ export class InvoiceService {
           : { discountAmount: dto.discountAmount ?? Number(existing.discountAmount ?? 0) },
       );
       const { subtotal, discountAmount, totalVat, total } = amounts;
+      assertPositiveTotal(total);
 
       itemsData = {
         deleteMany: {},
@@ -1379,6 +1382,8 @@ export class InvoiceService {
     // Tier 494: an invoice is issued only with its mandatory details. A credit
     // note is created issued, from an invoice that had them.
     if (issuing && before.type !== 'CN') {
+      // Tier 499: also a draft saved with a total of 0 or below before then.
+      assertPositiveTotal(Number(before.total));
       const [company, customer] = await Promise.all([
         this.prisma.company.findUnique({ where: { id: companyId } }),
         this.prisma.customer.findFirst({ where: { id: before.customerId, companyId } }),
