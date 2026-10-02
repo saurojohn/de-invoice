@@ -520,6 +520,10 @@ export class BankImportService {
             total: true,
             type: true,
             status: true,
+            // Tier 505: a foreign-currency invoice is paid in its currency
+            currency: true,
+            exchangeRate: true,
+            payments: { select: { amount: true } },
             // Tier 52: Skonto detection needs the
             // discount window (skontoPercent +
             // skontoDays) and the issueDate to
@@ -550,7 +554,22 @@ export class BankImportService {
     // appliedAmount manually (not exposed in v1).
     const txnAmount = Number(recon.bankTransaction.amount);
     const invTotal = Number(recon.invoice.total);
-    const applied = Math.min(txnAmount, invTotal);
+    let applied = Math.min(txnAmount, invTotal);
+    // Tier 505: a payment's amount is in the invoice's currency (DATEV and
+    // the EÜR convert it at the invoice's rate). A EUR credit on a USD
+    // invoice was booked as if the euros were dollars — 1 000 € for a
+    // 1 085 USD invoice left it open for 85 USD. Converted at the invoice's
+    // rate ("1 EUR = rate"); within 2 % of what is open (the rate moved
+    // between invoice and payment) it settles the invoice.
+    const invCurrency = String(recon.invoice.currency || 'EUR').toUpperCase();
+    const txnCurrency = String(recon.bankTransaction.currency || 'EUR').toUpperCase();
+    if (invCurrency !== txnCurrency && txnCurrency === 'EUR') {
+      const rate = Number(recon.invoice.exchangeRate) > 0 ? Number(recon.invoice.exchangeRate) : 1;
+      const paidSoFar = recon.invoice.payments.reduce((s, p) => s + Number(p.amount), 0);
+      const open = Math.round((invTotal - paidSoFar) * 100) / 100;
+      const converted = Math.round(txnAmount * rate * 100) / 100;
+      applied = Math.abs(converted - open) <= open * 0.02 ? open : Math.min(converted, open);
+    }
     if (applied <= 0) {
       throw new BadRequestException('Betrag muss größer als 0 sein');
     }

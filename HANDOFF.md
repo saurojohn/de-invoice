@@ -2569,6 +2569,26 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### A EUR bank receipt on a foreign-currency invoice (Tier 505)
+
+A payment's amount is in the invoice's currency (DATEV and the EÜR convert
+it at the invoice's rate, Tier 118 / 362). Measured (spec 291): matching a
+EUR bank credit to a USD invoice booked the euros as if they were dollars —
+1 000 € for a 1 085 USD invoice (= 1 000 € at its rate) became a payment of
+"1 000 USD", the invoice stayed open for 85 USD and the reports counted
+921,66 €.
+
+- `BankImportService.confirmMatch` (auto-match and manual match): a EUR
+  credit on a non-EUR invoice is converted at the invoice's rate ("1 EUR =
+  rate"); within 2 % of what is open (the rate moved in between) it settles
+  the invoice, otherwise it is a partial payment. Skonto detection works on
+  the converted amount.
+
+Not covered: the exchange difference itself (Kursgewinn / -verlust, § 4 Abs.
+3 EStG counts what was received). The EÜR / DATEV keep the invoice's rate —
+990 € received are counted as 1 000 €; the Berater books the 10 € difference
+(SKR03 2150 / 2660).
+
 ### The home office (Tier 504)
 
 Since 2023 a sole trader / partner deducts either the Tagespauschale (6 €
