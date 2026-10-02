@@ -339,9 +339,12 @@ reap_orphan_engines() {
 # Tier 494: an invoice is issued only with the mandatory details (§ 14 Abs. 4
 # UStG) — the issuer's address and Steuernummer / USt-IdNr. A freshly
 # registered fixture company has neither; this fills in what is empty.
-fixture_issuer() { # companyId
+# Tier 498: an igL / EU reverse-charge invoice also needs the company's
+# USt-IdNr. (§ 14a UStG) — pass it as the second argument.
+fixture_issuer() { # companyId [vatId]
   docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -qAtc "update \"Company\" set
     address = case when coalesce(address->>'street','') = '' then '{\"street\":\"Teststr. 1\",\"postalCode\":\"10115\",\"city\":\"Berlin\",\"country\":\"DE\"}'::jsonb else address end,
-    \"taxId\" = case when \"taxId\" is null and \"vatId\" is null then '12/345/67890' else \"taxId\" end
+    \"taxId\" = case when \"taxId\" is null and \"vatId\" is null then '12/345/67890' else \"taxId\" end,
+    \"vatId\" = coalesce(\"vatId\", nullif('${2:-}', ''))
     where id = '$1'" >/dev/null
 }

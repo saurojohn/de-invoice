@@ -2560,6 +2560,23 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### An igL / EU reverse-charge invoice states both USt-IdNrn. (Tier 498)
+
+§ 14a Abs. 1 / 3 UStG: an innergemeinschaftliche Lieferung, or a B2B
+service whose tax a customer in another member state owes, needs the
+USt-IdNr. of supplier and recipient on the invoice. Tier 494 accepted a
+Steuernummer for the supplier: measured (spec 284), a company with a
+Steuernummer only issued an igL and an EU reverse-charge invoice, and the
+latter also to a customer without a USt-IdNr.
+
+- `missingInvoiceDetails` (mandatory-details.ts): for `euTransaction`, or
+  `reverseCharge` with a customer in another member state, the company's
+  and the customer's USt-IdNr. are required. A domestic § 13b invoice
+  (Bauleistung) and every domestic invoice keep accepting the Steuernummer.
+- `fixture_issuer "$C" <vatId>` sets the fixture company's USt-IdNr. (only
+  when empty); used by the specs that issue igL / EU services (199, 206,
+  212, 273, 277) and the Playwright ZM test.
+
 ### The archive copy is the issued invoice (Tier 497)
 
 The first PDF download is stored (`Invoice.pdfPath`) and handed over "as

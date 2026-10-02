@@ -15,7 +15,13 @@ import { BadRequestException } from '@nestjs/common'
  */
 export const KLEINBETRAG_LIMIT_EUR = 250
 
-type Address = { street?: string | null; postalCode?: string | null; city?: string | null } | null | undefined
+type Address = { street?: string | null; postalCode?: string | null; city?: string | null; country?: string | null } | null | undefined
+
+/** Member states (ISO country codes, as stored in addresses). */
+const EU_COUNTRIES = [
+  'AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DE', 'DK', 'EE', 'FI', 'FR', 'GR', 'HU', 'IE',
+  'IT', 'LV', 'LT', 'LU', 'MT', 'NL', 'PL', 'PT', 'RO', 'SK', 'SI', 'ES', 'SE',
+]
 
 const filled = (v: unknown) => typeof v === 'string' && v.trim() !== ''
 const addressComplete = (a: Address) => !!a && filled(a.street) && filled(a.postalCode) && filled(a.city)
@@ -23,7 +29,7 @@ const addressComplete = (a: Address) => !!a && filled(a.street) && filled(a.post
 export function missingInvoiceDetails(
   invoice: { total?: unknown; eurTotal?: unknown; euTransaction?: boolean | null; reverseCharge?: boolean | null },
   company: { name?: string | null; legalName?: string | null; address?: unknown; taxId?: string | null; vatId?: string | null },
-  customer: { name?: string | null; address?: unknown } | null | undefined,
+  customer: { name?: string | null; address?: unknown; vatId?: string | null } | null | undefined,
 ): string[] {
   const missing: string[] = []
   const gross = Math.abs(Number(invoice.eurTotal ?? invoice.total ?? 0))
@@ -36,6 +42,16 @@ export function missingInvoiceDetails(
   if (!filled(company.taxId) && !filled(company.vatId)) missing.push('Steuernummer oder USt-IdNr. Ihres Unternehmens')
   if (!customer || !filled(customer.name)) missing.push('Name des Kunden')
   if (!addressComplete(customer?.address as Address)) missing.push('Anschrift des Kunden (Straße, PLZ, Ort)')
+
+  // Tier 498 — § 14a Abs. 1 / 3 UStG: an igL, or a service whose tax the
+  // customer in another member state owes, states both USt-IdNrn.; a
+  // Steuernummer does not do.
+  const country = String((customer?.address as Address)?.country || '').trim().toUpperCase()
+  const euReverseCharge = !!invoice.reverseCharge && country !== '' && country !== 'DE' && EU_COUNTRIES.includes(country)
+  if (invoice.euTransaction || euReverseCharge) {
+    if (!filled(company.vatId)) missing.push('USt-IdNr. Ihres Unternehmens (§ 14a UStG — eine Steuernummer genügt hier nicht)')
+    if (!filled(customer?.vatId)) missing.push('USt-IdNr. des Kunden (§ 14a UStG)')
+  }
   return missing
 }
 

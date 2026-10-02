@@ -17,7 +17,7 @@ TODAY=$(python3 -c "import datetime, zoneinfo;print(datetime.datetime.now(zonein
 read -r U C < <(curl -sS -X POST "$API/api/v1/auth/register" -H "Content-Type: application/json" \
   -d "{\"email\":\"$TAG@example.test\",\"password\":\"Tier487-e2e\",\"companyName\":\"$TAG Handel\"}" \
   | python3 -c "import sys,json;d=json.load(sys.stdin);print(d['user']['id'], d['user'].get('companyId') or d['company']['id'])" 2>/dev/null)
-fixture_issuer "$C"
+fixture_issuer "$C" DE811111111
 [[ -n "${C:-}" ]] && pass "fixture: a fresh company" || { fail "register"; summary; exit 1; }
 AS() { # method path [body]
   local resp

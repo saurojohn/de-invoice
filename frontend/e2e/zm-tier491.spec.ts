@@ -14,9 +14,10 @@ test("the ZM card lists an igL per USt-IdNr. and reconciles with Kz 41", async (
   const companyId: string = reg.user.companyId || reg.company.id
   const H = { "x-user-id": userId, "x-company-id": companyId }
   const q = `companyId=${companyId}`
-  // Tier 494: issuing needs the company's address and tax number.
+  // Tier 494: issuing needs the company's address and tax number; Tier 498:
+  // an igL also its USt-IdNr. (§ 14a UStG).
   await request.put(`${API}/api/v1/companies/${companyId}?${q}`, {
-    headers: H, data: { address: { street: "Teststr. 1", postalCode: "10115", city: "Berlin", country: "DE" }, taxId: "12/345/67890" },
+    headers: H, data: { address: { street: "Teststr. 1", postalCode: "10115", city: "Berlin", country: "DE" }, taxId: "12/345/67890", vatId: "DE811111111" },
   })
 
   const cust = await (await request.post(`${API}/api/v1/customers?${q}`, {
