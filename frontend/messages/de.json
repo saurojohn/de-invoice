@@ -2196,7 +2196,9 @@
     "hintVoranmeldung": "Hinweis: Bei Abgabe nach dem 10. des Folgemonats kann Verspätungszuschlag erhoben werden (§ 152 AO).",
     "downloadElster": "ELSTER XML",
     "elsterTooltip": "ELSTER-XML für Mein-ELSTER-Upload herunterladen",
-    "istVersteuerung": "Ist-Versteuerung (§ 20 UStG): steuerpflichtige Umsätze im Zeitraum des Zahlungseingangs."
+    "istVersteuerung": "Ist-Versteuerung (§ 20 UStG): steuerpflichtige Umsätze im Zeitraum des Zahlungseingangs.",
+    "giftRecipient": "Empfänger des Geschenks",
+    "giftRecipientHint": "Bis 50 € (netto) je Empfänger und Jahr abziehbar; darüber sind alle Geschenke an ihn nicht abziehbar, auch die Vorsteuer (§ 4 Abs. 5 Nr. 1 EStG, § 15 Abs. 1a UStG). Ohne Empfänger nur Streuartikel bis 10 €."
   },
   "voucher": {
     "title": "Buchungsbeleg",

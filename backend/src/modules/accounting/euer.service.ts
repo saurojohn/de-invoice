@@ -8,6 +8,7 @@ import { cashBookings } from '../cashbook/cash-bookings'
 import { deductibleCost, isBewirtung, nichtAbziehbareBewirtung } from './expense-cost'
 import { bookedAfaCost } from './booked-afa'
 import { privateCarUse } from '../company-car/private-use'
+import { nichtAbziehbareGeschenke, nonDeductibleGiftIds } from './gifts'
 
 /**
  * Tier 76: Anlage EÜR (Einnahmen-Überschuss-Rechnung).
@@ -77,6 +78,8 @@ export interface EuerResult {
   prinzip: 'zufluss';
   /** Tier 485: the non-deductible 30 % of the entertainment expenses (not in the Gewinn) */
   nichtAbziehbareBewirtung: number;
+  /** Tier 503: gifts above the 50 € limit (gross — cost and input tax) */
+  nichtAbziehbareGeschenke: number;
   counts: {
     /** invoices with income in the year */
     invoices: number;
@@ -259,7 +262,11 @@ export class EuerService {
     // (Tier 410) come with the invoice, as before.
     const { inflows, unpaidInvoices } = await euerInflows(this.prisma, companyId, yearStart, yearEnd)
     // Tier 87 / 436: booked AfA rows are the 4600 line below, not an expense.
-    const { expenses, unpaidExpenses } = await euerExpenses(this.prisma, companyId, yearStart, yearEnd)
+    const { expenses: allExpenses, unpaidExpenses } = await euerExpenses(this.prisma, companyId, yearStart, yearEnd)
+    // Tier 503: gifts above the 50 € limit are no Betriebsausgabe — neither
+    // their cost nor their input tax (accounting/gifts.ts).
+    const badGifts = await nonDeductibleGiftIds(this.prisma, companyId, allExpenses, revenueCtx.kleinunternehmer)
+    const expenses = allExpenses.filter((e) => !badGifts.has(e.id))
 
     // Bucket revenues by Kennziffer. The matchers
     // are evaluated in order; the first match wins.
@@ -367,6 +374,7 @@ export class EuerService {
       },
       prinzip: 'zufluss',
       nichtAbziehbareBewirtung: nichtAbziehbareBewirtung(expenses, revenueCtx.kleinunternehmer),
+      nichtAbziehbareGeschenke: nichtAbziehbareGeschenke(allExpenses, badGifts),
       counts: {
         invoices: new Set(inflows.map((f) => f.invoice.id)).size,
         expenses: expenses.length,

@@ -8,6 +8,7 @@ import { cashBookings } from '../cashbook/cash-bookings'
 import { deductibleCost, nichtAbziehbareBewirtung } from './expense-cost'
 import { bookedAfaCost } from './booked-afa'
 import { privateCarUse } from '../company-car/private-use'
+import { nichtAbziehbareGeschenke, nonDeductibleGiftIds } from './gifts'
 
 /**
  * Tier 80: Anlage S — Einkünfte aus
@@ -64,6 +65,8 @@ export interface AnlageSResult {
     gewinn: number // einnahmen - ausgaben (positive = profit, negative = loss)
     /** Tier 485: the non-deductible 30 % of entertainment (not in the Gewinn) */
     nichtAbziehbareBewirtung: number
+    /** Tier 503: gifts above the 50 € limit (gross) */
+    nichtAbziehbareGeschenke: number
   }
   /** Tier 455: § 11 EStG — counted when paid (as the EÜR) */
   prinzip: 'zufluss'
@@ -248,7 +251,11 @@ export class AnlageSService {
     // Tier 455: counted when paid, as the EÜR it is (§ 4 Abs. 3, § 11 EStG;
     // euer-zufluss.ts) — was issue date / invoice date.
     const { inflows, unpaidInvoices } = await euerInflows(this.prisma, companyId, yearStart, yearEnd)
-    const { expenses, unpaidExpenses } = await euerExpenses(this.prisma, companyId, yearStart, yearEnd)
+    const { expenses: allExpenses, unpaidExpenses } = await euerExpenses(this.prisma, companyId, yearStart, yearEnd)
+    // Tier 503: gifts above the 50 € limit are no Betriebsausgabe — neither
+    // their cost nor their input tax (accounting/gifts.ts).
+    const badGifts = await nonDeductibleGiftIds(this.prisma, companyId, allExpenses, revenueCtx.kleinunternehmer)
+    const expenses = allExpenses.filter((e) => !badGifts.has(e.id))
 
     // Tier 87: AfA-Buchung rows for 4600 (the 4600 matcher is a stub).
     // Tier 436: as a cost — the rows' netAmount is negative, and the line
@@ -353,6 +360,7 @@ export class AnlageSService {
         ausgabenTotal: round2(ausgabenTotal),
         gewinn,
         nichtAbziehbareBewirtung: nichtAbziehbareBewirtung(expenses, revenueCtx.kleinunternehmer),
+        nichtAbziehbareGeschenke: nichtAbziehbareGeschenke(allExpenses, badGifts),
       },
       prinzip: 'zufluss',
       counts: {

@@ -12,6 +12,7 @@ import { SALES_TYPES } from '../invoice/document-scope'
 import { deductibleCost, nichtAbziehbareBewirtung } from './expense-cost'
 import { bookedAfaCost, NOT_AFA_BOOKING } from './booked-afa'
 import { privateCarUse } from '../company-car/private-use'
+import { nichtAbziehbareGeschenke, nonDeductibleGiftIds } from './gifts'
 
 /**
  * Tier 438 — Anlage G counted costs as profit.
@@ -120,6 +121,8 @@ export interface AnlageGResult {
     gewinnVorKorrektur: number // einnahmen - betriebsausgaben
     /** Tier 485: the non-deductible 30 % of entertainment (not in the Gewinn) */
     nichtAbziehbareBewirtung: number
+    /** Tier 503: gifts above the 50 € limit (gross) */
+    nichtAbziehbareGeschenke: number
     hinzurechnungenTotal: number
     kurzungenTotal: number
     gewerbeertrag: number // gewinnVorKorrektur + hinzu - kurzungen
@@ -416,7 +419,7 @@ export class AnlageGService {
 
     // Betriebsausgaben (Expense rows): paid in the year (EÜR) or dated in it
     // (Bilanz).
-    const expenses = zufluss
+    const allExpenses = zufluss
       ? (await euerExpenses(this.prisma, companyId, yearStart, yearEnd)).expenses
       : await this.prisma.expense.findMany({
         where: {
@@ -425,8 +428,12 @@ export class AnlageGService {
           status: { in: ['booked', 'deductible'] },
           ...NOT_AFA_BOOKING, // Tier 438: the booked AfA is line 2500, below
         },
-        select: { netAmount: true, grossAmount: true, category: true },
+        select: { id: true, netAmount: true, grossAmount: true, category: true },
       })
+    // Tier 503: gifts above the 50 € limit are no Betriebsausgabe — neither
+    // their cost nor their input tax (accounting/gifts.ts).
+    const badGifts = await nonDeductibleGiftIds(this.prisma, companyId, allExpenses, kleinunternehmer)
+    const expenses = allExpenses.filter((e) => !badGifts.has(e.id))
 
     // Bucket revenues by Kennziffer. First match
     // wins. Gutschriften (negative subtotal) reduce
@@ -623,6 +630,7 @@ export class AnlageGService {
         betriebsausgabenTotal: round2(betriebsausgabenTotal),
         gewinnVorKorrektur,
         nichtAbziehbareBewirtung: nichtAbziehbareBewirtung(expenses, kleinunternehmer),
+        nichtAbziehbareGeschenke: nichtAbziehbareGeschenke(allExpenses, badGifts),
         hinzurechnungenTotal: round2(hinzurechnungenTotal),
         kurzungenTotal: round2(kurzungenTotal),
         gewerbeertrag,

@@ -77,6 +77,7 @@ interface Expense {
   vatAmount: string
   grossAmount: string
   category: string | null
+  giftRecipient?: string | null
   isIntraEU: boolean
   isReverseCharge: boolean
   supplierId?: string | null
@@ -150,6 +151,8 @@ function UstvaPageInner() {
     vatAmount: "",
     grossAmount: "",
     category: "",
+    // Tier 503: the recipient of a gift (category "Geschenk…")
+    giftRecipient: "",
     isIntraEU: false,
     isReverseCharge: false,
     // Tier 442: a supplier credit note — entered positive, stored negative.
@@ -283,6 +286,7 @@ function UstvaPageInner() {
       vatAmount: String(Math.abs(Number(ex.vatAmount))),
       grossAmount: String(Math.abs(Number(ex.grossAmount))),
       category: ex.category || "",
+      giftRecipient: ex.giftRecipient || "",
       isIntraEU: !!ex.isIntraEU,
       isReverseCharge: !!ex.isReverseCharge,
       creditNote: Number(ex.grossAmount) < 0,
@@ -891,6 +895,21 @@ function UstvaPageInner() {
                           className="w-full px-2 py-1.5 border rounded text-sm"
                         />
                       </div>
+                      {/^Geschenk/i.test(exForm.category || "") && (
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
+                            {t("ustva.giftRecipient")}
+                          </label>
+                          <input
+                            value={exForm.giftRecipient || ""}
+                            onChange={(e) => setExForm({ ...exForm, giftRecipient: e.target.value })}
+                            title={t("ustva.giftRecipientHint")}
+                            className="w-full px-2 py-1.5 border rounded text-sm"
+                            data-testid="expense-gift-recipient"
+                          />
+                          <p className="mt-1 text-xs text-gray-500">{t("ustva.giftRecipientHint")}</p>
+                        </div>
+                      )}
                       <div>
                         <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
                           {t("expenses.paidAt")}

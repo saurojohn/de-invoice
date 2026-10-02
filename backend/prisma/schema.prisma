@@ -497,6 +497,10 @@ model Expense {
   vatAmount         Decimal    @db.Decimal(12, 4)
   grossAmount       Decimal    @db.Decimal(12, 4)
   category          String? // e.g. "Material", "Miete", "Bürobedarf"
+  // Tier 503: who a business gift (category "Geschenk…") went to — the
+  // 50 € limit is per recipient and year (§ 4 Abs. 5 Nr. 1 EStG), and the
+  // name must be recorded (§ 4 Abs. 7 EStG). See accounting/gifts.ts.
+  giftRecipient     String?
   // Tier 179: SKR03 Sachkonto for this expense (e.g.
   // "4400" = Wareneingang, "6300" = Miete). The
   // Voucher model has lines with an accountId FK to

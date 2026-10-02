@@ -258,6 +258,7 @@ export class UstvaController {
       vatAmount: signed.vat,
       grossAmount: signed.gross,
       category: body.category,
+      giftRecipient: body.giftRecipient, // Tier 503
       isIntraEU: body.isIntraEU ?? false,
       isReverseCharge: body.isReverseCharge ?? false,
       notes: body.notes,

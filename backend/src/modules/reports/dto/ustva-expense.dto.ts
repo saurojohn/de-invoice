@@ -73,6 +73,10 @@ export class CreateUstvaExpenseDto {
   @IsString() @IsOptional() @MaxLength(100)
   category?: string
 
+  // Tier 503: the recipient of a business gift (category "Geschenk…")
+  @IsString() @IsOptional() @MaxLength(200)
+  giftRecipient?: string
+
   @IsOptional()
   @Transform(({ value }) => {
     if (typeof value === "string") {

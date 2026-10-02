@@ -12,6 +12,7 @@ import { normalizeVatId } from '../../common/vat-id';
 import { expenseLockReason, expenseLockReasons } from '../expense/expense-lock';
 import { KzEntry, ustvaKennzahlen } from './ust-kennzahlen';
 import { privateCarUse } from '../company-car/private-use';
+import { nonDeductibleGiftIds } from '../accounting/gifts';
 
 /**
  * UStVA — Umsatzsteuervoranmeldung
@@ -364,8 +365,12 @@ export class UstvaService {
     const rcEu = { net: 0, vat: 0 };
     const rcOther = { net: 0, vat: 0 };
     let expenseCount = expenses.length;
+    // Tier 503: no input tax on a gift above the 50 € limit (§ 15 Abs. 1a
+    // UStG), judged against the recipient's gifts of the whole year.
+    const badGifts = await nonDeductibleGiftIds(this.prisma, companyId, expenses, false);
 
     for (const exp of expenses) {
+      if (badGifts.has(exp.id)) continue;
       const rate = Number(exp.vatRate);
       const net = Number(exp.netAmount);
       const vat = Number(exp.vatAmount);
@@ -1073,6 +1078,7 @@ export class UstvaService {
     vatAmount: number;
     grossAmount: number;
     category?: string;
+    giftRecipient?: string;
     isIntraEU?: boolean;
     isReverseCharge?: boolean;
     notes?: string;
@@ -1103,6 +1109,7 @@ export class UstvaService {
         vatAmount: data.vatAmount,
         grossAmount: data.grossAmount,
         category: data.category,
+        giftRecipient: data.giftRecipient?.trim() || null, // Tier 503
         isIntraEU: data.isIntraEU ?? false,
         isReverseCharge: data.isReverseCharge ?? false,
         notes: data.notes,

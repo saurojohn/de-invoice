@@ -178,7 +178,8 @@ export async function euerExpenses(prisma: PrismaService, companyId: string, sta
     prisma.expense.findMany({
       where: { ...scope, paidAt: { gte: start, lte: end } },
       // Tier 483: the input tax paid is its own EÜR line (gezahlte Vorsteuer)
-      select: { netAmount: true, grossAmount: true, vatAmount: true, category: true },
+      // Tier 503: id for the gift limit (accounting/gifts.ts)
+      select: { id: true, netAmount: true, grossAmount: true, vatAmount: true, category: true },
     }),
     prisma.expense.count({
       where: { ...scope, paidAt: null, invoiceDate: { gte: start, lte: end } },

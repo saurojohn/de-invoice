@@ -2566,6 +2566,34 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Business gifts and the 50 € limit (Tier 503)
+
+§ 4 Abs. 5 Nr. 1 EStG: gifts to business contacts are deductible only if
+all gifts to that recipient in the year cost no more than 50 € (net; gross
+without input-tax deduction); above it none of them — nor its input tax
+(§ 15 Abs. 1a UStG). The recipient's name must be recorded (§ 4 Abs. 7
+EStG); without it only a Streuartikel (≤ 10 €). A gift (category
+"Geschenk…") was an expense like any other: deducted in full, the input tax
+claimed, and no recipient could be recorded (spec 289, 9 assertions fail on
+the old code).
+
+- `Expense.giftRecipient` (migration 20261002000003), in the create / update
+  DTOs; the UStVA expense form shows the field for a "Geschenk…" category.
+- `accounting/gifts.ts`: `nonDeductibleGifts` (per recipient — trimmed,
+  case-insensitive — and calendar year; without a recipient > 10 €),
+  `nonDeductibleGiftIds` (for any expense list, judged against all the
+  company's gifts of their years), `nichtAbziehbareGeschenke` (gross).
+- EÜR / Anlage S / Anlage G: such gifts are left out of the expenses and the
+  paid input tax; `totals.nichtAbziehbareGeschenke` shows them. UStVA: no
+  input tax for them. KSt 1: Kz 80 adds their net cost back (with the 30 %
+  of Bewirtung).
+
+A gift that later crosses the limit (a second gift in November) takes the
+input tax off the earlier month too — a submitted return is then flagged
+"Berichtigung nötig" (Tier 449); the correction may also be made in the
+later period. The GuV / BWA keep gifts at net cost (the lost input tax is
+not added there).
+
 ### Private use of a company car — the 1 % rule (Tier 502)
 
 User decision: build it. Nothing existed (spec 288: `POST /company-cars`
@@ -2927,8 +2955,8 @@ Kz 80 a placeholder, labelled "§ 8b KStG" — the dividend exemption).
   year's Bewirtung — the Jahresüberschuss has it at 100 %; zvE follows.
 - GuV / BWA keep 100 % (commercial books; the add-back is outside them).
 
-Not covered: other § 4 Abs. 5 items (gifts over 50 €, Nr. 1; the
-non-deductible share of a home office) — no category convention exists yet.
+Not covered: the non-deductible share of a home office (§ 4 Abs. 5 Nr. 6b)
+— no category convention exists yet. (Gifts over 50 €, Nr. 1: Tier 503.)
 Local runs: backend **270 / 0 / 1**, 0 × 5xx; Playwright **949** (anlage-eur's row
 count +1 for 5610; backend spec 102's line list the same).
 

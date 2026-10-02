@@ -2196,7 +2196,9 @@
     "hintVoranmeldung": "Note: Late filing (after the 10th of the following month) may incur late surcharges (§ 152 AO).",
     "downloadElster": "ELSTER XML",
     "elsterTooltip": "Download ELSTER XML for Mein-ELSTER upload",
-    "istVersteuerung": "Cash basis (§ 20 UStG): taxable sales in the period the payment arrived."
+    "istVersteuerung": "Cash basis (§ 20 UStG): taxable sales in the period the payment arrived.",
+    "giftRecipient": "Gift recipient",
+    "giftRecipientHint": "Deductible up to 50 € (net) per recipient and year; above it, all gifts to them are non-deductible, input tax included (§ 4 Abs. 5 Nr. 1 EStG, § 15 Abs. 1a UStG). Without a recipient only giveaways up to 10 €."
   },
   "voucher": {
     "title": "Voucher",

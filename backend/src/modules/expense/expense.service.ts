@@ -137,6 +137,7 @@ export class ExpenseService {
         vatAmount: vat.toFixed(4),
         grossAmount: gross.toFixed(4),
         category: data.category || null,
+        giftRecipient: data.giftRecipient?.trim() || null, // Tier 503
         // Tier 179: persist the SKR03 Sachkonto the
         // caller passed. Trim + max 20 chars to match
         // the AccountNumber convention used elsewhere

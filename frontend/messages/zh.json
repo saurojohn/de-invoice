@@ -2196,7 +2196,9 @@
     "hintVoranmeldung": "提示：超过下月10日提交可能产生滞纳金 (§ 152 AO)。",
     "downloadElster": "ELSTER XML",
     "elsterTooltip": "下载 ELSTER XML 以上传到 Mein-ELSTER",
-    "istVersteuerung": "收付实现制（§ 20 UStG）：应税销售按收款期间计入。"
+    "istVersteuerung": "收付实现制（§ 20 UStG）：应税销售按收款期间计入。",
+    "giftRecipient": "礼品接收人",
+    "giftRecipientHint": "每位接收人每年累计不超过 50 €（净额）可抵扣；超过时，送给该人的全部礼品都不可抵扣，进项税也不可抵扣（§ 4 Abs. 5 Nr. 1 EStG，§ 15 Abs. 1a UStG）。未填写接收人时，只有 10 € 以内的宣传赠品可抵扣。"
   },
   "voucher": {
     "title": "记账凭证",

@@ -56,6 +56,8 @@ export async function updateExpense(
     set('supplierId', supplierId, supplierId !== exp.supplierId)
   }
   if (data.category !== undefined) set('category', orNull(data.category), orNull(data.category) !== exp.category)
+  // Tier 503
+  if (data.giftRecipient !== undefined) set('giftRecipient', orNull(data.giftRecipient), orNull(data.giftRecipient) !== exp.giftRecipient)
   if (data.accountNumber !== undefined) {
     const acc = orNull(data.accountNumber)?.slice(0, 20) ?? null
     set('accountNumber', acc, acc !== exp.accountNumber)

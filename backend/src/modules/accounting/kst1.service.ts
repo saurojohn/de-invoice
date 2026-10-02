@@ -1,5 +1,6 @@
 import { resolveRechtsform, isKapitalgesellschaft as isKapitalgesellschaftFn } from '../company/rechtsform'
-import { nichtAbziehbareBewirtung } from './expense-cost'
+import { expenseCost, nichtAbziehbareBewirtung } from './expense-cost'
+import { nonDeductibleGifts } from './gifts'
 import { Injectable, BadRequestException } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import { GuVService } from './guv.service'
@@ -241,15 +242,34 @@ export class KSt1Service {
       },
       select: { netAmount: true, grossAmount: true, category: true },
     })
-    const bewirtungHinzu = nichtAbziehbareBewirtung(bewirtung, company.defaultVatMode === 'kleinunternehmer')
+    const ku = company.defaultVatMode === 'kleinunternehmer'
+    const bewirtungHinzu = nichtAbziehbareBewirtung(bewirtung, ku)
+    // Tier 503: gifts above the 50 € limit — in the Jahresüberschuss at
+    // their (net) cost, added back too (§ 4 Abs. 5 Nr. 1 EStG).
+    const gifts = await this.prisma.expense.findMany({
+      where: {
+        companyId,
+        invoiceDate: { gte: new Date(year, 0, 1), lte: new Date(year, 11, 31, 23, 59, 59, 999) },
+        status: { in: ['booked', 'deductible'] },
+        category: { startsWith: 'Geschenk', mode: 'insensitive' },
+      },
+      select: { id: true, invoiceDate: true, netAmount: true, grossAmount: true, giftRecipient: true },
+    })
+    const badGifts = nonDeductibleGifts(gifts, ku)
+    const geschenkeHinzu = round2(gifts.filter((g) => badGifts.has(g.id)).reduce((s, g) => s + expenseCost(g, ku), 0))
+    const kz80 = round2(bewirtungHinzu + geschenkeHinzu)
+    const kz80Note = [
+      bewirtungHinzu ? `30 % der Bewirtungsaufwendungen (${bewirtungHinzu.toFixed(2).replace('.', ',')} €, § 4 Abs. 5 Nr. 2 EStG)` : '',
+      geschenkeHinzu ? `Geschenke über 50 € je Empfänger (${geschenkeHinzu.toFixed(2).replace('.', ',')} €, § 4 Abs. 5 Nr. 1 EStG)` : '',
+    ].filter(Boolean).join(' + ')
     const corrections: KSt1Line[] = KORREKTUREN_LINES.map((d) =>
-      d.kz === '80' && bewirtungHinzu !== 0
+      d.kz === '80' && kz80 !== 0
         ? {
           kennziffer: d.kz,
           label: d.label,
-          amount: bewirtungHinzu,
+          amount: kz80,
           source: 'computed',
-          note: `30 % der Bewirtungsaufwendungen (${bewirtungHinzu.toFixed(2).replace('.', ',')} €, § 4 Abs. 5 Nr. 2 EStG) — automatisch. ` + d.note,
+          note: `${kz80Note} — automatisch. ` + d.note,
         }
         : {
           kennziffer: d.kz,

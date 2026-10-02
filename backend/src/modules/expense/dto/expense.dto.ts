@@ -70,6 +70,10 @@ export class CreateExpenseDto {
   @IsString() @IsOptional() @MaxLength(100)
   category?: string
 
+  // Tier 503: the recipient of a business gift (category "Geschenk…")
+  @IsString() @IsOptional() @MaxLength(200)
+  giftRecipient?: string
+
   // Tier 442: a supplier credit note — amounts entered positive, stored negative
   // (expense/credit-note.ts).
   @IsOptional()
@@ -127,6 +131,10 @@ export class UpdateExpenseDto {
 
   @IsString() @IsOptional() @MaxLength(100)
   category?: string
+
+  // Tier 503: the recipient of a business gift (category "Geschenk…")
+  @IsString() @IsOptional() @MaxLength(200)
+  giftRecipient?: string
 
   @IsString() @IsOptional() @MaxLength(20)
   accountNumber?: string
