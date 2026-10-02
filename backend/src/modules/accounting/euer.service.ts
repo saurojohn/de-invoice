@@ -7,6 +7,7 @@ import { euerExpenses, euerInflows, euerVat, finanzamtVat } from './euer-zufluss
 import { cashBookings } from '../cashbook/cash-bookings'
 import { deductibleCost, isBewirtung, nichtAbziehbareBewirtung } from './expense-cost'
 import { bookedAfaCost } from './booked-afa'
+import { privateCarUse } from '../company-car/private-use'
 
 /**
  * Tier 76: Anlage EÜR (Einnahmen-Überschuss-Rechnung).
@@ -143,6 +144,18 @@ const REVENUE_LINES: Array<{ kz: string; label: string; matcher: (inv: any, ctx:
     // Tier 483: VAT the Finanzamt refunded (Anlage EÜR Zeile 18).
     kz: '4150',
     label: 'Vom Finanzamt erstattete Umsatzsteuer',
+    matcher: () => false,
+  },
+  {
+    // Tier 502: private use of a company car (1 % rule, company-car/private-use.ts)
+    kz: '4180',
+    label: 'Private Kfz-Nutzung (§ 6 Abs. 1 Nr. 4 EStG)',
+    matcher: () => false,
+  },
+  {
+    // Tier 502: the VAT on it (unentgeltliche Wertabgabe, § 3 Abs. 9a UStG)
+    kz: '4145',
+    label: 'Umsatzsteuer auf unentgeltliche Wertabgaben',
     matcher: () => false,
   },
   {
@@ -316,6 +329,10 @@ export class EuerService {
     const fa = await finanzamtVat(this.prisma, companyId, yearStart, yearEnd)
     einnahmenBuckets.set('4150', fa.refunded)
     ausgabenBuckets.set('5860', fa.paid)
+    // Tier 502: private use of a company car and the VAT on it.
+    const carUse = await privateCarUse(this.prisma, companyId, yearStart, yearEnd)
+    einnahmenBuckets.set('4180', carUse.income)
+    einnahmenBuckets.set('4145', carUse.vat)
 
     ausgabenBuckets.set('4600', (await bookedAfaCost(this.prisma, companyId, year)).amount)
     ausgabenBuckets.set('4610', sumRestbuchwert(await assetDisposals(this.prisma, companyId, yearStart, yearEnd)))

@@ -11,6 +11,7 @@ import { advancePayments, advanceSettlements } from '../accounting/euer-zufluss'
 import { normalizeVatId } from '../../common/vat-id';
 import { expenseLockReason, expenseLockReasons } from '../expense/expense-lock';
 import { KzEntry, ustvaKennzahlen } from './ust-kennzahlen';
+import { privateCarUse } from '../company-car/private-use';
 
 /**
  * UStVA — Umsatzsteuervoranmeldung
@@ -432,6 +433,12 @@ export class UstvaService {
       vorsteuerReverseCharge = 0;
     }
     const vorsteuerTotal = vorsteuer19 + vorsteuer7 + vorsteuerOther + vorsteuerIgE + vorsteuerReverseCharge;
+
+    // Tier 502: the private use of a company car is an unentgeltliche
+    // Wertabgabe (§ 3 Abs. 9a UStG) — 80 % of the 1 % value at 19 % (Kz 81),
+    // in the month it happens (also under Ist-Versteuerung).
+    const carUse = await privateCarUse(this.prisma, companyId, start, end);
+    if (carUse.vatBase > 0) addToRate(0.19, carUse.vatBase, carUse.vat);
 
     // ── TOTALS ────────────────────────────────────────────────────
     let salesVat = 0;

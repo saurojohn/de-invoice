@@ -170,6 +170,7 @@ model Company {
   assets Asset[]
 
   @@index([name])
+  companyCars                CompanyCar[]
 }
 
 model User {
@@ -610,6 +611,26 @@ model UStvaFiling {
 /// Abschlusszahlung / Erstattung (UStJA), the Sondervorauszahlung under
 /// Dauerfristverlängerung, anything else. The EÜR counts it on paidAt
 /// (Anlage EÜR Zeilen 18 / 58).
+/// Tier 502: a company car used privately — the 1 % rule (§ 6 Abs. 1 Nr. 4
+/// EStG) and the unentgeltliche Wertabgabe (§ 3 Abs. 9a UStG), computed per
+/// month in company-car/private-use.ts.
+model CompanyCar {
+  id        String    @id @default(uuid())
+  companyId String
+  company   Company   @relation(fields: [companyId], references: [id])
+  /// e.g. the number plate
+  name      String
+  /// gross inländischer Listenpreis at first registration
+  listPrice Decimal   @db.Decimal(12, 2)
+  /// 'one_percent' | 'electric_025' | 'electric_05'
+  method    String
+  fromDate  DateTime  @db.Date
+  untilDate DateTime? @db.Date
+  createdAt DateTime  @default(now())
+
+  @@index([companyId])
+}
+
 model UstPayment {
   id        String   @id @default(uuid())
   companyId String

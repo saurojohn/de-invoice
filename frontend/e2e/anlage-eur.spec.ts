@@ -89,7 +89,7 @@ test.describe("Anlage EÜR — /dashboard/accounting", () => {
     await expect(page.getByTestId("euer-disclaimer")).toBeVisible()
   })
 
-  test("default load shows 6 revenue Kz + 11 expense Kz", async ({ page }) => {
+  test("default load shows 8 revenue Kz + 11 expense Kz", async ({ page }) => {
     await injectAuth(page)
     await page.goto("/dashboard/accounting")
     const revTable = page.getByTestId("euer-einnahmen-table")
@@ -97,7 +97,8 @@ test.describe("Anlage EÜR — /dashboard/accounting", () => {
     // 4 revenue Kennziffern
     const revRows = page.locator("[data-testid^='euer-rev-']")
     // Tier 483: + 4140 / 4150 (VAT received, refunded by the Finanzamt)
-    await expect(revRows).toHaveCount(6)
+    // Tier 502: + 4180 Private Kfz-Nutzung, 4145 USt auf unentgeltliche Wertabgaben
+    await expect(revRows).toHaveCount(8)
     // 8 expense Kennziffern (Tier 436 added 4600 AfA, Tier 440 4610 Restbuchwert)
     const expRows = page.locator("[data-testid^='euer-exp-']")
     // Tier 483: + 5850 / 5860 (input tax paid, VAT paid to the Finanzamt)

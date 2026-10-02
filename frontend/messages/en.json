@@ -3720,5 +3720,25 @@
       "policyNote": "For details, see our ",
       "policyLink": "Privacy Policy"
     }
+  },
+  "companyCars": {
+    "title": "Company cars (private use)",
+    "hint": "For sole traders and partnerships: per month 1 % of the gross list price (electric 0.25 % / 0.5 %) as a withdrawal in the EÜR; 80 % of the 1 % value as an unentgeltliche Wertabgabe with 19 % VAT in the UStVA. Logbook and home–work trips are not covered.",
+    "name": "Plate / name",
+    "listPrice": "Gross list price (€)",
+    "method": "Method",
+    "onePercent": "1 % rule",
+    "electric025": "Electric 0.25 %",
+    "electric05": "Electric / hybrid 0.5 %",
+    "from": "Private use from",
+    "add": "Add",
+    "none": "No company car recorded.",
+    "ongoing": "ongoing",
+    "end": "End",
+    "endPrompt": "Private use ends on (YYYY-MM-DD):",
+    "delete": "Delete",
+    "deleteConfirm": "Delete the company car? Its private use is then removed for all months.",
+    "summary": "{year}: private use {income}, VAT on it {vat}.",
+    "failed": "Company cars could not be loaded or saved."
   }
 }

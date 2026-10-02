@@ -62,9 +62,9 @@ REV_KZS=$(python3 -c "
 import json
 d = json.load(open('$TMP'))
 kzs = [l['kennziffer'] for l in d['einnahmen']]
-print('true' if set(kzs) == {'4100', '4120', '4140', '4150', '4170', '4190'} else f'got: {sorted(kzs)}')
+print('true' if set(kzs) == {'4100', '4120', '4140', '4145', '4150', '4170', '4180', '4190'} else f'got: {sorted(kzs)}')
 ")
-assert_eq "all 6 revenue Kennziffern (Tier 483: 4140 / 4150 VAT)" "$REV_KZS" "true"
+assert_eq "all 8 revenue Kennziffern (Tier 483: 4140 / 4150 VAT; Tier 502: 4180 / 4145 private car use)" "$REV_KZS" "true"
 
 # ── 3. Expense Kennziffern ──
 echo

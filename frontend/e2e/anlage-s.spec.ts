@@ -73,7 +73,8 @@ test.describe("Anlage S — /dashboard/accounting", () => {
     // 5 Einnahmen Kennziffern (4100, 4120, 4135, 4170, 4190)
     const revRows = page.locator("[data-testid^='anlage-s-rev-']")
     // Tier 483: + 4140 (VAT received / refunded)
-    await expect(revRows).toHaveCount(6)
+    // Tier 502: + 4180 Private Kfz-Nutzung, 4145 USt auf unentgeltliche Wertabgaben
+    await expect(revRows).toHaveCount(8)
     // 13 Ausgaben Kennziffern (4600-4720)
     const expRows = page.locator("[data-testid^='anlage-s-exp-']")
     // Tier 483: + 4715 (input tax / VAT paid to the Finanzamt)

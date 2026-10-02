@@ -12,6 +12,7 @@ import { useToast } from "@/components/useToast"
 import { apiGet, apiGetBlob, apiPost, apiPut, apiDelete, apiFetch, ApiError } from "@/lib/api"
 // Tier 94: feature flags card (autoBookAfa + anlageV).
 import { FeatureFlagsCard } from "./FeatureFlagsCard"
+import CompanyCarsCard from "./CompanyCarsCard"
 
 interface StorageSettings {
   localPath: string
@@ -1632,6 +1633,7 @@ export default function SettingsPage() {
 
           {/* Tier 94: Feature Flags (Auto-AfA + Anlage V) */}
           <FeatureFlagsCard />
+          <CompanyCarsCard />
 
           {/* Storage Settings Card */}
           <Card>

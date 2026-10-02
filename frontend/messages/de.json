@@ -3720,5 +3720,25 @@
       "policyNote": "Details finden Sie in unserer ",
       "policyLink": "Datenschutzerklärung"
     }
+  },
+  "companyCars": {
+    "title": "Firmenwagen (private Nutzung)",
+    "hint": "Für Einzelunternehmen und Personengesellschaften: je Monat 1 % des Bruttolistenpreises (E-Auto 0,25 % / 0,5 %) als Entnahme in der EÜR; 80 % des 1-%-Werts als unentgeltliche Wertabgabe mit 19 % USt in der UStVA. Fahrtenbuch und Fahrten Wohnung–Betrieb sind nicht abgebildet.",
+    "name": "Kennzeichen / Bezeichnung",
+    "listPrice": "Bruttolistenpreis (€)",
+    "method": "Methode",
+    "onePercent": "1-%-Regelung",
+    "electric025": "Elektro 0,25 %",
+    "electric05": "Elektro / Hybrid 0,5 %",
+    "from": "Private Nutzung ab",
+    "add": "Hinzufügen",
+    "none": "Kein Firmenwagen erfasst.",
+    "ongoing": "laufend",
+    "end": "Beenden",
+    "endPrompt": "Private Nutzung endet am (JJJJ-MM-TT):",
+    "delete": "Löschen",
+    "deleteConfirm": "Firmenwagen löschen? Die private Nutzung entfällt dann für alle Monate.",
+    "summary": "{year}: private Nutzung {income}, Umsatzsteuer darauf {vat}.",
+    "failed": "Firmenwagen konnten nicht geladen oder gespeichert werden."
   }
 }

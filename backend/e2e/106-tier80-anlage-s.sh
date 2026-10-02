@@ -169,7 +169,7 @@ assert_eq "all top-level keys present" "$HAS_KEYS" "true"
 # 5 revenue + 13 expense lines
 EINN=$(python3 -c "import json; print(len(json.load(open('$TMP'))['einnahmen']))")
 AUSG=$(python3 -c "import json; print(len(json.load(open('$TMP'))['ausgaben']))")
-assert_eq "6 revenue lines (Tier 483: 4140 VAT)" "$EINN" "6"
+assert_eq "8 revenue lines (Tier 483: 4140 VAT; Tier 502: 4180 / 4145 private car use)" "$EINN" "8"
 assert_eq "14 expense lines (Tier 483: 4715 VAT)" "$AUSG" "14"
 
 # ── 2. Kz 4100 delta = 1000 - 200 (CN) = 800 ──

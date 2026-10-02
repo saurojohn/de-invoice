@@ -2564,6 +2564,37 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Private use of a company car — the 1 % rule (Tier 502)
+
+User decision: build it. Nothing existed (spec 288: `POST /company-cars`
+404; no private use in the UStVA, EÜR, Anlage S / G, DATEV).
+
+- Model `CompanyCar` (migration 20261002000002; audited): name, gross list
+  price, method (`one_percent`, `electric_025`, `electric_05`), from / until.
+  `company-car` module: `GET/POST /company-cars`, `PUT /:id` (end date),
+  `DELETE /:id`, `GET /company-cars/private-use?year`. Refused (400) for a
+  Kapitalgesellschaft — there the private use is the managing director's
+  payroll (geldwerter Vorteil).
+- `company-car/private-use.ts` (`privateCarUse`): per calendar month a car is
+  there (any day counts the whole month), the list price rounded down to full
+  hundreds × 1 % (0,25 % / 0,5 % for electric) = the withdrawal; VAT on 80 %
+  of the **1 %** value (also for an electric car — the reduction is income
+  tax only) at 19 %; none for a Kleinunternehmer. Months: a boundary month
+  reached by less than 12 h is not counted (callers end periods at local or
+  UTC midnight), and never beyond the current month.
+- UStVA: the Wertabgabe in the 19 % bucket (Kz 81) of its month. EÜR: lines
+  4180 "Private Kfz-Nutzung" and 4145 "Umsatzsteuer auf unentgeltliche
+  Wertabgaben"; Anlage S the same; Anlage G 2180 (both Gewinnermittlungen)
+  and the VAT in 2195 (EÜR only). DATEV: per car and month on its last day
+  1800 an 8921 (VAT part, key 3) and 1800 an 8924 (the rest; reversed for an
+  electric car). Account map: `privateUseVat19` / `privateUseNoVat`.
+- UI: settings card "Firmenwagen (private Nutzung)" — add, end, delete, the
+  year's private use. Playwright `company-cars-tier502.spec.ts`.
+
+Not covered: the Fahrtenbuch method, trips home–business (0,03 % / 0,002 %),
+the Kostendeckelung, the Bilanz / GuV of a balance-sheet sole trader (the
+withdrawal reaches Anlage G there, not the GuV).
+
 ### The December UStVA deducts the Sondervorauszahlung (Tier 501)
 
 A monthly filer with Dauerfristverlängerung pays 1/11 of the previous

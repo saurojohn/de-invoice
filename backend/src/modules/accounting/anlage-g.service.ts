@@ -11,6 +11,7 @@ import { invoiceNetRevenue, invoiceTaxBreakdown } from '../invoice/tax-breakdown
 import { SALES_TYPES } from '../invoice/document-scope'
 import { deductibleCost, nichtAbziehbareBewirtung } from './expense-cost'
 import { bookedAfaCost, NOT_AFA_BOOKING } from './booked-afa'
+import { privateCarUse } from '../company-car/private-use'
 
 /**
  * Tier 438 — Anlage G counted costs as profit.
@@ -157,6 +158,8 @@ const EINNAHMEN_LINES: Array<{ kz: string; label: string }> = [
     label: 'Innergemeinschaftliche Lieferungen / igLeistungen (§ 25b UStG, Reverse Charge)',
   },
   { kz: '2190', label: 'Sonstige Erlöse (Gutschriften, Nebenerlöse, Provisionen)' },
+  // Tier 502: private use of a company car (company-car/private-use.ts)
+  { kz: '2180', label: 'Private Kfz-Nutzung (§ 6 Abs. 1 Nr. 4 EStG)' },
   // Tier 483: with an EÜR (Gewinnermittlung 'euer') the VAT is part of the
   // cash flows — received and refunded by the Finanzamt; 0 with a Bilanz.
   { kz: '2195', label: 'Umsatzsteuer (vereinnahmt / vom Finanzamt erstattet, nur EÜR)' },
@@ -504,6 +507,11 @@ export class AnlageGService {
       addTo('2195', vat.received + fa.refunded)
       addCost('2895', vat.vorsteuer + fa.paid)
     }
+    // Tier 502: private use of a company car — a withdrawal at its value in
+    // either Gewinnermittlung; the VAT on it is a cash flow of an EÜR only.
+    const carUse = await privateCarUse(this.prisma, companyId, yearStart, yearEnd)
+    addTo('2180', carUse.income)
+    if (zufluss) addTo('2195', carUse.vat)
 
     // Build the einnahmen + betriebsausgaben lines
     // in BMF order; Betriebsausgaben are negative.

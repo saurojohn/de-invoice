@@ -53,6 +53,7 @@ import { cashBookings } from '../cashbook/cash-bookings';
 import { SALES_TYPES } from '../invoice/document-scope'
 import { anlagenKonten } from './datev-anlagen'
 import { assetDisposals } from '../assets/disposals'
+import { privateCarUse } from '../company-car/private-use';
 
 const DELIM = ';'
 const QUOTE = '"'
@@ -71,6 +72,9 @@ export interface DatevAccountMap {
   /** Tier 458: Privatentnahmen / Privateinlagen (a Kassenbuch entry without a VAT rate) */
   privateWithdrawal: string
   privateDeposit: string
+  /** Tier 502: private use of a company car — with 19 % USt / without USt */
+  privateUseVat19: string
+  privateUseNoVat: string
   receivable: string
   payable: string
   revenue19: string
@@ -110,6 +114,8 @@ export const SKR03_DEFAULTS: DatevAccountMap = {
   advanceReceived0: '1710',
   privateWithdrawal: '1800',    // Privatentnahmen allgemein (Tier 458)
   privateDeposit: '1890',       // Privateinlagen (Tier 458)
+  privateUseVat19: '8921',      // Verwendung von Gegenständen, 19 % USt (Tier 502)
+  privateUseNoVat: '8924',      // Verwendung von Gegenständen, ohne USt (Tier 502)
   receivable: '1406',           // Forderungen aus L+L (the bank import's vouchers use it too)
   payable: '1600',              // Verbindlichkeiten aus L+L (Sammelkonto der Kreditoren)
   revenue19: '8400',            // Erlöse 19 % USt (Automatikkonto)
@@ -875,6 +881,31 @@ export async function buildBuchungenFromDb(
       shVz: deposit ? 'S' : 'H',
       buchungstext: p.description.substring(0, 60),
     })
+  }
+  // Tier 502: private use of a company car (company-car/private-use.ts), per
+  // car and month on its last day: Privatentnahme an Verwendung von
+  // Gegenständen — the VAT part (80 % of the 1 % value, 19 %) on 8921, the
+  // rest of the income-tax value on 8924 (negative for an electric car,
+  // whose income-tax value is below the VAT base: then booked the other way).
+  for (const u of (await privateCarUse(prisma, companyId, startDate, endDate)).months) {
+    const belegdatum = new Date(Date.UTC(u.year, u.month, 0))
+    const belegfeld1 = `KFZ-${u.year}-${String(u.month).padStart(2, '0')}`
+    const text = `Private Kfz-Nutzung ${u.carName}`.substring(0, 60)
+    if (u.vatBase > 0) {
+      const key = vatRateToUstSchluessel(0.19, 'output')?.key ?? ''
+      out.push({
+        belegdatum, belegfeld1, konto: a.privateWithdrawal, gegenkonto: a.privateUseVat19,
+        betrag: r2(u.vatBase + u.vat), shVz: 'S', buchungstext: text,
+        ustSchluessel: key, ustBetrag: key ? u.vat : 0, steuerKonto: key ? a.vatPayable19 : undefined,
+      })
+    }
+    const rest = r2(u.income - u.vatBase)
+    if (rest !== 0) {
+      out.push({
+        belegdatum, belegfeld1, konto: a.privateWithdrawal, gegenkonto: a.privateUseNoVat,
+        betrag: Math.abs(rest), shVz: rest > 0 ? 'S' : 'H', buchungstext: text,
+      })
+    }
   }
   for (const e of cashPaidExpenses) {
     out.push({
