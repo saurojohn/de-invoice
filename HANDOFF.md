@@ -2563,6 +2563,26 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### The December UStVA deducts the Sondervorauszahlung (Tier 501)
+
+A monthly filer with Dauerfristverlängerung pays 1/11 of the previous
+year's Vorauszahlungen as Sondervorauszahlung (§ 47 UStDV) and deducts it
+in the December return (Kz 39, § 48 Abs. 4 UStDV). It could be recorded
+(Tier 484, `UstPayment` kind 'sondervorauszahlung', for the EÜR), but the
+December UStVA never deducted it: Kz 83 asked for it a second time and the
+ELSTER data had no Kz 39 (spec 287).
+
+- `UstvaService.compute` for month 12 (not a quarter): Kz 39 = the year's
+  recorded Sondervorauszahlungen, `differenzbetrag` (Kz 83) net of it,
+  `sondervorauszahlung` on the data (and accepted by the filing DTO — the
+  UStVA data is posted back to save a filing, cf. Tier 491).
+- `ustvaKennzahlen`: Kz 39 (shown on the page, written to the ELSTER data).
+- UStJA: the Vorauszahlungssoll adds it back (it was an advance payment of
+  the year), so the Abschlusszahlung is unchanged.
+
+Recording the Sondervorauszahlung after the December return was submitted
+flags that return "Berichtigung nötig" (Tier 449) — as it should.
+
 ### An invoice under a kept installment plan is not dunned (Tier 500)
 
 A Ratenplan is a Stundung: while no installment is late the customer is not

@@ -82,6 +82,12 @@ export interface UstvaData {
   umsatzsteuer: number;   // Summe Umsatzsteuer (lines 20-23 + 36)
   vorsteuerSum: number;   // Summe Vorsteuer
   differenzbetrag: number;// Verbleibender Betrag — Zahllast (positive) / Erstattung (negative)
+  /**
+   * Tier 501 — Kz 39: the Sondervorauszahlung (Dauerfristverlängerung,
+   * § 47 UStDV) deducted in the December return of a monthly filer; already
+   * subtracted from differenzbetrag (Kz 83).
+   */
+  sondervorauszahlung?: number;
 
   counts: {
     invoices: number;
@@ -489,6 +495,22 @@ export class UstvaService {
         expenses: expenseCount,
       },
     };
+    // Tier 501: a monthly filer with Dauerfristverlängerung paid 1/11 of the
+    // previous year's Vorauszahlungen as Sondervorauszahlung; the December
+    // return deducts it (Kz 39, § 48 Abs. 4 UStDV). Recorded as a payment of
+    // kind 'sondervorauszahlung' for the year (Tier 484). It was never
+    // deducted — December's Kz 83 asked for it a second time.
+    if (month === 12 && !quarter) {
+      const svz = await this.prisma.ustPayment.aggregate({
+        where: { companyId, kind: 'sondervorauszahlung', year },
+        _sum: { amount: true },
+      });
+      const kz39 = Math.round(Number(svz._sum.amount ?? 0) * 100) / 100;
+      if (kz39 !== 0) {
+        result.sondervorauszahlung = kz39;
+        result.differenzbetrag = Math.round((result.differenzbetrag - kz39) * 100) / 100;
+      }
+    }
     result.kennzahlen = ustvaKennzahlen(result);
     return result;
   }

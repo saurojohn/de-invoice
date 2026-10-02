@@ -189,6 +189,11 @@ export class UstvaDataDto {
   @IsNumber()
   differenzbetrag!: number
 
+  /** Tier 501: Kz 39 — the Sondervorauszahlung deducted in December. */
+  @IsOptional()
+  @IsNumber()
+  sondervorauszahlung?: number
+
   @ValidateNested()
   @Type(() => UstvaCountsDto)
   counts!: UstvaCountsDto

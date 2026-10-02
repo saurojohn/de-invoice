@@ -78,6 +78,8 @@ export function ustvaKennzahlen(d: UstvaData): KzEntry[] {
     { kz: '66', label: 'Vorsteuerbeträge aus Rechnungen von anderen Unternehmern', value: b.vstInvoices, kind: 'tax' },
     { kz: '61', label: 'Vorsteuerbeträge aus dem innergemeinschaftlichen Erwerb von Gegenständen', value: d.vorsteuer.fromIgE, kind: 'tax' },
     { kz: '67', label: 'Vorsteuerbeträge aus Leistungen im Sinne des § 13b', value: d.vorsteuer.fromReverseCharge, kind: 'tax' },
+    // Tier 501: December return of a monthly filer with Dauerfristverlängerung.
+    { kz: '39', label: 'Abzug der festgesetzten Sondervorauszahlung für Dauerfristverlängerung', value: d.sondervorauszahlung ?? 0, kind: 'amount' },
     { kz: '83', label: 'Verbleibende Umsatzsteuer-Vorauszahlung / verbleibender Überschuss', value: d.differenzbetrag, kind: 'amount' },
   ]
 }

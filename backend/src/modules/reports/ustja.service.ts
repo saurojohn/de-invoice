@@ -173,7 +173,9 @@ export class UstjaService {
     const umsatzsteuerTotal = round2(annual.umsatzsteuer)
     const vorsteuerTotal = round2(annual.vorsteuerSum)
     const zahllast = round2(umsatzsteuerTotal - vorsteuerTotal)
-    const vorauszahlungssoll = round2(present.reduce((a, m) => a + m.differenzbetrag, 0))
+    // Tier 501: December's Kz 83 is net of the Sondervorauszahlung (Kz 39),
+    // which was itself an advance payment of the year — it belongs to the Soll.
+    const vorauszahlungssoll = round2(present.reduce((a, m) => a + m.differenzbetrag + (m.sondervorauszahlung ?? 0), 0))
     const abschlusszahlung = round2(zahllast - vorauszahlungssoll)
 
     return {
