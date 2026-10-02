@@ -9,6 +9,7 @@ import { deductibleCost, nichtAbziehbareBewirtung } from './expense-cost'
 import { bookedAfaCost } from './booked-afa'
 import { privateCarUse } from '../company-car/private-use'
 import { nichtAbziehbareGeschenke, nonDeductibleGiftIds } from './gifts'
+import { homeOfficeDeduction } from '../home-office/home-office'
 
 /**
  * Tier 80: Anlage S — Einkünfte aus
@@ -180,6 +181,12 @@ const EXPENSE_LINES: Array<{ kz: string; label: string; matcher: (exp: any) => b
     matcher: (exp) => /^(Miete|Raum|Heizung|Nebenkosten|Pacht)/i.test(exp.category || ''),
   },
   {
+    // Tier 504: the home office — Tagespauschale / Jahrespauschale (home-office/home-office.ts)
+    kz: '4645',
+    label: 'Häusliches Arbeitszimmer / Homeoffice-Pauschale (§ 4 Abs. 5 Nr. 6b / 6c EStG)',
+    matcher: () => false,
+  },
+  {
     kz: '4650',
     label: 'Versicherungen, Beiträge (außer Kfz)',
     matcher: (exp) => /^(Versicherung|Beitrag)/i.test(exp.category || ''),
@@ -313,6 +320,8 @@ export class AnlageSService {
     const carUse = await privateCarUse(this.prisma, companyId, yearStart, yearEnd)
     einnahmenBuckets.set('4180', carUse.income)
     einnahmenBuckets.set('4145', carUse.vat)
+    // Tier 504: the home office (Pauschale, no payment behind it).
+    ausgabenBuckets.set('4645', await homeOfficeDeduction(this.prisma, companyId, year))
     // Tier 440: book value of assets sold or scrapped (disposals.ts).
     ausgabenBuckets.set('4720', (ausgabenBuckets.get('4720') || 0) +
       sumRestbuchwert(await assetDisposals(this.prisma, companyId, yearStart, yearEnd)))

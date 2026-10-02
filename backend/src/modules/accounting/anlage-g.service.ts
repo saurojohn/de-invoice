@@ -13,6 +13,7 @@ import { deductibleCost, nichtAbziehbareBewirtung } from './expense-cost'
 import { bookedAfaCost, NOT_AFA_BOOKING } from './booked-afa'
 import { privateCarUse } from '../company-car/private-use'
 import { nichtAbziehbareGeschenke, nonDeductibleGiftIds } from './gifts'
+import { homeOfficeDeduction } from '../home-office/home-office'
 
 /**
  * Tier 438 — Anlage G counted costs as profit.
@@ -177,6 +178,12 @@ const BETRIEBSAUSGABEN_LINES: Array<{ kz: string; label: string; matcher: (exp: 
     kz: '2200',
     label: 'Miete, Pacht, Leasing (Geschäftsräume, Maschinen, Fahrzeuge)',
     matcher: (exp) => /^(Miete|Pacht|Leasing)/i.test(exp.category || ''),
+  },
+  {
+    // Tier 504: the home office — Tagespauschale / Jahrespauschale (home-office/home-office.ts)
+    kz: '2205',
+    label: 'Häusliches Arbeitszimmer / Homeoffice-Pauschale (§ 4 Abs. 5 Nr. 6b / 6c EStG)',
+    matcher: () => false,
   },
   {
     kz: '2300',
@@ -519,6 +526,8 @@ export class AnlageGService {
     const carUse = await privateCarUse(this.prisma, companyId, yearStart, yearEnd)
     addTo('2180', carUse.income)
     if (zufluss) addTo('2195', carUse.vat)
+    // Tier 504: the home office (Pauschale) — a cost in either Gewinnermittlung.
+    addCost('2205', await homeOfficeDeduction(this.prisma, companyId, year))
 
     // Build the einnahmen + betriebsausgaben lines
     // in BMF order; Betriebsausgaben are negative.

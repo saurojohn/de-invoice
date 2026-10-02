@@ -3742,5 +3742,20 @@
     "deleteConfirm": "Firmenwagen löschen? Die private Nutzung entfällt dann für alle Monate.",
     "summary": "{year}: private Nutzung {income}, Umsatzsteuer darauf {vat}.",
     "failed": "Firmenwagen konnten nicht geladen oder gespeichert werden."
+  },
+  "homeOffice": {
+    "title": "Homeoffice / häusliches Arbeitszimmer",
+    "hint": "Für Einzelunternehmen und Personengesellschaften (seit 2023): Tagespauschale 6 € je Homeoffice-Tag (höchstens 210 Tage = 1.260 €) oder Jahrespauschale 1.260 €, wenn das Arbeitszimmer der Mittelpunkt der Tätigkeit ist (je Monat ohne ein Zwölftel weniger). Wird als Betriebsausgabe in EÜR / Anlage S / G gebucht.",
+    "year": "Jahr",
+    "method": "Methode",
+    "tagespauschale": "Tagespauschale (6 € / Tag)",
+    "jahrespauschale": "Jahrespauschale (Arbeitszimmer)",
+    "days": "Homeoffice-Tage",
+    "months": "Monate",
+    "save": "Speichern",
+    "delete": "Entfernen",
+    "amount": "{year}: Betriebsausgabe {amount}.",
+    "none": "Für dieses Jahr nicht erfasst.",
+    "failed": "Homeoffice konnte nicht geladen oder gespeichert werden."
   }
 }

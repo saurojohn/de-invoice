@@ -13,6 +13,7 @@ import { apiGet, apiGetBlob, apiPost, apiPut, apiDelete, apiFetch, ApiError } fr
 // Tier 94: feature flags card (autoBookAfa + anlageV).
 import { FeatureFlagsCard } from "./FeatureFlagsCard"
 import CompanyCarsCard from "./CompanyCarsCard"
+import HomeOfficeCard from "./HomeOfficeCard"
 
 interface StorageSettings {
   localPath: string
@@ -1634,6 +1635,7 @@ export default function SettingsPage() {
           {/* Tier 94: Feature Flags (Auto-AfA + Anlage V) */}
           <FeatureFlagsCard />
           <CompanyCarsCard />
+          <HomeOfficeCard />
 
           {/* Storage Settings Card */}
           <Card>

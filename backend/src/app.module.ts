@@ -15,6 +15,7 @@ import { VatRateModule } from './modules/vat-rate/vat-rate.module';
 import { AccountingModule } from './modules/accounting/accounting.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { CompanyCarModule } from './modules/company-car/company-car.module';
+import { HomeOfficeModule } from './modules/home-office/home-office.module';
 // Tier 108: SEPA pain.001 batch payments.
 import { PaymentsModule } from './modules/payments/payments.module';
 // Tier 28: full-text search with snippet highlight.
@@ -123,6 +124,7 @@ import { UserSessionModule } from './auth/user-session.module';
     AccountingModule,
     ReportsModule,
     CompanyCarModule, // Tier 502
+    HomeOfficeModule, // Tier 504
     PaymentsModule,
     SearchModule,
     OcrModule,

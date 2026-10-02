@@ -9,6 +9,7 @@ import { deductibleCost, isBewirtung, nichtAbziehbareBewirtung } from './expense
 import { bookedAfaCost } from './booked-afa'
 import { privateCarUse } from '../company-car/private-use'
 import { nichtAbziehbareGeschenke, nonDeductibleGiftIds } from './gifts'
+import { homeOfficeDeduction } from '../home-office/home-office'
 
 /**
  * Tier 76: Anlage EÜR (Einnahmen-Überschuss-Rechnung).
@@ -187,6 +188,12 @@ const EXPENSE_LINES: Array<{ kz: string; label: string; matcher: (exp: any) => b
     matcher: (exp) => /^(Miete|Raum|Heizung|Nebenkosten)/i.test(exp.category || ''),
   },
   {
+    // Tier 504: the home office — Tagespauschale / Jahrespauschale (home-office/home-office.ts)
+    kz: '5410',
+    label: 'Häusliches Arbeitszimmer / Homeoffice-Pauschale (§ 4 Abs. 5 Nr. 6b / 6c EStG)',
+    matcher: () => false,
+  },
+  {
     // Tier 485: entertainment — 70 % is a Betriebsausgabe (§ 4 Abs. 5 Nr. 2
     // EStG, Anlage EÜR Zeile 63); it sat in 5600 at 100 %. Before 5600,
     // whose matcher also takes "Bewirtung".
@@ -340,6 +347,8 @@ export class EuerService {
     const carUse = await privateCarUse(this.prisma, companyId, yearStart, yearEnd)
     einnahmenBuckets.set('4180', carUse.income)
     einnahmenBuckets.set('4145', carUse.vat)
+    // Tier 504: the home office (Pauschale, no payment behind it).
+    ausgabenBuckets.set('5410', await homeOfficeDeduction(this.prisma, companyId, year))
 
     ausgabenBuckets.set('4600', (await bookedAfaCost(this.prisma, companyId, year)).amount)
     ausgabenBuckets.set('4610', sumRestbuchwert(await assetDisposals(this.prisma, companyId, yearStart, yearEnd)))

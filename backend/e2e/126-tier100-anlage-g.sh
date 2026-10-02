@@ -36,7 +36,7 @@ BA=$(python3 -c "import json,sys; print(len(json.load(sys.stdin)['betriebsausgab
 HZ=$(python3 -c "import json,sys; print(len(json.load(sys.stdin)['hinzurechnungen']))" < "$TMP")
 KU=$(python3 -c "import json,sys; print(len(json.load(sys.stdin)['kurzungen']))" < "$TMP")
 assert_eq "einnahmen count == 7 (Tier 483: 2195 VAT; Tier 502: 2180 private car use)" "$EI" "7"
-assert_eq "betriebsausgaben count == 13 (Tier 483: 2895 VAT)" "$BA" "13"
+assert_eq "betriebsausgaben count == 14 (Tier 483: 2895 VAT; Tier 504: 2205 Homeoffice)" "$BA" "14"
 assert_eq "hinzurechnungen count == 6" "$HZ" "6"
 assert_eq "kurzungen count == 5" "$KU" "5"
 

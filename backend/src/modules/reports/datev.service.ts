@@ -54,6 +54,7 @@ import { SALES_TYPES } from '../invoice/document-scope'
 import { anlagenKonten } from './datev-anlagen'
 import { assetDisposals } from '../assets/disposals'
 import { privateCarUse } from '../company-car/private-use';
+import { homeOfficeDeduction } from '../home-office/home-office';
 
 const DELIM = ';'
 const QUOTE = '"'
@@ -75,6 +76,8 @@ export interface DatevAccountMap {
   /** Tier 502: private use of a company car — with 19 % USt / without USt */
   privateUseVat19: string
   privateUseNoVat: string
+  /** Tier 504: the home office (Pauschale) */
+  homeOffice: string
   receivable: string
   payable: string
   revenue19: string
@@ -116,6 +119,7 @@ export const SKR03_DEFAULTS: DatevAccountMap = {
   privateDeposit: '1890',       // Privateinlagen (Tier 458)
   privateUseVat19: '8921',      // Verwendung von Gegenständen, 19 % USt (Tier 502)
   privateUseNoVat: '8924',      // Verwendung von Gegenständen, ohne USt (Tier 502)
+  homeOffice: '4288',           // Aufwendungen für ein häusliches Arbeitszimmer (Tier 504)
   receivable: '1406',           // Forderungen aus L+L (the bank import's vouchers use it too)
   payable: '1600',              // Verbindlichkeiten aus L+L (Sammelkonto der Kreditoren)
   revenue19: '8400',            // Erlöse 19 % USt (Automatikkonto)
@@ -904,6 +908,19 @@ export async function buildBuchungenFromDb(
       out.push({
         belegdatum, belegfeld1, konto: a.privateWithdrawal, gegenkonto: a.privateUseNoVat,
         betrag: Math.abs(rest), shVz: rest > 0 ? 'S' : 'H', buchungstext: text,
+      })
+    }
+  }
+  // Tier 504: the home office — a Pauschale, no payment: Arbeitszimmer an
+  // Privateinlagen, on 31.12. of each year in the period.
+  for (let y = startDate.getFullYear(); y <= endDate.getFullYear(); y++) {
+    const yearEnd = new Date(Date.UTC(y, 11, 31))
+    if (yearEnd < startDate || yearEnd > endDate) continue
+    const amount = await homeOfficeDeduction(prisma, companyId, y)
+    if (amount > 0) {
+      out.push({
+        belegdatum: yearEnd, belegfeld1: `HO-${y}`, konto: a.homeOffice, gegenkonto: a.privateDeposit,
+        betrag: r2(amount), shVz: 'S', buchungstext: `Homeoffice-Pauschale ${y}`,
       })
     }
   }

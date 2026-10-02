@@ -78,7 +78,8 @@ test.describe("Anlage S — /dashboard/accounting", () => {
     // 13 Ausgaben Kennziffern (4600-4720)
     const expRows = page.locator("[data-testid^='anlage-s-exp-']")
     // Tier 483: + 4715 (input tax / VAT paid to the Finanzamt)
-    await expect(expRows).toHaveCount(14)
+    // Tier 504: + 4645 Homeoffice
+    await expect(expRows).toHaveCount(15)
   })
 
   test("Gewinn / Verlust pill is visible", async ({ page }) => {

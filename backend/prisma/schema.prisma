@@ -171,6 +171,7 @@ model Company {
 
   @@index([name])
   companyCars                CompanyCar[]
+  homeOffices                HomeOffice[]
 }
 
 model User {
@@ -615,6 +616,25 @@ model UStvaFiling {
 /// Abschlusszahlung / Erstattung (UStJA), the Sondervorauszahlung under
 /// Dauerfristverlängerung, anything else. The EÜR counts it on paidAt
 /// (Anlage EÜR Zeilen 18 / 58).
+/// Tier 504: the home office of a sole trader / partner, per year — the
+/// Tagespauschale (6 € a day, at most 210 days, § 4 Abs. 5 Nr. 6c EStG) or
+/// the Jahrespauschale (1 260 €, a twelfth less per month without, Nr. 6b).
+/// Computed in home-office/home-office.ts.
+model HomeOffice {
+  id        String   @id @default(uuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id])
+  year      Int
+  /// 'tagespauschale' | 'jahrespauschale'
+  method    String
+  days      Int?
+  months    Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, year])
+}
+
 /// Tier 502: a company car used privately — the 1 % rule (§ 6 Abs. 1 Nr. 4
 /// EStG) and the unentgeltliche Wertabgabe (§ 3 Abs. 9a UStG), computed per
 /// month in company-car/private-use.ts.

@@ -3742,5 +3742,20 @@
     "deleteConfirm": "Delete the company car? Its private use is then removed for all months.",
     "summary": "{year}: private use {income}, VAT on it {vat}.",
     "failed": "Company cars could not be loaded or saved."
+  },
+  "homeOffice": {
+    "title": "Home office",
+    "hint": "For sole traders and partnerships (since 2023): 6 € per home-office day (at most 210 days = 1,260 €), or 1,260 € a year if the home office is the centre of the work (a twelfth less per month without). Booked as a business expense in the EÜR / Anlage S / G.",
+    "year": "Year",
+    "method": "Method",
+    "tagespauschale": "Daily flat rate (6 € / day)",
+    "jahrespauschale": "Annual flat rate (home office room)",
+    "days": "Home-office days",
+    "months": "Months",
+    "save": "Save",
+    "delete": "Remove",
+    "amount": "{year}: business expense {amount}.",
+    "none": "Not recorded for this year.",
+    "failed": "The home office could not be loaded or saved."
   }
 }

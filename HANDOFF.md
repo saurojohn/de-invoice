@@ -2567,6 +2567,31 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### The home office (Tier 504)
+
+Since 2023 a sole trader / partner deducts either the Tagespauschale (6 €
+per day worked mainly at home, at most 210 days = 1 260 €, § 4 Abs. 5 Nr. 6c
+EStG) or, for a home office that is the centre of the whole activity, the
+Jahrespauschale (1 260 €, a twelfth less per full month without, Nr. 6b).
+Nothing marked either (spec 290: `PUT /home-office/:year` 404, no line in
+the EÜR, Anlage S / G, no DATEV booking).
+
+- Model `HomeOffice` (migration 20261002000004; unique per company and year;
+  audited): method, days / months. `GET/PUT/DELETE /home-office/:year` (from
+  2023; 400 for a Kapitalgesellschaft — its managing director claims it as
+  Werbungskosten). `home-office/home-office.ts`: `homeOfficeAmount`,
+  `homeOfficeDeduction`.
+- EÜR line 5410, Anlage S 4645, Anlage G 2205 (both Gewinnermittlungen):
+  "Häusliches Arbeitszimmer / Homeoffice-Pauschale". DATEV: on 31.12.,
+  4288 an 1890 (Privateinlagen — no payment behind a Pauschale); account map
+  `homeOffice`. The line-count specs (102 / 106 / 126, Playwright anlage-eur
+  / anlage-s) count it.
+- UI: settings card "Homeoffice / häusliches Arbeitszimmer" (year, method,
+  days or months). Playwright `home-office-tier504.spec.ts`.
+
+The actual costs of an Arbeitszimmer (instead of the Jahrespauschale) stay
+ordinary expenses; the user must not claim both.
+
 ### Business gifts and the 50 € limit (Tier 503)
 
 § 4 Abs. 5 Nr. 1 EStG: gifts to business contacts are deductible only if
@@ -2956,8 +2981,7 @@ Kz 80 a placeholder, labelled "§ 8b KStG" — the dividend exemption).
   year's Bewirtung — the Jahresüberschuss has it at 100 %; zvE follows.
 - GuV / BWA keep 100 % (commercial books; the add-back is outside them).
 
-Not covered: the non-deductible share of a home office (§ 4 Abs. 5 Nr. 6b)
-— no category convention exists yet. (Gifts over 50 €, Nr. 1: Tier 503.)
+(Gifts over 50 €, Nr. 1: Tier 503; the home office, Nr. 6b / 6c: Tier 504.)
 Local runs: backend **270 / 0 / 1**, 0 × 5xx; Playwright **949** (anlage-eur's row
 count +1 for 5610; backend spec 102's line list the same).
 

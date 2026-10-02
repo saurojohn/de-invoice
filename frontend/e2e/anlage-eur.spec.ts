@@ -89,7 +89,7 @@ test.describe("Anlage EÜR — /dashboard/accounting", () => {
     await expect(page.getByTestId("euer-disclaimer")).toBeVisible()
   })
 
-  test("default load shows 8 revenue Kz + 11 expense Kz", async ({ page }) => {
+  test("default load shows 8 revenue Kz + 12 expense Kz", async ({ page }) => {
     await injectAuth(page)
     await page.goto("/dashboard/accounting")
     const revTable = page.getByTestId("euer-einnahmen-table")
@@ -103,7 +103,8 @@ test.describe("Anlage EÜR — /dashboard/accounting", () => {
     const expRows = page.locator("[data-testid^='euer-exp-']")
     // Tier 483: + 5850 / 5860 (input tax paid, VAT paid to the Finanzamt)
     // Tier 485: + 5610 (Bewirtung, 70 %)
-    await expect(expRows).toHaveCount(11)
+    // Tier 504: + 5410 Homeoffice
+    await expect(expRows).toHaveCount(12)
   })
 
   test("Gewinn/Verlust total = einnahmenTotal − ausgabenTotal", async ({
