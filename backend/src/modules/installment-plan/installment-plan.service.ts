@@ -281,6 +281,7 @@ export class InstallmentPlanService {
             pausedFrom: new Date(),
             pausedUntil: null,
             createdById: createdById ?? null,
+            installmentPlanId: plan.id, // Tier 500
           },
         })
       } catch (e) {

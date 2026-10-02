@@ -34,6 +34,7 @@ import {
   generateMahnungPDF,
   computeNeueFrist,
 } from "./mahnung-pdf.service"
+import { invoicesHeldByPlan, PLAN_HOLD_MESSAGE } from "./installment-hold"
 
 const LEVEL_TITLE_FILENAME: Record<"first" | "second" | "final", string> = {
   first: "Zahlungserinnerung",
@@ -211,6 +212,17 @@ export class BulkReminderService {
             : invoice.type === "PI"
               ? "Proforma-Rechnungen werden nicht gemahnt — sie begründen keine Forderung"
               : `Rechnung ist nicht offen (Status: ${invoice.status})`,
+      }
+    }
+    // Tier 500: not while an installment plan for it is kept.
+    if ((await invoicesHeldByPlan(this.prisma, companyId, [invoiceId])).has(invoiceId)) {
+      return {
+        invoiceId,
+        invoiceNumber: invoice.invoiceNumber,
+        customerName: invoice.customer.name,
+        ok: false,
+        status: "failed",
+        error: PLAN_HOLD_MESSAGE,
       }
     }
 

@@ -126,6 +126,8 @@ export class MahnungspauseService {
           pausedFrom: { lte: now },
           OR: [{ pausedUntil: null }, { pausedUntil: { gte: now } }],
           invoiceId: { not: null },
+          // Tier 500: an installment plan's own pause — the plan decides.
+          installmentPlanId: null,
         },
         select: { invoiceId: true },
       }),

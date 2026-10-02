@@ -2562,6 +2562,25 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### An invoice under a kept installment plan is not dunned (Tier 500)
+
+A Ratenplan is a Stundung: while no installment is late the customer is not
+in Verzug for the invoice (§ 286 BGB). Measured (spec 286, 6 assertions fail
+on the old code): the plan's Mahnungspause (Tier 64 / 429) kept the invoice
+off the overdue list, but a manual reminder for the full amount went out
+(`POST /reminders/send` 201) — and once an installment was late, the
+open-ended pause kept the invoice from being dunned at all.
+
+- `reminder/installment-hold.ts` (`invoicesHeldByPlan`): an active plan with
+  no overdue installment (unpaid, due before today) holds the invoice.
+  `findOverdueInvoices` (list, auto-run) leaves it out; `sendOne` (manual
+  and bulk) refuses it with `PLAN_HOLD_MESSAGE` (manual: 400; bulk: a
+  "failed" row with the reason, as for a Proforma).
+- A late installment breaks the plan: the invoice is dunned again.
+- `Mahnungspause.installmentPlanId` (migration 20261002000001, backfilled for
+  existing plan pauses): the pause a plan creates is linked to it and no
+  longer counted — the plan decides. Pauses set by hand are unchanged.
+
 ### An invoice's total is above 0 (Tier 499)
 
 Measured (spec 285, 9 assertions fail on the old code): `POST /invoices`

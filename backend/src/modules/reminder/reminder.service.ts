@@ -2,6 +2,7 @@ import { verzugszinsen } from './basiszinssatz';
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MahnungspauseService } from './mahnungspause.service';
+import { invoicesHeldByPlan } from './installment-hold';
 
 /**
  * Tier 123: per-company dunning config.
@@ -257,9 +258,12 @@ export class ReminderService {
         candidateCustomerIds,
         new Date(),
       )
+    // Tier 500: an installment plan that is kept holds the invoice.
+    const heldByPlan = await invoicesHeldByPlan(this.prisma, companyId, invoices.map((inv) => inv.id))
     const filteredByPause = invoices.filter((inv) => {
       if (pausedInvoiceIds.has(inv.id)) return false
       if (pausedCustomerIds.has(inv.customer.id)) return false
+      if (heldByPlan.has(inv.id)) return false
       return true
     })
 
