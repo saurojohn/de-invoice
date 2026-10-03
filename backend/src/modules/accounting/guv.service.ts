@@ -10,6 +10,8 @@ import { Response } from 'express'
 import PDFDocument from 'pdfkit'
 import { invoiceNetRevenue } from '../invoice/tax-breakdown';
 import { SALES_TYPES } from '../invoice/document-scope'
+import { ModuleRef } from '@nestjs/core'
+import { isKapitalgesellschaft, resolveRechtsform } from '../company/rechtsform'
 
 /**
  * Tier 82: Anlage G+V (Gewinn- und Verlustrechnung).
@@ -150,9 +152,34 @@ export class GuVService {
   constructor(
     private prisma: PrismaService,
     private assets: AssetsService,
+    // Tier 506: KSt 1 reads this GuV (pre-tax) — resolved lazily, no cycle.
+    private moduleRef: ModuleRef,
   ) {}
 
-  async compute(companyId: string, year: number): Promise<GuVResult> {
+  /**
+   * Tier 506: the year's income taxes of a Kapitalgesellschaft (KSt + Soli +
+   * GewSt = KSt 1's "Zu zahlen", computed from the pre-tax result), null for
+   * any other legal form.
+   */
+  private async incomeTaxes(companyId: string, year: number): Promise<number | null> {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { name: true, legalName: true, rechtsform: true, settings: true },
+    })
+    if (!company || !isKapitalgesellschaft(resolveRechtsform(company).rechtsform)) return null
+    // A dynamic import: kst1.service imports this file (no circular load).
+    const { KSt1Service } = await import('./kst1.service')
+    const kst1 = this.moduleRef.get(KSt1Service, { strict: false })
+    return (await kst1.compute(companyId, year)).totals.zuZahlen
+  }
+
+  /**
+   * Tier 506: `preTax` — the result before income taxes (what KSt 1 starts
+   * from). Otherwise a Kapitalgesellschaft's GuV carries position 14
+   * (KSt + Soli + GewSt of the year, as KSt 1 computes them) and the
+   * Jahresüberschuss is after them; it was before them, ~30 % too high.
+   */
+  async compute(companyId: string, year: number, opts: { preTax?: boolean } = {}): Promise<GuVResult> {
     const yearStart = new Date(year, 0, 1)
     const yearEnd = new Date(year, 11, 31, 23, 59, 59, 999)
 
@@ -464,14 +491,17 @@ export class GuVService {
     }
 
     // Tax (§ 275 HGB GKV positions 14, 16)
+    const incomeTaxes = opts.preTax ? null : await this.incomeTaxes(companyId, year)
     const tax: GuVSection = {
       title: 'Steuern',
       lines: [
         {
           position: '14',
           label: 'Steuern vom Einkommen und Ertrag',
-          amount: null,
-          note: 'Ertragsteuern werden in de-invoice v1 nicht erfasst.',
+          amount: incomeTaxes === null ? null : round2(incomeTaxes),
+          note: incomeTaxes === null
+            ? 'Ertragsteuern nur bei einer Kapitalgesellschaft berechnet (Einzelunternehmen / Personengesellschaft: Einkommensteuer der Gesellschafter).'
+            : 'KSt + Soli + GewSt des Jahres, wie in KSt 1 berechnet (Steuerrückstellung in der Bilanz).',
         },
         {
           position: '16',
@@ -479,8 +509,8 @@ export class GuVService {
           amount: null,
         },
       ],
-      subtotal: 0,
-      nichtAusgewiesen: 2,
+      subtotal: round2(incomeTaxes ?? 0),
+      nichtAusgewiesen: incomeTaxes === null ? 2 : 1,
     }
 
     // Result (§ 275 HGB GKV position 17)
@@ -491,7 +521,7 @@ export class GuVService {
     const betriebsleistung = revenue.subtotal!
     const betriebsergebnis = betriebsleistung - cost.subtotal!
     const finanzergebnis = financial.subtotal!
-    const ergebnisNachSteuern = betriebsergebnis + finanzergebnis - tax.subtotal!
+    const ergebnisNachSteuern = betriebsergebnis + finanzergebnis - tax.subtotal! // Tier 506: income taxes
     const jahresueberschuss = ergebnisNachSteuern // sonstige Steuern = 0 in v1
 
     const result: GuVSection = {

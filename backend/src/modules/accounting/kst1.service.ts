@@ -4,7 +4,6 @@ import { nonDeductibleGifts } from './gifts'
 import { Injectable, BadRequestException } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import { GuVService } from './guv.service'
-import { BilanzService } from './bilanz.service'
 import { Response } from 'express'
 import PDFDocument from 'pdfkit'
 
@@ -169,7 +168,8 @@ export class KSt1Service {
   constructor(
     private prisma: PrismaService,
     private guv: GuVService,
-    private bilanz: BilanzService,
+    // Tier 506: BilanzService was injected and never used — the Bilanz now
+    // reads KSt 1 (Steuerrückstellung), so it would be a cycle.
   ) {}
 
   /**
@@ -210,7 +210,8 @@ export class KSt1Service {
     // KSt-relevant corrections (vGAs, Spenden,
     // etc.) we apply them in the corrections
     // block below.
-    const guvData = await this.guv.compute(companyId, year)
+    // Tier 506: the result before income taxes (the GuV now deducts them).
+    const guvData = await this.guv.compute(companyId, year, { preTax: true })
     const jahresueberschuss = guvData.totals.jahresueberschuss
     const jahresueberschussSource = jahresueberschuss > 0 || jahresueberschuss < 0
       ? 'computed'

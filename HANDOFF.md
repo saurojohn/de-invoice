@@ -2570,6 +2570,32 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Income taxes in a GmbH's GuV and Bilanz (Tier 506)
+
+User decision: compute them. Measured (spec 292): a Kapitalgesellschaft's
+GuV left position 14 "Steuern vom Einkommen und Ertrag" empty ("in v1 nicht
+erfasst") — the Jahresüberschuss was the result before KSt / Soli / GewSt,
+~30 % too high —, and the Bilanz showed neither a Steuerrückstellung nor the
+VAT still owed (both "nicht ausgewiesen"; the Saldoposten held them).
+
+- GuV (`compute(companyId, year, { preTax })`): for a Kapitalgesellschaft
+  position 14 = KSt 1's "Zu zahlen" (KSt + Soli + GewSt) and the
+  Jahresüberschuss after it; KSt 1 reads the GuV with `preTax: true`, so its
+  zvE is unchanged. KSt1Service is resolved lazily (ModuleRef + dynamic
+  import) — it injects the GuV. Anhang, E-Bilanz and the Berater package use
+  the after-tax figure. Other legal forms: position 14 stays empty.
+- KSt1Service no longer injects BilanzService (it never used it — and the
+  Bilanz now reads KSt 1).
+- Bilanz (`taxBalances`): 3100 Steuerrückstellungen = KSt 1 "Zu zahlen" −
+  GewSt prepayments recorded (`settings.gewstVorauszahlungen`; KSt
+  prepayments are not recorded — the Berater deducts them); 4600 Sonstige
+  Verbindlichkeiten = the year's UStVA Kz 83 (12 months) − payments recorded
+  on that year's returns by 31.12. (Tier 483). Negative balances go to 1800
+  Sonstige Forderungen. The Saldoposten shrinks accordingly.
+
+The VAT figure relies on the payments being recorded in the UStVA history;
+without them the whole year's VAT shows as owed.
+
 ### A EUR bank receipt on a foreign-currency invoice (Tier 505)
 
 A payment's amount is in the invoice's currency (DATEV and the EÜR convert

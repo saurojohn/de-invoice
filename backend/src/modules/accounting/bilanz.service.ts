@@ -7,6 +7,9 @@ import { Response } from 'express'
 import PDFDocument from 'pdfkit'
 import { CLAIM_TYPES, NON_CASH_PAYMENT_METHODS } from '../invoice/document-scope'
 import { ADVANCE_SETTLEMENT_METHOD } from '../invoice/advance'
+import { isKapitalgesellschaft, resolveRechtsform } from '../company/rechtsform'
+import { UstvaService } from '../reports/ustva.service'
+import { KSt1Service } from './kst1.service'
 
 /**
  * Tier 81: Bilanz (Balance Sheet) — VORSCHAU.
@@ -114,7 +117,41 @@ export class BilanzService {
   constructor(
     private prisma: PrismaService,
     private assets: AssetsService,
+    private kst1: KSt1Service,
+    private ustva: UstvaService,
   ) {}
+
+  /**
+   * Tier 506 — the taxes still owed at the balance-sheet date.
+   *
+   * steuerRueckstellung: a Kapitalgesellschaft's income taxes of the year
+   * (KSt 1 "Zu zahlen", as the GuV's position 14) less the GewSt
+   * prepayments recorded (KSt prepayments are not recorded in the system).
+   * ustSaldo: the year's VAT returns (Kz 83 of every month) less what was
+   * paid on them by the balance-sheet date (UStVA history, Tier 483).
+   * Both were missing — the Saldoposten held them. Negative = a claim.
+   */
+  private async taxBalances(companyId: string, year: number, snapshot: Date) {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { name: true, legalName: true, rechtsform: true, settings: true },
+    })
+    let steuerRueckstellung: number | null = null
+    if (company && isKapitalgesellschaft(resolveRechtsform(company).rechtsform)) {
+      const k = await this.kst1.compute(companyId, year)
+      const vz = ((company.settings as any)?.gewstVorauszahlungen?.[year]) || {}
+      const prepaid = ['q1', 'q2', 'q3', 'q4'].reduce((s, q) => s + (Number(vz[q]) || 0), 0)
+      steuerRueckstellung = round2(k.totals.zuZahlen - prepaid)
+    }
+    let owed = 0
+    for (let m = 1; m <= 12; m++) owed += (await this.ustva.compute(companyId, year, undefined, m)).differenzbetrag
+    const paid = await this.prisma.uStvaFiling.aggregate({
+      where: { companyId, year, paidAt: { lte: snapshot } },
+      _sum: { paidAmount: true },
+    })
+    const ustSaldo = round2(owed - Number(paid._sum.paidAmount ?? 0))
+    return { steuerRueckstellung, ustSaldo }
+  }
 
   async compute(companyId: string, year: number): Promise<BilanzResult> {
     // Snapshot date = end of fiscal year.
@@ -406,6 +443,12 @@ export class BilanzService {
       nichtAusgewiesen: hasAssets ? 1 : 5,
     }
 
+    // Tier 506: taxes owed / refunds due at the balance-sheet date.
+    const { steuerRueckstellung, ustSaldo } = await this.taxBalances(companyId, year, snapshot)
+    const steuerForderung = round2(Math.max(0, -(steuerRueckstellung ?? 0)) + Math.max(0, -ustSaldo))
+    const steuerRueckstellungPassiva = round2(Math.max(0, steuerRueckstellung ?? 0))
+    const ustVerbindlichkeit = round2(Math.max(0, ustSaldo))
+
     // Aktiva / B. Umlaufvermögen — partial.
     const aktivaUV: BilanzSection = {
       title: 'B. Umlaufvermögen',
@@ -438,11 +481,12 @@ export class BilanzService {
         {
           position: '1800',
           label: 'Sonstige Forderungen und Vermögensgegenstände',
-          amount: null,
+          amount: steuerForderung,
+          note: 'Tier 506: Steuererstattungsansprüche (USt-Überschuss / zu viel vorausgezahlte Ertragsteuern) zum Stichtag; weitere sonstige Forderungen ergänzt der Berater.',
         },
       ],
-      subtotal: round2(forderungenLUL + kassenbestand + (bankGuthaben ?? 0)),
-      nichtAusgewiesen: bankGuthaben === null ? 3 : 2,
+      subtotal: round2(forderungenLUL + kassenbestand + (bankGuthaben ?? 0) + steuerForderung),
+      nichtAusgewiesen: bankGuthaben === null ? 2 : 1,
     }
 
     // Aktiva / C. RAP — nicht ausgewiesen.
@@ -462,7 +506,7 @@ export class BilanzService {
     // system. v1 exposes a single "Saldoposten"
     // line so the Bilanzgleichung balances.
     const aktivaTotal = aktivaAV.subtotal! + aktivaUV.subtotal! + aktivaRAP.subtotal!
-    const passivaKnown = verbLUL + kundenguthaben + erhalteneAnzahlungen
+    const passivaKnown = verbLUL + kundenguthaben + erhalteneAnzahlungen + steuerRueckstellungPassiva + ustVerbindlichkeit
     const eigenkapitalSaldoposten = aktivaTotal - passivaKnown
 
     const passivaEK: BilanzSection = {
@@ -511,11 +555,18 @@ export class BilanzService {
       title: 'B. Rückstellungen',
       lines: [
         { position: '3000', label: 'Rückstellungen für Pensionen', amount: null },
-        { position: '3100', label: 'Steuerrückstellungen', amount: null },
+        {
+          position: '3100',
+          label: 'Steuerrückstellungen',
+          amount: steuerRueckstellung === null ? null : steuerRueckstellungPassiva,
+          note: steuerRueckstellung === null
+            ? 'Ertragsteuern nur bei einer Kapitalgesellschaft (KSt 1).'
+            : 'Tier 506: KSt + Soli + GewSt des Jahres (KSt 1) abzüglich der erfassten GewSt-Vorauszahlungen; KSt-Vorauszahlungen sind nicht erfasst — bitte durch den Berater abziehen.',
+        },
         { position: '3200', label: 'Sonstige Rückstellungen', amount: null },
       ],
-      subtotal: 0,
-      nichtAusgewiesen: 3,
+      subtotal: steuerRueckstellungPassiva,
+      nichtAusgewiesen: steuerRueckstellung === null ? 3 : 2,
     }
 
     // Passiva / C. Verbindlichkeiten — partial.
@@ -547,11 +598,12 @@ export class BilanzService {
         {
           position: '4600',
           label: 'Sonstige Verbindlichkeiten',
-          amount: null,
+          amount: ustVerbindlichkeit,
+          note: 'Tier 506: Umsatzsteuer des Jahres (UStVA, Kz 83) abzüglich der bis zum Stichtag erfassten Zahlungen an das Finanzamt (UStVA-Historie); weitere sonstige Verbindlichkeiten ergänzt der Berater.',
         },
       ],
-      subtotal: round2(verbLUL + kundenguthaben + erhalteneAnzahlungen),
-      nichtAusgewiesen: 2,
+      subtotal: round2(verbLUL + kundenguthaben + erhalteneAnzahlungen + ustVerbindlichkeit),
+      nichtAusgewiesen: 1,
     }
 
     // Passiva / D. RAP — nicht ausgewiesen.

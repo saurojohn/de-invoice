@@ -356,8 +356,7 @@ d = json.load(open('$TMP'))
 expected = [
   ('revenue', '2'),    # Bestandsveränderungen
   ('financial', '11'), # Zinserträge
-  ('tax', '14'),       # Steuern vom Einkommen
-]
+]  # Tier 506: 14 (Steuern vom Einkommen) is computed for a GmbH
 results = []
 for section_name, pos in expected:
   amount = None
@@ -369,7 +368,7 @@ for section_name, pos in expected:
 all_null = all(amt is None for _, amt in results)
 print('true' if all_null else f'not null: {results}')
 ")
-assert_eq "all 3 nicht-ausgewiesen positions are null (2, 11, 14)" "$NA_OK" "true"
+assert_eq "the nicht-ausgewiesen positions are null (2, 11)" "$NA_OK" "true"
 
 # ── 8. Result § 275 GKV Pos 17 (Jahresüberschuss) ──
 echo
@@ -387,7 +386,9 @@ pers = next(l['amount'] for l in d['cost']['lines'] if l['position'] == '6a') or
 afa = next(l['amount'] for l in d['cost']['lines'] if l['position'] == '7a') or 0
 sonst_aufw = next(l['amount'] for l in d['cost']['lines'] if l['position'] == '8') or 0
 zins = next(l['amount'] for l in d['financial']['lines'] if l['position'] == '13') or 0
-expected_ju = umsatz + sonst_ertr - mat - pers - afa - sonst_aufw - zins
+# Tier 506: less the income taxes (position 14) of a GmbH
+steuern = sum((l['amount'] or 0) for l in d['tax']['lines'])
+expected_ju = umsatz + sonst_ertr - mat - pers - afa - sonst_aufw - zins - steuern
 actual_ju = d['totals']['jahresueberschuss']
 ok = abs(expected_ju - actual_ju) < 0.01
 print('true' if ok else f'expected={expected_ju} actual={actual_ju}')

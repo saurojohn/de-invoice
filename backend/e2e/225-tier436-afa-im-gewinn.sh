@@ -43,7 +43,7 @@ AS POST "/api/v1/invoices/$INV/payments?companyId=$C" '{"amount":5950,"paymentDa
 note "=== the same Gewinn everywhere: 5000 - 1200 = 3800 ==="
 AS GET "/api/v1/accounting/guv?companyId=$C&year=$Y"
 assert_eq "GuV 7a (was -1200)" "$(py 'print([l["amount"] for l in d["cost"]["lines"] if l["position"]=="7a"][0])')" "1200"
-assert_eq "GuV Jahresüberschuss (was 6200)" "$(py 'print(d["totals"]["jahresueberschuss"])')" "3800"
+assert_eq "GuV result before income taxes (was 6200; Tier 506: a GmbH's taxes are position 14)" "$(py 'v=d["totals"]["jahresueberschuss"]+sum((l["amount"] or 0) for l in d["tax"]["lines"]);print(int(v) if v==int(v) else round(v,2))')" "3800"
 AS GET "/api/v1/accounting/euer?companyId=$C&year=$Y"
 assert_eq "EÜR 4600 AfA (was: no line)" "$(py 'print([l["amount"] for l in d["ausgaben"] if l["kennziffer"]=="4600"][0])')" "1200"
 # Tier 483: EÜR and Anlage S add the VAT in the cash flows; the AfA question

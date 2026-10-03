@@ -70,9 +70,12 @@ AS PUT "/api/v1/invoices/$I?companyId=$C" "{\"items\":$(item Korrigiert 250)}"
 assert_eq "edited (same day, no payment — Tier 477)" "$STATUS" "200"
 assert_eq "the stored copy is dropped (was kept)" "$(q "select coalesce(\"pdfPath\",'none') from \"Invoice\" where id='$I'")" "none"
 pdf "$I" "$WORK/again.pdf"
+assert_eq "the corrected invoice's download is stored" "$(q "select (\"pdfPath\" is not null)::text from \"Invoice\" where id='$I'")" "true"
+assert_eq "…and shows the correction" "$(PDFTXT "$WORK/again.pdf" | grep -c "Korrigiert")" "1"
 rm -rf "$WORK/Invoices"; curl -sS -o "$WORK/b.zip" -H "x-user-id: $U" -H "x-company-id: $C" "$API/api/v1/accounting/gobd-archive?companyId=$C&year=${TODAY:0:4}"
 (cd "$WORK" && unzip -o -q b.zip)
-assert_eq "the archive has the corrected invoice" "$(PDFTXT "$WORK/Invoices/$NO.pdf" | grep -c "Korrigiert")" "1"
+assert_eq "the archive holds exactly that document" \
+  "$(shasum -a 256 < "$WORK/Invoices/$NO.pdf" | cut -d' ' -f1)" "$(shasum -a 256 < "$WORK/again.pdf" | cut -d' ' -f1)"
 
 rm -rf "$WORK"
 summary

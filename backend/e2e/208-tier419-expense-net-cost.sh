@@ -35,7 +35,8 @@ fixture() { # vatRate-of-sale
     AS POST "/api/v1/ustva/expenses?companyId=$C" "{\"description\":\"$cat\",\"category\":\"$cat\",\"invoiceDate\":\"$YEAR-08-12\",\"netAmount\":100,\"vatRate\":0.19,\"vatAmount\":19,\"grossAmount\":119,\"paidAt\":\"$YEAR-08-14\"}"
   done
 }
-guv() { AS GET "/api/v1/accounting/guv?companyId=$C&year=$YEAR"; python3 -c "import sys,json;print(json.loads(sys.argv[1])['totals']['jahresueberschuss'])" "$BODY"; }
+# Tier 506: the result before income taxes (a GmbH's GuV deducts them).
+guv() { AS GET "/api/v1/accounting/guv?companyId=$C&year=$YEAR"; python3 -c "import sys,json;d=json.loads(sys.argv[1]);v=d['totals']['jahresueberschuss']+sum((l['amount'] or 0) for l in d['tax']['lines']);print(int(v) if v==int(v) else round(v,2))" "$BODY"; }
 bwa() { AS GET "/api/v1/reports/bwa?companyId=$C&year=$YEAR&month=8"; python3 -c "import sys,json;t=json.loads(sys.argv[1])['totals'];print(t['materialaufwandMonat'], t['jahresergebnisYtd'])" "$BODY"; }
 # Tier 483: the EÜR's own profit adds the VAT in the cash flows (Zeilen 17 /
 # 57 / 58); GuV and BWA are net — the comparison is on the net lines.
