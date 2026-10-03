@@ -10,6 +10,7 @@ import { ADVANCE_SETTLEMENT_METHOD } from '../invoice/advance'
 import { isKapitalgesellschaft, resolveRechtsform } from '../company/rechtsform'
 import { UstvaService } from '../reports/ustva.service'
 import { KSt1Service } from './kst1.service'
+import { GuVService } from './guv.service'
 
 /**
  * Tier 81: Bilanz (Balance Sheet) — VORSCHAU.
@@ -119,6 +120,7 @@ export class BilanzService {
     private assets: AssetsService,
     private kst1: KSt1Service,
     private ustva: UstvaService,
+    private guv: GuVService,
   ) {}
 
   /**
@@ -505,7 +507,13 @@ export class BilanzService {
     // line so the Bilanzgleichung balances.
     const aktivaTotal = aktivaAV.subtotal! + aktivaUV.subtotal! + aktivaRAP.subtotal!
     const passivaKnown = verbLUL + kundenguthaben + erhalteneAnzahlungen + steuerRueckstellungPassiva + ustVerbindlichkeit
-    const eigenkapitalSaldoposten = aktivaTotal - passivaKnown
+    const eigenkapitalGesamt = aktivaTotal - passivaKnown
+    // Tier 509: the year's result is its own position (2400, the GuV's
+    // Jahresüberschuss); the Saldoposten is the rest of the equity (capital,
+    // reserves, carry-forwards). It was the whole equity — and the E-Bilanz
+    // sent it next to the Jahresüberschuss, counting the result twice.
+    const jahresueberschuss = round2((await this.guv.compute(companyId, year)).totals.jahresueberschuss)
+    const eigenkapitalSaldoposten = eigenkapitalGesamt - jahresueberschuss
 
     const passivaEK: BilanzSection = {
       title: 'A. Eigenkapital',
@@ -534,17 +542,18 @@ export class BilanzService {
         {
           position: '2400',
           label: 'Jahresüberschuss / Jahresfehlbetrag',
-          amount: null,
+          amount: jahresueberschuss,
+          note: 'Tier 509: aus der G+V (nach Ertragsteuern bei einer Kapitalgesellschaft).',
         },
         {
           position: 'EKV',
-          label: 'Saldoposten (Aktiva − sonstige Passiva)',
+          label: 'Saldoposten übriges Eigenkapital (Aktiva − sonstige Passiva − Jahresüberschuss)',
           amount: round2(eigenkapitalSaldoposten),
-          note: 'Platzhalter — durch den Berater durch die tatsächlichen Eigenkapital-Positionen ersetzen.',
+          note: 'Platzhalter für Gezeichnetes Kapital, Rücklagen und Vorträge — durch den Berater durch die tatsächlichen Positionen ersetzen.',
         },
       ],
-      subtotal: round2(eigenkapitalSaldoposten),
-      nichtAusgewiesen: 5,
+      subtotal: round2(eigenkapitalGesamt),
+      nichtAusgewiesen: 4,
     }
 
     // Passiva / B. Rückstellungen — nicht
@@ -624,7 +633,7 @@ export class BilanzService {
       totals: {
         aktiva: round2(aktivaTotal),
         passiva: round2(passivaTotal),
-        eigenkapital: round2(eigenkapitalSaldoposten),
+        eigenkapital: round2(eigenkapitalGesamt),
       },
       balanceCheck: {
         balanced,

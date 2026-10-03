@@ -148,7 +148,9 @@ export class EBilanzService {
       "bilanz.passiva.equity.kapitalruecklage": null, // placeholder
       "bilanz.passiva.equity.gewinnruecklagen": null, // placeholder
       "bilanz.passiva.equity.bilanzgewinn": guvResult.totals.jahresueberschuss ?? 0,
-      "bilanz.passiva.equity.saldoposten": bilanzResult.totals.eigenkapital ?? 0,
+      // Tier 509: the rest of the equity — the Jahresüberschuss is its own fact
+      // (it was the whole equity, the result counted twice).
+      "bilanz.passiva.equity.saldoposten": bilanzLineByCode.get("EKV") ?? 0,
       // Bilanz Passiva — Rückstellungen
       "bilanz.passiva.rueckstellungen": null, // placeholder (pensions / other)
       // Tier 508: the Steuerrückstellung (Tier 506 / 507; null for other legal forms)

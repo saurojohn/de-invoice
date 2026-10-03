@@ -2574,6 +2574,22 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### The Jahresüberschuss is not counted twice in the equity (Tier 509)
+
+The Bilanz showed the whole equity as one Saldoposten (Aktiva − sonstige
+Passiva) and left 2400 Jahresüberschuss empty; the E-Bilanz sent that
+Saldoposten (bs.equity.retainedEarnings) next to the G+V's Jahresüberschuss
+(bs.equity.netIncome). Measured (spec 295, spec 292's fixture): the E-Bilanz
+Passiva facts summed to 18 917,50 against a total of 11 900.
+
+- Bilanz: 2400 = the G+V's Jahresüberschuss (after income taxes for a
+  Kapitalgesellschaft, Tier 506); EKV = the rest of the equity (capital,
+  reserves, carry-forwards — the Berater's placeholder); the section's
+  subtotal and `totals.eigenkapital` stay the whole equity. BilanzService
+  injects GuVService (no cycle — the GuV reaches KSt 1 lazily).
+- E-Bilanz: retainedEarnings (the Saldoposten) = EKV, not the whole equity.
+- Spec 107 checks 2400 + EKV = Aktiva − sonstige Passiva.
+
 ### The E-Bilanz carries the taxes (Tier 508)
 
 Tier 506 put the Steuerrückstellung (3100), the VAT still owed (4600), tax

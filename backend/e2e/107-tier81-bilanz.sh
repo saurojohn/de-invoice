@@ -363,7 +363,8 @@ EKV_DELTA_OK=$(python3 -c "
 import json
 d = json.load(open('$TMP'))
 sec = next(s for s in d['passiva'] if s['title'].startswith('A. Eigenkapital'))
-saldoposten = next(l['amount'] for l in sec['lines'] if l['position'] == 'EKV')
+# Tier 509: the equity is the Jahresüberschuss (2400) + the Saldoposten
+saldoposten = sum(l['amount'] or 0 for l in sec['lines'] if l['position'] in ('EKV', '2400'))
 # Non-EK Passiva total: sum of B/C/D sections' subtotals
 non_ek = sum((s['subtotal'] or 0) for s in d['passiva'] if not s['title'].startswith('A. Eigenkapital'))
 # Aktiva total
