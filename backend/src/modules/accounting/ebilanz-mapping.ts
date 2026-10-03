@@ -73,6 +73,7 @@ export type MappingSource =
   | "bilanz.passiva.cred.sonstige"
   | "bilanz.passiva.rap.passive"
   | "bilanz.passiva.rueckstellungen"
+  | "bilanz.passiva.rueckstellungen.steuern" // Tier 508
   | "bilanz.passiva.latenteSteuern"
   | "bilanz.passiva.equity.subscribed"
   | "bilanz.passiva.equity.kapitalruecklage"
@@ -255,8 +256,8 @@ export const EBILANZ_MAPPING: EBilanzMapping[] = [
     label: "Sonstige Vermögensgegenstände",
     source: "bilanz.aktiva.currass.sonstige",
     section: "bilanzAktivaUmlauf",
-    computed: false,
-    note: "Sonstige VG (z.B. Kautionen, Steuererstattungen) — in de-invoice nicht separat erfasst.",
+    computed: true,
+    note: "Tier 508: Steuererstattungsansprüche (Bilanz 1800, Tier 506); weitere sonstige VG (z.B. Kautionen) ergänzt der Berater.",
   },
   {
     elementId: "de-gcd:bs.ass.currAssets.cashAndCashEquivalents",
@@ -345,10 +346,10 @@ export const EBILANZ_MAPPING: EBilanzMapping[] = [
   {
     elementId: "de-gcd:bs.liab.accr.taxProvisions",
     label: "Steuerrückstellungen",
-    source: "bilanz.passiva.rueckstellungen",
+    source: "bilanz.passiva.rueckstellungen.steuern",
     section: "bilanzPassivaRueckstellungen",
-    computed: false,
-    note: "Steuerrückstellungen — in de-invoice nicht erfasst. Berater füllt manuell.",
+    computed: true,
+    note: "Tier 508: KSt + Soli + GewSt abzüglich der erfassten Vorauszahlungen (Bilanz 3100, Tier 506 / 507).",
   },
   {
     elementId: "de-gcd:bs.liab.accr.othProvisions",
@@ -403,8 +404,8 @@ export const EBILANZ_MAPPING: EBilanzMapping[] = [
     label: "Sonstige Verbindlichkeiten (restliche)",
     source: "bilanz.passiva.cred.sonstige",
     section: "bilanzPassivaVerbindlichkeiten",
-    computed: false,
-    note: "Restliche sonstige Verbindlichkeiten (Steuern, Sozialversicherung) — in de-invoice nicht erfasst.",
+    computed: true,
+    note: "Tier 508: noch nicht gezahlte Umsatzsteuer (Bilanz 4600, Tier 506); Sozialversicherung u.a. ergänzt der Berater.",
   },
   // ===== Bilanz Passiva — Passive RAP =====
   {
@@ -543,8 +544,8 @@ export const EBILANZ_MAPPING: EBilanzMapping[] = [
     label: "Steuern vom Einkommen und Ertrag (§ 275 HGB Pos 14)",
     source: "guv.ertraegeErtragsteuern",
     section: "guvSteuern",
-    computed: false,
-    note: "Ertragsteuern (Körperschaftsteuer, Gewerbesteuer) — in de-invoice nicht erfasst. Berater füllt manuell.",
+    computed: true,
+    note: "Tier 508: KSt + Soli + GewSt des Jahres (GuV Pos. 14, Tier 506; nur Kapitalgesellschaft).",
   },
   {
     elementId: "de-gcd:is.tax.othTax",

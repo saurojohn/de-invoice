@@ -85,8 +85,8 @@ COUNT_PLACEHOLDER=$(echo "$DATA" | python3 -c "import json,sys; print(json.load(
 # 6.7 schema — most new positions are
 # placeholders for the Berater.
 assert_eq "total positions == 52 (tier 97 v2 expansion)" "$COUNT_TOTAL" "52"
-assert_eq "computed positions == 23 (Bilanz + G+V + Anhang computed)" "$COUNT_COMPUTED" "23"
-assert_eq "placeholder positions == 28 (Berater fills in ELSTER)" "$COUNT_PLACEHOLDER" "28"
+assert_eq "computed positions == 27 (Bilanz + G+V + Anhang computed; Tier 508: + 1800 / 3100 / 4600 / Pos. 14)" "$COUNT_COMPUTED" "27"
+assert_eq "placeholder positions == 24 (Berater fills in ELSTER)" "$COUNT_PLACEHOLDER" "24"
 
 # ===== 2. /ebilanz.xml valid XML =====
 echo

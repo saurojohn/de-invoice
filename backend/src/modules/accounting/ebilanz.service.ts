@@ -134,7 +134,8 @@ export class EBilanzService {
       "bilanz.aktiva.fixass.finanzanlagen": null, // placeholder (combined for shares/othFinAss)
       // Bilanz Aktiva — Umlaufvermögen
       "bilanz.aktiva.currass.forderungen": bilanzLineByCode.get("1500") ?? 0,
-      "bilanz.aktiva.currass.sonstige": null, // placeholder
+      // Tier 508: the tax refunds due (Tier 506)
+      "bilanz.aktiva.currass.sonstige": bilanzLineByCode.get("1800") ?? 0,
       "bilanz.aktiva.currass.liquide": bilanzLineByCode.get("1600+1700") ?? 0,
       // Bilanz Aktiva — Aktive RAP
       "bilanz.aktiva.rap.aktive": 0, // computed: 0 (de-invoice has no RAP model)
@@ -149,14 +150,17 @@ export class EBilanzService {
       "bilanz.passiva.equity.bilanzgewinn": guvResult.totals.jahresueberschuss ?? 0,
       "bilanz.passiva.equity.saldoposten": bilanzResult.totals.eigenkapital ?? 0,
       // Bilanz Passiva — Rückstellungen
-      "bilanz.passiva.rueckstellungen": null, // placeholder (combined for all 3)
+      "bilanz.passiva.rueckstellungen": null, // placeholder (pensions / other)
+      // Tier 508: the Steuerrückstellung (Tier 506 / 507; null for other legal forms)
+      "bilanz.passiva.rueckstellungen.steuern": bilanzLineByCode.get("3100") ?? null,
       // Bilanz Passiva — Verbindlichkeiten
       "bilanz.passiva.cred.banken": null, // placeholder
       "bilanz.passiva.cred.anzahlungen": null, // placeholder
       "bilanz.passiva.cred.tradl": bilanzLineByCode.get("4000") ?? 0,
       "bilanz.passiva.cred.affil": null, // placeholder
       "bilanz.passiva.cred.kundenguthaben": bilanzLineByCode.get("4500") ?? 0,
-      "bilanz.passiva.cred.sonstige": null, // placeholder
+      // Tier 508: the VAT still owed (Tier 506)
+      "bilanz.passiva.cred.sonstige": bilanzLineByCode.get("4600") ?? 0,
       // Bilanz Passiva — Passive RAP
       "bilanz.passiva.rap.passive": null, // placeholder
       // Bilanz Passiva — Passive latente Steuern
@@ -180,7 +184,8 @@ export class EBilanzService {
       "guv.zinsaufwendungen": guvLineByCode.get("13") ?? 0,
       "guv.afaFinanzanlagen": null, // placeholder
       // G+V — Steuern
-      "guv.ertraegeErtragsteuern": null, // placeholder
+      // Tier 508: GuV position 14 (Tier 506; null for other legal forms)
+      "guv.ertraegeErtragsteuern": guvLineByCode.get("14") ?? null,
       "guv.sonstigeSteuern": null, // placeholder
       // G+V — Jahresergebnis
       "guv.jahresueberschuss": guvResult.totals.jahresueberschuss ?? 0,

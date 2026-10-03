@@ -33,8 +33,8 @@ TOTAL=$(python3 -c "import json,sys; print(json.load(sys.stdin)['counts']['total
 COMPUTED=$(python3 -c "import json,sys; print(json.load(sys.stdin)['counts']['computed'])" < "$TMP")
 PLACEHOLDER=$(python3 -c "import json,sys; print(json.load(sys.stdin)['counts']['placeholder'])" < "$TMP")
 assert_eq "total positions == 52" "$TOTAL" "52"
-assert_eq "computed positions == 23" "$COMPUTED" "23"
-assert_eq "placeholder positions == 28" "$PLACEHOLDER" "28"
+assert_eq "computed positions == 27 (Tier 508: + 1800 / 3100 / 4600 / Pos. 14)" "$COMPUTED" "27"
+assert_eq "placeholder positions == 24" "$PLACEHOLDER" "24"
 
 # Verify 17 sub-sections present
 NUM_SECTIONS=$(python3 -c "
@@ -123,7 +123,7 @@ d = json.load(sys.stdin)
 ph = [p for p in d['positions'] if not p['computed'] and p['value'] is None]
 print(len(ph))
 " < "$TMP")
-assert_eq "placeholder count (computed=false, value=null) == 28" "$PH_COUNT" "28"
+assert_eq "placeholder count (computed=false, value=null) == 24" "$PH_COUNT" "24"
 
 # Verify all placeholder positions have a 'note' explaining the gap
 PH_WITH_NOTE=$(python3 -c "
@@ -169,7 +169,7 @@ assert_eq "XML well-formed" "$PARSE_OK" "OK"
 echo
 note "=== 5. /ebilanz.xml TODO block has >= 25 BMF placeholders ==="
 TODO_LINES=$(echo "$XML" | grep -c "^  - de-gcd:")
-assert_eq "TODO block has >= 25 BMF placeholders" "$([ "$TODO_LINES" -ge 25 ] && echo true || echo false)" "true"
+assert_eq "TODO block has >= 21 BMF placeholders (Tier 508: 4 computed now)" "$([ "$TODO_LINES" -ge 21 ] && echo true || echo false)" "true"
 
 # Spans all 4 main areas (Aktiva + Passiva + G+V + Sonstige) — the
 # TODO block is one big XML comment listing all 29 placeholders,

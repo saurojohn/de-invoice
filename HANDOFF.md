@@ -2573,6 +2573,21 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### The E-Bilanz carries the taxes (Tier 508)
+
+Tier 506 put the Steuerrückstellung (3100), the VAT still owed (4600), tax
+refunds due (1800) and the income taxes (GuV position 14) into the Bilanz /
+GuV. The E-Bilanz still sent them as placeholders (spec 294): its
+Jahresüberschuss was after taxes while is.tax.incomeTax was empty, and its
+Bilanz positions no longer added up to its totals.
+
+- `ebilanz-mapping.ts`: bs.ass.currAssets.othReceivables, bs.liab.accr.
+  taxProvisions (own source `bilanz.passiva.rueckstellungen.steuern` — the
+  pension / other provisions stay placeholders), bs.liab.cred.
+  othLiabRemaining and is.tax.incomeTax are computed; `ebilanz.service.ts`
+  fills them from Bilanz 1800 / 3100 / 4600 and GuV 14 (null for other
+  legal forms). Counts for a GmbH: 27 computed, 24 placeholders (spec 114).
+
 ### KSt prepayments (Tier 507)
 
 The Steuerrückstellung (Tier 506) deducted the GewSt prepayments only — KSt
