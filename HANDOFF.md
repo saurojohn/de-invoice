@@ -2571,6 +2571,21 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### KSt prepayments (Tier 507)
+
+The Steuerrückstellung (Tier 506) deducted the GewSt prepayments only — KSt
+(+ Soli) prepayments, four a year on the Vorauszahlungsbescheid, could not
+be recorded (spec 293: `PUT /accounting/kst1/vorauszahlungen` 404).
+
+- `PUT /accounting/kst1/vorauszahlungen` { year, q1–q4 } (KSt + Soli paid),
+  stored as `settings.kstVorauszahlungen[year]` like the GewSt ones.
+- KSt 1: `kstVorauszahlungen` (the quarters), `totals.vorauszahlungen` (KSt
+  + GewSt prepaid) and `totals.verbleibend` (zuZahlen − them; negative = a
+  refund); `zuZahlen` unchanged.
+- Bilanz: 3100 = `verbleibend`; a negative one goes to 1800.
+- UI: the KSt 1 section has the four quarter inputs and shows what is left.
+  Playwright `kst-vorauszahlungen-tier507.spec.ts`.
+
 ### Income taxes in a GmbH's GuV and Bilanz (Tier 506)
 
 User decision: compute them. Measured (spec 292): a Kapitalgesellschaft's
@@ -2588,8 +2603,8 @@ VAT still owed (both "nicht ausgewiesen"; the Saldoposten held them).
 - KSt1Service no longer injects BilanzService (it never used it — and the
   Bilanz now reads KSt 1).
 - Bilanz (`taxBalances`): 3100 Steuerrückstellungen = KSt 1 "Zu zahlen" −
-  GewSt prepayments recorded (`settings.gewstVorauszahlungen`; KSt
-  prepayments are not recorded — the Berater deducts them); 4600 Sonstige
+  GewSt prepayments recorded (`settings.gewstVorauszahlungen`; the KSt
+  prepayments followed in Tier 507); 4600 Sonstige
   Verbindlichkeiten = the year's UStVA Kz 83 (12 months) − payments recorded
   on that year's returns by 31.12. (Tier 483). Negative balances go to 1800
   Sonstige Forderungen. The Saldoposten shrinks accordingly.

@@ -2861,7 +2861,12 @@
     "kstHint": "KSt prepayments (Kz 60) are NOT subtracted here — the tax advisor offsets the prepayments in the assessment.",
     "korrekturenHint": "These corrections (hidden profit distributions, donations, loss carryforward, § 8b KStG) are placeholder — the tax advisor adds them from contracts, donation receipts, and loss carryforward notices. v2: editable under Company.settings.kst1Korrekturen[year].",
     "rechtsform": "Legal form",
-    "generatedAt": "Generated"
+    "generatedAt": "Generated",
+    "vorauszahlungenTitle": "Corporate tax prepayments (incl. Soli) per assessment",
+    "vorauszahlungenSave": "Save",
+    "vorauszahlungenSaved": "Prepayments saved",
+    "vorauszahlungenTotal": "Prepayments KSt + GewSt",
+    "verbleibend": "Remaining (tax provision)"
   },
   "anlageR": {
     "title": "Anlage R (preview)",

@@ -2861,7 +2861,12 @@
     "kstHint": "KSt-Vorauszahlungen (Kz 60) sind hier NICHT berücksichtigt — der Steuerberater subtrahiert die bereits gezahlten Vorauszahlungen in der Festsetzung.",
     "korrekturenHint": "Diese Korrekturen (vGAs, Spenden, Verlustabzug, § 8b KStG) sind als Platzhalter markiert — der Steuerberater ergänzt sie aus den Verträgen, Spendenbescheinigungen und Verlustvortragsbescheiden. v2: editierbar unter Company.settings.kst1Korrekturen[year].",
     "rechtsform": "Rechtsform",
-    "generatedAt": "Erstellt"
+    "generatedAt": "Erstellt",
+    "vorauszahlungenTitle": "KSt-Vorauszahlungen (inkl. Soli) laut Bescheid",
+    "vorauszahlungenSave": "Speichern",
+    "vorauszahlungenSaved": "Vorauszahlungen gespeichert",
+    "vorauszahlungenTotal": "Vorauszahlungen KSt + GewSt",
+    "verbleibend": "Verbleibend (Steuerrückstellung)"
   },
   "anlageR": {
     "title": "Anlage R (Vorschau)",

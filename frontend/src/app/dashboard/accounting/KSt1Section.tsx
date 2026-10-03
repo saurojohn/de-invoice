@@ -5,7 +5,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
-import { apiGet, ApiError } from "@/lib/api"
+import { apiGet, apiPut, ApiError } from "@/lib/api"
 
 interface KSt1Line {
   kennziffer: string
@@ -31,7 +31,11 @@ interface KSt1Result {
     hebesatz: number
     gewst: number
     zuZahlen: number
+    // Tier 507
+    vorauszahlungen: number
+    verbleibend: number
   }
+  kstVorauszahlungen: { q1: number; q2: number; q3: number; q4: number }
   counts: {
     invoices: number
     expenses: number
@@ -67,6 +71,9 @@ export function KSt1Section() {
   const [year, setYear] = useState<number>(new Date().getFullYear() - 1)
   const [data, setData] = useState<KSt1Result | null>(null)
   const [loading, setLoading] = useState(false)
+  // Tier 507: the KSt (+ Soli) prepayments of the four quarters
+  const [vz, setVz] = useState({ q1: "", q2: "", q3: "", q4: "" })
+  const [savingVz, setSavingVz] = useState(false)
 
   const load = useCallback(async (y: number) => {
     setLoading(true)
@@ -80,6 +87,8 @@ export function KSt1Section() {
         `/api/v1/accounting/kst1?${params}`,
       )
       setData(result)
+      const q = result.kstVorauszahlungen || { q1: 0, q2: 0, q3: 0, q4: 0 }
+      setVz({ q1: q.q1 ? String(q.q1) : "", q2: q.q2 ? String(q.q2) : "", q3: q.q3 ? String(q.q3) : "", q4: q.q4 ? String(q.q4) : "" })
     } catch (e: any) {
       const msg = e instanceof ApiError ? e.message : tRef.current("common.loadError")
       toastRef.current.error(msg)
@@ -91,6 +100,25 @@ export function KSt1Section() {
   useEffect(() => {
     load(year)
   }, [year, load])
+
+  const saveVz = async () => {
+    setSavingVz(true)
+    try {
+      const companyId = typeof window !== "undefined" ? localStorage.getItem("companyId") : null
+      if (!companyId) return
+      const toNum = (s: string) => (s === "" ? 0 : Number(s.replace(",", ".")))
+      await apiPut(`/api/v1/accounting/kst1/vorauszahlungen?companyId=${companyId}`, {
+        year, q1: toNum(vz.q1), q2: toNum(vz.q2), q3: toNum(vz.q3), q4: toNum(vz.q4),
+      })
+      toastRef.current.success(tRef.current("kst1.vorauszahlungenSaved"))
+      await load(year)
+    } catch (e: any) {
+      const msg = e instanceof ApiError ? e.message : tRef.current("common.loadError")
+      toastRef.current.error(msg)
+    } finally {
+      setSavingVz(false)
+    }
+  }
 
   const fmt = (n: number) =>
     new Intl.NumberFormat("de-DE", {
@@ -323,6 +351,36 @@ export function KSt1Section() {
                 data-testid="kst1-zu-zahlen"
               >
                 {tRef.current("kst1.zuZahlen")}: {fmt(data.totals.zuZahlen)}
+              </div>
+
+              {/* Tier 507: KSt (+ Soli) prepayments and what is left */}
+              <div className="mt-3 p-3 border rounded" data-testid="kst1-vorauszahlungen">
+                <div className="text-sm font-medium mb-2">{tRef.current("kst1.vorauszahlungenTitle")}</div>
+                <div className="flex flex-wrap items-end gap-2">
+                  {(["q1", "q2", "q3", "q4"] as const).map((q) => (
+                    <label key={q} className="text-xs">
+                      <span className="block text-gray-600 dark:text-gray-300">{q.toUpperCase()}</span>
+                      <input
+                        className="border rounded px-2 py-1 w-24 text-sm bg-white dark:bg-gray-800"
+                        value={vz[q]}
+                        onChange={(e) => setVz({ ...vz, [q]: e.target.value })}
+                        data-testid={`kst1-vz-${q}`}
+                      />
+                    </label>
+                  ))}
+                  <button
+                    className="px-3 py-1 text-sm border rounded"
+                    onClick={saveVz}
+                    disabled={savingVz}
+                    data-testid="kst1-vz-save"
+                  >
+                    💾 {tRef.current("kst1.vorauszahlungenSave")}
+                  </button>
+                </div>
+                <p className="mt-2 text-sm" data-testid="kst1-verbleibend">
+                  {tRef.current("kst1.vorauszahlungenTotal")}: {fmt(data.totals.vorauszahlungen)} ·{" "}
+                  <strong>{tRef.current("kst1.verbleibend")}: {fmt(data.totals.verbleibend)}</strong>
+                </p>
               </div>
               <p className="mt-1 text-[10px] text-gray-500" data-testid="kst1-kst-hint">
                 ⚠ {tRef.current("kst1.kstHint")}

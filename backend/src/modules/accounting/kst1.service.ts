@@ -88,6 +88,8 @@ export interface KSt1Result {
   // KSt-relevant corrections
   corrections: KSt1Line[]
   // Bottom-line
+  /** Tier 507: the KSt (+ Soli) prepayments recorded per quarter */
+  kstVorauszahlungen: { q1: number; q2: number; q3: number; q4: number }
   totals: {
     jahresueberschuss: number
     zve: number // Zu versteuerndes Einkommen
@@ -96,6 +98,10 @@ export interface KSt1Result {
     gewstMessbetrag: number // 3.5% × ZvE
     hebesatz: number // default 400
     gewst: number // Messbetrag × Hebesatz / 100
+    /** Tier 507: KSt (+ Soli) and GewSt prepayments recorded for the year */
+    vorauszahlungen: number
+    /** Tier 507: zuZahlen − vorauszahlungen (negative: a refund) */
+    verbleibend: number
     zuZahlen: number // KSt + Soli + GewSt (Tier 439: no § 35 EStG credit)
   }
   counts: {
@@ -305,6 +311,11 @@ export class KSt1Service {
     // Zu zahlen = KSt + Soli + GewSt. Tier 439: no credit of the GewSt
     // against the KSt — § 35 EStG is for natural persons (see the header).
     const zuZahlen = round2(kst + soli + gewst)
+    // Tier 507: the prepayments of the year — KSt (+ Soli) and GewSt, as
+    // recorded (settings.kstVorauszahlungen / gewstVorauszahlungen).
+    const sumQ = (v: any) => ['q1', 'q2', 'q3', 'q4'].reduce((s, q) => s + (Number(v?.[q]) || 0), 0)
+    const vorauszahlungen = round2(sumQ(settings.kstVorauszahlungen?.[year]) + sumQ(settings.gewstVorauszahlungen?.[year]))
+    const verbleibend = round2(zuZahlen - vorauszahlungen)
 
     return {
       year,
@@ -313,6 +324,12 @@ export class KSt1Service {
       rechtsform,
       jahresueberschuss: round2(jahresueberschuss),
       corrections,
+      kstVorauszahlungen: {
+        q1: Number(settings.kstVorauszahlungen?.[year]?.q1) || 0,
+        q2: Number(settings.kstVorauszahlungen?.[year]?.q2) || 0,
+        q3: Number(settings.kstVorauszahlungen?.[year]?.q3) || 0,
+        q4: Number(settings.kstVorauszahlungen?.[year]?.q4) || 0,
+      },
       totals: {
         jahresueberschuss: round2(jahresueberschuss),
         zve,
@@ -322,6 +339,8 @@ export class KSt1Service {
         hebesatz,
         gewst,
         zuZahlen,
+        vorauszahlungen,
+        verbleibend,
       },
       counts: {
         invoices: guvData.counts.invoices,

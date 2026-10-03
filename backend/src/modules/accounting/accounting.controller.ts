@@ -1483,6 +1483,36 @@ export class AccountingController {
 
   // Tier 106: PUT /gewst/settings — Update the
   // per-year Vorauszahlungen (Q1-Q4) from the
+  // Tier 507: the KSt (+ Soli) prepayments of the four quarterly
+  // Vorauszahlungsbescheide — the Steuerrückstellung (Tier 506) is the year's
+  // taxes less them. Body: { year, q1, q2, q3, q4 } (KSt + Soli paid).
+  @Require('accounting.update')
+  @Put('kst1/vorauszahlungen')
+  @UseGuards(HeaderAuthGuard)
+  async updateKstVorauszahlungen(
+    @Query('companyId') companyId: string,
+    @Body() body: GewstSettingsDto,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    if (!body || !Number.isInteger(body.year) || body.year < 2000 || body.year > 2100) {
+      throw new BadRequestException('year ist ungültig')
+    }
+    const company = await this.prisma.company.findUnique({ where: { id: companyId } })
+    if (!company) throw new BadRequestException('Firma nicht gefunden')
+    const settings = ((company as any).settings ?? {}) as Record<string, any>
+    const all = (settings.kstVorauszahlungen as any) || {}
+    const toNum = (v: any) => {
+      const n = Number(v)
+      return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : 0
+    }
+    all[body.year] = { q1: toNum(body.q1), q2: toNum(body.q2), q3: toNum(body.q3), q4: toNum(body.q4) }
+    await this.prisma.company.update({
+      where: { id: companyId },
+      data: { settings: { ...settings, kstVorauszahlungen: all } } as any,
+    })
+    return { ok: true, year: body.year, vorauszahlungen: all[body.year] }
+  }
+
   // 4 Quartalsbescheide. Body:
   //   { year: 2026, q1, q2, q3, q4: number }
   @Require('accounting.update')

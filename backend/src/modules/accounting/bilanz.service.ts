@@ -138,10 +138,8 @@ export class BilanzService {
     })
     let steuerRueckstellung: number | null = null
     if (company && isKapitalgesellschaft(resolveRechtsform(company).rechtsform)) {
-      const k = await this.kst1.compute(companyId, year)
-      const vz = ((company.settings as any)?.gewstVorauszahlungen?.[year]) || {}
-      const prepaid = ['q1', 'q2', 'q3', 'q4'].reduce((s, q) => s + (Number(vz[q]) || 0), 0)
-      steuerRueckstellung = round2(k.totals.zuZahlen - prepaid)
+      // Tier 507: less the KSt and GewSt prepayments recorded (KSt 1).
+      steuerRueckstellung = (await this.kst1.compute(companyId, year)).totals.verbleibend
     }
     let owed = 0
     for (let m = 1; m <= 12; m++) owed += (await this.ustva.compute(companyId, year, undefined, m)).differenzbetrag
@@ -561,7 +559,7 @@ export class BilanzService {
           amount: steuerRueckstellung === null ? null : steuerRueckstellungPassiva,
           note: steuerRueckstellung === null
             ? 'Ertragsteuern nur bei einer Kapitalgesellschaft (KSt 1).'
-            : 'Tier 506: KSt + Soli + GewSt des Jahres (KSt 1) abzüglich der erfassten GewSt-Vorauszahlungen; KSt-Vorauszahlungen sind nicht erfasst — bitte durch den Berater abziehen.',
+            : 'Tier 506 / 507: KSt + Soli + GewSt des Jahres (KSt 1) abzüglich der erfassten KSt- und GewSt-Vorauszahlungen.',
         },
         { position: '3200', label: 'Sonstige Rückstellungen', amount: null },
       ],
