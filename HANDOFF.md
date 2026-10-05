@@ -2592,6 +2592,25 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### The structured :86: of a German bank statement is read (Tier 530)
+
+German banks write field 86 of an MT940 as a Geschäftsvorfallcode plus
+sub-fields (`166?00GUTSCHRIFT?20SVWZ+Rechnung INV-2026-0?21000012?30BIC
+?31IBAN?32Name`). The parser read that line as "sub-tag 16" plus text.
+Measured (spec 315, 6 assertions fail before): the purpose came out as
+`6?00GUTSCHRIFT?20Zahlung A`, the payer's name and IBAN were never found,
+and an invoice number broken over two sub-fields was not recognised — of two
+open invoices of 119 € the wrong one was suggested first.
+
+- `mt940.ts` `parseStructured86`: ?20–?29 / ?60–?63 joined to the
+  Verwendungszweck (continuation lines without a separator), the purpose is
+  what follows `SVWZ+`, `EREF+` → `endToEndId`, ?31 → IBAN, ?32 ?33 → name,
+  ?00 (Buchungstext) only when there is no purpose. A field 86 that does not
+  start with `NNN?NN` is read as before.
+
+Not verified against a real bank's file — the format follows the DK
+specification ("MT940, Feld 86"); the specs' own statements use it.
+
 ### A bank entry pays once; a statement that bookings rest on stays (Tier 529)
 
 Measured (spec 314, 10 assertions fail before): one credit of 119 € on a

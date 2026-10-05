@@ -145,6 +145,67 @@ function parseStatementLine(line: string): ParsedTransaction | null {
   }
 }
 
+/**
+ * Tier 530 — the structured :86: of German banks (DK "MT940-Format",
+ * Feld 86): a three-digit Geschäftsvorfallcode, then sub-fields introduced
+ * by `?NN`:
+ *
+ *   ?00 Buchungstext        ?10 Primanota
+ *   ?20–?29, ?60–?63        Verwendungszweck (27 characters each, to be joined)
+ *   ?30 BLZ / BIC           ?31 Konto / IBAN       ?32, ?33 Name
+ *
+ * e.g. `166?00GUTSCHRIFT?20SVWZ+Rechnung INV-2026-0?21000012?30COBADEFFXXX
+ * ?31DE89370400440532013000?32Mustermann GmbH`.
+ *
+ * Measured before: the line was read as "sub-tag 16" plus text — the purpose
+ * came out as `6?00GUTSCHRIFT?20Zahlung A`, the payer's name and IBAN were
+ * never found (so the matching could not use them), and an invoice number
+ * broken over two sub-fields (`…-0?21000012`) could not be matched.
+ *
+ * Inside the Verwendungszweck SEPA puts its own tags (EREF+, KREF+, MREF+,
+ * CRED+, SVWZ+, ABWA+ …): the purpose is what follows SVWZ+, EREF+ is the
+ * end-to-end reference.
+ */
+function parseStructured86(
+  block: string,
+): { name?: string; iban?: string; purpose?: string; endToEndId?: string } | null {
+  // Continuation lines carry no separator of their own.
+  const text = block.replace(/\r?\n/g, '')
+  const m = text.match(/^(\d{3})(\?\d{2}[\s\S]*)$/)
+  if (!m) return null
+  const fields = new Map<string, string>()
+  for (const part of m[2].split('?').slice(1)) {
+    const key = part.slice(0, 2)
+    if (!/^\d{2}$/.test(key)) continue
+    fields.set(key, (fields.get(key) ?? '') + part.slice(2))
+  }
+  const join = (keys: string[]) => keys.map((k) => fields.get(k) ?? '').join('')
+  const raw = join(['20', '21', '22', '23', '24', '25', '26', '27', '28', '29', '60', '61', '62', '63'])
+
+  const SEPA = /(EREF|KREF|MREF|CRED|DEBT|SVWZ|ABWA|ABWE|IBAN|BIC|PURP|COAM|OAMT)\+/g
+  const sepa = new Map<string, string>()
+  let lead = raw
+  const marks = [...raw.matchAll(SEPA)]
+  if (marks.length) {
+    lead = raw.slice(0, marks[0].index)
+    marks.forEach((mark, i) => {
+      const from = (mark.index ?? 0) + mark[0].length
+      const to = i + 1 < marks.length ? marks[i + 1].index : raw.length
+      sepa.set(mark[1], raw.slice(from, to).trim())
+    })
+  }
+  const purpose = (sepa.get('SVWZ') ?? lead).trim() || (fields.get('00') ?? '').trim()
+  const eref = sepa.get('EREF')
+  const account = (fields.get('31') ?? sepa.get('IBAN') ?? '').replace(/\s+/g, '')
+  const name = [fields.get('32'), fields.get('33')].filter(Boolean).join('').trim() || sepa.get('ABWA') || ''
+  return {
+    name: name ? name.slice(0, 200) : undefined,
+    iban: /^[A-Z]{2}\d{2}[A-Z0-9]{11,30}$/.test(account) ? account : undefined,
+    purpose: purpose ? purpose.slice(0, 500) : undefined,
+    endToEndId: eref && eref.toUpperCase() !== 'NOTPROVIDED' ? eref.slice(0, 35) : undefined,
+  }
+}
+
 /** Parse the :86: block (counterparty + purpose).
  *  Sub-tags are introduced by `?NN` (2 digits). The
  *  block runs to the next top-level :tag: marker. We
@@ -152,7 +213,9 @@ function parseStatementLine(line: string): ParsedTransaction | null {
  *  — we don't preserve the sub-tag structure because
  *  different banks use different conventions and the
  *  fuzzy match just needs the raw text. */
-function parseInfoToAccountOwner(block: string): { name?: string; iban?: string; purpose?: string } {
+function parseInfoToAccountOwner(block: string): { name?: string; iban?: string; purpose?: string; endToEndId?: string } {
+  const structured = parseStructured86(block)
+  if (structured) return structured
   // Sub-tags are inside the :86: content. We split on
   // the 3-letter CR-LF-chunk pattern. The most reliable
   // way is to grab every 2-digit `?NN` segment.
@@ -281,6 +344,7 @@ export function parseMt940(text: string): ParsedStatement[] {
         if (info.name) currentTxn.counterpartyName = info.name
         if (info.iban) currentTxn.counterpartyIban = info.iban
         if (info.purpose) currentTxn.purpose = info.purpose
+        if (info.endToEndId) currentTxn.endToEndId = info.endToEndId
       } else if (t.tag === '62F' || t.tag === '62M') {
         // End of statement — finalise
         if (currentTxn) transactions.push(currentTxn)
