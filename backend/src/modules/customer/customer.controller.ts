@@ -1,3 +1,4 @@
+import { assertImportRows } from '../../common/import-rows';
 import { BadRequestException, Controller, Get, Post, Put, Delete, Body, Param, Query, Header, Res, Headers, HttpCode } from '@nestjs/common';
 import type { Response } from 'express';
 import { AllocatePaymentDto, ApplyCreditDto, CreditAdjustDto, CreditPayoutDto } from './dto/credit.dto';
@@ -836,6 +837,7 @@ export class CustomerController {
     if (!body || !Array.isArray(body.rows)) {
       throw new BadRequestException('rows array is required')
     }
+    assertImportRows(body.rows); // Tier 531
     if (body.rows.length > 5000) {
       throw new BadRequestException('Maximal 5000 Zeilen pro Import')
     }

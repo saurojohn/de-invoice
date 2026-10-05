@@ -1,3 +1,4 @@
+import { assertImportRows } from '../../common/import-rows';
 import {
   BadRequestException,
   Body,
@@ -70,6 +71,7 @@ export class ProductController {
     if (!body || !Array.isArray(body.rows)) {
       throw new BadRequestException('rows array is required')
     }
+    assertImportRows(body.rows); // Tier 531
     if (body.rows.length > 5000) {
       throw new BadRequestException('Maximal 5000 Zeilen pro Import')
     }

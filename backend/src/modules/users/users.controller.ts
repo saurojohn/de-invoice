@@ -107,7 +107,7 @@ export class UsersController {
   ) {
     const userId = req.user?.id
     if (!userId) throw new BadRequestException('Unauthenticated')
-    if (!body?.companyId) {
+    if (!body?.companyId || typeof body.companyId !== 'string') { // Tier 531: a number was a 500
       throw new BadRequestException('companyId ist erforderlich')
     }
     const target = await this.users.switchActiveCompany(userId, body.companyId)

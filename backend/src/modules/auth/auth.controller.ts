@@ -380,7 +380,8 @@ export class AuthController {
     @Body() body: { email?: string },
     @Req() req: any,
   ) {
-    const email = (body?.email || '').trim().toLowerCase();
+    // Tier 531: a non-string (`{"email": {…}}`) reached .trim() — 500 on a public route.
+    const email = (typeof body?.email === 'string' ? body.email : '').trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       // Still 200 — generic. But we can short-circuit obvious junk.
       return { message: 'Falls ein Konto mit dieser E-Mail-Adresse existiert, wurde ein Link zum Zurücksetzen des Passworts versendet.' };
@@ -451,8 +452,8 @@ export class AuthController {
   async resetPassword(
     @Body() body: { token?: string; password?: string },
   ) {
-    const token = (body?.token || '').trim();
-    const password = body?.password || '';
+    const token = (typeof body?.token === 'string' ? body.token : '').trim();
+    const password = typeof body?.password === 'string' ? body.password : '';
     if (!token || !password) {
       throw new BadRequestException('Token und Passwort sind erforderlich');
     }

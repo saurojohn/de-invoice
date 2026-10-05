@@ -2592,6 +2592,25 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### A malformed body is a 400, not a 500 (Tier 531)
+
+35 routes take a body typed by an interface or an inline type, which the
+validation pipe does not check. Each was sent `{}`, `[]`, a string, `null`
+and bodies with fields of the wrong type (scratch fuzz, not in the repo).
+500s on six of them (spec 316, 25 assertions fail before):
+
+- `POST /auth/forgot-password` `{"email": {…}}` and `POST /auth/reset-password`
+  `{"token": 5, "password": []}` — both public; `.trim()` on a non-string.
+- `POST /users/me/switch-company` `{"companyId": 123}`.
+- `POST /customers|expenses|products/import` with a field holding an object
+  (500), or a row that is `null` / a number / a string (500, or 201 with the
+  row reported as "empty").
+
+Fixed where they are: `typeof` checks in the three controllers, and
+`common/import-rows.ts` `assertImportRows` — every row is a record of plain
+values (a list of plain values counts: a customer's `tags`), else a 400 that
+names the row. The other 29 routes answered 4xx to every body.
+
 ### The structured :86: of a German bank statement is read (Tier 530)
 
 German banks write field 86 of an MT940 as a Geschäftsvorfallcode plus
