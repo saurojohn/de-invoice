@@ -1,3 +1,4 @@
+import { noNulMiddleware } from './common/no-nul';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -35,6 +36,8 @@ async function bootstrap() {
   // Nest's defaults so the new limits take effect.
   app.use(json({ limit: '10mb' }));
   app.use(urlencoded({ limit: '10mb', extended: true }));
+  // Tier 532: after the body parsers — a NUL character anywhere is a 400.
+  app.use(noNulMiddleware);
 
   // 全局前缀 — exclude /metrics (Prometheus scrapers expect a
   // flat path with no version prefix). ExcludeForm is the

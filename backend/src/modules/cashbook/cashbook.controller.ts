@@ -1,3 +1,4 @@
+import { queryDate, requiredQueryDate, queryInt, requiredQueryInt, YEAR, MONTH } from '../../common/query';
 import { Controller, Get, Post, Put, Delete, Body, Param, Query, BadRequestException, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { KassenbuchService } from './kassenbuch.service';
@@ -28,10 +29,10 @@ export class CashBookController {
   ) {
     if (!companyId) throw new BadRequestException('companyId is required');
     return this.svc.listEntries(companyId, {
-      from: fromStr ? new Date(fromStr) : undefined,
-      to: toStr ? new Date(toStr) : undefined,
-      page: pageStr ? parseInt(pageStr, 10) : undefined,
-      pageSize: pageSizeStr ? parseInt(pageSizeStr, 10) : undefined,
+      from: queryDate(fromStr, 'from'),
+      to: queryDate(toStr, 'to'),
+      page: queryInt(pageStr, 'page', { min: 1, max: 1_000_000 }),
+      pageSize: queryInt(pageSizeStr, 'pageSize', { min: 1, max: 100_000 }),
     });
   }
 
@@ -50,7 +51,7 @@ export class CashBookController {
   ) {
     if (!companyId) throw new BadRequestException('companyId is required');
     if (!dateStr) throw new BadRequestException('date is required');
-    return this.svc.dayBalance(companyId, new Date(dateStr));
+    return this.svc.dayBalance(companyId, requiredQueryDate(dateStr, 'date'));
   }
 
   @Post('entries')
@@ -151,7 +152,7 @@ export class CashBookController {
   ) {
     if (!companyId) throw new BadRequestException('companyId is required');
     if (!dateStr) throw new BadRequestException('date is required');
-    return this.svc.getClose(companyId, new Date(dateStr));
+    return this.svc.getClose(companyId, requiredQueryDate(dateStr, 'date'));
   }
 
   @Get('closes')
@@ -163,8 +164,8 @@ export class CashBookController {
   ) {
     if (!companyId) throw new BadRequestException('companyId is required');
     return this.svc.listCloses(companyId, {
-      from: fromStr ? new Date(fromStr) : undefined,
-      to: toStr ? new Date(toStr) : undefined,
+      from: queryDate(fromStr, 'from'),
+      to: queryDate(toStr, 'to'),
     });
   }
 
@@ -179,7 +180,7 @@ export class CashBookController {
   ) {
     if (!companyId) throw new BadRequestException('companyId is required');
     if (!yearStr || !monthStr) throw new BadRequestException('year and month are required');
-    return this.svc.monthSummary(companyId, parseInt(yearStr, 10), parseInt(monthStr, 10));
+    return this.svc.monthSummary(companyId, requiredQueryInt(yearStr, 'year', YEAR), requiredQueryInt(monthStr, 'month', MONTH));
   }
 
   /**
@@ -201,13 +202,13 @@ export class CashBookController {
     if (!companyId) throw new BadRequestException('companyId is required');
     if (!fromStr || !toStr) throw new BadRequestException('from and to are required');
     const list = await this.svc.listEntries(companyId, {
-      from: new Date(fromStr),
-      to: new Date(toStr),
+      from: requiredQueryDate(fromStr, 'from'),
+      to: requiredQueryDate(toStr, 'to'),
       pageSize: 100000,
     });
     const closes = await this.svc.listCloses(companyId, {
-      from: new Date(fromStr),
-      to: new Date(toStr),
+      from: requiredQueryDate(fromStr, 'from'),
+      to: requiredQueryDate(toStr, 'to'),
     });
     const closeByDate = new Map(closes.map((c: any) => [c.businessDate.toISOString().split('T')[0], c]));
 
@@ -310,8 +311,8 @@ export class CashBookController {
     if (!companyId) throw new BadRequestException('companyId is required')
     if (!dateStr) throw new BadRequestException('date is required')
     const close = await this.svc.listCloses(companyId, {
-      from: new Date(dateStr),
-      to: new Date(dateStr),
+      from: requiredQueryDate(dateStr, 'date'),
+      to: requiredQueryDate(dateStr, 'date'),
     })
     if (close.length === 0) {
       throw new BadRequestException('Kein Tagesabschluss für dieses Datum gefunden')

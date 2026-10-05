@@ -1,3 +1,4 @@
+import { queryInt } from '../../common/query';
 import { Controller, Get, Post, Put, Delete, Body, Param, Query, Res, Header, BadRequestException, HttpCode, Req, NotFoundException, HttpException } from '@nestjs/common';
 import { assertManualPaymentMethod } from './payment-methods';
 import { advanceDeductionFor } from './advance';
@@ -219,8 +220,8 @@ export class InvoiceController {
       status,
       customerId,
       type,
-      page: page ? Number(page) : undefined,
-      pageSize: pageSize ? Number(pageSize) : undefined,
+      page: queryInt(page, 'page', { min: 1, max: 1_000_000 }),
+      pageSize: queryInt(pageSize, 'pageSize', { min: 1, max: 10_000 }),
       search,
       dateFrom,
       dateTo,

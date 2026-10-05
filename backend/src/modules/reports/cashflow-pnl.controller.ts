@@ -18,6 +18,7 @@
  * Split out of reports.controller.ts (Tier 173).
  * URL paths preserved.
  */
+import { queryDate } from '../../common/query';
 import { BadRequestException, Controller, Get, Query } from '@nestjs/common';
 
 import { Auth, Require } from '../../auth/roles.decorator';
@@ -82,7 +83,7 @@ export class CashflowPnlController {
       companyId,
       months,
       startingBalance,
-      fromDate: fromDateRaw ? new Date(fromDateRaw) : undefined,
+      fromDate: queryDate(fromDateRaw, 'fromDate') ,
     })
   }
 

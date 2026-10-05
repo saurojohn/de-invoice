@@ -1,3 +1,4 @@
+import { MONTH, YEAR, queryInt } from '../../common/query';
 import { signedExpenseAmounts } from '../expense/credit-note'
 import { Controller, Get, Post, Put, Delete, Body, Query, Param, BadRequestException, Header, Res } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
@@ -221,9 +222,9 @@ export class UstvaController {
     @Query('month') monthStr?: string,
   ) {
     if (!companyId) throw new BadRequestException('companyId is required');
-    const year = yearStr ? parseInt(yearStr, 10) : undefined;
-    const quarter = quarterStr ? parseInt(quarterStr, 10) : undefined;
-    const month = monthStr ? parseInt(monthStr, 10) : undefined;
+    const year = queryInt(yearStr, 'year', YEAR);
+    const quarter = queryInt(quarterStr, 'quarter', { min: 1, max: 4 });
+    const month = queryInt(monthStr, 'month', MONTH);
     return this.ustva.listExpenses(companyId, year, quarter, month);
   }
 

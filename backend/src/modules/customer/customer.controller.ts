@@ -1,3 +1,4 @@
+import { queryInt } from '../../common/query';
 import { assertImportRows } from '../../common/import-rows';
 import { BadRequestException, Controller, Get, Post, Put, Delete, Body, Param, Query, Header, Res, Headers, HttpCode } from '@nestjs/common';
 import type { Response } from 'express';
@@ -38,8 +39,8 @@ export class CustomerController {
       ? tags.split(',').map((s) => s.trim()).filter(Boolean)
       : undefined
     return this.customerService.findAll(companyId, {
-      page: page ? Number(page) : undefined,
-      pageSize: pageSize ? Number(pageSize) : undefined,
+      page: queryInt(page, 'page', { min: 1, max: 1_000_000 }),
+      pageSize: queryInt(pageSize, 'pageSize', { min: 1, max: 10_000 }),
       search,
       tags: tagList && tagList.length > 0 ? tagList : undefined,
     });

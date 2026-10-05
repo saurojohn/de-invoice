@@ -2592,6 +2592,30 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### A malformed query parameter is a 400; no NUL reaches the database (Tier 532)
+
+The same sweep for the 251 GET routes (scratch fuzz): dates that are none
+(`abc`, `2026-02-30`, `2026-13-45`), page numbers below 1 or not numbers, a
+year of 99999, array / object parameters, a NUL in a search. 500 on 17 routes
+(spec 317, 29 assertions fail before): the Kassenbuch (entries, day, close,
+closes, month, export, Kassenabschluss PDF), the voucher list, the customer /
+invoice / product lists, the mail log, stock history, the sales / customer
+reports, DATEV export and preview, the UStVA expenses — `new Date('abc')`,
+`parseInt('abc')`, `skip: -1` or a date in the year 100007 went into Prisma.
+And `"\u0000"` in any JSON body or `%00` in any search was a 500 on every
+route (PostgreSQL cannot store it).
+
+- `common/query.ts`: `queryDate` / `requiredQueryDate` (a real calendar day
+  between 1900 and 2200), `queryInt` / `requiredQueryInt` (whole number in a
+  range) — 400 naming the parameter. Used in the routes above; every
+  `x ? new Date(x) : …` on a query string in a controller goes through
+  `queryDate` now.
+- `common/no-nul.ts` + `main.ts`: a request with a NUL character in its URL
+  or JSON body is refused as a whole (400).
+
+After the change both sweeps (35 bodies × 6 shapes, 251 GET routes × 4 query
+sets) return no 5xx.
+
 ### A malformed body is a 400, not a 500 (Tier 531)
 
 35 routes take a body typed by an interface or an inline type, which the

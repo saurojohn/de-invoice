@@ -1,3 +1,4 @@
+import { queryInt } from '../../common/query';
 import { Controller, Get, Put, Body, Param, Query, Headers } from '@nestjs/common';
 import { InventoryService } from './inventory.service';
 import { AdjustStockDto } from './dto/adjust-stock.dto';
@@ -46,6 +47,6 @@ export class InventoryController {
     @Headers('x-company-id') companyId: string,
     @Query('limit') limit?: string,
   ) {
-    return this.inventoryService.getStockHistory(companyId, productId, limit ? parseInt(limit) : 50);
+    return this.inventoryService.getStockHistory(companyId, productId, queryInt(limit, 'limit', { min: 1, max: 1000 }) ?? 50);
   }
 }

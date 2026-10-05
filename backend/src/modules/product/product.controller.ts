@@ -1,3 +1,4 @@
+import { queryInt } from '../../common/query';
 import { assertImportRows } from '../../common/import-rows';
 import {
   BadRequestException,
@@ -30,8 +31,8 @@ export class ProductController {
   ) {
     this.assertCompanyId(companyId)
     return this.productService.findAll(companyId, {
-      page: page ? Number(page) : undefined,
-      pageSize: pageSize ? Number(pageSize) : undefined,
+      page: queryInt(page, 'page', { min: 1, max: 1_000_000 }),
+      pageSize: queryInt(pageSize, 'pageSize', { min: 1, max: 10_000 }),
       search,
     });
   }

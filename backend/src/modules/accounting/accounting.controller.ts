@@ -1,3 +1,4 @@
+import { queryDate, queryInt } from '../../common/query';
 import { Controller, Get, Post, Put, Param, Query, Body, Res, Header, Req, BadRequestException, UseGuards, HttpException } from '@nestjs/common';
 import { Response } from 'express';
 import { AccountService } from './account.service';
@@ -242,13 +243,13 @@ export class AccountingController {
       return { error: 'companyId ist erforderlich' };
     }
     return this.voucherService.findAll(companyId, {
-      startDate: startDate ? new Date(startDate) : undefined,
-      endDate: endDate ? new Date(endDate) : undefined,
+      startDate: queryDate(startDate, 'startDate') ,
+      endDate: queryDate(endDate, 'endDate') ,
       status,
       referenceType,
       search,
-      take: take ? Number(take) : undefined,
-      skip: skip ? Number(skip) : undefined,
+      take: queryInt(take, 'take', { min: 1, max: 10_000 }),
+      skip: queryInt(skip, 'skip', { min: 0, max: 100_000_000 }),
     });
   }
 

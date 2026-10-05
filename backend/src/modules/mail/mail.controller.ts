@@ -1,3 +1,4 @@
+import { queryDate, queryInt } from '../../common/query';
 import { advanceDeductionFor } from '../invoice/advance';
 import {
   Controller,
@@ -143,8 +144,8 @@ export class MailController {
     @Query('dateTo') dateTo?: string,
   ) {
     if (!companyId) throw new BadRequestException('companyId is required');
-    const page = Math.max(1, parseInt(pageStr || '1', 10))
-    const pageSize = Math.min(200, Math.max(1, parseInt(pageSizeStr || '50', 10)))
+    const page = queryInt(pageStr, 'page', { min: 1, max: 1_000_000 }) ?? 1
+    const pageSize = Math.min(200, queryInt(pageSizeStr, 'pageSize', { min: 1, max: 10_000 }) ?? 50)
 
     const where: any = { companyId }
     if (status) where.status = status
@@ -161,8 +162,8 @@ export class MailController {
     }
     if (dateFrom || dateTo) {
       where.sentAt = {}
-      if (dateFrom) where.sentAt.gte = new Date(dateFrom)
-      if (dateTo) where.sentAt.lte = new Date(dateTo)
+      if (dateFrom) where.sentAt.gte = queryDate(dateFrom, 'dateFrom')
+      if (dateTo) where.sentAt.lte = queryDate(dateTo, 'dateTo')
     }
 
     const [rows, total] = await Promise.all([

@@ -33,6 +33,7 @@
  * Mounted at /api/v1/vat-validation.
  */
 
+import { queryDate } from '../../common/query';
 import {
   Controller,
   Get,
@@ -251,8 +252,8 @@ export class VatValidationController {
   ) {
     if (!companyId) throw new BadRequestException('companyId is required')
     const pdf = await this.auditPdfService.generate(companyId, {
-      fromDate: fromDate ? new Date(fromDate) : undefined,
-      toDate: toDate ? new Date(toDate) : undefined,
+      fromDate: queryDate(fromDate, 'fromDate') ,
+      toDate: queryDate(toDate, 'toDate') ,
     })
     res.set({
       'Content-Type': 'application/pdf',

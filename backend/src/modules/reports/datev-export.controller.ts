@@ -27,6 +27,7 @@
  * Split out of reports.controller.ts (Tier 173).
  * URL paths preserved.
  */
+import { queryDate } from '../../common/query';
 import {
   BadRequestException,
   Controller,
@@ -111,12 +112,8 @@ export class DatevExportController {
     const company = await this.prisma.company.findUnique({ where: { id: companyId } });
     if (!company) throw new BadRequestException('Company not found');
 
-    const startDate = startDateStr
-      ? new Date(startDateStr)
-      : new Date(new Date().getFullYear(), 0, 1);
-    const endDate = endDateStr
-      ? new Date(endDateStr)
-      : new Date();
+    const startDate = queryDate(startDateStr, 'startDate') ?? new Date(new Date().getFullYear(), 0, 1);
+    const endDate = queryDate(endDateStr, 'endDate') ?? new Date();
 
     const buchungen = await buildBuchungenFromDb(
       this.prisma,
@@ -260,12 +257,8 @@ export class DatevExportController {
       endDate = new Date(y, m, 0, 23, 59, 59, 999)
       periodLabel = `${y}-${String(m).padStart(2, '0')}`
     } else {
-      startDate = startDateStr
-        ? new Date(startDateStr)
-        : new Date(new Date().getFullYear(), 0, 1)
-      endDate = endDateStr
-        ? new Date(endDateStr)
-        : new Date()
+      startDate = queryDate(startDateStr, 'startDate') ?? new Date(new Date().getFullYear(), 0, 1)
+      endDate = queryDate(endDateStr, 'endDate') ?? new Date()
     }
 
     // Generate the same CSV the standalone /datev-export
@@ -454,12 +447,8 @@ export class DatevExportController {
     // day of that month. Anything inside is bucketed
     // by its `datum` (the row's booking date, not
     // the issue date or the import date).
-    const requestedStart = startDateStr
-      ? new Date(startDateStr)
-      : new Date(new Date().getFullYear(), 0, 1);
-    const requestedEnd = endDateStr
-      ? new Date(endDateStr)
-      : new Date();
+    const requestedStart = queryDate(startDateStr, 'startDate') ?? new Date(new Date().getFullYear(), 0, 1);
+    const requestedEnd = queryDate(endDateStr, 'endDate') ?? new Date();
     if (isNaN(requestedStart.getTime()) || isNaN(requestedEnd.getTime())) {
       throw new BadRequestException('startDate / endDate invalid')
     }
@@ -668,10 +657,8 @@ export class DatevExportController {
     })
     if (!company) throw new BadRequestException('Company not found')
 
-    const startDate = startDateStr
-      ? new Date(startDateStr)
-      : new Date(new Date().getFullYear(), 0, 1)
-    const endDate = endDateStr ? new Date(endDateStr) : new Date()
+    const startDate = queryDate(startDateStr, 'startDate') ?? new Date(new Date().getFullYear(), 0, 1)
+    const endDate = queryDate(endDateStr, 'endDate') ?? new Date()
 
     const buchungen = await buildBuchungenFromDb(
       this.prisma,
