@@ -1,4 +1,5 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Query, Res, Header, BadRequestException, HttpCode, Req, NotFoundException, HttpException } from '@nestjs/common';
+import { assertManualPaymentMethod } from './payment-methods';
 import { advanceDeductionFor } from './advance';
 import { Throttle } from '@nestjs/throttler';
 import { Response, Request } from 'express';
@@ -1566,13 +1567,7 @@ export class InvoiceController {
     // count as "no money arrived" (document-scope.ts). Entered by hand they
     // marked an invoice paid with no credit note and without touching the
     // customer's credit. ('Anzahlung' is refused in the service.)
-    if (['Gutschrift', 'Guthaben'].includes(String(body.paymentMethod))) {
-      throw new BadRequestException(
-        body.paymentMethod === 'Gutschrift'
-          ? 'Der Zahlungsweg „Gutschrift“ wird beim Erstellen einer Gutschrift gebucht, nicht von Hand — bitte „Gutschrift“ an der Rechnung verwenden.'
-          : 'Der Zahlungsweg „Guthaben“ wird beim Verrechnen von Kundenguthaben gebucht, nicht von Hand — bitte „Guthaben verrechnen“ beim Kunden verwenden.',
-      );
-    }
+    assertManualPaymentMethod(body.paymentMethod);
     return this.paymentService.create(id, companyId, {
       amount: Number(body.amount),
       paymentDate: new Date(body.paymentDate),

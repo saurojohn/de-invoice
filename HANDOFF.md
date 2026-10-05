@@ -2589,6 +2589,22 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### The reserved payment methods are reserved on every route (Tier 525)
+
+Left by Tier 514, which refused 'Gutschrift' / 'Guthaben' on
+`POST /invoices/:id/payments` only. Measured (spec 310, 10 assertions fail
+before): the customer's "Zahlung verteilen" took "Gutschrift" — 201, an
+invoice of 1 190 € paid by a "Gutschrift" with no credit note (no money in
+the reports) and 810 € booked as the customer's credit; a Rate of a
+Ratenplan and a booked Zahlungsmeldung took the two as well.
+
+- `invoice/payment-methods.ts` `assertManualPaymentMethod` — called on every
+  route where a person names the method: the invoice's payments,
+  `CustomerService.allocatePayment`, `InstallmentPlanService.payInstallment`,
+  `PaymentService.bookNotice`. The system's own bookings (a credit note
+  settling its invoice, applied credit) go to `PaymentService.create`
+  directly and are untouched.
+
 ### CI for Tiers 516–524 (one run)
 
 GitHub's hosted runners were short on 05./06.10.2026: jobs were "not acquired

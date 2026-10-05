@@ -1,4 +1,5 @@
 import { InvoiceService } from './invoice.service';
+import { assertManualPaymentMethod } from './payment-methods';
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { CLAIM_TYPES } from './document-scope';
@@ -497,6 +498,7 @@ export class PaymentService {
     data: { paymentDate?: string; amount?: number; paymentMethod?: string },
     userId?: string,
   ) {
+    assertManualPaymentMethod(data.paymentMethod) // Tier 525
     const notice = await this.prisma.paymentNotice.findFirst({
       where: { id: noticeId, invoiceId, companyId },
     });

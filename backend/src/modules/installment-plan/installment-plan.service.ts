@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
+import { assertManualPaymentMethod } from '../invoice/payment-methods'
 import { PaymentService } from '../invoice/payment.service'
 import { syncInstallments, endPlanPause } from './installment-sync'
 import {
@@ -490,6 +491,7 @@ export class InstallmentPlanService {
     companyId: string,
     dto: PayInstallmentDto,
   ) {
+    assertManualPaymentMethod(dto.paymentMethod) // Tier 525
     const inst = await this.prisma.installment.findFirst({
       where: { id: installmentId, planId, plan: { companyId } },
       include: { plan: { select: { id: true, invoiceId: true, status: true } } },

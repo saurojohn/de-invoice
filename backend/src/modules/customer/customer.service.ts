@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException, ConflictException, Logger } from '@nestjs/common';
+import { assertManualPaymentMethod } from '../invoice/payment-methods'
 import { normalizeVatId, vatIdFormatProblem, withCheckedVatId } from '../../common/vat-id'
 import { businessDayIso, businessTodayIso } from '../../common/business-date'
 import { Prisma } from '@prisma/client';
@@ -764,6 +765,7 @@ export class CustomerService {
       notes?: string
     },
   ) {
+    assertManualPaymentMethod(args.paymentMethod) // Tier 525
     if (!args.amount || args.amount <= 0) {
       throw new BadRequestException('amount must be > 0')
     }
