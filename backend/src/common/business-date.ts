@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common'
 /**
  * Tier 478 — calendar days of the business (Europe/Berlin).
  *
@@ -57,4 +58,19 @@ export function businessTodayIso(now: Date = new Date()): string {
 export function businessTodayDate(now: Date = new Date()): Date {
   const { y, m, d } = businessToday(now)
   return dayStart(y, m, d)
+}
+
+/**
+ * Tier 515 — a date something happened on cannot be after today (German
+ * calendar day): a payment made, a supplier's invoice received, an invoice
+ * issued. Tier 514 did it for customer payments; the others still took
+ * 2030, booking the amount into a future year's EÜR / UStVA.
+ */
+export function assertNotFuture(date: Date | string | null | undefined, label: string): void {
+  if (!date) return
+  const d = new Date(date)
+  if (Number.isNaN(d.getTime())) return
+  if (businessDayIso(d) > businessTodayIso()) {
+    throw new BadRequestException(`${label} liegt in der Zukunft.`)
+  }
 }

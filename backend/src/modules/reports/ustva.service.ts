@@ -13,6 +13,7 @@ import { expenseLockReason, expenseLockReasons } from '../expense/expense-lock';
 import { KzEntry, ustvaKennzahlen } from './ust-kennzahlen';
 import { privateCarUse } from '../company-car/private-use';
 import { nonDeductibleGiftIds } from '../accounting/gifts';
+import { assertNotFuture } from '../../common/business-date';
 
 /**
  * UStVA — Umsatzsteuervoranmeldung
@@ -1012,6 +1013,7 @@ export class UstvaService {
     data: { kind: string; year: number; paidAt: string; amount: number; note?: string },
   ) {
     if (!data.amount) throw new BadRequestException('Betrag darf nicht 0 sein (positiv: gezahlt, negativ: erstattet).');
+    assertNotFuture(data.paidAt, 'Das Zahldatum'); // Tier 515
     return this.prisma.ustPayment.create({
       data: {
         companyId,
@@ -1039,6 +1041,7 @@ export class UstvaService {
   async recordFilingPayment(companyId: string, filingId: string, data: { paidAt?: string | null; amount?: number }) {
     const filing = await this.prisma.uStvaFiling.findFirst({ where: { id: filingId, companyId } });
     if (!filing) throw new NotFoundException('Voranmeldung nicht gefunden');
+    assertNotFuture(data.paidAt, 'Das Zahldatum'); // Tier 515
     if (!data.paidAt) {
       return this.prisma.uStvaFiling.update({ where: { id: filingId }, data: { paidAt: null, paidAmount: null } });
     }
@@ -1085,6 +1088,8 @@ export class UstvaService {
     paidAt?: Date | null;
     confirmDuplicate?: boolean;
   }) {
+    assertNotFuture(data.invoiceDate, 'Das Rechnungsdatum'); // Tier 515
+    assertNotFuture(data.paidAt, 'Das Zahldatum');
     // Tier 390: the supplier must be this company's — the same check
     // ExpenseService.create makes. Measured: company B's expense with company
     // A's supplierId → 201, and the response (and B's expense list) carried A's

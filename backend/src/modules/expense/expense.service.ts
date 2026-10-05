@@ -20,6 +20,7 @@ import { expenseLockReasons } from './expense-lock';
 
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { assertNotFuture } from '../../common/business-date';
 
 @Injectable()
 export class ExpenseService {
@@ -113,6 +114,8 @@ export class ExpenseService {
   async create(companyId: string, data: any) {
     if (!data.description) throw new BadRequestException('Beschreibung ist erforderlich');
     if (!data.invoiceDate) throw new BadRequestException('Rechnungsdatum ist erforderlich');
+    assertNotFuture(data.invoiceDate, 'Das Rechnungsdatum') // Tier 515
+    assertNotFuture(data.paidAt, 'Das Zahldatum')
     if (data.supplierId) {
       const sup = await this.prisma.supplier.findFirst({ where: { id: data.supplierId, companyId } });
       if (!sup) throw new BadRequestException('Lieferant nicht gefunden');

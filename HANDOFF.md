@@ -2579,6 +2579,27 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Nothing has happened on a date in the future (Tier 515)
+
+Tier 514 refused a customer payment dated after today; the other dates
+still took 2030 (spec 300, 8 assertions fail on the old code): an expense's
+invoice date and payment date (cost and input tax in the EÜR / UStVA of
+2030), a payment to the Finanzamt, and an invoice issued with a date in the
+future (§ 14 Abs. 4 Nr. 3 UStG — revenue and output tax in a period that has
+not begun).
+
+- `common/business-date.ts` `assertNotFuture(date, label)` (German calendar
+  day): expense create (both paths) and update — `invoiceDate`, `paidAt`;
+  `createUstPayment` and `recordFilingPayment` — `paidAt`.
+- `updateStatus`: issuing an invoice whose `issueDate` is after today is
+  refused, saying to issue it on that day or create it anew with today's
+  date (a draft's date is not editable). A draft may carry a later date.
+
+Local verification: every backend spec singly on BACKEND_PORT=3011 with a
+restart guard — 291 pass; 8 fail on the reused database's seed-company state
+(assets / AfA, a paid seed invoice, the backup check), none on a date; the
+full suites on CI's fresh database.
+
 ### Reserved payment methods and a payment date in the future (Tier 514)
 
 'Gutschrift' and 'Guthaben' are payment methods the system books — a credit

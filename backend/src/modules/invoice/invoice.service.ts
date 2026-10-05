@@ -1387,6 +1387,14 @@ export class InvoiceService {
     const issuing = before.status === 'draft' && status !== 'draft' && status !== 'cancelled'
     // Tier 494: an invoice is issued only with its mandatory details. A credit
     // note is created issued, from an invoice that had them.
+    // Tier 515: the Ausstellungsdatum is the day the invoice is issued (§ 14
+    // Abs. 4 Nr. 3 UStG) — a draft dated ahead is issued on or after that day.
+    if (issuing && businessDayIso(new Date(before.issueDate)) > businessTodayIso()) {
+      throw new BadRequestException(
+        'Das Ausstellungsdatum liegt in der Zukunft. Stellen Sie die Rechnung an diesem Tag aus — ' +
+        'oder legen Sie sie mit dem heutigen Datum neu an (das Datum eines Entwurfs lässt sich nicht ändern).',
+      )
+    }
     // Tier 511: a draft credit note is issued — against an issued invoice,
     // within what it has left to credit, and settled against it below.
     const creditedOriginal = issuing && before.type === 'CN'

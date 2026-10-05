@@ -22,6 +22,7 @@ import { PrismaService } from '../../prisma/prisma.service'
 import { signedExpenseAmounts } from './credit-note'
 import { expenseLockReason } from './expense-lock'
 import type { UpdateExpenseDto } from './dto/expense.dto'
+import { assertNotFuture } from '../../common/business-date'
 
 const round = (n: number, places: number) => Math.round(n * 10 ** places) / 10 ** places
 const sameDecimal = (a: unknown, b: number) => round(Number(a), 4) === round(b, 4)
@@ -43,6 +44,7 @@ export async function updateExpense(
 
   if (data.description !== undefined) set('description', data.description.trim(), data.description.trim() !== exp.description)
   if (data.invoiceDate !== undefined) {
+    assertNotFuture(data.invoiceDate, 'Das Rechnungsdatum') // Tier 515
     const d = new Date(data.invoiceDate)
     set('invoiceDate', d, d.getTime() !== exp.invoiceDate.getTime())
   }
@@ -64,6 +66,7 @@ export async function updateExpense(
   }
   if (data.isIntraEU !== undefined) set('isIntraEU', data.isIntraEU, data.isIntraEU !== exp.isIntraEU)
   if (data.paidAt !== undefined) {
+    assertNotFuture(data.paidAt, 'Das Zahldatum') // Tier 515
     const d = data.paidAt ? new Date(data.paidAt) : null
     set('paidAt', d, (d?.getTime() ?? null) !== (exp.paidAt?.getTime() ?? null))
   }
