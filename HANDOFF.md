@@ -9,18 +9,27 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–515 are
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–524 are
   in `git log`; §8 records what each learned. Tiers 443–462 came from the
-  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 515.)
+  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 524.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 37351703937 / commit `56243ca`, Tier 515):**
-  - Backend e2e: **299 passed / 0 failed / 1 skipped** of 300 specs — 100
-    two-digit + 200 three-digit (Tier 515 added `300-tier515-kein-datum-in-der-zukunft.sh`,
+- **Test counts (last green CI, run 37371502075 / commit `fd32cec`, Tier 524):**
+  - Backend e2e: **308 passed / 0 failed / 1 skipped** of 309 specs — 100
+    two-digit + 209 three-digit (Tier 524 added `309-tier524-kasse-zeitfolge.sh`,
+    Tier 523 added `308-tier523-ausgabe-betraege.sh`,
+    Tier 522 added `307-tier522-neuer-ratenplan.sh`,
+    Tier 521 added `306-tier521-abo-uebersprungen.sh`,
+    Tier 520 added `305-tier520-lagerbestand.sh`,
+    Tier 519 added `304-tier519-abo-pause.sh`,
+    Tier 518 added `303-tier518-faellig-vor-rechnungsdatum.sh`,
+    Tier 517 added `302-tier517-tagesabschluss-je-firma.sh`,
+    Tier 516 added `301-tier516-kasse-anlagen-zukunft.sh`,
+    Tier 515 added `300-tier515-kein-datum-in-der-zukunft.sh`,
     Tier 514 added `299-tier514-zahlung-vorbehalten.sh`,
     Tier 513 added `298-tier513-abo-umsatzsteuer.sh`,
     Tier 511 added `297-tier511-gutschrift-formular.sh`,
@@ -2579,6 +2588,15 @@ Tier 401 run 35123354210 **failed** on backend lint — a warning
 runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
+
+### CI for Tiers 516–524 (one run)
+
+GitHub's hosted runners were short on 05./06.10.2026: jobs were "not acquired
+by Runner of type hosted" or the runner was shut down mid-suite, and a newer
+push cancels the run before it. Tiers 516–524 therefore share one green run —
+37371502075 on `fd32cec`, the Playwright job on its 4th attempt (the earlier
+attempts were cancelled by GitHub, none had a failing test). The one real
+failure on the way was the Playwright fixture fixed in Tier 523a.
 
 ### The Kassenbuch is kept in order of time (Tier 524)
 
