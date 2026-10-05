@@ -125,6 +125,24 @@ export class KassenbuchService {
         `Use a Storno-Buchung to correct instead.`,
       )
     }
+    // Tier 524: nor before a closed day. Measured: 16.09. closed with an
+    // Endbestand of 170 €, then a receipt booked on the 12.09. — the closed
+    // day opened and ended 5 € higher than its signed Tagesabschluss says.
+    // The Kassenbuch is kept in order of time (§ 146 Abs. 1 AO); what was
+    // forgotten is booked on the first open day, or the closes are reopened.
+    const earliest = unique.slice().sort()[0]
+    const later = await this.prisma.cashBookDailyClose.findFirst({
+      where: { companyId, businessDate: { gt: new Date(earliest + 'T00:00:00.000Z') } },
+      orderBy: { businessDate: 'desc' },
+      select: { businessDate: true },
+    })
+    if (later) {
+      const [y, m, d] = later.businessDate.toISOString().slice(0, 10).split('-')
+      throw new BadRequestException(
+        `Der ${d}.${m}.${y} ist bereits abgeschlossen — davor kann nicht mehr gebucht oder geändert werden. ` +
+        'Buchen Sie am ersten offenen Tag oder öffnen Sie die Tagesabschlüsse seit diesem Datum wieder.',
+      )
+    }
   }
 
   /**
@@ -134,7 +152,7 @@ export class KassenbuchService {
    * service does so the user can't accidentally reset
    * the Anfangsbestand.
    */
-  private async assertEroeffnung(companyId: string) {
+  private async assertEroeffnung(companyId: string, date: Date) {
     const existing = await this.prisma.cashBookEntry.count({
       where: { companyId, type: 'eroeffnung' },
     })
@@ -142,6 +160,32 @@ export class KassenbuchService {
       throw new BadRequestException(
         'Es existiert bereits ein Eröffnungs-Eintrag. ' +
         'Für eine Korrektur buchen Sie eine Storno-Buchung.',
+      )
+    }
+    // Tier 524: the Anfangsbestand is what the till held when the book began.
+    const before = await this.prisma.cashBookEntry.findFirst({
+      where: { companyId, businessDate: { lt: date } },
+      orderBy: { businessDate: 'asc' },
+      select: { businessDate: true },
+    })
+    if (before) {
+      const [y, m, d] = before.businessDate.toISOString().slice(0, 10).split('-')
+      throw new BadRequestException(
+        `Das Kassenbuch hat bereits Buchungen ab dem ${d}.${m}.${y} — der Anfangsbestand kann nicht danach liegen.`,
+      )
+    }
+  }
+
+  /** Tier 524 — nothing is booked before the day the book began with its Anfangsbestand. */
+  private async assertNotBeforeEroeffnung(companyId: string, date: Date) {
+    const opening = await this.prisma.cashBookEntry.findFirst({
+      where: { companyId, type: 'eroeffnung', reversedBy: null, reversesId: null },
+      select: { businessDate: true },
+    })
+    if (opening && date.getTime() < opening.businessDate.getTime()) {
+      const [y, m, d] = opening.businessDate.toISOString().slice(0, 10).split('-')
+      throw new BadRequestException(
+        `Das Kassenbuch beginnt am ${d}.${m}.${y} mit dem Anfangsbestand — davor kann nicht gebucht werden.`,
       )
     }
   }
@@ -377,7 +421,9 @@ export class KassenbuchService {
     bd.setUTCHours(0, 0, 0, 0)
     await this.assertCashNotNegative(companyId, bd, cashSign(data.type) * data.amount)
     if (data.type === 'eroeffnung') {
-      await this.assertEroeffnung(companyId)
+      await this.assertEroeffnung(companyId, bd)
+    } else {
+      await this.assertNotBeforeEroeffnung(companyId, bd)
     }
     // Tier 390: expenseId / invoiceId are foreign keys to this company's
     // records. Measured: company B's entry with company A's invoiceId → 201 —
@@ -573,7 +619,8 @@ export class KassenbuchService {
     })
     // Mark the day's close as amended, if any
     await this.prisma.cashBookDailyClose.updateMany({
-      where: { companyId, businessDate: original.businessDate },
+      // Tier 524: and every later close — their Anfangsbestand moved too.
+      where: { companyId, businessDate: { gte: original.businessDate } },
       data: { amendedAt: new Date() },
     })
     return reversal

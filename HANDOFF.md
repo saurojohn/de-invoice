@@ -2580,6 +2580,30 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### The Kassenbuch is kept in order of time (Tier 524)
+
+Measured (spec 309, 13 assertions fail before): 16.09. closed with an
+Endbestand of 170 €, then a receipt of 5 € booked on the 12.09. (an open,
+earlier day) — 201, and the closed day opened and ended 5 € higher than its
+signed Tagesabschluss says. `assertDaysOpen` looked at the day itself only.
+Receipts were also booked on days before the Anfangsbestand's day, and an
+Anfangsbestand after existing entries.
+
+- `assertDaysOpen` (create, update, delete): also refused when a *later* day
+  is closed — "Der 16.09.2026 ist bereits abgeschlossen — davor kann nicht
+  mehr gebucht oder geändert werden. Buchen Sie am ersten offenen Tag oder
+  öffnen Sie die Tagesabschlüsse seit diesem Datum wieder." This also holds
+  for a cash payment of an invoice / expense dated before a closed day (they
+  book through `createEntry`).
+- `assertNotBeforeEroeffnung` / `assertEroeffnung`: nothing before the day of
+  the Anfangsbestand; the Anfangsbestand not after the first entry.
+- A Storno of an earlier entry stays possible (it is the correction) and
+  marks every close from that day on as amended (was: that day's only).
+
+Local: the 60-odd specs that touch the Kassenbuch or cash payments singly —
+none refused by this rule (77, 78, 83 fail on the reused database's plans /
+templates).
+
 ### The three amounts of an expense belong together (Tier 523)
 
 Measured (spec 308, 13 assertions fail before): net 100 + VAT 19 with gross
