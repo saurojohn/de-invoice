@@ -141,10 +141,11 @@ test.describe("Tier 178 + 179 — expenses list/total + accountNumber echo", () 
         data: {
           description: `Tier 179 trim test ${Date.now()}`,
           invoiceDate: new Date().toISOString(),
-          grossAmount: 100,
+          // Tier 523: amounts that belong together (was 81 + 19 at 19 %).
+          grossAmount: 119,
           vatAmount: 19,
           vatRate: 0.19,
-          netAmount: 81,
+          netAmount: 100,
           accountNumber: longAccount,
         },
       },
