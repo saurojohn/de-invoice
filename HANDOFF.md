@@ -2578,6 +2578,33 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Reserved payment methods and a payment date in the future (Tier 514)
+
+'Gutschrift' and 'Guthaben' are payment methods the system books — a credit
+note settling its invoice, customer credit applied to an invoice — and they
+count as "no money arrived" (`NON_CASH_PAYMENT_METHODS`). Measured (spec
+299, 7 assertions fail on the old code): `POST /invoices/:id/payments` took
+them by hand — an invoice "paid" with no credit note and without touching
+the customer's credit —, and a payment dated 2030 was booked (paid today,
+income in the EÜR of 2030).
+
+- The payments endpoint refuses 'Gutschrift' / 'Guthaben' (400, pointing to
+  the right function); the system's own bookings do not go through it
+  ('Anzahlung' was already refused in the service, Tier 472).
+- `PaymentService.create`: a payment date after today (German calendar day)
+  is refused; the invoice page's date input has `max` = today.
+- An overpayment was already right: the excess becomes customer credit.
+- Fixtures that dated payments in the future: spec 211 (late Skonto payment
+  — the invoice is backdated 30 days for that check), 215 (the Bilanz year
+  is last year), 243 (the whole timeline one year earlier).
+
+Local runs: the full backend suite on BACKEND_PORT=3011 lost its backend
+twice at specs 201–203 (the Java validations) without any error in its log
+— those specs pass singly, and the suite completed on 3011 for Tier 513; it
+looks like memory building up in a long run on this machine. Verified
+instead: specs 1–200 in the two aborted runs, 203–299 singly with a backend
+restart guard (the three fixtures above fixed), the rest on CI.
+
 ### A recurring invoice follows the company's VAT treatment (Tier 513)
 
 Tier 480 / 487 put the company's VAT treatment into `InvoiceService.create`

@@ -3,13 +3,13 @@
 #
 # Measured before: the Anlage EÜR took every sent invoice at its issue date and
 # every expense at its invoice date — a Soll-EÜR. § 4 Abs. 3 EStG is a cash
-# statement (Zufluss-/Abflussprinzip, § 11): an invoice of November 2025 paid
-# in January 2026 is income of 2026, an unpaid invoice is no income yet, a
-# bill of December 2025 paid in January 2026 is a 2026 expense.
-#   - 2025 showed 1 000 revenue for an invoice not paid before 2026, and the
-#     300 cost of a bill paid in 2026
-#   - 2026 showed the unpaid invoice (200) and the unpaid bill (400), the half-
-#     paid invoice in full (500), and the invoice paid in 2026 not at all
+# statement (Zufluss-/Abflussprinzip, § 11): an invoice of November 2024 paid
+# in January 2025 is income of 2025, an unpaid invoice is no income yet, a
+# bill of December 2024 paid in January 2025 is a 2025 expense.
+#   - 2024 showed 1 000 revenue for an invoice not paid before 2025, and the
+#     300 cost of a bill paid in 2025
+#   - 2025 showed the unpaid invoice (200) and the unpaid bill (400), the half-
+#     paid invoice in full (500), and the invoice paid in 2025 not at all
 # An expense had no way to record a payment made outside the bank import, the
 # SEPA run and the cash book (card, private account): `paidAt` was refused.
 #
@@ -54,48 +54,48 @@ bill() { # invoiceDate net [paidAt] → id
 euer() { AS GET "/api/v1/accounting/euer?companyId=$C&year=$1"; py 'x=("4140","4150","5850","5860");i=sum(l["amount"] for l in d["einnahmen"] if l["kennziffer"] not in x);a=sum(l["amount"] for l in d["ausgaben"] if l["kennziffer"] not in x);print("%g/%g" % (round(i,2), round(a,2)))'; }
 
 note "=== fixtures ==="
-A=$(sent 2025-11-10 1000); pay "$A" 1190 2026-01-15           # 2025 invoice, paid 2026
-B=$(sent 2026-03-01 500);  pay "$B" 297.50 2026-03-20         # half paid
-C3=$(sent 2026-04-01 200)                                      # unpaid
-O=$(sent 2026-05-01 100);  pay "$O" 150 2026-05-10            # overpaid by 31
-SK=$(sent 2026-06-01 1000 '"skontoPercent":2,"skontoDays":14'); pay "$SK" 1166.20 2026-06-05   # less 2 % Skonto
-D=$(sent 2026-07-01 300);  AS PUT "/api/v1/invoices/$D/status?companyId=$C" '{"status":"paid"}'  # paid, no payment recorded
-read -r ST1 E1 < <(bill 2025-12-20 300 2026-01-10)
+A=$(sent 2024-11-10 1000); pay "$A" 1190 2025-01-15           # 2024 invoice, paid 2025
+B=$(sent 2025-03-01 500);  pay "$B" 297.50 2025-03-20         # half paid
+C3=$(sent 2025-04-01 200)                                      # unpaid
+O=$(sent 2025-05-01 100);  pay "$O" 150 2025-05-10            # overpaid by 31
+SK=$(sent 2025-06-01 1000 '"skontoPercent":2,"skontoDays":14'); pay "$SK" 1166.20 2025-06-05   # less 2 % Skonto
+D=$(sent 2025-07-01 300);  AS PUT "/api/v1/invoices/$D/status?companyId=$C" '{"status":"paid"}'  # paid, no payment recorded
+read -r ST1 E1 < <(bill 2024-12-20 300 2025-01-10)
 assert_eq "an expense with its payment date (was 400: paidAt refused)" "$ST1" "201"
-read -r _ E2 < <(bill 2026-06-01 400)
+read -r _ E2 < <(bill 2025-06-01 400)
 AS GET "/api/v1/expenses/$E1?companyId=$C"
-assert_eq "…stored" "$(py 'print((d.get("paidAt") or "-")[:10])')" "2026-01-10"
+assert_eq "…stored" "$(py 'print((d.get("paidAt") or "-")[:10])')" "2025-01-10"
 
-note "=== 2025: nothing was paid ==="
-assert_eq "EÜR 2025: 0 income, 0 cost (was 1000/300)" "$(euer 2025)" "0/0"
+note "=== 2024: nothing was paid ==="
+assert_eq "EÜR 2024: 0 income, 0 cost (was 1000/300)" "$(euer 2024)" "0/0"
 
-note "=== 2026: what was paid ==="
+note "=== 2025: what was paid ==="
 # A 1000 + B 250 + O 100 (not the 31 over) + SK 980 (the Skonto credit note is
 # no income) + D 300 (no payment recorded: issue date) ; E1 300, not E2
-assert_eq "EÜR 2026: 2630 income, 300 cost (was 2080/400)" "$(euer 2026)" "2630/300"
-AS GET "/api/v1/accounting/euer?companyId=$C&year=2026"
+assert_eq "EÜR 2025: 2630 income, 300 cost (was 2080/400)" "$(euer 2025)" "2630/300"
+AS GET "/api/v1/accounting/euer?companyId=$C&year=2025"
 assert_eq "open documents are counted apart: 2 invoices (B, C), 1 expense (E2)" \
   "$(py 'o=d["counts"].get("unbezahlt") or {};print("%s/%s" % (o.get("invoices"), o.get("expenses")))')" "2/1"
 assert_eq "the principle is named" "$(py 'print(d.get("prinzip"))')" "zufluss"
 
-note "=== the rest of B paid in 2027 ==="
-pay "$B" 297.50 2027-01-05
-assert_eq "EÜR 2027: 250 (the second half)" "$(euer 2027)" "250/0"
-assert_eq "EÜR 2026 unchanged" "$(euer 2026)" "2630/300"
+note "=== the rest of B paid in 2026 ==="
+pay "$B" 297.50 2026-01-05
+assert_eq "EÜR 2026: 250 (the second half)" "$(euer 2026)" "250/0"
+assert_eq "EÜR 2025 unchanged" "$(euer 2025)" "2630/300"
 
 note "=== the payment date of an expense can be corrected or taken out ==="
-AS PUT "/api/v1/expenses/$E2?companyId=$C" '{"paidAt":"2026-12-30"}'
-assert_eq "E2 paid 2026-12-30" "$STATUS" "200"
-assert_eq "EÜR 2026: 700 cost" "$(euer 2026)" "2630/700"
+AS PUT "/api/v1/expenses/$E2?companyId=$C" '{"paidAt":"2025-12-30"}'
+assert_eq "E2 paid 2025-12-30" "$STATUS" "200"
+assert_eq "EÜR 2025: 700 cost" "$(euer 2025)" "2630/700"
 AS PUT "/api/v1/expenses/$E2?companyId=$C" '{"paidAt":null}'
 assert_eq "…and back to unpaid" "$STATUS" "200"
-assert_eq "EÜR 2026: 300 cost" "$(euer 2026)" "2630/300"
+assert_eq "EÜR 2025: 300 cost" "$(euer 2025)" "2630/300"
 
 note "=== a supplier credit note counts when its money comes back ==="
-AS POST "/api/v1/ustva/expenses?companyId=$C" '{"supplierId":"'$S'","invoiceNumber":"GS-1","description":"Retoure","invoiceDate":"2026-02-01","netAmount":100,"vatRate":0.19,"vatAmount":19,"grossAmount":119,"category":"Material","creditNote":true}'
+AS POST "/api/v1/ustva/expenses?companyId=$C" '{"supplierId":"'$S'","invoiceNumber":"GS-1","description":"Retoure","invoiceDate":"2025-02-01","netAmount":100,"vatRate":0.19,"vatAmount":19,"grossAmount":119,"category":"Material","creditNote":true}'
 GS=$(json_field "$BODY" id)
-assert_eq "EÜR 2026: not refunded yet, 300 cost" "$(euer 2026)" "2630/300"
-AS PUT "/api/v1/expenses/$GS?companyId=$C" '{"paidAt":"2026-02-10"}'
-assert_eq "EÜR 2026: refunded, 200 cost" "$(euer 2026)" "2630/200"
+assert_eq "EÜR 2025: not refunded yet, 300 cost" "$(euer 2025)" "2630/300"
+AS PUT "/api/v1/expenses/$GS?companyId=$C" '{"paidAt":"2025-02-10"}'
+assert_eq "EÜR 2025: refunded, 200 cost" "$(euer 2025)" "2630/200"
 
 summary

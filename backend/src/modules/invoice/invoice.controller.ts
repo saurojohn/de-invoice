@@ -1561,6 +1561,18 @@ export class InvoiceController {
     @Query('companyId') companyId: string,
     @Body() body: CreatePaymentDto,
   ) {
+    // Tier 514: 'Gutschrift' and 'Guthaben' are booked by the system — a
+    // credit note settling its invoice, credit applied to an invoice — and
+    // count as "no money arrived" (document-scope.ts). Entered by hand they
+    // marked an invoice paid with no credit note and without touching the
+    // customer's credit. ('Anzahlung' is refused in the service.)
+    if (['Gutschrift', 'Guthaben'].includes(String(body.paymentMethod))) {
+      throw new BadRequestException(
+        body.paymentMethod === 'Gutschrift'
+          ? 'Der Zahlungsweg „Gutschrift“ wird beim Erstellen einer Gutschrift gebucht, nicht von Hand — bitte „Gutschrift“ an der Rechnung verwenden.'
+          : 'Der Zahlungsweg „Guthaben“ wird beim Verrechnen von Kundenguthaben gebucht, nicht von Hand — bitte „Guthaben verrechnen“ beim Kunden verwenden.',
+      );
+    }
     return this.paymentService.create(id, companyId, {
       amount: Number(body.amount),
       paymentDate: new Date(body.paymentDate),

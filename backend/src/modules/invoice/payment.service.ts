@@ -14,6 +14,7 @@ import { ReminderService } from '../reminder/reminder.service';
 // overage.
 import { CreditBalanceService } from '../customer/credit-balance.service';
 import { syncInstallments } from '../installment-plan/installment-sync';
+import { businessDayIso, businessTodayIso } from '../../common/business-date';
 
 @Injectable()
 export class PaymentService {
@@ -104,6 +105,11 @@ export class PaymentService {
     }
     if (!data.paymentMethod) {
       throw new BadRequestException('Zahlungsweg ist erforderlich');
+    }
+    // Tier 514: money cannot have arrived tomorrow. A payment dated 2030 was
+    // booked — the invoice paid today, the income in the EÜR of 2030.
+    if (businessDayIso(new Date(data.paymentDate)) > businessTodayIso()) {
+      throw new BadRequestException('Das Zahldatum liegt in der Zukunft.');
     }
     // Tier 472: a settled Proforma takes no more money — the final invoice
     // has deducted what it had; later money is paid on the final invoice.

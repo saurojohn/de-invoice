@@ -16,7 +16,6 @@ source "$SCRIPT_DIR/_lib.sh"
 login
 TAG="e2e-211-$(date +%s%N | cut -c1-13)"
 TODAY=$(date +%F); YEAR=$(date +%Y); MONTH=$(date +%-m)
-LATER=$(python3 -c "import datetime;print((datetime.date.today()+datetime.timedelta(days=20)).isoformat())")
 
 read -r U C < <(curl -sS -X POST "$API/api/v1/auth/register" -H "Content-Type: application/json" \
   -d "{\"email\":\"$TAG@example.test\",\"password\":\"Tier422-e2e\",\"companyName\":\"$TAG GmbH\"}" \
@@ -60,9 +59,14 @@ assert_eq "two credit-note lines: 7 % and 19 %" "$(docker exec "$PG_CONTAINER" p
 
 note "=== 3. no Skonto outside the window, or for a different amount ==="
 L=$(sent "$SK,\"items\":[$L19]")
-pay "$L" 1166.20 "$LATER"
+# Tier 514: a payment cannot be dated in the future — the invoice is 30 days
+# old instead (a fixture shortcut), so today is past its 14-day window.
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -qAtc "update \"Invoice\" set \"issueDate\" = \"issueDate\" - interval '30 days' where id='$L'" >/dev/null
+pay "$L" 1166.20 "$TODAY"
 assert_eq "paid after the window: stays open" "$(status "$L")" "sent"
 assert_eq "…with 23.80 open, no credit note" "$(open_ "$L")/$(cn "$L")" "23.8/-"
+# …and back to today, for the UStVA of this month below.
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -qAtc "update \"Invoice\" set \"issueDate\" = \"issueDate\" + interval '30 days' where id='$L'" >/dev/null
 W=$(sent "$SK,\"items\":[$L19]")
 pay "$W" 1100 "$TODAY"
 assert_eq "a partial payment that is not the Skonto: no credit note" "$(cn "$W")" "-"

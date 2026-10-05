@@ -2030,6 +2030,8 @@ export default function InvoiceDetailPage() {
                   <Input
                     type="date"
                     value={payForm.paymentDate}
+                    // Tier 514: a payment cannot be dated in the future (the API refuses it)
+                    max={new Date().toISOString().slice(0, 10)}
                     onChange={(e) => setPayForm({ ...payForm, paymentDate: e.target.value })}
                   />
                 </div>

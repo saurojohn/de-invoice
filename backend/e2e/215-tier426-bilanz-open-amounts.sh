@@ -19,7 +19,9 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/_lib.sh"
 login
 TAG="e2e-215-$(date +%s%N | cut -c1-13)"
-YEAR=$(date +%Y); TODAY=$(date +%F)
+# Tier 514: last year's Bilanz — "paid in January of the next year" must be a
+# date in the past (a payment cannot be dated in the future).
+YEAR=$(( $(date +%Y) - 1 )); TODAY=$(date +%F)
 NEXT=$((YEAR + 1))
 
 read -r U C < <(curl -sS -X POST "$API/api/v1/auth/register" -H "Content-Type: application/json" \
