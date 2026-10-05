@@ -2289,7 +2289,7 @@ model CashBookDailyClose {
   // can only be closed once. (Re-open = delete this
   // row, which the service does explicitly with audit
   // logging.)
-  businessDate       DateTime  @unique @db.Date
+  businessDate       DateTime  @db.Date
   // Cached aggregates at close-time. Re-computed on
   // read by the service if the snapshot looks stale.
   anfangsbestand     Decimal   @db.Decimal(12, 4)
@@ -2347,7 +2347,8 @@ model CashBookDailyClose {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
-  @@index([companyId, businessDate])
+  // Tier 517: per company — the date alone was unique across all companies.
+  @@unique([companyId, businessDate])
 }
 
 //

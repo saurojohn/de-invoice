@@ -2580,6 +2580,23 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### The Tagesabschluss belongs to one company (Tier 517)
+
+Found by spec 301 on a database other specs had used (it closes *today*):
+`CashBookDailyClose.businessDate` was `@unique` on its own — across all
+companies. Once any company had closed a day, every other company's close of
+that day failed with P2002 → **500**; the service looks the close up per
+company and found none. In production: one tenant per calendar day.
+
+- Schema + migration `20261005000001_daily_close_per_company`: the key is
+  `(companyId, businessDate)` (replaces the global unique and the plain index).
+- Spec `302-tier517-tagesabschluss-je-firma.sh` (7 assertions fail before):
+  two fresh companies close the same day, each with its own balance; the same
+  company a second time stays a 400.
+
+Tier 516's own CI run may show spec 301 red for this reason (whether another
+spec closed "today" first); this tier is the fix.
+
 ### The Kassenbuch and the Anlagenverzeichnis take no day in the future (Tier 516)
 
 Left by Tier 515 (spec 301, 12 assertions fail on the old code): the
