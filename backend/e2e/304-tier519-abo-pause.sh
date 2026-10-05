@@ -49,7 +49,7 @@ tpl "Pause" "2024-05-01"
 assert_eq "fixture: the next run is 01.06.2024" "$(next)" "2024-06-01"
 AS PUT "/api/v1/recurring-invoices/$R?companyId=$C" '{"pausedUntil":"2024-09-30"}'
 assert_eq "pausing with a date: 200 (was 500)" "$STATUS" "200"
-assert_eq "…through that day" "$(q "select \"pausedUntil\" >= '2024-09-30 23:00' and \"pausedUntil\" < '2024-10-01' from \"RecurringInvoice\" where id='$R'")" "t"
+assert_eq "…through that day in Germany (23:59:59 CEST)" "$(q "select \"pausedUntil\" from \"RecurringInvoice\" where id='$R'")" "2024-09-30 21:59:59.999"
 AS GET "/api/v1/recurring-invoices/$R/preview?companyId=$C"
 assert_eq "the preview shows October, not June" "$(P "d['periodStart'][:10]")" "2024-10-01"
 AS POST "/api/v1/recurring-invoices/$R/run?companyId=$C" '{}'

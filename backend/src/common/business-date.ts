@@ -74,3 +74,18 @@ export function assertNotFuture(date: Date | string | null | undefined, label: s
     throw new BadRequestException(`${label} liegt in der Zukunft.`)
   }
 }
+
+/**
+ * Tier 519a — the last millisecond of a German calendar day as an
+ * instant ("through 30.09." for a value compared with `new Date()`). Not
+ * 23:59:59.999Z: that is 01:59 of the next day in Germany in summer — a
+ * pause "until yesterday" was still running until 02:00.
+ */
+export function businessDayEndInstant(iso: string): Date {
+  const [y, m, d] = iso.split('-').map(Number)
+  for (const offsetHours of [2, 1]) {
+    const t = new Date(Date.UTC(y, m - 1, d, 23 - offsetHours, 59, 59, 999))
+    if (businessDayIso(t) === iso && businessDayIso(new Date(t.getTime() + 1)) !== iso) return t
+  }
+  return new Date(Date.UTC(y, m - 1, d, 22, 59, 59, 999))
+}

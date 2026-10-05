@@ -2589,6 +2589,16 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### A pause "until yesterday" ended at 02:00 (Tier 519a)
+
+CI run 37380210509 (Tier 525, 22:15 UTC = 00:15 in Germany) failed spec 304:
+a date-only `pausedUntil` was stored as 23:59:59.999 **UTC** of that day —
+01:59 of the next day in Germany in summer. A pause "until yesterday" was
+still running between midnight and 02:00, so the scheduler skipped the
+template as paused. `common/business-date.ts` `businessDayEndInstant` gives
+the last millisecond of the German day; the controller uses it. (The earlier
+runs passed because they ran before midnight.)
+
 ### What every invoice prints can be what it claims to be (Tier 527)
 
 Measured (spec 312, 14 assertions fail before), `PUT /companies/:id`: the

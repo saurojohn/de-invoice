@@ -1,4 +1,5 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Query, BadRequestException, NotFoundException } from '@nestjs/common';
+import { businessDayEndInstant } from '../../common/business-date';
 import { Throttle } from '@nestjs/throttler';
 import { RecurringService, RecurringInput } from './recurring.service';
 // Tier 373: real DTO classes. The bodies used to be TypeScript intersection
@@ -139,7 +140,9 @@ export class RecurringController {
     // pause modal sends a full timestamp; a date-only value ("2026-09-30",
     // valid for @IsDateString) answered 500. A date means through that day.
     if (typeof out.pausedUntil === 'string') {
-      out.pausedUntil = new Date(/^\d{4}-\d{2}-\d{2}$/.test(out.pausedUntil) ? out.pausedUntil + 'T23:59:59.999Z' : out.pausedUntil)
+      out.pausedUntil = /^\d{4}-\d{2}-\d{2}$/.test(out.pausedUntil)
+        ? businessDayEndInstant(out.pausedUntil) // the end of that day in Germany
+        : new Date(out.pausedUntil)
     }
     return out
   }
