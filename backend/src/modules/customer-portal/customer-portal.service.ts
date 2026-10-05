@@ -56,6 +56,7 @@
  *     Idle sessions auto-expire (cleaned up by a
  *     nightly job — not in this tier).
  */
+import { daysOverdue as daysOverdueOf } from '../reminder/days-overdue';
 import { advanceDeductionFor } from '../invoice/advance';
 import {
   BadRequestException,
@@ -347,11 +348,6 @@ export class CustomerPortalService {
     // Fix: compute in UTC calendar days so DST
     // never affects the count.
     const today = new Date()
-    const todayUtc = Date.UTC(
-      today.getUTCFullYear(),
-      today.getUTCMonth(),
-      today.getUTCDate(),
-    )
     const invoices: PortalInvoiceRow[] = rawInvoices.map((inv) => {
       let daysOverdue = 0
       if (
@@ -360,12 +356,7 @@ export class CustomerPortalService {
         inv.status !== 'paid' &&
         inv.status !== 'cancelled'
       ) {
-        const dueUtc = Date.UTC(
-          inv.dueDate.getUTCFullYear(),
-          inv.dueDate.getUTCMonth(),
-          inv.dueDate.getUTCDate(),
-        )
-        daysOverdue = Math.floor((todayUtc - dueUtc) / 86_400_000)
+        daysOverdue = daysOverdueOf(inv.dueDate, today) // Tier 528: the German day, not the UTC one
       }
       return {
         id: inv.id,

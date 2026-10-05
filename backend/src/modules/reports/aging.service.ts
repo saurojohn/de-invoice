@@ -37,6 +37,7 @@
  * (O(1) round-trip) keyed by customerId.
  */
 
+import { daysOverdue as daysOverdueOf } from '../reminder/days-overdue';
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -125,7 +126,7 @@ export class AgingService {
 
       const due = inv.dueDate ? new Date(inv.dueDate) : null
       if (!due) continue // no dueDate → can't age, skip
-      const daysOverdue = Math.floor((asOf.getTime() - due.getTime()) / (1000 * 60 * 60 * 24))
+      const daysOverdue = daysOverdueOf(due, asOf) // Tier 528: calendar days in Germany
       const bucket = bucketFor(daysOverdue)
 
       const key = inv.customer.id

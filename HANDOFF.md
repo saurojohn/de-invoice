@@ -2612,7 +2612,11 @@ value, so each level went out a day late.
 Left as they are: the installment checks ("erste Fälligkeit nicht in der
 Vergangenheit", the nightly overdue flag) and the Mahnung-per-day idempotency
 use the server's local midnight — right with TZ=Europe/Berlin, up to two
-hours late on a UTC server. `aging.service.ts` counts from an `asOf` instant.
+hours late on a UTC server.
+
+Tier 528a: the Aging report and the customer portal use `daysOverdue` too
+(they counted from the instant / the UTC day — a day short between midnight
+and 02:00 in Germany).
 
 ### A pause "until yesterday" ended at 02:00 (Tier 519a)
 
