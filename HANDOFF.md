@@ -9,18 +9,19 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–510 are
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–511 are
   in `git log`; §8 records what each learned. Tiers 443–462 came from the
-  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 510.)
+  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 511.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 37306419145 / commit `08fb4c0`, Tier 510):**
-  - Backend e2e: **295 passed / 0 failed / 1 skipped** of 296 specs — 100
-    two-digit + 196 three-digit (Tier 510 added `296-tier510-mahnungspause-senden.sh`,
+- **Test counts (last green CI, run 37317182177 / commit `c83d35b`, Tier 511a):**
+  - Backend e2e: **296 passed / 0 failed / 1 skipped** of 297 specs — 100
+    two-digit + 197 three-digit (Tier 511 added `297-tier511-gutschrift-formular.sh`,
+    Tier 510 added `296-tier510-mahnungspause-senden.sh`,
     Tier 509 added `295-tier509-eigenkapital.sh`,
     Tier 508 added `294-tier508-ebilanz-steuern.sh`,
     Tier 507 added `293-tier507-kst-vorauszahlungen.sh`,
@@ -2602,7 +2603,8 @@ Now:
   `settleIssuedCreditNote` — a 'Gutschrift' payment capped at what is open,
   the invoice paid when that covers it, the rest as customer credit — as
   createCreditNote does.
-- Spec 193 (numbering) refers its credit notes to an issued invoice.
+- Specs 193 (numbering) and 52 (customer statement, Tier 511a — CI run
+  37314054283 failed on it) refer their credit notes to an issued invoice.
 
 Local verification: single specs on PORT=3011 (see Tier 510). 43 backend
 specs hard-code `http://localhost:3001` instead of `$API`; with another
