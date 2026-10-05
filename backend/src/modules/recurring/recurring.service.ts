@@ -198,6 +198,39 @@ export class RecurringService {
    * month's max (e.g. 31 in Feb), we clamp to the last day
    * of the target month.
    */
+  /**
+   * Tier 519 — the first run date after `limit`, on the template's schedule.
+   * Periods that fell into a pause (or into the time the template was
+   * switched off) are not billed afterwards: measured, a template paused
+   * from June to 30.09. billed June, July, August and September on four
+   * consecutive mornings in October.
+   */
+  private firstRunAfter(
+    next: Date,
+    limit: Date,
+    tpl: { interval: string; intervalCount: number; dayOfMonth: number },
+    inclusive = false,
+  ): Date {
+    let d = new Date(next)
+    // 2 400 steps: 46 years of weekly runs — a bound, not a rule.
+    for (let i = 0; i < 2400 && (inclusive ? d.getTime() < limit.getTime() : d.getTime() <= limit.getTime()); i++) {
+      d = this.advanceTo(d, tpl.interval as RecurringInterval, tpl.intervalCount, tpl.dayOfMonth)
+    }
+    return d
+  }
+
+  /** The run date that counts: `nextRunAt`, moved past a pause that is over. */
+  private nextRunAfterPause(
+    tpl: { nextRunAt: Date; pausedUntil: Date | null; interval: string; intervalCount: number; dayOfMonth: number },
+    now: Date,
+  ): Date {
+    const next = new Date(tpl.nextRunAt)
+    if (!tpl.pausedUntil) return next
+    const until = new Date(tpl.pausedUntil)
+    if (until.getTime() >= now.getTime()) return next // still paused — nothing runs
+    return this.firstRunAfter(next, until, tpl)
+  }
+
   private advanceTo(from: Date, interval: RecurringInterval, count: number, dayOfMonth: number): Date {
     const d = new Date(from)
     d.setUTCHours(0, 0, 0, 0)
@@ -515,6 +548,17 @@ export class RecurringService {
       nextRunAt = this.advanceTo(new Date(startDate), interval, intervalCount, dayOfMonth)
     }
 
+    // Tier 519: switched on again, or a running pause lifted early — the
+    // dates that passed meanwhile are not billed afterwards; the next run is
+    // the first one from today on.
+    const now = new Date()
+    const reactivated = patch.isActive === true && !existing.isActive
+    const pauseLifted = patch.pausedUntil === null && !!existing.pausedUntil && new Date(existing.pausedUntil).getTime() >= now.getTime()
+    if (!nextRunAt && (reactivated || pauseLifted)) {
+      const moved = this.firstRunAfter(new Date(existing.nextRunAt), businessTodayDate(now), { interval, intervalCount, dayOfMonth }, true)
+      if (moved.getTime() !== new Date(existing.nextRunAt).getTime()) nextRunAt = moved
+    }
+
     return this.prisma.recurringInvoice.update({
       where: { id },
       data: {
@@ -806,6 +850,17 @@ export class RecurringService {
       // user would have to manually reset nextRunAt on the
       // template. The DB unique constraint catches the
       // pathological case of two parallel crons racing.
+      // Tier 519: a pause that is over — its periods are skipped, not billed
+      // one per morning afterwards. The scheduled run stops here when the
+      // next date after the pause has not come yet.
+      const afterPause = this.nextRunAfterPause(tpl, now)
+      if (afterPause.getTime() !== new Date(tpl.nextRunAt).getTime()) {
+        await tx.recurringInvoice.update({ where: { id: templateId }, data: { nextRunAt: afterPause } })
+        tpl.nextRunAt = afterPause
+        if (options.trigger === 'scheduled' && afterPause.getTime() > now.getTime()) {
+          return { __notDue: true, nextRunAt: afterPause } as any
+        }
+      }
       const periodStart = new Date(tpl.nextRunAt)
 
       // Has it passed the endDate? The transaction is
@@ -1089,6 +1144,11 @@ export class RecurringService {
 
       return { invoiceId: invoice.id, runId: run.id, periodStart, periodEnd }
     }).then((result: any) => {
+      if (result && result.__notDue) {
+        throw new BadRequestException(
+          `Periods of the pause skipped (paused); next run ${result.nextRunAt.toISOString().slice(0, 10)}.`,
+        )
+      }
       // Handle the skip sentinel from inside the tx.
       if (result && result.__skipped) {
         throw new BadRequestException(
@@ -1279,7 +1339,7 @@ export class RecurringService {
       tpl.company?.defaultPaymentDays,
     )
 
-    const periodStart = new Date(tpl.nextRunAt)
+    const periodStart = this.nextRunAfterPause(tpl, new Date()) // Tier 519
     const periodEnd = this.advanceTo(periodStart, tpl.interval as RecurringInterval, tpl.intervalCount, tpl.dayOfMonth)
     // Tier 415: the preview used to round only its totals, so it could differ
     // from the invoice the run then created; both now use invoice-amounts.ts.

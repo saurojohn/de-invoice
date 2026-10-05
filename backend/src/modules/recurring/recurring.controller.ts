@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, BadRequestException, NotFoundException } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { RecurringService, RecurringInput } from './recurring.service';
 // Tier 373: real DTO classes. The bodies used to be TypeScript intersection
@@ -135,6 +135,12 @@ export class RecurringController {
     if (typeof out.endDate === 'string') {
       out.endDate = new Date(out.endDate + 'T00:00:00.000Z')
     }
+    // Tier 519: `pausedUntil` went to Prisma as the string it came as. The
+    // pause modal sends a full timestamp; a date-only value ("2026-09-30",
+    // valid for @IsDateString) answered 500. A date means through that day.
+    if (typeof out.pausedUntil === 'string') {
+      out.pausedUntil = new Date(/^\d{4}-\d{2}-\d{2}$/.test(out.pausedUntil) ? out.pausedUntil + 'T23:59:59.999Z' : out.pausedUntil)
+    }
     return out
   }
 
@@ -174,6 +180,22 @@ export class RecurringController {
     // ID immediately, the email completes in the
     // background and is logged.
     return this.svc.runOneAndEmail(companyId, id, { trigger: 'manual' });
+  }
+
+  /**
+   * Tier 519 — test-only: one template as the 06:00 scheduler runs it
+   * (`trigger: 'scheduled'`), so a spec can see what the cron does without
+   * running every company's due templates. Unreachable in production.
+   */
+  @Post(':id/_test/scheduled-run')
+  @Require('admin.update')
+  async scheduledRun(
+    @Query('companyId') companyId: string,
+    @Param('id') id: string,
+  ) {
+    if (process.env.NODE_ENV === 'production') throw new NotFoundException()
+    if (!companyId) throw new BadRequestException('companyId is required');
+    return this.svc.runOne(companyId, id, { trigger: 'scheduled' });
   }
 
   /**

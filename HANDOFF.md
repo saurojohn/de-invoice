@@ -2580,6 +2580,33 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### A paused subscription is not billed for the pause afterwards (Tier 519)
+
+Measured (spec 304, 12 assertions fail before): a monthly template with its
+next run on 01.06., paused until 30.09. — after the pause the scheduler
+billed June, then July, August and September, one each morning (the pause
+never moved `nextRunAt`; the manual run and the preview showed June too).
+Switching a template off for months and on again did the same. Setting the
+pause with a date (`"2026-09-30"`, valid for `@IsDateString`) answered 500 —
+the string went to Prisma as it came.
+
+- `RecurringService.nextRunAfterPause` / `firstRunAfter`: once a pause is
+  over, the run date is the first one after it. `runOne` stores it; the
+  scheduled run stops there when that date has not come ("…skipped (paused)"
+  → counted as skipped); `previewNext` shows it.
+- `update`: switching on again (`isActive` false → true) or lifting a running
+  pause (`pausedUntil: null`) moves `nextRunAt` to the first run date from
+  today on.
+- A template that was never paused still makes up a missed run (the server
+  was down at 06:00) — one period per run, as before.
+- Controller: `pausedUntil` becomes a Date; a date-only value means through
+  that day. Test-only route `POST recurring-invoices/:id/_test/scheduled-run`
+  (not in production) runs one template as the scheduler does.
+
+Not changed: a template created with a start date in the past is billed for
+the periods since then, one per morning (the user entered that date; the
+preview shows the period).
+
 ### Due before the invoice exists; a subscription that ends before it starts (Tier 518)
 
 Measured (spec 303, 9 assertions fail before): an invoice created today with
