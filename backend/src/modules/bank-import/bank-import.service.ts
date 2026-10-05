@@ -271,6 +271,23 @@ export class BankImportService {
   async deleteStatement(companyId: string, id: string) {
     const existing = await this.prisma.bankStatement.findFirst({ where: { id, companyId } });
     if (!existing) throw new BadRequestException('Kontoauszug nicht gefunden');
+    // Tier 529: a statement that payments or bookings rest on stays. Measured:
+    // deleted with two confirmed matches — the payments and their vouchers
+    // remained, pointing at a statement that no longer existed.
+    const [confirmed, booked] = await Promise.all([
+      this.prisma.bankReconciliation.count({
+        where: { companyId, status: 'confirmed', bankTransaction: { statementId: id } },
+      }),
+      this.prisma.bankTransaction.count({
+        where: { companyId, statementId: id, voucherId: { not: null } },
+      }),
+    ]);
+    if (confirmed + booked > 0) {
+      throw new BadRequestException(
+        `Der Kontoauszug hat ${confirmed + booked} gebuchte Zuordnung(en) (Zahlungen / Ausgaben) und kann nicht gelöscht werden. ` +
+        'Nehmen Sie die Zuordnungen zuerst zurück.',
+      );
+    }
     // Delete candidate matches first (otherwise they'd
     // dangle without their parent txn).
     await this.prisma.bankReconciliation.deleteMany({
@@ -552,7 +569,29 @@ export class BankImportService {
     // Applied amount: min(transaction, invoice). For
     // partial payments the user would have to set
     // appliedAmount manually (not exposed in v1).
-    const txnAmount = Number(recon.bankTransaction.amount);
+    // Tier 529: what is left of the bank entry. One credit could be matched
+    // to invoice after invoice, each time for its full amount — measured: a
+    // receipt of 119 € paid two invoices of 119 €. Other confirmed matches of
+    // this entry count against it (a foreign-currency invoice's part back in
+    // the entry's currency, at that invoice's rate).
+    const fullAmount = Number(recon.bankTransaction.amount);
+    const others = await this.prisma.bankReconciliation.findMany({
+      where: { companyId, bankTransactionId: recon.bankTransactionId, status: 'confirmed', id: { not: recon.id } },
+      select: { appliedAmount: true, invoice: { select: { currency: true, exchangeRate: true } } },
+    });
+    const entryCurrency = String(recon.bankTransaction.currency || 'EUR').toUpperCase();
+    const used = others.reduce((sum, o) => {
+      const cur = String(o.invoice.currency || 'EUR').toUpperCase();
+      const rate = Number(o.invoice.exchangeRate) > 0 ? Number(o.invoice.exchangeRate) : 1;
+      return sum + (cur !== entryCurrency && entryCurrency === 'EUR' ? Number(o.appliedAmount) / rate : Number(o.appliedAmount));
+    }, 0);
+    const txnAmount = Math.round((fullAmount - used) * 100) / 100;
+    if (fullAmount > 0 && txnAmount <= 0) {
+      throw new BadRequestException(
+        `Diese Bankbuchung (${fullAmount.toFixed(2).replace('.', ',')} €) ist bereits vollständig zugeordnet. ` +
+        'Nehmen Sie eine Zuordnung zurück, um den Betrag anders zu verteilen.',
+      );
+    }
     const invTotal = Number(recon.invoice.total);
     let applied = Math.min(txnAmount, invTotal);
     // Tier 505: a payment's amount is in the invoice's currency (DATEV and

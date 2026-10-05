@@ -2592,6 +2592,26 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### A bank entry pays once; a statement that bookings rest on stays (Tier 529)
+
+Measured (spec 314, 10 assertions fail before): one credit of 119 € on a
+statement, matched to an invoice of 119 € and then to a second one — 201 both
+times: two invoices paid, 238 € received on paper from 119 € on the account.
+A credit of 300 € matched to three invoices of 119 € paid all three in full
+(357 €). `confirmMatch` applied `min(entry, invoice total)` each time and
+never looked at the entry's other matches. And `DELETE /bank-statements/:id`
+removed a statement with confirmed matches: the payments and their vouchers
+stayed, resting on a statement that no longer existed.
+
+- `confirmMatch`: the entry's other confirmed matches count against it (a
+  foreign-currency invoice's part back in the entry's currency at that
+  invoice's rate); the match takes what is left — the last invoice gets the
+  rest as a part payment — and nothing left is a 400. A match taken back
+  (`reopen`) frees its amount.
+- `deleteStatement`: refused while a match is confirmed or an expense is
+  booked from one of its entries (`BankTransaction.voucherId`; a Storno
+  clears it).
+
 ### One count of the days an invoice is overdue (Tier 528)
 
 Found while checking the other day computations after Tier 519a. Production
