@@ -2592,6 +2592,28 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### One count of the days an invoice is overdue (Tier 528)
+
+Found while checking the other day computations after Tier 519a. Production
+(and CI) run with `TZ=Europe/Berlin`. Measured (spec 313, 5 assertions fail
+before): an invoice due 40 days ago stood in the dunning list with **39**
+days, its Mahnung was stored and printed with 39 — the fee preview said 40.
+Due yesterday was "0 Tage überfällig". The list and `sendOne` subtracted the
+due date (midnight UTC) from the server's *local* midnight (22:00 / 23:00 UTC
+of the day before); two more places used `Date.now()` (a day short between
+midnight and 02:00). The auto-dunning's escalation thresholds read the list's
+value, so each level went out a day late.
+
+- `reminder/days-overdue.ts` `daysOverdue(dueDate)`: calendar days in Germany.
+  Used by the dunning list, `sendOne` (the stored Mahnung, the PDF), the
+  letter's data and the fee preview.
+- `findOverdueInvoices` / `getReminderStats` compare with `businessTodayDate()`.
+
+Left as they are: the installment checks ("erste Fälligkeit nicht in der
+Vergangenheit", the nightly overdue flag) and the Mahnung-per-day idempotency
+use the server's local midnight — right with TZ=Europe/Berlin, up to two
+hours late on a UTC server. `aging.service.ts` counts from an `asOf` instant.
+
 ### A pause "until yesterday" ended at 02:00 (Tier 519a)
 
 CI run 37380210509 (Tier 525, 22:15 UTC = 00:15 in Germany) failed spec 304:

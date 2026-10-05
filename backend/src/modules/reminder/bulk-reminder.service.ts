@@ -36,6 +36,7 @@ import {
 } from "./mahnung-pdf.service"
 import { invoicesHeldByPlan, PLAN_HOLD_MESSAGE } from "./installment-hold"
 import { activePause, pauseHoldMessage } from "./pause-hold"
+import { daysOverdue as daysOverdueOf } from "./days-overdue"
 import { businessDayIso, businessTodayIso } from "../../common/business-date"
 
 const LEVEL_TITLE_FILENAME: Record<"first" | "second" | "final", string> = {
@@ -329,10 +330,7 @@ export class BulkReminderService {
     }
     const today = new Date()
     today.setHours(0, 0, 0, 0)
-    const daysOverdue = Math.max(
-      0,
-      Math.floor((today.getTime() - dueDate.getTime()) / 86_400_000),
-    )
+    const daysOverdue = daysOverdueOf(dueDate) // Tier 528
 
     // Compute fees (Mahngebühr + Verzugszins) the same
     // way the single-send + auto-reminder do it.

@@ -1,3 +1,5 @@
+import { businessTodayDate } from '../../common/business-date';
+import { daysOverdue as daysOverdueOf } from './days-overdue';
 import { verzugszinsen } from './basiszinssatz';
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -179,8 +181,8 @@ export class ReminderService {
    * arithmetic is awkward to express in `where`.
    */
   async findOverdueInvoices(companyId: string): Promise<OverdueInvoice[]> {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    // Tier 528: today's date as due dates are stored (midnight UTC of the German day).
+    const today = businessTodayDate();
 
     const invoices = await this.prisma.invoice.findMany({
       where: {
@@ -300,8 +302,7 @@ export class ReminderService {
       })
       .map((inv) => {
         const dueDate = new Date(inv.dueDate!);
-      const diffTime = today.getTime() - dueDate.getTime();
-      const daysOverdue = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      const daysOverdue = daysOverdueOf(dueDate); // Tier 528
 
       // Count reminders by type
       const reminderCounts = inv.emailSends.reduce(
@@ -614,9 +615,7 @@ Mit freundlichen Grüßen,
       month: 'long',
       year: 'numeric',
     })
-    const daysOverdue = Math.floor(
-      (Date.now() - new Date(invoice.dueDate!).getTime()) / (1000 * 60 * 60 * 24),
-    )
+    const daysOverdue = daysOverdueOf(invoice.dueDate)
     const bank = (company as any).bankInfo || {}
     const bankInfo = [
       bank.bankName && `Bank: ${bank.bankName}`,
@@ -680,9 +679,7 @@ Mit freundlichen Grüßen,
       total: invoice.total.toString(),
       dueDate: invoice.dueDate!.toISOString(),
       issueDate: invoice.issueDate.toISOString(),
-      daysOverdue: Math.floor(
-        (new Date().getTime() - new Date(invoice.dueDate!).getTime()) / (1000 * 60 * 60 * 24),
-      ),
+      daysOverdue: daysOverdueOf(invoice.dueDate),
       language: invoice.language || 'de-DE',
       reminderCount: 0,
       // Tier 40: not strictly needed for the email-data
@@ -725,8 +722,8 @@ Mit freundlichen Grüßen,
    * Get reminder statistics for dashboard
    */
   async getReminderStats(companyId: string) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    // Tier 528: today's date as due dates are stored (midnight UTC of the German day).
+    const today = businessTodayDate();
 
     const [overdueCount, totalOverdueAmount, recentReminders] = await Promise.all([
       this.prisma.invoice.count({
@@ -1016,13 +1013,7 @@ Mit freundlichen Grüßen,
    * Tier 164 helper used by the preview endpoint.
    */
   private computeDaysOverdue(dueDate: Date | null): number {
-    if (!dueDate) return 0;
-    const due = new Date(dueDate);
-    const now = new Date();
-    // Floor to whole calendar days (date-only, no TZ drift).
-    const dueMs = Date.UTC(due.getFullYear(), due.getMonth(), due.getDate());
-    const nowMs = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
-    return Math.max(0, Math.floor((nowMs - dueMs) / (1000 * 60 * 60 * 24)));
+    return daysOverdueOf(dueDate); // Tier 528
   }
 
   /**
