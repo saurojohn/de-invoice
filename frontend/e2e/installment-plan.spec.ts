@@ -120,7 +120,17 @@ async function createSeedInvoice(
     },
   )
   expect(res.status()).toBe(201)
-  return await res.json()
+  const inv = await res.json()
+  // Tier 522: a plan needs an issued invoice (a draft is no claim yet).
+  const issued = await page.request.put(
+    `${API}/api/v1/invoices/${inv.id}/status?companyId=${COMPANY_ID}`,
+    {
+      headers: { ...ADMIN_HEADERS, 'Content-Type': 'application/json' },
+      data: { status: 'sent' },
+    },
+  )
+  expect(issued.status()).toBe(200)
+  return inv
 }
 
 test.describe('Tier 168a — Ratenplan (installment plans) rewrite', () => {

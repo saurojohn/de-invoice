@@ -2124,7 +2124,7 @@ export default function InvoiceDetailPage() {
             (not loud) because the user just opened
             this page for a different reason — they
             shouldn't feel ambushed. */}
-        {ratensplanSuggestion?.eligible && !installmentPlan && (
+        {ratensplanSuggestion?.eligible && installmentPlan?.status !== "active" && (
           <div
             className="mt-6 p-4 rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30 flex items-start justify-between gap-4"
             data-testid="ratensplan-suggest-banner"
@@ -2198,8 +2198,11 @@ export default function InvoiceDetailPage() {
                 </span>
               )}
             </CardTitle>
-            {!installmentPlan &&
+            {/* Tier 522: a cancelled or completed plan can be followed by a
+                new one; a draft has no plan yet. */}
+            {installmentPlan?.status !== "active" &&
               invoice.type !== "CN" &&
+              invoice.status !== "draft" &&
               invoice.status !== "cancelled" && (
                 <Button
                   size="sm"

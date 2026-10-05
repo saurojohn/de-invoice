@@ -72,8 +72,15 @@ export class InstallmentPlanService {
    * sees "what's still owed" per customer.
    */
   async findByInvoice(invoiceId: string, companyId: string) {
+    // Tier 522: an invoice can have had several plans — the running one,
+    // else the latest.
+    const active = await this.prisma.installmentPlan.findFirst({
+      where: { invoiceId, companyId, status: 'active' },
+      select: { id: true },
+    })
     return this.prisma.installmentPlan.findFirst({
-      where: { invoiceId, companyId },
+      where: active ? { id: active.id } : { invoiceId, companyId },
+      orderBy: { createdAt: 'desc' },
       include: {
         installments: { orderBy: { sequenceNumber: 'asc' } },
         customer: { select: { id: true, name: true, customerNumber: true } },
@@ -131,7 +138,7 @@ export class InstallmentPlanService {
 
     // 1+2+3: eligibility checks
     const existingPlan = await this.prisma.installmentPlan.findFirst({
-      where: { invoiceId: invoice.id },
+      where: { invoiceId: invoice.id, status: 'active' }, // Tier 522
       select: { id: true },
     })
     const customerPlan = invoice.customerId
@@ -361,13 +368,26 @@ export class InstallmentPlanService {
         'Ratenplan kann nicht auf eine stornierte Rechnung gelegt werden',
       )
     }
-    // 1:1 — a Ratenplan already exists for this invoice.
-    const existing = await this.prisma.installmentPlan.findUnique({
-      where: { invoiceId: invoice.id },
+    // Tier 522: a plan is an agreement about a claim — a draft is none yet.
+    // (The suggestion already asked for an issued invoice; this route took a
+    // draft, and the plan then paused a dunning that could not start.)
+    if (invoice.status === 'draft') {
+      throw new BadRequestException(
+        'Die Rechnung ist noch ein Entwurf — ein Ratenplan braucht eine ausgestellte Rechnung.',
+      )
+    }
+    // One running plan per invoice. Tier 522: a cancelled or completed plan
+    // no longer stands in the way — `invoiceId` was unique, so an invoice
+    // whose plan had been cancelled (the customer stopped paying, a new
+    // agreement was made) could never get another: measured, "existiert
+    // bereits ein Ratenplan" for good.
+    const existing = await this.prisma.installmentPlan.findFirst({
+      where: { invoiceId: invoice.id, status: 'active' },
+      select: { id: true },
     })
     if (existing) {
       throw new BadRequestException(
-        'Für diese Rechnung existiert bereits ein Ratenplan',
+        'Für diese Rechnung läuft bereits ein Ratenplan. Stornieren Sie ihn, bevor Sie einen neuen anlegen.',
       )
     }
     if (dto.installmentCount < 2) {

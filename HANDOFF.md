@@ -2580,6 +2580,27 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### A new Ratenplan after the old one; none on a draft (Tier 522)
+
+Measured (probe before the change; spec 307 afterwards — the old code cannot
+run against the new schema): an invoice whose Ratenplan had been cancelled
+(the customer stopped paying, a new agreement was made) answered "Für diese
+Rechnung existiert bereits ein Ratenplan" for good — `InstallmentPlan.invoiceId`
+was unique and the cancelled row stays. The same after a plan over a part of
+the invoice was completed. And `POST /installment-plans` took a draft (201).
+
+- Schema + migration `20261005000002_installment_plan_per_invoice_many`:
+  `invoiceId` is indexed, not unique; `Invoice.installmentPlans` is a list.
+- `InstallmentPlanService.create`: one **active** plan per invoice ("läuft
+  bereits ein Ratenplan. Stornieren Sie ihn …"); a draft is refused. The new
+  plan covers at most what is still open (Tier 429), so the Raten paid under
+  the old plan are not asked for again; `syncInstallments` already counts the
+  payments since the plan was created.
+- `findByInvoice` / the suggestion: the running plan, else the latest.
+- Invoice page: "Ratenplan anlegen" and the suggestion banner show whenever no
+  plan is *running* (not on a draft). Playwright `installment-plan.spec.ts`
+  issues its invoice first.
+
 ### A skipped run does not take the period it did not bill (Tier 521)
 
 Found with the unique keys of the schema (after Tier 517). `RecurringRun` is
