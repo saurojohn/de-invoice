@@ -1,3 +1,5 @@
+import { BadRequestException } from '@nestjs/common'
+import { businessDayIso } from '../../common/business-date'
 /**
  * Tier 428 — the due date of an invoice.
  *
@@ -40,4 +42,18 @@ export function resolveDueDate(
   if (explicit) return explicit
   const days = resolvePaymentTermDays(invoiceTerms, customerTerms, companyDays)
   return days === null ? null : new Date(issueDate.getTime() + days * DAY)
+}
+
+/**
+ * Tier 518 — a due date before the issue date. Measured: an invoice issued
+ * today with "fällig 01.01.2020" was 2 468 days overdue the moment it went
+ * out, and the first Mahnung asked for six years of Verzugszinsen (§ 288 BGB)
+ * on a claim that did not exist then. Compared as calendar days — due on the
+ * issue day ("sofort fällig") is a term.
+ */
+export function assertDueNotBeforeIssue(dueDate: Date | null | undefined, issueDate: Date): void {
+  if (!dueDate || Number.isNaN(dueDate.getTime())) return
+  if (businessDayIso(dueDate) < businessDayIso(issueDate)) {
+    throw new BadRequestException('Das Fälligkeitsdatum liegt vor dem Rechnungsdatum.')
+  }
 }

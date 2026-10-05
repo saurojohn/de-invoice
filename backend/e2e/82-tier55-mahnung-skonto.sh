@@ -113,8 +113,12 @@ TODAY=$(date -u +%Y-%m-%dT00:00:00.000Z)
 # Override dueDate to a past date; the Mahnung flow
 # only checks daysOverdue from dueDate, not from
 # issueDate.
+# Tier 518: due before the issue date is refused — issued 20 days ago, due
+# 10 days ago, Skonto for 30 days: overdue with the Skonto window still open.
+ISSUED=$(python3 -c "import datetime;print((datetime.date.today()-datetime.timedelta(days=20)).isoformat()+'T00:00:00.000Z')")
+DUE=$(python3 -c "import datetime;print((datetime.date.today()-datetime.timedelta(days=10)).isoformat()+'T00:00:00.000Z')")
 api_post "/api/v1/invoices?companyId=$COMPANY_ID" \
-  "{\"customerId\":\"$CUST_ID\",\"issueDate\":\"$TODAY\",\"dueDate\":\"2026-06-01T00:00:00.000Z\",\"skontoPercent\":2,\"skontoDays\":30,\"items\":[{\"description\":\"Skonto-open\",\"quantity\":1,\"unitPrice\":100,\"vatRate\":0.19}]}"
+  "{\"customerId\":\"$CUST_ID\",\"issueDate\":\"$ISSUED\",\"dueDate\":\"$DUE\",\"skontoPercent\":2,\"skontoDays\":30,\"items\":[{\"description\":\"Skonto-open\",\"quantity\":1,\"unitPrice\":100,\"vatRate\":0.19}]}"
 assert_status "201" "create Skonto-still-open invoice"
 INV3_ID=$(json_field "$BODY" id)
 

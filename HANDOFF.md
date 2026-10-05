@@ -2580,6 +2580,22 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Due before the invoice exists; a subscription that ends before it starts (Tier 518)
+
+Measured (spec 303, 9 assertions fail before): an invoice created today with
+"fällig 01.01.2020" was stored, and once issued stood in the dunning list
+2 468 days overdue — Verzugszinsen since 2020 on a claim that did not exist
+then. A draft's due date could be edited to before its issue date. A
+recurring template with an end date before its start was stored and never ran.
+
+- `invoice/due-date.ts` `assertDueNotBeforeIssue` (calendar days; due on the
+  issue day is a term) in `InvoiceService.create` and `update`.
+- `RecurringService.create` / `update` (only when start or end is changed):
+  "Das Enddatum liegt vor dem Startdatum."
+- Fixtures: specs 82 and 84 made an invoice "overdue with its Skonto window
+  open" by dating it today and due in the past — now issued 20 days ago, due
+  10 days ago, Skonto 30 days. Spec 79's edit fixture is due in 2030.
+
 ### The Tagesabschluss belongs to one company (Tier 517)
 
 Found by spec 301 on a database other specs had used (it closes *today*):

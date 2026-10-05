@@ -115,6 +115,14 @@ export function deriveRecurringStatus(
   return 'active'
 }
 
+/** Tier 518 — a template that ends before it starts never runs; say so instead of storing it. */
+function assertEndNotBeforeStart(start: Date | string, end: Date | string | null | undefined): void {
+  if (!end) return
+  if (new Date(end).getTime() < new Date(start).getTime()) {
+    throw new BadRequestException('Das Enddatum liegt vor dem Startdatum.')
+  }
+}
+
 @Injectable()
 export class RecurringService {
   private readonly logger = new Logger(RecurringService.name);
@@ -292,6 +300,7 @@ export class RecurringService {
     })
     if (!customer) throw new BadRequestException('Customer not found in this company')
 
+    assertEndNotBeforeStart(input.startDate, input.endDate) // Tier 518
     const nextRunAt = this.computeFirstNextRun(input)
 
     return this.prisma.recurringInvoice.create({
@@ -480,6 +489,11 @@ export class RecurringService {
   async update(companyId: string, id: string, patch: Partial<RecurringInput> & { isActive?: boolean }) {
     const existing = await this.prisma.recurringInvoice.findFirst({ where: { id, companyId } })
     if (!existing) throw new BadRequestException('Recurring invoice not found')
+
+    // Tier 518 — only when one of the two is being changed.
+    if (patch.startDate !== undefined || patch.endDate !== undefined) {
+      assertEndNotBeforeStart(patch.startDate ?? existing.startDate, patch.endDate === undefined ? existing.endDate : patch.endDate)
+    }
 
     // Items replacement strategy: wipe + recreate. The
     // historical runs still reference the OLD items via

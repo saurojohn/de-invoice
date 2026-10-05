@@ -139,7 +139,7 @@ print(local.date().isoformat() + 'T00:00:00.000Z')
 ")
 TODAY="$SERVER_TODAY"
 api_post "/api/v1/invoices?companyId=$COMPANY_ID" \
-  "{\"customerId\":\"$CUST_ID\",\"issueDate\":\"$TODAY\",\"dueDate\":\"2026-08-01T00:00:00.000Z\",\"skontoPercent\":2,\"skontoDays\":14,\"items\":[{\"description\":\"Edit test\",\"quantity\":1,\"unitPrice\":100,\"vatRate\":0.19}]}"
+  "{\"customerId\":\"$CUST_ID\",\"issueDate\":\"$TODAY\",\"dueDate\":\"2030-08-01T00:00:00.000Z\",\"skontoPercent\":2,\"skontoDays\":14,\"items\":[{\"description\":\"Edit test\",\"quantity\":1,\"unitPrice\":100,\"vatRate\":0.19}]}"
 assert_status "201" "create edit-test invoice"
 INV_EDIT_ID=$(json_field "$BODY" id)
 

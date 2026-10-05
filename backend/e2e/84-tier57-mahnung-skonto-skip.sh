@@ -72,8 +72,12 @@ note "=== 1. Skonto window OPEN → excluded from overdue ==="
 # Should NOT appear in /reminders/overdue.
 TODAY=$(date -u +%Y-%m-%dT00:00:00.000Z)
 YESTERDAY=$(date -u -v-1d +%Y-%m-%dT00:00:00.000Z 2>/dev/null || date -u -d 'yesterday' +%Y-%m-%dT00:00:00.000Z)
+# Tier 518: due before the issue date is refused — issued 20 days ago, due
+# 10 days ago, Skonto for 30 days: overdue with the Skonto window still open.
+ISSUED=$(python3 -c "import datetime;print((datetime.date.today()-datetime.timedelta(days=20)).isoformat()+'T00:00:00.000Z')")
+DUE=$(python3 -c "import datetime;print((datetime.date.today()-datetime.timedelta(days=10)).isoformat()+'T00:00:00.000Z')")
 api_post "/api/v1/invoices?companyId=$COMPANY_ID" \
-  "{\"customerId\":\"$CUST_ID\",\"issueDate\":\"$TODAY\",\"dueDate\":\"$YESTERDAY\",\"skontoPercent\":2,\"skontoDays\":30,\"items\":[{\"description\":\"Skonto still open\",\"quantity\":1,\"unitPrice\":100,\"vatRate\":0.19}]}"
+  "{\"customerId\":\"$CUST_ID\",\"issueDate\":\"$ISSUED\",\"dueDate\":\"$DUE\",\"skontoPercent\":2,\"skontoDays\":30,\"items\":[{\"description\":\"Skonto still open\",\"quantity\":1,\"unitPrice\":100,\"vatRate\":0.19}]}"
 assert_status "201" "create Skonto-window-open invoice"
 OPEN_INV_ID=$(json_field "$BODY" id)
 # Flip to 'sent' (default is 'draft', excluded by overdue query)

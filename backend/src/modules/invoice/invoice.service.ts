@@ -13,7 +13,7 @@ import { CreateInvoiceDto, UpdateInvoiceDto } from './dto/invoice.dto';
 // (so the USt-Voranmeldung sees the right number) and a
 // separate ledger entry books the overage.
 import { CreditBalanceService } from '../customer/credit-balance.service';
-import { resolveDueDate } from './due-date';
+import { resolveDueDate, assertDueNotBeforeIssue } from './due-date';
 // Tier 118: multi-currency. For non-EUR invoices, the create
 // flow looks up the cached ECB rate and stores the EUR
 // equivalent on the row (eurSubtotal / eurTotalVat / eurTotal).
@@ -582,6 +582,9 @@ export class InvoiceService {
       });
       var companyDefaultVatMode: string | null | undefined = co2?.defaultVatMode;
     }
+    // Tier 518: payment cannot be due before the invoice exists — it was
+    // overdue the moment it was issued, with Verzugszinsen from the due date.
+    assertDueNotBeforeIssue(dueDate, issueDate);
     // Tier 486: the igL the invoice ends up with — the caller's, else the
     // company default (Tier 176) — needs a customer with a foreign EU VAT ID.
     if (dto.euTransaction ?? (companyDefaultVatMode === 'igL')) {
@@ -1138,6 +1141,8 @@ export class InvoiceService {
         }
       }
     }
+
+    if (dto.dueDate) assertDueNotBeforeIssue(new Date(dto.dueDate), existing.issueDate); // Tier 518
 
     return this.prisma.invoice.update({
       where: { id },
