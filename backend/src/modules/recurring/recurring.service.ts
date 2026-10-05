@@ -14,6 +14,7 @@ import { ExchangeRateService } from '../exchange-rate/exchange-rate.service';
 import { nextInvoiceNumber } from '../invoice/invoice-number'
 import { resolveDueDate } from '../invoice/due-date';
 import { assertInvoiceDetails } from '../invoice/mandatory-details'
+import { igLVatIdProblem } from '../invoice/ust-behandlung-detector'
 
 /**
  * Recurring invoice (Abo-Rechnung) service.
@@ -139,6 +140,26 @@ export class RecurringService {
     // picked, and it changed with the server's time zone.
     d.setUTCHours(0, 0, 0, 0)
     return this.advanceTo(d, input.interval, input.intervalCount ?? 1, input.dayOfMonth ?? 1)
+  }
+
+  /**
+   * Tier 513 — the company's VAT treatment for a generated invoice: no VAT
+   * for a Kleinunternehmer (§ 19), under the default "reverse charge"
+   * (§ 13b, flagged) or "igL" (flagged; the customer needs a foreign EU
+   * USt-IdNr. — checked when `customerId` is given, as Tier 486 does).
+   */
+  private async vatTreatment(db: any, companyId: string, customerId: string | null) {
+    const company = await db.company.findUnique({ where: { id: companyId }, select: { defaultVatMode: true } })
+    const mode = company?.defaultVatMode
+    const reverseCharge = mode === 'reverseCharge'
+    const euTransaction = mode === 'igL'
+    if (euTransaction && customerId) {
+      const customer = await db.customer.findUnique({ where: { id: customerId }, select: { vatId: true } })
+      const problem = igLVatIdProblem(customer?.vatId)
+      if (problem) throw new BadRequestException(`Innergemeinschaftliche Lieferung nicht möglich: ${problem}`)
+    }
+    const noVat = mode === 'kleinunternehmer' || reverseCharge || euTransaction
+    return { reverseCharge, euTransaction, rate: (r: unknown) => (noVat ? 0 : Number(r ?? 0)) }
   }
 
   /**
@@ -848,13 +869,20 @@ export class RecurringService {
         tpl.dayOfMonth,
       )
 
+      // Tier 513: the company's VAT treatment, as InvoiceService.create applies
+      // it (Tier 480 / 487) — the run builds its invoice itself and took the
+      // template's rates as they were: a Kleinunternehmer's recurring invoice
+      // showed 19 % VAT (§ 14c UStG), a reverse-charge company's had neither
+      // the flag nor 0 %.
+      const vat = await this.vatTreatment(tx, companyId, tpl.customerId)
+
       // Compute totals from the snapshot items. Tier 415: in cents, by the
       // same function as a manually created invoice (invoice-amounts.ts).
       const amounts = computeInvoiceAmounts(
         items.map((it) => ({
           quantity: Number(it.quantity ?? 0),
           unitPrice: Number(it.unitPrice ?? 0),
-          vatRate: Number(it.vatRate ?? 0),
+          vatRate: vat.rate(it.vatRate),
         })),
       )
       const { subtotal, totalVat, total } = amounts
@@ -960,6 +988,8 @@ export class RecurringService {
           status: tpl.invoiceStatus || 'draft',
           issueDate,
           dueDate,
+          reverseCharge: vat.reverseCharge, // Tier 513
+          euTransaction: vat.euTransaction,
           ...this.servicePeriodFor(tpl, periodStart, periodEnd),
           // Prisma Decimal columns reject plain `number`;
           // round to 4dp + string to match `@db.Decimal(12,4)`.
@@ -983,7 +1013,7 @@ export class RecurringService {
               quantity: it.quantity.toString(),
               unit: it.unit,
               unitPrice: it.unitPrice.toString(),
-              vatRate: it.vatRate.toString(),
+              vatRate: vat.rate(it.vatRate).toString(),
               netAmount: amounts.lines[idx].net.toFixed(2),
               vatAmount: amounts.lines[idx].vat.toFixed(2),
               grossAmount: amounts.lines[idx].gross.toFixed(2),
@@ -1239,11 +1269,14 @@ export class RecurringService {
     const periodEnd = this.advanceTo(periodStart, tpl.interval as RecurringInterval, tpl.intervalCount, tpl.dayOfMonth)
     // Tier 415: the preview used to round only its totals, so it could differ
     // from the invoice the run then created; both now use invoice-amounts.ts.
+    // Tier 513: the preview shows what the run creates (no igL check here —
+    // the run reports a customer without a foreign EU USt-IdNr.).
+    const vat = await this.vatTreatment(this.prisma, companyId, null)
     const amounts = computeInvoiceAmounts(
       tpl.items.map((it) => ({
         quantity: Number(it.quantity ?? 0),
         unitPrice: Number(it.unitPrice ?? 0),
-        vatRate: Number(it.vatRate ?? 0),
+        vatRate: vat.rate(it.vatRate),
       })),
     )
 
@@ -1263,7 +1296,7 @@ export class RecurringService {
         quantity: Number(it.quantity),
         unit: it.unit,
         unitPrice: Number(it.unitPrice),
-        vatRate: Number(it.vatRate),
+        vatRate: vat.rate(it.vatRate),
         netAmount: amounts.lines[idx].net,
         vatAmount: amounts.lines[idx].vat,
         grossAmount: amounts.lines[idx].gross,

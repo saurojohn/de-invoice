@@ -2577,6 +2577,22 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### A recurring invoice follows the company's VAT treatment (Tier 513)
+
+Tier 480 / 487 put the company's VAT treatment into `InvoiceService.create`
+(no VAT for a Kleinunternehmer, 0 % and the flag under the default "reverse
+charge" / "igL"). The recurring run builds its invoice itself and took the
+template's rates as they were. Measured (spec 298): a Kleinunternehmer's
+template with a 19 % line produced 100 € + 19 € VAT (a tax shown without
+being owed, § 14c UStG); a reverse-charge company's recurring invoice was a
+plain 19 % invoice without the flag.
+
+- `RecurringService.vatTreatment`: from `Company.defaultVatMode` — rates 0
+  for kleinunternehmer / reverseCharge / igL, `reverseCharge` /
+  `euTransaction` set on the invoice; for igL the customer needs a foreign EU
+  USt-IdNr. (`igLVatIdProblem`, as Tier 486) or the run fails with the
+  reason. The preview shows the same amounts.
+
 ### The backend suite runs on any port (Tier 512)
 
 43 backend specs hard-coded `http://localhost:3001` (153 places) instead of
