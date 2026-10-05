@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, BadRequestException, ForbiddenException 
 import { PrismaService } from '../../prisma/prisma.service';
 import { computeInvoiceAmounts, toCents } from './invoice-amounts';
 import { assertPositiveTotal } from './positive-total';
+import { syncInvoiceStock } from './stock';
 import { invoiceTaxBreakdown } from './tax-breakdown';
 import { Prisma } from '@prisma/client';
 import { WebhookService } from '../webhook/webhook.service';
@@ -343,66 +344,42 @@ export class InvoiceService {
     return { ...invoice, advanceDeduction: await advanceDeductionFor(this.prisma, invoice) };
   }
 
-  async checkStockForItems(items: { productId?: string; quantity: number }[]): Promise<StockWarning[]> {
-    const warnings: StockWarning[] = [];
-
-    for (const item of items) {
-      if (!item.productId) continue;
-
-      const product = await this.prisma.product.findUnique({
-        where: { id: item.productId },
-        select: { name: true, trackInventory: true, stockQuantity: true },
-      });
-
-      if (product?.trackInventory) {
-        const available = parseFloat(product.stockQuantity.toString());
-        if (available < item.quantity) {
-          warnings.push({
-            productId: item.productId,
-            productName: product.name,
-            available,
-            required: item.quantity,
-          });
-        }
-      }
+  /**
+   * Tier 520: the products of the lines, of this company only. A product id
+   * of another company (or none at all) is refused — it was looked up by id
+   * alone, so its name and stock came back in the warning, and the line was
+   * stored pointing at the other company's product.
+   */
+  private async productsOfItems(companyId: string, items: { productId?: string | null }[]) {
+    const ids = [...new Set(items.map((i) => i.productId).filter((id): id is string => !!id))];
+    if (!ids.length) return new Map<string, { name: string; trackInventory: boolean; stockQuantity: unknown }>();
+    const products = await this.prisma.product.findMany({
+      where: { id: { in: ids }, companyId },
+      select: { id: true, name: true, trackInventory: true, stockQuantity: true },
+    });
+    if (products.length !== ids.length) {
+      throw new BadRequestException('Produkt nicht gefunden.');
     }
-
-    return warnings;
+    return new Map(products.map((p) => [p.id, p]));
   }
 
-  async recordInventorySale(invoiceId: string, items: { productId: string; quantity: number }[]) {
+  async checkStockForItems(companyId: string, items: { productId?: string; quantity: number }[]): Promise<StockWarning[]> {
+    const products = await this.productsOfItems(companyId, items);
+    // Per product: several lines of the same product add up.
+    const required = new Map<string, number>();
     for (const item of items) {
-      if (!item.productId) continue;
-
-      const product = await this.prisma.product.findUnique({
-        where: { id: item.productId },
-        select: { trackInventory: true, stockQuantity: true },
-      });
-
-      if (product?.trackInventory) {
-        const currentStock = parseFloat(product.stockQuantity.toString());
-        const newStock = Math.max(0, currentStock - item.quantity);
-
-        await this.prisma.$transaction([
-          this.prisma.product.update({
-            where: { id: item.productId },
-            data: { stockQuantity: newStock },
-          }),
-          this.prisma.productStockHistory.create({
-            data: {
-              productId: item.productId,
-              changeType: 'sale',
-              quantity: item.quantity,
-              previousQty: currentStock,
-              newQty: newStock,
-              reference: invoiceId,
-              referenceType: 'invoice',
-              notes: `Bestandsreduzierung durch Rechnung ${invoiceId}`,
-            },
-          }),
-        ]);
+      if (item.productId) required.set(item.productId, (required.get(item.productId) ?? 0) + Number(item.quantity));
+    }
+    const warnings: StockWarning[] = [];
+    for (const [productId, qty] of required) {
+      const product = products.get(productId)!;
+      if (!product.trackInventory) continue;
+      const available = parseFloat(String(product.stockQuantity));
+      if (available < qty) {
+        warnings.push({ productId, productName: product.name, available, required: qty });
       }
     }
+    return warnings;
   }
 
   async create(companyId: string, dto: CreateInvoiceDto) {
@@ -421,7 +398,7 @@ export class InvoiceService {
     dto = await this.withoutVatWhereNoneIsCharged(companyId, dto);
 
     // Check stock for tracked products and issue warnings
-    const stockWarnings = await this.checkStockForItems(dto.items || []);
+    const stockWarnings = await this.checkStockForItems(companyId, dto.items || []);
     const hasStockWarnings = stockWarnings.length > 0;
 
     // Tier 174: invoice number is allocated by a Postgres
@@ -807,13 +784,8 @@ export class InvoiceService {
       throw e;
     }
 
-    // Record inventory sale for tracked products
-    if (type !== 'CN' && type !== 'PI') {
-      await this.recordInventorySale(
-        invoice.id,
-        dto.items?.map(item => ({ productId: item.productId || '', quantity: item.quantity })) || []
-      );
-    }
+    // Tier 520: a draft takes no stock — the goods leave when it is issued
+    // (updateStatus → syncInvoiceStock).
 
     // Return invoice with stock warnings if any
     const result = {
@@ -1143,8 +1115,9 @@ export class InvoiceService {
     }
 
     if (dto.dueDate) assertDueNotBeforeIssue(new Date(dto.dueDate), existing.issueDate); // Tier 518
+    if (dto.items?.length) await this.productsOfItems(companyId, dto.items); // Tier 520
 
-    return this.prisma.invoice.update({
+    const saved = await this.prisma.invoice.update({
       where: { id },
       data: {
         // Issue date is the same-day anchor — never editable.
@@ -1214,6 +1187,9 @@ export class InvoiceService {
       },
       include: { items: true, customer: true },
     });
+    // Tier 520: an issued invoice edited on its day — the stock follows its lines.
+    await syncInvoiceStock(this.prisma, companyId, id);
+    return saved;
   }
 
   /**
@@ -1328,6 +1304,8 @@ export class InvoiceService {
       }
       return gone;
     });
+    // Tier 520: what the invoice had taken from stock comes back.
+    await syncInvoiceStock(this.prisma, companyId, id, { gone: true, label: existing.invoiceNumber });
 
     // Fire invoice.deleted event with a stable eventId
     // based on the deleted invoice's id. Receivers can
@@ -1439,6 +1417,10 @@ export class InvoiceService {
         throw e
       }
     }
+
+    // Tier 520: the goods leave when the invoice is issued and come back when
+    // it is cancelled.
+    await syncInvoiceStock(this.prisma, companyId, id);
 
     // Fire invoice.paid ONLY on the draft → paid transition.
     // We don't fire it on every status change because that

@@ -2580,6 +2580,32 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### The stock follows the issued invoice, and only its own company's (Tier 520)
+
+The inventory had never been looked at together with the invoice. Measured
+(spec 305, 20 assertions fail before), a tracked product with 10 in stock:
+
+| | before | now |
+|---|---|---|
+| a draft over 3 | 7 | 10 — a draft takes nothing |
+| the draft changed to 1, then deleted | 7, 7 | 10 |
+| issued over 3, edited on its day to 5, cancelled | 4 (taken twice), 4, 4 | 7, 5, 10 |
+| issued and deleted on its day | stays taken | comes back |
+| 50 sold of 10 | stock 0, history "sale 50" | −40 (oversold, and by how much); cancelled → 10 |
+| another company's invoice with this product's id | 201; **this company's stock reduced**; the stock warning showed the product's name and quantity; the line stored pointing at the foreign product | 400 "Produkt nicht gefunden." (create and update) |
+
+- `invoice/stock.ts` `syncInvoiceStock`: what an issued INV should hold
+  (quantity per tracked product of this company) against what the history
+  rows of this invoice say it holds (`previousQty − newQty`, right for the
+  clamped rows of before too); the difference is booked as `sale` / `return`.
+  Called after `updateStatus`, `update` and `delete` — idempotent, and a draft
+  from before this tier gives its stock back the next time it is touched
+  (issuing it takes nothing a second time).
+- `productsOfItems`: the lines' products are looked up with the company.
+- A credit note does not move stock (it may correct a price); goods that came
+  back are a "return" on the inventory page. Recurring invoices carry no
+  product ids and never moved stock.
+
 ### A paused subscription is not billed for the pause afterwards (Tier 519)
 
 Measured (spec 304, 12 assertions fail before): a monthly template with its
