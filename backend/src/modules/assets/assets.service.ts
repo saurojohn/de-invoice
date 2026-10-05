@@ -8,6 +8,7 @@ import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
 import { AuditService } from '../audit/audit.service'
 import { computeAfaSummary } from './afa'
+import { assertNotFuture } from '../../common/business-date'
 
 /**
  * Tier 83+87: Anlagenverzeichnis (Asset Register)
@@ -195,6 +196,8 @@ export class AssetsService {
       throw new BadRequestException('companyId ist erforderlich')
     }
     this.validateCreate(dto)
+    // Tier 516: an asset is recorded once it has been acquired.
+    assertNotFuture(dto.anschaffungsDatum, 'Das Anschaffungsdatum')
     return this.prisma.asset.create({
       data: {
         companyId,
@@ -227,6 +230,7 @@ export class AssetsService {
     if (dto.nutzungsdauerMonate !== undefined && dto.nutzungsdauerMonate <= 0) {
       throw new BadRequestException('Nutzungsdauer muss > 0 Monate sein')
     }
+    assertNotFuture(dto.anschaffungsDatum, 'Das Anschaffungsdatum')
     return this.prisma.asset.update({
       where: { id },
       data: {
@@ -281,6 +285,7 @@ export class AssetsService {
     if (!dto.verkauftAm) {
       throw new BadRequestException('verkauftAm ist erforderlich')
     }
+    assertNotFuture(dto.verkauftAm, 'Das Verkaufsdatum')
     if (dto.verkauftAm < existing.anschaffungsDatum) {
       throw new BadRequestException(
         'Verkaufsdatum liegt vor dem Anschaffungsdatum',

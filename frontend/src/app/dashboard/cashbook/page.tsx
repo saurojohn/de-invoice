@@ -716,6 +716,7 @@ export default function CashbookPage() {
                     <input
                       type="date"
                       value={formDate}
+                      max={new Date().toISOString().slice(0, 10)}
                       onChange={(e) => setFormDate(e.target.value)}
                       className="w-full border rounded px-3 py-2 text-sm"
                     />

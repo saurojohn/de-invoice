@@ -104,7 +104,7 @@ BEFORE=$(LEDGER)
 api_post "$C/credit-adjust?$Q" "{\"amount\":7,\"description\":\"$TAG spoof\",\"createdById\":\"$OTHER\"}"
 assert_status 403 "credit-adjust with another user's createdById (was 201, stored)"
 assert_eq "…nothing booked" "$(LEDGER)" "$BEFORE"
-api_post "/api/v1/cashbook/entries?$Q" "{\"createdById\":\"$OTHER\",\"businessDate\":\"2031-06-06\",\"type\":\"einnahme\",\"description\":\"$TAG\",\"amount\":1}"
+api_post "/api/v1/cashbook/entries?$Q" "{\"createdById\":\"$OTHER\",\"businessDate\":\"2021-06-06\",\"type\":\"einnahme\",\"description\":\"$TAG\",\"amount\":1}"
 assert_status 403 "cashbook entry with another user's createdById"
 
 note "=== 5. multipart uploads bind companyId and actor ids too ==="

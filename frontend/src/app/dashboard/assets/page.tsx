@@ -750,6 +750,7 @@ export default function AssetsPage() {
                 <input
                   type="date"
                   value={draft.anschaffungsDatum}
+                  max={new Date().toISOString().slice(0, 10)}
                   onChange={(e) => setDraft({ ...draft, anschaffungsDatum: e.target.value })}
                   className="w-full border rounded px-2 py-1 text-sm mt-1"
                   data-testid="assets-draft-datum"
@@ -847,6 +848,7 @@ export default function AssetsPage() {
                 <input
                   type="date"
                   value={disposeForm.verkauftAm}
+                  max={new Date().toISOString().slice(0, 10)}
                   onChange={(e) => setDisposeForm({ ...disposeForm, verkauftAm: e.target.value })}
                   className="w-full border rounded px-2 py-1 text-sm mt-1"
                   data-testid="assets-dispose-date"

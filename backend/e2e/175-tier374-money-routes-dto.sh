@@ -29,7 +29,7 @@ login
 MUELLER="b9799545-956b-40db-8fcd-769b2d429aa9"
 TODAY="$(date +%Y-%m-%d)"
 # A day no other spec books on, so the close/reopen below is ours alone.
-DAY="2031-03-17"
+DAY="2021-03-17"   # Tier 516: a day in the past (the Kassenbuch takes no future day)
 sql() { docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "$1" 2>/dev/null | tr -d ' '; }
 
 new_invoice() { # label → echoes id (gross 119)
@@ -139,7 +139,7 @@ COUNT_BEFORE=$(entry_count)
 api_post "$ENTRIES" '{"businessDate":"abc","type":"einnahme","description":"e2e-175","amount":10}';                 assert_status 400 "cashbook entry: businessDate abc (was 500)"
 api_post "$ENTRIES" "{\"businessDate\":\"$DAY\",\"type\":\"einnahme\",\"description\":\"e2e-175\",\"amount\":10,\"vatRate\":19}"; assert_status 400 "cashbook entry: vatRate 19 (was 500)"
 api_post "$ENTRIES" "{\"businessDate\":\"$DAY\",\"type\":\"einnahme\",\"description\":\"e2e-175\",\"amount\":1000000000000}"; assert_status 400 "cashbook entry: amount 1e12 (was 500)"
-api_post "$ENTRIES" "{\"businessDate\":\"2031-02-30\",\"type\":\"einnahme\",\"description\":\"e2e-175\",\"amount\":10}"; assert_status 400 "cashbook entry: 30 February"
+api_post "$ENTRIES" "{\"businessDate\":\"2021-02-30\",\"type\":\"einnahme\",\"description\":\"e2e-175\",\"amount\":10}"; assert_status 400 "cashbook entry: 30 February"
 assert_eq "entries on $DAY after invalid posts" "$(entry_count)" "$COUNT_BEFORE"
 
 api_post "/api/v1/cashbook/close-day?companyId=$COMPANY_ID" '{"date":"abc","physicalCount":0}';                   assert_status 400 "close-day: date abc (was 500)"

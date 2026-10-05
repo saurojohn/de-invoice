@@ -2,6 +2,7 @@ import { Injectable, BadRequestException, NotFoundException, Logger } from '@nes
 import { PrismaService } from '../../prisma/prisma.service';
 import { createHash } from 'crypto';
 import { PaymentService } from '../invoice/payment.service';
+import { assertNotFuture } from '../../common/business-date';
 
 // Tier 194 — GoBD § 146 AO integrity hash for the
 // Tagesabschluss. We sign over a stable, sorted
@@ -366,6 +367,9 @@ export class KassenbuchService {
     if (data.amount <= 0) {
       throw new BadRequestException('Betrag muss > 0 sein')
     }
+    // Tier 516: the Kassenbuch records what happened (§ 146 Abs. 1 AO: cash
+    // receipts and payments daily) — not a day that has not come.
+    assertNotFuture(data.businessDate, 'Das Buchungsdatum')
     await this.assertDaysOpen(companyId, [data.businessDate])
     // Normalise the date to midnight UTC so the DB @db.Date
     // column gets a clean value.
@@ -585,6 +589,7 @@ export class KassenbuchService {
    * the till. The differenz is `physicalCount − endbestand`.
    */
   async closeDay(companyId: string, businessDate: Date, physicalCount: number, closedById?: string, differenzNote?: string) {
+    assertNotFuture(businessDate, 'Der Tag des Kassenabschlusses')
     const bd = new Date(businessDate)
     bd.setUTCHours(0, 0, 0, 0)
     // Already closed? Refuse — the user has to delete

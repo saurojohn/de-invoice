@@ -2580,6 +2580,21 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### The Kassenbuch and the Anlagenverzeichnis take no day in the future (Tier 516)
+
+Left by Tier 515 (spec 301, 12 assertions fail on the old code): the
+Kassenbuch booked an opening balance and a receipt in 2030 (§ 146 Abs. 1 AO —
+a day that has not come has no cash movement; the future row also blocked
+closing today), and the Anlagenverzeichnis took an acquisition and a sale in
+2030.
+
+- `KassenbuchService.createEntry` / `closeDay` and `AssetsService.create` /
+  `update` / `dispose`: `assertNotFuture`. The cashbook and assets pages' date
+  inputs have `max` = today.
+- Fixtures: spec 175's "day of its own" and spec 183's entry moved from 2031
+  to 2021; spec 109's sale on 01.01.2027 is written to the row (the API
+  refuses it until then).
+
 ### Nothing has happened on a date in the future (Tier 515)
 
 Tier 514 refused a customer payment dated after today; the other dates

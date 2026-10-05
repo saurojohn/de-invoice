@@ -181,13 +181,10 @@ note "=== 7. Dispose Maschine on 2027-01-01 — drops from 2027+ bilanz ==="
 # Dispose AFTER the 2026 year-end snapshot so the
 # Maschine is still in the 2026 pool (4800) but
 # excluded from 2027 onwards.
-curl -sS -X POST "$API/api/v1/assets/${ASSET_ID}/dispose?companyId=$COMPANY_ID" \
-  -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-  -H "Content-Type: application/json" \
-  -d "{
-    \"verkauftAm\":\"2027-01-01T00:00:00Z\",
-    \"verkaufsPreis\":4000
-  }" >/dev/null
+# Tier 516: a sale in the future is refused by the API — the day "has come"
+# here by writing the row.
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -qc \
+  "update \"Asset\" set \"verkauftAm\"='2027-01-01', \"verkaufsPreis\"=4000 where id='${ASSET_ID}'" >/dev/null
 
 # After disposal on Dec 31, the asset is still in
 # the pool for the snapshot (Buchwert = 4800
