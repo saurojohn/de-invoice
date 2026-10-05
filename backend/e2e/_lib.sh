@@ -312,17 +312,32 @@ datev_balance() { # FILE ACCOUNT
 # and Postgres answered "too many clients", so no backend could start.
 # TERM first (node stops its engine), KILL only what is still there, then
 # remove engines of this checkout that no longer have a parent.
+# Tier 510: only a process of THIS checkout. It killed whatever listened on
+# :3001 — on a developer machine that can be another project's server (it
+# was: a `next start -p 3001` of a different repository).
+own_backend_pids() {
+  local root pid cwd
+  root="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/.." && pwd)"
+  for pid in $(lsof -ti:3001 2>/dev/null || true); do
+    cwd=$(lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | tail -1)
+    case "$cwd" in
+      "$root"|"$root"/*) echo "$pid" ;;
+      *) echo "kill_backend: :3001 is held by pid $pid (cwd ${cwd:-?}) — not this checkout's backend, left alone" >&2 ;;
+    esac
+  done
+}
 kill_backend() {
   local pids
-  pids=$(lsof -ti:3001 2>/dev/null || true)
+  pids=$(own_backend_pids 2>/dev/null)
+  own_backend_pids >/dev/null   # report a foreign listener once
   if [ -n "$pids" ]; then
     # shellcheck disable=SC2086
     kill $pids 2>/dev/null || true
     for _ in 1 2 3 4 5 6 7 8 9 10; do
-      lsof -ti:3001 >/dev/null 2>&1 || break
+      [ -z "$(own_backend_pids 2>/dev/null)" ] && break
       sleep 0.5
     done
-    pids=$(lsof -ti:3001 2>/dev/null || true)
+    pids=$(own_backend_pids 2>/dev/null)
     # shellcheck disable=SC2086
     [ -n "$pids" ] && kill -9 $pids 2>/dev/null || true
   fi

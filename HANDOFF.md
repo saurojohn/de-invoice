@@ -2575,6 +2575,29 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### A Mahnungspause holds manual and bulk reminders too (Tier 510)
+
+A Mahnungspause (Tier 64) is set when dunning must stop — a dispute, an
+agreed delay. `findOverdueInvoices` (the list, the automatic run) respected
+it; the send paths did not (spec 296, 6 assertions fail on the old code):
+"Mahnung senden" on the invoice page and `POST /reminders/bulk-send` dunned a
+paused invoice and a paused customer's invoice, with fees.
+
+- `reminder/pause-hold.ts` (`activePause`, `pauseHoldMessage`): the active
+  pause on the invoice or its customer (not a pause an installment plan set
+  — Tier 500). `sendOne` refuses it: manual 400 naming the pause and its
+  reason, bulk a "failed" row; ending the pause frees the invoice.
+
+**Local test stack and port 3001.** `kill_backend` (e2e/_lib.sh) killed
+whatever listened on :3001. On 05.10.2026 that was another project's server
+on this machine (`next start -p 3001`). It now kills only a process whose
+working directory is this checkout's backend (`own_backend_pids`) and
+reports a foreign listener. While :3001 is taken by something else, the
+local full suites cannot run (`local-ci-stack.sh` refuses, by design) — run
+single specs against `PORT=3011 bash scripts/start-backend.sh` with
+`API=http://localhost:3011`, and let CI run the suites. Tier 510 was verified
+that way: spec 296 and the reminder specs locally, both suites on CI.
+
 ### The Jahresüberschuss is not counted twice in the equity (Tier 509)
 
 The Bilanz showed the whole equity as one Saldoposten (Aktiva − sonstige
