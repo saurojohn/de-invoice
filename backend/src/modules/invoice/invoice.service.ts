@@ -24,7 +24,8 @@ import { ExchangeRateService } from '../exchange-rate/exchange-rate.service';
 import { nextInvoiceNumber, releaseInvoiceNumber } from './invoice-number';
 import { ModuleRef } from '@nestjs/core';
 import { igLVatIdProblem } from './ust-behandlung-detector';
-import { businessDayIso, businessToday, businessTodayIso, dayStart } from '../../common/business-date';
+import { businessDayIso, businessToday, businessTodayDate, businessTodayIso, dayStart } from '../../common/business-date';
+import { CLAIM_TYPES } from './document-scope';
 import { PaymentService } from './payment.service';
 import { ADVANCE_SETTLEMENT_METHOD, advanceReceived, advanceDeductionFor } from './advance';
 import { servicePeriodOf } from './service-period';
@@ -50,6 +51,7 @@ function vatRateOf(item: { vatRate?: number | null }): number {
 }
 
 export type InvoiceType = 'INV' | 'CN' | 'PI' | 'RCV';
+const INVOICE_TYPES: readonly string[] = ['INV', 'CN', 'PI', 'RCV'];
 
 export interface StockWarning {
   productId: string;
@@ -406,6 +408,15 @@ export class InvoiceService {
   async create(companyId: string, dto: CreateInvoiceDto) {
     try {
     const type = (dto.type as InvoiceType) || 'INV';
+    // Tier 511: only a known document type. "FOO" was stored as it came —
+    // numbered as an INV and then in no report (they all filter by type).
+    if (!INVOICE_TYPES.includes(type)) {
+      throw new BadRequestException(`Unbekannter Belegtyp „${dto.type}" — erlaubt sind ${INVOICE_TYPES.join(', ')}.`);
+    }
+    // Tier 511: a credit note corrects an invoice (§ 31 Abs. 5 UStDV). The
+    // form's credit note took any reference or none: −119 € of revenue with
+    // no invoice behind it.
+    const creditedInvoice = type === 'CN' ? await this.creditableInvoice(companyId, dto.referenceInvoiceId) : null;
     // Tier 480 / 487: no VAT for a Kleinunternehmer (§ 19), an igL, § 13b.
     dto = await this.withoutVatWhereNoneIsCharged(companyId, dto);
 
@@ -445,14 +456,8 @@ export class InvoiceService {
 
     // For Credit Notes, copy customer info from reference invoice if not provided
     let customerId = dto.customerId;
-    if (type === 'CN' && dto.referenceInvoiceId && !customerId) {
-      const refInvoice = await this.prisma.invoice.findFirst({
-        where: { id: dto.referenceInvoiceId, companyId },
-      });
-      if (refInvoice) {
-        customerId = refInvoice.customerId;
-      }
-    }
+    // Tier 511: a credit note goes to the customer of its invoice.
+    if (creditedInvoice) customerId = creditedInvoice.customerId;
 
     // Tier 28: load the customer once so we can
     // (a) snapshot the customerName onto the
@@ -516,6 +521,7 @@ export class InvoiceService {
     );
     const { subtotal, discountAmount, totalVat, total } = amounts;
     assertPositiveTotal(total);
+    if (creditedInvoice) await this.assertCreditable(creditedInvoice, total);
 
     // For Credit Notes, total / subtotal / totalVat are all negative
     // — the line items already get negated below. Apply the same sign
@@ -651,7 +657,7 @@ export class InvoiceService {
       invoice = await this.prisma.invoice.create({
       data: {
         companyId,
-        customerId,
+        customerId: customer.id,
         invoiceNumber,
         // Tier 174: stamp the sequence metadata so
         // DATEV Buchungsliste / reports can reconstruct
@@ -1381,6 +1387,12 @@ export class InvoiceService {
     const issuing = before.status === 'draft' && status !== 'draft' && status !== 'cancelled'
     // Tier 494: an invoice is issued only with its mandatory details. A credit
     // note is created issued, from an invoice that had them.
+    // Tier 511: a draft credit note is issued — against an issued invoice,
+    // within what it has left to credit, and settled against it below.
+    const creditedOriginal = issuing && before.type === 'CN'
+      ? await this.creditableInvoice(companyId, before.referenceInvoiceId)
+      : null
+    if (creditedOriginal) await this.assertCreditable(creditedOriginal, Number(before.total), before.id)
     if (issuing && before.type !== 'CN') {
       // Tier 499: also a draft saved with a total of 0 or below before then.
       assertPositiveTotal(Number(before.total));
@@ -1401,6 +1413,14 @@ export class InvoiceService {
     if (advance) {
       try {
         await this.settleAdvance(before, companyId, advance)
+      } catch (e) {
+        await this.prisma.invoice.update({ where: { id }, data: { status: before.status } })
+        throw e
+      }
+    }
+    if (creditedOriginal) {
+      try {
+        await this.settleIssuedCreditNote(before, creditedOriginal, companyId)
       } catch (e) {
         await this.prisma.invoice.update({ where: { id }, data: { status: before.status } })
         throw e
@@ -1519,6 +1539,81 @@ export class InvoiceService {
    * |CN|) >= total. The Mahnung service excludes
    * such over-cleared invoices from its next run.
    */
+  /**
+   * Tier 511 — the invoice a credit note from the invoice form corrects: of
+   * this company, an INV / RCV, issued and not cancelled. (POST
+   * /invoices/:id/credit-note has its own, stricter path.)
+   */
+  private async creditableInvoice(companyId: string, referenceInvoiceId?: string | null) {
+    if (!referenceInvoiceId) {
+      throw new BadRequestException('Eine Gutschrift braucht die Rechnung, die sie berichtigt (Bezugsrechnung).');
+    }
+    const original = await this.prisma.invoice.findFirst({
+      where: { id: referenceInvoiceId, companyId },
+      include: { payments: { select: { amount: true } } },
+    });
+    if (!original) throw new BadRequestException('Bezugsrechnung nicht gefunden.');
+    if (!CLAIM_TYPES.includes(original.type)) {
+      throw new BadRequestException('Eine Gutschrift bezieht sich auf eine Rechnung (INV / RCV), nicht auf eine Gutschrift oder Proforma-Rechnung.');
+    }
+    if (original.status === 'draft' || original.status === 'cancelled') {
+      throw new BadRequestException('Die Bezugsrechnung ist ein Entwurf oder storniert — eine Gutschrift gibt es nur zu einer ausgestellten Rechnung.');
+    }
+    return original;
+  }
+
+  /** Tier 511: not more than the invoice has left to credit (other credit notes counted; Tier 416). */
+  private async assertCreditable(original: { id: string; total: unknown }, amount: number, exceptCreditNoteId?: string) {
+    const prior = await this.prisma.invoice.aggregate({
+      where: {
+        referenceInvoiceId: original.id, type: 'CN', status: { not: 'cancelled' },
+        ...(exceptCreditNoteId ? { id: { not: exceptCreditNoteId } } : {}),
+      },
+      _sum: { total: true },
+    });
+    const remaining = Math.abs(Number(original.total)) - Math.abs(Number(prior._sum.total ?? 0));
+    if (Math.abs(amount) > remaining + 0.005) {
+      throw new BadRequestException(
+        `Die Gutschrift (${Math.abs(amount).toFixed(2)} €) übersteigt den noch nicht gutgeschriebenen Betrag der Rechnung (${Math.max(remaining, 0).toFixed(2)} €).`,
+      );
+    }
+  }
+
+  /**
+   * Tier 511 — a draft credit note (from the invoice form) is issued: settle
+   * it against its invoice as createCreditNote does — a 'Gutschrift' payment
+   * capped at what is open, the invoice paid when that covers it, the rest
+   * as customer credit. It was only a status change: the invoice stayed open
+   * in full although its revenue was taken back.
+   */
+  private async settleIssuedCreditNote(
+    cn: { id: string; invoiceNumber: string; total: unknown },
+    original: { id: string; customerId: string; invoiceNumber: string; total: unknown; status: string; payments: Array<{ amount: unknown }> },
+    companyId: string,
+  ) {
+    const paid = original.payments.reduce((s, p) => s + Number(p.amount ?? 0), 0);
+    const open = Math.max(0, Number(original.total) - paid);
+    const cnAmount = Math.abs(Number(cn.total));
+    const synthetic = Math.round(Math.min(cnAmount, open) * 100) / 100;
+    await this.prisma.payment.create({
+      data: {
+        invoiceId: original.id,
+        amount: synthetic,
+        paymentDate: businessTodayDate(),
+        paymentMethod: 'Gutschrift',
+        reference: `CN ${cn.invoiceNumber}`,
+        notes: `Auto-verrechnet aus Gutschrift ${cn.invoiceNumber}`,
+      },
+    });
+    if (paid + synthetic >= Number(original.total) - 0.005 && original.status !== 'paid') {
+      await this.updateStatus(original.id, companyId, 'paid');
+    }
+    const overage = Math.round((cnAmount - synthetic) * 100) / 100;
+    if (overage > 0.005) {
+      await this.creditBalance.recordGutschriftOverage(companyId, original.customerId, cn.id, overage, original.invoiceNumber);
+    }
+  }
+
   async createCreditNote(
     originalId: string,
     companyId: string,

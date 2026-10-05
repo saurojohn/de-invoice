@@ -60,11 +60,16 @@ assert_eq "B's third" "$B3" "INV-2026-000003"
 assert_eq "A's second is 2, not 5 — no gap from B's three invoices" "$A2" "INV-2026-000002"
 
 note "=== 2. credit notes get their own series, also per company ==="
+# Tier 511: a credit note corrects an issued invoice — each company's first
+# one, marked issued here (a fixture shortcut; issuing needs the company's
+# and the customer's address, which this spec is not about).
+REF_A=$(sql "UPDATE \"Invoice\" SET status='sent' WHERE \"companyId\"='$CA' AND \"invoiceNumber\"='INV-2026-000001' RETURNING id;" | head -1)
+REF_B=$(sql "UPDATE \"Invoice\" SET status='sent' WHERE \"companyId\"='$CB' AND \"invoiceNumber\"='INV-2026-000001' RETURNING id;" | head -1)
 AS "$UA" "$CA" POST "/api/v1/invoices?companyId=$CA" \
-  "{\"customerId\":\"$KA\",\"type\":\"CN\",\"issueDate\":\"2026-09-01\",\"items\":[$ITEM]}"
+  "{\"type\":\"CN\",\"referenceInvoiceId\":\"$REF_A\",\"issueDate\":\"2026-09-01\",\"items\":[$ITEM]}"
 CN_A=$(json_field "$BODY" invoiceNumber)
 AS "$UB" "$CB" POST "/api/v1/invoices?companyId=$CB" \
-  "{\"customerId\":\"$KB\",\"type\":\"CN\",\"issueDate\":\"2026-09-01\",\"items\":[$ITEM]}"
+  "{\"type\":\"CN\",\"referenceInvoiceId\":\"$REF_B\",\"issueDate\":\"2026-09-01\",\"items\":[$ITEM]}"
 CN_B=$(json_field "$BODY" invoiceNumber)
 assert_eq "A's first credit note" "$CN_A" "CN-2026-000001"
 assert_eq "B's first credit note (was 2)" "$CN_B" "CN-2026-000001"

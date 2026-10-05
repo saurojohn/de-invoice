@@ -52,8 +52,11 @@ export class InvoiceItemDto {
 }
 
 export class CreateInvoiceDto {
+  // Tier 511: optional — a credit note (type CN) takes the customer of the
+  // invoice it corrects; every other type is refused without one (service).
   @IsString()
-  customerId!: string;
+  @IsOptional()
+  customerId?: string;
   
   @IsDateString()
   issueDate!: string;

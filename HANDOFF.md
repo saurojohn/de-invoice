@@ -2576,6 +2576,39 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### The invoice form's credit note, and unknown document types (Tier 511)
+
+`POST /invoices` takes a `type`. Measured (spec 297, 7 assertions fail on
+the old code):
+
+- "FOO" was stored as it came — numbered as an INV and then in no report
+  (they all filter by type);
+- type CN — the create form's credit note, as opposed to the "Gutschrift"
+  button's `POST /invoices/:id/credit-note` — took no reference at all, or a
+  draft, and any amount: −119 € of revenue with no invoice behind it (§ 31
+  Abs. 5 UStDV);
+- issuing such a draft was only a status change: its invoice stayed open in
+  full although the revenue was taken back.
+
+Now:
+
+- `create`: the type must be INV / RCV / PI / CN. A CN needs
+  `referenceInvoiceId` — an INV / RCV of the company, issued and not
+  cancelled (`creditableInvoice`) —, takes that invoice's customer (the
+  DTO's `customerId` is optional now; other types still get "Kunde ist
+  erforderlich"), and may not exceed what the invoice has left to credit
+  (`assertCreditable`, other credit notes counted).
+- `updateStatus` (issuing a draft CN): the same checks again, then
+  `settleIssuedCreditNote` — a 'Gutschrift' payment capped at what is open,
+  the invoice paid when that covers it, the rest as customer credit — as
+  createCreditNote does.
+- Spec 193 (numbering) refers its credit notes to an issued invoice.
+
+Local verification: single specs on PORT=3011 (see Tier 510). 43 backend
+specs hard-code `http://localhost:3001` instead of `$API`; with another
+server on that port they fail locally for that reason alone (11, 81, 82 in
+this run) — CI is unaffected.
+
 ### A Mahnungspause holds manual and bulk reminders too (Tier 510)
 
 A Mahnungspause (Tier 64) is set when dunning must stop — a dispute, an
