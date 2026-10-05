@@ -16,6 +16,7 @@
  * path with VAT recovery.
  */
 
+import { assertIban } from '../../common/iban';
 import { withCheckedVatId } from '../../common/vat-id'
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -74,6 +75,7 @@ export class SupplierService {
   async create(companyId: string, data: any) {
     if (!data.name) throw new BadRequestException('Name ist erforderlich');
     data = withCheckedVatId(data); // Tier 490
+    assertIban(data.bankInfo?.iban); // Tier 527 — the IBAN the SEPA transfer goes to
     if (!data.address) data.address = {};
     const created = await this.prisma.supplier.create({
       data: {
@@ -122,6 +124,7 @@ export class SupplierService {
     const existing = await this.prisma.supplier.findFirst({ where: { id, companyId } });
     if (!existing) throw new NotFoundException('Lieferant nicht gefunden');
     data = withCheckedVatId(data); // Tier 490
+    assertIban(data.bankInfo?.iban); // Tier 527 — the IBAN the SEPA transfer goes to
     const updated = await this.prisma.supplier.update({
       where: { id },
       data: {

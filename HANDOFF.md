@@ -2589,6 +2589,28 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### What every invoice prints can be what it claims to be (Tier 527)
+
+Measured (spec 312, 14 assertions fail before), `PUT /companies/:id`: the
+IBAN took "DE00 1234" and a German IBAN with a wrong check digit — it is
+printed on every invoice and goes into the GiroCode, the XRechnung / ZUGFeRD
+payment means and the SEPA files; the Steuernummer took "abc" (§ 14 Abs. 4
+Nr. 2 UStG); the name took "   " (issuing was then refused for a missing
+name). A supplier's IBAN — where the SEPA transfer goes — took a wrong check
+digit (the DTO only asked for 15–34 characters).
+
+- `common/iban.ts` `ibanProblem` / `assertIban` (MOD 97-10; 22 characters for
+  a German one; spaces allowed, stored as entered): `CompanyService.update`,
+  `SupplierService.create` / `update`. SEPA mandates and batch IBANs were
+  checked already (Tier 380, `fints.service.ts`).
+- `CompanyService.update`: the Steuernummer is 10–13 digits with `/` or
+  spaces; the name is not blank and is trimmed. Empty IBAN / Steuernummer
+  stay allowed (the mandatory-details check at issue asks for one of
+  Steuernummer / USt-IdNr.).
+
+Not checked: the Steuernummer against a Bundesland's format, the BIC against
+the IBAN.
+
 ### A Mahnung needs an overdue invoice, and the levels only go up (Tier 526)
 
 Measured (spec 311, 12 assertions fail before): an invoice issued today and
