@@ -14,6 +14,7 @@ import { KzEntry, ustvaKennzahlen } from './ust-kennzahlen';
 import { privateCarUse } from '../company-car/private-use';
 import { nonDeductibleGiftIds } from '../accounting/gifts';
 import { assertNotFuture } from '../../common/business-date';
+import { assertExpenseAmounts } from '../expense/amounts';
 
 /**
  * UStVA — Umsatzsteuervoranmeldung
@@ -1100,6 +1101,8 @@ export class UstvaService {
       const sup = await this.prisma.supplier.findFirst({ where: { id: supplierId, companyId } });
       if (!sup) throw new BadRequestException('Lieferant nicht gefunden');
     }
+    // Tier 523
+    assertExpenseAmounts({ net: Number(data.netAmount), vat: Number(data.vatAmount), gross: Number(data.grossAmount), rate: Number(data.vatRate) });
     // Tier 489: the same supplier invoice twice is refused (409)
     await assertNoDuplicateExpense(this.prisma, companyId, supplierId, data.invoiceNumber, Number(data.grossAmount) < 0, data.confirmDuplicate === true);
     return this.prisma.expense.create({

@@ -2580,6 +2580,27 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### The three amounts of an expense belong together (Tier 523)
+
+Measured (spec 308, 13 assertions fail before): net 100 + VAT 19 with gross
+500 was stored — the EÜR and the UStVA read net and VAT, the payment and the
+Kreditor the gross; net 100 at 19 % with 90 € VAT was stored and the 90 € went
+into the Vorsteuer; 19 € VAT at 0 % too. On `POST /ustva/expenses`,
+`POST /expenses`, the edit and the CSV import.
+
+- `expense/amounts.ts` `expenseAmountsError` / `assertExpenseAmounts`:
+  gross = net + VAT (to the cent); the VAT is not more than the rate yields on
+  the net (+2 %, at least 10 cents, for a bill that rounds per line); net and
+  VAT have the same sign.
+- **Less** VAT stays allowed: a reverse-charge or Kleinunternehmer bill has
+  none (specs 206, 212, 267 enter those at "19 %, 0 €"), and a part that is
+  not deductible is entered as cost.
+- The edit checks only when an amount is changed (a row from before stays
+  editable otherwise); the import reports the row instead of importing it.
+
+Local: every backend spec singly — 294 pass, none refused by this rule (13
+fail on the reused database / the missing frontend, as before).
+
 ### A new Ratenplan after the old one; none on a draft (Tier 522)
 
 Measured (probe before the change; spec 307 afterwards — the old code cannot

@@ -23,6 +23,7 @@ import { signedExpenseAmounts } from './credit-note'
 import { expenseLockReason } from './expense-lock'
 import type { UpdateExpenseDto } from './dto/expense.dto'
 import { assertNotFuture } from '../../common/business-date'
+import { assertExpenseAmounts } from './amounts'
 
 const round = (n: number, places: number) => Math.round(n * 10 ** places) / 10 ** places
 const sameDecimal = (a: unknown, b: number) => round(Number(a), 4) === round(b, 4)
@@ -81,6 +82,10 @@ export async function updateExpense(
   const gross = data.grossAmount ??
     (baseChanged || data.vatAmount !== undefined ? round(net + vat, 4) : Math.abs(Number(exp.grossAmount)))
   const signed = signedExpenseAmounts(creditNote, { net, vat, gross })
+  // Tier 523 — only when an amount is being changed (a row from before stays editable otherwise).
+  if (baseChanged || data.vatAmount !== undefined || data.grossAmount !== undefined) {
+    assertExpenseAmounts({ ...signed, rate })
+  }
   set('vatRate', rate, !sameDecimal(exp.vatRate, rate))
   set('netAmount', signed.net.toFixed(4), !sameDecimal(exp.netAmount, signed.net))
   set('vatAmount', signed.vat.toFixed(4), !sameDecimal(exp.vatAmount, signed.vat))

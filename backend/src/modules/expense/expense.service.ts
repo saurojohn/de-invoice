@@ -21,6 +21,7 @@ import { expenseLockReasons } from './expense-lock';
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { assertNotFuture } from '../../common/business-date';
+import { assertExpenseAmounts, expenseAmountsError } from './amounts';
 
 @Injectable()
 export class ExpenseService {
@@ -128,6 +129,7 @@ export class ExpenseService {
       vat: Number(data.vatAmount ?? 0),
       gross: Number(data.grossAmount ?? Number(data.netAmount ?? 0) + Number(data.vatAmount ?? 0)),
     });
+    assertExpenseAmounts({ net, vat, gross, rate: Number(data.vatRate ?? 0) }); // Tier 523
     return this.prisma.expense.create({
       data: {
         companyId,
@@ -304,6 +306,12 @@ export class ExpenseService {
               : Math.round((netAmount + vatAmount) * 10000) / 10000,
         }).gross
 
+        // Tier 523: amounts that do not belong together — reported, not imported.
+        const amountsError = expenseAmountsError({ net: netAmount, vat: vatAmount, gross: grossAmount, rate: Number(vatRate) })
+        if (amountsError) {
+          result.errors.push({ row: rowNum, error: amountsError, description })
+          continue
+        }
         // Tier 489: a bill entered before (same supplier, same number) is
         // not imported again — the row is reported instead.
         const dup = await findDuplicateExpense(this.prisma, companyId, supplierId, row.invoiceNumber, netAmount < 0)
