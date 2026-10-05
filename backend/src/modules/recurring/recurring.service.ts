@@ -115,6 +115,9 @@ export function deriveRecurringStatus(
   return 'active'
 }
 
+/** Tier 521 — a run that billed nothing for a reason that is no error (paused, ended, not due). */
+export class RecurringSkip extends BadRequestException {}
+
 /** Tier 518 — a template that ends before it starts never runs; say so instead of storing it. */
 function assertEndNotBeforeStart(start: Date | string, end: Date | string | null | undefined): void {
   if (!end) return
@@ -886,15 +889,16 @@ export class RecurringService {
             recurringInvoiceId: templateId,
             companyId,
             trigger: options.trigger,
-            periodStart: tpl.nextRunAt,
-            periodEnd: tpl.nextRunAt,
+            // Tier 521: the moment of the skip, not the period — see below.
+            periodStart: now,
+            periodEnd: now,
             status: 'skipped',
             errorMessage: 'endDate in past — auto-disabled',
           },
         })
         // Return a sentinel object — the outer code
         // inspects it and throws after the tx commits.
-        return { __skipped: true, skipRunId: skipRun.id } as any
+        return { __skipped: 'ended', skipRunId: skipRun.id } as any
       }
       // Tier 153: time-bounded pause. The template
       // is technically isActive=true but the user
@@ -912,13 +916,19 @@ export class RecurringService {
             recurringInvoiceId: templateId,
             companyId,
             trigger: options.trigger,
-            periodStart: tpl.nextRunAt,
-            periodEnd: tpl.nextRunAt,
+            // Tier 521: a skipped run was stored under the period it did not
+            // bill. (recurringInvoiceId, periodStart) is unique — a second
+            // "Jetzt generieren" on the paused template answered 500, and
+            // once the pause was over the period could never be billed
+            // ("Already ran for period … (race)", every morning). The row
+            // records the moment of the skip.
+            periodStart: now,
+            periodEnd: now,
             status: 'skipped',
             errorMessage: `paused until ${tpl.pausedUntil.toISOString().slice(0, 10)}`,
           },
         })
-        return { __skipped: true, skipRunId: skipRun.id } as any
+        return { __skipped: 'paused', pausedUntil: new Date(tpl.pausedUntil), skipRunId: skipRun.id } as any
       }
 
       // Load items + customer for the invoice.
@@ -1144,16 +1154,19 @@ export class RecurringService {
 
       return { invoiceId: invoice.id, runId: run.id, periodStart, periodEnd }
     }).then((result: any) => {
+      // Tier 521: each skip says what it was — a paused template answered
+      // "End date reached; auto-disabled".
+      const day = (d: Date) => d.toISOString().slice(0, 10).split('-').reverse().join('.')
       if (result && result.__notDue) {
-        throw new BadRequestException(
-          `Periods of the pause skipped (paused); next run ${result.nextRunAt.toISOString().slice(0, 10)}.`,
+        throw new RecurringSkip(
+          `Die Perioden der Pause werden nicht nachberechnet; nächste Ausführung am ${day(result.nextRunAt)}.`,
         )
       }
-      // Handle the skip sentinel from inside the tx.
+      if (result && result.__skipped === 'paused') {
+        throw new RecurringSkip(`Die Vorlage ist bis ${day(result.pausedUntil)} pausiert.`)
+      }
       if (result && result.__skipped) {
-        throw new BadRequestException(
-          `End date reached; auto-disabled. Run ${result.skipRunId} logged.`,
-        )
+        throw new RecurringSkip('Das Enddatum ist erreicht — die Vorlage wurde deaktiviert.')
       }
       return result
     })
@@ -1240,7 +1253,9 @@ export class RecurringService {
         }
       } catch (e: any) {
         const msg = e?.message || String(e)
-        const result: 'failed' | 'skipped' = msg.includes('endDate') || msg.includes('paused') ? 'skipped' : 'failed'
+        // Tier 521: by what was thrown, not by words in the message ("End date
+        // reached" contained neither and counted as failed).
+        const result: 'failed' | 'skipped' = e instanceof RecurringSkip ? 'skipped' : 'failed'
         results.push({ templateId: t.id, result, error: msg })
         // Record the failed run for visibility
         try {

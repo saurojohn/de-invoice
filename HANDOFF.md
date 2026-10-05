@@ -2580,6 +2580,35 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### A skipped run does not take the period it did not bill (Tier 521)
+
+Found with the unique keys of the schema (after Tier 517). `RecurringRun` is
+unique on `(recurringInvoiceId, periodStart)`, and a *skipped* run (paused,
+or past the end date) was stored under the period it did not bill. Measured
+(spec 306, 10 assertions fail before), a monthly template paused until 2099,
+"Jetzt generieren":
+
+- 400 "End date reached; auto-disabled" — it is paused, not ended;
+- a second click: **500** (P2002);
+- the pause lifted, the same period run: 400 "Already ran for period … (race)"
+  — the skipped row held the period, so it was never billed; the scheduler
+  would have failed on it every morning. The subscription had stopped.
+
+Now: a skipped row records the moment of the skip (`periodStart = now`, as
+the scheduler's own failure rows always did); `RecurringSkip` (a
+BadRequestException) says what happened — "Die Vorlage ist bis 01.01.2099
+pausiert.", "Das Enddatum ist erreicht — die Vorlage wurde deaktiviert.",
+Tier 519's "Die Perioden der Pause werden nicht nachberechnet; nächste
+Ausführung am …" — and `runDueTemplates` counts a skip by that class, not by
+words in the message ("End date reached" contained neither word it looked
+for and counted as failed).
+
+The other unique keys without a company (session / link tokens,
+`Invoice.voucherRefId`, `CashBookEntry.paymentId` / `reversesId`,
+`InstallmentPlan.invoiceId`, `SepaDirectDebitCollection.invoiceId`,
+`PaymentNotice.paymentId`, `UserSigningKey.userId`) each hang on a row that
+belongs to one company.
+
 ### The stock follows the issued invoice, and only its own company's (Tier 520)
 
 The inventory had never been looked at together with the invoice. Measured
