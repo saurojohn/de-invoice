@@ -150,7 +150,7 @@ assert_eq "plan openAmount after partial pay" "$RP_OPEN2" "400"
 echo
 note "=== 5. PDF renders Skonto + Ratenplan ==="
 PDF_PATH="/tmp/tier56-stmt.pdf"
-curl -s "http://localhost:3001/api/v1/customers/$CUST_ID/statement.pdf?companyId=$COMPANY_ID&from=2026-01-01&to=2026-12-31" \
+curl -s "$API/api/v1/customers/$CUST_ID/statement.pdf?companyId=$COMPANY_ID&from=2026-01-01&to=2026-12-31" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
   -o "$PDF_PATH"
 [[ -s "$PDF_PATH" ]] || (echo "FATAL: PDF is empty" && exit 1)

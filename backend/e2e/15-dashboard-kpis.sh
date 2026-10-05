@@ -112,7 +112,7 @@ assert_eq "month label format" "$MONTH_FMT" "ok"
 
 # Test 8: missing companyId → 400
 HTTP=$(curl -sS -o /dev/null -w "%{http_code}" \
-  "http://localhost:3001/api/v1/reports/dashboard" \
+  "$API/api/v1/reports/dashboard" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID")
 assert_eq "missing companyId rejected" "$HTTP" "400"
 

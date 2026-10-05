@@ -2577,6 +2577,24 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### The backend suite runs on any port (Tier 512)
+
+43 backend specs hard-coded `http://localhost:3001` (153 places) instead of
+`$API`, and `local-ci-stack.sh`, `run-all.sh`, `start-backend.sh` and
+`kill_backend` knew only :3001. With another program on that port (another
+project's server, Tier 510) the suite could not run locally, and single
+specs sent part of their requests to that other server.
+
+- Specs: the hard-coded URLs are `$API` (the `HOST` defaults fall back to
+  `$API`, then :3001).
+- `BACKEND_PORT` (default 3001 — CI unchanged): `local-ci-stack.sh` sets
+  `API` from it and guards that port, `start-backend.sh` takes it as PORT,
+  `run-all.sh` probes `$API`, `kill_backend` looks at that port. The
+  Playwright part still needs :3001 (the frontend build and its specs
+  address it) and says so.
+- Verified: `BACKEND_PORT=3011 bash scripts/local-ci-stack.sh run` —
+  296 / 0 / 1 with a foreign server on :3001, which stayed up.
+
 ### The invoice form's credit note, and unknown document types (Tier 511)
 
 `POST /invoices` takes a `type`. Measured (spec 297, 7 assertions fail on

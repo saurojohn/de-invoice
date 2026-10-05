@@ -61,7 +61,7 @@ INSERT INTO "Mahnung" (id, "companyId", "invoiceId", level, "daysOverdue",
 VALUES ('$mahn_id', '$COMPANY_ID', '$inv_id', 'first', 30,
   '2026-07-15', 5.00, 2.50, 119.00, 'test@example.com', 'Test Customer', now());
 SQL
-  curl -s "http://localhost:3001/api/v1/reminders/mahnungen/$mahn_id/pdf?companyId=$COMPANY_ID" \
+  curl -s "$API/api/v1/reminders/mahnungen/$mahn_id/pdf?companyId=$COMPANY_ID" \
     -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
     -o "/tmp/tier55-mahnung-$mahn_id.pdf"
   python3 -c "

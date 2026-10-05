@@ -118,7 +118,7 @@ UPLOAD_RES=$(curl -sS -X POST -w "\n%{http_code}" \
   -F "entityType=voucher" \
   -F "entityId=$VCH_ID" \
   -F "uploadedById=$USER_ID" \
-  "http://localhost:3001/api/v1/attachments")
+  "$API/api/v1/attachments")
 STATUS=$(echo "$UPLOAD_RES" | tail -n1)
 BODY=$(echo "$UPLOAD_RES" | sed '$d')
 assert_status "201" "POST /attachments (voucher)"
@@ -135,7 +135,7 @@ assert_eq "Attachment row with entityType=voucher exists" "$ROW_COUNT" "1"
 
 # ===== 2) GET /api/v1/attachments?entityType=voucher =====
 LIST_BODY=$(curl -sS -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-  "http://localhost:3001/api/v1/attachments?companyId=$COMPANY_ID&entityType=voucher&entityId=$VCH_ID")
+  "$API/api/v1/attachments?companyId=$COMPANY_ID&entityType=voucher&entityId=$VCH_ID")
 LIST_COUNT=$(echo "$LIST_BODY" | python3 -c "
 import json, sys
 d = json.load(sys.stdin)
@@ -145,7 +145,7 @@ assert_eq "GET /attachments (voucher) list count" "$LIST_COUNT" "1"
 
 # ===== 3) Bundle includes the Voucher attachment =====
 curl -sS -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-  "http://localhost:3001/api/v1/reports/datev-export-bundle?companyId=$COMPANY_ID&startDate=2026-01-01&endDate=2026-12-31" \
+  "$API/api/v1/reports/datev-export-bundle?companyId=$COMPANY_ID&startDate=2026-01-01&endDate=2026-12-31" \
   -o /tmp/bundle-vch.zip
 
 # The bundle includes the voucher attachment as
@@ -198,7 +198,7 @@ assert_eq "index.json has voucher attachment entry" "$IDX_HAS_VCH" "True"
 # ===== 5) Delete the attachment, bundle updates =====
 DEL_STATUS=$(curl -sS -X DELETE -o /dev/null -w "%{http_code}" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-  "http://localhost:3001/api/v1/attachments/$ATT_ID?companyId=$COMPANY_ID")
+  "$API/api/v1/attachments/$ATT_ID?companyId=$COMPANY_ID")
 assert_eq "DELETE /attachment (voucher) returns 200" "$DEL_STATUS" "200"
 
 # Verify the Attachment row is gone
@@ -208,7 +208,7 @@ assert_eq "deleted Attachment row gone" "$ROW_COUNT" "0"
 
 # Re-fetch the bundle — the Voucher attachment should be missing now
 curl -sS -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-  "http://localhost:3001/api/v1/reports/datev-export-bundle?companyId=$COMPANY_ID&startDate=2026-01-01&endDate=2026-12-31" \
+  "$API/api/v1/reports/datev-export-bundle?companyId=$COMPANY_ID&startDate=2026-01-01&endDate=2026-12-31" \
   -o /tmp/bundle-vch2.zip
 COUNT_PRESENT=$(unzip -l /tmp/bundle-vch2.zip 2>/dev/null | grep -F -c "Belegbilder/${VCH_NO}__")
 assert_eq "bundle no longer has voucher attachment" "$COUNT_PRESENT" "0"

@@ -39,7 +39,7 @@ cd "$SCRIPT_DIR/.."
 # pointed at a throwaway database via PG_CONTAINER. Only set when the
 # caller already exported it, so the .env default still applies normally.
 if [ -n "${DATABASE_URL:-}" ]; then export DATABASE_URL; fi
-export PORT="${PORT:-3001}"
+export PORT="${PORT:-${BACKEND_PORT:-3001}}"   # Tier 512: BACKEND_PORT (local-ci-stack.sh)
 # Default FRONTEND_URL allows both common dev ports:
 #   - 3000 (SH Leder Website / default Next.js dev)
 #   - 3100 (de-invoice Playwright test runner — see

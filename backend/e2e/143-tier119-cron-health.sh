@@ -171,7 +171,7 @@ test "$OLD_COUNT" = "1" && pass "old row exists (10d ago)" \
 api_get "/api/v1/admin/cron-health/clean" -X POST 2>&1 || true
 # Actually need a POST
 CLEAN_RESP=$(curl -sS -X POST -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-  "http://localhost:3001/api/v1/admin/cron-health/clean")
+  "$API/api/v1/admin/cron-health/clean")
 note "clean response: $CLEAN_RESP"
 
 OLD_AFTER=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \

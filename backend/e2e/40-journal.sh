@@ -85,7 +85,7 @@ docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice < /tmp/t40_seed.
 RAW=$(curl -sS -D /tmp/t40_hdr1.txt -o /tmp/t40_pdf1.pdf \
   -H "x-user-id: $USER_ID" \
   -H "x-company-id: $COMPANY_ID" \
-  "http://localhost:3001/api/v1/accounting/journal/pdf?companyId=$COMPANY_ID&dateFrom=2027-01-15&dateTo=2027-01-25")
+  "$API/api/v1/accounting/journal/pdf?companyId=$COMPANY_ID&dateFrom=2027-01-15&dateTo=2027-01-25")
 HTTP_CODE=$(head -1 /tmp/t40_hdr1.txt | grep -oE "[0-9]{3}")
 assert_eq "1. PDF HTTP 200" "$HTTP_CODE" "200"
 
@@ -112,7 +112,7 @@ assert_eq "4c. total credit = 250.00" "$CREDIT" "250.00"
 RAW=$(curl -sS -D /tmp/t40_hdr5.txt -o /tmp/t40_pdf5.pdf \
   -H "x-user-id: $USER_ID" \
   -H "x-company-id: $COMPANY_ID" \
-  "http://localhost:3001/api/v1/accounting/journal/pdf?companyId=$COMPANY_ID&voucherNumber=E2E-JOURNAL-001")
+  "$API/api/v1/accounting/journal/pdf?companyId=$COMPANY_ID&voucherNumber=E2E-JOURNAL-001")
 COUNT5=$(grep -i "^x-journal-count:" /tmp/t40_hdr5.txt | tr -d '\r' | awk '{print $2}')
 assert_eq "5. single-voucher filter count=1" "$COUNT5" "1"
 
@@ -127,28 +127,28 @@ assert_eq "5. single-voucher filter count=1" "$COUNT5" "1"
 HTTP_CODE=$(curl -sS -o /dev/null -w "%{http_code}" \
   -H "x-user-id: $USER_ID" \
   -H "x-company-id: $COMPANY_ID" \
-  "http://localhost:3001/api/v1/accounting/journal/pdf?dateFrom=2026-06-01&dateTo=2026-06-30")
+  "$API/api/v1/accounting/journal/pdf?dateFrom=2026-06-01&dateTo=2026-06-30")
 assert_eq "6. missing companyId → 400" "$HTTP_CODE" "400"
 
 # ===== 7. Missing date range AND no voucherNumber → 400 =====
 HTTP_CODE=$(curl -sS -o /dev/null -w "%{http_code}" \
   -H "x-user-id: $USER_ID" \
   -H "x-company-id: $COMPANY_ID" \
-  "http://localhost:3001/api/v1/accounting/journal/pdf?companyId=$COMPANY_ID")
+  "$API/api/v1/accounting/journal/pdf?companyId=$COMPANY_ID")
 assert_eq "7. missing date range + no voucherNumber → 400" "$HTTP_CODE" "400"
 
 # ===== 8. Invalid date format → 400 =====
 HTTP_CODE=$(curl -sS -o /dev/null -w "%{http_code}" \
   -H "x-user-id: $USER_ID" \
   -H "x-company-id: $COMPANY_ID" \
-  "http://localhost:3001/api/v1/accounting/journal/pdf?companyId=$COMPANY_ID&dateFrom=foo&dateTo=bar")
+  "$API/api/v1/accounting/journal/pdf?companyId=$COMPANY_ID&dateFrom=foo&dateTo=bar")
 assert_eq "8. invalid date format → 400" "$HTTP_CODE" "400"
 
 # ===== 9. dateFrom > dateTo → 400 =====
 HTTP_CODE=$(curl -sS -o /dev/null -w "%{http_code}" \
   -H "x-user-id: $USER_ID" \
   -H "x-company-id: $COMPANY_ID" \
-  "http://localhost:3001/api/v1/accounting/journal/pdf?companyId=$COMPANY_ID&dateFrom=2026-12-01&dateTo=2026-01-01")
+  "$API/api/v1/accounting/journal/pdf?companyId=$COMPANY_ID&dateFrom=2026-12-01&dateTo=2026-01-01")
 assert_eq "9. dateFrom > dateTo → 400" "$HTTP_CODE" "400"
 
 # ===== 10. PDF body contains the voucher number =====

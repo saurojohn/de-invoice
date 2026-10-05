@@ -154,7 +154,7 @@ docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
 # ----- Fetch the DATEV export -----
 curl -sS -D /tmp/datev-t5-headers.txt \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-  "http://localhost:3001/api/v1/reports/datev-export?companyId=$COMPANY_ID&startDate=2026-01-01&endDate=2026-12-31" \
+  "$API/api/v1/reports/datev-export?companyId=$COMPANY_ID&startDate=2026-01-01&endDate=2026-12-31" \
   -o /tmp/datev-t5.csv
 
 # ===== 5a: Buchungslauf-ID + filename + EB-Werte =====

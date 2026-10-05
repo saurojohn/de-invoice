@@ -105,7 +105,7 @@ test "$COUNT" = "2" && pass "success filter returns 2 rows" \
 note "=== 6. status=bogus → 400 ==="
 HTTP_STATUS=$(curl -sS -o /tmp/t147-bad.json -w "%{http_code}" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-  "http://localhost:3001/api/v1/admin/cron-health/$CRON_NAME/history?status=bogus")
+  "$API/api/v1/admin/cron-health/$CRON_NAME/history?status=bogus")
 test "$HTTP_STATUS" = "400" && pass "bad status returns 400" \
   || fail "bad status returned $HTTP_STATUS (expected 400)"
 

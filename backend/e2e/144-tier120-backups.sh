@@ -49,7 +49,7 @@ test -n "$(echo "$BODY" | python3 -c "import json,sys;d=json.load(sys.stdin);pri
 note "=== 1. POST /admin/backups/run ==="
 note "(this may take 30-60s while pg_dump runs)"
 RUN_RESP=$(curl -sS -w "\n%{http_code}" -X POST -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-  "http://localhost:3001/api/v1/admin/backups/run")
+  "$API/api/v1/admin/backups/run")
 RUN_STATUS=$(echo "$RUN_RESP" | tail -n1)
 RUN_BODY=$(echo "$RUN_RESP" | sed '$d')
 test "$RUN_STATUS" = "200" && pass "POST /admin/backups/run: HTTP 200" \
@@ -137,7 +137,7 @@ note "=== 3. POST /admin/backups/$NEW_ID/verify ==="
 # This is slow (docker cp + pg_restore --list inside the container).
 # Allow up to 60s.
 VERIFY_RESP=$(curl -sS --max-time 90 -X POST -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-  "http://localhost:3001/api/v1/admin/backups/$NEW_ID/verify")
+  "$API/api/v1/admin/backups/$NEW_ID/verify")
 note "verify response: $VERIFY_RESP"
 VERIFY_VALID=$(echo "$VERIFY_RESP" | python3 -c "import json,sys;print(json.load(sys.stdin).get('valid',False))")
 VERIFY_TABLES=$(echo "$VERIFY_RESP" | python3 -c "import json,sys;print(json.load(sys.stdin).get('tableCount',0))")

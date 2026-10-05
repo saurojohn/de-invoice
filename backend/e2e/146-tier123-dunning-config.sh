@@ -94,7 +94,7 @@ HTTP_STATUS=$(curl -sS -o /tmp/t146-bad.json -w "%{http_code}" -X PUT \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
   -H "Content-Type: application/json" \
   -d '{"level1Days":10,"level2Days":5,"level3Days":14,"level1Fee":0,"level2Fee":5,"level3Fee":10}' \
-  "http://localhost:3001/api/v1/reminders/dunning-config?companyId=$COMPANY_ID")
+  "$API/api/v1/reminders/dunning-config?companyId=$COMPANY_ID")
 test "$HTTP_STATUS" = "400" && pass "non-monotonic returns 400" \
   || fail "non-monotonic returned $HTTP_STATUS (expected 400)"
 ERR=$(python3 -c "import json;d=json.load(open('/tmp/t146-bad.json'));print(d.get('message',''))")
@@ -107,7 +107,7 @@ HTTP_STATUS=$(curl -sS -o /tmp/t146-negfee.json -w "%{http_code}" -X PUT \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
   -H "Content-Type: application/json" \
   -d '{"level1Days":1,"level2Days":7,"level3Days":14,"level1Fee":-1,"level2Fee":5,"level3Fee":10}' \
-  "http://localhost:3001/api/v1/reminders/dunning-config?companyId=$COMPANY_ID")
+  "$API/api/v1/reminders/dunning-config?companyId=$COMPANY_ID")
 test "$HTTP_STATUS" = "400" && pass "negative fee returns 400" \
   || fail "negative fee returned $HTTP_STATUS (expected 400)"
 ERR=$(python3 -c "import json;d=json.load(open('/tmp/t146-negfee.json'));print(d.get('message',''))")

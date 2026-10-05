@@ -136,7 +136,7 @@ docker exec -e PGPASSWORD=de_invoice_pass "$PG_CONTAINER" psql -U de_invoice -d 
   WHERE id = '$COMPANY_ID';" >/dev/null 2>&1
 
 curl -sS -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-  "http://localhost:3001/api/v1/reports/datev-export-bundle?companyId=$COMPANY_ID&startDate=2026-01-01&endDate=2026-12-31" \
+  "$API/api/v1/reports/datev-export-bundle?companyId=$COMPANY_ID&startDate=2026-01-01&endDate=2026-12-31" \
   -D /tmp/bundle-hdr.txt -o /tmp/bundle.zip
 
 # HTTP 200
@@ -270,11 +270,11 @@ fi
 rm -f "$PDF_ABS_PATH"
 
 curl -sS -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-  "http://localhost:3001/api/v1/reports/datev-export-bundle?companyId=$COMPANY_ID&startDate=2026-01-01&endDate=2026-12-31" \
+  "$API/api/v1/reports/datev-export-bundle?companyId=$COMPANY_ID&startDate=2026-01-01&endDate=2026-12-31" \
   -o /tmp/bundle2.zip
 
 STATUS=$(curl -sS -o /dev/null -w "%{http_code}" -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-  "http://localhost:3001/api/v1/reports/datev-export-bundle?companyId=$COMPANY_ID&startDate=2026-01-01&endDate=2026-12-31")
+  "$API/api/v1/reports/datev-export-bundle?companyId=$COMPANY_ID&startDate=2026-01-01&endDate=2026-12-31")
 assert_eq "missing PDF: HTTP 200 (no error)" "$STATUS" "200"
 
 # CSV still has the invoice

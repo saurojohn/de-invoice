@@ -129,7 +129,7 @@ note "=== 5. CSV export with ?entities=Invoice ==="
 # body.
 HEAD_RESP=$(curl -sS -o /tmp/t145-export.csv -w "HTTP_STATUS=%{http_code}\nCONTENT_TYPE=%{content_type}\nSIZE=%{size_download}" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-  "http://localhost:3001/api/v1/audit-logs/export.csv?companyId=$COMPANY_ID&entities=Invoice")
+  "$API/api/v1/audit-logs/export.csv?companyId=$COMPANY_ID&entities=Invoice")
 echo "$HEAD_RESP" | grep -q "HTTP_STATUS=200" && pass "export.csv: HTTP 200" \
   || fail "export.csv failed: $HEAD_RESP"
 echo "$HEAD_RESP" | grep -q "text/csv" && pass "export.csv: text/csv content type" \

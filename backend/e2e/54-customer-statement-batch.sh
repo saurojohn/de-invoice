@@ -64,7 +64,7 @@ pass "Tier20-* customers available: $EXISTING"
 note "Fetching batch ZIP for June 2026..."
 HTTP=$(curl -s -o "$TMP_ZIP" -w "%{http_code}|%{content_type}" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-  "http://localhost:3001/api/v1/customers/statements-batch?companyId=$COMPANY_ID&from=2026-06-01&to=2026-06-30")
+  "$API/api/v1/customers/statements-batch?companyId=$COMPANY_ID&from=2026-06-01&to=2026-06-30")
 HTTP_CODE="${HTTP%%|*}"
 HTTP_TYPE="${HTTP##*|}"
 assert_eq "batch endpoint returns 200" "$HTTP_CODE" "200"
@@ -184,28 +184,28 @@ assert_eq "first PDF contains Kontoauszug + (Anfangsbestand or empty-state)" "$P
 # ── Test 9: error cases ──
 HTTP_400=$(curl -s -o /dev/null -w "%{http_code}" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-  "http://localhost:3001/api/v1/customers/statements-batch?companyId=$COMPANY_ID")
+  "$API/api/v1/customers/statements-batch?companyId=$COMPANY_ID")
 assert_eq "missing from/to returns 400" "$HTTP_400" "400"
 
 HTTP_400B=$(curl -s -o /dev/null -w "%{http_code}" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-  "http://localhost:3001/api/v1/customers/statements-batch?companyId=$COMPANY_ID&from=2026-06-30&to=2026-06-01")
+  "$API/api/v1/customers/statements-batch?companyId=$COMPANY_ID&from=2026-06-30&to=2026-06-01")
 assert_eq "from > to returns 400" "$HTTP_400B" "400"
 
 HTTP_400C=$(curl -s -o /dev/null -w "%{http_code}" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-  "http://localhost:3001/api/v1/customers/statements-batch?companyId=$COMPANY_ID&from=2020-01-01&to=2026-06-01")
+  "$API/api/v1/customers/statements-batch?companyId=$COMPANY_ID&from=2020-01-01&to=2026-06-01")
 assert_eq "range > 24 months returns 400" "$HTTP_400C" "400"
 
 HTTP_400D=$(curl -s -o /dev/null -w "%{http_code}" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-  "http://localhost:3001/api/v1/customers/statements-batch?companyId=$COMPANY_ID&from=2026-06-01&to=2026-06-30&order=sideways")
+  "$API/api/v1/customers/statements-batch?companyId=$COMPANY_ID&from=2026-06-01&to=2026-06-30&order=sideways")
 assert_eq "invalid order returns 400" "$HTTP_400D" "400"
 
 # ── Test 10: order=asc is accepted and produces a ZIP too ──
 HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-  "http://localhost:3001/api/v1/customers/statements-batch?companyId=$COMPANY_ID&from=2026-06-01&to=2026-06-30&order=asc")
+  "$API/api/v1/customers/statements-batch?companyId=$COMPANY_ID&from=2026-06-01&to=2026-06-30&order=asc")
 assert_eq "order=asc returns 200" "$HTTP" "200"
 
 echo ""

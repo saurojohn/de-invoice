@@ -299,7 +299,7 @@ fi
 note "Tier 14.2: real event emission"
 
 # 18. Create a real webhook for the test
-WEBHOOK_RESP=$(curl -s -X POST "http://localhost:3001/api/v1/webhooks?companyId=$COMPANY_ID" \
+WEBHOOK_RESP=$(curl -s -X POST "$API/api/v1/webhooks?companyId=$COMPANY_ID" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
   -H "Content-Type: application/json" \
   -d '{"name":"e2e-50 real","url":"https://httpbin.org/post","events":["invoice.created","payment.received","invoice.deleted"]}')
@@ -313,7 +313,7 @@ fi
 # 19. Create a customer to invoice
 # (need a customer because invoice
 # requires customerId).
-CUST_RESP=$(curl -s -X POST "http://localhost:3001/api/v1/customers?companyId=$COMPANY_ID" \
+CUST_RESP=$(curl -s -X POST "$API/api/v1/customers?companyId=$COMPANY_ID" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
   -H "Content-Type: application/json" \
   -d '{"name":"e2e-50 Test Customer","address":{"street":"Teststr 1","postalCode":"12345","city":"Berlin","country":"DE"}}')
@@ -325,7 +325,7 @@ else
 fi
 
 # 20. Create an invoice (triggers invoice.created event)
-INV_RESP=$(curl -s -X POST "http://localhost:3001/api/v1/invoices?companyId=$COMPANY_ID" \
+INV_RESP=$(curl -s -X POST "$API/api/v1/invoices?companyId=$COMPANY_ID" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
   -H "Content-Type: application/json" \
   -d "{
@@ -337,7 +337,7 @@ INV_RESP=$(curl -s -X POST "http://localhost:3001/api/v1/invoices?companyId=$COM
   }")
 INV_ID=$(echo "$INV_RESP" | python3 -c "import sys,json;print(json.load(sys.stdin).get('id',''))")
 # Tier 462: a payment needs an issued invoice
-[[ -n "$INV_ID" ]] && curl -s -o /dev/null -X PUT "http://localhost:3001/api/v1/invoices/$INV_ID/status?companyId=$COMPANY_ID" \
+[[ -n "$INV_ID" ]] && curl -s -o /dev/null -X PUT "$API/api/v1/invoices/$INV_ID/status?companyId=$COMPANY_ID" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" -H "Content-Type: application/json" -d '{"status":"sent"}'
 if [[ -n "$INV_ID" ]]; then
   pass "test invoice created: $INV_ID"
@@ -370,7 +370,7 @@ else
 fi
 
 # 24. Record a payment (triggers payment.received)
-PAY_RESP=$(curl -s -X POST "http://localhost:3001/api/v1/invoices/$INV_ID/payments?companyId=$COMPANY_ID" \
+PAY_RESP=$(curl -s -X POST "$API/api/v1/invoices/$INV_ID/payments?companyId=$COMPANY_ID" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
   -H "Content-Type: application/json" \
   -d "{\"amount\":100.00,\"paymentDate\":\"$(date -u +%Y-%m-%d)\",\"paymentMethod\":\"bank_transfer\",\"reference\":\"e2e-50 test\"}")
@@ -442,7 +442,7 @@ else
 fi
 
 # 29. Delete the invoice (triggers invoice.deleted)
-DEL_RESP=$(curl -s -X DELETE "http://localhost:3001/api/v1/invoices/$INV_ID?companyId=$COMPANY_ID" \
+DEL_RESP=$(curl -s -X DELETE "$API/api/v1/invoices/$INV_ID?companyId=$COMPANY_ID" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID")
 DEL_STATUS=$(echo "$DEL_RESP" | python3 -c "import sys,json;d=json.load(sys.stdin);print(d.get('id',''))" 2>/dev/null)
 if [[ -n "$DEL_STATUS" ]]; then
@@ -533,7 +533,7 @@ poll_for_delivery() {
 # new event types. We use httpbin.org for
 # the same reason as before — a real
 # receiver that returns 200.
-T143_RESP=$(curl -s -X POST "http://localhost:3001/api/v1/webhooks?companyId=$COMPANY_ID" \
+T143_RESP=$(curl -s -X POST "$API/api/v1/webhooks?companyId=$COMPANY_ID" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
   -H "Content-Type: application/json" \
   -d '{"name":"e2e-14.3","url":"https://httpbin.org/post","events":["customer.created","customer.updated","voucher.created","voucher.posted","voucher.reversed","company.updated"]}')
@@ -545,7 +545,7 @@ else
 fi
 
 # 34. Create a customer → customer.created
-T143_CUST=$(curl -s -X POST "http://localhost:3001/api/v1/customers?companyId=$COMPANY_ID" \
+T143_CUST=$(curl -s -X POST "$API/api/v1/customers?companyId=$COMPANY_ID" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
   -H "Content-Type: application/json" \
   -d "{\"name\":\"e2e-14.3 Cust\",\"address\":{\"city\":\"Berlin\"}}")
@@ -576,7 +576,7 @@ else
 fi
 
 # 37. Update the customer → customer.updated
-curl -s -X PUT "http://localhost:3001/api/v1/customers/$T143_CUST_ID?companyId=$COMPANY_ID" \
+curl -s -X PUT "$API/api/v1/customers/$T143_CUST_ID?companyId=$COMPANY_ID" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
   -H "Content-Type: application/json" \
   -d '{"name":"e2e-14.3 Cust Updated"}' >/dev/null
@@ -590,7 +590,7 @@ else
 fi
 
 # 38. Create a supplier → company.updated (with kind=supplier)
-T143_SUP=$(curl -s -X POST "http://localhost:3001/api/v1/suppliers?companyId=$COMPANY_ID" \
+T143_SUP=$(curl -s -X POST "$API/api/v1/suppliers?companyId=$COMPANY_ID" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
   -H "Content-Type: application/json" \
   -d '{"name":"e2e-14.3 Supplier","address":{"city":"Hamburg"}}')
@@ -610,7 +610,7 @@ else
 fi
 
 # 39. Create a voucher → voucher.created + voucher.posted
-SEED_RESP=$(curl -s "http://localhost:3001/api/v1/accounting/accounts/seed?companyId=$COMPANY_ID" \
+SEED_RESP=$(curl -s "$API/api/v1/accounting/accounts/seed?companyId=$COMPANY_ID" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID")
 ACCT_IDS=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -c \
   "SELECT id FROM \"Account\" WHERE \"companyId\" = '$COMPANY_ID' AND active = true ORDER BY \"accountNumber\" LIMIT 2;" 2>/dev/null | tr -s ' \n' ' ' | sed 's/ $//')
@@ -619,7 +619,7 @@ ACCT2=$(echo "$ACCT_IDS" | awk '{print $2}')
 if [[ -z "$ACCT1" || -z "$ACCT2" ]]; then
   fail "could not find 2 accounts for voucher creation test (have '$ACCT1' / '$ACCT2')"
 else
-  VOUCHER_RESP=$(curl -s -X POST "http://localhost:3001/api/v1/accounting/vouchers?companyId=$COMPANY_ID" \
+  VOUCHER_RESP=$(curl -s -X POST "$API/api/v1/accounting/vouchers?companyId=$COMPANY_ID" \
     -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
     -H "Content-Type: application/json" \
     -d "{
@@ -656,7 +656,7 @@ else
 
   # 40. Reverse the voucher → voucher.reversed
   if [[ -n "$VOUCHER_ID" ]]; then
-    REV_RESP=$(curl -s -X POST "http://localhost:3001/api/v1/accounting/vouchers/$VOUCHER_ID/reversal?companyId=$COMPANY_ID" \
+    REV_RESP=$(curl -s -X POST "$API/api/v1/accounting/vouchers/$VOUCHER_ID/reversal?companyId=$COMPANY_ID" \
       -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
       -H "Content-Type: application/json" \
       -d '{"reason":"e2e-14.3 test"}')
@@ -743,7 +743,7 @@ note "Tier 14.5: replay delivery"
 # replay testing. Subscribes to
 # webhook.test so the test event
 # fires.
-T145_RESP=$(curl -s -X POST "http://localhost:3001/api/v1/webhooks?companyId=$COMPANY_ID" \
+T145_RESP=$(curl -s -X POST "$API/api/v1/webhooks?companyId=$COMPANY_ID" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
   -H "Content-Type: application/json" \
   -d '{"name":"e2e-14.5","url":"https://httpbin.org/post","events":["webhook.test","invoice.created"]}')
@@ -758,7 +758,7 @@ fi
 # to webhook.test. Before Tier 359 the Test button called emit(), which
 # delivered the test event to EVERY active subscriber in the company — so
 # pressing Test on the Tier 14.5 webhook also hit this one.
-T359_SIBLING_RESP=$(curl -s -X POST "http://localhost:3001/api/v1/webhooks?companyId=$COMPANY_ID" \
+T359_SIBLING_RESP=$(curl -s -X POST "$API/api/v1/webhooks?companyId=$COMPANY_ID" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
   -H "Content-Type: application/json" \
   -d '{"name":"e2e-tier359-sibling","url":"https://httpbin.org/post","events":["webhook.test"]}')
@@ -771,7 +771,7 @@ fi
 
 # 44. Trigger a webhook.test event.
 # Wait for the delivery to land.
-T145_TRIGGER=$(curl -s -X POST "http://localhost:3001/api/v1/webhooks/$T145_WH_ID/test?companyId=$COMPANY_ID" \
+T145_TRIGGER=$(curl -s -X POST "$API/api/v1/webhooks/$T145_WH_ID/test?companyId=$COMPANY_ID" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID")
 echo "  trigger: $T145_TRIGGER"
 T359_DELIVERED=$(json_field "$T145_TRIGGER" delivered)
@@ -813,7 +813,7 @@ echo "  original: retryCount=$T145_ORIG_RETRY, eventId=$T145_ORIG_EVENT_ID"
 
 # 47. POST replay. Should return
 # 200 with a new delivery id.
-T145_REPLAY_RESP=$(curl -s -w "\n%{http_code}" -X POST "http://localhost:3001/api/v1/webhooks/deliveries/$T145_ORIG/replay?companyId=$COMPANY_ID" \
+T145_REPLAY_RESP=$(curl -s -w "\n%{http_code}" -X POST "$API/api/v1/webhooks/deliveries/$T145_ORIG/replay?companyId=$COMPANY_ID" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID")
 T145_REPLAY_STATUS=$(echo "$T145_REPLAY_RESP" | tail -n1)
 T145_REPLAY_BODY=$(echo "$T145_REPLAY_RESP" | sed '$d')
@@ -894,7 +894,7 @@ fi
 # isolation). We use a fake
 # delivery id; the service throws
 # NotFoundException with status 404.
-curl -s -w "\n%{http_code}" -X POST "http://localhost:3001/api/v1/webhooks/deliveries/00000000-0000-0000-0000-000000000000/replay?companyId=$COMPANY_ID" \
+curl -s -w "\n%{http_code}" -X POST "$API/api/v1/webhooks/deliveries/00000000-0000-0000-0000-000000000000/replay?companyId=$COMPANY_ID" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" -o /dev/null > /tmp/test-50-tmp
 T145_FAKE_STATUS=$(tail -n1 /tmp/test-50-tmp)
 if [[ "$T145_FAKE_STATUS" == "404" ]]; then

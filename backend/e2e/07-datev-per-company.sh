@@ -110,7 +110,7 @@ fi
 
 # Now fetch the DATEV export and check 9999 + 8888 are present
 curl -sS -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-  "http://localhost:3001/api/v1/reports/datev-export?companyId=$COMPANY_ID&startDate=2026-01-01&endDate=2026-12-31" -o /tmp/datev-e2e.csv
+  "$API/api/v1/reports/datev-export?companyId=$COMPANY_ID&startDate=2026-01-01&endDate=2026-12-31" -o /tmp/datev-e2e.csv
 
 if file_contains "9999" /tmp/datev-e2e.csv; then
   pass "Custom bank 9999 appears in DATEV export"
@@ -219,7 +219,7 @@ docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
 
 # Re-export DATEV
 curl -sS -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-  "http://localhost:3001/api/v1/reports/datev-export?companyId=$COMPANY_ID&startDate=2026-01-01&endDate=2026-12-31" -o /tmp/datev-e2e2.csv
+  "$API/api/v1/reports/datev-export?companyId=$COMPANY_ID&startDate=2026-01-01&endDate=2026-12-31" -o /tmp/datev-e2e2.csv
 
 # Tier 423: a bank-reconciliation voucher is NOT exported. The match also
 # records a Payment, and the export books every payment (Bank an Debitor);

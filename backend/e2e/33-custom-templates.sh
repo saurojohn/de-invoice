@@ -109,7 +109,7 @@ api_post "/api/v1/invoice-templates/$T1_ID/preview?companyId=$COMPANY_ID" ""
 PDF_PATH="/tmp/t33-preview.pdf"
 curl -sS -X POST -H "Content-Type: application/json" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-  "http://localhost:3001/api/v1/invoice-templates/$T1_ID/preview?companyId=$COMPANY_ID" \
+  "$API/api/v1/invoice-templates/$T1_ID/preview?companyId=$COMPANY_ID" \
   -o "$PDF_PATH"
 PDF_SIZE=$(stat -f%z "$PDF_PATH" 2>/dev/null || stat -c%s "$PDF_PATH" 2>/dev/null)
 # A real PDF is at least ~1KB

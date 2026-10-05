@@ -191,7 +191,7 @@ assert_eq "laufNr.2026 preserved" "$LAUF_2026" "7"
 # and prints "Lauf NNN" in header field 5. This
 # confirms the roundtrip path is wired end-to-end.
 curl -sS -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-  "http://localhost:3001/api/v1/reports/datev-export?companyId=$COMPANY_ID&startDate=2026-01-01&endDate=2026-12-31" \
+  "$API/api/v1/reports/datev-export?companyId=$COMPANY_ID&startDate=2026-01-01&endDate=2026-12-31" \
   -D /tmp/datev-roundtrip-hdr.txt -o /tmp/datev-roundtrip.csv
 LAUF_HDR=$(python3 -c "
 import sys

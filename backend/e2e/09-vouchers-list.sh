@@ -178,7 +178,7 @@ assert_eq "detail lines count" "$DETAIL_LINES" "3"
 
 # Test 11: voucher PDF endpoint
 PDF_HTTP=$(curl -sS -o /tmp/voucher-list-001.pdf -w "%{http_code}" \
-  "http://localhost:3001/api/v1/accounting/vouchers/$V1/pdf?companyId=$COMPANY_ID" \
+  "$API/api/v1/accounting/vouchers/$V1/pdf?companyId=$COMPANY_ID" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID")
 assert_eq "voucher PDF HTTP 200" "$PDF_HTTP" "200"
 PDF_SIZE=$(wc -c < /tmp/voucher-list-001.pdf)

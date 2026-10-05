@@ -13,7 +13,7 @@
 #   7. Format is byte-valid (no obviously broken values)
 
 set -uo pipefail
-HOST="${HOST:-http://localhost:3001}"
+HOST="${HOST:-${API:-http://localhost:3001}}"
 PASS=0
 FAIL=0
 # Tier 253: source _lib.sh + call login() to

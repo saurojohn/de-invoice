@@ -66,7 +66,7 @@ note "Requesting PDF..."
 PDF_FILE=$(mktemp).pdf
 HTTP=$(curl -s -o "$PDF_FILE" -w "%{http_code}|%{content_type}" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-  "http://localhost:3001/api/v1/customers/$CUSTOMER_ID/statement.pdf?companyId=$COMPANY_ID&from=2026-05-01&to=2026-05-31")
+  "$API/api/v1/customers/$CUSTOMER_ID/statement.pdf?companyId=$COMPANY_ID&from=2026-05-01&to=2026-05-31")
 HTTP_CODE="${HTTP%%|*}"
 HTTP_TYPE="${HTTP##*|}"
 assert_eq "PDF endpoint returns 200" "$HTTP_CODE" "200"
@@ -141,18 +141,18 @@ check_substr "Body has German 'Bis' or 'Zeitraum'" "Zeitraum"
 FAKE_CUST="00000000-0000-0000-0000-000000000998"
 HTTP_404=$(curl -s -o /dev/null -w "%{http_code}" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-  "http://localhost:3001/api/v1/customers/$FAKE_CUST/statement.pdf?companyId=$COMPANY_ID&from=2026-05-01&to=2026-05-31")
+  "$API/api/v1/customers/$FAKE_CUST/statement.pdf?companyId=$COMPANY_ID&from=2026-05-01&to=2026-05-31")
 assert_eq "PDF for nonexistent customer returns 404" "$HTTP_404" "404"
 
 # ── Test 8: PDF for missing from/to returns 400 ──
 HTTP_400=$(curl -s -o /dev/null -w "%{http_code}" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-  "http://localhost:3001/api/v1/customers/$CUSTOMER_ID/statement.pdf?companyId=$COMPANY_ID")
+  "$API/api/v1/customers/$CUSTOMER_ID/statement.pdf?companyId=$COMPANY_ID")
 assert_eq "PDF without from/to returns 400" "$HTTP_400" "400"
 
 # ── Test 9: Content-Disposition has attachment + .pdf extension ──
 DISPOSITION=$(curl -sI -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-  "http://localhost:3001/api/v1/customers/$CUSTOMER_ID/statement.pdf?companyId=$COMPANY_ID&from=2026-05-01&to=2026-05-31" \
+  "$API/api/v1/customers/$CUSTOMER_ID/statement.pdf?companyId=$COMPANY_ID&from=2026-05-01&to=2026-05-31" \
   | grep -i "content-disposition" | tr -d '\r')
 echo "$DISPOSITION" | grep -qi "attachment" && pass "Content-Disposition has attachment" || fail "Content-Disposition should have attachment: $DISPOSITION"
 echo "$DISPOSITION" | grep -qF ".pdf" && pass "Content-Disposition has .pdf filename" || fail "Content-Disposition should have .pdf: $DISPOSITION"

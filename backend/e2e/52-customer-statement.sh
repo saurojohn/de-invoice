@@ -277,26 +277,26 @@ assert_eq "totals aggregates match" "$TOTALS_OK" "OK"
 # ── Assertion 11: error on missing from/to
 HTTP_400=$(curl -s -o /dev/null -w "%{http_code}" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-  "http://localhost:3001/api/v1/customers/$CUSTOMER_ID/statement?companyId=$COMPANY_ID")
+  "$API/api/v1/customers/$CUSTOMER_ID/statement?companyId=$COMPANY_ID")
 assert_eq "missing from/to returns 400" "$HTTP_400" "400"
 
 # ── Assertion 12: error on from > to
 HTTP_400B=$(curl -s -o /dev/null -w "%{http_code}" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-  "http://localhost:3001/api/v1/customers/$CUSTOMER_ID/statement?companyId=$COMPANY_ID&from=2026-06-01&to=2026-05-01")
+  "$API/api/v1/customers/$CUSTOMER_ID/statement?companyId=$COMPANY_ID&from=2026-06-01&to=2026-05-01")
 assert_eq "from > to returns 400" "$HTTP_400B" "400"
 
 # ── Assertion 13: range > 24 months returns 400
 HTTP_400C=$(curl -s -o /dev/null -w "%{http_code}" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-  "http://localhost:3001/api/v1/customers/$CUSTOMER_ID/statement?companyId=$COMPANY_ID&from=2020-01-01&to=2026-06-01")
+  "$API/api/v1/customers/$CUSTOMER_ID/statement?companyId=$COMPANY_ID&from=2020-01-01&to=2026-06-01")
 assert_eq "range > 24 months returns 400" "$HTTP_400C" "400"
 
 # ── Assertion 14: cross-tenant customer returns 404
 FAKE_CUST="00000000-0000-0000-0000-000000000999"
 HTTP_404=$(curl -s -o /dev/null -w "%{http_code}" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-  "http://localhost:3001/api/v1/customers/$FAKE_CUST/statement?companyId=$COMPANY_ID&from=2026-01-01&to=2026-06-30")
+  "$API/api/v1/customers/$FAKE_CUST/statement?companyId=$COMPANY_ID&from=2026-01-01&to=2026-06-30")
 assert_eq "nonexistent customer returns 404" "$HTTP_404" "404"
 
 # ── Assertion 15: sub-range (Apr only) shows just INV2 + first payment
@@ -359,7 +359,7 @@ assert_eq "order=asc: closing balance unchanged" "$ASC_CLOSING" "88"
 # ── Assertion 17: ?order=invalid returns 400 ─────────────
 HTTP_400D=$(curl -s -o /dev/null -w "%{http_code}" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-  "http://localhost:3001/api/v1/customers/$CUSTOMER_ID/statement?companyId=$COMPANY_ID&from=2026-03-01&to=2026-06-30&order=sideways")
+  "$API/api/v1/customers/$CUSTOMER_ID/statement?companyId=$COMPANY_ID&from=2026-03-01&to=2026-06-30&order=sideways")
 assert_eq "order=sideways returns 400" "$HTTP_400D" "400"
 
 rm -f "$ASC_FILE"

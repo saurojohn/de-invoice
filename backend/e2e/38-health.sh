@@ -27,7 +27,7 @@ source "$SCRIPT_DIR/_lib.sh"
 echo "=== Test: Tier 11 /health endpoints ==="
 
 # ===== 1. /health returns 200 with the right shape =====
-RAW=$(curl -sS http://localhost:3001/api/v1/health)
+RAW=$(curl -sS $API/api/v1/health)
 STATUS=$(echo "$RAW" | python3 -c "import json,sys; print(json.load(sys.stdin)['status'])")
 assert_eq "1. /health status=ok" "$STATUS" "ok"
 
@@ -52,7 +52,7 @@ HAS_401=$(echo "$RAW" | python3 -c "import json,sys; d=json.load(sys.stdin); pri
 assert_eq "2. /health is unauthenticated (no 401)" "$HAS_401" "no"
 
 # ===== 3. /health/deep returns 200 with checks =====
-RAW=$(curl -sS http://localhost:3001/api/v1/health/deep)
+RAW=$(curl -sS $API/api/v1/health/deep)
 STATUS=$(echo "$RAW" | python3 -c "import json,sys; print(json.load(sys.stdin)['status'])")
 assert_eq "3. /health/deep status=ok" "$STATUS" "ok"
 
@@ -98,14 +98,14 @@ fi
 # stays the same, but the value comes from
 # process.env.npm_package_version so it's
 # compile-time — can't be request-controlled.)
-V1=$(curl -sS "http://localhost:3001/api/v1/health?version=hax0r" | python3 -c "import json,sys; print(json.load(sys.stdin)['version'])")
-V2=$(curl -sS "http://localhost:3001/api/v1/health" | python3 -c "import json,sys; print(json.load(sys.stdin)['version'])")
+V1=$(curl -sS "$API/api/v1/health?version=hax0r" | python3 -c "import json,sys; print(json.load(sys.stdin)['version'])")
+V2=$(curl -sS "$API/api/v1/health" | python3 -c "import json,sys; print(json.load(sys.stdin)['version'])")
 assert_eq "6. /health version is not request-controllable" "$V1" "$V2"
 
 # ===== 7. uptimeSec is monotonically non-decreasing =====
-U1=$(curl -sS http://localhost:3001/api/v1/health | python3 -c "import json,sys; print(json.load(sys.stdin)['uptimeSec'])")
+U1=$(curl -sS $API/api/v1/health | python3 -c "import json,sys; print(json.load(sys.stdin)['uptimeSec'])")
 sleep 2
-U2=$(curl -sS http://localhost:3001/api/v1/health | python3 -c "import json,sys; print(json.load(sys.stdin)['uptimeSec'])")
+U2=$(curl -sS $API/api/v1/health | python3 -c "import json,sys; print(json.load(sys.stdin)['uptimeSec'])")
 if [[ "$U2" -ge "$U1" ]]; then
   pass "7. uptimeSec non-decreasing ($U1 -> $U2)"
 else
@@ -132,10 +132,10 @@ ISO_OK=$(echo "$TS" | grep -cE "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0
 # fully parallel-safe (Prisma's connection
 # pool handles it).
 for i in 1 2 3 4 5; do
-  curl -sS -o /dev/null -w "%{http_code}\n" http://localhost:3001/api/v1/health/deep &
+  curl -sS -o /dev/null -w "%{http_code}\n" $API/api/v1/health/deep &
 done
 wait
-ALL_OK=$(curl -sS http://localhost:3001/api/v1/health/deep | python3 -c "import json,sys; d=json.load(sys.stdin); print('yes' if d['status'] == 'ok' else 'no')")
+ALL_OK=$(curl -sS $API/api/v1/health/deep | python3 -c "import json,sys; d=json.load(sys.stdin); print('yes' if d['status'] == 'ok' else 'no')")
 assert_eq "10. /health/deep still 200 after burst" "$ALL_OK" "yes"
 
 summary

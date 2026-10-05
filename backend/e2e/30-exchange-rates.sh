@@ -73,7 +73,7 @@ docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
 
 # ===== 1) Without snapshot: rates default to 1.0000 =====
 curl -sS -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-  "http://localhost:3001/api/v1/reports/datev-export?companyId=$COMPANY_ID&startDate=2026-01-01&endDate=2026-12-31" \
+  "$API/api/v1/reports/datev-export?companyId=$COMPANY_ID&startDate=2026-01-01&endDate=2026-12-31" \
   -o /tmp/csv-no-snap.csv
 
 # Tier 423: the DATEV amount is in EUR. A document without a stored EUR
@@ -104,7 +104,7 @@ docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   WHERE id = '$COMPANY_ID';" >/dev/null 2>&1
 
 curl -sS -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-  "http://localhost:3001/api/v1/reports/datev-export?companyId=$COMPANY_ID&startDate=2026-01-01&endDate=2026-12-31" \
+  "$API/api/v1/reports/datev-export?companyId=$COMPANY_ID&startDate=2026-01-01&endDate=2026-12-31" \
   -o /tmp/csv-with-snap.csv
 
 # CHF 1 190 at 0.9248 CHF per EUR = 1 286.76 EUR, on the invoice row and
@@ -126,7 +126,7 @@ assert_eq "NOK (not in snapshot): 1:1" "$(amt /tmp/csv-with-snap.csv E2E-T5D-NOK
 # the call can be cached and is RESTful.
 GET_BODY=$(curl -sS \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-  "http://localhost:3001/api/v1/exchange-rates?companyId=$COMPANY_ID")
+  "$API/api/v1/exchange-rates?companyId=$COMPANY_ID")
 GET_DATE=$(echo "$GET_BODY" | python3 -c "
 import json, sys
 d = json.load(sys.stdin)
@@ -148,7 +148,7 @@ assert_eq "GET /exchange-rates has 3 rates" "$GET_RATES_COUNT" "3"
 REFRESH_RES=$(curl -sS -X POST -H "Content-Type: application/json" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
   -d "{\"companyId\":\"$COMPANY_ID\"}" \
-  "http://localhost:3001/api/v1/exchange-rates/refresh" -w "\n%{http_code}")
+  "$API/api/v1/exchange-rates/refresh" -w "\n%{http_code}")
 REFRESH_STATUS=$(echo "$REFRESH_RES" | tail -n1)
 REFRESH_BODY=$(echo "$REFRESH_RES" | sed '$d')
 

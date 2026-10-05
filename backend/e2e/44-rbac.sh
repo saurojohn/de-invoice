@@ -64,7 +64,7 @@
 set -uo pipefail
 # Tier 355: honour PG_CONTAINER (this script does not source _lib.sh).
 PG_CONTAINER="${PG_CONTAINER:-de-invoice-postgres}"
-HOST="${HOST:-http://localhost:3001}"
+HOST="${HOST:-${API:-http://localhost:3001}}"
 PASS=0
 FAIL=0
 COMPANY_ID="ad257ec3-d319-479b-b870-3fe76e8f3111"

@@ -63,7 +63,7 @@ pass "seeded invoice: $INV_ID"
 # ───── 3. Download the PDF + extract text ─────
 # We need the binary PDF — use curl directly.
 PDF_PATH="/tmp/tier54-skonto.pdf"
-curl -s "http://localhost:3001/api/v1/invoices/$INV_ID/pdf?companyId=$COMPANY_ID" \
+curl -s "$API/api/v1/invoices/$INV_ID/pdf?companyId=$COMPANY_ID" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
   -o "$PDF_PATH"
 [[ -s "$PDF_PATH" ]] || (echo "FATAL: PDF is empty" && exit 1)
@@ -94,7 +94,7 @@ assert_status "201" "create no-Skonto invoice"
 INV2_ID=$(json_field "$BODY" id)
 
 PDF2_PATH="/tmp/tier54-noskonto.pdf"
-curl -s "http://localhost:3001/api/v1/invoices/$INV2_ID/pdf?companyId=$COMPANY_ID" \
+curl -s "$API/api/v1/invoices/$INV2_ID/pdf?companyId=$COMPANY_ID" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
   -o "$PDF2_PATH"
 PDF2_TEXT=$(python3 -c "
@@ -119,7 +119,7 @@ CN_NUM=$(json_field "$BODY" invoiceNumber)
 pass "created CN: $CN_NUM"
 
 PDF3_PATH="/tmp/tier54-cn.pdf"
-curl -s "http://localhost:3001/api/v1/invoices/$CN_ID/pdf?companyId=$COMPANY_ID" \
+curl -s "$API/api/v1/invoices/$CN_ID/pdf?companyId=$COMPANY_ID" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
   -o "$PDF3_PATH"
 PDF3_TEXT=$(python3 -c "

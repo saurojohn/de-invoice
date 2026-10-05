@@ -151,7 +151,7 @@ assert_eq "override recipient" "$RECIP_ALT" "${DIFF_EMAIL}"
 # api_post swallows non-2xx into STATUS=400, which is fine
 # for assertion but we want to verify the error is 400,
 # not 404/500)
-HTTP_BAD=$(curl -sS -o /dev/null -w "%{http_code}" -X POST "http://localhost:3001/api/v1/invoices/${INVOICE_ID}/send-email?companyId=${COMPANY_ID}" -H "Content-Type: application/json" -H "x-user-id: ${USER_ID}" -H "x-company-id: ${COMPANY_ID}" -d "{\"overrideTo\": \"not-an-email\"}")
+HTTP_BAD=$(curl -sS -o /dev/null -w "%{http_code}" -X POST "$API/api/v1/invoices/${INVOICE_ID}/send-email?companyId=${COMPANY_ID}" -H "Content-Type: application/json" -H "x-user-id: ${USER_ID}" -H "x-company-id: ${COMPANY_ID}" -d "{\"overrideTo\": \"not-an-email\"}")
 assert_eq "invalid recipient → 400" "$HTTP_BAD" "400"
 
 # 10. Resend the override-subject email
@@ -193,7 +193,7 @@ fi
 send394() { # json -> STATUS/BODY
   local resp
   resp=$(curl -sS -w "\n%{http_code}" -X POST \
-    "http://localhost:3001/api/v1/invoices/${INVOICE_ID}/send-email?companyId=${COMPANY_ID}" \
+    "$API/api/v1/invoices/${INVOICE_ID}/send-email?companyId=${COMPANY_ID}" \
     -H "Content-Type: application/json" -H "x-user-id: ${USER_ID}" -H "x-company-id: ${COMPANY_ID}" \
     -d "$1")
   STATUS=$(echo "$resp" | tail -n1); BODY=$(echo "$resp" | sed '$d')
@@ -223,7 +223,7 @@ assert_status 201 "invoice page shape: ccEmail + 2 extraCc still sends"
 # the next run starts clean. (Customer delete cascades
 # to invoices via the FK relationship in the schema.)
 if [[ -n "$CUSTOMER_ID" ]]; then
-  curl -sS -o /dev/null -X DELETE "http://localhost:3001/api/v1/customers/${CUSTOMER_ID}?companyId=${COMPANY_ID}" -H "x-user-id: ${USER_ID}" -H "x-company-id: ${COMPANY_ID}" 2>/dev/null
+  curl -sS -o /dev/null -X DELETE "$API/api/v1/customers/${CUSTOMER_ID}?companyId=${COMPANY_ID}" -H "x-user-id: ${USER_ID}" -H "x-company-id: ${COMPANY_ID}" 2>/dev/null
   pass "cleanup: deleted test customer"
 fi
 

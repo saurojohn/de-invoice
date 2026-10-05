@@ -24,10 +24,10 @@ SEGMENT_SIZE="${SEGMENT_SIZE:-20}"
 SEGMENT_SLEEP="${SEGMENT_SLEEP:-10}"
 
 # Pre-flight: check backend + db reachable
-if ! curl -sS -o /dev/null -w "%{http_code}" http://localhost:3001/api/v1/auth/login \
+if ! curl -sS -o /dev/null -w "%{http_code}" "${API:-http://localhost:3001}/api/v1/auth/login" \
      -X POST -H "Content-Type: application/json" \
      -d '{"email":"info@shleder.de","password":"Test1234!"}' 2>/dev/null | grep -q "200\|201"; then
-  echo "FATAL: backend not reachable on localhost:3001" >&2
+  echo "FATAL: backend not reachable on ${API:-http://localhost:3001}" >&2
   exit 1
 fi
 # Tier 355: honour PG_CONTAINER, same as ci-seed.sh and (since Tier 353)
@@ -110,7 +110,7 @@ for t in [0-9][0-9]-*.sh [0-9][0-9][0-9]-*.sh; do
     echo "  Sleeping ${SEGMENT_SLEEP}s for PG connection drain..."
     sleep $SEGMENT_SLEEP
     DEEP=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 1 \
-      http://localhost:3001/api/v1/health/deep 2>/dev/null)
+      "${API:-http://localhost:3001}/api/v1/health/deep" 2>/dev/null)
     if [ "$DEEP" != "200" ]; then
       echo "  FATAL: backend unhealthy at segment boundary (status: $DEEP)" >&2
       echo "  Aborting run-all to avoid corrupting the dev PG further." >&2

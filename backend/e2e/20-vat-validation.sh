@@ -72,7 +72,7 @@ login
 # We do a probe first; if it doesn't carry the
 # mock marker, restart.
 NEEDS_RESTART=0
-PROBE=$(curl -sS -X POST "http://localhost:3001/api/v1/vat-validation/check?companyId=${COMPANY_ID}" \
+PROBE=$(curl -sS -X POST "$API/api/v1/vat-validation/check?companyId=${COMPANY_ID}" \
   -H "Content-Type: application/json" \
   -H "x-user-id: ${USER_ID}" -H "x-company-id: ${COMPANY_ID}" \
   -d "{\"companyId\":\"${COMPANY_ID}\",\"entityType\":\"customer\",\"entityId\":\"00000000-0000-0000-0000-000000000001\",\"vatId\":\"DE111111110\"}" 2>&1)
@@ -138,7 +138,7 @@ if [[ "$NEEDS_RESTART" == "1" ]]; then
   for i in $(seq 1 50); do
     sleep 1
     DEEP=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 1 \
-      http://localhost:3001/api/v1/health/deep 2>/dev/null)
+      $API/api/v1/health/deep 2>/dev/null)
     if [ "$DEEP" = "200" ]; then
       break
     fi
@@ -337,7 +337,7 @@ api_post "/api/v1/customers?companyId=${COMPANY_ID}" \
 NO_VAT_CUST=$(json_field "$BODY" id)
 [[ -n "$NO_VAT_CUST" ]] || fail "could not create no-vat test customer (status=$STATUS, body=$BODY)"
 STATUS=$(curl -sS -o /tmp/r.json -w "%{http_code}" \
-  -X POST "http://localhost:3001/api/v1/customers/${NO_VAT_CUST}/verify-vat?companyId=${COMPANY_ID}" \
+  -X POST "$API/api/v1/customers/${NO_VAT_CUST}/verify-vat?companyId=${COMPANY_ID}" \
   -H "x-user-id: ${USER_ID}" -H "x-company-id: ${COMPANY_ID}")
 assert_eq "no-vat customer returns 400" "$STATUS" "400"
 MSG=$(json_field "$(cat /tmp/r.json)" message)

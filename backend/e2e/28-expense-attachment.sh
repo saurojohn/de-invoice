@@ -75,7 +75,7 @@ UPLOAD_RES=$(curl -sS -X POST -w "\n%{http_code}" \
   -F "entityType=expense" \
   -F "entityId=$EXP_ID" \
   -F "uploadedById=$USER_ID" \
-  "http://localhost:3001/api/v1/attachments")
+  "$API/api/v1/attachments")
 STATUS=$(echo "$UPLOAD_RES" | tail -n1)
 BODY=$(echo "$UPLOAD_RES" | sed '$d')
 assert_status "201" "POST /attachments"
@@ -93,7 +93,7 @@ assert_eq "Attachment row exists" "$ATT_COUNT" "1"
 
 # ===== 2) GET /api/v1/attachments lists it =====
 LIST_BODY=$(curl -sS -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-  "http://localhost:3001/api/v1/attachments?companyId=$COMPANY_ID&entityType=expense&entityId=$EXP_ID")
+  "$API/api/v1/attachments?companyId=$COMPANY_ID&entityType=expense&entityId=$EXP_ID")
 LIST_COUNT=$(echo "$LIST_BODY" | python3 -c "
 import json, sys
 d = json.load(sys.stdin)
@@ -103,7 +103,7 @@ assert_eq "GET /attachments list count" "$LIST_COUNT" "1"
 
 # ===== 3) GET the file bytes =====
 curl -sS -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-  "http://localhost:3001/api/v1/attachments/$ATT_ID/file?companyId=$COMPANY_ID" \
+  "$API/api/v1/attachments/$ATT_ID/file?companyId=$COMPANY_ID" \
   -o /tmp/e2e-att.pdf
 if head -c 5 /tmp/e2e-att.pdf | grep -q "%PDF-"; then
   pass "attachment file bytes start with %PDF- magic"
@@ -114,7 +114,7 @@ fi
 
 # ===== 4) Bundle includes the attachment =====
 curl -sS -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-  "http://localhost:3001/api/v1/reports/datev-export-bundle?companyId=$COMPANY_ID&startDate=2026-01-01&endDate=2026-12-31" \
+  "$API/api/v1/reports/datev-export-bundle?companyId=$COMPANY_ID&startDate=2026-01-01&endDate=2026-12-31" \
   -o /tmp/bundle-att.zip
 unzip -l /tmp/bundle-att.zip | grep -F "Belegbilder/${EXP_NO}__" | head -5 > /tmp/bundle-entries.txt
 if [[ -s /tmp/bundle-entries.txt ]]; then
@@ -171,7 +171,7 @@ UPLOAD_RES2=$(curl -sS -X POST -w "\n%{http_code}" \
   -F "entityType=expense" \
   -F "entityId=$EXP_ID" \
   -F "uploadedById=$USER_ID" \
-  "http://localhost:3001/api/v1/attachments")
+  "$API/api/v1/attachments")
 STATUS2=$(echo "$UPLOAD_RES2" | tail -n1)
 assert_status "201" "POST 2nd /attachments"
 ATT_ID2=$(echo "$UPLOAD_RES2" | sed '$d' | python3 -c "import json,sys; print(json.load(sys.stdin)['id'])")
@@ -179,7 +179,7 @@ rm -f "$TMPF2"
 
 # Re-fetch the bundle — should now have 2 entries
 curl -sS -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-  "http://localhost:3001/api/v1/reports/datev-export-bundle?companyId=$COMPANY_ID&startDate=2026-01-01&endDate=2026-12-31" \
+  "$API/api/v1/reports/datev-export-bundle?companyId=$COMPANY_ID&startDate=2026-01-01&endDate=2026-12-31" \
   -o /tmp/bundle-att2.zip
 COUNT_PRESENT=$(unzip -l /tmp/bundle-att2.zip 2>/dev/null | grep -F -c "Belegbilder/${EXP_NO}__")
 assert_eq "bundle has 2 attachments for same Expense" "$COUNT_PRESENT" "2"
@@ -187,7 +187,7 @@ assert_eq "bundle has 2 attachments for same Expense" "$COUNT_PRESENT" "2"
 # ===== 7) Delete an attachment, bundle updates =====
 DEL_STATUS=$(curl -sS -X DELETE -o /dev/null -w "%{http_code}" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-  "http://localhost:3001/api/v1/attachments/$ATT_ID?companyId=$COMPANY_ID")
+  "$API/api/v1/attachments/$ATT_ID?companyId=$COMPANY_ID")
 assert_eq "DELETE /attachment returns 200" "$DEL_STATUS" "200"
 
 # Verify the Attachment row is gone
@@ -198,7 +198,7 @@ assert_eq "deleted Attachment row gone" "$ROW_COUNT" "0"
 
 # Re-fetch the bundle — should have 1 entry now
 curl -sS -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-  "http://localhost:3001/api/v1/reports/datev-export-bundle?companyId=$COMPANY_ID&startDate=2026-01-01&endDate=2026-12-31" \
+  "$API/api/v1/reports/datev-export-bundle?companyId=$COMPANY_ID&startDate=2026-01-01&endDate=2026-12-31" \
   -o /tmp/bundle-att3.zip
 COUNT_PRESENT=$(unzip -l /tmp/bundle-att3.zip 2>/dev/null | grep -F -c "Belegbilder/${EXP_NO}__")
 assert_eq "bundle back to 1 attachment after delete" "$COUNT_PRESENT" "1"

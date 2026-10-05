@@ -86,7 +86,7 @@ if [[ -z "$REAL_INV_ID" ]]; then
   fail "no real invoice with paid status — cannot fetch test PDF"
 fi
 curl -sS -o "$TEMP_PDF" \
-  "http://localhost:3001/api/v1/invoices/${REAL_INV_ID}/pdf?companyId=${COMPANY_ID}" \
+  "$API/api/v1/invoices/${REAL_INV_ID}/pdf?companyId=${COMPANY_ID}" \
   -H "x-user-id: ${USER_ID}" -H "x-company-id: ${COMPANY_ID}" 2>/dev/null
 # Tier 261: verify the downloaded file is
 # actually a PDF (starts with %PDF-) — not a
@@ -99,7 +99,7 @@ ORIG_SIZE=$(wc -c < "$TEMP_PDF" | tr -d ' ')
 pass "test PDF ready (${ORIG_SIZE} bytes, md5=${ORIG_MD5:0:8}…)"
 
 # 3. Upload the PDF as an attachment.
-UPLOAD=$(curl -sS -X POST "http://localhost:3001/api/v1/attachments?companyId=${COMPANY_ID}" \
+UPLOAD=$(curl -sS -X POST "$API/api/v1/attachments?companyId=${COMPANY_ID}" \
   -H "x-user-id: ${USER_ID}" -H "x-company-id: ${COMPANY_ID}" \
   -F "file=@${TEMP_PDF};type=application/pdf" \
   -F "companyId=${COMPANY_ID}" \
@@ -133,7 +133,7 @@ assert_contains "OCR contains Rechnungsnummer-like content" "$OCR" "RECHNUNG"
 # 6. Download the file back, verify MD5 round-trip.
 DOWNLOAD="/tmp/t12-download-${UNIQ}.pdf"
 curl -sS -o "$DOWNLOAD" \
-  "http://localhost:3001/api/v1/attachments/${ATT_ID}/file?companyId=${COMPANY_ID}" \
+  "$API/api/v1/attachments/${ATT_ID}/file?companyId=${COMPANY_ID}" \
   -H "x-user-id: ${USER_ID}" -H "x-company-id: ${COMPANY_ID}"
 DOWNLOAD_MD5=$(md5 -q "$DOWNLOAD")
 if [[ "$ORIG_MD5" == "$DOWNLOAD_MD5" ]]; then
@@ -167,7 +167,7 @@ assert_contains "uploader email surfaced" "$LIST_EMAIL" "info@shleder.de"
 # verify both attachments co-exist).
 TEMP_TXT="/tmp/t12-test-${UNIQ}.txt"
 echo "Tier12 supplementary receipt text" > "$TEMP_TXT"
-curl -sS -X POST "http://localhost:3001/api/v1/attachments?companyId=${COMPANY_ID}" \
+curl -sS -X POST "$API/api/v1/attachments?companyId=${COMPANY_ID}" \
   -H "x-user-id: ${USER_ID}" -H "x-company-id: ${COMPANY_ID}" \
   -F "file=@${TEMP_TXT};type=text/plain" \
   -F "companyId=${COMPANY_ID}" \
@@ -189,7 +189,7 @@ fi
 # upload would have succeeded and the test
 # would have failed the 400 assertion.
 HTTP_BAD=$(curl -sS -o /dev/null -w "%{http_code}" -X POST \
-  "http://localhost:3001/api/v1/attachments?companyId=${COMPANY_ID}" \
+  "$API/api/v1/attachments?companyId=${COMPANY_ID}" \
   -H "x-user-id: ${USER_ID}" -H "x-company-id: ${COMPANY_ID}" \
   -F "file=@${TEMP_PDF}" \
   -F "companyId=${COMPANY_ID}" \
@@ -199,7 +199,7 @@ assert_eq "unknown entityType → 400" "$HTTP_BAD" "400"
 
 # 11. Missing companyId → 400.
 HTTP_BAD2=$(curl -sS -o /dev/null -w "%{http_code}" -X POST \
-  "http://localhost:3001/api/v1/attachments" \
+  "$API/api/v1/attachments" \
   -H "x-user-id: ${USER_ID}" -H "x-company-id: ${COMPANY_ID}" \
   -F "file=@${TEMP_PDF}" \
   -F "entityType=expense" \
@@ -218,7 +218,7 @@ assert_eq "after delete list count" "$LIST3_COUNT" "1"
 
 # 14. Download the deleted attachment → 404
 HTTP_404=$(curl -sS -o /dev/null -w "%{http_code}" \
-  "http://localhost:3001/api/v1/attachments/${ATT_ID}/file?companyId=${COMPANY_ID}" \
+  "$API/api/v1/attachments/${ATT_ID}/file?companyId=${COMPANY_ID}" \
   -H "x-user-id: ${USER_ID}" -H "x-company-id: ${COMPANY_ID}")
 assert_eq "deleted file returns 404" "$HTTP_404" "404"
 
@@ -234,7 +234,7 @@ assert_eq "deleted file returns 404" "$HTTP_404" "404"
 # behaviour (no leak). We assert the body is empty
 # (not 404 / not 500).
 FAKE_BODY=$(curl -sS \
-  "http://localhost:3001/api/v1/attachments?companyId=00000000-0000-0000-0000-000000000000&entityType=expense&entityId=${EXP_ID}" \
+  "$API/api/v1/attachments?companyId=00000000-0000-0000-0000-000000000000&entityType=expense&entityId=${EXP_ID}" \
   -H "x-user-id: ${USER_ID}" -H "x-company-id: 00000000-0000-0000-0000-000000000000")
 if echo "$FAKE_BODY" | grep -q "$EXP_ID"; then
   fail "fake companyId leaked our expense's attachments!"
@@ -244,7 +244,7 @@ fi
 
 # 16. Cleanup.
 curl -sS -o /dev/null -X DELETE \
-  "http://localhost:3001/api/v1/customers/${SUP_ID}?companyId=${COMPANY_ID}" \
+  "$API/api/v1/customers/${SUP_ID}?companyId=${COMPANY_ID}" \
   -H "x-user-id: ${USER_ID}" -H "x-company-id: ${COMPANY_ID}" 2>/dev/null || true
 rm -f "$TEMP_PDF" "$TEMP_TXT" "$DOWNLOAD"
 pass "cleanup done"

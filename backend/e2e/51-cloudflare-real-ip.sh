@@ -60,7 +60,7 @@ echo "--- Test 1: direct loopback request ---"
 RESP=$(curl -s -o /dev/null -w "%{http_code}" -m 5 \
   -H "x-user-id: $USER_ID" \
   -H "x-company-id: $COMPANY_ID" \
-  http://localhost:3001/api/v1/health)
+  $API/api/v1/health)
 assert_eq "Test 1.1 health endpoint returns 200" "200" "$RESP"
 
 # Test 2 — Request with X-Forwarded-For from loopback:
@@ -78,7 +78,7 @@ RESP=$(curl -s -o /dev/null -w "%{http_code}" -m 5 \
   -H "x-company-id: $COMPANY_ID" \
   -H "X-Forwarded-For: 1.2.3.4" \
   -H "X-Real-IP: 5.6.7.8" \
-  "http://localhost:3001/api/v1/customers?take=1&companyId=$COMPANY_ID")
+  "$API/api/v1/customers?take=1&companyId=$COMPANY_ID")
 assert_eq "Test 2.1 customers endpoint with spoofed IP returns 200" "200" "$RESP"
 
 # Test 3 — Request with X-Forwarded-For NOT from loopback:

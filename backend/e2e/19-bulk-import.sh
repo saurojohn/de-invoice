@@ -132,13 +132,13 @@ with urllib.request.urlopen(req) as r:
 PY
 }
 
-CUST_BODY=$(fetch_template "http://localhost:3001/api/v1/customers/import/template.csv?companyId=${COMPANY_ID}")
+CUST_BODY=$(fetch_template "$API/api/v1/customers/import/template.csv?companyId=${COMPANY_ID}")
 assert_contains "customer template header" "$CUST_BODY" "name;vatId;type;street;postalCode;city;country;email;phone;paymentTerms;taxExempt;tags"
 
-PROD_BODY=$(fetch_template "http://localhost:3001/api/v1/products/import/template.csv?companyId=${COMPANY_ID}")
+PROD_BODY=$(fetch_template "$API/api/v1/products/import/template.csv?companyId=${COMPANY_ID}")
 assert_contains "product template header" "$PROD_BODY" "name;sku;description;type;unit;basePrice;vatRate"
 
-EXP_BODY=$(fetch_template "http://localhost:3001/api/v1/expenses/import/template.csv?companyId=${COMPANY_ID}")
+EXP_BODY=$(fetch_template "$API/api/v1/expenses/import/template.csv?companyId=${COMPANY_ID}")
 assert_contains "expense template header" "$EXP_BODY" "description;invoiceDate;invoiceNumber;supplierName"
 
 # 7b. Customer template Content-Type check.
@@ -159,7 +159,7 @@ rows = [{'name': f'cap-test-{i}'} for i in range(5001)]
 print(json.dumps({'rows': rows}))
 " > /tmp/t13-cap.json
 HTTP_CAP=$(curl -sS -o /dev/null -w "%{http_code}" -X POST \
-  "http://localhost:3001/api/v1/customers/import?companyId=${COMPANY_ID}" \
+  "$API/api/v1/customers/import?companyId=${COMPANY_ID}" \
   -H "Content-Type: application/json" \
   -H "x-user-id: ${USER_ID}" -H "x-company-id: ${COMPANY_ID}" \
   --data @/tmp/t13-cap.json)

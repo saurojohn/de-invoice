@@ -318,11 +318,11 @@ datev_balance() { # FILE ACCOUNT
 own_backend_pids() {
   local root pid cwd
   root="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/.." && pwd)"
-  for pid in $(lsof -ti:3001 2>/dev/null || true); do
+  for pid in $(lsof -ti:"${BACKEND_PORT:-3001}" 2>/dev/null || true); do
     cwd=$(lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | tail -1)
     case "$cwd" in
       "$root"|"$root"/*) echo "$pid" ;;
-      *) echo "kill_backend: :3001 is held by pid $pid (cwd ${cwd:-?}) — not this checkout's backend, left alone" >&2 ;;
+      *) echo "kill_backend: :${BACKEND_PORT:-3001} is held by pid $pid (cwd ${cwd:-?}) — not this checkout's backend, left alone" >&2 ;;
     esac
   done
 }

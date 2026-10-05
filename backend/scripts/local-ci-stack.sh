@@ -67,7 +67,12 @@ export VIES_MOCK=1
 export EXCHANGE_RATES_MOCK=1
 export THROTTLE_DISABLED=1
 export FINTS_PIN_ENC_KEY="ci-fixture-key-do-not-use-in-prod-00000000000000000000"
-export API="http://localhost:3001"
+# Tier 512: BACKEND_PORT moves the backend (and the backend suite) off :3001
+# when another program holds it; the Playwright part needs :3001 (the
+# frontend build and its specs address that port).
+BACKEND_PORT="${BACKEND_PORT:-3001}"
+export BACKEND_PORT
+export API="http://localhost:${BACKEND_PORT}"
 # Tier 358: the backend's backup module (src/modules/backup/backup.service.ts)
 # lists and writes backups under BACKUP_ROOT, defaulting to
 # $HOME/data/backups/de-invoice — on a developer machine that is the REAL
@@ -135,7 +140,7 @@ guard_port() {
 
 stop_backend() {
   # A foreign backend is reported and left alone; `down` still cleans up the rest.
-  guard_port 3001 is_own_backend backend || return 0
+  guard_port "$BACKEND_PORT" is_own_backend backend || return 0
   local pids pid
   for sig in TERM KILL; do
     pids=""
@@ -181,6 +186,10 @@ stop_frontend() {
 }
 
 start_frontend() {
+  if [ "$BACKEND_PORT" != 3001 ]; then
+    echo "FATAL: the Playwright stack needs the backend on :3001 (frontend build + specs address it); BACKEND_PORT=$BACKEND_PORT only serves 'run' (the backend suite)." >&2
+    exit 2
+  fi
   echo "▶ frontend (CI 'Start frontend' step)"
   guard_port 3100 is_own_frontend frontend || exit 2
   stop_frontend
@@ -215,8 +224,8 @@ run_playwright() {
 }
 
 up() {
-  # Refuse before touching anything if :3001 belongs to someone else.
-  guard_port 3001 is_own_backend backend || exit 2
+  # Refuse before touching anything if the backend port belongs to someone else.
+  guard_port "$BACKEND_PORT" is_own_backend backend || exit 2
   # Tier 464: Prisma query engines orphaned by earlier kill -9 restarts keep
   # their connections open — clear them before a new database / backend.
   # shellcheck source=/dev/null

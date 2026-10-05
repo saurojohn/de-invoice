@@ -49,7 +49,7 @@ MT940_OK=$(printf '%s\n' \
 echo "$MT940_OK" > /tmp/preview-ok.mt940
 
 HTTP=$(curl -sS -o /tmp/preview-resp.json -w "%{http_code}" \
-  -X POST "http://localhost:3001/api/v1/bank-statements/preview" \
+  -X POST "$API/api/v1/bank-statements/preview" \
   -F "file=@/tmp/preview-ok.mt940" \
   -F "take=10" \
   -H "x-user-id: $USER_ID" \
@@ -90,7 +90,7 @@ assert_eq "preview closing balance (numeric)" \
 
 # Test 2: take=1 returns only 1 sample transaction
 HTTP=$(curl -sS -o /tmp/preview-t1.json -w "%{http_code}" \
-  -X POST "http://localhost:3001/api/v1/bank-statements/preview" \
+  -X POST "$API/api/v1/bank-statements/preview" \
   -F "file=@/tmp/preview-ok.mt940" \
   -F "take=1" \
   -H "x-user-id: $USER_ID" \
@@ -126,7 +126,7 @@ MT940_BAD=$(printf '%s\n' \
 echo "$MT940_BAD" > /tmp/preview-bad.mt940
 
 HTTP=$(curl -sS -o /tmp/preview-bad.json -w "%{http_code}" \
-  -X POST "http://localhost:3001/api/v1/bank-statements/preview" \
+  -X POST "$API/api/v1/bank-statements/preview" \
   -F "file=@/tmp/preview-bad.mt940" \
   -H "x-user-id: $USER_ID" \
   -H "x-company-id: $COMPANY_ID")
@@ -137,7 +137,7 @@ assert_eq "balanceCheck (mismatch)" "$BCHECK" "mismatch"
 # Test 4: empty file → 400
 echo "" > /tmp/preview-empty.mt940
 HTTP=$(curl -sS -o /tmp/preview-empty.json -w "%{http_code}" \
-  -X POST "http://localhost:3001/api/v1/bank-statements/preview" \
+  -X POST "$API/api/v1/bank-statements/preview" \
   -F "file=@/tmp/preview-empty.mt940" \
   -H "x-user-id: $USER_ID" \
   -H "x-company-id: $COMPANY_ID")
@@ -146,7 +146,7 @@ assert_eq "empty file rejected" "$HTTP" "400"
 # Test 5: garbage content → 400
 echo "this is not a bank statement" > /tmp/preview-garbage.mt940
 HTTP=$(curl -sS -o /tmp/preview-garbage.json -w "%{http_code}" \
-  -X POST "http://localhost:3001/api/v1/bank-statements/preview" \
+  -X POST "$API/api/v1/bank-statements/preview" \
   -F "file=@/tmp/preview-garbage.mt940" \
   -H "x-user-id: $USER_ID" \
   -H "x-company-id: $COMPANY_ID")

@@ -72,7 +72,7 @@ note "Seeded invoice $INV_ID"
 
 # ----- 1. Baseline: PDF without template (Helvetica only) -----
 curl -sS -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-  "http://localhost:3001/api/v1/invoices/$INV_ID/pdf?companyId=$COMPANY_ID" \
+  "$API/api/v1/invoices/$INV_ID/pdf?companyId=$COMPANY_ID" \
   -o /tmp/t34-baseline.pdf
 assert_file_size "/tmp/t34-baseline.pdf" "1. baseline PDF rendered"
 # PDFKit always embeds both Helvetica + Helvetica-Bold
@@ -90,7 +90,7 @@ assert_status 201 "2. create Times template (201)"
 
 # ----- 3. Render again — should embed Times-Bold + the red color -----
 curl -sS -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-  "http://localhost:3001/api/v1/invoices/$INV_ID/pdf?companyId=$COMPANY_ID" \
+  "$API/api/v1/invoices/$INV_ID/pdf?companyId=$COMPANY_ID" \
   -o /tmp/t34-times.pdf
 assert_file_size "/tmp/t34-times.pdf" "3. rendered PDF"
 
@@ -146,7 +146,7 @@ api_put "/api/v1/invoice-templates/$TPL_ID?companyId=$COMPANY_ID" \
 assert_status 200 "4. switch to compact density (200)"
 
 curl -sS -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-  "http://localhost:3001/api/v1/invoices/$INV_ID/pdf?companyId=$COMPANY_ID" \
+  "$API/api/v1/invoices/$INV_ID/pdf?companyId=$COMPANY_ID" \
   -o /tmp/t34-compact.pdf
 SIZE_COMPACT=$(stat -f%z /tmp/t34-compact.pdf 2>/dev/null || stat -c%s /tmp/t34-compact.pdf 2>/dev/null)
 # Compact should have at most the same
@@ -165,7 +165,7 @@ api_put "/api/v1/invoice-templates/$TPL_ID?companyId=$COMPANY_ID" \
 assert_status 200 "5. switch to Courier (200)"
 
 curl -sS -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-  "http://localhost:3001/api/v1/invoices/$INV_ID/pdf?companyId=$COMPANY_ID" \
+  "$API/api/v1/invoices/$INV_ID/pdf?companyId=$COMPANY_ID" \
   -o /tmp/t34-courier.pdf
 COURIER=$(strings /tmp/t34-courier.pdf | grep -c "/BaseFont /Courier")
 if [[ "$COURIER" -gt 0 ]]; then
@@ -179,7 +179,7 @@ api_delete "/api/v1/invoice-templates/$TPL_ID?companyId=$COMPANY_ID"
 assert_status 200 "6. delete template (200)"
 
 curl -sS -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-  "http://localhost:3001/api/v1/invoices/$INV_ID/pdf?companyId=$COMPANY_ID" \
+  "$API/api/v1/invoices/$INV_ID/pdf?companyId=$COMPANY_ID" \
   -o /tmp/t34-fallback.pdf
 TIMES_FALLBACK=$(strings /tmp/t34-fallback.pdf | grep -c "/BaseFont /Times")
 HELV_FALLBACK=$(strings /tmp/t34-fallback.pdf | grep -c "/BaseFont /Helvetica")
