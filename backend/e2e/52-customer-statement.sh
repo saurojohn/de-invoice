@@ -90,12 +90,16 @@ api_post "/api/v1/invoices?companyId=$COMPANY_ID" '{
 INV2_ID=$(echo "$BODY" | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
 INV2_TOTAL=$(echo "$BODY" | python3 -c "import sys,json; print(json.load(sys.stdin)['total'])")
 pass "invoice 2 created: € $INV2_TOTAL (2026-04-20)"
+# Tier 511: a credit note corrects an issued invoice — invoice 2.
+api_put "/api/v1/invoices/$INV2_ID/status?companyId=$COMPANY_ID" '{"status":"sent"}'
+[[ "$STATUS" == "200" ]] || { fail "issue invoice 2 failed (status=$STATUS): $BODY"; exit 1; }
 
 # Credit note: 2026-05-10, 50.00 EUR (42.0168 net + 7.9832 VAT)
 api_post "/api/v1/invoices?companyId=$COMPANY_ID" '{
   "customerId": "'$CUSTOMER_ID'",
   "issueDate": "2026-05-10T00:00:00.000Z",
   "type": "CN",
+  "referenceInvoiceId": "'$INV2_ID'",
   "items": [{
     "description": "Gutschrift",
     "quantity": 1,
