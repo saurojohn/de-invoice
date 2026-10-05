@@ -2589,6 +2589,21 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### A Mahnung needs an overdue invoice, and the levels only go up (Tier 526)
+
+Measured (spec 311, 12 assertions fail before): an invoice issued today and
+due in 30 days — "Mahnung senden" on the invoice page: 201, a
+Zahlungserinnerung with a 5 € fee e-mailed to the customer (0 days overdue).
+The cron selects by due date; `sendOne` — the invoice page's button and the
+bulk send — took any open invoice. And on an overdue invoice the "letzte
+Mahnung", then a "Zahlungserinnerung", then the "1. Mahnung" all went out.
+
+- `BulkReminderService.sendOne`: refused until the day after the due date
+  ("Die Rechnung ist noch nicht überfällig (fällig am …)"), and when a higher
+  level has already been sent ("…bereits eine Letzte Mahnung versendet — eine
+  frühere Mahnstufe kann nicht mehr folgen"). A cancelled Mahnung does not
+  count. Starting with a higher level stays the operator's choice.
+
 ### The reserved payment methods are reserved on every route (Tier 525)
 
 Left by Tier 514, which refused 'Gutschrift' / 'Guthaben' on

@@ -36,6 +36,7 @@ import {
 } from "./mahnung-pdf.service"
 import { invoicesHeldByPlan, PLAN_HOLD_MESSAGE } from "./installment-hold"
 import { activePause, pauseHoldMessage } from "./pause-hold"
+import { businessDayIso, businessTodayIso } from "../../common/business-date"
 
 const LEVEL_TITLE_FILENAME: Record<"first" | "second" | "final", string> = {
   first: "Zahlungserinnerung",
@@ -287,6 +288,43 @@ export class BulkReminderService {
         ok: false,
         status: "failed",
         error: "Rechnung hat kein Fälligkeitsdatum",
+      }
+    }
+    // Tier 526: a Mahnung needs a claim that is overdue. Measured: an invoice
+    // issued today and due in 30 days got a "Zahlungserinnerung" with a 5 €
+    // fee, e-mailed to the customer ("Mahnung senden" on the invoice page and
+    // the bulk send take any open invoice; only the cron looked at the date).
+    if (businessDayIso(dueDate) >= businessTodayIso()) {
+      const [y, m, d] = businessDayIso(dueDate).split("-")
+      return {
+        invoiceId,
+        invoiceNumber: invoice.invoiceNumber,
+        customerName: invoice.customer.name,
+        ok: false,
+        status: "failed",
+        error: `Die Rechnung ist noch nicht überfällig (fällig am ${d}.${m}.${y}) — vor Ablauf des Zahlungsziels wird nicht gemahnt.`,
+      }
+    }
+    // …and the levels only go up: after the "letzte Mahnung" no
+    // "Zahlungserinnerung" follows (measured: final, then first, then second,
+    // all on one day).
+    const ORDER = { first: 1, second: 2, final: 3 } as const
+    const sentBefore = await this.prisma.mahnung.findMany({
+      where: { invoiceId, cancelledAt: null },
+      select: { level: true },
+    })
+    const highest = sentBefore
+      .map((x) => x.level as keyof typeof ORDER)
+      .filter((l) => ORDER[l] > ORDER[level])
+      .sort((a, b) => ORDER[b] - ORDER[a])[0]
+    if (highest) {
+      return {
+        invoiceId,
+        invoiceNumber: invoice.invoiceNumber,
+        customerName: invoice.customer.name,
+        ok: false,
+        status: "failed",
+        error: `Für diese Rechnung wurde bereits eine ${LEVEL_LABEL_DE[highest]} versendet — eine frühere Mahnstufe kann nicht mehr folgen.`,
       }
     }
     const today = new Date()
