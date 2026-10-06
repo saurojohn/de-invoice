@@ -1576,6 +1576,7 @@ export class InvoiceController {
       reference: body.reference,
       notes: body.notes,
       receiptNumber: body.receiptNumber,
+      eurAmount: body.eurAmount,
     });
   }
 

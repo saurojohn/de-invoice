@@ -1031,6 +1031,9 @@ model Payment {
   invoice       Invoice  @relation(fields: [invoiceId], references: [id])
   amount        Decimal  @db.Decimal(12, 4)
   currency      String   @default("EUR")
+  // Tier 540: the EUR that arrived for a payment of a foreign-currency invoice
+  // (null: unknown — the reports then use the invoice's rate).
+  eurAmount     Decimal? @db.Decimal(12, 2)
   paymentDate   DateTime
   paymentMethod String
   reference     String?

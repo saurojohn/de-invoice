@@ -2602,6 +2602,36 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Exchange differences are booked (Tier 540)
+
+The "not covered" of Tier 505. An invoice over 1 085 USD is in the books at
+the rate of its day: 1 000 €. The customer's bank sends 990 € or 1 010 €.
+Measured (spec 325, 13 assertions fail before): the EÜR counted 1 000 €
+either way, the DATEV file booked 1 000 € on the bank, the payment kept no
+trace of what arrived.
+
+- `Payment.eurAmount` (migration `20261006000003_payment_eur_amount`): the
+  euros received for a payment of a foreign-currency invoice. Set by
+  `confirmMatch` from a EUR bank entry (all that is left of the entry when it
+  settles the invoice or is a part payment), or entered with the payment
+  (`eurAmount`; the invoice page shows "In Euro eingegangen (optional)" for a
+  foreign-currency invoice). Refused on a EUR invoice. Without it the reports
+  use the invoice's rate, as before.
+- `accounting/kursdifferenzen.ts`: per payment `eurAmount − amount at the
+  invoice's rate`. A gain is income, a loss a cost — EÜR 4190 / 5900 (and
+  `kursdifferenzen { gewinn, verlust }`), Anlage S 4190 / 4720, Anlage G
+  2190 / 2890; no line of their own on the forms.
+- DATEV: beside "Bank an Debitor" at the invoice's rate, the difference
+  "Bank an 2660" (gain) / "2150 an Bank" (loss) — the bank account shows what
+  the statement shows. Account map: `kursgewinn`, `kursverlust`.
+- No VAT moves (§ 16 Abs. 6 UStG: the rate of the supply).
+
+Not done: the GuV / Bilanz of a balance-sheet company (open foreign-currency
+receivables are not revalued at year end either); expenses in a foreign
+currency; a bank entry that settles a foreign-currency invoice within the 2 %
+tolerance counts against the entry at the invoice's rate (Tier 529), so up to
+that difference can stay "unmatched" on it.
+
 ### The Bewirtungsbeleg's occasion and participants (Tier 539)
 
 An entertainment expense is deductible (70 %, Tier 485) only with its record:

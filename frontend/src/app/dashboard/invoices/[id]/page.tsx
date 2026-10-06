@@ -202,6 +202,8 @@ export default function InvoiceDetailPage() {
     paymentMethod: "bank_transfer",
     reference: '',
     notes: '',
+    // Tier 540: the euros received for a payment of a foreign-currency invoice
+    eurAmount: '',
   })
   const [paySaving, setPaySaving] = useState(false)
 
@@ -316,6 +318,7 @@ export default function InvoiceDetailPage() {
         paymentMethod: payForm.paymentMethod,
         reference: payForm.reference || undefined,
         notes: payForm.notes || undefined,
+        eurAmount: invoice.currency && invoice.currency !== "EUR" && payForm.eurAmount ? Number(payForm.eurAmount) : undefined,
       })
       // Refresh both invoice (status may have changed) and payments
       const [inv, pmts] = await Promise.all([
@@ -325,7 +328,7 @@ export default function InvoiceDetailPage() {
       setInvoice(inv)
       setPayments(Array.isArray(pmts) ? pmts : [])
       setShowPayForm(false)
-      setPayForm({ amount: '', paymentDate: new Date().toISOString().split("T")[0], paymentMethod: "bank_transfer", reference: '', notes: '' })
+      setPayForm({ amount: '', paymentDate: new Date().toISOString().split("T")[0], paymentMethod: "bank_transfer", reference: '', notes: '', eurAmount: '' })
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : `Netzwerkfehler: ${err}`
       toast.error(msg)
@@ -2025,6 +2028,22 @@ export default function InvoiceDetailPage() {
                     placeholder={outstanding > 0 ? `Offen: ${outstanding.toFixed(2)}` : "0.00"}
                   />
                 </div>
+                {invoice.currency && invoice.currency !== "EUR" && (
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
+                      In Euro eingegangen (optional)
+                    </label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={payForm.eurAmount}
+                      onChange={(e) => setPayForm({ ...payForm, eurAmount: e.target.value })}
+                      placeholder="0.00"
+                      data-testid="payment-eur-amount"
+                      title="Der Betrag oben ist in der Währung der Rechnung. Was auf dem Euro-Konto ankam, ergibt den Kursgewinn oder -verlust."
+                    />
+                  </div>
+                )}
                 <div>
                   <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Zahldatum *</label>
                   <Input

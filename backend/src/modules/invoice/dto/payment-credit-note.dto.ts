@@ -58,6 +58,11 @@ export class CreatePaymentDto {
 
   @IsOptional() @IsString() @MaxLength(100)
   receiptNumber?: string
+
+  // Tier 540: what arrived in EUR for a payment of a foreign-currency invoice
+  @IsOptional() @IsNumber({}, { message: 'Euro-Betrag muss eine Zahl sein' })
+  @Max(DECIMAL_12_4_MAX)
+  eurAmount?: number
 }
 
 export class CreditNoteLineDto {

@@ -1,3 +1,4 @@
+import { kursdifferenzen } from './kursdifferenzen'
 import { resolveRechtsform, isKapitalgesellschaft } from '../company/rechtsform'
 import { resolveGewinnermittlung } from '../company/gewinnermittlung'
 import { euerExpenses, euerInflows, euerVat, finanzamtVat } from './euer-zufluss'
@@ -528,6 +529,10 @@ export class AnlageGService {
     if (zufluss) addTo('2195', carUse.vat)
     // Tier 504: the home office (Pauschale) — a cost in either Gewinnermittlung.
     addCost('2205', await homeOfficeDeduction(this.prisma, companyId, year))
+    // Tier 540: exchange differences (accounting/kursdifferenzen.ts)
+    const kurs = await kursdifferenzen(this.prisma, companyId, yearStart, yearEnd)
+    addTo('2190', kurs.gewinn)
+    addCost('2890', kurs.verlust)
 
     // Build the einnahmen + betriebsausgaben lines
     // in BMF order; Betriebsausgaben are negative.

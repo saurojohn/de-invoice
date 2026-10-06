@@ -1,3 +1,4 @@
+import { kursdifferenzen } from './kursdifferenzen'
 import { assetDisposals, sumRestbuchwert } from '../assets/disposals'
 import { Injectable } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
@@ -322,6 +323,10 @@ export class AnlageSService {
     einnahmenBuckets.set('4145', carUse.vat)
     // Tier 504: the home office (Pauschale, no payment behind it).
     ausgabenBuckets.set('4645', await homeOfficeDeduction(this.prisma, companyId, year))
+    // Tier 540: exchange differences (accounting/kursdifferenzen.ts)
+    const kurs = await kursdifferenzen(this.prisma, companyId, yearStart, yearEnd)
+    einnahmenBuckets.set('4190', (einnahmenBuckets.get('4190') || 0) + kurs.gewinn)
+    ausgabenBuckets.set('4720', (ausgabenBuckets.get('4720') || 0) + kurs.verlust)
     // Tier 440: book value of assets sold or scrapped (disposals.ts).
     ausgabenBuckets.set('4720', (ausgabenBuckets.get('4720') || 0) +
       sumRestbuchwert(await assetDisposals(this.prisma, companyId, yearStart, yearEnd)))

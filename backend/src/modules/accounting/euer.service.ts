@@ -1,3 +1,4 @@
+import { kursdifferenzen } from './kursdifferenzen'
 import { assetDisposals, sumRestbuchwert } from '../assets/disposals'
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -87,6 +88,8 @@ export interface EuerResult {
    * the figures above still count them at 70 %.
    */
   bewirtungOhneNachweis: { count: number; betrag: number };
+  /** Tier 540: Kursgewinne (in 4190) and Kursverluste (in 5900) on foreign-currency payments */
+  kursdifferenzen: { gewinn: number; verlust: number };
   counts: {
     /** invoices with income in the year */
     invoices: number;
@@ -355,6 +358,11 @@ export class EuerService {
     einnahmenBuckets.set('4145', carUse.vat)
     // Tier 504: the home office (Pauschale, no payment behind it).
     ausgabenBuckets.set('5410', await homeOfficeDeduction(this.prisma, companyId, year))
+    // Tier 540: exchange differences on payments of foreign-currency invoices
+    // — a gain is income, a loss a cost (no line of their own on the form).
+    const kurs = await kursdifferenzen(this.prisma, companyId, yearStart, yearEnd)
+    einnahmenBuckets.set('4190', (einnahmenBuckets.get('4190') || 0) + kurs.gewinn)
+    ausgabenBuckets.set('5900', (ausgabenBuckets.get('5900') || 0) + kurs.verlust)
 
     ausgabenBuckets.set('4600', (await bookedAfaCost(this.prisma, companyId, year)).amount)
     ausgabenBuckets.set('4610', sumRestbuchwert(await assetDisposals(this.prisma, companyId, yearStart, yearEnd)))
@@ -390,6 +398,7 @@ export class EuerService {
       prinzip: 'zufluss',
       nichtAbziehbareBewirtung: nichtAbziehbareBewirtung(expenses, revenueCtx.kleinunternehmer),
       nichtAbziehbareGeschenke: nichtAbziehbareGeschenke(allExpenses, badGifts),
+      kursdifferenzen: { gewinn: kurs.gewinn, verlust: kurs.verlust },
       bewirtungOhneNachweis: (() => {
         const open = expenses.filter((e) => bewirtungNachweisFehlt(e as any))
         return { count: open.length, betrag: Math.round(open.reduce((sum, e) => sum + Number((e as any).netAmount ?? 0), 0) * 100) / 100 }

@@ -651,6 +651,8 @@ const ACCOUNT_USAGE: [string, string][] = [
   ['privateUseVat19', 'Verwendung von Gegenständen 19 % USt'],
   ['privateUseNoVat', 'Verwendung von Gegenständen ohne USt'],
   ['homeOffice', 'Häusliches Arbeitszimmer / Homeoffice'],
+  ['kursgewinn', 'Erträge aus der Währungsumrechnung'],
+  ['kursverlust', 'Aufwendungen aus der Währungsumrechnung'],
   ['receivable', 'Forderungen (Sammelkonto)'],
   ['payable', 'Verbindlichkeiten (Sammelkonto)'],
   ['revenue19', 'Erlöse 19 %'],

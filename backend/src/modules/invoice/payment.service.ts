@@ -112,6 +112,8 @@ export class PaymentService {
       reference?: string;
       notes?: string;
       receiptNumber?: string;
+      /** Tier 540: the EUR received for a payment of a foreign-currency invoice */
+      eurAmount?: number;
     },
   ) {
     // Tier 534: one at a time per invoice
@@ -128,6 +130,8 @@ export class PaymentService {
       reference?: string;
       notes?: string;
       receiptNumber?: string;
+      /** Tier 540: the EUR received for a payment of a foreign-currency invoice */
+      eurAmount?: number;
     },
   ) {
     const invoice = await this.prisma.invoice.findFirst({
@@ -200,6 +204,16 @@ export class PaymentService {
       }
     }
 
+    let eurAmount: number | undefined
+    if (data.eurAmount !== undefined && data.eurAmount !== null) {
+      if (String(invoice.currency || 'EUR').toUpperCase() === 'EUR') {
+        throw new BadRequestException('Ein Euro-Betrag wird nur bei einer Rechnung in fremder Währung erfasst.');
+      }
+      if (!(Number(data.eurAmount) > 0)) {
+        throw new BadRequestException('Der eingegangene Euro-Betrag muss größer als 0 sein.');
+      }
+      eurAmount = Math.round(Number(data.eurAmount) * 100) / 100
+    }
     const payment = await this.prisma.payment.create({
       data: {
         invoiceId,
@@ -209,6 +223,9 @@ export class PaymentService {
         reference: data.reference,
         notes: data.notes,
         receiptNumber: data.receiptNumber,
+        // Tier 540: only for an invoice in a foreign currency — for a EUR
+        // invoice the amount is the EUR amount.
+        eurAmount: eurAmount ?? null,
       },
     });
 

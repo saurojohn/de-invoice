@@ -612,6 +612,7 @@ export class BankImportService {
     }
     const invTotal = Number(recon.invoice.total);
     let applied = Math.min(txnAmount, invTotal);
+    let eurReceived: number | undefined;
     // Tier 505: a payment's amount is in the invoice's currency (DATEV and
     // the EÜR convert it at the invoice's rate). A EUR credit on a USD
     // invoice was booked as if the euros were dollars — 1 000 € for a
@@ -625,7 +626,14 @@ export class BankImportService {
       const paidSoFar = recon.invoice.payments.reduce((s, p) => s + Number(p.amount), 0);
       const open = Math.round((invTotal - paidSoFar) * 100) / 100;
       const converted = Math.round(txnAmount * rate * 100) / 100;
-      applied = Math.abs(converted - open) <= open * 0.02 ? open : Math.min(converted, open);
+      const settles = Math.abs(converted - open) <= open * 0.02;
+      applied = settles ? open : Math.min(converted, open);
+      // Tier 540: the euros that arrived for this payment. When they settle the
+      // invoice (or are a part payment) they are all of what is left of the
+      // entry — the difference to the invoice's rate is the Kursgewinn /
+      // -verlust (accounting/kursdifferenzen.ts). When they are more than the
+      // invoice has open, only the open part at the invoice's rate is its.
+      eurReceived = settles || converted <= open ? txnAmount : Math.round((applied / rate) * 100) / 100;
     }
     if (applied <= 0) {
       throw new BadRequestException('Betrag muss größer als 0 sein');
@@ -644,6 +652,7 @@ export class BankImportService {
         reference: recon.bankTransaction.endToEndId || recon.bankTransaction.purpose || undefined,
         notes: `Auto-matched from bank statement ${recon.bankTransaction.statementId} (txn ${recon.bankTransactionId})`,
         receiptNumber: undefined,
+        eurAmount: eurReceived,
       },
     );
 

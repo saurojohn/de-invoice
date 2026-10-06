@@ -78,6 +78,9 @@ export interface DatevAccountMap {
   privateUseNoVat: string
   /** Tier 504: the home office (Pauschale) */
   homeOffice: string
+  /** Tier 540: exchange differences on payments of foreign-currency invoices */
+  kursgewinn: string
+  kursverlust: string
   receivable: string
   payable: string
   revenue19: string
@@ -120,6 +123,8 @@ export const SKR03_DEFAULTS: DatevAccountMap = {
   privateUseVat19: '8921',      // Verwendung von Gegenständen, 19 % USt (Tier 502)
   privateUseNoVat: '8924',      // Verwendung von Gegenständen, ohne USt (Tier 502)
   homeOffice: '4288',           // Aufwendungen für ein häusliches Arbeitszimmer (Tier 504)
+  kursgewinn: '2660',           // Erträge aus der Währungsumrechnung (Tier 540)
+  kursverlust: '2150',          // Aufwendungen aus der Währungsumrechnung (Tier 540)
   receivable: '1406',           // Forderungen aus L+L (the bank import's vouchers use it too)
   payable: '1600',              // Verbindlichkeiten aus L+L (Sammelkonto der Kreditoren)
   revenue19: '8400',            // Erlöse 19 % USt (Automatikkonto)
@@ -544,6 +549,28 @@ export async function buildBuchungenFromDb(
       buchungstext: `Zahlung ${p.invoice.invoiceNumber}`,
       paymentMethod: p.paymentMethod,
     })
+    // Tier 540: the payment above is at the invoice's rate (it clears the
+    // Debitor). What arrived in EUR differs — the difference goes to the bank
+    // against 2660 (gain) / 2150 (loss), so the bank account shows the
+    // amount on the statement.
+    const eurAmount = (p as { eurAmount?: unknown }).eurAmount
+    if (eurAmount != null && p.invoice.currency && p.invoice.currency !== 'EUR') {
+      const diff = r2(Number(eurAmount) - amount)
+      if (diff !== 0) {
+        const bank = p.paymentMethod === 'cash' ? a.cash : a.bank
+        out.push({
+          belegdatum: p.paymentDate,
+          belegfeld1: p.receiptNumber || p.invoice.invoiceNumber,
+          belegfeld2: p.invoice.invoiceNumber,
+          konto: diff > 0 ? bank : a.kursverlust,
+          gegenkonto: diff > 0 ? a.kursgewinn : bank,
+          betrag: Math.abs(diff),
+          shVz: 'S',
+          buchungstext: `${diff > 0 ? 'Kursgewinn' : 'Kursverlust'} ${p.invoice.invoiceNumber}`,
+          paymentMethod: p.paymentMethod,
+        })
+      }
+    }
   }
 
   // Tier 470: a payment on a Proforma is an advance payment — money in the
