@@ -143,7 +143,8 @@ note "=== 7. the production setting (static — the stack runs with the flag on)
 GUARD="$SCRIPT_DIR/../src/auth/header-auth.guard.ts"
 grep -q "legacyHeaderAuthAllowed()" "$GUARD" \
   && pass "HeaderAuthGuard gates x-user-id behind ALLOW_HEADER_AUTH" || fail "the guard accepts x-user-id unconditionally"
-grep -q "ALLOW_HEADER_AUTH !== '0'" "$SCRIPT_DIR/../src/auth/auth-mode.ts" \
+# Tier 555: the flag is read into `flag`; '0' is off, and so is production without it.
+grep -q "flag === '0'" "$SCRIPT_DIR/../src/auth/auth-mode.ts" && grep -q "NODE_ENV !== 'production'" "$SCRIPT_DIR/../src/auth/auth-mode.ts" \
   && pass "ALLOW_HEADER_AUTH=0 turns the legacy header off" || fail "auth-mode.ts does not read the flag"
 grep -q "legacyHeaderAuthAllowed()" "$SCRIPT_DIR/../src/auth/soft-auth.guard.ts" \
   && pass "SoftAuthGuard gates it too" || fail "SoftAuthGuard still trusts x-user-id"

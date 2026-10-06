@@ -1,3 +1,4 @@
+import { publicOrigin } from '../../common/public-origin'
 import { Controller, Post, Body, Get, HttpCode, HttpStatus, BadRequestException, Logger, Req, Res, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
@@ -390,10 +391,7 @@ export class AuthController {
     const result = await this.authService.createPasswordResetToken(email);
 
     if (result) {
-      const origin =
-        (req?.headers?.origin as string) ||
-        process.env.APP_ORIGIN ||
-        `http://localhost:${process.env.PORT || 3000}`;
+      const origin = publicOrigin(req); // Tier 556
       const link = `${origin.replace(/\/$/, '')}/reset-password?token=${result.tokenPlain}`;
 
       try {

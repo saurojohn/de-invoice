@@ -47,6 +47,7 @@ import {
   Req,
   Res,
 } from '@nestjs/common';
+import { publicOrigin } from '../../common/public-origin'
 import { Request, Response } from 'express';
 import { CustomerPortalService } from './customer-portal.service';
 // Tier 132: admin endpoints sit behind the auth
@@ -277,15 +278,7 @@ export class CustomerPortalController {
   }
 
   private originFromRequest(req: Request): string {
-    const proto =
-      (req.headers['x-forwarded-proto'] as string)?.split(',')[0] ||
-      (req as any).protocol ||
-      'http'
-    const host =
-      (req.headers['x-forwarded-host'] as string)?.split(',')[0] ||
-      (req.headers.host as string) ||
-      'localhost:3100'
-    return `${proto}://${host}`
+    return publicOrigin(req as any) // Tier 556: a configured address, never the request's word for it
   }
 
   private ipFromRequest(req: Request): string | undefined {

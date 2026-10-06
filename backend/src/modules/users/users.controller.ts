@@ -13,6 +13,7 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
+import { publicOrigin } from '../../common/public-origin'
 import { Response } from 'express';
 import { Throttle } from '@nestjs/throttler';
 import { UsersService } from './users.service';
@@ -147,10 +148,7 @@ export class UsersController {
 
     // Build the invite link and email it (graceful: logs to console if SMTP not configured)
     try {
-      const origin =
-        (req as any)?.headers?.origin ||
-        process.env.APP_ORIGIN ||
-        `http://localhost:${process.env.PORT || 3000}`;
+      const origin = publicOrigin(req as any); // Tier 556
       const link = `${origin.replace(/\/$/, '')}/register?invite=${inv.tokenPlain}`;
 
       // Access private mailService via any-cast (kept internal to this module)

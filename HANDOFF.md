@@ -2617,6 +2617,12 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 556 — a mailed link carries the installation's address, not the request's
+
+The customer portal mails a login link whose token opens the customer's invoices. Both routes that create one — the public `POST /customer-portal/request-session` and the admin's `…/admin/create-session` — built it from `X-Forwarded-Host` / `Host`. Measured: `X-Forwarded-Host: evil.example` → the customer was mailed `https://evil.example/portal?token=<real token>`. (The shipped Caddy config overwrites that header and only serves its own host names, so this needed a different proxy setup or direct access to the backend to exploit — but nothing in the app stopped it.) Password-reset and invitation links took the request's `Origin` (allow-listed by the CORS middleware) and fell back to `http://localhost:<port>` — in production, where `APP_ORIGIN` is not passed to the container, a reset requested without an `Origin` header mailed a localhost link.
+
+New `common/public-origin.ts` `publicOrigin(req)`: the request's origin/host only if it is in `FRONTEND_URL`, else `APP_ORIGIN`, else the first `FRONTEND_URL` entry. Used by all three. Spec `338-tier556-link-adresse.sh` (3 assertions fail on old code). Tier 555a: spec 190's static grep for the old flag expression.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 555 — production does not take `x-user-id` for an answer, and knows its visitors apart
 
 Two things the production compose file never told the backend. `infra/prod/docker-compose.yml` gives the backend an explicit `environment:` list; a variable that is only in `infra/prod/.env` is used for `${…}` substitution and does **not** reach the container.
