@@ -130,9 +130,11 @@ note "=== 5. CSV export with ?entities=Invoice ==="
 HEAD_RESP=$(curl -sS -o /tmp/t145-export.csv -w "HTTP_STATUS=%{http_code}\nCONTENT_TYPE=%{content_type}\nSIZE=%{size_download}" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
   "$API/api/v1/audit-logs/export.csv?companyId=$COMPANY_ID&entities=Invoice")
-echo "$HEAD_RESP" | grep -q "HTTP_STATUS=200" && pass "export.csv: HTTP 200" \
+# Tier 533a: a here-string, not `echo | grep -q` — under pipefail grep -q leaving
+# early made the echo fail with "Broken pipe" and the check with it (CI run 37392109488).
+grep -q "HTTP_STATUS=200" <<< "$HEAD_RESP" && pass "export.csv: HTTP 200" \
   || fail "export.csv failed: $HEAD_RESP"
-echo "$HEAD_RESP" | grep -q "text/csv" && pass "export.csv: text/csv content type" \
+grep -q "text/csv" <<< "$HEAD_RESP" && pass "export.csv: text/csv content type" \
   || fail "export.csv wrong content type: $HEAD_RESP"
 # Check BOM (UTF-8 BOM = EF BB BF)
 SIZE=$(echo "$HEAD_RESP" | sed -n 's/.*SIZE=\([0-9]*\).*/\1/p')
