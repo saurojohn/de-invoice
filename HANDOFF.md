@@ -9,18 +9,20 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–554 are
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–559 are
   in `git log`; §8 records what each learned. Tiers 443–462 came from the
-  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 554.)
+  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 559.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 37499144525 / commit `1d293df`, Tier 554):**
-  - Backend e2e: **336 passed / 0 failed / 1 skipped** of 337 specs — 100
-    two-digit + 237 three-digit (Tier 553 added `337-tier553-heute-ist-der-deutsche-tag.sh`,
+- **Test counts (last green CI, run 37507939431 / commit `a9571e9`, Tier 559):**
+  - Backend e2e: **338 passed / 0 failed / 1 skipped** of 339 specs — 100
+    two-digit + 239 three-digit (Tier 559 added `339-tier559-migrationen-ergeben-das-schema.sh`,
+    Tier 556 added `338-tier556-link-adresse.sh`,
+    Tier 553 added `337-tier553-heute-ist-der-deutsche-tag.sh`,
     Tier 551 added `336-tier551-ohne-companyid-ist-nicht-alle.sh`,
     Tier 550 added `335-tier550-fehlerliste-je-firma.sh`,
     Tier 549 added `334-tier549-probes-sagen-nicht-wo.sh`,
