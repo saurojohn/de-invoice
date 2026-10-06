@@ -2614,6 +2614,10 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 550 — "resolve all" is all of the company's, not all of everyone's
+
+The error list (`GET /system/errors`) shows a company its own rows; its bulk actions did not stop there. Measured as a freshly registered company's admin: `POST /system/errors/mute-all` → `{"count":209}` (every company's open rows), `resolve-all` the same, `prune` deleted every company's resolved/muted/old rows. And `ErrorTrackingService.capture` deduplicated by fingerprint alone, so the same crash reported by a second company was counted on the first company's row and never appeared in its own list. Now all three bulk actions and the dedupe are per company (`prune(days, companyId?)`). Rows without a company (unauthenticated reports) are still shown to nobody and pruned by nobody — open. Spec `335-tier550-fehlerliste-je-firma.sh` (11 assertions fail on old code).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 549 — the probes that need no login say that it works, not where
 
 `GET /api/v1/health/deep` is public and forwarded by the proxy. Its `checks.storage.detail` was the storage directory's path on the server, and a failing database check returned the driver's message (host and port). Now `writable` / an error code. `GET /metrics` (also forwarded to the internet by the Caddyfile) counts companies, users, invoices and customers: it stays open by default so the existing scraper keeps working, and needs `Authorization: Bearer` once `METRICS_TOKEN` is set (measured: 401 / 401 / 200). **Open for the operator:** set `METRICS_TOKEN` (and the `authorization` block in `infra/prod/prometheus/prometheus.yml`) or stop forwarding `/metrics` in the Caddyfile. Spec `334-tier549-probes-sagen-nicht-wo.sh` (2 assertions fail on old code).

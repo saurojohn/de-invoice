@@ -510,8 +510,9 @@ export class SystemController {
   @Post("errors/prune")
   @UseGuards(HeaderAuthGuard, RolesGuard)
   @Require("users.read")
-  async prune() {
-    const result = await this.tracker.prune(30)
+  async prune(@Req() req: Request) {
+    // Tier 550: a company's own rows — it deleted every company's.
+    const result = await this.tracker.prune(30, (req as any).user?.companyId)
     return { ok: true, ...result }
   }
 
@@ -530,7 +531,8 @@ export class SystemController {
   async resolveAll(@Req() req: Request) {
     const userId = (req as any).user?.id || null
     const result = await this.prisma.errorEvent.updateMany({
-      where: { status: "open" },
+      // Tier 550: the caller's company only — it resolved every company's.
+      where: { status: "open", companyId: (req as any).user?.companyId },
       data: {
         status: "resolved",
         resolvedAt: new Date(),
@@ -562,7 +564,7 @@ export class SystemController {
   async muteAll(@Req() req: Request) {
     const userId = (req as any).user?.id || null
     const result = await this.prisma.errorEvent.updateMany({
-      where: { status: "open" },
+      where: { status: "open", companyId: (req as any).user?.companyId }, // Tier 550
       data: { status: "muted" },
     })
     // Tier 202 — log the operator

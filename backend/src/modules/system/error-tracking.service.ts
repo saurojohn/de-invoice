@@ -81,7 +81,10 @@ export class ErrorTrackingService {
     // we get 2 rows for the same fingerprint — the
     // dashboard view collapses them.
     const existing = await this.prisma.errorEvent.findFirst({
-      where: { fingerprint: fp, status: "open" },
+      // Tier 550: within the company. The same crash in two companies shares
+      // a fingerprint; the second company's joined the first one's row and
+      // never appeared in its own list.
+      where: { fingerprint: fp, status: "open", companyId: input.companyId ?? null },
       orderBy: { lastSeenAt: "desc" },
     })
     if (existing) {
@@ -172,10 +175,11 @@ export class ErrorTrackingService {
    * in {resolved, muted}. Run nightly or on-demand.
    * Default retention: 30 days.
    */
-  async prune(days = 30) {
+  async prune(days = 30, companyId?: string) {
     const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
     const result = await this.prisma.errorEvent.deleteMany({
       where: {
+        ...(companyId ? { companyId } : {}),
         OR: [
           { lastSeenAt: { lt: cutoff } },
           { status: { in: ["resolved", "muted"] } },
