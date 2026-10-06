@@ -114,6 +114,9 @@ export default function SettingsPage() {
   const [storageHealth, setStorageHealth] = useState<StorageHealth | null>(null)
   const [storedFiles, setStoredFiles] = useState<StoredFile[]>([])
   const [storageSaving, setStorageSaving] = useState(false)
+  // Tier 548: where the files are kept is the operator's setting; another
+  // company's admin gets 403 there and sees its own files only.
+  const [storageOperator, setStorageOperator] = useState(true)
   const [storageSavedMsg, setStorageSavedMsg] = useState<string | null>(null)
   const [storageError, setStorageError] = useState<string | null>(null)
   const [storageLoading, setStorageLoading] = useState(false)
@@ -353,6 +356,10 @@ export default function SettingsPage() {
         })
       })
       .catch((err) => {
+        if (err instanceof ApiError && err.status === 403) {
+          setStorageOperator(false)
+          return
+        }
         // 403/404 are common here if the user is on a role that
         // can't see storage config; surface the message so the user
         // isn't left wondering why the form is empty.
@@ -407,7 +414,10 @@ export default function SettingsPage() {
     try {
       const [stats, health, files] = await Promise.all([
         apiGet<StorageStats>(`/api/v1/storage/stats?companyId=${cid}`),
-        apiGet<StorageHealth>(`/api/v1/storage/health`),
+        apiGet<StorageHealth>(`/api/v1/storage/health`).catch((err) => {
+          if (err instanceof ApiError && err.status === 403) return null // the operator's
+          throw err
+        }),
         apiGet<StoredFile[]>(`/api/v1/storage/list?companyId=${cid}`),
       ])
       setStorageStats(stats)
@@ -1681,6 +1691,7 @@ export default function SettingsPage() {
               )}
 
               {/* Local path (read-only — server config) */}
+              {storageOperator && (<>
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium mb-1">
@@ -1720,6 +1731,7 @@ export default function SettingsPage() {
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-900">
                 <strong>{t("storage.cloudStorage")}:</strong> {t("storage.cloudComingSoon")}
               </div>
+              </>)}
 
               {/* Usage stats */}
               {storageStats && (
@@ -1830,7 +1842,7 @@ export default function SettingsPage() {
                 {storageError && (
                   <span className="text-sm text-red-700 dark:text-red-300">⚠ {storageError}</span>
                 )}
-                <Button
+                {storageOperator && <Button
                   type="button"
                   variant="outline"
                   disabled={storageSaving}
@@ -1857,7 +1869,7 @@ export default function SettingsPage() {
                   }}
                 >
                   {storageSaving ? "…" : t("common.save")}
-                </Button>
+                </Button>}
               </div>
             </CardContent>
           </Card>

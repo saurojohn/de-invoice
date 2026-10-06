@@ -2619,6 +2619,8 @@ Registration is public and makes the registrant admin of a new company. The rout
 
 Fix: `auth/system-admin.guard.ts` (`SystemAdminGuard`, `@SystemAuth()`). Operator = e-mails in `SYSTEM_ADMIN_EMAILS` (comma-separated) when set; otherwise admins of the oldest company. Everyone else gets 403. **Production with more than one company should set `SYSTEM_ADMIN_EMAILS`.** Spec `333-tier548-betreiber.sh` (old code: the four GET routes measured 200 for a new tenant; the writing routes were not exercised on old code locally because they would run real backups).
 
+Tier 548c (frontend): the settings page loaded stats, health and the file list in one `Promise.all`, so the operator-only `storage/health` (403) left every other company without its file list — caught by Playwright `storage-download-tier453`. A 403 on `storage/health` / `storage/config` now means "the operator's": no error, and the storage-location form and its save button are not shown.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 547)
 
 Read-Only Modus (`x-readonly: 1`, the Berater's view) was checked by the
