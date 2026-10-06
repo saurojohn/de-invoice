@@ -9,18 +9,25 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–537 are
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–544 are
   in `git log`; §8 records what each learned. Tiers 443–462 came from the
-  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 537.)
+  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 544.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 37427475011 / commit `64c4766`, Tier 537):**
-  - Backend e2e: **321 passed / 0 failed / 1 skipped** of 322 specs — 100
-    two-digit + 222 three-digit (Tier 537 added `322-tier537-uebermittelter-zeitraum-gesperrt.sh`,
+- **Test counts (last green CI, run 37437589902 / commit `56ad788`, Tier 544):**
+  - Backend e2e: **328 passed / 0 failed / 1 skipped** of 329 specs — 100
+    two-digit + 229 three-digit (Tier 544 added `329-tier544-logo-pfad.sh`,
+    Tier 543 added `328-tier543-logo-ist-ein-bild.sh`,
+    Tier 542 added `327-tier542-beleg-inhalt.sh`,
+    Tier 541 added `326-tier541-fahrten-wohnung-betrieb.sh`,
+    Tier 540 added `325-tier540-kursdifferenzen.sh`,
+    Tier 539 added `324-tier539-bewirtungsbeleg.sh`,
+    Tier 538 added `323-tier538-skonto-im-gesperrten-zeitraum.sh`,
+    Tier 537 added `322-tier537-uebermittelter-zeitraum-gesperrt.sh`,
     Tier 536 added `321-tier536-zahlung-doppelt.sh`,
     Tier 535 added `320-tier535-abo-start-in-der-vergangenheit.sh`,
     Tier 534 added `319-tier534-gleichzeitig.sh`,
