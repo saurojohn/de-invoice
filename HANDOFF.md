@@ -2609,6 +2609,10 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 549 — the probes that need no login say that it works, not where
+
+`GET /api/v1/health/deep` is public and forwarded by the proxy. Its `checks.storage.detail` was the storage directory's path on the server, and a failing database check returned the driver's message (host and port). Now `writable` / an error code. `GET /metrics` (also forwarded to the internet by the Caddyfile) counts companies, users, invoices and customers: it stays open by default so the existing scraper keeps working, and needs `Authorization: Bearer` once `METRICS_TOKEN` is set (measured: 401 / 401 / 200). **Open for the operator:** set `METRICS_TOKEN` (and the `authorization` block in `infra/prod/prometheus/prometheus.yml`) or stop forwarding `/metrics` in the Caddyfile. Spec `334-tier549-probes-sagen-nicht-wo.sh` (2 assertions fail on old code).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 548 — the installation's operator, not every company's admin
 
 Registration is public and makes the registrant admin of a new company. The routes that act on the whole installation only asked for a company-level action: a freshly registered admin got 200 on `GET /admin/backups` (server paths), could run/delete backups and restore drills, read and trigger every scheduler (`/admin/cron-health`), read/write the storage configuration, the operator's notification settings, and `POST /fints/auto-run`.

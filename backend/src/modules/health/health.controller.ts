@@ -91,7 +91,7 @@ export class HealthController {
         detail: `${Date.now() - start}ms`,
       }
     } catch (e: any) {
-      checks.db = { status: 'fail', detail: e?.message || 'unknown' }
+      checks.db = { status: 'fail', detail: e?.code || 'unreachable' } // Tier 549: the message names host and port
       allOk = false
     }
 
@@ -117,9 +117,10 @@ export class HealthController {
       // We DON'T have a portable statvfs in Node
       // core, so just check existence — operators
       // should monitor disk separately.
-      checks.storage = { status: 'ok', detail: dir }
+      // Tier 549: no auth here — say that it works, not where it is
+      checks.storage = { status: 'ok', detail: 'writable' }
     } catch (e: any) {
-      checks.storage = { status: 'fail', detail: e?.message || 'unknown' }
+      checks.storage = { status: 'fail', detail: e?.code || 'not writable' }
       allOk = false
     }
 

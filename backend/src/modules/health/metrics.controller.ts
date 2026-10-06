@@ -9,8 +9,9 @@
 // a flat path). Throttler still applies (600/60s default) so a runaway
 // scraper can't DoS the endpoint.
 
-import { Controller, Get, OnApplicationBootstrap, Res } from '@nestjs/common'
-import { Response } from 'express'
+import { Controller, Get, OnApplicationBootstrap, Req, Res, UnauthorizedException } from '@nestjs/common'
+import { Request, Response } from 'express'
+import { timingSafeEqual } from 'crypto'
 import { PrismaService } from '../../prisma/prisma.service'
 import * as os from 'os'
 import * as fs from 'fs'
@@ -157,7 +158,16 @@ export class MetricsController implements OnApplicationBootstrap {
   }
 
   @Get()
-  async metrics(@Res() res: Response) {
+  async metrics(@Req() req: Request, @Res() res: Response) {
+    // Tier 549: the numbers say how many companies, users and invoices the
+    // installation holds. With METRICS_TOKEN set, only the scraper that
+    // presents it reads them (Prometheus: `authorization.credentials`).
+    const token = String(process.env.METRICS_TOKEN || '')
+    if (token) {
+      const given = Buffer.from(String(req.headers.authorization || '').replace(/^Bearer\s+/i, ''))
+      const want = Buffer.from(token)
+      if (given.length !== want.length || !timingSafeEqual(given, want)) throw new UnauthorizedException()
+    }
     const dbOk = await this.checkDb()
     const storageOk = this.checkStorage()
     const uptime = (Date.now() - STARTED_AT) / 1000
