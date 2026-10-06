@@ -9,18 +9,19 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–560 are
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–561 are
   in `git log`; §8 records what each learned. Tiers 443–462 came from the
-  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 560.) **Deployment status, confirmed by the owner on 06.10.2026: not live — local development only.** The `infra/prod/` findings of Tiers 555–560 are pre-launch hardening, not incidents; nothing there needs to be checked on a server, and `scripts/baseline-migrations.sh` has no database to run on yet.
+  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 561.) **Deployment status, confirmed by the owner on 06.10.2026: not live — local development only.** The `infra/prod/` findings of Tiers 555–560 are pre-launch hardening, not incidents; nothing there needs to be checked on a server, and `scripts/baseline-migrations.sh` has no database to run on yet.
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 37531784717 / commit `c8e6ff3`, Tier 560):**
-  - Backend e2e: **339 passed / 0 failed / 1 skipped** of 340 specs — 100
-    two-digit + 240 three-digit (Tier 560 added `340-tier560-logo-im-speicher.sh`,
+- **Test counts (last green CI, run 37538929769 / commit `ed6ac52`, Tier 561):**
+  - Backend e2e: **340 passed / 0 failed / 1 skipped** of 341 specs — 100
+    two-digit + 241 three-digit (Tier 561 added `341-tier561-caddyfile-gueltig.sh`,
+    Tier 560 added `340-tier560-logo-im-speicher.sh`,
     Tier 559 added `339-tier559-migrationen-ergeben-das-schema.sh`,
     Tier 556 added `338-tier556-link-adresse.sh`,
     Tier 553 added `337-tier553-heute-ist-der-deutsche-tag.sh`,
