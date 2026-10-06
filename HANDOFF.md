@@ -2609,6 +2609,12 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 548 — the installation's operator, not every company's admin
+
+Registration is public and makes the registrant admin of a new company. The routes that act on the whole installation only asked for a company-level action: a freshly registered admin got 200 on `GET /admin/backups` (server paths), could run/delete backups and restore drills, read and trigger every scheduler (`/admin/cron-health`), read/write the storage configuration, the operator's notification settings, and `POST /fints/auto-run`.
+
+Fix: `auth/system-admin.guard.ts` (`SystemAdminGuard`, `@SystemAuth()`). Operator = e-mails in `SYSTEM_ADMIN_EMAILS` (comma-separated) when set; otherwise admins of the oldest company. Everyone else gets 403. **Production with more than one company should set `SYSTEM_ADMIN_EMAILS`.** Spec `333-tier548-betreiber.sh` (old code: the four GET routes measured 200 for a new tenant; the writing routes were not exercised on old code locally because they would run real backups).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 547)
 
 Read-Only Modus (`x-readonly: 1`, the Berater's view) was checked by the

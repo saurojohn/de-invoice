@@ -1,3 +1,4 @@
+import { SystemAdminGuard } from '../../auth/system-admin.guard';
 import {
   Controller,
   Get,
@@ -9,6 +10,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Req,
+  UseGuards,
 } from '@nestjs/common'
 import { Auth, Require } from '../../auth/roles.decorator'
 import { FinTsService } from './fints.service'
@@ -294,6 +296,7 @@ export class FinTsController {
    * `POST /reminders/auto-run` in
    * Tier 2.
    */
+  @UseGuards(SystemAdminGuard) // Tier 548: the operator only
   @Post('auto-run')
   @Require('company.update')
   async autoRun() {

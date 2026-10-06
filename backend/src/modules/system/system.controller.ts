@@ -11,6 +11,7 @@
  *   POST   /api/v1/system/errors/:id/mute     mark muted
  *   POST   /api/v1/system/errors/prune        delete old (>30d) + resolved
  */
+import { SystemAdminGuard } from '../../auth/system-admin.guard';
 import {
   BadRequestException,
   Body,
@@ -583,6 +584,7 @@ export class SystemController {
    * exposing the webhook URL or SMTP password
    * (we surface only the host + a boolean).
    */
+  @UseGuards(SystemAdminGuard) // Tier 548: the operator only
   @Get("notifications/config")
   @UseGuards(HeaderAuthGuard, RolesGuard)
   @Require("users.read")
@@ -617,6 +619,7 @@ export class SystemController {
    * Returns the per-channel result (sent /
    * skipped / failed).
    */
+  @UseGuards(SystemAdminGuard) // Tier 548: the operator only
   @Post("notifications/test")
   @UseGuards(HeaderAuthGuard, RolesGuard)
   @Require("users.read")
@@ -689,6 +692,7 @@ export class SystemController {
    * by setting a low rate + spamming
    * errors.
    */
+  @UseGuards(SystemAdminGuard) // Tier 548: the operator only
   @Get("notifications/threshold")
   @UseGuards(HeaderAuthGuard, RolesGuard)
   @Require("users.read")
@@ -722,6 +726,7 @@ export class SystemController {
    * row is written (so the Berater can audit
    * who lowered the threshold and why).
    */
+  @UseGuards(SystemAdminGuard) // Tier 548: the operator only
   @Put("notifications/threshold")
   @UseGuards(HeaderAuthGuard, RolesGuard)
   @Require("users.read")

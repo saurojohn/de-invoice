@@ -37,12 +37,14 @@
  * cron-health). Tier 119.5 added the role assignment
  * to Berater + Mandant in users.service.ts.
  */
+import { SystemAuth } from '../../auth/system-admin.guard';
 import { Controller, Delete, Get, HttpCode, Param, Post } from '@nestjs/common'
 import { Throttle } from '@nestjs/throttler'
-import { Auth, Require } from '../../auth/roles.decorator'
+import { Require } from '../../auth/roles.decorator'
 import { BackupService } from './backup.service'
 
-@Auth()
+// Tier 548: the installation's operator only (auth/system-admin.guard.ts)
+@SystemAuth()
 @Controller('admin/backups')
 export class BackupController {
   constructor(private readonly backup: BackupService) {}

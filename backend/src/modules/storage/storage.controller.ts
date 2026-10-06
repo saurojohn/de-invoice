@@ -1,3 +1,4 @@
+import { SystemAdminGuard } from '../../auth/system-admin.guard';
 import {
   Controller,
   Post,
@@ -12,6 +13,7 @@ import {
   NotFoundException,
   Header,
   Headers,
+  UseGuards,
 } from '@nestjs/common';
 import { Response } from 'express';
 import { StorageService } from './storage.service';
@@ -128,6 +130,7 @@ export class StorageController {
    * Get storage configuration
    * GET /api/v1/storage/config
    */
+  @UseGuards(SystemAdminGuard) // Tier 548: the operator only
   @Get('config')
   @Require('company.update')
   async getConfig() {
@@ -143,6 +146,7 @@ export class StorageController {
    * Update storage configuration
    * PUT /api/v1/storage/config
    */
+  @UseGuards(SystemAdminGuard) // Tier 548: the operator only
   @Post('config')
   @Require('company.update')
   async updateConfig(@Body() dto: StorageConfigDto) {
@@ -189,6 +193,7 @@ export class StorageController {
    * informational only (returns disk free space, reachability, write
    * permission) and doesn't expose any other company's data.
    */
+  @UseGuards(SystemAdminGuard) // Tier 548: the operator only
   @Require('admin.read')
   @Get('health')
   async getHealth() {

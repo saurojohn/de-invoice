@@ -23,14 +23,16 @@
  * Berater/Mandant overview page; we don't expose a
  * per-user health endpoint.
  */
+import { SystemAuth } from '../../auth/system-admin.guard';
 import { Controller, Get, Param, Post, Query, BadRequestException, Req } from '@nestjs/common'
 import { Throttle } from '@nestjs/throttler'
 import { Request } from 'express'
-import { Auth, Require } from '../../auth/roles.decorator'
+import { Require } from '../../auth/roles.decorator'
 import { CronHealthService, CronStatus } from './cron-health.service'
 import { AuditService } from '../audit/audit.service'
 
-@Auth()
+// Tier 548: the installation's operator only (auth/system-admin.guard.ts)
+@SystemAuth()
 @Controller('admin/cron-health')
 export class CronHealthController {
   constructor(
