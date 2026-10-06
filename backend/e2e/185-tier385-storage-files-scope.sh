@@ -11,6 +11,7 @@
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/_lib.sh"
+login
 TAG="e2e-185-$(date +%s%N | cut -c1-13)"
 
 tenant() {
@@ -24,6 +25,7 @@ read -r UB CB < <(tenant b)
 req() { # A|B method path [curl args]
   local u="$UA" c="$CA" resp
   [[ "$1" == B ]] && { u="$UB"; c="$CB"; }
+  [[ "$1" == OP ]] && { u="$USER_ID"; c="$COMPANY_ID"; } # Tier 548: the configuration is the operator's
   resp=$(curl -sS -w "\n%{http_code}" -X "$2" "$API$3" -H "x-user-id: $u" -H "x-company-id: $c" "${@:4}")
   STATUS=$(echo "$resp" | tail -n1); BODY=$(echo "$resp" | sed '$d')
 }
@@ -53,7 +55,7 @@ req A GET "/api/v1/storage/files/$FILE"
 assert_status 200 "…A's file is still there"
 
 note "=== 3. no path outside the company's files ==="
-req A GET /api/v1/storage/config
+req OP GET /api/v1/storage/config
 ROOT=$(json_field "$BODY" localPath)
 SIB="$(basename "$ROOT")-e2e185"
 mkdir -p "$ROOT/../$SIB" && echo "$TAG sibling" > "$ROOT/../$SIB/x.txt"
@@ -70,10 +72,10 @@ req B POST /api/v1/storage/config -H "Content-Type: application/json" -d '{"loca
 assert_status 403 "localPath / (was 201 for every tenant)"
 req B GET /api/v1/storage/files/etc,hosts
 assert_status 404 "etc,hosts (was 200 with /etc/hosts)"
-req A GET /api/v1/storage/config
+req OP GET /api/v1/storage/config
 assert_eq "…root unchanged" "$(json_field "$BODY" localPath)" "$ROOT"
 # settings page save: the whole form, localPath unchanged
-req A POST /api/v1/storage/config -H "Content-Type: application/json" -d "{\"localPath\":\"$ROOT\",\"cloudEnabled\":false,\"cloudProvider\":\"local\"}"
+req OP POST /api/v1/storage/config -H "Content-Type: application/json" -d "{\"localPath\":\"$ROOT\",\"cloudEnabled\":false,\"cloudProvider\":\"local\"}"
 assert_status 201 "settings form save with the unchanged path"
 
 note "=== 5. cleanup ==="
