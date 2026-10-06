@@ -201,7 +201,8 @@ export class FinTsController {
    *   - {status: 'failed', errorCode, errorMessage, syncRunId}
    */
   @Post('connections/:id/sync')
-  @Require('reports.read')
+  // Tier 546: a write — was 'reports.read', which every viewer has.
+  @Require('accounting.create')
   async startSync(
     @Param('id') id: string,
     @Body() body: StartSyncDto,
@@ -226,7 +227,8 @@ export class FinTsController {
    * TAN is accepted.
    */
   @Post('sync-runs/:id/tan')
-  @Require('reports.read')
+  // Tier 546: a write — was 'reports.read', which every viewer has.
+  @Require('accounting.create')
   async submitTan(
     @Param('id') id: string,
     @Body() body: SubmitTanDto,
@@ -273,7 +275,8 @@ export class FinTsController {
    * number of low-confidence suggestions.
    */
   @Post('auto-match')
-  @Require('reports.read')
+  // Tier 546: a write — was 'reports.read', which every viewer has.
+  @Require('accounting.create')
   async autoMatch(@Body() body: { companyId: string }) {
     if (!body?.companyId) {
       throw new BadRequestException('companyId is required')
@@ -335,7 +338,8 @@ export class FinTsController {
    * helpful.
    */
   @Post('transfers')
-  @Require('reports.read')
+  // Tier 546: a write — was 'reports.read', which every viewer has.
+  @Require('payment.write')
   async createTransfer(@Body() body: CreateTransferDto) {
     if (!body?.companyId) {
       throw new BadRequestException('companyId is required')
@@ -375,7 +379,8 @@ export class FinTsController {
    * (no sandbox bank to test against).
    */
   @Post('transfers/:id/tan')
-  @Require('reports.read')
+  // Tier 546: a write — was 'reports.read', which every viewer has.
+  @Require('payment.write')
   async submitTransferTan(
     @Param('id') id: string,
     @Body() body: SubmitTransferTanDto,

@@ -2609,6 +2609,26 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### The bank connection's writing routes need a writing role (Tier 546) — security
+
+A sweep with a `viewer` of the company against every writing route (scratch)
+found one 2xx: `POST /fints/auto-match` — it confirms bank matches, i.e.
+records payments. The FinTS controller guarded five writing routes with
+`reports.read`, which every viewer has: starting a sync, answering its TAN,
+the auto-match, **initiating a SEPA transfer** and answering its TAN (spec
+331: all five were let through to the handler).
+
+Now sync / TAN / auto-match need `accounting.create`, a transfer and its TAN
+`payment.write` — accountant and above. Reading connections, sync runs and
+transfers stays `reports.read`.
+
+The other writing routes whose `@Require` ends in `.read` are admin-level
+names (`users.read`, `admin.read`: dunning settings, backups, cron health) or
+read-like (bulk download, note preview, OCR scan); the routes without a
+`@Require` check the role in their handler or are public by design
+(customer portal, 2FA of the own account). The viewer sweep confirmed none of
+them answers 2xx.
+
 ### The customer portal shows the invoice, not the company's record of it (Tier 545)
 
 `GET /customer-portal/invoice/:id` (public, by the customer's session token)
