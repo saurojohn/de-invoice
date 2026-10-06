@@ -1,5 +1,6 @@
 "use client"
 
+import { todayIso } from "@/lib/today"
 import { Suspense, useEffect, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -149,7 +150,7 @@ function UstvaPageInner() {
 
   const [showAdd, setShowAdd] = useState(false)
   const emptyExpenseForm = () => ({
-    invoiceDate: new Date().toISOString().split("T")[0],
+    invoiceDate: todayIso(),
     invoiceNumber: "",
     supplierId: "",
     description: "",
@@ -400,7 +401,7 @@ function UstvaPageInner() {
   // Tier 483: the payment to / refund from the Finanzamt that settled a
   // return — the EÜR counts it on that day (Zeilen 18 / 58).
   const recordPayment = async (f: UstvaFiling) => {
-    const date = window.prompt(t("ustva.recordPaymentPrompt"), new Date().toISOString().slice(0, 10))
+    const date = window.prompt(t("ustva.recordPaymentPrompt"), todayIso())
     if (!date) return
     const companyId = localStorage.getItem("companyId")
     try {

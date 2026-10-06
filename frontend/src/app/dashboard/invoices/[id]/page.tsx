@@ -1,5 +1,6 @@
 "use client"
 
+import { todayIso } from "@/lib/today"
 import { useEffect, useRef, useState } from "react"
 import { useRouter, useParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -198,7 +199,7 @@ export default function InvoiceDetailPage() {
   const [cnError, setCnError] = useState<string | null>(null)
   const [payForm, setPayForm] = useState({
     amount: '',
-    paymentDate: new Date().toISOString().split("T")[0],
+    paymentDate: todayIso(),
     paymentMethod: "bank_transfer",
     reference: '',
     notes: '',
@@ -328,7 +329,7 @@ export default function InvoiceDetailPage() {
       setInvoice(inv)
       setPayments(Array.isArray(pmts) ? pmts : [])
       setShowPayForm(false)
-      setPayForm({ amount: '', paymentDate: new Date().toISOString().split("T")[0], paymentMethod: "bank_transfer", reference: '', notes: '', eurAmount: '' })
+      setPayForm({ amount: '', paymentDate: todayIso(), paymentMethod: "bank_transfer", reference: '', notes: '', eurAmount: '' })
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : `Netzwerkfehler: ${err}`
       toast.error(msg)
@@ -361,7 +362,7 @@ export default function InvoiceDetailPage() {
       const companyId = localStorage.getItem("companyId")
       await apiPost(
         `/api/v1/invoices/${invoice.id}/payment-notices/${noticeId}/${action}?companyId=${companyId}`,
-        action === "book" ? { paymentDate: new Date().toISOString().split("T")[0] } : {},
+        action === "book" ? { paymentDate: todayIso() } : {},
       )
       const [inv, pmts] = await Promise.all([
         apiGet<any>(`/api/v1/invoices/${invoice.id}?companyId=${companyId}`),
@@ -1108,7 +1109,7 @@ export default function InvoiceDetailPage() {
       const companyId = localStorage.getItem("companyId")
       await apiPost(`/api/v1/invoices/${invoice.id}/advance-refund?companyId=${companyId}`, {
         amount,
-        paymentDate: new Date().toISOString().slice(0, 10),
+        paymentDate: todayIso(),
         paymentMethod: "bank_transfer",
       })
       const pmts = await apiGet<any[]>(`/api/v1/invoices/${invoice.id}/payments?companyId=${companyId}`)
@@ -2050,7 +2051,7 @@ export default function InvoiceDetailPage() {
                     type="date"
                     value={payForm.paymentDate}
                     // Tier 514: a payment cannot be dated in the future (the API refuses it)
-                    max={new Date().toISOString().slice(0, 10)}
+                    max={todayIso()}
                     onChange={(e) => setPayForm({ ...payForm, paymentDate: e.target.value })}
                   />
                 </div>

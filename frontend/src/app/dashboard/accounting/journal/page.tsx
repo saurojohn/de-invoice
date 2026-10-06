@@ -31,6 +31,7 @@
 //     interaction (the journal is a
 //     reference document, not a form)
 
+import { todayIso } from "@/lib/today"
 import { useEffect, useState } from "react"
 import { useI18n } from "@/components/useI18n"
 import { apiGetBlob } from "@/lib/api"
@@ -48,9 +49,8 @@ export default function JournalPage() {
   // on first load (rather than a
   // 1970-01-01 / 2099-12-31 empty
   // range that surprises them).
-  const now = new Date()
-  const yearStart = `${now.getFullYear()}-01-01`
-  const today = now.toISOString().slice(0, 10)
+  const today = todayIso() // Tier 554
+  const yearStart = `${today.slice(0, 4)}-01-01`
   const [dateFrom, setDateFrom] = useState(yearStart)
   const [dateTo, setDateTo] = useState(today)
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)

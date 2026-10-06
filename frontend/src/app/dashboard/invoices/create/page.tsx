@@ -1,5 +1,6 @@
 "use client"
 
+import { todayIso } from "@/lib/today"
 import { Suspense } from "react"
 
 import { useEffect, useState } from "react"
@@ -183,13 +184,13 @@ function CreateInvoicePageInner() {
   const [form, setForm] = useState({
     customerId: "",
     referenceInvoiceId: "",
-    issueDate: new Date().toISOString().split("T")[0],
+    issueDate: todayIso(),
     dueDate: "",
     // Default the Leistungsdatum to today. Most invoices are
     // issued and delivered the same day, and a pre-filled date
     // is easier to change than to type. Cleared, the PDF states
     // the issue date (Tier 492: § 14 Abs. 4 Nr. 6 UStG).
-    deliveryDate: new Date().toISOString().split("T")[0],
+    deliveryDate: todayIso(),
     // Tier 493: Leistungszeitraum — both dates or neither; stated on the
     // invoice instead of the Leistungsdatum when set.
     servicePeriodStart: "",
@@ -302,10 +303,10 @@ function CreateInvoicePageInner() {
         // For clone, use today as issueDate; for
         // edit, keep the source's issueDate.
         issueDate: opts.isClone
-          ? new Date().toISOString().split("T")[0]
+          ? todayIso()
           : (inv.issueDate
               ? String(inv.issueDate).slice(0, 10)
-              : new Date().toISOString().split("T")[0]),
+              : todayIso()),
         // For clone, clear the dueDate so the user
         // picks a new one (the source's dueDate is
         // probably in the past now).
@@ -314,7 +315,7 @@ function CreateInvoicePageInner() {
           : (inv.dueDate ? String(inv.dueDate).slice(0, 10) : ""),
         deliveryDate: inv.deliveryDate
           ? String(inv.deliveryDate).slice(0, 10)
-          : new Date().toISOString().split("T")[0],
+          : todayIso(),
         servicePeriodStart: inv.servicePeriodStart ? String(inv.servicePeriodStart).slice(0, 10) : "",
         servicePeriodEnd: inv.servicePeriodEnd ? String(inv.servicePeriodEnd).slice(0, 10) : "",
         notes: inv.notes || '',

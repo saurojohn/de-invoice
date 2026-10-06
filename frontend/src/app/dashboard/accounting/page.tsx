@@ -1,5 +1,6 @@
 "use client"
 
+import { todayIso } from "@/lib/today"
 import { useEffect, useState, useCallback, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
@@ -177,7 +178,7 @@ export default function AccountingPage() {
   // Manual-voucher modal state
   const [showCreate, setShowCreate] = useState(false)
   const [accounts, setAccounts] = useState<Account[]>([])
-  const [draftDate, setDraftDate] = useState(new Date().toISOString().slice(0, 10))
+  const [draftDate, setDraftDate] = useState(todayIso())
   const [draftDescription, setDraftDescription] = useState("")
   const [draftLines, setDraftLines] = useState<DraftLine[]>([
     { accountId: "", debit: "", credit: "", description: "", costCenter: "", costObject: "" },
@@ -354,7 +355,7 @@ export default function AccountingPage() {
 
   const openCreate = () => {
     // Reset the draft each time the modal opens.
-    setDraftDate(new Date().toISOString().slice(0, 10))
+    setDraftDate(todayIso())
     setDraftDescription("")
     setDraftLines([
       { accountId: "", debit: "", credit: "", description: "", costCenter: "", costObject: "" },

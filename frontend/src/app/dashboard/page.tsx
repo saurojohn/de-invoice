@@ -1,5 +1,6 @@
 "use client"
 
+import { todayIso } from "@/lib/today"
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -171,10 +172,12 @@ export default function DashboardPage() {
     }
 
     // Default date range: last 12 months
-    const now = new Date()
-    const startDate = new Date(now.getFullYear() - 1, now.getMonth() + 1, 1)
-      .toISOString().split("T")[0]
-    const endDate = now.toISOString().split("T")[0]
+    // Tier 554: by the German calendar day. The local first-of-month, written
+    // as an ISO string, was the last day of the month before.
+    const endDate = todayIso()
+    const [ty, tm] = endDate.split("-").map(Number)
+    // the first of the month after this one, a year ago (tm is 1-12)
+    const startDate = tm === 12 ? `${ty}-01-01` : `${ty - 1}-${String(tm + 1).padStart(2, "0")}-01`
 
     // Use apiGet for proper x-user-id / x-company-id
     // headers. Raw fetch() would 401 against HeaderAuthGuard

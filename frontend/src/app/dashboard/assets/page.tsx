@@ -1,5 +1,6 @@
 "use client"
 
+import { todayIso } from "@/lib/today"
 import { useEffect, useRef, useState, useCallback, useMemo } from "react"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -143,7 +144,7 @@ interface DraftAsset {
 const emptyDraft: DraftAsset = {
   type: "Maschine",
   bezeichnung: "",
-  anschaffungsDatum: new Date().toISOString().slice(0, 10),
+  anschaffungsDatum: todayIso(),
   anschaffungsKosten: "",
   nutzungsdauerMonate: "",
   restwert: "0",
@@ -166,7 +167,7 @@ export default function AssetsPage() {
   const [createSaving, setCreateSaving] = useState(false)
   const [disposeModal, setDisposeModal] = useState<Asset | null>(null)
   const [disposeForm, setDisposeForm] = useState({
-    verkauftAm: new Date().toISOString().slice(0, 10),
+    verkauftAm: todayIso(),
     verkaufsPreis: "",
   })
   // Tier 87: AfA-Buchung state
@@ -686,7 +687,7 @@ export default function AssetsPage() {
                                 onClick={() => {
                                   setDisposeModal(a)
                                   setDisposeForm({
-                                    verkauftAm: new Date().toISOString().slice(0, 10),
+                                    verkauftAm: todayIso(),
                                     verkaufsPreis: "",
                                   })
                                 }}
@@ -750,7 +751,7 @@ export default function AssetsPage() {
                 <input
                   type="date"
                   value={draft.anschaffungsDatum}
-                  max={new Date().toISOString().slice(0, 10)}
+                  max={todayIso()}
                   onChange={(e) => setDraft({ ...draft, anschaffungsDatum: e.target.value })}
                   className="w-full border rounded px-2 py-1 text-sm mt-1"
                   data-testid="assets-draft-datum"
@@ -848,7 +849,7 @@ export default function AssetsPage() {
                 <input
                   type="date"
                   value={disposeForm.verkauftAm}
-                  max={new Date().toISOString().slice(0, 10)}
+                  max={todayIso()}
                   onChange={(e) => setDisposeForm({ ...disposeForm, verkauftAm: e.target.value })}
                   className="w-full border rounded px-2 py-1 text-sm mt-1"
                   data-testid="assets-dispose-date"

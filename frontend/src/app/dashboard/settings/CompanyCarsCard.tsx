@@ -7,6 +7,7 @@
  * unentgeltliche Wertabgabe at 19 % in the UStVA — computed by the backend
  * (company-car/private-use.ts). Not for a Kapitalgesellschaft (payroll).
  */
+import { todayIso } from "@/lib/today"
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
@@ -46,7 +47,7 @@ export default function CompanyCarsCard() {
     name: "",
     listPrice: "",
     method: "one_percent" as CompanyCar["method"],
-    fromDate: new Date().toISOString().slice(0, 10),
+    fromDate: todayIso(),
     commuteKm: "",
     commuteDays: "",
   })
@@ -95,7 +96,7 @@ export default function CompanyCarsCard() {
   }
 
   const end = async (car: CompanyCar) => {
-    const until = window.prompt(t("companyCars.endPrompt"), new Date().toISOString().slice(0, 10))
+    const until = window.prompt(t("companyCars.endPrompt"), todayIso())
     if (!until) return
     setError(null)
     try {

@@ -16,6 +16,7 @@
  * URL: /dashboard/customers/[id]/credit?companyId=<id>
  */
 
+import { todayIso } from "@/lib/today"
 import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -97,7 +98,7 @@ export default function CustomerCreditPage() {
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([])
   const [payoutBankId, setPayoutBankId] = useState<string>("")
   const [payoutDate, setPayoutDate] = useState<string>(
-    new Date().toISOString().slice(0, 10),
+    todayIso(),
   )
   const [payoutSubmitting, setPayoutSubmitting] = useState(false)
   const [payoutError, setPayoutError] = useState<string | null>(null)

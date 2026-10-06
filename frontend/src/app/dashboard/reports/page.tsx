@@ -1,5 +1,6 @@
 "use client"
 
+import { todayIso } from "@/lib/today"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -77,7 +78,7 @@ export default function ReportsPage() {
   // Date range state
   const currentYear = new Date().getFullYear()
   const [startDate, setStartDate] = useState(`${currentYear}-01-01`)
-  const [endDate, setEndDate] = useState(new Date().toISOString().split("T")[0])
+  const [endDate, setEndDate] = useState(todayIso())
   const [vatYear, setVatYear] = useState(currentYear.toString())
   const [vatPeriod, setVatPeriod] = useState<"year" | "q1" | "q2" | "q3" | "q4" | "m1" | "m2" | "m3" | "m4" | "m5" | "m6" | "m7" | "m8" | "m9" | "m10" | "m11" | "m12">("year")
 
@@ -166,7 +167,7 @@ export default function ReportsPage() {
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement("a")
     a.href = url
-    a.download = `${filename}_${new Date().toISOString().split("T")[0]}.csv`
+    a.download = `${filename}_${todayIso()}.csv`
     document.body.appendChild(a)
     a.click()
     window.URL.revokeObjectURL(url)

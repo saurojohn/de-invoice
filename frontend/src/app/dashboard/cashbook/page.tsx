@@ -1,5 +1,6 @@
 "use client"
 
+import { todayIso } from "@/lib/today"
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -85,7 +86,7 @@ const fmtMoney = (n: number) =>
 const fmtDate = (s: string | null | undefined, locale = "de-DE") =>
   s ? new Date(s).toLocaleDateString(locale, { day: "2-digit", month: "2-digit", year: "numeric" }) : "—"
 
-const todayISO = () => new Date().toISOString().split("T")[0]
+const todayISO = () => todayIso()
 
 export default function CashbookPage() {
   const router = useRouter()
@@ -716,7 +717,7 @@ export default function CashbookPage() {
                     <input
                       type="date"
                       value={formDate}
-                      max={new Date().toISOString().slice(0, 10)}
+                      max={todayIso()}
                       onChange={(e) => setFormDate(e.target.value)}
                       className="w-full border rounded px-3 py-2 text-sm"
                     />

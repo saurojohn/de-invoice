@@ -26,6 +26,7 @@
  * button on this page.
  */
 
+import { todayIso } from "@/lib/today"
 import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
@@ -355,7 +356,7 @@ export default function CustomerDetailPage() {
   const [allocateOpen, setAllocateOpen] = useState(false)
   const [allocateAmount, setAllocateAmount] = useState("")
   const [allocateDate, setAllocateDate] = useState(() => {
-    return new Date().toISOString().slice(0, 10)
+    return todayIso()
   })
   const [allocateMethod, setAllocateMethod] = useState("Überweisung")
   const [allocateReference, setAllocateReference] = useState("")

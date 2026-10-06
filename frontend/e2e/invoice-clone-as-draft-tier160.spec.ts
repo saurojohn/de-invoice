@@ -232,7 +232,7 @@ test.describe('Tier 160 — Invoice clone as draft', () => {
     // The issueDate input should be today's date
     // (YYYY-MM-DD). toHaveValue auto-retries so
     // we don't need a fixed waitForTimeout.
-    const today = new Date().toISOString().split("T")[0]
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin" }).format(new Date()) // Tier 554: the form's today
     const issueInput = page.locator('input[type="date"]').first()
     await expect(issueInput).toHaveValue(today, { timeout: 5_000 })
   })
@@ -252,7 +252,7 @@ test.describe('Tier 160 — Invoice clone as draft', () => {
     // invoice" default), which is the user-
     // observable signal that the clone took the
     // "new" path (not the "edit" path).
-    const today = new Date().toISOString().split("T")[0]
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin" }).format(new Date()) // Tier 554: the form's today
     const issueInput = page.getByTestId('invoice-issue-date')
     await expect(issueInput).toHaveValue(today, { timeout: 5_000 })
   })

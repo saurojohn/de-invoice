@@ -1,5 +1,6 @@
 "use client"
 
+import { todayIso } from "@/lib/today"
 import { Suspense, useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -400,7 +401,7 @@ function InvoicesPageInner() {
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
-      const stamp = new Date().toISOString().slice(0, 10)
+      const stamp = todayIso()
       a.download = `Rechnungen_${stamp}.zip`
       document.body.appendChild(a)
       a.click()
@@ -668,7 +669,7 @@ function InvoicesPageInner() {
       // downloaded file matches what the user selected in the date picker.
       const disp = res.headers.get('Content-Disposition') || ''
       const m = disp.match(/filename="?([^";]+)"?/)
-      a.download = m?.[1] || `Rechnungen_${new Date().toISOString().slice(0,10)}.csv`
+      a.download = m?.[1] || `Rechnungen_${todayIso()}.csv`
       document.body.appendChild(a)
       a.click()
       window.URL.revokeObjectURL(url)
@@ -712,7 +713,7 @@ function InvoicesPageInner() {
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
-      const stamp = new Date().toISOString().slice(0, 10)
+      const stamp = todayIso()
       a.download = `Rechnungen_${dateFrom || 'alle'}_${dateTo || 'alle'}_${stamp}.zip`
       document.body.appendChild(a)
       a.click()

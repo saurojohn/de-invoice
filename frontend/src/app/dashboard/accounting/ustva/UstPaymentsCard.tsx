@@ -7,6 +7,7 @@
  * is recorded on its row in the history (Tier 483). The EÜR counts both on
  * the day the money moved (Anlage EÜR Zeilen 18 / 58).
  */
+import { todayIso } from "@/lib/today"
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
@@ -32,7 +33,7 @@ export default function UstPaymentsCard() {
   const [form, setForm] = useState({
     kind: "ustja" as UstPayment["kind"],
     year: String(new Date().getFullYear() - 1),
-    paidAt: new Date().toISOString().slice(0, 10),
+    paidAt: todayIso(),
     amount: "",
     note: "",
   })

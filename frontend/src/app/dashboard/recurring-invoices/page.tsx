@@ -1,5 +1,6 @@
 "use client"
 
+import { todayIso } from "@/lib/today"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
@@ -184,7 +185,7 @@ export default function RecurringInvoicesPage() {
   const [interval, setInterval] = useState<Interval>("monthly")
   const [intervalCount, setIntervalCount] = useState(1)
   const [dayOfMonth, setDayOfMonth] = useState(1)
-  const [startDate, setStartDate] = useState(new Date().toISOString().split("T")[0])
+  const [startDate, setStartDate] = useState(todayIso())
   const [endDate, setEndDate] = useState("")
   const [invoiceStatus, setInvoiceStatus] = useState<"draft" | "sent">("draft")
   // Tier 493: a new template bills the interval it runs in (in advance).
@@ -239,7 +240,7 @@ export default function RecurringInvoicesPage() {
       setInterval((p.interval as Interval) || "monthly")
       setIntervalCount(p.intervalCount || 1)
       setDayOfMonth(p.dayOfMonth || 1)
-      setStartDate(p.startDate || new Date().toISOString().split("T")[0])
+      setStartDate(p.startDate || todayIso())
       setEndDate(p.endDate || "")
       setInvoiceStatus(p.invoiceStatus || "draft")
       setServicePeriod("current")
@@ -269,7 +270,7 @@ export default function RecurringInvoicesPage() {
     setInterval("monthly")
     setIntervalCount(1)
     setDayOfMonth(1)
-    setStartDate(new Date().toISOString().split("T")[0])
+    setStartDate(todayIso())
     setEndDate("")
     setInvoiceStatus("draft")
     setServicePeriod("current")
@@ -329,7 +330,7 @@ export default function RecurringInvoicesPage() {
     // startDate defaults to today (the operator
     // almost always wants the new subscription to
     // start now, not inherit the old start date).
-    setCloneStartDate(new Date().toISOString().split("T")[0])
+    setCloneStartDate(todayIso())
     setCloneError(null)
   }
 

@@ -34,6 +34,7 @@
  * detail modal are unchanged.
  */
 
+import { todayIso } from "@/lib/today"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
@@ -590,7 +591,7 @@ export default function AuditPage() {
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
-      a.download = `audit-log-${new Date().toISOString().slice(0, 10)}.csv`
+      a.download = `audit-log-${todayIso()}.csv`
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)

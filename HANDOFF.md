@@ -2616,6 +2616,10 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 554 — the browser's today is the German day as well
+
+The frontend took today as `new Date().toISOString().slice(0, 10)` in 37 places (default issue/payment/booking dates, `max=` of date fields, export file names): the UTC day, i.e. yesterday between 00:00 and 02:00 German time — a form opened then proposed yesterday, and a `max={today}` field refused today although the backend (German day, Tier 478/515) accepts it. New `frontend/src/lib/today.ts` `todayIso()` (Europe/Berlin); all 37 replaced. Also: the dashboard's "last 12 months" start was the local first-of-month written as ISO — the last day of the month before in a German browser; the journal's default range. No new spec (clock-dependent; frontend typecheck + lint, and the existing Playwright suite); `invoice-clone-as-draft-tier160` now computes its expected date the same way.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 553 — "today" is the German calendar day, on any server clock
 
 Production runs with `TZ: Europe/Berlin` (infra/prod/docker-compose.yml). Local midnight written with `toISOString()` is 22:00/23:00 UTC of the day before. Measured on a machine in that zone: `GET /recurring-invoices/from-invoice/:id` prefilled `startDate` with yesterday; `GET /reports/datev-preview` and `/datev-export` without dates reported/named the period from 31 December of the previous year (the selection itself was right — date-only values are midnight UTC). And `new Date().toISOString().slice(0,10)` is yesterday between 00:00 and 02:00 German time: the Schlussrechnung's default issue date, ELSTER `Eingangsdatum`, the SEPA files' creation date, the VAT re-verification's day key, export file stamps. All now go through `common/business-date` (`businessTodayIso()`, `businessDayIso(date)`); the instalment proposal's first due date too.
