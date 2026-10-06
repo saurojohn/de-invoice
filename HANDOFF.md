@@ -2602,6 +2602,24 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### A logo is an image, whatever its name says (Tier 543) — security
+
+`POST /companies/upload-logo` checked the *declared* type (image/png) and
+took the extension from the file's *name*. Measured (spec 328, 8 assertions
+fail before): "x.html", declared as image/png, was written as
+`logo-<id>-<time>.html` into `frontend/public/images/` — a page with a
+script, served from the app's own origin (stored XSS: anyone who opens the
+link runs it in their session), and stored as the company's logo. An SVG
+with `onload` went the same way.
+
+Now the extension comes from the file's first bytes; only a real PNG, JPEG,
+GIF or WebP is accepted, and a PNG named "evil.html" is stored as `.png`.
+
+**On a running installation:** look once for files in
+`frontend/public/images/` named `logo-*` that do not end in
+.png / .jpg / .jpeg / .gif / .webp and remove them (not done by a migration —
+that is a deletion on a server's disk).
+
 ### An uploaded Beleg is the file it says it is (Tier 542)
 
 After the cross-tenant sweeps (below) the uploads were probed. Measured (spec

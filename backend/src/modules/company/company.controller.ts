@@ -423,8 +423,21 @@ export class CompanyController {
     // companyId prefix keeps the files self-documenting
     // on disk, and the timestamp lets us keep multiple
     // versions of the same company without conflict.
-    const ext = path.extname(file.originalname) || '.png';
-    const safeExt = ext.toLowerCase().replace(/[^a-z0-9.]/g, '');
+    // Tier 543: the extension comes from the file's own first bytes — not
+    // from its name. Measured: "x.html" declared as image/png was written as
+    // logo-….html into the frontend's public directory, i.e. a page with a
+    // script served from the app's own origin. Only a real PNG, JPEG, GIF or
+    // WebP is a logo.
+    const b = file.buffer;
+    const is = (...bytes: number[]) => !!b && bytes.every((v, k) => b[k] === v);
+    const safeExt = is(0x89, 0x50, 0x4e, 0x47) ? '.png'
+      : is(0xff, 0xd8, 0xff) ? '.jpg'
+      : is(0x47, 0x49, 0x46, 0x38) ? '.gif'
+      : is(0x52, 0x49, 0x46, 0x46) && b.subarray(8, 12).toString('latin1') === 'WEBP' ? '.webp'
+      : null;
+    if (!safeExt) {
+      throw new BadRequestException('Die Datei ist kein Bild (PNG, JPG, GIF oder WebP).');
+    }
     const filename = `logo-${companyId.slice(0, 8)}-${Date.now()}${safeExt}`;
     // Anchor the upload dir to the source file location, not
     // process.cwd(). The backend is started with
