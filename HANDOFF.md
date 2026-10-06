@@ -9,18 +9,21 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–534 are
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–537 are
   in `git log`; §8 records what each learned. Tiers 443–462 came from the
-  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 534.)
+  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 537.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 37393965782 / commit `cb430b2`, Tier 534):**
-  - Backend e2e: **318 passed / 0 failed / 1 skipped** of 319 specs — 100
-    two-digit + 219 three-digit (Tier 534 added `319-tier534-gleichzeitig.sh`,
+- **Test counts (last green CI, run 37427475011 / commit `64c4766`, Tier 537):**
+  - Backend e2e: **321 passed / 0 failed / 1 skipped** of 322 specs — 100
+    two-digit + 222 three-digit (Tier 537 added `322-tier537-uebermittelter-zeitraum-gesperrt.sh`,
+    Tier 536 added `321-tier536-zahlung-doppelt.sh`,
+    Tier 535 added `320-tier535-abo-start-in-der-vergangenheit.sh`,
+    Tier 534 added `319-tier534-gleichzeitig.sh`,
     Tier 533 added `318-tier533-fehler-statt-500.sh`,
     Tier 532 added `317-tier532-abfrageparameter.sh`,
     Tier 531 added `316-tier531-ungepruefte-bodies.sh`,
