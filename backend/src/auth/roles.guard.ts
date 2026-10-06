@@ -18,10 +18,35 @@ export class RolesGuard implements CanActivate {
 
   canActivate(context: ExecutionContext): boolean {
     const action = this.reflector.get<string>(REQUIRE_KEY, context.getHandler())
+    const req = context.switchToHttp().getRequest()
+    // Tier 547: Read-Only Modus by the request itself, before anything else.
+    // The check below goes by the route's action name, and it let writes
+    // through wherever a writing route carries a `.read` action or none —
+    // measured in read-only mode: PATCH /users/:id/role (200), POST
+    // /users/invitations (201, an admin invited), POST /reminders/auto-run
+    // (201 — dunning mails), PUT /reminders/mahnungen/fees-config (200), POST
+    // /admin/cron-health/clean, POST /vat-validation/reverify-now. In
+    // read-only mode nothing but a read goes through: GET / HEAD / OPTIONS,
+    // and the few POSTs that only read or belong to the session itself.
+    if (req.user?.readonly && !['GET', 'HEAD', 'OPTIONS'].includes(String(req.method).toUpperCase())) {
+      const path = String(req.originalUrl || req.url || '').split('?')[0]
+      const READS_BY_POST = [
+        /\/invoices\/bulk-download$/,            // builds a ZIP
+        /\/note-templates\/[^/]+\/preview$/,     // renders a text
+        /\/users\/me\/switch-company$/,          // the session's own company
+        /\/auth\//,                              // logout, 2FA of the own account
+        /\/system\/errors$/,                     // the browser's error report
+        /\/ocr\/scan$/,                          // reads a receipt, books nothing
+      ]
+      if (!READS_BY_POST.some((re) => re.test(path))) {
+        throw new ForbiddenException(
+          `Read-Only Modus aktiv — Schreibvorgang "${action ?? `${req.method} ${path}`}" ist gesperrt`,
+        )
+      }
+    }
     // No @Require = no role check beyond authentication. Allow.
     if (!action) return true
 
-    const req = context.switchToHttp().getRequest()
     const role = req.user?.role
     if (!role) {
       // No authenticated user — for role-protected routes, treat as

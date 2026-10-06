@@ -42,6 +42,7 @@ import {
   Query,
   Res,
   BadRequestException,
+  Req,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { Auth, Require } from '../../auth/roles.decorator';
@@ -212,8 +213,13 @@ export class VatValidationController {
    */
   @Post('reverify-now')
   @Require('users.read')  // admin-only (accountants can NOT trigger a full re-verify)
-  async reverifyNow() {
-    return this.reverifyScheduler.runNowForTest()
+  async reverifyNow(@Req() req: { user?: { companyId?: string }; headers: Record<string, string | string[] | undefined> }) {
+    // Tier 547: the caller's company only. This ran the re-verification for
+    // every company in the database and answered with their counts (measured:
+    // a fresh company's admin got "customers: 255").
+    const companyId = req.user?.companyId || String(req.headers['x-company-id'] || '')
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    return this.reverifyScheduler.runNowForTest(companyId)
   }
 
   /**

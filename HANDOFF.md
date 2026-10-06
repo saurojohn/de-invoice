@@ -2609,6 +2609,31 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 547)
+
+Read-Only Modus (`x-readonly: 1`, the Berater's view) was checked by the
+route's action name. A sweep of every writing route in read-only mode found
+six that went through, because their action ends in `.read` or they carry
+none (spec 332, 9 assertions fail before): `PATCH /users/:id/role` (200 — a
+viewer made admin), `POST /users/invitations` (201 — an admin invited),
+`POST /reminders/auto-run` (201 — dunning mails), `PUT
+/reminders/mahnungen/fees-config`, `POST /admin/cron-health/clean`, `POST
+/vat-validation/reverify-now`.
+
+- `RolesGuard`: in read-only mode the request decides — GET / HEAD / OPTIONS,
+  and the POSTs that only read (`invoices/bulk-download`,
+  `note-templates/:id/preview`, `ocr/scan`, the browser's error report) or
+  belong to the session (`users/me/switch-company`, `auth/…`); anything else
+  is 403 "Read-Only Modus aktiv — Schreibvorgang … ist gesperrt". A new
+  writing route is refused without anyone listing it.
+- `POST /vat-validation/reverify-now` ran the re-verification for **every**
+  company and answered with their counts (a fresh company's admin got
+  "customers: 255"); it runs for the caller's company. The nightly job is
+  unchanged.
+
+The header is set by the client — read-only mode is a guard against
+accidents in the Berater's view, not a permission; the role is.
+
 ### The bank connection's writing routes need a writing role (Tier 546) — security
 
 A sweep with a `viewer` of the company against every writing route (scratch)

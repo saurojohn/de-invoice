@@ -59,7 +59,9 @@ export class VatReverifyScheduler {
    * DISABLE_CRON. Returns the same stats the cron
    * logs at the end of a real run.
    */
-  async runNowForTest(): Promise<{ customers: number; suppliers: number; transitions: number; errors: number }> {
+  // Tier 547: for one company when called from the route — the nightly job
+  // (dailyReverify) runs over all of them.
+  async runNowForTest(companyId?: string): Promise<{ customers: number; suppliers: number; transitions: number; errors: number }> {
     this.logger.warn('runNowForTest called — bypassing DISABLE_CRON')
     const today = new Date().toISOString().slice(0, 10)
     for (const k of this._emailedToday) {
@@ -67,12 +69,12 @@ export class VatReverifyScheduler {
     }
     const cutoff = new Date(Date.now() - REVERIFY_AFTER_DAYS * 24 * 3600 * 1000)
     let stats = { customers: 0, suppliers: 0, transitions: 0, errors: 0 }
-    try { stats.customers = await this.reverifyEntity('customer', cutoff, today) }
+    try { stats.customers = await this.reverifyEntity('customer', cutoff, today, companyId) }
     catch (e: any) {
       this.logger.error(`Customer re-verify failed: ${e?.message || e}`)
       stats.errors++
     }
-    try { stats.suppliers = await this.reverifyEntity('supplier', cutoff, today) }
+    try { stats.suppliers = await this.reverifyEntity('supplier', cutoff, today, companyId) }
     catch (e: any) {
       this.logger.error(`Supplier re-verify failed: ${e?.message || e}`)
       stats.errors++
@@ -159,6 +161,7 @@ export class VatReverifyScheduler {
     entityType: 'customer' | 'supplier',
     cutoff: Date,
     today: string,
+    companyId?: string,
   ): Promise<number> {
     // Step 1: find all entity rows that have a
     // non-empty VAT ID. We DON'T pre-filter by
@@ -177,7 +180,7 @@ export class VatReverifyScheduler {
     //     "checking a fresh entity" is ~1ms (DB
     //     lookup only, no VIES call).
     const rows = await (this.prisma as any)[entityType].findMany({
-      where: { vatId: { not: null } },
+      where: { vatId: { not: null }, ...(companyId ? { companyId } : {}) },
       select: { id: true, companyId: true, vatId: true, name: true },
     })
     // Tier 356: this local counter is incremented below but never read.
