@@ -23,7 +23,7 @@ test('a paid Proforma gets its final invoice from the detail page', async ({ pag
     data: {
       customerId: customer.id,
       type: 'PI',
-      issueDate: new Date().toISOString().slice(0, 10),
+      issueDate: new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin" }).format(new Date()),
       items: [{ description: `${tag} Maschine`, quantity: 1, unit: 'Stk', unitPrice: 1000, vatRate: 0.19 }],
     },
   })).json()
@@ -31,7 +31,7 @@ test('a paid Proforma gets its final invoice from the detail page', async ({ pag
     data: { status: 'sent' },
   })).status()).toBe(200)
   expect((await api.post(`${API}/api/v1/invoices/${pi.id}/payments?companyId=${COMPANY_ID}`, {
-    data: { amount: 1190, paymentDate: new Date().toISOString().slice(0, 10), paymentMethod: 'bank_transfer' },
+    data: { amount: 1190, paymentDate: new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin" }).format(new Date()), paymentMethod: 'bank_transfer' },
   })).status()).toBe(201)
 
   await page.context().addCookies([
@@ -69,13 +69,13 @@ test('a paid Proforma pays its advance back from the detail page', async ({ page
     data: {
       customerId: customer.id,
       type: 'PI',
-      issueDate: new Date().toISOString().slice(0, 10),
+      issueDate: new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin" }).format(new Date()),
       items: [{ description: `${tag} Maschine`, quantity: 1, unit: 'Stk', unitPrice: 100, vatRate: 0.19 }],
     },
   })).json()
   await api.put(`${API}/api/v1/invoices/${pi.id}/status?companyId=${COMPANY_ID}`, { data: { status: 'sent' } })
   await api.post(`${API}/api/v1/invoices/${pi.id}/payments?companyId=${COMPANY_ID}`, {
-    data: { amount: 119, paymentDate: new Date().toISOString().slice(0, 10), paymentMethod: 'bank_transfer' },
+    data: { amount: 119, paymentDate: new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin" }).format(new Date()), paymentMethod: 'bank_transfer' },
   })
 
   await page.context().addCookies([

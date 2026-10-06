@@ -96,7 +96,7 @@ test.beforeAll(async ({ request }) => {
   // starts new invoices as 'draft'. Sending `status`
   // in the body returns 400 with
   // "property status should not exist".
-  const today = new Date().toISOString().slice(0, 10)
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin" }).format(new Date())
   const invRes = await request.post(
     `http://localhost:3001/api/v1/invoices?companyId=${testTokens!.companyId}`,
     {

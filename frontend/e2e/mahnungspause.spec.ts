@@ -75,7 +75,7 @@ test.beforeAll(async ({ request }) => {
   // invoice is "overdue" semantically, but the
   // actual button visibility depends on the page's
   // isToday check (status='sent' or 'overdue').
-  const today = new Date().toISOString().slice(0, 10)
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin" }).format(new Date())
   const invRes = await request.post(
     `http://localhost:3001/api/v1/invoices?companyId=${testTokens!.companyId}`,
     {

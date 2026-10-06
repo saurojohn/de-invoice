@@ -13,7 +13,7 @@ import { readFileSync } from "fs"
 const API = "http://localhost:3001"
 let tokens: { userId: string; companyId: string }
 let H: Record<string, string>
-const today = new Date().toISOString().slice(0, 10)
+const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin" }).format(new Date())
 
 test.beforeAll(() => {
   const env = readFileSync("/tmp/cashbook-e2e-auth.env", "utf-8")

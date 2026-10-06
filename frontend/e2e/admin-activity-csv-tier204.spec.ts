@@ -220,7 +220,7 @@ test.describe("Tier 204 — GET /audit-logs/activity.csv", () => {
     expect(disposition, "Content-Disposition header missing").toBeTruthy()
     expect(disposition).toMatch(/attachment.*filename=.*\.csv/)
     // Filename should include today's date.
-    const today = new Date().toISOString().slice(0, 10)
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin" }).format(new Date())
     expect(disposition).toContain(today)
     expect(disposition).toContain("activity-log-")
   })

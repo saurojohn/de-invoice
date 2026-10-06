@@ -19,7 +19,7 @@ test("a Privatentnahme is saved without a VAT rate and is no expense", async ({ 
   const companyId: string = reg.user.companyId || reg.company.id
   const H = { "x-user-id": userId, "x-company-id": companyId }
   const q = `companyId=${companyId}`
-  const today = new Date().toISOString().slice(0, 10)
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin" }).format(new Date())
   expect((await request.post(`${API}/api/v1/cashbook/entries?${q}`, {
     headers: H, data: { businessDate: today, type: "eroeffnung", description: "Anfangsbestand", amount: 500 },
   })).status()).toBe(201)

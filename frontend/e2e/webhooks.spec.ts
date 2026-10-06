@@ -314,7 +314,7 @@ test.describe("Webhooks UI", () => {
             body: JSON.stringify({
               customerId: customer.id,
               type: "INV",
-              issueDate: new Date().toISOString().slice(0, 10),
+              issueDate: new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin" }).format(new Date()),
               dueDate: new Date(Date.now() + 14 * 86400000)
                 .toISOString()
                 .slice(0, 10),

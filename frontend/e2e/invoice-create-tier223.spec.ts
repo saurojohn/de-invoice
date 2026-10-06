@@ -151,7 +151,7 @@ test.describe("Tier 223 — Invoice create happy path", () => {
     // enabled and issue-date should default to today.
     const issueDate = page.getByTestId("invoice-issue-date")
     await expect(issueDate).toBeVisible()
-    const today = new Date().toISOString().slice(0, 10)
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin" }).format(new Date())
     const dateValue = await issueDate.inputValue()
     expect(dateValue, "issueDate defaults to today").toBe(today)
   })

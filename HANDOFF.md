@@ -2628,6 +2628,8 @@ Rewritten as three `handle` blocks: `/metrics` → 404 at the proxy (Prometheus 
 
 Verified: `caddy validate` for both files (also with the compose file's own arguments); the production block run in a throwaway container against the local backend — `/metrics` 404, `/api/v1/health` and `/health/deep` 200, the headers present. **Not verified:** TLS/ACME (needs the real domain), the frontend upstream, and the whole stack together — nobody has run `docker compose up` on this file yet. Spec `341-tier561-caddyfile-gueltig.sh` (5 assertions fail on the old files; skips where the image cannot be had).
 
+Tier 561a (CI, a late effect of Tier 553): Playwright `webhook-deliveries-csv-tier203` expects today's date in the export's file name and computed it as the UTC day; the backend names the file by the German day since Tier 553. The run at 22:xx UTC — already the next day in Germany — failed. All 15 places in `frontend/e2e/` that took today from `toISOString()` now use the German day, as the app does.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 560 — a company's logo is kept with the other uploaded files
 
 `POST /companies/upload-logo` wrote to `frontend/public/images/` beside the source tree, and the frontend showed `/images/<name>` from its own public directory. That only works where both run from one checkout. In the compose deployment the path is `/frontend/public/images` inside the **backend** container: not a volume — every logo was gone after the next `docker compose up`, and the invoice PDFs lost it — and not the frontend container's directory, so the settings page and the invoice preview never showed a logo at all.

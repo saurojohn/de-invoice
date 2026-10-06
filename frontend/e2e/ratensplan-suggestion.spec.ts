@@ -86,7 +86,7 @@ test.beforeAll(async ({ request }) => {
   // because it requires the invoice to be 'sent'.
   // For the BANNER test we need to manually mark
   // the invoice as 'sent' via SQL after creation.
-  const today = new Date().toISOString().slice(0, 10)
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin" }).format(new Date())
   const highRes = await request.post(
     `http://localhost:3001/api/v1/invoices?companyId=${testTokens!.companyId}`,
     {

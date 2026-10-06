@@ -150,7 +150,7 @@ test.describe("SEPA pain.008 direct-debit — /dashboard/payments/direct-debit",
     const list = Array.isArray(customersJson) ? customersJson : customersJson.data
     expect(list.length).toBeGreaterThan(0)
     const customer = list[0]
-    const today = new Date().toISOString().slice(0, 10)
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin" }).format(new Date())
     // Tier 380: mandates validate the IBAN check digits (mod-97), so the
     // varied account number gets its own check digits instead of reusing
     // DE89's — the old value was invalid for all but one suffix.
