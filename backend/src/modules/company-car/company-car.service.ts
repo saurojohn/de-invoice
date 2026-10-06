@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '../../prisma/prisma.service'
 import { isKapitalgesellschaft, resolveRechtsform } from '../company/rechtsform'
 import { CreateCompanyCarDto, EndCompanyCarDto } from './company-car.dto'
-import { privateCarUse, roundedListPrice } from './private-use'
+import { DEFAULT_COMMUTE_DAYS, privateCarUse, roundedListPrice } from './private-use'
 
 /** Tier 502 — company cars used privately (private-use.ts). */
 @Injectable()
@@ -36,6 +36,8 @@ export class CompanyCarService {
         method: dto.method,
         fromDate: from,
         untilDate: until,
+        commuteKm: dto.commuteKm ?? null, // Tier 541
+        commuteDays: dto.commuteKm ? dto.commuteDays ?? DEFAULT_COMMUTE_DAYS : null,
       },
     })
   }
@@ -43,9 +45,21 @@ export class CompanyCarService {
   async end(companyId: string, id: string, dto: EndCompanyCarDto) {
     const car = await this.prisma.companyCar.findFirst({ where: { id, companyId } })
     if (!car) throw new NotFoundException('Firmenwagen nicht gefunden')
-    const until = dto.untilDate ? new Date(dto.untilDate) : null
-    if (until && until < car.fromDate) throw new BadRequestException('Das Ende liegt vor dem Beginn.')
-    return this.prisma.companyCar.update({ where: { id }, data: { untilDate: until } })
+    // Tier 541: `untilDate` only when it is part of the request — the route
+    // also sets the trips home – business.
+    const data: Record<string, unknown> = {}
+    if (dto.untilDate !== undefined) {
+      const until = dto.untilDate ? new Date(dto.untilDate) : null
+      if (until && until < car.fromDate) throw new BadRequestException('Das Ende liegt vor dem Beginn.')
+      data.untilDate = until
+    }
+    if (dto.commuteKm !== undefined) {
+      data.commuteKm = dto.commuteKm ?? null
+      data.commuteDays = dto.commuteKm ? dto.commuteDays ?? car.commuteDays ?? DEFAULT_COMMUTE_DAYS : null
+    } else if (dto.commuteDays !== undefined && car.commuteKm) {
+      data.commuteDays = dto.commuteDays ?? DEFAULT_COMMUTE_DAYS
+    }
+    return this.prisma.companyCar.update({ where: { id }, data })
   }
 
   async remove(companyId: string, id: string) {

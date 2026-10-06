@@ -20,12 +20,16 @@ interface CompanyCar {
   method: "one_percent" | "electric_025" | "electric_05"
   fromDate: string
   untilDate: string | null
+  // Tier 541: trips home – business
+  commuteKm?: number | null
+  commuteDays?: number | null
 }
 
 interface PrivateUse {
   income: number
   vatBase: number
   vat: number
+  commute?: number
 }
 
 const eur = (n: number) => n.toLocaleString("de-DE", { style: "currency", currency: "EUR" })
@@ -43,6 +47,8 @@ export default function CompanyCarsCard() {
     listPrice: "",
     method: "one_percent" as CompanyCar["method"],
     fromDate: new Date().toISOString().slice(0, 10),
+    commuteKm: "",
+    commuteDays: "",
   })
 
   const companyId = () => (typeof window !== "undefined" ? localStorage.getItem("companyId") : null)
@@ -70,8 +76,16 @@ export default function CompanyCarsCard() {
     setSaving(true)
     setError(null)
     try {
-      await apiPost(`/api/v1/company-cars?companyId=${companyId()}`, { ...form, listPrice })
-      setForm((f) => ({ ...f, name: "", listPrice: "" }))
+      const km = parseInt(form.commuteKm, 10)
+      const days = parseInt(form.commuteDays, 10)
+      await apiPost(`/api/v1/company-cars?companyId=${companyId()}`, {
+        name: form.name,
+        listPrice,
+        method: form.method,
+        fromDate: form.fromDate,
+        ...(km > 0 ? { commuteKm: km, ...(days >= 0 ? { commuteDays: days } : {}) } : {}),
+      })
+      setForm((f) => ({ ...f, name: "", listPrice: "", commuteKm: "", commuteDays: "" }))
       await load()
     } catch (e: any) {
       setError(e?.message || t("companyCars.failed"))
@@ -157,6 +171,30 @@ export default function CompanyCarsCard() {
               data-testid="company-car-from"
             />
           </label>
+          <label className="text-sm">
+            <span className="block text-gray-600 dark:text-gray-300">{t("companyCars.commuteKm")}</span>
+            <input
+              className="border rounded px-2 py-1 w-24 bg-white dark:bg-gray-800"
+              value={form.commuteKm}
+              inputMode="numeric"
+              placeholder="—"
+              title={t("companyCars.commuteHint")}
+              onChange={(e) => setForm({ ...form, commuteKm: e.target.value })}
+              data-testid="company-car-commute-km"
+            />
+          </label>
+          <label className="text-sm">
+            <span className="block text-gray-600 dark:text-gray-300">{t("companyCars.commuteDays")}</span>
+            <input
+              className="border rounded px-2 py-1 w-20 bg-white dark:bg-gray-800"
+              value={form.commuteDays}
+              inputMode="numeric"
+              placeholder="15"
+              title={t("companyCars.commuteHint")}
+              onChange={(e) => setForm({ ...form, commuteDays: e.target.value })}
+              data-testid="company-car-commute-days"
+            />
+          </label>
           <Button size="sm" onClick={add} disabled={saving} data-testid="company-car-add">
             {t("companyCars.add")}
           </Button>
@@ -172,6 +210,9 @@ export default function CompanyCarsCard() {
                   <td className="py-2">{c.name}</td>
                   <td className="py-2">{eur(Number(c.listPrice))}</td>
                   <td className="py-2">{methodLabel(c.method)}</td>
+                  <td className="py-2" data-testid="company-car-commute">
+                    {c.commuteKm ? t("companyCars.commuteRow").replace("{km}", String(c.commuteKm)).replace("{days}", String(c.commuteDays ?? 15)) : ""}
+                  </td>
                   <td className="py-2">
                     {day(c.fromDate)} – {c.untilDate ? day(c.untilDate) : t("companyCars.ongoing")}
                   </td>
@@ -196,6 +237,7 @@ export default function CompanyCarsCard() {
               .replace("{year}", String(year))
               .replace("{income}", eur(use.income))
               .replace("{vat}", eur(use.vat))}
+            {use.commute ? " " + t("companyCars.summaryCommute").replace("{commute}", eur(use.commute)) : ""}
           </p>
         )}
       </CardContent>

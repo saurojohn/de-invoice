@@ -164,7 +164,7 @@ const EINNAHMEN_LINES: Array<{ kz: string; label: string }> = [
   },
   { kz: '2190', label: 'Sonstige Erlöse (Gutschriften, Nebenerlöse, Provisionen)' },
   // Tier 502: private use of a company car (company-car/private-use.ts)
-  { kz: '2180', label: 'Private Kfz-Nutzung (§ 6 Abs. 1 Nr. 4 EStG)' },
+  { kz: '2180', label: 'Private Kfz-Nutzung, Fahrten Wohnung–Betrieb (§ 6 Abs. 1 Nr. 4, § 4 Abs. 5 Nr. 6 EStG)' },
   // Tier 483: with an EÜR (Gewinnermittlung 'euer') the VAT is part of the
   // cash flows — received and refunded by the Finanzamt; 0 with a Bilanz.
   { kz: '2195', label: 'Umsatzsteuer (vereinnahmt / vom Finanzamt erstattet, nur EÜR)' },

@@ -162,7 +162,7 @@ const REVENUE_LINES: Array<{ kz: string; label: string; matcher: (inv: any, ctx:
   {
     // Tier 502: private use of a company car (1 % rule, company-car/private-use.ts)
     kz: '4180',
-    label: 'Private Kfz-Nutzung (§ 6 Abs. 1 Nr. 4 EStG)',
+    label: 'Private Kfz-Nutzung, Fahrten Wohnung–Betrieb (§ 6 Abs. 1 Nr. 4, § 4 Abs. 5 Nr. 6 EStG)',
     matcher: () => false,
   },
   {

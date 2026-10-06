@@ -656,6 +656,9 @@ model CompanyCar {
   method    String
   fromDate  DateTime  @db.Date
   untilDate DateTime? @db.Date
+  // Tier 541: trips home–business: one-way distance (km) and days per month
+  commuteKm   Int?
+  commuteDays Int?
   createdAt DateTime  @default(now())
 
   @@index([companyId])

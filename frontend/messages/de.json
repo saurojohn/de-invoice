@@ -3740,7 +3740,7 @@
   },
   "companyCars": {
     "title": "Firmenwagen (private Nutzung)",
-    "hint": "Für Einzelunternehmen und Personengesellschaften: je Monat 1 % des Bruttolistenpreises (E-Auto 0,25 % / 0,5 %) als Entnahme in der EÜR; 80 % des 1-%-Werts als unentgeltliche Wertabgabe mit 19 % USt in der UStVA. Fahrtenbuch und Fahrten Wohnung–Betrieb sind nicht abgebildet.",
+    "hint": "Für Einzelunternehmen und Personengesellschaften: je Monat 1 % des Bruttolistenpreises (E-Auto 0,25 % / 0,5 %) als Entnahme in der EÜR; 80 % des 1-%-Werts als unentgeltliche Wertabgabe mit 19 % USt in der UStVA. Fahrten Wohnung–Betrieb: 0,03 % je km abzüglich Entfernungspauschale. Das Fahrtenbuch ist nicht abgebildet.",
     "name": "Kennzeichen / Bezeichnung",
     "listPrice": "Bruttolistenpreis (€)",
     "method": "Methode",
@@ -3756,7 +3756,12 @@
     "delete": "Löschen",
     "deleteConfirm": "Firmenwagen löschen? Die private Nutzung entfällt dann für alle Monate.",
     "summary": "{year}: private Nutzung {income}, Umsatzsteuer darauf {vat}.",
-    "failed": "Firmenwagen konnten nicht geladen oder gespeichert werden."
+    "failed": "Firmenwagen konnten nicht geladen oder gespeichert werden.",
+    "commuteKm": "Wohnung–Betrieb (km)",
+    "commuteDays": "Tage / Monat",
+    "commuteHint": "Einfache Entfernung zwischen Wohnung und Betriebsstätte. Je Monat sind 0,03 % des Listenpreises je km nicht abziehbar, abzüglich der Entfernungspauschale (0,30 € / ab dem 21. km 0,38 € je Fahrtag) — § 4 Abs. 5 Nr. 6 EStG. Leer: keine solchen Fahrten.",
+    "commuteRow": "{km} km, {days} Tage/Monat",
+    "summaryCommute": "Darin Fahrten Wohnung–Betrieb: {commute}."
   },
   "homeOffice": {
     "title": "Homeoffice / häusliches Arbeitszimmer",

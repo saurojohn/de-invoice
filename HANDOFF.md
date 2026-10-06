@@ -2602,6 +2602,31 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### A company car's trips between home and the business (Tier 541)
+
+The "not covered" of Tier 502 (spec 326). With the 1 % rule the trips between
+home and the business premises are not a business expense beyond the
+Entfernungspauschale (§ 4 Abs. 5 Satz 1 Nr. 6 EStG): per month 0,03 % of the
+list price (a quarter / half of it for an electric car) per kilometre of the
+one-way distance, less 0,30 € per km for the first 20 km and 0,38 € from the
+21st, per day with the trip — never below 0.
+
+- `CompanyCar.commuteKm` / `commuteDays` (migration
+  `20261006000004_company_car_commute`; 15 days a month unless given). Set
+  when the car is recorded, changed with `PUT /company-cars/:id` — which now
+  touches `untilDate` only when the request carries it.
+- `private-use.ts` `monthlyCommute`; `privateCarUse` adds it to each month's
+  `income` and reports it as `commute`. It reaches the profit with the
+  private use — EÜR / Anlage S 4180, Anlage G 2180 (labels now name both),
+  DATEV with the non-VAT part (1800 an 8924). No VAT: the UStVA is unchanged.
+- Settings card: "Wohnung–Betrieb (km)", "Tage / Monat" (de / en / zh).
+
+Example (spec): list price 45 678 €, 25 km, 15 days → 342,00 − 118,50 =
+223,50 € a month.
+
+Not covered: the Fahrtenbuch method, the Kostendeckelung, the 0,002 % per
+trip for fewer than 15 trips a month, a second household.
+
 ### Exchange differences are booked (Tier 540)
 
 The "not covered" of Tier 505. An invoice over 1 085 USD is in the books at

@@ -18,8 +18,16 @@ import { isKapitalgesellschaft, resolveRechtsform } from '../company/rechtsform'
  * None of this was modelled: the EÜR / Anlage S / Anlage G had no private
  * use, the UStVA no Wertabgabe, DATEV no booking.
  *
- * Not covered: the Fahrtenbuch method, trips between home and business
- * (0,03 %), the Kostendeckelung. A Kapitalgesellschaft's car used privately
+ * Tier 541 — trips between home and the (first) business premises
+ * (§ 4 Abs. 5 Satz 1 Nr. 6 EStG): per month 0,03 % of the list price (for an
+ * electric car a quarter / half of it) per kilometre of the one-way distance
+ * is not a business expense — less the Entfernungspauschale the owner may
+ * deduct like an employee (0,30 € per km for the first 20 km, 0,38 € from
+ * the 21st, per day with the trip). The positive difference is added to the
+ * profit with the private use; it carries no VAT.
+ *
+ * Not covered: the Fahrtenbuch method, the Kostendeckelung, the 0,002 % per
+ * trip for fewer than 15 days a month. A Kapitalgesellschaft's car used privately
  * by its managing director is payroll (geldwerter Vorteil), not this.
  */
 export const COMPANY_CAR_METHODS = ['one_percent', 'electric_025', 'electric_05'] as const
@@ -32,6 +40,11 @@ const INCOME_RATE: Record<CompanyCarMethod, number> = {
 }
 const VAT_SHARE = 0.8 // less 20 % for costs without input tax
 const VAT_RATE = 0.19
+/** Tier 541: days per month with a trip home – business, when none is given */
+export const DEFAULT_COMMUTE_DAYS = 15
+const COMMUTE_RATE = 0.0003
+const PAUSCHALE_FIRST_20 = 0.3
+const PAUSCHALE_FROM_21 = 0.38
 
 export interface CarLike {
   id: string
@@ -40,6 +53,8 @@ export interface CarLike {
   method: string
   fromDate: Date
   untilDate: Date | null
+  commuteKm?: number | null
+  commuteDays?: number | null
 }
 
 const r2 = (n: number) => Math.round(n * 100) / 100
@@ -68,6 +83,21 @@ export function monthlyPrivateUse(car: CarLike, kleinunternehmer: boolean) {
   return { income, vatBase, vat }
 }
 
+/**
+ * Tier 541 — the month's non-deductible cost of the trips home – business:
+ * 0,03 % × list price × km, less the Entfernungspauschale; never below 0.
+ */
+export function monthlyCommute(car: CarLike) {
+  const km = Number(car.commuteKm ?? 0)
+  if (!(km > 0)) return { pauschal: 0, entfernungspauschale: 0, commute: 0 }
+  const days = car.commuteDays ?? DEFAULT_COMMUTE_DAYS
+  // The electric reduction applies to the list price here too.
+  const factor = (INCOME_RATE[car.method as CompanyCarMethod] ?? INCOME_RATE.one_percent) / INCOME_RATE.one_percent
+  const pauschal = r2(roundedListPrice(car.listPrice) * factor * COMMUTE_RATE * km)
+  const entfernungspauschale = r2(days * (Math.min(km, 20) * PAUSCHALE_FIRST_20 + Math.max(km - 20, 0) * PAUSCHALE_FROM_21))
+  return { pauschal, entfernungspauschale, commute: r2(Math.max(0, pauschal - entfernungspauschale)) }
+}
+
 export interface PrivateUseMonth {
   year: number
   month: number
@@ -76,6 +106,8 @@ export interface PrivateUseMonth {
   income: number
   vatBase: number
   vat: number
+  /** Tier 541: non-deductible trips home – business (in `income` too) */
+  commute: number
 }
 
 /**
@@ -83,7 +115,7 @@ export interface PrivateUseMonth {
  * totals. Nothing for a Kapitalgesellschaft.
  */
 export async function privateCarUse(prisma: any, companyId: string, from: Date, to: Date) {
-  const empty = { income: 0, vatBase: 0, vat: 0, months: [] as PrivateUseMonth[] }
+  const empty = { income: 0, vatBase: 0, vat: 0, commute: 0, months: [] as PrivateUseMonth[] }
   const company = await prisma.company.findUnique({
     where: { id: companyId },
     select: { name: true, legalName: true, rechtsform: true, settings: true, defaultVatMode: true },
@@ -117,7 +149,10 @@ export async function privateCarUse(prisma: any, companyId: string, from: Date, 
     }
     for (const car of cars) {
       if (!inMonth(car, y, m)) continue
-      months.push({ year: y, month: m, carId: car.id, carName: car.name, ...monthlyPrivateUse(car, kleinunternehmer) })
+      const use = monthlyPrivateUse(car, kleinunternehmer)
+      const { commute } = monthlyCommute(car)
+      // The trips home – business are added to the profit with the private use.
+      months.push({ year: y, month: m, carId: car.id, carName: car.name, ...use, income: r2(use.income + commute), commute })
     }
     m++
     if (m > 12) { m = 1; y++ }
@@ -126,6 +161,7 @@ export async function privateCarUse(prisma: any, companyId: string, from: Date, 
     income: r2(months.reduce((s, x) => s + x.income, 0)),
     vatBase: r2(months.reduce((s, x) => s + x.vatBase, 0)),
     vat: r2(months.reduce((s, x) => s + x.vat, 0)),
+    commute: r2(months.reduce((s, x) => s + x.commute, 0)),
     months,
   }
 }
