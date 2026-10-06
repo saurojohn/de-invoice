@@ -192,6 +192,15 @@ export class BackupService {
    * because the HTTP server's keep-alive handles
    * long-lived POSTs fine.
    */
+  /**
+   * Tier 558: whether this deployment has the backup script at all. The
+   * production image contains backend/src only — no scripts/backup.sh and no
+   * docker CLI; its backups are taken by the compose file's backup container.
+   */
+  scriptAvailable(): boolean {
+    return fs.existsSync(this.scriptPath)
+  }
+
   async runBackup(): Promise<BackupRunResult> {
     const t0 = Date.now()
     const beforeDirs = new Set(

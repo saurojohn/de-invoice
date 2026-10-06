@@ -2617,6 +2617,12 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 558 — the nightly in-app backup does not fail where it cannot run; the files' backup is the operator's
+
+The app's own backup (`scripts/backup.sh` via `docker exec`) belongs to the single-host setup. The production image contains `backend/src` only — no script, no docker CLI — so `daily-auto-backup` failed there every night at 04:00: a red scheduler, an ErrorEvent, a notification, although the compose file's backup container had dumped the database at 03:00. `BackupService.scriptAvailable()`; the scheduler skips with a log line when the script is not there. (The Backups page still lists nothing in that deployment — its backups are in the `backups` volume, outside the app's view.)
+
+**Open, for the operator — not something code fixes:** the production stack backs up the database only. The `storage` volume (receipts, attachments, logos, archived PDFs) is copied by nothing that ships here; `infra/prod/README.md` told the operator to restore it "from offsite" without ever saying how it gets there. The README now says so plainly and gives an rsync example. No spec (deployment-dependent; typecheck only).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 557 — production does not scan every receipt as "Musterfirma GmbH, 119,00 EUR"
 
 `OcrModule` chose the engine by `OCR_ENGINE === 'tesseract'`, else the mock — which answers every scan with one invented receipt (supplier, VAT id, IBAN, 100 + 19 = 119). The production compose file never set the variable, so that was production's receipt scanner: the expense form was prefilled with the fixture whatever was uploaded. Now `realOcr()`: tesseract when asked for, the mock when asked for, and in production the real engine by default; the compose file sets `OCR_ENGINE: ${OCR_ENGINE:-tesseract}`. Measured with `NODE_ENV=production` and no variable: log `OCR engine: tesseract (real)`, a blank image → all fields null (was the fixture). **Not verified:** the container image at runtime — tesseract.js fetches the `deu` language data on first use, which needs outbound network from the backend container (or the data baked into the image).

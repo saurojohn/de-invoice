@@ -44,6 +44,13 @@ export class BackupScheduler {
       this.logger.debug('Cron disabled via DISABLE_CRON=1 — skipping tick')
       return
     }
+    // Tier 558: in the container there is nothing to run — the nightly tick
+    // failed every night at 04:00 there (red scheduler, an error event, a
+    // notification) although the backup container had done its job at 03:00.
+    if (!this.backup.scriptAvailable()) {
+      this.logger.log('Auto-backup skipped: no backup script in this deployment (backups are taken outside the app)')
+      return
+    }
     this.logger.log('Auto-backup daily tick starting')
     return this.health.wrap('daily-auto-backup', async () => {
       const result = await this.backup.runBackup()

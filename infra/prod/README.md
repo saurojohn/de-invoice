@@ -298,6 +298,27 @@ docker run --rm -v de-invoice_backups:/backups alpine \
   ls -lh /backups
 ```
 
+### The uploaded files are NOT in these backups
+
+The backup container dumps the **database** only. Everything users upload —
+receipts, attachments, logos, archived invoice PDFs — lives in the `storage`
+named volume, and nothing in this stack copies it anywhere. A restore from
+the database dump alone brings back records whose documents are gone
+(for receipts that is a GoBD retention problem, § 147 AO).
+
+Until the volume is backed up, step 5 of the disaster-recovery list below
+("Restore the `storage` named volume from offsite") has nothing to restore
+from. Copy it on the same schedule as the dumps, e.g.:
+
+```cron
+# /etc/cron.d/de-invoice-offsite-storage
+45 4 * * * deploy rsync -az --delete-after /var/lib/docker/volumes/de-invoice_storage/_data/ \
+                    deploy@backup.example.com:/backups/de-invoice-storage/
+```
+
+(`--delete-after` mirrors deletions; drop it, or use a snapshotting target,
+if the offsite copy should keep files that were deleted in the app.)
+
 ### Copy backups offsite
 
 Schedule a cron job on the host to rsync backups to a remote
