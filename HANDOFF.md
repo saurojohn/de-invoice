@@ -2599,6 +2599,31 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### A template entered with a start in the past does not bill the time since (Tier 535)
+
+**Decided by the user on 06.10.2026** (three questions asked after Tier 534):
+
+1. The first invoice of a recurring template stays one interval after its
+   start date (start 01.11. → first invoice 01.12.) — *keep as it is*.
+2. A new template whose start lies in the past: *do not bill the time since,
+   start from today* — this tier.
+3. The same payment submitted twice: *refuse within 10 seconds* — Tier 536.
+4. Of the feature gaps, the *lock on a filed UStVA period* comes first —
+   Tier 537. (Exchange differences and the Bewirtungsbeleg fields stay open.)
+
+Measured (spec 320, fails before): a monthly subscription that began on
+01.01.2024, entered today — next run 01.02.2024, and the scheduler made one
+invoice each morning (February 2024, March 2024, …) until it had caught up,
+e-mailed if the template says so.
+
+- `RecurringService.notBeforeToday`: the next run of a template that is
+  created, cloned or re-scheduled (an edit of start / interval / day) is the
+  first date of its schedule from today on. An existing template keeps its
+  date (Tier 519 covers pauses); a back period is billed with "Jetzt
+  generieren".
+- Fixtures: specs 217 and 279 start their templates in 2030; spec 304 writes
+  the 2024 run date to the row.
+
 ### Spec 145 and the broken pipe (Tier 533a)
 
 CI run 37392109488 failed spec 145 on `echo "$X" | grep -q …` under

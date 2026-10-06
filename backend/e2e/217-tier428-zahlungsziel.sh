@@ -52,13 +52,14 @@ assert_eq "a customer without an own term keeps the company default of 30" "$(in
 
 note "=== 2. a monthly contract on the 31st ==="
 tpl() { AS POST "/api/v1/recurring-invoices?companyId=$C" "{\"customerId\":\"$1\",\"name\":\"$2\",\"interval\":\"$3\",\"dayOfMonth\":$4,\"startDate\":\"$5\",\"items\":[{\"description\":\"Miete\",\"quantity\":1,\"unit\":\"Stk\",\"unitPrice\":1000,\"vatRate\":0.19}]}"; json_field "$BODY" id; }
-T=$(tpl "$K14" "Miete" monthly 31 "2026-01-31")
+# Tier 535: a start in the past begins from today — the contract starts in 2030.
+T=$(tpl "$K14" "Miete" monthly 31 "2030-01-31")
 next() { q "select to_char(\"nextRunAt\", 'YYYY-MM-DD') from \"RecurringInvoice\" where id='$T'"; }
-assert_eq "first run 28.02. — February, its last day (was 28.03.)" "$(next)" "2026-02-28"
+assert_eq "first run 28.02. — February, its last day (was 28.03.)" "$(next)" "2030-02-28"
 for i in 1 2 3; do AS POST "/api/v1/recurring-invoices/$T/run?companyId=$C" '{}'; done
 assert_eq "…then 31.03., 30.04., 31.05. — the 31st wherever the month has one (was 28.04., 28.05., 28.06.)" \
   "$(q "select string_agg(to_char(\"periodStart\", 'YYYY-MM-DD'), ' ' order by \"periodStart\") from \"RecurringRun\" where \"recurringInvoiceId\"='$T'")/$(next)" \
-  "2026-02-28 2026-03-31 2026-04-30/2026-05-31"
+  "2030-02-28 2030-03-31 2030-04-30/2030-05-31"
 
 note "=== 3. a recurring invoice follows the customer's Zahlungsziel ==="
 assert_eq "issued today, due 14 days later (was 30)" \

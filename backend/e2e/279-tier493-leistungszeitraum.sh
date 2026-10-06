@@ -72,8 +72,10 @@ AS POST "/api/v1/invoices?companyId=$C" "{\"customerId\":\"$K\",\"issueDate\":\"
 assert_eq "start after end → 400" "$STATUS" "400"
 
 note "=== a recurring template states its interval ==="
+# Tier 535: a start in the past begins from today — these templates start in 2030,
+# so that the first run is 01.10.2030 whenever the spec runs.
 tpl() { # name mode
-  AS POST "/api/v1/recurring-invoices?companyId=$C" "{\"customerId\":\"$K\",\"name\":\"$1\",\"interval\":\"monthly\",\"dayOfMonth\":1,\"startDate\":\"2026-09-01\",\"servicePeriod\":\"$2\",$ITEMS}"
+  AS POST "/api/v1/recurring-invoices?companyId=$C" "{\"customerId\":\"$K\",\"name\":\"$1\",\"interval\":\"monthly\",\"dayOfMonth\":1,\"startDate\":\"2030-09-01\",\"servicePeriod\":\"$2\",$ITEMS}"
   json_field "$BODY" id
 }
 period_of_run() { # template
@@ -83,10 +85,10 @@ period_of_run() { # template
 TC=$(tpl "Wartung im Voraus" current)
 assert_eq "the template keeps its mode" "$(q "select \"servicePeriod\" from \"RecurringInvoice\" where id='$TC'" 2>/dev/null)" "current"
 AS GET "/api/v1/recurring-invoices/$TC/preview?companyId=$C"
-assert_eq "preview: October (run on 01.10.)" "$(P "(d.get('servicePeriodStart') or '')[:10]+'/'+(d.get('servicePeriodEnd') or '')[:10]")" "2026-10-01/2026-10-31"
-assert_eq "'current': the run of 01.10. bills 01.10.–31.10." "$(period_of_run "$TC")" "2026-10-01/2026-10-31"
+assert_eq "preview: October (run on 01.10.)" "$(P "(d.get('servicePeriodStart') or '')[:10]+'/'+(d.get('servicePeriodEnd') or '')[:10]")" "2030-10-01/2030-10-31"
+assert_eq "'current': the run of 01.10. bills 01.10.–31.10." "$(period_of_run "$TC")" "2030-10-01/2030-10-31"
 TP=$(tpl "Support nachträglich" previous)
-assert_eq "'previous': the run of 01.10. bills 01.09.–30.09." "$(period_of_run "$TP")" "2026-09-01/2026-09-30"
+assert_eq "'previous': the run of 01.10. bills 01.09.–30.09." "$(period_of_run "$TP")" "2030-09-01/2030-09-30"
 TN=$(tpl "Ohne Zeitraum" none)
 assert_eq "'none': no period, as before" "$(period_of_run "$TN")" "none"
 AS PUT "/api/v1/recurring-invoices/$TN?companyId=$C" '{"servicePeriod":"previous"}'

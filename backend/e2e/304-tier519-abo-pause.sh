@@ -34,6 +34,10 @@ ITEMS='[{"description":"Abo","quantity":1,"unit":"Stk","unitPrice":100,"vatRate"
 tpl() { # name startDate → R
   AS POST "/api/v1/recurring-invoices?companyId=$C" "{\"name\":\"$TAG $1\",\"customerId\":\"$K\",\"interval\":\"monthly\",\"startDate\":\"$2\",\"servicePeriod\":\"current\",\"items\":$ITEMS}"
   R=$(json_field "$BODY" id)
+  # Tier 535: a new template starts from today. These have existed since
+  # 2024 — their next run is written to the row.
+  [[ "$2" == "2024-05-01" ]] && q "update \"RecurringInvoice\" set \"nextRunAt\"='2024-06-01' where id='$R'" >/dev/null
+  return 0
 }
 next() { q "select \"nextRunAt\"::date from \"RecurringInvoice\" where id='$R'"; }
 invoices() { q "select count(*) from \"Invoice\" where \"recurringInvoiceId\"='$R'"; }

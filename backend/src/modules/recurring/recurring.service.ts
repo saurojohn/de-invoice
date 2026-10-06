@@ -150,7 +150,20 @@ export class RecurringService {
     // in Berlin the stored run date was the day before the one the user
     // picked, and it changed with the server's time zone.
     d.setUTCHours(0, 0, 0, 0)
-    return this.advanceTo(d, input.interval, input.intervalCount ?? 1, input.dayOfMonth ?? 1)
+    const first = this.advanceTo(d, input.interval, input.intervalCount ?? 1, input.dayOfMonth ?? 1)
+    return this.notBeforeToday(first, input.interval, input.intervalCount ?? 1, input.dayOfMonth ?? 1)
+  }
+
+  /**
+   * Tier 535 — a template entered with a start date in the past does not
+   * bill the time since then. Measured: a subscription that began in January,
+   * entered in October — the scheduler made one invoice each morning for nine
+   * days (February … October), e-mailed if the template says so. The next run
+   * is the first date of the schedule from today on; a period that should be
+   * billed after all is made with "Jetzt generieren" on an invoice of its own.
+   */
+  private notBeforeToday(next: Date, interval: string, intervalCount: number, dayOfMonth: number): Date {
+    return this.firstRunAfter(next, businessTodayDate(), { interval, intervalCount, dayOfMonth }, true)
   }
 
   /**
@@ -548,7 +561,9 @@ export class RecurringService {
     const dayOfMonth = patch.dayOfMonth ?? existing.dayOfMonth
     const startDate = patch.startDate ?? existing.startDate
     if (patch.interval || patch.intervalCount || patch.dayOfMonth || patch.startDate) {
-      nextRunAt = this.advanceTo(new Date(startDate), interval, intervalCount, dayOfMonth)
+      nextRunAt = this.notBeforeToday(
+        this.advanceTo(new Date(startDate), interval, intervalCount, dayOfMonth), interval, intervalCount, dayOfMonth,
+      ) // Tier 535
     }
 
     // Tier 519: switched on again, or a running pause lifted early — the
