@@ -194,6 +194,19 @@ services:
       # Tier 555: the proxy is another container — without this every visitor
       # has the proxy's address and shares one rate limit.
       TRUST_PROXY: "true"
+      # Tier 557: the receipt scanner's engine. "mock" answers every scan with
+      # one invented receipt — for development only.
+      OCR_ENGINE: ${OCR_ENGINE:-tesseract}
+      # Read by the backend, and without effect unless listed here:
+      APP_ORIGIN: ${APP_ORIGIN:-}
+      FINTS_PIN_ENC_KEY: ${FINTS_PIN_ENC_KEY:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-}
+      SMTP_SECURE: ${SMTP_SECURE:-}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
       # Tier 548: who may use the installation-wide routes (backups,
       # schedulers, storage). Empty = the admins of the oldest company.
       SYSTEM_ADMIN_EMAILS: ${SYSTEM_ADMIN_EMAILS:-}

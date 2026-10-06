@@ -145,6 +145,10 @@ else
 fi
 assert_eq "the compose file hands the backend the flag" "$(grep -c 'ALLOW_HEADER_AUTH: "0"' "$SCRIPT_DIR/../../infra/prod/docker-compose.yml")" "1"
 assert_eq "…and tells it that it sits behind a proxy" "$(grep -c 'TRUST_PROXY: "true"' "$SCRIPT_DIR/../../infra/prod/docker-compose.yml")" "1"
+# Tier 557: the mock receipt scanner is not production's default.
+assert_eq "…and does not leave the receipt scanner on the mock" "$(grep -c 'OCR_ENGINE: ${OCR_ENGINE:-tesseract}' "$SCRIPT_DIR/../../infra/prod/docker-compose.yml")" "1"
+grep -q "return process.env.NODE_ENV === 'production'" "$SCRIPT_DIR/../src/modules/ocr/ocr.module.ts" \
+  && pass "…nor does the code, in production, without the variable" || fail "ocr.module.ts: the mock is the default in production"
 
 note "=== 4. and the suite gets its backend back ==="
 restore

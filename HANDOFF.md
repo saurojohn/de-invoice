@@ -2617,6 +2617,12 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 557 — production does not scan every receipt as "Musterfirma GmbH, 119,00 EUR"
+
+`OcrModule` chose the engine by `OCR_ENGINE === 'tesseract'`, else the mock — which answers every scan with one invented receipt (supplier, VAT id, IBAN, 100 + 19 = 119). The production compose file never set the variable, so that was production's receipt scanner: the expense form was prefilled with the fixture whatever was uploaded. Now `realOcr()`: tesseract when asked for, the mock when asked for, and in production the real engine by default; the compose file sets `OCR_ENGINE: ${OCR_ENGINE:-tesseract}`. Measured with `NODE_ENV=production` and no variable: log `OCR engine: tesseract (real)`, a blank image → all fields null (was the fixture). **Not verified:** the container image at runtime — tesseract.js fetches the `deu` language data on first use, which needs outbound network from the backend container (or the data baked into the image).
+
+The compose file also passes through, empty unless set in `.env`: `APP_ORIGIN`, `FINTS_PIN_ENC_KEY` (without it a bank connection cannot be created), `SMTP_*` (the environment fallback of the mail settings). Static assertions in spec 191.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 556 — a mailed link carries the installation's address, not the request's
 
 The customer portal mails a login link whose token opens the customer's invoices. Both routes that create one — the public `POST /customer-portal/request-session` and the admin's `…/admin/create-session` — built it from `X-Forwarded-Host` / `Host`. Measured: `X-Forwarded-Host: evil.example` → the customer was mailed `https://evil.example/portal?token=<real token>`. (The shipped Caddy config overwrites that header and only serves its own host names, so this needed a different proxy setup or direct access to the backend to exploit — but nothing in the app stopped it.) Password-reset and invitation links took the request's `Origin` (allow-listed by the CORS middleware) and fell back to `http://localhost:<port>` — in production, where `APP_ORIGIN` is not passed to the container, a reset requested without an `Origin` header mailed a localhost link.
