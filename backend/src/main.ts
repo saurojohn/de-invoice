@@ -129,8 +129,15 @@ async function bootstrap() {
   // then passes that real IP as X-Real-IP to the backend. The
   // backend doesn't need to know about CF — it just trusts
   // loopback (nginx) and reads X-Real-IP.
+  // Tier 555: and the private ranges. In the compose deployment the proxy is
+  // another container (172.x), not loopback, so `req.ip` was the proxy's
+  // address for every visitor: the throttler counted the whole installation
+  // as one client — five logins a minute for everyone together, and anyone
+  // could keep everyone out with five requests a minute. The backend's port
+  // is not published; only the proxy reaches it, and it overwrites
+  // X-Forwarded-For with the address it saw.
   if (process.env.TRUST_PROXY === 'true') {
-    expressApp.set('trust proxy', 'loopback')
+    expressApp.set('trust proxy', 'loopback, linklocal, uniquelocal')
   }
   // NOTE: the previous hand-rolled 10MB content-length gate was
   // removed in Tier 72 once we re-registered the JSON body parser

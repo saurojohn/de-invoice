@@ -2617,6 +2617,17 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 555 — production does not take `x-user-id` for an answer, and knows its visitors apart
+
+Two things the production compose file never told the backend. `infra/prod/docker-compose.yml` gives the backend an explicit `environment:` list; a variable that is only in `infra/prod/.env` is used for `${…}` substitution and does **not** reach the container.
+
+1. `ALLOW_HEADER_AUTH` was not in the list, and the code's default was "on unless `0`" (Tier 400). So a production backend started from this compose file accepted the legacy `x-user-id` header: whoever knew a user's id — every colleague's is in `GET /users` — was that user, without a password. `legacyHeaderAuthAllowed()` is now off by default when `NODE_ENV=production` (on only with `ALLOW_HEADER_AUTH=1`), and the compose file sets `ALLOW_HEADER_AUTH: "0"`. Outside production the default is unchanged (specs authenticate by header).
+2. `TRUST_PROXY` was not in the list, and `true` meant `loopback` only — but the proxy is another container. `req.ip` was the proxy's address for every visitor, so the throttler counted the installation as one client: five logins a minute for everyone together, and five requests a minute kept everyone out. `TRUST_PROXY=true` now trusts `loopback, linklocal, uniquelocal` (the backend's port is not published; Caddy overwrites `X-Forwarded-For`), and the compose file sets it. Measured with throttling on: 5×400 then 429 for one forwarded address, a second address unaffected.
+
+Also passed through now: `SYSTEM_ADMIN_EMAILS` (Tier 548), `METRICS_TOKEN` (Tier 549). Still **not** in the list and therefore without effect in that deployment unless added: `SMTP_*` (if mail is configured by environment rather than in the app), `FINTS_PIN_ENC_KEY`, `APP_ORIGIN`, `BACKUP_ROOT`. **I could not look at the running production system** — whether it runs this compose file unchanged is for the operator to check (`docker exec de-invoice-backend env`). After the next deploy sign-in goes by session cookie only; `infra/prod/smoke-test.sh` step 15 accepts the resulting 401.
+
+Spec `191-tier402-production-auth-mode.sh` section 3b (the 401 assertion fails on old code).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 554 — the browser's today is the German day as well
 
 The frontend took today as `new Date().toISOString().slice(0, 10)` in 37 places (default issue/payment/booking dates, `max=` of date fields, export file names): the UTC day, i.e. yesterday between 00:00 and 02:00 German time — a form opened then proposed yesterday, and a `max={today}` field refused today although the backend (German day, Tier 478/515) accepts it. New `frontend/src/lib/today.ts` `todayIso()` (Europe/Berlin); all 37 replaced. Also: the dashboard's "last 12 months" start was the local first-of-month written as ISO — the last day of the month before in a German browser; the journal's default range. No new spec (clock-dependent; frontend typecheck + lint, and the existing Playwright suite); `invoice-clone-as-draft-tier160` now computes its expected date the same way.

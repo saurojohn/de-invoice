@@ -122,6 +122,30 @@ CID=$(json_field "$CUST" id)
 assert_eq "a write under session-only auth is attributed" \
   "$(sql "SELECT \"userId\" FROM \"AuditLog\" WHERE \"entityId\" = '$CID' AND action = 'customer.created' LIMIT 1;")" "$U"
 
+note "=== 3b. Tier 555: production without the flag — the header is off by default ==="
+# The flag was opt-out, and infra/prod/docker-compose.yml did not pass it to
+# the container: a production backend accepted x-user-id from anyone who knew
+# a user's id. NODE_ENV=production alone must now be enough.
+if restart_backend "NODE_ENV=production"; then
+  STATUS=$(curl -sS -o /dev/null -w "%{http_code}" "$API/api/v1/customers?companyId=$C" \
+    -H "x-user-id: $U" -H "x-company-id: $C")
+  assert_status 401 "NODE_ENV=production, no flag: x-user-id is refused (was 200)"
+  STATUS=$(curl -sS -o /dev/null -w "%{http_code}" "$API/api/v1/customers?companyId=$C" \
+    -H "Cookie: de_session=$TOKEN" -H "x-company-id: $C")
+  assert_status 200 "…the session cookie authenticates"
+else
+  fail "backend did not come up with NODE_ENV=production"
+fi
+if restart_backend "NODE_ENV=production ALLOW_HEADER_AUTH=1"; then
+  STATUS=$(curl -sS -o /dev/null -w "%{http_code}" "$API/api/v1/customers?companyId=$C" \
+    -H "x-user-id: $U" -H "x-company-id: $C")
+  assert_status 200 "…and an explicit ALLOW_HEADER_AUTH=1 still turns it on"
+else
+  fail "backend did not come up with NODE_ENV=production ALLOW_HEADER_AUTH=1"
+fi
+assert_eq "the compose file hands the backend the flag" "$(grep -c 'ALLOW_HEADER_AUTH: "0"' "$SCRIPT_DIR/../../infra/prod/docker-compose.yml")" "1"
+assert_eq "…and tells it that it sits behind a proxy" "$(grep -c 'TRUST_PROXY: "true"' "$SCRIPT_DIR/../../infra/prod/docker-compose.yml")" "1"
+
 note "=== 4. and the suite gets its backend back ==="
 restore
 STATUS=$(curl -sS -o /dev/null -w "%{http_code}" "$API/api/v1/customers?companyId=$C" \

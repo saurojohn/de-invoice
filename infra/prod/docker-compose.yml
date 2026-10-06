@@ -187,6 +187,18 @@ services:
       # Optional — used by ECB rate fetcher
       # (no-op if unset)
       ECB_API_URL: ${ECB_API_URL:-}
+      # Tier 555: this list is all the backend sees — a variable that is only
+      # in .env does not reach it. The x-user-id header authenticates nobody
+      # in production (session cookie / Bearer only).
+      ALLOW_HEADER_AUTH: "0"
+      # Tier 555: the proxy is another container — without this every visitor
+      # has the proxy's address and shares one rate limit.
+      TRUST_PROXY: "true"
+      # Tier 548: who may use the installation-wide routes (backups,
+      # schedulers, storage). Empty = the admins of the oldest company.
+      SYSTEM_ADMIN_EMAILS: ${SYSTEM_ADMIN_EMAILS:-}
+      # Tier 549: when set, GET /metrics needs `Authorization: Bearer <token>`.
+      METRICS_TOKEN: ${METRICS_TOKEN:-}
       # Optional — VIES mock mode for offline tests.
       # MUST be empty/unset in prod. We don't
       # expose this as a "real" env var — the

@@ -8,5 +8,15 @@
  * Bearer) authenticates.
  */
 export function legacyHeaderAuthAllowed(): boolean {
-  return process.env.ALLOW_HEADER_AUTH !== '0'
+  // Tier 555: in production the header is off unless someone turns it on.
+  // It was on unless turned off — and infra/prod/docker-compose.yml hands the
+  // backend an explicit `environment:` list that did not contain the flag, so
+  // an `ALLOW_HEADER_AUTH=0` in infra/prod/.env never reached the process:
+  // whoever knew a user's id (every colleague's is in GET /users) was that
+  // user, without a password. Outside production the default stays on (the
+  // specs authenticate by header).
+  const flag = process.env.ALLOW_HEADER_AUTH
+  if (flag === '0') return false
+  if (flag === '1') return true
+  return process.env.NODE_ENV !== 'production'
 }
