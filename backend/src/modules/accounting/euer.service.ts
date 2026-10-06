@@ -5,7 +5,7 @@ import { Response } from 'express';
 import PDFDocument from 'pdfkit';
 import { euerExpenses, euerInflows, euerVat, finanzamtVat } from './euer-zufluss'
 import { cashBookings } from '../cashbook/cash-bookings'
-import { deductibleCost, isBewirtung, nichtAbziehbareBewirtung } from './expense-cost'
+import { bewirtungNachweisFehlt, deductibleCost, isBewirtung, nichtAbziehbareBewirtung } from './expense-cost'
 import { bookedAfaCost } from './booked-afa'
 import { privateCarUse } from '../company-car/private-use'
 import { nichtAbziehbareGeschenke, nonDeductibleGiftIds } from './gifts'
@@ -81,6 +81,12 @@ export interface EuerResult {
   nichtAbziehbareBewirtung: number;
   /** Tier 503: gifts above the 50 € limit (gross — cost and input tax) */
   nichtAbziehbareGeschenke: number;
+  /**
+   * Tier 539: Bewirtungen of the year with no occasion / participants entered —
+   * deductible only with that record (§ 4 Abs. 5 Nr. 2 Satz 2 EStG). A hint;
+   * the figures above still count them at 70 %.
+   */
+  bewirtungOhneNachweis: { count: number; betrag: number };
   counts: {
     /** invoices with income in the year */
     invoices: number;
@@ -384,6 +390,10 @@ export class EuerService {
       prinzip: 'zufluss',
       nichtAbziehbareBewirtung: nichtAbziehbareBewirtung(expenses, revenueCtx.kleinunternehmer),
       nichtAbziehbareGeschenke: nichtAbziehbareGeschenke(allExpenses, badGifts),
+      bewirtungOhneNachweis: (() => {
+        const open = expenses.filter((e) => bewirtungNachweisFehlt(e as any))
+        return { count: open.length, betrag: Math.round(open.reduce((sum, e) => sum + Number((e as any).netAmount ?? 0), 0) * 100) / 100 }
+      })(),
       counts: {
         invoices: new Set(inflows.map((f) => f.invoice.id)).size,
         expenses: expenses.length,

@@ -74,6 +74,13 @@ export class CreateExpenseDto {
   @IsString() @IsOptional() @MaxLength(200)
   giftRecipient?: string
 
+  // Tier 539: the Bewirtungsbeleg — occasion and participants (§ 4 Abs. 5 Nr. 2 Satz 2 EStG)
+  @IsString() @IsOptional() @MaxLength(300)
+  bewirtungAnlass?: string
+
+  @IsString() @IsOptional() @MaxLength(1000)
+  bewirtungTeilnehmer?: string
+
   // Tier 442: a supplier credit note — amounts entered positive, stored negative
   // (expense/credit-note.ts).
   @IsOptional()
@@ -135,6 +142,13 @@ export class UpdateExpenseDto {
   // Tier 503: the recipient of a business gift (category "Geschenk…")
   @IsString() @IsOptional() @MaxLength(200)
   giftRecipient?: string
+
+  // Tier 539: the Bewirtungsbeleg — occasion and participants (§ 4 Abs. 5 Nr. 2 Satz 2 EStG)
+  @IsString() @IsOptional() @MaxLength(300)
+  bewirtungAnlass?: string
+
+  @IsString() @IsOptional() @MaxLength(1000)
+  bewirtungTeilnehmer?: string
 
   @IsString() @IsOptional() @MaxLength(20)
   accountNumber?: string

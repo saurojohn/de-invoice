@@ -272,6 +272,8 @@ export class UstvaController {
       grossAmount: signed.gross,
       category: body.category,
       giftRecipient: body.giftRecipient, // Tier 503
+      bewirtungAnlass: body.bewirtungAnlass, // Tier 539
+      bewirtungTeilnehmer: body.bewirtungTeilnehmer,
       isIntraEU: body.isIntraEU ?? false,
       isReverseCharge: body.isReverseCharge ?? false,
       notes: body.notes,

@@ -1,4 +1,5 @@
 import { assertPeriodOpen } from './filed-period';
+import { bewirtungNachweisFehlt } from '../accounting/expense-cost';
 import { Injectable, BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { assertNoDuplicateExpense } from '../expense/expense-duplicate';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -1093,7 +1094,8 @@ export class UstvaService {
     });
     // Tier 443: the page offers edit / delete only where they are allowed.
     const locks = await expenseLockReasons(this.prisma, companyId, expenses);
-    return expenses.map((e) => ({ ...e, lockReason: locks.get(e.id) ?? null }));
+    // Tier 539: a Bewirtung without its record is flagged.
+    return expenses.map((e) => ({ ...e, lockReason: locks.get(e.id) ?? null, bewirtungNachweisFehlt: bewirtungNachweisFehlt(e) }));
   }
 
   async createExpense(companyId: string, data: {
@@ -1107,6 +1109,8 @@ export class UstvaService {
     grossAmount: number;
     category?: string;
     giftRecipient?: string;
+    bewirtungAnlass?: string;
+    bewirtungTeilnehmer?: string;
     isIntraEU?: boolean;
     isReverseCharge?: boolean;
     notes?: string;
@@ -1143,6 +1147,8 @@ export class UstvaService {
         grossAmount: data.grossAmount,
         category: data.category,
         giftRecipient: data.giftRecipient?.trim() || null, // Tier 503
+        bewirtungAnlass: data.bewirtungAnlass?.trim() || null, // Tier 539
+        bewirtungTeilnehmer: data.bewirtungTeilnehmer?.trim() || null,
         isIntraEU: data.isIntraEU ?? false,
         isReverseCharge: data.isReverseCharge ?? false,
         notes: data.notes,

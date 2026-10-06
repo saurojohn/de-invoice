@@ -36,6 +36,24 @@ export function isBewirtung(e: { category?: string | null }): boolean {
   return /^Bewirtung/i.test(e.category || '')
 }
 
+/**
+ * Tier 539 — a Bewirtung is deductible only with its record: place, day,
+ * participants, occasion and amount (§ 4 Abs. 5 Nr. 2 Satz 2 EStG). Place,
+ * day and amount are on the bill; the occasion and the participants are what
+ * the taxpayer adds — without them the Betriebsprüfung strikes the whole
+ * amount. The app does not strike it itself (the paper Beleg may carry the
+ * record); it says which ones have none entered.
+ */
+export function bewirtungNachweisFehlt(e: {
+  category?: string | null
+  grossAmount?: unknown
+  bewirtungAnlass?: string | null
+  bewirtungTeilnehmer?: string | null
+}): boolean {
+  if (!isBewirtung(e) || Number(e.grossAmount ?? 0) < 0) return false
+  return !(e.bewirtungAnlass || '').trim() || !(e.bewirtungTeilnehmer || '').trim()
+}
+
 /** The cost that counts for the tax profit: 70 % of an entertainment expense. */
 export function deductibleCost(e: CostExpense & { category?: string | null }, kleinunternehmer: boolean): number {
   const cost = expenseCost(e, kleinunternehmer)

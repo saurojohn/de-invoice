@@ -81,6 +81,10 @@ interface Expense {
   grossAmount: string
   category: string | null
   giftRecipient?: string | null
+  // Tier 539: the Bewirtungsbeleg's occasion and participants
+  bewirtungAnlass?: string | null
+  bewirtungTeilnehmer?: string | null
+  bewirtungNachweisFehlt?: boolean
   isIntraEU: boolean
   isReverseCharge: boolean
   supplierId?: string | null
@@ -156,6 +160,8 @@ function UstvaPageInner() {
     category: "",
     // Tier 503: the recipient of a gift (category "Geschenk…")
     giftRecipient: "",
+    bewirtungAnlass: "",
+    bewirtungTeilnehmer: "",
     isIntraEU: false,
     isReverseCharge: false,
     // Tier 442: a supplier credit note — entered positive, stored negative.
@@ -290,6 +296,8 @@ function UstvaPageInner() {
       grossAmount: String(Math.abs(Number(ex.grossAmount))),
       category: ex.category || "",
       giftRecipient: ex.giftRecipient || "",
+      bewirtungAnlass: ex.bewirtungAnlass || "",
+      bewirtungTeilnehmer: ex.bewirtungTeilnehmer || "",
       isIntraEU: !!ex.isIntraEU,
       isReverseCharge: !!ex.isReverseCharge,
       creditNote: Number(ex.grossAmount) < 0,
@@ -926,6 +934,29 @@ function UstvaPageInner() {
                           <p className="mt-1 text-xs text-gray-500">{t("ustva.giftRecipientHint")}</p>
                         </div>
                       )}
+                      {/^Bewirtung/i.test(exForm.category || "") && (
+                        <div className="md:col-span-2" data-testid="expense-bewirtung-fields">
+                          <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
+                            {t("ustva.bewirtungAnlass")}
+                          </label>
+                          <input
+                            value={exForm.bewirtungAnlass || ""}
+                            onChange={(e) => setExForm({ ...exForm, bewirtungAnlass: e.target.value })}
+                            className="w-full px-2 py-1.5 border rounded text-sm"
+                            data-testid="expense-bewirtung-anlass"
+                          />
+                          <label className="mt-2 block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
+                            {t("ustva.bewirtungTeilnehmer")}
+                          </label>
+                          <input
+                            value={exForm.bewirtungTeilnehmer || ""}
+                            onChange={(e) => setExForm({ ...exForm, bewirtungTeilnehmer: e.target.value })}
+                            className="w-full px-2 py-1.5 border rounded text-sm"
+                            data-testid="expense-bewirtung-teilnehmer"
+                          />
+                          <p className="mt-1 text-xs text-gray-500">{t("ustva.bewirtungHint")}</p>
+                        </div>
+                      )}
                       <div>
                         <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
                           {t("expenses.paidAt")}
@@ -1048,6 +1079,15 @@ function UstvaPageInner() {
                             <td className="py-2">{ex.supplier?.name || "—"}</td>
                             <td className="py-2">
                               {ex.description}
+                              {ex.bewirtungNachweisFehlt && (
+                                <span
+                                  className="ml-2 text-xs px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded"
+                                  title={t("ustva.bewirtungHint")}
+                                  data-testid={`expense-bewirtung-missing-${ex.id}`}
+                                >
+                                  ⚠ {t("ustva.bewirtungNachweisFehlt")}
+                                </span>
+                              )}
                               {(ex.isIntraEU || ex.isReverseCharge) && (
                                 <span className="ml-2 text-xs px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded">
                                   {ex.isIntraEU ? "igE" : "§13b"}

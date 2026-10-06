@@ -2602,6 +2602,27 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### The Bewirtungsbeleg's occasion and participants (Tier 539)
+
+An entertainment expense is deductible (70 %, Tier 485) only with its record:
+place, day, participants, occasion, amount (§ 4 Abs. 5 Nr. 2 Satz 2 EStG).
+The app had no place for the two things the taxpayer adds — the occasion and
+the participants — and said nothing about Bewirtungen without them (spec 324;
+before: `bewirtungAnlass` → 400 "should not exist").
+
+- `Expense.bewirtungAnlass` / `bewirtungTeilnehmer` (migration
+  `20261006000002_expense_bewirtung_nachweis`), accepted by both expense
+  routes and the edit.
+- `expense-cost.ts` `bewirtungNachweisFehlt`: category "Bewirtung…", not a
+  credit note, one of the two empty. Carried by `GET /ustva/expenses` and
+  `GET /expenses`; the EÜR has `bewirtungOhneNachweis { count, betrag }`.
+- **A hint, not a rule**: the EÜR / Anlage S / G still count such an expense
+  at 70 % — the paper Beleg may carry the record, and striking it would move
+  every existing company's profit.
+- UI (UStVA page's expense form): the two fields appear for a category
+  starting with "Bewirtung"; a badge "⚠ Anlass / Teilnehmer fehlen" in the
+  list (de / en / zh). No Playwright spec of its own.
+
 ### A supplier's Skonto is not booked into a submitted period (Tier 538)
 
 The "not locked" of Tier 537: a bank debit booked against a bill with Skonto

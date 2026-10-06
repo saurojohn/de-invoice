@@ -2204,7 +2204,11 @@
     "elsterTooltip": "ELSTER-XML für Mein-ELSTER-Upload herunterladen",
     "istVersteuerung": "Ist-Versteuerung (§ 20 UStG): steuerpflichtige Umsätze im Zeitraum des Zahlungseingangs.",
     "giftRecipient": "Empfänger des Geschenks",
-    "giftRecipientHint": "Bis 50 € (netto) je Empfänger und Jahr abziehbar; darüber sind alle Geschenke an ihn nicht abziehbar, auch die Vorsteuer (§ 4 Abs. 5 Nr. 1 EStG, § 15 Abs. 1a UStG). Ohne Empfänger nur Streuartikel bis 10 €."
+    "giftRecipientHint": "Bis 50 € (netto) je Empfänger und Jahr abziehbar; darüber sind alle Geschenke an ihn nicht abziehbar, auch die Vorsteuer (§ 4 Abs. 5 Nr. 1 EStG, § 15 Abs. 1a UStG). Ohne Empfänger nur Streuartikel bis 10 €.",
+    "bewirtungAnlass": "Anlass der Bewirtung",
+    "bewirtungTeilnehmer": "Teilnehmer (Namen, auch Sie selbst)",
+    "bewirtungHint": "Bewirtungskosten sind nur mit Anlass und Teilnehmern abziehbar — zu 70 % (§ 4 Abs. 5 Nr. 2 EStG). Ort, Tag und Betrag stehen auf der Rechnung.",
+    "bewirtungNachweisFehlt": "Anlass / Teilnehmer fehlen"
   },
   "voucher": {
     "title": "Buchungsbeleg",

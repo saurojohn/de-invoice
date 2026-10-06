@@ -1,3 +1,4 @@
+import { bewirtungNachweisFehlt } from '../accounting/expense-cost';
 import { assertPeriodOpen, filedPeriodOf, filedPeriodMessage } from '../reports/filed-period';
 import { signedExpenseAmounts } from './credit-note';
 import { assertNoDuplicateExpense, duplicateExpenseMessage, findDuplicateExpense } from './expense-duplicate'
@@ -90,6 +91,7 @@ export class ExpenseService {
             ? { id: v.id, voucherNumber: v.voucherNumber, referenceType: v.referenceType }
             : null,
           lockReason: locks.get(e.id) ?? null,
+          bewirtungNachweisFehlt: bewirtungNachweisFehlt(e), // Tier 539
         };
       }),
       // Tier 178: total = total rows the list page
@@ -145,6 +147,8 @@ export class ExpenseService {
         grossAmount: gross.toFixed(4),
         category: data.category || null,
         giftRecipient: data.giftRecipient?.trim() || null, // Tier 503
+        bewirtungAnlass: data.bewirtungAnlass?.trim() || null, // Tier 539
+        bewirtungTeilnehmer: data.bewirtungTeilnehmer?.trim() || null,
         // Tier 179: persist the SKR03 Sachkonto the
         // caller passed. Trim + max 20 chars to match
         // the AccountNumber convention used elsewhere

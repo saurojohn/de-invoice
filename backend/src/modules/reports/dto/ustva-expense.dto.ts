@@ -77,6 +77,13 @@ export class CreateUstvaExpenseDto {
   @IsString() @IsOptional() @MaxLength(200)
   giftRecipient?: string
 
+  // Tier 539: the Bewirtungsbeleg — occasion and participants (§ 4 Abs. 5 Nr. 2 Satz 2 EStG)
+  @IsString() @IsOptional() @MaxLength(300)
+  bewirtungAnlass?: string
+
+  @IsString() @IsOptional() @MaxLength(1000)
+  bewirtungTeilnehmer?: string
+
   @IsOptional()
   @Transform(({ value }) => {
     if (typeof value === "string") {

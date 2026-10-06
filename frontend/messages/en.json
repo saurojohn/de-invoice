@@ -2204,7 +2204,11 @@
     "elsterTooltip": "Download ELSTER XML for Mein-ELSTER upload",
     "istVersteuerung": "Cash basis (§ 20 UStG): taxable sales in the period the payment arrived.",
     "giftRecipient": "Gift recipient",
-    "giftRecipientHint": "Deductible up to 50 € (net) per recipient and year; above it, all gifts to them are non-deductible, input tax included (§ 4 Abs. 5 Nr. 1 EStG, § 15 Abs. 1a UStG). Without a recipient only giveaways up to 10 €."
+    "giftRecipientHint": "Deductible up to 50 € (net) per recipient and year; above it, all gifts to them are non-deductible, input tax included (§ 4 Abs. 5 Nr. 1 EStG, § 15 Abs. 1a UStG). Without a recipient only giveaways up to 10 €.",
+    "bewirtungAnlass": "Occasion of the entertainment",
+    "bewirtungTeilnehmer": "Participants (names, including yourself)",
+    "bewirtungHint": "Entertainment expenses are deductible only with occasion and participants — at 70 % (§ 4 Abs. 5 Nr. 2 EStG). Place, day and amount are on the bill.",
+    "bewirtungNachweisFehlt": "Occasion / participants missing"
   },
   "voucher": {
     "title": "Voucher",

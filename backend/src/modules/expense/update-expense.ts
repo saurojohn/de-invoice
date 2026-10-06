@@ -62,6 +62,9 @@ export async function updateExpense(
   if (data.category !== undefined) set('category', orNull(data.category), orNull(data.category) !== exp.category)
   // Tier 503
   if (data.giftRecipient !== undefined) set('giftRecipient', orNull(data.giftRecipient), orNull(data.giftRecipient) !== exp.giftRecipient)
+  // Tier 539
+  if (data.bewirtungAnlass !== undefined) set('bewirtungAnlass', orNull(data.bewirtungAnlass), orNull(data.bewirtungAnlass) !== exp.bewirtungAnlass)
+  if (data.bewirtungTeilnehmer !== undefined) set('bewirtungTeilnehmer', orNull(data.bewirtungTeilnehmer), orNull(data.bewirtungTeilnehmer) !== exp.bewirtungTeilnehmer)
   if (data.accountNumber !== undefined) {
     const acc = orNull(data.accountNumber)?.slice(0, 20) ?? null
     set('accountNumber', acc, acc !== exp.accountNumber)
