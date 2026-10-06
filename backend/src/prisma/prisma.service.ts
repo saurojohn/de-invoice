@@ -1,6 +1,7 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { runWithBufferedAudit, withAuditLog } from './audit-log.extension';
+import { companyScope } from './company-scope.extension';
 
 // The audit request context lives in ./request-context (Tier 384).
 
@@ -14,7 +15,8 @@ const basePrisma = new PrismaClient({
 // models and writes an AuditLog row for
 // each. See audit-log.extension.ts for the
 // full list and rationale.
-const prismaWithAudit = withAuditLog(basePrisma)
+// Tier 551: and, under it, the company-scope check (company-scope.extension.ts).
+const prismaWithAudit = withAuditLog(basePrisma.$extends(companyScope) as unknown as PrismaClient)
 
 @Injectable()
 export class PrismaService

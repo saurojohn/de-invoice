@@ -2614,6 +2614,12 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 551 — a request without `?companyId=` is not a request for every company
+
+Prisma drops an undefined filter: `where: { companyId: undefined }` selects every row. The auth guard compares a companyId that is present in path/query/body; a missing one passed. Measured as a freshly registered company's admin, leaving the parameter out: `GET /invoices`, `/webhooks`, `/reports/sales`, `/reports/customers`, `/reminders/overdue` → 200 with every company's rows. Found by a marker sweep over the parameterless GET routes (the earlier cross-tenant sweeps only covered routes with an `:id`).
+
+Fix, for every model and operation at once: `prisma/company-scope.extension.ts` refuses a where clause (nested, up to 6 levels) that names `companyId` with the value `undefined` → 400 `companyId ist erforderlich`. It sits under the audit extension. **Rule for new code:** a query that really means all companies (scheduler) leaves the key out — `...(companyId ? { companyId } : {})` — instead of passing `undefined`. Raw SQL (`$queryRaw`) is not covered by the extension. Spec `336-tier551-ohne-companyid-ist-nicht-alle.sh` (10 assertions fail on old code).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 550 — "resolve all" is all of the company's, not all of everyone's
 
 The error list (`GET /system/errors`) shows a company its own rows; its bulk actions did not stop there. Measured as a freshly registered company's admin: `POST /system/errors/mute-all` → `{"count":209}` (every company's open rows), `resolve-all` the same, `prune` deleted every company's resolved/muted/old rows. And `ErrorTrackingService.capture` deduplicated by fingerprint alone, so the same crash reported by a second company was counted on the first company's row and never appeared in its own list. Now all three bulk actions and the dedupe are per company (`prune(days, companyId?)`). Rows without a company (unauthenticated reports) are still shown to nobody and pruned by nobody — open. Spec `335-tier550-fehlerliste-je-firma.sh` (11 assertions fail on old code).
