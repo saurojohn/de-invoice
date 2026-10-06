@@ -433,8 +433,9 @@ The full security checklist lives in [`SECURITY.md`](SECURITY.md).
 > - `Strict-Transport-Security` is set to **1 year** + `includeSubDomains`
 >   + `preload` (Caddyfile). After a month of reliable HTTPS, submit to
 >   https://hstspreload.org/.
-> - `/api/v1/auth/*` is rate-limited to 10 req/min per IP at the
->   Caddy level (defense in depth — the backend also has `@Throttle(5, 60)`).
+> - `/api/v1/auth/login` is rate-limited by the backend (`@Throttle`, 5/min per
+>   visitor address, plus a lockout after repeated failures). There is no
+>   limit in Caddy: stock Caddy has no `rate_limit` directive (Tier 561).
 > - All containers run as root inside the container, but Docker isolation
 >   (separate PID/net/mount namespaces) is the security boundary —
 >   not "non-root inside the container". See `backend/Dockerfile` for
@@ -470,7 +471,7 @@ The full security checklist lives in [`SECURITY.md`](SECURITY.md).
   Loki + Promtail; enable it if you need it. Tier 114's
   `monitoring.yml` is metrics-only.
 - **WAF** (Web Application Firewall). Cloudflare's free tier +
-  Caddy's rate limit cover the common cases. If you ever get
+  the backend's rate limits cover the common cases. If you ever get
   targeted traffic, add a WAF.
 
 ## Cloudflare mode (optional, Tier 19)
@@ -486,9 +487,9 @@ to **Full (Strict)**, then uncomment the `trusted_proxies` +
 
 The CF real-IP restore means:
 - `{remote_host}` in Caddy = visitor's real IP (not CF edge IP)
-- Caddy's `rate_limit` on `/api/v1/auth` works correctly
+- the backend's rate limits count the visitor, not the CF edge
 - Caddy access log records visitor IPs
-- backend `req.ip` (via `trust proxy: 'loopback'`) = visitor IP
+- backend `req.ip` (via `TRUST_PROXY`, Tier 555) = visitor IP
 
 Without this, every CF-fronted visitor shares one CF edge IP
 in the rate-limit zone, which makes the limit meaningless.
@@ -498,9 +499,10 @@ runs in ~10s, self-contained Docker test).
 
 ## Observability (Tier 18, opt-in)
 
-The metrics endpoint (`/metrics`), liveness (`/api/v1/health`), and
-readiness (`/api/v1/health/deep`) are exposed through nginx to the
-public internet so external monitoring can reach them. Tier 18 adds
+Liveness (`/api/v1/health`) and readiness (`/api/v1/health/deep`) are
+reachable from the internet so external monitoring can use them. The
+metrics endpoint (`/metrics`) is not (Tier 561: the proxy answers 404);
+Prometheus scrapes `backend:3001` inside the compose network. Tier 18 adds
 the rest of the stack as a Docker Compose overlay:
 
 ```bash

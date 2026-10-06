@@ -28,85 +28,74 @@
     # DO NOT use in production.
     email ops@shleder.de
     acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
-    # Optional: on first start Caddy prints a warning that
-    # staging certs are untrusted. Acknowledge it so the
-    # container doesn't keep printing the warning.
-    on_demand_tls {
-        ask "I understand that staging certs are untrusted"
-    }
 }
 
 staging.rechnung.shleder.de {
 
-    @metrics path /metrics
-    @health path /api/v1/health
-    @health_deep path /api/v1/health/deep
-    reverse_proxy @metrics @health @health_deep backend:3001 {
-        header_up Host {host}
-        header_up X-Real-IP {remote_host}
-        header_up X-Forwarded-For {remote_host}
-        header_up X-Forwarded-Proto {scheme}
-    }
+    # Tier 561: this block was rewritten. The one before it did not pass
+    # `caddy validate` on the stock caddy:2-alpine image the compose file
+    # uses (v2.11): `timeout` is not a reverse_proxy option, `rate_limit` is
+    # not a directive of stock Caddy, `reverse_proxy` takes one matcher, not
+    # three, and `{path.1}` is not a placeholder. Caddy would not have
+    # started. e2e/341 validates both Caddyfiles when the image is present.
 
-    @api path /api/*
-    reverse_proxy @api backend:3001 {
-        header_up Host {host}
-        header_up X-Real-IP {remote_host}
-        header_up X-Forwarded-For {remote_host}
-        header_up X-Forwarded-Proto {scheme}
-        timeout 60s
-        flush_interval -1
-    }
+    # ── Compression ──────────────────────────────────────
+    encode zstd gzip
 
-    @storage path /storage/*
-    reverse_proxy @storage backend:3001 {
-        header_up Host {host}
-        header_up X-Real-IP {remote_host}
-        header_up X-Forwarded-For {remote_host}
-        header_up X-Forwarded-Proto {scheme}
-    }
-    @uploads path /uploads/*
-    rewrite @uploads /api/v1/storage/files{path.1}
-    reverse_proxy @uploads backend:3001 {
-        header_up Host {host}
-        header_up X-Real-IP {remote_host}
-        header_up X-Forwarded-For {remote_host}
-        header_up X-Forwarded-Proto {scheme}
-    }
-
-    @auth path /api/v1/auth/*
-    route @auth {
-        rate_limit {remote_host} 10r/m
-        reverse_proxy backend:3001 {
-            header_up Host {host}
-            header_up X-Real-IP {remote_host}
-            header_up X-Forwarded-For {remote_host}
-            header_up X-Forwarded-Proto {scheme}
-        }
-    }
-
-    @static path /_next/static/* /favicon.ico /robots.txt
-    header @static Cache-Control "public, max-age=31536000, immutable"
-
-    reverse_proxy frontend:3000 {
-        header_up Host {host}
-        header_up X-Real-IP {remote_host}
-        header_up X-Forwarded-For {remote_host}
-        header_up X-Forwarded-Proto {scheme}
-    }
-
+    # ── Security headers, on every response ──────────────
     header {
         Strict-Transport-Security "max-age=300; includeSubDomains"
         X-Content-Type-Options "nosniff"
         X-Frame-Options "SAMEORIGIN"
-        X-XSS-Protection "1; mode=block"
         Referrer-Policy "strict-origin-when-cross-origin"
         Permissions-Policy "geolocation=(), microphone=(), camera=()"
         -Server
     }
 
-    encode zstd gzip
+    # ── /metrics is not for the internet ─────────────────
+    # It counts companies, users, invoices and customers. Prometheus runs in
+    # the same compose network and scrapes backend:3001 directly; nothing
+    # outside needs it. (To expose it after all: set METRICS_TOKEN and
+    # replace this block with a `handle /metrics { reverse_proxy backend:3001 }`.)
+    handle /metrics {
+        respond 404
+    }
 
+    # ── API ──────────────────────────────────────────────
+    # Everything under /api/ goes to the NestJS backend — including
+    # /api/v1/health and /api/v1/health/deep for uptime monitors.
+    #
+    # X-Forwarded-For / -Proto / -Host are set by Caddy itself, from the
+    # connection it accepted; what a client sends in those headers is
+    # dropped. The backend trusts them from this container (TRUST_PROXY).
+    #
+    # Rate limiting is the backend's (@Throttle, per visitor address). Stock
+    # Caddy has no rate_limit directive; adding one means building Caddy with
+    # a plugin.
+    handle /api/* {
+        reverse_proxy backend:3001 {
+            header_up X-Real-IP {remote_host}
+            # Stream PDFs and large exports instead of buffering them.
+            flush_interval -1
+            transport http {
+                # /api/v1/accounting/journal/pdf can take 5-10 s for a full
+                # year; give the backend a minute to start answering.
+                response_header_timeout 60s
+            }
+        }
+    }
+
+    # ── Frontend (Next.js) ───────────────────────────────
+    handle {
+        @static path /_next/static/* /favicon.ico /robots.txt
+        header @static Cache-Control "public, max-age=31536000, immutable"
+        reverse_proxy frontend:3000 {
+            header_up X-Real-IP {remote_host}
+        }
+    }
+
+    # ── Access log ───────────────────────────────────────
+    # JSON to stdout; `docker logs de-invoice-caddy` has it.
     log {
         output stdout
         level INFO

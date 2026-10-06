@@ -37,134 +37,70 @@
 
 invoice.shleder.de, www.invoice.shleder.de {
 
-    # ── Observability endpoints ───────────────────────────
-    # Mirrors the /metrics, /api/v1/health, /api/v1/health/deep
-    # blocks that were in nginx.conf. Caddy matches on the full
-    # path; `@metrics`, `@health`, `@health_deep` are named
-    # matchers reused below.
-    @metrics path /metrics
-    @health path /api/v1/health
-    @health_deep path /api/v1/health/deep
+    # Tier 561: this block was rewritten. The one before it did not pass
+    # `caddy validate` on the stock caddy:2-alpine image the compose file
+    # uses (v2.11): `timeout` is not a reverse_proxy option, `rate_limit` is
+    # not a directive of stock Caddy, `reverse_proxy` takes one matcher, not
+    # three, and `{path.1}` is not a placeholder. Caddy would not have
+    # started. e2e/341 validates both Caddyfiles when the image is present.
 
-    # All three proxy straight to the backend with no access log
-    # — they're polled every 15s by Prometheus; logging them
-    # would drown out the real traffic.
-    reverse_proxy @metrics @health @health_deep backend:3001 {
-        header_up Host {host}
-        header_up X-Real-IP {remote_host}
-        header_up X-Forwarded-For {remote_host}
-        header_up X-Forwarded-Proto {scheme}
-    }
+    # ── Compression ──────────────────────────────────────
+    encode zstd gzip
 
-    # ── API ──────────────────────────────────────────────
-    # Everything under /api/ goes to the NestJS backend.
-    # Long timeouts for the journal PDF endpoint
-    # (/api/v1/accounting/journal/pdf can take 5-10s for a full
-    # year of vouchers) and no buffering for streaming
-    # responses.
-    @api path /api/*
-    reverse_proxy @api backend:3001 {
-        header_up Host {host}
-        header_up X-Real-IP {remote_host}
-        header_up X-Forwarded-For {remote_host}
-        header_up X-Forwarded-Proto {scheme}
-        # Long timeout for /api/v1/accounting/journal/pdf
-        timeout 60s
-        # Stream responses (PDFs, large exports) without
-        # buffering the whole body in Caddy's memory.
-        flush_interval -1
-    }
-
-    # ── /storage/* + /uploads/* ──────────────────────────
-    # The backend serves these from /api/v1/storage/files/* but
-    # we expose them under cleaner /storage/* and /uploads/*
-    # URLs (matches the old nginx.conf behaviour). Caddy strips
-    # the /storage prefix and forwards to the backend with the
-    # remainder as the path.
-    @storage path /storage/*
-    reverse_proxy @storage backend:3001 {
-        header_up Host {host}
-        header_up X-Real-IP {remote_host}
-        header_up X-Forwarded-For {remote_host}
-        header_up X-Forwarded-Proto {scheme}
-    }
-    # Caddy doesn't have a one-line equivalent of nginx's
-    # `proxy_pass http://de_invoice_backend/api/v1/storage/files/`
-    # (which strips /storage AND appends the backend path). For
-    # parity, rewrite /uploads/ → /api/v1/storage/files/.
-    @uploads path /uploads/*
-    rewrite @uploads /api/v1/storage/files{path.1}
-    reverse_proxy @uploads backend:3001 {
-        header_up Host {host}
-        header_up X-Real-IP {remote_host}
-        header_up X-Forwarded-For {remote_host}
-        header_up X-Forwarded-Proto {scheme}
-    }
-
-    # ── Rate limit /api/v1/auth/* ───────────────────────
-    # 10 requests/minute per source IP. Defense in depth — the
-    # backend's own @Throttle(5, 60) catches anything that
-    # sneaks through. Caddy's `rate_limit` is per-handler, not
-    # per-zone like nginx, so we declare it inside the
-    # `route` below (otherwise the matcher wouldn't scope it).
-    @auth path /api/v1/auth/*
-    route @auth {
-        rate_limit {remote_host} 10r/m
-        reverse_proxy backend:3001 {
-            header_up Host {host}
-            header_up X-Real-IP {remote_host}
-            header_up X-Forwarded-For {remote_host}
-            header_up X-Forwarded-Proto {scheme}
-        }
-    }
-
-    # ── Frontend (Next.js) ──────────────────────────────
-    # Everything else → the Next.js standalone server. Static
-    # assets get a long cache header (they're content-hashed
-    # so safe to cache for a year).
-    @static path /_next/static/* /favicon.ico /robots.txt
-    header @static Cache-Control "public, max-age=31536000, immutable"
-
-    reverse_proxy frontend:3000 {
-        header_up Host {host}
-        header_up X-Real-IP {remote_host}
-        header_up X-Forwarded-For {remote_host}
-        header_up X-Forwarded-Proto {scheme}
-    }
-
-    # ── Security headers ─────────────────────────────────
-    # Applied to every response.
+    # ── Security headers, on every response ──────────────
     header {
-        # HSTS — 1 year, include subdomains, preload.
-        # Once you're confident HTTPS is working reliably,
-        # submit https://hstspreload.org/ to get your domain
-        # into the browser preload list.
         Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
-        # Prevent MIME sniffing.
         X-Content-Type-Options "nosniff"
-        # Clickjacking protection.
         X-Frame-Options "SAMEORIGIN"
-        # XSS filter (legacy but harmless for old browsers).
-        X-XSS-Protection "1; mode=block"
-        # Referrer policy.
         Referrer-Policy "strict-origin-when-cross-origin"
-        # Disable features we don't use.
         Permissions-Policy "geolocation=(), microphone=(), camera=()"
-        # Remove the Server header (Caddy adds it by default;
-        # we don't want to advertise the version).
         -Server
     }
 
-    # ── Compression ──────────────────────────────────────
-    # zstd first (faster, newer), gzip fallback for older
-    # clients. Caddy's `encode` directive applies both.
-    encode zstd gzip
+    # ── /metrics is not for the internet ─────────────────
+    # It counts companies, users, invoices and customers. Prometheus runs in
+    # the same compose network and scrapes backend:3001 directly; nothing
+    # outside needs it. (To expose it after all: set METRICS_TOKEN and
+    # replace this block with a `handle /metrics { reverse_proxy backend:3001 }`.)
+    handle /metrics {
+        respond 404
+    }
+
+    # ── API ──────────────────────────────────────────────
+    # Everything under /api/ goes to the NestJS backend — including
+    # /api/v1/health and /api/v1/health/deep for uptime monitors.
+    #
+    # X-Forwarded-For / -Proto / -Host are set by Caddy itself, from the
+    # connection it accepted; what a client sends in those headers is
+    # dropped. The backend trusts them from this container (TRUST_PROXY).
+    #
+    # Rate limiting is the backend's (@Throttle, per visitor address). Stock
+    # Caddy has no rate_limit directive; adding one means building Caddy with
+    # a plugin.
+    handle /api/* {
+        reverse_proxy backend:3001 {
+            header_up X-Real-IP {remote_host}
+            # Stream PDFs and large exports instead of buffering them.
+            flush_interval -1
+            transport http {
+                # /api/v1/accounting/journal/pdf can take 5-10 s for a full
+                # year; give the backend a minute to start answering.
+                response_header_timeout 60s
+            }
+        }
+    }
+
+    # ── Frontend (Next.js) ───────────────────────────────
+    handle {
+        @static path /_next/static/* /favicon.ico /robots.txt
+        header @static Cache-Control "public, max-age=31536000, immutable"
+        reverse_proxy frontend:3000 {
+            header_up X-Real-IP {remote_host}
+        }
+    }
 
     # ── Access log ───────────────────────────────────────
-    # Default Caddy log is JSON-ish to stdout. If you want a
-    # plain-text log file, mount a volume on /var/log/caddy
-    # and add `log { output file /var/log/caddy/access.log }`.
-    # For now we let docker logs capture everything.
+    # JSON to stdout; `docker logs de-invoice-caddy` has it.
     log {
         output stdout
         level INFO
@@ -183,9 +119,8 @@ invoice.shleder.de, www.invoice.shleder.de {
 #        curl -s https://www.cloudflare.com/ips-v6 > /etc/caddy/cf-ips-v6.txt
 #   2. Restart caddy.
 #
-# Without this, the rate-limit zone on /api/v1/auth will bucket
-# every CF-fronted visitor into the same edge IP — making the
-# limit meaningless.
+# Without this, the backend sees every CF-fronted visitor as the same
+# edge IP, and its rate limits count them as one.
 #
 # trusted_proxies static <cf-range-1> <cf-range-2> ...
 # client_ip_headers CF-Connecting-IP

@@ -38,7 +38,7 @@ a Hetzner account).
 | 3 | HSTS 1 year + includeSubDomains + preload | ✅ | Caddyfile |
 | 4 | Strong cipher suites | ✅ | Caddy's default (Mozilla "intermediate") |
 | 5 | Let's Encrypt auto-renewal | ✅ | Caddy (Tier 114 — was certbot in Tier 17) |
-| 6 | Rate limit `/api/v1/auth/*` 10 req/min/IP | ✅ | Caddyfile `rate_limit` |
+| 6 | Rate limit on sign-in, per visitor | ✅ | backend `@Throttle` + failed-login lockout (Tier 555 makes it per visitor; stock Caddy has no `rate_limit`, Tier 561) |
 | 7 | `X-Content-Type-Options: nosniff` | ✅ | Caddyfile |
 | 8 | `X-Frame-Options: SAMEORIGIN` | ✅ | Caddyfile |
 | 9 | `Referrer-Policy: strict-origin-when-cross-origin` | ✅ | Caddyfile |
@@ -119,7 +119,7 @@ a Hetzner account).
 | Item | Why not |
 |------|---------|
 | Multi-host HA | SH Leder is ~5 users; RTO 1h on a single host is fine. |
-| WAF (ModSecurity / Coraza) | Cloudflare's free tier + Caddy's rate limit cover the common cases. If you ever get targeted traffic, add a WAF. |
+| WAF (ModSecurity / Coraza) | Cloudflare's free tier + the backend's rate limits cover the common cases. If you ever get targeted traffic, add a WAF. |
 | HSM-backed JWT signing | The cost (~€200/mo) doesn't pay back at this scale. `openssl rand` is fine. |
 | Email signing (DKIM) | Set up at the SMTP provider (Mailgun, SES, etc.), not on the VPS. |
 | Intrusion detection (OSSEC / Wazuh) | Overkill for a single tenant. fail2ban is enough. |
