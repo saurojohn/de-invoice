@@ -9,18 +9,20 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–532 are
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–534 are
   in `git log`; §8 records what each learned. Tiers 443–462 came from the
-  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 532.)
+  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 534.)
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 37389460976 / commit `d11289c`, Tier 532):**
-  - Backend e2e: **316 passed / 0 failed / 1 skipped** of 317 specs — 100
-    two-digit + 217 three-digit (Tier 532 added `317-tier532-abfrageparameter.sh`,
+- **Test counts (last green CI, run 37393965782 / commit `cb430b2`, Tier 534):**
+  - Backend e2e: **318 passed / 0 failed / 1 skipped** of 319 specs — 100
+    two-digit + 219 three-digit (Tier 534 added `319-tier534-gleichzeitig.sh`,
+    Tier 533 added `318-tier533-fehler-statt-500.sh`,
+    Tier 532 added `317-tier532-abfrageparameter.sh`,
     Tier 531 added `316-tier531-ungepruefte-bodies.sh`,
     Tier 530 added `315-tier530-mt940-feld86.sh`,
     Tier 529 added `314-tier529-bankbuchung-einmal.sh`,
@@ -2596,6 +2598,15 @@ Tier 401 run 35123354210 **failed** on backend lint — a warning
 runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
+
+### Spec 145 and the broken pipe (Tier 533a)
+
+CI run 37392109488 failed spec 145 on `echo "$X" | grep -q …` under
+`set -o pipefail`: grep -q left at the first match, the echo got "Broken
+pipe" and the assertion failed although the answer was right. Those two
+lines use a here-string now. The idiom is in many other specs — if one of
+them fails the same way ("write error: Broken pipe" just above the ✗),
+that is the cause, not the backend.
 
 ### The same request, several times at once (Tier 534)
 
