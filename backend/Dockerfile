@@ -132,6 +132,9 @@ COPY --from=dev --chown=app:app /app/node_modules ./node_modules
 COPY --from=dev --chown=app:app /app/package.json ./package.json
 COPY --from=dev --chown=app:app /app/src ./src
 COPY --from=dev --chown=app:app /app/prisma ./prisma
+# Tier 559: scripts/baseline-migrations.sh (one-time, for a database that was
+# created with `db push`).
+COPY --from=dev --chown=app:app /app/scripts ./scripts
 COPY --from=dev --chown=app:app /app/tsconfig.json ./tsconfig.json
 
 # Switch back to root for runtime. The

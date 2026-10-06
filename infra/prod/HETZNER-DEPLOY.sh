@@ -285,12 +285,15 @@ for _ in $(seq 1 30); do
 done
 [[ "$STATUS" == "healthy" ]] || die "postgres did not become healthy in 60s"
 
-# Apply Prisma schema. On a brand-new DB, `db push` is correct.
-# On a restore-from-backup, you'd `migrate deploy` instead — but
-# that's not the first-deploy path.
-log "  applying Prisma schema (db push)..."
+# Apply the migrations. Tier 559: this was `prisma db push`, which left the
+# database without a migration history (so the README's update step,
+# `migrate deploy`, refused it with P3005) and without the full-text search
+# columns, which only a migration creates. The migrations now build the whole
+# schema (e2e/339). A database from an earlier run of this script is brought
+# over once with backend/scripts/baseline-migrations.sh.
+log "  applying Prisma migrations (migrate deploy)..."
 docker compose -f infra/prod/docker-compose.yml run --rm backend \
-  npx prisma db push --accept-data-loss --skip-generate 2>&1 | tail -3
+  npx prisma migrate deploy 2>&1 | tail -3
 docker compose -f infra/prod/docker-compose.yml run --rm backend \
   npx prisma generate 2>&1 | tail -2
 

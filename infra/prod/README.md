@@ -196,6 +196,17 @@ docker compose -f infra/prod/docker-compose.yml exec backend \
 
 This is idempotent — running it on an already-migrated database is a no-op.
 
+**A database that was created with `prisma db push`** (by `HETZNER-DEPLOY.sh`
+before Tier 559) has no migration history, and `migrate deploy` refuses it
+with `P3005`. Bring it over once — it changes no data:
+
+```bash
+docker compose -f infra/prod/docker-compose.yml exec backend \
+  bash scripts/baseline-migrations.sh
+```
+
+After that, `migrate deploy` is the update step everywhere.
+
 ### 8. Create the first user
 
 The app has no built-in `register` flow that creates new companies

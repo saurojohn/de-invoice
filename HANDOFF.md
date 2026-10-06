@@ -2617,6 +2617,17 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 559 — the migrations build the schema the app runs on
+
+CI and `infra/prod/HETZNER-DEPLOY.sh` created the database with `prisma db push`; `infra/prod/README.md` installs and updates with `prisma migrate deploy`. Nothing compared the two. Measured on a scratch database: the migrations alone left it **fourteen tables short** (UserSession, CustomerPortalSession, Webhook, WebhookDelivery, NoteTemplate, the four SEPA tables, CronHealth, NotificationConfig, CompanySigningKey, the two internal-note tables) **and eleven columns** (AuditLog's hash chain, the Kassenbuch signature, `Expense.paidAt`, `RecurringInvoice.pausedUntil` …) — sign-in cannot work on it. The other way round, a `db push` database has no `_prisma_migrations` table, so `migrate deploy` refuses it (P3005), and no `search_tsv` columns, which only a raw-SQL migration creates.
+
+- `prisma/migrations/20261006000005_catch_up_with_schema`: generated with `prisma migrate diff`, then made repeatable (IF NOT EXISTS / IF EXISTS, guarded constraints; `search_tsv` left alone). Verified on scratch databases: fresh + `migrate deploy` → no difference to the schema; `db push` database + the SQL twice → no error, no difference.
+- `backend/scripts/baseline-migrations.sh`: one-time, for a `db push` database — applies the two repeatable migrations and records all as applied; verified (P3005 before, "No pending migrations" after, a second run is a no-op). The image now contains `scripts/`.
+- `HETZNER-DEPLOY.sh` uses `migrate deploy`; README says how to bring an older database over.
+- Spec `339-tier559-migrationen-ergeben-das-schema.sh` builds a scratch database from the migrations and diffs it against the schema — **from now on a schema change without its migration fails CI.** (Without the catch-up migration: 258 lines of difference.)
+
+**Not known to me:** how the running production database was created. If by `HETZNER-DEPLOY.sh`: run the baseline script once before the next `migrate deploy`; and check that the search works there (it needs `search_tsv`; the baseline script adds it).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 558 — the nightly in-app backup does not fail where it cannot run; the files' backup is the operator's
 
 The app's own backup (`scripts/backup.sh` via `docker exec`) belongs to the single-host setup. The production image contains `backend/src` only — no script, no docker CLI — so `daily-auto-backup` failed there every night at 04:00: a red scheduler, an ErrorEvent, a notification, although the compose file's backup container had dumped the database at 03:00. `BackupService.scriptAvailable()`; the scheduler skips with a log line when the script is not there. (The Backups page still lists nothing in that deployment — its backups are in the `backups` volume, outside the app's view.)
