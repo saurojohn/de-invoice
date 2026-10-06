@@ -1569,7 +1569,7 @@ export class InvoiceController {
     // marked an invoice paid with no credit note and without touching the
     // customer's credit. ('Anzahlung' is refused in the service.)
     assertManualPaymentMethod(body.paymentMethod);
-    return this.paymentService.create(id, companyId, {
+    return this.paymentService.createFromForm(id, companyId, {
       amount: Number(body.amount),
       paymentDate: new Date(body.paymentDate),
       paymentMethod: body.paymentMethod,

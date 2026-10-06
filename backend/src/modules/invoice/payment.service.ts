@@ -1,7 +1,7 @@
 import { withKeyLock } from '../../common/key-lock';
 import { InvoiceService } from './invoice.service';
 import { assertManualPaymentMethod } from './payment-methods';
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException , ConflictException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { CLAIM_TYPES } from './document-scope';
 import { ADVANCE_SETTLEMENT_METHOD, advanceReceived, settlingInvoice } from './advance';
@@ -63,6 +63,43 @@ export class PaymentService {
    * total. CN invoices are excluded — for a credit note, the underlying
    * reversal is itself the "payment".
    */
+  /**
+   * Tier 536 — the payment form's route. Decided by the user (06.10.2026):
+   * the same payment submitted again within 10 seconds is refused. Measured
+   * before: a double click (or a client's retry) recorded the payment twice
+   * — the second one became customer credit, six clicks five credits. "The
+   * same" is: this invoice, amount, date, method and reference. A real
+   * second payment with the same details can be recorded a moment later.
+   * System bookings (bank matches, Raten, credit notes) do not come here.
+   */
+  async createFromForm(
+    invoiceId: string,
+    companyId: string,
+    data: Parameters<PaymentService['create']>[2],
+  ) {
+    return withKeyLock(`invoice:${invoiceId}`, async () => {
+      const twin = await this.prisma.payment.findFirst({
+        where: {
+          invoiceId,
+          invoice: { companyId },
+          amount: data.amount,
+          paymentDate: data.paymentDate,
+          paymentMethod: data.paymentMethod,
+          reference: data.reference ?? null,
+          createdAt: { gte: new Date(Date.now() - 10_000) },
+        },
+        select: { id: true },
+      });
+      if (twin) {
+        throw new ConflictException(
+          'Diese Zahlung wurde gerade eben schon erfasst (gleicher Betrag, gleiches Datum, gleicher Zahlungsweg). ' +
+          'Falls es wirklich eine zweite Zahlung ist, erfassen Sie sie in einigen Sekunden noch einmal.',
+        );
+      }
+      return this.create(invoiceId, companyId, data);
+    });
+  }
+
   async create(
     invoiceId: string,
     companyId: string,

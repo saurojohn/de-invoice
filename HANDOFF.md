@@ -2599,6 +2599,21 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### The same payment submitted twice within 10 seconds (Tier 536)
+
+Decided by the user (see Tier 535). Measured (spec 321): the payment form's
+request sent six times at once recorded six payments of 119 € on an invoice
+of 119 € — five became customer credit (595 €).
+
+- `PaymentService.createFromForm` (the route `POST /invoices/:id/payments`
+  only): under the invoice's lock, a payment equal to one recorded on this
+  invoice in the last 10 seconds — amount, date, method, reference — is a
+  409 ("…gerade eben schon erfasst…"). Another amount, date, method or
+  reference is another payment; the same one again after 10 seconds too.
+  Bank matches, Raten, "Zahlung verteilen" and the system's own bookings go
+  to `create` directly.
+- Fixture: spec 149 paid 300 € three times with one reference — numbered now.
+
 ### A template entered with a start in the past does not bill the time since (Tier 535)
 
 **Decided by the user on 06.10.2026** (three questions asked after Tier 534):

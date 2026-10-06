@@ -86,12 +86,16 @@ note "status after 100/$INVOICE_TOTAL (expected 'open' or 'draft'): $STATUS_1"
 # Invoice total is 1000 * 1.19 = 1190. Pay 3x 300 + 1x 100 = 1000.
 # Not enough; need to pay the full 1190 to trigger status=paid.
 # Add 1x 190 to hit exactly 1190.
+# Tier 536: three payments of 300 € are three references — the same payment
+# twice within 10 seconds is refused as a double submit.
+N=0
 for amt in 300 300 300 190; do
+  N=$((N+1))
   api_post "/api/v1/invoices/$INVOICE_ID/payments?companyId=$COMPANY_ID" "{
     \"amount\":$amt,
     \"paymentDate\":\"2026-08-19\",
     \"paymentMethod\":\"bank\",
-    \"reference\":\"T217-002-$amt\"
+    \"reference\":\"T217-002-$amt-$N\"
   }" >/dev/null
   assert_eq "multi-payment $amt HTTP" "$STATUS" "201"
 done
