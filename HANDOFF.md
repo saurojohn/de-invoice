@@ -2597,6 +2597,41 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### The same request, several times at once (Tier 534)
+
+The services read, decide and write in separate statements. Measured with one
+request sent in parallel — a double click, a client's retry, two users (spec
+319, 10 assertions fail before):
+
+| | before | now |
+|---|---|---|
+| an invoice issued 6× at once | its stock taken 5× over (10 → −5; `syncInvoiceStock` of Tier 520 compared and booked without a lock) | once |
+| two invoices selling one product at once | one sale lost (read-modify-write) | both — decremented in the database |
+| 6 credit notes for one invoice | 1 created, **5 × 500** (voucher number collided) | 1 created, 5 × 400 |
+| one bank credit of 119 € matched to two invoices in parallel | both paid (238 €), one 500 | one booked, one 400 |
+| 6 Ratenpläne for one invoice | 6 active plans (Tier 522 removed the unique key) | 1 |
+| 81 € of customer credit applied 6× | 486 € applied | 81 € |
+| 4 opening balances / 4 × 80 € out of a till of 100 € | all booked | 1 each |
+
+- `common/key-lock.ts` `withKeyLock(key, fn)`: one at a time per key,
+  re-entrant within a request (AsyncLocalStorage), at most 30 s of waiting —
+  then 409, so two requests taking two keys in opposite order end in an
+  answer.
+- Keys: `invoice:<id>` (InvoiceService `updateStatus` / `update` / `delete` /
+  `createCreditNote`, PaymentService `create`, InstallmentPlanService
+  `create`), `banktxn:<id>` (`confirmMatch`), `customer:<id>`
+  (`applyToInvoice`), `voucher:<companyId>` (VoucherService `create` — the
+  number), `cashbook:<companyId>` (entries, close, reopen). Order where two
+  are taken: bank entry → invoice → Kassenbuch → voucher; customer → invoice.
+  A Kassenbuch entry that belongs to an invoice takes the invoice's lock first.
+- **In-process**: the backend runs as one instance (infra/prod). A second
+  instance would need the lock in the database (`pg_advisory_xact_lock`, as
+  the audit chain uses).
+
+Not covered: the same *valid* payment sent several times (six payments of
+119 € on one invoice are six payments — five become customer credit); the
+form disables its button, the API has no idempotency key.
+
 ### More answers that were a 500 (Tier 533)
 
 The third sweep: all 453 routes with path parameters that are no ids (`x`,

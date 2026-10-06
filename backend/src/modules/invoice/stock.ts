@@ -71,9 +71,15 @@ export async function syncInvoiceStock(
     const target = product.trackInventory ? wanted.get(productId) ?? 0 : 0
     const delta = round4(target - (held.get(productId) ?? 0))
     if (delta === 0) continue
-    const previousQty = Number(product.stockQuantity)
-    const newQty = round4(previousQty - delta)
-    await db.product.update({ where: { id: productId }, data: { stockQuantity: newQty } })
+    // Tier 534: decremented in the database — two invoices selling the same
+    // product at once each read the old quantity and one sale was lost.
+    const after = await db.product.update({
+      where: { id: productId },
+      data: { stockQuantity: { decrement: delta } },
+      select: { stockQuantity: true },
+    })
+    const newQty = round4(Number(after.stockQuantity))
+    const previousQty = round4(newQty + delta)
     await db.productStockHistory.create({
       data: {
         productId,

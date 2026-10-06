@@ -16,6 +16,7 @@
  * can then confirm which one(s) to pay.
  */
 
+import { withKeyLock } from '../../common/key-lock';
 import { Injectable, BadRequestException, ConflictException, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { parseMt940 } from './mt940';
@@ -523,6 +524,22 @@ export class BankImportService {
    * Payment — better to throw and let the UI reload).
    */
   async confirmMatch(
+    companyId: string,
+    reconciliationId: string,
+    _userId: string | undefined,
+  ) {
+    // Tier 534: one match at a time per bank entry — two matches of one
+    // entry in parallel each saw the whole amount as free.
+    const key = await this.prisma.bankReconciliation.findFirst({
+      where: { id: reconciliationId, companyId },
+      select: { bankTransactionId: true },
+    });
+    return withKeyLock(`banktxn:${key?.bankTransactionId ?? reconciliationId}`, () =>
+      this.confirmMatchLocked(companyId, reconciliationId, _userId),
+    );
+  }
+
+  private async confirmMatchLocked(
     companyId: string,
     reconciliationId: string,
     _userId: string | undefined,

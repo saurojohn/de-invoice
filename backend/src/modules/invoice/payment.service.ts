@@ -1,3 +1,4 @@
+import { withKeyLock } from '../../common/key-lock';
 import { InvoiceService } from './invoice.service';
 import { assertManualPaymentMethod } from './payment-methods';
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
@@ -63,6 +64,22 @@ export class PaymentService {
    * reversal is itself the "payment".
    */
   async create(
+    invoiceId: string,
+    companyId: string,
+    data: {
+      amount: number;
+      paymentDate: Date;
+      paymentMethod: string;
+      reference?: string;
+      notes?: string;
+      receiptNumber?: string;
+    },
+  ) {
+    // Tier 534: one at a time per invoice
+    return withKeyLock(`invoice:${invoiceId}`, () => this.createLocked(invoiceId, companyId, data));
+  }
+
+  private async createLocked(
     invoiceId: string,
     companyId: string,
     data: {

@@ -1,3 +1,4 @@
+import { withKeyLock } from '../../common/key-lock';
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { computeInvoiceAmounts, toCents } from './invoice-amounts';
@@ -974,6 +975,11 @@ export class InvoiceService {
   }
 
   async update(id: string, companyId: string, dto: UpdateInvoiceDto) {
+    // Tier 534: one at a time per invoice
+    return withKeyLock(`invoice:${id}`, () => this.updateLocked(id, companyId, dto));
+  }
+
+  private async updateLocked(id: string, companyId: string, dto: UpdateInvoiceDto) {
     // Same-day edit rule. Once the calendar flips, the invoice is
     // considered "frozen" — the user might have already sent the
     // PDF / email to the customer, and a back-dated edit would
@@ -1222,6 +1228,11 @@ export class InvoiceService {
    *   We could add a "revert inventory" step later if needed.
    */
   async delete(id: string, companyId: string) {
+    // Tier 534: one at a time per invoice
+    return withKeyLock(`invoice:${id}`, () => this.deleteLocked(id, companyId));
+  }
+
+  private async deleteLocked(id: string, companyId: string) {
     const existing = await this.prisma.invoice.findFirst({
       where: { id, companyId },
     });
@@ -1330,6 +1341,11 @@ export class InvoiceService {
   }
 
   async updateStatus(id: string, companyId: string, status: string) {
+    // Tier 534: one at a time per invoice
+    return withKeyLock(`invoice:${id}`, () => this.updateStatusLocked(id, companyId, status));
+  }
+
+  private async updateStatusLocked(id: string, companyId: string, status: string) {
     // Tier 378: companyId was accepted and ignored — tenant B's
     // PUT /invoices/<A's id>/status changed A's invoice, and the audit row
     // landed under B's company (measured).
@@ -1610,6 +1626,26 @@ export class InvoiceService {
   }
 
   async createCreditNote(
+    originalId: string,
+    companyId: string,
+    opts: {
+      amount?: number
+      lines?: Array<{
+        description: string
+        quantity?: number
+        unitPrice: number
+        vatRate?: number
+      }>
+      reason?: string
+      /** Tier 422: the date the reduction happened (a Skonto: the payment date) */
+      issueDate?: Date
+    },
+  ) {
+    // Tier 534: one at a time per invoice
+    return withKeyLock(`invoice:${originalId}`, () => this.createCreditNoteLocked(originalId, companyId, opts));
+  }
+
+  private async createCreditNoteLocked(
     originalId: string,
     companyId: string,
     opts: {

@@ -1,3 +1,4 @@
+import { withKeyLock } from '../../common/key-lock';
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { businessTodayDate } from '../../common/business-date';
 import { Prisma } from '@prisma/client';
@@ -72,6 +73,11 @@ export class VoucherService {
   }
 
   async create(dto: CreateVoucherDto) {
+    // Tier 534: one at a time per voucher
+    return withKeyLock(`voucher:${dto.companyId}`, () => this.createLocked(dto));
+  }
+
+  private async createLocked(dto: CreateVoucherDto) {
     await this.assertAccountsBelongTo(dto.companyId, dto.lines);
     // Validate debits = credits
     const totalDebit = dto.lines.reduce((sum, l) => sum + (l.debit || 0), 0);

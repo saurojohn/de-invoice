@@ -1,3 +1,4 @@
+import { withKeyLock } from '../../common/key-lock';
 import {
   Injectable,
   BadRequestException,
@@ -507,6 +508,17 @@ export class CreditBalanceService {
    * is a pure internal balance transfer.
    */
   async applyToInvoice(
+    companyId: string,
+    customerId: string,
+    invoiceId: string,
+    amount: number,
+    userId?: string,
+  ) {
+    // Tier 534: one at a time per customer
+    return withKeyLock(`customer:${customerId}`, () => this.applyToInvoiceLocked(companyId, customerId, invoiceId, amount, userId));
+  }
+
+  private async applyToInvoiceLocked(
     companyId: string,
     customerId: string,
     invoiceId: string,

@@ -1,3 +1,4 @@
+import { withKeyLock } from '../../common/key-lock';
 import { Injectable, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { createHash } from 'crypto';
@@ -390,7 +391,43 @@ export class KassenbuchService {
     }
   }
 
+  /**
+   * Tier 534 — one Kassenbuch change at a time per company. Measured: four
+   * opening balances booked in parallel (the "only one" check ran before any
+   * of them was stored), and four payments of 80 € out of a till of 100 €.
+   * An entry that belongs to an invoice takes the invoice's lock first — the
+   * same order as a cash payment recorded on the invoice (invoice, then
+   * Kassenbuch), so the two cannot wait for each other.
+   */
+  private cashLock<T>(companyId: string, invoiceId: string | null, fn: () => Promise<T>): Promise<T> {
+    const cash = () => withKeyLock(`cashbook:${companyId}`, fn)
+    return invoiceId ? withKeyLock(`invoice:${invoiceId}`, cash) : cash()
+  }
+
+  private async invoiceOfEntry(companyId: string, id: string): Promise<string | null> {
+    const e = await this.prisma.cashBookEntry.findFirst({
+      where: { id, companyId },
+      select: { invoiceId: true, payment: { select: { invoiceId: true } } },
+    })
+    return e?.invoiceId ?? e?.payment?.invoiceId ?? null
+  }
+
   async createEntry(companyId: string, createdById: string | undefined, data: {
+    businessDate: Date
+    type: CashBookEntryType
+    description: string
+    amount: number
+    vatRate?: number | null
+    counterparty?: string | null
+    belegNumber?: string | null
+    expenseId?: string | null
+    invoiceId?: string | null
+    notes?: string | null
+  }) {
+    return this.cashLock(companyId, data.invoiceId ?? null, () => this.createEntryLocked(companyId, createdById, data));
+  }
+
+  private async createEntryLocked(companyId: string, createdById: string | undefined, data: {
     businessDate: Date
     type: CashBookEntryType
     description: string
@@ -510,6 +547,17 @@ export class KassenbuchService {
     belegNumber?: string | null
     notes?: string | null
   }) {
+    return this.cashLock(companyId, await this.invoiceOfEntry(companyId, id), () => this.updateEntryLocked(companyId, id, patch));
+  }
+
+  private async updateEntryLocked(companyId: string, id: string, patch: {
+    description?: string
+    amount?: number
+    vatRate?: number | null
+    counterparty?: string | null
+    belegNumber?: string | null
+    notes?: string | null
+  }) {
     const existing = await this.prisma.cashBookEntry.findFirst({ where: { id, companyId } })
     if (!existing) throw new NotFoundException('Entry not found')
     await this.assertDaysOpen(companyId, [existing.businessDate])
@@ -537,6 +585,10 @@ export class KassenbuchService {
   }
 
   async deleteEntry(companyId: string, id: string) {
+    return this.cashLock(companyId, await this.invoiceOfEntry(companyId, id), () => this.deleteEntryLocked(companyId, id));
+  }
+
+  private async deleteEntryLocked(companyId: string, id: string) {
     const existing = await this.prisma.cashBookEntry.findFirst({ where: { id, companyId } })
     if (!existing) throw new NotFoundException('Entry not found')
     await this.assertDaysOpen(companyId, [existing.businessDate])
@@ -557,6 +609,10 @@ export class KassenbuchService {
    * `amendedAt = now()` so the UI can warn the user.
    */
   async reverseEntry(companyId: string, id: string, reason: string, createdById?: string) {
+    return this.cashLock(companyId, await this.invoiceOfEntry(companyId, id), () => this.reverseEntryLocked(companyId, id, reason, createdById));
+  }
+
+  private async reverseEntryLocked(companyId: string, id: string, reason: string, createdById?: string) {
     if (!reason?.trim()) {
       throw new BadRequestException('Begründung ist erforderlich für eine Storno-Buchung')
     }
@@ -636,6 +692,11 @@ export class KassenbuchService {
    * the till. The differenz is `physicalCount − endbestand`.
    */
   async closeDay(companyId: string, businessDate: Date, physicalCount: number, closedById?: string, differenzNote?: string) {
+    // Tier 534: one at a time per cashbook
+    return withKeyLock(`cashbook:${companyId}`, () => this.closeDayLocked(companyId, businessDate, physicalCount, closedById, differenzNote));
+  }
+
+  private async closeDayLocked(companyId: string, businessDate: Date, physicalCount: number, closedById?: string, differenzNote?: string) {
     assertNotFuture(businessDate, 'Der Tag des Kassenabschlusses')
     const bd = new Date(businessDate)
     bd.setUTCHours(0, 0, 0, 0)
@@ -892,6 +953,11 @@ export class KassenbuchService {
    * audit trail entry.
    */
   async reopenDay(companyId: string, businessDate: Date) {
+    // Tier 534: one at a time per cashbook
+    return withKeyLock(`cashbook:${companyId}`, () => this.reopenDayLocked(companyId, businessDate));
+  }
+
+  private async reopenDayLocked(companyId: string, businessDate: Date) {
     const bd = new Date(businessDate)
     bd.setUTCHours(0, 0, 0, 0)
     const existing = await this.prisma.cashBookDailyClose.findFirst({

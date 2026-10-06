@@ -1,3 +1,4 @@
+import { withKeyLock } from '../../common/key-lock';
 import {
   BadRequestException,
   Injectable,
@@ -354,6 +355,11 @@ export class InstallmentPlanService {
    *     promising the customer a future schedule)
    */
   async create(companyId: string, dto: CreateInstallmentPlanDto) {
+    // Tier 534: one at a time per invoice
+    return withKeyLock(`invoice:${dto.invoiceId}`, () => this.createLocked(companyId, dto));
+  }
+
+  private async createLocked(companyId: string, dto: CreateInstallmentPlanDto) {
     // Resolve the invoice + its customer in one
     // query so the FK chain (Plan → Invoice →
     // Customer) is consistent.
