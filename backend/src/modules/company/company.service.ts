@@ -29,6 +29,20 @@ export class CompanyService {
       }
     }
     assertIban(data.bankInfo?.iban);
+    // Tier 544: the logo is one of the files the logo upload wrote for this
+    // company (a bare image file name) — not a path. See resolveLogoPath.
+    // An unchanged value passes (the settings form sends the whole record
+    // back; a row from before may hold the older 'images/<name>' form).
+    const stored = typeof data.logoPath === 'string' && data.logoPath !== ''
+      ? (await this.prisma.company.findUnique({ where: { id }, select: { logoPath: true } }))?.logoPath
+      : null;
+    if (typeof data.logoPath === 'string' && data.logoPath !== '' && data.logoPath !== stored) {
+      const name = data.logoPath;
+      const own = /^logo-([0-9a-f]{8})-/.exec(name);
+      if (!/^[A-Za-z0-9._-]{1,200}\.(png|jpe?g|gif|webp)$/i.test(name) || name.includes('..') || (own && own[1] !== id.slice(0, 8))) {
+        throw new BadRequestException('Das Logo wird über den Logo-Upload gesetzt — logoPath ist der Dateiname, den der Upload liefert.');
+      }
+    }
     return this.prisma.company.update({ where: { id }, data: withCheckedVatId(data) });
   }
 }

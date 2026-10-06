@@ -1090,45 +1090,21 @@ export async function generateInvoicePDF(
 }
 
 function resolveLogoPath(logoPath: string): string | null {
-  // If it's an absolute path, use it directly
-  if (path.isAbsolute(logoPath)) {
-    return logoPath
-  }
-
-  // The logo upload endpoint stores just the bare filename
-  // (e.g. 'logo.png') in Company.logoPath, with the actual file
-  // living at frontend/public/images/<name>. Anchor the lookup
-  // to the project root via __dirname (this file lives at
-  // backend/src/invoices/, so go up 3 levels), NOT process.cwd()
-  // — the backend is started from backend/ and CWD doesn't reach
-  // the project root the way the upload fix expected.
+  // Tier 544: a logo is a file in frontend/public/images/ — nothing else.
+  // `Company.logoPath` can be set through PUT /companies/:id, and this used
+  // an absolute path as it came (and tried the value relative to the working
+  // directory): measured, logoPath "/tmp/x.png" put that file into the
+  // company's invoice PDFs — any image the server can read, e.g. another
+  // tenant's uploaded receipt scan. Only the base name is used now; the older
+  // 'images/<name>' form resolves to the same file.
   //
-  // Also accept the older 'images/<name>' form in case any DB row
-  // was saved that way (compatibility shim).
+  // Anchored to the project root via __dirname (this file lives at
+  // backend/src/invoices/), not process.cwd().
+  const name = path.basename(String(logoPath || '').replace(/\\/g, '/'))
+  if (!name || name === '.' || name === '..' || !/\.(png|jpe?g|gif|webp)$/i.test(name)) return null
   const projectRoot = path.resolve(__dirname, '..', '..', '..')
-  const candidateNames = [
-    path.join(projectRoot, 'frontend', 'public', 'images', path.basename(logoPath)),
-  ]
-  if (logoPath.startsWith('images/') || logoPath.startsWith('/images/')) {
-    candidateNames.push(
-      path.join(projectRoot, 'frontend', 'public', logoPath.replace(/^\//, '')),
-    )
-  }
-
-  for (const candidate of candidateNames) {
-    if (fs.existsSync(candidate)) {
-      return candidate
-    }
-  }
-
-  // Last resort: try the path as-is (relative to CWD). Will
-  // usually miss for the same reason as the upload bug, but
-  // doesn't hurt to try.
-  if (fs.existsSync(logoPath)) {
-    return logoPath
-  }
-
-  return null
+  const candidate = path.join(projectRoot, 'frontend', 'public', 'images', name)
+  return fs.existsSync(candidate) ? candidate : null
 }
 
 function formatDate(dateStr: string | Date): string {

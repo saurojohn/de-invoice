@@ -2602,6 +2602,23 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### A logo path is a file name of the company's own, not a path (Tier 544) — security
+
+`Company.logoPath` can be set with `PUT /companies/:id`, and
+`resolveLogoPath` (invoice PDF) used an absolute path as it came, then tried
+the value relative to the working directory. Measured (spec 329, 7
+assertions fail before): logoPath "/tmp/<file>.png" → 200, and the
+company's invoice PDF carried that image — any image the server can read,
+e.g. another tenant's uploaded receipt scan (attachments are stored as files)
+or logo.
+
+- `resolveLogoPath`: only `frontend/public/images/<base name>` with an image
+  extension — no absolute path, no working-directory fallback.
+- `CompanyService.update`: a changed `logoPath` is a bare image file name
+  and, when it has the upload's `logo-<8 hex>-…` form, this company's own. An
+  unchanged value passes (the settings form sends the whole record back; an
+  older row may hold `images/<name>`), and `""` clears it.
+
 ### A logo is an image, whatever its name says (Tier 543) — security
 
 `POST /companies/upload-logo` checked the *declared* type (image/png) and
