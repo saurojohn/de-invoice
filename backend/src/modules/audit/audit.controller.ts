@@ -7,6 +7,7 @@ import {
   Header,
   BadRequestException,
 } from '@nestjs/common'
+import { businessTodayIso } from '../../common/business-date'
 import type { Response } from 'express'
 import { AuditService, AuditLogFilters } from './audit.service'
 import { Auth, Require } from '../../auth/roles.decorator'
@@ -135,7 +136,7 @@ export class AuditController {
       dateTo,
     })
     const csv = await this.svc.exportCsv(f)
-    const stamp = new Date().toISOString().slice(0, 10)
+    const stamp = businessTodayIso()
     res.setHeader(
       'Content-Disposition',
       `attachment; filename="audit-log-${stamp}.csv"`,
@@ -304,7 +305,7 @@ export class AuditController {
       actionPrefix,
       userId,
     )
-    const stamp = new Date().toISOString().slice(0, 10)
+    const stamp = businessTodayIso()
     res.setHeader('Content-Type', 'text/csv; charset=utf-8')
     res.setHeader(
       'Content-Disposition',

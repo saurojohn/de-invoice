@@ -27,7 +27,7 @@ import { ExchangeRateService } from '../exchange-rate/exchange-rate.service';
 import { nextInvoiceNumber, releaseInvoiceNumber } from './invoice-number';
 import { ModuleRef } from '@nestjs/core';
 import { igLVatIdProblem } from './ust-behandlung-detector';
-import { businessDayIso, businessToday, businessTodayDate, businessTodayIso, dayStart } from '../../common/business-date';
+import { businessDayIso, businessToday, businessTodayDate, businessTodayIso, dayStart } from '../../common/business-date'
 import { CLAIM_TYPES } from './document-scope';
 import { PaymentService } from './payment.service';
 import { ADVANCE_SETTLEMENT_METHOD, advanceReceived, advanceDeductionFor } from './advance';
@@ -865,7 +865,7 @@ export class InvoiceService {
     const created = await this.create(companyId, {
       type: 'INV',
       customerId: pi.customerId,
-      issueDate: dto.issueDate ?? new Date().toISOString().slice(0, 10),
+      issueDate: dto.issueDate ?? businessTodayIso(),
       currency: pi.currency ?? undefined,
       notes: pi.notes ?? undefined,
       discountPercent: pi.discountPercent != null ? Number(pi.discountPercent) : undefined,

@@ -1,3 +1,4 @@
+import { businessTodayIso } from '../../common/business-date'
 import { Injectable, Logger, BadRequestException } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import { StorageService } from '../storage/storage.service'
@@ -734,7 +735,7 @@ export class GobdExportService {
     await zip.finalize()
     const zipBuffer = Buffer.concat(chunks)
 
-    const stamp = new Date().toISOString().slice(0, 10)
+    const stamp = businessTodayIso()
     const safeCompanyName = company.name.replace(/[^\w.-]/g, '_')
     // Tier 181: when month is set, embed the period
     // in the filename so the Berater's archive folder

@@ -1,3 +1,4 @@
+import { businessDayIso } from '../../common/business-date'
 import { withKeyLock } from '../../common/key-lock';
 import {
   BadRequestException,
@@ -199,7 +200,7 @@ export class InstallmentPlanService {
         ? {
             installmentCount: 3,
             intervalDays: 30,
-            firstDueDate: firstDue.toISOString().slice(0, 10),
+            firstDueDate: businessDayIso(firstDue),
             notes: 'Ratenplan-Vorschlag',
           }
         : null,

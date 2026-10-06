@@ -1,3 +1,4 @@
+import { businessTodayIso } from '../../common/business-date'
 import { PrismaService } from '../../prisma/prisma.service'
 import { Injectable, Logger, BadRequestException, NotFoundException } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
@@ -1269,7 +1270,7 @@ export class FinTsService {
         // here so a future maintainer can
         // inspect / log it; the HKCSE/HKCCS
         // round-trip is currently stub'd.
-        const today = new Date().toISOString().slice(0, 10)
+        const today = businessTodayIso()
         const xml =
           input.kind === 'credit_transfer'
             ? buildPain001CreditTransfer({
@@ -1706,7 +1707,7 @@ function buildPain008DirectDebit(input: {
   const bicTag = input.creditorBic
     ? `<FinInstnId><BIC>${esc(input.creditorBic)}</BIC></FinInstnId>`
     : ''
-  const dtOfSgntr = new Date().toISOString().slice(0, 10)
+  const dtOfSgntr = businessTodayIso()
   return `<?xml version="1.0" encoding="UTF-8"?>
 <Document xmlns="urn:iso:std:iso:20022:tech:xsd:pain.008.001.08" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
   <CstmrDrctDbtInitn>

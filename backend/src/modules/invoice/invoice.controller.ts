@@ -1,3 +1,4 @@
+import { businessTodayIso } from '../../common/business-date'
 import { queryInt } from '../../common/query';
 import { Controller, Get, Post, Put, Delete, Body, Param, Query, Res, Header, BadRequestException, HttpCode, Req, NotFoundException, HttpException } from '@nestjs/common';
 import { assertManualPaymentMethod } from './payment-methods';
@@ -306,7 +307,7 @@ export class InvoiceController {
       }
 
       const zip = new (archiverLib as any).ZipArchive({ zlib: { level: 6 } })
-      const stamp = new Date().toISOString().slice(0, 10)
+      const stamp = businessTodayIso()
       res.set({
         'Content-Type': 'application/zip',
         'Content-Disposition': `attachment; filename="Rechnungen_${stamp}.zip"`,

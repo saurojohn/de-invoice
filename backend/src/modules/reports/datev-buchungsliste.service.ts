@@ -1,3 +1,4 @@
+import { businessTodayIso } from '../../common/business-date'
 import { SKR03_ANLAGEN_NAMES } from './datev-anlagen'
 import { Injectable, Logger, BadRequestException } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
@@ -350,7 +351,7 @@ export class DatevBuchungslisteService {
     const zip = new archiverLib.ZipArchive({ zlib: { level: 6 } })
     const chunks: Buffer[] = []
     zip.on('data', (chunk: Buffer) => chunks.push(chunk))
-    const stamp = new Date().toISOString().slice(0, 10)
+    const stamp = businessTodayIso()
     const periodLabel = opts.month
       ? `${year}-${String(opts.month).padStart(2, '0')}`
       : String(year)

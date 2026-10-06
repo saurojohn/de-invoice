@@ -14,6 +14,7 @@ import {
   HttpCode,
   Req,
 } from '@nestjs/common'
+import { businessTodayIso } from '../../common/business-date'
 import { Response } from 'express'
 import { Request } from 'express'
 import { HeaderAuthGuard } from '../../auth/header-auth.guard'
@@ -336,7 +337,7 @@ export class WebhookController {
       eventType,
       status,
     )
-    const stamp = new Date().toISOString().slice(0, 10)
+    const stamp = businessTodayIso()
     // BOM so Excel correctly
     // detects UTF-8 (German umlauts
     // in eventType / errorMessage

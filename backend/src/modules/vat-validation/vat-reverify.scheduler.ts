@@ -33,6 +33,7 @@
  *     soak-testing the verification logic without
  *     spamming real users)
  */
+import { businessTodayIso } from '../../common/business-date'
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { VatValidationService } from './vat-validation.service'
@@ -63,7 +64,7 @@ export class VatReverifyScheduler {
   // (dailyReverify) runs over all of them.
   async runNowForTest(companyId?: string): Promise<{ customers: number; suppliers: number; transitions: number; errors: number }> {
     this.logger.warn('runNowForTest called — bypassing DISABLE_CRON')
-    const today = new Date().toISOString().slice(0, 10)
+    const today = businessTodayIso()
     for (const k of this._emailedToday) {
       if (!k.endsWith(':' + today)) this._emailedToday.delete(k)
     }
@@ -117,7 +118,7 @@ export class VatReverifyScheduler {
     }
     return this.health.wrap('vat-reverify-daily', async () => {
     // Reset dedupe set at the start of the day
-    const today = new Date().toISOString().slice(0, 10)
+    const today = businessTodayIso()
     // (We keep entries from today and drop yesterday.)
     for (const k of this._emailedToday) {
       if (!k.endsWith(':' + today)) this._emailedToday.delete(k)

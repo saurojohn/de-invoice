@@ -2616,6 +2616,12 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 553 — "today" is the German calendar day, on any server clock
+
+Production runs with `TZ: Europe/Berlin` (infra/prod/docker-compose.yml). Local midnight written with `toISOString()` is 22:00/23:00 UTC of the day before. Measured on a machine in that zone: `GET /recurring-invoices/from-invoice/:id` prefilled `startDate` with yesterday; `GET /reports/datev-preview` and `/datev-export` without dates reported/named the period from 31 December of the previous year (the selection itself was right — date-only values are midnight UTC). And `new Date().toISOString().slice(0,10)` is yesterday between 00:00 and 02:00 German time: the Schlussrechnung's default issue date, ELSTER `Eingangsdatum`, the SEPA files' creation date, the VAT re-verification's day key, export file stamps. All now go through `common/business-date` (`businessTodayIso()`, `businessDayIso(date)`); the instalment proposal's first due date too.
+
+Reviewed and left: the remaining `setHours(0,0,0,0)` sites compare date-only values (`< today`) or bound instants, which is right in both zones. Spec `337-tier553-heute-ist-der-deutsche-tag.sh` — 3 assertions fail on old code **on a server in Germany's zone**; on CI (UTC) the old code passed by accident, so CI does not prove this one.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 552 — the error-rate list is the company's too
 
 `GET /system/errors/top-rate` grouped `ErrorEvent` by fingerprint with no company in the where clause (no key at all, so Tier 551's check does not see it): a new company's admin read the messages of every company's recent errors. Now scoped to the caller's company, both the grouping and the row lookup. Found while reviewing the raw-SQL sites after Tier 551 (audit text search, invoice numbers, recurring lock, error timeline: all carry the company). Asserted in spec 335 (2 more assertions fail on old code).

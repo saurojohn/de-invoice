@@ -1,5 +1,5 @@
 import { Injectable, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
-import { businessTodayDate } from '../../common/business-date';
+import { businessToday, businessTodayDate, businessTodayIso } from '../../common/business-date'
 import { computeInvoiceAmounts } from '../invoice/invoice-amounts';
 import { assertPositiveTotal } from '../invoice/positive-total';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -765,9 +765,10 @@ export class RecurringService {
     })
     if (!inv) throw new BadRequestException('Invoice not found in this company')
 
-    const today = new Date()
-    const startDate = new Date(today)
-    startDate.setHours(0, 0, 0, 0)
+    // Tier 553: the German calendar day. Local midnight, written as an ISO
+    // string, is the day before on a server in Germany (TZ=Europe/Berlin in
+    // production): the form opened with yesterday as its start date.
+    const today = businessToday()
 
     return {
       // Pre-fill shape that the recurring-invoices page
@@ -780,8 +781,8 @@ export class RecurringService {
       intervalCount: 1,
       // Day-of-month defaults to today's day so the
       // next run is "this month" (or next if today > 28).
-      dayOfMonth: Math.min(today.getDate(), 28),
-      startDate: startDate.toISOString().slice(0, 10),
+      dayOfMonth: Math.min(today.d, 28),
+      startDate: businessTodayIso(),
       endDate: null,
       currency: inv.currency || 'EUR',
       language: inv.language || 'de-DE',

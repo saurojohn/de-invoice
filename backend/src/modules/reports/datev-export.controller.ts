@@ -27,6 +27,7 @@
  * Split out of reports.controller.ts (Tier 173).
  * URL paths preserved.
  */
+import { businessDayIso } from '../../common/business-date'
 import { queryDate } from '../../common/query';
 import {
   BadRequestException,
@@ -164,7 +165,7 @@ export class DatevExportController {
     // suffix prevents the "already imported" warning
     // on repeated exports of the same period.
     const laufNr = (company as any).settings?.datev?.laufNr?.[startDate.getFullYear()] || 1;
-    const filename = `EXTF_Buchungsstapel_${startDate.toISOString().split('T')[0]}_L${String(laufNr).padStart(3, '0')}.csv`;
+    const filename = `EXTF_Buchungsstapel_${businessDayIso(startDate)}_L${String(laufNr).padStart(3, '0')}.csv`;
 
     // Hand-rolled response: the @Header() decorator
     // doesn't reliably reach the buffer stream when
@@ -298,7 +299,7 @@ export class DatevExportController {
     // EXTF_Buchungsstapel_YYYY-MM-DD format.
     const zipFilename = periodLabel
       ? `EXTF_Buchungsstapel_${periodLabel}_L${String(laufNr).padStart(3, '0')}.zip`
-      : `EXTF_Buchungsstapel_${startDate.toISOString().split('T')[0]}_L${String(laufNr).padStart(3, '0')}.zip`;
+      : `EXTF_Buchungsstapel_${businessDayIso(startDate)}_L${String(laufNr).padStart(3, '0')}.zip`;
 
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', `attachment; filename="${zipFilename}"`);
@@ -669,7 +670,7 @@ export class DatevExportController {
 
     const settings = (company as any).settings?.datev || {}
     const laufNr = settings?.laufNr?.[startDate.getFullYear()] || 1
-    const filename = `EXTF_Buchungsstapel_${startDate.toISOString().split('T')[0]}_L${String(laufNr).padStart(3, '0')}.csv`
+    const filename = `EXTF_Buchungsstapel_${businessDayIso(startDate)}_L${String(laufNr).padStart(3, '0')}.csv`
 
     // Totals
     let totalSoll = 0
@@ -740,8 +741,8 @@ export class DatevExportController {
       header: {
         beraterNr: settings?.beraterNr || '00000',
         mandantenNr: settings?.mandantenNr || '00001',
-        startDate: startDate.toISOString().slice(0, 10),
-        endDate: endDate.toISOString().slice(0, 10),
+        startDate: businessDayIso(startDate),
+        endDate: businessDayIso(endDate),
         buchungsLaufNr: laufNr,
         filename,
       },

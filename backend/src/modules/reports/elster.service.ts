@@ -18,6 +18,7 @@
  * Amounts are written in cents, signed ("B-Kz081=+000000100000").
  */
 
+import { businessTodayIso } from '../../common/business-date'
 import { UstvaData } from './ustva.service';
 import { UstjaResult } from './ustja.service';
 import { KzEntry, ustvaKennzahlen } from './ust-kennzahlen';
@@ -138,7 +139,7 @@ export function generateUstvaElsterXml(input: ElsterUstvaExportInput): string {
 <Datenlieferung xmlns="http://www.elster.de/elsterxml/schema/v1">
   <Verarbeitungsinformationen>
     <Erstellung>
-      <Eingangsdatum>${new Date().toISOString().split('T')[0]}</Eingangsdatum>
+      <Eingangsdatum>${businessTodayIso()}</Eingangsdatum>
     </Erstellung>
     <Datenbestaetigung>false</Datenbestaetigung>
     <TransferHeader>
@@ -293,7 +294,7 @@ export function generateUstjaElsterXml(input: ElsterUstjaExportInput): string {
 <Datenlieferung xmlns="http://www.elster.de/elsterxml/schema/v1">
   <Verarbeitungsinformationen>
     <Erstellung>
-      <Eingangsdatum>${new Date().toISOString().split('T')[0]}</Eingangsdatum>
+      <Eingangsdatum>${businessTodayIso()}</Eingangsdatum>
     </Erstellung>
     <Datenbestaetigung>false</Datenbestaetigung>
     <TransferHeader>
