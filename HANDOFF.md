@@ -2602,6 +2602,29 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### An uploaded Beleg is the file it says it is (Tier 542)
+
+After the cross-tenant sweeps (below) the uploads were probed. Measured (spec
+327, 9 assertions fail before): an HTML page uploaded as "beleg.pdf" was
+stored and served as application/pdf — `StorageService.saveFile` looked at
+the extension only; a 400-character file name was ENAMETOOLONG on disk →
+500; an empty file was stored.
+
+- `saveFile`: the first bytes fit the extension (PDF, PNG, JPEG, GIF, WebP,
+  TIFF, the Office containers; a .txt has no NUL byte), an empty file is
+  refused, and the name on disk keeps its extension and at most 100
+  characters before it (`Attachment.originalName` keeps the full one).
+- Already right: disallowed types (HTML, SVG, executables) by extension, a
+  path in the file name (reduced to its base name), 10 MB.
+
+**Cross-tenant sweeps (scratch, no finding):** company B called every GET
+route with the ids of company A's invoice, expense, product, supplier,
+recurring template, webhook, asset, payment, customer, company and user —
+with its own and with A's `companyId` — and no 2xx carried anything of A's;
+the same for every writing route with three bodies: no 2xx, and A's rows
+were unchanged afterwards. The UStVA's months, quarters and year add up to
+the same figures on a mixed set of documents.
+
 ### A company car's trips between home and the business (Tier 541)
 
 The "not covered" of Tier 502 (spec 326). With the 1 % rule the trips between

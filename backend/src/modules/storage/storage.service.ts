@@ -123,6 +123,13 @@ export class StorageService {
       throw new BadRequestException('Dateityp nicht erlaubt.');
     }
 
+    if (buffer.length === 0) {
+      throw new BadRequestException('Die Datei ist leer.');
+    }
+    if (!this.contentMatches(ext, buffer)) {
+      throw new BadRequestException(`Der Inhalt der Datei passt nicht zu ihrer Endung (${ext}).`);
+    }
+
     // Tier 383: `type` and `companyId` become directory names. POST
     // /storage/upload passed the form's `type` through, and type
     // "../../../t383-escape" wrote the file outside the storage root (measured).
@@ -456,9 +463,52 @@ export class StorageService {
    * Sanitize filename to remove potentially dangerous characters
    */
   private sanitizeFilename(filename: string): string {
-    return filename
+    const safe = filename
       .replace(/[^a-zA-Z0-9._-]/g, '_')
       .replace(/_{2,}/g, '_');
+    // Tier 542: a 400-character name was ENAMETOOLONG on disk → 500. The
+    // stored name keeps its extension and at most 100 characters before it
+    // (the original name stays in the database).
+    const ext = path.extname(safe).slice(0, 10);
+    const base = safe.slice(0, safe.length - path.extname(safe).length);
+    return base.slice(0, 100) + ext;
+  }
+
+  /**
+   * Tier 542 — the bytes are what the extension says. Measured: an HTML page
+   * uploaded as "beleg.pdf" was stored and served as application/pdf. A
+   * Beleg that is not the file it claims to be cannot be opened by the
+   * Betriebsprüfung, and the type is what the download is served as.
+   */
+  private contentMatches(ext: string, buffer: Buffer): boolean {
+    const starts = (...bytes: number[]) => bytes.every((b, i) => buffer[i] === b);
+    const head = buffer.subarray(0, 1024);
+    switch (ext) {
+      case '.pdf':
+        return head.includes(Buffer.from('%PDF-'));
+      case '.png':
+        return starts(0x89, 0x50, 0x4e, 0x47);
+      case '.jpg':
+      case '.jpeg':
+        return starts(0xff, 0xd8, 0xff);
+      case '.gif':
+        return starts(0x47, 0x49, 0x46, 0x38);
+      case '.webp':
+        return starts(0x52, 0x49, 0x46, 0x46) && buffer.subarray(8, 12).toString('latin1') === 'WEBP';
+      case '.tif':
+      case '.tiff':
+        return starts(0x49, 0x49, 0x2a, 0x00) || starts(0x4d, 0x4d, 0x00, 0x2a);
+      case '.docx':
+      case '.xlsx':
+        return starts(0x50, 0x4b);
+      case '.doc':
+      case '.xls':
+        return starts(0xd0, 0xcf, 0x11, 0xe0);
+      case '.txt':
+        return !head.includes(0x00);
+      default:
+        return true;
+    }
   }
 
   /**
