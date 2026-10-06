@@ -2619,6 +2619,12 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 560 — a company's logo is kept with the other uploaded files
+
+`POST /companies/upload-logo` wrote to `frontend/public/images/` beside the source tree, and the frontend showed `/images/<name>` from its own public directory. That only works where both run from one checkout. In the compose deployment the path is `/frontend/public/images` inside the **backend** container: not a volume — every logo was gone after the next `docker compose up`, and the invoice PDFs lost it — and not the frontend container's directory, so the settings page and the invoice preview never showed a logo at all.
+
+Now `modules/company/logo-store.ts`: `<STORAGE_PATH>/_logos/` (the `storage` volume), found by `findLogo()` (the PDF uses it too; files in the old directory are still found), served by the public `GET /companies/logo/:name` — only names the upload wrote (`logo-<8 hex>-<timestamp>.<ext>`), `nosniff`. Public because an `<img>` cannot send the auth headers and it replaces a file that was public. The two frontend places use it. **After deploying:** logos uploaded before are not in the volume — upload them once more. Spec `340-tier560-logo-im-speicher.sh` (5 assertions fail on old code); specs 23/328/329 look in the new directory.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 559 — the migrations build the schema the app runs on
 
 CI and `infra/prod/HETZNER-DEPLOY.sh` created the database with `prisma db push`; `infra/prod/README.md` installs and updates with `prisma migrate deploy`. Nothing compared the two. Measured on a scratch database: the migrations alone left it **fourteen tables short** (UserSession, CustomerPortalSession, Webhook, WebhookDelivery, NoteTemplate, the four SEPA tables, CronHealth, NotificationConfig, CompanySigningKey, the two internal-note tables) **and eleven columns** (AuditLog's hash chain, the Kassenbuch signature, `Expense.paidAt`, `RecurringInvoice.pausedUntil` …) — sign-in cannot work on it. The other way round, a `db push` database has no `_prisma_migrations` table, so `migrate deploy` refuses it (P3005), and no `search_tsv` columns, which only a raw-SQL migration creates.

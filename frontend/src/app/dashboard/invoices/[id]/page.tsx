@@ -1,5 +1,6 @@
 "use client"
 
+import { apiBase } from "@/lib/apiBase"
 import { todayIso } from "@/lib/today"
 import { useEffect, useRef, useState } from "react"
 import { useRouter, useParams } from "next/navigation"
@@ -1632,7 +1633,7 @@ export default function InvoiceDetailPage() {
                 <div className="w-1/2 flex justify-center">
                   
                   <img
-                    src={`/images/${invoice.company.logoPath}`}
+                    src={`${apiBase()}/api/v1/companies/logo/${invoice.company.logoPath}`}
                     alt={invoice.company.name}
                     className="h-[68px] w-auto object-contain print:hidden"
                     onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none" }}

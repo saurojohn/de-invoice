@@ -1,6 +1,6 @@
+import { findLogo } from '../modules/company/logo-store'
 import PDFKit from "pdfkit"
 import * as fs from "fs"
-import * as path from "path"
 import QRCode from "qrcode"
 import { invoiceTaxBreakdown } from "../modules/invoice/tax-breakdown"
 
@@ -1100,11 +1100,8 @@ function resolveLogoPath(logoPath: string): string | null {
   //
   // Anchored to the project root via __dirname (this file lives at
   // backend/src/invoices/), not process.cwd().
-  const name = path.basename(String(logoPath || '').replace(/\\/g, '/'))
-  if (!name || name === '.' || name === '..' || !/\.(png|jpe?g|gif|webp)$/i.test(name)) return null
-  const projectRoot = path.resolve(__dirname, '..', '..', '..')
-  const candidate = path.join(projectRoot, 'frontend', 'public', 'images', name)
-  return fs.existsSync(candidate) ? candidate : null
+  // Tier 560: in the storage volume, or (older uploads) in the old directory.
+  return findLogo(logoPath)
 }
 
 function formatDate(dateStr: string | Date): string {

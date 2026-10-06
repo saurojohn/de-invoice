@@ -16,7 +16,7 @@ source "$SCRIPT_DIR/_lib.sh"
 login
 TAG="e2e-329-$(date +%s%N | cut -c1-13)"
 q() { docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -Atc "$1"; }
-IMAGES="$SCRIPT_DIR/../../frontend/public/images"
+IMAGES="${STORAGE_PATH:-$HOME/data/invoice-system}/_logos" # Tier 560: with the uploaded files, not in the frontend tree
 company() {
   read -r U C < <(curl -sS -X POST "$API/api/v1/auth/register" -H "Content-Type: application/json" \
     -d "{\"email\":\"$TAG-$1@example.test\",\"password\":\"Tier544-e2e\",\"companyName\":\"$TAG $1 GmbH\"}" \

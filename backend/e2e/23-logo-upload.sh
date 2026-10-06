@@ -23,7 +23,7 @@ source "$SCRIPT_DIR/_lib.sh"
 # backend/e2e/frontend/public/images — a path that
 # doesn't exist. Resolve from this file's location.
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-LOGO_DIR="$PROJECT_ROOT/frontend/public/images"
+LOGO_DIR="${STORAGE_PATH:-$HOME/data/invoice-system}/_logos" # Tier 560: with the uploaded files, not in the frontend tree
 
 login
 COMPANY_ID="$COMPANY_ID"

@@ -1,5 +1,6 @@
 "use client"
 
+import { apiBase } from "@/lib/apiBase"
 import { useEffect, useState, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -335,7 +336,7 @@ export default function SettingsPage() {
             })
 
             if (data.logoPath) {
-              setCurrentLogo(`/images/${data.logoPath}`)
+              setCurrentLogo(`${apiBase()}/api/v1/companies/logo/${data.logoPath}`) // Tier 560: served by the backend
             }
           }
           setLoading(false)
@@ -668,7 +669,7 @@ export default function SettingsPage() {
         // a re-upload of a new file with the same name.
         // (Backend now uses a unique filename per upload,
         // but cache-bust here is defence in depth.)
-        setCurrentLogo(`/images/${data.filename}?t=${Date.now()}`)
+        setCurrentLogo(`${apiBase()}/api/v1/companies/logo/${data.filename}`)
         setForm({ ...form, logoPath: data.filename })
         toast.success(t("settings.logoUploaded"))
       } else {

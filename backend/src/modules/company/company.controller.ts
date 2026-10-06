@@ -1,8 +1,8 @@
-import { Controller, Get, Put, Patch, Post, Body, Param, UploadedFile, BadRequestException, Req } from '@nestjs/common';
+import { Controller, Get, Put, Patch, Post, Body, Param, UploadedFile, BadRequestException, NotFoundException, Req, Res } from '@nestjs/common';
 import { CompanyService } from './company.service';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 import { Auth, Require } from '../../auth/roles.decorator';
-import { CompanyIdParam } from '../../auth/public.decorator';
+import { CompanyIdParam, Public } from '../../auth/public.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   SKR03_DEFAULTS,
@@ -12,7 +12,8 @@ import {
 } from '../reports/datev.service';
 import * as fs from 'fs';
 import * as path from 'path';
-import { Request } from 'express';
+import { Request, Response } from 'express';
+import { findLogo, isUploadedLogoName, logoDir, removeLogoFile } from './logo-store';
 import { AuditService } from '../audit/audit.service';
 import { CallerBoundUpload } from '../../auth/caller-bound-upload';
 
@@ -377,6 +378,26 @@ export class CompanyController {
       nextAutoBookerRun: nextFirstOfMonthBerlin(),
     }
   }
+  /**
+   * Tier 560: the logo, for the settings page and the invoice preview. Public
+   * like the image it replaces (it was a file in the frontend's public
+   * directory): an <img> cannot send the auth headers, and a logo is what the
+   * company prints on everything it sends out. Only names this controller
+   * wrote are served.
+   */
+  @Public()
+  @Get('logo/:name')
+  logo(@Param('name') name: string, @Res() res: Response) {
+    const file = isUploadedLogoName(String(name)) ? findLogo(name) : null;
+    if (!file) throw new NotFoundException('Logo nicht gefunden');
+    const ext = path.extname(file).toLowerCase();
+    res.setHeader('Content-Type', ext === '.png' ? 'image/png' : ext === '.gif' ? 'image/gif' : ext === '.webp' ? 'image/webp' : 'image/jpeg');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin'); // the dev frontend is another origin
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.send(fs.readFileSync(file));
+  }
+
 
   @Auth()
   @Require('company.update')
@@ -439,49 +460,16 @@ export class CompanyController {
       throw new BadRequestException('Die Datei ist kein Bild (PNG, JPG, GIF oder WebP).');
     }
     const filename = `logo-${companyId.slice(0, 8)}-${Date.now()}${safeExt}`;
-    // Anchor the upload dir to the source file location, not
-    // process.cwd(). The backend is started with
-    //   cd backend && npx ts-node src/main.ts
-    // so CWD = de-invoice/backend/, and the previous
-    //   path.join(process.cwd(), 'frontend', 'public', 'images')
-    // landed at backend/frontend/public/images/ — a directory the
-    // mkdirSync happily created in the wrong place. The frontend
-    // then tried to serve from frontend/public/images/ (the real
-    // public dir) and got 404, so the logo "saved" but never
-    // rendered. Going up 4 levels from this file's directory
-    // reaches the project root, regardless of where the node
-    // process was launched.
-    const uploadDir = path.resolve(
-      __dirname,
-      '..', '..', '..', '..',
-      'frontend', 'public', 'images',
-    );
-
-    // Ensure directory exists
+    // Tier 560: with the other uploaded files (the storage volume), not in
+    // the frontend's source tree — see logo-store.ts.
+    const uploadDir = logoDir();
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
     }
 
-    // Clean up the previous logo file (if any) for this
-    // company. Otherwise a company that uploads logo.png,
-    // then logo.jpg, ends up with both on disk forever
-    // (and the public/ dir fills up over time).
+    // Clean up the previous logo file (if any) for this company.
     const company = await this.companyService.findById(companyId);
-    if (company?.logoPath) {
-      const oldPath = path.join(uploadDir, company.logoPath);
-      // Only delete if it's inside uploadDir (defence
-      // against a tampered logoPath like "../../etc/passwd").
-      if (oldPath.startsWith(uploadDir) && fs.existsSync(oldPath)) {
-        try {
-          fs.unlinkSync(oldPath);
-        } catch {
-          // Best-effort. If the file is locked or already
-          // deleted, we just leave the new one alongside
-          // it — a stray file is better than failing the
-          // upload.
-        }
-      }
-    }
+    removeLogoFile(company?.logoPath);
 
     // Save new file
     const filepath = path.join(uploadDir, filename);
@@ -518,22 +506,7 @@ export class CompanyController {
     if (!company) {
       throw new BadRequestException('Firma nicht gefunden');
     }
-    if (company.logoPath) {
-      const uploadDir = path.resolve(
-        __dirname,
-        '..', '..', '..', '..',
-        'frontend', 'public', 'images',
-      );
-      const oldPath = path.join(uploadDir, company.logoPath);
-      if (oldPath.startsWith(uploadDir) && fs.existsSync(oldPath)) {
-        try {
-          fs.unlinkSync(oldPath);
-        } catch {
-          // Same best-effort as in upload — don't fail the
-          // remove just because we couldn't delete the file.
-        }
-      }
-    }
+    removeLogoFile(company.logoPath);
     await this.companyService.update(companyId, { logoPath: null });
     return { ok: true, logoPath: null };
   }
