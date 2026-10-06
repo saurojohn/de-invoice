@@ -17,6 +17,7 @@
  * Where the bank, SEPA or the cash book paid the expense, the lock refuses it
  * like any other change.
  */
+import { assertPeriodOpen } from '../reports/filed-period';
 import { BadRequestException, NotFoundException } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import { signedExpenseAmounts } from './credit-note'
@@ -92,6 +93,8 @@ export async function updateExpense(
   set('grossAmount', signed.gross.toFixed(4), !sameDecimal(exp.grossAmount, signed.gross))
 
   if (Object.keys(changes).length > 0) {
+    // Tier 537: out of, or into, a submitted UStVA period
+    await assertPeriodOpen(prisma, companyId, [exp.invoiceDate, changes.invoiceDate as Date | undefined], 'das Ändern einer Eingangsrechnung')
     const reason = await expenseLockReason(prisma, companyId, exp)
     if (reason) throw new BadRequestException(reason)
   }

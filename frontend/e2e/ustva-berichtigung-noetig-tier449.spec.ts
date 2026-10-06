@@ -25,6 +25,15 @@ test("an expense entered after submission flags the filing until it is corrected
   const sub = await request.post(`${API}/api/v1/ustva/filings?${q}`, { headers: H, data: { ...data, status: "submitted" } })
   expect(sub.status(), "submitted").toBe(201)
   const filing = await sub.json()
+  // Tier 537: the submitted period is locked — an expense dated into it is
+  // refused until the period is released for the correction.
+  const refused = await request.post(`${API}/api/v1/ustva/expenses?${q}`, {
+    headers: H,
+    data: { description: tag, invoiceDate: `${year}-01-15`, netAmount: 100, vatRate: 0.19, vatAmount: 19, grossAmount: 119 },
+  })
+  expect(refused.status(), "expense into the locked period").toBe(400)
+  const rel = await request.put(`${API}/api/v1/ustva/filings/${filing.id}/release?${q}`, { headers: H, data: { released: true } })
+  expect(rel.status(), "released").toBe(200)
   // …then an expense of that year turns up.
   const exp = await request.post(`${API}/api/v1/ustva/expenses?${q}`, {
     headers: H,

@@ -4,7 +4,7 @@ import { Controller, Get, Post, Put, Delete, Body, Query, Param, BadRequestExcep
 import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { UstvaService } from './ustva.service';
-import { SaveUstvaFilingDto, RecordUstvaPaymentDto, CreateUstPaymentDto } from './dto/ustva.dto';
+import { SaveUstvaFilingDto, RecordUstvaPaymentDto, CreateUstPaymentDto, ReleaseFilingDto } from './dto/ustva.dto';
 import { CreateUstvaExpenseDto } from './dto/ustva-expense.dto';
 import { UpdateExpenseDto } from '../expense/dto/expense.dto';
 import { updateExpense } from '../expense/update-expense';
@@ -200,6 +200,18 @@ export class UstvaController {
   ) {
     if (!companyId) throw new BadRequestException('companyId is required');
     return this.ustva.recordFilingPayment(companyId, id, body);
+  }
+
+  // Tier 537: release a submitted period for corrections / lock it again
+  @Put('filings/:id/release')
+  @Require('ustva.submit')
+  async releaseFiling(
+    @Query('companyId') companyId: string,
+    @Param('id') id: string,
+    @Body() body: ReleaseFilingDto,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId is required');
+    return this.ustva.setFilingReleased(companyId, id, body.released);
   }
 
   // Get single filing

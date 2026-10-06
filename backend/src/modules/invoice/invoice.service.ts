@@ -1,3 +1,4 @@
+import { assertPeriodOpen } from '../reports/filed-period';
 import { withKeyLock } from '../../common/key-lock';
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -991,6 +992,10 @@ export class InvoiceService {
     if (!existing) {
       throw new NotFoundException('Rechnung nicht gefunden');
     }
+    // Tier 537: an issued document of a submitted UStVA period
+    if (existing.status !== 'draft' && existing.type !== 'PI') {
+      await assertPeriodOpen(this.prisma, companyId, [existing.issueDate], 'das Ändern einer ausgestellten Rechnung');
+    }
     if (!this.isToday(existing.issueDate)) {
       throw new ForbiddenException(
         'Rechnung kann nur am Ausstellungstag bearbeitet werden. Ältere Rechnungen sind eingefroren — stattdessen eine Gutschrift (CN) erstellen.',
@@ -1239,6 +1244,9 @@ export class InvoiceService {
     if (!existing) {
       throw new NotFoundException('Rechnung nicht gefunden');
     }
+    if (existing.status !== 'draft' && existing.type !== 'PI') { // Tier 537
+      await assertPeriodOpen(this.prisma, companyId, [existing.issueDate], 'das Löschen einer ausgestellten Rechnung');
+    }
     // Same-day rule applies to delete too. After the calendar
     // flips, the customer may have already received the PDF/email;
     // a hard delete would silently wipe a record that exists in
@@ -1393,6 +1401,15 @@ export class InvoiceService {
         'Das Ausstellungsdatum liegt in der Zukunft. Stellen Sie die Rechnung an diesem Tag aus — ' +
         'oder legen Sie sie mit dem heutigen Datum neu an (das Datum eines Entwurfs lässt sich nicht ändern).',
       )
+    }
+    // Tier 537: issuing into, or cancelling out of, a submitted UStVA period.
+    // (A Proforma carries no VAT of its own — its payments do, see PaymentService.)
+    if (before.type !== 'PI') {
+      if (issuing) {
+        await assertPeriodOpen(this.prisma, companyId, [before.issueDate], 'das Ausstellen einer Rechnung');
+      } else if (status === 'cancelled' && before.status !== 'cancelled' && before.status !== 'draft') {
+        await assertPeriodOpen(this.prisma, companyId, [before.issueDate], 'das Stornieren einer Rechnung');
+      }
     }
     // Tier 511: a draft credit note is issued — against an issued invoice,
     // within what it has left to credit, and settled against it below.
@@ -1817,6 +1834,7 @@ export class InvoiceService {
     // month's UStVA.
     const bt = businessToday()
     const now = opts.issueDate ? new Date(opts.issueDate) : dayStart(bt.y, bt.m, bt.d)
+    await assertPeriodOpen(this.prisma, companyId, [now], 'eine Gutschrift mit diesem Datum') // Tier 537
     const month = now.getUTCMonth() + 1
     // Tier 174: same SEQUENCE-based allocation as create().
     // The old `cnCount + 1` was racy under concurrent CN creates

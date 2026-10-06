@@ -236,6 +236,12 @@ export class RecordUstvaPaymentDto {
   amount?: number;
 }
 
+/** Tier 537: PUT /ustva/filings/:id/release — true releases the submitted period for corrections, false locks it again. */
+export class ReleaseFilingDto {
+  @IsBoolean()
+  released!: boolean;
+}
+
 /**
  * Tier 484: POST /ustva/payments — VAT paid to / refunded by the Finanzamt
  * outside a UStVA (UStJA Abschlusszahlung, Sondervorauszahlung, other).

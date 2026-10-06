@@ -50,6 +50,10 @@ assert_eq "May submitted" "$STATUS" "201"
 assert_eq "no correction needed" "$(may 'print(f.get("berichtigungNoetig"))')" "False"
 
 note "=== an expense of May entered afterwards ==="
+# Tier 537: a submitted period is locked — released on purpose before it is corrected.
+release() { AS GET "/api/v1/ustva/filings?companyId=$C"; local f; f=$(py 'print([x["id"] for x in d if x["periodLabel"]=="'$Y'-05"][0])'); AS PUT "/api/v1/ustva/filings/$f/release?companyId=$C" '{"released":true}'; }
+release
+assert_eq "the period is released for the correction" "$STATUS" "200"
 AS POST "/api/v1/ustva/expenses?companyId=$C" '{"description":"Nachgereicht","invoiceDate":"'$Y'-05-20","netAmount":100,"vatRate":0.19,"vatAmount":19,"grossAmount":119}'
 assert_eq "expense recorded" "$STATUS" "201"
 assert_eq "the filing flags it (was nothing)" "$(may 'print(f.get("berichtigungNoetig"))')" "True"

@@ -1,3 +1,4 @@
+import { assertPeriodOpen } from '../reports/filed-period';
 import { withKeyLock } from '../../common/key-lock';
 import { Injectable, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -452,6 +453,11 @@ export class KassenbuchService {
     // receipts and payments daily) — not a day that has not come.
     assertNotFuture(data.businessDate, 'Das Buchungsdatum')
     await this.assertDaysOpen(companyId, [data.businessDate])
+    // Tier 537: a cash sale / purchase with VAT is in the UStVA of its day
+    // (cash-bookings.ts) — not into a submitted period.
+    if (data.vatRate != null && !data.invoiceId && !data.expenseId && (data.type === 'einnahme' || data.type === 'ausgabe')) {
+      await assertPeriodOpen(this.prisma, companyId, [data.businessDate], 'eine Kassenbuchung mit Umsatzsteuer')
+    }
     // Normalise the date to midnight UTC so the DB @db.Date
     // column gets a clean value.
     const bd = new Date(data.businessDate)
@@ -559,6 +565,9 @@ export class KassenbuchService {
     notes?: string | null
   }) {
     const existing = await this.prisma.cashBookEntry.findFirst({ where: { id, companyId } })
+    if (existing && existing.vatRate != null && !existing.invoiceId && !existing.expenseId) {
+      await assertPeriodOpen(this.prisma, companyId, [existing.businessDate], 'das Ändern einer Kassenbuchung mit Umsatzsteuer') // Tier 537
+    }
     if (!existing) throw new NotFoundException('Entry not found')
     await this.assertDaysOpen(companyId, [existing.businessDate])
     if (existing.paymentId && patch.amount !== undefined && patch.amount !== Number(existing.amount)) {
@@ -590,6 +599,9 @@ export class KassenbuchService {
 
   private async deleteEntryLocked(companyId: string, id: string) {
     const existing = await this.prisma.cashBookEntry.findFirst({ where: { id, companyId } })
+    if (existing && existing.vatRate != null && !existing.invoiceId && !existing.expenseId) {
+      await assertPeriodOpen(this.prisma, companyId, [existing.businessDate], 'das Ändern einer Kassenbuchung mit Umsatzsteuer') // Tier 537
+    }
     if (!existing) throw new NotFoundException('Entry not found')
     await this.assertDaysOpen(companyId, [existing.businessDate])
     await this.assertCashNotNegative(companyId, existing.businessDate, -cashSign(existing.type) * Number(existing.amount))
@@ -617,6 +629,9 @@ export class KassenbuchService {
       throw new BadRequestException('Begründung ist erforderlich für eine Storno-Buchung')
     }
     const original = await this.prisma.cashBookEntry.findFirst({ where: { id, companyId } })
+    if (original && original.vatRate != null && !original.invoiceId && !original.expenseId) {
+      await assertPeriodOpen(this.prisma, companyId, [original.businessDate], 'das Ändern einer Kassenbuchung mit Umsatzsteuer') // Tier 537
+    }
     if (!original) throw new NotFoundException('Entry not found')
     if (original.reversesId) {
       throw new BadRequestException('Diese Buchung ist bereits eine Storno-Buchung und kann nicht selbst storniert werden. Stornieren Sie stattdessen die Originalbuchung.')

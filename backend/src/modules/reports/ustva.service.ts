@@ -1,3 +1,4 @@
+import { assertPeriodOpen } from './filed-period';
 import { Injectable, BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { assertNoDuplicateExpense } from '../expense/expense-duplicate';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -897,6 +898,8 @@ export class UstvaService {
       notes,
       status,
       submittedAt: status === 'submitted' ? new Date() : null,
+      // Tier 537: a (re-)submitted return locks its period again.
+      releasedAt: null,
     };
 
     if (existing) {
@@ -931,7 +934,7 @@ export class UstvaService {
     const out = [];
     for (const f of filings) out.push(await (async () => {
       if (f.status !== 'submitted' && f.status !== 'accepted') {
-        return { ...f, abweichung: null, berichtigungNoetig: null };
+        return { ...f, abweichung: null, berichtigungNoetig: null, locked: false };
       }
       const live = await this.compute(companyId, f.year, f.quarter ?? undefined, f.month ?? undefined);
       const abweichung = {
@@ -940,7 +943,8 @@ export class UstvaService {
         payableVat: cent(live.differenzbetrag - Number(f.payableVat)),
       };
       const berichtigungNoetig = Object.values(abweichung).some((d) => Math.abs(d) >= 0.01);
-      return { ...f, abweichung, berichtigungNoetig };
+      // Tier 537: a submitted period is locked until it is released.
+      return { ...f, abweichung, berichtigungNoetig, locked: !f.releasedAt };
     })());
     return out;
   }
@@ -1027,6 +1031,26 @@ export class UstvaService {
     });
   }
 
+  /**
+   * Tier 537 — release a submitted period for corrections, or lock it again.
+   * Releasing is the deliberate step before documents of the period are
+   * changed; the history then shows "Berichtigung nötig" (Tier 449), and the
+   * corrected return locks the period again (saveFiling). The audit log
+   * keeps who released it (UStvaFiling is audited).
+   */
+  async setFilingReleased(companyId: string, filingId: string, released: boolean) {
+    const filing = await this.prisma.uStvaFiling.findFirst({ where: { id: filingId, companyId } });
+    if (!filing) throw new NotFoundException('Voranmeldung nicht gefunden');
+    if (!['submitted', 'accepted'].includes(filing.status)) {
+      throw new BadRequestException('Nur eine übermittelte Voranmeldung sperrt ihren Zeitraum — ein Entwurf muss nicht freigegeben werden.');
+    }
+    const updated = await this.prisma.uStvaFiling.update({
+      where: { id: filingId },
+      data: { releasedAt: released ? new Date() : null },
+    });
+    return { ...updated, locked: !updated.releasedAt };
+  }
+
   async deleteUstPayment(companyId: string, id: string) {
     const row = await this.prisma.ustPayment.findFirst({ where: { id, companyId } });
     if (!row) throw new NotFoundException('Zahlung nicht gefunden');
@@ -1101,6 +1125,7 @@ export class UstvaService {
       const sup = await this.prisma.supplier.findFirst({ where: { id: supplierId, companyId } });
       if (!sup) throw new BadRequestException('Lieferant nicht gefunden');
     }
+    await assertPeriodOpen(this.prisma, companyId, [data.invoiceDate], 'das Erfassen einer Eingangsrechnung'); // Tier 537
     // Tier 523
     assertExpenseAmounts({ net: Number(data.netAmount), vat: Number(data.vatAmount), gross: Number(data.grossAmount), rate: Number(data.vatRate) });
     // Tier 489: the same supplier invoice twice is refused (409)
@@ -1130,6 +1155,7 @@ export class UstvaService {
   async deleteExpense(companyId: string, expenseId: string) {
     const exp = await this.prisma.expense.findFirst({ where: { id: expenseId, companyId } });
     if (!exp) throw new BadRequestException('Ausgabe nicht gefunden');
+    await assertPeriodOpen(this.prisma, companyId, [exp.invoiceDate], 'das Löschen einer Eingangsrechnung'); // Tier 537
     // Tier 443: a paid expense or an AfA row took its cost, input tax and
     // payment out of the books with it (the cash-book entry's link set to NULL).
     const reason = await expenseLockReason(this.prisma, companyId, exp);

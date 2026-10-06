@@ -2599,6 +2599,46 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### A submitted UStVA locks its period (Tier 537)
+
+Decided by the user (see Tier 535) — the "Not done" of Tier 443 / 448 / 449.
+Until now a return sent to the Finanzamt locked nothing; the history said
+"Berichtigung nötig" afterwards. Measured (spec 322, 15 assertions fail
+before): after June was submitted, an invoice was issued into June, the June
+invoice cancelled, an expense of June entered, changed and deleted, a June
+row imported, a cash sale with VAT booked on 15.06. — all 2xx.
+
+- `reports/filed-period.ts` `filedPeriodOf` / `assertPeriodOpen`: a date that
+  lies in a period with a **submitted** (or accepted) filing that is not
+  released — the month's, the quarter's, or one saved for the whole year — is
+  refused with 400: "Die Umsatzsteuer-Voranmeldung 2026-06 wurde am …
+  übermittelt — … ist gesperrt. Buchen Sie die Korrektur im laufenden Zeitraum
+  (Gutschrift, Storno), oder geben Sie den Zeitraum … frei und übermitteln Sie
+  danach eine berichtigte Voranmeldung."
+- The date is the one the UStVA assigns by: an invoice's / credit note's
+  issue date (issuing, changing or deleting an issued one, cancelling), an
+  expense's invoice date (create, both routes; update — old and new date;
+  delete; import row → reported), the day of a Kassenbuch entry with VAT that
+  belongs to no invoice / expense (create, update, delete, Storno), and the
+  payment date of a payment where the tax is owed on receipt — a company with
+  Ist-Versteuerung, and the advance on a Proforma. A draft filing locks
+  nothing; a payment under Soll-Versteuerung moves no VAT and is not locked.
+- Release: `UStvaFiling.releasedAt` (migration
+  `20261006000001_ustva_filing_release`), `PUT /ustva/filings/:id/release
+  {released}` (permission `ustva.submit`; the audit log keeps who). A
+  (re-)submitted return clears it — the corrected return locks the period
+  again. `GET /ustva/filings` carries `locked`.
+- UI: "🔒 Zeitraum freigeben" / "🔓 Wieder sperren" in the UStVA history
+  (de / en / zh), with a confirmation.
+- Fixtures: specs 237, 238 and Playwright `ustva-berichtigung-noetig-tier449`
+  release the period before they correct it.
+
+Not locked: the Skonto credit a bank match creates on an expense
+(`bookExpense`, dated with the bank entry), AfA rows (no VAT), a change of
+the company's Besteuerungsart or Kleinunternehmer status. A late supplier
+bill dated into a submitted month needs the release (the app assigns input
+tax by invoice date; there is no "received on" date).
+
 ### The same payment submitted twice within 10 seconds (Tier 536)
 
 Decided by the user (see Tier 535). Measured (spec 321): the payment form's

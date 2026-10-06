@@ -65,6 +65,10 @@ AS POST "/api/v1/ustva/filings?companyId=$C" "$(filing submitted)"
 assert_eq "submitting again without berichtigt is refused" "$STATUS" "409"
 
 note "=== a corrected return ==="
+# Tier 537: a submitted period is locked — released on purpose before it is corrected.
+release() { AS GET "/api/v1/ustva/filings?companyId=$C"; local f; f=$(py 'print([x["id"] for x in d if x["periodLabel"]=="'$Y'-05"][0])'); AS PUT "/api/v1/ustva/filings/$f/release?companyId=$C" '{"released":true}'; }
+release
+assert_eq "the period is released for the correction" "$STATUS" "200"
 invoice 20
 AS GET "/api/v1/ustva/compute?companyId=$C&year=$Y&month=5"
 DATA="$BODY"

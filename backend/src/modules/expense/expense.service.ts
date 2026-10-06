@@ -1,3 +1,4 @@
+import { assertPeriodOpen, filedPeriodOf, filedPeriodMessage } from '../reports/filed-period';
 import { signedExpenseAmounts } from './credit-note';
 import { assertNoDuplicateExpense, duplicateExpenseMessage, findDuplicateExpense } from './expense-duplicate'
 import { expenseLockReasons } from './expense-lock';
@@ -130,6 +131,7 @@ export class ExpenseService {
       gross: Number(data.grossAmount ?? Number(data.netAmount ?? 0) + Number(data.vatAmount ?? 0)),
     });
     assertExpenseAmounts({ net, vat, gross, rate: Number(data.vatRate ?? 0) }); // Tier 523
+    await assertPeriodOpen(this.prisma, companyId, [data.invoiceDate], 'das Erfassen einer Eingangsrechnung'); // Tier 537
     return this.prisma.expense.create({
       data: {
         companyId,
@@ -306,6 +308,12 @@ export class ExpenseService {
               : Math.round((netAmount + vatAmount) * 10000) / 10000,
         }).gross
 
+        // Tier 537: a row dated into a submitted UStVA period — reported.
+        const filed = await filedPeriodOf(this.prisma, companyId, invoiceDate)
+        if (filed) {
+          result.errors.push({ row: rowNum, error: filedPeriodMessage(filed, 'das Erfassen einer Eingangsrechnung'), description })
+          continue
+        }
         // Tier 523: amounts that do not belong together — reported, not imported.
         const amountsError = expenseAmountsError({ net: netAmount, vat: vatAmount, gross: grossAmount, rate: Number(vatRate) })
         if (amountsError) {

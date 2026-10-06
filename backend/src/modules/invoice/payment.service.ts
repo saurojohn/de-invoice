@@ -1,3 +1,5 @@
+import { besteuerungsart } from '../reports/ustva-ist';
+import { assertPeriodOpen } from '../reports/filed-period';
 import { withKeyLock } from '../../common/key-lock';
 import { InvoiceService } from './invoice.service';
 import { assertManualPaymentMethod } from './payment-methods';
@@ -136,6 +138,14 @@ export class PaymentService {
       throw new BadRequestException(
         'Gutschriften können nicht direkt bezahlt werden — sie werden mit dem offenen Saldo der Originalrechnung verrechnet.'
       );
+    }
+    // Tier 537: a payment moves VAT into its own period only where the tax is
+    // owed on receipt — a company with Ist-Versteuerung (§ 20 UStG), and the
+    // advance on a Proforma (§ 13 Abs. 1 Nr. 1 a Satz 4). A credit note
+    // settling its invoice / applied credit is no receipt.
+    if (!['Gutschrift', 'Guthaben', ADVANCE_SETTLEMENT_METHOD].includes(data.paymentMethod)
+      && (invoice.type === 'PI' || (await besteuerungsart(this.prisma, companyId)) === 'ist')) {
+      await assertPeriodOpen(this.prisma, companyId, [data.paymentDate], 'das Buchen einer Zahlung');
     }
     // Tier 462: only an issued document takes a payment. A cancelled invoice
     // turned "paid" (the Storno undone, back in the UStVA), a draft went
@@ -497,6 +507,10 @@ export class PaymentService {
           `Die Anzahlung ist mit der Schlussrechnung ${final.invoiceNumber} verrechnet und kann nicht gelöscht werden.`,
         );
       }
+    }
+    if (!['Gutschrift', 'Guthaben'].includes(payment.paymentMethod)
+      && (payment.invoice.type === 'PI' || (await besteuerungsart(this.prisma, companyId)) === 'ist')) {
+      await assertPeriodOpen(this.prisma, companyId, [payment.paymentDate], 'das Löschen einer Zahlung'); // Tier 537
     }
     // Tier 460: what the payment caused goes with it — its overpayment credit
     // (refused if already used), a credit it applied, its Skonto credit note.

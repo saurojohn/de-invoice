@@ -65,6 +65,9 @@ interface UstvaFiling {
   // Tier 483: the payment to / refund from the Finanzamt (EÜR Zeilen 18 / 58)
   paidAt?: string | null
   paidAmount?: string | null
+  // Tier 537: a submitted period is locked until it is released for corrections.
+  locked?: boolean
+  releasedAt?: string | null
 }
 
 interface Expense {
@@ -398,6 +401,19 @@ function UstvaPageInner() {
       setFilings(Array.isArray(list) ? list : [])
     } catch (e: any) {
       setDownloadError(e?.message || t("ustva.recordPaymentFailed"))
+    }
+  }
+
+  // Tier 537: release a submitted period for corrections, or lock it again.
+  const setReleased = async (f: UstvaFiling, released: boolean) => {
+    if (released && !window.confirm(t("ustva.releaseConfirm", { period: f.periodLabel }))) return
+    const companyId = localStorage.getItem("companyId")
+    try {
+      await apiPut(`/api/v1/ustva/filings/${f.id}/release?companyId=${companyId}`, { released })
+      const list = await apiGet<any[]>(`/api/v1/ustva/filings?companyId=${companyId}`)
+      setFilings(Array.isArray(list) ? list : [])
+    } catch (e: any) {
+      setDownloadError(e?.message || t("ustva.releaseFailed"))
     }
   }
 
@@ -1236,6 +1252,18 @@ function UstvaPageInner() {
                                     {t("ustva.recordPayment")}
                                   </Button>
                                 )
+                              )}
+                              {(f.status === "submitted" || f.status === "accepted") && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="mr-2"
+                                  data-testid={`ustva-release-${f.id}`}
+                                  title={f.locked ? t("ustva.releaseTitle") : t("ustva.lockTitle")}
+                                  onClick={() => setReleased(f, !!f.locked)}
+                                >
+                                  {f.locked ? `🔒 ${t("ustva.release")}` : `🔓 ${t("ustva.lockAgain")}`}
+                                </Button>
                               )}
                               <Button
                                 variant="outline"
