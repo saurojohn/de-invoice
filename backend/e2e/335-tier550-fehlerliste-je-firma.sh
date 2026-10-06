@@ -32,6 +32,14 @@ assert_eq "the same error in two companies is a row in each (B's joined A's row)
 report A one
 assert_eq "…and again in A: counted on A's row" "$(q "select occurrences from \"ErrorEvent\" where \"companyId\"='$CA' and message='$TAG one'")/$(q "select occurrences from \"ErrorEvent\" where \"companyId\"='$CB' and message='$TAG one'")" "2/1"
 
+note "=== Tier 552: the rate list ==="
+# GET /system/errors/top-rate grouped every company's rows: B read A's messages.
+get() { local u=$UA c=$CA; [[ "$1" == B ]] && { u=$UB; c=$CB; }; curl -sS -m 30 "$API/api/v1/system/errors/top-rate?limit=50&windowMinutes=60" -H "x-user-id: $u" -H "x-company-id: $c"; }
+RB=$(get B); RA=$(get A)
+assert_eq "B's rate list has its one error, not A's two (was every company's)" "$(grep -o "$TAG [a-z]*" <<<"$RB" | sort -u | tr '\n' ',')" "$TAG one,"
+assert_eq "…and counts it once (A's reports of the same error are A's)" "$(python3 -c "import json,sys;print([r['count'] for r in json.loads(sys.argv[1])['rows'] if r.get('message')=='$TAG one'])" "$RB")" "[1]"
+assert_eq "A's has its two" "$(grep -o "$TAG [a-z]*" <<<"$RA" | sort -u | tr '\n' ',')" "$TAG one,$TAG two,"
+
 note "=== mute-all ==="
 assert_eq "B mutes all: its one row (was every company's)" "$(json_field "$(post B /mute-all)" count)" "1"
 assert_eq "…B's is muted" "$(st "$CB")" "muted"

@@ -347,6 +347,7 @@ export class SystemController {
   @UseGuards(HeaderAuthGuard, RolesGuard)
   @Require("users.read")
   async topRateFingerprints(
+    @Req() req: Request,
     @Query("windowMinutes") windowMinutesStr?: string,
     @Query("limit") limitStr?: string,
     @Query("source") source?: string,
@@ -381,7 +382,10 @@ export class SystemController {
     // We sort by count desc + take
     // `limit` to keep the response
     // small.
-    const where: any = { lastSeenAt: { gte: cutoff } }
+    // Tier 552: the caller's company — this listed every company's errors,
+    // message included.
+    const companyId = (req as any).user?.companyId
+    const where: any = { lastSeenAt: { gte: cutoff }, companyId }
     if (source) where.source = source
     const grouped = await this.prisma.errorEvent.groupBy({
       by: ["fingerprint"],
@@ -413,7 +417,7 @@ export class SystemController {
     const fingerprints = grouped.map((g) => g.fingerprint)
     const latestRows = fingerprints.length
       ? await this.prisma.errorEvent.findMany({
-          where: { fingerprint: { in: fingerprints } },
+          where: { fingerprint: { in: fingerprints }, companyId },
           orderBy: { lastSeenAt: "desc" },
           take: limit * 2, // extra headroom in case of same-fingerprint multiples
           select: {

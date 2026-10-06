@@ -2616,6 +2616,10 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 552 — the error-rate list is the company's too
+
+`GET /system/errors/top-rate` grouped `ErrorEvent` by fingerprint with no company in the where clause (no key at all, so Tier 551's check does not see it): a new company's admin read the messages of every company's recent errors. Now scoped to the caller's company, both the grouping and the row lookup. Found while reviewing the raw-SQL sites after Tier 551 (audit text search, invoice numbers, recurring lock, error timeline: all carry the company). Asserted in spec 335 (2 more assertions fail on old code).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 551 — a request without `?companyId=` is not a request for every company
 
 Prisma drops an undefined filter: `where: { companyId: undefined }` selects every row. The auth guard compares a companyId that is present in path/query/body; a missing one passed. Measured as a freshly registered company's admin, leaving the parameter out: `GET /invoices`, `/webhooks`, `/reports/sales`, `/reports/customers`, `/reminders/overdue` → 200 with every company's rows. Found by a marker sweep over the parameterless GET routes (the earlier cross-tenant sweeps only covered routes with an `:id`).
