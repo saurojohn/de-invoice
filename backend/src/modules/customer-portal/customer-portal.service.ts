@@ -437,9 +437,46 @@ export class CustomerPortalService {
         companyId: session.companyId,
         status: { not: 'draft' }, // Tier 496
       },
-      include: {
-        items: true,
-        payments: { orderBy: { paymentDate: 'desc' } },
+      // Tier 545: what the customer sees is what is on the invoice — named
+      // field by field. This returned the whole row: the cost centre and cost
+      // object, the internal-notes column, who created it, the stored PDF's
+      // path, the voucher and SEPA batch ids, each payment's internal note
+      // ("Auto-matched from bank statement <id> …") and each line's product id.
+      select: {
+        id: true,
+        customerId: true,
+        invoiceNumber: true,
+        type: true,
+        status: true,
+        issueDate: true,
+        dueDate: true,
+        deliveryDate: true,
+        servicePeriodStart: true,
+        servicePeriodEnd: true,
+        currency: true,
+        subtotal: true,
+        totalVat: true,
+        total: true,
+        discountPercent: true,
+        discountAmount: true,
+        skontoPercent: true,
+        skontoDays: true,
+        vatBreakdown: true,
+        reverseCharge: true,
+        euTransaction: true,
+        notes: true,
+        language: true,
+        items: {
+          orderBy: { sortOrder: 'asc' },
+          select: {
+            id: true, description: true, productNumber: true, quantity: true, unit: true, unitPrice: true,
+            vatRate: true, netAmount: true, vatAmount: true, grossAmount: true, sortOrder: true,
+          },
+        },
+        payments: {
+          orderBy: { paymentDate: 'desc' },
+          select: { id: true, amount: true, currency: true, paymentDate: true, paymentMethod: true, reference: true },
+        },
         // Tier 430: reported, not yet booked.
         paymentNotices: {
           where: { status: 'open' },

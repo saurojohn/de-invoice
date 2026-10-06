@@ -2609,6 +2609,23 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### The customer portal shows the invoice, not the company's record of it (Tier 545)
+
+`GET /customer-portal/invoice/:id` (public, by the customer's session token)
+returned the whole Invoice row with its payments. Measured (spec 330, 4
+assertions fail before): the customer received the cost centre and cost
+object, the internal-notes column, the creating user's id, the stored PDF's
+path, the voucher / SEPA batch / recurring-template ids, each line's product
+id, and each payment's internal note ("Auto-matched from bank statement <id>
+…", or whatever the bookkeeper typed).
+
+`getInvoice` now selects its fields: what is on the invoice, its lines, the
+payments with amount, date, method and reference, the open payment reports.
+The portal's list and profile, and the payment link (`GET /portal/:token`),
+were named field by field already. The customer's scope itself was right:
+another customer's invoice, a draft, an amount above what is open — all
+refused (probe).
+
 ### A logo path is a file name of the company's own, not a path (Tier 544) — security
 
 `Company.logoPath` can be set with `PUT /companies/:id`, and
