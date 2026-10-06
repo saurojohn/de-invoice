@@ -108,7 +108,7 @@ fi
 # ─── 6. Database connectivity ──────────────────────────
 log "6. Database deep-health"
 DEEP=$(curl -sk --max-time 10 "https://$DOMAIN/api/v1/health/deep")
-DB_STATUS=$(echo "$DEEP" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('database',{}).get('status',''))" 2>/dev/null)
+DB_STATUS=$(echo "$DEEP" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('checks',{}).get('db',{}).get('status',''))" 2>/dev/null)
 if [[ "$DB_STATUS" == "ok" ]]; then
   pass "Database reachable"
 else

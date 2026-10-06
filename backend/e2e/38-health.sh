@@ -82,10 +82,12 @@ HAS_MS=$(echo "$DB_DETAIL" | grep -c "ms" || true)
 # "the path is a usable directory", not
 # "the path contains a specific brand string".
 STORAGE_PATH=$(echo "$RAW" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['checks']['storage']['detail'])")
-if [[ -n "$STORAGE_PATH" && -d "$STORAGE_PATH" ]]; then
-  pass "5. storage path is a directory (got: $STORAGE_PATH)"
+# Tier 549: the probe needs no login, so it says that the directory is
+# writable, not where it is.
+if [[ "$STORAGE_PATH" == "writable" ]]; then
+  pass "5. storage says writable, without the path (got: $STORAGE_PATH)"
 else
-  fail "5. storage path missing or not a directory (got: $STORAGE_PATH)"
+  fail "5. storage detail is not \"writable\" (got: $STORAGE_PATH)"
 fi
 
 # ===== 6. /health does NOT accept user-controllable version =====
