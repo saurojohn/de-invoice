@@ -2597,6 +2597,27 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### More answers that were a 500 (Tier 533)
+
+The third sweep: all 453 routes with path parameters that are no ids (`x`,
+`';--`, 3 000 characters, `../../etc`, `null`) and, for writing routes, `{}`,
+`[]` and a body of wrong types. 500 on three routes, plus one found by
+reading the remaining `throw new Error(…)` (spec 318, 11 assertions fail
+before):
+
+- `POST /fints/connections/:id/sync` for any unknown connection, and the TAN
+  route for an unknown run — the service threw a plain Error. Now 404 / 400.
+- `PATCH /webhooks/:id` with a list as name or a number as status (inline
+  body type); an unknown status and `events` as a text were stored. Now 400.
+- `POST /ocr/match-supplier` with a non-string name / vatId. Now 400.
+- `POST /invoices/:id/send-email` when the customer has no e-mail address —
+  a plain Error. Now 400 with the reason.
+
+The plain Errors that remain are internal (a company that vanished
+mid-request, a scheduler's own failures, the DATEV column lookup) or are
+mapped by their caller (`'Mahnung not found'` → 404 in the controller).
+After this tier the three sweeps return no 5xx.
+
 ### A malformed query parameter is a 400; no NUL reaches the database (Tier 532)
 
 The same sweep for the 251 GET routes (scratch fuzz): dates that are none

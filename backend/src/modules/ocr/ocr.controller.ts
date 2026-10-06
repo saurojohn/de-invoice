@@ -164,12 +164,13 @@ export class OcrController {
     @Body() body: { vatId?: string; name?: string; companyId?: string },
     @Query('companyId') companyIdQuery: string,
   ) {
-    const companyId = body.companyId || companyIdQuery
+    const companyId = (typeof body.companyId === 'string' && body.companyId) || companyIdQuery
     if (!companyId) {
       throw new BadRequestException('companyId ist erforderlich')
     }
-    const vatId = (body.vatId || '').trim()
-    const name = (body.name || '').trim()
+    // Tier 533: a non-string reached .trim() → 500
+    const vatId = (typeof body.vatId === 'string' ? body.vatId : '').trim()
+    const name = (typeof body.name === 'string' ? body.name : '').trim()
     if (!vatId && !name) {
       throw new BadRequestException('vatId oder name ist erforderlich')
     }

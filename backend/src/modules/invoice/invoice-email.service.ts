@@ -154,7 +154,7 @@ export class InvoiceEmailService {
           error: 'Kunde hat keine E-Mail-Adresse hinterlegt',
         };
       }
-      throw new Error('Kunde hat keine E-Mail-Adresse hinterlegt');
+      throw new BadRequestException('Kunde hat keine E-Mail-Adresse hinterlegt'); // Tier 533: was a plain Error
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail)) {
       throw new BadRequestException(`Ungültige Empfänger-E-Mail: ${recipientEmail}`);

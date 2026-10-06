@@ -1,5 +1,5 @@
 import { PrismaService } from '../../prisma/prisma.service'
-import { Injectable, Logger, BadRequestException } from '@nestjs/common'
+import { Injectable, Logger, BadRequestException, NotFoundException } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { createHash, randomUUID } from 'crypto'
 import { buildFinTsMessage, parseFinTsMessage, Segment } from './fints-protocol'
@@ -265,7 +265,7 @@ export class FinTsService {
     const conn = await this.prisma.finTSConnection.findFirst({
       where: { id: input.connectionId, companyId: input.companyId },
     })
-    if (!conn) throw new Error('FinTS-Verbindung nicht gefunden')
+    if (!conn) throw new NotFoundException('FinTS-Verbindung nicht gefunden') // Tier 533: was a plain Error → 500
 
     // Create a sync-run record up front. We
     // update it as the dialog progresses so the
@@ -379,9 +379,9 @@ export class FinTsService {
       where: { id: input.syncRunId, companyId: input.companyId },
       include: { connection: true },
     })
-    if (!run) throw new Error('Sync-Lauf nicht gefunden')
+    if (!run) throw new NotFoundException('Sync-Lauf nicht gefunden')
     if (run.status !== 'needs_tan') {
-      throw new Error(`Sync-Lauf ist nicht im needs_tan-Status (ist: ${run.status})`)
+      throw new BadRequestException(`Sync-Lauf ist nicht im needs_tan-Status (ist: ${run.status})`)
     }
     const conn = run.connection
 

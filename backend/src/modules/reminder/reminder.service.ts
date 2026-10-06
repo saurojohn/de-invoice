@@ -600,7 +600,7 @@ Mit freundlichen Grüßen,
       where: { id: invoiceId, companyId },
       include: { customer: true },
     })
-    if (!invoice) throw new Error('Invoice not found')
+    if (!invoice) throw new NotFoundException('Rechnung nicht gefunden')
 
     const company = await this.prisma.company.findUnique({ where: { id: companyId } })
     if (!company) throw new Error('Company not found')

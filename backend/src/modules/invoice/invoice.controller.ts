@@ -1698,7 +1698,7 @@ export class InvoiceController {
     @Param('paymentId') paymentId: string,
     @Query('companyId') companyId: string,
   ) {
-    if (!companyId) throw new Error('companyId is required');
+    if (!companyId) throw new BadRequestException('companyId is required');
     return this.paymentService.delete(paymentId, companyId);
   }
 

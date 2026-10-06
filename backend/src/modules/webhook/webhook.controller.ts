@@ -87,7 +87,22 @@ export class WebhookController {
       description?: string
     },
   ) {
-    return this.webhooks.update(id, companyId, body)
+    // Tier 533: the body is an inline type the validation pipe does not
+    // check — a list as name or a number as status went to Prisma (500).
+    const str = (v: unknown, name: string, max: number) => {
+      if (v !== undefined && (typeof v !== 'string' || v.length > max)) {
+        throw new BadRequestException(`${name} muss ein Text mit höchstens ${max} Zeichen sein`)
+      }
+    }
+    str(body?.name, 'name', 200)
+    str(body?.description, 'description', 1000)
+    if (body?.status !== undefined && !['active', 'paused', 'disabled'].includes(body.status as string)) {
+      throw new BadRequestException('status muss active, paused oder disabled sein')
+    }
+    if (body?.events !== undefined && !(Array.isArray(body.events) && body.events.every((e) => typeof e === 'string'))) {
+      throw new BadRequestException('events muss eine Liste von Ereignisnamen sein')
+    }
+    return this.webhooks.update(id, companyId, body ?? {})
   }
 
   // Soft-delete (sets status='disabled').
