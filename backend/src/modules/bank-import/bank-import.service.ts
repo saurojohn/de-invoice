@@ -17,6 +17,7 @@
  */
 
 import { withKeyLock } from '../../common/key-lock';
+import { assertPeriodOpen } from '../reports/filed-period';
 import { Injectable, BadRequestException, ConflictException, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { parseMt940 } from './mt940';
@@ -1261,6 +1262,9 @@ export class BankImportService {
         // Tier 452: paid less its Skonto — the difference, at most 10 % of
         // the bill, becomes a supplier credit note after the booking.
         if (opts.skonto && diff > 0 && diff <= gross * 0.1 + 0.005) {
+          // Tier 538: the Skonto is a supplier credit note dated with the bank
+          // entry — it lowers that period's input tax (§ 17 UStG).
+          await assertPeriodOpen(this.prisma, companyId, [txn.valueDate], 'ein Skontoabzug mit diesem Datum');
           skontoAmount = diff;
         } else if (Math.abs(diff) > 0.005) {
           throw new BadRequestException(

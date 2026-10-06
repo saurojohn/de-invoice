@@ -2602,6 +2602,15 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### A supplier's Skonto is not booked into a submitted period (Tier 538)
+
+The "not locked" of Tier 537: a bank debit booked against a bill with Skonto
+(`bookExpense`) creates a supplier credit note dated with the bank entry.
+Measured (spec 323): with June submitted, the debit of 08.06. was booked and
+June's Vorsteuer fell by 3,80 € behind the return. `assertPeriodOpen` at the
+point where the Skonto is recognised; a payment of the full amount moves no
+VAT and is booked either way.
+
 ### A submitted UStVA locks its period (Tier 537)
 
 Decided by the user (see Tier 535) — the "Not done" of Tier 443 / 448 / 449.
@@ -2636,8 +2645,7 @@ row imported, a cash sale with VAT booked on 15.06. — all 2xx.
 - Fixtures: specs 237, 238 and Playwright `ustva-berichtigung-noetig-tier449`
   release the period before they correct it.
 
-Not locked: the Skonto credit a bank match creates on an expense
-(`bookExpense`, dated with the bank entry), AfA rows (no VAT), a change of
+Not locked: AfA rows (no VAT), a change of
 the company's Besteuerungsart or Kleinunternehmer status. A late supplier
 bill dated into a submitted month needs the release (the app assigns input
 tax by invoice date; there is no "received on" date).
