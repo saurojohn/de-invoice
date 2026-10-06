@@ -65,18 +65,13 @@ test.describe("Tier 189 — sales + customers report endpoint e2e coverage", () 
     expect(res.status(), `expected 401, got ${res.status()}`).toBe(401)
   })
 
-  test("2. sales: missing companyId → 200 with empty result", async ({ request }) => {
-    // The /sales endpoint does NOT validate
-    // companyId presence — it falls through to
-    // a Prisma query that returns an empty
-    // aggregation (no rows for undefined
-    // companyId match). The frontend sends
-    // companyId explicitly; the missing-param
-    // path is a degraded-but-valid call.
+  test("2. sales: missing companyId → 400", async ({ request }) => {
+    // Tier 551: the old comment here said an undefined companyId matches no
+    // rows. Prisma drops an undefined filter — it matched every company's.
     const res = await request.get("http://localhost:3001/api/v1/reports/sales", {
       headers: authHeaders(),
     })
-    expect(res.status(), `expected 200, got ${res.status()}`).toBe(200)
+    expect(res.status(), `expected 400, got ${res.status()}`).toBe(400)
   })
 
   test("3. sales: default year → 200 + JSON shape", async ({ request }) => {
@@ -109,16 +104,13 @@ test.describe("Tier 189 — sales + customers report endpoint e2e coverage", () 
     expect(res.status(), `expected 401, got ${res.status()}`).toBe(401)
   })
 
-  test("6. customers: missing companyId → 200 with empty result", async ({ request }) => {
-    // Same as /sales — the controller does not
-    // validate companyId; it falls through to
-    // a Prisma query that returns an empty
-    // aggregation.
+  test("6. customers: missing companyId → 400", async ({ request }) => {
+    // Tier 551: as for /sales.
     const res = await request.get(
       "http://localhost:3001/api/v1/reports/customers",
       { headers: authHeaders() },
     )
-    expect(res.status(), `expected 200, got ${res.status()}`).toBe(200)
+    expect(res.status(), `expected 400, got ${res.status()}`).toBe(400)
   })
 
   test("7. customers: default year → 200 + JSON shape", async ({ request }) => {

@@ -260,7 +260,7 @@ export class CustomerPortalController {
       where: {
         email: email.toLowerCase(),
         customerId: customer.id,
-        companyId: body.companyId,
+        companyId: authCompanyId, // Tier 551: the body may leave it out
       },
       orderBy: { createdAt: 'desc' },
     })
