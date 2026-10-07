@@ -9,16 +9,16 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–561 are
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–562 are
   in `git log`; §8 records what each learned. Tiers 443–462 came from the
-  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 561.) **Deployment status, confirmed by the owner on 06.10.2026: not live — local development only.** The `infra/prod/` findings of Tiers 555–560 are pre-launch hardening, not incidents; nothing there needs to be checked on a server, and `scripts/baseline-migrations.sh` has no database to run on yet.
+  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 562.) **Deployment status, confirmed by the owner on 06.10.2026: not live — local development only.** The `infra/prod/` findings of Tiers 555–560 are pre-launch hardening, not incidents; nothing there needs to be checked on a server, and `scripts/baseline-migrations.sh` has no database to run on yet.
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 37538929769 / commit `ed6ac52`, Tier 561):**
+- **Test counts (last green CI, run 37586224922 / commit `7668ede`, Tier 562):**
   - Backend e2e: **340 passed / 0 failed / 1 skipped** of 341 specs — 100
     two-digit + 241 three-digit (Tier 561 added `341-tier561-caddyfile-gueltig.sh`,
     Tier 560 added `340-tier560-logo-im-speicher.sh`,
@@ -184,7 +184,7 @@ exact commands + docs you need to be productive.
     and survives concurrent writes (Tier 367); spec 171 (new in Tier 368) asserts
     the auth audit rows exist at all and are signed — nothing had ever asserted
     on them, which is how a failed login for an unknown e-mail went unaudited.
-  - Playwright: **955 passed / 0 failed / 0 skipped / 0 flaky** (Tier 507
+  - Playwright: **958 passed / 0 failed / 0 skipped / 0 flaky** (Tier 507
     added `kst-vorauszahlungen-tier507.spec.ts`; Tier 504
     added `home-office-tier504.spec.ts`; Tier 502
     added `company-cars-tier502.spec.ts`; Tier 493
@@ -2636,7 +2636,7 @@ Playwright `no-request-loops-tier562.spec.ts` (settings, create-invoice, a faili
 
 **Still not exercised:** TLS/ACME (needs the domain), the observability overlay, a restore from a dump, SMTP (none configured — mails were logged).
 
-Tier 562b (CI): Playwright `invoice-tax-treatment` "picking Reverse-Charge zeros item VAT" looked for "the first select with an option 0" — that is the payment-term select, not a VAT select. It passed only because the company's default term never loaded (point 3) and that select stood on 0; with the default loading it read 30. The item VAT selects have a test id now (`invoice-item-vat-<n>`) and the test reads that. In the same run backend spec 283 failed once on its archive assertion (`0/0`: the PDF was not in the unzipped archive); it passes locally 3/3 and nothing in this tier touches it — watched on the next run.
+Tier 562b (CI): Playwright `invoice-tax-treatment` "picking Reverse-Charge zeros item VAT" looked for "the first select with an option 0" — that is the payment-term select, not a VAT select. It passed only because the company's default term never loaded (point 3) and that select stood on 0; with the default loading it read 30. The item VAT selects have a test id now (`invoice-item-vat-<n>`) and the test reads that. In the same run backend spec 283 failed once on its archive assertion (`0/0`: the PDF was not in the unzipped archive); it passes locally 3/3 and nothing in this tier touches it — watched on the next run. (It passed on the next run, 37586224922; cause of the one failure unknown.)
 
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 561 — the proxy configuration is one Caddy accepts
 
