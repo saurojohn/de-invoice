@@ -45,11 +45,7 @@
  * ("Kurse von 2026-06-19, 17:00 — heute aktualisieren").
  */
 
-import {
-  Injectable,
-  Logger,
-  BadRequestException,
-} from '@nestjs/common'
+import { BadRequestException, Injectable, Logger, ServiceUnavailableException } from '@nestjs/common'
 import { Cron } from '@nestjs/schedule'
 import { PrismaService } from '../../prisma/prisma.service'
 // Tier 119: the daily @Cron body is wrapped with
@@ -73,10 +69,13 @@ const SUPPORTED_CURRENCIES = ['USD', 'CHF', 'GBP', 'CNY', 'JPY', 'PLN', 'CZK']
 // most recent date. We omit it here so we get the
 // full historical stream — useful if the service
 // is asked for a specific date later.
+// Tier 566: ECB_API_URL (it is in the production compose file, and was read
+// by nothing) replaces the address when set.
 const ECB_URL =
+  process.env.ECB_API_URL ||
   'https://data-api.ecb.europa.eu/service/data/EXR/D.' +
-  SUPPORTED_CURRENCIES.join('+') +
-  '.EUR.SP00.A?format=csvdata'
+    SUPPORTED_CURRENCIES.join('+') +
+    '.EUR.SP00.A?format=csvdata'
 
 export interface ExchangeRateSnapshot {
   /** ISO date the rate was published, e.g. "2026-06-19" */
@@ -132,13 +131,22 @@ export class ExchangeRateService {
         fetchedAt: new Date().toISOString(),
       }
     }
-    const res = await fetch(ECB_URL, {
-      // 10s — ECB responds in <1s normally; we
-      // cap at 10s so a hung connection doesn't
-      // pin a worker for minutes.
-      signal: AbortSignal.timeout(10_000),
-      headers: { 'User-Agent': 'de-invoice/1.0 (ECB rate sync)' },
-    })
+    // Tier 566: "the ECB cannot be reached" is an answer (503), not a crash
+    // of the request (fetch rejects with a TypeError → 500 "Internal server
+    // error" on the settings page's "Jetzt aktualisieren").
+    let res: Response
+    try {
+      res = await fetch(ECB_URL, {
+        // 10s — ECB responds in <1s normally; a hung connection must not
+        // pin the request for minutes.
+        signal: AbortSignal.timeout(10_000),
+        headers: { 'User-Agent': 'de-invoice/1.0 (ECB rate sync)' },
+      })
+    } catch {
+      throw new ServiceUnavailableException(
+        'Die EZB-Wechselkurse sind gerade nicht erreichbar — bitte später noch einmal versuchen.',
+      )
+    }
     if (!res.ok) {
       throw new BadRequestException(
         `ECB API responded ${res.status} ${res.statusText}`,

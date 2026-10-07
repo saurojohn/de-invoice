@@ -221,4 +221,14 @@ async function bootstrap() {
   console.log(`Backend running on http://localhost:${port}`);
 }
 
-bootstrap();
+// Tier 566: a rejected promise nobody awaits is logged, not fatal. Node's
+// default ends the process — one stray rejection in any request, and the
+// server is gone for every company until the container is restarted.
+process.on('unhandledRejection', (reason) => {
+  console.error('[unhandledRejection]', reason)
+})
+
+bootstrap().catch((err) => {
+  console.error('Backend failed to start:', err)
+  process.exit(1)
+})

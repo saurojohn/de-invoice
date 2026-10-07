@@ -38,7 +38,7 @@
 // first extractReceipt() call so cold-start cost
 // doesn't block Nest's boot.
 
-import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common'
+import { BadRequestException, HttpException, Injectable, Logger, OnModuleDestroy } from '@nestjs/common'
 import {
   ReceiptData,
   extractFieldsFromText,
@@ -48,6 +48,20 @@ import { PdfTextService } from './pdf-text.service'
 // tesseract.js has no official type exports in v7 —
 // import the runtime + use the bare API.
 import { createWorker, Worker as TesseractWorker } from 'tesseract.js'
+
+/** The image formats tesseract reads, by their first bytes. */
+function looksLikeImage(b: Buffer): boolean {
+  if (!b || b.length < 12) return false
+  const is = (...bytes: number[]) => bytes.every((v, k) => b[k] === v)
+  return (
+    is(0x89, 0x50, 0x4e, 0x47) || // PNG
+    is(0xff, 0xd8, 0xff) || // JPEG
+    is(0x47, 0x49, 0x46, 0x38) || // GIF
+    is(0x42, 0x4d) || // BMP
+    is(0x49, 0x49, 0x2a, 0x00) || is(0x4d, 0x4d, 0x00, 0x2a) || // TIFF
+    (is(0x52, 0x49, 0x46, 0x46) && b.subarray(8, 12).toString('latin1') === 'WEBP')
+  )
+}
 
 @Injectable()
 export class TesseractOcrService
@@ -91,16 +105,41 @@ export class TesseractOcrService
       this.logger.log(
         'Initialising tesseract.js worker (deu traineddata)…',
       )
-      const w = await createWorker('deu')
+      // Tier 566: an errorHandler. Without one tesseract.js THROWS inside the
+      // worker thread's message handler whenever a job is rejected — an
+      // uncaught exception, and the whole backend process exits. Measured: one
+      // upload of a file that is not an image ("Error attempting to read
+      // image") took the server down for every company. The job's own promise
+      // is rejected as well; that is what the caller sees.
+      const w = await createWorker('deu', 1, {
+        errorHandler: (e: unknown) => this.logger.warn(`tesseract job failed: ${String(e).slice(0, 200)}`),
+      })
       this.logger.log('tesseract.js worker ready')
       this.worker = w
       return w
     })()
+    // A failed start (no language data, no network) must not be remembered
+    // for good: the next scan tries again.
+    this.workerPromise.catch(() => {
+      this.workerPromise = null
+    })
 
     return this.workerPromise
   }
 
   async extractReceipt(imageBuffer: Buffer): Promise<ReceiptData> {
+    // Tier 566: a file that cannot be read is the uploader's problem (400),
+    // not the server's (it was 500 for a damaged PDF).
+    try {
+      return await this.read(imageBuffer)
+    } catch (err: any) {
+      if (err instanceof HttpException) throw err
+      this.logger.warn(`receipt not readable: ${String(err?.message ?? err).slice(0, 200)}`)
+      throw new BadRequestException('Die Datei konnte nicht gelesen werden — bitte ein unbeschädigtes PDF oder Bild (PNG, JPG) hochladen.')
+    }
+  }
+
+  private async read(imageBuffer: Buffer): Promise<ReceiptData> {
     let text = ''
     let source: 'pdf' | 'image' | 'pdf-raster' = 'image'
 
@@ -154,6 +193,9 @@ export class TesseractOcrService
       // Image branch — tesseract.js worker. Lazy-loaded,
       // reused across requests. Falls back gracefully
       // when the buffer is empty / corrupt.
+      if (!looksLikeImage(imageBuffer)) {
+        throw new BadRequestException('Die Datei ist weder ein PDF noch ein Bild (PNG, JPG, GIF, WebP, BMP, TIFF).')
+      }
       const worker = await this.getWorker()
       const t0 = Date.now()
       const { data } = await worker.recognize(imageBuffer)

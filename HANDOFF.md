@@ -2621,6 +2621,17 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 566 — a receipt that cannot be read is a 400, not the end of the server
+
+Found by feeding damaged files to every upload route with the **real** OCR engine (the specs run the mock; production runs tesseract since Tier 557).
+
+- **One upload ended the backend process.** A job tesseract rejects ("Error attempting to read image") made tesseract.js `throw` inside the worker thread's message handler — it does that when `createWorker` was given no `errorHandler`. An uncaught exception: exit 1, the API gone for every company until something restarts the container. Any user who may scan a receipt could do it with a text file renamed `.png`. Now the worker has an `errorHandler`, a file is checked for PDF/image magic bytes before it reaches the worker, a failed worker start is not cached for good, and whatever cannot be read answers 400 (a damaged PDF was 500). Re-measured with 24 damaged files: all 400, process alive, a good image scans afterwards.
+- `main.ts`: an `unhandledRejection` handler that logs. Node's default ends the process on a rejected promise nobody awaits; a type-aware lint run (`no-floating-promises`, not part of CI — too slow, see eslint.config.mjs) found four un-awaited promises outside tests, two of them `doc.destroy()` in `pdf-text.service.ts` inside a `try` that cannot catch a rejection. `bootstrap()` failing now exits 1 with a message.
+- `POST /exchange-rates/refresh` answered 500 when the ECB could not be reached (`fetch` rejects); now 503 with a sentence. `ECB_API_URL`, which the production compose file sets and nothing read, replaces the address when set (that is how the 503 was measured).
+- Also fed damaged files to `bank-statements/preview` (MT940, CAMT incl. entity expansion and an external entity — nothing read from disk), `signing/verify` and `signing/sign`: all answered 400/2xx quickly, the process lived.
+
+Spec `342-tier566-kaputter-beleg-stuerzt-nicht-ab.sh` restarts the backend with `OCR_ENGINE=tesseract` (as spec 191 does for the auth mode). On the old code its first upload kills the process: 11 assertions fail. **Not covered:** attachments/storage uploads are stored, not parsed, and were not fuzzed further; XRechnung validation (needs Java) was not exercised.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 565 — the review of Tiers 545–564, and what it found in them
 
 A code review of this stretch's own diff (`56ad788..HEAD`, 112 files) reported eight findings, all in code written in these tiers. Seven were real and are fixed; one was wrong.
