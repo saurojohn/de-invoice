@@ -9,18 +9,19 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–565 are
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–567 are
   in `git log`; §8 records what each learned. Tiers 443–462 came from the
-  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 565.) **Deployment status, confirmed by the owner on 06.10.2026: not live — local development only.** The `infra/prod/` findings of Tiers 555–560 are pre-launch hardening, not incidents; nothing there needs to be checked on a server, and `scripts/baseline-migrations.sh` has no database to run on yet.
+  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 567.) **Deployment status, confirmed by the owner on 06.10.2026: not live — local development only.** The `infra/prod/` findings of Tiers 555–560 are pre-launch hardening, not incidents; nothing there needs to be checked on a server, and `scripts/baseline-migrations.sh` has no database to run on yet.
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 37599605903 / commit `60e1c59`, Tier 565):**
-  - Backend e2e: **340 passed / 0 failed / 1 skipped** of 341 specs — 100
-    two-digit + 241 three-digit (Tier 561 added `341-tier561-caddyfile-gueltig.sh`,
+- **Test counts (last green CI, run 37611166946 / commit `057b5a1`, Tier 567):**
+  - Backend e2e: **341 passed / 0 failed / 1 skipped** of 342 specs — 100
+    two-digit + 242 three-digit (Tier 566 added `342-tier566-kaputter-beleg-stuerzt-nicht-ab.sh`,
+    Tier 561 added `341-tier561-caddyfile-gueltig.sh`,
     Tier 560 added `340-tier560-logo-im-speicher.sh`,
     Tier 559 added `339-tier559-migrationen-ergeben-das-schema.sh`,
     Tier 556 added `338-tier556-link-adresse.sh`,
@@ -184,7 +185,7 @@ exact commands + docs you need to be productive.
     and survives concurrent writes (Tier 367); spec 171 (new in Tier 368) asserts
     the auth audit rows exist at all and are signed — nothing had ever asserted
     on them, which is how a failed login for an unknown e-mail went unaudited.
-  - Playwright: **1002 passed / 0 failed / 0 skipped / 0 flaky** (Tier 507
+  - Playwright: **1003 passed / 0 failed / 0 skipped / 0 flaky** (Tier 507
     added `kst-vorauszahlungen-tier507.spec.ts`; Tier 504
     added `home-office-tier504.spec.ts`; Tier 502
     added `company-cars-tier502.spec.ts`; Tier 493
@@ -2620,6 +2621,14 @@ Tier 401 run 35123354210 **failed** on backend lint — a warning
 runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
+
+### Read-only mode refuses every write; a re-verification is one company's (Tier 567 — the all-pages spec opens the pages with a parameter too
+
+`all-pages-quiet-tier564.spec.ts` gained one test that creates a customer and an issued invoice and opens `/dashboard/customers/:id` (+ `/credit`, `/statement`), `/dashboard/invoices/:id`, both cost-center-report pages, `/dashboard/system-health/:name`, and — when the company has a voucher — the two voucher pages, with the same four checks. First real run (37611166946): quiet. (The run before it opened `/dashboard/invoices/undefined`: the fixture had put `costCenter` on the line item, where the DTO does not take it; the fixture now asserts its own ids.) Not opened: `/pay/:token`, `/portal/invoice/:id`.
+
+`cost-center-crud` "Create form shows cost-center + cost-object inputs" failed once and passed on retry in the same run: it typed 1 s after `domcontentloaded`. It now waits for network idle (which means something since Tier 562) and `readyState` first. Its own comment blames a re-render wiping the typed value; whether a real user typing in the first instant can lose input was not established.
+
+**Open, a product decision:** the bank connection (FinTS). Real mode is a documented stub ("Real-mode is a stub in this build"); the "Demo-Modus" checkbox is on by default in the form and in the API (`mockMode ?? true`); a mock connection writes three invented `MOCK-…` transactions as a `fints-mock` statement, and nothing keeps them from being matched and confirmed as payments on real invoices. Suggested: refuse mock connections in production unless a flag allows them. Asked 07.10.2026, no answer yet — nothing changed.
 
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 566 — a receipt that cannot be read is a 400, not the end of the server
 
