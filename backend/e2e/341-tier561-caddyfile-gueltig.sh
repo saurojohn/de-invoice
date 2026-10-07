@@ -54,4 +54,10 @@ assert_eq "…and the docs send a restore through it, not through a pipe into th
 # its files come in as a named build context, Java from the image itself.
 assert_eq "the compose file hands the validator's files to the backend build" "$(grep -A1 'additional_contexts:' "$C" | grep -c 'kosit: ../kosit')" "1"
 assert_eq "…and the image has a Java runtime and a place for them" "$(grep -c 'openjdk-17-jre-headless' "$SCRIPT_DIR/../Dockerfile")/$(grep -c '^COPY --from=kosit / /infra/kosit/' "$SCRIPT_DIR/../Dockerfile")" "1/1"
+# Tier 580: the image runs the compiled program, and something builds it.
+DF="$SCRIPT_DIR/../Dockerfile"
+assert_eq "the backend image compiles the program and starts the result (was ts-node)" "$(grep -c '^RUN npx tsc -p tsconfig.json' "$DF")/$(grep -c '^CMD \["node", "--enable-source-maps", "dist/main.js"\]$' "$DF")/$(grep -c '^CMD.*ts-node' "$DF")" "1/1/0"
+assert_eq "…without the development packages" "$(grep -c '^RUN npm prune --omit=dev' "$DF")/$(grep -c '^COPY --from=build .*/app/dist ./dist' "$DF")" "1/1"
+WF="$SCRIPT_DIR/../../.github/workflows/docker-build.yml"
+assert_eq "a workflow builds both images when their ingredients change, and pushes nothing" "$(grep -c "backend/Dockerfile'\|frontend/Dockerfile'\|backend/package-lock.json'\|frontend/package-lock.json'" "$WF")/$(grep -c 'push: false' "$WF")/$(grep -c "kosit=./infra/kosit" "$WF")" "4/1/1"
 summary

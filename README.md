@@ -694,7 +694,7 @@ Troubleshoot).
 | Layer | Technology | Notes |
 | --- | --- | --- |
 | Frontend | Next.js 16 (standalone), React 19, Tailwind | `output: "standalone"` für minimal image size |
-| Backend | NestJS 11, TypeScript 5, ts-node | Multi-stage Dockerfile, health endpoints |
+| Backend | NestJS 11, TypeScript 5 (compiled with tsc; ts-node in development) | Multi-stage Dockerfile, health endpoints |
 | ORM | Prisma 5 (binary engine) | `engineType: "binary"` — avoids libssl 1.1 in slim images |
 | Database | PostgreSQL 16 | 50+ models, ~80 indexes |
 | PDF | PDFKit (server-side) | GoBD: 1 page, no fills, thin lines |

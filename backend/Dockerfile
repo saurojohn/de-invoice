@@ -108,6 +108,18 @@ RUN npx prisma generate
 RUN DATABASE_URL=postgresql://nobody:nobody@localhost:9999/nobody \
     npx prisma db push --skip-generate --accept-data-loss 2>&1 | tail -3 || true
 
+# ─── Stage 2b: build ─────────────────────────────────────────────
+# Tier 580: the image runs the compiled program. It used to start
+# `ts-node --transpile-only src/main.ts`: the TypeScript compiler in the
+# production process, every start a compilation, no type check anywhere in
+# the image build. Measured on the developer machine: `tsc` builds in 10 s;
+# `node dist/main.js` is up in under 3 s with about 330 MB.
+# A type error now fails the image build instead of the first request.
+FROM dev AS build
+RUN npx tsc -p tsconfig.json --incremental false --declaration false
+# What runs needs no compiler, linter or test tools.
+RUN npm prune --omit=dev --no-audit --no-fund --legacy-peer-deps
+
 # ─── The official XRechnung validator (KoSIT) ──────────────────
 # Tier 569. Its files (validator.jar, scenarios.xml, the schema and
 # schematron repository — 18 MB, in git under infra/kosit) live outside this
@@ -142,16 +154,17 @@ ENV NODE_ENV=production \
 # prisma/ has the schema + the generated
 # client (we don't regenerate in prod
 # — the schema is part of the image).
-COPY --from=dev --chown=app:app /app/node_modules ./node_modules
-COPY --from=dev --chown=app:app /app/package.json ./package.json
-COPY --from=dev --chown=app:app /app/src ./src
+# Tier 580: from the build stage — production dependencies and dist/ (the
+# compiled src/; its `__dirname`-relative paths keep their depth).
+COPY --from=build --chown=app:app /app/node_modules ./node_modules
+COPY --from=build --chown=app:app /app/package.json ./package.json
+COPY --from=build --chown=app:app /app/dist ./dist
 COPY --from=dev --chown=app:app /app/prisma ./prisma
 # Tier 559: scripts/baseline-migrations.sh (one-time, for a database that was
 # created with `db push`).
 COPY --from=dev --chown=app:app /app/scripts ./scripts
-COPY --from=dev --chown=app:app /app/tsconfig.json ./tsconfig.json
 # Tier 569: where kosIT-validator.service.ts looks for it — three levels up
-# from /app/src/invoices is /, so /infra/kosit.
+# from /app/dist/invoices is /, so /infra/kosit.
 COPY --from=kosit / /infra/kosit/
 
 # Switch back to root for runtime. The
@@ -191,13 +204,8 @@ RUN DATABASE_URL=postgresql://nobody:nobody@127.0.0.1:1/nobody \
     npx prisma generate 2>&1 | tail -2
 USER root
 
-# ts-node-dev gives us file-watch +
-# auto-restart on TS changes. We don't
-# ship it in dev (dev runs on the host
-# via ./start.sh), so we use plain
-# ts-node here. --transpile-only skips
-# the type-check pass — startup goes
-# from 1.5s to 0.4s.
+# Tier 580: the compiled program. --enable-source-maps makes a stack trace
+# name the .ts line (the maps are in dist/).
 #
 # We run as root inside the container.
 # The `app` user was originally added
@@ -212,4 +220,4 @@ USER root
 # still isolated by the Docker network
 # — root inside the container isn't
 # root on the host.
-CMD ["npx", "ts-node", "--transpile-only", "src/main.ts"]
+CMD ["node", "--enable-source-maps", "dist/main.js"]

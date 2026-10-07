@@ -7,7 +7,7 @@
 #   Internet ──► caddy (80/443, auto-TLS via Let's Encrypt)
 #                    │
 #                    ├─► frontend:3000 (Next.js standalone)
-#                    └─► backend:3001  (NestJS + ts-node)
+#                    └─► backend:3001  (NestJS, compiled)   
 #                              │
 #                              └─► postgres:5432
 #

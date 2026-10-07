@@ -1,0 +1,92 @@
+name: Docker images
+
+# Tier 580 — the production images are built when what they are made of changes.
+#
+# Nothing built them: ci.yml runs the code from the checkout, and release.yml
+# only runs on a `v*` tag (none was ever pushed). A Dockerfile that no longer
+# builds — a renamed stage, a dependency that needs a system package, a type
+# error now that the image compiles the backend — would have shown itself on
+# the day of the first deployment.
+#
+# Only on changes to the files an image is built from (and by hand): the two
+# builds take minutes of runner time, and most pushes touch none of them.
+# Nothing is pushed to a registry.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/Dockerfile'
+      - 'backend/.dockerignore'
+      - 'backend/package.json'
+      - 'backend/package-lock.json'
+      - 'backend/tsconfig.json'
+      - 'backend/prisma/schema.prisma'
+      - 'frontend/Dockerfile'
+      - 'frontend/.dockerignore'
+      - 'frontend/package.json'
+      - 'frontend/package-lock.json'
+      - 'frontend/next.config.*'
+      - 'infra/kosit/**'
+      - '.github/workflows/docker-build.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build ${{ matrix.name }} image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: backend
+            context: ./backend
+            dockerfile: ./backend/Dockerfile
+          - name: frontend
+            context: ./frontend
+            dockerfile: ./frontend/Dockerfile
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build (${{ matrix.name }})
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          # the frontend refuses to build without its public URL (Tier 363);
+          # any value will do for a build that is thrown away
+          build-args: ${{ matrix.name == 'frontend' && 'NEXT_PUBLIC_API_URL=https://ci.example.invalid' || '' }}
+          # the validator's files live outside ./backend (Tier 569)
+          build-contexts: ${{ matrix.name == 'backend' && 'kosit=./infra/kosit' || '' }}
+          push: false
+          load: true
+          tags: de-invoice-${{ matrix.name }}:ci
+          cache-from: type=gha,scope=ci-${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=ci-${{ matrix.name }}
+
+      # The backend image is what it claims: the compiled program, without the
+      # compiler, with the validator and a Java runtime for it.
+      - name: Look inside the backend image
+        if: matrix.name == 'backend'
+        run: |
+          docker run --rm --entrypoint sh de-invoice-backend:ci -ec '
+            test -f dist/main.js
+            node --check dist/main.js
+            test ! -e node_modules/.bin/ts-node
+            test ! -e node_modules/.bin/tsc
+            test -d node_modules/.prisma/client
+            test -f /infra/kosit/validator.jar
+            java -version
+          '
+          test "$(docker inspect -f '{{json .Config.Cmd}}' de-invoice-backend:ci)" = '["node","--enable-source-maps","dist/main.js"]'
