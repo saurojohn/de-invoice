@@ -13,6 +13,14 @@
 --
 -- The three foreign keys that are dropped are added again further down with
 -- the schema's ON DELETE rule.
+--
+-- Tier 571: every foreign key is added NOT VALID and validated right after.
+-- On a database that was in use before, a table may hold rows the new
+-- constraint does not allow (found on the first real one: a
+-- CustomerCreditTransaction whose customer had been deleted) — the plain
+-- ADD CONSTRAINT failed there and took the whole migration with it. Such a
+-- constraint now stays in place for new rows and says so in a WARNING; the
+-- old rows are nobody's to delete from here.
 
 ALTER TABLE "Asset" DROP CONSTRAINT IF EXISTS "Asset_companyId_fkey";
 
@@ -323,144 +331,264 @@ CREATE INDEX IF NOT EXISTS "Expense_companyId_paidAt_idx" ON "Expense"("companyI
 
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'CustomerCreditTransaction_customerId_fkey') THEN
-    ALTER TABLE "CustomerCreditTransaction" ADD CONSTRAINT "CustomerCreditTransaction_customerId_fkey" FOREIGN KEY ("customerId") REFERENCES "Customer"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+    ALTER TABLE "CustomerCreditTransaction" ADD CONSTRAINT "CustomerCreditTransaction_customerId_fkey" FOREIGN KEY ("customerId") REFERENCES "Customer"("id") ON DELETE RESTRICT ON UPDATE CASCADE NOT VALID;
+    BEGIN
+      ALTER TABLE "CustomerCreditTransaction" VALIDATE CONSTRAINT "CustomerCreditTransaction_customerId_fkey";
+    EXCEPTION WHEN foreign_key_violation THEN
+      RAISE WARNING 'CustomerCreditTransaction_customerId_fkey: rows that are already there violate it; it holds for new rows only. Clean them up, then: ALTER TABLE "CustomerCreditTransaction" VALIDATE CONSTRAINT "CustomerCreditTransaction_customerId_fkey"';
+    END;
   END IF;
 END $$;
 
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'Expense_paidBySepaBatchId_fkey') THEN
-    ALTER TABLE "Expense" ADD CONSTRAINT "Expense_paidBySepaBatchId_fkey" FOREIGN KEY ("paidBySepaBatchId") REFERENCES "SepaBatch"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+    ALTER TABLE "Expense" ADD CONSTRAINT "Expense_paidBySepaBatchId_fkey" FOREIGN KEY ("paidBySepaBatchId") REFERENCES "SepaBatch"("id") ON DELETE SET NULL ON UPDATE CASCADE NOT VALID;
+    BEGIN
+      ALTER TABLE "Expense" VALIDATE CONSTRAINT "Expense_paidBySepaBatchId_fkey";
+    EXCEPTION WHEN foreign_key_violation THEN
+      RAISE WARNING 'Expense_paidBySepaBatchId_fkey: rows that are already there violate it; it holds for new rows only. Clean them up, then: ALTER TABLE "Expense" VALIDATE CONSTRAINT "Expense_paidBySepaBatchId_fkey"';
+    END;
   END IF;
 END $$;
 
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'Invoice_collectedBySepaBatchId_fkey') THEN
-    ALTER TABLE "Invoice" ADD CONSTRAINT "Invoice_collectedBySepaBatchId_fkey" FOREIGN KEY ("collectedBySepaBatchId") REFERENCES "SepaDirectDebitBatch"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+    ALTER TABLE "Invoice" ADD CONSTRAINT "Invoice_collectedBySepaBatchId_fkey" FOREIGN KEY ("collectedBySepaBatchId") REFERENCES "SepaDirectDebitBatch"("id") ON DELETE SET NULL ON UPDATE CASCADE NOT VALID;
+    BEGIN
+      ALTER TABLE "Invoice" VALIDATE CONSTRAINT "Invoice_collectedBySepaBatchId_fkey";
+    EXCEPTION WHEN foreign_key_violation THEN
+      RAISE WARNING 'Invoice_collectedBySepaBatchId_fkey: rows that are already there violate it; it holds for new rows only. Clean them up, then: ALTER TABLE "Invoice" VALIDATE CONSTRAINT "Invoice_collectedBySepaBatchId_fkey"';
+    END;
   END IF;
 END $$;
 
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'InvoiceInternalNote_invoiceId_fkey') THEN
-    ALTER TABLE "InvoiceInternalNote" ADD CONSTRAINT "InvoiceInternalNote_invoiceId_fkey" FOREIGN KEY ("invoiceId") REFERENCES "Invoice"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    ALTER TABLE "InvoiceInternalNote" ADD CONSTRAINT "InvoiceInternalNote_invoiceId_fkey" FOREIGN KEY ("invoiceId") REFERENCES "Invoice"("id") ON DELETE CASCADE ON UPDATE CASCADE NOT VALID;
+    BEGIN
+      ALTER TABLE "InvoiceInternalNote" VALIDATE CONSTRAINT "InvoiceInternalNote_invoiceId_fkey";
+    EXCEPTION WHEN foreign_key_violation THEN
+      RAISE WARNING 'InvoiceInternalNote_invoiceId_fkey: rows that are already there violate it; it holds for new rows only. Clean them up, then: ALTER TABLE "InvoiceInternalNote" VALIDATE CONSTRAINT "InvoiceInternalNote_invoiceId_fkey"';
+    END;
   END IF;
 END $$;
 
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'CustomerInternalNote_customerId_fkey') THEN
-    ALTER TABLE "CustomerInternalNote" ADD CONSTRAINT "CustomerInternalNote_customerId_fkey" FOREIGN KEY ("customerId") REFERENCES "Customer"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    ALTER TABLE "CustomerInternalNote" ADD CONSTRAINT "CustomerInternalNote_customerId_fkey" FOREIGN KEY ("customerId") REFERENCES "Customer"("id") ON DELETE CASCADE ON UPDATE CASCADE NOT VALID;
+    BEGIN
+      ALTER TABLE "CustomerInternalNote" VALIDATE CONSTRAINT "CustomerInternalNote_customerId_fkey";
+    EXCEPTION WHEN foreign_key_violation THEN
+      RAISE WARNING 'CustomerInternalNote_customerId_fkey: rows that are already there violate it; it holds for new rows only. Clean them up, then: ALTER TABLE "CustomerInternalNote" VALIDATE CONSTRAINT "CustomerInternalNote_customerId_fkey"';
+    END;
   END IF;
 END $$;
 
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'UserSession_userId_fkey') THEN
-    ALTER TABLE "UserSession" ADD CONSTRAINT "UserSession_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    ALTER TABLE "UserSession" ADD CONSTRAINT "UserSession_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE NOT VALID;
+    BEGIN
+      ALTER TABLE "UserSession" VALIDATE CONSTRAINT "UserSession_userId_fkey";
+    EXCEPTION WHEN foreign_key_violation THEN
+      RAISE WARNING 'UserSession_userId_fkey: rows that are already there violate it; it holds for new rows only. Clean them up, then: ALTER TABLE "UserSession" VALIDATE CONSTRAINT "UserSession_userId_fkey"';
+    END;
   END IF;
 END $$;
 
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'CustomerPortalSession_companyId_fkey') THEN
-    ALTER TABLE "CustomerPortalSession" ADD CONSTRAINT "CustomerPortalSession_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    ALTER TABLE "CustomerPortalSession" ADD CONSTRAINT "CustomerPortalSession_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE NOT VALID;
+    BEGIN
+      ALTER TABLE "CustomerPortalSession" VALIDATE CONSTRAINT "CustomerPortalSession_companyId_fkey";
+    EXCEPTION WHEN foreign_key_violation THEN
+      RAISE WARNING 'CustomerPortalSession_companyId_fkey: rows that are already there violate it; it holds for new rows only. Clean them up, then: ALTER TABLE "CustomerPortalSession" VALIDATE CONSTRAINT "CustomerPortalSession_companyId_fkey"';
+    END;
   END IF;
 END $$;
 
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'CustomerPortalSession_customerId_fkey') THEN
-    ALTER TABLE "CustomerPortalSession" ADD CONSTRAINT "CustomerPortalSession_customerId_fkey" FOREIGN KEY ("customerId") REFERENCES "Customer"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    ALTER TABLE "CustomerPortalSession" ADD CONSTRAINT "CustomerPortalSession_customerId_fkey" FOREIGN KEY ("customerId") REFERENCES "Customer"("id") ON DELETE CASCADE ON UPDATE CASCADE NOT VALID;
+    BEGIN
+      ALTER TABLE "CustomerPortalSession" VALIDATE CONSTRAINT "CustomerPortalSession_customerId_fkey";
+    EXCEPTION WHEN foreign_key_violation THEN
+      RAISE WARNING 'CustomerPortalSession_customerId_fkey: rows that are already there violate it; it holds for new rows only. Clean them up, then: ALTER TABLE "CustomerPortalSession" VALIDATE CONSTRAINT "CustomerPortalSession_customerId_fkey"';
+    END;
   END IF;
 END $$;
 
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'VoucherLine_accountId_fkey') THEN
-    ALTER TABLE "VoucherLine" ADD CONSTRAINT "VoucherLine_accountId_fkey" FOREIGN KEY ("accountId") REFERENCES "Account"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+    ALTER TABLE "VoucherLine" ADD CONSTRAINT "VoucherLine_accountId_fkey" FOREIGN KEY ("accountId") REFERENCES "Account"("id") ON DELETE SET NULL ON UPDATE CASCADE NOT VALID;
+    BEGIN
+      ALTER TABLE "VoucherLine" VALIDATE CONSTRAINT "VoucherLine_accountId_fkey";
+    EXCEPTION WHEN foreign_key_violation THEN
+      RAISE WARNING 'VoucherLine_accountId_fkey: rows that are already there violate it; it holds for new rows only. Clean them up, then: ALTER TABLE "VoucherLine" VALIDATE CONSTRAINT "VoucherLine_accountId_fkey"';
+    END;
   END IF;
 END $$;
 
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'Webhook_companyId_fkey') THEN
-    ALTER TABLE "Webhook" ADD CONSTRAINT "Webhook_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    ALTER TABLE "Webhook" ADD CONSTRAINT "Webhook_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE NOT VALID;
+    BEGIN
+      ALTER TABLE "Webhook" VALIDATE CONSTRAINT "Webhook_companyId_fkey";
+    EXCEPTION WHEN foreign_key_violation THEN
+      RAISE WARNING 'Webhook_companyId_fkey: rows that are already there violate it; it holds for new rows only. Clean them up, then: ALTER TABLE "Webhook" VALIDATE CONSTRAINT "Webhook_companyId_fkey"';
+    END;
   END IF;
 END $$;
 
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'Webhook_createdById_fkey') THEN
-    ALTER TABLE "Webhook" ADD CONSTRAINT "Webhook_createdById_fkey" FOREIGN KEY ("createdById") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+    ALTER TABLE "Webhook" ADD CONSTRAINT "Webhook_createdById_fkey" FOREIGN KEY ("createdById") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE NOT VALID;
+    BEGIN
+      ALTER TABLE "Webhook" VALIDATE CONSTRAINT "Webhook_createdById_fkey";
+    EXCEPTION WHEN foreign_key_violation THEN
+      RAISE WARNING 'Webhook_createdById_fkey: rows that are already there violate it; it holds for new rows only. Clean them up, then: ALTER TABLE "Webhook" VALIDATE CONSTRAINT "Webhook_createdById_fkey"';
+    END;
   END IF;
 END $$;
 
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'WebhookDelivery_webhookId_fkey') THEN
-    ALTER TABLE "WebhookDelivery" ADD CONSTRAINT "WebhookDelivery_webhookId_fkey" FOREIGN KEY ("webhookId") REFERENCES "Webhook"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    ALTER TABLE "WebhookDelivery" ADD CONSTRAINT "WebhookDelivery_webhookId_fkey" FOREIGN KEY ("webhookId") REFERENCES "Webhook"("id") ON DELETE CASCADE ON UPDATE CASCADE NOT VALID;
+    BEGIN
+      ALTER TABLE "WebhookDelivery" VALIDATE CONSTRAINT "WebhookDelivery_webhookId_fkey";
+    EXCEPTION WHEN foreign_key_violation THEN
+      RAISE WARNING 'WebhookDelivery_webhookId_fkey: rows that are already there violate it; it holds for new rows only. Clean them up, then: ALTER TABLE "WebhookDelivery" VALIDATE CONSTRAINT "WebhookDelivery_webhookId_fkey"';
+    END;
   END IF;
 END $$;
 
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'NoteTemplate_companyId_fkey') THEN
-    ALTER TABLE "NoteTemplate" ADD CONSTRAINT "NoteTemplate_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    ALTER TABLE "NoteTemplate" ADD CONSTRAINT "NoteTemplate_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE NOT VALID;
+    BEGIN
+      ALTER TABLE "NoteTemplate" VALIDATE CONSTRAINT "NoteTemplate_companyId_fkey";
+    EXCEPTION WHEN foreign_key_violation THEN
+      RAISE WARNING 'NoteTemplate_companyId_fkey: rows that are already there violate it; it holds for new rows only. Clean them up, then: ALTER TABLE "NoteTemplate" VALIDATE CONSTRAINT "NoteTemplate_companyId_fkey"';
+    END;
   END IF;
 END $$;
 
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'Asset_companyId_fkey') THEN
-    ALTER TABLE "Asset" ADD CONSTRAINT "Asset_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    ALTER TABLE "Asset" ADD CONSTRAINT "Asset_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE NOT VALID;
+    BEGIN
+      ALTER TABLE "Asset" VALIDATE CONSTRAINT "Asset_companyId_fkey";
+    EXCEPTION WHEN foreign_key_violation THEN
+      RAISE WARNING 'Asset_companyId_fkey: rows that are already there violate it; it holds for new rows only. Clean them up, then: ALTER TABLE "Asset" VALIDATE CONSTRAINT "Asset_companyId_fkey"';
+    END;
   END IF;
 END $$;
 
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'SepaBatch_companyId_fkey') THEN
-    ALTER TABLE "SepaBatch" ADD CONSTRAINT "SepaBatch_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+    ALTER TABLE "SepaBatch" ADD CONSTRAINT "SepaBatch_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE RESTRICT ON UPDATE CASCADE NOT VALID;
+    BEGIN
+      ALTER TABLE "SepaBatch" VALIDATE CONSTRAINT "SepaBatch_companyId_fkey";
+    EXCEPTION WHEN foreign_key_violation THEN
+      RAISE WARNING 'SepaBatch_companyId_fkey: rows that are already there violate it; it holds for new rows only. Clean them up, then: ALTER TABLE "SepaBatch" VALIDATE CONSTRAINT "SepaBatch_companyId_fkey"';
+    END;
   END IF;
 END $$;
 
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'SepaDirectDebitMandate_companyId_fkey') THEN
-    ALTER TABLE "SepaDirectDebitMandate" ADD CONSTRAINT "SepaDirectDebitMandate_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+    ALTER TABLE "SepaDirectDebitMandate" ADD CONSTRAINT "SepaDirectDebitMandate_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE RESTRICT ON UPDATE CASCADE NOT VALID;
+    BEGIN
+      ALTER TABLE "SepaDirectDebitMandate" VALIDATE CONSTRAINT "SepaDirectDebitMandate_companyId_fkey";
+    EXCEPTION WHEN foreign_key_violation THEN
+      RAISE WARNING 'SepaDirectDebitMandate_companyId_fkey: rows that are already there violate it; it holds for new rows only. Clean them up, then: ALTER TABLE "SepaDirectDebitMandate" VALIDATE CONSTRAINT "SepaDirectDebitMandate_companyId_fkey"';
+    END;
   END IF;
 END $$;
 
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'SepaDirectDebitMandate_customerId_fkey') THEN
-    ALTER TABLE "SepaDirectDebitMandate" ADD CONSTRAINT "SepaDirectDebitMandate_customerId_fkey" FOREIGN KEY ("customerId") REFERENCES "Customer"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+    ALTER TABLE "SepaDirectDebitMandate" ADD CONSTRAINT "SepaDirectDebitMandate_customerId_fkey" FOREIGN KEY ("customerId") REFERENCES "Customer"("id") ON DELETE RESTRICT ON UPDATE CASCADE NOT VALID;
+    BEGIN
+      ALTER TABLE "SepaDirectDebitMandate" VALIDATE CONSTRAINT "SepaDirectDebitMandate_customerId_fkey";
+    EXCEPTION WHEN foreign_key_violation THEN
+      RAISE WARNING 'SepaDirectDebitMandate_customerId_fkey: rows that are already there violate it; it holds for new rows only. Clean them up, then: ALTER TABLE "SepaDirectDebitMandate" VALIDATE CONSTRAINT "SepaDirectDebitMandate_customerId_fkey"';
+    END;
   END IF;
 END $$;
 
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'SepaDirectDebitCollection_companyId_fkey') THEN
-    ALTER TABLE "SepaDirectDebitCollection" ADD CONSTRAINT "SepaDirectDebitCollection_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+    ALTER TABLE "SepaDirectDebitCollection" ADD CONSTRAINT "SepaDirectDebitCollection_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE RESTRICT ON UPDATE CASCADE NOT VALID;
+    BEGIN
+      ALTER TABLE "SepaDirectDebitCollection" VALIDATE CONSTRAINT "SepaDirectDebitCollection_companyId_fkey";
+    EXCEPTION WHEN foreign_key_violation THEN
+      RAISE WARNING 'SepaDirectDebitCollection_companyId_fkey: rows that are already there violate it; it holds for new rows only. Clean them up, then: ALTER TABLE "SepaDirectDebitCollection" VALIDATE CONSTRAINT "SepaDirectDebitCollection_companyId_fkey"';
+    END;
   END IF;
 END $$;
 
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'SepaDirectDebitCollection_batchId_fkey') THEN
-    ALTER TABLE "SepaDirectDebitCollection" ADD CONSTRAINT "SepaDirectDebitCollection_batchId_fkey" FOREIGN KEY ("batchId") REFERENCES "SepaDirectDebitBatch"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    ALTER TABLE "SepaDirectDebitCollection" ADD CONSTRAINT "SepaDirectDebitCollection_batchId_fkey" FOREIGN KEY ("batchId") REFERENCES "SepaDirectDebitBatch"("id") ON DELETE CASCADE ON UPDATE CASCADE NOT VALID;
+    BEGIN
+      ALTER TABLE "SepaDirectDebitCollection" VALIDATE CONSTRAINT "SepaDirectDebitCollection_batchId_fkey";
+    EXCEPTION WHEN foreign_key_violation THEN
+      RAISE WARNING 'SepaDirectDebitCollection_batchId_fkey: rows that are already there violate it; it holds for new rows only. Clean them up, then: ALTER TABLE "SepaDirectDebitCollection" VALIDATE CONSTRAINT "SepaDirectDebitCollection_batchId_fkey"';
+    END;
   END IF;
 END $$;
 
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'SepaDirectDebitCollection_mandateId_fkey') THEN
-    ALTER TABLE "SepaDirectDebitCollection" ADD CONSTRAINT "SepaDirectDebitCollection_mandateId_fkey" FOREIGN KEY ("mandateId") REFERENCES "SepaDirectDebitMandate"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+    ALTER TABLE "SepaDirectDebitCollection" ADD CONSTRAINT "SepaDirectDebitCollection_mandateId_fkey" FOREIGN KEY ("mandateId") REFERENCES "SepaDirectDebitMandate"("id") ON DELETE RESTRICT ON UPDATE CASCADE NOT VALID;
+    BEGIN
+      ALTER TABLE "SepaDirectDebitCollection" VALIDATE CONSTRAINT "SepaDirectDebitCollection_mandateId_fkey";
+    EXCEPTION WHEN foreign_key_violation THEN
+      RAISE WARNING 'SepaDirectDebitCollection_mandateId_fkey: rows that are already there violate it; it holds for new rows only. Clean them up, then: ALTER TABLE "SepaDirectDebitCollection" VALIDATE CONSTRAINT "SepaDirectDebitCollection_mandateId_fkey"';
+    END;
   END IF;
 END $$;
 
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'SepaDirectDebitCollection_invoiceId_fkey') THEN
-    ALTER TABLE "SepaDirectDebitCollection" ADD CONSTRAINT "SepaDirectDebitCollection_invoiceId_fkey" FOREIGN KEY ("invoiceId") REFERENCES "Invoice"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+    ALTER TABLE "SepaDirectDebitCollection" ADD CONSTRAINT "SepaDirectDebitCollection_invoiceId_fkey" FOREIGN KEY ("invoiceId") REFERENCES "Invoice"("id") ON DELETE RESTRICT ON UPDATE CASCADE NOT VALID;
+    BEGIN
+      ALTER TABLE "SepaDirectDebitCollection" VALIDATE CONSTRAINT "SepaDirectDebitCollection_invoiceId_fkey";
+    EXCEPTION WHEN foreign_key_violation THEN
+      RAISE WARNING 'SepaDirectDebitCollection_invoiceId_fkey: rows that are already there violate it; it holds for new rows only. Clean them up, then: ALTER TABLE "SepaDirectDebitCollection" VALIDATE CONSTRAINT "SepaDirectDebitCollection_invoiceId_fkey"';
+    END;
   END IF;
 END $$;
 
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'SepaDirectDebitBatch_companyId_fkey') THEN
-    ALTER TABLE "SepaDirectDebitBatch" ADD CONSTRAINT "SepaDirectDebitBatch_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+    ALTER TABLE "SepaDirectDebitBatch" ADD CONSTRAINT "SepaDirectDebitBatch_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE RESTRICT ON UPDATE CASCADE NOT VALID;
+    BEGIN
+      ALTER TABLE "SepaDirectDebitBatch" VALIDATE CONSTRAINT "SepaDirectDebitBatch_companyId_fkey";
+    EXCEPTION WHEN foreign_key_violation THEN
+      RAISE WARNING 'SepaDirectDebitBatch_companyId_fkey: rows that are already there violate it; it holds for new rows only. Clean them up, then: ALTER TABLE "SepaDirectDebitBatch" VALIDATE CONSTRAINT "SepaDirectDebitBatch_companyId_fkey"';
+    END;
   END IF;
 END $$;
 
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'CompanySigningKey_companyId_fkey') THEN
-    ALTER TABLE "CompanySigningKey" ADD CONSTRAINT "CompanySigningKey_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    ALTER TABLE "CompanySigningKey" ADD CONSTRAINT "CompanySigningKey_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE NOT VALID;
+    BEGIN
+      ALTER TABLE "CompanySigningKey" VALIDATE CONSTRAINT "CompanySigningKey_companyId_fkey";
+    EXCEPTION WHEN foreign_key_violation THEN
+      RAISE WARNING 'CompanySigningKey_companyId_fkey: rows that are already there violate it; it holds for new rows only. Clean them up, then: ALTER TABLE "CompanySigningKey" VALIDATE CONSTRAINT "CompanySigningKey_companyId_fkey"';
+    END;
   END IF;
 END $$;
 
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'UserSigningKey_userId_fkey') THEN
-    ALTER TABLE "UserSigningKey" ADD CONSTRAINT "UserSigningKey_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    ALTER TABLE "UserSigningKey" ADD CONSTRAINT "UserSigningKey_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE NOT VALID;
+    BEGIN
+      ALTER TABLE "UserSigningKey" VALIDATE CONSTRAINT "UserSigningKey_userId_fkey";
+    EXCEPTION WHEN foreign_key_violation THEN
+      RAISE WARNING 'UserSigningKey_userId_fkey: rows that are already there violate it; it holds for new rows only. Clean them up, then: ALTER TABLE "UserSigningKey" VALIDATE CONSTRAINT "UserSigningKey_userId_fkey"';
+    END;
   END IF;
 END $$;

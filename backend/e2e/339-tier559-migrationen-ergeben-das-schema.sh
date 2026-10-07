@@ -35,4 +35,20 @@ assert_eq "…and the session table sign-in needs" "$(docker exec "$PG_CONTAINER
 note "=== the catch-up migration on a database that already has everything ==="
 OUT=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d "$DB" -v ON_ERROR_STOP=1 -q < prisma/migrations/20261006000005_catch_up_with_schema/migration.sql 2>&1 | grep -c "ERROR" || true)
 assert_eq "runs again without an error" "$OUT" "0"
+note "=== Tier 571: on a database whose old rows break a new foreign key ==="
+# The first real database this migration met had rows a new constraint does
+# not allow (credit transactions of customers that had been deleted): the
+# plain ADD CONSTRAINT failed and took the whole migration with it, so
+# `migrate deploy` stopped there. The keys are now added NOT VALID and
+# validated right after; one that cannot be validated stays, for new rows.
+PSQL() { docker exec -i "$PG_CONTAINER" psql -U de_invoice -d "$DB" -v ON_ERROR_STOP=1 -qAt "$@"; }
+PSQL -c 'ALTER TABLE "UserSession" DROP CONSTRAINT "UserSession_userId_fkey"' >/dev/null
+PSQL -c "INSERT INTO \"UserSession\" (id, \"userId\", token, \"expiresAt\") VALUES ('orphan-571', 'a-user-who-is-gone', 'tok-571', now() + interval '1 day')" >/dev/null
+OUT=$(PSQL < prisma/migrations/20261006000005_catch_up_with_schema/migration.sql 2>&1)
+assert_eq "the migration runs through (was: ERROR 23503, nothing applied)" "$(grep -c 'ERROR' <<<"$OUT" || true)" "0"
+assert_eq "…and says which key it could not validate" "$(grep -c 'WARNING.*UserSession_userId_fkey' <<<"$OUT" || true)" "1"
+assert_eq "…the key is there, for new rows (not validated)" "$(PSQL -c "select convalidated::text from pg_constraint where conname='UserSession_userId_fkey'")" "false"
+assert_eq "…a new row without its user is refused" "$(PSQL -c "INSERT INTO \"UserSession\" (id, \"userId\", token, \"expiresAt\") VALUES ('orphan-571b', 'nobody', 'tok-571b', now())" 2>&1 | grep -c 'violates foreign key')" "1"
+assert_eq "…the old row was left alone" "$(PSQL -c "select count(*) from \"UserSession\" where id='orphan-571'")" "1"
+assert_eq "…and every other key is validated" "$(PSQL -c "select count(*) from pg_constraint where contype='f' and not convalidated")" "1"
 summary

@@ -18,10 +18,19 @@ services:
     # NestJS backend (Prisma connection pool, default
     # 10 per process) plus the test runners.
     command: postgres -c max_connections=300 -c shared_buffers=256MB
+    # Tier 571: on this machine only. The port was published on every
+    # interface, with the development password from this file.
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      # Tier 571: a volume of its own. The development database was once
+      # started by hand on a bind mount in /tmp (which macOS purged — the data
+      # was gone on 10.09.2026), and the volume this file used to name,
+      # `postgres_data`, turned out to hold a different cluster (the dry-run
+      # database, another role) — Postgres would have started on that and the
+      # backend could not have logged in. `devdb_data` is new and belongs to
+      # this service alone; the old volume is left as it is.
+      - devdb_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U de_invoice"]
       interval: 5s
@@ -29,4 +38,4 @@ services:
       retries: 5
 
 volumes:
-  postgres_data:
+  devdb_data:

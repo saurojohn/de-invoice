@@ -2622,6 +2622,29 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 571 — the owner's development database is back; the catch-up migration meets real data
+
+Agreed with the owner on 07.10.2026 ("按你的做") after the status review.
+
+**The three test-made backup directories** (`backup-2026-09-24-101352`, `-10-02-101709`, `-10-07-040000`) were moved to the macOS Trash with `/usr/bin/trash` after re-checking each one's tar root — not deleted; "Put Back" works. `~/data/backups/de-invoice` holds the seven real backups again.
+
+**The development database.** What was found, read-only, before anything was changed:
+- `de-invoice-postgres` (made by hand on 01.09., bind mount `/tmp/pgdata`) had been dead since 10.09.; the directory is gone.
+- The volume the dev compose file named, `de-invoice_postgres_data`, holds a *different* cluster — database `deinvoice_dryrun`, no role `de_invoice` (looked at on a copy; the volume itself was mounted read-only). `docker compose up` would have started Postgres on that and the backend could not have logged in.
+- `backup-2026-09-05-224235` is a `pg_dump --format=custom` file despite its name `db.sql.gz`; it restores cleanly: 1 company (SH Leder GmbH, the seed company), 1 user, 220 customers, 318 invoices, 84 payments, 33 expenses, 103 vouchers, 1 315 audit rows, 22 recorded migrations (last: `20260905000001`). By its content it is the database the e2e suite used to run against (customers "Cust 19", `example.com`, webhooks to httpbin.org).
+
+What was done: the dead container was renamed to `de-invoice-postgres-dead-20260910` (kept); `docker-compose.yml` got a volume of its own (`devdb_data` → `de-invoice_devdb_data`) and publishes 5432 on 127.0.0.1 only (it was every interface, with the password in the file); `docker compose up -d postgres`; `pg_restore`; `prisma migrate deploy` (25 pending migrations). Result: schema identical to today's, history complete, every row count as in the backup, full-text columns present. A backend started on it for a minute with the scheduled jobs off answered invoices (318), customers (220), search, EÜR, UStVA and `/auth/me` with no error in its log and no row changed. The files: all 693 of the backup's are still in `~/data/invoice-system` — nothing to restore. The old volume `de-invoice_postgres_data` was not touched.
+
+**The rehearsal (on the throwaway server first) found a defect of Tier 559:** the catch-up migration failed on this data — `CustomerCreditTransaction_customerId_fkey` cannot be added while rows point at customers that no longer exist (error 23503; the migration is one implicit transaction, so nothing was applied and `migrate deploy` stopped). All 24 foreign keys of that migration are now added `NOT VALID` and validated right after; one that cannot be validated stays in force for new rows and says so in a WARNING. Editing an already-published migration is safe here only because no persistent database had applied it (nothing is deployed; CI databases are thrown away). Spec 339 has the case (5 assertions fail with the old file).
+
+**Things in that data the owner should know before starting the app on it** (none changed):
+- three constraints are unvalidated because of old rows: 35 of 35 credit transactions belong to customers that are gone, 91 of 210 voucher lines to accounts that are gone, some webhook deliveries to deleted webhooks — leftovers of test clean-ups;
+- `GET /audit-logs/verify` says `ok: false` (hash mismatch) — §9 item 5, the re-hash decision;
+- the scheduled jobs will act on a month-old database: 3 active recurring templates (2 due in the past, all three set to e-mail the customer), 111 open invoices past their due date with the auto-reminder not switched off. No mail settings are stored in the database; whether `backend/.env` has SMTP was not looked at (credential file). `DISABLE_CRON=1` holds back the recurring, reminder, backup, VAT and session jobs — **not** the webhook retries, the bank sync, the exchange rates and the AfA booker, which do not read it.
+- `MailConfig.smtpPassword` is stored in plain text (its own comment says so) — so it is in every dump.
+
+An unrequested download happened while inspecting the volume: `alpine:latest` (≈4 MB) was pulled because I used it for a read-only `ls`; the local `postgres:16-alpine` would have done.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 570 — a test backend keeps away from the real backup directory
 
 Found during a status review on 07.10.2026. `BackupService` defaulted to `~/data/backups/de-invoice` — the installation's real backups — for every backend, including one started for tests against a throwaway database. Each run of `scripts/backup.sh` also **rotates** that directory. The local test backend had been left running overnight; its 04:00 tick wrote `backup-2026-10-07-040000` there (a dump of the test database, a tar of `/tmp/de-invoice-storage`). Two more of the same kind were already there from earlier sessions' spec runs (`backup-2026-09-24-101352`, `backup-2026-10-02-101709` — tar root `de-invoice-storage/`; the real ones have `invoice-system/`).
@@ -7858,7 +7881,8 @@ These are **not in the repo** — only the user can do them:
    keychain, so the old PAT is most likely still stored there and still valid.
    Revoking it is therefore still worth doing; a push will then prompt for a
    fresh credential (or switch the remote to SSH).
-4. **Dev database out of `/tmp/pgdata`.** The manually created
+4. ~~**Dev database out of `/tmp/pgdata`.**~~ — **done in Tier 571** (07.10.2026): rebuilt on a named volume from `backup-2026-09-05-224235`, schema migrated; see §8. History:
+   ~~Dev database out of `/tmp/pgdata`.~~ The manually created
    `de-invoice-postgres` container bind-mounts `/tmp/pgdata`; macOS purges
    `/tmp`, and nightly backups have contained **no database since
    2026-09-06** (last full one: `backup-2026-09-05-224235`). Recreate it via
