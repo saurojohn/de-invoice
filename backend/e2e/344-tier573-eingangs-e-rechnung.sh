@@ -223,6 +223,17 @@ assert_eq "…with 1 EUR = 1,25 USD: 201" "$(send import "$D/ubl-usd.xml" -F "ex
 EU=$(out "d['expenseIds'][0]")
 assert_eq "…booked in euro: 160 + 30.40" "$(q "select \"netAmount\"::numeric(12,2)||'/'||\"vatAmount\"::numeric(12,2)||'/'||(notes like '%352,64 USD%') from \"Expense\" where id='$EU'")" "160.00/30.40/true"
 
+note "=== 8b. Skonto in the payment terms (Tier 579) ==="
+variant "$D/ubl.xml" "$D/ubl-skonto.xml" "PM-$TAG-1" "PM-$TAG-9" "<b:Note>30 Tage netto</b:Note>" "<b:Note>#SKONTO#TAGE=14#PROZENT=2.00#
+#SKONTO#TAGE=7#PROZENT=3.5#BASISBETRAG=300.00#
+30 Tage netto</b:Note>"
+send preview "$D/ubl-skonto.xml" >/dev/null
+assert_eq "XRechnung's #SKONTO# notation is read: days, percent, what may be deducted" "$(out "[(k['days'], k['percent'], k['amount']) for k in d['invoice']['skonto']]")" "[(14, 2, 7.05), (7, 3.5, 10.5)]"
+assert_eq "…the terms keep the readable rest, and the preview says it" "$(out "d['invoice']['payment']['terms'], sum('Skonto: 2 %' in w for w in d['warnings'])")" "('30 Tage netto', 1)"
+assert_eq "import: 201" "$(send import "$D/ubl-skonto.xml")" "201"
+ES=$(out "d['expenseIds'][0]")
+assert_eq "…and the notes carry it" "$(q "select notes like '%Skonto 2 % innerhalb von 14 Tagen (7,05)%' from \"Expense\" where id='$ES'")" "t"
+
 note "=== 9. files that are no invoice, or mean harm ==="
 BEFORE=$(N_EXP)
 refused() { # label file expected-text

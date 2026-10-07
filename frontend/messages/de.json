@@ -3844,7 +3844,8 @@
     "checkValid": "Der offizielle KoSIT-Validator hat die E-Rechnung angenommen (XML-Schema und Geschäftsregeln).",
     "checkInvalid": "Der offizielle KoSIT-Validator hat die E-Rechnung zurückgewiesen:",
     "checkUnavailable": "Der offizielle KoSIT-Validator ist in dieser Installation nicht verfügbar. Die oben gezeigten Prüfungen (Summen, Pflichtangaben) wurden durchgeführt.",
-    "checkFailed": "Die Prüfung konnte nicht durchgeführt werden."
+    "checkFailed": "Die Prüfung konnte nicht durchgeführt werden.",
+    "skontoLine": "{percent} % bei Zahlung innerhalb von {days} Tagen"
   },
   "changePassword": {
     "title": "Passwort ändern",

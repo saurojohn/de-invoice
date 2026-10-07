@@ -47,6 +47,7 @@ export interface EInvoice {
   seller: Party
   buyer: Party
   payment: { iban: string | null; bic: string | null; remittance: string | null; terms: string | null }
+  skonto?: { days: number; percent: number; amount: number | null }[]
   totals: { net: number | null; tax: number | null; gross: number | null; prepaid: number | null; payable: number | null }
   taxGroups: { category: string; rate: number; taxableAmount: number; taxAmount: number; exemptionReason: string | null }[]
   lines: {
@@ -298,6 +299,15 @@ export function EInvoiceDialog({ mode, onClose, onImported }: { mode: Mode; onCl
                         <div>{inv.payment.terms}</div>
                       </>
                     )}
+                    {(inv.skonto ?? []).map((sk) => (
+                      <div key={`${sk.days}-${sk.percent}`} className="contents" data-testid="einvoice-skonto">
+                        <div className="text-gray-500 dark:text-gray-400">Skonto</div>
+                        <div>
+                          {t("eInvoice.skontoLine").replace("{percent}", num(sk.percent)).replace("{days}", String(sk.days))}
+                          {sk.amount != null ? ` (${money(sk.amount)})` : ""}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>

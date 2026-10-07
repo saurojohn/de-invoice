@@ -467,6 +467,9 @@ function noteFor(inv: ParsedEInvoice, read: ReadEInvoice, exchangeRate?: number)
   }
   if (inv.payment.iban) parts.push(`IBAN laut Rechnung ${inv.payment.iban}`)
   if (inv.payment.remittance) parts.push(`Verwendungszweck ${inv.payment.remittance}`)
+  for (const sk of inv.skonto) {
+    parts.push(`Skonto ${String(sk.percent).replace('.', ',')} % innerhalb von ${sk.days} Tagen${sk.amount != null ? ` (${eur(sk.amount)})` : ''}`)
+  }
   if (inv.payment.terms) parts.push(`Zahlungsbedingungen: ${inv.payment.terms}`)
   if (inv.periodStart || inv.periodEnd) parts.push(`Leistungszeitraum ${inv.periodStart ?? '?'} – ${inv.periodEnd ?? '?'}`)
   else if (inv.deliveryDate) parts.push(`Leistungsdatum ${inv.deliveryDate.split('-').reverse().join('.')}`)

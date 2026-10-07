@@ -90,6 +90,12 @@ export interface ParsedEInvoice {
     terms: string | null
     mandateId: string | null
   }
+  /**
+   * Tier 579: cash discounts from the payment terms, in XRechnung's notation
+   * `#SKONTO#TAGE=14#PROZENT=2.00#` (optionally `BASISBETRAG=…#`).
+   * `amount` is what may be deducted from the amount due.
+   */
+  skonto: { days: number; percent: number; baseAmount: number | null; amount: number | null }[]
   totals: {
     lineNet: number | null
     allowances: number | null
@@ -267,6 +273,7 @@ function parseUbl(root: XmlElement, creditNoteDoc: boolean): ParsedEInvoice {
       rounding: num(textAt(total, 'PayableRoundingAmount')),
       payable: num(textAt(total, 'PayableAmount')),
     },
+    skonto: [],
     taxGroups,
     lines,
     errors: [],
@@ -376,6 +383,7 @@ function parseCii(root: XmlElement): ParsedEInvoice {
       rounding: num(textAt(sum, 'RoundingAmount')),
       payable: num(textAt(sum, 'DuePayableAmount')),
     },
+    skonto: [],
     taxGroups,
     lines,
     errors: [],
@@ -476,6 +484,26 @@ function finish(inv: ParsedEInvoice): ParsedEInvoice {
     warnings.push('Laut Rechnung ist nichts mehr zu zahlen (Zahlbetrag 0,00) — sie ist bereits bezahlt.')
   } else if (totals.prepaid != null && cents(totals.prepaid) !== 0) {
     warnings.push(`Laut Rechnung sind ${eur(totals.prepaid)} bereits gezahlt; offen sind ${eur(totals.payable ?? 0)}.`)
+  }
+  // Tier 579: Skonto, as XRechnung writes it into the payment terms.
+  if (inv.payment.terms) {
+    const SKONTO = /#SKONTO#TAGE=(\d{1,3})#PROZENT=(\d{1,2}(?:\.\d{1,2})?)#(?:BASISBETRAG=(-?\d{1,10}(?:\.\d{1,2})?)#)?/g
+    for (const m of inv.payment.terms.matchAll(SKONTO)) {
+      const percent = Number(m[2])
+      const baseAmount = m[3] !== undefined ? Math.abs(Number(m[3])) : null
+      const base = baseAmount ?? totals.payable ?? totals.gross
+      if (percent <= 0 || percent >= 100) continue
+      inv.skonto.push({ days: Number(m[1]), percent, baseAmount, amount: base != null ? Math.round(base * percent) / 100 : null })
+    }
+    if (inv.skonto.length) {
+      inv.payment.terms = inv.payment.terms.replace(SKONTO, ' ').replace(/\s+/g, ' ').trim() || null
+      for (const sk of inv.skonto) {
+        warnings.push(
+          `Skonto: ${String(sk.percent).replace('.', ',')} % bei Zahlung innerhalb von ${sk.days} Tagen` +
+            (sk.amount != null ? ` (${eur(sk.amount)} weniger).` : '.'),
+        )
+      }
+    }
   }
   if (inv.payment.meansCode === '59' || inv.payment.mandateId) {
     warnings.push('Der Betrag wird per SEPA-Lastschrift eingezogen — nicht selbst überweisen.')
