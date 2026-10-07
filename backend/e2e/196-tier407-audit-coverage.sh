@@ -105,11 +105,15 @@ assert_eq "chain ok" "$(json_field "$BODY" ok)" "True"
 note "=== 5. no money-bearing model is written without a trail ==="
 # A model with a Decimal column must be audited, or be listed here with the
 # reason it is not. Adding a model means editing one of the two on purpose.
-EXEMPT="ProductStockHistory VatRateHistory RecurringInvoiceItem Asset"
+EXEMPT="ProductStockHistory VatRateHistory RecurringInvoiceItem Asset ExpenseTaxLine"
 #   ProductStockHistory, VatRateHistory — append-only history tables themselves
 #   RecurringInvoiceItem               — template lines, nothing is booked
 #   Asset                              — assets.service writes explicit
 #                                        writeActivity rows (Tier 368)
+#   ExpenseTaxLine                     — written only nested in its Expense;
+#                                        the Expense's audit rows carry the
+#                                        lines before and after (Tier 581,
+#                                        asserted in spec 349)
 MISSING=$(python3 - "$SCRIPT_DIR/../prisma/schema.prisma" "$SCRIPT_DIR/../src/prisma/audit-log.extension.ts" "$EXEMPT" <<'PY'
 import re, sys
 schema = open(sys.argv[1], encoding="utf-8").read()

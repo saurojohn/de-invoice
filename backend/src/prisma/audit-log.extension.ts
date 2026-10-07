@@ -618,8 +618,11 @@ async function getPreImage(
   args: any,
 ): Promise<any> {
   try {
+    // Tier 581: rows that are only ever written with their parent belong to
+    // the parent's image — an expense's VAT lines before a change or a delete.
+    const include = PRE_IMAGE_INCLUDE[model]
     if (args.where && args.where.id) {
-      return await client[lowerFirst(model)].findUnique({ where: { id: args.where.id } })
+      return await client[lowerFirst(model)].findUnique({ where: { id: args.where.id }, ...(include ? { include } : {}) })
     }
     // Tier 407: update/delete always take a unique input, and some audited
     // models have a composite key instead of an id (UserCompany is
@@ -634,6 +637,16 @@ async function getPreImage(
 }
 
 const lowerFirst = (s: string) => s[0].toLowerCase() + s.slice(1)
+
+/**
+ * Tier 581 — child rows without a trail of their own. ExpenseTaxLine is
+ * written nested in its Expense (create / update) and deleted with it; the
+ * Expense's audit row carries the lines: after the write through the
+ * caller's `include`, before it through this.
+ */
+const PRE_IMAGE_INCLUDE: Record<string, Record<string, unknown>> = {
+  Expense: { taxLines: { orderBy: { position: 'asc' } } },
+}
 
 const extractId = (args: any, result: any): string | null => {
   if (result && typeof result === 'object' && 'id' in result) return result.id

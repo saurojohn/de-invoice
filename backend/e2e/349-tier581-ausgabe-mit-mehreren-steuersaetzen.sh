@@ -137,6 +137,16 @@ assert_eq "back to one rate: the rows are gone" "$STATUS/$(totals "$ED")/$(rows 
 AS PUT "/api/v1/expenses/$E?companyId=$C" '{"taxLines":[{"vatRate":0.19,"netAmount":1,"vatAmount":0.19},{"vatRate":0.07,"netAmount":1,"vatAmount":0.07}]}'
 assert_eq "a paid expense keeps its lines (locked like any other change)" "$STATUS/$(rows "$E")" "400/0.19/200.00/38.00,0.07/107.14/7.50"
 
+note "=== 7b. the audit trail has the lines, before and after ==="
+# ExpenseTaxLine rows are written nested in their expense and have no audit
+# rows of their own (spec 196 exempts the model for that reason).
+audit() { q "select coalesce(jsonb_array_length(\"$2\"->'taxLines'),-1) from \"AuditLog\" where \"companyId\"='$C' and \"entityType\"='Expense' and \"entityId\"='$ED' and action like '%$1%' order by seq $3 limit 1"; }
+assert_eq "created: the two lines are in the record" "$(audit creat newData asc)" "2"
+assert_eq "the change to three lines: two before, three after" "$(q "select coalesce(jsonb_array_length(\"oldData\"->'taxLines'),-1)||'/'||coalesce(jsonb_array_length(\"newData\"->'taxLines'),-1) from \"AuditLog\" where \"companyId\"='$C' and \"entityType\"='Expense' and \"entityId\"='$ED' and jsonb_array_length(coalesce(\"newData\"->'taxLines','[]'::jsonb))=3 order by seq asc limit 1")" "2/3"
+assert_eq "back to one rate: three before, none after" "$(audit updat oldData desc)/$(audit updat newData desc)" "3/0"
+AS GET "/api/v1/audit-logs/verify?companyId=$C"
+assert_eq "…and the chain verifies" "$(py 'print(d.get("ok"))')" "True"
+
 note "=== 8. deleting it takes the lines along; another company sees none ==="
 AS DELETE "/api/v1/ustva/expenses/$ED?companyId=$C"
 mk ER-DEL ',"taxLines":'"$LINES"; DEL=$ID
