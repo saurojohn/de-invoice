@@ -15,6 +15,7 @@ import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiPost, ApiError } from "@/lib/api"
+import { ChangePasswordCard } from "@/components/ChangePasswordCard"
 
 interface TwoFactorStatus {
   enabled: boolean
@@ -168,6 +169,9 @@ export default function TwoFactorPage() {
             <LanguageSwitcher />
           </div>
         </div>
+
+        {/* Tier 575 */}
+        <ChangePasswordCard />
 
         {loading ? (
           <p

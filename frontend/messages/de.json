@@ -3838,5 +3838,16 @@
       "L": "IGIC",
       "M": "IPSI"
     }
+  },
+  "changePassword": {
+    "title": "Passwort ändern",
+    "current": "Aktuelles Passwort",
+    "new": "Neues Passwort",
+    "repeat": "Neues Passwort wiederholen",
+    "rule": "Mindestens 8 Zeichen, mit Buchstaben und Zahlen.",
+    "mismatch": "Die beiden Eingaben stimmen nicht überein.",
+    "submit": "Passwort ändern",
+    "saving": "Wird geändert…",
+    "done": "Das Passwort wurde geändert. Alle anderen Sitzungen wurden beendet."
   }
 }

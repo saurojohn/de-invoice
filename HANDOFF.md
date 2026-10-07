@@ -2622,6 +2622,21 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 575 — a signed-in user can change the password
+
+From the open list (§9 item 22, "account self-service"). **Measured before:** `POST /auth/change-password` → 404; nothing on the security page. The only way to a new password was „Passwort vergessen“ — which needs a working mail server (none is configured on this installation) and the mailbox.
+
+**Now:** `POST /auth/change-password` `{ currentPassword, newPassword }` (`auth.controller.ts`, `AuthService.changePassword`):
+- the current password is asked for again — a borrowed session is not enough to take the account. Wrong → **400** (not 401: the frontend signs out on a 401), and an audit entry `password_change_failed`;
+- the new one follows the rule of the reset (`assertPasswordStrength`: 8–200 characters, letters and digits) and must differ from the current one;
+- every session of the user ends (`revokeAllForUser`, as after a reset) and the caller gets a new one — cookie, and `sessionToken` in the answer as login does; audit entry `password_changed` with the number of sessions ended;
+- 5 attempts a minute.
+- `components/ChangePasswordCard.tsx` on `/dashboard/security` („Passwort ändern“, de / en / zh).
+
+**Specs:** `346-tier575-passwort-aendern.sh` (20 assertions, 16 fail on the old code) and Playwright `change-password-tier575.spec.ts`.
+
+The same rule holds everywhere a password is set: registration (`auth.controller.ts`), invitation (`users.service.ts`), reset and change. (The `@MinLength(6)` in `auth.dto.ts` is only the first gate.) E-mail verification and account deletion stay open.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 574 — a scanned receipt: nothing created before it is confirmed, and the scan is kept
 
 Seen while building Tier 573, in the path next to it („Scan hochladen“ with a picture or an ordinary PDF). **Measured before:**
@@ -8224,7 +8239,7 @@ frontend's build arg, and the frontend image refuses to build without it.
     - **Two production paths.** `infra/prod/` (Caddy; hardened and run end to end in Tiers 555–569) and the older root `docker-compose.prod.yml` + `DEPLOY.md` (host nginx, systemd). The older one passes no `FRONTEND_URL` to the backend (CORS allow-list and mailed links fall back to `http://localhost:3000`) and `TRUST_PROXY: 0`; it was not tested. `DEPLOY-READY-SUMMARY.md` (07.09.) still says "ready to deploy"; `DEPLOY.md`, `DEPLOY-WALKTHROUGH.md`, `SECURITY-AUDIT-2026-09-06.md`, `USER-GUIDE.md` predate Tiers 344–570.
     - **The monitoring overlay** (`infra/prod/monitoring.yml`, `docker-compose.observability.yml`) declares the network `deinvoicenet` as `external`; the main compose file creates `de-invoice-prod_deinvoicenet`. As an overlay it resolves to an external network that nothing creates. Not run.
     - **No CI job builds the Docker images**; `release.yml` only runs on a `v*` tag and has never run with the `build-contexts` added in Tier 569. Production starts the backend with `ts-node --transpile-only` (no compiled build).
-    - **Account self-service:** no e-mail verification at registration, no "change my password" while signed in (only forgot/reset), no deletion of an account or company, no data export for a data subject.
+    - **Account self-service:** no e-mail verification at registration, no deletion of an account or company, no data export for a data subject. (~~no "change my password" while signed in~~ — done in Tier 575.)
     - **Unfinished by design, and saying so:** FinTS TAN submission and transfers (stubs), ELSTER (an export for transcription, container format unverified, no transmission — item 9), E-Bilanz (XBRL with positions left "TODO (manuell)" for the Steuerberater), PDF signature verification (structural only, not against the certificate), cloud storage ("coming soon").
     - **Tests:** 342 backend specs + 1004 Playwright tests, all end-to-end; two unit-test files. The backend suite expects a fresh database (15 specs fail on a reused one). No load test in this stretch. ~800 `any` in the backend, ~330 in the frontend; four files over 2 700 lines.
     - **The owner's local development database is gone** (item 4): `de-invoice-postgres` exited on 10.09.2026, its data directory `/tmp/pgdata` no longer exists; the last real backup is `backup-2026-09-05-224235`.

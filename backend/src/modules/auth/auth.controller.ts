@@ -458,4 +458,34 @@ export class AuthController {
     await this.authService.resetPassword(token, password);
     return { ok: true, message: 'Passwort wurde aktualisiert. Sie können sich jetzt anmelden.' };
   }
+
+  /**
+   * Tier 575 — change the password while signed in.
+   * Body: { currentPassword, newPassword }. Ends every session of the user
+   * and answers with a new one (cookie, and `sessionToken` as login does).
+   */
+  @Post('change-password')
+  @UseGuards(HeaderAuthGuard)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @HttpCode(HttpStatus.OK)
+  async changePassword(
+    @Req() req: any,
+    @Res({ passthrough: true }) res: Response,
+    @Body() body: { currentPassword?: string; newPassword?: string },
+  ) {
+    const current = typeof body?.currentPassword === 'string' ? body.currentPassword : '';
+    const next = typeof body?.newPassword === 'string' ? body.newPassword : '';
+    if (!current || !next) {
+      throw new BadRequestException('Aktuelles und neues Passwort sind erforderlich');
+    }
+    const { endedSessions } = await this.authService.changePassword(req.user.id, current, next);
+    const session = await this.sessions.issue(res, req.user.id, req);
+    return {
+      ok: true,
+      endedSessions,
+      sessionToken: session.token,
+      sessionExpiresAt: session.expiresAt,
+      message: 'Das Passwort wurde geändert. Alle anderen Sitzungen wurden beendet.',
+    };
+  }
 }

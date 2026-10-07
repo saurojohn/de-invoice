@@ -150,12 +150,7 @@ export class AuthService {
    * Throws BadRequest on expired/invalid token or weak password.
    */
   async resetPassword(tokenPlain: string, newPassword: string): Promise<{ ok: true; userId: string }> {
-    if (newPassword.length < 8) {
-      throw new BadRequestException('Passwort muss mindestens 8 Zeichen lang sein');
-    }
-    if (!/[A-Za-z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
-      throw new BadRequestException('Passwort muss Buchstaben und Zahlen enthalten');
-    }
+    assertPasswordStrength(newPassword);
 
     const userId = await this.verifyPasswordResetToken(tokenPlain);
     if (!userId) {
@@ -201,5 +196,57 @@ export class AuthService {
     } catch { /* ignore */ }
 
     return { ok: true, userId };
+  }
+
+  /**
+   * Tier 575 — a signed-in user sets a new password.
+   *
+   * There was no way to: the only path was "Passwort vergessen", which needs
+   * a working mail server and the mailbox. The current password is asked for
+   * again (a borrowed session must not be enough to take the account), and
+   * every session of the user ends — the caller gets a fresh one from the
+   * controller.
+   */
+  async changePassword(userId: string, currentPassword: string, newPassword: string): Promise<{ endedSessions: number }> {
+    assertPasswordStrength(newPassword);
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, companyId: true, passwordHash: true },
+    });
+    const known = !!user?.passwordHash && (await bcrypt.compare(currentPassword, user.passwordHash));
+    if (!user || !known) {
+      if (user) {
+        await this.audit
+          .writeActivity({ companyId: user.companyId ?? null, userId: user.id, action: 'password_change_failed', entityType: 'auth', entityId: user.id })
+          .catch(() => undefined);
+      }
+      // 400, not 401: the session is fine (the frontend signs out on a 401)
+      throw new BadRequestException('Das aktuelle Passwort ist nicht richtig.');
+    }
+    if (await bcrypt.compare(newPassword, user.passwordHash as string)) {
+      throw new BadRequestException('Das neue Passwort muss sich vom bisherigen unterscheiden.');
+    }
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash: await bcrypt.hash(newPassword, 10), passwordResetToken: null, passwordResetExpires: null },
+    });
+    const endedSessions = await this.sessions.revokeAllForUser(user.id);
+    await this.audit
+      .writeActivity({ companyId: user.companyId ?? null, userId: user.id, action: 'password_changed', entityType: 'auth', entityId: user.id, metadata: { endedSessions } })
+      .catch(() => undefined);
+    return { endedSessions };
+  }
+}
+
+/** The rule for a new password — reset and change (registration: auth.dto.ts). */
+export function assertPasswordStrength(password: string): void {
+  if (password.length < 8) {
+    throw new BadRequestException('Passwort muss mindestens 8 Zeichen lang sein');
+  }
+  if (password.length > 200) {
+    throw new BadRequestException('Passwort darf höchstens 200 Zeichen lang sein');
+  }
+  if (!/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) {
+    throw new BadRequestException('Passwort muss Buchstaben und Zahlen enthalten');
   }
 }
