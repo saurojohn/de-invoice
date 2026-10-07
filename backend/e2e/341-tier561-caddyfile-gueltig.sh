@@ -50,4 +50,8 @@ assert_eq "the backup image is pinned to the server's PostgreSQL version ($PGV)"
 assert_eq "the compose project has a fixed name (the volume names follow from it)" "$(grep -c '^name: de-invoice-prod$' "$C")" "1"
 bash -n "$PROD/restore.sh" && pass "restore.sh parses" || fail "restore.sh has a syntax error"
 assert_eq "…and the docs send a restore through it, not through a pipe into the live database" "$(grep -c 'bash infra/prod/restore.sh' "$PROD/README.md" | awk '{print ($1>=2)}')/$(grep -c 'docker exec -i de-invoice-postgres psql' "$PROD/README.md")" "1/0"
+# Tier 569: the backend image carries the official XRechnung validator —
+# its files come in as a named build context, Java from the image itself.
+assert_eq "the compose file hands the validator's files to the backend build" "$(grep -A1 'additional_contexts:' "$C" | grep -c 'kosit: ../kosit')" "1"
+assert_eq "…and the image has a Java runtime and a place for them" "$(grep -c 'openjdk-17-jre-headless' "$SCRIPT_DIR/../Dockerfile")/$(grep -c '^COPY --from=kosit / /infra/kosit/' "$SCRIPT_DIR/../Dockerfile")" "1/1"
 summary

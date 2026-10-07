@@ -244,6 +244,30 @@ test "$OSS_ACCEPTANCE" = "ACCEPTABLE" && pass "Tier 117: B2B-OSS acceptance=ACCE
   || fail "Tier 117: B2B-OSS acceptance=$OSS_ACCEPTANCE (expected ACCEPTABLE)"
 
 # ───── 4. Engine=invalid → 400 ─────
+note "=== 3b. Tier 569: a rejected document comes with its findings ==="
+# The result used to carry one error: the first line of the CLI's table, cut
+# off after 60 characters and without a rule id. The findings now come from
+# the report input the CLI writes — every failed assertion, rule id, full text.
+T569="t569-$(date +%s)"
+REG569=$(curl -sS -X POST "$API/api/v1/auth/register" -H "Content-Type: application/json" \
+  -d "{\"email\":\"$T569@example.test\",\"password\":\"Tier569-e2e\",\"companyName\":\"$T569 GmbH\"}")
+read -r U569 C569 < <(python3 -c "import sys,json;d=json.loads(sys.argv[1]);print(d['user']['id'], d['user'].get('companyId') or d['company']['id'])" "$REG569")
+H569=(-H "x-user-id: $U569" -H "x-company-id: $C569" -H "Content-Type: application/json")
+J569=$(curl -sS -X POST "$API/api/v1/customers?companyId=$C569" "${H569[@]}" -d '{"name":"Kunde 569","type":"business","address":{"street":"Ring 2","postalCode":"80331","city":"Muenchen","country":"DE"}}')
+K569=$(json_field "$J569" id)
+B569="{\"customerId\":\"$K569\",\"issueDate\":\"$(date +%Y-%m-%d)\",\"items\":[{\"description\":\"Beratung\",\"quantity\":1,\"unit\":\"Std\",\"unitPrice\":100,\"vatRate\":0.19}]}"
+J569=$(curl -sS -X POST "$API/api/v1/invoices?companyId=$C569" "${H569[@]}" -d "$B569")
+I569=$(json_field "$J569" id)
+R569=$(curl -sS -m 120 "$API/api/v1/invoices/$I569/xrechnung/validate?engine=kosit&companyId=$C569" "${H569[@]}")
+assert_eq "a seller without address or tax number: REJECT" "$(json_field "$R569" acceptance)" "REJECT"
+F569=$(python3 -c "
+import json,sys
+d=json.loads(sys.argv[1]); e=d.get('errors',[])
+rules=[x.get('rule') for x in e if x.get('rule')]
+print(len(e)>1, len(rules)==len(e), any(r.startswith('BR-') for r in rules), max((len(x.get('message','')) for x in e), default=0)>60)" "$R569")
+assert_eq "…more than one finding, each with its rule, a BR-* among them, text not cut at 60 chars (was: one, no rule, cut)" "$F569" "True True True True"
+curl -sS -o /dev/null -X DELETE "$API/api/v1/invoices/$I569?companyId=$C569" "${H569[@]}"
+
 note "=== 4. engine=invalid → 400 ==="
 BAD_STATUS=$(curl -sS -o /dev/null -w "%{http_code}" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \

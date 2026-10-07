@@ -135,6 +135,16 @@ export default function InvoiceDetailPage() {
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
   const [sendResult, setSendResult] = useState<{ ok: boolean; message: string } | null>(null)
+  // Tier 569: the XRechnung check (official KoSIT validator where the
+  // installation has it, the built-in rule check otherwise).
+  const [xrCheck, setXrCheck] = useState<{
+    valid: boolean
+    engine?: string
+    acceptance?: string
+    errors: { rule?: string; message: string; location?: string }[]
+    warnings: { rule?: string; message: string; location?: string }[]
+  } | null>(null)
+  const [xrChecking, setXrChecking] = useState(false)
   const [statusChanging, setStatusChanging] = useState(false)
   const [deleting, setDeleting] = useState(false)
   // Tier 33: customer self-service portal link.
@@ -1316,6 +1326,28 @@ export default function InvoiceDetailPage() {
     }
   }
 
+  const checkXRechnung = async () => {
+    const companyId = localStorage.getItem("companyId")
+    if (!companyId || !invoice) return
+    setXrChecking(true)
+    setXrCheck(null)
+    try {
+      const { apiGet } = await import("@/lib/api")
+      const res = await apiGet<any>(`/api/v1/invoices/${invoice.id}/xrechnung/validate?engine=kosit&companyId=${companyId}`)
+      setXrCheck({
+        valid: !!res.valid,
+        engine: res.engine,
+        acceptance: res.acceptance,
+        errors: Array.isArray(res.errors) ? res.errors : [],
+        warnings: Array.isArray(res.warnings) ? res.warnings : [],
+      })
+    } catch (err: any) {
+      toast.error(err?.message || t("xrechnungCheck.failed"))
+    } finally {
+      setXrChecking(false)
+    }
+  }
+
   const downloadZUGFeRD = async () => {
     const companyId = localStorage.getItem("companyId")
     if (!companyId || !invoice) return
@@ -1513,6 +1545,14 @@ export default function InvoiceDetailPage() {
             </Button>
             <Button
               variant="outline"
+              onClick={checkXRechnung}
+              disabled={xrChecking}
+              data-testid="invoice-check-xrechnung"
+            >
+              {xrChecking ? t("xrechnungCheck.checking") : t("xrechnungCheck.button")}
+            </Button>
+            <Button
+              variant="outline"
               onClick={downloadZUGFeRD}
               data-testid="invoice-download-zugferd"
             >
@@ -1606,6 +1646,56 @@ export default function InvoiceDetailPage() {
       </header>
 
       <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8 max-w-4xl">
+        {/* Tier 569: the result of "XRechnung prüfen". */}
+        {xrCheck && (
+          <div
+            className={`mb-6 print:hidden rounded-lg border px-4 py-3 text-sm ${
+              xrCheck.valid ? "bg-emerald-50 border-emerald-200 text-emerald-900" : "bg-red-50 border-red-200 text-red-900"
+            }`}
+            data-testid="xrechnung-check-result"
+            data-valid={xrCheck.valid ? "1" : "0"}
+            data-engine={xrCheck.engine || "basic"}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="font-semibold">
+                  {xrCheck.valid ? "✓ " + t("xrechnungCheck.valid") : "✗ " + t("xrechnungCheck.invalid")}
+                </p>
+                <p className="mt-1">
+                  {xrCheck.engine === "kosit" ? t("xrechnungCheck.engineKosit") : t("xrechnungCheck.engineBasic")}
+                </p>
+              </div>
+              <button type="button" className="underline shrink-0" onClick={() => setXrCheck(null)}>
+                {t("common.close")}
+              </button>
+            </div>
+            {xrCheck.errors.length > 0 && (
+              <ul className="mt-2 list-disc pl-5 space-y-1" data-testid="xrechnung-check-errors">
+                {xrCheck.errors.map((e, i) => (
+                  <li key={`e${i}`}>
+                    {e.rule ? <span className="font-mono">{e.rule}: </span> : null}
+                    {e.message}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {xrCheck.warnings.filter((w) => w.rule !== "BT-ENGINE").length > 0 && (
+              <>
+                <p className="mt-2 font-medium">{t("xrechnungCheck.warnings")}</p>
+                <ul className="list-disc pl-5 space-y-1">
+                  {xrCheck.warnings
+                    .filter((w) => w.rule !== "BT-ENGINE")
+                    .map((w, i) => (
+                      <li key={`w${i}`}>
+                        {w.rule ? <span className="font-mono">{w.rule}: </span> : null}
+                        {w.message}
+                      </li>
+                    ))}
+                </ul>
+              </>
+            )}
+          </div>
+        )}
         {/* Sender letterhead (header card). Shown both on screen and
             in browser print. Mirrors the PDF's v5 header block:
               - Logo + Company info share the same top row.

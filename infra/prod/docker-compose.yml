@@ -169,6 +169,9 @@ services:
     build:
       context: ../../backend
       dockerfile: Dockerfile
+      # Tier 569: the official XRechnung validator's files, for the image.
+      additional_contexts:
+        kosit: ../kosit
     image: de-invoice-backend:latest
     container_name: de-invoice-backend
     restart: unless-stopped

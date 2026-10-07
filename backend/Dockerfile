@@ -108,11 +108,25 @@ RUN npx prisma generate
 RUN DATABASE_URL=postgresql://nobody:nobody@localhost:9999/nobody \
     npx prisma db push --skip-generate --accept-data-loss 2>&1 | tail -3 || true
 
+# ─── The official XRechnung validator (KoSIT) ──────────────────
+# Tier 569. Its files (validator.jar, scenarios.xml, the schema and
+# schematron repository — 18 MB, in git under infra/kosit) live outside this
+# build context. A builder hands them in as a named context called `kosit`,
+# which replaces this empty stage:
+#   compose:  build.additional_contexts: { kosit: ../kosit }
+#   CLI:      docker build --build-context kosit=infra/kosit backend
+# Built without it, the image simply has no validator and the API falls back
+# to the in-process check (as it always did in the container).
+FROM scratch AS kosit
+
 # ─── Stage 3: runtime ──────────────────────────────────────────
 FROM node:${NODE_VERSION}-bookworm-slim AS runtime
 WORKDIR /app
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends wget ca-certificates \
+# Tier 569: a Java runtime for the KoSIT validator (the man directory is
+# what the JRE's post-install step expects on a slim image).
+RUN mkdir -p /usr/share/man/man1 \
+  && apt-get update \
+  && apt-get install -y --no-install-recommends wget ca-certificates openjdk-17-jre-headless \
   && rm -rf /var/lib/apt/lists/* \
   && addgroup --system app && adduser --system --ingroup app app
 
@@ -136,6 +150,9 @@ COPY --from=dev --chown=app:app /app/prisma ./prisma
 # created with `db push`).
 COPY --from=dev --chown=app:app /app/scripts ./scripts
 COPY --from=dev --chown=app:app /app/tsconfig.json ./tsconfig.json
+# Tier 569: where kosIT-validator.service.ts looks for it — three levels up
+# from /app/src/invoices is /, so /infra/kosit.
+COPY --from=kosit / /infra/kosit/
 
 # Switch back to root for runtime. The
 # `app` user was originally added for

@@ -3778,5 +3778,15 @@
     "amount": "{year}: Betriebsausgabe {amount}.",
     "none": "Für dieses Jahr nicht erfasst.",
     "failed": "Homeoffice konnte nicht geladen oder gespeichert werden."
+  },
+  "xrechnungCheck": {
+    "button": "XRechnung prüfen",
+    "checking": "Wird geprüft …",
+    "valid": "Die XRechnung ist gültig.",
+    "invalid": "Die XRechnung ist nicht gültig.",
+    "engineKosit": "Geprüft mit dem offiziellen KoSIT-Validator (XML-Schema und Geschäftsregeln EN 16931 / XRechnung).",
+    "engineBasic": "Der offizielle KoSIT-Validator ist in dieser Installation nicht verfügbar — geprüft mit der eingebauten Regelprüfung, die nur einen Teil der Regeln abdeckt.",
+    "warnings": "Hinweise",
+    "failed": "Die Prüfung konnte nicht durchgeführt werden."
   }
 }

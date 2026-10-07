@@ -3778,5 +3778,15 @@
     "amount": "{year}: business expense {amount}.",
     "none": "Not recorded for this year.",
     "failed": "The home office could not be loaded or saved."
+  },
+  "xrechnungCheck": {
+    "button": "Check XRechnung",
+    "checking": "Checking …",
+    "valid": "The XRechnung is valid.",
+    "invalid": "The XRechnung is not valid.",
+    "engineKosit": "Checked with the official KoSIT validator (XML schema and business rules EN 16931 / XRechnung).",
+    "engineBasic": "The official KoSIT validator is not available in this installation — checked with the built-in rule check, which covers only part of the rules.",
+    "warnings": "Notes",
+    "failed": "The check could not be carried out."
   }
 }

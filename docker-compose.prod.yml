@@ -55,6 +55,9 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      # Tier 569: the official XRechnung validator's files, for the image.
+      additional_contexts:
+        kosit: ./infra/kosit
     container_name: de-invoice-backend
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-de_invoice}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:-de_invoice}?schema=public

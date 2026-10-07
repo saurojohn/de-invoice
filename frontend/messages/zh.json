@@ -3778,5 +3778,15 @@
     "amount": "{year} 年：经营支出 {amount}。",
     "none": "该年份尚未登记。",
     "failed": "居家办公数据无法加载或保存。"
+  },
+  "xrechnungCheck": {
+    "button": "检查 XRechnung",
+    "checking": "正在检查…",
+    "valid": "该 XRechnung 有效。",
+    "invalid": "该 XRechnung 无效。",
+    "engineKosit": "已使用官方 KoSIT 校验器检查(XML 结构与 EN 16931 / XRechnung 业务规则)。",
+    "engineBasic": "当前安装中没有官方 KoSIT 校验器——已使用内置规则检查,只覆盖部分规则。",
+    "warnings": "提示",
+    "failed": "无法执行检查。"
   }
 }

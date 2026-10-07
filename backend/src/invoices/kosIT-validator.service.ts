@@ -207,6 +207,21 @@ export async function validateXRechnungWithKoSIT(
       execResult.stdout || '',
       execResult.stderr || '',
     )
+    // Tier 569: the findings themselves. The result table gives one line —
+    // the first error, cut off after 60 characters ("[BR-S-02]-An Invoice
+    // that contains an Invoice line (BG-25) w"). The report input the CLI
+    // serialises next to it has every failed assertion with its rule id,
+    // severity, location and full text.
+    try {
+      const reportInput = await fs.readFile(path.join(outDir, 'input-reportInput.xml'), 'utf-8')
+      const findings = parseReportInput(reportInput)
+      if (findings.errors.length > 0 || findings.warnings.length > 0) {
+        result.errors = findings.errors
+        result.warnings = findings.warnings
+      }
+    } catch {
+      // no report input (the CLI failed before writing it): the table line stays
+    }
     result.durationMs = Date.now() - start
     return result
   } finally {
@@ -231,6 +246,46 @@ export async function validateXRechnungWithKoSIT(
  *   Validation successful!  (exit 0)
  *   Validation failed!      (exit 1)
  */
+const XML_ENTITIES: Record<string, string> = { '&lt;': '<', '&gt;': '>', '&amp;': '&', '&quot;': '"', '&apos;': "'" }
+const unescapeXml = (t: string) => t.replace(/&(lt|gt|amp|quot|apos);/g, (m) => XML_ENTITIES[m] ?? m)
+
+/**
+ * The failed assertions (schematron) and syntax errors (schema) from the
+ * validator's serialised report input. The namespace prefixes are whatever
+ * the serialiser chose (ns3:, svrl: …), so they are matched loosely.
+ * `fatal` and `error` are errors; `warning` and `information` are notes.
+ * The same rule at the same place is reported once.
+ */
+export function parseReportInput(xml: string): Pick<KoSITResult, 'errors' | 'warnings'> {
+  const errors: KoSITResult['errors'] = []
+  const warnings: KoSITResult['warnings'] = []
+  const seen = new Set<string>()
+  const attr = (tag: string, name: string) => unescapeXml(new RegExp(`\\b${name}="([^"]*)"`).exec(tag)?.[1] ?? '')
+  for (const m of xml.matchAll(/<(?:[\w.-]+:)?failed-assert\b([^>]*)>([\s\S]*?)<\/(?:[\w.-]+:)?failed-assert>/g)) {
+    const rule = attr(m[1], 'id') || undefined
+    const flag = attr(m[1], 'flag').toLowerCase()
+    const location = attr(m[1], 'location') || undefined
+    const text = unescapeXml(/<(?:[\w.-]+:)?text>([\s\S]*?)<\/(?:[\w.-]+:)?text>/.exec(m[2])?.[1] ?? '')
+      .replace(/\s+/g, ' ')
+      .trim()
+    const key = `${rule}|${location}|${text}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    const finding = { rule, message: text || rule || 'failed assertion', location }
+    if (flag === 'warning' || flag === 'information' || flag === 'info') warnings.push(finding)
+    else errors.push(finding)
+  }
+  for (const m of xml.matchAll(/<(?:[\w.-]+:)?xmlSyntaxError\b[^>]*>([\s\S]*?)<\/(?:[\w.-]+:)?xmlSyntaxError>/g)) {
+    const text = unescapeXml(/<(?:[\w.-]+:)?message>([\s\S]*?)<\/(?:[\w.-]+:)?message>/.exec(m[1])?.[1] ?? '')
+      .replace(/\s+/g, ' ')
+      .trim()
+    if (!text || seen.has(`xsd|${text}`)) continue
+    seen.add(`xsd|${text}`)
+    errors.push({ rule: 'XSD', message: text })
+  }
+  return { errors, warnings }
+}
+
 function parseKoSITResult(stdout: string, stderr: string): KoSITResult {
   const result: KoSITResult = {
     valid: false,

@@ -98,6 +98,9 @@ jobs:
           # Set the repository variable NEXT_PUBLIC_API_URL to the public URL
           # before pushing a v* tag; without it this build fails on purpose.
           build-args: ${{ matrix.name == 'frontend' && format('NEXT_PUBLIC_API_URL={0}', vars.NEXT_PUBLIC_API_URL) || '' }}
+          # Tier 569: the backend image carries the official XRechnung
+          # validator; its files live outside ./backend (infra/kosit).
+          build-contexts: ${{ matrix.name == 'backend' && 'kosit=./infra/kosit' || '' }}
           # We always push — the alternative
           # (build only, then push manually)
           # adds a step for no benefit when

@@ -2622,6 +2622,18 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 569 — the official XRechnung validator, in production and on the invoice page
+
+Asked for by the owner on 07.10.2026. Until now the KoSIT validator ran in CI (spec 140, on the runner's Java) and on a developer's machine; the production image had neither Java nor the validator's files, the API fell back to the in-process check there, and no page offered the check at all.
+
+- **Image.** `backend/Dockerfile` installs `openjdk-17-jre-headless` and copies the validator to `/infra/kosit` (where `kosIT-validator.service.ts` resolves it from `/app/src/invoices`). The files (18 MB, in git under `infra/kosit`) are outside the build context, so they come in as a named context `kosit` that replaces an empty `FROM scratch AS kosit` stage: `additional_contexts` in both compose files, `build-contexts` in `release.yml`. Built without the context the image has no validator and behaves as before — both ways were built and inspected.
+- **Findings.** The result carried one error: the first line of the CLI's table, cut at 60 characters, no rule id. `parseReportInput()` now reads the report input the CLI serialises (`input-reportInput.xml`): every failed assertion with rule id, severity (fatal/error → errors, warning/information → notes), location and full text, plus schema errors. The table line remains the fallback.
+- **Page.** "XRechnung prüfen" on the invoice page (next to the download): valid / not valid, which engine checked it (and, if the official one is not there, that the built-in check covers only part of the rules), the findings.
+
+Measured on the production stack (dry run): `engine: kosit`, ~2 s per check; a seller without tax number → REJECT with 12 findings (BR-S-02, BR-CO-26, BR-DE-1 … in full) and 2 notes; the same invoice after completing the company → ACCEPTABLE, schema Y, schematron Y; both shown on the page in a real browser. Spec 140 section 3b (fails on the old parser), Playwright `xrechnung-check-tier569.spec.ts` (accepts either engine), spec 341 (image and compose wiring).
+
+Costs: the backend image grows by the JRE (~200 MB; 1.7 GB in total here). **Not done:** a check of the ZUGFeRD/CII file from the page (the API validates UBL only on this route); the 30-second timeout of a check was not load-tested.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 568 — the demo bank is not for a production installation
 
 Decided by the owner on 07.10.2026 ("按你的建议改"). A mock bank connection ("Demo-Modus") writes three invented `MOCK-…` transactions as a `fints-mock` statement; from then on they are bank transactions like any other — matched to open invoices and, once confirmed, booked as payments. The checkbox was ticked by default in the form and the API defaulted to it (`mockMode ?? true`) in every environment.
