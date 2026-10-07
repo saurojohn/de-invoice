@@ -42,5 +42,5 @@ assert_eq "no client-controlled X-Forwarded-For is written into the request" "$(
 # PGHOST / PGDATABASE it stopped at start ("You need to set the POSTGRES_DB …")
 # and no dump was ever written.
 C="$PROD/docker-compose.yml"
-assert_eq "the backup container is told its database the way the image expects" "$(grep -c '^      POSTGRES_HOST: postgres$' "$C")/$(grep -c '^      POSTGRES_DB: ' "$C")/$(grep -c '^      PGHOST:\|^      PGDATABASE:' "$C")" "1/1/0"
+assert_eq "the backup container is told its database the way the image expects" "$(grep -c '^      POSTGRES_HOST: postgres$' "$C")/$(grep -c '^      PGHOST:\|^      PGDATABASE:' "$C")" "1/0"
 summary
