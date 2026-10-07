@@ -217,7 +217,7 @@ export class VatValidationController {
     // Tier 547: the caller's company only. This ran the re-verification for
     // every company in the database and answered with their counts (measured:
     // a fresh company's admin got "customers: 255").
-    const companyId = req.user?.companyId || String(req.headers['x-company-id'] || '')
+    const companyId = req.user?.companyId || '' // the active company (header-auth.guard.ts, Tier 565)
     if (!companyId) throw new BadRequestException('companyId ist erforderlich')
     return this.reverifyScheduler.runNowForTest(companyId)
   }

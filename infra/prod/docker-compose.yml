@@ -213,8 +213,10 @@ services:
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       SMTP_FROM_NAME: ${SMTP_FROM_NAME:-}
       SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
-      # Tier 548: who may use the installation-wide routes (backups,
-      # schedulers, storage). Empty = the admins of the oldest company.
+      # Tier 548 / 565: who may use the installation-wide routes (backups,
+      # schedulers, storage): the admins of the oldest company. With addresses
+      # here, only those of them — the list narrows that circle, it cannot
+      # name someone outside it (registration does not verify addresses).
       SYSTEM_ADMIN_EMAILS: ${SYSTEM_ADMIN_EMAILS:-}
       # Tier 549: when set, GET /metrics needs `Authorization: Bearer <token>`.
       METRICS_TOKEN: ${METRICS_TOKEN:-}

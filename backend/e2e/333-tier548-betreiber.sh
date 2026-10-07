@@ -59,6 +59,17 @@ assert_eq "…as many as before — the refused requests ran and deleted nothing
 assert_eq "GET the schedulers: 200" "$(as op GET "/api/v1/admin/cron-health")" "200"
 assert_eq "GET the storage configuration: 200" "$(as op GET "/api/v1/storage/config")" "200"
 assert_eq "GET the notification settings: 200" "$(as op GET "/api/v1/system/notifications/config")" "200"
+note "=== Tier 565: the company a request acts in, not the user's home company ==="
+# req.user.companyId was the HOME company and req.user.role the ACTIVE
+# company's role. A user at home in the operator's company (as a viewer) and
+# admin of another company, acting in that other company, passed the check:
+# "company = the oldest" was true of one company, "role = admin" of the other.
+q "insert into \"UserCompany\" (\"userId\", \"companyId\", role) values ('$U', '$OLDEST', 'viewer') on conflict do nothing" >/dev/null
+q "update \"User\" set \"companyId\"='$OLDEST' where id='$U'" >/dev/null
+assert_eq "home in the operator's company (viewer), admin elsewhere, acting elsewhere: 403 (was 200)" "$(as new GET "/api/v1/admin/backups")" "403"
+assert_eq "…and acting in the operator's company as its viewer: 403" "$(curl -s -o /dev/null -w '%{http_code}' "$API/api/v1/admin/backups" -H "x-user-id: $U" -H "x-company-id: $OLDEST")" "403"
+q "delete from \"UserCompany\" where \"userId\"='$U' and \"companyId\"='$OLDEST'" >/dev/null
+q "update \"User\" set \"companyId\"='$C' where id='$U'" >/dev/null
 rm -f /tmp/t548.out
 
 summary

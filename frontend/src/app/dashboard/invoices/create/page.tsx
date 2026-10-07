@@ -456,9 +456,15 @@ function CreateInvoicePageInner() {
         // has a defaultVatMode that's not 'standard' (standard
         // is the default with both booleans false, no
         // setForm needed).
-        if (co.defaultVatMode === "reverseCharge") {
+        // Tier 565: not for a clone — it carries the tax treatment of the
+        // invoice it was made from. Since Tier 562 this request succeeds, and
+        // whichever of the two answers came last decided: a standard invoice
+        // cloned in a company whose default is Reverse-Charge could turn into
+        // a § 13b invoice. (Kleinunternehmer is the company's status, not a
+        // default — it applies to a clone as well.)
+        if (co.defaultVatMode === "reverseCharge" && !cloneFromId) {
           setForm((prev) => ({ ...prev, reverseCharge: true, euTransaction: false }))
-        } else if (co.defaultVatMode === "igL") {
+        } else if (co.defaultVatMode === "igL" && !cloneFromId) {
           setForm((prev) => ({ ...prev, reverseCharge: false, euTransaction: true }))
         } else if (co.defaultVatMode === "kleinunternehmer") {
           // Tier 480: Kleinunternehmer (§ 19 UStG) = no USt — every line
@@ -476,7 +482,7 @@ function CreateInvoicePageInner() {
         // the pre-fill; the user can pick the radio
         // manually.
       })
-  }, [isEdit])
+  }, [isEdit, cloneFromId])
 
   // Tier 150: watch the form for a likely-duplicate
   // combination (same customer + similar amount + nearby

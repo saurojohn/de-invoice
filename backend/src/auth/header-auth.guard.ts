@@ -132,7 +132,14 @@ export class HeaderAuthGuard implements CanActivate {
       req.headers['x-readonly'] || '',
     ).toLowerCase()
     const readonly = readonlyHeader === '1' || readonlyHeader === 'true'
-    req.user = { ...user, role: access.role, readonly }
+    // Tier 565: `companyId` is the company this request acts in — the verified
+    // x-company-id — like `role`, which is that company's role. It was the
+    // user's HOME company (User.companyId, nullable): for a user with grants
+    // in two companies the pair (companyId, role) described two different
+    // companies, and everything that scoped by `req.user.companyId` (the error
+    // list and its bulk actions, the operator check, /auth/me) looked at the
+    // wrong one — or, with a null home company, at none.
+    req.user = { ...user, companyId, homeCompanyId: user.companyId, role: access.role, readonly }
 
     // Tier 400: the audit context (Tier 384) is started by a middleware that
     // runs before guards, so with a session cookie it has no user yet. Fill it

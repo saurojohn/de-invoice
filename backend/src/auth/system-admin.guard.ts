@@ -16,10 +16,9 @@ import { RolesGuard } from './roles.guard'
  * for all companies), the storage configuration, the operator's notification
  * settings, POST /fints/auto-run (the bank sync of every company).
  *
- * Who the operator is:
- *   - `SYSTEM_ADMIN_EMAILS` (comma-separated) when set: exactly those users;
- *   - otherwise the admins of the oldest company in the database — the one
- *     the installation was set up with.
+ * Who the operator is: an admin of the oldest company in the database — the
+ * one the installation was set up with — acting in that company. With
+ * `SYSTEM_ADMIN_EMAILS` (comma-separated) set, only those of them.
  */
 @Injectable()
 export class SystemAdminGuard implements CanActivate {
@@ -31,16 +30,20 @@ export class SystemAdminGuard implements CanActivate {
     const refuse = () => new ForbiddenException('Diese Funktion ist dem Betreiber der Installation vorbehalten.')
     if (!user) throw refuse()
 
+    // Tier 565: the operator's company first, in every case. The e-mail list
+    // used to be sufficient on its own — but registration is public and
+    // nobody verifies an address: whoever registered a new company with a
+    // listed address that had no account yet was the operator. A new
+    // registration creates a new company, never joins the oldest one, so the
+    // list can now only narrow the circle, not open it.
+    const first = await this.prisma.company.findFirst({ orderBy: { createdAt: 'asc' }, select: { id: true } })
+    if (!first || user.companyId !== first.id || user.role !== 'admin') throw refuse()
+
     const listed = String(process.env.SYSTEM_ADMIN_EMAILS || '')
       .split(',')
       .map((e) => e.trim().toLowerCase())
       .filter(Boolean)
-    if (listed.length > 0) {
-      if (listed.includes(String(user.email || '').toLowerCase())) return true
-      throw refuse()
-    }
-    const first = await this.prisma.company.findFirst({ orderBy: { createdAt: 'asc' }, select: { id: true } })
-    if (first && user.companyId === first.id && user.role === 'admin') return true
+    if (listed.length === 0 || listed.includes(String(user.email || '').toLowerCase())) return true
     throw refuse()
   }
 }

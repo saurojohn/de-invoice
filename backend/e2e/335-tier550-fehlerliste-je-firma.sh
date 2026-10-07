@@ -58,4 +58,14 @@ assert_eq "…B's are gone" "$(st "$CB")" "gone"
 assert_eq "…A's resolved rows are still there (were deleted)" "$(st "$CA")" "resolved,resolved"
 assert_eq "A prunes its own" "$(json_field "$(post A /prune)" deleted)" "2"
 
+note "=== Tier 565: a user without a home company ==="
+# The bulk actions scoped by the user's HOME company (User.companyId, which
+# may be null) instead of the company the request acts in. With null, prune
+# had no company at all and deleted every company's rows.
+report A three; post A /resolve-all >/dev/null; report B three; post B /resolve-all >/dev/null
+q "update \"User\" set \"companyId\"=null where id='$UB'" >/dev/null
+assert_eq "B's user has no home company; B prunes: B's one row (was every company's)" "$(json_field "$(post B /prune)" deleted)" "1"
+assert_eq "…A's resolved row is still there" "$(st "$CA")" "resolved"
+q "update \"User\" set \"companyId\"='$CB' where id='$UB'" >/dev/null
+post A /prune >/dev/null
 summary

@@ -244,6 +244,10 @@ export default function CustomerDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [tab, setTab] = useState<Tab>("invoices")
+  // Tier 565: a tab whose request failed says so and can be asked again.
+  // (Tier 562 turned a failure into an empty list to stop an endless retry —
+  // which then looked exactly like "this customer has none".)
+  const [tabError, setTabError] = useState<Partial<Record<Tab, string>>>({})
 
   // Tier 128: VIES (EU VAT-ID validation) state.
   // The latest result drives the badge color next
@@ -566,6 +570,7 @@ export default function CustomerDetailPage() {
         .catch((err) => {
           console.error("invoices load failed:", err)
           setInvoices([]) // Tier 562: an empty list, not null — null means "not loaded yet" and the effect asked again, forever
+          setTabError((p) => ({ ...p, invoices: err?.message || String(err) }))
         })
         .finally(() => setInvoicesLoading(false))
     }
@@ -578,6 +583,7 @@ export default function CustomerDetailPage() {
         .catch((err) => {
           console.error("plans load failed:", err)
           setPlans([]) // Tier 562: an empty list, not null — null means "not loaded yet" and the effect asked again, forever
+          setTabError((p) => ({ ...p, plans: err?.message || String(err) }))
         })
         .finally(() => setPlansLoading(false))
     }
@@ -590,6 +596,7 @@ export default function CustomerDetailPage() {
         .catch((err) => {
           console.error("mahnungen load failed:", err)
           setMahnungen([]) // Tier 562: an empty list, not null — null means "not loaded yet" and the effect asked again, forever
+          setTabError((p) => ({ ...p, mahnungen: err?.message || String(err) }))
         })
         .finally(() => setMahnungenLoading(false))
     }
@@ -605,6 +612,7 @@ export default function CustomerDetailPage() {
         .catch((err) => {
           console.error("pauses load failed:", err)
           setPauses([]) // Tier 562: an empty list, not null — null means "not loaded yet" and the effect asked again, forever
+          setTabError((p) => ({ ...p, pauses: err?.message || String(err) }))
         })
         .finally(() => setPausesLoading(false))
     }
@@ -617,6 +625,7 @@ export default function CustomerDetailPage() {
         .catch((err) => {
           console.error("credit ledger load failed:", err)
           setCreditLedger([]) // Tier 562: an empty list, not null — null means "not loaded yet" and the effect asked again, forever
+          setTabError((p) => ({ ...p, credit: err?.message || String(err) }))
         })
         .finally(() => setCreditLoading(false))
     }
@@ -632,6 +641,7 @@ export default function CustomerDetailPage() {
         .catch((err) => {
           console.error("emails load failed:", err)
           setEmails([]) // Tier 562: an empty list, not null — null means "not loaded yet" and the effect asked again, forever
+          setTabError((p) => ({ ...p, emails: err?.message || String(err) }))
         })
         .finally(() => setEmailsLoading(false))
     }
@@ -683,6 +693,7 @@ export default function CustomerDetailPage() {
         .catch((err) => {
           console.error("payments load failed:", err)
           setPayments([]) // Tier 562: an empty list, not null — null means "not loaded yet" and the effect asked again, forever
+          setTabError((p) => ({ ...p, payments: err?.message || String(err) }))
         })
         .finally(() => setPaymentsLoading(false))
     }
@@ -1290,6 +1301,34 @@ export default function CustomerDetailPage() {
       </div>
 
       {/* Tab content */}
+      {tabError[tab] && (
+        <div
+          className="mb-4 bg-red-50 border border-red-200 text-red-800 text-sm rounded-lg px-4 py-2"
+          data-testid="customer-tab-error"
+        >
+          ⚠ {t("common.loadError")}: {tabError[tab]}{" "}
+          <button
+            type="button"
+            className="ml-2 underline"
+            data-testid="customer-tab-retry"
+            onClick={() => {
+              const again: Partial<Record<Tab, () => void>> = {
+                invoices: () => setInvoices(null),
+                plans: () => setPlans(null),
+                mahnungen: () => setMahnungen(null),
+                pauses: () => setPauses(null),
+                credit: () => setCreditLedger(null),
+                emails: () => setEmails(null),
+                payments: () => setPayments(null),
+              }
+              setTabError((p) => ({ ...p, [tab]: undefined }))
+              again[tab]?.() // null = "not loaded yet": the effect asks once more
+            }}
+          >
+            {t("common.retry")}
+          </button>
+        </div>
+      )}
       {tab === "invoices" && (
         <Card>
           <CardContent className="pt-6">

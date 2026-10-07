@@ -13,7 +13,8 @@
 #      not dropped; remove it yourself once the restore is confirmed,
 #   3. creates an empty database and loads the dump into it, stopping at the
 #      first error,
-#   4. starts backend + frontend again.
+#   4. starts backend + frontend again — also when the dump does not load: then
+#      the previous database is put back and nothing has changed.
 #
 # Usage (from the repository root, on the server):
 #   bash infra/prod/restore.sh                 # the latest dump
@@ -52,6 +53,11 @@ if [[ "${RESTORE_YES:-}" != "1" ]]; then
   [[ "$answer" == "RESTORE" ]] || { echo "nothing done"; exit 1; }
 fi
 
+# Tier 565: whatever happens from here on, the app is started again. A failed
+# load used to end the script with the app stopped.
+restart() { echo "starting backend and frontend…"; "${DC[@]}" up -d backend frontend; }
+trap restart EXIT
+
 echo "stopping backend and frontend…"
 "${DC[@]}" stop backend frontend
 
@@ -63,11 +69,21 @@ echo "stopping backend and frontend…"
   # anything still connected (an exporter, a forgotten psql) would block the rename
   admin -c "select pg_terminate_backend(pid) from pg_stat_activity where datname = '"'"'$POSTGRES_DB'"'"' and pid <> pg_backend_pid()" >/dev/null
   admin -c "ALTER DATABASE \"$POSTGRES_DB\" RENAME TO \"${POSTGRES_DB}_before_restore\"" -c "CREATE DATABASE \"$POSTGRES_DB\""
-  gunzip -c "/backups/$f" | psql -h "$POSTGRES_HOST" -p "$POSTGRES_PORT" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 -q >/dev/null
-  echo "restored $f into $POSTGRES_DB; the previous database is ${POSTGRES_DB}_before_restore"
+  # Tier 565: a dump that does not load must not leave a half-filled database
+  # in place of the one that was there. gunzip -t first (a truncated file is
+  # the likely case), and if the load still fails: back to the previous one.
+  if gunzip -t "/backups/$f" 2>/dev/null \
+     && gunzip -c "/backups/$f" | psql -h "$POSTGRES_HOST" -p "$POSTGRES_PORT" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 -q >/dev/null; then
+    echo "restored $f into $POSTGRES_DB; the previous database is ${POSTGRES_DB}_before_restore"
+  else
+    echo "the dump did not load — putting the previous database back" >&2
+    admin -c "DROP DATABASE \"$POSTGRES_DB\"" -c "ALTER DATABASE \"${POSTGRES_DB}_before_restore\" RENAME TO \"$POSTGRES_DB\""
+    echo "NOT restored: $POSTGRES_DB is as it was before" >&2
+    exit 4
+  fi
 ' sh "$FILE"
 
-echo "starting backend and frontend…"
-"${DC[@]}" up -d backend frontend
+trap - EXIT
+restart
 echo "done. Check the app, then remove the old database when you are sure:"
 echo "  ${DC[*]} exec postgres psql -U <user> -d postgres -c 'DROP DATABASE \"<name>_before_restore\"'"

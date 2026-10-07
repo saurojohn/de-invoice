@@ -81,4 +81,13 @@ test("a customer tab whose request fails is not asked for again and again", asyn
   await page.waitForTimeout(6000)
   expect(asked, "the failing request was made at least once").toBeGreaterThan(0)
   expect(asked, `the failing request was made ${asked} times (was: without end)`).toBeLessThan(5)
+  // Tier 565: and the tab says that it failed — an empty list looked like
+  // "this customer has no invoices" — and can be asked again.
+  await expect(page.getByTestId("customer-tab-error")).toBeVisible()
+  const before = asked
+  await page.unroute("**/api/v1/invoices?**")
+  await page.getByTestId("customer-tab-retry").click()
+  await expect(page.getByTestId("customer-tab-error")).toHaveCount(0)
+  await page.waitForTimeout(1500)
+  expect(asked, "retry does not go through the failing stub again").toBe(before)
 })

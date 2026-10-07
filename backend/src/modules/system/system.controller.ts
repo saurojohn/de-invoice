@@ -516,7 +516,10 @@ export class SystemController {
   @Require("users.read")
   async prune(@Req() req: Request) {
     // Tier 550: a company's own rows — it deleted every company's.
-    const result = await this.tracker.prune(30, (req as any).user?.companyId)
+    const companyId = (req as any).user?.companyId
+    // Tier 565: without a company the service prunes every company's rows.
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const result = await this.tracker.prune(30, companyId)
     return { ok: true, ...result }
   }
 
