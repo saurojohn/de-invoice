@@ -283,64 +283,22 @@ docker compose -f infra/prod/docker-compose.yml exec postgres \
 ### Confirm a backup ran
 
 ```bash
-# List backups in the named volume.
-docker run --rm -v deinvoicenet_backups:/backups alpine \
-  ls -lh /backups
-
-# Most recent should be <26h old.
+bash infra/prod/restore.sh --list      # the newest in last/ should be < 26 h old
 ```
 
 ### Restore from backup
 
-The backup script writes one file per run:
-`de_invoice-YYYY-MM-DDTHHMMSS.sql.gz`.
-
 ```bash
-cd /opt/de-invoice/infra/prod
-
-# 1. Stop the backend so it doesn't write to the DB
-#    during the restore.
-docker compose stop backend frontend
-
-# 2. Find the backup you want.
-ls -lh /var/lib/docker/volumes/deinvoicenet_backups/_data/
-
-# 3. Restore. db.sql.gz is pg_dump custom format
-#    (NOT plain SQL — gunzip -c alone will refuse).
-#    Use pg_restore from a sibling postgres image with
-#    the backup volume mounted read-only. The postgres
-#    container is on the deinvoicenet network so we can
-#    reach it via host.docker.internal. Tier 220
-#    confirmed the path end-to-end (1.4s restore on
-#    887 KB SQL dump, 6315 invoices / 31 customers /
-#    4 vouchers / 3 payments / 3 webhooks / 11
-#    deliveries — matches production mod the last 24h
-#    of activity, well within RPO).
-docker run --rm -i \
-  -e PGPASSWORD=de_invoice_pass \
-  -v /var/lib/docker/volumes/deinvoicenet_backups/_data:/backup:ro \
-  postgres:16-alpine \
-  pg_restore -h host.docker.internal -p 5432 -U de_invoice \
-    -d de_invoice --no-owner --no-acl \
-    "/backup/de_invoice-2026-07-28-030001.sql.gz"
-
-# 4. Restart backend + frontend.
-docker compose up -d backend frontend
-
-# 5. Verify.
-curl -s https://invoice.shleder.de/api/v1/health/deep | jq
+bash infra/prod/restore.sh             # the latest dump; or name one from --list
+curl -s https://invoice.shleder.de/api/v1/health/deep
 ```
 
-If the backup is encrypted (you set
-`BACKUP_ENCRYPTION_PASSPHRASE` in `.env`):
-
-```bash
-# Decrypt + decompress on the fly.
-gpg --batch --yes --passphrase "$BACKUP_ENCRYPTION_PASSPHRASE" \
-    --decrypt /var/backups/de-invoice/backup-2026-07-28/db.sql.gz.gpg \
-  | gunzip \
-  | docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice
-```
+The backup container writes plain-SQL dumps (`<db>-YYYYMMDD-HHMMSS.sql.gz`,
+gzip). The script keeps the current database as `<db>_before_restore` and
+loads the dump into a fresh one — see `infra/prod/README.md`, "Restore from
+backup". (Tier 563: this section described `pg_restore` on a custom-format
+archive reached over `host.docker.internal:5432`. The backup container's
+dumps are not that format, and the database port is not published.)
 
 ### Manual backup (one-off)
 
@@ -352,33 +310,19 @@ bash scripts/backup-prod.sh /tmp
 bash scripts/backup-prod.sh
 ```
 
-### Verify a backup is restorable (Tier 114)
+### Verify a backup is restorable
 
-The upgraded `backup-prod.sh` does this automatically. To
-run it manually as a one-off:
+Load the newest dump into a throwaway database and drop it again — it
+touches nothing the app uses:
 
 ```bash
-# Pull the most recent backup and restore it into a
-# throwaway database, then drop it.
-#
-# Note: db.sql.gz is a pg_dump custom-format archive
-# (PostgreSQL custom database dump - v1.15-0), NOT
-# plain SQL. gunzip -c alone will refuse to decompress
-# it ("not in gzip format"). Use pg_restore instead —
-# it reads the custom format directly from the .gz
-# wrapper. Tier 220 verified this end-to-end (1.4s
-# restore on 887 KB SQL dump).
-LATEST=$(ls -1t /var/lib/docker/volumes/deinvoicenet_backups/_data/*.sql.gz | head -1)
-docker exec de-invoice-postgres \
-  createdb -U de_invoice de_invoice_restore_test
-docker run --rm -i \
-  -v /var/lib/docker/volumes/deinvoicenet_backups/_data:/backup:ro \
-  postgres:16-alpine \
-  pg_restore -h host.docker.internal -p 5432 -U de_invoice \
-    -d de_invoice_restore_test --no-owner --no-acl "/backup/$(basename "$LATEST")"
-docker exec de-invoice-postgres \
-  dropdb -U de_invoice de_invoice_restore_test
-echo "Backup verified: $LATEST"
+docker compose -f infra/prod/docker-compose.yml exec -T backup sh -c '
+  set -e; export PGPASSWORD="$POSTGRES_PASSWORD"
+  p() { psql -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -v ON_ERROR_STOP=1 -q "$@"; }
+  p -d postgres -c "DROP DATABASE IF EXISTS restore_check" -c "CREATE DATABASE restore_check"
+  gunzip -c "/backups/last/${POSTGRES_DB}-latest.sql.gz" | p -d restore_check >/dev/null
+  p -d restore_check -Atc "select count(*) || '"'"' invoices in the dump'"'"' from \"Invoice\""
+  p -d postgres -c "DROP DATABASE restore_check"'
 ```
 
 ---
@@ -538,10 +482,10 @@ docker compose -f infra/prod/docker-compose.yml up -d backend
 docker compose -f /opt/de-invoice/infra/prod/docker-compose.yml logs backup
 
 # If the off-site upload failed (e.g. rclone misconfigured),
-# the local backup is still in /var/lib/docker/volumes/deinvoicenet_backups/_data/.
+# the local backup is still in /var/lib/docker/volumes/de-invoice-prod_backups/_data/.
 # Re-run the upload manually.
-BACKUP_DIR=$(ls -1t /var/lib/docker/volumes/deinvoicenet_backups/_data/ | head -1)
-rclone sync /var/lib/docker/volumes/deinvoicenet_backups/_data/$BACKUP_DIR \
+BACKUP_DIR=$(ls -1t /var/lib/docker/volumes/de-invoice-prod_backups/_data/ | head -1)
+rclone sync /var/lib/docker/volumes/de-invoice-prod_backups/_data/$BACKUP_DIR \
   "$BACKUP_RCLONE_REMOTE/$BACKUP_DIR" --progress
 ```
 

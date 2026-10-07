@@ -73,6 +73,12 @@
 #     install step.
 # ─────────────────────────────────────────────────────────────────
 
+# Tier 563: a fixed project name, so the volumes are always called
+# de-invoice-prod_pgdata / _storage / _backups / _caddy_data / _caddy_config.
+# Without it the name came from the directory ("prod_…"), and the docs used
+# two other spellings.
+name: de-invoice-prod
+
 networks:
   deinvoicenet:
     driver: bridge
@@ -293,7 +299,11 @@ services:
   #     backup behavior without setting
   #     up host cron.
   backup:
-    image: prodrigestivill/postgres-backup-local
+    # Tier 563: the tag is the PostgreSQL version and must match the server
+    # (postgres:16 above). Untagged, the image brought pg_dump 18: its dumps
+    # start with `SET transaction_timeout`, which a 16 server rejects — a
+    # restore that stops at the first error stopped right there.
+    image: prodrigestivill/postgres-backup-local:16
     # Why this image: it implements the
     # standard pg_dump + retention loop
     # (~600 lines of bash, well-tested

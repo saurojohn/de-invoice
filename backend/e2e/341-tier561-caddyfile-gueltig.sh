@@ -43,4 +43,11 @@ assert_eq "no client-controlled X-Forwarded-For is written into the request" "$(
 # and no dump was ever written.
 C="$PROD/docker-compose.yml"
 assert_eq "the backup container is told its database the way the image expects" "$(grep -c '^      POSTGRES_HOST: postgres$' "$C")/$(grep -c '^      PGHOST:\|^      PGDATABASE:' "$C")" "1/0"
+# Tier 563: the backup image's PostgreSQL version is the server's. Untagged it
+# was pg_dump 18 against a 16 server; its dumps do not load cleanly there.
+PGV=$(grep -o 'image: postgres:[0-9]*' "$C" | head -1 | grep -o '[0-9]*$')
+assert_eq "the backup image is pinned to the server's PostgreSQL version ($PGV)" "$(grep -c "image: prodrigestivill/postgres-backup-local:$PGV\$" "$C")" "1"
+assert_eq "the compose project has a fixed name (the volume names follow from it)" "$(grep -c '^name: de-invoice-prod$' "$C")" "1"
+bash -n "$PROD/restore.sh" && pass "restore.sh parses" || fail "restore.sh has a syntax error"
+assert_eq "…and the docs send a restore through it, not through a pipe into the live database" "$(grep -c 'bash infra/prod/restore.sh' "$PROD/README.md" | awk '{print ($1>=2)}')/$(grep -c 'docker exec -i de-invoice-postgres psql' "$PROD/README.md")" "1/0"
 summary

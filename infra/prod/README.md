@@ -305,9 +305,13 @@ Backups are stored in the `backups` named volume. Retention: 30 days.
 ### List existing backups
 
 ```bash
-docker run --rm -v de-invoice_backups:/backups alpine \
-  ls -lh /backups
+bash infra/prod/restore.sh --list
 ```
+
+The dumps are plain SQL, gzip'd, in the `backups` volume
+(`de-invoice-prod_backups`): `last/` holds every run, `daily/`, `weekly/`
+and `monthly/` the ones that are kept longer; `<db>-latest.sql.gz` in each
+points at the newest.
 
 ### The uploaded files are NOT in these backups
 
@@ -323,7 +327,7 @@ from. Copy it on the same schedule as the dumps, e.g.:
 
 ```cron
 # /etc/cron.d/de-invoice-offsite-storage
-45 4 * * * deploy rsync -az --delete-after /var/lib/docker/volumes/de-invoice_storage/_data/ \
+45 4 * * * deploy rsync -az --delete-after /var/lib/docker/volumes/de-invoice-prod_storage/_data/ \
                     deploy@backup.example.com:/backups/de-invoice-storage/
 ```
 
@@ -337,7 +341,7 @@ Schedule a cron job on the host to rsync backups to a remote
 
 ```cron
 # /etc/cron.d/de-invoice-offsite
-30 4 * * * deploy rsync -az /var/lib/docker/volumes/de-invoice_backups/_data/ \
+30 4 * * * deploy rsync -az /var/lib/docker/volumes/de-invoice-prod_backups/_data/ \
                     deploy@backup.example.com:/backups/de-invoice/
 ```
 
@@ -347,34 +351,21 @@ edit the docker-compose.yml `volumes` section.)
 ### Restore from backup
 
 ```bash
-# 1. Stop the backend so it doesn't write to the DB during restore
-docker compose -f infra/prod/docker-compose.yml stop backend frontend
-
-# 2. Find the backup you want
-docker run --rm -v de-invoice_backups:/backups alpine ls -lh /backups
-
-# 3. Pipe it back into postgres
-docker run --rm -v de-invoice_backups:/backups \
-  postgres:16-alpine bash -c '
-    gunzip -c /backups/de_invoice-2026-06-28-030001.sql.gz \
-      | psql -h postgres -U de_invoice -d de_invoice
-  '   # ↑ this won't work — postgres isn't on the host network.
+bash infra/prod/restore.sh                                   # the latest dump
+bash infra/prod/restore.sh last/de_invoice-20261007-030000.sql.gz
 ```
 
-For an in-place restore from the compose network:
+It stops backend and frontend, **renames** the current database to
+`de_invoice_before_restore` (kept — drop it yourself once you are sure),
+loads the dump into a fresh database stopping at the first error, and starts
+the app again. It asks before it does anything.
 
-```bash
-# 1. Copy the backup file out of the volume
-docker run --rm -v de-invoice_backups:/backups \
-  -v $(pwd):/out alpine cp /backups/de_invoice-2026-06-28-030001.sql.gz /out/
+Do not pipe a dump into the running database by hand (this section used to
+say so): the dump has no `DROP` statements, so every `CREATE` and `COPY`
+collides with what is there. Rehearsed in Tier 563: 424 errors, `psql` exit
+0, the data unchanged — a restore that restores nothing and looks fine.
 
-# 2. Pipe it into the postgres container
-gunzip -c de_invoice-2026-06-28-030001.sql.gz \
-  | docker exec -i de-invoice-postgres psql -U de_invoice -d de_invoice
-
-# 3. Restart backend + frontend
-docker compose -f infra/prod/docker-compose.yml up -d backend frontend
-```
+The uploaded files are not in the dump (next section).
 
 ### Manual backup (one-off)
 

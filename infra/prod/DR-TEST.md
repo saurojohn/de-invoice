@@ -119,7 +119,7 @@ Additionally:
 - [ ] Send the test invoice by email (Tier 15 feature)
 - [ ] Confirm the audit log shows the actions you just took
 - [ ] Check the restored attachments directory
-      (run `ls -la /var/lib/docker/volumes/deinvoicenet_storage/_data/`
+      (run `ls -la /var/lib/docker/volumes/de-invoice-prod_storage/_data/`
       inside the test VPS)
 
 ### Record RTO and RPO
