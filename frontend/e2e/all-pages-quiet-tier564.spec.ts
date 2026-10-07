@@ -34,6 +34,8 @@ const EXPECTED_404 = [
 
 let userId = ""
 let companyId = ""
+// Tier 567: the pages with a parameter, filled in beforeAll.
+const dynamicRoutes: string[] = []
 
 test.beforeAll(async ({ request }: { request: APIRequestContext }) => {
   const tag = `t564-${Date.now()}`
@@ -42,6 +44,36 @@ test.beforeAll(async ({ request }: { request: APIRequestContext }) => {
   })).json()
   userId = reg.user.id
   companyId = reg.user.companyId || reg.company.id
+
+  // Something to open: a customer, an issued invoice, its voucher.
+  const H = { "x-user-id": userId, "x-company-id": companyId }
+  await request.put(`${API}/api/v1/companies/${companyId}`, {
+    headers: H,
+    data: { name: `${tag} GmbH`, taxId: "12/345/67890", address: { street: "Teststr. 1", postalCode: "10115", city: "Berlin", country: "DE" } },
+  })
+  const customer = await (await request.post(`${API}/api/v1/customers?companyId=${companyId}`, {
+    headers: H,
+    data: { name: "Tier 564 Kunde", type: "business", address: { street: "Ring 2", postalCode: "80331", city: "München", country: "DE" } },
+  })).json()
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin" }).format(new Date())
+  const invoice = await (await request.post(`${API}/api/v1/invoices?companyId=${companyId}`, {
+    headers: H,
+    data: { customerId: customer.id, issueDate: today, items: [{ description: "Beratung", quantity: 1, unit: "Std", unitPrice: 100, vatRate: 0.19, costCenter: "Allgemein" }] },
+  })).json()
+  await request.put(`${API}/api/v1/invoices/${invoice.id}/status?companyId=${companyId}`, { headers: H, data: { status: "sent" } })
+  const [y, m] = today.split("-")
+  dynamicRoutes.push(
+    `/dashboard/customers/${customer.id}`,
+    `/dashboard/customers/${customer.id}/credit`,
+    `/dashboard/customers/${customer.id}/statement`,
+    `/dashboard/invoices/${invoice.id}`,
+    `/dashboard/cost-center-report/${y}/${Number(m)}`,
+    `/dashboard/cost-center-report/${y}/${Number(m)}/Allgemein`,
+    "/dashboard/system-health/recurring-invoices",
+  )
+  const vouchers = await (await request.get(`${API}/api/v1/accounting/vouchers?companyId=${companyId}`, { headers: H })).json()
+  const voucherId = (Array.isArray(vouchers) ? vouchers : vouchers?.data || vouchers?.items || [])[0]?.id
+  if (voucherId) dynamicRoutes.push(`/dashboard/accounting/vouchers/${voucherId}`, `/dashboard/accounting/${voucherId}`)
 })
 
 async function signIn(page: Page) {
@@ -58,8 +90,7 @@ async function signIn(page: Page) {
   )
 }
 
-for (const route of ROUTES) {
-  test(`${route} is quiet`, async ({ page }) => {
+async function expectQuiet(page: Page, route: string) {
     await signIn(page)
     const counts: Record<string, number> = {}
     const bad: string[] = []
@@ -88,5 +119,20 @@ for (const route of ROUTES) {
     expect.soft([...new Set(bad)], `missing route or server error on ${route}`).toEqual([])
     expect.soft([...new Set(thrown)], `uncaught error on ${route}`).toEqual([])
     await expect.soft(page.locator("body"), `error screen on ${route}`).not.toContainText(/Application error|Unhandled Runtime Error/)
+}
+
+for (const route of ROUTES) {
+  test(`${route} is quiet`, async ({ page }) => {
+    await expectQuiet(page, route)
   })
 }
+
+// Tier 567: the pages with a parameter. Their ids exist only after
+// beforeAll, so they share one test (the names of tests are fixed at load).
+test("the pages with a parameter are quiet", async ({ page }) => {
+  test.setTimeout(180_000)
+  expect(dynamicRoutes.length, "fixtures for the parameter pages").toBeGreaterThanOrEqual(7)
+  for (const route of dynamicRoutes) {
+    await expectQuiet(page, route)
+  }
+})
