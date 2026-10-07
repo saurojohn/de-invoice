@@ -76,6 +76,8 @@ export class AttachmentsService {
     declaredMimeType: string;
     size: number;
     uploadedById?: string;
+    /** Tier 573: searchable text the caller already has (an e-invoice's content) */
+    text?: string;
   }): Promise<any> {
     // Sanity: the parent must exist and belong to
     // this company. We don't trust the entityId
@@ -150,16 +152,18 @@ export class AttachmentsService {
     // error we log and continue — the file is
     // stored either way, the user can still see
     // the original and the audit trail is intact.
-    let ocrText: string | null = null
-    try {
-      const result = await this.ocr.extractText(input.buffer, saved.mimeType)
-      // result.text is the extracted text (may be empty
-      // for OCR-attempted-but-failed). Convert empty to
-      // null so the DB row stays compact and the UI
-      // can treat null/empty the same way.
-      ocrText = result?.text ? result.text : null
-    } catch (e: any) {
-      this.logger.warn(`OCR failed for ${input.originalName}: ${e?.message}`)
+    let ocrText: string | null = input.text ?? null
+    if (ocrText === null) {
+      try {
+        const result = await this.ocr.extractText(input.buffer, saved.mimeType)
+        // result.text is the extracted text (may be empty
+        // for OCR-attempted-but-failed). Convert empty to
+        // null so the DB row stays compact and the UI
+        // can treat null/empty the same way.
+        ocrText = result?.text ? result.text : null
+      } catch (e: any) {
+        this.logger.warn(`OCR failed for ${input.originalName}: ${e?.message}`)
+      }
     }
 
     return this.prisma.attachment.create({

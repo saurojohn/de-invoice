@@ -1,7 +1,7 @@
 import { bewirtungNachweisFehlt } from '../accounting/expense-cost';
 import { assertPeriodOpen, filedPeriodOf, filedPeriodMessage } from '../reports/filed-period';
 import { signedExpenseAmounts } from './credit-note';
-import { assertNoDuplicateExpense, duplicateExpenseMessage, findDuplicateExpense } from './expense-duplicate'
+import { assertNoDuplicateExpense, duplicateExpenseMessage, findDuplicateExpense, withExpenseNumberLock } from './expense-duplicate'
 import { expenseLockReasons } from './expense-lock';
 /**
  * Expense (Eingangsrechnung) — vendor bills received.
@@ -116,6 +116,11 @@ export class ExpenseService {
   }
 
   async create(companyId: string, data: any) {
+    // Tier 573: check-for-duplicate and insert as one step (expense-duplicate.ts)
+    return withExpenseNumberLock(companyId, data?.supplierId, data?.invoiceNumber, () => this.createChecked(companyId, data));
+  }
+
+  private async createChecked(companyId: string, data: any) {
     if (!data.description) throw new BadRequestException('Beschreibung ist erforderlich');
     if (!data.invoiceDate) throw new BadRequestException('Rechnungsdatum ist erforderlich');
     assertNotFuture(data.invoiceDate, 'Das Rechnungsdatum') // Tier 515

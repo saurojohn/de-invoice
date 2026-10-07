@@ -117,7 +117,9 @@ export class StorageService {
 
     // For now, accept all buffer uploads (type is determined by extension)
     const ext = path.extname(filename).toLowerCase();
-    const allowedExtensions = ['.pdf', '.jpg', '.jpeg', '.png', '.gif', '.webp', '.doc', '.docx', '.xls', '.xlsx', '.txt', '.tif', '.tiff'];
+    // Tier 573: .xml — an e-invoice (XRechnung, the XML of a ZUGFeRD PDF) is a
+    // Beleg like a PDF. It is only ever served as a download (inlineSafe()).
+    const allowedExtensions = ['.pdf', '.jpg', '.jpeg', '.png', '.gif', '.webp', '.doc', '.docx', '.xls', '.xlsx', '.txt', '.tif', '.tiff', '.xml'];
 
     if (!allowedExtensions.includes(ext)) {
       throw new BadRequestException('Dateityp nicht erlaubt.');
@@ -506,6 +508,11 @@ export class StorageService {
         return starts(0xd0, 0xcf, 0x11, 0xe0);
       case '.txt':
         return !head.includes(0x00);
+      case '.xml': {
+        // markup from the first character on (after a byte order mark)
+        if (starts(0xff, 0xfe) || starts(0xfe, 0xff)) return true; // UTF-16
+        return /^\s*</.test(head.toString('latin1').replace(/^\xEF\xBB\xBF/, '')) && !head.includes(0x00);
+      }
       default:
         return true;
     }
@@ -526,6 +533,7 @@ export class StorageService {
       '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       '.xls': 'application/vnd.ms-excel',
       '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      '.xml': 'application/xml',
     };
     return mimeTypes[ext] || 'application/octet-stream';
   }

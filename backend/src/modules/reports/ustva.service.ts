@@ -1,7 +1,7 @@
 import { assertPeriodOpen } from './filed-period';
 import { bewirtungNachweisFehlt } from '../accounting/expense-cost';
 import { Injectable, BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
-import { assertNoDuplicateExpense } from '../expense/expense-duplicate';
+import { assertNoDuplicateExpense, withExpenseNumberLock } from '../expense/expense-duplicate';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import type { Response } from 'express';
@@ -1117,6 +1117,11 @@ export class UstvaService {
     paidAt?: Date | null;
     confirmDuplicate?: boolean;
   }) {
+    // Tier 573: check-for-duplicate and insert as one step (expense-duplicate.ts)
+    return withExpenseNumberLock(companyId, data.supplierId?.trim(), data.invoiceNumber, () => this.createExpenseChecked(companyId, data));
+  }
+
+  private async createExpenseChecked(companyId: string, data: Parameters<UstvaService['createExpense']>[1]) {
     assertNotFuture(data.invoiceDate, 'Das Rechnungsdatum'); // Tier 515
     assertNotFuture(data.paidAt, 'Das Zahldatum');
     // Tier 390: the supplier must be this company's — the same check

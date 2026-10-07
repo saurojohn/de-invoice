@@ -1,3 +1,4 @@
+import { contentDisposition } from '../../common/content-disposition';
 import { SystemAdminGuard } from '../../auth/system-admin.guard';
 import {
   Controller,
@@ -98,7 +99,8 @@ export class StorageController {
     res.set({
       'Content-Type': file.mimeType,
       'Content-Length': file.buffer.length,
-      'Content-Disposition': `inline; filename="${encodeURIComponent(file.filename)}"`,
+      'Content-Disposition': contentDisposition(file.mimeType, file.filename), // Tier 573
+      'X-Content-Type-Options': 'nosniff',
     });
 
     res.end(file.buffer);

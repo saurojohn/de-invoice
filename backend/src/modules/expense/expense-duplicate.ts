@@ -1,5 +1,6 @@
 import { ConflictException } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
+import { withKeyLock } from '../../common/key-lock'
 
 /**
  * Tier 489 — a supplier invoice is entered once.
@@ -50,4 +51,22 @@ export async function assertNoDuplicateExpense(
   if (confirmed) return
   const dup = await findDuplicateExpense(prisma, companyId, supplierId, invoiceNumber, creditNote)
   if (dup) throw new ConflictException(duplicateExpenseMessage(dup))
+}
+
+/**
+ * Tier 573 — the duplicate check and the insert are one step.
+ *
+ * Measured: the same supplier invoice posted six times at once (a double
+ * click is two) → six rows; every request had looked before any had written.
+ * Entering one supplier's invoice number is done by one request at a time.
+ */
+export function withExpenseNumberLock<T>(
+  companyId: string,
+  supplierId: string | null | undefined,
+  invoiceNumber: string | null | undefined,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const number = (invoiceNumber || '').trim().toLowerCase()
+  if (!supplierId || !number) return fn()
+  return withKeyLock(`expense-number:${companyId}:${supplierId}:${number}`, fn)
 }

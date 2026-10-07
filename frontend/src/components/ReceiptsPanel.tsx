@@ -186,7 +186,7 @@ export function ReceiptsPanel({ companyId, entityType, entityId, onChange }: Pro
         <input
           ref={fileInputRef}
           type="file"
-          accept="application/pdf,image/jpeg,image/png,image/webp,image/tiff,text/plain"
+          accept="application/pdf,image/jpeg,image/png,image/webp,image/tiff,text/plain,.xml,application/xml,text/xml"
           multiple
           onChange={(e) => upload(e.target.files)}
           className="hidden"

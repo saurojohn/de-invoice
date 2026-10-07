@@ -7,8 +7,9 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
-import { apiGet } from "@/lib/api"
+import { apiGet, apiFetch } from "@/lib/api"
 import { ReceiptsPanel } from "@/components/ReceiptsPanel"
+import { EInvoiceDialog } from "@/components/EInvoiceDialog"
 import { ExpenseEditForm } from "@/components/ExpenseEditForm"
 
 // Expense = Eingangsrechnung (vendor bill). The list
@@ -73,6 +74,27 @@ export default function ExpensesPage() {
   // Detail modal — which expense's receipts we're
   // looking at, if any. Null = modal closed.
   const [detailExpense, setDetailExpense] = useState<Expense | null>(null)
+  // Tier 573: an incoming e-invoice — a file being imported, or the one kept
+  // with an expense being looked at.
+  const [eInvoice, setEInvoice] = useState<
+    null | { kind: "import"; file: File } | { kind: "view"; expenseId: string }
+  >(null)
+  // whether the expense in the detail modal has an e-invoice among its receipts
+  const [detailHasEInvoice, setDetailHasEInvoice] = useState(false)
+  useEffect(() => {
+    setDetailHasEInvoice(false)
+    if (!detailExpense) return
+    const companyId = localStorage.getItem("companyId") || ""
+    let stale = false
+    apiGet(`/api/v1/expenses/${detailExpense.id}/e-invoice?companyId=${companyId}`)
+      .then((d) => {
+        if (!stale) setDetailHasEInvoice(!!d?.eInvoice)
+      })
+      .catch(() => undefined)
+    return () => {
+      stale = true
+    }
+  }, [detailExpense])
   // Tier 29: OCR prefill modal. State shape:
   //   null              → modal closed
   //   { step: 'loading' → upload in flight
@@ -320,7 +342,7 @@ export default function ExpensesPage() {
             <input
               id="expense-ocr-input"
               type="file"
-              accept="image/*,application/pdf"
+              accept="image/*,application/pdf,.xml,application/xml,text/xml"
               className="hidden"
               data-testid="expense-ocr-file-input"
               onChange={async (e) => {
@@ -330,7 +352,33 @@ export default function ExpensesPage() {
                 const companyId =
                   localStorage.getItem("companyId") || ""
                 if (!companyId) return
+                // Tier 573: an XML is an e-invoice; a PDF may carry one
+                // (ZUGFeRD / Factur-X) — then the invoice is read, not scanned.
+                const isXml = /\.xml$/i.test(file.name) || /xml/.test(file.type)
+                if (isXml) {
+                  inp.value = ""
+                  setEInvoice({ kind: "import", file })
+                  return
+                }
                 setOcr({ step: "loading" })
+                if (file.type === "application/pdf" || /\.pdf$/i.test(file.name)) {
+                  try {
+                    const probe = new FormData()
+                    probe.append("file", file)
+                    const res = await apiFetch(
+                      `/api/v1/expenses/e-invoice/preview?companyId=${companyId}`,
+                      { method: "POST", body: probe, throwOnError: false },
+                    )
+                    if (res.ok && (await res.json()).eInvoice) {
+                      inp.value = ""
+                      setOcr(null)
+                      setEInvoice({ kind: "import", file })
+                      return
+                    }
+                  } catch {
+                    // not decidable — treat it as a scan
+                  }
+                }
                 try {
                   const fd = new FormData()
                   fd.append("file", file)
@@ -439,6 +487,30 @@ export default function ExpensesPage() {
                   // same file can be re-picked.
                   inp.value = ""
                 }
+              }}
+            />
+            <button
+              onClick={() => {
+                const inp = document.getElementById(
+                  "expense-einvoice-input",
+                ) as HTMLInputElement | null
+                inp?.click()
+              }}
+              className="px-3 py-1 text-sm border rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+              data-testid="expense-einvoice-upload-button"
+            >
+              🧾 {t("eInvoice.upload")}
+            </button>
+            <input
+              id="expense-einvoice-input"
+              type="file"
+              accept=".xml,.pdf,application/xml,text/xml,application/pdf"
+              className="hidden"
+              data-testid="expense-einvoice-file-input"
+              onChange={(e) => {
+                const file = e.currentTarget.files?.[0]
+                e.currentTarget.value = ""
+                if (file) setEInvoice({ kind: "import", file })
               }}
             />
             <button
@@ -715,6 +787,17 @@ export default function ExpensesPage() {
                   load()
                 }}
               />
+              {detailHasEInvoice && (
+                <div className="mt-4">
+                  <Button
+                    variant="outline"
+                    onClick={() => setEInvoice({ kind: "view", expenseId: detailExpense.id })}
+                    data-testid="expense-einvoice-view-button"
+                  >
+                    🧾 {t("eInvoice.show")}
+                  </Button>
+                </div>
+              )}
               <ReceiptsPanel
                 companyId={localStorage.getItem("companyId") || ""}
                 entityType="expense"
@@ -743,6 +826,17 @@ export default function ExpensesPage() {
           (possibly edited) fields — the OCR
           pipeline is upstream of the create
           flow. */}
+      {eInvoice && (
+        <EInvoiceDialog
+          mode={eInvoice}
+          onClose={() => setEInvoice(null)}
+          onImported={() => {
+            load()
+            loadSuppliers()
+          }}
+        />
+      )}
+
       {ocr && (
         <div
           className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"

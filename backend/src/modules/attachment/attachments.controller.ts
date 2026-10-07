@@ -26,6 +26,7 @@
  * that limit here — the storage service owns the
  * global upload policy.
  */
+import { contentDisposition } from '../../common/content-disposition'
 import {
   Controller,
   Get,
@@ -153,11 +154,11 @@ export class AttachmentsController {
   ) {
     if (!companyId) throw new BadRequestException('companyId is required')
     const file = await this.attachments.getFile(companyId, id)
-    const disposition = download
-      ? `attachment; filename="${encodeURIComponent(file.originalName)}"`
-      : `inline; filename="${encodeURIComponent(file.originalName)}"`
+    // Tier 573: only a PDF or a picture is shown in place; an XML is a download.
+    const disposition = contentDisposition(file.mimeType, file.originalName, !!download)
     res.set({
       'Content-Type': file.mimeType,
+      'X-Content-Type-Options': 'nosniff',
       'Content-Length': file.size,
       'Content-Disposition': disposition,
       'Cache-Control': 'private, max-age=3600',
