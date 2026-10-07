@@ -93,6 +93,8 @@ interface Expense {
   // Tier 443: set when the expense is paid or an AfA row — no edit / delete.
   lockReason?: string | null
   paidAt?: string | null
+  // Tier 581: the VAT lines of an invoice with several rates (empty otherwise)
+  taxLines?: Array<{ vatRate: string; netAmount: string; vatAmount: string }>
 }
 
 interface Supplier { id: string; name: string }
@@ -1098,7 +1100,10 @@ function UstvaPageInner() {
                             <td className="py-2 text-right">{formatCurrency(Number(ex.netAmount))}</td>
                             <td className="py-2 text-right">
                               {formatCurrency(Number(ex.vatAmount))} (
-                              {(Number(ex.vatRate) * 100).toFixed(0)}%)
+                              {(ex.taxLines?.length ?? 0) > 1
+                                ? ex.taxLines!.map((l) => `${(Number(l.vatRate) * 100).toFixed(0)}%`).join(" / ")
+                                : `${(Number(ex.vatRate) * 100).toFixed(0)}%`}
+                              )
                             </td>
                             <td className="py-2 text-right font-medium">
                               {formatCurrency(Number(ex.grossAmount))}
@@ -1116,6 +1121,18 @@ function UstvaPageInner() {
                                 </span>
                               ) : (
                                 <span className="inline-flex gap-3">
+                                  {(ex.taxLines?.length ?? 0) > 1 ? (
+                                    // Tier 581: this form has one rate — an invoice with
+                                    // several is corrected where its lines can be edited.
+                                    <a
+                                      href="/dashboard/expenses"
+                                      className="text-blue-600 dark:text-blue-400 hover:underline text-xs"
+                                      title={t("expenses.severalRates")}
+                                      data-testid={`ustva-expense-edit-elsewhere-${ex.id}`}
+                                    >
+                                      {t("ustva.editExpense")} ↗
+                                    </a>
+                                  ) : (
                                   <button
                                     onClick={() => startEditExpense(ex)}
                                     className="text-blue-600 dark:text-blue-400 hover:underline text-xs"
@@ -1123,6 +1140,7 @@ function UstvaPageInner() {
                                   >
                                     {t("ustva.editExpense")}
                                   </button>
+                                  )}
                                   <button
                                     onClick={() => deleteExpense(ex.id)}
                                     className="text-red-600 dark:text-red-400 hover:underline text-xs"

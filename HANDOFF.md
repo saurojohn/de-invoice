@@ -2632,6 +2632,30 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 581 — one expense for an invoice with several VAT rates
+
+Agreed with the owner on 07.10.2026 („好，都做“) — the schema change that Tiers 573 and 577 had worked around. An `Expense` had one rate; an invoice with 19 % and 7 % was two expenses under one number.
+
+**The model** (`prisma/schema.prisma`, migration `20261007000001_expense_tax_lines`, `expense/tax-lines.ts`): `ExpenseTaxLine { expenseId, companyId, position, vatRate, netAmount, vatAmount }`. The rule that leaves every existing row and reader valid:
+- **no rows** → the expense's own `netAmount` / `vatRate` / `vatAmount` are its one line (every expense from before, every one-rate expense since);
+- **rows** (at least two, one per rate) → the expense's three amounts are their sums, its `vatRate` the rate of the largest line (what a list shows).
+Whoever needs the split reads `expenseTaxLines(exp)`; whoever needs totals keeps reading the expense — EÜR, GuV, BWA, payments, SEPA, the dashboards and the lock rules are untouched.
+
+**What reads the lines now**
+- `POST /expenses` and `PUT /expenses/:id` (also `PUT /ustva/expenses/:id`) take `taxLines: [{ vatRate, netAmount, vatAmount }]` (entered positive, at most 8, each rate once, each line checked like an expense's amounts; totals sent alongside must be the sums; not with § 13b / igE). One line is stored as an ordinary expense. On update: lines replace lines; `[]` plus amounts makes it one rate again; a scalar amount for an expense with lines is refused (400); `creditNote` turns every line.
+- **UStVA** (`ustva.service.ts`): Vorsteuer by each line's rate — before, the whole VAT of an invoice counted under the expense's one rate.
+- **DATEV** (`datev.service.ts`): one row per line with its own BU-Schlüssel (9 / 8), all under the invoice's number.
+- **Bank booking** (`bank-import.service.ts`): the payment's voucher has a cost and a Vorsteuer line per rate, from the expense itself (the request's `vatRate` / `vatAmount` can describe one rate); a **Skonto** is shared out over the rates — the payment's Vorsteuer and the credit note (which gets the same lines). The Tier 577 path (several expenses, one debit) uses the same code and stays for invoices entered as two expenses.
+- **E-invoice import**: **one** expense with a line per rate (zero-rated categories are a 0 % line). Only § 13b (AE) and the intra-community acquisition (K) remain expenses of their own beside a taxed part — they are flags of the whole expense.
+- **GoBD archive**: the lines are in the expense's record.
+- **Frontend**: the expenses list names the rates („19 % / 7 %“); `ExpenseEditForm` edits the lines (rate · net · VAT, add / remove, the VAT follows net × rate until typed) and gives an ordinary expense a second rate; the UStVA page shows the rates and sends the correction of such an expense to the expenses page (its inline form has one rate); the import dialog shows the lines of what will be booked.
+
+**Specs:** `349-tier581-ausgabe-mit-mehreren-steuersaetzen.sh` (41 assertions, 24 fail on the old code: create / refuse / read, UStVA 19 % and 7 %, DATEV rows and keys, the bank voucher, Skonto 7,05 split 4,76 / 2,29 with its credit note, the refund of a two-rate credit note, corrections, delete, tenant); spec 344 now expects one expense with lines; Playwright `expense-tax-lines-tier581.spec.ts` and the updated `e-invoice-import-tier573.spec.ts`.
+
+**For the owner's own database:** the migration is additive (one new table). `de-invoice-postgres` has **not** been touched — `cd backend && npx prisma migrate deploy` applies it (and nothing else is pending there).
+
+**Not done:** `POST /ustva/expenses` and the UStVA page's inline form still enter one rate (a second is added on the expenses page). The CSV import of expenses is one rate per row. The OCR scan path proposes one rate.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 580 — the production image runs the compiled backend, and CI builds the images
 
 Both agreed with the owner on 07.10.2026 („好，都做“).
@@ -2667,7 +2691,7 @@ Unchanged on purpose: a SEPA run still makes one transfer per expense — each t
 
 **Specs:** `348-tier577-eine-zahlung-mehrere-steuersaetze.sh` (19 assertions, 10 fail on the old code; the DATEV one fails with only the DATEV change taken out) and Playwright `bank-payment-parts-tier577.spec.ts`. All 66 bank / DATEV / Skonto / expense specs pass locally (116 fails locally as always).
 
-**Still open from Tier 573:** VAT lines on the expense itself would make the split unnecessary — no longer needed for correctness, only for tidiness (one row per invoice in the list). Skonto on a multi-part invoice is not offered (the Skonto path takes one expense).
+**Open at the time, done in Tier 581:** VAT lines on the expense itself (one row per invoice, and Skonto on an invoice with several rates). For an invoice entered as *two expenses* the Skonto path still takes one expense.
 
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 576 — the monitoring overlays can be added without stopping the stack, and are not open to the internet
 

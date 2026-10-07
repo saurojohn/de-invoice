@@ -30,6 +30,8 @@ interface Expense {
   vatAmount: string
   grossAmount: string
   vatRate: string
+  // Tier 581: the VAT lines of an invoice with several rates (empty otherwise)
+  taxLines?: Array<{ vatRate: string; netAmount: string; vatAmount: string }>
   status: string
   category: string | null
   isIntraEU: boolean
@@ -675,6 +677,11 @@ export default function ExpensesPage() {
                         </td>
                         <td className="py-3 px-4 text-sm text-right font-mono">
                           {formatCurrency(e.vatAmount)}
+                          {(e.taxLines?.length ?? 0) > 1 && (
+                            <div className="text-xs text-gray-500 dark:text-gray-400" data-testid="expense-rates" title={t("expenses.severalRates")}>
+                              {e.taxLines!.map((l) => `${(Number(l.vatRate) * 100).toLocaleString("de-DE")} %`).join(" / ")}
+                            </div>
+                          )}
                         </td>
                         <td className="py-3 px-4 text-sm text-right font-mono font-bold">
                           {formatCurrency(e.grossAmount)}

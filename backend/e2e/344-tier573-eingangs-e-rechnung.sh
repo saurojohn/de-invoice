@@ -5,8 +5,9 @@
 # Measured before: an .xml upload → 400 "Dateityp nicht erlaubt"; a ZUGFeRD PDF
 # went through OCR like a photographed receipt, the invoice inside it unread.
 # Now POST /expenses/e-invoice/preview and /import read XRechnung (UBL and CII)
-# and the XML embedded in a ZUGFeRD / Factur-X PDF, create the supplier and one
-# expense per VAT rate, and keep the received file unchanged as the Beleg.
+# and the XML embedded in a ZUGFeRD / Factur-X PDF, create the supplier and the
+# expense (one, with a line per VAT rate — Tier 581), and keep the received file
+# unchanged as the Beleg.
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/_lib.sh"
@@ -126,20 +127,21 @@ assert_eq "…number, date, due date" "$(out "d['invoice']['number'], d['invoice
 assert_eq "…seller: legal name, VAT ID without the spaces, tax number" "$(out "d['invoice']['seller']['name'], d['invoice']['seller']['vatId'], d['invoice']['seller']['taxNumber']")" "('Papier Müller $TAG GmbH', 'DE811907980', '232/5718/1234')"
 assert_eq "…entities and CDATA are text" "$(out "d['invoice']['lines'][0]['name'] + ' | ' + d['invoice']['lines'][1]['name'] + ' | ' + d['invoice']['notes'][0]")" 'Kopierpapier A4 <500 Blatt> | Fachbuch "Buchführung & Bilanz" | Vielen Dank für Ihren Auftrag & bis bald.'
 assert_eq "…IBAN without spaces, totals" "$(out "d['invoice']['payment']['iban'], d['invoice']['totals']['net'], d['invoice']['totals']['tax'], d['invoice']['totals']['gross']")" "('DE89370400440532013000', 307.14, 45.5, 352.64)"
-assert_eq "…one expense per VAT rate" "$(out "[(e['netAmount'], e['vatAmount'], e['grossAmount'], e['vatRate']) for e in d['expenses']]")" "[(200, 38, 238, 0.19), (107.14, 7.5, 114.64, 0.07)]"
+# Tier 581: one expense with a line per VAT rate (until then: one expense per rate)
+assert_eq "…one expense, a line per VAT rate" "$(out "[(e['netAmount'], e['vatAmount'], e['grossAmount'], [(l['vatRate'], l['netAmount'], l['vatAmount']) for l in e['taxLines']]) for e in d['expenses']]")" "[(307.14, 45.5, 352.64, [(0.19, 200, 38), (0.07, 107.14, 7.5)])]"
 assert_eq "…addressed to this company, a new supplier, nothing in the way" "$(out "d['buyerMatches'], d['supplierWillBeCreated'], d['importable'], d['blocking'], d['duplicate']")" "(True, True, True, [], None)"
 assert_eq "a preview writes nothing" "$(N_EXP)/$(q "select count(*) from \"Supplier\" where \"companyId\"='$C'")" "0/0"
 
 note "=== 2. import: supplier, expenses, the file kept ==="
 assert_eq "import: 201" "$(send import "$D/ubl.xml")" "201"
-E1=$(out "d['expenseIds'][0]"); E2=$(out "d['expenseIds'][1]"); SUP=$(out "d['supplierId']")
-assert_eq "…two expenses, the supplier created" "$(out "len(d['expenseIds']), d['supplierCreated']")" "(2, True)"
-assert_eq "expense 1: 200 + 38 at 19 %" "$(q "select \"netAmount\"::numeric(12,2)||'/'||\"vatAmount\"::numeric(12,2)||'/'||\"grossAmount\"::numeric(12,2)||'/'||\"vatRate\"::numeric(4,2)||'/'||\"invoiceNumber\"||'/'||\"invoiceDate\"::date from \"Expense\" where id='$E1'")" "200.00/38.00/238.00/0.19/PM-$TAG-1/2026-09-14"
-assert_eq "expense 2: 107.14 + 7.50 at 7 %" "$(q "select \"netAmount\"::numeric(12,2)||'/'||\"vatAmount\"::numeric(12,2)||'/'||\"vatRate\"::numeric(4,2) from \"Expense\" where id='$E2'")" "107.14/7.50/0.07"
+E1=$(out "d['expenseIds'][0]"); SUP=$(out "d['supplierId']")
+assert_eq "…one expense, the supplier created" "$(out "len(d['expenseIds']), d['supplierCreated']")" "(1, True)"
+assert_eq "the expense: 307.14 + 45.50, the invoice's number and date" "$(q "select \"netAmount\"::numeric(12,2)||'/'||\"vatAmount\"::numeric(12,2)||'/'||\"grossAmount\"::numeric(12,2)||'/'||\"invoiceNumber\"||'/'||\"invoiceDate\"::date from \"Expense\" where id='$E1'")" "307.14/45.50/352.64/PM-$TAG-1/2026-09-14"
+assert_eq "…its VAT lines: 200 + 38 at 19 %, 107.14 + 7.50 at 7 %" "$(q "select string_agg(\"vatRate\"::numeric(4,2)||'/'||\"netAmount\"::numeric(12,2)||'/'||\"vatAmount\"::numeric(12,2), ',' order by position) from \"ExpenseTaxLine\" where \"expenseId\"='$E1'")" "0.19/200.00/38.00,0.07/107.14/7.50"
 assert_eq "…what it is and when it is due stand in the notes" "$(q "select notes like 'E-Rechnung XRechnung 3.0 (UBL)%' and notes like '%fällig 14.10.2026%' and notes like '%DE89370400440532013000%' from \"Expense\" where id='$E1'")" "t"
 assert_eq "the supplier: VAT ID, address, bank account from the invoice" "$(q "select \"vatId\"||'/'||(address->>'city')||'/'||(\"bankInfo\"->>'iban')||'/'||(metadata->>'taxNumber') from \"Supplier\" where id='$SUP'")" "DE811907980/Leipzig/DE89370400440532013000/232/5718/1234"
 ATT=$(q "select id from \"Attachment\" where \"entityId\"='$E1' and \"entityType\"='expense'")
-assert_eq "each expense has the file as its Beleg" "$(q "select count(*)||'/'||min(\"mimeType\") from \"Attachment\" where \"entityId\" in ('$E1','$E2')")" "2/application/xml"
+assert_eq "the expense has the file as its Beleg" "$(q "select count(*)||'/'||min(\"mimeType\") from \"Attachment\" where \"entityId\"='$E1'")" "1/application/xml"
 curl -s -o "$D/back.xml" -D "$D/hdr" "$API/api/v1/attachments/$ATT/file?companyId=$C" -H "x-user-id: $U" -H "x-company-id: $C"
 assert_eq "…byte for byte what was received" "$(cmp -s "$D/ubl.xml" "$D/back.xml" && echo same || echo differ)" "same"
 assert_eq "…its hash is on record" "$(q "select \"contentHash\" from \"Attachment\" where id='$ATT'")" "$(shasum -a 256 "$D/ubl.xml" | cut -d' ' -f1)"
@@ -154,7 +156,7 @@ variant "$D/ubl.xml" "$D/ubl-resent.xml" "<!-- a comment before the root -->" "<
 assert_eq "another file with the same number of the same supplier: 409" "$(send import "$D/ubl-resent.xml")" "409"
 send preview "$D/ubl-resent.xml" >/dev/null
 assert_eq "…recognised by the number, the supplier by the VAT ID" "$(out "d['duplicate']['reason'], d['supplier']['matchedBy'], d['supplierWillBeCreated']")" "('number', 'vatId', False)"
-assert_eq "still two expenses, one supplier" "$(N_EXP)/$(q "select count(*) from \"Supplier\" where \"companyId\"='$C'")" "2/1"
+assert_eq "still one expense, one supplier" "$(N_EXP)/$(q "select count(*) from \"Supplier\" where \"companyId\"='$C'")" "1/1"
 
 note "=== 4. reading the kept invoice ==="
 assert_eq "GET /expenses/:id/e-invoice: 200" "$(get "expenses/$E1/e-invoice?companyId=$C")" "200"
@@ -221,7 +223,7 @@ variant "$D/ubl.xml" "$D/ubl-usd.xml" "PM-$TAG-1" "PM-$TAG-4" "<b:DocumentCurren
 assert_eq "an invoice in USD without a rate: 400" "$(send import "$D/ubl-usd.xml")/$(grep -c "Umrechnungskurs" "$D/out")" "400/1"
 assert_eq "…with 1 EUR = 1,25 USD: 201" "$(send import "$D/ubl-usd.xml" -F "exchangeRate=1,25")" "201"
 EU=$(out "d['expenseIds'][0]")
-assert_eq "…booked in euro: 160 + 30.40" "$(q "select \"netAmount\"::numeric(12,2)||'/'||\"vatAmount\"::numeric(12,2)||'/'||(notes like '%352,64 USD%') from \"Expense\" where id='$EU'")" "160.00/30.40/true"
+assert_eq "…booked in euro, line by line: 160 + 30.40 and 85.71 + 6.00" "$(q "select e.\"netAmount\"::numeric(12,2)||'/'||e.\"vatAmount\"::numeric(12,2)||'/'||(e.notes like '%352,64 USD%')||'/'||(select string_agg(l.\"netAmount\"::numeric(12,2)||'+'||l.\"vatAmount\"::numeric(12,2), ',' order by l.position) from \"ExpenseTaxLine\" l where l.\"expenseId\"=e.id) from \"Expense\" e where e.id='$EU'")" "245.71/36.40/true/160.00+30.40,85.71+6.00"
 
 note "=== 8b. Skonto in the payment terms (Tier 579) ==="
 variant "$D/ubl.xml" "$D/ubl-skonto.xml" "PM-$TAG-1" "PM-$TAG-9" "<b:Note>30 Tage netto</b:Note>" "<b:Note>#SKONTO#TAGE=14#PROZENT=2.00#
@@ -301,7 +303,7 @@ note "=== 12. the same invoice from several requests at once ==="
 variant "$D/ubl.xml" "$D/ubl-race.xml" "PM-$TAG-1" "PM-$TAG-7"
 for i in 1 2 3 4; do send import "$D/ubl-race.xml" > "$D/race.$i" & done; wait
 assert_eq "one file imported four times at once: once 201, three times 409" "$(cat "$D"/race.[1-4] | tr -d '\n' | fold -w3 | sort | tr '\n' ' ')" "201 409 409 409 "
-assert_eq "…booked once (two VAT rates → two expenses)" "$(q "select count(*) from \"Expense\" where \"companyId\"='$C' and \"invoiceNumber\"='PM-$TAG-7'")" "2"
+assert_eq "…booked once" "$(q "select count(*) from \"Expense\" where \"companyId\"='$C' and \"invoiceNumber\"='PM-$TAG-7'")" "1"
 for route in expenses ustva/expenses; do
   RB="{\"supplierId\":\"$SUP\",\"invoiceNumber\":\"RACE-$route\",\"description\":\"gleichzeitig\",\"invoiceDate\":\"2026-09-01\",\"netAmount\":100,\"vatAmount\":19,\"grossAmount\":119,\"vatRate\":0.19}"
   for i in 1 2 3 4 5 6; do

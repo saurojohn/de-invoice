@@ -17,6 +17,7 @@
  */
 
 import { withKeyLock } from '../../common/key-lock';
+import { expenseTaxLines } from '../expense/tax-lines';
 import { assertPeriodOpen } from '../reports/filed-period';
 import { Injectable, BadRequestException, ConflictException, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -31,11 +32,14 @@ import type { ParsedStatement } from './parsers';
 type InvoicePart = {
   id: string
   vatRate: unknown
+  netAmount: unknown
   vatAmount: unknown
   grossAmount: unknown
   accountNumber: string | null
   isIntraEU: boolean
   isReverseCharge: boolean
+  /** Tier 581: the expense's own VAT lines, when it has several rates */
+  taxLines: { vatRate: unknown; netAmount: unknown; vatAmount: unknown; position: number }[]
 }
 
 @Injectable()
@@ -1210,10 +1214,7 @@ export class BankImportService {
     // rates was entered as several expenses (more than one → see invoiceParts).
     let parts: InvoicePart[] = [];
     let skontoAmount = 0;
-    let skontoOf: {
-      id: string; supplierId: string | null; invoiceNumber: string | null; vatRate: unknown; category: string | null
-      accountNumber: string | null; isIntraEU: boolean; isReverseCharge: boolean
-    } | null = null;
+    let skontoOf: (InvoicePart & { supplierId: string | null; invoiceNumber: string | null; category: string | null }) | null = null;
     if (amount >= 0) {
       const creditNote = opts.expenseId
         ? await this.prisma.expense.findFirst({
@@ -1263,6 +1264,8 @@ export class BankImportService {
         select: {
           id: true, grossAmount: true, relatedAssetId: true, supplierId: true, invoiceNumber: true,
           vatRate: true, category: true, accountNumber: true, isIntraEU: true, isReverseCharge: true,
+          netAmount: true, vatAmount: true,
+          taxLines: { select: { vatRate: true, netAmount: true, vatAmount: true, position: true }, orderBy: { position: 'asc' } },
         },
       });
       if (!exp) throw new NotFoundException('Ausgabe nicht gefunden');
@@ -1447,21 +1450,43 @@ export class BankImportService {
       credit: absAmount,
     })
 
-    // Tier 577: one debit for an invoice entered as several expenses — every
-    // part with its own cost account and Vorsteuer, from the expense itself
-    // (the request's vatRate / vatAmount describe one part only).
-    if (parts.length > 1) {
+    // Tier 577 / 581: the payment by VAT line — when one debit pays an invoice
+    // entered as several expenses, and when the expense itself has several
+    // rates. Cost account and Vorsteuer come from the expense (the request's
+    // vatRate / vatAmount can describe one rate only).
+    const lineParts: InvoicePart[] = parts.length > 1 ? parts : skontoOf && skontoOf.taxLines.length > 1 ? [skontoOf] : []
+    // what a Skonto takes off each rate — for the credit note written below
+    const skontoByRate: { rate: number; gross: number }[] = []
+    if (lineParts.length) {
+      const r2 = (n: number) => Math.round(n * 100) / 100
+      const items = lineParts.flatMap((p) =>
+        expenseTaxLines(p).map((l) => ({
+          part: p,
+          rate: l.rate,
+          gross: r2(Math.abs(l.net + l.vat)),
+          vat: p.isIntraEU || p.isReverseCharge ? 0 : r2(Math.abs(l.vat)),
+        })),
+      )
+      if (skontoAmount > 0) {
+        // paid less its Skonto: every rate carries its share of the payment
+        const total = items.reduce((sum, it) => sum + it.gross, 0)
+        let left = absAmount
+        items.forEach((it, i) => {
+          const paid = i === items.length - 1 ? r2(left) : r2((absAmount * it.gross) / total)
+          left -= paid
+          skontoByRate.push({ rate: it.rate, gross: r2(it.gross - paid) })
+          it.vat = it.vat > 0 ? r2((paid * it.rate) / (1 + it.rate)) : 0
+          it.gross = paid
+        })
+      }
       lines.length = 0
-      for (const p of parts) {
-        const rate = Number(p.vatRate)
-        const vat = p.isIntraEU || p.isReverseCharge ? 0 : Math.round(Number(p.vatAmount) * 100) / 100
-        const gross = Math.round(Number(p.grossAmount) * 100) / 100
-        const vorsteuer = vat > 0 ? (Math.abs(rate - 0.19) < 0.001 ? accts.inputVat19 : Math.abs(rate - 0.07) < 0.001 ? accts.inputVat7 : null) : null
-        const account = await this.partAccount(companyId, p.accountNumber, expenseAccount)
-        lines.push({ accountId: account.id, description: counterparty, debit: vorsteuer ? Math.round((gross - vat) * 100) / 100 : gross, credit: 0 })
+      for (const it of items) {
+        const vorsteuer = it.vat > 0 ? (Math.abs(it.rate - 0.19) < 0.001 ? accts.inputVat19 : Math.abs(it.rate - 0.07) < 0.001 ? accts.inputVat7 : null) : null
+        const account = await this.partAccount(companyId, it.part.accountNumber, expenseAccount)
+        lines.push({ accountId: account.id, description: counterparty, debit: vorsteuer ? r2(it.gross - it.vat) : it.gross, credit: 0 })
         if (vorsteuer) {
           const vorsteuerAccount = await this.ensureAccount(companyId, vorsteuer, 'Vorsteuer', 'asset', 'vat')
-          lines.push({ accountId: vorsteuerAccount.id, description: `Vorsteuer ${(rate * 100).toFixed(0)}%`, debit: vat, credit: 0, vatRate: rate, vatAmount: vat })
+          lines.push({ accountId: vorsteuerAccount.id, description: `Vorsteuer ${(it.rate * 100).toFixed(0)}%`, debit: it.vat, credit: 0, vatRate: it.rate, vatAmount: it.vat })
         }
       }
       lines.push({ accountId: bankAccount.id, description: `Bank ${counterparty}`, debit: 0, credit: absAmount })
@@ -1515,8 +1540,17 @@ export class BankImportService {
     // the bill's rate (§ 17 UStG: cost and Vorsteuer go down), settled with
     // this payment. Tagged with the voucher so its Storno removes it again.
     if (skontoAmount > 0 && skontoOf) {
-      const r = Number(skontoOf.vatRate);
-      const net = Math.round(skontoAmount / (1 + r) * 100) / 100;
+      // Tier 581: for an invoice with several rates the credit note has the
+      // same rates — each takes its share of the Skonto.
+      const noteLines = skontoByRate
+        .filter((l) => Math.abs(l.gross) > 0.004)
+        .map((l) => {
+          const lineNet = Math.round((l.gross / (1 + l.rate)) * 100) / 100
+          return { rate: l.rate, net: lineNet, vat: Math.round((l.gross - lineNet) * 100) / 100 }
+        })
+      const several = noteLines.length > 1
+      const r = several ? [...noteLines].sort((x, y) => y.net - x.net)[0].rate : Number(skontoOf.vatRate);
+      const net = several ? Math.round(noteLines.reduce((sum, l) => sum + l.net, 0) * 100) / 100 : Math.round(skontoAmount / (1 + r) * 100) / 100;
       await this.prisma.expense.create({
         data: {
           companyId,
@@ -1528,6 +1562,15 @@ export class BankImportService {
           vatRate: r,
           vatAmount: (-(skontoAmount - net)).toFixed(4),
           grossAmount: (-skontoAmount).toFixed(4),
+          ...(several
+            ? {
+              taxLines: {
+                create: noteLines.map((l, position) => ({
+                  companyId, position, vatRate: l.rate, netAmount: (-l.net).toFixed(4), vatAmount: (-l.vat).toFixed(4),
+                })),
+              },
+            }
+            : {}),
           category: skontoOf.category,
           accountNumber: skontoOf.accountNumber,
           isIntraEU: skontoOf.isIntraEU,
@@ -1582,7 +1625,8 @@ export class BankImportService {
         relatedAssetId: null,
       },
       select: {
-        id: true, vatRate: true, vatAmount: true, grossAmount: true, accountNumber: true, isIntraEU: true, isReverseCharge: true,
+        id: true, vatRate: true, netAmount: true, vatAmount: true, grossAmount: true, accountNumber: true, isIntraEU: true, isReverseCharge: true,
+        taxLines: { select: { vatRate: true, netAmount: true, vatAmount: true, position: true }, orderBy: { position: 'asc' } },
       },
       orderBy: { createdAt: 'asc' },
       take: 20,

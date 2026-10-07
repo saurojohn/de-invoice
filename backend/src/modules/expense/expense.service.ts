@@ -24,6 +24,7 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { PrismaService } from '../../prisma/prisma.service';
 import { assertNotFuture } from '../../common/business-date';
 import { assertExpenseAmounts, expenseAmountsError } from './amounts';
+import { checkTaxLines } from './tax-lines';
 
 @Injectable()
 export class ExpenseService {
@@ -41,7 +42,11 @@ export class ExpenseService {
     }
     const items = await this.prisma.expense.findMany({
       where,
-      include: { supplier: { select: { id: true, name: true, vatId: true } } },
+      include: {
+        supplier: { select: { id: true, name: true, vatId: true } },
+        // Tier 581: the VAT lines of an expense with several rates
+        taxLines: { select: { vatRate: true, netAmount: true, vatAmount: true, position: true }, orderBy: { position: 'asc' } },
+      },
       orderBy: { invoiceDate: 'desc' },
       take: 500,
     });
@@ -109,7 +114,10 @@ export class ExpenseService {
   async findOne(id: string, companyId: string) {
     const exp = await this.prisma.expense.findFirst({
       where: { id, companyId },
-      include: { supplier: true },
+      include: {
+        supplier: true,
+        taxLines: { select: { vatRate: true, netAmount: true, vatAmount: true, position: true }, orderBy: { position: 'asc' } },
+      },
     });
     if (!exp) throw new NotFoundException('Eingangsrechnung nicht gefunden');
     return exp;
@@ -131,13 +139,26 @@ export class ExpenseService {
     }
     // Tier 489: the same supplier invoice twice is refused (409)
     await assertNoDuplicateExpense(this.prisma, companyId, data.supplierId, data.invoiceNumber, !!data.creditNote, data.confirmDuplicate === true)
-    // Tier 442: a supplier credit note is stored with negative amounts.
-    const { net, vat, gross } = signedExpenseAmounts(data.creditNote, {
-      net: Number(data.netAmount ?? 0),
-      vat: Number(data.vatAmount ?? 0),
-      gross: Number(data.grossAmount ?? Number(data.netAmount ?? 0) + Number(data.vatAmount ?? 0)),
-    });
-    assertExpenseAmounts({ net, vat, gross, rate: Number(data.vatRate ?? 0) }); // Tier 523
+    // Tier 581: several VAT rates on one invoice — the amounts are the lines' sums.
+    let taxRows: ReturnType<typeof checkTaxLines>['rows'] = [];
+    let net: number, vat: number, gross: number;
+    let rate = Number(data.vatRate ?? 0);
+    if (data.taxLines !== undefined && data.taxLines !== null) {
+      if (data.isIntraEU || data.isReverseCharge) {
+        throw new BadRequestException('Steuerzeilen gibt es nicht bei § 13b / innergemeinschaftlichem Erwerb — dort weist die Rechnung keine Steuer aus.');
+      }
+      const checked = checkTaxLines(data.taxLines, !!data.creditNote, { net: data.netAmount, vat: data.vatAmount, gross: data.grossAmount });
+      ({ net, vat, gross, rate } = checked);
+      taxRows = checked.rows;
+    } else {
+      // Tier 442: a supplier credit note is stored with negative amounts.
+      ({ net, vat, gross } = signedExpenseAmounts(data.creditNote, {
+        net: Number(data.netAmount ?? 0),
+        vat: Number(data.vatAmount ?? 0),
+        gross: Number(data.grossAmount ?? Number(data.netAmount ?? 0) + Number(data.vatAmount ?? 0)),
+      }));
+      assertExpenseAmounts({ net, vat, gross, rate }); // Tier 523
+    }
     await assertPeriodOpen(this.prisma, companyId, [data.invoiceDate], 'das Erfassen einer Eingangsrechnung'); // Tier 537
     return this.prisma.expense.create({
       data: {
@@ -147,9 +168,10 @@ export class ExpenseService {
         description: data.description,
         invoiceDate: new Date(data.invoiceDate),
         netAmount: net.toFixed(4),
-        vatRate: data.vatRate ?? 0,
+        vatRate: rate,
         vatAmount: vat.toFixed(4),
         grossAmount: gross.toFixed(4),
+        ...(taxRows.length ? { taxLines: { create: taxRows.map((l) => ({ ...l, companyId })) } } : {}),
         category: data.category || null,
         giftRecipient: data.giftRecipient?.trim() || null, // Tier 503
         bewirtungAnlass: data.bewirtungAnlass?.trim() || null, // Tier 539
@@ -170,6 +192,7 @@ export class ExpenseService {
         // Tier 454: paid by card / privately (CreateExpenseDto.paidAt).
         paidAt: data.paidAt ? new Date(data.paidAt) : null,
       },
+      include: { taxLines: { select: { vatRate: true, netAmount: true, vatAmount: true, position: true }, orderBy: { position: 'asc' } } },
     });
   }
 

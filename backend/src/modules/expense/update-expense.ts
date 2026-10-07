@@ -25,6 +25,7 @@ import { expenseLockReason } from './expense-lock'
 import type { UpdateExpenseDto } from './dto/expense.dto'
 import { assertNotFuture } from '../../common/business-date'
 import { assertExpenseAmounts } from './amounts'
+import { checkTaxLines } from './tax-lines'
 
 const round = (n: number, places: number) => Math.round(n * 10 ** places) / 10 ** places
 const sameDecimal = (a: unknown, b: number) => round(Number(a), 4) === round(b, 4)
@@ -36,8 +37,9 @@ export async function updateExpense(
   id: string,
   data: UpdateExpenseDto,
 ) {
-  const exp = await prisma.expense.findFirst({ where: { id, companyId } })
+  const exp = await prisma.expense.findFirst({ where: { id, companyId }, include: { taxLines: { orderBy: { position: 'asc' } } } })
   if (!exp) throw new NotFoundException('Eingangsrechnung nicht gefunden')
+  const withLines = { supplier: true, taxLines: { select: { vatRate: true, netAmount: true, vatAmount: true, position: true }, orderBy: { position: 'asc' as const } } }
 
   const changes: Record<string, unknown> = {}
   const set = (key: string, next: unknown, differs: boolean) => {
@@ -79,23 +81,71 @@ export async function updateExpense(
 
   // Amounts: work with magnitudes, then apply the sign.
   const creditNote = data.creditNote ?? Number(exp.grossAmount) < 0
-  const rate = data.vatRate ?? Number(exp.vatRate)
-  const net = data.netAmount ?? Math.abs(Number(exp.netAmount))
-  const baseChanged = data.netAmount !== undefined || data.vatRate !== undefined
-  const vat = data.vatAmount ?? (baseChanged ? round(net * rate, 2) : Math.abs(Number(exp.vatAmount)))
-  const gross = data.grossAmount ??
-    (baseChanged || data.vatAmount !== undefined ? round(net + vat, 4) : Math.abs(Number(exp.grossAmount)))
-  const signed = signedExpenseAmounts(creditNote, { net, vat, gross })
-  // Tier 523 — only when an amount is being changed (a row from before stays editable otherwise).
-  if (baseChanged || data.vatAmount !== undefined || data.grossAmount !== undefined) {
-    assertExpenseAmounts({ ...signed, rate })
+  // Tier 581: the VAT lines of an expense with several rates. `taxLines`
+  // replaces them (one line, or [], makes it a one-rate expense again); left
+  // out (or null) the rows stay.
+  let newRows: { position: number; vatRate: number; netAmount: string; vatAmount: string }[] | null = null
+  const scalarAmounts = data.netAmount !== undefined || data.vatAmount !== undefined || data.grossAmount !== undefined || data.vatRate !== undefined
+  if (data.taxLines !== undefined && data.taxLines !== null && data.taxLines.length > 0) {
+    if ((data.isIntraEU ?? exp.isIntraEU) || (data.isReverseCharge ?? exp.isReverseCharge)) {
+      throw new BadRequestException('Steuerzeilen gibt es nicht bei § 13b / innergemeinschaftlichem Erwerb — dort weist die Rechnung keine Steuer aus.')
+    }
+    const checked = checkTaxLines(data.taxLines, creditNote, { net: data.netAmount, vat: data.vatAmount, gross: data.grossAmount })
+    newRows = checked.rows
+    set('vatRate', checked.rate, !sameDecimal(exp.vatRate, checked.rate))
+    set('netAmount', checked.net.toFixed(4), !sameDecimal(exp.netAmount, checked.net))
+    set('vatAmount', checked.vat.toFixed(4), !sameDecimal(exp.vatAmount, checked.vat))
+    set('grossAmount', checked.gross.toFixed(4), !sameDecimal(exp.grossAmount, checked.gross))
+  } else if (exp.taxLines.length > 0 && data.taxLines == null && scalarAmounts) {
+    throw new BadRequestException(
+      'Diese Ausgabe hat mehrere Steuersätze. Bitte die Steuerzeilen (taxLines) ändern — oder mit einer leeren Liste zu einem einzigen Steuersatz machen.',
+    )
+  } else if (exp.taxLines.length > 0 && data.taxLines == null) {
+    // nothing about the amounts — but a credit note turned into an invoice (or back) turns every line
+    if (creditNote !== Number(exp.grossAmount) < 0) {
+      const sign = creditNote ? -1 : 1
+      newRows = exp.taxLines.map((l, position) => ({
+        position,
+        vatRate: Number(l.vatRate),
+        netAmount: (sign * Math.abs(Number(l.netAmount))).toFixed(4),
+        vatAmount: (sign * Math.abs(Number(l.vatAmount))).toFixed(4),
+      }))
+      for (const k of ['netAmount', 'vatAmount', 'grossAmount'] as const) {
+        const next = sign * Math.abs(Number(exp[k]))
+        set(k, next.toFixed(4), !sameDecimal(exp[k], next))
+      }
+    }
+  } else {
+    if (exp.taxLines.length > 0) newRows = [] // taxLines: [] — back to one rate, from the amounts given
+    const rate = data.vatRate ?? Number(exp.vatRate)
+    const net = data.netAmount ?? Math.abs(Number(exp.netAmount))
+    const baseChanged = data.netAmount !== undefined || data.vatRate !== undefined
+    const vat = data.vatAmount ?? (baseChanged ? round(net * rate, 2) : Math.abs(Number(exp.vatAmount)))
+    const gross = data.grossAmount ??
+      (baseChanged || data.vatAmount !== undefined ? round(net + vat, 4) : Math.abs(Number(exp.grossAmount)))
+    const signed = signedExpenseAmounts(creditNote, { net, vat, gross })
+    // Tier 523 — only when an amount is being changed (a row from before stays editable otherwise).
+    if (baseChanged || data.vatAmount !== undefined || data.grossAmount !== undefined || newRows) {
+      assertExpenseAmounts({ ...signed, rate })
+    }
+    set('vatRate', rate, !sameDecimal(exp.vatRate, rate))
+    set('netAmount', signed.net.toFixed(4), !sameDecimal(exp.netAmount, signed.net))
+    set('vatAmount', signed.vat.toFixed(4), !sameDecimal(exp.vatAmount, signed.vat))
+    set('grossAmount', signed.gross.toFixed(4), !sameDecimal(exp.grossAmount, signed.gross))
   }
-  set('vatRate', rate, !sameDecimal(exp.vatRate, rate))
-  set('netAmount', signed.net.toFixed(4), !sameDecimal(exp.netAmount, signed.net))
-  set('vatAmount', signed.vat.toFixed(4), !sameDecimal(exp.vatAmount, signed.vat))
-  set('grossAmount', signed.gross.toFixed(4), !sameDecimal(exp.grossAmount, signed.gross))
+  // are the rows really different from what is stored?
+  if (newRows) {
+    const same =
+      newRows.length === exp.taxLines.length &&
+      newRows.every((r, i) =>
+        sameDecimal(exp.taxLines[i].vatRate, r.vatRate) &&
+        sameDecimal(exp.taxLines[i].netAmount, Number(r.netAmount)) &&
+        sameDecimal(exp.taxLines[i].vatAmount, Number(r.vatAmount)))
+    if (same) newRows = null
+  }
+  const linesChanged = newRows !== null
 
-  if (Object.keys(changes).length > 0) {
+  if (Object.keys(changes).length > 0 || linesChanged) {
     // Tier 537: out of, or into, a submitted UStVA period
     await assertPeriodOpen(prisma, companyId, [exp.invoiceDate, changes.invoiceDate as Date | undefined], 'das Ändern einer Eingangsrechnung')
     const reason = await expenseLockReason(prisma, companyId, exp)
@@ -103,12 +153,16 @@ export async function updateExpense(
   }
   if (data.notes !== undefined) set('notes', orNull(data.notes), orNull(data.notes) !== exp.notes)
 
-  if (Object.keys(changes).length === 0) {
-    return prisma.expense.findFirst({ where: { id, companyId }, include: { supplier: true } })
+  if (Object.keys(changes).length === 0 && !linesChanged) {
+    return prisma.expense.findFirst({ where: { id, companyId }, include: withLines })
   }
   return prisma.expense.update({
     where: { id },
-    data: changes,
-    include: { supplier: true },
+    data: {
+      ...changes,
+      // one statement: the old rows go and the new ones come with the totals
+      ...(newRows ? { taxLines: { deleteMany: {}, create: newRows.map((l) => ({ ...l, companyId })) } } : {}),
+    },
+    include: withLines,
   })
 }

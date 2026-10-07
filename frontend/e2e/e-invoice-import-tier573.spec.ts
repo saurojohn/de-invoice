@@ -69,7 +69,9 @@ test("an XRechnung is read, shown, imported and can be looked at again", async (
   await expect(page.getByTestId("einvoice-profile")).toContainText("XRechnung 3.0", { timeout: 30_000 })
   await expect(page.getByTestId("einvoice-seller")).toHaveText("Papier Müller GmbH")
   await expect(page.getByTestId("einvoice-lines").locator("tbody tr")).toHaveCount(2)
-  await expect(page.getByTestId("einvoice-planned")).toHaveCount(2) // one expense per VAT rate
+  // Tier 581: one expense, with a line per VAT rate (until then: two expenses)
+  await expect(page.getByTestId("einvoice-planned")).toHaveCount(1)
+  await expect(page.getByTestId("einvoice-planned-line")).toHaveCount(2)
   await expect(page.getByTestId("einvoice-blocking")).toHaveCount(0)
 
   // Tier 578: the official validator on request — where it is installed it
@@ -86,7 +88,8 @@ test("an XRechnung is read, shown, imported and can be looked at again", async (
   await page.getByTestId("einvoice-import-button").click()
   await expect(dialog).toBeHidden({ timeout: 30_000 })
   const rows = page.getByTestId("expense-row").filter({ hasText: `PM-${tag}` })
-  await expect(rows).toHaveCount(2, { timeout: 30_000 })
+  await expect(rows).toHaveCount(1, { timeout: 30_000 })
+  await expect(rows.first().getByTestId("expense-rates")).toHaveText("19 % / 7 %")
 
   // the same file again: recognised, and only imported after saying so
   await page.getByTestId("expense-einvoice-file-input").setInputFiles(file)

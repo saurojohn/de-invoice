@@ -572,6 +572,11 @@ model Expense {
   updatedAt         DateTime   @updatedAt
 
   cashBookEntries CashBookEntry[]
+  // Tier 581: the VAT lines of an invoice with more than one rate (19 % and
+  // 7 % on one bill). Empty for the ordinary case — then netAmount / vatRate /
+  // vatAmount above are the one line. With rows, the three amounts above are
+  // their sums and vatRate is the rate of the largest line (for display).
+  taxLines        ExpenseTaxLine[]
 
   @@index([companyId, invoiceDate])
   @@index([companyId, vatRate])
@@ -579,6 +584,21 @@ model Expense {
   @@index([companyId, paidAt])
   @@index([relatedAssetId, afaYear])
   @@index([relatedAssetId, afaYear, afaMonth])
+}
+
+// Tier 581 — one VAT rate of an expense that has several (expense/tax-lines.ts).
+model ExpenseTaxLine {
+  id        String  @id @default(uuid())
+  expenseId String
+  expense   Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  companyId String
+  position  Int     @default(0)
+  vatRate   Decimal @db.Decimal(5, 4)
+  netAmount Decimal @db.Decimal(12, 4)
+  vatAmount Decimal @db.Decimal(12, 4)
+
+  @@index([expenseId])
+  @@index([companyId])
 }
 
 // UStVA filing record — track submitted VAT returns

@@ -17,6 +17,7 @@ import { privateCarUse } from '../company-car/private-use';
 import { nonDeductibleGiftIds } from '../accounting/gifts';
 import { assertNotFuture } from '../../common/business-date';
 import { assertExpenseAmounts } from '../expense/amounts';
+import { expenseTaxLines } from '../expense/tax-lines';
 
 /**
  * UStVA — Umsatzsteuervoranmeldung
@@ -355,7 +356,8 @@ export class UstvaService {
         invoiceDate: { gte: start, lte: end },
         status: { in: ['booked', 'deductible'] },
       },
-      include: { supplier: true },
+      // Tier 581: with the VAT lines of an expense that has several rates
+      include: { supplier: true, taxLines: true },
     });
 
     let vorsteuer19 = 0;
@@ -377,7 +379,6 @@ export class UstvaService {
       if (badGifts.has(exp.id)) continue;
       const rate = Number(exp.vatRate);
       const net = Number(exp.netAmount);
-      const vat = Number(exp.vatAmount);
 
       if (exp.isReverseCharge || exp.isIntraEU) {
         // igE / § 13b — this company owes the tax and, with the right to
@@ -409,16 +410,22 @@ export class UstvaService {
           bucket.vat += owed;
           vorsteuerReverseCharge += owed;
         }
-      } else if (rate === 0.19) {
-        vorsteuer19 += vat; // Tier 442: signed (a credit note reduces it)
-      } else if (rate === 0.07) {
-        vorsteuer7 += vat;
-      } else if (rate > 0) {
-        // Tier 417: e.g. a 16 % or 5 % invoice from 2020 — deductible like
-        // any other; it used to be dropped.
-        vorsteuerOther += vat;
       } else {
-        // 0% (e.g. Kleinunternehmer supplier) — no input tax
+        // Tier 581: each VAT line by its own rate (an expense without lines
+        // is its one line).
+        for (const l of expenseTaxLines(exp)) {
+          if (l.rate === 0.19) {
+            vorsteuer19 += l.vat; // Tier 442: signed (a credit note reduces it)
+          } else if (l.rate === 0.07) {
+            vorsteuer7 += l.vat;
+          } else if (l.rate > 0) {
+            // Tier 417: e.g. a 16 % or 5 % invoice from 2020 — deductible like
+            // any other; it used to be dropped.
+            vorsteuerOther += l.vat;
+          } else {
+            // 0% (e.g. Kleinunternehmer supplier) — no input tax
+          }
+        }
       }
     }
 
@@ -1089,7 +1096,10 @@ export class UstvaService {
     }
     const expenses = await this.prisma.expense.findMany({
       where,
-      include: { supplier: true },
+      include: {
+        supplier: true,
+        taxLines: { select: { vatRate: true, netAmount: true, vatAmount: true, position: true }, orderBy: { position: 'asc' } },
+      },
       orderBy: { invoiceDate: 'desc' },
     });
     // Tier 443: the page offers edit / delete only where they are allowed.

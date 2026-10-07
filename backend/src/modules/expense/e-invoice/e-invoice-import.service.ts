@@ -10,7 +10,7 @@
  * What an import does:
  *   - reads the XML (alone, or the one embedded in the PDF);
  *   - finds the supplier by VAT ID, then by name — or creates it;
- *   - creates one expense per VAT line (an Expense has one rate), through
+ *   - creates the expense — one, with a VAT line per rate (Tier 581) — through
  *     ExpenseService.create, so every rule of a hand-entered expense holds
  *     (amounts add up, no future date, filed period closed, no duplicate);
  *   - stores the received file, byte for byte, as the expense's attachment.
@@ -44,7 +44,7 @@ export interface ReadEInvoice {
   invoice: ParsedEInvoice
 }
 
-/** One expense the import would create (an Expense has a single VAT rate). */
+/** An expense the import would create — one per invoice, with its VAT lines (Tier 581). */
 export interface PlannedExpense {
   description: string
   netAmount: number
@@ -55,6 +55,8 @@ export interface PlannedExpense {
   taxCategory: string
   isReverseCharge: boolean
   isIntraEU: boolean
+  /** Tier 581: the VAT lines, when the invoice has more than one rate */
+  taxLines?: { vatRate: number; netAmount: number; vatAmount: number }[]
 }
 
 export interface ImportOptions {
@@ -232,32 +234,42 @@ export class EInvoiceImportService {
       if (dup) duplicate = { expenseId: dup.id, reason: 'number', message: duplicateExpenseMessage(dup) }
     }
 
-    // One expense per VAT line.
+    // Tier 581: ONE expense, with a VAT line per rate. (Until then: one
+    // expense per rate.) Only what the recipient owes the tax for himself is
+    // an expense of its own — § 13b (AE) and the intra-community acquisition
+    // (K) are flags of the whole expense, and their invoice shows no tax.
     const planned: PlannedExpense[] = []
-    const merged = new Map<string, { category: string; rate: number; net: number; vat: number }>()
+    const kinds = new Map<'normal' | 'AE' | 'K', Map<number, { net: number; vat: number }>>()
     for (const g of inv.taxGroups) {
-      const key = `${g.category}|${g.rate}`
-      const m = merged.get(key) ?? { category: g.category, rate: g.rate, net: 0, vat: 0 }
+      const kind = g.category === 'AE' || g.category === 'K' ? g.category : 'normal'
+      const taxed = g.category === 'S' || g.category === 'L' || g.category === 'M'
+      const rate = taxed ? g.rate : 0
+      const rates = kinds.get(kind) ?? new Map<number, { net: number; vat: number }>()
+      const m = rates.get(rate) ?? { net: 0, vat: 0 }
       m.net += g.taxableAmount
-      m.vat += g.taxAmount
-      merged.set(key, m)
+      m.vat += taxed ? g.taxAmount : 0
+      rates.set(rate, m)
+      kinds.set(kind, rates)
     }
-    const several = merged.size > 1
-    for (const m of merged.values()) {
-      const taxed = m.category === 'S' || m.category === 'L' || m.category === 'M'
-      const net = toEur(m.net)
-      const vat = taxed ? toEur(m.vat) : 0
-      const own = inv.lines.filter((l) => !several || ((l.taxCategory ?? m.category) === m.category && (l.taxRate ?? m.rate) === m.rate))
-      const label = m.category === 'AE' ? '§ 13b' : m.category === 'K' ? 'innergem. Erwerb' : taxed ? `USt ${String(m.rate).replace('.', ',')} %` : `steuerfrei (${m.category})`
+    const several = kinds.size > 1
+    for (const [kind, rates] of kinds) {
+      const lines = [...rates.entries()]
+        .map(([rate, m]) => ({ vatRate: Math.round(rate * 100) / 10000, netAmount: toEur(m.net), vatAmount: toEur(m.vat) }))
+        .sort((x, y) => y.vatRate - x.vatRate)
+      const net = round2(lines.reduce((sum, l) => sum + l.netAmount, 0))
+      const vat = round2(lines.reduce((sum, l) => sum + l.vatAmount, 0))
+      const own = inv.lines.filter((l) => !several || (l.taxCategory === 'AE' || l.taxCategory === 'K' ? l.taxCategory : 'normal') === kind)
+      const label = kind === 'AE' ? '§ 13b' : kind === 'K' ? 'innergem. Erwerb' : 'mit Umsatzsteuer'
       planned.push({
         description: describe(inv, own, several ? label : null),
         netAmount: net,
         vatAmount: vat,
         grossAmount: round2(net + vat),
-        vatRate: taxed ? Math.round(m.rate * 100) / 10000 : 0,
-        taxCategory: m.category,
-        isReverseCharge: m.category === 'AE',
-        isIntraEU: m.category === 'K',
+        vatRate: [...lines].sort((x, y) => y.netAmount - x.netAmount)[0].vatRate,
+        taxCategory: kind === 'normal' ? 'S' : kind,
+        isReverseCharge: kind === 'AE',
+        isIntraEU: kind === 'K',
+        ...(lines.length > 1 ? { taxLines: lines } : {}),
       })
     }
     // What ExpenseService.create would refuse is said here already, so that the
@@ -277,8 +289,10 @@ export class EInvoiceImportService {
     }
     if (!blocking.length && planned.length === 0) blocking.push('Die Rechnung enthält keine Beträge.')
     for (const p of planned) {
-      const problem = expenseAmountsError({ net: p.netAmount, vat: p.vatAmount, gross: p.grossAmount, rate: p.vatRate })
-      if (problem && !blocking.includes(problem)) blocking.push(problem)
+      for (const l of p.taxLines ?? [{ vatRate: p.vatRate, netAmount: p.netAmount, vatAmount: p.vatAmount }]) {
+        const problem = expenseAmountsError({ net: l.netAmount, vat: l.vatAmount, gross: l.netAmount + l.vatAmount, rate: l.vatRate })
+        if (problem && !blocking.includes(problem)) blocking.push(problem)
+      }
     }
 
     return {
@@ -368,6 +382,7 @@ export class EInvoiceImportService {
           vatAmount: p.vatAmount,
           grossAmount: p.grossAmount,
           vatRate: p.vatRate,
+          ...(p.taxLines ? { taxLines: p.taxLines } : {}),
           creditNote: inv.creditNote,
           isReverseCharge: p.isReverseCharge,
           isIntraEU: p.isIntraEU,
@@ -375,8 +390,8 @@ export class EInvoiceImportService {
           accountNumber: opts.accountNumber,
           paidAt: opts.paidAt,
           notes,
-          // The duplicate question was answered above; the second VAT line of
-          // the same invoice is no duplicate of the first.
+          // The duplicate question was answered above; a § 13b part beside
+          // the taxed part of the same invoice is no duplicate of it.
           confirmDuplicate: true,
         })
         created.push(expense)

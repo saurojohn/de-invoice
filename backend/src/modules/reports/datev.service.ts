@@ -43,6 +43,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 // voucher lines that have no account yet.
 import { applyExpenseInference } from './datev-sachkonto-inference';
 import { vatRateToUstSchluessel } from './datev-ust-schluessel';
+import { expenseTaxLines } from '../expense/tax-lines';
 // Tier 409: per-rate amounts after the invoice discount.
 import { invoiceTaxBreakdown } from '../invoice/tax-breakdown';
 import { normaliseCountry } from '../invoice/ust-behandlung-detector';
@@ -645,7 +646,7 @@ export async function buildBuchungenFromDb(
       invoiceDate: { gte: startDate, lte: endDate },
       status: { in: ['booked', 'deductible'] },
     },
-    include: { supplier: { select: { id: true, vatId: true } } },
+    include: { supplier: { select: { id: true, vatId: true } }, taxLines: true },
     orderBy: { invoiceDate: 'asc' },
   })
 
@@ -794,6 +795,19 @@ export async function buildBuchungenFromDb(
         ustBetrag: 0, // tax and input tax cancel out
         euUstId: exp.isIntraEU ? exp.supplier?.vatId || undefined : undefined,
       })
+    } else if (!kleinunternehmer && vat !== 0 && exp.taxLines.length > 1) {
+      // Tier 581: an invoice with several VAT rates — one row per rate, each
+      // with its own key, all on the invoice's number.
+      for (const l of expenseTaxLines(exp)) {
+        const key = l.vat !== 0 ? vatRateToUstSchluessel(l.rate, 'input')?.key ?? '' : ''
+        out.push({
+          ...base,
+          betrag: r2(l.net + l.vat),
+          ...(l.vat !== 0
+            ? { ustSchluessel: key, ustBetrag: key ? r2(l.vat) : 0, steuerKonto: same(l.rate, 0.07) ? a.inputVat7 : a.inputVat19 }
+            : {}),
+        })
+      }
     } else if (!kleinunternehmer && vat !== 0) {
       const key = vatRateToUstSchluessel(rate, 'input')?.key ?? ''
       out.push({

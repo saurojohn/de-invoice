@@ -21,7 +21,14 @@ export interface EditableExpense {
   supplier: { id: string; name: string } | null
   lockReason?: string | null
   paidAt?: string | null
+  // Tier 581: the VAT lines of an invoice with several rates (empty otherwise)
+  taxLines?: Array<{ vatRate: string | number; netAmount: string | number; vatAmount: string | number }>
 }
+
+type LineForm = { vatRate: string; netAmount: string; vatAmount: string }
+const RATES = ["0.19", "0.07", "0"]
+const cents = (s: string) => Math.round(parseFloat(s || "0") * 100)
+const de = (c: number) => (c / 100).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 export function ExpenseEditForm({
   expense,
@@ -44,10 +51,60 @@ export function ExpenseEditForm({
     vatRate: String(Number(expense.vatRate)),
     paidAt: expense.paidAt ? String(expense.paidAt).slice(0, 10) : "",
   })
+  // Tier 581: one line per VAT rate when the invoice has several; empty = one rate.
+  const initialLines = (): LineForm[] =>
+    (expense.taxLines ?? []).length > 1
+      ? expense.taxLines!.map((l) => ({
+          vatRate: String(Number(l.vatRate)),
+          netAmount: String(Math.abs(Number(l.netAmount))),
+          vatAmount: String(Math.abs(Number(l.vatAmount))),
+        }))
+      : []
   const [form, setForm] = useState(initial)
+  const [lines, setLines] = useState<LineForm[]>(initialLines)
   const [saving, setSaving] = useState(false)
   // A different row opened in the same modal starts from its own values.
-  useEffect(() => setForm(initial()), [expense.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    setForm(initial())
+    setLines(initialLines())
+  }, [expense.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  const hadLines = (expense.taxLines ?? []).length > 1
+  const setLine = (i: number, patch: Partial<LineForm>) =>
+    setLines((all) =>
+      all.map((l, k) => {
+        if (k !== i) return l
+        const next = { ...l, ...patch }
+        // the VAT follows net × rate until it is typed
+        if (patch.netAmount !== undefined || patch.vatRate !== undefined) {
+          next.vatAmount = ((cents(next.netAmount) * parseFloat(next.vatRate || "0")) / 100).toFixed(2)
+        }
+        return next
+      }),
+    )
+  // a second rate: the amounts so far become the first line
+  const addLine = () =>
+    setLines((all) => {
+      const base: LineForm[] = all.length
+        ? all
+        : [{ vatRate: form.vatRate, netAmount: form.netAmount, vatAmount: ((cents(form.netAmount) * parseFloat(form.vatRate || "0")) / 100).toFixed(2) }]
+      const free = RATES.find((r) => !base.some((l) => Number(l.vatRate) === Number(r))) ?? "0"
+      return [...base, { vatRate: free, netAmount: "", vatAmount: "0.00" }]
+    })
+  const removeLine = (i: number) =>
+    setLines((all) => {
+      const rest = all.filter((_, k) => k !== i)
+      if (rest.length === 1) {
+        // back to one rate: its amounts go into the ordinary fields
+        setForm((f) => ({ ...f, netAmount: rest[0].netAmount, vatRate: rest[0].vatRate }))
+        return []
+      }
+      return rest
+    })
+  const lineTotals = lines.reduce(
+    (sum, l) => ({ net: sum.net + cents(l.netAmount), vat: sum.vat + cents(l.vatAmount) }),
+    { net: 0, vat: 0 },
+  )
+  const duplicateRate = lines.some((l, i) => lines.findIndex((o) => Number(o.vatRate) === Number(l.vatRate)) !== i)
 
   if (expense.lockReason) {
     return (
@@ -72,8 +129,20 @@ export function ExpenseEditForm({
         supplierId: form.supplierId,
         description: form.description,
         category: form.category,
-        netAmount: parseFloat(form.netAmount || "0"),
-        vatRate: parseFloat(form.vatRate),
+        ...(lines.length > 1
+          ? {
+              taxLines: lines.map((l) => ({
+                vatRate: parseFloat(l.vatRate),
+                netAmount: parseFloat(l.netAmount || "0"),
+                vatAmount: parseFloat(l.vatAmount || "0"),
+              })),
+            }
+          : {
+              // [] takes the lines of a multi-rate expense away again
+              ...(hadLines ? { taxLines: [] } : {}),
+              netAmount: parseFloat(form.netAmount || "0"),
+              vatRate: parseFloat(form.vatRate),
+            }),
         // Tier 454: paid by card / privately — the EÜR counts it on this day
         paidAt: form.paidAt || null,
       })
@@ -122,28 +191,71 @@ export function ExpenseEditForm({
           <input className={input} value={form.category}
             onChange={(e) => setForm({ ...form, category: e.target.value })} />
         </div>
-        <div>
-          <label className={label}>{t("expenses.net")}</label>
-          <input type="number" step="0.01" className={`${input} text-right`} value={form.netAmount}
-            data-testid="expense-edit-net"
-            onChange={(e) => setForm({ ...form, netAmount: e.target.value })} />
-        </div>
-        <div>
-          <label className={label}>{t("expenses.editVatRate")}</label>
-          <select className={input} value={form.vatRate}
-            onChange={(e) => setForm({ ...form, vatRate: e.target.value })}>
-            <option value="0.19">19%</option>
-            <option value="0.07">7%</option>
-            <option value="0">0%</option>
-          </select>
-        </div>
+        {lines.length > 1 ? (
+          <div className="md:col-span-3" data-testid="expense-edit-tax-lines">
+            <label className={label}>{t("expenses.taxLines")}</label>
+            <div className="space-y-2">
+              {lines.map((l, i) => (
+                <div key={i} className="grid grid-cols-[5rem_1fr_1fr_auto] items-center gap-2" data-testid="expense-edit-tax-line">
+                  <select className={input} value={l.vatRate} aria-label={t("expenses.editVatRate")}
+                    onChange={(e) => setLine(i, { vatRate: e.target.value })}>
+                    {[...new Set([...RATES, l.vatRate])].map((r) => (
+                      <option key={r} value={r}>{(Number(r) * 100).toLocaleString("de-DE")}%</option>
+                    ))}
+                  </select>
+                  <input type="number" step="0.01" min="0" className={`${input} text-right`} value={l.netAmount}
+                    placeholder={t("expenses.net")} aria-label={t("expenses.net")} data-testid={`expense-edit-line-net-${i}`}
+                    onChange={(e) => setLine(i, { netAmount: e.target.value })} />
+                  <input type="number" step="0.01" min="0" className={`${input} text-right`} value={l.vatAmount}
+                    placeholder={t("expenses.vat")} aria-label={t("expenses.vat")} data-testid={`expense-edit-line-vat-${i}`}
+                    onChange={(e) => setLines((all) => all.map((o, k) => (k === i ? { ...o, vatAmount: e.target.value } : o)))} />
+                  <button type="button" className="px-2 text-red-600 dark:text-red-400" title={t("expenses.removeTaxLine")}
+                    aria-label={t("expenses.removeTaxLine")} data-testid={`expense-edit-line-remove-${i}`} onClick={() => removeLine(i)}>
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-gray-600 dark:text-gray-300">
+              <button type="button" className="text-blue-600 hover:underline dark:text-blue-400" onClick={addLine} data-testid="expense-edit-add-tax-line">
+                + {t("expenses.addTaxLine")}
+              </button>
+              <span className="font-mono" data-testid="expense-edit-line-totals">
+                {t("expenses.net")} {de(lineTotals.net)} + {t("expenses.vat")} {de(lineTotals.vat)} = {de(lineTotals.net + lineTotals.vat)} €
+              </span>
+            </div>
+            {duplicateRate && <div className="mt-1 text-xs text-red-600 dark:text-red-400">{t("expenses.taxLineDuplicate")}</div>}
+          </div>
+        ) : (
+          <>
+            <div>
+              <label className={label}>{t("expenses.net")}</label>
+              <input type="number" step="0.01" className={`${input} text-right`} value={form.netAmount}
+                data-testid="expense-edit-net"
+                onChange={(e) => setForm({ ...form, netAmount: e.target.value })} />
+            </div>
+            <div>
+              <label className={label}>{t("expenses.editVatRate")}</label>
+              <select className={input} value={form.vatRate}
+                onChange={(e) => setForm({ ...form, vatRate: e.target.value })}>
+                <option value="0.19">19%</option>
+                <option value="0.07">7%</option>
+                <option value="0">0%</option>
+              </select>
+              <button type="button" className="mt-1 text-xs text-blue-600 hover:underline dark:text-blue-400" onClick={addLine}
+                data-testid="expense-edit-add-tax-line">
+                + {t("expenses.addTaxLine")}
+              </button>
+            </div>
+          </>
+        )}
         <div>
           <label className={label}>{t("expenses.paidAt")}</label>
           <input type="date" className={input} value={form.paidAt} data-testid="expense-edit-paid-at"
             onChange={(e) => setForm({ ...form, paidAt: e.target.value })} />
         </div>
         <div className="flex items-end justify-end md:col-span-3">
-          <Button size="sm" onClick={save} disabled={saving || !form.description} data-testid="expense-edit-save">
+          <Button size="sm" onClick={save} disabled={saving || !form.description || duplicateRate} data-testid="expense-edit-save">
             ✓ {saving ? "…" : t("expenses.editSave")}
           </Button>
         </div>

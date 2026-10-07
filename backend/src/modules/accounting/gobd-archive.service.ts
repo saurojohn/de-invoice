@@ -438,6 +438,7 @@ export class GobdArchiveService {
         companyId,
         invoiceDate: { gte: yearStart, lte: yearEnd },
       },
+      include: { taxLines: { orderBy: { position: 'asc' } } }, // Tier 581
       orderBy: { invoiceDate: 'asc' },
     })
     return expenses.map((e) => ({
@@ -455,6 +456,10 @@ export class GobdArchiveService {
         vatRate: Number(e.vatRate),
         vatAmount: Number(e.vatAmount),
         grossAmount: Number(e.grossAmount),
+        // Tier 581: the VAT lines of an invoice with several rates
+        ...(e.taxLines.length
+          ? { taxLines: e.taxLines.map((l) => ({ vatRate: Number(l.vatRate), netAmount: Number(l.netAmount), vatAmount: Number(l.vatAmount) })) }
+          : {}),
         category: e.category,
         isIntraEU: e.isIntraEU,
         isReverseCharge: e.isReverseCharge,

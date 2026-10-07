@@ -982,7 +982,12 @@
     "paidAt": "Paid on",
     "paidAtHint": "Only for payments outside the bank import, SEPA and the cash book (card, private account). The EÜR counts the expense on this day.",
     "ocrScanNotKept": "The expense was created, but the scan could not be stored as its receipt — please attach it by hand in the expense.",
-    "ocrWillCreate": "+ The supplier will be created with the expense"
+    "ocrWillCreate": "+ The supplier will be created with the expense",
+    "taxLines": "VAT rates of this invoice (rate · net · VAT)",
+    "addTaxLine": "another VAT rate",
+    "removeTaxLine": "Remove VAT rate",
+    "taxLineDuplicate": "Each VAT rate may occur only once.",
+    "severalRates": "several VAT rates"
   },
   "home": {
     "heroTitle": "Professional German Invoice Management",

@@ -20,6 +20,8 @@ import {
   Max,
   IsBoolean,
   ValidateIf,
+  IsArray,
+  ArrayMaxSize,
 } from "class-validator"
 import { Type, Transform } from "class-transformer"
 
@@ -103,6 +105,12 @@ export class CreateExpenseDto {
 
   @IsString() @IsOptional() @MaxLength(20)
   accountNumber?: string
+
+  // Tier 581: an invoice with several VAT rates — one line per rate
+  // ({ vatRate, netAmount, vatAmount }, entered positive). The expense's own
+  // amounts are then the sums (expense/tax-lines.ts).
+  @IsOptional() @IsArray() @ArrayMaxSize(8)
+  taxLines?: { vatRate: number; netAmount: number; vatAmount: number }[]
 }
 
 /**
@@ -176,4 +184,10 @@ export class UpdateExpenseDto {
   @ValidateIf((o) => o.paidAt !== null && o.paidAt !== undefined)
   @IsDateString({}, { message: "Bezahlt am muss ein Datum sein (ISO date)" })
   paidAt?: string | null
+
+  // Tier 581: an invoice with several VAT rates — one line per rate
+  // ({ vatRate, netAmount, vatAmount }, entered positive). The expense's own
+  // amounts are then the sums (expense/tax-lines.ts).
+  @IsOptional() @IsArray() @ArrayMaxSize(8)
+  taxLines?: { vatRate: number; netAmount: number; vatAmount: number }[]
 }

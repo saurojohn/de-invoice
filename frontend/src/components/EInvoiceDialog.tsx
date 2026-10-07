@@ -72,7 +72,16 @@ interface Preview {
   ibanDiffers: boolean
   buyerMatches: boolean | null
   duplicate: { expenseId: string; reason: "file" | "number"; message: string } | null
-  expenses: { description: string; netAmount: number; vatAmount: number; grossAmount: number; vatRate: number; taxCategory: string }[]
+  expenses: {
+    description: string
+    netAmount: number
+    vatAmount: number
+    grossAmount: number
+    vatRate: number
+    taxCategory: string
+    // Tier 581: one expense, a line per VAT rate
+    taxLines?: { vatRate: number; netAmount: number; vatAmount: number }[]
+  }[]
   blocking: string[]
   warnings: string[]
   importable: boolean
@@ -381,11 +390,21 @@ export function EInvoiceDialog({ mode, onClose, onImported }: { mode: Mode; onCl
                 <div className="border rounded p-3 bg-gray-50 dark:bg-gray-800 space-y-2">
                   <div className="font-semibold">{t("eInvoice.willCreate")}</div>
                   {preview.expenses.map((e) => (
-                    <div key={e.description} className="flex justify-between gap-4" data-testid="einvoice-planned">
-                      <span>{e.description}</span>
-                      <span className="font-mono whitespace-nowrap">
-                        {money(e.netAmount, "EUR")} + {money(e.vatAmount, "EUR")} = {money(e.grossAmount, "EUR")}
-                      </span>
+                    <div key={e.description} data-testid="einvoice-planned">
+                      <div className="flex justify-between gap-4">
+                        <span>{e.description}</span>
+                        <span className="font-mono whitespace-nowrap">
+                          {money(e.netAmount, "EUR")} + {money(e.vatAmount, "EUR")} = {money(e.grossAmount, "EUR")}
+                        </span>
+                      </div>
+                      {(e.taxLines ?? []).map((l) => (
+                        <div key={l.vatRate} className="flex justify-between gap-4 pl-4 text-xs text-gray-600 dark:text-gray-300" data-testid="einvoice-planned-line">
+                          <span>{num(l.vatRate * 100)} %</span>
+                          <span className="font-mono whitespace-nowrap">
+                            {money(l.netAmount, "EUR")} + {money(l.vatAmount, "EUR")}
+                          </span>
+                        </div>
+                      ))}
                     </div>
                   ))}
                   {foreign && (
