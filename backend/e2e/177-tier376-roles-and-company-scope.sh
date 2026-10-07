@@ -33,6 +33,8 @@ grep -qE "@CompanyIdParam\('id'\)" "$SRC/modules/company/company.controller.ts" 
 
 # Routes that act on the caller's own account, or whose service filters per
 # entity (search), need no role. Anything else without a role check fails.
+# (Tier 575: auth/change-password — the caller's own password, and the current
+# one is asked for again.)
 EXPECTED_NO_ROLE="GET auth/me
 GET search/customers
 GET search/global
@@ -43,6 +45,7 @@ POST auth/2fa/disable
 POST auth/2fa/enable
 POST auth/2fa/setup
 POST auth/2fa/status
+POST auth/change-password
 POST users/me/switch-company"
 ACTUAL_NO_ROLE=$(python3 - "$SRC" <<'PY'
 import re, glob, sys

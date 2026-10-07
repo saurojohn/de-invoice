@@ -2645,7 +2645,7 @@ From the open list (§9 item 22, "account self-service"). **Measured before:** `
 - 5 attempts a minute.
 - `components/ChangePasswordCard.tsx` on `/dashboard/security` („Passwort ändern“, de / en / zh).
 
-**Specs:** `346-tier575-passwort-aendern.sh` (20 assertions, 16 fail on the old code) and Playwright `change-password-tier575.spec.ts`.
+**Specs:** `346-tier575-passwort-aendern.sh` (20 assertions, 16 fail on the old code) and Playwright `change-password-tier575.spec.ts`. The route is in spec 177's reviewed list of routes without a role check (it acts on the caller's own account) — **575a**: that list was forgotten at first and CI failed on it; when adding a route that takes no `@Require`, run spec 177.
 
 The same rule holds everywhere a password is set: registration (`auth.controller.ts`), invitation (`users.service.ts`), reset and change. (The `@MinLength(6)` in `auth.dto.ts` is only the first gate.) E-mail verification and account deletion stay open.
 
