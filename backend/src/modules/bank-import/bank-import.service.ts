@@ -27,6 +27,17 @@ import { VoucherService } from '../accounting/voucher.service';
 import { resolveDatevAccounts } from '../reports/datev.service';
 import type { ParsedStatement } from './parsers';
 
+/** Tier 577: one of the expenses a single bank debit pays (bookExpense / invoiceParts). */
+type InvoicePart = {
+  id: string
+  vatRate: unknown
+  vatAmount: unknown
+  grossAmount: unknown
+  accountNumber: string | null
+  isIntraEU: boolean
+  isReverseCharge: boolean
+}
+
 @Injectable()
 export class BankImportService {
   private readonly logger = new Logger(BankImportService.name);
@@ -1195,6 +1206,9 @@ export class BankImportService {
     // supplier credit note (Tier 442) of the same amount — before, nothing
     // could book it and the credit note stayed open for good.
     let refund = false;
+    // Tier 577: the expenses one debit pays when an invoice with several VAT
+    // rates was entered as several expenses (more than one → see invoiceParts).
+    let parts: InvoicePart[] = [];
     let skontoAmount = 0;
     let skontoOf: {
       id: string; supplierId: string | null; invoiceNumber: string | null; vatRate: unknown; category: string | null
@@ -1275,6 +1289,8 @@ export class BankImportService {
           // entry — it lowers that period's input tax (§ 17 UStG).
           await assertPeriodOpen(this.prisma, companyId, [txn.valueDate], 'ein Skontoabzug mit diesem Datum');
           skontoAmount = diff;
+        } else if (Math.abs(diff) > 0.005 && (parts = await this.invoiceParts(companyId, exp, Math.abs(amount))).length > 1) {
+          // the debit is the whole invoice — booked below, part by part
         } else if (Math.abs(diff) > 0.005) {
           throw new BadRequestException(
             `Die Abbuchung (${Math.abs(amount).toFixed(2)}) entspricht nicht dem Betrag der Eingangsrechnung (${gross.toFixed(2)}).` +
@@ -1431,6 +1447,26 @@ export class BankImportService {
       credit: absAmount,
     })
 
+    // Tier 577: one debit for an invoice entered as several expenses — every
+    // part with its own cost account and Vorsteuer, from the expense itself
+    // (the request's vatRate / vatAmount describe one part only).
+    if (parts.length > 1) {
+      lines.length = 0
+      for (const p of parts) {
+        const rate = Number(p.vatRate)
+        const vat = p.isIntraEU || p.isReverseCharge ? 0 : Math.round(Number(p.vatAmount) * 100) / 100
+        const gross = Math.round(Number(p.grossAmount) * 100) / 100
+        const vorsteuer = vat > 0 ? (Math.abs(rate - 0.19) < 0.001 ? accts.inputVat19 : Math.abs(rate - 0.07) < 0.001 ? accts.inputVat7 : null) : null
+        const account = await this.partAccount(companyId, p.accountNumber, expenseAccount)
+        lines.push({ accountId: account.id, description: counterparty, debit: vorsteuer ? Math.round((gross - vat) * 100) / 100 : gross, credit: 0 })
+        if (vorsteuer) {
+          const vorsteuerAccount = await this.ensureAccount(companyId, vorsteuer, 'Vorsteuer', 'asset', 'vat')
+          lines.push({ accountId: vorsteuerAccount.id, description: `Vorsteuer ${(rate * 100).toFixed(0)}%`, debit: vat, credit: 0, vatRate: rate, vatAmount: vat })
+        }
+      }
+      lines.push({ accountId: bankAccount.id, description: `Bank ${counterparty}`, debit: 0, credit: absAmount })
+    }
+
     // When this voucher is tied to an existing Expense
     // row, append the expenseId to the description. The
     // /dashboard/expenses list page string-matches the
@@ -1442,7 +1478,8 @@ export class BankImportService {
     if (refund) {
       for (const l of lines) [l.debit, l.credit] = [l.credit, l.debit];
     }
-    const expenseTag = opts.expenseId ? ` [expense:${opts.expenseId}]` : ''
+    const paidIds = parts.length > 1 ? parts.map((p) => p.id) : opts.expenseId ? [opts.expenseId] : []
+    const expenseTag = paidIds.map((id) => ` [expense:${id}]`).join('')
     const voucher = await this.voucherService.create({
       companyId,
       date: txn.valueDate,
@@ -1462,14 +1499,14 @@ export class BankImportService {
     // voucher back to it. The Expense row already
     // holds the supplier + invoice# + dates — this
     // turn just makes the booking official.
-    if (opts.expenseId) {
-      await this.prisma.expense.update({
-        where: { id: opts.expenseId, companyId },
+    if (paidIds.length) {
+      await this.prisma.expense.updateMany({
+        where: { id: { in: paidIds }, companyId },
         data: { status: 'booked' },
       });
       // Tier 425: the bank transaction is the expense's payment (Abfluss).
       await this.prisma.expense.updateMany({
-        where: { id: opts.expenseId, companyId, paidAt: null },
+        where: { id: { in: paidIds }, companyId, paidAt: null },
         data: { paidAt: txn.valueDate },
       });
     }
@@ -1511,7 +1548,80 @@ export class BankImportService {
       appliedAmount: absAmount,
       vatAmount: vatAmount || undefined,
       netAmount: netAmount,
+      // Tier 577: every expense this debit paid
+      ...(paidIds.length ? { expenseIds: paidIds } : {}),
     };
+  }
+
+  /**
+   * Tier 577 — the open expenses that are one supplier invoice.
+   *
+   * An Expense has one VAT rate, so an invoice with 19 % and 7 % is entered —
+   * by hand, or by the e-invoice import (Tier 573) — as two expenses under
+   * the same supplier and number. The bank shows one payment. Measured
+   * before: that debit matched neither expense ("entspricht nicht dem
+   * Betrag") and the invoice could not be settled through the bank at all.
+   *
+   * Returns the parts when the debit is exactly their sum (and `exp` is one
+   * of them); otherwise nothing, and the caller refuses as before. A part
+   * already paid from the cash book or by another bank booking does not count.
+   */
+  private async invoiceParts(
+    companyId: string,
+    exp: { id: string; supplierId: string | null; invoiceNumber: string | null },
+    paid: number,
+  ): Promise<InvoicePart[]> {
+    const number = (exp.invoiceNumber || '').trim();
+    if (!exp.supplierId || !number) return [];
+    const candidates = await this.prisma.expense.findMany({
+      where: {
+        companyId,
+        supplierId: exp.supplierId,
+        invoiceNumber: { equals: number, mode: 'insensitive' },
+        grossAmount: { gt: 0 },
+        relatedAssetId: null,
+      },
+      select: {
+        id: true, vatRate: true, vatAmount: true, grossAmount: true, accountNumber: true, isIntraEU: true, isReverseCharge: true,
+      },
+      orderBy: { createdAt: 'asc' },
+      take: 20,
+    });
+    if (candidates.length < 2) return [];
+    const ids = candidates.map((c) => c.id);
+    const [cash, bank] = await Promise.all([
+      this.prisma.cashBookEntry.findMany({
+        where: { companyId, expenseId: { in: ids }, reversesId: null, reversedBy: null },
+        select: { expenseId: true },
+      }),
+      this.prisma.voucher.findMany({
+        where: {
+          companyId,
+          referenceType: 'Expense',
+          OR: ids.map((id) => ({ description: { contains: `[expense:${id}]` } })),
+          reversals: { none: {} },
+        },
+        select: { description: true },
+      }),
+    ]);
+    const settled = new Set<string>(cash.map((c) => c.expenseId as string));
+    for (const v of bank) for (const id of ids) if ((v.description || '').includes(`[expense:${id}]`)) settled.add(id);
+    const open = candidates.filter((c) => !settled.has(c.id));
+    if (open.length < 2 || !open.some((c) => c.id === exp.id)) return [];
+    const sum = open.reduce((s, c) => s + Math.round(Number(c.grossAmount) * 100), 0);
+    return sum === Math.round(paid * 100) ? open : [];
+  }
+
+  /** A part's own cost account when it names one that is (or can be) an expense account. */
+  private async partAccount(companyId: string, accountNumber: string | null, fallback: { id: string }) {
+    const number = (accountNumber || '').trim();
+    if (!/^\d{3,8}$/.test(number)) return fallback;
+    const existing = await this.prisma.account.findUnique({
+      where: { companyId_accountNumber: { companyId, accountNumber: number } },
+      select: { id: true, type: true },
+    });
+    if (existing) return existing.type === 'expense' ? existing : fallback;
+    return this.ensureAccount(companyId, number, 'Sonstige betriebliche Aufwendungen', 'expense', 'operating');
   }
 
   /**

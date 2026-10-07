@@ -266,7 +266,8 @@
     "reopenCandidate": "Reopen",
     "reopenCandidateConfirm": "Really reopen {invoice}? A reversal voucher will be written.",
     "statusReopened": "Reopened",
-    "reversalVoucher": "Reversal voucher"
+    "reversalVoucher": "Reversal voucher",
+    "bookPaymentParts": "Payment of {number} ({count} parts)"
   },
   "banking": {
     "title": "Online Banking (FinTS)",

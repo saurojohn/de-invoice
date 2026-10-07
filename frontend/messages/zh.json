@@ -266,7 +266,8 @@
     "reopenCandidate": "撤销",
     "reopenCandidateConfirm": "确定撤销 {invoice}？将生成一张冲销凭证。",
     "statusReopened": "已撤销",
-    "reversalVoucher": "冲销凭证"
+    "reversalVoucher": "冲销凭证",
+    "bookPaymentParts": "支付 {number}（共 {count} 笔支出）"
   },
   "banking": {
     "title": "在线银行 (FinTS)",

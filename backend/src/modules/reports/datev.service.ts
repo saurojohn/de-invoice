@@ -723,7 +723,8 @@ export async function buildBuchungenFromDb(
       select: { description: true },
     })
     : []
-  const matchedIds = new Set(bankMatched.map((v) => expenseTag(v.description)).filter(Boolean))
+  // Tier 577: a bank booking can carry several tags (the parts of one invoice)
+  const matchedIds = new Set(bankMatched.flatMap((v) => [...(v.description || '').matchAll(/\[expense:([0-9a-f-]{36})\]/g)].map((m) => m[1])))
   const otherwisePaid = paidExpenses.filter((e) => !matchedIds.has(e.id))
 
   const kreditoren = await ensurePersonenkonten(prisma, 'supplier', companyId, [
@@ -999,7 +1000,7 @@ export async function buildBuchungenFromDb(
         gegenkonto: kreditor(exp?.supplierId),
         betrag: amount,
         shVz: 'H',
-        buchungstext: (v.description || '').replace(/\s*\[expense:[^\]]*\]/, '').substring(0, 60),
+        buchungstext: (v.description || '').replace(/\s*\[expense:[^\]]*\]/g, '').substring(0, 60),
       })
       continue
     }

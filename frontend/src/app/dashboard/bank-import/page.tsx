@@ -119,6 +119,31 @@ const fmtMoney = (n: number) =>
 const fmtDate = (s: string | null | undefined, locale = "de-DE") =>
   s ? new Date(s).toLocaleDateString(locale, { day: "2-digit", month: "2-digit", year: "numeric" }) : "—"
 
+/**
+ * Tier 577 — the open expenses that are one supplier invoice paid by `paid`:
+ * same supplier and invoice number, at least two, summing to the debit. The
+ * server books all of them when any one is named (bank-import.service
+ * invoiceParts) — this only decides whether to offer the button.
+ */
+function invoiceParts<T extends { invoiceNumber: string | null; grossAmount: string; supplier?: { id: string } | null }>(
+  open: T[],
+  paid: number,
+): T[] | undefined {
+  const groups = new Map<string, T[]>()
+  for (const e of open) {
+    const number = (e.invoiceNumber || "").trim().toLowerCase()
+    if (!e.supplier?.id || !number) continue
+    const key = `${e.supplier.id}|${number}`
+    groups.set(key, [...(groups.get(key) || []), e])
+  }
+  for (const g of groups.values()) {
+    if (g.length < 2) continue
+    const sum = g.reduce((s, e) => s + Math.round(Number(e.grossAmount) * 100), 0)
+    if (sum === Math.round(paid * 100)) return g
+  }
+  return undefined
+}
+
 export default function BankImportPage() {
   const router = useRouter()
   const { t, getDateLocale } = useI18n()
@@ -797,14 +822,17 @@ export default function BankImportPage() {
                                   const exact = openExpenses.find(
                                     (c) => Math.abs(Number(c.grossAmount) - paidAmt) < 0.005,
                                   )
+                                  // Tier 577: an invoice with two VAT rates is two
+                                  // expenses (same supplier and number) and one payment.
+                                  const parts = exact ? undefined : invoiceParts(openExpenses, paidAmt)
                                   // Tier 452: less than the bill, within 10 % — a Skonto.
-                                  const withSkonto = exact
+                                  const withSkonto = exact || parts
                                     ? undefined
                                     : openExpenses.find((c) => {
                                       const g = Number(c.grossAmount)
                                       return paidAmt < g - 0.005 && g - paidAmt <= g * 0.1 + 0.005
                                     })
-                                  const ex = exact ?? withSkonto
+                                  const ex = exact ?? parts?.[0] ?? withSkonto
                                   const skontoAmt = withSkonto ? Number(withSkonto.grossAmount) - paidAmt : 0
                                   return ex ? (
                                     <Button
@@ -821,7 +849,11 @@ export default function BankImportPage() {
                                         ? t("bankImport.bookPaymentSkonto")
                                           .replace("{number}", ex.invoiceNumber || "")
                                           .replace("{skonto}", fmtMoney(skontoAmt))
-                                        : t("bankImport.bookPayment").replace("{number}", ex.invoiceNumber || "")}
+                                        : parts
+                                          ? t("bankImport.bookPaymentParts")
+                                            .replace("{number}", ex.invoiceNumber || "")
+                                            .replace("{count}", String(parts.length))
+                                          : t("bankImport.bookPayment").replace("{number}", ex.invoiceNumber || "")}
                                     </Button>
                                   ) : null
                                 })()}

@@ -2630,6 +2630,23 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 577 — one bank debit pays an invoice entered as several expenses
+
+The first open point of Tier 573, solved without the schema change. An `Expense` has one VAT rate, so an invoice with 19 % and 7 % is two expenses under the same supplier and number — entered by hand or by the e-invoice import. The bank shows one payment. **Measured before:** `book-expense` with that debit → 400 „Die Abbuchung (352.64) entspricht nicht dem Betrag der Eingangsrechnung (238.00)“ for either part, and the page offered no payment button: such an invoice could not be settled through the bank import at all.
+
+**Now** (`bank-import.service.ts` `invoiceParts`): when the debit is not the named expense's amount (and no Skonto), it is accepted if it is exactly the sum of that supplier's open expenses with that invoice number (at least two; a part already paid from the cash book or by another bank booking does not count). Then
+- one voucher: each part's cost line on its own account and its Vorsteuer line (from the expense itself — the request's `vatRate` / `vatAmount` describe one part), one bank line; tagged `[expense:<id>]` once per part;
+- every part gets `paidAt`; the answer lists `expenseIds`;
+- a Storno frees every part (`voucher.service.ts` read only the first tag);
+- DATEV exports one payment „Kreditor an Bank“ of the whole amount (`datev.service.ts` took only the first tag for "already booked by a bank voucher" — the second part would have been exported as paid a second time: Kreditor balance −51,86 instead of −166,50 in the spec's case).
+- The bank import page offers „Zahlung <nr> (2 Teilbeträge)“.
+
+Unchanged on purpose: a SEPA run still makes one transfer per expense — each then matches its own debit.
+
+**Specs:** `348-tier577-eine-zahlung-mehrere-steuersaetze.sh` (19 assertions, 10 fail on the old code; the DATEV one fails with only the DATEV change taken out) and Playwright `bank-payment-parts-tier577.spec.ts`. All 66 bank / DATEV / Skonto / expense specs pass locally (116 fails locally as always).
+
+**Still open from Tier 573:** VAT lines on the expense itself would make the split unnecessary — no longer needed for correctness, only for tidiness (one row per invoice in the list). Skonto on a multi-part invoice is not offered (the Skonto path takes one expense).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 576 — the monitoring overlays can be added without stopping the stack, and are not open to the internet
 
 From the open list (§9 item 22). Pre-launch hardening — nothing is deployed. **Measured with `docker compose config`** (nothing started, nothing downloaded):
@@ -8255,7 +8272,7 @@ frontend's build arg, and the frontend image refuses to build without it.
 
 22. **Status review 07.10.2026 — what is still open** (after Tier 570; none of it decided or done):
     - ~~**Dependencies with known vulnerabilities**~~ — **done in Tier 572**: backend 12 → 3 (`node-forge`: no fix exists, the affected verify function is not used; `fast-xml-parser` inside `fints`: no compatible fix), frontend 5 → 0. Re-run `npm audit --omit=dev` now and then.
-    - ~~**Receiving e-invoices**~~ — **done in Tier 573** (XRechnung UBL / CII, ZUGFeRD PDF → supplier, expense(s), the file kept). Open from it: two VAT rates → two expenses (one bank payment); no automatic EN 16931 validation on import; upload by hand only (no mailbox, no Peppol); Skonto terms not evaluated. (The OCR path's two defects seen in passing — supplier created before confirmation, scan not attached — are fixed in Tier 574.)
+    - ~~**Receiving e-invoices**~~ — **done in Tier 573** (XRechnung UBL / CII, ZUGFeRD PDF → supplier, expense(s), the file kept). Open from it: ~~two VAT rates → two expenses (one bank payment)~~ (the bank debit now settles all parts, Tier 577); no automatic EN 16931 validation on import; upload by hand only (no mailbox, no Peppol); Skonto terms not evaluated. (The OCR path's two defects seen in passing — supplier created before confirmation, scan not attached — are fixed in Tier 574.)
     - **Two production paths.** `infra/prod/` (Caddy; hardened and run end to end in Tiers 555–569) and the older root `docker-compose.prod.yml` + `DEPLOY.md` (host nginx, systemd). The older one passes no `FRONTEND_URL` to the backend (CORS allow-list and mailed links fall back to `http://localhost:3000`) and `TRUST_PROXY: 0`; it was not tested. `DEPLOY-READY-SUMMARY.md` (07.09.) still says "ready to deploy"; `DEPLOY.md`, `DEPLOY-WALKTHROUGH.md`, `SECURITY-AUDIT-2026-09-06.md`, `USER-GUIDE.md` predate Tiers 344–570.
     - ~~**The monitoring overlay**~~ — its network, the open ports and the default Grafana password are **fixed in Tier 576** (resolved with `docker compose config`; still never run — the images are a download to ask for).
     - **No CI job builds the Docker images**; `release.yml` only runs on a `v*` tag and has never run with the `build-contexts` added in Tier 569. Production starts the backend with `ts-node --transpile-only` (no compiled build).

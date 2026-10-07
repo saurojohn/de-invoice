@@ -266,7 +266,8 @@
     "reopenCandidate": "Rückgängig",
     "reopenCandidateConfirm": "Soll {invoice} wirklich rückgängig gemacht werden? Es wird eine Storno-Buchung erstellt.",
     "statusReopened": "Rückgängig",
-    "reversalVoucher": "Storno-Beleg"
+    "reversalVoucher": "Storno-Beleg",
+    "bookPaymentParts": "Zahlung {number} ({count} Teilbeträge)"
   },
   "banking": {
     "title": "Online-Banking (FinTS)",

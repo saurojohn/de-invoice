@@ -466,16 +466,18 @@ export class VoucherService {
     await this.prisma.expense.deleteMany({
       where: { companyId, notes: { contains: `[skonto-voucher:${original.id}]` } },
     });
-    const expenseId = /\[expense:([0-9a-f-]{36})\]/.exec(original.description || '')?.[1];
-    if (!expenseId) return;
-    const paidInCash = await this.prisma.cashBookEntry.count({
-      where: { companyId, expenseId, reversesId: null, reversedBy: null },
-    });
-    if (paidInCash > 0) return;
-    await this.prisma.expense.updateMany({
-      where: { id: expenseId, companyId, paidBySepaBatchId: null, paidAt: original.date },
-      data: { paidAt: null },
-    });
+    // Tier 577: one booking can pay several expenses (the parts of one invoice).
+    const expenseIds = [...(original.description || '').matchAll(/\[expense:([0-9a-f-]{36})\]/g)].map((m) => m[1]);
+    for (const expenseId of expenseIds) {
+      const paidInCash = await this.prisma.cashBookEntry.count({
+        where: { companyId, expenseId, reversesId: null, reversedBy: null },
+      });
+      if (paidInCash > 0) continue;
+      await this.prisma.expense.updateMany({
+        where: { id: expenseId, companyId, paidBySepaBatchId: null, paidAt: original.date },
+        data: { paidAt: null },
+      });
+    }
   }
 
   // ──────────────────────────────────────────────────────────────────
