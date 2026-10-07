@@ -39,6 +39,11 @@ BACKUP_ROOT_RESOLVED=$(echo "$BODY" | python3 -c "import json,sys;print(json.loa
 note "resolved BACKUP_ROOT: $BACKUP_ROOT_RESOLVED"
 test -n "$BACKUP_ROOT_RESOLVED" && pass "endpoint returns backupRoot" \
   || fail "backupRoot missing from response"
+# Tier 570: this suite runs against a throwaway database; whatever it backs up
+# and ROTATES must not be the installation's real backup directory.
+[[ "$BACKUP_ROOT_RESOLVED" != "$HOME/data/backups/de-invoice" ]] \
+  && pass "a test backend does not use the real backup directory (was: its default) = $BACKUP_ROOT_RESOLVED" \
+  || fail "the test backend's backup directory is the real one: $BACKUP_ROOT_RESOLVED"
 
 # Verify the response shape
 test -n "$(echo "$BODY" | python3 -c "import json,sys;d=json.load(sys.stdin);print(d.get('health',''))" 2>/dev/null)" \

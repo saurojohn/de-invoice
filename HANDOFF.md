@@ -2622,6 +2622,16 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 570 — a test backend keeps away from the real backup directory
+
+Found during a status review on 07.10.2026. `BackupService` defaulted to `~/data/backups/de-invoice` — the installation's real backups — for every backend, including one started for tests against a throwaway database. Each run of `scripts/backup.sh` also **rotates** that directory. The local test backend had been left running overnight; its 04:00 tick wrote `backup-2026-10-07-040000` there (a dump of the test database, a tar of `/tmp/de-invoice-storage`). Two more of the same kind were already there from earlier sessions' spec runs (`backup-2026-09-24-101352`, `backup-2026-10-02-101709` — tar root `de-invoice-storage/`; the real ones have `invoice-system/`).
+
+Checked against a listing taken on 06.10.2026: **no real backup was deleted** — the six real ones (08-01, 08-16, 08-23, 08-30, 09-01 ×2, 09-05) are all still there. But rotation keeps "the 7 most recent days": every further test-made backup would have pushed a real one closer to deletion.
+
+Now `defaultBackupRoot()`: a backend with `NODE_ENV=test`, or with `PG_CONTAINER` naming anything but the installation's database, defaults to `<tmpdir>/de-invoice-test-backups`; `BACKUP_ROOT` still decides when set. Spec 144 asserts that the suite's backend does not report the real directory. Measured with `BACKUP_ROOT` unset: `backupRoot` = `/var/folders/…/T/de-invoice-test-backups`, the real directory unchanged.
+
+**Left for the owner (nothing was deleted by me):** the three test-made directories named above are still in `~/data/backups/de-invoice`. They are not backups of anything real, and the newest of them is what "the latest backup" now means there.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 569 — the official XRechnung validator, in production and on the invoice page
 
 Asked for by the owner on 07.10.2026. Until now the KoSIT validator ran in CI (spec 140, on the runner's Java) and on a developer's machine; the production image had neither Java nor the validator's files, the API fell back to the in-process check there, and no page offered the check at all.
@@ -7900,7 +7910,8 @@ These are **not in the repo** — only the user can do them:
    invented and put the Zahllast in Kz 81 (the 19 % base). What remains open
    is only the container format, and the files no longer claim to be an
    upload.
-10. **Replace the header "authentication" before any real deployment**
+10. ~~**Replace the header "authentication" before any real deployment**~~ — **done:** production refuses `x-user-id` by default (Tier 555), the compose file sets `ALLOW_HEADER_AUTH: "0"`, verified on the production stack (Tier 562). The text below is the history.
+    ~~Replace the header "authentication" before any real deployment~~
     (**phases 1-2 done, Tiers 400-401** — the browser is cookie-only; what is
     left is phase 3, `ALLOW_HEADER_AUTH=0`, which CI cannot run until the
     Playwright helpers mint sessions) (found
@@ -7994,7 +8005,7 @@ These are **not in the repo** — only the user can do them:
       is an object, so mutation inside the scope is visible to the audit
       extension.
 
-11. **Decide who is a platform operator** (found Tier 378). Registration is
+11. ~~**Decide who is a platform operator**~~ — **done:** `SystemAdminGuard` (Tiers 548, 565): an admin of the oldest company, optionally narrowed by `SYSTEM_ADMIN_EMAILS`. History: (found Tier 378). Registration is
     public and every new user is `admin` of their own company, but several
     routes act on the *installation*, not a company, and only check a tenant
     role: `/admin/backups` (list, `run` a full pg_dump of all tenants, `verify`,
@@ -8120,6 +8131,17 @@ frontend's build arg, and the frontend image refuses to build without it.
    Check which companies used them (`VoucherLine` → `Account.accountNumber`)
    and decide with the Berater: re-post (Storno + new voucher on 8200 / 1776 /
    1576 …) or renumber — the app does neither on its own.
+
+22. **Status review 07.10.2026 — what is still open** (after Tier 570; none of it decided or done):
+    - **Dependencies with known vulnerabilities** (`npm audit --omit=dev`): backend 12 (1 critical: `proxy-addr`, IP spoofing through a trusted IPv4-mapped IPv6 subnet — relevant since `TRUST_PROXY` trusts private ranges; 8 high: `multer` 1.x, `nodemailer`, `node-forge` (no fix), the `fints` library's `fast-xml-parser`/`node-fetch`, …), frontend 5 (1 critical: `next` 15.5.7 → fixed in 15.5.27). Several fixes are major-version bumps. Updating needs downloads and a full CI run; not started.
+    - **Incoming e-invoices cannot be taken in.** Uploads accept `.pdf`, images and office files — not `.xml`; nothing reads an XRechnung or the XML inside a ZUGFeRD PDF into an expense. Since 1.1.2025 every business in Germany must be able to receive e-invoices, and the structured original is what has to be archived.
+    - **Two production paths.** `infra/prod/` (Caddy; hardened and run end to end in Tiers 555–569) and the older root `docker-compose.prod.yml` + `DEPLOY.md` (host nginx, systemd). The older one passes no `FRONTEND_URL` to the backend (CORS allow-list and mailed links fall back to `http://localhost:3000`) and `TRUST_PROXY: 0`; it was not tested. `DEPLOY-READY-SUMMARY.md` (07.09.) still says "ready to deploy"; `DEPLOY.md`, `DEPLOY-WALKTHROUGH.md`, `SECURITY-AUDIT-2026-09-06.md`, `USER-GUIDE.md` predate Tiers 344–570.
+    - **The monitoring overlay** (`infra/prod/monitoring.yml`, `docker-compose.observability.yml`) declares the network `deinvoicenet` as `external`; the main compose file creates `de-invoice-prod_deinvoicenet`. As an overlay it resolves to an external network that nothing creates. Not run.
+    - **No CI job builds the Docker images**; `release.yml` only runs on a `v*` tag and has never run with the `build-contexts` added in Tier 569. Production starts the backend with `ts-node --transpile-only` (no compiled build).
+    - **Account self-service:** no e-mail verification at registration, no "change my password" while signed in (only forgot/reset), no deletion of an account or company, no data export for a data subject.
+    - **Unfinished by design, and saying so:** FinTS TAN submission and transfers (stubs), ELSTER (an export for transcription, container format unverified, no transmission — item 9), E-Bilanz (XBRL with positions left "TODO (manuell)" for the Steuerberater), PDF signature verification (structural only, not against the certificate), cloud storage ("coming soon").
+    - **Tests:** 342 backend specs + 1004 Playwright tests, all end-to-end; two unit-test files. The backend suite expects a fresh database (15 specs fail on a reused one). No load test in this stretch. ~800 `any` in the backend, ~330 in the frontend; four files over 2 700 lines.
+    - **The owner's local development database is gone** (item 4): `de-invoice-postgres` exited on 10.09.2026, its data directory `/tmp/pgdata` no longer exists; the last real backup is `backup-2026-09-05-224235`.
 
 ## 10. Critical patterns / lessons (must read)
 

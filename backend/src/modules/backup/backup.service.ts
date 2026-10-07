@@ -35,6 +35,7 @@ import { Injectable, Logger } from '@nestjs/common'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
 import * as fs from 'fs'
+import * as os from 'os'
 import * as path from 'path'
 
 const execFileAsync = promisify(execFile)
@@ -82,6 +83,29 @@ export interface BackupVerifyResult {
   error?: string
 }
 
+/**
+ * Tier 570 — a backend that runs against a throwaway database does not get
+ * the real backup directory by default.
+ *
+ * The default (`~/data/backups/de-invoice`) is where the installation's real
+ * backups are, and every run of the script ROTATES that directory: once
+ * enough newer complete backups exist, older ones are deleted. A backend
+ * started for tests (NODE_ENV=test, or PG_CONTAINER pointing at something
+ * other than the installation's database) shared that default — its 04:00
+ * tick and the backup specs wrote dumps of the TEST database among the real
+ * backups (found 07.10.2026: three such directories next to six real ones;
+ * nothing had been rotated away yet, but each further night would have
+ * pushed a real backup out of the "7 most recent days").
+ * Such a backend now defaults to a directory under the system's temp dir.
+ * BACKUP_ROOT, when set, still decides.
+ */
+export function defaultBackupRoot(): string {
+  const container = process.env.PG_CONTAINER
+  const throwaway = process.env.NODE_ENV === 'test' || (!!container && container !== 'de-invoice-postgres')
+  if (throwaway) return path.join(os.tmpdir(), 'de-invoice-test-backups')
+  return path.join(process.env.HOME || '/tmp', 'data', 'backups', 'de-invoice')
+}
+
 @Injectable()
 export class BackupService {
   private readonly logger = new Logger(BackupService.name)
@@ -96,14 +120,7 @@ export class BackupService {
     // itself uses the same default, so when we spawn
     // it we only need to override BACKUP_ROOT (and we
     // do that via the `env` option of execFile).
-    this.backupRoot =
-      process.env.BACKUP_ROOT ||
-      path.join(
-        process.env.HOME || '/tmp',
-        'data',
-        'backups',
-        'de-invoice',
-      )
+    this.backupRoot = process.env.BACKUP_ROOT || defaultBackupRoot()
     // Resolve from this file (backend/src/modules/backup/)
     // up to the repo root, then into scripts/backup.sh.
     //   backup.service.ts
