@@ -9,16 +9,16 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–569 are
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–570 are
   in `git log`; §8 records what each learned. Tiers 443–462 came from the
-  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 569.) **Deployment status, confirmed by the owner on 06.10.2026: not live — local development only.** The `infra/prod/` findings of Tiers 555–560 are pre-launch hardening, not incidents; nothing there needs to be checked on a server, and `scripts/baseline-migrations.sh` has no database to run on yet.
+  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 570.) **Deployment status, confirmed by the owner on 06.10.2026: not live — local development only.** The `infra/prod/` findings of Tiers 555–560 are pre-launch hardening, not incidents; nothing there needs to be checked on a server, and `scripts/baseline-migrations.sh` has no database to run on yet.
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 37630790747 / commit `caca085`, Tier 569):**
+- **Test counts (last green CI, run 37637042210 / commit `89a3719`, Tier 570):**
   - Backend e2e: **341 passed / 0 failed / 1 skipped** of 342 specs — 100
     two-digit + 242 three-digit (Tier 566 added `342-tier566-kaputter-beleg-stuerzt-nicht-ab.sh`,
     Tier 561 added `341-tier561-caddyfile-gueltig.sh`,
@@ -2626,7 +2626,7 @@ after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 
 Found during a status review on 07.10.2026. `BackupService` defaulted to `~/data/backups/de-invoice` — the installation's real backups — for every backend, including one started for tests against a throwaway database. Each run of `scripts/backup.sh` also **rotates** that directory. The local test backend had been left running overnight; its 04:00 tick wrote `backup-2026-10-07-040000` there (a dump of the test database, a tar of `/tmp/de-invoice-storage`). Two more of the same kind were already there from earlier sessions' spec runs (`backup-2026-09-24-101352`, `backup-2026-10-02-101709` — tar root `de-invoice-storage/`; the real ones have `invoice-system/`).
 
-Checked against a listing taken on 06.10.2026: **no real backup was deleted** — the six real ones (08-01, 08-16, 08-23, 08-30, 09-01 ×2, 09-05) are all still there. But rotation keeps "the 7 most recent days": every further test-made backup would have pushed a real one closer to deletion.
+Checked against a listing taken on 06.10.2026: **no real backup was deleted** — the seven real ones (08-01, 08-16, 08-23, 08-30, 09-01 ×2, 09-05; each checked: tar root `invoice-system/`) are all still there. But rotation keeps "the 7 most recent days": every further test-made backup would have pushed a real one closer to deletion.
 
 Now `defaultBackupRoot()`: a backend with `NODE_ENV=test`, or with `PG_CONTAINER` naming anything but the installation's database, defaults to `<tmpdir>/de-invoice-test-backups`; `BACKUP_ROOT` still decides when set. Spec 144 asserts that the suite's backend does not report the real directory. Measured with `BACKUP_ROOT` unset: `backupRoot` = `/var/folders/…/T/de-invoice-test-backups`, the real directory unchanged.
 
