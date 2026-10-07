@@ -58,8 +58,10 @@ test.beforeAll(async ({ request }: { request: APIRequestContext }) => {
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin" }).format(new Date())
   const invoice = await (await request.post(`${API}/api/v1/invoices?companyId=${companyId}`, {
     headers: H,
-    data: { customerId: customer.id, issueDate: today, items: [{ description: "Beratung", quantity: 1, unit: "Std", unitPrice: 100, vatRate: 0.19, costCenter: "Allgemein" }] },
+    data: { customerId: customer.id, issueDate: today, costCenter: "Allgemein", items: [{ description: "Beratung", quantity: 1, unit: "Std", unitPrice: 100, vatRate: 0.19 }] },
   })).json()
+  expect(customer.id, `fixture customer: ${JSON.stringify(customer).slice(0, 200)}`).toBeTruthy()
+  expect(invoice.id, `fixture invoice: ${JSON.stringify(invoice).slice(0, 200)}`).toBeTruthy()
   await request.put(`${API}/api/v1/invoices/${invoice.id}/status?companyId=${companyId}`, { headers: H, data: { status: "sent" } })
   const [y, m] = today.split("-")
   dynamicRoutes.push(

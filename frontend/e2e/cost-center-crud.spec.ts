@@ -113,6 +113,12 @@ test.describe("Tier 39 — Cost-Center form UI", () => {
     // + /note-templates) to complete. Otherwise the
     // re-render from setCostCenters() can race with
     // our .fill() and wipe the value back to ''.
+    // Tier 567: wait for the page itself rather than for a second. Since
+    // Tier 562 the page stops fetching once it has loaded, so "network idle"
+    // means something; before hydration an input event is simply lost (the
+    // value came back as "" on a slow run).
+    await page.waitForLoadState("networkidle")
+    await page.waitForFunction(() => document.readyState === "complete")
     await page.waitForTimeout(1000)
 
     // Fill them via the native setter — values flow into
