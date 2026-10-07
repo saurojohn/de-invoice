@@ -9,16 +9,16 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.7 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–563 are
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–564 are
   in `git log`; §8 records what each learned. Tiers 443–462 came from the
-  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 563.) **Deployment status, confirmed by the owner on 06.10.2026: not live — local development only.** The `infra/prod/` findings of Tiers 555–560 are pre-launch hardening, not incidents; nothing there needs to be checked on a server, and `scripts/baseline-migrations.sh` has no database to run on yet.
+  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 564.) **Deployment status, confirmed by the owner on 06.10.2026: not live — local development only.** The `infra/prod/` findings of Tiers 555–560 are pre-launch hardening, not incidents; nothing there needs to be checked on a server, and `scripts/baseline-migrations.sh` has no database to run on yet.
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 37590579408 / commit `6fe6f2e`, Tier 563):**
+- **Test counts (last green CI, run 37593102675 / commit `370950e`, Tier 564):**
   - Backend e2e: **340 passed / 0 failed / 1 skipped** of 341 specs — 100
     two-digit + 241 three-digit (Tier 561 added `341-tier561-caddyfile-gueltig.sh`,
     Tier 560 added `340-tier560-logo-im-speicher.sh`,
@@ -184,7 +184,7 @@ exact commands + docs you need to be productive.
     and survives concurrent writes (Tier 367); spec 171 (new in Tier 368) asserts
     the auth audit rows exist at all and are signed — nothing had ever asserted
     on them, which is how a failed login for an unknown e-mail went unaudited.
-  - Playwright: **958 passed / 0 failed / 0 skipped / 0 flaky** (Tier 507
+  - Playwright: **1002 passed / 0 failed / 0 skipped / 0 flaky** (Tier 507
     added `kst-vorauszahlungen-tier507.spec.ts`; Tier 504
     added `home-office-tier504.spec.ts`; Tier 502
     added `company-cars-tier502.spec.ts`; Tier 493
@@ -2620,6 +2620,10 @@ Tier 401 run 35123354210 **failed** on backend lint — a warning
 runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
+
+### Read-only mode refuses every write; a re-verification is one company's (Tier 564 — a spec that opens every page
+
+Tier 562's page bugs (three pages fetching in a loop, one calling a route that never existed) were found by opening pages by hand against the production stack; every existing spec tests its own feature and none looks at a page from that side. Playwright `all-pages-quiet-tier564.spec.ts` opens all 44 static dashboard routes as a fresh company and, per page, fails on: an API request repeated more than 6 times in 5 s, a 404 from `/api/v1` (allow-list: `GET /cashbook/close`, where 404 means "no close today"), any 5xx, an uncaught page error, an error screen. First run: all 44 pass (run 37593102675) — after Tier 562's fixes nothing else turned up. Also checked statically: every `/api/v1/...` path in `frontend/src` against the backend's 478 mapped routes; apart from the `/bank-import` call fixed in Tier 562 the few non-matches are paths with a dynamic last segment (`…/${action}`), verified by hand. Not covered by this spec: the 11 routes with a parameter (`[id]` pages) and anything that happens only after a click.
 
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 563 — a backup is worth what its restore is worth
 
