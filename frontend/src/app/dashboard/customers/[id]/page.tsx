@@ -563,7 +563,10 @@ export default function CustomerDetailPage() {
         `/api/v1/invoices?companyId=${companyId}&customerId=${id}&pageSize=50`,
       )
         .then((d) => setInvoices(d.data || []))
-        .catch((err) => console.error("invoices load failed:", err))
+        .catch((err) => {
+          console.error("invoices load failed:", err)
+          setInvoices([]) // Tier 562: an empty list, not null — null means "not loaded yet" and the effect asked again, forever
+        })
         .finally(() => setInvoicesLoading(false))
     }
     if (tab === "plans" && plans === null && !plansLoading) {
@@ -572,7 +575,10 @@ export default function CustomerDetailPage() {
         `/api/v1/installment-plans/for-customer/${id}?companyId=${companyId}`,
       )
         .then((d) => setPlans(d))
-        .catch((err) => console.error("plans load failed:", err))
+        .catch((err) => {
+          console.error("plans load failed:", err)
+          setPlans([]) // Tier 562: an empty list, not null — null means "not loaded yet" and the effect asked again, forever
+        })
         .finally(() => setPlansLoading(false))
     }
     if (tab === "mahnungen" && mahnungen === null && !mahnungenLoading) {
@@ -581,7 +587,10 @@ export default function CustomerDetailPage() {
         `/api/v1/reminders/mahnungen?companyId=${companyId}&customerId=${id}&status=all`,
       )
         .then((d) => setMahnungen(d.mahnungen || []))
-        .catch((err) => console.error("mahnungen load failed:", err))
+        .catch((err) => {
+          console.error("mahnungen load failed:", err)
+          setMahnungen([]) // Tier 562: an empty list, not null — null means "not loaded yet" and the effect asked again, forever
+        })
         .finally(() => setMahnungenLoading(false))
     }
     // Tier 64: fetch the customer's Mahnungspausen
@@ -593,7 +602,10 @@ export default function CustomerDetailPage() {
         `/api/v1/mahnungspausen?companyId=${companyId}&customerId=${id}`,
       )
         .then((d) => setPauses(d))
-        .catch((err) => console.error("pauses load failed:", err))
+        .catch((err) => {
+          console.error("pauses load failed:", err)
+          setPauses([]) // Tier 562: an empty list, not null — null means "not loaded yet" and the effect asked again, forever
+        })
         .finally(() => setPausesLoading(false))
     }
     if (tab === "credit" && creditLedger === null && !creditLoading) {
@@ -602,7 +614,10 @@ export default function CustomerDetailPage() {
         `/api/v1/customers/${id}/credit-ledger?companyId=${companyId}`,
       )
         .then((d) => setCreditLedger(d))
-        .catch((err) => console.error("credit ledger load failed:", err))
+        .catch((err) => {
+          console.error("credit ledger load failed:", err)
+          setCreditLedger([]) // Tier 562: an empty list, not null — null means "not loaded yet" and the effect asked again, forever
+        })
         .finally(() => setCreditLoading(false))
     }
     // Tier 144: email-Verlauf. Lazy-load the same
@@ -614,7 +629,10 @@ export default function CustomerDetailPage() {
         `/api/v1/customers/${id}/emails?companyId=${companyId}&take=200`,
       )
         .then((d) => setEmails(d.rows))
-        .catch((err) => console.error("emails load failed:", err))
+        .catch((err) => {
+          console.error("emails load failed:", err)
+          setEmails([]) // Tier 562: an empty list, not null — null means "not loaded yet" and the effect asked again, forever
+        })
         .finally(() => setEmailsLoading(false))
     }
     // Tier 238: Zahlungen (payments) tab. Walks all
@@ -662,7 +680,10 @@ export default function CustomerDetailPage() {
           )
           setPayments(allPayments)
         })
-        .catch((err) => console.error("payments load failed:", err))
+        .catch((err) => {
+          console.error("payments load failed:", err)
+          setPayments([]) // Tier 562: an empty list, not null — null means "not loaded yet" and the effect asked again, forever
+        })
         .finally(() => setPaymentsLoading(false))
     }
     // Tier 238: Dokumente (attachments) tab. Fetches

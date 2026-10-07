@@ -135,12 +135,20 @@ export default function BankingPage() {
       // /statements endpoint returns the
       // BankStatement[] with transactions
       // included.
-      const stmts = await apiGet<any[]>(
-        `/api/v1/bank-import?companyId=${cid}`,
+      // Tier 562: the route is /bank-statements (this asked /bank-import,
+      // which does not exist — 404, the list was always empty), and the
+      // list carries no transactions: the newest mock statements are
+      // fetched one by one.
+      const list = await apiGet<any[]>(
+        `/api/v1/bank-statements?companyId=${cid}`,
+      )
+      const mock = (Array.isArray(list) ? list : []).filter((s) => s.format === "fints-mock").slice(0, 3)
+      const stmts = await Promise.all(
+        mock.map((s) => apiGet<any>(`/api/v1/bank-statements/${s.id}?companyId=${cid}`).catch(() => null)),
       )
       const allTxns: BankTransaction[] = []
       for (const s of stmts) {
-        if (s.format === "fints-mock" && s.transactions) {
+        if (s?.transactions) {
           for (const t of s.transactions) {
             if (t.endToEndId?.startsWith("MOCK-")) {
               allTxns.push(t)

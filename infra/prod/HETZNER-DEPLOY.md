@@ -179,9 +179,8 @@ JWT_SECRET=<openssl rand -hex 64>
 # every bank connection.
 FINTS_PIN_ENC_KEY=<openssl rand -hex 32>
 
-# Backup ping (Healthchecks.io).
-HEALTHCHECK_URL=https://hc-ping.com/<your-uuid>
-HEALTHCHECK_PING_URL=https://hc-ping.com/<your-uuid>/fail
+# (A backup ping via HEALTHCHECK_URL was documented here; the backup image
+# does not read that variable — Tier 562. Nothing to set.)
 
 # Observability (if you enable the monitoring stack).
 GRAFANA_ADMIN_PASSWORD=<openssl rand -base64 24>

@@ -76,7 +76,7 @@ a Hetzner account).
 | 2 | Daily off-site copy (rclone) | 📋 | Set `BACKUP_RCLONE_REMOTE` in `.env` |
 | 3 | Backups encrypted (gpg symmetric) | 📋 | Set `BACKUP_ENCRYPTION_PASSPHRASE` in `.env` |
 | 4 | 30 daily + 7 weekly + 12 monthly retention | ✅ | `backup-prod.sh` |
-| 5 | Healthchecks.io backup ping | 📋 | Set `HEALTHCHECK_URL` in `.env` |
+| 5 | Healthchecks.io backup ping | ❌ | Not wired: the backup image ignores `HEALTHCHECK_URL` (Tier 562). Needs a script in the image's `/hooks`. |
 | 6 | Restore-test on every backup | 📋 | Set `BACKUP_RESTORE_TEST=1` in `.env` |
 | 7 | GoBD §146 AO retention (10 years) | 📋 | Off-site rclone remote; local keeps 12 months |
 | 8 | Backups verified restorable (quarterly) | 📋 | `DR-TEST.md` |

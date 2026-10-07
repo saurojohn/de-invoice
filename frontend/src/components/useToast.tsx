@@ -28,7 +28,7 @@
  * works as expected:
  *   toast.success(t("customer.saved"))
  */
-import { createContext, useCallback, useContext, useEffect, useState } from "react"
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react"
 
 export type ToastKind = "success" | "error" | "info" | "warn"
 
@@ -123,8 +123,16 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     [show],
   )
 
+  // Tier 562: the same object as long as the functions are the same. A new
+  // object on every render (i.e. whenever a toast appears or goes) re-ran
+  // every effect that lists `toast` as a dependency.
+  const api = useMemo(
+    () => ({ show, success, error, info, warn, dismiss }),
+    [show, success, error, info, warn, dismiss],
+  )
+
   return (
-    <ToastCtx.Provider value={{ show, success, error, info, warn, dismiss }}>
+    <ToastCtx.Provider value={api}>
       {children}
       <ToastViewport toasts={toasts} onDismiss={dismiss} />
     </ToastCtx.Provider>

@@ -2621,6 +2621,21 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 562 — the production stack, run once from end to end
+
+On 07.10.2026 `infra/prod/docker-compose.yml` was run locally for the first time (own compose project `deinv-fulldry`, own container names and volumes, proxy on :18080 without TLS, dummy secrets; the compose file and the production site block of the Caddyfile unchanged). What held: both images build; `prisma migrate deploy` builds the database; register → session cookie (`HttpOnly; SameSite=Lax; Secure`); `x-user-id` → 401, cookie → 200; company, customer, invoice, issue, PDF, XRechnung, search (full-text columns present); logo upload → in the volume, served, still there after the backend container was recreated; receipt scan with the real engine (blank image → nulls); a forged `X-Forwarded-For` did not dodge the login limit and the lockout named the visitor's address, not the proxy's; a forged `X-Forwarded-Host` did not reach the portal link; `/metrics` → 404; sign-in in a real browser and 37 pages opened.
+
+What it found:
+
+1. **The backup container never ran.** It was configured with `PGHOST`/`PGUSER`/`PGPASSWORD`/`PGDATABASE`; `prodrigestivill/postgres-backup-local` reads `POSTGRES_HOST`/`_USER`/`_PASSWORD`/`_DB` and stopped at start. Production would have had **no database backups at all.** Fixed; verified by running one backup (dump with 68 tables and the test invoice). `BACKUP_COMPRESS`, `BACKUP_FILE_PREFIX`, `HEALTHCHECK_URL`, `HEALTHCHECK_PING_URL` are not read by the image either — removed, and the docs that promised a Healthchecks.io ping corrected. The comment that 30 days of dumps "meets § 147 AO" was wrong and is gone.
+2. **Pages that fetch in a loop** — invisible in dev and CI, where the rate limit is off. `useI18n()` returned a new `t`, `getDateLocale` and `switchLocale` on every render, and the toast context a new object whenever a toast appeared; all sit in dependency lists of `useCallback(load)` + `useEffect(load)`. Measured in 6 s: settings page — the dunning card's config hundreds of times, then 429 for everything; create-invoice — 232 requests (five lists × 46); customer page — 232, because a tab whose request failed stayed `null` = "not loaded" and was asked for again without end. Now: the i18n functions are stable per locale, the toast API is memoised, a failed customer tab becomes an empty list. After the fix: 14 / 6 / 4 requests.
+3. The create-invoice page fetched the company's defaults with a bare `fetch` that sent no `x-company-id` → 401, silently: payment term, VAT mode and the Kleinunternehmer default never reached the form in cookie mode. Through `apiGet` now.
+4. The banking page asked `GET /bank-import`, a route that does not exist (404): its list of recent mock transactions was always empty. It uses `/bank-statements` now.
+
+Playwright `no-request-loops-tier562.spec.ts` (settings, create-invoice, a failing customer tab) — **not run against the old code** (no local Playwright stack on this machine: port 3001 belongs to another project); the before/after numbers above are from the browser against the dry-run stack. Spec 341 also asserts the backup variables.
+
+**Still not exercised:** TLS/ACME (needs the domain), the observability overlay, a restore from a dump, SMTP (none configured — mails were logged).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 561 — the proxy configuration is one Caddy accepts
 
 `infra/prod/Caddyfile` (and `.staging`) had never been run through Caddy. With the image the compose file names (`caddy:2-alpine`, v2.11.7 — pulled on 06.10.2026 with the owner's permission): `caddy validate` → `unrecognized subdirective timeout`. Behind that first error: a `rate_limit` directive stock Caddy does not have, a `reverse_proxy` with three matchers (the 2nd and 3rd would have been read as upstreams), a `{path.1}` placeholder, `/storage/*` and `/uploads/*` routes nothing uses, and in the staging file `on_demand_tls { ask "<a sentence>" }`. Caddy would not have started: the first deployment would have had no site.

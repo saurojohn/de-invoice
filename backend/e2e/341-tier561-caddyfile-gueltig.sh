@@ -38,4 +38,9 @@ def walk(o):
 r=list(walk(json.loads(sys.stdin.read())))
 print(len(r)>0 and all('static_response' in x and 'reverse_proxy' not in x for x in r))" <<<"$JSON")" "True"
 assert_eq "no client-controlled X-Forwarded-For is written into the request" "$(grep -c 'X-Forwarded-For' "$PROD/Caddyfile" | tr -d ' ')/$(grep -c 'header_up X-Forwarded' "$PROD/Caddyfile" | tr -d ' ')" "1/0"
+# Tier 562: the backup container gets the variables its image reads. With
+# PGHOST / PGDATABASE it stopped at start ("You need to set the POSTGRES_DB …")
+# and no dump was ever written.
+C="$PROD/docker-compose.yml"
+assert_eq "the backup container is told its database the way the image expects" "$(grep -c '^      POSTGRES_HOST: postgres$' "$C")/$(grep -c '^      POSTGRES_DB: ' "$C")/$(grep -c '^      PGHOST:\|^      PGDATABASE:' "$C")" "1/1/0"
 summary

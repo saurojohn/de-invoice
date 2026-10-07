@@ -311,11 +311,15 @@ services:
       de-invoice.observability: "true"
       de-invoice.service: "backup"
     environment:
-      PGHOST: postgres
-      PGPORT: 5432
-      PGUSER: ${POSTGRES_USER:-de_invoice}
-      PGPASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
-      PGDATABASE: ${POSTGRES_DB:-de_invoice}
+      # Tier 562: the names this image reads. It was given PGHOST / PGUSER /
+      # PGPASSWORD / PGDATABASE, which it ignores: the container stopped at
+      # start with "You need to set the POSTGRES_DB … environment variable"
+      # and no backup was ever written.
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-de_invoice}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-de_invoice}
       # Run at 03:00 Europe/Berlin every day
       # (off-peak — server is idle at night
       # for SH Leder's 8-18 CET business hours).
@@ -323,25 +327,16 @@ services:
       # Europe/Berlin so the schedule matches
       # the customer's timezone, not UTC.
       TZ: Europe/Berlin
-      # Keep 30 daily backups. Older backups are
-      # deleted. 30 days of retention meets
-      # GoBD §147 AO "Aufbewahrungsfrist" for
-      # invoices + receipts.
+      # Keep 30 daily dumps (plus the image's defaults: 4 weekly, 6 monthly).
+      # This is how far back a restore can reach — it is NOT the statutory
+      # retention of the records themselves (§ 147 AO: 8 / 10 years), which
+      # is about the data in the database and the files in `storage`.
       BACKUP_KEEP_DAYS: "30"
-      # Compress. pg_dump's default is plain SQL
-      # which is fine for restoration but ~3x
-      # larger than gzip. Disk is cheap, restore
-      # speed matters.
-      BACKUP_COMPRESS: "gzip"
-      # Naming convention: de_invoice-YYYY-MM-DDTHH-MM-SS.sql.gz
-      BACKUP_FILE_PREFIX: "de_invoice-"
-      # Healthchecks.io integration (optional).
-      # We pass the URL through env so the backup
-      # container pings the URL when a backup
-      # succeeds. Set HEALTHCHECK_URL in .env to
-      # enable.
-      HEALTHCHECK_URL: ${HEALTHCHECK_URL:-}
-      HEALTHCHECK_PING_URL: ${HEALTHCHECK_PING_URL:-}
+      # Tier 562: BACKUP_COMPRESS, BACKUP_FILE_PREFIX, HEALTHCHECK_URL and
+      # HEALTHCHECK_PING_URL stood here; this image reads none of them. Dumps
+      # are gzip'd and named <database>-<timestamp>.sql.gz by default, under
+      # /backups/{last,daily,weekly,monthly}. For a ping after each run use
+      # the image's hooks (/hooks) — see its README.
     volumes:
       - backups:/backups
 

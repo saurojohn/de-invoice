@@ -415,8 +415,10 @@ RTO: ~1h (from "VPS alive" to "stack serving traffic").
   [`monitoring.yml`](monitoring.yml) overlay (Tier 114 recommended) or the
   older [`docker-compose.observability.yml`](docker-compose.observability.yml)
   (Tier 18 — adds Loki + Promtail on top). Both ship pre-built dashboards.
-- **Backup monitoring**: the backup container pings Healthchecks.io
-  after each successful run (set `HEALTHCHECK_URL` in .env). For richer
+- **Backup monitoring**: not wired up. The compose file used to pass
+  `HEALTHCHECK_URL` to the backup container, but that image does not read
+  it (Tier 562) — nothing pings anywhere after a run. Check the dumps
+  yourself (`ls /backups/last`), or add a script to the image's `/hooks`. For richer
   alerting, use the upgraded `scripts/backup-prod.sh` (Tier 114) which
   also posts to a Slack/Discord webhook.
 - **Disk usage alerts**: the `DeInvoiceDiskSpaceLow` alert in

@@ -12,7 +12,7 @@ import { Switch } from "@/components/ui/switch"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
-import { API_BASE, apiGet, apiPost, apiPut, apiFetch, ApiError } from "@/lib/api"
+import { apiGet, apiPost, apiPut, apiFetch, ApiError } from "@/lib/api"
 import { computeInvoiceAmounts } from "@/lib/invoice-amounts"
 
 type InvoiceType = 'INV' | 'CN' | 'PI' | 'RCV'
@@ -428,10 +428,11 @@ function CreateInvoicePageInner() {
       ? localStorage.getItem("companyId")
       : null
     if (!companyId) return
-    fetch(`${API_BASE}/api/v1/companies/${companyId}`, {
-      headers: { "x-user-id": localStorage.getItem("userId") || "" },
-    })
-      .then((r) => r.ok ? r.json() : null)
+    // Tier 562: through apiGet. The bare fetch sent no x-company-id, so the
+    // answer was 401 and the company's defaults (payment term, VAT mode,
+    // Kleinunternehmer) never reached the form.
+    apiGet<any>(`/api/v1/companies/${companyId}`)
+      .catch(() => null)
       .then((co) => {
         if (!co) return
         setForm((prev) => {

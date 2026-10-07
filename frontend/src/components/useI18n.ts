@@ -25,7 +25,7 @@
  */
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 
 import deMessages from "../../messages/de.json"
 import enMessages from "../../messages/en.json"
@@ -71,7 +71,14 @@ export function useI18n() {
   // literal (we never throw on missing interpolation) — that
   // way a translation that didn't reference the variable just
   // shows the original text, which is what translators expect.
-  const t = (key: string, vars?: Record<string, string | number>): string => {
+  //
+  // Tier 562: one function per locale, not one per render. `t` is in the
+  // dependency list of many `useCallback(load, [..., t])` + `useEffect(load)`
+  // pairs; a new `t` on every render made each of them run again after its
+  // own setState — the settings page's dunning card fetched its config in an
+  // endless loop (measured: hundreds of requests in seconds, then 429 for the
+  // whole page once the rate limit applies).
+  const t = useCallback((key: string, vars?: Record<string, string | number>): string => {
     const keys = key.split(".")
     let value: any = messages[locale]
     for (const k of keys) {
@@ -83,15 +90,15 @@ export function useI18n() {
       (acc, [k, v]) => acc.replace(new RegExp(`\\{${k}\\}`, "g"), String(v)),
       value,
     )
-  }
+  }, [locale])
 
-  const switchLocale = (code: string) => {
+  const switchLocale = useCallback((code: string) => {
     setLocale(code)
     localStorage.setItem("locale", code)
     // Reload so server-rendered bits (date pickers, intl
     // formatters) pick up the new locale on the next render.
     window.location.reload()
-  }
+  }, [])
 
   // Maps the in-app language code to a BCP 47 locale tag for
   // use with toLocaleDateString / toLocaleString. Used by
@@ -99,14 +106,16 @@ export function useI18n() {
   // mapping in one place avoids subtle mismatches like
   // "en" → "en-DE" or "zh" → "zh-TW" if someone copies a
   // date formatter from one page to another.
-  const getDateLocale = (): string => {
+  // Tier 562: stable per locale, like `t` — it is an effect dependency too
+  // (the create-invoice page reloaded its five lists on every render).
+  const getDateLocale = useCallback((): string => {
     switch (locale) {
       case "de": return "de-DE"
       case "en": return "en-US"
       case "zh": return "zh-CN"
       default: return "de-DE"
     }
-  }
+  }, [locale])
 
   return { locale, t, switchLocale, getDateLocale, mounted }
 }
