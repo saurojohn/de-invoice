@@ -161,7 +161,7 @@ export class OcrController {
   @Require('expense.write')
   @Post('match-supplier')
   async matchSupplier(
-    @Body() body: { vatId?: string; name?: string; companyId?: string },
+    @Body() body: { vatId?: string; name?: string; companyId?: string; lookupOnly?: boolean },
     @Query('companyId') companyIdQuery: string,
   ) {
     const companyId = (typeof body.companyId === 'string' && body.companyId) || companyIdQuery
@@ -190,6 +190,11 @@ export class OcrController {
       })
       if (hit) return { supplierId: hit.id, created: false, matchedBy: 'name' }
     }
+    // Tier 574: the scan preview only asks. Measured before: picking a scan
+    // created the supplier at once — cancelling the preview left a supplier
+    // nobody had confirmed, named after whatever the OCR read in line one.
+    // (a form sends the text "true" — asking must never turn into creating)
+    if (body.lookupOnly === true || (body.lookupOnly as unknown) === 'true') return { supplierId: null, created: false, matchedBy: null }
     // 3) Create a new Supplier with what we have.
     const created = await this.prisma.supplier.create({
       data: {

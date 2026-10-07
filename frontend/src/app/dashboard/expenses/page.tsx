@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
-import { apiGet, apiFetch } from "@/lib/api"
+import { apiGet, apiFetch, apiPost } from "@/lib/api"
 import { ReceiptsPanel } from "@/components/ReceiptsPanel"
 import { EInvoiceDialog } from "@/components/EInvoiceDialog"
 import { ExpenseEditForm } from "@/components/ExpenseEditForm"
@@ -136,6 +136,8 @@ export default function ExpensesPage() {
         }
         matchedSupplierId: string | null
         matchedBy: string | null
+        // Tier 574: the scan itself — kept with the expense once it is created
+        file: File
       }
     | { step: "saving" }
     | { step: "error"; message: string }
@@ -382,49 +384,25 @@ export default function ExpensesPage() {
                 try {
                   const fd = new FormData()
                   fd.append("file", file)
-                  const url = `${process.env.NEXT_PUBLIC_API_URL || ""}/api/v1/ocr/scan?companyId=${companyId}`
-                  const res = await fetch(url,
-                    {
-                      method: "POST",
-                      headers: {
-                        "x-user-id":
-                          localStorage.getItem("userId") || "",
-                        "x-company-id": companyId,
-                      },
-                      body: fd,
-                    },
+                  // Tier 574: through apiFetch (session cookie, active company) like
+                  // every other request — these were raw fetch() calls.
+                  const res = await apiFetch(
+                    `/api/v1/ocr/scan?companyId=${companyId}`,
+                    { method: "POST", body: fd },
                   )
-                  if (!res.ok) {
-                    const txt = await res.text()
-                    throw new Error(
-                      `${res.status} ${res.statusText} — ${txt}`,
-                    )
-                  }
                   const data = await res.json()
-                  // Call match-supplier to find or
-                  // create the Supplier. The OCR
-                  // backend owns the matching
-                  // logic (VAT-ID first, then name)
-                  // — see ocr.controller.ts.
-                  const ms = await fetch(
-                    `${process.env.NEXT_PUBLIC_API_URL || ""}/api/v1/ocr/match-supplier?companyId=${companyId}`,
+                  // Is the supplier known? Only asked here (lookupOnly): a
+                  // new supplier is created when the expense is, with the
+                  // name as the user left it — not before anything is
+                  // confirmed.
+                  const msBody = await apiPost(
+                    `/api/v1/ocr/match-supplier?companyId=${companyId}`,
                     {
-                      method: "POST",
-                      headers: {
-                        "Content-Type": "application/json",
-                        "x-user-id":
-                          localStorage.getItem("userId") || "",
-                        "x-company-id": companyId,
-                      },
-                      body: JSON.stringify({
-                        vatId: data.supplierVatId || "",
-                        name: data.supplierName || "",
-                      }),
+                      vatId: data.supplierVatId || "",
+                      name: data.supplierName || "",
+                      lookupOnly: true,
                     },
-                  )
-                  const msBody = ms.ok
-                    ? await ms.json()
-                    : { supplierId: null, matchedBy: null }
+                  ).catch(() => ({ supplierId: null, matchedBy: null }))
                   setOcr({
                     step: "preview",
                     data,
@@ -476,6 +454,7 @@ export default function ExpensesPage() {
                     },
                     matchedSupplierId: msBody.supplierId,
                     matchedBy: msBody.matchedBy,
+                    file,
                   })
                 } catch (err: any) {
                   setOcr({
@@ -890,9 +869,12 @@ export default function ExpensesPage() {
                     {ocr.matchedBy === "created" &&
                       (t("expenses.ocrCreatedNew") ||
                         "+ Neuer Lieferant angelegt")}
+                    {/* Tier 574: nothing is created before the confirmation */}
                     {ocr.matchedBy === null &&
-                      (t("expenses.ocrNoSupplierMatch") ||
-                        "⚠ Kein Lieferant zugeordnet")}
+                      (ocr.editable.supplierName.trim() || ocr.data.supplierVatId
+                        ? t("expenses.ocrWillCreate")
+                        : t("expenses.ocrNoSupplierMatch") ||
+                          "⚠ Kein Lieferant zugeordnet")}
                   </p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
                     <div>
@@ -1043,59 +1025,57 @@ export default function ExpensesPage() {
                         const companyId =
                           localStorage.getItem("companyId") || ""
                         if (!companyId) return
+                        const picked = ocr
                         setOcr({ step: "saving" })
                         try {
-                          const res = await fetch(
-                            `${process.env.NEXT_PUBLIC_API_URL || ""}/api/v1/expenses?companyId=${companyId}`,
+                          // Tier 574: the supplier is created now, on
+                          // confirmation, under the name as edited.
+                          let supplierId = picked.matchedSupplierId
+                          const supplierName = picked.editable.supplierName.trim()
+                          if (!supplierId && (supplierName || picked.data.supplierVatId)) {
+                            const made = await apiPost(
+                              `/api/v1/ocr/match-supplier?companyId=${companyId}`,
+                              { vatId: picked.data.supplierVatId || "", name: supplierName },
+                            )
+                            supplierId = made.supplierId
+                          }
+                          const created = await apiPost(
+                            `/api/v1/expenses?companyId=${companyId}`,
                             {
-                              method: "POST",
-                              headers: {
-                                "Content-Type": "application/json",
-                                "x-user-id":
-                                  localStorage.getItem("userId") || "",
-                                "x-company-id": companyId,
-                              },
-                              body: JSON.stringify({
-                                description:
-                                  ocr.editable.description ||
-                                  // Auto-fill from OCR fields
-                                  // when the user didn't enter a
-                                  // description manually. The
-                                  // backend rejects empty
-                                  // description (Beschreibung ist
-                                  // erforderlich).
-                                  [
-                                    ocr.editable.supplierName,
-                                    ocr.editable.invoiceNumber,
-                                  ]
-                                    .filter(Boolean)
-                                    .join(" — ") ||
-                                  "OCR-Scan",
-                                invoiceDate:
-                                  ocr.editable.invoiceDate,
-                                invoiceNumber:
-                                  ocr.editable.invoiceNumber || null,
-                                supplierId:
-                                  ocr.matchedSupplierId || null,
-                                netAmount: parseFloat(
-                                  ocr.editable.netAmount,
-                                ),
-                                vatRate:
-                                  parseFloat(ocr.editable.vatRate) / 100,
-                                vatAmount: parseFloat(
-                                  ocr.editable.vatAmount,
-                                ),
-                                grossAmount: parseFloat(
-                                  ocr.editable.grossAmount,
-                                ),
-                              }),
+                              description:
+                                picked.editable.description ||
+                                [supplierName, picked.editable.invoiceNumber]
+                                  .filter(Boolean)
+                                  .join(" — ") ||
+                                "OCR-Scan",
+                              invoiceDate: picked.editable.invoiceDate,
+                              ...(picked.editable.invoiceNumber
+                                ? { invoiceNumber: picked.editable.invoiceNumber }
+                                : {}),
+                              ...(supplierId ? { supplierId } : {}),
+                              netAmount: parseFloat(picked.editable.netAmount),
+                              vatRate: parseFloat(picked.editable.vatRate) / 100,
+                              vatAmount: parseFloat(picked.editable.vatAmount),
+                              grossAmount: parseFloat(picked.editable.grossAmount),
                             },
                           )
-                          if (!res.ok) {
-                            const t = await res.text()
-                            throw new Error(
-                              `${res.status} ${res.statusText} — ${t}`,
-                            )
+                          // The scan is the Beleg: it is kept with the
+                          // expense (it used to be read and thrown away).
+                          const beleg = new FormData()
+                          beleg.append("file", picked.file)
+                          beleg.append("companyId", companyId)
+                          beleg.append("entityType", "expense")
+                          beleg.append("entityId", created.id)
+                          try {
+                            await apiFetch("/api/v1/attachments", { method: "POST", body: beleg })
+                          } catch (attachErr: any) {
+                            // the expense exists; say that its Beleg is missing
+                            await load()
+                            setOcr({
+                              step: "error",
+                              message: `${t("expenses.ocrScanNotKept")} ${attachErr?.message || ""}`,
+                            })
+                            return
                           }
                           setOcr(null)
                           // Refresh the list to show

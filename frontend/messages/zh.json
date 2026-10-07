@@ -979,7 +979,9 @@
     "ocrConfirm": "创建 Expense",
     "ocrSaving": "正在保存 Expense…",
     "paidAt": "付款日期",
-    "paidAtHint": "仅用于银行导入、SEPA 和现金簿之外的付款（信用卡、私人账户）。EÜR 按此日期计入该支出。"
+    "paidAtHint": "仅用于银行导入、SEPA 和现金簿之外的付款（信用卡、私人账户）。EÜR 按此日期计入该支出。",
+    "ocrScanNotKept": "支出已创建，但扫描件未能保存为凭证——请在该支出中手动添加附件。",
+    "ocrWillCreate": "+ 供应商将随该支出一并新建"
   },
   "home": {
     "heroTitle": "专业的德国发票管理解决方案",

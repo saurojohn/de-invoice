@@ -979,7 +979,9 @@
     "ocrConfirm": "Expense anlegen",
     "ocrSaving": "Expense wird gespeichert…",
     "paidAt": "Bezahlt am",
-    "paidAtHint": "Nur bei Zahlung außerhalb von Bankimport, SEPA und Kassenbuch (Karte, Privatkonto). Die EÜR zählt die Ausgabe an diesem Tag."
+    "paidAtHint": "Nur bei Zahlung außerhalb von Bankimport, SEPA und Kassenbuch (Karte, Privatkonto). Die EÜR zählt die Ausgabe an diesem Tag.",
+    "ocrScanNotKept": "Die Ausgabe wurde angelegt, der Scan konnte aber nicht als Beleg gespeichert werden — bitte in der Ausgabe von Hand anhängen.",
+    "ocrWillCreate": "+ Der Lieferant wird mit der Ausgabe neu angelegt"
   },
   "home": {
     "heroTitle": "Professionelle deutsche Rechnungsverwaltung",

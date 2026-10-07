@@ -2622,6 +2622,18 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 574 — a scanned receipt: nothing created before it is confirmed, and the scan is kept
+
+Seen while building Tier 573, in the path next to it („Scan hochladen“ with a picture or an ordinary PDF). **Measured before:**
+
+- Picking a scan called `POST /ocr/match-supplier`, which is "find **or create**": the supplier existed before the preview was even shown. Cancelling left it behind (named after whatever the OCR read in the first line); a name corrected in the preview never reached it.
+- The picture was read and thrown away — the expense it produced had no Beleg (GoBD: the receipt is what has to be kept).
+- The three requests were raw `fetch()` calls with hand-set headers, against the rule in `backend/AGENTS.md`.
+
+**Now:** `match-supplier` takes `lookupOnly` (also as the form text `"true"`) and then only answers. The page asks with it for the preview („+ Der Lieferant wird mit der Ausgabe neu angelegt“), and on confirmation creates the supplier under the name as edited, then the expense, then stores the scan as the expense's attachment (`POST /attachments`); if only that last step fails the page says that the expense exists and its Beleg is missing. All through `apiFetch` / `apiPost`.
+
+**Specs:** `345-tier574-scan-lieferant-erst-bei-bestaetigung.sh` (8 assertions, 5 fail on the old code) and Playwright `ocr-scan-keeps-file-tier574.spec.ts` (cancel → no supplier; confirm with a corrected name → one supplier under that name, one expense, the PNG attached with its SHA-256; fails on the old code at "no supplier before the confirmation").
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 573 — incoming e-invoices are read, booked and kept
 
 The first item of the open list in §9 item 22, agreed with the owner on 07.10.2026. Receiving e-invoices is mandatory since 01.01.2025 (§ 27 Abs. 38 UStG). **Measured before:** an `.xml` upload → 400 „Dateityp nicht erlaubt“; a ZUGFeRD PDF went through OCR like a photographed receipt, the invoice inside it unread.
@@ -2650,7 +2662,7 @@ The first item of the open list in §9 item 22, agreed with the owner on 07.10.2
 - **Files are uploaded by hand.** No mailbox polling, no Peppol access point.
 - Skonto in the payment terms (`#SKONTO#…`) is kept as text, not evaluated. ZUGFeRD 1.0 is not read. MINIMUM / BASIC WL are imported with the notice that they are no e-invoices in the sense of § 14 UStG.
 - For § 13b / intra-community invoices the rate is not in the file; 19 % is assumed as everywhere else in the app.
-- Seen in passing, unchanged: the OCR path („Scan hochladen“ with a picture) creates the supplier *before* the user has confirmed anything, and does not attach the scanned file to the expense it creates.
+- Seen in passing: the OCR path („Scan hochladen“ with a picture) created the supplier *before* the user had confirmed anything, and did not attach the scanned file to the expense — **fixed in Tier 574**.
 
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 572 — dependencies with known vulnerabilities updated
 
@@ -8208,7 +8220,7 @@ frontend's build arg, and the frontend image refuses to build without it.
 
 22. **Status review 07.10.2026 — what is still open** (after Tier 570; none of it decided or done):
     - ~~**Dependencies with known vulnerabilities**~~ — **done in Tier 572**: backend 12 → 3 (`node-forge`: no fix exists, the affected verify function is not used; `fast-xml-parser` inside `fints`: no compatible fix), frontend 5 → 0. Re-run `npm audit --omit=dev` now and then.
-    - ~~**Receiving e-invoices**~~ — **done in Tier 573** (XRechnung UBL / CII, ZUGFeRD PDF → supplier, expense(s), the file kept). Open from it: two VAT rates → two expenses (one bank payment); no automatic EN 16931 validation on import; upload by hand only (no mailbox, no Peppol); Skonto terms not evaluated. And seen in passing: the OCR path creates the supplier before confirmation and does not attach the scan.
+    - ~~**Receiving e-invoices**~~ — **done in Tier 573** (XRechnung UBL / CII, ZUGFeRD PDF → supplier, expense(s), the file kept). Open from it: two VAT rates → two expenses (one bank payment); no automatic EN 16931 validation on import; upload by hand only (no mailbox, no Peppol); Skonto terms not evaluated. (The OCR path's two defects seen in passing — supplier created before confirmation, scan not attached — are fixed in Tier 574.)
     - **Two production paths.** `infra/prod/` (Caddy; hardened and run end to end in Tiers 555–569) and the older root `docker-compose.prod.yml` + `DEPLOY.md` (host nginx, systemd). The older one passes no `FRONTEND_URL` to the backend (CORS allow-list and mailed links fall back to `http://localhost:3000`) and `TRUST_PROXY: 0`; it was not tested. `DEPLOY-READY-SUMMARY.md` (07.09.) still says "ready to deploy"; `DEPLOY.md`, `DEPLOY-WALKTHROUGH.md`, `SECURITY-AUDIT-2026-09-06.md`, `USER-GUIDE.md` predate Tiers 344–570.
     - **The monitoring overlay** (`infra/prod/monitoring.yml`, `docker-compose.observability.yml`) declares the network `deinvoicenet` as `external`; the main compose file creates `de-invoice-prod_deinvoicenet`. As an overlay it resolves to an external network that nothing creates. Not run.
     - **No CI job builds the Docker images**; `release.yml` only runs on a `v*` tag and has never run with the `build-contexts` added in Tier 569. Production starts the backend with `ts-node --transpile-only` (no compiled build).
