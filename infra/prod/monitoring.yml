@@ -35,14 +35,12 @@
 # ─────────────────────────────────────────────────────────────────
 
 networks:
-  deinvoicenet:
-    # The overlay file extends the existing deinvoicenet
-    # network created by the main compose. If that
-    # network doesn't exist yet (e.g. you started with
-    # just this overlay), `docker compose` will create
-    # it lazily on first `up`.
-    name: deinvoicenet
-    external: true
+  # Tier 576: the same network the main compose file defines — nothing more.
+  # This said `name: deinvoicenet` + `external: true`; merged with the main
+  # file that turned the app's own network into an external one that nothing
+  # creates ("network deinvoicenet declared as external, but could not be
+  # found") — adding the overlay stopped the whole stack from starting.
+  deinvoicenet: {}
 
 volumes:
   prometheusdata:
@@ -96,7 +94,8 @@ services:
         condition: service_started
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      # Tier 576: no default — this was admin / admin unless someone changed it.
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD is required for the monitoring overlay (set it in the env file)}
       GF_AUTH_ANONYMOUS_ENABLED: "false"
       GF_ANALYTICS_REPORTING_ENABLED: "false"
       GF_USAGE_STATS_ENABLED: "false"

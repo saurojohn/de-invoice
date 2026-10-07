@@ -28,24 +28,23 @@
 # Grafana is the only one exposed to the host (port 3001 —
 # free port since the backend's also on 3001 INSIDE the
 # deinvoicenet, but on the host it's the frontend's 3000).
-# To reach Grafana, go to http://<vps>:3001.
+# To reach Grafana: ssh -L 3001:localhost:3001 <vps>, then
+# http://localhost:3001.
 #
-# SECURITY: Grafana has no auth in this setup (admin/admin
-# default). For a single-tenant install on a private VPS
-# that's acceptable. If the VPS is in a hostile network,
-# change GF_SECURITY_ADMIN_PASSWORD in .env and put
-# Grafana behind nginx basic auth.
+# SECURITY (Tier 576): Grafana and Prometheus are published on
+# 127.0.0.1 only, and GRAFANA_ADMIN_PASSWORD must be set — the
+# overlay refuses to start without it. To reach Grafana from
+# outside, put it behind the Caddy proxy with its own login;
+# do not publish the port.
 # ─────────────────────────────────────────────────────────────────
 
 networks:
-  deinvoicenet:
-    # The overlay file extends the existing deinvoicenet
-    # network created by the main compose. If that
-    # network doesn't exist yet (e.g. you started with
-    # just this overlay), `docker compose` will create
-    # it lazily on first `up`.
-    name: deinvoicenet
-    external: true
+  # Tier 576: the same network the main compose file defines — nothing more.
+  # This said `name: deinvoicenet` + `external: true`; merged with the main
+  # file that turned the app's own network into an external one that nothing
+  # creates ("network deinvoicenet declared as external, but could not be
+  # found") — adding the overlay stopped the whole stack from starting.
+  deinvoicenet: {}
 
 volumes:
   prometheusdata:
@@ -70,11 +69,11 @@ services:
     volumes:
       - ../../infra/observability/prometheus:/etc/prometheus:ro
       - prometheusdata:/prometheus
-    # Exposed to the host on 9090 for ad-hoc PromQL queries.
-    # Tighten with `127.0.0.1:9090:9090` to only allow
-    # localhost access (then SSH-tunnel to use).
+    # Tier 576: localhost only — SSH-tunnel to use it. Published on every
+    # interface, Prometheus (no login) was open to the internet: a port
+    # published by Docker is not held back by ufw.
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"
     healthcheck:
       # Prometheus /-/ready returns 200 when ready.
       test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:9090/-/ready || exit 1"]
@@ -100,7 +99,8 @@ services:
         condition: service_started
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      # Tier 576: no default — this was admin / admin unless someone changed it.
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD is required for the monitoring overlay (set it in the env file)}
       # Anonymous access disabled (require login).
       GF_AUTH_ANONYMOUS_ENABLED: "false"
       # Telemetry off (don't phone Grafana Labs).
@@ -114,7 +114,7 @@ services:
       - ../../infra/observability/grafana/provisioning/dashboards:/var/lib/grafana/dashboards:ro
       - grafanadata:/var/lib/grafana
     ports:
-      - "3001:3000"   # host:3001 → container:3000
+      - "127.0.0.1:3001:3000"   # Tier 576: localhost only (was every interface) → container:3000
     healthcheck:
       test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:3000/api/health || exit 1"]
       interval: 30s
