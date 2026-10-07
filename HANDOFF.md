@@ -2622,6 +2622,26 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 572 — dependencies with known vulnerabilities updated
+
+Agreed with the owner on 07.10.2026 ("按你的做"). `npm audit --omit=dev` before: backend 12 (1 critical), frontend 5 (1 critical). After: **backend 3, frontend 0.**
+
+**Backend** (`backend/package.json`): `@nestjs/common|core|platform-express` 11.1 → `^11.2.7` (brings `multer` 2 and `proxy-addr` 2.0.8), `multer` 1.4.5-lts → `^2.4.0` (+ `@types/multer` 2), `nodemailer` 8 → `^10.0.16` (ships its own types — `@types/nodemailer` removed; **needs Node ≥ 20**, the images and CI already use 20), `overrides.fints.isomorphic-fetch ^3` (replaces the library's `node-fetch` 1.x), plus `npm audit fix` (`qs`, `body-parser`, `brace-expansion`). No source change was needed; `tsc` and eslint are clean.
+
+- The critical one was `proxy-addr`: an address written as IPv4-mapped IPv6 was matched against the trusted ranges in a way that let a visitor pose as a trusted proxy — relevant here since Tier 555 trusts the private ranges. Checked by hand on the updated library with `TRUST_PROXY=true` and throttling on: five wrong logins from one forwarded address → 400, the sixth and seventh → 429; a second address is unaffected; a chain claiming `::ffff:10.0.0.1` gets its own counter.
+- Ran every upload, mail, FinTS, signing and OCR spec locally afterwards: all pass except the known local ones (133, 188) and 49, which fails locally only because the local seed company has lost its `taxId` (`Steuernummer im Firmenprofil fehlt`) — CI builds its database fresh.
+
+**Frontend** (`frontend/package.json`): `next` 15.5.7 → **15.5.27** (still pinned exactly; the critical advisory), `eslint-config-next` to match, `npm audit fix` (`nanoid`, `sharp`, `source-map-js`, the top-level `postcss`), and `overrides.next.postcss ^8.5.29` because Next pins its own older PostCSS (build-time only, our own CSS — done so the audit stays readable). `tsc`, eslint and a full `next build` pass.
+
+**What is left, and why:**
+- `node-forge` (high, *no fixed version exists*): the advisory is about RSA signature **verification**. `signing.service.ts` uses forge to create keys/certificates and to sign, never `verify` — not reachable. Re-check when a fix is published.
+- `fast-xml-parser` inside the `fints` library (moderate; the only "fix" npm offers is downgrading `fints` to 0.1.1). It parses what the bank's server answers. Goes away when the FinTS library is replaced (§9 item 22, stubs).
+- Frontend dev-only: `braces` → `micromatch` → `fast-glob` → `eslint-config-next` (high, no fixed version) — lint tooling, not in the image.
+
+**Spec** `343-tier572-abhaengigkeiten-untergrenze.sh`: an audit needs the network and changes daily, so the spec only holds the floor — every copy of `proxy-addr`, `multer`, `nodemailer`, `@nestjs/platform-express`, `qs` in the backend lockfile and of `next`, `postcss` in the frontend lockfile is at least the fixing version, and no `node-fetch` 1.x is left. 7 of its 8 assertions fail on the old lockfiles.
+
+**Local note:** the Playwright specs address the backend as `http://localhost:3001`, which on this machine is the owner's other project — they cannot run here and are left to CI. (Three of them were started by mistake during this tier and sent a few requests to that other frontend, which answered 404; nothing else happened.) `$S/fe-up.sh` restarts this checkout's own dev frontend on 3100.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 571 — the owner's development database is back; the catch-up migration meets real data
 
 Agreed with the owner on 07.10.2026 ("按你的做") after the status review.
@@ -8157,7 +8177,7 @@ frontend's build arg, and the frontend image refuses to build without it.
    1576 …) or renumber — the app does neither on its own.
 
 22. **Status review 07.10.2026 — what is still open** (after Tier 570; none of it decided or done):
-    - **Dependencies with known vulnerabilities** (`npm audit --omit=dev`): backend 12 (1 critical: `proxy-addr`, IP spoofing through a trusted IPv4-mapped IPv6 subnet — relevant since `TRUST_PROXY` trusts private ranges; 8 high: `multer` 1.x, `nodemailer`, `node-forge` (no fix), the `fints` library's `fast-xml-parser`/`node-fetch`, …), frontend 5 (1 critical: `next` 15.5.7 → fixed in 15.5.27). Several fixes are major-version bumps. Updating needs downloads and a full CI run; not started.
+    - ~~**Dependencies with known vulnerabilities**~~ — **done in Tier 572**: backend 12 → 3 (`node-forge`: no fix exists, the affected verify function is not used; `fast-xml-parser` inside `fints`: no compatible fix), frontend 5 → 0. Re-run `npm audit --omit=dev` now and then.
     - **Incoming e-invoices cannot be taken in.** Uploads accept `.pdf`, images and office files — not `.xml`; nothing reads an XRechnung or the XML inside a ZUGFeRD PDF into an expense. Since 1.1.2025 every business in Germany must be able to receive e-invoices, and the structured original is what has to be archived.
     - **Two production paths.** `infra/prod/` (Caddy; hardened and run end to end in Tiers 555–569) and the older root `docker-compose.prod.yml` + `DEPLOY.md` (host nginx, systemd). The older one passes no `FRONTEND_URL` to the backend (CORS allow-list and mailed links fall back to `http://localhost:3000`) and `TRUST_PROXY: 0`; it was not tested. `DEPLOY-READY-SUMMARY.md` (07.09.) still says "ready to deploy"; `DEPLOY.md`, `DEPLOY-WALKTHROUGH.md`, `SECURITY-AUDIT-2026-09-06.md`, `USER-GUIDE.md` predate Tiers 344–570.
     - **The monitoring overlay** (`infra/prod/monitoring.yml`, `docker-compose.observability.yml`) declares the network `deinvoicenet` as `external`; the main compose file creates `de-invoice-prod_deinvoicenet`. As an overlay it resolves to an external network that nothing creates. Not run.
