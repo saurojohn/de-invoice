@@ -700,6 +700,19 @@ function AddConnectionModal({
   const [label, setLabel] = useState("")
   const [pin, setPin] = useState("")
   const [mockMode, setMockMode] = useState(true)
+  // Tier 568: what this installation offers. The demo bank writes invented
+  // transactions; a production installation does not have it, and the form
+  // must not offer it (or default to it).
+  const [caps, setCaps] = useState<{ mockAllowed: boolean; realAvailable: boolean } | null>(null)
+  useEffect(() => {
+    apiGet<{ mockAllowed: boolean; realAvailable: boolean }>("/api/v1/fints/capabilities")
+      .then((c) => {
+        setCaps(c)
+        if (!c.mockAllowed) setMockMode(false)
+      })
+      .catch(() => setCaps({ mockAllowed: false, realAvailable: true })) // offer nothing invented when in doubt
+  }, [])
+  const nothingAvailable = !!caps && !caps.mockAllowed && !caps.realAvailable
 
   return (
     <div
@@ -757,18 +770,25 @@ function AddConnectionModal({
               {t("banking.pinHint")}
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              id="mockMode"
-              checked={mockMode}
-              onChange={(e) => setMockMode(e.target.checked)}
-              data-testid="fints-add-mockmode"
-            />
-            <label htmlFor="mockMode" className="text-sm">
-              {t("banking.mockModeLabel")}
-            </label>
-          </div>
+          {caps?.mockAllowed && (
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="mockMode"
+                checked={mockMode}
+                onChange={(e) => setMockMode(e.target.checked)}
+                data-testid="fints-add-mockmode"
+              />
+              <label htmlFor="mockMode" className="text-sm">
+                {t("banking.mockModeLabel")}
+              </label>
+            </div>
+          )}
+          {nothingAvailable && (
+            <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2" data-testid="fints-add-unavailable">
+              {t("banking.realUnavailable")}
+            </p>
+          )}
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={onClose}>
               {t("common.cancel")}
@@ -776,7 +796,7 @@ function AddConnectionModal({
             <Button
               onClick={() => onSubmit({ blz, userId, label, pin, mockMode })}
               data-testid="fints-add-submit"
-              disabled={!blz || !userId || !label || !pin}
+              disabled={!blz || !userId || !label || !pin || !caps || nothingAvailable}
             >
               {t("banking.create")}
             </Button>

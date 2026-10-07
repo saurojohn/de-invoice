@@ -2622,13 +2622,26 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 568 — the demo bank is not for a production installation
+
+Decided by the owner on 07.10.2026 ("按你的建议改"). A mock bank connection ("Demo-Modus") writes three invented `MOCK-…` transactions as a `fints-mock` statement; from then on they are bank transactions like any other — matched to open invoices and, once confirmed, booked as payments. The checkbox was ticked by default in the form and the API defaulted to it (`mockMode ?? true`) in every environment.
+
+- `fints/mock-mode.ts` `mockBankAllowed()`: on outside production (specs, demos), in production only with `FINTS_ALLOW_MOCK=1`; the compose file sets it to `0`.
+- `POST /fints/connections`: the default is the demo bank only where it is allowed; asked for explicitly where it is not → 400 with a sentence. A sync of a demo connection is refused there as well, and the 4-hourly auto-sync leaves such connections alone.
+- A **real** connection without `FINTS_PIN_ENC_KEY` is refused at creation (400). It used to be created with nothing but a hash of the PIN and failed on its first sync.
+- New `GET /fints/capabilities` → `{ mockAllowed, realAvailable }`; the form shows the demo checkbox only when allowed, does not default to it otherwise, and says so when neither kind of connection is possible.
+
+**Correction to the note in Tier 567:** real mode is not a stub as a whole. Fetching accounts and statements goes through the `fints` library (`fints-real.ts`, Tier 22); what is stubbed is submitting a TAN and sending transfers. Whether it works against a real bank was not tested here (no bank access).
+
+Spec 191: with `NODE_ENV=production` an explicit demo connection → 400 (was 201), the default creates no demo connection (was mock), with `FINTS_ALLOW_MOCK=1` → 201. Four assertions fail on the old code. Specs 31/32/37/48/55 (demo and real mode outside production) unchanged and passing.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 567 — the all-pages spec opens the pages with a parameter too
 
 `all-pages-quiet-tier564.spec.ts` gained one test that creates a customer and an issued invoice and opens `/dashboard/customers/:id` (+ `/credit`, `/statement`), `/dashboard/invoices/:id`, both cost-center-report pages, `/dashboard/system-health/:name`, and — when the company has a voucher — the two voucher pages, with the same four checks. First real run (37611166946): quiet. (The run before it opened `/dashboard/invoices/undefined`: the fixture had put `costCenter` on the line item, where the DTO does not take it; the fixture now asserts its own ids.) Not opened: `/pay/:token`, `/portal/invoice/:id`.
 
 `cost-center-crud` "Create form shows cost-center + cost-object inputs" failed once and passed on retry in the same run: it typed 1 s after `domcontentloaded`. It now waits for network idle (which means something since Tier 562) and `readyState` first. Its own comment blames a re-render wiping the typed value; whether a real user typing in the first instant can lose input was not established.
 
-**Open, a product decision:** the bank connection (FinTS). Real mode is a documented stub ("Real-mode is a stub in this build"); the "Demo-Modus" checkbox is on by default in the form and in the API (`mockMode ?? true`); a mock connection writes three invented `MOCK-…` transactions as a `fints-mock` statement, and nothing keeps them from being matched and confirmed as payments on real invoices. Suggested: refuse mock connections in production unless a flag allows them. Asked 07.10.2026, no answer yet — nothing changed.
+**Open, a product decision:** the bank connection (FinTS). Real mode is a documented stub ("Real-mode is a stub in this build"); the "Demo-Modus" checkbox is on by default in the form and in the API (`mockMode ?? true`); a mock connection writes three invented `MOCK-…` transactions as a `fints-mock` statement, and nothing keeps them from being matched and confirmed as payments on real invoices. Suggested: refuse mock connections in production unless a flag allows them. Asked 07.10.2026; decided the same day — see Tier 568.
 
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 566 — a receipt that cannot be read is a 400, not the end of the server
 

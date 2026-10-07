@@ -283,6 +283,7 @@
     "pin": "PIN",
     "pinHint": "Used only for the first login. Never stored in plain text.",
     "mockModeLabel": "Demo mode (mock, no real bank connection)",
+    "realUnavailable": "A bank connection cannot be created in this installation yet (the key for PIN encryption is missing). Bank statements can still be imported (MT940 / CAMT).",
     "create": "Connect",
     "lastSync": "Last sync",
     "neverSynced": "Never synced",

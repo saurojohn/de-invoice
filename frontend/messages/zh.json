@@ -283,6 +283,7 @@
     "pin": "PIN",
     "pinHint": "仅用于首次登录,不会以明文存储。",
     "mockModeLabel": "演示模式 (Mock, 不连接真实银行)",
+    "realUnavailable": "当前安装尚不能创建银行连接(缺少 PIN 加密密钥)。银行对账单仍可导入 (MT940 / CAMT)。",
     "create": "连接",
     "lastSync": "上次同步",
     "neverSynced": "尚未同步",

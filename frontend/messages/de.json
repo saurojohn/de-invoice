@@ -283,6 +283,7 @@
     "pin": "PIN",
     "pinHint": "Wird nur für die erste Anmeldung verwendet und nie im Klartext gespeichert.",
     "mockModeLabel": "Demo-Modus (Mock, keine echte Bankverbindung)",
+    "realUnavailable": "Eine Bankverbindung kann in dieser Installation noch nicht angelegt werden (der Schlüssel für die PIN-Verschlüsselung fehlt). Kontoauszüge lassen sich unabhängig davon importieren (MT940 / CAMT).",
     "create": "Verbinden",
     "lastSync": "Letzte Synchronisierung",
     "neverSynced": "Noch nie synchronisiert",

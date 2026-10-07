@@ -6,6 +6,7 @@ import { createHash, randomUUID } from 'crypto'
 import { buildFinTsMessage, parseFinTsMessage, Segment } from './fints-protocol'
 import { FintsReal } from './fints-real'
 import { encryptPin, decryptPin, pinEncryptionAvailable } from './pin-crypto'
+import { MOCK_BANK_REFUSED, mockBankAllowed } from './mock-mode'
 import { BankImportService } from '../bank-import/bank-import.service'
 
 /**
@@ -267,6 +268,9 @@ export class FinTsService {
       where: { id: input.connectionId, companyId: input.companyId },
     })
     if (!conn) throw new NotFoundException('FinTS-Verbindung nicht gefunden') // Tier 533: was a plain Error → 500
+    // Tier 568: a demo connection does not sync where the demo bank is not
+    // allowed — also not one that was created before the flag was set.
+    if (conn.mockMode === 1 && !mockBankAllowed()) throw new BadRequestException(MOCK_BANK_REFUSED)
 
     // Create a sync-run record up front. We
     // update it as the dialog progresses so the
@@ -848,7 +852,8 @@ export class FinTsService {
     failed: number
   }> {
     const connections = await this.prisma.finTSConnection.findMany({
-      where: { status: 'active' },
+      // Tier 568: demo connections are left alone where the demo bank is off.
+      where: { status: 'active', ...(mockBankAllowed() ? {} : { mockMode: 0 }) },
     })
     let ok = 0
     let needsTan = 0

@@ -1,3 +1,5 @@
+import { MOCK_BANK_REFUSED, mockBankAllowed } from './mock-mode';
+import { pinEncryptionAvailable } from './pin-crypto';
 import { SystemAdminGuard } from '../../auth/system-admin.guard';
 import {
   Controller,
@@ -77,6 +79,15 @@ export class FinTsController {
     private readonly fints: FinTsService,
     private readonly scheduler: FintsSyncScheduler,
   ) {}
+
+  /**
+   * Tier 568: what the "add a bank connection" form may offer here.
+   */
+  @Get('capabilities')
+  @Require('reports.read')
+  capabilities() {
+    return { mockAllowed: mockBankAllowed(), realAvailable: pinEncryptionAvailable() }
+  }
 
   /**
    * List the FinTS connections configured for
@@ -159,6 +170,20 @@ export class FinTsController {
     if (body.endpointUrl) {
       assertPublicHttpUrl(body.endpointUrl, { requireHttps: true, label: 'endpointUrl' })
     }
+    // Tier 568: the default is the demo bank only where the demo bank is
+    // allowed (mock-mode.ts); asked for explicitly where it is not: 400.
+    const mockMode = body.mockMode ?? mockBankAllowed()
+    if (mockMode && !mockBankAllowed()) throw new BadRequestException(MOCK_BANK_REFUSED)
+    // A real connection needs the PIN stored encrypted. Without the key it
+    // was created anyway — with nothing but a hash of the PIN — and could
+    // never sync ("Keine verschlüsselte PIN …" on the first attempt).
+    if (!mockMode && !pinEncryptionAvailable()) {
+      throw new BadRequestException(
+        'Eine echte Bankverbindung kann in dieser Installation noch nicht angelegt werden: ' +
+          'der Schlüssel für die PIN-Verschlüsselung (FINTS_PIN_ENC_KEY) ist nicht gesetzt. ' +
+          'Kontoauszüge lassen sich unabhängig davon importieren (MT940 / CAMT).',
+      )
+    }
     return this.fints.createConnection({
       companyId: body.companyId,
       blz: body.blz,
@@ -166,7 +191,7 @@ export class FinTsController {
       label: body.label,
       endpointUrl: body.endpointUrl,
       pin: body.pin,
-      mockMode: body.mockMode ?? true, // Default to mock for safety
+      mockMode,
     })
   }
 

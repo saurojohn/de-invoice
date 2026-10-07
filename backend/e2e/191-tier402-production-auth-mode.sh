@@ -140,9 +140,29 @@ if restart_backend "NODE_ENV=production ALLOW_HEADER_AUTH=1"; then
   STATUS=$(curl -sS -o /dev/null -w "%{http_code}" "$API/api/v1/customers?companyId=$C" \
     -H "x-user-id: $U" -H "x-company-id: $C")
   assert_status 200 "…and an explicit ALLOW_HEADER_AUTH=1 still turns it on"
+
+  # Tier 568: the demo bank ("Demo-Modus") writes invented transactions that
+  # can be matched and booked like real ones. It was the default of the form
+  # and of the API in every environment; in production it is off.
+  bank() { curl -sS -o /tmp/t568.out -w "%{http_code}" -X "$1" "$API/api/v1/fints/$2" -H "x-user-id: $U" -H "x-company-id: $C" -H "Content-Type: application/json" ${3:+-d "$3"}; }
+  BANK="{\"companyId\":\"$C\",\"blz\":\"50050201\",\"userId\":\"e2e-568\",\"label\":\"$TAG\",\"pin\":\"12345\""
+  assert_eq "production: the form is told the demo bank is not offered" "$(bank GET capabilities >/dev/null; json_field "$(cat /tmp/t568.out)" mockAllowed)" "False"
+  assert_eq "production: a demo connection asked for explicitly: 400 (was 201)" "$(bank POST connections "$BANK,\"mockMode\":true}")" "400"
+  assert_eq "…it says why" "$(grep -c 'Demo-Modus' /tmp/t568.out)" "1"
+  ST=$(bank POST connections "$BANK}")
+  [[ "$ST" == "201" || "$ST" == "400" ]] && pass "production: without saying which, it is not the demo bank's turn = $ST" || fail "default connection: $ST $(head -c 160 /tmp/t568.out)"
+  assert_eq "…no demo connection exists for this company (the default was mock)" "$(sql "select count(*) from \"FinTSConnection\" where \"companyId\"='$C' and \"mockMode\"=1")" "0"
 else
   fail "backend did not come up with NODE_ENV=production ALLOW_HEADER_AUTH=1"
 fi
+if restart_backend "NODE_ENV=production ALLOW_HEADER_AUTH=1 FINTS_ALLOW_MOCK=1"; then
+  assert_eq "production with FINTS_ALLOW_MOCK=1: a demo connection can be created" "$(bank POST connections "$BANK,\"mockMode\":true}")" "201"
+  sql "delete from \"FinTSConnection\" where \"companyId\"='$C'" >/dev/null
+else
+  fail "backend did not come up with FINTS_ALLOW_MOCK=1"
+fi
+rm -f /tmp/t568.out
+assert_eq "the compose file keeps the demo bank off" "$(grep -c 'FINTS_ALLOW_MOCK: ${FINTS_ALLOW_MOCK:-0}' "$SCRIPT_DIR/../../infra/prod/docker-compose.yml")" "1"
 assert_eq "the compose file hands the backend the flag" "$(grep -c 'ALLOW_HEADER_AUTH: "0"' "$SCRIPT_DIR/../../infra/prod/docker-compose.yml")" "1"
 assert_eq "…and tells it that it sits behind a proxy" "$(grep -c 'TRUST_PROXY: "true"' "$SCRIPT_DIR/../../infra/prod/docker-compose.yml")" "1"
 # Tier 557: the mock receipt scanner is not production's default.
