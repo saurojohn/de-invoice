@@ -2636,6 +2636,8 @@ Playwright `no-request-loops-tier562.spec.ts` (settings, create-invoice, a faili
 
 **Still not exercised:** TLS/ACME (needs the domain), the observability overlay, a restore from a dump, SMTP (none configured — mails were logged).
 
+Tier 562b (CI): Playwright `invoice-tax-treatment` "picking Reverse-Charge zeros item VAT" looked for "the first select with an option 0" — that is the payment-term select, not a VAT select. It passed only because the company's default term never loaded (point 3) and that select stood on 0; with the default loading it read 30. The item VAT selects have a test id now (`invoice-item-vat-<n>`) and the test reads that. In the same run backend spec 283 failed once on its archive assertion (`0/0`: the PDF was not in the unzipped archive); it passes locally 3/3 and nothing in this tier touches it — watched on the next run.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 561 — the proxy configuration is one Caddy accepts
 
 `infra/prod/Caddyfile` (and `.staging`) had never been run through Caddy. With the image the compose file names (`caddy:2-alpine`, v2.11.7 — pulled on 06.10.2026 with the owner's permission): `caddy validate` → `unrecognized subdirective timeout`. Behind that first error: a `rate_limit` directive stock Caddy does not have, a `reverse_proxy` with three matchers (the 2nd and 3rd would have been read as upstreams), a `{path.1}` placeholder, `/storage/*` and `/uploads/*` routes nothing uses, and in the staging file `on_demand_tls { ask "<a sentence>" }`. Caddy would not have started: the first deployment would have had no site.

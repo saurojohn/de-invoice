@@ -2021,6 +2021,7 @@ function CreateInvoicePageInner() {
                   </div>
                   <div className="col-span-1">
                     <select
+                      data-testid={`invoice-item-vat-${index}`}
                       className="w-full h-10 border rounded-md px-1 text-sm"
                       value={item.vatRate}
                       onChange={(e) => {

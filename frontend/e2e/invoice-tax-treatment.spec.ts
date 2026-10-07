@@ -172,9 +172,11 @@ test.describe("Invoice USt-Behandlung", () => {
     // We check the FIRST vat select (one per
     // item row) — after the RC click all of
     // them should be 0.
-    const vatSelect = page.locator('select').filter({
-      has: page.locator('option[value="0"]'),
-    }).first()
+    // Tier 562: by its own id. "The first select with an option 0" is the
+    // payment-term select ("sofort" = 0) — this assertion read that one, and
+    // passed only because the company's default term never loaded and the
+    // select stood on 0. It loads now (30 days).
+    const vatSelect = page.locator('[data-testid="invoice-item-vat-0"]')
     await expect(vatSelect).toHaveValue("0")
   })
 
