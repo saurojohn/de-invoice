@@ -3838,7 +3838,13 @@
       "O": "outside scope",
       "L": "IGIC",
       "M": "IPSI"
-    }
+    },
+    "check": "Official check (KoSIT)",
+    "checking": "Checking…",
+    "checkValid": "The official KoSIT validator accepted the e-invoice (XML schema and business rules).",
+    "checkInvalid": "The official KoSIT validator rejected the e-invoice:",
+    "checkUnavailable": "The official KoSIT validator is not available in this installation. The checks shown above (totals, mandatory fields) were made.",
+    "checkFailed": "The check could not be carried out."
   },
   "changePassword": {
     "title": "Change password",

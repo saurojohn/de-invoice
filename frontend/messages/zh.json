@@ -3838,7 +3838,13 @@
       "O": "不征税",
       "L": "IGIC",
       "M": "IPSI"
-    }
+    },
+    "check": "官方校验（KoSIT）",
+    "checking": "正在校验…",
+    "checkValid": "官方 KoSIT 校验器已接受该电子发票（XML 结构和业务规则）。",
+    "checkInvalid": "官方 KoSIT 校验器拒绝了该电子发票：",
+    "checkUnavailable": "本安装环境没有官方 KoSIT 校验器。上方显示的检查（合计、必填项）已执行。",
+    "checkFailed": "无法执行校验。"
   },
   "changePassword": {
     "title": "修改密码",

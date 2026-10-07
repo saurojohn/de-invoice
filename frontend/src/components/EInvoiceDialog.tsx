@@ -96,6 +96,12 @@ export function EInvoiceDialog({ mode, onClose, onImported }: { mode: Mode; onCl
   const [exchangeRate, setExchangeRate] = useState("")
   const [paid, setPaid] = useState(false)
   const [paidAt, setPaidAt] = useState(todayIso())
+  // Tier 578: the official validator's verdict on the received file, on request
+  const [check, setCheck] = useState<
+    | null
+    | "running"
+    | { available: boolean; valid?: boolean; errors?: { rule?: string; message: string }[]; failed?: string }
+  >(null)
 
   const file = mode.kind === "import" ? mode.file : null
   const expenseId = mode.kind === "view" ? mode.expenseId : null
@@ -172,6 +178,20 @@ export function EInvoiceDialog({ mode, onClose, onImported }: { mode: Mode; onCl
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
       setState("error")
+    }
+  }
+
+  const runCheck = async () => {
+    if (!file) return
+    const companyId = localStorage.getItem("companyId") || ""
+    setCheck("running")
+    try {
+      const fd = new FormData()
+      fd.append("file", file)
+      const res = await apiFetch(`/api/v1/expenses/e-invoice/validate?companyId=${companyId}`, { method: "POST", body: fd })
+      setCheck(await res.json())
+    } catch (e) {
+      setCheck({ available: true, failed: e instanceof Error ? e.message : String(e) })
     }
   }
 
@@ -400,7 +420,44 @@ export function EInvoiceDialog({ mode, onClose, onImported }: { mode: Mode; onCl
                 </div>
               )}
 
-              <div className="flex justify-end gap-2">
+              {check && check !== "running" && (
+                <div
+                  className={`p-3 rounded border text-sm ${
+                    check.failed || check.valid === false
+                      ? "border-red-300 bg-red-50 text-red-800 dark:bg-red-950 dark:text-red-200"
+                      : check.available
+                        ? "border-emerald-300 bg-emerald-50 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200"
+                        : "border-gray-300 bg-gray-50 text-gray-700 dark:bg-gray-800 dark:text-gray-200"
+                  }`}
+                  data-testid="einvoice-check-result"
+                  data-available={check.available ? "1" : "0"}
+                >
+                  {check.failed
+                    ? `${t("eInvoice.checkFailed")} ${check.failed}`
+                    : !check.available
+                      ? t("eInvoice.checkUnavailable")
+                      : check.valid
+                        ? t("eInvoice.checkValid")
+                        : t("eInvoice.checkInvalid")}
+                  {check.available && !check.failed && (check.errors?.length ?? 0) > 0 && (
+                    <ul className="mt-2 list-disc pl-5 space-y-1">
+                      {check.errors!.slice(0, 50).map((e, i) => (
+                        <li key={i}>
+                          {e.rule ? <span className="font-mono">{e.rule}: </span> : null}
+                          {e.message}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+
+              <div className="flex flex-wrap justify-end gap-2">
+                {mode.kind === "import" && (
+                  <Button variant="outline" onClick={runCheck} disabled={check === "running"} className="mr-auto" data-testid="einvoice-check-button">
+                    {check === "running" ? t("eInvoice.checking") : t("eInvoice.check")}
+                  </Button>
+                )}
                 <Button variant="outline" onClick={onClose}>
                   {mode.kind === "import" ? t("common.cancel") : t("common.close")}
                 </Button>

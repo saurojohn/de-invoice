@@ -2630,6 +2630,10 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 578 — the official validator from the e-invoice dialog
+
+`POST /expenses/e-invoice/validate` (Tier 573) had no button. The import dialog now has „Offiziell prüfen (KoSIT)“: accepted, or rejected with every finding and its rule, or — where Java / the validator files are missing (this machine) — the sentence that it is not installed. The import does not depend on it. Playwright `e-invoice-import-tier573.spec.ts` clicks it (CI has the validator, a developer machine usually not — both branches are accepted). Not offered when looking at a stored invoice (the route takes a file).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 577 — one bank debit pays an invoice entered as several expenses
 
 The first open point of Tier 573, solved without the schema change. An `Expense` has one VAT rate, so an invoice with 19 % and 7 % is two expenses under the same supplier and number — entered by hand or by the e-invoice import. The bank shows one payment. **Measured before:** `book-expense` with that debit → 400 „Die Abbuchung (352.64) entspricht nicht dem Betrag der Eingangsrechnung (238.00)“ for either part, and the page offered no payment button: such an invoice could not be settled through the bank import at all.

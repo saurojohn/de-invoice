@@ -72,6 +72,17 @@ test("an XRechnung is read, shown, imported and can be looked at again", async (
   await expect(page.getByTestId("einvoice-planned")).toHaveCount(2) // one expense per VAT rate
   await expect(page.getByTestId("einvoice-blocking")).toHaveCount(0)
 
+  // Tier 578: the official validator on request — where it is installed it
+  // gives its verdict (this hand-made file is not a complete XRechnung), where
+  // it is not, the dialog says so. Either way the import stays possible.
+  await page.getByTestId("einvoice-check-button").click()
+  const verdict = page.getByTestId("einvoice-check-result")
+  await expect(verdict).toBeVisible({ timeout: 90_000 })
+  expect(["0", "1"]).toContain(await verdict.getAttribute("data-available"))
+  if ((await verdict.getAttribute("data-available")) === "1") {
+    await expect(verdict).toContainText(/KoSIT/)
+  }
+
   await page.getByTestId("einvoice-import-button").click()
   await expect(dialog).toBeHidden({ timeout: 30_000 })
   const rows = page.getByTestId("expense-row").filter({ hasText: `PM-${tag}` })
