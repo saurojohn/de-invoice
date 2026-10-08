@@ -71,6 +71,12 @@ assert_status 200 "the admin changes the member's role"
 UC_ROWS() { sql "SELECT count(*) FROM \"AuditLog\" WHERE \"entityType\" = 'UserCompany' AND \"companyId\" = '$C' AND \"entityId\" = '$1:$C' $2;"; }
 assert_eq "the owner's membership is in the company's trail (was: companyId NULL)" "$(UC_ROWS "$U" "AND action = 'usercompany.created'")" "1"
 assert_eq "…so is the member's, from the public invitation route" "$(UC_ROWS "$M" "AND action = 'usercompany.created'")" "1"
+# Tier 597: the Company row itself — written at registration, without a request
+# context — was on the company-less chain as well.
+assert_eq "the company's own creation is in its trail (was: companyId NULL)" \
+  "$(sql "SELECT count(*) || '/' || count(\"companyId\") FROM \"AuditLog\" WHERE \"entityType\" = 'Company' AND \"entityId\" = '$C' AND action = 'company.created';")" "1/1"
+assert_eq "…and no row about this company is left without a company" \
+  "$(sql "SELECT count(*) FROM \"AuditLog\" WHERE \"entityType\" = 'Company' AND \"entityId\" = '$C' AND \"companyId\" IS NULL;")" "0"
 assert_eq "the role change is recorded (was: no row — the service upserts)" \
   "$(sql "SELECT (\"oldData\"->>'role') || '>' || (\"newData\"->>'role') FROM \"AuditLog\" WHERE \"entityType\" = 'UserCompany' AND \"entityId\" = '$M:$C' AND action = 'usercompany.updated';")" \
   "viewer>accountant"

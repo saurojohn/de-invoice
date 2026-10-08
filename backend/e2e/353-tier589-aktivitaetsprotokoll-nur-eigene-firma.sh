@@ -72,7 +72,8 @@ assert_eq "its own activity (error.resolve_all), by its own user" "$(py 'print([
 note "=== 3. the CSV export ==="
 csv() { curl -sS -H "x-user-id: $U" -H "x-company-id: $C" "$API/api/v1/audit-logs/activity.csv?companyId=$C&days=365${1:+&actionPrefix=$1}"; }
 assert_eq "default: B's one row, nothing of A" "$(csv | grep -c 'error\.')/$(csv | grep -c "$TAG-a@")" "1/0"
-assert_eq "actionPrefix=company.: no rows of the Company table (was: every company's master data)" "$(csv company. | grep -c 'company\.')" "0"
+# Tier 597: B's own company row is B's now (it had no company before) — still none of anybody else
+assert_eq "actionPrefix=company.: B's own company row, nobody else's (was: every company's master data)" "$(csv company. | grep -c 'company\.')/$(csv company. | grep -c "$TAG a GmbH")/$(csv company. | grep -c "$TAG b GmbH")" "1/0/1"
 assert_eq "actionPrefix=login: no failed logins of others" "$(csv login | grep -c 'login_')" "0"
 assert_eq "actionPrefix=customer.: its own customer only" "$(csv customer. | grep -c 'customer\.')/$(csv customer. | grep -c Geheimkunde)" "1/0"
 

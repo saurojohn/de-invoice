@@ -736,7 +736,15 @@ async function writeAudit(client: any, entry: AuditEntry) {
   // had companyId NULL and was invisible in the company's own trail. The row
   // being written knows its company; use that when the request does not.
   if (!ctx.companyId) {
-    const own = entry.newData?.companyId ?? entry.oldData?.companyId
+    // Tier 597: a row of the Company table IS its company (it has an id, no
+    // companyId). Written without a request context — at registration, by a
+    // job — it went onto the company-less chain too: 2 694 company.created
+    // and 5 311 company.updated rows in the test database that their company
+    // could not see (and, since Tier 589, nobody but the operator).
+    const own =
+      entry.newData?.companyId ??
+      entry.oldData?.companyId ??
+      (entry.entityType === 'Company' ? entry.newData?.id ?? entry.oldData?.id ?? entry.entityId : undefined)
     if (typeof own === 'string' && own) {
       ctx.companyId = own
     }
