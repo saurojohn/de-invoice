@@ -341,7 +341,7 @@ export default function DashboardPage() {
                 {fmtMoney(kpis?.ytd.revenue || 0)} €
               </div>
               <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                {kpis?.ytd.countInvoices || 0} Rechnungen
+                {kpis?.ytd.countInvoices || 0} Rechnungen · brutto, darin {fmtMoney(kpis?.ytd.ust || 0)} € USt
               </div>
             </CardContent>
           </Card>
@@ -374,7 +374,7 @@ export default function DashboardPage() {
                 {fmtMoney(kpis?.ytd.net || 0)} €
               </div>
               <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                Umsatz − Aufwand
+                Umsatz ohne USt − Aufwand (netto)
               </div>
             </CardContent>
           </Card>

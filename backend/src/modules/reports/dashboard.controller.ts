@@ -157,7 +157,10 @@ export class DashboardController {
         expenses: ytdExp.expenses,
         vorsteuer: ytdExp.vorsteuer,
         countExpenses: ytdExp.count,
-        net: ytdInv.revenue - ytdExp.expenses,
+        // Tier 591: net revenue less net expenses. It was `revenue − expenses`
+        // — the invoices' gross totals less the expenses' net amounts, a
+        // "profit" too high by the output VAT of the year.
+        net: Math.round((ytdInv.revenue - ytdInv.ust - ytdExp.expenses) * 100) / 100,
       },
       thisMonth: {
         revenue: thisInv.revenue,
