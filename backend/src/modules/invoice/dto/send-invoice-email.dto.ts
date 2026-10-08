@@ -12,6 +12,7 @@ import {
   Min,
 } from 'class-validator'
 
+import { StrictBoolean } from '../../../common/strict-boolean'
 /**
  * Tier 394 — bodies for POST /invoices/:id/send-email and
  * /invoices/bulk-send-email. They were inline types.
@@ -69,7 +70,7 @@ export class BulkSendInvoiceEmailDto extends InvoiceEmailFieldsDto {
   @IsOptional() @IsArray() @IsString({ each: true }) @MaxLength(64, { each: true })
   invoiceIds?: string[]
 
-  @IsOptional() @IsBoolean()
+  @IsOptional() @StrictBoolean() @IsBoolean()
   dryRun?: boolean
 
   // Clamped to 1…10 in the handler; rejected here rather than silently clamped.

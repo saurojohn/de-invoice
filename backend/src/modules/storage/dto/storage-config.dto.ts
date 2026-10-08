@@ -1,6 +1,7 @@
 import { IsString, IsBoolean, IsOptional, IsEnum, IsIn, ValidateNested, IsObject } from 'class-validator';
 import { Type } from 'class-transformer';
 
+import { StrictBoolean } from '../../../common/strict-boolean'
 export class S3ConfigDto {
   @IsString()
   bucket!: string;
@@ -25,6 +26,7 @@ export class StorageConfigDto {
   localPath?: string;
 
   @IsOptional()
+  @StrictBoolean()
   @IsBoolean()
   cloudEnabled?: boolean;
 

@@ -1,5 +1,6 @@
 import { IsBoolean, IsInt, IsNumber, IsOptional, IsString, IsNotEmpty, Matches, Max, MaxLength, Min } from 'class-validator'
 
+import { StrictBoolean } from '../../../common/strict-boolean'
 /**
  * Tier 393 — bodies for the bank-import money routes. They were single
  * `@Body('x')` params, which the global ValidationPipe cannot check.
@@ -49,7 +50,7 @@ export class BookExpenseDto {
 
   // Tier 452: the debit is the expense less a Skonto (at most 10 %); the
   // difference becomes a supplier credit note split at the expense's rate.
-  @IsOptional() @IsBoolean()
+  @IsOptional() @StrictBoolean() @IsBoolean()
   skonto?: boolean
 }
 

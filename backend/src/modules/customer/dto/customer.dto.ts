@@ -20,6 +20,7 @@ import {
 import { Type, Transform } from 'class-transformer';
 import { CUSTOMER_NAME_MAX, CUSTOMER_VAT_ID_MAX } from '../customer.service';
 
+import { StrictBoolean } from '../../../common/strict-boolean'
 export class CustomerAddressDto {
   @IsString()
   @IsOptional()
@@ -95,6 +96,8 @@ export class CreateCustomerDto {
   @MaxLength(CUSTOMER_VAT_ID_MAX)
   vatId?: string;
 
+  @StrictBoolean()
+
   @IsBoolean()
   @IsOptional()
   taxExempt?: boolean;
@@ -150,7 +153,7 @@ export class UpdateCustomerDto {
   @IsString() @IsOptional() @MaxLength(20)
   vatId?: string
 
-  @IsBoolean() @IsOptional()
+  @StrictBoolean() @IsBoolean() @IsOptional()
   taxExempt?: boolean
 
   @IsObject()

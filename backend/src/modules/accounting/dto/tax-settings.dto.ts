@@ -42,6 +42,7 @@ import {
   ValidationOptions,
 } from 'class-validator'
 
+import { StrictBoolean } from '../../../common/strict-boolean'
 const AMOUNT_MAX = 999_999_999.99
 const YEAR_MESSAGE = 'year ist ungültig'
 
@@ -132,7 +133,7 @@ export class KindDto {
   @OptionalYmd()
   birthDate?: string
 
-  @IsOptional() @IsBoolean()
+  @IsOptional() @StrictBoolean() @IsBoolean()
   kindergeldEligible?: boolean
 }
 
@@ -182,7 +183,7 @@ export class AnlageAusEntryDto {
   @IsOptional() @IsString() @MaxLength(100)
   countryName?: string
 
-  @IsOptional() @IsBoolean()
+  @IsOptional() @StrictBoolean() @IsBoolean()
   hasDba?: boolean
 
   @IsOptional() @IsIn(ANLAGE_AUS_INCOME_TYPES)

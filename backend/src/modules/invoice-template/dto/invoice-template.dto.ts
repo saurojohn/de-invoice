@@ -1,5 +1,6 @@
 import { IsBoolean, IsIn, IsNotEmpty, IsObject, IsOptional, IsString, MaxLength } from 'class-validator'
 
+import { StrictBoolean } from '../../../common/strict-boolean'
 /**
  * Tier 398 — bodies for the invoice-template routes (were local interfaces, so
  * the ValidationPipe could not see them). Measured: name 50 000 chars, an
@@ -27,7 +28,7 @@ export class CreateInvoiceTemplateDto {
   @IsObject({ message: 'configJson muss ein Objekt sein' })
   configJson!: Record<string, unknown>
 
-  @IsOptional() @IsBoolean()
+  @IsOptional() @StrictBoolean() @IsBoolean()
   isDefault?: boolean
 }
 
@@ -38,6 +39,6 @@ export class UpdateInvoiceTemplateDto {
   @IsOptional() @IsObject({ message: 'configJson muss ein Objekt sein' })
   configJson?: Record<string, unknown>
 
-  @IsOptional() @IsBoolean()
+  @IsOptional() @StrictBoolean() @IsBoolean()
   isDefault?: boolean
 }

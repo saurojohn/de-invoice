@@ -11,6 +11,7 @@ import {
 } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 
+import { StrictBoolean } from '../../../common/strict-boolean'
 export class CreateProductDto {
   @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
@@ -74,9 +75,13 @@ export class CreateProductDto {
   @IsOptional()
   lowStockThreshold?: number;
 
+  @StrictBoolean()
+
   @IsBoolean()
   @IsOptional()
   trackInventory?: boolean;
+
+  @StrictBoolean()
 
   @IsBoolean()
   @IsOptional()
@@ -150,6 +155,7 @@ export class UpdateProductDto {
     }
     return value
   })
+  @StrictBoolean()
   @IsBoolean()
   trackInventory?: boolean;
 
@@ -163,6 +169,7 @@ export class UpdateProductDto {
     }
     return value
   })
+  @StrictBoolean()
   @IsBoolean()
   active?: boolean;
 }

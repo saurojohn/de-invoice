@@ -23,8 +23,8 @@ import {
   IsArray,
   ArrayMaxSize,
 } from "class-validator"
-import { Type, Transform } from "class-transformer"
-
+import { Type } from "class-transformer"
+import { StrictBoolean } from "../../../common/strict-boolean"
 /**
  * POST /expenses
  * Create a new expense (Eingangsrechnung / Beleg).
@@ -86,14 +86,14 @@ export class CreateExpenseDto {
   // Tier 442: a supplier credit note — amounts entered positive, stored negative
   // (expense/credit-note.ts).
   @IsOptional()
-  @Transform(({ value }) => (typeof value === "string" ? value === "true" || value === "1" : value))
+  @StrictBoolean()
   @IsBoolean()
   creditNote?: boolean
 
   // Tier 489: the same supplier's invoice number is refused as a duplicate
   // (409) unless this confirms a genuinely second bill.
   @IsOptional()
-  @Transform(({ value }) => (typeof value === "string" ? value === "true" || value === "1" : value))
+  @StrictBoolean()
   @IsBoolean()
   confirmDuplicate?: boolean
 
@@ -111,6 +111,19 @@ export class CreateExpenseDto {
   // amounts are then the sums (expense/tax-lines.ts).
   @IsOptional() @IsArray() @ArrayMaxSize(8)
   taxLines?: { vatRate: number; netAmount: number; vatAmount: number }[]
+
+  // Tier 605: § 13b / intra-community acquisition at creation. The service
+  // has handled both since Tier 27; this DTO refused the properties, so a
+  // § 13b expense could only be made on the UStVA page or by editing.
+  @IsOptional()
+  @StrictBoolean()
+  @IsBoolean()
+  isIntraEU?: boolean
+
+  @IsOptional()
+  @StrictBoolean()
+  @IsBoolean()
+  isReverseCharge?: boolean
 }
 
 /**
@@ -162,17 +175,17 @@ export class UpdateExpenseDto {
   accountNumber?: string
 
   @IsOptional()
-  @Transform(({ value }) => (typeof value === "string" ? value === "true" || value === "1" : value))
+  @StrictBoolean()
   @IsBoolean()
   isIntraEU?: boolean
 
   @IsOptional()
-  @Transform(({ value }) => (typeof value === "string" ? value === "true" || value === "1" : value))
+  @StrictBoolean()
   @IsBoolean()
   isReverseCharge?: boolean
 
   @IsOptional()
-  @Transform(({ value }) => (typeof value === "string" ? value === "true" || value === "1" : value))
+  @StrictBoolean()
   @IsBoolean()
   creditNote?: boolean
 

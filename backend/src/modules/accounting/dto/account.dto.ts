@@ -22,6 +22,7 @@ import {
 } from "class-validator"
 import { Transform } from "class-transformer"
 
+import { StrictBoolean } from "../../../common/strict-boolean"
 /**
  * POST /accounts
  * Create a new account in the chart of accounts.
@@ -68,6 +69,7 @@ export class CreateAccountDto {
     }
     return value
   })
+  @StrictBoolean()
   @IsBoolean()
   isVatAccount?: boolean
 }
@@ -105,6 +107,7 @@ export class UpdateAccountDto {
     }
     return value
   })
+  @StrictBoolean()
   @IsBoolean()
   isVatAccount?: boolean
 
@@ -115,6 +118,7 @@ export class UpdateAccountDto {
     }
     return value
   })
+  @StrictBoolean()
   @IsBoolean()
   active?: boolean
 }

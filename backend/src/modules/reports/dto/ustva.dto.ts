@@ -30,6 +30,7 @@ import {
 } from "class-validator"
 import { Type } from "class-transformer"
 
+import { StrictBoolean } from "../../../common/strict-boolean"
 /**
  * One row in `salesByRate` (Umsätze nach Steuersatz).
  * Lines 20-23 of the official UStVa form.
@@ -217,7 +218,7 @@ export class SaveUstvaFilingDto extends UstvaDataDto {
 
   // Tier 448: a filing already submitted is replaced only by a corrected
   // return (berichtigte Voranmeldung), and only when the caller says so.
-  @IsOptional() @IsBoolean()
+  @IsOptional() @StrictBoolean() @IsBoolean()
   berichtigt?: boolean
 }
 
@@ -238,6 +239,7 @@ export class RecordUstvaPaymentDto {
 
 /** Tier 537: PUT /ustva/filings/:id/release — true releases the submitted period for corrections, false locks it again. */
 export class ReleaseFilingDto {
+  @StrictBoolean()
   @IsBoolean()
   released!: boolean;
 }

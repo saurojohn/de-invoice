@@ -23,6 +23,7 @@ import {
 } from "class-validator"
 import { Type, Transform } from "class-transformer"
 
+import { StrictBoolean } from "../../../common/strict-boolean"
 /**
  * POST /ustva/expenses
  * Create an expense specifically for the UStVa flow.
@@ -93,6 +94,7 @@ export class CreateUstvaExpenseDto {
     }
     return value
   })
+  @StrictBoolean()
   @IsBoolean()
   isIntraEU?: boolean
 
@@ -103,20 +105,21 @@ export class CreateUstvaExpenseDto {
     }
     return value
   })
+  @StrictBoolean()
   @IsBoolean()
   isReverseCharge?: boolean
 
   // Tier 442: a supplier credit note — amounts entered positive, stored negative
   // (expense/credit-note.ts).
   @IsOptional()
-  @Transform(({ value }) => (typeof value === "string" ? value === "true" || value === "1" : value))
+  @StrictBoolean()
   @IsBoolean()
   creditNote?: boolean
 
   // Tier 489: the same supplier's invoice number is refused as a duplicate
   // (409) unless this confirms a genuinely second bill.
   @IsOptional()
-  @Transform(({ value }) => (typeof value === "string" ? value === "true" || value === "1" : value))
+  @StrictBoolean()
   @IsBoolean()
   confirmDuplicate?: boolean
 

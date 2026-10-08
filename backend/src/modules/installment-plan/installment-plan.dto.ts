@@ -1,5 +1,6 @@
 import { IsInt, IsNumber, IsOptional, IsString, Max, Min, IsDateString, IsNotEmpty, MaxLength, IsBoolean } from 'class-validator'
 
+import { StrictBoolean } from '../../common/strict-boolean'
 /**
  * Tier 51: Create a new Ratenplan on an existing
  * Invoice. The service splits `totalAmount` into
@@ -77,7 +78,7 @@ export class CreateInstallmentPlanFromInvoiceDto {
   @IsOptional() @IsString() @MaxLength(2000)
   notes?: string
 
-  @IsOptional() @IsBoolean()
+  @IsOptional() @StrictBoolean() @IsBoolean()
   autoPause?: boolean
 
   @IsOptional() @IsString() @MaxLength(500)

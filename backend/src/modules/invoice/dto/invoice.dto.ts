@@ -1,6 +1,7 @@
 import { IsString, IsArray, ValidateNested, IsNumber, IsOptional, IsDateString, IsBoolean, MaxLength, IsInt, Min, Max, IsIn } from 'class-validator';
 import { Type } from 'class-transformer';
 
+import { StrictBoolean } from '../../../common/strict-boolean'
 export class InvoiceItemDto {
   @IsString()
   description!: string;
@@ -180,9 +181,12 @@ export class CreateInvoiceDto {
   // Elster) already use both booleans — adding an
   // enum would break the existing 50/58 e2e
   // assertions.
+  @StrictBoolean()
   @IsBoolean()
   @IsOptional()
   reverseCharge?: boolean;
+
+  @StrictBoolean()
 
   @IsBoolean()
   @IsOptional()
@@ -239,8 +243,8 @@ export class UpdateInvoiceDto {
   // before/after values on every change. See
   // journal.service.ts and the e2e 03 test for
   // the Storno flow.
-  @IsBoolean() @IsOptional() reverseCharge?: boolean;
-  @IsBoolean() @IsOptional() euTransaction?: boolean;
+  @StrictBoolean() @IsBoolean() @IsOptional() reverseCharge?: boolean;
+  @StrictBoolean() @IsBoolean() @IsOptional() euTransaction?: boolean;
 
   // Tier 39: DATEV Kostenstelle 1 + Kostenträger stamps.
   // Optional so existing flows (and any e2e that doesn't

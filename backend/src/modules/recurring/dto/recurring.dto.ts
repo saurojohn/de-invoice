@@ -16,6 +16,7 @@ import {
 } from 'class-validator'
 import { Type } from 'class-transformer'
 
+import { StrictBoolean } from '../../../common/strict-boolean'
 /**
  * Tier 373: request DTOs for the recurring-invoice routes.
  *
@@ -146,6 +147,7 @@ export class CreateRecurringInvoiceDto {
   servicePeriod?: 'none' | 'current' | 'previous'
 
   @IsOptional()
+  @StrictBoolean()
   @IsBoolean()
   sendEmail?: boolean
 
@@ -173,8 +175,8 @@ export class UpdateRecurringInvoiceDto {
   @IsOptional() @IsString() notes?: string | null
   @IsOptional() @IsIn(['draft', 'sent']) invoiceStatus?: 'draft' | 'sent'
   @IsOptional() @IsIn(SERVICE_PERIODS) servicePeriod?: 'none' | 'current' | 'previous'
-  @IsOptional() @IsBoolean() sendEmail?: boolean
-  @IsOptional() @IsBoolean() isActive?: boolean
+  @IsOptional() @StrictBoolean() @IsBoolean() sendEmail?: boolean
+  @IsOptional() @StrictBoolean() @IsBoolean() isActive?: boolean
 
   @IsOptional()
   @IsArray()
