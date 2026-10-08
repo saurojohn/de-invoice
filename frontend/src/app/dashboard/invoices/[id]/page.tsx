@@ -1468,8 +1468,8 @@ export default function InvoiceDetailPage() {
     ? isSameDayDE(new Date(invoice.issueDate), new Date())
     : false
 
-  if (loading) return <div className="p-8 text-center">Laden...</div>
-  if (!invoice) return <div className="p-8 text-center">Rechnung nicht gefunden</div>
+  if (loading) return <div className="p-8 text-center">{t("invoicePage.loading1")}</div>
+  if (!invoice) return <div className="p-8 text-center">{t("invoicePage.notFound")}</div>
 
   return (
     <main className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -1480,7 +1480,7 @@ export default function InvoiceDetailPage() {
             stack vertically instead of clipping. */}
         <div className="container mx-auto px-3 sm:px-4 py-3 sm:py-4 flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-2 sm:gap-4">
-            <Button size="sm" variant="outline" onClick={() => router.push("/dashboard/invoices")}>Zurück</Button>
+            <Button size="sm" variant="outline" onClick={() => router.push("/dashboard/invoices")}>{t("invoicePage.back")}</Button>
             <h1 className="text-xl sm:text-2xl font-bold text-blue-600 dark:text-blue-400">{invoice.invoiceNumber}</h1>
             {invoice.advanceInvoice && (
               <a
@@ -1541,7 +1541,7 @@ export default function InvoiceDetailPage() {
               onClick={downloadXRechnung}
               data-testid="invoice-download-xrechnung"
             >
-              XRechnung herunterladen
+              {t("invoicePage.downloadXrechnung")}
             </Button>
             <Button
               variant="outline"
@@ -1556,7 +1556,7 @@ export default function InvoiceDetailPage() {
               onClick={downloadZUGFeRD}
               data-testid="invoice-download-zugferd"
             >
-              ZUGFeRD herunterladen
+              {t("invoicePage.downloadZugferd")}
             </Button>
             {/* Tier 225: standalone GiroCode (EPC QR)
                 download. Customer can scan from phone
@@ -1569,15 +1569,15 @@ export default function InvoiceDetailPage() {
               variant="outline"
               onClick={downloadGiroCode}
               data-testid="invoice-download-girocode"
-              title="GiroCode (EPC QR-Code) als PNG herunterladen — mit der Banking-App scannen"
+              title={t("invoicePage.giroCodeTitle")}
             >
-              GiroCode herunterladen
+              {t("invoicePage.giroCode")}
             </Button>
             <Button
               onClick={downloadPDF}
               data-testid="invoice-download-pdf"
             >
-              PDF herunterladen
+              {t("invoicePage.downloadPdf")}
             </Button>
             {/* Edit + Hard-delete are only allowed on the invoice's
                 issueDate. For past-date invoices the backend returns
@@ -1602,7 +1602,7 @@ export default function InvoiceDetailPage() {
                   onClick={() => router.push(`/dashboard/invoices/create?id=${invoice.id}`)}
                   className="text-blue-600 dark:text-blue-400 border-blue-300 dark:border-blue-700 hover:bg-blue-50"
                 >
-                  Bearbeiten
+                  {t("invoicePage.edit")}
                 </Button>
                 <Button
                   variant="outline"
@@ -1629,16 +1629,16 @@ export default function InvoiceDetailPage() {
               onClick={() => router.push(`/dashboard/invoices/create?cloneFrom=${invoice.id}`)}
               data-testid="invoice-clone"
               className="text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700 hover:bg-emerald-50"
-              title="Diese Rechnung als neuen Entwurf duplizieren"
+              title={t("invoicePage.copyAsDraftTitle")}
             >
-              🔁 Als Entwurf kopieren
+              {t("invoicePage.copyAsDraft")}
             </Button>
             {!isToday && invoice && (
               <span
                 className="text-xs text-gray-500 dark:text-gray-400"
-                title="Diese Rechnung ist eingefroren. Nur der Status kann noch geändert werden (Stornieren etc.)."
+                title={t("invoicePage.frozenTitle")}
               >
-                Eingefroren (Status änderbar)
+                {t("invoicePage.frozen")}
               </span>
             )}
           </div>
@@ -1817,19 +1817,19 @@ export default function InvoiceDetailPage() {
             </CardContent>
           </Card>
           <Card>
-            <CardHeader><CardTitle>Rechnungsinformationen</CardTitle></CardHeader>
+            <CardHeader><CardTitle>{t("invoicePage.invoiceInfo")}</CardTitle></CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 gap-4">
-                <div><div className="text-sm text-gray-500 dark:text-gray-400">Ausstellungsdatum</div><div>{formatDate(invoice.issueDate)}</div></div>
-                <div><div className="text-sm text-gray-500 dark:text-gray-400">Fälligkeitsdatum</div><div>{formatDate(invoice.dueDate)}</div></div>
+                <div><div className="text-sm text-gray-500 dark:text-gray-400">{t("invoicePage.issueDate")}</div><div>{formatDate(invoice.issueDate)}</div></div>
+                <div><div className="text-sm text-gray-500 dark:text-gray-400">{t("invoicePage.dueDate")}</div><div>{formatDate(invoice.dueDate)}</div></div>
                 {/* Tier 492: the Leistungsdatum (§ 14 UStG) — the issue date when none is recorded, as on the PDF */}
                 {invoice.servicePeriodStart && invoice.servicePeriodEnd ? (
-                  <div data-testid="leistungszeitraum"><div className="text-sm text-gray-500 dark:text-gray-400">Leistungszeitraum</div><div>{formatDate(invoice.servicePeriodStart)} – {formatDate(invoice.servicePeriodEnd)}</div></div>
+                  <div data-testid="leistungszeitraum"><div className="text-sm text-gray-500 dark:text-gray-400">{t("invoicePage.servicePeriod")}</div><div>{formatDate(invoice.servicePeriodStart)} – {formatDate(invoice.servicePeriodEnd)}</div></div>
                 ) : (invoice.deliveryDate || !["PI", "CN"].includes(invoice.type)) && (
-                  <div data-testid="leistungsdatum"><div className="text-sm text-gray-500 dark:text-gray-400">Leistungsdatum</div><div>{formatDate(invoice.deliveryDate || invoice.issueDate)}</div></div>
+                  <div data-testid="leistungsdatum"><div className="text-sm text-gray-500 dark:text-gray-400">{t("invoicePage.deliveryDate")}</div><div>{formatDate(invoice.deliveryDate || invoice.issueDate)}</div></div>
                 )}
-                <div><div className="text-sm text-gray-500 dark:text-gray-400">Rechnungsart</div><div>{invoice.type}</div></div>
-                <div><div className="text-sm text-gray-500 dark:text-gray-400">Währung</div><div>{invoice.currency}</div></div>
+                <div><div className="text-sm text-gray-500 dark:text-gray-400">{t("invoicePage.invoiceType")}</div><div>{invoice.type}</div></div>
+                <div><div className="text-sm text-gray-500 dark:text-gray-400">{t("invoicePage.currency")}</div><div>{invoice.currency}</div></div>
               </div>
             </CardContent>
           </Card>
@@ -1842,7 +1842,7 @@ export default function InvoiceDetailPage() {
 
         {/* Items Table */}
         <Card className="mb-8">
-          <CardHeader><CardTitle>Positionen</CardTitle></CardHeader>
+          <CardHeader><CardTitle>{t("invoicePage.items")}</CardTitle></CardHeader>
           <CardContent className="p-0">
             {/* Tier 121: overflow-x-auto + min-width so the
                 line-items table scrolls horizontally on
@@ -1853,13 +1853,13 @@ export default function InvoiceDetailPage() {
             <table className="w-full min-w-[640px]">
               <thead className="bg-gray-50 dark:bg-gray-900 border-b">
                 <tr>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300">Beschreibung</th>
-                  <th className="px-4 py-3 text-center text-sm font-medium text-gray-600 dark:text-gray-300">Menge</th>
-                  <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">Einzelpreis</th>
-                  <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">MwSt</th>
-                  <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">Netto</th>
-                  <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">Steuer</th>
-                  <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">Brutto</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300">{t("invoicePage.description")}</th>
+                  <th className="px-4 py-3 text-center text-sm font-medium text-gray-600 dark:text-gray-300">{t("invoicePage.quantity")}</th>
+                  <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">{t("invoicePage.unitPrice")}</th>
+                  <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">{t("invoicePage.vatShort")}</th>
+                  <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">{t("invoicePage.net")}</th>
+                  <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">{t("invoicePage.tax")}</th>
+                  <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">{t("invoicePage.gross")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -1884,16 +1884,16 @@ export default function InvoiceDetailPage() {
         <div className="flex justify-end">
           <Card className="w-80">
             <CardContent className="space-y-3">
-              <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-300">Zwischensumme (Netto):</span><span>€{parseFloat(invoice.subtotal).toFixed(2)}</span></div>
+              <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-300">{t("invoicePage.subtotalNet")}</span><span>€{parseFloat(invoice.subtotal).toFixed(2)}</span></div>
               {Math.abs(invoiceDiscount) > 0.005 && (
                 <>
-                  <div className="flex justify-between" data-testid="invoice-discount-row"><span className="text-gray-600 dark:text-gray-300">Rabatt:</span><span>−€{Math.abs(invoiceDiscount).toFixed(2)}</span></div>
-                  <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-300">Nettobetrag:</span><span>€{netAfterDiscount.toFixed(2)}</span></div>
+                  <div className="flex justify-between" data-testid="invoice-discount-row"><span className="text-gray-600 dark:text-gray-300">{t("invoicePage.discountLabel")}</span><span>−€{Math.abs(invoiceDiscount).toFixed(2)}</span></div>
+                  <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-300">{t("invoicePage.netLabel")}</span><span>€{netAfterDiscount.toFixed(2)}</span></div>
                 </>
               )}
-              <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-300">Umsatzsteuer:</span><span>€{parseFloat(invoice.totalVat).toFixed(2)}</span></div>
-              <div className="flex justify-between text-xl font-bold border-t pt-3"><span>Gesamtbetrag:</span><span className="text-blue-600 dark:text-blue-400">€{parseFloat(invoice.total).toFixed(2)}</span></div>
-              <div className="flex justify-between text-sm pt-1"><span className="text-green-700 dark:text-green-300">Bezahlt:</span><span className="text-green-700 dark:text-green-300">€{totalPaid.toFixed(2)}</span></div>
+              <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-300">{t("invoicePage.vatLabel")}</span><span>€{parseFloat(invoice.totalVat).toFixed(2)}</span></div>
+              <div className="flex justify-between text-xl font-bold border-t pt-3"><span>{t("invoicePage.totalLabel")}</span><span className="text-blue-600 dark:text-blue-400">€{parseFloat(invoice.total).toFixed(2)}</span></div>
+              <div className="flex justify-between text-sm pt-1"><span className="text-green-700 dark:text-green-300">{t("invoicePage.paidLabel")}</span><span className="text-green-700 dark:text-green-300">€{totalPaid.toFixed(2)}</span></div>
               <div className={`flex justify-between text-sm font-semibold ${outstanding > 0.01 ? "text-red-600 dark:text-red-400" : "text-green-700 dark:text-green-300"}`}>
                 <span>{outstanding > 0.01 ? "Offen:" : "Vollständig bezahlt ✓"}</span>
                 <span>€{outstanding.toFixed(2)}</span>
@@ -1909,7 +1909,7 @@ export default function InvoiceDetailPage() {
             data-testid="payment-notices"
           >
             <p className="font-medium text-amber-900 dark:text-amber-200 mb-2">
-              Zahlungsmeldung des Kunden — erst buchen, wenn das Geld eingegangen ist
+              {t("invoicePage.paymentNotice")}
             </p>
             {paymentNotices.map((n) => (
               <div
@@ -1924,7 +1924,7 @@ export default function InvoiceDetailPage() {
                 </span>
                 <span className="flex gap-2">
                   <Button size="sm" onClick={() => resolveNotice(n.id, "book")} data-testid="payment-notice-book">
-                    Zahlung buchen
+                    {t("invoicePage.bookPayment")}
                   </Button>
                   <Button
                     size="sm"
@@ -1932,7 +1932,7 @@ export default function InvoiceDetailPage() {
                     onClick={() => resolveNotice(n.id, "dismiss")}
                     data-testid="payment-notice-dismiss"
                   >
-                    Verwerfen
+                    {t("invoicePage.discard")}
                   </Button>
                 </span>
               </div>
@@ -2111,7 +2111,7 @@ export default function InvoiceDetailPage() {
             <CardContent className="bg-gray-50 dark:bg-gray-900 border-t">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Betrag (€) *</label>
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">{t("invoicePage.amountEurReq")}</label>
                   <Input
                     type="number"
                     step="0.01"
@@ -2123,7 +2123,7 @@ export default function InvoiceDetailPage() {
                 {invoice.currency && invoice.currency !== "EUR" && (
                   <div>
                     <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
-                      In Euro eingegangen (optional)
+                      {t("invoicePage.receivedEur")}
                     </label>
                     <Input
                       type="number"
@@ -2132,12 +2132,12 @@ export default function InvoiceDetailPage() {
                       onChange={(e) => setPayForm({ ...payForm, eurAmount: e.target.value })}
                       placeholder="0.00"
                       data-testid="payment-eur-amount"
-                      title="Der Betrag oben ist in der Währung der Rechnung. Was auf dem Euro-Konto ankam, ergibt den Kursgewinn oder -verlust."
+                      title={t("invoicePage.receivedEurTitle")}
                     />
                   </div>
                 )}
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Zahldatum *</label>
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">{t("invoicePage.paymentDateReq")}</label>
                   <Input
                     type="date"
                     value={payForm.paymentDate}
@@ -2147,22 +2147,22 @@ export default function InvoiceDetailPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Zahlungsweg *</label>
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">{t("invoicePage.paymentMethodReq")}</label>
                   <select
                     value={payForm.paymentMethod}
                     onChange={(e) => setPayForm({ ...payForm, paymentMethod: e.target.value })}
                     className="w-full px-3 py-1.5 border rounded text-sm"
                   >
-                    <option value="bank_transfer">Überweisung</option>
-                    <option value="cash">Bargeld</option>
-                    <option value="card">Karte</option>
+                    <option value="bank_transfer">{t("invoicePage.transfer")}</option>
+                    <option value="cash">{t("invoicePage.cash")}</option>
+                    <option value="card">{t("invoicePage.card")}</option>
                     <option value="paypal">PayPal</option>
-                    <option value="sepa">SEPA-Lastschrift</option>
-                    <option value="other">Sonstiges</option>
+                    <option value="sepa">{t("invoicePage.directDebit")}</option>
+                    <option value="other">{t("invoicePage.other")}</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Referenz (optional)</label>
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">{t("invoicePage.referenceOpt")}</label>
                   <Input
                     value={payForm.reference}
                     onChange={(e) => setPayForm({ ...payForm, reference: e.target.value })}
@@ -2170,7 +2170,7 @@ export default function InvoiceDetailPage() {
                   />
                 </div>
                 <div className="md:col-span-2">
-                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Notizen (optional)</label>
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">{t("invoicePage.notesOpt")}</label>
                   <Input
                     value={payForm.notes}
                     onChange={(e) => setPayForm({ ...payForm, notes: e.target.value })}
@@ -2188,18 +2188,18 @@ export default function InvoiceDetailPage() {
           )}
           {payments.length === 0 ? (
             <CardContent className="text-center text-sm text-gray-500 dark:text-gray-400 py-4">
-              Noch keine Zahlungen erfasst.
+              {t("invoicePage.noPayments")}
             </CardContent>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[640px] text-sm">
                 <thead>
                   <tr className="border-b">
-                    <th className="text-left px-4 py-2 font-medium">Datum</th>
-                    <th className="text-left px-4 py-2 font-medium">Zahlungsweg</th>
-                    <th className="text-left px-4 py-2 font-medium">Referenz</th>
-                    <th className="text-right px-4 py-2 font-medium">Betrag</th>
-                    <th className="text-right px-4 py-2 font-medium">Aktion</th>
+                    <th className="text-left px-4 py-2 font-medium">{t("invoicePage.date")}</th>
+                    <th className="text-left px-4 py-2 font-medium">{t("invoicePage.paymentMethod")}</th>
+                    <th className="text-left px-4 py-2 font-medium">{t("invoicePage.reference")}</th>
+                    <th className="text-right px-4 py-2 font-medium">{t("invoicePage.amount")}</th>
+                    <th className="text-right px-4 py-2 font-medium">{t("invoicePage.action")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -2214,7 +2214,7 @@ export default function InvoiceDetailPage() {
                           onClick={() => deletePayment(p.id)}
                           className="text-red-600 dark:text-red-400 hover:underline text-xs"
                         >
-                          Löschen
+                          {t("invoicePage.delete")}
                         </button>
                       </td>
                     </tr>
@@ -2535,7 +2535,7 @@ export default function InvoiceDetailPage() {
         {/* Notes */}
         {invoice.notes && (
           <Card className="mt-8">
-            <CardHeader><CardTitle>Bemerkungen</CardTitle></CardHeader>
+            <CardHeader><CardTitle>{t("invoicePage.remarks")}</CardTitle></CardHeader>
              <CardContent><p className="text-gray-600 dark:text-gray-300 whitespace-pre-wrap">{invoice.notes}</p></CardContent>
            </Card>
          )}
@@ -2804,7 +2804,7 @@ export default function InvoiceDetailPage() {
                     template for fields the user hasn't touched. */}
                 <div>
                   <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
-                    Sprache
+                    {t("invoicePage.language")}
                   </label>
                   <div className="flex gap-2">
                     {(["de", "en", "zh"] as const).map((l) => (
@@ -2830,7 +2830,7 @@ export default function InvoiceDetailPage() {
                     instead of the main contact). */}
                 <div>
                   <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
-                    An (Empfänger)
+                    {t("invoicePage.to")}
                   </label>
                   <Input
                     type="email"
@@ -2847,7 +2847,7 @@ export default function InvoiceDetailPage() {
                     like an accounting mailbox. */}
                 <div>
                   <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
-                    CC (zusätzlich, durch Komma getrennt)
+                    {t("invoicePage.cc")}
                   </label>
                   <Input
                     type="text"
@@ -2856,7 +2856,7 @@ export default function InvoiceDetailPage() {
                     placeholder="buchhaltung@firma.de, ceo@firma.de"
                   />
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    Sie selbst erhalten automatisch eine Kopie.
+                    {t("invoicePage.copyToSelf")}
                   </p>
                 </div>
 
@@ -2866,7 +2866,7 @@ export default function InvoiceDetailPage() {
                     locale change won't clobber the edit. */}
                 <div>
                   <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
-                    Betreff
+                    {t("invoicePage.subject")}
                   </label>
                   <Input
                     type="text"
@@ -2878,7 +2878,7 @@ export default function InvoiceDetailPage() {
                   />
                   {subjectTouched && (
                     <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-                      Manuell bearbeitet — wird nicht durch Vorlage überschrieben.
+                      {t("invoicePage.manuallyEdited")}
                     </p>
                   )}
                 </div>
@@ -2887,7 +2887,7 @@ export default function InvoiceDetailPage() {
                     semantics as the subject. */}
                 <div>
                   <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
-                    Nachricht
+                    {t("invoicePage.message")}
                   </label>
                   <textarea
                     value={emailBody}
@@ -2900,7 +2900,7 @@ export default function InvoiceDetailPage() {
                   />
                   {bodyTouched && (
                     <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-                      Manuell bearbeitet — wird nicht durch Vorlage überschrieben.
+                      {t("invoicePage.manuallyEdited")}
                     </p>
                   )}
                 </div>
@@ -2908,7 +2908,7 @@ export default function InvoiceDetailPage() {
                 {/* Attachment notice — the PDF is generated
                     server-side and attached automatically. */}
                 <div className="text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded p-3">
-                  Anhang: <span className="font-mono">{invoice?.invoiceNumber}.pdf</span> (wird automatisch vom Server angehängt)
+                  {t("invoicePage.attachment")} <span className="font-mono">{invoice?.invoiceNumber}.pdf</span> {t("invoicePage.autoAttached")}
                 </div>
 
                 {/* Action buttons */}
@@ -2918,7 +2918,7 @@ export default function InvoiceDetailPage() {
                     onClick={() => setShowEmailModal(false)}
                     disabled={sending}
                   >
-                    Abbrechen
+                    {t("invoicePage.cancel")}
                   </Button>
                   <Button
                     onClick={confirmSendEmail}
@@ -3616,7 +3616,7 @@ export default function InvoiceDetailPage() {
                   {t("invoice.sendMahnungRecipient") || "Empfänger"}
                 </label>
                 {mahnungEmailLoading ? (
-                  <p className="text-sm text-gray-500">Lade…</p>
+                  <p className="text-sm text-gray-500">{t("invoicePage.loading2")}</p>
                 ) : mahnungEmailData ? (
                   <p
                     className="text-sm"
