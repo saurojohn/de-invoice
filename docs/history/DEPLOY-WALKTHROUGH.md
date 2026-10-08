@@ -1,3 +1,5 @@
+> **Superseded — kept for the record (see `docs/history/README.md`). Do not deploy or operate from this file;** the production path is `infra/prod/`.
+
 # DEPLOY-WALKTHROUGH.md — de-invoice production deploy
 
 > **Tier 264.** Single entry-point walkthrough for

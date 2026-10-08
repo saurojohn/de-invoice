@@ -4,26 +4,44 @@
 #  Run after a computer restart to bring up the app.
 #
 #  Usage:  ./start.sh
+#           BACKEND_PORT=3011 FRONTEND_PORT=3100 ./start.sh   # other ports
+#           DISABLE_CRON=1 ./start.sh                         # without the scheduled jobs
 #
 #  What it does:
-#    1. Ensure PostgreSQL is up. Tries, in order:
-#         - a running Docker container named de-invoice-postgres
-#         - brew services start postgresql@16 / @15 / @14
-#         - a running local pg_ctl instance
-#         - psql from Postgres.app
-#         - starts a fresh Docker container if Docker is
-#           available and no container is running yet
-#    2. Make sure the de_invoice DB + de_invoice user exist.
-#    3. Run any pending prisma migrations.
-#    4. Start the NestJS backend (port 3001) in the
-#       background with logs to /tmp/backend.log.
-#    5. Start the Next.js dev server (port 3000) in the
-#       background with logs to /tmp/next-dev.log.
-#    6. Print a short status table with URLs to open.
-# ─────────────────────────────────────────────────────────────────
+#    1. Ensure PostgreSQL is up (the project's Docker container, else a
+#       local installation).
+#    2. Make sure the database + user exist.
+#    3. Apply pending migrations (`prisma migrate deploy`).
+#    4. Start the NestJS backend in the background (log: /tmp/backend.log).
+#    5. Start the Next.js dev server in the background (log: /tmp/next-dev.log).
+#    6. Print the URLs.
+#
+#  Tier 584 — what this script no longer does:
+#    - `prisma db push --accept-data-loss` on every start. On a database with
+#      real data that may drop what the schema file does not name, and it
+#      goes around the migration history. Now: `prisma migrate deploy`.
+#    - `kill -9` whatever listens on :3001 / :3000 and every `next dev` on
+#      the machine. On the owner's computer :3001 is another project's
+#      server. Now only processes started from THIS checkout are stopped;
+#      a port held by anything else stops the script with the way out.
+#    - print a login. It printed an address and a password that may never
+#      have existed in this database.
+# ──────────────────────────────────────────────────────────────────
 set -e
 
 cd "$(dirname "$0")"
+ROOT="$(pwd -P)"
+
+# Where things run — the defaults are the usual developer setup.
+BACKEND_PORT="${BACKEND_PORT:-3001}"
+FRONTEND_PORT="${FRONTEND_PORT:-3000}"
+DB_PORT="${DB_PORT:-5432}"
+DB_NAME="${DB_NAME:-de_invoice}"
+# Another database than the default: the backend and prisma are told so.
+# (With the defaults they read backend/.env as before.)
+if [ "$DB_PORT" != "5432" ] || [ "$DB_NAME" != "de_invoice" ]; then
+  export DATABASE_URL="postgresql://de_invoice:de_invoice_pass@localhost:${DB_PORT}/${DB_NAME}?schema=public"
+fi
 
 RED='\033[0;31m'
 GRN='\033[0;32m'
@@ -36,11 +54,42 @@ ok()   { echo -e "${GRN}✔ $*${RST}"; }
 warn() { echo -e "${YEL}⚠ $*${RST}"; }
 err()  { echo -e "${RED}✖ $*${RST}"; }
 
+# The processes listening on a port that were started from this checkout
+# (their working directory is inside it). Nothing else is ever stopped.
+own_listeners() { # port
+  local pid cwd
+  for pid in $(lsof -ti:"$1" -sTCP:LISTEN 2>/dev/null); do
+    cwd=$(lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p')
+    case "$cwd" in "$ROOT"|"$ROOT"/*) echo "$pid" ;; esac
+  done
+}
+# Stop our own process on a port (TERM, then KILL what is still there after
+# 5 s — the backend needs the TERM to stop its database engine with it).
+# If something else holds the port: say what, and stop.
+free_port() { # port what
+  local pids pid i other cwd
+  pids=$(own_listeners "$1")
+  if [ -n "$pids" ]; then
+    kill $pids 2>/dev/null || true
+    for i in 1 2 3 4 5; do [ -z "$(own_listeners "$1")" ] && break; sleep 1; done
+    pids=$(own_listeners "$1"); [ -n "$pids" ] && kill -9 $pids 2>/dev/null || true
+  fi
+  other=$(lsof -ti:"$1" -sTCP:LISTEN 2>/dev/null | head -1)
+  if [ -n "$other" ]; then
+    cwd=$(lsof -a -p "$other" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p')
+    err "Port $1 is in use by another program (pid $other${cwd:+, started in $cwd}). It is left alone."
+    err "  Start the $2 on another port:  $3 ./start.sh"
+    exit 1
+  fi
+}
+
 # ── 1. PostgreSQL ──────────────────────────────────────────────
 step "1. Starting PostgreSQL"
 # Fast path: already up.
-if command -v pg_isready >/dev/null 2>&1 && pg_isready -h localhost -p 5432 -q 2>/dev/null; then
-  ok "PostgreSQL already running on :5432"
+if (echo > /dev/tcp/localhost/$DB_PORT) >/dev/null 2>&1; then
+  ok "PostgreSQL is listening on :$DB_PORT"
+elif command -v pg_isready >/dev/null 2>&1 && pg_isready -h localhost -p "$DB_PORT" -q 2>/dev/null; then
+  ok "PostgreSQL already running on :$DB_PORT"
 # Docker is the preferred path on this machine — start an
 # existing de-invoice-postgres container, or spin up a fresh
 # one if Docker is available and nothing is running yet.
@@ -63,24 +112,18 @@ elif command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
       }
     fi
   else
-    # No existing container — create one. Data is persisted
-    # in the de-invoice_postgres_data named volume.
-    docker run -d --name de-invoice-postgres --restart unless-stopped \
-      -p 5432:5432 \
-      -e POSTGRES_USER=de_invoice \
-      -e POSTGRES_PASSWORD=de_invoice_pass \
-      -e POSTGRES_DB=de_invoice \
-      -v de-invoice_postgres_data:/var/lib/postgresql/data \
-      postgres:16-alpine >/dev/null 2>&1 && \
-      ok "Started new container de-invoice-postgres" || {
-      err "Failed to start de-invoice-postgres container."
+    # No container yet — the one docker-compose.yml describes: reachable from
+    # this machine only, its data on the named volume `devdb_data`.
+    docker compose up -d postgres >/dev/null 2>&1 && \
+      ok "Started new container de-invoice-postgres (docker compose)" || {
+      err "Failed to start the database container (docker compose up -d postgres)."
       exit 1
     }
   fi
   # Wait for postgres to be ready (up to 15s).
   for i in $(seq 1 15); do
-    if (echo > /dev/tcp/localhost/5432) >/dev/null 2>&1; then
-      ok "Postgres is accepting connections on :5432"
+    if (echo > /dev/tcp/localhost/$DB_PORT) >/dev/null 2>&1; then
+      ok "Postgres is accepting connections on :$DB_PORT"
       break
     fi
     sleep 1
@@ -104,7 +147,7 @@ elif command -v brew >/dev/null 2>&1; then
       }
     fi
   done
-  if ! (echo > /dev/tcp/localhost/5432) >/dev/null 2>&1; then
+  if ! (echo > /dev/tcp/localhost/$DB_PORT) >/dev/null 2>&1; then
     err "PostgreSQL didn't start."
     err "  Fix: brew install postgresql && brew services start postgresql"
     err "  Or install Postgres.app from postgresapp.com"
@@ -134,7 +177,7 @@ else
   err "                -e POSTGRES_DB=de_invoice postgres:16"
   exit 1
 fi
-ok "PostgreSQL is up on :5432"
+ok "PostgreSQL is up on :$DB_PORT"
 
 # ── 2. Make sure the DB + user exist ─────────────────────────────
 step "2. Ensuring de_invoice database + user exist"
@@ -161,43 +204,50 @@ if [ -z "$PSQL" ] && command -v docker >/dev/null 2>&1; then
     PSQL_VIA_DOCKER="de-invoice-pg"
   fi
 fi
-if [ -z "$PSQL" ] && [ -z "$PSQL_VIA_DOCKER" ]; then
+# The container fallback reaches the project's own container only — a
+# database on another port is somebody else's to prepare.
+if [ -z "$PSQL" ] && [ "$DB_PORT" != "5432" ]; then PSQL_VIA_DOCKER=""; SKIP_DB_CHECK=1; fi
+if [ -z "$PSQL" ] && [ -z "$PSQL_VIA_DOCKER" ] && [ -z "${SKIP_DB_CHECK:-}" ]; then
   err "psql not found locally and no de-invoice-postgres container is running."
   err "Install one of: brew install postgresql@16, Postgres.app, or start the Docker container."
   exit 1
 fi
-[ -n "$PSQL" ] && ok "Using psql: $PSQL" || ok "Using psql via docker exec into $PSQL_VIA_DOCKER"
+if [ -n "${SKIP_DB_CHECK:-}" ]; then ok "No local psql for a database on :$DB_PORT — taking it as prepared"
+elif [ -n "$PSQL" ]; then ok "Using psql: $PSQL"
+else ok "Using psql via docker exec into $PSQL_VIA_DOCKER"; fi
 
 # A small wrapper so the rest of the script can call
 # `psql_run` regardless of which path was found.
 psql_run() {
   if [ -n "$PSQL" ]; then
-    PGPASSWORD=de_invoice_pass "$PSQL" -h localhost -U de_invoice -d de_invoice "$@"
+    PGPASSWORD=de_invoice_pass "$PSQL" -h localhost -p "$DB_PORT" -U de_invoice -d "$DB_NAME" "$@"
   else
     docker exec -e PGPASSWORD=de_invoice_pass "$PSQL_VIA_DOCKER" \
-      psql -U de_invoice -d de_invoice "$@"
+      psql -U de_invoice -d "$DB_NAME" "$@"
   fi
 }
 psql_admin() {
   # Connect as postgres OS user / docker default (no password).
   if [ -n "$PSQL" ]; then
-    "$PSQL" -h localhost -U "$1" -d postgres "${@:2}"
+    "$PSQL" -h localhost -p "$DB_PORT" -U "$1" -d postgres "${@:2}"
   else
     docker exec "$PSQL_VIA_DOCKER" psql -U "$1" -d postgres "${@:2}"
   fi
 }
 
 # Test that de_invoice role/DB already exist.
-if psql_run -c "SELECT 1" >/dev/null 2>&1; then
+if [ -n "${SKIP_DB_CHECK:-}" ]; then
+  :
+elif psql_run -c "SELECT 1" >/dev/null 2>&1; then
   ok "de_invoice role + database already exist"
 elif [ -n "$PSQL" ]; then
   # Local postgres — try creating the role + DB as the
   # OS user (or as the 'postgres' role).
   warn "de_invoice role/DB missing — creating them"
   SUPER=""
-  if "$PSQL" -h localhost -U postgres -d postgres -c "SELECT 1" >/dev/null 2>&1; then
+  if "$PSQL" -h localhost -p "$DB_PORT" -U postgres -d postgres -c "SELECT 1" >/dev/null 2>&1; then
     SUPER="postgres"
-  elif "$PSQL" -h localhost -d postgres -c "SELECT 1" >/dev/null 2>&1; then
+  elif "$PSQL" -h localhost -p "$DB_PORT" -d postgres -c "SELECT 1" >/dev/null 2>&1; then
     SUPER="$(whoami)"
   else
     err "Can't connect to local postgres as superuser."
@@ -224,120 +274,83 @@ else
   exit 1
 fi
 
-# ── 3. Prisma migrate + apply init.sql ──────────────────────────
-step "3. Applying Prisma schema + init.sql"
+# ── 3. Migrations ─────────────────────────────────────────────
+step "3. Applying pending migrations"
 cd backend
-# The schema declares city_text / postal_code_text as plain
-# String? columns, but in the actual DB they are STORED
-# GENERATED columns (created by init.sql). Prisma's db push
-# chokes on the mismatch: it tries to ALTER the columns
-# (because schema.prisma says they should be normal) and
-# Postgres refuses with "column is a generated column".
-# Workaround: drop the generated columns BEFORE db push,
-# then let init.sql recreate them AFTER.
-if [ -f prisma/init.sql ]; then
-  step "   3a. Dropping generated columns to let db push pass"
-  if [ -n "$PSQL" ]; then
-    PGPASSWORD=de_invoice_pass "$PSQL" -h localhost -U de_invoice -d de_invoice -c "
-      ALTER TABLE \"Customer\" DROP COLUMN IF EXISTS \"city_text\";
-      ALTER TABLE \"Customer\" DROP COLUMN IF EXISTS \"postal_code_text\";
-    " >/dev/null 2>&1 || warn "   (could not drop generated columns; db push will try anyway)"
-  else
-    docker exec -e PGPASSWORD=de_invoice_pass "$PSQL_VIA_DOCKER" \
-      psql -U de_invoice -d de_invoice -c "
-        ALTER TABLE \"Customer\" DROP COLUMN IF EXISTS \"city_text\";
-        ALTER TABLE \"Customer\" DROP COLUMN IF EXISTS \"postal_code_text\";
-      " >/dev/null 2>&1 || warn "   (could not drop generated columns; db push will try anyway)"
-  fi
-fi
 # npx prisma generate is idempotent.
 npx prisma generate >/tmp/prisma-gen.log 2>&1 || {
   err "prisma generate failed:"
   cat /tmp/prisma-gen.log
   exit 1
 }
-# Use db push for first-time setup; the project has
-# init.sql with STORED GENERATED columns that conflict
-# with prisma migrate, so we use a hybrid: db push for
-# the base schema, then apply init.sql for the
-# extensions / generated columns.
-npx prisma db push --accept-data-loss --skip-generate >/tmp/prisma-push.log 2>&1 || {
-  err "prisma db push failed:"
-  cat /tmp/prisma-push.log
+# Tier 584: `migrate deploy` — it applies what is pending and nothing else.
+# (This ran `prisma db push --accept-data-loss` on every start, after dropping
+# two columns to make it pass.)
+if npx prisma migrate deploy >/tmp/prisma-migrate.log 2>&1; then
+  if grep -q "No pending migrations" /tmp/prisma-migrate.log; then ok "No pending migrations"
+  else ok "Migrations applied: $(grep -c '^  └─ \|^[0-9]\{14\}_' /tmp/prisma-migrate.log 2>/dev/null || true) (see /tmp/prisma-migrate.log)"; fi
+elif grep -q "P3005" /tmp/prisma-migrate.log; then
+  err "This database has tables but no migration history (it was created with 'prisma db push')."
+  err "Bring it over once — it changes no data:"
+  err "  cd backend && bash scripts/baseline-migrations.sh"
+  err "then run ./start.sh again."
   exit 1
-}
-# Apply init.sql for pg_trgm GIN indexes + the
-# STORED GENERATED columns on Customer (cityText,
-# postalCodeText).
-if [ -f prisma/init.sql ]; then
-  if [ -n "$PSQL" ]; then
-    PGPASSWORD=de_invoice_pass "$PSQL" -h localhost -U de_invoice -d de_invoice \
-      -f prisma/init.sql >/tmp/init-sql.log 2>&1 \
-      || warn "init.sql had errors (check /tmp/init-sql.log)"
-  else
-    docker cp prisma/init.sql "$PSQL_VIA_DOCKER":/tmp/init.sql >/dev/null 2>&1
-    docker exec -e PGPASSWORD=de_invoice_pass "$PSQL_VIA_DOCKER" \
-      psql -U de_invoice -d de_invoice -f /tmp/init.sql \
-      >/tmp/init-sql.log 2>&1 \
-      || warn "init.sql had errors (check /tmp/init-sql.log)"
-  fi
-  ok "Applied prisma/init.sql"
+else
+  err "prisma migrate deploy failed — nothing was started:"
+  tail -20 /tmp/prisma-migrate.log
+  exit 1
 fi
 ok "Database schema is up to date"
 
 # ── 4. Backend (NestJS) ────────────────────────────────────────
-step "4. Starting backend (NestJS) on :3001"
-# Kill any stale ts-node backend instance first. Use pgrep
-# scoped to ts-node so we never accidentally kill something
-# else that happened to be listening on :3001 (e.g. a dev
-# process the user launched manually).
-pgrep -f 'ts-node.*src/main\.ts' 2>/dev/null | xargs -r kill -9 2>/dev/null
-# Also free :3001 in case the previous backend was launched
-# differently (e.g. node dist/) and pgrep missed it.
-lsof -ti:3001 2>/dev/null | xargs -r kill -9 2>/dev/null
-# Start backend in background. ts-node does NOT
-# hot-reload — kill+restart on every backend change.
-nohup npx ts-node src/main.ts >/tmp/backend.log 2>&1 &
+step "4. Starting backend (NestJS) on :$BACKEND_PORT"
+free_port "$BACKEND_PORT" backend "BACKEND_PORT=3011"
+# scripts/start-backend.sh: ts-node, PORT from BACKEND_PORT, CORS for the frontend.
+# ts-node does NOT hot-reload — run ./start.sh again after a backend change.
+: > /tmp/backend.log
+BACKEND_PORT="$BACKEND_PORT" PORT="$BACKEND_PORT" \
+  FRONTEND_URL="${FRONTEND_URL:-http://localhost:$FRONTEND_PORT,http://localhost:3000,http://localhost:3100}" \
+  nohup bash scripts/start-backend.sh >/tmp/backend.log 2>&1 &
 BACKEND_PID=$!
 echo "$BACKEND_PID" > /tmp/backend.pid
-# Wait up to 30s for "Nest application successfully started".
-for i in $(seq 1 30); do
-  if grep -q "Nest application successfully started" /tmp/backend.log 2>/dev/null; then
-    ok "Backend up (PID $BACKEND_PID, :3001)"
+# Wait up to 60s for the health route.
+BACKEND_UP=""
+for i in $(seq 1 60); do
+  if [ "$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:$BACKEND_PORT/api/v1/health" 2>/dev/null)" = "200" ]; then
+    ok "Backend up (:$BACKEND_PORT)"
+    BACKEND_UP=1
     break
   fi
-  if ! kill -0 "$BACKEND_PID" 2>/dev/null; then
+  if ! kill -0 "$BACKEND_PID" 2>/dev/null && [ -z "$(own_listeners "$BACKEND_PORT")" ]; then
     err "Backend process died. Last log:"
     tail -20 /tmp/backend.log
     exit 1
   fi
   sleep 1
 done
-if ! grep -q "Nest application successfully started" /tmp/backend.log 2>/dev/null; then
-  err "Backend didn't start in 30s. Last log:"
+if [ -z "$BACKEND_UP" ]; then
+  err "Backend didn't start in 60s. Last log:"
   tail -20 /tmp/backend.log
   exit 1
 fi
 
 # ── 5. Frontend (Next.js) ──────────────────────────────────────
-step "5. Starting frontend (Next.js) on :3000"
-# Same scoped-kill pattern as the backend: prefer pgrep
-# over lsof so a non-next.js dev process on :3000 stays
-# untouched. pgrep -f matches the full command line, so
-# "next dev" (next.js dev server) is what we look for.
-pgrep -f 'next dev' 2>/dev/null | xargs -r kill -9 2>/dev/null
-lsof -ti:3000 2>/dev/null | xargs -r kill -9 2>/dev/null
+step "5. Starting frontend (Next.js) on :$FRONTEND_PORT"
+free_port "$FRONTEND_PORT" frontend "FRONTEND_PORT=3100"
 cd ../frontend
-nohup npx next dev >/tmp/next-dev.log 2>&1 &
+# The browser is told where the backend is (with the default port,
+# frontend/.env.local decides as before).
+if [ "$BACKEND_PORT" != "3001" ]; then export NEXT_PUBLIC_API_URL="http://localhost:$BACKEND_PORT"; fi
+nohup npx next dev -p "$FRONTEND_PORT" >/tmp/next-dev.log 2>&1 &
 FRONTEND_PID=$!
 echo "$FRONTEND_PID" > /tmp/next-dev.pid
-# Wait up to 30s for the dev server to compile.
-for i in $(seq 1 30); do
-  if curl -sS -o /dev/null -w "%{http_code}" http://localhost:3000 2>/dev/null | grep -q "200\|404\|307"; then
-    ok "Frontend up (PID $FRONTEND_PID, :3000)"
+# Wait up to 60s for the dev server to answer.
+for i in $(seq 1 60); do
+  if curl -sS -o /dev/null -w "%{http_code}" "http://localhost:$FRONTEND_PORT" 2>/dev/null | grep -q "200\|404\|307"; then
+    ok "Frontend up (:$FRONTEND_PORT)"
     break
   fi
-  if ! kill -0 "$FRONTEND_PID" 2>/dev/null; then
+  if ! kill -0 "$FRONTEND_PID" 2>/dev/null && [ -z "$(own_listeners "$FRONTEND_PORT")" ]; then
     err "Frontend process died. Last log:"
     tail -20 /tmp/next-dev.log
     exit 1
@@ -345,16 +358,19 @@ for i in $(seq 1 30); do
   sleep 1
 done
 
-# ── 6. Status table ────────────────────────────────────────────
+# ── 6. Status ──────────────────────────────────────────────────
 echo
-echo -e "${GRN}╔════════════════════════════════════════════════════════╗${RST}"
-echo -e "${GRN}║  de-invoice is up                                       ║${RST}"
-echo -e "${GRN}╠════════════════════════════════════════════════════════╣${RST}"
-echo -e "${GRN}║${RST}  Frontend:  ${CYA}http://localhost:3000${RST}                   ${GRN}║${RST}"
-echo -e "${GRN}║${RST}  Backend:   ${CYA}http://localhost:3001/api/v1${RST}            ${GRN}║${RST}"
-echo -e "${GRN}║${RST}  Database:  ${CYA}postgresql://localhost:5432/de_invoice${RST} ${GRN}║${RST}"
-echo -e "${GRN}║${RST}  Login:      ${CYA}info@shleder.de${RST} / ${CYA}Test1234!${RST}            ${GRN}║${RST}"
-echo -e "${GRN}║${RST}  Logs:      ${CYA}tail -f /tmp/backend.log /tmp/next-dev.log${RST} ${GRN}║${RST}"
-echo -e "${GRN}╚════════════════════════════════════════════════════════╝${RST}"
+echo -e "${GRN}de-invoice is up${RST}"
+echo -e "  Frontend:  ${CYA}http://localhost:$FRONTEND_PORT${RST}"
+echo -e "  Backend:   ${CYA}http://localhost:$BACKEND_PORT/api/v1${RST}"
+echo -e "  Database:  ${CYA}postgresql://localhost:$DB_PORT/$DB_NAME${RST}"
+echo -e "  Logs:      ${CYA}tail -f /tmp/backend.log /tmp/next-dev.log${RST}"
+echo -e "  Login:     your account — on a new database, register the first one at /register"
+if [ "${DISABLE_CRON:-}" = "1" ]; then
+  echo -e "  ${YEL}Scheduled jobs are off (DISABLE_CRON=1).${RST}"
+else
+  echo -e "  ${YEL}Scheduled jobs are running${RST} (recurring invoices, payment reminders, backups)."
+  echo -e "  To start without them:  ${YEL}DISABLE_CRON=1 ./start.sh${RST}"
+fi
 echo
-echo -e "Stop with:  ${YEL}./stop.sh${RST}  (or run:  kill \$(cat /tmp/backend.pid /tmp/next-dev.pid)  )"
+echo -e "Stop with:  ${YEL}./stop.sh${RST}"

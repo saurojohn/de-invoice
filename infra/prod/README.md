@@ -2,22 +2,19 @@
 
 Single-host Docker Compose deployment for SH Leder GmbH's invoice web app.
 
-> **What's new in Tier 114** — this tier replaces the host-installed
-> **nginx + certbot** stack with a **Caddy** container, ships a
-> complete Hetzner Cloud (and DigitalOcean) deploy runbook, an
-> upgraded backup script with encryption + rclone, a Prometheus
-> + Grafana monitoring overlay, and a security + DR-test checklist.
-> **New deployments use Caddy out of the box**; existing Tier 17
-> installs migrate via [`MIGRATION-nginx-to-caddy.md`](MIGRATION-nginx-to-caddy.md).
+> **This is the one production path** (Tier 584 removed the older root
+> `docker-compose.prod.yml`). TLS is Caddy's, inside the stack — no nginx,
+> no certbot. The stack has been built and run end to end on a developer
+> machine; it has not run on a server yet — see `HANDOFF.md` §9 for what an
+> operator still has to provide.
 >
 > **Quick links**:
 > - Deploy: [`HETZNER-DEPLOY.md`](HETZNER-DEPLOY.md) · [`DIGITALOCEAN-DEPLOY.md`](DIGITALOCEAN-DEPLOY.md)
 > - Runbook: [`RUNBOOK.md`](RUNBOOK.md)
 > - Security: [`SECURITY.md`](SECURITY.md)
 > - DR test: [`DR-TEST.md`](DR-TEST.md)
-> - nginx → Caddy: [`MIGRATION-nginx-to-caddy.md`](MIGRATION-nginx-to-caddy.md)
 > - Monitoring overlay: [`monitoring.yml`](monitoring.yml) · [Prometheus config](prometheus/) · [Grafana dashboards](grafana/)
-> - Legacy nginx config: [`nginx.conf`](nginx.conf) (kept for history; no longer used)
+> - Older documents (nginx era, superseded checklists): [`docs/history/`](../../docs/history/README.md)
 
 ## Architecture
 
@@ -33,7 +30,7 @@ Single-host Docker Compose deployment for SH Leder GmbH's invoice web app.
                      ▼
               ┌─────────────┐
               │   Caddy     │   ← TLS termination (auto-LE, Tier 114)
-              │  (container)│      rate limit on /api/v1/auth
+              │  (container)│      (rate limits are the backend's)
               └──────┬──────┘      security headers
                      │             CF real-IP restore (if CF enabled)
         ┌────────────┴────────────┐
@@ -207,34 +204,26 @@ docker compose -f infra/prod/docker-compose.yml exec backend \
 
 After that, `migrate deploy` is the update step everywhere.
 
-### 8. Create the first user
+### 8. Create the first account — at once
 
-The app has no built-in `register` flow that creates new companies
-(self-service signup was intentionally avoided — admin invites
-accountants). Create the first admin via SQL:
+Open `https://<your-domain>/register` and register. This creates your
+company and makes you its admin.
 
-```bash
-docker compose -f infra/prod/docker-compose.yml exec postgres \
-  psql -U de_invoice -d de_invoice -c "
-    INSERT INTO \"Company\" (id, name, \"createdAt\", \"updatedAt\")
-    VALUES ('00000000-0000-0000-0000-000000000001',
-            'SH Leder GmbH', NOW(), NOW())
-    ON CONFLICT DO NOTHING;
-  "
+**Do this immediately after the first start.** The admins of the *oldest*
+company are the installation's operators (backups, schedulers, storage
+settings, system notifications), and registration is open to whoever
+reaches the page: the first to register owns the installation. To narrow
+the operators further, set `SYSTEM_ADMIN_EMAILS` in `.env` (it can only
+narrow that circle, not name someone outside it).
 
-# Then hit the /api/v1/auth/register endpoint via the browser to create
-# the user, OR run the seed script (see below).
-```
+Do not insert a company row by hand and do not run a test seed against a
+production database — an earlier version of this section suggested both. A
+company without a registered admin would be the oldest one, and nobody
+could operate the installation.
 
-For a more thorough seed (test data + SH Leder test company), run
-the existing dev seed from the host (NOT from inside the container):
-
-```bash
-cd backend && bash scripts/seed-e2e-data.sh
-```
-
-This is the script our e2e tests use. It creates the SH Leder test
-company + users + a few sample customers/products/vouchers.
+Then check, signed in as that admin: Einstellungen → Backups lists a
+backup after the next night; `https://<your-domain>/api/v1/health/deep`
+answers `ok`.
 
 ## Day-to-day operations
 
@@ -379,7 +368,7 @@ bash infra/prod/backup.sh /tmp
 If the VPS dies entirely:
 
 1. Provision a new VPS with the same OS.
-2. Install Docker + nginx + certbot.
+2. Install Docker (TLS is Caddy's, in the stack — no nginx, no certbot).
 3. `rsync` `/opt/de-invoice` from a recent backup (or re-clone the repo).
 4. Restore the `backups` named volume from offsite (rsync job above).
 5. Restore the `storage` named volume from offsite (PDFs / attachments).
@@ -469,26 +458,21 @@ The full security checklist lives in [`SECURITY.md`](SECURITY.md).
 
 ## Cloudflare mode (optional, Tier 19)
 
-For production deployments behind Cloudflare (recommended — your
-origin IP stays hidden, you get free DDoS protection + bot
-filtering), see `infra/cloudflare/README.md` for the full setup.
+For production deployments behind Cloudflare (your origin IP stays hidden,
+you get DDoS protection and bot filtering): enable the orange-cloud toggle
+in CF DNS, set SSL mode to **Full (Strict)**, then uncomment the
+`trusted_proxies` + `client_ip_headers` block at the bottom of
+[`Caddyfile`](Caddyfile) with Cloudflare's current address ranges (the
+block says where to get them) and restart Caddy.
 
-**TL;DR**: enable the orange-cloud toggle in CF DNS, set SSL mode
-to **Full (Strict)**, then uncomment the `trusted_proxies` +
-`client_ip_headers` block at the bottom of [`Caddyfile`](Caddyfile)
-(it's commented out by default since dev deployments don't need it).
+What that restores:
+- `{remote_host}` in Caddy and its access log = the visitor, not the CF edge
+- backend `req.ip` (via `TRUST_PROXY`, Tier 555) = the visitor — so the
+  backend's rate limits count visitors
 
-The CF real-IP restore means:
-- `{remote_host}` in Caddy = visitor's real IP (not CF edge IP)
-- the backend's rate limits count the visitor, not the CF edge
-- Caddy access log records visitor IPs
-- backend `req.ip` (via `TRUST_PROXY`, Tier 555) = visitor IP
-
-Without this, every CF-fronted visitor shares one CF edge IP
-in the rate-limit zone, which makes the limit meaningless.
-
-Run `bash infra/cloudflare/test-real-ip.sh` to verify (9 assertions,
-runs in ~10s, self-contained Docker test).
+Without it every CF-fronted visitor shares a CF edge address and the limits
+count them as one. **Not tested with a real Cloudflare zone.** (The files
+under `docs/history/cloudflare-nginx/` belong to the removed nginx setup.)
 
 ## Observability (Tier 18, opt-in)
 
@@ -509,9 +493,9 @@ This adds six services:
 
 | Service       | Host port | What it does                              |
 |---------------|-----------|-------------------------------------------|
-| prometheus    | 9090      | Scrapes `/metrics` every 15s              |
+| prometheus    | 127.0.0.1:9090 | Scrapes `/metrics` every 15s         |
 | alertmanager  | 127.0.0.1:9093 | Receives fired alerts, dispatches to Slack + email (Tier 23) |
-| grafana       | 3001      | Dashboards (admin / `${GRAFANA_ADMIN_PASSWORD}`) |
+| grafana       | 127.0.0.1:3001 | Dashboards (admin / `${GRAFANA_ADMIN_PASSWORD}` — required, no default) |
 | loki          | 127.0.0.1:3100 | Log aggregation (single-instance)   |
 | promtail      | —         | Reads Docker logs, ships to Loki          |
 | cadvisor      | 127.0.0.1:8080 | Container-level CPU / RAM / network |
@@ -521,8 +505,10 @@ enable if you have RAM headroom.
 
 ### Grafana
 
-Open `http://<vps>:3001`. Default login is `admin` / the value of
-`GRAFANA_ADMIN_PASSWORD` in `.env`. The "de-invoice" dashboard is
+Grafana and Prometheus listen on the server's localhost only (Tier 576).
+From your workstation: `ssh -L 3001:localhost:3001 <vps>`, then open
+`http://localhost:3001`. Login is `admin` / the value of
+`GRAFANA_ADMIN_PASSWORD` in `.env` — the overlay does not start without it. The "de-invoice" dashboard is
 auto-loaded and shows:
 
 - Service status (DB connected, storage writable, uptime)
@@ -609,8 +595,7 @@ Retention: 30 days (same as pg_dump backups).
 - Tier 24: `deploy-prep.sh` host-hardening script + rollback + smoke-test scripts.
 - **Tier 114**: nginx → **Caddy** migration (auto-TLS, in-container). New
   deploy runbooks ([`HETZNER-DEPLOY.md`](HETZNER-DEPLOY.md),
-  [`DIGITALOCEAN-DEPLOY.md`](DIGITALOCEAN-DEPLOY.md),
-  [`MIGRATION-nginx-to-caddy.md`](MIGRATION-nginx-to-caddy.md)).
+  [`DIGITALOCEAN-DEPLOY.md`](DIGITALOCEAN-DEPLOY.md)).
   Upgraded `scripts/backup-prod.sh` with rclone + gpg + webhook +
   restore-test. New [`monitoring.yml`](monitoring.yml) overlay
   (Prometheus + Grafana + node_exporter + postgres_exporter).

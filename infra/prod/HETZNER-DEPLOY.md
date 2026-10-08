@@ -224,68 +224,36 @@ sudo docker compose -f infra/prod/docker-compose.yml exec postgres \
 # Expect: /var/run/postgresql:5432 - accepting connections
 ```
 
-Apply the Prisma schema. **Hybrid: `db push` + raw-SQL
-search migration** (Tier 330, replacing Tier 329's
-`migrate deploy`). The repo's baseline migration
-(20240101000000_baseline) is incomplete —
-schema.prisma declares 69 models but the baseline
-only creates 38 tables. The other ~30 were
-historically created by `db push` (which reads
-schema.prisma directly). So:
-- `migrate deploy` is missing those ~30 tables
-  (and the search service crashes on first use).
-- `db push` is missing the STORED generated
-  search_tsv columns (Tier 28's raw-SQL migration
-  can't be modeled in schema.prisma).
-
-The right fix is to add a new migration that
-captures the schema-to-baseline diff — but
-that's 30+ tables of DDL, deferred to Tier 332+.
-For now, the hybrid works:
+Apply the migrations (Tier 559: they build the whole schema, including the
+full-text search columns; `HETZNER-DEPLOY.sh` does the same):
 
 ```bash
 sudo docker compose -f infra/prod/docker-compose.yml run --rm backend \
-  npx prisma db push --accept-data-loss --skip-generate
-
-# Pipe the file directly (NOT a heredoc with
-# $(cat …) — heredocs with a quoted delimiter
-# disable command substitution, so the literal
-# `$` is sent to psql, which fails with 'syntax
-# error at or near "$"'. Tier 330 lesson.)
-sudo docker compose -f infra/prod/docker-compose.yml run --rm backend \
-  bash -c 'cat prisma/migrations/20260701000001_search_tsv/migration.sql | npx prisma db execute --stdin --schema prisma/schema.prisma'
-
-sudo docker compose -f infra/prod/docker-compose.yml run --rm backend \
-  npx prisma generate
+  npx prisma migrate deploy
 ```
+
+Do **not** use `prisma db push` on this database: it leaves no migration
+history, so the next update (`migrate deploy`) refuses it with `P3005`. A
+database that was created that way by an earlier version of this guide is
+brought over once with `bash scripts/baseline-migrations.sh` (inside the
+backend container; it changes no data).
 
 Verify the tables exist:
 
 ```bash
 sudo docker compose -f infra/prod/docker-compose.yml exec postgres \
   psql -U de_invoice -d de_invoice -c '\dt'
-# Expect: 30+ tables (Company, Customer, Invoice, ...)
+# Expect: about 70 tables (Company, Customer, Invoice, ...)
 ```
 
-### Seed the first company
+### Do not seed a company
 
-The backend has no public "register" flow that creates a new
-company (admin invites only). Seed the SH Leder GmbH row
-manually:
-
-```bash
-sudo docker compose -f infra/prod/docker-compose.yml exec postgres \
-  psql -U de_invoice -d de_invoice -c "
-    INSERT INTO \"Company\" (id, name, \"createdAt\", \"updatedAt\")
-    VALUES ('00000000-0000-0000-0000-000000000001',
-            'SH Leder GmbH', NOW(), NOW())
-    ON CONFLICT DO NOTHING;
-  "
-```
-
-Then create the first user via the backend's API (after the
-stack is up in step 7) or by hitting `/api/v1/auth/register`
-through the browser.
+Earlier versions of this guide (and of `HETZNER-DEPLOY.sh`) inserted a
+company row by hand here. Don't: that row has no user and would be the
+*oldest* company — whose admins are the installation's operators — so
+nobody could reach the backups or the scheduler status afterwards
+(measured: 403 on every operator route). The first company is the one you
+register in step 7a.
 
 ---
 
@@ -306,6 +274,14 @@ de-invoice-frontend        Up (healthy)        3000/tcp
 de-invoice-caddy           Up                  0.0.0.0:80->80/tcp, 0.0.0.0:443->443/tcp
 de-invoice-backup          Up
 ```
+
+### 7a. Register the first account — now
+
+Open `https://<your-domain>/register` and create your account. Registration
+is open, and the admins of the **first** company are the installation's
+operators (backups, schedulers, storage settings): whoever registers first
+owns the installation. `SYSTEM_ADMIN_EMAILS` in `.env` can narrow that
+circle further.
 
 Watch the logs for the first ~30 seconds:
 

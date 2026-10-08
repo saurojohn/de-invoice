@@ -1,3 +1,5 @@
+> **Superseded — kept for the record (see `docs/history/README.md`). Do not deploy or operate from this file;** the production path is `infra/prod/`.
+
 # DEPLOY-READY-SUMMARY.md — 2026-09-07
 
 > **Status: ready to deploy.** The Tier 304-322

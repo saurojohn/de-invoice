@@ -1,3 +1,5 @@
+> **Superseded — kept for the record (see `docs/history/README.md`). Do not deploy or operate from this file;** the production path is `infra/prod/`.
+
 # Migration: nginx + certbot → Caddy
 
 > **Tier 114.** This guide is for existing de-invoice deployments

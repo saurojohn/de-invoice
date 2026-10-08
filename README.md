@@ -10,46 +10,35 @@
 
 ## ⚠️ Neue Claude-Session / Neue Agent-Instanz
 
-**Lies zuerst [`HANDOFF.md`](./HANDOFF.md).** Diese Datei fasst den
-aktuellen Projektstand, die letzten Tier-N-Commits, die offenen
-Blocker (Hetzner VPS IP + SSH Key), die 10 wichtigsten Lessons, und
-was du beim Start sofort tun solltest.
+**Lies zuerst [`HANDOFF.md`](./HANDOFF.md).** Dort steht der aktuelle
+Stand (§1), was jede Änderung gelernt hat (§8) und was offen ist (§9).
+Diese README ist älter als vieles im Code; wo sie HANDOFF.md widerspricht,
+gilt HANDOFF.md.
 
-**Status (2026-09-09):** HEAD = `4a6b08a` (Tier 343). Letzte
-grüne CI: 884 Playwright-Tests bestanden, 0 fehlgeschlagen, 99/99
-Backend-e2e. Code-Seite ist 100 % deploy-ready. Einziger Blocker ist
-die fehlende Hetzner-VPS-IP und der SSH-Key vom User.
+**Status (08.10.2026):** nicht produktiv im Einsatz — die Anwendung läuft
+bisher nur auf dem Entwicklungsrechner. Der Produktionsweg ist
+[`infra/prod/`](infra/prod/README.md) (ein einziger; siehe [DEPLOY.md](DEPLOY.md)).
 
 ---
 
-## Quickstart (lokal, ~5 min)
+## Quickstart (lokal)
 
 ```bash
-# 1. Repo + Submodule
 git clone <repo> de-invoice && cd de-invoice
-cp .env.example backend/.env  # (folgt — siehe DEPLOY.md)
-
-# 2. Docker-Compose hochfahren
-docker compose up -d postgres
-# (für komplett dev mit backend+frontend im Docker: docker compose up -d)
-
-# 3. Schema + Seed
-cd backend && npx prisma migrate deploy && npx prisma db seed
-cd ..
-
-# 4. Backend (Node 22)
-cd backend && npm ci && npm run start:dev    # → http://localhost:3001
-
-# 5. Frontend (Next.js 15)
-cd ../frontend && npm ci && npm run build && npx next start   # → http://localhost:3100
-#   (oder npm run dev für HMR — Achtung: next dev + monorepo kann fork-storm verursachen,
-#    siehe nextjs-frontend-gotchas §0)
-
-# 6. Login (Seed-User)
-#    info@shleder.de / Test1234!   → Mandant SH Leder GmbH
+cp backend/.env.example backend/.env     # DATABASE_URL, JWT_SECRET, SMTP_* …
+(cd backend && npm ci) && (cd frontend && npm ci)
+./start.sh        # Postgres (Docker) + Migrationen + Backend :3001 + Frontend :3000
+./stop.sh
 ```
 
-Detaillierte Schritte + Hetzner-Production-Deployment: **[DEPLOY.md](DEPLOY.md)**
+- Ist Port 3001 oder 3000 von einem anderen Programm belegt, sagt das Skript
+  es und lässt es in Ruhe: `BACKEND_PORT=3011 FRONTEND_PORT=3100 ./start.sh`.
+- Erstes Konto: auf einer leeren Datenbank unter `/register` anlegen (es gibt
+  keinen vorbereiteten Benutzer).
+- Ohne geplante Aufgaben (wiederkehrende Rechnungen, Mahnungen) starten:
+  `DISABLE_CRON=1 ./start.sh`.
+
+Einzelschritte, Tests und der Weg in die Produktion: **[DEPLOY.md](DEPLOY.md)**
 
 ## Features (Tier 1 – 167)
 
@@ -604,57 +593,30 @@ Privat / closed-source. © 2026 SH Leder GmbH.
 
 ---
 
-## ⚡ Quickstart (5 Minuten)
+## ⚡ Quickstart
+
+Siehe oben („Quickstart (lokal)“) und [DEPLOY.md](DEPLOY.md).
+
+### Tests
 
 ```bash
-# 1. Repo klonen + Node 22 prüfen
-node --version   # muss >= 22 sein
+# Backend-Suite gegen eine eigene Datenbank und ein eigenes Backend
+bash backend/scripts/local-ci-stack.sh run
 
-# 2. Dependencies installieren
-cd backend && npm install && cd ..
-cd frontend && npm install && cd ..
+# einzelne Spezifikation gegen ein laufendes Backend
+API=http://localhost:3001 bash backend/e2e/12-expenses-list.sh
 
-# 3. Datenbank starten + App hochfahren
-./start.sh       # bringt Postgres + Backend (3001) + Frontend (3000) hoch
-
-# 4. Im Browser öffnen
-open http://localhost:3000
-# Login: info@shleder.de / Test1234!
+# Playwright (Frontend muss laufen)
+cd frontend && npx playwright install chromium && npx playwright test
 ```
 
-Die App ist sofort einsatzbereit mit Testdaten (SH Leder GmbH).
+Die aktuellen Zahlen der letzten grünen CI stehen in `HANDOFF.md` §1.
 
-### E2E-Tests (137 Backend + 333 Playwright UI, ~9 Min)
+### Produktion
 
-```bash
-# Backend hochfahren
-cd backend && npm install && npx ts-node src/main.ts &
-
-# Alle 137 Backend-Tests
-cd backend && for f in e2e/[0-9]*.sh; do bash "$f"; done
-
-# 333 Playwright UI-Tests (Frontend muss auf 3100 laufen)
-cd frontend && npm install && npx playwright install chromium
-cd frontend && npx playwright test
-```
-
-### Produktion (Docker)
-
-```bash
-cp .env.example .env                                       # JWT_SECRET etc. setzen
-docker compose -f docker-compose.prod.yml up -d --build    # Postgres + Backend + Frontend
-```
-
-Required env vars (see DEPLOY.md §2.1):
-- `POSTGRES_PASSWORD` — postgres role password
-- `JWT_SECRET` — backend JWT signing secret (`openssl rand -hex 32`)
-- `NEXT_PUBLIC_API_URL` — **build-time** URL the browser uses to reach the backend
-  (e.g. `https://api.example.com`). Requires `docker compose build frontend`
-  BEFORE `up` if changed.
-
-Siehe [DEPLOY.md](DEPLOY.md) für die vollständige Produktionsanleitung
-und [RUNBOOK.md](RUNBOOK.md) für Operator-Notfälle (Restore, Rotate,
-Troubleshoot).
+Ein Weg: [`infra/prod/`](infra/prod/README.md) — Docker Compose mit Caddy
+(TLS), Backend, Frontend, PostgreSQL und Backup. Betrieb:
+[`infra/prod/RUNBOOK.md`](infra/prod/RUNBOOK.md).
 
 ---
 
@@ -693,7 +655,7 @@ Troubleshoot).
 
 | Layer | Technology | Notes |
 | --- | --- | --- |
-| Frontend | Next.js 16 (standalone), React 19, Tailwind | `output: "standalone"` für minimal image size |
+| Frontend | Next.js 15.5 (standalone), React 19, Tailwind | `output: "standalone"` für minimal image size |
 | Backend | NestJS 11, TypeScript 5 (compiled with tsc; ts-node in development) | Multi-stage Dockerfile, health endpoints |
 | ORM | Prisma 5 (binary engine) | `engineType: "binary"` — avoids libssl 1.1 in slim images |
 | Database | PostgreSQL 16 | 50+ models, ~80 indexes |
@@ -869,9 +831,8 @@ docker run -d --name de-invoice-postgres \
 cd backend
 cp .env.example .env       # DATABASE_URL, JWT_SECRET, SMTP_* anpassen
 npm install
-npx prisma db push
-npx prisma generate
-npx ts-node src/main.ts   # → http://localhost:3001
+npx prisma migrate deploy      # (never `db push` on a database with data)
+bash scripts/start-backend.sh  # → http://localhost:3001
 ```
 
 #### 3. Frontend
@@ -912,8 +873,8 @@ Jeder `push` auf `main` (und jeder PR) durchläuft
 Fehlgeschlagene CI blockiert Merges (Branch-Protection aktivieren).
 
 ### Backup
-Siehe **`DEPLOY.md`** für die Produktions-Anleitung.
-Kurzfassung:
+Produktion: der Backup-Container in `infra/prod/` (siehe [`infra/prod/README.md`](infra/prod/README.md)).
+Auf dem Entwicklungsrechner:
 - **`scripts/backup.sh`** — `pg_dump` + `tar` der Belege,
   Rotation: 7 Tage / 4 Wochen / Monatsanker
 - **`scripts/restore.sh`** — Wiederherstellung mit Bestätigung
@@ -1018,9 +979,8 @@ docker run -d --name de-invoice-postgres \
 cd backend
 cp .env.example .env       # adjust DATABASE_URL, JWT_SECRET, SMTP_*
 npm install
-npx prisma db push
-npx prisma generate
-npx ts-node src/main.ts   # → http://localhost:3001
+npx prisma migrate deploy      # (never `db push` on a database with data)
+bash scripts/start-backend.sh  # → http://localhost:3001
 ```
 
 #### 3. Frontend
@@ -1141,9 +1101,8 @@ docker run -d --name de-invoice-postgres \
 cd backend
 cp .env.example .env       # 修改 DATABASE_URL, JWT_SECRET, SMTP_*
 npm install
-npx prisma db push
-npx prisma generate
-npx ts-node src/main.ts   # → http://localhost:3001
+npx prisma migrate deploy      # (never `db push` on a database with data)
+bash scripts/start-backend.sh  # → http://localhost:3001
 ```
 
 #### 3. 前端

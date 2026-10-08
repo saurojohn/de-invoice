@@ -1,3 +1,5 @@
+> **Superseded — kept for the record (see `docs/history/README.md`). Do not deploy or operate from this file;** the production path is `infra/prod/`.
+
 # Tier 127 — Cloud Deploy Checklist
 
 > Date: 2026-08-01

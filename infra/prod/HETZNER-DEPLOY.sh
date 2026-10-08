@@ -31,7 +31,6 @@
 # To customise:
 #   DOMAIN=rechnung.shleder.de \
 #   FRONTEND_URL=https://rechnung.shleder.de \
-#   COMPANY_NAME="SH Leder GmbH" \
 #   bash HETZNER-DEPLOY.sh
 #
 # Exit codes:
@@ -47,14 +46,13 @@ set -euo pipefail
 # Tier 190 (Aug 14): default domain switched from
 # `rechnung.shleder.de` to `invoice.shleder.de` to
 # match the Tier 127 cloud-deploy decision
-# (TIER127-DEPLOY-CHECKLIST.md + .env.prod.generated
-# already use invoice.shleder.de). The Caddyfile
+# (.env.prod.generated already uses invoice.shleder.de).
+# The Caddyfile
 # default block was already updated in Tier 127.
 # Operators who still want the old domain can
 # pass DOMAIN=rechnung.shleder.de explicitly.
 DOMAIN="${DOMAIN:-invoice.shleder.de}"
 FRONTEND_URL="${FRONTEND_URL:-https://$DOMAIN}"
-COMPANY_NAME="${COMPANY_NAME:-SH Leder GmbH}"
 INSTALL_DIR="${INSTALL_DIR:-/opt/de-invoice}"
 HEALTH_TIMEOUT="${HEALTH_TIMEOUT:-120}"  # seconds
 HEALTH_INTERVAL="${HEALTH_INTERVAL:-5}"
@@ -163,15 +161,13 @@ if [[ "$CHECK_ONLY" -eq 1 ]]; then
   log "── Domain consistency ──"
   log "  target domain: $DOMAIN"
   log "  FRONTEND_URL:  $FRONTEND_URL"
-  # All 4 of these should reference the same domain
+  # All of these should reference the same domain
   # (or its www. variant). If they don't, Caddy will
   # serve the wrong cert and the CORS allowlist will
   # block the frontend.
   check_grep "infra/prod/Caddyfile" "$DOMAIN"        "Caddyfile references target domain"
   check_grep "infra/prod/.env.prod.generated" "FRONTEND_URL=https://$DOMAIN" \
     ".env.prod.generated FRONTEND_URL matches"
-  check_grep "infra/prod/TIER127-DEPLOY-CHECKLIST.md" "$DOMAIN" \
-    "checklist references target domain"
 
   log "── Secrets sanity ──"
   # .env.example should NOT contain real secrets
@@ -228,7 +224,7 @@ if [[ "$CHECK_ONLY" -eq 1 ]]; then
 fi
 
 # ─── Step 1: host prep (idempotent) ─────────────────────
-log "Step 1/7 — host prep (deploy-prep.sh)"
+log "Step 1/6 — host prep (deploy-prep.sh)"
 if [[ -f /etc/sudoers.d/deploy-docker ]]; then
   log "  host already prepped (sudoers.d/deploy-docker exists), skipping"
 else
@@ -236,11 +232,11 @@ else
 fi
 
 # ─── Step 2: build images ──────────────────────────────
-log "Step 2/7 — build Docker images (3-5 min on a cold cache)"
+log "Step 2/6 — build Docker images (3-5 min on a cold cache)"
 docker compose -f infra/prod/docker-compose.yml build
 
 # ─── Step 3: configure .env (template-only on first run) ─
-log "Step 3/7 — configure .env"
+log "Step 3/6 — configure .env"
 if [[ ! -f infra/prod/.env ]]; then
   if [[ -f infra/prod/.env.example ]]; then
     cp infra/prod/.env.example infra/prod/.env
@@ -271,7 +267,7 @@ if grep -qE "^FRONTEND_URL=https?://" infra/prod/.env; then
 fi
 
 # ─── Step 4: start postgres + apply Prisma schema ──────
-log "Step 4/7 — start postgres + apply Prisma schema"
+log "Step 4/6 — start postgres + apply Prisma schema"
 docker compose -f infra/prod/docker-compose.yml up -d postgres
 log "  waiting for postgres to be healthy..."
 for _ in $(seq 1 30); do
@@ -297,33 +293,21 @@ docker compose -f infra/prod/docker-compose.yml run --rm backend \
 docker compose -f infra/prod/docker-compose.yml run --rm backend \
   npx prisma generate 2>&1 | tail -2
 
-# ─── Step 5: seed the first company ────────────────────
-log "Step 5/7 — seed the first company"
-COMPANY_ID="00000000-0000-0000-0000-000000000001"
-EXISTING=$(docker compose -f infra/prod/docker-compose.yml exec -T postgres \
-  psql -U de_invoice -d de_invoice -tAc "SELECT 1 FROM \"Company\" WHERE id='$COMPANY_ID' LIMIT 1;" 2>/dev/null || echo "")
-if [[ "$EXISTING" == "1" ]]; then
-  log "  company $COMPANY_ID already exists, skipping"
-else
-  log "  inserting company '$COMPANY_NAME' (id=$COMPANY_ID)"
-  # The Company.address column is NOT NULL (jsonb) since the
-  # address-fields migration. We seed with an empty JSONB
-  # object — the operator can fill it in via the Settings page
-  # after first login. defaultPaymentDays is also NOT NULL
-  # but has a DEFAULT 30 so we don't pass it.
-  docker compose -f infra/prod/docker-compose.yml exec -T postgres \
-    psql -U de_invoice -d de_invoice -c "
-      INSERT INTO \"Company\" (id, name, address, \"createdAt\", \"updatedAt\")
-      VALUES ('$COMPANY_ID', '$COMPANY_NAME', '{}'::jsonb, NOW(), NOW());
-    "
-fi
+# ─── (no seeding) ───────────────────────────────────────
+# Tier 584: this script inserted a company row here ("seed the first
+# company"). That row has no user — and it is the OLDEST company, whose
+# admins are the installation's operators (backups, schedulers, storage).
+# Measured: after it, the first person to register got a company of their
+# own and 403 on every operator route; nobody could operate the installation.
+# The first company is now the one its owner registers (see the end of this
+# script).
 
-# ─── Step 6: start the full stack ──────────────────────
-log "Step 6/7 — start the full stack (postgres, backend, frontend, caddy, backup)"
+# ─── Step 5: start the full stack ──────────────────────
+log "Step 5/6 — start the full stack (postgres, backend, frontend, caddy, backup)"
 docker compose -f infra/prod/docker-compose.yml up -d
 
-# ─── Step 7: health check loop ─────────────────────────
-log "Step 7/7 — health check (up to ${HEALTH_TIMEOUT}s)"
+# ─── Step 6: health check loop ─────────────────────────
+log "Step 6/6 — health check (up to ${HEALTH_TIMEOUT}s)"
 ELAPSED=0
 HEALTH_OK=0
 while (( ELAPSED < HEALTH_TIMEOUT )); do
@@ -361,10 +345,12 @@ echo "1. CONFIRM HTTPS WORKS (Caddy auto-issues LE cert on first request):"
 echo "   curl -sI https://$DOMAIN | head -3"
 echo "   # If you see HTTP/2 200 with HSTS, you're done."
 echo
-echo "2. CREATE THE FIRST ADMIN USER:"
-echo "   Open https://$DOMAIN/login in a browser and use the"
-echo "   'Register' flow. (Registration is open by default; lock"
-echo "   it down after the first user exists.)"
+echo "2. REGISTER THE FIRST ACCOUNT — NOW:"
+echo "   Open https://$DOMAIN/register and create your account."
+echo "   Registration is open, and the admins of the FIRST company"
+echo "   are the installation's operators (backups, schedulers,"
+echo "   storage): whoever registers first owns the installation."
+echo "   Optionally narrow the operators with SYSTEM_ADMIN_EMAILS in .env."
 echo
 echo "3. ENABLE OFF-SITE BACKUPS (Hetzner Storage Box):"
 echo "   See HETZNER-DEPLOY.md step 9."

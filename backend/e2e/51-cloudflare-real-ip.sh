@@ -87,8 +87,8 @@ assert_eq "Test 2.1 customers endpoint with spoofed IP returns 200" "200" "$RESP
 # the same machine (always loopback). Skip with a note.
 echo ""
 echo "--- Test 3: X-Forwarded-For from non-loopback (NOT testable here) ---"
-echo "  [SKIP] requires nginx in front of backend (production scenario)"
-echo "         See infra/cloudflare/test-real-ip.sh for the nginx-layer test."
+echo "  [SKIP] requires a proxy in front of the backend (production scenario);"
+echo "         spec 191 restarts the backend in production mode and checks it there."
 
 # Test 4 — Verify backend startup banner shows trust-proxy = loopback.
 # We check the _lib for the pattern. (Indirect — a real prod

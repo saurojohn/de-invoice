@@ -270,7 +270,7 @@ echo "   (or use the new monitoring.yml from Tier 114 for"
 echo "   the recommended Prometheus + Grafana + exporters stack)"
 echo
 echo "7. (Optional) ENABLE CLOUDFLARE real-IP restore:"
-echo "   See $INSTALL_DIR/infra/cloudflare/README.md"
+echo "   See the Cloudflare section of $INSTALL_DIR/infra/prod/README.md"
 echo
 echo "Bootstrap operator SSH key (download + add to your workstation):"
 echo "   cat /root/.de-invoice-bootstrap/id_ed25519"

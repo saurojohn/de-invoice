@@ -1,3 +1,5 @@
+> **Superseded — kept for the record (see `docs/history/README.md`). Do not deploy or operate from this file;** the production path is `infra/prod/`.
+
 # RUNBOOK — de-invoice production operations
 
 > Tier 13. This document is the operator's

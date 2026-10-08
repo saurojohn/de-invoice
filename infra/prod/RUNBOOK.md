@@ -10,7 +10,6 @@
 
 - Deploy: [`HETZNER-DEPLOY.md`](HETZNER-DEPLOY.md)
 - DO deploy: [`DIGITALOCEAN-DEPLOY.md`](DIGITALOCEAN-DEPLOY.md)
-- nginx → Caddy migration: [`MIGRATION-nginx-to-caddy.md`](MIGRATION-nginx-to-caddy.md)
 - Security: [`SECURITY.md`](SECURITY.md)
 - DR test: [`DR-TEST.md`](DR-TEST.md)
 - Architecture & rationale: [`README.md`](README.md)
@@ -178,26 +177,28 @@ company (admin invites only). Two options:
 
 1. **Via the existing admin's UI**: Settings → Users →
    Invite. The new user gets an emailed link.
-2. **Via direct SQL** (recovery scenario — admin locked out):
+2. **An admin who is locked out** uses „Passwort vergessen“ on the login
+   page (needs working SMTP). Without mail, set a new password hash for the
+   **existing** account — do not insert a user row by hand (an account
+   belongs to a company, has a role in it and sessions; an earlier version
+   of this runbook inserted one with a role name and a company id that do
+   not exist):
 
    ```bash
-   docker compose -f infra/prod/docker-compose.yml exec postgres \
-     psql -U de_invoice -d de_invoice -c "
-       INSERT INTO \"User\" (id, email, name, \"passwordHash\",
-                             role, \"companyId\", \"createdAt\", \"updatedAt\")
-       VALUES (
-         gen_random_uuid(),
-         'new-admin@shleder.de',
-         'New Admin',
-         -- bcrypt hash of the new password; generate with:
-         --   node -e 'console.log(require(\"bcrypt\").hashSync(\"the-password\", 12))'
-         '\$2b\$12\$...',
-         'ADMIN',
-         '00000000-0000-0000-0000-000000000001',
-         NOW(), NOW()
-       );
+   cd /opt/de-invoice
+   HASH=$(docker compose -f infra/prod/docker-compose.yml exec -T backend \
+     node -e 'console.log(require("bcrypt").hashSync(process.argv[1], 10))' 'the-new-password')
+   docker compose -f infra/prod/docker-compose.yml exec -T postgres \
+     psql -U de_invoice -d de_invoice -v hash="$HASH" -v mail='admin@your-domain.com' -c "
+       UPDATE \"User\" SET \"passwordHash\" = :'hash' WHERE email = :'mail';
+       UPDATE \"UserSession\" SET \"revokedAt\" = NOW()
+        WHERE \"revokedAt\" IS NULL AND \"userId\" = (SELECT id FROM \"User\" WHERE email = :'mail');
      "
    ```
+
+   The password must have 8 characters with letters and digits. Change it
+   again in the app afterwards (Sicherheit → Passwort ändern) — the one
+   above is in your shell history.
 
 ### Rotate `JWT_SECRET`
 
@@ -448,14 +449,16 @@ Common causes:
 curl -s https://invoice.shleder.de/api/v1/auth/login -X POST \
   -H "Content-Type: application/json" \
   -d '{"email":"test@shleder.de","password":"wrong"}'
-# Expect 401 with { "error": "Invalid credentials" }
+# Expect 400 with a German message ("Ungültige Anmeldedaten" or similar).
 # If you get 502/503/504, the issue is network (Caddy ↔ backend).
 
-# Check rate limiting.
-docker compose -f /opt/de-invoice/infra/prod/docker-compose.yml logs caddy \
-  | grep -i 'rate'
-# If you see 429s, wait 1 minute or whitelist the IP in the
-# Caddyfile's `rate_limit` directive.
+# Too many wrong attempts. The limits are the backend's, per visitor
+# (Caddy has none): five wrong passwords lock that address out for 15
+# minutes, answered with 429.
+docker compose -f /opt/de-invoice/infra/prod/docker-compose.yml logs backend \
+  | grep -i ' 429 \|locked\|ThrottlerException'
+# The lock is in the backend's memory: it ends by itself, or at once with
+#   docker compose -f /opt/de-invoice/infra/prod/docker-compose.yml restart backend
 ```
 
 ### "PDFs aren't generating"

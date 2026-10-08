@@ -65,11 +65,12 @@ differences:
 - **Step 4**: skip the "seed first company" step — the
   backup has the real company. But set `.env` to point at
   the test domain (`FRONTEND_URL=https://dr.invoice.shleder.de`).
-- **Step 5-6**: same as production. Prisma db push will
-  build the schema; then the restore (step 7 below)
-  overwrites the empty tables with the production data.
-- **Step 7 (modified)**: skip `prisma db push`. Instead,
-  restore the backup:
+- **Step 5-6**: bring up postgres only. Do **not** run the
+  migrations and do not register anyone — the restore (step 7
+  below) brings the schema and the data.
+- **Step 7 (modified)**: restore the backup (after it,
+  `prisma migrate deploy` applies whatever is newer than the
+  backup — normally nothing):
 
   ```bash
   # Copy the backup from off-site (Hetzner Storage Box).
@@ -214,9 +215,10 @@ VPS).
    # Pick the most recent directory.
    ```
 3. Provision a fresh Hetzner CX21.
-4. Follow `HETZNER-DEPLOY.md` steps 1-7, but skip `prisma
-   db push` in step 6 — instead, restore the most recent
-   backup (same as Test 1 above).
+4. Follow `HETZNER-DEPLOY.md` steps 1-7, but skip the
+   migrations in step 6 and the registration in 7a — instead,
+   restore the most recent backup (same as Test 1 above), then
+   run `prisma migrate deploy`.
 5. Update DNS to point at the new VPS's IP.
 6. Verify with `smoke-test.sh`.
 7. Notify users that the app is back. The downtime clock
@@ -307,10 +309,8 @@ Things that look fine in the runbook but break in practice:
   entry is ignored if your browser has cached the
   production IP. Restart the browser, or use `curl --resolve
   dr.invoice.shleder.de:443:<test IP>`.
-- **Caddy rate-limit blocked the test** — if you hammer
-  the test domain with smoke tests, Caddy's `rate_limit`
-  on `/api/v1/auth/*` will trigger. The test should still
-  pass because only 13 requests are made, but if you run
-  the smoke test repeatedly in a loop, you'll hit the
-  limit. Either wait a minute, or temporarily raise the
-  rate limit in the test Caddyfile.
+- **Rate limit hit during the test** — the limits are the
+  backend's (per visitor; Caddy has none). The smoke test's 13
+  requests stay under them; run in a loop it can meet the
+  sign-in limit (429). Wait a minute, or restart the backend
+  container (the counters are in its memory).
