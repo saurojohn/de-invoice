@@ -10,6 +10,7 @@ import {
   ValidateNested,
   IsObject,
   ValidateIf,
+  Matches,
   MinLength,
   MaxLength,
   IsNotEmpty,
@@ -35,6 +36,19 @@ export class CustomerAddressDto {
   @IsString()
   @IsOptional()
   country?: string;
+
+  /**
+   * Tier 599: the Leitweg-ID of a public-sector customer — XRechnung's
+   * BuyerReference (BT-10). The generator has read `address.leitwegId` since
+   * Tier 115; this DTO refused the property, so it could only get there by
+   * SQL. Grobadresse (2–12 digits), optional Feinadresse, two check digits.
+   */
+  @ValidateIf((o) => o.leitwegId !== undefined && o.leitwegId !== null && o.leitwegId !== '')
+  @IsString()
+  @Matches(/^[0-9]{2,12}(-[0-9A-Za-z]{1,30})?-[0-9]{2}$/, {
+    message: 'Leitweg-ID: bitte im Format der Behörde angeben, z. B. 991-12345-67 (Grobadresse, ggf. Feinadresse, zwei Prüfziffern).',
+  })
+  leitwegId?: string;
 }
 
 export class CustomerContactDto {

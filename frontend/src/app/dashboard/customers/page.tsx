@@ -21,7 +21,7 @@ interface Customer {
   taxExempt?: boolean
   creditLimit?: number | null
   type: string
-  address: { street?: string; city?: string; postalCode?: string; country?: string }
+  address: { street?: string; city?: string; postalCode?: string; country?: string; leitwegId?: string }
   contact?: { email?: string; phone?: string }
   paymentTerms: number | null
   // "active" = usable, anything else = deactivated by admin.
@@ -214,6 +214,7 @@ export default function CustomersPage() {
     city: "",
     postalCode: "",
     country: "DE",
+    leitwegId: "",
     email: "",
     phone: "",
     // Tier 428: the customer's Zahlungsziel now decides the due date of
@@ -263,6 +264,7 @@ export default function CustomersPage() {
         city: customer.address?.city || "",
         postalCode: customer.address?.postalCode || "",
         country: customer.address?.country || "DE",
+        leitwegId: customer.address?.leitwegId || "",
         email: customer.contact?.email || "",
         phone: customer.contact?.phone || "",
         // Tier 428: NULL means "the company's default" — show that value.
@@ -280,6 +282,7 @@ export default function CustomersPage() {
         city: "",
         postalCode: "",
         country: "DE",
+        leitwegId: "",
         email: "",
         phone: "",
         // Reopening the modal gives the same fresh state as the first open.
@@ -341,6 +344,9 @@ export default function CustomersPage() {
         city: form.city,
         postalCode: form.postalCode,
         country: form.country,
+        // Tier 599: kept with the address — it is what XRechnung puts into
+        // BuyerReference (BT-10) for a public-sector customer.
+        ...(form.leitwegId.trim() ? { leitwegId: form.leitwegId.trim() } : {}),
       },
       contact: {
         email: form.email,
@@ -1266,6 +1272,22 @@ export default function CustomersPage() {
                     onChange={(e) => setForm({ ...form, country: e.target.value })}
                     placeholder={t("customer.countryPlaceholder")}
                   />
+                </div>
+                {/* Tier 599: the Leitweg-ID of a public-sector customer. The
+                    XRechnung generator has read it from the address since
+                    Tier 115 — but no form could enter it and the API refused
+                    it, so a B2G invoice went out with the customer's name as
+                    its buyer reference. */}
+                <div>
+                  <label className="block text-sm font-medium mb-1" htmlFor="customer-leitweg-id">{t("leitwegId.title")}</label>
+                  <Input
+                    id="customer-leitweg-id"
+                    data-testid="customer-leitweg-id"
+                    value={form.leitwegId}
+                    onChange={(e) => setForm({ ...form, leitwegId: e.target.value })}
+                    placeholder="991-12345-67"
+                  />
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("leitwegId.description")} — {t("leitwegId.format")}</p>
                 </div>
 
                 {/* taxExempt + paymentTerms side-by-side */}
