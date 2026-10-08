@@ -11,7 +11,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 // crashing the cron tick.
 import { InvoiceEmailService } from '../invoice/invoice-email.service';
 import { ExchangeRateService } from '../exchange-rate/exchange-rate.service';
-import { nextInvoiceNumber } from '../invoice/invoice-number'
+import { nextInvoiceNumber, releaseInvoiceNumber } from '../invoice/invoice-number'
 import { resolveDueDate } from '../invoice/due-date';
 import { assertInvoiceDetails } from '../invoice/mandatory-details'
 import { igLVatIdProblem } from '../invoice/ust-behandlung-detector'
@@ -841,6 +841,11 @@ export class RecurringService {
     options: { trigger: 'manual' | 'scheduled'; now?: Date } = { trigger: 'manual' },
   ): Promise<{ invoiceId: string; runId: string; periodStart: Date; periodEnd: Date }> {
     const now = options.now ?? new Date()
+    // Tier 600: the number this run took, so that it can go back if the run
+    // does not commit. A sequence does not roll back with the transaction —
+    // a run that failed after this point left a hole in the series (the note
+    // "not changed" under Tier 585).
+    let takenNumber: string | null = null
 
     return this.prisma.$transaction(async (tx) => {
       // Lock the template row for the duration of the
@@ -1017,6 +1022,7 @@ export class RecurringService {
         'INV',
         currentYear,
       )
+      takenNumber = invoiceNumber
 
       // Create the invoice. Tier 428: the due date follows the customer's
       // Zahlungsziel, else the company default (due-date.ts) — it was a
@@ -1169,6 +1175,14 @@ export class RecurringService {
       )
 
       return { invoiceId: invoice.id, runId: run.id, periodStart, periodEnd }
+    }).catch(async (e) => {
+      if (takenNumber) {
+        const number = takenNumber
+        await this.prisma
+          .$transaction((tx) => releaseInvoiceNumber(tx, companyId, number))
+          .catch((err) => this.logger.warn(`could not give back ${number}: ${err?.message ?? err}`))
+      }
+      throw e
     }).then((result: any) => {
       // Tier 521: each skip says what it was — a paused template answered
       // "End date reached; auto-disabled".
