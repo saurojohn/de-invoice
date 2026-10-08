@@ -44,4 +44,14 @@ test("a company that is not the operator sees no card for backups or scheduled j
   await expect(page.getByTestId("dashboard-card-audit")).toBeVisible({ timeout: 60_000 })
   await page.waitForLoadState("networkidle")
   expect(forbidden, "requests answered 403 while loading the dashboard").toEqual([])
+
+  // Tier 608: the error page is a company's own — without the operator's
+  // notification settings, and without asking for them
+  forbidden.length = 0
+  await page.goto("/dashboard/system-errors")
+  await page.waitForLoadState("networkidle")
+  await expect(page.locator("body")).toContainText(/Fehler/)
+  expect(forbidden, "requests answered 403 while loading the error page").toEqual([])
+  await expect(page.getByTestId("threshold-count")).toHaveCount(0) // the alert-threshold form
+  await expect(page.getByTestId("notif-test")).toHaveCount(0) // the test-notification button
 })

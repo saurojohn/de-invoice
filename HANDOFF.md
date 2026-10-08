@@ -2639,6 +2639,10 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 608 — the error page without the operator's part
+
+Tier 598's "left": `/dashboard/system-errors` is a company's own page (it lists the company's errors, Tier 550), but it asked for the operator's notification channels and alert threshold as every company — two 403s — and, on the 403, showed the threshold form with default values: a form a company could fill in and never save. The page asks `GET /auth/me` first and loads and shows those two cards for the operator only. The Playwright spec of Tier 598 now also opens the error page as another company: no 403, no threshold form, no test-notification button.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 607 — the environment variables are documented; three small things
 
 - **Eleven variables read in `backend/src` were named in no `.env.example`** (§9 item 23). `backend/.env.example` now has `STORAGE_PATH`, `BACKUP_ROOT` (with the warning that a test backend must point it at scratch), `BACKUP_DOCKER_CONTAINER`, `HTTP_KEEPALIVE_TIMEOUT_MS` (it has to stay above the proxy's 30 s) and `DISABLE_VAT_REVERIFY_EMAIL`, and a block „Test switches — never in production“ for `THROTTLE_DISABLED`, `EXCHANGE_RATES_MOCK` and `ALLOW_HEADER_AUTH`. **Spec** `363-tier607-umgebungsvariablen-dokumentiert.sh` — static: every `process.env.X` in the backend source needs a line in `backend/.env.example` or `infra/prod/.env.example`, or a place in a short list of what the platform sets (NODE_ENV, PORT, HOME, JAVA_HOME, PG_CONTAINER, TZ, CI). Looked at on the way and found in order: the image sets `STORAGE_PATH=/data/invoice-system` (the volume), and the in-app backup job skips itself in the container (Tier 558).

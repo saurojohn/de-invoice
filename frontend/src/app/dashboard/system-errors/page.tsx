@@ -227,6 +227,16 @@ export default function SystemErrorsPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   // Tier 197 — notification config + last test result.
   const [notifConfig, setNotifConfig] = useState<NotificationConfig | null>(null)
+  // Tier 608: the notification channels and the alert threshold are the
+  // operator's (Tier 548). The page asked for both as every company — two
+  // 403s — and then showed the threshold form with defaults, which a company
+  // could fill in and not save.
+  const [operator, setOperator] = useState<boolean | null>(null)
+  useEffect(() => {
+    apiGet<{ operator?: boolean }>("/api/v1/auth/me")
+      .then((me) => setOperator(me?.operator === true))
+      .catch(() => setOperator(false))
+  }, [])
   const [lastTestResult, setLastTestResult] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   // Tier 205 — rate-threshold editor. The
@@ -350,9 +360,6 @@ export default function SystemErrorsPage() {
     // push channels are wired before triggering
     // a test. We fire-and-forget — the channel
     // card renders when the response lands.
-    apiGet<NotificationConfig>("/api/v1/system/notifications/config")
-      .then(setNotifConfig)
-      .catch(() => setNotifConfig(null))
     // Tier 200 — load the 30-day timeline.
     fetchTimeline(cid, timelineSource)
      
@@ -392,6 +399,10 @@ export default function SystemErrorsPage() {
   // threshold fetch on every render and
   // clobber the operator's in-flight draft.
   useEffect(() => {
+    if (!operator) return
+    apiGet<NotificationConfig>("/api/v1/system/notifications/config")
+      .then(setNotifConfig)
+      .catch(() => setNotifConfig(null))
     apiGet<NotificationThreshold>("/api/v1/system/notifications/threshold")
       .then((t) => {
         setThreshold(t)
@@ -418,7 +429,7 @@ export default function SystemErrorsPage() {
         })
       })
      
-  }, [])
+  }, [operator])
 
   const resolve = async (id: string) => {
     try {
