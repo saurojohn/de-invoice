@@ -141,7 +141,7 @@ export default function SystemHealthPage() {
       </div>
 
       {/* Health summary chips — quick at-a-glance */}
-      <div className="flex gap-3 text-sm">
+      <div className="flex flex-wrap gap-3 text-sm">
         <HealthChip color="green" label={t("systemHealth.healthGreen")} count={counts.green} />
         <HealthChip color="amber" label={t("systemHealth.healthAmber")} count={counts.amber} />
         <HealthChip color="red" label={t("systemHealth.healthRed")} count={counts.red} />

@@ -1259,7 +1259,7 @@ function CreateInvoicePageInner() {
               {/* Invoice Type Selector */}
               <div>
                 <label className="block text-sm font-medium mb-1">{t("invoice.invoiceType")}</label>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   {(['INV', 'CN', 'PI', 'RCV'] as InvoiceType[]).map((type) => (
                     <button
                       key={type}
