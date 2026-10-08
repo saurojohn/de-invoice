@@ -2609,7 +2609,11 @@
     "signedBy": "签名方",
     "beraterNoUser": "未选择顾问",
     "beraterStamp": "添加顾问印章",
-    "beraterStamped": "顾问印章已添加"
+    "beraterStamped": "顾问印章已添加",
+    "verifiedTrusted": "✓ 签名有效——文件自签名以来未被改动。",
+    "verifiedUnknownCert": "签名在计算上有效，但证书不属于本公司，因此不能证明签署人是谁。",
+    "signerCompany": "本公司证书",
+    "signerUser": "成员的个人证书"
   },
   "cashflow": {
     "title": "现金流预测",

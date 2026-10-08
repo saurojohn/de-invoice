@@ -2634,6 +2634,27 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 583 — a PDF signature is really verified
+
+Found while going through §9 item 22 ("PDF signature verification — structural only"). It was worse than that sounds. `SigningService.verifyPdf` returned `valid: true` whenever the container held a 32-byte `messageDigest` attribute: the digest was computed and deliberately not compared (`_digestMatches`, "a v2 improvement"), and no signature was ever checked. **Measured** on a PDF signed by this application:
+- the visible amount changed after signing („Betrag 100,00“ → „900,00“) → `valid: true`;
+- the signature value itself overwritten → `valid: true`;
+- bytes appended after the signed range → `valid: true`;
+- and a PDF signed by *another company registered under the same name* → „✓ gültig, signiert von <name>“.
+The invoice page's „Signatur prüfen“ showed the green tick for all of them.
+
+**Now** (`signing/pdf-signature-verify.ts`, Node's `crypto` — not node-forge, whose RSA verification has the open advisory noted in Tier 572): for every signature in the file
+1. the `/ByteRange` starts at 0 and its gap is exactly the hex string of `/Contents`;
+2. the hash of the signed bytes (SHA-256/384/512) equals the `messageDigest` in the signed attributes;
+3. the signature over the signed attributes verifies with the public key of a certificate in the container (a small DER reader takes the attributes' original bytes; RSA and EC);
+and the **last** signature must reach the end of the file. `valid` only if all of that holds. Reasons in German („Das Dokument wurde nach dem Signieren verändert.“, „Die Signatur passt nicht zum enthaltenen Zertifikat …“, „Nach der letzten Signatur wurde dem Dokument etwas hinzugefügt.“).
+
+**Whose certificate:** the certificates are self-signed, so a valid signature proves "unchanged since signed by the holder of this key", not who that is. `POST /signing/verify` now answers with `trusted` (valid, and every signature's certificate is this company's or one of its members') and per signature `knownSigner: company | user | null`, `signedAt`, validity dates, `coversWholeDocument`. The page shows three states: green (intact, own certificate), amber (intact, foreign certificate — „Wer unterschrieben hat, ist damit nicht belegt“), red (the reason).
+
+**Specs:** `350-tier583-signaturpruefung.sh` (14 assertions, 12 fail on the old code: the three manipulations, an emptied container, a ByteRange that leaves the amount out, unsigned, another company's view, a same-name company's signature, company + member signatures and one changed byte in the second revision, the application's own invoice PDF); Playwright `pdf-signature-verify-tier583.spec.ts`. Specs 98 / 168 / 186 pass unchanged.
+
+**Limits:** after a certificate is rotated (`/signing/regenerate`), documents signed with the old one are intact-but-unknown (only the current fingerprint is kept). No revocation, no timestamp authority — `signedAt` is what the signer claimed. RSA-PSS signatures are not recognised (reported as not matching).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 582 — several VAT rates on the UStVA page; the owner's database migrated
 
 **The development database** (`de-invoice-postgres`): after the owner's „继续“ to the offer in the Tier 581 report, the one pending migration (`20261007000001_expense_tax_lines`, additive) was applied with `prisma migrate deploy` — checked first that it was the only pending one; 68 → 69 tables, 33 expenses and 318 invoices as before, no difference to the schema left. Script: `$S/dev-migrate.sh`.
@@ -8338,9 +8359,9 @@ frontend's build arg, and the frontend image refuses to build without it.
     - ~~**The monitoring overlay**~~ — its network, the open ports and the default Grafana password are **fixed in Tier 576** (resolved with `docker compose config`; still never run — the images are a download to ask for).
     - ~~**No CI job builds the Docker images**; production starts the backend with `ts-node`~~ — **both done in Tier 580** (`docker-build.yml`, path-triggered; the image runs `node dist/main.js`). `release.yml` still only runs on a `v*` tag and has never run.
     - **Account self-service:** no e-mail verification at registration, no deletion of an account or company, no data export for a data subject. (~~no "change my password" while signed in~~ — done in Tier 575.)
-    - **Unfinished by design, and saying so:** FinTS TAN submission and transfers (stubs), ELSTER (an export for transcription, container format unverified, no transmission — item 9), E-Bilanz (XBRL with positions left "TODO (manuell)" for the Steuerberater), PDF signature verification (structural only, not against the certificate), cloud storage ("coming soon").
+    - **Unfinished by design, and saying so:** FinTS TAN submission and transfers (stubs), ELSTER (an export for transcription, container format unverified, no transmission — item 9), E-Bilanz (XBRL with positions left "TODO (manuell)" for the Steuerberater), ~~PDF signature verification (structural only)~~ (a real check since Tier 583 — it had called tampered PDFs valid), cloud storage ("coming soon").
     - **Tests:** 342 backend specs + 1004 Playwright tests, all end-to-end; two unit-test files. The backend suite expects a fresh database (15 specs fail on a reused one). No load test in this stretch. ~800 `any` in the backend, ~330 in the frontend; four files over 2 700 lines.
-    - **The owner's local development database is gone** (item 4): `de-invoice-postgres` exited on 10.09.2026, its data directory `/tmp/pgdata` no longer exists; the last real backup is `backup-2026-09-05-224235`.
+    - ~~**The owner's local development database is gone**~~ — rebuilt in Tier 571 from `backup-2026-09-05-224235`, migrated in Tier 582.
 
 ## 10. Critical patterns / lessons (must read)
 

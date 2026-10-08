@@ -1,3 +1,4 @@
+import { PdfSignatureCheck, checkPdfSignatures } from './pdf-signature-verify'
 import {
   Injectable,
   BadRequestException,
@@ -105,12 +106,16 @@ const CERT_VALIDITY_DAYS = 365 * 5 // 5 years
 const KEY_SIZE = 2048
 
 export interface VerificationResult {
+  /** every signature verifies and the last one covers the whole file */
   valid: boolean
   signedBy: string | null
   signedAt: string | null
   certFingerprint: string | null
   reason: string | null
   signatureCount: number
+  /** Tier 583: valid, and every signature was made with a certificate of this company or one of its members */
+  trusted: boolean
+  signatures: Array<PdfSignatureCheck & { knownSigner: 'company' | 'user' | null }>
 }
 
 // Tier 235: was previously module-private (`interface` without
@@ -357,259 +362,59 @@ export class SigningService {
   }
 
   /**
-   * Verify a signed PDF. Returns a structured
-   * result so the UI can show "✓ Signiert
-   * von X am Y" or "✗ Signatur ungültig: Z".
+   * Verify a signed PDF. Returns a structured result so the UI can show
+   * "✓ Signatur gültig" or "✗ <what is wrong>".
    *
-   * This is a SHALLOW verification — it checks
-   * that the embedded signature is well-formed
-   * + signed by the embedded cert + covers
-   * the right byte range. It does NOT
-   * establish trust in the cert (which is
-   * self-signed for v1). The user is shown
-   * the cert fingerprint so they can manually
-   * verify "this is the same cert I generated".
+   * Tier 583: `valid` means every signature in the file verifies — the
+   * document's hash is the signed one, the signature matches the embedded
+   * certificate's key — and nothing follows the last one. It does not
+   * establish whose the certificate is (they are self-signed): `trusted`
+   * says whether it is one this company or one of its members signs with.
    */
-  async verifyPdf(pdfBuffer: Buffer): Promise<VerificationResult> {
-    // Lazy-import the extraction helper to
-    // keep the cold-start cost low for callers
-    // that only sign (the common path).
-    let extracted: any
+  async verifyPdf(pdfBuffer: Buffer, companyId?: string): Promise<VerificationResult> {
+    // Tier 583: a real check — the document's hash, the signature against the
+    // certificate's key, and that nothing follows the signed range
+    // (pdf-signature-verify.ts; before, any container with a 32-byte digest
+    // attribute was "valid").
+    let check: ReturnType<typeof checkPdfSignatures>
     try {
-      const { extractSignature } = await import('@signpdf/utils')
-      extracted = extractSignature(pdfBuffer)
+      check = checkPdfSignatures(pdfBuffer)
     } catch (e: any) {
-      // extractSignature throws on unsigned PDFs
-      // (no /ByteRange found) — that's our
-      // "this PDF is not signed" signal.
-      return {
-        valid: false,
-        signedBy: null,
-        signedAt: null,
-        certFingerprint: null,
-        reason: `PDF enthält keine Signatur: ${e.message || 'unbekannt'}`,
-        signatureCount: 0,
-      }
+      check = { valid: false, reason: `Signatur konnte nicht verifiziert werden: ${e?.message ?? e}`, signatures: [] }
     }
-    if (!extracted) {
-      return {
-        valid: false,
-        signedBy: null,
-        signedAt: null,
-        certFingerprint: null,
-        reason: 'PDF enthält keine Signatur',
-        signatureCount: 0,
-      }
+    // Whose certificates are these? The certificates are self-signed, so a
+    // valid signature says "unchanged since signed by the holder of this key"
+    // — not who that is. Known are the keys this installation issued.
+    const known = companyId ? await this.knownFingerprints(companyId) : new Map<string, 'company' | 'user'>()
+    const norm = (f: string | null) => (f || '').replace(/[^0-9A-Fa-f]/g, '').toUpperCase()
+    const signatures = check.signatures.map((sig) => ({ ...sig, knownSigner: known.get(norm(sig.certFingerprint)) ?? null }))
+    const first = signatures[0]
+    return {
+      valid: check.valid,
+      signedBy: first?.signedBy ?? null,
+      signedAt: first?.signedAt ?? null,
+      certFingerprint: first?.certFingerprint ?? null,
+      reason: check.reason,
+      signatureCount: signatures.length,
+      trusted: check.valid && signatures.length > 0 && signatures.every((sig) => sig.knownSigner !== null),
+      signatures,
     }
-    const signatureCount = 1
-    try {
-      // extracted.signature is a binary string
-      // starting with the PKCS#7 SEQUENCE (0x30 0x82).
-      // Strip any leading 0x00 padding.
-      const sigBuf = Buffer.from(extracted.signature, 'binary')
-      let start = 0
-      while (start < sigBuf.length && sigBuf[start] === 0x00) start++
-      if (sigBuf[start] !== 0x30) {
-        return {
-          valid: false,
-          signedBy: null,
-          signedAt: null,
-          certFingerprint: null,
-          reason: 'PKCS#7-Container nicht gefunden',
-          signatureCount,
-        }
-      }
-      const p7Asn1 = forge.asn1.fromDer(
-        sigBuf.slice(start).toString('binary'),
-      )
-      // messageFromAsn1 returns either SignedData
-      // or EnvelopedData. We only handle SignedData
-      // (the case for PDF signatures). Cast
-      // through `as any` because the @types
-      // union is wider than we need.
-      const p7 = forge.pkcs7.messageFromAsn1(p7Asn1) as any
-      // p7.type is the OID string of the content
-      // type. For signedData it's
-      // "1.2.840.113549.1.7.2". We also accept
-      // any of the "raw capture" paths since
-      // node-forge's pkcs7 messageFromAsn1
-      // sometimes leaves type undefined when
-      // the value was captured via raw DER.
-      const isSignedData =
-        p7.type === '1.2.840.113549.1.7.2' ||
-        p7.type === 'signed' ||
-        (p7.certificates && p7.certificates.length > 0)
-      if (!isSignedData || !p7.certificates) {
-        return {
-          valid: false,
-          signedBy: null,
-          signedAt: null,
-          certFingerprint: null,
-          reason: 'PKCS#7 ist kein SignedData-Container',
-          signatureCount,
-        }
-      }
-      const certs: forge.pki.Certificate[] = p7.certificates
-      if (certs.length === 0) {
-        return {
-          valid: false,
-          signedBy: null,
-          signedAt: null,
-          certFingerprint: null,
-          reason: 'Signatur enthält kein Zertifikat',
-          signatureCount,
-        }
-      }
-      const signerCert = certs[0]
-      const subject = signerCert.subject.getField('CN')?.value || null
-      // Compute the SHA-256 fingerprint of the
-      // DER cert — every PDF reader shows this
-      // in the signature panel.
-      const certDer = forge.asn1.toDer(
-        forge.pki.certificateToAsn1(signerCert),
-      ).getBytes()
-      const certDigest = forge.md.sha256.create()
-      certDigest.update(certDer)
-      const fingerprint = (certDigest
-        .digest()
-        .toHex()
-        .match(/.{2}/g) || []
-      ).join(':').toUpperCase()
-      // Structural check: the signedAttrs in
-      // the SignerInfo MUST contain a
-      // messageDigest attribute that matches
-      // the SHA-256 of the PDF's signed byte
-      // range. This is the proof that the
-      // signature was produced over THIS PDF
-      // (and not some other document).
-      const byteRange = extracted.ByteRange
-      const signedBytes = Buffer.concat([
-        pdfBuffer.slice(byteRange[0], byteRange[0] + byteRange[1]),
-        pdfBuffer.slice(byteRange[2], byteRange[2] + byteRange[3]),
-      ])
-      const expectedDigest = forge.md.sha256.create()
-      expectedDigest.update(signedBytes.toString('binary'))
-      const expectedDigestHex = expectedDigest.digest().toHex()
-      // Walk the raw capture to find the
-      // messageDigest attribute. PKCS#7
-      // signedAttrs is IMPLICIT [0] SET OF
-      // Attribute; forge parses it as
-      // tagClass=contextSpecific, type=set,
-      // constructed=true.
-      //
-      // The OIDs inside are DER-encoded (raw
-      // bytes), not the dotted-string form
-      // forge.pki.oids uses. We convert via
-      // forge.asn1.derToOid before comparing.
-      const rc = p7.rawCapture || {}
-      const signerInfos = rc.signerInfos || []
-      let digestFromAttrHex: string | null = null
-      if (signerInfos.length > 0) {
-        const si = signerInfos[0]
-        const siValue = si.value || []
-        for (const v of siValue) {
-          if (
-            v &&
-            v.tagClass === forge.asn1.Class.CONTEXT_SPECIFIC &&
-            v.constructed
-          ) {
-            for (const attr of v.value || []) {
-              if (attr.value && attr.value[0]) {
-                let oidStr: string | null = null
-                try {
-                  oidStr = forge.asn1.derToOid(attr.value[0].value)
-                } catch {
-                  oidStr = null
-                }
-                if (oidStr === forge.pki.oids.messageDigest) {
-                  // value[1] is the SET OF values.
-                  // We expect a single OCTET STRING
-                  // whose raw bytes are the digest.
-                  const valueSet = attr.value[1]?.value || []
-                  for (const v0 of valueSet) {
-                    const digestNode = v0?.value
-                    // forge exposes the value as a
-                    // binary string (latin1). For a
-                    // 32-byte SHA-256 the string is
-                    // 32 chars long.
-                    const len =
-                      Buffer.isBuffer(digestNode)
-                        ? digestNode.length
-                        : typeof digestNode === 'string'
-                          ? digestNode.length
-                          : 0
-                    if (len === 32) {
-                      digestFromAttrHex = Buffer.from(
-                        digestNode as any,
-                        'binary',
-                      ).toString('hex')
-                      break
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-      // The signature is valid (it produced a
-      // parseable PKCS#7 SignedData with a
-      // messageDigest attribute of 32 bytes —
-      // i.e. a SHA-256 digest). The exact match
-      // is a sanity check but the structural
-      // proof is what matters for GoBD.
-      // Tier 356: deliberately unused — see the policy comment below, which
-      // explains why `valid` uses the structural check instead of this
-      // byte-for-byte comparison. Kept so the strict check is one line away
-      // if the "v2" strict verify is ever adopted.
-      const _digestMatches =
-        digestFromAttrHex != null &&
-        digestFromAttrHex.toLowerCase() ===
-          expectedDigestHex.toLowerCase()
-      // If the structural digest match is
-      // correct we declare the signature valid.
-      // If only the attribute is present but
-      // the digest bytes differ (which would
-      // be a node-forge DER re-encoding quirk,
-      // not a real signature break), we still
-      // consider it valid — the user gets the
-      // fingerprint + subject, and Adobe
-      // Reader's own verifier can confirm on
-      // open. This is a defensible policy:
-      // "the PDF has a structurally valid PKCS#7
-      // signedData over the byte range with a
-      // 32-byte SHA-256 digest + signer cert
-      // present". Strict byte-for-byte verify
-      // can be a v2 improvement.
-      const valid =
-        digestFromAttrHex != null && digestFromAttrHex.length === 64
-      // We don't verify the signature against
-      // the cert's public key here — node-forge's
-      // PKCS#7 verify is a stub, and the SHA-256
-      // + signedAttrs match is the canonical
-      // "this PDF is unmodified" proof. Adobe
-      // Reader / Acrobat verify on open; for
-      // our UI we trust the structural check.
-      return {
-        valid,
-        signedBy: subject,
-        signedAt: null, // PKCS#7 signingTime attribute is optional; v1 doesn't extract it
-        certFingerprint: fingerprint,
-        reason: valid
-          ? null
-          : 'Message-Digest Attribut fehlt oder hat unerwartete Länge',
-        signatureCount,
-      }
-    } catch (e: any) {
-      return {
-        valid: false,
-        signedBy: null,
-        signedAt: null,
-        certFingerprint: null,
-        reason: `Signatur konnte nicht verifiziert werden: ${e.message}`,
-        signatureCount,
-      }
+  }
+
+  /** The fingerprints of the certificates this company and its members sign with. */
+  private async knownFingerprints(companyId: string): Promise<Map<string, 'company' | 'user'>> {
+    const norm = (f: string) => f.replace(/[^0-9A-Fa-f]/g, '').toUpperCase()
+    const out = new Map<string, 'company' | 'user'>()
+    const members = await this.prisma.userCompany.findMany({ where: { companyId }, select: { userId: true } })
+    const owners = await this.prisma.user.findMany({ where: { companyId }, select: { id: true } })
+    const userIds = [...new Set([...members.map((m) => m.userId), ...owners.map((u) => u.id)])]
+    if (userIds.length) {
+      const keys = await this.prisma.userSigningKey.findMany({ where: { userId: { in: userIds } }, select: { fingerprint: true } })
+      for (const k of keys) if (k.fingerprint) out.set(norm(k.fingerprint), 'user')
     }
+    const company = await this.prisma.companySigningKey.findUnique({ where: { companyId }, select: { fingerprint: true } })
+    if (company?.fingerprint) out.set(norm(company.fingerprint), 'company')
+    return out
   }
 
   /**

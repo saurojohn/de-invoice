@@ -2609,7 +2609,11 @@
     "signedBy": "Signiert von",
     "beraterNoUser": "Kein Berater ausgewählt",
     "beraterStamp": "Berater-Stempel aufbringen",
-    "beraterStamped": "Berater-Stempel aufgebracht"
+    "beraterStamped": "Berater-Stempel aufgebracht",
+    "verifiedTrusted": "✓ Signatur gültig — das Dokument ist seit dem Signieren unverändert.",
+    "verifiedUnknownCert": "Die Signatur ist rechnerisch gültig, das Zertifikat gehört aber nicht zu dieser Firma. Wer unterschrieben hat, ist damit nicht belegt.",
+    "signerCompany": "Zertifikat dieser Firma",
+    "signerUser": "persönliches Zertifikat eines Mitglieds"
   },
   "cashflow": {
     "title": "Liquiditätsplanung",

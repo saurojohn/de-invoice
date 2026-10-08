@@ -159,12 +159,14 @@ export class SigningController {
 
   @Post('verify')
   @Require('company.update')
-  async verify(@Body() body: VerifyPdfDto) {
+  async verify(@Body() body: VerifyPdfDto, @Req() req: any) {
     if (!body?.pdf) {
       throw new BadRequestException('pdf (base64) ist erforderlich')
     }
     const pdf = Buffer.from(body.pdf, 'base64')
-    return this.signing.verifyPdf(pdf)
+    // Tier 583: with the caller's company, so the answer can say whether the
+    // certificate is one of its own.
+    return this.signing.verifyPdf(pdf, req.user?.companyId)
   }
 
   // ─── Tier 246: per-User signing (Berater personal cert) ───

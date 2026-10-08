@@ -48,6 +48,10 @@ interface VerifyResult {
   certFingerprint: string | null
   reason: string | null
   signatureCount: number
+  // Tier 583: the check is a real one now. `valid` = unchanged since signed;
+  // `trusted` = and signed with a certificate of this company or a member.
+  trusted?: boolean
+  signatures?: Array<{ signedBy: string | null; certFingerprint: string | null; knownSigner: "company" | "user" | null }>
 }
 
 interface PdfSignaturePanelProps {
@@ -377,20 +381,28 @@ export default function PdfSignaturePanel({ invoiceId }: PdfSignaturePanelProps)
           {verify && (
             <div
               className={`text-sm p-3 rounded ${
-                verify.valid
-                  ? "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300"
-                  : "bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"
+                !verify.valid
+                  ? "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300"
+                  : verify.trusted === false
+                    ? "bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"
+                    : "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300"
               }`}
               data-testid="pdf-signature-verify-result"
+              data-valid={verify.valid ? "1" : "0"}
+              data-trusted={verify.trusted === false ? "0" : "1"}
             >
-              {verify.valid
-                ? `✓ ${t("signing.verified") || "Signatur gültig"}`
-                : `⚠ ${verify.reason || t("signing.notSigned") || "Keine Signatur"}`}
-              {verify.signedBy && (
-                <div className="text-xs mt-1 text-gray-600 dark:text-gray-400">
-                  {verify.signedBy}
+              {!verify.valid
+                ? `✗ ${verify.reason || t("signing.notSigned") || "Keine Signatur"}`
+                : verify.trusted === false
+                  ? `⚠ ${t("signing.verifiedUnknownCert")}`
+                  : t("signing.verifiedTrusted")}
+              {(verify.signatures?.length ? verify.signatures : verify.signedBy ? [{ signedBy: verify.signedBy, certFingerprint: verify.certFingerprint, knownSigner: null }] : []).map((sig, i) => (
+                <div key={i} className="text-xs mt-1 text-gray-600 dark:text-gray-400" data-testid="pdf-signature-signer">
+                  {sig.signedBy || "—"}
+                  {sig.knownSigner === "company" ? ` · ${t("signing.signerCompany")}` : sig.knownSigner === "user" ? ` · ${t("signing.signerUser")}` : ""}
+                  {sig.certFingerprint ? <span className="ml-1 font-mono break-all">{sig.certFingerprint.slice(0, 23)}…</span> : null}
                 </div>
-              )}
+              ))}
             </div>
           )}
           {/* Tier 165: signed-PDF status from the

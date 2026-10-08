@@ -2609,7 +2609,11 @@
     "signedBy": "Signed by",
     "beraterNoUser": "No Berater selected",
     "beraterStamp": "Apply Berater stamp",
-    "beraterStamped": "Berater stamp applied"
+    "beraterStamped": "Berater stamp applied",
+    "verifiedTrusted": "✓ Signature valid — the document is unchanged since it was signed.",
+    "verifiedUnknownCert": "The signature verifies, but the certificate is not one of this company's. It does not show who signed.",
+    "signerCompany": "this company's certificate",
+    "signerUser": "a member's personal certificate"
   },
   "cashflow": {
     "title": "Cash flow forecast",
