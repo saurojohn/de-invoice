@@ -86,6 +86,13 @@ invoice.shleder.de, www.invoice.shleder.de {
                 # /api/v1/accounting/journal/pdf can take 5-10 s for a full
                 # year; give the backend a minute to start answering.
                 response_header_timeout 60s
+                # Tier 584: let go of an idle connection BEFORE the backend
+                # does (it keeps them 65 s — main.ts). Caddy's default is
+                # 2 minutes: between second 65 and 120 it would send a request
+                # down a connection the backend is closing — a 502 for a POST
+                # (GETs are retried). The pairing was only ever checked
+                # against the nginx file this replaced. e2e/194 holds it.
+                keepalive 30s
             }
         }
     }
@@ -96,6 +103,12 @@ invoice.shleder.de, www.invoice.shleder.de {
         header @static Cache-Control "public, max-age=31536000, immutable"
         reverse_proxy frontend:3000 {
             header_up X-Real-IP {remote_host}
+            transport http {
+                # as for the backend: shorter than the frontend's own
+                # keep-alive (KEEP_ALIVE_TIMEOUT in docker-compose.yml, 65 s;
+                # Node's default would be 5 s)
+                keepalive 30s
+            }
         }
     }
 

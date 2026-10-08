@@ -8,10 +8,16 @@
 # closed 6004 ms after its response), while a client that pools sockets can
 # reuse one at the moment the server closes it.
 #
-# In production that client is nginx — `keepalive 32` with the default 60 s
-# keepalive_timeout (infra/prod/nginx.conf) — and the symptom is an
-# intermittent 502 "upstream prematurely closed connection" for a real user.
-# The backend now keeps idle sockets for 65 s, and headersTimeout above that.
+# In production that client is the proxy, and the symptom is an intermittent
+# 502 for a real user. The backend keeps idle sockets for 65 s, and
+# headersTimeout above that.
+#
+# Tier 584: the proxy is Caddy. This spec compared the 65 s with the nginx
+# file Caddy had replaced; Caddy's own default for idle upstream connections
+# is 2 MINUTES — longer than the backend's 65 s, i.e. the race was back for
+# every request Caddy cannot retry (a POST). Both Caddyfiles now say
+# `keepalive 30s` for both upstreams, and the frontend keeps its sockets 65 s
+# too (KEEP_ALIVE_TIMEOUT; Node's default is 5 s).
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/_lib.sh"
@@ -27,21 +33,42 @@ note "probe: $PROBE"
 [[ "$PROBE" == still-open-after-ms=* ]] && pass "the socket is still open after 10 s (was closed at ~6 s)" \
   || fail "the server closed the idle socket: $PROBE"
 
-note "=== 2. the pairing with nginx is explicit and in the right order ==="
+note "=== 2. the pairing with the proxy is explicit and in the right order ==="
 MAIN="$BACKEND_DIR/src/main.ts"
-NGINX="$BACKEND_DIR/../infra/prod/nginx.conf"
+PROD="$BACKEND_DIR/../infra/prod"
 BACKEND_MS=$(grep -oE "HTTP_KEEPALIVE_TIMEOUT_MS\) \|\| [0-9_]+" "$MAIN" | grep -oE "[0-9_]+$" | tr -d _)
 [[ -n "$BACKEND_MS" ]] && pass "backend keepAliveTimeout default: ${BACKEND_MS} ms" || fail "no keepAliveTimeout default in main.ts"
 grep -q "server.headersTimeout = keepAliveMs + " "$MAIN" \
   && pass "headersTimeout is set above keepAliveTimeout" || fail "headersTimeout not derived from keepAliveTimeout"
-# Only the backend upstream matters here; read its block.
-NGINX_S=$(awk '/upstream de_invoice_backend/,/}/' "$NGINX" | grep -oE "keepalive_timeout +[0-9]+s" | grep -oE "[0-9]+")
-[[ -n "$NGINX_S" ]] && pass "nginx backend upstream keepalive_timeout: ${NGINX_S} s" \
-  || fail "nginx backend upstream has no explicit keepalive_timeout"
-if [[ -n "$BACKEND_MS" && -n "$NGINX_S" ]] && (( BACKEND_MS > NGINX_S * 1000 )); then
-  pass "the backend outlasts nginx (${BACKEND_MS} ms > ${NGINX_S} s)"
-else
-  fail "the backend must keep sockets longer than nginx (${BACKEND_MS:-?} ms vs ${NGINX_S:-?} s)"
-fi
+FRONTEND_MS=$(grep -oE 'KEEP_ALIVE_TIMEOUT: "[0-9]+"' "$PROD/docker-compose.yml" | grep -oE "[0-9]+")
+[[ -n "$FRONTEND_MS" ]] && pass "frontend KEEP_ALIVE_TIMEOUT in the compose file: ${FRONTEND_MS} ms (Node's default is 5000)" \
+  || fail "the compose file sets no KEEP_ALIVE_TIMEOUT for the frontend"
+# the idle time Caddy keeps a connection to an upstream, in seconds ("-" when
+# the Caddyfile does not say — then it is Caddy's default, 2 minutes)
+caddy_keepalive() { # file upstream
+  python3 - "$1" "$2" <<'PY'
+import re, sys
+text = re.sub(r"#[^\n]*", "", open(sys.argv[1]).read())
+out = []
+for m in re.finditer(r"reverse_proxy\s+" + re.escape(sys.argv[2]) + r"\s*\{", text):
+    depth, i = 1, m.end()
+    while depth and i < len(text):
+        depth += {"{": 1, "}": -1}.get(text[i], 0); i += 1
+    k = re.search(r"\bkeepalive\s+(\d+)s\b", text[m.end():i])
+    out.append(k.group(1) if k else "-")
+print(" ".join(out) if out else "none")
+PY
+}
+for f in Caddyfile Caddyfile.staging; do
+  for pair in "backend:3001 ${BACKEND_MS:-0}" "frontend:3000 ${FRONTEND_MS:-0}"; do
+    UP=${pair% *}; SERVER_MS=${pair#* }
+    K=$(caddy_keepalive "$PROD/$f" "$UP")
+    if [[ "$K" =~ ^[0-9]+$ ]] && (( K * 1000 < SERVER_MS )); then
+      pass "$f: Caddy lets go of an idle connection to $UP after ${K} s — before the server does (${SERVER_MS} ms)"
+    else
+      fail "$f: $UP — Caddy's idle keep-alive is '${K}' (unset = 2 minutes), the server's ${SERVER_MS} ms; the proxy must let go first"
+    fi
+  done
+done
 
 summary; exit $?

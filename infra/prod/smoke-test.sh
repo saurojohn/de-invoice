@@ -205,7 +205,7 @@ fi
 # actually in the deployed image. If any check
 # fails, the deploy image is from before the
 # fixes — operator should `deploy.sh --rollback`
-# and investigate. See DEPLOY-READY-SUMMARY.md
+# and investigate. (History: docs/history/DEPLOY-READY-SUMMARY.md)
 # for the full rationale.
 
 # 14. Portal 401 auto-logout hijack fix
