@@ -8,7 +8,7 @@ import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
-import { ApiError, apiPut } from "@/lib/api"
+import { ApiError, apiPost, apiPut } from "@/lib/api"
 
 export interface EditableExpense {
   id: string
@@ -23,7 +23,16 @@ export interface EditableExpense {
   paidAt?: string | null
   // Tier 581: the VAT lines of an invoice with several rates (empty otherwise)
   taxLines?: Array<{ vatRate: string | number; netAmount: string | number; vatAmount: string | number }>
+  isReverseCharge?: boolean
+  isIntraEU?: boolean
 }
+
+/** Tier 605: what "new expense" starts from. */
+export const BLANK_EXPENSE: EditableExpense = {
+  id: "", invoiceNumber: "", description: "", invoiceDate: new Date().toISOString().slice(0, 10),
+  netAmount: "", vatRate: "0.19", category: "", supplier: null,
+}
+type Treatment = "normal" | "rc" | "ige"
 
 type LineForm = { vatRate: string; netAmount: string; vatAmount: string }
 const RATES = ["0.19", "0.07", "0"]
@@ -34,10 +43,13 @@ export function ExpenseEditForm({
   expense,
   suppliers,
   onSaved,
+  create = false,
 }: {
   expense: EditableExpense
   suppliers: Array<{ id: string; name: string }>
   onSaved: () => void
+  /** Tier 605: a new expense (POST) instead of a correction (PUT) */
+  create?: boolean
 }) {
   const { t } = useI18n()
   const toast = useToast()
@@ -47,7 +59,7 @@ export function ExpenseEditForm({
     supplierId: expense.supplier?.id || "",
     description: expense.description || "",
     category: expense.category || "",
-    netAmount: String(Math.abs(Number(expense.netAmount))),
+    netAmount: expense.netAmount === "" ? "" : String(Math.abs(Number(expense.netAmount))),
     vatRate: String(Number(expense.vatRate)),
     paidAt: expense.paidAt ? String(expense.paidAt).slice(0, 10) : "",
   })
@@ -63,10 +75,15 @@ export function ExpenseEditForm({
   const [form, setForm] = useState(initial)
   const [lines, setLines] = useState<LineForm[]>(initialLines)
   const [saving, setSaving] = useState(false)
+  // Tier 605: § 13b / intra-community acquisition. The invoice shows no VAT;
+  // the UStVA computes it. Until now this could only be set on the UStVA page.
+  const initialTreatment = (): Treatment => (expense.isReverseCharge ? "rc" : expense.isIntraEU ? "ige" : "normal")
+  const [treatment, setTreatment] = useState<Treatment>(initialTreatment)
   // A different row opened in the same modal starts from its own values.
   useEffect(() => {
     setForm(initial())
     setLines(initialLines())
+    setTreatment(initialTreatment())
   }, [expense.id]) // eslint-disable-line react-hooks/exhaustive-deps
   const hadLines = (expense.taxLines ?? []).length > 1
   const setLine = (i: number, patch: Partial<LineForm>) =>
@@ -123,13 +140,19 @@ export function ExpenseEditForm({
     if (!companyId) return
     setSaving(true)
     try {
-      await apiPut(`/api/v1/expenses/${expense.id}?companyId=${companyId}`, {
+      const noVat = treatment !== "normal"
+      const net = parseFloat(form.netAmount || "0")
+      const rate = parseFloat(form.vatRate)
+      const vat = Math.round(net * rate * 100) / 100
+      const body = {
         invoiceDate: form.invoiceDate,
         invoiceNumber: form.invoiceNumber,
         supplierId: form.supplierId,
         description: form.description,
         category: form.category,
-        ...(lines.length > 1
+        isReverseCharge: treatment === "rc",
+        isIntraEU: treatment === "ige",
+        ...(lines.length > 1 && !noVat
           ? {
               taxLines: lines.map((l) => ({
                 vatRate: parseFloat(l.vatRate),
@@ -140,13 +163,30 @@ export function ExpenseEditForm({
           : {
               // [] takes the lines of a multi-rate expense away again
               ...(hadLines ? { taxLines: [] } : {}),
-              netAmount: parseFloat(form.netAmount || "0"),
-              vatRate: parseFloat(form.vatRate),
+              netAmount: net,
+              // § 13b / ig. Erwerb: the invoice carries no VAT
+              ...(noVat
+                ? { vatRate: 0.19, vatAmount: 0, grossAmount: net }
+                : create
+                  ? { vatRate: rate, vatAmount: vat, grossAmount: Math.round((net + vat) * 100) / 100 }
+                  : { vatRate: rate }),
             }),
         // Tier 454: paid by card / privately — the EÜR counts it on this day
         paidAt: form.paidAt || null,
-      })
-      toast.success(t("expenses.editSaved"))
+      }
+      if (create) {
+        const { supplierId, invoiceNumber, category, paidAt, ...rest } = body
+        await apiPost(`/api/v1/expenses?companyId=${companyId}`, {
+          ...rest,
+          ...(supplierId ? { supplierId } : {}),
+          ...(invoiceNumber ? { invoiceNumber } : {}),
+          ...(category ? { category } : {}),
+          ...(paidAt ? { paidAt } : {}),
+        })
+      } else {
+        await apiPut(`/api/v1/expenses/${expense.id}?companyId=${companyId}`, body)
+      }
+      toast.success(t(create ? "expenses.createSaved" : "expenses.editSaved"))
       onSaved()
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Fehler beim Speichern")
@@ -158,8 +198,8 @@ export function ExpenseEditForm({
   const input = "w-full px-2 py-1.5 border rounded text-sm dark:bg-gray-900"
   const label = "block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1"
   return (
-    <div className="mb-4 rounded border p-3" data-testid="expense-edit">
-      <div className="mb-2 text-sm font-medium">{t("expenses.editTitle")}</div>
+    <div className="mb-4 rounded border p-3" data-testid={create ? "expense-create" : "expense-edit"}>
+      <div className="mb-2 text-sm font-medium">{t(create ? "expenses.createTitle" : "expenses.editTitle")}</div>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         <div>
           <label className={label}>{t("expenses.invoiceDate")}</label>
@@ -191,7 +231,27 @@ export function ExpenseEditForm({
           <input className={input} value={form.category}
             onChange={(e) => setForm({ ...form, category: e.target.value })} />
         </div>
-        {lines.length > 1 ? (
+        <div className="md:col-span-3">
+          <label className={label} htmlFor="expense-treatment">{t("expenses.treatment")}</label>
+          <select id="expense-treatment" className={input} value={treatment} data-testid="expense-edit-treatment"
+            onChange={(e) => {
+              const v = e.target.value as Treatment
+              setTreatment(v)
+              // lines carry VAT — a § 13b / ig. invoice has none
+              if (v !== "normal" && lines.length > 1) {
+                setForm((f) => ({ ...f, netAmount: (lineTotals.net / 100).toFixed(2) }))
+                setLines([])
+              }
+            }}>
+            <option value="normal">{t("expenses.treatmentNormal")}</option>
+            <option value="rc">{t("expenses.treatmentRc")}</option>
+            <option value="ige">{t("expenses.treatmentIge")}</option>
+          </select>
+          {treatment !== "normal" && (
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("expenses.treatmentHint")}</p>
+          )}
+        </div>
+        {lines.length > 1 && treatment === "normal" ? (
           <div className="md:col-span-3" data-testid="expense-edit-tax-lines">
             <label className={label}>{t("expenses.taxLines")}</label>
             <div className="space-y-2">
@@ -234,7 +294,7 @@ export function ExpenseEditForm({
                 data-testid="expense-edit-net"
                 onChange={(e) => setForm({ ...form, netAmount: e.target.value })} />
             </div>
-            <div>
+            <div className={treatment === "normal" ? "" : "hidden"}>
               <label className={label}>{t("expenses.editVatRate")}</label>
               <select className={input} value={form.vatRate}
                 onChange={(e) => setForm({ ...form, vatRate: e.target.value })}>
@@ -255,7 +315,7 @@ export function ExpenseEditForm({
             onChange={(e) => setForm({ ...form, paidAt: e.target.value })} />
         </div>
         <div className="flex items-end justify-end md:col-span-3">
-          <Button size="sm" onClick={save} disabled={saving || !form.description || duplicateRate} data-testid="expense-edit-save">
+          <Button size="sm" onClick={save} disabled={saving || !form.description || duplicateRate || (create && !(parseFloat(form.netAmount) > 0) && lines.length < 2)} data-testid="expense-edit-save">
             ✓ {saving ? "…" : t("expenses.editSave")}
           </Button>
         </div>

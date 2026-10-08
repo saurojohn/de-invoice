@@ -10,7 +10,7 @@ import { useI18n } from "@/components/useI18n"
 import { apiGet, apiFetch, apiPost } from "@/lib/api"
 import { ReceiptsPanel } from "@/components/ReceiptsPanel"
 import { EInvoiceDialog } from "@/components/EInvoiceDialog"
-import { ExpenseEditForm } from "@/components/ExpenseEditForm"
+import { BLANK_EXPENSE, ExpenseEditForm } from "@/components/ExpenseEditForm"
 
 // Expense = Eingangsrechnung (vendor bill). The list
 // page is the Berater's overview of all incoming
@@ -76,6 +76,9 @@ export default function ExpensesPage() {
   // Detail modal — which expense's receipts we're
   // looking at, if any. Null = modal closed.
   const [detailExpense, setDetailExpense] = useState<Expense | null>(null)
+  // Tier 605: a supplier invoice entered by hand. The page could scan, read an
+  // e-invoice and import a CSV — but not simply take one down.
+  const [creating, setCreating] = useState(false)
   // Tier 573: an incoming e-invoice — a file being imported, or the one kept
   // with an expense being looked at.
   const [eInvoice, setEInvoice] = useState<
@@ -331,6 +334,14 @@ export default function ExpensesPage() {
                 wraps the visible button so a click
                 anywhere on the button opens the
                 system file picker. */}
+            <button
+              type="button"
+              onClick={() => setCreating(true)}
+              className="px-3 py-1 text-sm border rounded bg-blue-600 text-white hover:bg-blue-700"
+              data-testid="expense-create-button"
+            >
+              {t("expenses.newExpense")}
+            </button>
             <button
               onClick={() => {
                 const inp = document.getElementById(
@@ -752,6 +763,28 @@ export default function ExpensesPage() {
           selected expense. onChange refreshes the
           receiptCounts cache so the badge stays
           in sync after upload / delete. */}
+      {creating && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" data-testid="expense-create-modal">
+          <Card className="w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+            <CardContent className="pt-6">
+              <ExpenseEditForm
+                create
+                expense={BLANK_EXPENSE}
+                suppliers={suppliers}
+                onSaved={() => {
+                  setCreating(false)
+                  load()
+                }}
+              />
+              <div className="flex justify-end">
+                <Button variant="outline" size="sm" onClick={() => setCreating(false)} data-testid="expense-create-cancel">
+                  {t("common.cancel")}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
       {detailExpense && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
           <Card className="w-full max-w-3xl max-h-[90vh] overflow-y-auto">
