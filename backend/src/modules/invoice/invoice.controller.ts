@@ -383,8 +383,12 @@ export class InvoiceController {
       // already (one PDF per invoice), so an extra
       // one Prisma query for the manifest is
       // negligible.
+      // Tier 592: this company's invoices only. Without the company the
+      // manifest listed number, date, total and customer of ANY invoice whose
+      // id was sent — the PDFs were refused (findOne is scoped), the list of
+      // what was asked for was not.
       const meta = await this.prisma.invoice.findMany({
-        where: { id: { in: ids } },
+        where: { id: { in: ids }, companyId },
         select: {
           id: true,
           invoiceNumber: true,

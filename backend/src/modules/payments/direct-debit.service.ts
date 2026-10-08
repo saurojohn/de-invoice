@@ -433,7 +433,7 @@ export class DirectDebitService {
       })
     }
     await this.prisma.invoice.updateMany({
-      where: { id: { in: invoiceIds } },
+      where: { id: { in: invoiceIds }, companyId },
       data: { collectedBySepaBatchId: batch.id },
     })
 

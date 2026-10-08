@@ -777,7 +777,7 @@ export class AssetsService {
     // Delete the rows. The audit log
     // captures the evidence.
     const { count } = await this.prisma.expense.deleteMany({
-      where: { id: { in: ids } },
+      where: { id: { in: ids }, companyId },
     })
 
     // Write the audit log entry. The
