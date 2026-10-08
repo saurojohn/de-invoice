@@ -2639,6 +2639,16 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 593 — a not-found is not an error event; an unknown bank code is a 400
+
+The two small things seen in the cross-company test (Tier 592), asked for by the owner on 08.10.2026 („好，把那两个小问题也修了“).
+
+**1. A 404 was stored as an "unhandled" error.** Prisma's P2025 has been answered 404 since Tier 378; the filter's rule for *storing* was still `!isHttp || status >= 500` — and a P2025 is not an HttpException. Every PUT / DELETE with an id that is not the caller's (`/webhooks/:id` is the plain case: its update is scoped `where: { id, companyId }`) left an ErrorEvent with the Prisma stack trace (without a company — so on the operator's error page, and counted towards the operator's notifications), an `errorevent.created` row in the caller's audit log, and a line at ERROR level in the server log: 28 such events in the test database. Now such a request is stored nowhere and logged as a warning; everything else that is not an HttpException is stored as before.
+
+**2. `POST /fints/connections` with a bank code the server has no address for** threw a plain `Error` — 500 „Internal server error“, an error event, a notification to the operator. It is a 400 with the sentence that was meant for the user („Keine FinTS-URL für BLZ … bekannt. Bitte die FinTS-Adresse der Bank manuell eingeben.“). **A correction to Tier 592's note:** the 500 seen there was this, not a missing `FINTS_PIN_ENC_KEY` — the missing key has had its own clear 400 since Tier 568.
+
+**Spec** `356-tier593-nicht-gefunden-ist-kein-fehlerereignis.sh` (9 assertions).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 592 — the cross-company test, redone: every route with another company's ids, and ids in request bodies; the bulk download named another company's invoices
 
 Asked for by the owner on 08.10.2026 („好，做跨公司越权复测“), after the page walk had run into the activity-log leak (Tier 589) that the earlier sweeps had missed — they only tried GET routes *with* a path parameter.
@@ -2656,8 +2666,8 @@ Asked for by the owner on 08.10.2026 („好，做跨公司越权复测“), aft
 **Spec** `355-tier592-fremde-ids-im-request-body.sh` (30 assertions): the manifest, 22 body cases that must be 4xx, bulk reminders telling nothing, A unchanged, no row of B pointing at A.
 
 **Seen on the way, not changed:**
-- A PUT / DELETE on `/webhooks/:id` with a foreign id is answered 404 — and recorded as an **"unhandled" error event** with a stack trace (Prisma P2025), visible on the company's own error page. Not a leak; noise, and a stack trace a customer does not need.
-- `POST /fints/connections` answers **500 „Internal server error“** when `FINTS_PIN_ENC_KEY` is not set (the test backend; a production server without the key would do the same) — it should say that FinTS is not set up on this server.
+- (fixed in Tier 593) A PUT / DELETE on `/webhooks/:id` with a foreign id is answered 404 — and recorded as an **"unhandled" error event** with a stack trace (Prisma P2025), visible on the company's own error page. Not a leak; noise, and a stack trace a customer does not need.
+- ~~`POST /fints/connections` answers 500~~ — fixed in Tier 593 (and the cause was an unknown bank code, not a missing key).
 - `POST /berater/notes` is for the role `berater` only — an admin cannot write one.
 **Not covered:** roles *inside* one company (what a viewer or accountant may do), one customer reading another's documents through the customer portal (its own session mechanism; spec 148), the operator routes, FinTS connections and payment batches (no fixture), files addressed by storage key.
 

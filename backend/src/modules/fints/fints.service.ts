@@ -194,8 +194,10 @@ export class FinTsService {
     const endpointUrl =
       input.endpointUrl || this.resolveEndpoint(input.blz)
     if (!endpointUrl) {
-      throw new Error(
-        `Keine FinTS-URL für BLZ ${input.blz} bekannt. Bitte manuell eingeben.`,
+      // Tier 593: a wrong or unlisted bank code is the caller's input — this
+      // was a plain Error, i.e. 500 „Internal server error“ and an error event.
+      throw new BadRequestException(
+        `Keine FinTS-URL für BLZ ${input.blz} bekannt. Bitte die FinTS-Adresse der Bank manuell eingeben.`,
       )
     }
     // Hash the PIN before persisting. Used in

@@ -84,7 +84,11 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     // Only persist 5xx and unknown errors — 4xx is
     // expected (validation, not found, etc.) and
     // would flood the dashboard.
-    if (!isHttp || status >= 500) {
+    // Tier 593: a P2025 is a 404 (Tier 378) — and was still stored here as an
+    // "unhandled" error with its stack trace, because it is not an
+    // HttpException. A PUT / DELETE with another company's id put such an
+    // event on the caller's own error page each time.
+    if ((!isHttp && !isPrismaNotFound) || status >= 500) {
       try {
         await this.tracker.capture({
           source: "backend",
@@ -110,7 +114,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       }
     }
 
-    if (isHttp) {
+    if (isHttp || isPrismaNotFound) {
       this.logger.warn(
         `[${req.method} ${req.originalUrl}] ${status} ${publicMessage}`,
       )
