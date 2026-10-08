@@ -70,6 +70,8 @@ interface CustomerReport {
 }
 
 export default function ReportsPage() {
+  // Tier 601: the page was German in every language — 116 texts without a key.
+  const { t, getDateLocale } = useI18n()
   const router = useRouter()
   const toast = useToast()
   const [activeTab, setActiveTab] = useState<TabType>("sales")
@@ -153,7 +155,7 @@ export default function ReportsPage() {
   const formatMonth = (monthStr: string) => {
     const [year, month] = monthStr.split("-")
     const date = new Date(parseInt(year), parseInt(month) - 1)
-    return date.toLocaleDateString("de-DE", { month: "long", year: "numeric" })
+    return date.toLocaleDateString(getDateLocale(), { month: "long", year: "numeric" })
   }
 
   const exportToCSV = (data: any[], filename: string, headers: string[]) => {
@@ -247,7 +249,7 @@ export default function ReportsPage() {
     const originalLabel = btn?.textContent || ""
     if (btn) {
       btn.disabled = true
-      btn.textContent = "Wird vorbereitet…"
+      btn.textContent = t("reports.preparing")
     }
     try {
       const year = new Date().getFullYear()
@@ -319,25 +321,25 @@ export default function ReportsPage() {
         {/* Tier 125: responsive header — flex-wrap so
             the 2 buttons + h1 don't clip on mobile. */}
         <div className="container mx-auto px-3 sm:px-4 py-3 sm:py-4 flex flex-wrap items-center justify-between gap-2">
-          <h1 className="text-xl sm:text-2xl font-bold text-blue-600 dark:text-blue-400">Berichtscenter</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-blue-600 dark:text-blue-400">{t("reports.title")}</h1>
           <div className="flex flex-wrap gap-2 items-center">
             <Button size="sm" variant="outline" onClick={() => router.push("/dashboard/reports/aging")}>
-              Altersstruktur
+              {t("reports.aging")}
             </Button>
             <Button variant="outline" onClick={exportDatev}>
-              DATEV Export
+              {t("reports.datevExportBtn")}
             </Button>
             <Button
               id="datev-bundle-btn"
               variant="default"
               onClick={exportDatevBundle}
-              title="CSV + alle Beleg-PDFs als ZIP herunterladen"
+              title={t("reports.csvWithDocsTitle")}
             >
-              DATEV-Paket (CSV + PDFs)
+              {t("reports.datevBundle")}
             </Button>
             <LanguageSwitcher />
             <Button variant="outline" onClick={() => router.push("/dashboard")}>
-              Zurück
+              {t("reports.back")}
             </Button>
           </div>
         </div>
@@ -359,7 +361,7 @@ export default function ReportsPage() {
             }`}
             onClick={() => setActiveTab("sales")}
           >
-            Umsatzbericht
+            {t("reports.tabRevenue")}
           </button>
           <button
             className={`px-6 py-3 font-medium border-b-2 transition-colors ${
@@ -369,7 +371,7 @@ export default function ReportsPage() {
             }`}
             onClick={() => setActiveTab("vat")}
           >
-            MwSt-Bericht
+            {t("reports.tabVat")}
           </button>
           <button
             className={`px-6 py-3 font-medium border-b-2 transition-colors ${
@@ -379,7 +381,7 @@ export default function ReportsPage() {
             }`}
             onClick={() => setActiveTab("customers")}
           >
-            Kundenbericht
+            {t("reports.tabCustomers")}
           </button>
           <button
             className={`px-6 py-3 font-medium border-b-2 transition-colors ${
@@ -390,7 +392,7 @@ export default function ReportsPage() {
             onClick={() => setActiveTab("datev")}
             data-testid="tab-datev"
           >
-            DATEV-Export
+            {t("reports.tabDatev")}
           </button>
           <button
             className={`px-6 py-3 font-medium border-b-2 transition-colors ${
@@ -412,7 +414,7 @@ export default function ReportsPage() {
             onClick={() => setActiveTab("oss")}
             data-testid="tab-oss"
           >
-            EU OSS
+            {t("reports.tabOss")}
           </button>
           <button
             className={`px-6 py-3 font-medium border-b-2 transition-colors ${
@@ -423,7 +425,7 @@ export default function ReportsPage() {
             onClick={() => setActiveTab("bwa")}
             data-testid="tab-bwa"
           >
-            BWA
+            {t("reports.tabBwa")}
           </button>
         </div>
 
@@ -434,7 +436,7 @@ export default function ReportsPage() {
               <div className="flex flex-wrap gap-4 items-end">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
-                    Von Datum
+                    {t("reports.fromDate")}
                   </label>
                   <input
                     type="date"
@@ -445,7 +447,7 @@ export default function ReportsPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
-                    Bis Datum
+                    {t("reports.toDate")}
                   </label>
                   <input
                     type="date"
@@ -465,7 +467,7 @@ export default function ReportsPage() {
               <div className="flex flex-wrap gap-4 items-end">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
-                    Jahr
+                    {t("reports.year")}
                   </label>
                   <input
                     type="number"
@@ -478,30 +480,30 @@ export default function ReportsPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
-                    Zeitraum
+                    {t("reports.period")}
                   </label>
                   <select
                     value={vatPeriod}
                     onChange={(e) => setVatPeriod(e.target.value as any)}
                     className="px-3 py-2 border border-gray dark:border-gray-700-300 dark:border-gray-600 rounded-md"
                   >
-                    <option value="year">Gesamtjahr</option>
-                    <option value="q1">Q1 (Jan-Mär)</option>
-                    <option value="q2">Q2 (Apr-Jun)</option>
-                    <option value="q3">Q3 (Jul-Sep)</option>
-                    <option value="q4">Q4 (Okt-Dez)</option>
-                    <option value="m1">Januar</option>
-                    <option value="m2">Februar</option>
-                    <option value="m3">März</option>
-                    <option value="m4">April</option>
-                    <option value="m5">Mai</option>
-                    <option value="m6">Juni</option>
-                    <option value="m7">Juli</option>
-                    <option value="m8">August</option>
-                    <option value="m9">September</option>
-                    <option value="m10">Oktober</option>
-                    <option value="m11">November</option>
-                    <option value="m12">Dezember</option>
+                    <option value="year">{t("reports.fullYear")}</option>
+                    <option value="q1">{t("reports.q1")}</option>
+                    <option value="q2">{t("reports.q2")}</option>
+                    <option value="q3">{t("reports.q3")}</option>
+                    <option value="q4">{t("reports.q4")}</option>
+                    <option value="m1">{t("reports.m1")}</option>
+                    <option value="m2">{t("reports.m2")}</option>
+                    <option value="m3">{t("reports.m3")}</option>
+                    <option value="m4">{t("reports.m4")}</option>
+                    <option value="m5">{t("reports.m5")}</option>
+                    <option value="m6">{t("reports.m6")}</option>
+                    <option value="m7">{t("reports.m7")}</option>
+                    <option value="m8">{t("reports.m8")}</option>
+                    <option value="m9">{t("reports.m9")}</option>
+                    <option value="m10">{t("reports.m10")}</option>
+                    <option value="m11">{t("reports.m11")}</option>
+                    <option value="m12">{t("reports.m12")}</option>
                   </select>
                 </div>
               </div>
@@ -511,7 +513,7 @@ export default function ReportsPage() {
 
         {loading ? (
           <div className="text-center py-12">
-            <div className="text-gray-500 dark:text-gray-400">Berichte werden geladen...</div>
+            <div className="text-gray-500 dark:text-gray-400">{t("reports.loading")}</div>
           </div>
         ) : (
           <>
@@ -525,7 +527,7 @@ export default function ReportsPage() {
                       <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">
                         {formatCurrency(salesReport.totalSales)}
                       </div>
-                      <div className="text-gray-500 dark:text-gray-400 mt-1">Gesamtumsatz</div>
+                      <div className="text-gray-500 dark:text-gray-400 mt-1">{t("reports.totalRevenue")}</div>
                     </CardContent>
                   </Card>
                   <Card>
@@ -533,7 +535,7 @@ export default function ReportsPage() {
                       <div className="text-3xl font-bold text-green-600 dark:text-green-400">
                         {formatCurrency(salesReport.totalVat)}
                       </div>
-                      <div className="text-gray-500 dark:text-gray-400 mt-1">Gesamt MwSt.</div>
+                      <div className="text-gray-500 dark:text-gray-400 mt-1">{t("reports.totalVat")}</div>
                     </CardContent>
                   </Card>
                 </div>
@@ -542,9 +544,9 @@ export default function ReportsPage() {
                 <Card>
                   <CardHeader>
                     <div className="flex justify-between items-center">
-                      <CardTitle>Umsatz nach Monat</CardTitle>
+                      <CardTitle>{t("reports.revenueByMonth")}</CardTitle>
                       <Button size="sm" variant="outline" onClick={getSalesByMonthCSV}>
-                        CSV Export
+                        {t("reports.csvExport")}
                       </Button>
                     </div>
                   </CardHeader>
@@ -553,9 +555,9 @@ export default function ReportsPage() {
                       <table className="w-full min-w-[640px]">
                         <thead className="bg-gray-50 dark:bg-gray-900 border-b">
                           <tr>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300">Monat</th>
-                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">Anzahl Rechnungen</th>
-                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">Gesamtbetrag</th>
+                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300">{t("reports.month")}</th>
+                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">{t("reports.invoiceCount")}</th>
+                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">{t("reports.totalAmount")}</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y">
@@ -569,7 +571,7 @@ export default function ReportsPage() {
                           {(salesReport.byMonth || []).length === 0 && (
                             <tr>
                               <td colSpan={3} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
-                                Keine Daten für diesen Zeitraum
+                                {t("reports.noData")}
                               </td>
                             </tr>
                           )}
@@ -583,9 +585,9 @@ export default function ReportsPage() {
                 <Card>
                   <CardHeader>
                     <div className="flex justify-between items-center">
-                      <CardTitle>Umsatz nach Kunde</CardTitle>
+                      <CardTitle>{t("reports.revenueByCustomer")}</CardTitle>
                       <Button size="sm" variant="outline" onClick={getSalesByCustomerCSV}>
-                        CSV Export
+                        {t("reports.csvExport")}
                       </Button>
                     </div>
                   </CardHeader>
@@ -594,9 +596,9 @@ export default function ReportsPage() {
                       <table className="w-full min-w-[640px]">
                         <thead className="bg-gray-50 dark:bg-gray-900 border-b">
                           <tr>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300">Kunde</th>
-                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">Anzahl Rechnungen</th>
-                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">Gesamtbetrag</th>
+                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300">{t("reports.customer")}</th>
+                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">{t("reports.invoiceCount")}</th>
+                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">{t("reports.totalAmount")}</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y">
@@ -610,7 +612,7 @@ export default function ReportsPage() {
                           {(salesReport.byCustomer || []).length === 0 && (
                             <tr>
                               <td colSpan={3} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
-                                Keine Daten für diesen Zeitraum
+                                {t("reports.noData")}
                               </td>
                             </tr>
                           )}
@@ -624,16 +626,16 @@ export default function ReportsPage() {
                 {(salesReport.yearOverYear || []).length > 1 && (
                   <Card>
                     <CardHeader>
-                      <CardTitle>Jahresvergleich</CardTitle>
+                      <CardTitle>{t("reports.yearComparison")}</CardTitle>
                     </CardHeader>
                     <CardContent>
                       <div className="overflow-x-auto">
                         <table className="w-full min-w-[640px]">
                           <thead className="bg-gray-50 dark:bg-gray-900 border-b">
                             <tr>
-                              <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300">Jahr</th>
-                              <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">Gesamtbetrag</th>
-                              <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">Wachstum</th>
+                              <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300">{t("reports.year")}</th>
+                              <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">{t("reports.totalAmount")}</th>
+                              <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">{t("reports.growth")}</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y">
@@ -671,7 +673,7 @@ export default function ReportsPage() {
                       <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">
                         {formatCurrency(vatReport.totalNet)}
                       </div>
-                      <div className="text-gray-500 dark:text-gray-400 mt-1">Netto gesamt</div>
+                      <div className="text-gray-500 dark:text-gray-400 mt-1">{t("reports.netTotal")}</div>
                     </CardContent>
                   </Card>
                   <Card>
@@ -679,7 +681,7 @@ export default function ReportsPage() {
                       <div className="text-3xl font-bold text-green-600 dark:text-green-400">
                         {formatCurrency(vatReport.totalVat)}
                       </div>
-                      <div className="text-gray-500 dark:text-gray-400 mt-1">MwSt. gesamt</div>
+                      <div className="text-gray-500 dark:text-gray-400 mt-1">{t("reports.vatTotal")}</div>
                     </CardContent>
                   </Card>
                   <Card>
@@ -687,7 +689,7 @@ export default function ReportsPage() {
                       <div className="text-3xl font-bold text-purple-600 dark:text-purple-400">
                         {formatCurrency(vatReport.totalGross)}
                       </div>
-                      <div className="text-gray-500 dark:text-gray-400 mt-1">Brutto gesamt</div>
+                      <div className="text-gray-500 dark:text-gray-400 mt-1">{t("reports.grossTotal")}</div>
                     </CardContent>
                   </Card>
                 </div>
@@ -696,9 +698,9 @@ export default function ReportsPage() {
                 <Card>
                   <CardHeader>
                     <div className="flex justify-between items-center">
-                      <CardTitle>Nach MwSt-Satz</CardTitle>
+                      <CardTitle>{t("reports.byVatRate")}</CardTitle>
                       <Button size="sm" variant="outline" onClick={getVatCSV}>
-                        CSV Export
+                        {t("reports.csvExport")}
                       </Button>
                     </div>
                   </CardHeader>
@@ -707,11 +709,11 @@ export default function ReportsPage() {
                       <table className="w-full min-w-[640px]">
                         <thead className="bg-gray-50 dark:bg-gray-900 border-b">
                           <tr>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300">MwSt-Satz</th>
-                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">Netto</th>
-                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">MwSt.</th>
-                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">Brutto</th>
-                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">Anzahl</th>
+                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300">{t("reports.vatRate")}</th>
+                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">{t("reports.net")}</th>
+                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">{t("reports.vat")}</th>
+                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">{t("reports.gross")}</th>
+                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">{t("reports.count")}</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y">
@@ -727,7 +729,7 @@ export default function ReportsPage() {
                           {vatReport.byRate.length === 0 && (
                             <tr>
                               <td colSpan={5} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
-                                Keine Daten für diesen Zeitraum
+                                {t("reports.noData")}
                               </td>
                             </tr>
                           )}
@@ -749,7 +751,7 @@ export default function ReportsPage() {
                       <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">
                         {customerReport.summary.totalCustomers}
                       </div>
-                      <div className="text-gray-500 dark:text-gray-400 mt-1">Kunden gesamt</div>
+                      <div className="text-gray-500 dark:text-gray-400 mt-1">{t("reports.customersTotal")}</div>
                     </CardContent>
                   </Card>
                   <Card>
@@ -757,7 +759,7 @@ export default function ReportsPage() {
                       <div className="text-3xl font-bold text-green-600 dark:text-green-400">
                         {formatCurrency(customerReport.summary.totalAmount)}
                       </div>
-                      <div className="text-gray-500 dark:text-gray-400 mt-1">Umsatz gesamt</div>
+                      <div className="text-gray-500 dark:text-gray-400 mt-1">{t("reports.revenueTotal")}</div>
                     </CardContent>
                   </Card>
                   <Card>
@@ -765,7 +767,7 @@ export default function ReportsPage() {
                       <div className="text-3xl font-bold text-yellow-600 dark:text-yellow-400">
                         {formatCurrency(customerReport.summary.totalPending)}
                       </div>
-                      <div className="text-gray-500 dark:text-gray-400 mt-1">Ausstehend</div>
+                      <div className="text-gray-500 dark:text-gray-400 mt-1">{t("reports.pending")}</div>
                     </CardContent>
                   </Card>
                   <Card>
@@ -773,7 +775,7 @@ export default function ReportsPage() {
                       <div className="text-3xl font-bold text-red-600 dark:text-red-400">
                         {formatCurrency(customerReport.summary.totalOverdue)}
                       </div>
-                      <div className="text-gray-500 dark:text-gray-400 mt-1">Überfällig</div>
+                      <div className="text-gray-500 dark:text-gray-400 mt-1">{t("reports.overdue")}</div>
                     </CardContent>
                   </Card>
                 </div>
@@ -782,9 +784,9 @@ export default function ReportsPage() {
                 <Card>
                   <CardHeader>
                     <div className="flex justify-between items-center">
-                      <CardTitle>Kundenübersicht</CardTitle>
+                      <CardTitle>{t("reports.customerOverview")}</CardTitle>
                       <Button size="sm" variant="outline" onClick={getCustomersCSV}>
-                        CSV Export
+                        {t("reports.csvExport")}
                       </Button>
                     </div>
                   </CardHeader>
@@ -793,13 +795,13 @@ export default function ReportsPage() {
                       <table className="w-full min-w-[640px]">
                         <thead className="bg-gray-50 dark:bg-gray-900 border-b">
                           <tr>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300">Kunde</th>
-                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">Rechnungen</th>
-                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">Gesamt</th>
-                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">Bezahlt</th>
-                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">Ausstehend</th>
-                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">Überfällig</th>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300">Letzte Rechnung</th>
+                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300">{t("reports.customer")}</th>
+                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">{t("reports.invoices")}</th>
+                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">{t("reports.total")}</th>
+                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">{t("reports.paid")}</th>
+                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">{t("reports.pending")}</th>
+                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">{t("reports.overdue")}</th>
+                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300">{t("reports.lastInvoice")}</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y">
@@ -819,7 +821,7 @@ export default function ReportsPage() {
                           {customerReport.customers.length === 0 && (
                             <tr>
                               <td colSpan={7} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
-                                Keine Daten für diesen Zeitraum
+                                {t("reports.noData")}
                               </td>
                             </tr>
                           )}
@@ -952,7 +954,7 @@ function DatevExportTab({
     const originalLabel = btn?.textContent || ""
     if (btn) {
       btn.disabled = true
-      btn.textContent = "Wird vorbereitet…"
+      btn.textContent = t("reports.preparing")
     }
     try {
       const year =
@@ -1002,7 +1004,7 @@ function DatevExportTab({
     <div className="space-y-6" data-testid="datev-tab">
       <Card>
         <CardHeader>
-          <CardTitle>DATEV-Buchungsstapel-Export</CardTitle>
+          <CardTitle>{t("reports.datevTitle")}</CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
@@ -1014,7 +1016,7 @@ function DatevExportTab({
               disabled={loading}
               data-testid="datev-preview-btn"
             >
-              🔍 {loading ? "Wird geladen…" : "Vorschau anzeigen"}
+              🔍 {loading ? t("reports.loadingShort") : t("reports.showPreview")}
             </Button>
             <Button
               variant="outline"
@@ -1023,11 +1025,11 @@ function DatevExportTab({
                 // Tier 389: a window.open cannot send the auth headers (401).
                 downloadApiFile(
                   `/api/v1/reports/datev-export?companyId=${companyId}&startDate=${startDate}&endDate=${endDate}`,
-                ).catch((e: any) => toast.error(e?.message || "Download fehlgeschlagen"))
+                ).catch((e: any) => toast.error(e?.message || t("reports.downloadFailed")))
               }}
               data-testid="datev-download-csv-btn"
             >
-              📥 CSV herunterladen
+              {t("reports.csvDownload")}
             </Button>
             <Button
               variant="outline"
@@ -1036,11 +1038,11 @@ function DatevExportTab({
                 // Tier 389: a window.open cannot send the auth headers (401).
                 downloadApiFile(
                   `/api/v1/reports/datev-export-bundle?companyId=${companyId}&startDate=${startDate}&endDate=${endDate}`,
-                ).catch((e: any) => toast.error(e?.message || "Download fehlgeschlagen"))
+                ).catch((e: any) => toast.error(e?.message || t("reports.downloadFailed")))
               }}
               data-testid="datev-download-bundle-btn"
             >
-              📦 CSV + Belegbilder (ZIP)
+              {t("reports.csvWithDocs")}
             </Button>
             <Button
               variant="outline"
@@ -1056,12 +1058,12 @@ function DatevExportTab({
                 // Tier 389: a window.open cannot send the auth headers (401).
                 downloadApiFile(
                   `/api/v1/reports/datev-export-monthly?companyId=${companyId}&startDate=${startDate}&endDate=${endDate}`,
-                ).catch((e: any) => toast.error(e?.message || "Download fehlgeschlagen"))
+                ).catch((e: any) => toast.error(e?.message || t("reports.downloadFailed")))
               }}
               data-testid="datev-download-monthly-btn"
-              title="Erzeugt einen ZIP-Ordner mit einer CSV pro Monat + Belegbilder pro Monat — für Buchungslauf pro Monat in DATEV."
+              title={t("reports.splitByMonthTitle")}
             >
-              📅 Per Monat aufteilen (ZIP)
+              {t("reports.splitByMonth")}
             </Button>
             {/* Tier 185: month-scoped bundle. The
                 year + month pickers sit next to this
@@ -1077,7 +1079,7 @@ function DatevExportTab({
                 value={monthYear}
                 onChange={(e) => setMonthYear(parseInt(e.target.value, 10))}
                 className="px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800"
-                aria-label="DATEV-Buchungsstapel Jahr"
+                aria-label={t("reports.datevYearAria")}
               >
                 {Array.from({ length: 11 }, (_, i) => {
                   const y = now.getFullYear() - i
@@ -1093,7 +1095,7 @@ function DatevExportTab({
                 value={monthMonth}
                 onChange={(e) => setMonthMonth(parseInt(e.target.value, 10))}
                 className="px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800"
-                aria-label="DATEV-Buchungsstapel Monat"
+                aria-label={t("reports.datevMonthAria")}
               >
                 {[
                   "01 — Januar",
@@ -1129,7 +1131,7 @@ function DatevExportTab({
                   // Tier 389: a window.open cannot send the auth headers (401).
                   downloadApiFile(
                     `/api/v1/reports/datev-export-bundle?companyId=${companyId}&year=${monthYear}&month=${monthMonth}`,
-                  ).catch((e: any) => toast.error(e?.message || "Download fehlgeschlagen"))
+                  ).catch((e: any) => toast.error(e?.message || t("reports.downloadFailed")))
                 }}
                 data-testid="datev-bundle-month-btn"
                 title={t("datevExport.bundleMonthTooltip")}
@@ -1155,9 +1157,9 @@ function DatevExportTab({
               variant="outline"
               onClick={exportBuchungsliste}
               data-testid="datev-download-buchungsliste-btn"
-              title="Erzeugt eine Buchungsliste (eine Zeile pro Sachkonto), den DATEV-Buchungsstapel, eine USt-Verprobung pro USt-Schlüssel und den SKR03-Kontenplan-Auszug — alles in einem ZIP."
+              title={t("reports.postingListTitle")}
             >
-              📊 Buchungsliste (ZIP)
+              {t("reports.postingList")}
             </Button>
           </div>
         </CardContent>
@@ -1177,34 +1179,34 @@ function DatevExportTab({
           {/* Header summary */}
           <Card data-testid="datev-header-card">
             <CardHeader>
-              <CardTitle className="text-lg">Kopfdatenzusammenfassung</CardTitle>
+              <CardTitle className="text-lg">{t("reports.headerSummary")}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
                 <div>
-                  <div className="text-gray-500">Berater-Nr.</div>
+                  <div className="text-gray-500">{t("reports.advisorNo")}</div>
                   <div className="font-mono" data-testid="datev-beraterNr">
                     {preview.header.beraterNr}
                   </div>
                 </div>
                 <div>
-                  <div className="text-gray-500">Mandanten-Nr.</div>
+                  <div className="text-gray-500">{t("reports.clientNo")}</div>
                   <div className="font-mono" data-testid="datev-mandantenNr">
                     {preview.header.mandantenNr}
                   </div>
                 </div>
                 <div>
-                  <div className="text-gray-500">Buchungslauf-Nr.</div>
+                  <div className="text-gray-500">{t("reports.runNo")}</div>
                   <div className="font-mono">{preview.header.buchungsLaufNr}</div>
                 </div>
                 <div>
-                  <div className="text-gray-500">Zeitraum</div>
+                  <div className="text-gray-500">{t("reports.period")}</div>
                   <div>
                     {preview.header.startDate} – {preview.header.endDate}
                   </div>
                 </div>
                 <div className="md:col-span-2">
-                  <div className="text-gray-500">Dateiname</div>
+                  <div className="text-gray-500">{t("reports.fileName")}</div>
                   <div className="font-mono text-xs break-all">
                     {preview.header.filename}
                   </div>
@@ -1216,12 +1218,12 @@ function DatevExportTab({
           {/* Totals + balance */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Summen</CardTitle>
+              <CardTitle className="text-lg">{t("reports.sums")}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div>
-                  <div className="text-gray-500 text-xs">Buchungen</div>
+                  <div className="text-gray-500 text-xs">{t("reports.bookings")}</div>
                   <div
                     className="text-2xl font-bold"
                     data-testid="datev-rowCount"
@@ -1230,19 +1232,19 @@ function DatevExportTab({
                   </div>
                 </div>
                 <div>
-                  <div className="text-gray-500 text-xs">Gesamtbetrag</div>
+                  <div className="text-gray-500 text-xs">{t("reports.totalAmount")}</div>
                   <div className="text-2xl font-bold">
                     {fmtMoney(preview.totalAmount)} €
                   </div>
                 </div>
                 <div>
-                  <div className="text-gray-500 text-xs">Soll</div>
+                  <div className="text-gray-500 text-xs">{t("reports.debit")}</div>
                   <div className="text-xl font-mono">
                     {fmtMoney(preview.totalSoll)} €
                   </div>
                 </div>
                 <div>
-                  <div className="text-gray-500 text-xs">Haben</div>
+                  <div className="text-gray-500 text-xs">{t("reports.credit")}</div>
                   <div className="text-xl font-mono">
                     {fmtMoney(preview.totalHaben)} €
                   </div>
@@ -1300,17 +1302,17 @@ function DatevExportTab({
           {preview.byAccount && preview.byAccount.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Kontenübersicht</CardTitle>
+                <CardTitle className="text-lg">{t("reports.accountsOverview")}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm" data-testid="datev-byAccount">
                     <thead>
                       <tr className="text-left border-b border-gray-200 dark:border-gray-700">
-                        <th className="py-2 px-2">Konto</th>
-                        <th className="py-2 px-2 text-right">Soll (€)</th>
-                        <th className="py-2 px-2 text-right">Haben (€)</th>
-                        <th className="py-2 px-2 text-right">Buchungen</th>
+                        <th className="py-2 px-2">{t("reports.account")}</th>
+                        <th className="py-2 px-2 text-right">{t("reports.debitEur")}</th>
+                        <th className="py-2 px-2 text-right">{t("reports.creditEur")}</th>
+                        <th className="py-2 px-2 text-right">{t("reports.bookings")}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1353,13 +1355,13 @@ function DatevExportTab({
                   <table className="w-full text-xs" data-testid="datev-firstRows">
                     <thead>
                       <tr className="text-left border-b border-gray-200 dark:border-gray-700">
-                        <th className="py-2 px-2">Datum</th>
-                        <th className="py-2 px-2">Belegfeld 1</th>
-                        <th className="py-2 px-2">Soll-Kto</th>
-                        <th className="py-2 px-2">Haben-Kto</th>
-                        <th className="py-2 px-2 text-right">Betrag</th>
+                        <th className="py-2 px-2">{t("reports.date")}</th>
+                        <th className="py-2 px-2">{t("reports.docField1")}</th>
+                        <th className="py-2 px-2">{t("reports.debitAccount")}</th>
+                        <th className="py-2 px-2">{t("reports.creditAccount")}</th>
+                        <th className="py-2 px-2 text-right">{t("reports.amount")}</th>
                         <th className="py-2 px-2">S/H</th>
-                        <th className="py-2 px-2">Text</th>
+                        <th className="py-2 px-2">{t("reports.text")}</th>
                       </tr>
                     </thead>
                     <tbody>
