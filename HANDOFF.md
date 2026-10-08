@@ -2639,6 +2639,12 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tiers 602–603 — the invoice page in three languages; the phone-width rules hold with other fonts
+
+**Tier 602 — `/dashboard/invoices/[id]`.** A count of German words per page in the Chinese walk (`walk.js … zh`, now counting over the whole page) put the invoice page second after the reports page among the screens used daily: 69 texts without a key — the section headings, the line items' column heads, the totals, the download buttons, the payment form and its methods, the e-mail dialog. They are 68 keys in a new namespace `invoicePage`, in three languages, the German wording unchanged. Playwright `invoice-detail-languages-tier602.spec.ts`. *What the count leaves:* `/dashboard/accounting` with about 730 German words of 7 000 — the lines of the tax forms, largely official terms that come from the backend; the UStVA page's Kennzahl labels (the form's own wording); `/dashboard/v2`.
+
+**Tier 603 — the phone-width test failed on CI, and the fix for it broke 23 pages until measured.** Run 37841024287: `mobile-width-tier596.spec.ts` failed, „/dashboard/invoices/create +12px“ — on the developer's Mac the same row had 5 px to spare; the CI machine's fonts are wider. A grid cell is as wide as its content unless told otherwise, and the notes column held a row (label, template select, buttons) that did not wrap. So: grid cells and inputs inside a flex row may shrink below 640 px, any `flex justify-between` row wraps (not only `items-center` ones — the scheduler and backup pages use `items-start`), headings break inside a word if they must, and a row of buttons wraps. **That last rule, as first written (`.flex:has(> button)`), matched `<body>`** — a flex *column* with the search button as a child — and a wrapping column lays its children out at their content width: 23 pages were suddenly up to 1 337 px too wide. Seen only because all 64 pages were measured again after the change; the rule now excludes columns. **Measured at 350 px** (40 px narrower than the test's phone, as a margin for fonts): 1 of 64 pages over, by 12 px (`/dashboard/accounting`); at 390 px none. The lesson is in §10.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 601 — the reports page speaks the chosen language
 
 The page walk had `/dashboard/reports` as "German in every language". 116 texts on `reports/page.tsx` had no translation key — headings, tab names, table columns, the DATEV export's labels and button tooltips, month and quarter names — and its main component did not even call `useI18n`. They are 96 keys in a new namespace `reports` now, in German (the wording unchanged, so nothing that reads the German page sees a difference), English and Chinese; month names in the tables follow the language as well. Looked at in all three: no German left in the Chinese and English header, tabs and first tables, no raw key anywhere. Playwright `reports-languages-tier601.spec.ts`. *Still German in the other languages:* the tab „GuV (P&L)“, the activity page's action names, the reminder and note templates (texts the customer receives — arguably right), parts of the invoice detail and import pages.
@@ -8572,6 +8578,8 @@ finding critical/high issues. Future agents must respect them:
 13. **Instantaneous `.count()` + `test.skip` hides races.** Wait with a
     web-first assertion; skip only for data that can legitimately be absent
     (Tiers 346–348, 362b).
+
+- **A CSS rule for "every X" matches things you did not picture (Tier 603).** `.flex:has(> button) { flex-wrap: wrap }`, meant for button rows, matched `<body>` and widened 23 pages. After a global style change, run the page walk over ALL pages again (`$S/review/ui/walk.js mobile`), not only over the pages the change was for — and measure narrower than the test (350 px), because the CI machine's fonts are wider than macOS's.
 
 ## 11. What to do when you start
 

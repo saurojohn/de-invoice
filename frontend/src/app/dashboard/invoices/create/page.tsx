@@ -2211,7 +2211,7 @@ function CreateInvoicePageInner() {
                   </select>
                 </div>
                 <div>
-                  <div className="flex items-end gap-2 mb-1">
+                  <div className="flex flex-wrap items-end gap-2 mb-1">
                     <label className="block text-sm font-medium flex-1">{t("invoice.notes")}</label>
                     {/* Tier 156: pick a saved Bemerkungstext
                         and append it to the notes field.
