@@ -100,10 +100,11 @@ export default function RemindersPage() {
     return labels[level]
   }
 
-  const getDaysOverdueLabel = (days: number) => {
-    if (days === 1) return t("reminder.oneDay")
-    return t("reminder.daysOverdue").replace("{days}", String(days))
-  }
+  // Tier 595: this returned the bare label („Fällig seit: Überfällig seit“) —
+  // the text has no {days} placeholder and "reminder.oneDay" does not exist.
+  const getDaysOverdueLabel = (days: number) => `${days} ${t("reminder.days")}`
+  const fmtMoney = (v: string | number) =>
+    new Intl.NumberFormat("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(v) || 0)
 
   // Tier 390: this opened a mailto: link and then posted /reminders/send, the
   // email-data and the refresh all with a raw fetch without auth headers —
@@ -243,7 +244,7 @@ export default function RemindersPage() {
             <Card>
               <CardContent className="pt-6">
                 <div className="text-3xl font-bold text-orange-600">
-                  €{parseFloat(stats.totalOverdueAmount).toFixed(2)}
+                  {fmtMoney(stats.totalOverdueAmount)} €
                 </div>
                 <div className="text-gray-600 dark:text-gray-300">
                   {t("reminder.overdueTotal")}
@@ -337,7 +338,7 @@ export default function RemindersPage() {
                       </div>
                       <div className="text-lg font-medium">{invoice.customer.name}</div>
                       <div className="text-sm text-gray-600 dark:text-gray-300">
-                        {t("reminder.dueSince")}: {getDaysOverdueLabel(invoice.daysOverdue)}
+                        <span data-testid="reminder-overdue-days">{t("reminder.daysOverdue")}: {getDaysOverdueLabel(invoice.daysOverdue)}</span>
                       </div>
                       <div className="text-sm text-gray-500 dark:text-gray-400">
                         {invoice.customer.contact?.email || (t("reminder.noEmail"))}
@@ -346,7 +347,7 @@ export default function RemindersPage() {
                     </div>
                     <div className="text-right">
                       <div className="text-2xl font-bold text-red-600 dark:text-red-400">
-                        €{parseFloat(invoice.total).toFixed(2)}
+                        <span data-testid="reminder-amount">{fmtMoney(invoice.total)} €</span>
                       </div>
                       <div className="text-sm text-gray-500 dark:text-gray-400 mb-2">
                         {new Date(invoice.dueDate).toLocaleDateString(getDateLocale())}

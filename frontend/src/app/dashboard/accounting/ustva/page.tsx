@@ -731,7 +731,15 @@ function UstvaPageInner() {
                         <td className="py-2 text-right">
                           {formatCurrency(data.salesByRate.reduce((s, r) => s + r.net, 0))}
                         </td>
-                        <td className="py-2 text-right">{formatCurrency(data.umsatzsteuer)}</td>
+                        {/* Tier 595: the sum of THIS table's rows. It showed
+                            data.umsatzsteuer — the whole output VAT including
+                            § 13b and intra-community acquisitions — next to a
+                            base that adds only the two rows above: a row that
+                            did not add up on screen (the card at the top has
+                            the total). */}
+                        <td className="py-2 text-right" data-testid="ustva-sales-vat-sum">
+                          {formatCurrency(data.salesByRate.reduce((s, r) => s + r.vat, 0))}
+                        </td>
                       </tr>
                     </tfoot>
                   </table>
