@@ -54,7 +54,9 @@ no() { mk "ER-NO-$RANDOM" "$2"; assert_eq "$1: 400" "$STATUS" "400"; }
 no "the same rate twice" ',"taxLines":[{"vatRate":0.19,"netAmount":100,"vatAmount":19},{"vatRate":0.19,"netAmount":50,"vatAmount":9.5}]'
 no "a line with more VAT than its rate gives" ',"taxLines":[{"vatRate":0.19,"netAmount":100,"vatAmount":19},{"vatRate":0.07,"netAmount":100,"vatAmount":19}]'
 no "totals that are not the lines' sums" ',"grossAmount":500,"taxLines":'"$LINES"
-no "lines on a § 13b expense" ',"isReverseCharge":true,"taxLines":'"$LINES"
+# (Tier 587: "lines on a § 13b expense" stood here as a POST with isReverseCharge —
+# a property POST /expenses does not know, so the 400 came from the DTO and
+# proved nothing. The real cases are in section 7d.)
 no "a line without amounts" ',"taxLines":[{"vatRate":0.19},{"vatRate":0.07,"netAmount":10,"vatAmount":0.7}]'
 no "a negative line" ',"taxLines":[{"vatRate":0.19,"netAmount":-100,"vatAmount":-19},{"vatRate":0.07,"netAmount":10,"vatAmount":0.7}]'
 no "lines that are not a list" ',"taxLines":"19"'
@@ -155,6 +157,19 @@ AS POST "/api/v1/ustva/expenses?companyId=$C" '{"description":"13b mit Zeilen","
 assert_eq "…not on a § 13b expense" "$STATUS" "400"
 AS PUT "/api/v1/ustva/expenses/$UE?companyId=$C" '{"taxLines":[],"netAmount":200,"vatRate":0.19,"vatAmount":38,"grossAmount":238}'
 assert_eq "PUT /ustva/expenses/:id takes them away again" "$STATUS/$(totals "$UE")/$(rows "$UE")" "200/200.00/38.00/238.00/0.19/-"
+
+note "=== 7d. § 13b and several rates exclude each other, both ways (Tier 587) ==="
+mk ER-13B-A ',"taxLines":'"$LINES"; M1=$ID
+AS PUT "/api/v1/expenses/$M1?companyId=$C" '{"isReverseCharge":true}'
+assert_eq "§ 13b on an expense with VAT lines: 400 (was 200)" "$STATUS/$(q "select \"isReverseCharge\" from \"Expense\" where id='$M1'")/$(rows "$M1")" "400/f/0.19/200.00/38.00,0.07/107.14/7.50"
+AS PUT "/api/v1/expenses/$M1?companyId=$C" '{"isIntraEU":true}'
+assert_eq "…the same for an intra-community acquisition" "$STATUS/$(q "select \"isIntraEU\" from \"Expense\" where id='$M1'")" "400/f"
+AS PUT "/api/v1/expenses/$M1?companyId=$C" '{"isReverseCharge":true,"taxLines":[],"netAmount":307.14,"vatRate":0,"vatAmount":0,"grossAmount":307.14}'
+assert_eq "with the lines removed in the same request it is accepted" "$STATUS/$(q "select \"isReverseCharge\" from \"Expense\" where id='$M1'")/$(rows "$M1")" "200/t/-"
+mk ER-13B-B ',"netAmount":100,"vatRate":0,"vatAmount":0,"grossAmount":100'; M2=$ID
+AS PUT "/api/v1/expenses/$M2?companyId=$C" '{"isReverseCharge":true}'
+AS PUT "/api/v1/expenses/$M2?companyId=$C" '{"taxLines":'"$LINES"'}'
+assert_eq "lines on a § 13b expense: 400" "$STATUS/$(rows "$M2")" "400/-"
 
 note "=== 8. deleting it takes the lines along; another company sees none ==="
 AS DELETE "/api/v1/ustva/expenses/$ED?companyId=$C"

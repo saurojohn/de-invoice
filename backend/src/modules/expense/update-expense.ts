@@ -78,6 +78,18 @@ export async function updateExpense(
     set('paidAt', d, (d?.getTime() ?? null) !== (exp.paidAt?.getTime() ?? null))
   }
   if (data.isReverseCharge !== undefined) set('isReverseCharge', data.isReverseCharge, data.isReverseCharge !== exp.isReverseCharge)
+  // Tier 587: lines on a § 13b expense were refused (below); § 13b on an
+  // expense that keeps its lines was not — it ended up as a reverse-charge
+  // expense with VAT lines.
+  if (
+    ((data.isIntraEU ?? exp.isIntraEU) || (data.isReverseCharge ?? exp.isReverseCharge)) &&
+    exp.taxLines.length > 0 &&
+    !(Array.isArray(data.taxLines) && data.taxLines.length === 0)
+  ) {
+    throw new BadRequestException(
+      'Diese Ausgabe hat mehrere Steuersätze mit ausgewiesener Steuer. § 13b / innergemeinschaftlicher Erwerb geht nur ohne Steuerzeilen — bitte zuerst die Steuerzeilen entfernen.',
+    )
+  }
 
   // Amounts: work with magnitudes, then apply the sign.
   const creditNote = data.creditNote ?? Number(exp.grossAmount) < 0
