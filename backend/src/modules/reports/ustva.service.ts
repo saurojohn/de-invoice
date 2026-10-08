@@ -1126,6 +1126,8 @@ export class UstvaService {
     notes?: string;
     paidAt?: Date | null;
     confirmDuplicate?: boolean;
+    /** Tier 582: checked VAT lines (expense/tax-lines.ts checkTaxLines) — amounts above are their sums */
+    taxRows?: { position: number; vatRate: number; netAmount: string; vatAmount: string }[];
   }) {
     // Tier 573: check-for-duplicate and insert as one step (expense-duplicate.ts)
     return withExpenseNumberLock(companyId, data.supplierId?.trim(), data.invoiceNumber, () => this.createExpenseChecked(companyId, data));
@@ -1145,8 +1147,10 @@ export class UstvaService {
       if (!sup) throw new BadRequestException('Lieferant nicht gefunden');
     }
     await assertPeriodOpen(this.prisma, companyId, [data.invoiceDate], 'das Erfassen einer Eingangsrechnung'); // Tier 537
-    // Tier 523
-    assertExpenseAmounts({ net: Number(data.netAmount), vat: Number(data.vatAmount), gross: Number(data.grossAmount), rate: Number(data.vatRate) });
+    // Tier 523 (lines were each checked by checkTaxLines)
+    if (!data.taxRows?.length) {
+      assertExpenseAmounts({ net: Number(data.netAmount), vat: Number(data.vatAmount), gross: Number(data.grossAmount), rate: Number(data.vatRate) });
+    }
     // Tier 489: the same supplier invoice twice is refused (409)
     await assertNoDuplicateExpense(this.prisma, companyId, supplierId, data.invoiceNumber, Number(data.grossAmount) < 0, data.confirmDuplicate === true);
     return this.prisma.expense.create({
@@ -1160,6 +1164,7 @@ export class UstvaService {
         vatRate: data.vatRate,
         vatAmount: data.vatAmount,
         grossAmount: data.grossAmount,
+        ...(data.taxRows?.length ? { taxLines: { create: data.taxRows.map((l) => ({ ...l, companyId })) } } : {}),
         category: data.category,
         giftRecipient: data.giftRecipient?.trim() || null, // Tier 503
         bewirtungAnlass: data.bewirtungAnlass?.trim() || null, // Tier 539
@@ -1169,7 +1174,7 @@ export class UstvaService {
         notes: data.notes,
         paidAt: data.paidAt ?? null,
       },
-      include: { supplier: true },
+      include: { supplier: true, taxLines: { select: { vatRate: true, netAmount: true, vatAmount: true, position: true }, orderBy: { position: 'asc' } } },
     });
   }
 

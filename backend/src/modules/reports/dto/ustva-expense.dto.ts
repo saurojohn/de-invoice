@@ -18,6 +18,8 @@ import {
   MaxLength,
   Min,
   Max,
+  IsArray,
+  ArrayMaxSize,
 } from "class-validator"
 import { Type, Transform } from "class-transformer"
 
@@ -117,6 +119,11 @@ export class CreateUstvaExpenseDto {
   @Transform(({ value }) => (typeof value === "string" ? value === "true" || value === "1" : value))
   @IsBoolean()
   confirmDuplicate?: boolean
+
+  // Tier 582: an invoice with several VAT rates — one line per rate
+  // (expense/tax-lines.ts), as on POST /expenses.
+  @IsOptional() @IsArray() @ArrayMaxSize(8)
+  taxLines?: { vatRate: number; netAmount: number; vatAmount: number }[]
 
   // Tier 454: the day it was paid, when that was not through the bank import,
   // the SEPA run or the cash book (card, private account) — the EÜR counts an

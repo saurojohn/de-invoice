@@ -8,6 +8,7 @@ import { SaveUstvaFilingDto, RecordUstvaPaymentDto, CreateUstPaymentDto, Release
 import { CreateUstvaExpenseDto } from './dto/ustva-expense.dto';
 import { UpdateExpenseDto } from '../expense/dto/expense.dto';
 import { updateExpense } from '../expense/update-expense';
+import { checkTaxLines } from '../expense/tax-lines';
 import { UstjaService } from './ustja.service';
 import {
   generateUstvaElsterXml,
@@ -259,6 +260,31 @@ export class UstvaController {
     const grossAmount = body.grossAmount !== undefined
       ? Number(body.grossAmount)
       : Number(net) + Number(vatAmount)
+    // Tier 582: several VAT rates — the amounts are the lines' sums.
+    if (body.taxLines !== undefined && body.taxLines !== null) {
+      if (body.isIntraEU || body.isReverseCharge) {
+        throw new BadRequestException('Steuerzeilen gibt es nicht bei § 13b / innergemeinschaftlichem Erwerb — dort weist die Rechnung keine Steuer aus.');
+      }
+      const checked = checkTaxLines(body.taxLines, !!body.creditNote, { net: body.netAmount, vat: body.vatAmount, gross: body.grossAmount });
+      return this.ustva.createExpense(companyId, {
+        supplierId: body.supplierId,
+        invoiceNumber: body.invoiceNumber,
+        description: body.description,
+        invoiceDate: new Date(body.invoiceDate),
+        netAmount: checked.net,
+        vatRate: checked.rate,
+        vatAmount: checked.vat,
+        grossAmount: checked.gross,
+        taxRows: checked.rows,
+        category: body.category,
+        giftRecipient: body.giftRecipient,
+        bewirtungAnlass: body.bewirtungAnlass,
+        bewirtungTeilnehmer: body.bewirtungTeilnehmer,
+        notes: body.notes,
+        paidAt: body.paidAt ? new Date(body.paidAt) : null,
+        confirmDuplicate: body.confirmDuplicate === true,
+      });
+    }
     // Tier 442: a supplier credit note is stored with negative amounts.
     const signed = signedExpenseAmounts(body.creditNote, { net, vat: vatAmount, gross: grossAmount })
     return this.ustva.createExpense(companyId, {

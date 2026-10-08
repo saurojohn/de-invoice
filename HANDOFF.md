@@ -2634,6 +2634,18 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 582 — several VAT rates on the UStVA page; the owner's database migrated
+
+**The development database** (`de-invoice-postgres`): after the owner's „继续“ to the offer in the Tier 581 report, the one pending migration (`20261007000001_expense_tax_lines`, additive) was applied with `prisma migrate deploy` — checked first that it was the only pending one; 68 → 69 tables, 33 expenses and 318 invoices as before, no difference to the schema left. Script: `$S/dev-migrate.sh`.
+
+**The UStVA page** is where an expense is entered by hand, and its form had one rate (Tier 581 left that open: a second rate had to be added afterwards on the expenses page, and the page sent the correction of a multi-rate expense elsewhere). Now:
+- `POST /ustva/expenses` takes `taxLines` like `POST /expenses` (`CreateUstvaExpenseDto`, `ustva.controller.ts` → `checkTaxLines`; before, the field was stripped by the validation pipe and the invoice stored with one rate). Not with § 13b / igE.
+- the form has „+ weiterer Steuersatz“: further lines of rate and net (VAT = net × rate, as the form's main line); it sends the lines with their sums, loads the lines of an expense being corrected, and sends `taxLines: []` when the last extra rate is removed.
+
+Spec 349 section 7c; Playwright `ustva-expense-rates-tier582.spec.ts`.
+
+**Still one rate:** the CSV import of expenses and the OCR scan's proposal.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 581 — one expense for an invoice with several VAT rates
 
 Agreed with the owner on 07.10.2026 („好，都做“) — the schema change that Tiers 573 and 577 had worked around. An `Expense` had one rate; an invoice with 19 % and 7 % was two expenses under one number.
@@ -2655,9 +2667,9 @@ Whoever needs the split reads `expenseTaxLines(exp)`; whoever needs totals keeps
 
 **Specs:** `349-tier581-ausgabe-mit-mehreren-steuersaetzen.sh` (45 assertions, 24 fail on the old code: create / refuse / read, UStVA 19 % and 7 %, DATEV rows and keys, the bank voucher, Skonto 7,05 split 4,76 / 2,29 with its credit note, the refund of a two-rate credit note, corrections, delete, tenant); spec 344 now expects one expense with lines; Playwright `expense-tax-lines-tier581.spec.ts` and the updated `e-invoice-import-tier573.spec.ts`.
 
-**For the owner's own database:** the migration is additive (one new table). `de-invoice-postgres` has **not** been touched — `cd backend && npx prisma migrate deploy` applies it (and nothing else is pending there).
+**For the owner's own database:** the migration is additive (one new table). It was applied to `de-invoice-postgres` on 08.10.2026 (Tier 582).
 
-**Not done:** `POST /ustva/expenses` and the UStVA page's inline form still enter one rate (a second is added on the expenses page). The CSV import of expenses is one rate per row. The OCR scan path proposes one rate.
+**Not done:** the CSV import of expenses is one rate per row; the OCR scan path proposes one rate. (`POST /ustva/expenses` and the UStVA page's form: done in Tier 582.)
 
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 580 — the production image runs the compiled backend, and CI builds the images
 

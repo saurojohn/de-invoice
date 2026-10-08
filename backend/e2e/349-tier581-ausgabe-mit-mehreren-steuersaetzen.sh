@@ -147,6 +147,15 @@ assert_eq "back to one rate: three before, none after" "$(audit updat oldData de
 AS GET "/api/v1/audit-logs/verify?companyId=$C"
 assert_eq "…and the chain verifies" "$(py 'print(d.get("ok"))')" "True"
 
+note "=== 7c. the UStVA page's own route (Tier 582) ==="
+AS POST "/api/v1/ustva/expenses?companyId=$C" '{"supplierId":"'$S'","invoiceNumber":"ER-USTVA","description":"von der UStVA-Seite","invoiceDate":"'$Y'-07-01","netAmount":300,"vatAmount":45,"grossAmount":345,"vatRate":0.19,"taxLines":[{"vatRate":0.19,"netAmount":200,"vatAmount":38},{"vatRate":0.07,"netAmount":100,"vatAmount":7}]}'
+UE=$(json_field "$BODY" id)
+assert_eq "POST /ustva/expenses with taxLines (were dropped: one rate, 45 € at 19 %)" "$STATUS/$(totals "$UE")/$(rows "$UE")" "201/300.00/45.00/345.00/0.19/0.19/200.00/38.00,0.07/100.00/7.00"
+AS POST "/api/v1/ustva/expenses?companyId=$C" '{"description":"13b mit Zeilen","invoiceDate":"'$Y'-07-01","netAmount":300,"isReverseCharge":true,"taxLines":[{"vatRate":0.19,"netAmount":200,"vatAmount":38},{"vatRate":0.07,"netAmount":100,"vatAmount":7}]}'
+assert_eq "…not on a § 13b expense" "$STATUS" "400"
+AS PUT "/api/v1/ustva/expenses/$UE?companyId=$C" '{"taxLines":[],"netAmount":200,"vatRate":0.19,"vatAmount":38,"grossAmount":238}'
+assert_eq "PUT /ustva/expenses/:id takes them away again" "$STATUS/$(totals "$UE")/$(rows "$UE")" "200/200.00/38.00/238.00/0.19/-"
+
 note "=== 8. deleting it takes the lines along; another company sees none ==="
 AS DELETE "/api/v1/ustva/expenses/$ED?companyId=$C"
 mk ER-DEL ',"taxLines":'"$LINES"; DEL=$ID

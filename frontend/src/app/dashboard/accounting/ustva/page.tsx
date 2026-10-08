@@ -173,6 +173,13 @@ function UstvaPageInner() {
     paidAt: "",
   })
   const [exForm, setExForm] = useState(emptyExpenseForm)
+  // Tier 582: further VAT rates of the same invoice (beyond the net / rate
+  // above) — each a rate and a net amount; its VAT is net × rate.
+  const [extraRates, setExtraRates] = useState<{ vatRate: string; netAmount: string }[]>([])
+  const lineVat = (l: { vatRate: string; netAmount: string }) =>
+    Math.round(parseFloat(l.netAmount || "0") * parseFloat(l.vatRate || "0") * 100) / 100
+  const allRates = [exForm.vatRate, ...extraRates.map((l) => l.vatRate)].map(Number)
+  const duplicateRate = allRates.some((r, i) => allRates.indexOf(r) !== i)
   // Tier 443: the expense being corrected (PUT), null when adding one.
   const [editingId, setEditingId] = useState<string | null>(null)
 
@@ -282,19 +289,26 @@ function UstvaPageInner() {
     setShowAdd(false)
     setEditingId(null)
     setExForm(emptyExpenseForm())
+    setExtraRates([])
   }
 
   // Tier 443: correct an open expense in the same form. Amounts are shown
   // positive; a credit note keeps its checkbox.
   const startEditExpense = (ex: Expense) => {
     setEditingId(ex.id)
+    // Tier 582: an expense with several rates — the first line goes into the
+    // ordinary fields, the others below them.
+    const lines = (ex.taxLines?.length ?? 0) > 1 ? ex.taxLines! : null
+    setExtraRates(
+      lines ? lines.slice(1).map((l) => ({ vatRate: String(Number(l.vatRate)), netAmount: String(Math.abs(Number(l.netAmount))) })) : [],
+    )
     setExForm({
       invoiceDate: String(ex.invoiceDate).slice(0, 10),
       invoiceNumber: ex.invoiceNumber || "",
       supplierId: ex.supplierId || "",
       description: ex.description || "",
-      netAmount: String(Math.abs(Number(ex.netAmount))),
-      vatRate: String(Number(ex.vatRate)),
+      netAmount: String(Math.abs(Number(lines ? lines[0].netAmount : ex.netAmount))),
+      vatRate: String(Number(lines ? lines[0].vatRate : ex.vatRate)),
       vatAmount: String(Math.abs(Number(ex.vatAmount))),
       grossAmount: String(Math.abs(Number(ex.grossAmount))),
       category: ex.category || "",
@@ -318,13 +332,27 @@ function UstvaPageInner() {
     }
     setSaving(true)
     try {
+      // Tier 582: with further rates the invoice goes as VAT lines; the
+      // amounts sent alongside are their sums.
+      const extras = exForm.isIntraEU || exForm.isReverseCharge ? [] : extraRates.filter((l) => parseFloat(l.netAmount || "0") > 0)
+      const taxLines = extras.length
+        ? [{ vatRate: exForm.vatRate, netAmount: exForm.netAmount }, ...extras].map((l) => ({
+            vatRate: parseFloat(l.vatRate),
+            netAmount: parseFloat(l.netAmount || "0"),
+            vatAmount: lineVat(l),
+          }))
+        : null
+      const sum = (k: "netAmount" | "vatAmount") => Math.round((taxLines ?? []).reduce((a, l) => a + l[k], 0) * 100) / 100
+      const hadLines = !!editingId && (expenses.find((e) => e.id === editingId)?.taxLines?.length ?? 0) > 1
       const body = {
         ...exForm,
-        netAmount: parseFloat(exForm.netAmount),
+        netAmount: taxLines ? sum("netAmount") : parseFloat(exForm.netAmount),
         vatRate: parseFloat(exForm.vatRate),
-        vatAmount: parseFloat(exForm.vatAmount || "0"),
-        grossAmount: parseFloat(exForm.grossAmount || "0"),
+        vatAmount: taxLines ? sum("vatAmount") : parseFloat(exForm.vatAmount || "0"),
+        grossAmount: taxLines ? Math.round((sum("netAmount") + sum("vatAmount")) * 100) / 100 : parseFloat(exForm.grossAmount || "0"),
         paidAt: exForm.paidAt || null,
+        // [] takes the lines of an expense that had several rates away again
+        ...(taxLines ? { taxLines } : hadLines ? { taxLines: [] } : {}),
       }
       // Tier 390: was a raw fetch without the auth headers (401).
       if (editingId) {
@@ -1010,6 +1038,69 @@ function UstvaPageInner() {
                           className="w-full px-2 py-1.5 border rounded text-sm bg-gray-100 dark:bg-gray-800 text-right"
                         />
                       </div>
+                      {/* Tier 582: further VAT rates of the same invoice */}
+                      {!exForm.isIntraEU && !exForm.isReverseCharge && (
+                        <div className="md:col-span-3" data-testid="ustva-expense-extra-rates">
+                          {extraRates.map((l, i) => (
+                            <div key={i} className="mb-2 grid grid-cols-[1fr_6rem_1fr_auto] items-center gap-3" data-testid="ustva-expense-extra-rate">
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={l.netAmount}
+                                placeholder={t("ustva.net")}
+                                aria-label={t("ustva.net")}
+                                onChange={(e) => setExtraRates((all) => all.map((o, k) => (k === i ? { ...o, netAmount: e.target.value } : o)))}
+                                data-testid={`ustva-expense-extra-net-${i}`}
+                                className="w-full px-2 py-1.5 border rounded text-sm text-right"
+                              />
+                              <select
+                                value={l.vatRate}
+                                aria-label={t("ustva.taxRate")}
+                                onChange={(e) => setExtraRates((all) => all.map((o, k) => (k === i ? { ...o, vatRate: e.target.value } : o)))}
+                                className="w-full px-2 py-1.5 border rounded text-sm"
+                              >
+                                <option value="0.19">19%</option>
+                                <option value="0.07">7%</option>
+                                <option value="0">0%</option>
+                              </select>
+                              <input
+                                readOnly
+                                value={parseFloat(l.netAmount || "0") ? String(lineVat(l)) : ""}
+                                aria-label={t("ustva.vat")}
+                                data-testid={`ustva-expense-extra-vat-${i}`}
+                                className="w-full px-2 py-1.5 border rounded text-sm bg-gray-100 dark:bg-gray-800 text-right"
+                              />
+                              <button
+                                type="button"
+                                className="px-2 text-red-600 dark:text-red-400"
+                                title={t("expenses.removeTaxLine")}
+                                aria-label={t("expenses.removeTaxLine")}
+                                onClick={() => setExtraRates((all) => all.filter((_, k) => k !== i))}
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ))}
+                          <button
+                            type="button"
+                            className="text-xs text-blue-600 hover:underline dark:text-blue-400"
+                            data-testid="ustva-expense-add-rate"
+                            onClick={() =>
+                              setExtraRates((all) => {
+                                const used = [exForm.vatRate, ...all.map((l) => l.vatRate)].map(Number)
+                                const free = ["0.19", "0.07", "0"].find((r) => !used.includes(Number(r))) ?? "0"
+                                return [...all, { vatRate: free, netAmount: "" }]
+                              })
+                            }
+                          >
+                            + {t("expenses.addTaxLine")}
+                          </button>
+                          {duplicateRate && extraRates.length > 0 && (
+                            <div className="mt-1 text-xs text-red-600 dark:text-red-400">{t("expenses.taxLineDuplicate")}</div>
+                          )}
+                        </div>
+                      )}
                       <div className="md:col-span-3 flex flex-wrap gap-3">
                         <label className="flex items-center gap-2 text-sm">
                           <input
@@ -1048,7 +1139,7 @@ function UstvaPageInner() {
                       <Button variant="outline" size="sm" onClick={closeExpenseForm}>
                         ×
                       </Button>
-                      <Button size="sm" onClick={submitExpense} disabled={saving} data-testid="ustva-expense-submit">
+                      <Button size="sm" onClick={submitExpense} disabled={saving || (duplicateRate && extraRates.length > 0)} data-testid="ustva-expense-submit">
                         ✓ {saving ? "…" : t(editingId ? "ustva.saveExpense" : "ustva.saveDraft")}
                       </Button>
                     </div>
@@ -1121,18 +1212,6 @@ function UstvaPageInner() {
                                 </span>
                               ) : (
                                 <span className="inline-flex gap-3">
-                                  {(ex.taxLines?.length ?? 0) > 1 ? (
-                                    // Tier 581: this form has one rate — an invoice with
-                                    // several is corrected where its lines can be edited.
-                                    <a
-                                      href="/dashboard/expenses"
-                                      className="text-blue-600 dark:text-blue-400 hover:underline text-xs"
-                                      title={t("expenses.severalRates")}
-                                      data-testid={`ustva-expense-edit-elsewhere-${ex.id}`}
-                                    >
-                                      {t("ustva.editExpense")} ↗
-                                    </a>
-                                  ) : (
                                   <button
                                     onClick={() => startEditExpense(ex)}
                                     className="text-blue-600 dark:text-blue-400 hover:underline text-xs"
@@ -1140,7 +1219,6 @@ function UstvaPageInner() {
                                   >
                                     {t("ustva.editExpense")}
                                   </button>
-                                  )}
                                   <button
                                     onClick={() => deleteExpense(ex.id)}
                                     className="text-red-600 dark:text-red-400 hover:underline text-xs"
