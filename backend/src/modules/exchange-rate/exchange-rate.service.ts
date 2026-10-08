@@ -251,6 +251,11 @@ export class ExchangeRateService {
    */
   @Cron('0 2 * * *', { timeZone: 'Europe/Berlin' })
   async refreshAllCompanies() {
+    // Tier 594: DISABLE_CRON=1 means every scheduled job. This one ignored it.
+    if (process.env.DISABLE_CRON === '1') {
+      this.logger.debug('Skipping (DISABLE_CRON=1)')
+      return
+    }
     this.logger.log('ECB rate refresh: starting')
     // Tier 119: wrap with CronHealthService so the
     // admin dashboard surfaces "exchange-rate-

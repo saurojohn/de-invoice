@@ -74,6 +74,11 @@ export class FintsSyncScheduler {
     timeZone: 'Europe/Berlin',
   })
   async runScheduled() {
+    // Tier 594: DISABLE_CRON=1 means every scheduled job. This one ignored it.
+    if (process.env.DISABLE_CRON === '1') {
+      this.logger.debug('Skipping (DISABLE_CRON=1)')
+      return
+    }
     this.logger.log('Cron fints-auto-sync: starting')
     return this.health.wrap('fints-sync', async () => {
       const result = await this.runAutoSync()

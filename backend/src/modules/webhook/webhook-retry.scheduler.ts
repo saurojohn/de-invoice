@@ -76,6 +76,11 @@ export class WebhookRetryWorker {
   // retries.
   @Cron(CronExpression.EVERY_MINUTE, { name: 'webhook-retry-worker' })
   async run(): Promise<string | void> {
+    // Tier 594: DISABLE_CRON=1 means every scheduled job. This one ignored it.
+    if (process.env.DISABLE_CRON === '1') {
+      this.logger.debug('Skipping (DISABLE_CRON=1)')
+      return
+    }
     // No-op when there's nothing to do: still
     // record a 'success' tick so the admin
     // dashboard can see "this cron is alive"

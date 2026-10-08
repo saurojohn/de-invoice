@@ -80,6 +80,11 @@ export class AfaAutoBookerScheduler {
     timeZone: "Europe/Berlin",
   })
   async runAfaAutoBooker() {
+    // Tier 594: DISABLE_CRON=1 means every scheduled job. This one ignored it.
+    if (process.env.DISABLE_CRON === '1') {
+      this.logger.debug('Skipping (DISABLE_CRON=1)')
+      return
+    }
     return this.health.wrap("afa-auto-booker", async () => {
     const now = new Date()
     // "Previous month" in Berlin
