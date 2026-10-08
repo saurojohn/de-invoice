@@ -20,6 +20,24 @@ import { RolesGuard } from './roles.guard'
  * one the installation was set up with — acting in that company. With
  * `SYSTEM_ADMIN_EMAILS` (comma-separated) set, only those of them.
  */
+/**
+ * Is this the operator of the installation? (Tier 589: as a function, for a
+ * route that is open to everyone but shows the operator more.)
+ */
+export async function isSystemAdmin(
+  prisma: PrismaService,
+  user: { email?: string; companyId?: string; role?: string } | undefined,
+): Promise<boolean> {
+  if (!user) return false
+  const first = await prisma.company.findFirst({ orderBy: { createdAt: 'asc' }, select: { id: true } })
+  if (!first || user.companyId !== first.id || user.role !== 'admin') return false
+  const listed = String(process.env.SYSTEM_ADMIN_EMAILS || '')
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean)
+  return listed.length === 0 || listed.includes(String(user.email || '').toLowerCase())
+}
+
 @Injectable()
 export class SystemAdminGuard implements CanActivate {
   constructor(private prisma: PrismaService) {}
@@ -36,14 +54,7 @@ export class SystemAdminGuard implements CanActivate {
     // listed address that had no account yet was the operator. A new
     // registration creates a new company, never joins the oldest one, so the
     // list can now only narrow the circle, not open it.
-    const first = await this.prisma.company.findFirst({ orderBy: { createdAt: 'asc' }, select: { id: true } })
-    if (!first || user.companyId !== first.id || user.role !== 'admin') throw refuse()
-
-    const listed = String(process.env.SYSTEM_ADMIN_EMAILS || '')
-      .split(',')
-      .map((e) => e.trim().toLowerCase())
-      .filter(Boolean)
-    if (listed.length === 0 || listed.includes(String(user.email || '').toLowerCase())) return true
+    if (await isSystemAdmin(this.prisma, user)) return true
     throw refuse()
   }
 }

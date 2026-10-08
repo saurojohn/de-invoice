@@ -6,7 +6,10 @@ import {
   Res,
   Header,
   BadRequestException,
+  Req,
 } from '@nestjs/common'
+import { PrismaService } from '../../prisma/prisma.service'
+import { isSystemAdmin } from '../../auth/system-admin.guard'
 import { businessTodayIso } from '../../common/business-date'
 import type { Response } from 'express'
 import { AuditService, AuditLogFilters } from './audit.service'
@@ -45,7 +48,10 @@ import { Auth, Require } from '../../auth/roles.decorator'
 @Auth()
 @Controller('audit-logs')
 export class AuditController {
-  constructor(private readonly svc: AuditService) {}
+  constructor(
+    private readonly svc: AuditService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   @Get()
   @Require('audit.read')
@@ -220,10 +226,16 @@ export class AuditController {
     @Query('actionPrefix') actionPrefix?: string,
     @Query('take') take?: string,
     @Query('skip') skip?: string,
+    @Req() req?: any,
   ) {
     if (!companyId) {
       throw new BadRequestException('companyId ist erforderlich')
     }
+    // Tier 589: rows without a company (manual cron runs, failed logins, the
+    // rows of the Company table itself) are the operator's. They were shown
+    // to every company — with the operator's address and other companies'
+    // master data in them.
+    const operator = await isSystemAdmin(this.prisma, req?.user)
     // Default to the full union of
     // activity prefixes. The
     // Berater page can narrow with
@@ -234,7 +246,7 @@ export class AuditController {
       : ['error.', 'webhook.', 'cron.', 'notification.']
     return this.svc.list({
       companyId,
-      includeNullCompanyId: true, // see Tier 202 note
+      includeNullCompanyId: operator,
       userIds: userId ? [userId] : undefined,
       actionPrefixes: prefixes,
       take: Math.min(parseInt(take || '100', 10) || 100, 500),
@@ -291,6 +303,7 @@ export class AuditController {
     @Query('days') daysStr?: string,
     @Query('actionPrefix') actionPrefix?: string,
     @Query('userId') userId?: string,
+    @Req() req?: any,
   ) {
     if (!companyId) {
       throw new BadRequestException('companyId ist erforderlich')
@@ -304,6 +317,7 @@ export class AuditController {
       days,
       actionPrefix,
       userId,
+      await isSystemAdmin(this.prisma, req?.user), // Tier 589
     )
     const stamp = businessTodayIso()
     res.setHeader('Content-Type', 'text/csv; charset=utf-8')

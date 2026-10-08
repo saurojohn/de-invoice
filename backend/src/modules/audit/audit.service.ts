@@ -395,10 +395,14 @@ export class AuditService {
     // OR with the given companyId so
     // the operator sees their own
     // + the global admin actions.
-    const companyFilter: Prisma.AuditLogWhereInput = f.includeNullCompanyId
-      ? { OR: [{ companyId: f.companyId }, { companyId: null }] }
+    // Tier 589: inside AND. As a top-level `OR` it was overwritten by the
+    // action-prefix `OR` further down — the activity feed then had no company
+    // filter at all and returned every company's rows (measured: 11 184
+    // invoice rows of other companies, with their contents, to a company that
+    // had none of them).
+    const where: Prisma.AuditLogWhereInput = f.includeNullCompanyId
+      ? { AND: [{ OR: [{ companyId: f.companyId }, { companyId: null }] }] }
       : { companyId: f.companyId }
-    const where: Prisma.AuditLogWhereInput = { ...companyFilter }
     // Entity type: single takes precedence; otherwise
     // the multi-select array. If both are set, we honour
     // the array (caller's intent is "filter by these").
@@ -854,7 +858,10 @@ export class AuditService {
     days = 90,
     actionPrefix?: string,
     userId?: string,
+    /** Tier 589: rows without a company are the operator's (see the controller) */
+    includeNullCompany = false,
   ): Promise<string> {
+    const scope = includeNullCompany ? { OR: [{ companyId }, { companyId: null }] } : { companyId }
     const daysClamped = Math.min(Math.max(days, 1), 365)
     const cutoff = new Date(
       Date.now() - daysClamped * 24 * 60 * 60 * 1000,
@@ -870,7 +877,7 @@ export class AuditService {
     const where: any = {
       createdAt: { gte: cutoff },
       action: { startsWith: prefixes[0] },
-      OR: [{ companyId }, { companyId: null }],
+      ...scope,
     }
     if (prefixes.length > 1) {
       // Multiple prefixes — use
@@ -890,7 +897,7 @@ export class AuditService {
           where: {
             createdAt: { gte: cutoff },
             action: { startsWith: p },
-            OR: [{ companyId }, { companyId: null }],
+            ...scope,
             ...(userId ? { userId } : {}),
           },
           orderBy: { createdAt: 'desc' },
