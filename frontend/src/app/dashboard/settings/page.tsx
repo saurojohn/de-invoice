@@ -912,7 +912,7 @@ export default function SettingsPage() {
                     type="tel"
                     value={form.phone}
                     onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                    placeholder="+49 6181 12345"
+                    placeholder="+49 30 123456"
                   />
                 </div>
               </div>
@@ -928,7 +928,7 @@ export default function SettingsPage() {
                     type="tel"
                     value={form.fax}
                     onChange={(e) => setForm({ ...form, fax: e.target.value })}
-                    placeholder="+49 6181 12345-99"
+                    placeholder="+49 30 123456-99"
                   />
                 </div>
                 <div>
@@ -939,7 +939,7 @@ export default function SettingsPage() {
                     type="url"
                     value={form.website}
                     onChange={(e) => setForm({ ...form, website: e.target.value })}
-                    placeholder="www.shleder.de"
+                    placeholder="www.beispiel.de"
                   />
                 </div>
               </div>
@@ -956,7 +956,7 @@ export default function SettingsPage() {
                   <Input
                     value={form.registerEntry}
                     onChange={(e) => setForm({ ...form, registerEntry: e.target.value })}
-                    placeholder="HRB 12345 Amtsgericht Offenbach am Main"
+                    placeholder="HRB 12345 Amtsgericht Musterstadt"
                   />
                 </div>
                 <div>

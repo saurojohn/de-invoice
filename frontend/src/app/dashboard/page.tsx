@@ -493,7 +493,7 @@ export default function DashboardPage() {
                         : "text-red-600 dark:text-red-400")
                     }
                   >
-                    {arrow} {Math.abs(c.change).toFixed(1)} %
+                    {arrow} {Math.abs(c.change).toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %
                   </div>
                 </CardContent>
               </Card>
@@ -1217,6 +1217,24 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <p className="text-gray-600 dark:text-gray-300">{t("dashboard.cardCashbookDesc")}</p>
+            </CardContent>
+          </Card>
+          {/* Tier 590: the fixed-asset register and the adviser's documents were
+              finished pages without a link anywhere in the application. */}
+          <Card data-testid="card-assets" className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/assets")}>
+            <CardHeader>
+              <CardTitle className="text-emerald-700">{t("dashboard.cardAssetsTitle")}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-gray-600 dark:text-gray-300">{t("dashboard.cardAssetsDesc")}</p>
+            </CardContent>
+          </Card>
+          <Card data-testid="card-berater" className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/berater")}>
+            <CardHeader>
+              <CardTitle className="text-blue-700 dark:text-blue-300">{t("dashboard.cardBeraterTitle")}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-gray-600 dark:text-gray-300">{t("dashboard.cardBeraterDesc")}</p>
             </CardContent>
           </Card>
           <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/bank-import")}>
