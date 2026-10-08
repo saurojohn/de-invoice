@@ -45,8 +45,8 @@
         <namespace prefix="udt">urn:un:unece:uncefact:data:specification:UnqualifiedDataTypesSchemaModule-2</namespace>
         <namespace prefix="ubl">urn:oasis:names:specification:ubl:schema:xsd:Invoice-2</namespace>
 
-        <!-- Match only the Invoice root element (not CreditNote
-             — that's a separate scenario for the future) -->
+        <!-- Match only the Invoice root element; a CreditNote has its own
+             scenario below (Tier 588) -->
         <match>/ubl:Invoice</match>
 
         <!-- 1. UBL 2.1 XSD validation (structural integrity) -->
@@ -88,6 +88,49 @@
              The validator runs the report.xsl against the
              internal report-input document to produce a
              printable report. -->
+        <createReport>
+            <resource>
+                <name>Report for eRechnung</name>
+                <location>report.xsl</location>
+            </resource>
+        </createReport>
+    </scenario>
+
+    <!-- Tier 588: a UBL credit note (type 381). The same rules as for the
+         invoice — the CEN and the XRechnung schematron address both document
+         types — against the CreditNote schema. Until this scenario existed a
+         CreditNote matched nothing and was answered with REJECT and no
+         finding: the project's own credit notes (Tier 586) and every
+         supplier's. The schema is the OASIS UBL 2.1 OS file, unchanged
+         (docs.oasis-open.org/ubl/os-UBL-2.1/xsd/maindoc/). -->
+    <scenario>
+        <name>XRechnung-UBL-CreditNote-3.0</name>
+        <description>
+            <p>Validate a UBL 2.1 CreditNote against EN 16931 and the XRechnung 3.0 CIUS.</p>
+        </description>
+        <namespace prefix="cac">urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2</namespace>
+        <namespace prefix="cbc">urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2</namespace>
+        <namespace prefix="udt">urn:un:unece:uncefact:data:specification:UnqualifiedDataTypesSchemaModule-2</namespace>
+        <namespace prefix="cn">urn:oasis:names:specification:ubl:schema:xsd:CreditNote-2</namespace>
+        <match>/cn:CreditNote</match>
+        <validateWithXmlSchema>
+            <resource>
+                <name>UBL CreditNote 2.1 XSD</name>
+                <location>xsd/maindoc/UBL-CreditNote-2.1.xsd</location>
+            </resource>
+        </validateWithXmlSchema>
+        <validateWithSchematron>
+            <resource>
+                <name>EN 16931 UBL validation (CEN 1.3.16)</name>
+                <location>schematron/en16931/EN16931-UBL-validation.xslt</location>
+            </resource>
+        </validateWithSchematron>
+        <validateWithSchematron>
+            <resource>
+                <name>XRechnung 3.0 UBL validation</name>
+                <location>schematron/ubl/XRechnung-UBL-validation.xsl</location>
+            </resource>
+        </validateWithSchematron>
         <createReport>
             <resource>
                 <name>Report for eRechnung</name>

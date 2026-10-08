@@ -75,18 +75,27 @@ up "/api/v1/expenses/e-invoice/preview?companyId=$C" "$D/cn.xml"
 assert_eq "the UBL file reads back the same" \
   "$(py 'i=d["invoice"];print(i["syntax"], i["typeCode"], i["creditNote"], i["precedingInvoice"], i["totals"]["net"], i["totals"]["tax"], i["totals"]["payable"], [l["unitPrice"] for l in i["lines"]])')" "ubl-creditnote 381 True $NR 400 64 464 [150, 100]"
 
-note "=== 3. the official validator ==="
-up "/api/v1/expenses/e-invoice/validate?companyId=$C" "$D/cn.pdf"
+note "=== 3. the official validator (Tier 588: it has a scenario for a UBL credit note) ==="
+# a complete issuer, so that nothing but the document's form is in question
+AS PUT "/api/v1/companies/$C?companyId=$C" '{"legalName":"Tier 586 Handels GmbH","registerEntry":"HRB 12345 Amtsgericht Berlin","vatId":"DE811907980","email":"info@t586.example","phone":"+49 30 1","address":{"street":"Hauptstr. 1","city":"Berlin","postalCode":"10115","country":"DE"},"bankInfo":{"iban":"DE89370400440532013000","bic":"COBADEFFXXX","bankName":"Bank"}}'
+assert_eq "fixture: the issuer is complete" "$STATUS" "200"
+get "/api/v1/invoices/$CN/xrechnung?companyId=$C" "$D/cn2.xml"
+get "/api/v1/invoices/$CN/zugferd?companyId=$C" "$D/cn2.pdf"
+up "/api/v1/expenses/e-invoice/validate?companyId=$C" "$D/cn2.pdf"
 if [[ "$(py 'print(d["available"])')" == "True" ]]; then
   assert_eq "ZUGFeRD credit note: accepted (schema and EN 16931 rules)" "$(py 'print(d["acceptance"], d["schema"], d["schematron"], len(d["errors"]))')" "ACCEPTABLE Y Y 0"
+  up "/api/v1/expenses/e-invoice/validate?companyId=$C" "$D/cn2.xml"
+  assert_eq "UBL credit note: accepted — schema, EN 16931 and XRechnung rules (was: REJECT without a finding, no scenario)" \
+    "$(py 'print(d["acceptance"], d["schema"], d["schematron"], [e["rule"] for e in d["errors"]])')" "ACCEPTABLE Y Y []"
   AS GET "/api/v1/invoices/$CN/xrechnung/validate?companyId=$C&engine=kosit"
-  assert_eq "engine=kosit on a credit note: checked in its CII form, and saying so" \
-    "$(py 'print(d["schema"], [e["rule"] for e in d["errors"] if e["rule"] != "BR-DE-1"], any(w["rule"] == "BT-ENGINE" and "CII" in w["message"] for w in d["warnings"]))')" "Y [] True"
+  assert_eq "engine=kosit on the credit note itself" "$(py 'print(d["engine"], d["acceptance"], d["schema"], len(d["errors"]))')" "kosit ACCEPTABLE Y 0"
+  # the validator still refuses a credit note that is wrong: the old form
+  sed -e 's|<cbc:PriceAmount currencyID="EUR">150.00|<cbc:PriceAmount currencyID="EUR">-150.00|' "$D/cn2.xml" > "$D/bad.xml"
+  up "/api/v1/expenses/e-invoice/validate?companyId=$C" "$D/bad.xml"
+  assert_eq "…and a negative unit price in a credit note is rejected by it (BR-27)" "$(py 'print(d["acceptance"], "BR-27" in [e["rule"] for e in d["errors"]])')" "REJECT True"
 else
   note "KoSIT validator not installed here — the official checks are skipped"
 fi
-up "/api/v1/expenses/e-invoice/validate?companyId=$C" "$D/cn.xml"
-assert_eq "a UBL credit note is not called invalid for want of a scenario (was: REJECT without a finding)" "$(py 'print(d["available"], d.get("acceptance"))')" "False None"
 
 note "=== 4. the credit note a Skonto payment creates ==="
 AS POST "/api/v1/invoices?companyId=$C" '{"customerId":"'$K'","issueDate":"'$TODAY'","skontoPercent":2,"skontoDays":14,"items":[{"description":"Beratung","quantity":1,"unit":"Std","unitPrice":1000,"vatRate":0.19}]}'
