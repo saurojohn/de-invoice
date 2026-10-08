@@ -26,7 +26,7 @@ import {
   validateXRechnungWithKoSIT,
   KoSITValidatorUnavailableError,
 } from '../../invoices/kosIT-validator.service';
-import { generateZUGFeRD } from '../../invoices/zugferd.service';
+import { generateZUGFeRD, generateZUGFeRDXml } from '../../invoices/zugferd.service';
 // Tier 62: USt-Behandlung auto-detector (pure function, no
 // DI — we just import and call suggestUstBehandlung()).
 import { suggestUstBehandlung, UstSuggestion } from './ust-behandlung-detector';
@@ -1017,9 +1017,28 @@ export class InvoiceController {
       // Tier 116: call the KoSIT Validator JAR. Falls back
       // to basic with a note if the JAR / JDK is missing.
       const xrechnungData = transformToXRechnungData(invoice, companyWithLeitweg)
-      const xml = generateXRechnung(xrechnungData)
+      // Tier 586: the validator's configuration has a scenario for a UBL
+      // invoice and for CII, none for a UBL credit note (infra/kosit/
+      // scenarios.xml) — a `CreditNote` document would be rejected for that
+      // alone. A credit note is therefore checked in its CII form: the same
+      // data under the same EN 16931 rules.
+      const xml = xrechnungData.creditNote
+        ? generateZUGFeRDXml(xrechnungData, '2.1', 'EN16931')
+        : generateXRechnung(xrechnungData)
       try {
-        return await validateXRechnungWithKoSIT(xml)
+        const result = await validateXRechnungWithKoSIT(xml)
+        if (!xrechnungData.creditNote) return result
+        return {
+          ...result,
+          warnings: [
+            ...result.warnings,
+            {
+              rule: 'BT-ENGINE',
+              message:
+                'Gutschrift: geprüft wurde die ZUGFeRD-/CII-Fassung (EN 16931). Für UBL-Gutschriften (CreditNote) ist im Prüfwerkzeug kein Szenario hinterlegt.',
+            },
+          ],
+        }
       } catch (err: any) {
         if (err instanceof KoSITValidatorUnavailableError) {
           const basic = validateXRechnung(xrechnungData)

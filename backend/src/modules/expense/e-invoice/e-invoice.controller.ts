@@ -79,6 +79,15 @@ export class EInvoiceController {
     } else {
       xml = decodeXml(file!.buffer)
     }
+    // Tier 586: no scenario for a UBL credit note (infra/kosit/scenarios.xml) —
+    // the validator answered REJECT without a finding, which read as "invalid".
+    if (read.invoice.syntax === 'ubl-creditnote') {
+      return {
+        available: false,
+        profile: read.invoice.profile,
+        message: 'Für UBL-Gutschriften (CreditNote) ist im Prüfwerkzeug kein Szenario hinterlegt.',
+      }
+    }
     try {
       return { available: true, profile: read.invoice.profile, ...(await validateXRechnungWithKoSIT(xml)) }
     } catch (e) {

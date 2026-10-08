@@ -289,7 +289,7 @@ export function generateZUGFeRDXml(
   </rsm:ExchangedDocumentContext>
   <rsm:ExchangedDocument>
     <ram:ID>${escapeXml(data.invoiceNumber)}</ram:ID>
-    <ram:TypeCode>380</ram:TypeCode>
+    <ram:TypeCode>${data.creditNote ? '381' : '380'}</ram:TypeCode>
     <ram:IssueDateTime>
       <udt:DateTimeString format="102">${formatDate102(data.issueDate)}</udt:DateTimeString>
     </ram:IssueDateTime>
@@ -318,7 +318,13 @@ export function generateZUGFeRDXml(
         <ram:GrandTotalAmount>${formatCents(t.taxInclusive)}</ram:GrandTotalAmount>
         ${t.prepaid !== 0 ? `<ram:TotalPrepaidAmount>${formatCents(t.prepaid)}</ram:TotalPrepaidAmount>` : ''}
         <ram:DuePayableAmount>${formatCents(t.payable)}</ram:DuePayableAmount>
-      </ram:SpecifiedTradeSettlementHeaderMonetarySummation>
+      </ram:SpecifiedTradeSettlementHeaderMonetarySummation>${data.precedingInvoice ? `
+      <ram:InvoiceReferencedDocument>
+        <ram:IssuerAssignedID>${escapeXml(data.precedingInvoice.number)}</ram:IssuerAssignedID>${data.precedingInvoice.issueDate ? `
+        <ram:FormattedIssueDateTime>
+          <qdt:DateTimeString format="102">${formatDate102(data.precedingInvoice.issueDate)}</qdt:DateTimeString>
+        </ram:FormattedIssueDateTime>` : ''}
+      </ram:InvoiceReferencedDocument>` : ''}
     </ram:ApplicableHeaderTradeSettlement>
   </rsm:SupplyChainTradeTransaction>
 </rsm:CrossIndustryInvoice>`;

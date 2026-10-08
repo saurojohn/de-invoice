@@ -147,6 +147,14 @@ export interface XRechnungData {
   prepaid?: number
   /** Tier 482: the seller is a Kleinunternehmer (§ 19 UStG) */
   kleinunternehmer?: boolean
+  /**
+   * Tier 586: a credit note. It is written as type 381 with positive amounts
+   * (UBL: a `CreditNote` document) — it used to go out as an invoice (380)
+   * with a negative unit price, which EN 16931 does not allow (BR-27).
+   */
+  creditNote?: boolean
+  /** BG-3: the invoice a credit note refers to */
+  precedingInvoice?: { number: string; issueDate?: string }
 }
 
 /**
@@ -192,8 +200,11 @@ export function generateXRechnung(data: XRechnungData): string {
   // cvc-complex-type.2.4.a violations. Now we follow
   // the UBL-Invoice-2.1.xsd sequence exactly.
   // ──────────────────────────────────────────────────────
+  // Tier 586: a credit note is its own UBL document type — the same sequence
+  // of elements, without DueDate, with CreditNoteTypeCode / CreditNoteLine.
+  const doc = data.creditNote ? 'CreditNote' : 'Invoice'
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"
+<${doc} xmlns="urn:oasis:names:specification:ubl:schema:xsd:${doc}-2"
          xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
          xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2"
          xmlns:udt="urn:un:unece:uncefact:data:specification:UnqualifiedDataTypesSchemaModule-2"
@@ -213,13 +224,13 @@ export function generateXRechnung(data: XRechnungData): string {
   <!-- Rechnungsdatum / Issue Date (BR-02) -->
   <cbc:IssueDate>${invoiceDate}</cbc:IssueDate>
 
-  ${dueDate ? `<!-- Fälligkeitsdatum / Due Date -->
+  ${dueDate && !data.creditNote ? `<!-- Fälligkeitsdatum / Due Date -->
   <cbc:DueDate>${dueDate}</cbc:DueDate>` : ''}
 
   <!-- Rechnungsart / Invoice Type Code (BR-04 v2: 380 = Commercial invoice).
        Tier 412: no listID / listAgencyID — EN 16931 flags both (UBL-CR-656,
        UBL-DT-28). -->
-  <cbc:InvoiceTypeCode>380</cbc:InvoiceTypeCode>
+  ${data.creditNote ? '<cbc:CreditNoteTypeCode>381</cbc:CreditNoteTypeCode>' : '<cbc:InvoiceTypeCode>380</cbc:InvoiceTypeCode>'}
 
   ${data.notes ? `<!-- Bemerkungen / Notes (XSD position: after InvoiceTypeCode) -->
   <cbc:Note>${escapeXml(data.notes)}</cbc:Note>` : ''}
@@ -244,7 +255,15 @@ export function generateXRechnung(data: XRechnungData): string {
     <cbc:StartDate>${formatXRechnungDate(data.servicePeriodStart ?? data.deliveryDate ?? data.issueDate)}</cbc:StartDate>
     <cbc:EndDate>${formatXRechnungDate(data.servicePeriodEnd ?? data.deliveryDate ?? data.issueDate)}</cbc:EndDate>
   </cac:InvoicePeriod>
-
+${data.precedingInvoice ? `
+  <!-- BG-3: the invoice this document refers to -->
+  <cac:BillingReference>
+    <cac:InvoiceDocumentReference>
+      <cbc:ID>${escapeXml(data.precedingInvoice.number)}</cbc:ID>${data.precedingInvoice.issueDate ? `
+      <cbc:IssueDate>${formatXRechnungDate(data.precedingInvoice.issueDate)}</cbc:IssueDate>` : ''}
+    </cac:InvoiceDocumentReference>
+  </cac:BillingReference>
+` : ''}
   ${generateSupplierParty(data.supplier)}
 
   ${generateCustomerParty(data.customer)}
@@ -279,9 +298,9 @@ export function generateXRechnung(data: XRechnungData): string {
   </cac:LegalMonetaryTotal>
 
   <!-- Rechnungspositionen / Invoice Lines (BR-21, BR-22) — XSD position: last element group -->
-  ${data.items.map((item, index) => generateInvoiceLine(item, index + 1, data.currency, t.lineNets[index], t.categoryOf(item.vatRate))).join('\n  ')}
+  ${data.items.map((item, index) => generateInvoiceLine(item, index + 1, data.currency, t.lineNets[index], t.categoryOf(item.vatRate), data.creditNote === true)).join('\n  ')}
 
-</Invoice>`
+</${doc}>`
 
   return xml
 }
@@ -537,13 +556,16 @@ function generateInvoiceLine(
   currency: string,
   lineNetCents: number,
   category: TaxCategoryCode,
+  creditNote = false,
 ): string {
   const unitCode = mapUnitToUNECE(item.unit)
+  const line = creditNote ? 'CreditNoteLine' : 'InvoiceLine'
+  const quantity = creditNote ? 'CreditedQuantity' : 'InvoicedQuantity'
   // Tier 412: no per-line TaxTotal (UBL-CR-561 — VAT is stated per category in
   // the document's TaxTotal), and the line's category matches the breakdown.
-  return `<cac:InvoiceLine>
+  return `<cac:${line}>
     <cbc:ID>${lineNumber}</cbc:ID>
-    <cbc:InvoicedQuantity unitCode="${unitCode}">${formatDecimal(item.quantity)}</cbc:InvoicedQuantity>
+    <cbc:${quantity} unitCode="${unitCode}">${formatDecimal(item.quantity)}</cbc:${quantity}>
     <cbc:LineExtensionAmount currencyID="${escapeXml(currency)}">${formatCents(lineNetCents)}</cbc:LineExtensionAmount>
     <cac:Item>
       <cbc:Description>${escapeXml(item.description)}</cbc:Description>
@@ -559,7 +581,7 @@ function generateInvoiceLine(
     <cac:Price>
       <cbc:PriceAmount currencyID="${escapeXml(currency)}">${formatDecimal(item.unitPrice)}</cbc:PriceAmount>
     </cac:Price>
-  </cac:InvoiceLine>`
+  </cac:${line}>`
 }
 
 export interface XRechnungTotals {
@@ -1020,6 +1042,9 @@ export function transformToXRechnungData(
     reverseCharge?: boolean | null
     discountPercent?: any
     discountAmount?: any
+    /** Tier 586: 'CN' is written as a credit note (381, amounts positive) */
+    type?: string | null
+    referenceInvoice?: { invoiceNumber: string; issueDate: Date | string } | null
     /** Tier 473: the payments — a final invoice's 'Anzahlung' is BT-113 */
     payments?: Array<{ amount: any; paymentMethod: string }> | null
     customer: {
@@ -1080,10 +1105,19 @@ export function transformToXRechnungData(
   // XRechnung layer stores it as a 0-1 fraction
   // internally (matching the VAT rate convention),
   // so divide by 100 here.
+  // Tier 586: a credit note is stored negative (unit price or quantity below
+  // zero, totals below zero). The document type says "credit"; its amounts
+  // are positive.
+  const isCreditNote = invoice.type === 'CN'
+  const amt = (v: any) => {
+    const n = parseFloat(String(v))
+    return isCreditNote ? -n || 0 : n
+  }
+
   let skonto: XRechnungAllowance | undefined
   const skontoPctRaw = parseFloat(String(invoice.skontoPercent ?? '0'))
   const skontoDays = parseInt(String(invoice.skontoDays ?? '0'), 10)
-  if (skontoPctRaw > 0 && skontoDays > 0) {
+  if (skontoPctRaw > 0 && skontoDays > 0 && !isCreditNote) {
     const skontoPct = skontoPctRaw / 100
     const baseAmount = parseFloat(String(invoice.subtotal))
     const amount = round2(baseAmount * skontoPct)
@@ -1130,22 +1164,30 @@ export function transformToXRechnungData(
       email: (invoice.customer?.contact as any)?.email || undefined,
       leitwegId: customerAddress.leitwegId || undefined,
     },
-    items: invoice.items.map(item => ({
+    items: invoice.items.map(item => {
+      let quantity = parseFloat(item.quantity.toString())
+      let unitPrice = parseFloat(item.unitPrice.toString())
+      if (isCreditNote) {
+        if (unitPrice < 0) unitPrice = -unitPrice
+        else if (quantity < 0) quantity = -quantity
+      }
+      return {
       description: item.description,
-      quantity: parseFloat(item.quantity.toString()),
+      quantity,
       unit: item.unit || undefined,
-      unitPrice: parseFloat(item.unitPrice.toString()),
+      unitPrice,
       vatRate: parseFloat(item.vatRate.toString()),
-      netAmount: parseFloat(item.netAmount.toString()),
-      vatAmount: parseFloat(item.vatAmount.toString()),
-      grossAmount: parseFloat(item.grossAmount.toString()),
+      netAmount: amt(item.netAmount),
+      vatAmount: amt(item.vatAmount),
+      grossAmount: amt(item.grossAmount),
       discountPercent: item.discountPercent
         ? parseFloat(item.discountPercent.toString())
         : undefined,
-    })),
-    subtotal: parseFloat(String(invoice.subtotal)),
-    totalVat: parseFloat(String(invoice.totalVat)),
-    total: parseFloat(String(invoice.total)),
+      }
+    }),
+    subtotal: amt(invoice.subtotal),
+    totalVat: amt(invoice.totalVat),
+    total: amt(invoice.total),
     notes: invoice.notes || undefined,
     skonto,
     // Tier 412
@@ -1157,10 +1199,26 @@ export function transformToXRechnungData(
       total: invoice.total,
       totalVat: invoice.totalVat,
       items: invoice.items,
-    }).byRate,
+    }).byRate.map((r) => (isCreditNote ? { ...r, net: -r.net || 0, vat: -r.vat || 0 } : r)),
+    ...(isCreditNote
+      ? {
+          creditNote: true,
+          ...(invoice.referenceInvoice
+            ? {
+                precedingInvoice: {
+                  number: invoice.referenceInvoice.invoiceNumber,
+                  issueDate:
+                    invoice.referenceInvoice.issueDate instanceof Date
+                      ? invoice.referenceInvoice.issueDate.toISOString()
+                      : invoice.referenceInvoice.issueDate,
+                },
+              }
+            : {}),
+        }
+      : {}),
     kleinunternehmer: company.defaultVatMode === 'kleinunternehmer',
     // Tier 473: the advance a final invoice deducted (Tier 472)
-    prepaid: round2((invoice.payments ?? [])
+    prepaid: isCreditNote ? undefined : round2((invoice.payments ?? [])
       .filter((p) => p.paymentMethod === 'Anzahlung')
       .reduce((a, p) => a + Number(p.amount), 0)) || undefined,
   }
