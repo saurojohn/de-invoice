@@ -283,6 +283,12 @@ operators (backups, schedulers, storage settings): whoever registers first
 owns the installation. `SYSTEM_ADMIN_EMAILS` in `.env` can narrow that
 circle further.
 
+Then open **Einstellungen** and complete that company's details — legal
+name, address, e-mail, phone, register entry, managing director, VAT ID.
+They are what `https://<your-domain>/impressum` publishes (§ 5 DDG): the
+page shows the operator company's own data and says so if name, address or
+e-mail are still missing. Check the page before telling anyone the address.
+
 Watch the logs for the first ~30 seconds:
 
 ```bash

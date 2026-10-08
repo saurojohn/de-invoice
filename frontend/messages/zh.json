@@ -3684,8 +3684,11 @@
     "impressum": {
       "title": "法律声明",
       "heading": "法律声明 (Impressum)",
-      "intro": "根据德国《电信媒体法》(§ 5 TMG) 的信息",
+      "intro": "根据德国《数字服务法》(§ 5 DDG) 提供的信息",
       "company": "提供方",
+      "register": "商业登记",
+      "managingDirector": "法定代表人",
+      "notConfigured": "本系统的运营者尚未填写完整信息（请在运营者公司的\"设置 → 公司信息\"中填写名称、地址和电子邮箱）。",
       "companyName": "de-invoice",
       "companyForm": "网络应用 / 软件服务",
       "address": "地址",

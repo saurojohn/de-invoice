@@ -37,7 +37,8 @@ else
 fi
 
 # Adding a public route must be a deliberate edit of this list.
-EXPECTED_PUBLIC="GET companies/logo/:name
+EXPECTED_PUBLIC="GET companies/imprint
+GET companies/logo/:name
 GET customer-portal/invoice/:id
 GET customer-portal/invoice/:id/pdf
 GET customer-portal/invoices

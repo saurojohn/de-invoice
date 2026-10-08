@@ -3684,8 +3684,11 @@
     "impressum": {
       "title": "Impressum",
       "heading": "Impressum",
-      "intro": "Angaben gemäß § 5 TMG (Telemediengesetz)",
+      "intro": "Angaben gemäß § 5 DDG (Digitale-Dienste-Gesetz)",
       "company": "Anbieter",
+      "register": "Registereintrag",
+      "managingDirector": "Vertreten durch",
+      "notConfigured": "Der Betreiber dieser Installation hat seine Angaben noch nicht vollständig hinterlegt (Name, Anschrift und E-Mail-Adresse unter Einstellungen → Firmeninformationen der Betreiberfirma).",
       "companyName": "de-invoice",
       "companyForm": "Webanwendung / Software-Service",
       "address": "Anschrift",

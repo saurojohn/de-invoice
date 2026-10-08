@@ -3684,8 +3684,11 @@
     "impressum": {
       "title": "Legal Notice",
       "heading": "Legal Notice",
-      "intro": "Information pursuant to § 5 TMG (German Telemedia Act)",
+      "intro": "Information pursuant to § 5 DDG (German Digital Services Act)",
       "company": "Provider",
+      "register": "Register entry",
+      "managingDirector": "Represented by",
+      "notConfigured": "The operator of this installation has not completed its details yet (name, address and e-mail address under Settings → Company information of the operator's company).",
       "companyName": "de-invoice",
       "companyForm": "Web application / software service",
       "address": "Address",

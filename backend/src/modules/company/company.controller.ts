@@ -28,6 +28,45 @@ export class CompanyController {
     private audit: AuditService,
   ) {}
 
+  /**
+   * Tier 604 — what the Impressum shows (§ 5 DDG): the operator's own
+   * details. The page had a made-up address („Musterstraße 1, 12345
+   * Musterstadt“, info@example.com) with a comment asking the operator to
+   * edit the source before going live. The operator is the oldest company
+   * (SystemAdminGuard); what it has entered under its company settings is
+   * exactly what the law wants published — name, address, contact, register,
+   * VAT ID, who represents it. Nothing else of the company is returned.
+   * Declared before `:id` so that "imprint" is not taken for a company id.
+   */
+  @Public()
+  @Get('imprint')
+  async imprint() {
+    const op = await this.prisma.company.findFirst({
+      orderBy: { createdAt: 'asc' },
+      select: {
+        name: true, legalName: true, address: true, email: true, phone: true,
+        website: true, registerEntry: true, managingDirector: true, vatId: true,
+      },
+    })
+    const a = ((op?.address as Record<string, unknown> | null) ?? {}) as Record<string, unknown>
+    const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null)
+    const out = {
+      name: str(op?.legalName) ?? str(op?.name),
+      street: str(a.street),
+      postalCode: str(a.postalCode),
+      city: str(a.city),
+      country: str(a.country),
+      email: str(op?.email),
+      phone: str(op?.phone),
+      website: str(op?.website),
+      registerEntry: str(op?.registerEntry),
+      managingDirector: str(op?.managingDirector),
+      vatId: str(op?.vatId),
+    }
+    // what § 5 DDG cannot do without: who, where, and a way to reach them
+    return { configured: !!(out.name && out.street && out.city && out.email), ...out }
+  }
+
   @Auth()
   @Require('company.read')
   @Get(':id')
