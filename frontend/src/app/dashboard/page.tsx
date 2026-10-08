@@ -124,6 +124,15 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [recurringStats, setRecurringStats] = useState<RecurringStats | null>(null)
   const [kpis, setKpis] = useState<DashboardKpis | null>(null)
+  // Tier 598: the cards for the scheduled jobs and the backups lead to pages
+  // that answer every company but the operator's with „dem Betreiber der
+  // Installation vorbehalten“. Shown only to the operator.
+  const [operator, setOperator] = useState(false)
+  useEffect(() => {
+    apiGet<{ operator?: boolean }>("/api/v1/auth/me")
+      .then((me) => setOperator(me?.operator === true))
+      .catch(() => setOperator(false))
+  }, [])
   const [monthlyRevenue, setMonthlyRevenue] = useState<Array<{ month: string; totalAmount: number; invoiceCount?: number }>>([])
   const [recentInvoices, setRecentInvoices] = useState<RecentInvoice[]>([])
   // Tier 159: per-customer credit utilization
@@ -1127,6 +1136,7 @@ export default function DashboardPage() {
               <p className="text-gray-600 dark:text-gray-300">{t("dashboard.cardSystemErrorsDesc")}</p>
             </CardContent>
           </Card>
+          {operator && (<>
           <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/system-health")} data-testid="dashboard-card-system-health">
             <CardHeader>
               <CardTitle className="text-emerald-600 dark:text-emerald-400">{t("dashboard.cardSystemHealthTitle")}</CardTitle>
@@ -1143,6 +1153,7 @@ export default function DashboardPage() {
               <p className="text-gray-600 dark:text-gray-300">{t("dashboard.cardBackupsDesc")}</p>
             </CardContent>
           </Card>
+          </>)}
           <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/audit")} data-testid="dashboard-card-audit">
             <CardHeader>
               <CardTitle className="text-purple-600 dark:text-purple-400">{t("dashboard.cardAuditTitle")}</CardTitle>

@@ -72,4 +72,8 @@ q "delete from \"UserCompany\" where \"userId\"='$U' and \"companyId\"='$OLDEST'
 q "update \"User\" set \"companyId\"='$C' where id='$U'" >/dev/null
 rm -f /tmp/t548.out
 
+note "=== Tier 598: the session says who is the operator ==="
+me() { as "$1" GET "/api/v1/auth/me" >/dev/null; python3 -c "import json;print(json.load(open('/tmp/t548.out')).get('operator'))"; }
+assert_eq "GET /auth/me for the new company's admin: operator false" "$(me new)" "False"
+assert_eq "…for the operator: true (the dashboard shows the cards for backups and scheduled jobs to him only)" "$(me op)" "True"
 summary

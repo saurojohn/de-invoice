@@ -1,4 +1,5 @@
 import { publicOrigin } from '../../common/public-origin'
+import { isSystemAdmin } from '../../auth/system-admin.guard';
 import { Controller, Post, Body, Get, HttpCode, HttpStatus, BadRequestException, Logger, Req, Res, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
@@ -289,6 +290,10 @@ export class AuthController {
 
     return {
       ...user,
+      // Tier 598: whether this session is the installation's operator — the
+      // pages for backups and scheduled jobs are his alone, and the dashboard
+      // offered them to every company.
+      operator: await isSystemAdmin(this.prisma, req.user),
       // Override the global User.role with the
       // per-company role so the UI can branch on it
       // (e.g. a global "admin" Berater is "berater"
