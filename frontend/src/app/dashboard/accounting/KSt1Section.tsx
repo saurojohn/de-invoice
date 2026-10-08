@@ -395,7 +395,7 @@ export function KSt1Section() {
 
               <div className="mt-2 text-xs text-gray-500" data-testid="kst1-counts">
                 {tRef.current("common.invoices")}: <b>{data.counts.invoices}</b> ·{" "}
-                {tRef.current("kst1.korrekturen").replace(/§ 8 KStG/, '')}: <b>{data.corrections.length}</b> ·{" "}
+                {tRef.current("kst1.korrekturen").replace(/\s*\([^)]*\)\s*$/, "")}: <b>{data.corrections.length}</b> ·{" "}
                 {tRef.current("kst1.generatedAt")}: {new Date(data.generatedAt).toLocaleString("de-DE")}
               </div>
             </>

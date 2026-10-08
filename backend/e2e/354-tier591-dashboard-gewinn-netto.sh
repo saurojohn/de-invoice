@@ -36,4 +36,9 @@ assert_eq "the profit is 1 100 − 400 = 700 (was 897: gross revenue less net ex
 assert_eq "…and the key set is unchanged" "$(py 'print(",".join(sorted(d["ytd"].keys())))')" "countExpenses,countInvoices,expenses,net,revenue,ust,vorsteuer"
 AS GET "/api/v1/reports/pnl?companyId=$C&year=$(date +%Y)"
 assert_eq "the P&L says the same" "$(py 'print("%.2f" % sum(m["operatingResult"] for m in d["months"]))')" "700.00"
+# Tier 607: figures to the cent — the P&L returned float differences (2642.8599999999997)
+AS POST "/api/v1/expenses?companyId=$C" '{"description":"Porto","invoiceNumber":"P-1","invoiceDate":"'$TODAY'","netAmount":57.14,"vatRate":0.19,"vatAmount":10.86,"grossAmount":68}'
+AS GET "/api/v1/reports/pnl?companyId=$C&year=$(date +%Y)"
+assert_eq "no amount in the P&L has more than two decimals" "$(py 'v=[x for m in d["months"] for k,x in m.items() if isinstance(x,float)]+[x for x in d["ytd"].values() if isinstance(x,float)];print(sum(1 for x in v if round(x,2)!=x), len(v)>0)')" "0 True"
+assert_eq "…and the result is 1 100 − 400 − 57,14" "$(py 'print("%.2f" % sum(m["operatingResult"] for m in d["months"]), d["ytd"]["operatingResult"])')" "642.86 642.86"
 summary

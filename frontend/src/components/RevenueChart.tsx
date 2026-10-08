@@ -117,8 +117,11 @@ export function RevenueChart({ data, height = 200, currency = "EUR" }: RevenueCh
             ? xCenter - barW - 0.5
             : xCenter - barW / 2
           const xExpense = xCenter + 0.5
-          const barHRev = (d.revenue / max) * chartHeight
-          const barHExp = (d.expenses / max) * chartHeight
+          // Tier 607: a month whose total is negative (a credit note on its
+          // own) gave a bar of negative height — an SVG error in the console.
+          // It gets no bar.
+          const barHRev = (Math.max(0, d.revenue) / max) * chartHeight
+          const barHExp = (Math.max(0, d.expenses) / max) * chartHeight
           const yRev = chartTop + chartHeight - barHRev
           const yExp = chartTop + chartHeight - barHExp
           const isEmpty = d.revenue === 0 && d.expenses === 0

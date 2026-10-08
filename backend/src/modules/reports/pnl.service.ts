@@ -208,7 +208,9 @@ export class PnlService {
       const mat = eur(cy?.mat);
       const totalExp = eur(cy?.exp) + cashOut(m.mStart, m.mEnd) - eur(cy?.afa);
       const otherExp = Math.max(0, totalExp - mat);
-      const operatingResult = revenue - mat - otherExp;
+      // Tier 607: to the cent — this was a float difference
+      // (2642.8599999999997) in the API's answer.
+      const operatingResult = Math.round((revenue - mat - otherExp) * 100) / 100;
       // Prior year
       const pRev = sumInvoices(pyInvoices, m.pStart, m.pEnd).revenue
       const pMat = eur(py?.mat);
@@ -236,7 +238,7 @@ export class PnlService {
 
     // YTD = sum of all 12 months.
     const sum = (key: keyof PnlMonth) =>
-      result.reduce((s, m) => s + (m[key] as number || 0), 0);
+      Math.round(result.reduce((s, m) => s + (m[key] as number || 0), 0) * 100) / 100;
     const ytd = {
       revenue: sum('revenue'),
       materialExpenses: sum('materialExpenses'),
