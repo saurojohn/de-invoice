@@ -384,6 +384,18 @@ export class InvoiceService {
     return warnings;
   }
 
+  /**
+   * Tier 585: a number that was taken for a document which then was not
+   * written. Never throws — the caller is already reporting the real error.
+   */
+  private async giveBackNumber(companyId: string, invoiceNumber: string): Promise<void> {
+    try {
+      await this.prisma.$transaction((tx) => releaseInvoiceNumber(tx, companyId, invoiceNumber))
+    } catch (e: any) {
+      console.warn(`[invoice] could not give back ${invoiceNumber}: ${e?.message ?? e}`)
+    }
+  }
+
   async create(companyId: string, dto: CreateInvoiceDto) {
     try {
     const type = (dto.type as InvoiceType) || 'INV';
@@ -419,19 +431,12 @@ export class InvoiceService {
     // and the Tier 172 jitter already broke the "no permanent
     // gap" guarantee in concurrent scenarios.
     //
-    // IMPORTANT: nextval() MUST be called inside the same
-    // transaction as the invoice .create() so that a
-    // failed create rolls back the sequence bump. GoBD
-    // requires "lückenlos aufsteigend Nummerierung" — if
-    // a sequence value is consumed by a failed create, the
-    // gap is unrecoverable and the auditor will flag it.
-    // We stash the resolved sequence into local scope and
-    // pass it into the transaction body below.
-    const provisionalSeq = await this.nextInvoiceNumber(companyId, type);
-    const invoiceNumber = provisionalSeq.invoiceNumber;
-    const sequencePrefix = provisionalSeq.sequencePrefix;
-    const sequenceYear = provisionalSeq.sequenceYear;
-    const sequenceNumber = provisionalSeq.sequenceNumber;
+    // Tier 585: the number itself is taken further down, after everything that
+    // can refuse the request. A sequence does not roll back (the note that
+    // stood here said a failed create would): taken at this point, every
+    // refused create — unknown customer, § 13b together with § 1a, a bad
+    // item — left a hole in the series. Measured: 000008, a refused create,
+    // then 000010.
 
     // For Credit Notes, copy customer info from reference invoice if not provided
     let customerId = dto.customerId;
@@ -634,6 +639,11 @@ export class InvoiceService {
     // single try/catch that re-throws with extra context
     // (no recovery needed — if we hit P2002 now, it's a
     // hard bug, not a race).
+    // Tier 585: the last step before the insert; should the insert fail, the
+    // number goes back (releaseInvoiceNumber steps back only if it is still
+    // the newest one handed out).
+    const { invoiceNumber, sequencePrefix, sequenceYear, sequenceNumber } =
+      await this.nextInvoiceNumber(companyId, type);
     let invoice: any = null
     try {
       invoice = await this.prisma.invoice.create({
@@ -771,6 +781,7 @@ export class InvoiceService {
       include: { items: true, customer: true, referenceInvoice: true },
     })
     } catch (e: any) {
+      await this.giveBackNumber(companyId, invoiceNumber)
       // Should not happen anymore — sequence allocation
       // is atomic — but if it does (e.g. an old invoice
       // row in the DB violates the unique index), throw
@@ -1958,6 +1969,10 @@ export class InvoiceService {
       // credit-balance ledger entry. The notes
       // annotation is purely informational.
       return { ...created, _gutschriftOverage: cnAmount - syntheticPayment }
+    }).catch(async (e) => {
+      // Tier 585: a credit note that was not written gives its number back.
+      await this.giveBackNumber(companyId, invoiceNumber)
+      throw e
     })
 
     // After the transaction: re-check the original's
