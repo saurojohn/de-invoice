@@ -567,11 +567,6 @@ export default function InvoiceDetailPage() {
 
   // Date-only compare (ignores time-of-day). Used to gate edit /
   // hard-delete on "invoice was created today".
-  const isSameDayDE = (a: Date, b: Date) =>
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-
   const paymentMethodLabel = (m: string) => {
     const labels: Record<string, string> = {
       bank_transfer: "Überweisung",
@@ -1640,8 +1635,14 @@ export default function InvoiceDetailPage() {
 
   // Same-day check: today == invoice.issueDate (date-only compare).
   // Both edit and hard-delete require it.
+  // Tier 640: the German calendar day, as the backend judges it — an issue
+  // date is stored as midnight UTC of that day. This compared the two in the
+  // browser's own time zone ("isSameDayDE"): right in Germany, wrong wherever
+  // the local date is another one — in a browser in China from 18:00 German
+  // time on, Edit and Delete were gone from today's draft; in a UTC browser
+  // (the CI run of 10.10.2026, 00:41) for the first two hours of the day.
   const isToday = invoice
-    ? isSameDayDE(new Date(invoice.issueDate), new Date())
+    ? String(invoice.issueDate).slice(0, 10) === todayIso()
     : false
 
   if (loading) return <div className="p-8 text-center">{t("invoicePage.loading1")}</div>

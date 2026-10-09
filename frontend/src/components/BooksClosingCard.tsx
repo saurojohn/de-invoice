@@ -8,6 +8,7 @@
  * and including that day the backend refuses every new, changed or deleted
  * document and voucher.
  */
+import { todayIso } from "@/lib/today"
 import { useCallback, useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -84,7 +85,7 @@ export function BooksClosingCard() {
               {t("booksClosing.dateLabel")}
             </label>
             <input id="books-closing-date" type="date" className={input} value={date} data-testid="books-closing-date"
-              max={new Date().toISOString().slice(0, 10)} onChange={(e) => setDate(e.target.value)} />
+              max={todayIso()} onChange={(e) => setDate(e.target.value)} />
           </div>
           {earlier && (
             <div className="flex-1 min-w-[12rem]">

@@ -4,6 +4,7 @@
 // PUT /expenses/:id (Tier 443) takes amounts positive; a credit note keeps its
 // sign on the server. A paid expense or an AfA row carries `lockReason` —
 // the form is not shown then, the reason is (it names the way out).
+import { todayIso } from "@/lib/today"
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { useI18n } from "@/components/useI18n"
@@ -29,7 +30,7 @@ export interface EditableExpense {
 
 /** Tier 605: what "new expense" starts from. */
 export const BLANK_EXPENSE: EditableExpense = {
-  id: "", invoiceNumber: "", description: "", invoiceDate: new Date().toISOString().slice(0, 10),
+  id: "", invoiceNumber: "", description: "", invoiceDate: todayIso(),
   netAmount: "", vatRate: "0.19", category: "", supplier: null,
 }
 type Treatment = "normal" | "rc" | "ige"

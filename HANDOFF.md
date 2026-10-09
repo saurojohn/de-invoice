@@ -2651,6 +2651,14 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 640 — "today" is the German calendar day, in whatever time zone the browser is
+
+CI run 37998673390 (Tiers 636b–637) was red in the Playwright job: 1 042 passed, 1 failed — `partial-conversion-tier615.spec.ts`, three times, waiting for the „Bearbeiten“ button of a draft written seconds before. Not the test: the invoice page offers Edit and Delete when the issue date and the present moment are the same day **in the browser's time zone** (`isSameDayDE`, which compared `getDate()` of both). The backend allows both on the German calendar day, and an issue date is stored as midnight UTC of that day. In Germany the two agree. In the CI browser (UTC) they disagree from 00:00 to 02:00 German time — the run reached the test at 00:41. In a browser in China (UTC+8) they disagree **every day from 18:00 German time on** (17:00 in winter): the buttons were gone from a draft written that afternoon, though the backend would have taken the edit.
+
+`isToday` is now the issue date's day against `todayIso()` (lib/today.ts, Tier 554 — the German day). Two more of the same kind, found by searching for them: the expense form proposed the UTC day as the invoice date (`new Date().toISOString().slice(0, 10)`), and the books-closing card's date field had the UTC day as its `max` (between midnight and 02:00 it refused today). The year pickers that start at `new Date().getFullYear()` are off for a few hours on New Year's night at most and were left.
+
+Playwright `today-in-germany-tier640.spec.ts` (fails on the code before, at any hour): a browser context in `Asia/Shanghai` with its clock at 21:30 UTC of the German day — half past five the next morning there — opens today's draft; Edit and Delete are there, and the edit form opens.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 639 — the bank statement is matched against what is open, and by the number the customer wrote
 
 §9 item 24, „what the three checks did not cover“: the bank import. A statement written by hand — seven open invoices of two customers, eight lines (CAMT.053) — imported, suggestions generated, compared with what a bookkeeper would do:
@@ -8944,6 +8952,8 @@ finding critical/high issues. Future agents must respect them:
 - **In a spec, `X=$(helper …)` runs the helper in a subshell (Tier 628).** Whatever it sets besides its output — `$STATUS`, `$BODY` — is gone; an assertion on `$STATUS` right after it tests an earlier call and passes for the wrong reason. Assert on a call made in the shell itself.
 
 - **A spec that moves a clock back must not then say "today" (Tier 636b).** Spec 371 sets a timer's start 95 minutes into the past and expected the entry on today's date; the entry is dated the day the timer started. Right for 22 hours and 25 minutes of the day — the CI run that began at 23:57 Berlin reached the spec at 00:15 and failed. Take the expected date from the same source as the code does (the start), and when a run fails only at night, try it at night: it reproduced locally at 00:20.
+
+- **A test that fails only at night may be telling the truth about the product (Tier 640).** The second red run of the same night looked like the first (a spec's own date arithmetic, Tier 636b) and was not: the page compared dates in the browser's time zone. Before fixing the test, ask who else lives in that condition — a UTC browser after midnight is a user abroad every evening. `page.clock.setFixedTime` and a context with `timezoneId` reproduce it at any hour.
 
 ## 11. What to do when you start
 
