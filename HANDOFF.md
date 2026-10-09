@@ -9,18 +9,20 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.27 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–608 are
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–613 are
   in `git log`; §8 records what each learned. Tiers 443–462 came from the
-  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 608.) **Deployment status, confirmed by the owner on 06.10.2026: not live — local development only.** The `infra/prod/` findings of Tiers 555–560 are pre-launch hardening, not incidents; nothing there needs to be checked on a server, and `scripts/baseline-migrations.sh` has no database to run on yet.
+  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 613.) **Deployment status, confirmed by the owner on 06.10.2026: not live — local development only.** The `infra/prod/` findings of Tiers 555–560 are pre-launch hardening, not incidents; nothing there needs to be checked on a server, and `scripts/baseline-migrations.sh` has no database to run on yet.
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 37858613338 / commit `80dc88d`, Tier 608):**
-  - Backend e2e: **362 passed / 0 failed / 1 skipped** of 363 specs — 100
-    two-digit + 263 three-digit (Tiers 589–608 added 353 the activity log's company filter,
+- **Test counts (last green CI, run 37911651587 / commit `794e361`, Tier 613):**
+  - Backend e2e: **366 passed / 0 failed / 1 skipped** of 367 specs — 100
+    two-digit + 267 three-digit (Tiers 609–613 added 364 closing the books, 365 quotes and
+    delivery notes, 366 time tracking, 367 a quote is not booked;
+    Tiers 589–608 added 353 the activity log's company filter,
     354 the dashboard's net profit, 355 foreign ids in a request body, 356 a not-found is no
     error event, 357 DISABLE_CRON for every job, 358 the Leitweg-ID, 359 a recurring run gives
     its number back, 360 the Impressum, 361 a supplier invoice by hand, 362 strict booleans,
@@ -200,7 +202,7 @@ exact commands + docs you need to be productive.
     and survives concurrent writes (Tier 367); spec 171 (new in Tier 368) asserts
     the auth audit rows exist at all and are signed — nothing had ever asserted
     on them, which is how a failed login for an unknown e-mail went unaudited.
-  - Playwright: **1023 passed / 0 failed / 0 skipped / 0 flaky** (Tier 583
+  - Playwright: **1026 passed / 0 failed / 0 skipped / 0 flaky** (Tier 583
     added `pdf-signature-verify-tier583.spec.ts`; Tier 582
     added `ustva-expense-rates-tier582.spec.ts`; Tier 581
     added `expense-tax-lines-tier581.spec.ts`; Tier 577
@@ -351,7 +353,7 @@ Operational scripts:
   three-digit; `dryrun-tier247-validate.sh` is manual). Seed driver
   `backend/e2e/ci-seed.sh` = 640 lines. `run-all.sh` has a per-spec
   `SPEC_TIMEOUT` watchdog and a `QUARANTINE` list (empty) — see §8, Tier 361.
-- **Playwright:** 212 spec files in `frontend/e2e/`;
+- **Playwright:** 215 spec files in `frontend/e2e/`;
   config `frontend/playwright.config.ts` = 129 lines.
   **No root-level `playwright.config.ts`** — only the frontend copy.
 - All bash scripts use `set -uo pipefail`. 46 historical scripts
