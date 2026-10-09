@@ -55,4 +55,21 @@ assert_eq "…the key is there, for new rows (not validated)" "$(PSQL -c "select
 assert_eq "…a new row without its user is refused" "$(PSQL -c "INSERT INTO \"UserSession\" (id, \"userId\", token, \"expiresAt\") VALUES ('orphan-571b', 'nobody', 'tok-571b', now())" 2>&1 | grep -c 'violates foreign key')" "1"
 assert_eq "…the old row was left alone" "$(PSQL -c "select count(*) from \"UserSession\" where id='orphan-571'")" "1"
 assert_eq "…and every other key is validated" "$(PSQL -c "select count(*) from pg_constraint where contype='f' and not convalidated")" "1"
+
+note "=== Tier 635: a table that is filtered by company has an index that leads with it ==="
+MISSING=$(python3 - "$SCRIPT_DIR/../prisma/schema.prisma" <<'PY'
+import re, sys
+schema = open(sys.argv[1], encoding="utf-8").read()
+out = []
+for m in re.finditer(r"^model (\w+) \{(.*?)^\}", schema, re.S | re.M):
+    name, body = m.group(1), m.group(2)
+    if not re.search(r"^\s+companyId\s+String", body, re.M): continue
+    lead = re.findall(r"@@(?:index|unique|id)\(\[\s*(\w+)", body)
+    alone = re.search(r"^\s+companyId\s+String\??\s+.*@(unique|id)\b", body, re.M)
+    if "companyId" not in lead and not alone: out.append(name)
+print(" ".join(out) or "-")
+PY
+)
+assert_eq "every model with a companyId has one (was: User, CustomerPortalSession, VatRate, VatRateHistory, WebhookDelivery without)" "$MISSING" "-"
+
 summary

@@ -269,6 +269,8 @@ model User {
   createdBeraterNotes       BeraterNote[]               @relation("BeraterNoteCreatedBy")
   acknowledgedBeraterNotes  BeraterNote[]               @relation("BeraterNoteAcknowledgedBy")
   dismissedBeraterNotes     BeraterNote[]               @relation("BeraterNoteDismissedBy")
+
+  @@index([companyId]) // Tier 635: the members whose default company this is
 }
 
 /// Tier 66: Multi-Mandanten-Berater (many-to-many).
@@ -1223,6 +1225,7 @@ model CustomerPortalSession {
   createdFromIp String?
   createdAt     DateTime  @default(now())
 
+  @@index([companyId]) // Tier 635
   @@index([customerId])
   @@index([expiresAt])
 }
@@ -1345,6 +1348,7 @@ model VatRate {
 
   history VatRateHistory[]
 
+  @@index([companyId]) // Tier 635
   @@index([countryCode, effectiveFrom])
 }
 
@@ -1364,6 +1368,7 @@ model VatRateHistory {
   changedAt     DateTime  @default(now())
   changeReason  String?
 
+  @@index([companyId, changedAt]) // Tier 635
   @@index([vatRateId])
 }
 
@@ -1588,6 +1593,7 @@ model WebhookDelivery {
   attemptedAt  DateTime  @default(now())
   nextRetryAt  DateTime? // set when status='failed' and a retry is scheduled
 
+  @@index([companyId, attemptedAt]) // Tier 635: the company's delivery log
   @@index([webhookId, attemptedAt])
   @@index([eventType, eventId]) // dedupe
   @@index([status, nextRetryAt]) // for the retry worker
